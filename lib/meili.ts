@@ -32,10 +32,14 @@ export async function ensureProductsIndex(meili: Meilisearch) {
 }
 
 export async function indexProductDocument(product: IndexableProduct) {
+  await indexProductDocuments([product])
+}
+
+export async function indexProductDocuments(products: IndexableProduct[]) {
   const meili = getMeiliSearch()
-  if (!meili) return
+  if (!meili || products.length === 0) return
   await ensureProductsIndex(meili)
-  await meili.index(PRODUCTS_INDEX).addDocuments([product], { primaryKey: "id" })
+  await meili.index(PRODUCTS_INDEX).addDocuments(products, { primaryKey: "id" })
 }
 
 export async function deleteProductDocument(productId: string) {
