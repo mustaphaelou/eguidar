@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/db"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { priceBucketIdFor } from "@/lib/price-buckets"
+import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 
 export interface ProductVariantInput {
   id?: string
@@ -33,6 +35,7 @@ export interface IndexableProduct {
   description: string
   brand: string
   price: number
+  minPrice: number
   totalStock: number
   images: string[]
   categoryId: string
@@ -40,6 +43,7 @@ export interface IndexableProduct {
   categoryName: string
   isFeatured: boolean
   freeShipping: boolean
+  priceBucket: string
   updatedAt: number
 }
 
@@ -173,9 +177,10 @@ export function toIndexableProduct(product: {
   isFeatured: boolean
   freeShipping: boolean
   updatedAt: Date
-  variants: { stock: number }[]
+  variants: { priceDelta: number; stock: number }[]
   category: { id: string; slug: string; name: string }
 }): IndexableProduct {
+  const minPrice = minVariantPrice(product.price, product.variants)
   return {
     id: product.id,
     name: product.name,
@@ -183,13 +188,15 @@ export function toIndexableProduct(product: {
     description: product.description,
     brand: product.brand,
     price: product.price,
-    totalStock: product.variants.reduce((sum, variant) => sum + variant.stock, 0),
+    minPrice,
+    totalStock: totalVariantStock(product.variants),
     images: Array.isArray(product.images) ? product.images.filter((i): i is string => typeof i === "string") : [],
     categoryId: product.category.id,
     categorySlug: product.category.slug,
     categoryName: product.category.name,
     isFeatured: product.isFeatured,
     freeShipping: product.freeShipping,
+    priceBucket: priceBucketIdFor(minPrice),
     updatedAt: product.updatedAt.getTime(),
   }
 }

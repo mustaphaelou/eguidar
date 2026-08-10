@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache"
 
 import { prisma } from "@/lib/db"
+import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { HOME_TAG, PRODUCT_TAG, productDetailTag } from "@/lib/use-cases/catalog-effects"
 import { CATEGORY_TAG } from "@/lib/use-cases/structure-effects"
 
@@ -107,11 +108,8 @@ function toProductCard(product: {
   variants: VariantSummary[]
 }): ProductCard {
   const images = Array.isArray(product.images) ? (product.images as string[]) : []
-  const minPrice = product.variants.reduce(
-    (min, variant) => Math.min(min, product.price + variant.priceDelta),
-    product.price
-  )
-  const totalStock = product.variants.reduce((sum, variant) => sum + variant.stock, 0)
+  const minPrice = minVariantPrice(product.price, product.variants)
+  const totalStock = totalVariantStock(product.variants)
   return {
     id: product.id,
     name: product.name,

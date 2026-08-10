@@ -21,6 +21,7 @@ function makeDoc(id: string): IndexableProduct {
     description: "Description de test",
     brand: "Marque Meili",
     price: 50000,
+    minPrice: 50000,
     totalStock: 12,
     images: [],
     categoryId: "cat-1",
@@ -28,6 +29,7 @@ function makeDoc(id: string): IndexableProduct {
     categoryName: "Catégorie Meili",
     isFeatured: true,
     freeShipping: false,
+    priceBucket: "0-1000",
     updatedAt: Date.now(),
   }
 }

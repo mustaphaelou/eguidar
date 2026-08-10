@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto"
 import { hashPassword } from "better-auth/crypto"
 
 import { prisma } from "../lib/db"
+import { indexProductDocuments } from "../lib/meili"
+import { toIndexableProduct } from "../lib/use-cases/admin-catalog"
 
 const adminEmail = process.env.ADMIN_EMAIL ?? "admin@eguidar.ma"
 const adminPassword = process.env.ADMIN_PASSWORD ?? "admin-password-change-me"
@@ -263,6 +265,14 @@ async function main() {
       },
     })
   }
+
+  await indexProductDocuments(
+    (
+      await prisma.product.findMany({
+        include: { variants: true, category: true },
+      })
+    ).map(toIndexableProduct)
+  )
 
   console.log("Seed terminé : villes, catégories, produits, variantes et compte admin créés.")
 }
