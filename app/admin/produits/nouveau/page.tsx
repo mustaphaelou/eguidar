@@ -1,0 +1,14 @@
+import { ProductForm } from "@/components/admin/product-form"
+import { listAdminCategories } from "@/lib/use-cases/admin-catalog"
+import { createProductAction } from "@/app/admin/produits/actions"
+
+export default async function NewProductPage() {
+  const categories = await listAdminCategories()
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h1 className="text-2xl font-semibold">Nouveau produit</h1>
+      <ProductForm categories={categories} action={createProductAction} />
+    </div>
+  )
+}
