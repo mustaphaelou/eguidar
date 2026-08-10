@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -12,17 +12,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { addToCartAction } from "@/app/(boutique)/actions"
 import { formatPrice } from "@/lib/money"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
 export function VariantPicker({
   basePrice,
   variants,
+  productPath,
 }: {
   basePrice: number
   variants: ProductVariantDto[]
+  productPath: string
 }) {
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
+  const [added, setAdded] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const selected = variants.find((variant) => variant.id === variantId)
 
   if (variants.length === 0) {
@@ -40,6 +45,15 @@ export function VariantPicker({
   const price = formatPrice(basePrice + (selected?.priceDelta ?? 0))
   const stock = selected?.stock ?? 0
   const outOfStock = stock === 0
+
+  function handleAddToCart() {
+    if (!selected || outOfStock) return
+    setAdded(false)
+    startTransition(async () => {
+      const ok = await addToCartAction(selected.id, 1, productPath)
+      if (ok) setAdded(true)
+    })
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -70,9 +84,16 @@ export function VariantPicker({
           </span>
         )}
       </p>
-      <Button disabled={outOfStock} className="w-full sm:w-auto">
-        Ajouter au panier
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleAddToCart}
+          disabled={outOfStock || isPending}
+          className="w-full sm:w-auto"
+        >
+          {isPending ? "Ajout…" : "Ajouter au panier"}
+        </Button>
+        {added && <span className="text-sm text-emerald-600">Ajouté au panier</span>}
+      </div>
     </div>
   )
 }

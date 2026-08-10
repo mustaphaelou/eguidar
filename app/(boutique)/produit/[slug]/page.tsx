@@ -97,7 +97,7 @@ async function ProductContent({
             ) : null}
           </div>
 
-          <VariantPicker basePrice={data.price} variants={data.variants} />
+          <VariantPicker basePrice={data.price} variants={data.variants} productPath={`/produit/${data.slug}`} />
 
           <p className="text-xs text-muted-foreground">
             Prix affichés en MAD, TVA 20% incluse. Paiement à la livraison partout au Maroc.

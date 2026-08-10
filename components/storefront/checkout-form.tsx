@@ -1,0 +1,149 @@
+"use client"
+
+import { useActionState, useState } from "react"
+
+import { Cash01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+
+import { placeOrderAction, type CheckoutFormState } from "@/app/(boutique)/checkout/actions"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { formatPrice, formatShippingFee } from "@/lib/money"
+import type { DeliveryCityOption, ShippingQuote } from "@/lib/use-cases/cart"
+
+export interface CheckoutFormProps {
+  cities: DeliveryCityOption[]
+  quotes: Record<string, ShippingQuote>
+  initialCityId: string | null
+  initialAddress: string
+  initialPhone: string
+  subtotal: number
+}
+
+const initialState: CheckoutFormState = { error: undefined }
+
+export function CheckoutForm({
+  cities,
+  quotes,
+  initialCityId,
+  initialAddress,
+  initialPhone,
+  subtotal,
+}: CheckoutFormProps) {
+  const [state, formAction, isPending] = useActionState(placeOrderAction, initialState)
+  const [selectedCityId, setSelectedCityId] = useState(initialCityId ?? "")
+  const quote = selectedCityId ? quotes[selectedCityId] : undefined
+  const shippingFee = quote ? quote.shippingFee : null
+
+  return (
+    <form action={formAction} className="flex flex-col gap-5">
+      {state.error ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {state.error}
+        </p>
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="checkout-city">Ville de livraison</Label>
+        <Select
+          name="cityId"
+          value={selectedCityId}
+          onValueChange={(cityId) => setSelectedCityId(cityId ?? "")}
+          required
+        >
+          <SelectTrigger id="checkout-city" className="w-full">
+            <SelectValue placeholder="Choisir une ville" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {cities.map((city) => (
+                <SelectItem key={city.id} value={city.id}>
+                  {city.name} — {formatShippingFee(city.fee)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="checkout-address">Adresse complète</Label>
+        <Input
+          id="checkout-address"
+          name="address"
+          type="text"
+          defaultValue={initialAddress}
+          placeholder="N°, rue, quartier, immeuble…"
+          required
+          minLength={5}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="checkout-phone">Téléphone</Label>
+        <Input
+          id="checkout-phone"
+          name="phone"
+          type="tel"
+          inputMode="tel"
+          defaultValue={initialPhone}
+          placeholder="+212 6 00 00 00 00"
+          required
+          minLength={8}
+        />
+      </div>
+
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <HugeiconsIcon icon={Cash01Icon} strokeWidth={2} className="size-4" />
+          Paiement à la livraison
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Réglez en espèces au livreur lors de la réception de votre colis. C&apos;est le seul mode
+          de paiement disponible.
+        </p>
+      </div>
+
+      <dl className="flex flex-col gap-2 border-t pt-4 text-sm">
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Sous-total (TVA incluse)</dt>
+          <dd className="font-semibold">{formatPrice(subtotal)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Livraison</dt>
+          <dd className="font-semibold">
+            {shippingFee === null ? (
+              <span className="text-muted-foreground">À choisir</span>
+            ) : shippingFee === 0 ? (
+              <span className="text-emerald-600 dark:text-emerald-400">Livraison offerte</span>
+            ) : (
+              formatPrice(shippingFee)
+            )}
+          </dd>
+        </div>
+        {shippingFee !== null && (
+          <div className="flex justify-between border-t pt-2 text-base">
+            <dt className="font-bold">Total à payer à la livraison</dt>
+            <dd className="font-bold">{formatPrice(subtotal + shippingFee)}</dd>
+          </div>
+        )}
+      </dl>
+
+      <Button type="submit" disabled={isPending} className="w-full">
+        {isPending ? "Commande en cours…" : "Confirmer la commande"}
+      </Button>
+    </form>
+  )
+}
