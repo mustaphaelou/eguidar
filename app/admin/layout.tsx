@@ -1,9 +1,18 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { Suspense } from "react"
 
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="min-h-svh" />}>
+      <AdminShell>{children}</AdminShell>
+    </Suspense>
+  )
+}
+
+async function AdminShell({ children }: { children: React.ReactNode }) {
   const session = await getAdminSession()
   if (!session) redirect("/connexion?next=/admin")
 
