@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Better Auth (core tables, generated from the auth config's schema) ---
+
+model user {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  phone         String?
+  shippingAddress String?
+  shippingCityId String?
+  role          String    @default("user")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  shippingCity DeliveryCity?   @relation(fields: [shippingCityId], references: [id])
+  accounts     account[]
+  sessions     session[]
+  cartItems    CartItem[]
+  orders       Order[]
+}
+
+model session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model account {
+  id                   String    @id
+  accountId            String
+  providerId           String
+  userId               String
+  accessToken          String?
+  refreshToken         String?
+  idToken              String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                String?
+  password             String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// --- Commerce ---
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  image     String?
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Product {
+  id            String           @id @default(cuid())
+  name          String
+  slug          String           @unique
+  description   String
+  brand         String
+  specs         Json
+  price         Int
+  images        Json
+  isFeatured    Boolean          @default(false)
+  featuredOrder Int              @default(0)
+  freeShipping  Boolean          @default(false)
+  categoryId    String
+  category      Category         @relation(fields: [categoryId], references: [id])
+  variants      ProductVariant[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([isFeatured, featuredOrder])
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  name       String
+  sku        String   @unique
+  priceDelta Int      @default(0)
+  stock      Int      @default(0)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  userId    String
+  user      user           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int            @default(1)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([userId, variantId])
+  @@index([userId])
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  shipped
+  delivered
+  cancelled
+  returned
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  userId      String
+  user        user        @relation(fields: [userId], references: [id])
+  cityName    String
+  address     String
+  phone       String
+  total       Int
+  shippingFee Int
+  status      OrderStatus @default(pending)
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id          String        @id @default(cuid())
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId   String?
+  productName String
+  variantName String
+  price       Int
+  quantity    Int
+  createdAt   DateTime      @default(now())
+
+  @@index([orderId])
+}
+
+model DeliveryCity {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  fee       Int
+  users     user[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShippingSettings {
+  id                    String @id @default("default")
+  freeShippingThreshold Int
+  updatedAt             DateTime @updatedAt
+}
