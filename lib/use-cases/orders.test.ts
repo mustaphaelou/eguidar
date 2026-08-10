@@ -475,6 +475,24 @@ describe("order status transitions", () => {
     expect(effects.sendOrderStatusEmail).toHaveBeenCalledTimes(1)
   })
 
+  it("restocks exactly once when two cancels race", async () => {
+    const orderId = await placeSmallOrder(userIdA)
+
+    const [first, second] = await Promise.allSettled([
+      updateOrderStatus(orderId, "cancelled", makeEffects()),
+      updateOrderStatus(orderId, "cancelled", makeEffects()),
+    ])
+
+    expect([first.status, second.status].sort()).toEqual(["fulfilled", "rejected"])
+    if (first.status === "rejected") expect(first.reason).toBeInstanceOf(InvalidOrderTransitionError)
+    if (second.status === "rejected") {
+      expect(second.reason).toBeInstanceOf(InvalidOrderTransitionError)
+    }
+    expect(
+      (await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })).stock
+    ).toBe(2)
+  })
+
   it("rejects an unknown order", async () => {
     await expect(
       updateOrderStatus("commande-inconnue", "confirmed", makeEffects())

@@ -308,6 +308,14 @@ export async function updateOrderStatus(
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
+    const claimed = await tx.order.updateMany({
+      where: { id: orderId, status: fresh.status },
+      data: { status: nextStatus },
+    })
+    if (claimed.count === 0) {
+      throw new InvalidOrderTransitionError(fresh.status, nextStatus)
+    }
+
     if (nextStatus === "cancelled" || nextStatus === "returned") {
       for (const item of fresh.items) {
         if (!item.variantId) continue
@@ -318,9 +326,8 @@ export async function updateOrderStatus(
       }
     }
 
-    return tx.order.update({
+    return tx.order.findUniqueOrThrow({
       where: { id: orderId },
-      data: { status: nextStatus },
       include: { items: true },
     })
   })

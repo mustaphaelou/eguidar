@@ -115,14 +115,17 @@ export default async function AdminDashboardPage() {
               <ul className="flex flex-col divide-y">
                 {stats.recentOrders.map((order) => (
                   <li key={order.id} className="flex items-center justify-between gap-4 py-2">
-                    <div className="flex min-w-0 flex-col">
+                    <Link
+                      href={`/admin/commandes/${order.id}`}
+                      className="flex min-w-0 flex-col hover:underline"
+                    >
                       <span className="truncate font-medium">
                         {order.id.slice(0, 8)} — {order.itemCount} article{order.itemCount > 1 ? "s" : ""}
                       </span>
                       <span className="text-sm text-muted-foreground">
                         {new Date(order.createdAt).toLocaleDateString("fr-FR")}
                       </span>
-                    </div>
+                    </Link>
                     <span className="text-sm text-muted-foreground">{formatPrice(order.total)}</span>
                   </li>
                 ))}
