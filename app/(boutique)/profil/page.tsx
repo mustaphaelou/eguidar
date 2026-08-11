@@ -6,7 +6,7 @@ import { Suspense } from "react"
 import { ProfileForm } from "@/components/storefront/profile-form"
 import { Button } from "@/components/ui/button"
 import { getProfile } from "@/lib/use-cases/account"
-import { listDeliveryCities } from "@/lib/use-cases/cart"
+import { listDeliveryCities } from "@/lib/use-cases/livraison"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
 export const metadata: Metadata = {

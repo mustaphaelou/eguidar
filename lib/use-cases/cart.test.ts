@@ -8,25 +8,19 @@ import {
   CartItemNotFoundError,
   CartValidationError,
   CartVariantNotFoundError,
-  computeShippingFee,
   getCart,
-  getCartShippingQuote,
-  listDeliveryCities,
   removeCartItem,
   updateCartItemQuantity,
 } from "@/lib/use-cases/cart"
 
 const runId = randomUUID().slice(0, 8)
 const email = (suffix: string) => `cart-${runId}-${suffix}@test.ma`
-const cityName = `Ville ${runId}`
 
 let userIdA: string
 let userIdB: string
 let variantA: string
 let variantB: string
 let variantC: string
-let variantD: string
-let cityId: string
 
 async function createUser(suffix: string): Promise<string> {
   const user = await prisma.user.create({
@@ -42,7 +36,7 @@ beforeAll(async () => {
   const category = await prisma.category.create({
     data: { name: `Catégorie ${runId}`, slug: `cart-cat-${runId}` },
   })
-  const [productA, productB, productC] = await Promise.all([
+  const [productA, productB] = await Promise.all([
     prisma.product.create({
       data: {
         name: "Produit Cart A",
@@ -80,31 +74,10 @@ beforeAll(async () => {
       },
       include: { variants: true },
     }),
-    prisma.product.create({
-      data: {
-        name: "Produit Cart C",
-        slug: `cart-prod-c-${runId}`,
-        description: "Description C",
-        brand: "Marque Cart",
-        categoryId: category.id,
-        price: 30000,
-        specs: {},
-        images: ["https://example.com/c.jpg"],
-        freeShipping: false,
-        variants: {
-          create: [{ name: "Standard", sku: `CART-${runId}-C1`, priceDelta: 0, stock: 5 }],
-        },
-      },
-      include: { variants: true },
-    }),
   ])
   variantA = productA.variants.find((v) => v.name === "Standard")!.id
   variantB = productA.variants.find((v) => v.name === "Premium")!.id
   variantC = productB.variants[0].id
-  variantD = productC.variants[0].id
-
-  const city = await prisma.deliveryCity.create({ data: { name: cityName, fee: 3500 } })
-  cityId = city.id
 })
 
 beforeEach(async () => {
@@ -120,34 +93,7 @@ afterAll(async () => {
   await prisma.user.deleteMany({ where: { email: { startsWith: `cart-${runId}-` } } })
   await prisma.product.deleteMany({ where: { slug: { endsWith: `-${runId}` } } })
   await prisma.category.deleteMany({ where: { slug: `cart-cat-${runId}` } })
-  await prisma.deliveryCity.deleteMany({ where: { name: { in: [cityName, `Zzz ${runId}`] } } })
   await prisma.$disconnect()
-})
-
-describe("shipping fee rule", () => {
-  it("charges the city fee below the threshold when nothing is free-shipping", () => {
-    expect(computeShippingFee({ subtotal: 50000, cityFee: 3500, freeShippingThreshold: 100000, anyFreeShippingItem: false })).toBe(3500)
-  })
-
-  it("is free exactly at the threshold", () => {
-    expect(computeShippingFee({ subtotal: 100000, cityFee: 3500, freeShippingThreshold: 100000, anyFreeShippingItem: false })).toBe(0)
-  })
-
-  it("is free above the threshold", () => {
-    expect(computeShippingFee({ subtotal: 150000, cityFee: 3500, freeShippingThreshold: 100000, anyFreeShippingItem: false })).toBe(0)
-  })
-
-  it("is free below the threshold when every item is free-shipping flagged", () => {
-    expect(computeShippingFee({ subtotal: 50000, cityFee: 3500, freeShippingThreshold: 100000, anyFreeShippingItem: true })).toBe(0)
-  })
-
-  it("is free below the threshold when at least one item is free-shipping flagged", () => {
-    expect(computeShippingFee({ subtotal: 80000, cityFee: 3500, freeShippingThreshold: 100000, anyFreeShippingItem: true })).toBe(0)
-  })
-
-  it("is free for a zero subtotal (no city fee on an empty cart)", () => {
-    expect(computeShippingFee({ subtotal: 0, cityFee: 3500, freeShippingThreshold: 100000, anyFreeShippingItem: true })).toBe(0)
-  })
 })
 
 describe("cart mutations", () => {
@@ -243,46 +189,5 @@ describe("cart reads", () => {
   it("returns an empty cart with zero totals", async () => {
     const cart = await getCart(userIdB)
     expect(cart).toEqual({ lines: [], subtotal: 0, itemCount: 0 })
-  })
-
-  it("quotes the shipping fee for a chosen city below the threshold", async () => {
-    await addToCart(userIdA, variantD, 1)
-    const quote = await getCartShippingQuote(userIdA, cityId)
-    expect(quote).toEqual({ subtotal: 30000, shippingFee: 3500, total: 33500 })
-  })
-
-  it("quotes free shipping for an all-free-shipping cart below the threshold", async () => {
-    await addToCart(userIdA, variantC, 1)
-    const quote = await getCartShippingQuote(userIdA, cityId)
-    expect(quote).toEqual({ subtotal: 50000, shippingFee: 0, total: 50000 })
-  })
-
-  it("quotes free shipping for a mixed cart with one free-shipping item below the threshold", async () => {
-    await addToCart(userIdA, variantC, 1)
-    await addToCart(userIdA, variantD, 1)
-    const quote = await getCartShippingQuote(userIdA, cityId)
-    expect(quote).toEqual({ subtotal: 80000, shippingFee: 0, total: 80000 })
-  })
-
-  it("quotes free shipping for a cart above the threshold", async () => {
-    await addToCart(userIdA, variantA, 20)
-    const quote = await getCartShippingQuote(userIdA, cityId)
-    expect(quote).toEqual({ subtotal: 2000000, shippingFee: 0, total: 2000000 })
-  })
-
-  it("returns null for an unknown delivery city", async () => {
-    await addToCart(userIdA, variantA, 1)
-    await expect(getCartShippingQuote(userIdA, "ville-inconnue")).resolves.toBeNull()
-  })
-
-  it("lists delivery cities ordered by name", async () => {
-    const laterCity = await prisma.deliveryCity.create({ data: { name: `Zzz ${runId}`, fee: 2500 } })
-    const cities = await listDeliveryCities()
-    expect(cities.length).toBeGreaterThan(0)
-    const relevant = cities.filter(
-      (city) => city.name === cityName || city.name === laterCity.name,
-    )
-    expect(relevant.map((city) => city.name)).toEqual([cityName, laterCity.name])
-    expect(cities.some((city) => city.id === cityId && city.fee === 3500)).toBe(true)
   })
 })

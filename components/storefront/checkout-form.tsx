@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatPrice, formatShippingFee } from "@/lib/money"
-import type { DeliveryCityOption, ShippingQuote } from "@/lib/use-cases/cart"
+import type { DeliveryCityOption, ShippingQuote } from "@/lib/use-cases/livraison"
 
 export interface CheckoutFormProps {
   cities: DeliveryCityOption[]

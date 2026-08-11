@@ -4,7 +4,12 @@ import { Suspense } from "react"
 
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { getProfile } from "@/lib/use-cases/account"
-import { getCart, getCartShippingQuotes, listDeliveryCities } from "@/lib/use-cases/cart"
+import { getCart } from "@/lib/use-cases/cart"
+import {
+  computeCityQuotes,
+  getFreeShippingThreshold,
+  listDeliveryCities,
+} from "@/lib/use-cases/livraison"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
 
@@ -35,14 +40,23 @@ async function CheckoutContent({
   if (!user) redirect("/connexion?next=/checkout")
 
   const { ville } = await searchParams
-  const [cart, cities, profile, quotes] = await Promise.all([
+  const [cart, cities, profile, freeShippingThreshold] = await Promise.all([
     getCart(user.id),
     listDeliveryCities(),
     getProfile(user.id),
-    getCartShippingQuotes(user.id),
+    getFreeShippingThreshold(),
   ])
 
   if (cart.lines.length === 0) redirect("/panier")
+
+  const quotes = computeCityQuotes(
+    cities,
+    {
+      subtotal: cart.subtotal,
+      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
+    },
+    freeShippingThreshold
+  )
 
   const requestedCityId = ville ?? profile.cityId
   const initialCityId = requestedCityId && quotes[requestedCityId] ? requestedCityId : null

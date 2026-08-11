@@ -9,7 +9,12 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { CartLineRow } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
-import { getCart, getCartShippingQuote, getFreeShippingThreshold, listDeliveryCities } from "@/lib/use-cases/cart"
+import { getCart } from "@/lib/use-cases/cart"
+import {
+  computeCityQuote,
+  getFreeShippingThreshold,
+  listDeliveryCities,
+} from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
@@ -40,10 +45,23 @@ async function CartContent({
   if (!user) redirect("/connexion?next=/panier")
 
   const { ville } = await searchParams
-  const cart = await getCart(user.id)
-  const cities = await listDeliveryCities()
-  const freeShippingThreshold = await getFreeShippingThreshold()
-  const quote = ville ? await getCartShippingQuote(user.id, ville) : null
+  const [cart, cities, freeShippingThreshold] = await Promise.all([
+    getCart(user.id),
+    listDeliveryCities(),
+    getFreeShippingThreshold(),
+  ])
+
+  const selectedCity = ville ? cities.find((city) => city.id === ville) : undefined
+  const quote = selectedCity
+    ? computeCityQuote(
+        selectedCity,
+        {
+          subtotal: cart.subtotal,
+          anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
+        },
+        freeShippingThreshold
+      )
+    : null
 
   if (cart.lines.length === 0) {
     return (
