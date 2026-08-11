@@ -62,7 +62,7 @@ export function Turnstile({
       callback: (token) => onTokenChangeRef.current(token),
       "expired-callback": () => onTokenChangeRef.current(null),
       "error-callback": () => onTokenChangeRef.current(null),
-      theme: "auto",
+      theme: "light",
     })
     return () => {
       if (widgetIdRef.current && window.turnstile) {

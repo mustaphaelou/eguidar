@@ -31,12 +31,12 @@ async function HomeContent() {
     <div className="flex flex-col gap-10">
       <section className="rounded-2xl bg-gradient-to-br from-primary to-primary/70 px-6 py-10 text-primary-foreground sm:px-10">
         <div className="max-w-xl">
-          <h1 className="text-3xl font-bold sm:text-4xl">
+          <h1 className="text-[32px] leading-[1.0714] font-semibold tracking-[-0.005em] sm:text-[48px]">
             L&apos;électronique au meilleur prix, au Maroc
           </h1>
           <p className="mt-3 text-primary-foreground/80">
-            Smartphones, ordinateurs, TV, gaming et accessoires. Prix en MAD, TVA 20% incluse,
-            paiement à la livraison.
+            Smartphones, ordinateurs, TV, gaming et accessoires. Prix en MAD,
+            TVA 20% incluse, paiement à la livraison.
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             {data.categories.slice(0, 4).map((category) => (
@@ -55,7 +55,9 @@ async function HomeContent() {
       {data.categories.length > 0 ? (
         <section>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Parcourir par catégorie</h2>
+            <h2 className="text-[24px] font-semibold tracking-[0.002em] sm:text-[28px]">
+              Parcourir par catégorie
+            </h2>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {data.categories.map((category) => (
@@ -79,9 +81,12 @@ async function HomeContent() {
                     </div>
                   )}
                 </div>
-                <p className="line-clamp-2 text-sm font-medium">{category.name}</p>
+                <p className="line-clamp-2 text-sm font-medium">
+                  {category.name}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {category.productCount} produit{category.productCount > 1 ? "s" : ""}
+                  {category.productCount} produit
+                  {category.productCount > 1 ? "s" : ""}
                 </p>
               </Link>
             ))}
@@ -91,7 +96,9 @@ async function HomeContent() {
 
       <section>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold">Nos coups de cœur</h2>
+          <h2 className="text-[24px] font-semibold tracking-[0.002em] sm:text-[28px]">
+            Nos coups de cœur
+          </h2>
         </div>
         {data.featured.length > 0 ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">

@@ -14,11 +14,11 @@ export async function SignInStatus() {
     <Button
       render={<Link href={session ? "/profil" : "/connexion"} />}
       variant="ghost"
-      size="lg"
-      className="gap-1.5"
+      size="icon"
+      aria-label={session ? "Mon profil" : "Connexion"}
+      title={session ? session.user.name : "Connexion"}
     >
       <HugeiconsIcon icon={UserIcon} strokeWidth={2} />
-      <span className="max-w-28 truncate">{session ? session.user.name : "Connexion"}</span>
     </Button>
   )
 }
