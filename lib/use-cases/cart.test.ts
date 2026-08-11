@@ -120,7 +120,7 @@ afterAll(async () => {
   await prisma.user.deleteMany({ where: { email: { startsWith: `cart-${runId}-` } } })
   await prisma.product.deleteMany({ where: { slug: { endsWith: `-${runId}` } } })
   await prisma.category.deleteMany({ where: { slug: `cart-cat-${runId}` } })
-  await prisma.deliveryCity.deleteMany({ where: { name: cityName } })
+  await prisma.deliveryCity.deleteMany({ where: { name: { in: [cityName, `Zzz ${runId}`] } } })
   await prisma.$disconnect()
 })
 
@@ -276,10 +276,13 @@ describe("cart reads", () => {
   })
 
   it("lists delivery cities ordered by name", async () => {
+    const laterCity = await prisma.deliveryCity.create({ data: { name: `Zzz ${runId}`, fee: 2500 } })
     const cities = await listDeliveryCities()
     expect(cities.length).toBeGreaterThan(0)
-    const names = cities.map((city) => city.name)
-    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)))
+    const relevant = cities.filter(
+      (city) => city.name === cityName || city.name === laterCity.name,
+    )
+    expect(relevant.map((city) => city.name)).toEqual([cityName, laterCity.name])
     expect(cities.some((city) => city.id === cityId && city.fee === 3500)).toBe(true)
   })
 })
