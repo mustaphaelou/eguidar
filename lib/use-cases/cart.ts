@@ -1,6 +1,22 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import {
+  computeShippingFeeFromSettings,
+  listDeliveryCities,
+  type ShippingQuote,
+} from "@/lib/use-cases/livraison"
+
+export {
+  computeShippingFee,
+  DEFAULT_FREE_SHIPPING_THRESHOLD,
+  DeliveryCityNotFoundError,
+  getFreeShippingThreshold,
+  listDeliveryCities,
+  type DeliveryCityOption,
+  type ShippingFeeInput,
+  type ShippingQuote,
+} from "@/lib/use-cases/livraison"
 
 export interface CartLine {
   cartItemId: string
@@ -21,25 +37,6 @@ export interface CartData {
   lines: CartLine[]
   subtotal: number
   itemCount: number
-}
-
-export interface ShippingQuote {
-  subtotal: number
-  shippingFee: number
-  total: number
-}
-
-export interface DeliveryCityOption {
-  id: string
-  name: string
-  fee: number
-}
-
-export interface ShippingFeeInput {
-  subtotal: number
-  cityFee: number
-  freeShippingThreshold: number
-  anyFreeShippingItem: boolean
 }
 
 export class CartValidationError extends Error {
@@ -63,13 +60,6 @@ export class CartItemNotFoundError extends Error {
   }
 }
 
-export class DeliveryCityNotFoundError extends Error {
-  constructor() {
-    super("Ville de livraison introuvable")
-    this.name = "DeliveryCityNotFoundError"
-  }
-}
-
 const quantitySchema = z.number().int().min(1, "la quantité doit être au moins 1")
 
 function parseQuantity(quantity: number): number {
@@ -80,20 +70,14 @@ function parseQuantity(quantity: number): number {
   return result.data
 }
 
-export function computeShippingFee(input: ShippingFeeInput): number {
-  if (input.subtotal >= input.freeShippingThreshold) return 0
-  if (input.anyFreeShippingItem) return 0
-  return input.cityFee
-}
-
 export async function computeCartShippingFee(cart: CartData, cityFee: number): Promise<number> {
-  const settings = await prisma.shippingSettings.findUnique({ where: { id: "default" } })
-  return computeShippingFee({
-    subtotal: cart.subtotal,
-    cityFee,
-    freeShippingThreshold: settings?.freeShippingThreshold ?? DEFAULT_FREE_SHIPPING_THRESHOLD,
-    anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
-  })
+  return computeShippingFeeFromSettings(
+    {
+      subtotal: cart.subtotal,
+      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
+    },
+    cityFee
+  )
 }
 
 export async function addToCart(userId: string, variantId: string, quantity: number): Promise<void> {
@@ -187,18 +171,4 @@ export async function getCartShippingQuotes(
     quotes[city.id] = { subtotal: cart.subtotal, shippingFee, total: cart.subtotal + shippingFee }
   }
   return quotes
-}
-
-export const DEFAULT_FREE_SHIPPING_THRESHOLD = 100000
-
-export async function getFreeShippingThreshold(): Promise<number> {
-  const settings = await prisma.shippingSettings.findUnique({ where: { id: "default" } })
-  return settings?.freeShippingThreshold ?? DEFAULT_FREE_SHIPPING_THRESHOLD
-}
-
-export function listDeliveryCities(): Promise<DeliveryCityOption[]> {
-  return prisma.deliveryCity.findMany({
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, fee: true },
-  })
 }

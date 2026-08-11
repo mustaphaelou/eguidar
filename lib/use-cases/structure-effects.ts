@@ -5,9 +5,11 @@ import { indexProductDocuments } from "@/lib/meili"
 import { toIndexableProduct } from "@/lib/use-cases/admin-catalog"
 import type { StructureEffects } from "@/lib/use-cases/admin-structure"
 import { HOME_TAG, PRODUCT_TAG } from "@/lib/use-cases/catalog-effects"
+import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
+
+export { SHIPPING_TAG } from "@/lib/use-cases/livraison-effects"
 
 export const CATEGORY_TAG = "categories"
-export const SHIPPING_TAG = "shipping"
 
 export async function reindexCategoryProducts(categoryId: string): Promise<void> {
   const products = await prisma.product.findMany({
@@ -26,6 +28,6 @@ export const realStructureEffects: StructureEffects = {
     revalidateTag(HOME_TAG, "max")
   },
   revalidateShipping() {
-    revalidateTag(SHIPPING_TAG, "max")
+    realLivraisonEffects.revalidateShipping()
   },
 }
