@@ -1,4 +1,5 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 
 import { DeleteProductButton } from "@/components/admin/delete-product-button"
 import { Badge } from "@/components/ui/badge"
@@ -7,6 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatPrice } from "@/lib/money"
 import { listAdminProducts } from "@/lib/use-cases/admin-catalog"
 import { deleteProductAction } from "@/app/admin/produits/actions"
+
+export const metadata: Metadata = {
+  title: "Produits",
+}
 
 export default async function AdminProductsPage() {
   const products = await listAdminProducts()

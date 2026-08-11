@@ -23,7 +23,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { query } = parseSearchParams(await searchParams)
   return {
-    title: query ? `Recherche : ${query} — eguidar.ma` : "Recherche — eguidar.ma",
+    title: query ? `Recherche : ${query}` : "Recherche",
+    description: query
+      ? `Résultats pour « ${query} » sur eguidar.ma : filtres par marque, catégorie et prix, TVA incluse, paiement à la livraison.`
+      : "Recherchez un produit, une marque dans le catalogue eguidar.ma.",
   }
 }
 
@@ -136,7 +139,11 @@ async function SearchContent({
               <Button variant="outline" render={<Link href={resetHref} />} className="mt-4">
                 Réinitialiser les filtres
               </Button>
-            ) : null}
+            ) : (
+              <Button render={<Link href="/" />} className="mt-4">
+                Découvrir les produits
+              </Button>
+            )}
           </div>
         )}
       </section>

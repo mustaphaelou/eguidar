@@ -15,7 +15,7 @@ export async function generateMetadata({
   const data = await getCategoryPageData(slug)
   if (!data) return { title: "Catégorie introuvable" }
   return {
-    title: `${data.category.name} — eguidar.ma`,
+    title: data.category.name,
     description: `Achetez ${data.category.name.toLowerCase()} au meilleur prix au Maroc. TVA 20% incluse, paiement à la livraison.`,
   }
 }

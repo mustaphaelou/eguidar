@@ -1,6 +1,12 @@
+import type { Metadata } from "next"
+
 import { CategoryForm } from "@/components/admin/category-form"
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { createCategoryAction } from "@/app/admin/categories/actions"
+
+export const metadata: Metadata = {
+  title: "Nouvelle catégorie",
+}
 
 export default async function NewCategoryPage() {
   const categories = await listAdminCategoriesWithCounts()

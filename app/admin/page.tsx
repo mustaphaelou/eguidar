@@ -1,10 +1,15 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatPrice } from "@/lib/money"
 import { getDashboardStats, LOW_STOCK_THRESHOLD } from "@/lib/use-cases/admin-dashboard"
+
+export const metadata: Metadata = {
+  title: "Tableau de bord",
+}
 
 export default async function AdminDashboardPage() {
   const stats = await getDashboardStats()

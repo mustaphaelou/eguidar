@@ -1,5 +1,11 @@
+import type { Metadata } from "next"
+
 import { CityForm } from "@/components/admin/city-form"
 import { createCityAction } from "@/app/admin/villes/actions"
+
+export const metadata: Metadata = {
+  title: "Nouvelle ville",
+}
 
 export default async function NewCityPage() {
   return (

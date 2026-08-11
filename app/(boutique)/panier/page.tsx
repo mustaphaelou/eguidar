@@ -14,7 +14,9 @@ import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
 export const metadata: Metadata = {
-  title: "Panier — Eguidar",
+  title: "Panier",
+  description:
+    "Votre panier eguidar.ma : vérifiez vos articles, les frais de livraison selon votre ville et le total TVA incluse avant de passer commande.",
 }
 
 export default function CartPage({

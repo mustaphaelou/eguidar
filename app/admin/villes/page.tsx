@@ -1,4 +1,5 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 
 import { DeleteCityButton } from "@/components/admin/delete-city-button"
 import { Button } from "@/components/ui/button"
@@ -6,6 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatPrice } from "@/lib/money"
 import { listAdminCities } from "@/lib/use-cases/admin-structure"
 import { deleteCityAction } from "@/app/admin/villes/actions"
+
+export const metadata: Metadata = {
+  title: "Villes de livraison",
+}
 
 export default async function AdminCitiesPage() {
   const cities = await listAdminCities()

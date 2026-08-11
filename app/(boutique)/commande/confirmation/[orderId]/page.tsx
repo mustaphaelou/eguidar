@@ -19,7 +19,11 @@ export async function generateMetadata({
   params: Promise<{ orderId: string }>
 }): Promise<Metadata> {
   const { orderId } = await params
-  return { title: `Commande ${shortOrderId(orderId)} — Eguidar` }
+  return {
+    title: `Commande ${shortOrderId(orderId)}`,
+    description:
+      "Confirmation de votre commande eguidar.ma : récapitulatif des articles, montant total et détails de livraison.",
+  }
 }
 
 export default function OrderConfirmationPage({

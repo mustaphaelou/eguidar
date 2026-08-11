@@ -26,7 +26,7 @@ export async function generateMetadata({
   const data = await getProductPageData(slug)
   if (!data) return { title: "Produit introuvable" }
   return {
-    title: `${data.name} — eguidar.ma`,
+    title: data.name,
     description: `${data.brand} ${data.name}. Prix ${formatPrice(data.price)} (TVA 20% incluse), paiement à la livraison.`,
   }
 }

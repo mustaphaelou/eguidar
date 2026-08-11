@@ -9,7 +9,9 @@ import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
 
 export const metadata: Metadata = {
-  title: "Commander — Eguidar",
+  title: "Commander",
+  description:
+    "Finalisez votre commande eguidar.ma : confirmez votre adresse et votre téléphone, et réglez en espèces à la livraison.",
 }
 
 export default function CheckoutPage({

@@ -22,7 +22,7 @@ export async function generateMetadata({
   params: Promise<{ orderId: string }>
 }): Promise<Metadata> {
   const { orderId } = await params
-  return { title: `Commande ${shortOrderId(orderId)} — Eguidar` }
+  return { title: `Commande ${shortOrderId(orderId)}` }
 }
 
 export default async function AdminOrderDetailPage({

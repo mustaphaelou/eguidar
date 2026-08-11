@@ -10,7 +10,9 @@ import { listDeliveryCities } from "@/lib/use-cases/cart"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
 export const metadata: Metadata = {
-  title: "Mon profil — Eguidar",
+  title: "Mon profil",
+  description:
+    "Gérez vos informations personnelles, votre numéro de téléphone et votre adresse de livraison eguidar.ma.",
 }
 
 export default function ProfilePage() {

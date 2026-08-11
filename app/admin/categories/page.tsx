@@ -1,4 +1,5 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 
 import { DeleteCategoryButton } from "@/components/admin/delete-category-button"
 import { Badge } from "@/components/ui/badge"
@@ -6,6 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { deleteCategoryAction } from "@/app/admin/categories/actions"
+
+export const metadata: Metadata = {
+  title: "Catégories",
+}
 
 type AdminCategory = Awaited<ReturnType<typeof listAdminCategoriesWithCounts>>[number]
 

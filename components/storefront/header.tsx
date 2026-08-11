@@ -7,6 +7,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SignInStatus } from "@/components/storefront/sign-in-status"
+import { staticPages } from "@/lib/site"
 
 function SignInSkeleton() {
   return <div className="h-9 w-24 animate-pulse rounded-full bg-muted" />
@@ -42,6 +43,19 @@ export function StorefrontHeader() {
           </Button>
         </nav>
       </div>
+      <nav className="border-t" aria-label="Navigation principale">
+        <div className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 py-1.5 text-sm">
+          {staticPages.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="whitespace-nowrap rounded-full px-3 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      </nav>
     </header>
   )
 }

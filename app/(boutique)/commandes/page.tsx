@@ -14,7 +14,9 @@ import { listUserOrders } from "@/lib/use-cases/orders"
 import { shortOrderId } from "@/lib/order-status"
 
 export const metadata: Metadata = {
-  title: "Mes commandes — Eguidar",
+  title: "Mes commandes",
+  description:
+    "Suivez vos commandes eguidar.ma : statut en attente, confirmée, expédiée ou livrée, et détails de chaque achat.",
 }
 
 export default function OrderHistoryPage() {

@@ -1,8 +1,16 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
+
+export const metadata: Metadata = {
+  title: {
+    default: "Administration",
+    template: "%s — Administration — eguidar.ma",
+  },
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

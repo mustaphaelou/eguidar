@@ -1,6 +1,12 @@
+import type { Metadata } from "next"
+
 import { ProductForm } from "@/components/admin/product-form"
 import { listAdminCategories } from "@/lib/use-cases/admin-catalog"
 import { createProductAction } from "@/app/admin/produits/actions"
+
+export const metadata: Metadata = {
+  title: "Nouveau produit",
+}
 
 export default async function NewProductPage() {
   const categories = await listAdminCategories()
