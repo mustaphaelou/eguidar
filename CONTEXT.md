@@ -19,3 +19,7 @@ _Avoid_: coût de livraison
 **Seuil de livraison offerte**:
 The cart subtotal above which delivery is free regardless of city or items.
 _Avoid_: seuil de gratuité
+
+**Catalogue**:
+The complete set of products for sale, browsable via the "Tous nos produits" page.
+_Avoid_: tous les produits (as the concept name)
