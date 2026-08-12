@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import type { CityFormState } from "@/components/admin/city-form"
 import { parseMadToCents } from "@/lib/money"
+import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import {
   CityNameConflictError,
   CityNotFoundError,
@@ -13,9 +14,8 @@ import {
   deleteCity,
   updateCity,
   type CityInput,
-} from "@/lib/use-cases/admin-structure"
-import { getAdminSession } from "@/lib/use-cases/get-admin-session"
-import { realStructureEffects } from "@/lib/use-cases/structure-effects"
+} from "@/lib/use-cases/livraison"
+import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
 
 const INVALID_FORM_MESSAGE = "Formulaire invalide"
 
@@ -62,7 +62,7 @@ export async function createCityAction(
   }
 
   try {
-    await createCity(input, realStructureEffects)
+    await createCity(input, realLivraisonEffects)
     revalidatePath("/admin/villes")
     redirect("/admin/villes")
   } catch (error) {
@@ -88,7 +88,7 @@ export async function updateCityAction(
   }
 
   try {
-    await updateCity(cityId, input, realStructureEffects)
+    await updateCity(cityId, input, realLivraisonEffects)
     revalidatePath("/admin/villes")
     redirect("/admin/villes")
   } catch (error) {
@@ -103,7 +103,7 @@ export async function deleteCityAction(formData: FormData): Promise<void> {
   const cityId = String(formData.get("cityId") ?? "")
   if (cityId) {
     try {
-      await deleteCity(cityId, realStructureEffects)
+      await deleteCity(cityId, realLivraisonEffects)
     } catch (error) {
       if (!(error instanceof CityNotFoundError)) throw error
     }

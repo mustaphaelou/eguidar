@@ -5,7 +5,7 @@ import { DeleteCityButton } from "@/components/admin/delete-city-button"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
-import { listAdminCities } from "@/lib/use-cases/admin-structure"
+import { listAdminCities } from "@/lib/use-cases/livraison"
 import { deleteCityAction } from "@/app/admin/villes/actions"
 
 export const metadata: Metadata = {

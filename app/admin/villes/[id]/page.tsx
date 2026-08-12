@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { CityForm } from "@/components/admin/city-form"
-import { listAdminCities } from "@/lib/use-cases/admin-structure"
+import { listAdminCities } from "@/lib/use-cases/livraison"
 import { updateCityAction } from "@/app/admin/villes/actions"
 
 export default async function EditCityPage({ params }: { params: Promise<{ id: string }> }) {

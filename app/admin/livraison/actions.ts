@@ -6,8 +6,11 @@ import { redirect } from "next/navigation"
 import type { ShippingSettingsFormState } from "@/components/admin/shipping-settings-form"
 import { parseMadToCents } from "@/lib/money"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
-import { ShippingValidationError, updateShippingSettings } from "@/lib/use-cases/admin-structure"
-import { realStructureEffects } from "@/lib/use-cases/structure-effects"
+import {
+  ShippingValidationError,
+  updateShippingSettings,
+} from "@/lib/use-cases/livraison"
+import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
 
 const INVALID_FORM_MESSAGE = "Formulaire invalide"
 
@@ -22,7 +25,7 @@ export async function updateShippingSettingsAction(
   if (cents === null) return { error: INVALID_FORM_MESSAGE }
 
   try {
-    await updateShippingSettings({ freeShippingThreshold: cents }, realStructureEffects)
+    await updateShippingSettings({ freeShippingThreshold: cents }, realLivraisonEffects)
     revalidatePath("/admin/livraison")
   } catch (error) {
     if (error instanceof ShippingValidationError) {

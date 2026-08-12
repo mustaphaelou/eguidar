@@ -9,25 +9,15 @@ import {
   CategoryNotFoundError,
   CategorySlugConflictError,
   CategoryValidationError,
-  CityNameConflictError,
-  CityNotFoundError,
-  CityValidationError,
   createCategory,
-  createCity,
   deleteCategory,
-  deleteCity,
-  getShippingSettings,
-  ShippingValidationError,
   updateCategory,
-  updateCity,
-  updateShippingSettings,
   type CategoryInput,
   type StructureEffects,
 } from "@/lib/use-cases/admin-structure"
 
 const runId = randomUUID().slice(0, 8)
 const categorySlug = (suffix: string) => `cat-${runId}-${suffix}`
-const cityName = (suffix: string) => `Ville T3 ${runId} ${suffix}`
 const productSlug = (suffix: string) => `struc-${runId}-${suffix}`
 
 function makeEffects(): StructureEffects & {
@@ -36,7 +26,6 @@ function makeEffects(): StructureEffects & {
   return {
     reindexCategoryProducts: vi.fn(async () => {}),
     revalidateCategories: vi.fn(),
-    revalidateShipping: vi.fn(),
   }
 }
 
@@ -58,7 +47,6 @@ describe("admin structure mutations — categories", () => {
   afterAll(async () => {
     await prisma.product.deleteMany({ where: { slug: { startsWith: `struc-${runId}-` } } })
     await prisma.category.deleteMany({ where: { slug: { startsWith: `cat-${runId}-` } } })
-    await prisma.deliveryCity.deleteMany({ where: { name: { startsWith: `Ville T3 ${runId}` } } })
     await prisma.$disconnect()
   })
 
@@ -299,139 +287,5 @@ describe("admin structure mutations — categories", () => {
 
   it("throws CategoryNotFoundError when deleting an unknown category", async () => {
     await expect(deleteCategory("unknown-id", makeEffects())).rejects.toThrow(CategoryNotFoundError)
-  })
-})
-
-describe("admin structure mutations — delivery cities", () => {
-  beforeEach(async () => {
-    await prisma.deliveryCity.deleteMany({ where: { name: { startsWith: `Ville T3 ${runId}` } } })
-  })
-
-  afterAll(async () => {
-    await prisma.deliveryCity.deleteMany({ where: { name: { startsWith: `Ville T3 ${runId}` } } })
-  })
-
-  it("creates a city with its flat fee and revalidates shipping", async () => {
-    const effects = makeEffects()
-
-    const city = await createCity({ name: cityName("creer"), fee: 3500 }, effects)
-
-    expect(city.id).toBeTruthy()
-    const persisted = await prisma.deliveryCity.findUniqueOrThrow({ where: { id: city.id } })
-    expect(persisted.fee).toBe(3500)
-    expect(effects.revalidateShipping).toHaveBeenCalledOnce()
-  })
-
-  it("rejects a negative city fee", async () => {
-    await expect(createCity({ name: cityName("negatif"), fee: -100 }, makeEffects())).rejects.toThrow(
-      CityValidationError
-    )
-  })
-
-  it("accepts a zero fee city", async () => {
-    const city = await createCity({ name: cityName("gratuite"), fee: 0 }, makeEffects())
-    expect(city.fee).toBe(0)
-  })
-
-  it("rejects a duplicate city name", async () => {
-    const effects = makeEffects()
-    await createCity({ name: cityName("dupliquee"), fee: 3000 }, effects)
-
-    await expect(
-      createCity({ name: cityName("dupliquee"), fee: 4000 }, makeEffects())
-    ).rejects.toThrow(CityNameConflictError)
-
-    const count = await prisma.deliveryCity.count({ where: { name: cityName("dupliquee") } })
-    expect(count).toBe(1)
-  })
-
-  it("rejects an empty city name", async () => {
-    await expect(createCity({ name: " ", fee: 3000 }, makeEffects())).rejects.toThrow(CityValidationError)
-  })
-
-  it("updates a city and revalidates shipping", async () => {
-    const effects = makeEffects()
-    const city = await createCity({ name: cityName("maj"), fee: 3000 }, makeEffects())
-
-    const updated = await updateCity(city.id, { name: cityName("maj"), fee: 4500 }, effects)
-
-    expect(updated.fee).toBe(4500)
-    const persisted = await prisma.deliveryCity.findUniqueOrThrow({ where: { id: city.id } })
-    expect(persisted.fee).toBe(4500)
-    expect(effects.revalidateShipping).toHaveBeenCalled()
-  })
-
-  it("rejects updating a city to another city's name", async () => {
-    const effects = makeEffects()
-    const first = await createCity({ name: cityName("a"), fee: 3000 }, effects)
-    await createCity({ name: cityName("b"), fee: 3000 }, makeEffects())
-
-    await expect(
-      updateCity(first.id, { name: cityName("b"), fee: 3000 }, makeEffects())
-    ).rejects.toThrow(CityNameConflictError)
-  })
-
-  it("deletes a city and revalidates shipping", async () => {
-    const effects = makeEffects()
-    const city = await createCity({ name: cityName("suppression"), fee: 3000 }, makeEffects())
-
-    await deleteCity(city.id, effects)
-
-    await expect(prisma.deliveryCity.findUnique({ where: { id: city.id } })).resolves.toBeNull()
-    expect(effects.revalidateShipping).toHaveBeenCalled()
-  })
-
-  it("throws CityNotFoundError for unknown cities", async () => {
-    await expect(updateCity("unknown-id", { name: "X", fee: 1 }, makeEffects())).rejects.toThrow(
-      CityNotFoundError
-    )
-    await expect(deleteCity("unknown-id", makeEffects())).rejects.toThrow(CityNotFoundError)
-  })
-})
-
-describe("admin structure mutations — shipping settings", () => {
-  afterAll(async () => {
-    await prisma.shippingSettings.upsert({
-      where: { id: "default" },
-      update: { freeShippingThreshold: 100000 },
-      create: { id: "default", freeShippingThreshold: 100000 },
-    })
-  })
-
-  it("updates the free-shipping threshold and revalidates shipping", async () => {
-    const effects = makeEffects()
-
-    await updateShippingSettings({ freeShippingThreshold: 250000 }, effects)
-
-    const settings = await prisma.shippingSettings.findUniqueOrThrow({ where: { id: "default" } })
-    expect(settings.freeShippingThreshold).toBe(250000)
-    expect(effects.revalidateShipping).toHaveBeenCalledOnce()
-  })
-
-  it("rejects a zero or negative threshold", async () => {
-    await expect(
-      updateShippingSettings({ freeShippingThreshold: 0 }, makeEffects())
-    ).rejects.toThrow(ShippingValidationError)
-    await expect(
-      updateShippingSettings({ freeShippingThreshold: -100 }, makeEffects())
-    ).rejects.toThrow(ShippingValidationError)
-  })
-
-  it("rejects a non-integer threshold", async () => {
-    await expect(
-      updateShippingSettings({ freeShippingThreshold: 100.5 }, makeEffects())
-    ).rejects.toThrow(ShippingValidationError)
-  })
-
-  it("returns the current shipping settings", async () => {
-    await prisma.shippingSettings.upsert({
-      where: { id: "default" },
-      update: { freeShippingThreshold: 300000 },
-      create: { id: "default", freeShippingThreshold: 300000 },
-    })
-
-    const settings = await getShippingSettings()
-
-    expect(settings?.freeShippingThreshold).toBe(300000)
   })
 })

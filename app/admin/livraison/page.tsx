@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { ShippingSettingsForm } from "@/components/admin/shipping-settings-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatPrice } from "@/lib/money"
-import { getShippingSettings } from "@/lib/use-cases/admin-structure"
+import { getShippingSettings } from "@/lib/use-cases/livraison"
 import { updateShippingSettingsAction } from "@/app/admin/livraison/actions"
 
 export const metadata: Metadata = {
