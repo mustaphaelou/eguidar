@@ -1,16 +1,38 @@
 "use client"
 
 import { useCallback, useState } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  AppleIcon,
+  GoogleIcon,
+  LayoutBottomIcon,
+} from "@hugeicons/core-free-icons"
+
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSeparator,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Turnstile } from "@/components/auth/turnstile"
 import { authClient } from "@/lib/client"
 
-const captchaHeaders = (token: string | null) => (token ? { "x-captcha-response": token } : undefined)
+const captchaHeaders = (token: string | null) =>
+  token ? { "x-captcha-response": token } : undefined
 
 const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)
 
@@ -23,7 +45,10 @@ export function SignInForm({
 }) {
   const searchParams = useSearchParams()
   const rawNext = searchParams.get("next")
-  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/"
+  const next =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
+      ? rawNext
+      : "/"
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
@@ -34,8 +59,14 @@ export function SignInForm({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleCaptchaChange = useCallback((token: string | null) => setCaptchaToken(token), [])
-  const handleOtpCaptchaChange = useCallback((token: string | null) => setOtpCaptchaToken(token), [])
+  const handleCaptchaChange = useCallback(
+    (token: string | null) => setCaptchaToken(token),
+    []
+  )
+  const handleOtpCaptchaChange = useCallback(
+    (token: string | null) => setOtpCaptchaToken(token),
+    []
+  )
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -98,40 +129,81 @@ export function SignInForm({
 
   async function handleSocial(provider: "google" | "apple") {
     setError(null)
-    const result = await authClient.signIn.social({ provider, callbackURL: next })
+    const result = await authClient.signIn.social({
+      provider,
+      callbackURL: next,
+    })
     if (result.error) setError(translateAuthError(result.error))
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Se connecter</CardTitle>
+    <Card className="w-full max-w-sm">
+      <CardHeader className="items-center gap-2 text-center">
+        <Link
+          href="/"
+          aria-label="Accueil Eguidar"
+          className="flex size-8 items-center justify-center rounded-md"
+        >
+          <HugeiconsIcon
+            icon={LayoutBottomIcon}
+            strokeWidth={2}
+            className="size-6"
+          />
+        </Link>
+        <CardTitle className="text-xl">
+          {step === "otp" ? "Vérifiez votre e-mail" : "Connexion à Eguidar"}
+        </CardTitle>
         <CardDescription>
-          {step === "otp"
-            ? `Vérifiez votre adresse e-mail pour finaliser la connexion (${email}).`
-            : "Connectez-vous pour accéder à votre compte et à vos commandes."}
+          {step === "otp" ? (
+            <>Saisissez le code de vérification envoyé à {email}.</>
+          ) : (
+            <>
+              Pas encore de compte ?{" "}
+              <Link
+                href="/inscription"
+                className="underline underline-offset-4 hover:text-primary"
+              >
+                Inscrivez-vous
+              </Link>
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       {step === "form" && (
-        <>
-          <CardContent className="grid gap-4">
-            {(hasGoogle || hasApple) && (
-              <div className="grid gap-2">
-                {hasGoogle && (
-                  <Button type="button" variant="outline" onClick={() => handleSocial("google")} disabled={loading}>
-                    Continuer avec Google
-                  </Button>
-                )}
+        <CardContent className="flex flex-col gap-4">
+          {(hasGoogle || hasApple) && (
+            <>
+              <div className="flex flex-col gap-2">
                 {hasApple && (
-                  <Button type="button" variant="outline" onClick={() => handleSocial("apple")} disabled={loading}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleSocial("apple")}
+                    disabled={loading}
+                  >
+                    <HugeiconsIcon icon={AppleIcon} data-icon="inline-start" />
                     Continuer avec Apple
                   </Button>
                 )}
+                {hasGoogle && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleSocial("google")}
+                    disabled={loading}
+                  >
+                    <HugeiconsIcon icon={GoogleIcon} data-icon="inline-start" />
+                    Continuer avec Google
+                  </Button>
+                )}
               </div>
-            )}
-            <form onSubmit={handleSignIn} className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="email">E-mail</Label>
+              <FieldSeparator>ou</FieldSeparator>
+            </>
+          )}
+          <form onSubmit={handleSignIn}>
+            <FieldGroup>
+              <Field data-invalid={Boolean(error)}>
+                <FieldLabel htmlFor="email">E-mail</FieldLabel>
                 <Input
                   id="email"
                   type="email"
@@ -139,10 +211,11 @@ export function SignInForm({
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
+                  aria-invalid={error ? true : undefined}
                 />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="password">Mot de passe</Label>
+              </Field>
+              <Field data-invalid={Boolean(error)}>
+                <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
                 <Input
                   id="password"
                   type="password"
@@ -150,63 +223,87 @@ export function SignInForm({
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
+                  aria-invalid={error ? true : undefined}
                 />
-              </div>
+              </Field>
               <Turnstile onTokenChange={handleCaptchaChange} />
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={loading}>
-                {loading ? "Connexion…" : "Se connecter"}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="justify-center text-sm text-muted-foreground">
-            Pas encore de compte ?{" "}
-            <a className="ml-1 text-primary hover:underline" href="/inscription">
-              Inscrivez-vous
-            </a>
-          </CardFooter>
-        </>
+              {error && <FieldError>{error}</FieldError>}
+              <Field>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Connexion…" : "Se connecter"}
+                </Button>
+              </Field>
+            </FieldGroup>
+          </form>
+        </CardContent>
       )}
       {step === "otp" && (
-        <CardContent className="grid gap-4">
+        <CardContent className="flex flex-col gap-4">
           {otpSent ? (
-            <form onSubmit={handleVerifyOtp} className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="otp">Code de vérification</Label>
-                <Input
-                  id="otp"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  required
-                  placeholder="000000"
-                />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={loading}>
-                {loading ? "Vérification…" : "Vérifier mon e-mail"}
-              </Button>
+            <form onSubmit={handleVerifyOtp}>
+              <FieldGroup>
+                <Field data-invalid={Boolean(error)}>
+                  <FieldLabel htmlFor="otp">Code de vérification</FieldLabel>
+                  <Input
+                    id="otp"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    required
+                    placeholder="000000"
+                    aria-invalid={error ? true : undefined}
+                  />
+                </Field>
+                {error && <FieldError>{error}</FieldError>}
+                <Field>
+                  <Button type="submit" disabled={loading}>
+                    {loading ? "Vérification…" : "Vérifier mon e-mail"}
+                  </Button>
+                </Field>
+              </FieldGroup>
             </form>
           ) : (
-            <div className="grid gap-4">
-              <p className="text-sm text-muted-foreground">
-                Un code de vérification sera envoyé à {email}. Vérifiez votre boîte de réception.
-              </p>
+            <FieldGroup>
+              <FieldDescription>
+                Un code de vérification sera envoyé à {email}. Vérifiez votre
+                boîte de réception.
+              </FieldDescription>
               <Turnstile onTokenChange={handleOtpCaptchaChange} />
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="button" onClick={handleSendOtp} disabled={loading || (captchaEnabled && !otpCaptchaToken)}>
-                {loading ? "Envoi…" : "Envoyer le code"}
-              </Button>
-            </div>
+              {error && <FieldError>{error}</FieldError>}
+              <Field>
+                <Button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={loading || (captchaEnabled && !otpCaptchaToken)}
+                >
+                  {loading ? "Envoi…" : "Envoyer le code"}
+                </Button>
+              </Field>
+            </FieldGroup>
           )}
+          <Button
+            type="button"
+            variant="link"
+            className="self-center"
+            onClick={() => {
+              setStep("form")
+              setError(null)
+            }}
+          >
+            Retour à la connexion
+          </Button>
         </CardContent>
       )}
     </Card>
   )
 }
 
-function translateAuthError(error: { code?: string; message?: string; status?: number }): string {
+function translateAuthError(error: {
+  code?: string
+  message?: string
+  status?: number
+}): string {
   switch (error.code) {
     case "INVALID_EMAIL_OR_PASSWORD":
       return "E-mail ou mot de passe invalide."

@@ -12,9 +12,12 @@ export const metadata: Metadata = {
 export default function SignInPage() {
   return (
     <>
-      <h1 className="text-2xl font-semibold">Eguidar</h1>
+      <h1 className="sr-only">Se connecter à Eguidar</h1>
       <Suspense fallback={null}>
-        <SignInForm hasGoogle={Boolean(process.env.GOOGLE_CLIENT_ID)} hasApple={Boolean(process.env.APPLE_CLIENT_ID)} />
+        <SignInForm
+          hasGoogle={Boolean(process.env.GOOGLE_CLIENT_ID)}
+          hasApple={Boolean(process.env.APPLE_CLIENT_ID)}
+        />
       </Suspense>
     </>
   )
