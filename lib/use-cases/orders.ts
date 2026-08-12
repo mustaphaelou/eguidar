@@ -4,11 +4,11 @@ import { prisma } from "@/lib/db"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
 import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
+import { getCart } from "@/lib/use-cases/cart"
 import {
-  computeCartShippingFee,
+  computeShippingFeeFromSettings,
   DeliveryCityNotFoundError,
-  getCart,
-} from "@/lib/use-cases/cart"
+} from "@/lib/use-cases/livraison"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
 
 export interface CheckoutInput {
@@ -181,7 +181,13 @@ export async function placeOrder(userId: string, input: CheckoutInput, effects: 
     }))
   if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
 
-  const shippingFee = await computeCartShippingFee(cart, city.fee)
+  const shippingFee = await computeShippingFeeFromSettings(
+    {
+      subtotal: cart.subtotal,
+      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
+    },
+    city.fee
+  )
 
   const order = await prisma.$transaction(async (tx) => {
     for (const line of cart.lines) {

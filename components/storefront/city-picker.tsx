@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatShippingFee } from "@/lib/money"
-import type { DeliveryCityOption } from "@/lib/use-cases/cart"
+import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
 
 export function CityPicker({
   cities,

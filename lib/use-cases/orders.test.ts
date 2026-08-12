@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart, DeliveryCityNotFoundError, getCart } from "@/lib/use-cases/cart"
+import { addToCart, getCart } from "@/lib/use-cases/cart"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
 import {

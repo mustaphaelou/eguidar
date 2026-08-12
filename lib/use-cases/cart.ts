@@ -1,22 +1,6 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import {
-  computeShippingFeeFromSettings,
-  listDeliveryCities,
-  type ShippingQuote,
-} from "@/lib/use-cases/livraison"
-
-export {
-  computeShippingFee,
-  DEFAULT_FREE_SHIPPING_THRESHOLD,
-  DeliveryCityNotFoundError,
-  getFreeShippingThreshold,
-  listDeliveryCities,
-  type DeliveryCityOption,
-  type ShippingFeeInput,
-  type ShippingQuote,
-} from "@/lib/use-cases/livraison"
 
 export interface CartLine {
   cartItemId: string
@@ -68,16 +52,6 @@ function parseQuantity(quantity: number): number {
     throw new CartValidationError(result.error.issues.map((issue) => issue.message))
   }
   return result.data
-}
-
-export async function computeCartShippingFee(cart: CartData, cityFee: number): Promise<number> {
-  return computeShippingFeeFromSettings(
-    {
-      subtotal: cart.subtotal,
-      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
-    },
-    cityFee
-  )
 }
 
 export async function addToCart(userId: string, variantId: string, quantity: number): Promise<void> {
@@ -143,32 +117,4 @@ export async function getCart(userId: string): Promise<CartData> {
     subtotal: lines.reduce((sum, line) => sum + line.lineTotal, 0),
     itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
   }
-}
-
-export async function getCartShippingQuote(
-  userId: string,
-  cityId: string
-): Promise<ShippingQuote | null> {
-  const city = await prisma.deliveryCity.findUnique({ where: { id: cityId } })
-  if (!city) return null
-
-  const cart = await getCart(userId)
-  const shippingFee = await computeCartShippingFee(cart, city.fee)
-  return {
-    subtotal: cart.subtotal,
-    shippingFee,
-    total: cart.subtotal + shippingFee,
-  }
-}
-
-export async function getCartShippingQuotes(
-  userId: string
-): Promise<Record<string, ShippingQuote>> {
-  const [cities, cart] = await Promise.all([listDeliveryCities(), getCart(userId)])
-  const quotes: Record<string, ShippingQuote> = {}
-  for (const city of cities) {
-    const shippingFee = await computeCartShippingFee(cart, city.fee)
-    quotes[city.id] = { subtotal: cart.subtotal, shippingFee, total: cart.subtotal + shippingFee }
-  }
-  return quotes
 }

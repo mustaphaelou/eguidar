@@ -2,7 +2,7 @@
 
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { ProfileValidationError, updateProfile } from "@/lib/use-cases/account"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/cart"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 
 export interface ProfileFormState {
   success?: boolean

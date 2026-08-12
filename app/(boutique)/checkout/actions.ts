@@ -12,7 +12,7 @@ import {
   placeOrder,
   type CheckoutInput,
 } from "@/lib/use-cases/orders"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/cart"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 
 export interface CheckoutFormState {
   error?: string

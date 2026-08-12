@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/cart"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import {
   getProfile,
   ProfileValidationError,
