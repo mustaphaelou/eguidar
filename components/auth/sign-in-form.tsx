@@ -27,14 +27,19 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Turnstile } from "@/components/auth/turnstile"
-import { captchaEnabled, useSignInFlow } from "@/components/auth/use-sign-in-flow"
+import {
+  captchaEnabled,
+  useSignInFlow,
+} from "@/components/auth/use-sign-in-flow"
 
 export function SignInForm({
   hasGoogle,
   hasApple,
+  onForgotPassword,
 }: {
   hasGoogle: boolean
   hasApple: boolean
+  onForgotPassword?: () => void
 }) {
   const {
     email,
@@ -136,7 +141,16 @@ export function SignInForm({
                 />
               </Field>
               <Field data-invalid={Boolean(error)}>
-                <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
+                <div className="flex items-center justify-between">
+                  <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
+                  <Link
+                    href="/mot-de-passe-oublie"
+                    onClick={onForgotPassword}
+                    className="text-xs text-muted-foreground underline-offset-4 hover:text-primary hover:underline"
+                  >
+                    Mot de passe oublié ?
+                  </Link>
+                </div>
                 <Input
                   id="password"
                   type="password"
