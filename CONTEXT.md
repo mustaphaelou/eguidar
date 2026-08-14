@@ -23,3 +23,15 @@ _Avoid_: seuil de gratuité
 **Catalogue**:
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
+
+**Compte client**:
+The registered customer entity (Better Auth user) with credentials, email verification, and optional social logins (Google, Apple). Carries a `role` ("user" or "admin").
+_Avoid_: account, user, membre
+
+**Connexion**:
+The act of authenticating an existing customer into their account — a modal over the current page, never a standalone page. The modal is a reusable component available on every storefront page.
+_Avoid_: login page, se connecter (as the screen name)
+
+**Inscription**:
+Creating a new customer account, presented in its own modal (distinct from Connexion).
+_Avoid_: sign-up page, register
