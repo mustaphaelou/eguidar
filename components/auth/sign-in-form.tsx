@@ -1,22 +1,12 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
 
 import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  AppleIcon,
-  GoogleIcon,
-  LayoutBottomIcon,
-} from "@hugeicons/core-free-icons"
+import { AppleIcon, GoogleIcon } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import {
   Field,
   FieldDescription,
@@ -30,16 +20,23 @@ import { Turnstile } from "@/components/auth/turnstile"
 import {
   captchaEnabled,
   useSignInFlow,
+  type SignInStep,
 } from "@/components/auth/use-sign-in-flow"
 
 export function SignInForm({
   hasGoogle,
   hasApple,
+  initialEmail,
   onForgotPassword,
+  onStepChange,
+  onSuccess,
 }: {
   hasGoogle: boolean
   hasApple: boolean
+  initialEmail?: string
   onForgotPassword?: () => void
+  onStepChange?: (step: SignInStep, email: string) => void
+  onSuccess?: () => void
 }) {
   const {
     email,
@@ -52,6 +49,7 @@ export function SignInForm({
     otpCaptchaToken,
     step,
     error,
+    notice,
     loading,
     handleCaptchaChange,
     handleOtpCaptchaChange,
@@ -60,43 +58,16 @@ export function SignInForm({
     handleVerifyOtp,
     handleSocial,
     backToForm,
-  } = useSignInFlow()
+  } = useSignInFlow({ initialEmail, onSuccess })
+
+  useEffect(() => {
+    onStepChange?.(step, email)
+  }, [onStepChange, step, email])
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="items-center gap-2 text-center">
-        <Link
-          href="/"
-          aria-label="Accueil Eguidar"
-          className="flex size-8 items-center justify-center rounded-md"
-        >
-          <HugeiconsIcon
-            icon={LayoutBottomIcon}
-            strokeWidth={2}
-            className="size-6"
-          />
-        </Link>
-        <CardTitle className="text-xl">
-          {step === "otp" ? "Vérifiez votre e-mail" : "Connexion à Eguidar"}
-        </CardTitle>
-        <CardDescription>
-          {step === "otp" ? (
-            <>Saisissez le code de vérification envoyé à {email}.</>
-          ) : (
-            <>
-              Pas encore de compte ?{" "}
-              <Link
-                href="/inscription"
-                className="underline underline-offset-4 hover:text-primary"
-              >
-                Inscrivez-vous
-              </Link>
-            </>
-          )}
-        </CardDescription>
-      </CardHeader>
+    <>
       {step === "form" && (
-        <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {(hasGoogle || hasApple) && (
             <>
               <div className="flex flex-col gap-2">
@@ -163,6 +134,9 @@ export function SignInForm({
               </Field>
               <Turnstile onTokenChange={handleCaptchaChange} />
               {error && <FieldError>{error}</FieldError>}
+              {notice && (
+                <p className="text-sm font-medium text-green-600">{notice}</p>
+              )}
               <Field>
                 <Button type="submit" disabled={loading}>
                   {loading ? "Connexion…" : "Se connecter"}
@@ -170,10 +144,10 @@ export function SignInForm({
               </Field>
             </FieldGroup>
           </form>
-        </CardContent>
+        </div>
       )}
       {step === "otp" && (
-        <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {otpSent ? (
             <form onSubmit={handleVerifyOtp}>
               <FieldGroup>
@@ -225,8 +199,8 @@ export function SignInForm({
           >
             Retour à la connexion
           </Button>
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </>
   )
 }

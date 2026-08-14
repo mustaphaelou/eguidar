@@ -8,20 +8,30 @@ import { authClient } from "@/lib/client"
 const captchaHeaders = (token: string | null) =>
   token ? { "x-captcha-response": token } : undefined
 
-export const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)
+export const captchaEnabled = Boolean(
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+)
 
 export type SignInStep = "form" | "otp"
 
 export type SignInFlow = ReturnType<typeof useSignInFlow>
 
-export function useSignInFlow() {
+export function useSignInFlow({
+  initialEmail,
+  onSuccess = () => {
+    window.location.href = "/"
+  },
+}: {
+  initialEmail?: string
+  onSuccess?: () => void
+} = {}) {
   const searchParams = useSearchParams()
   const rawNext = searchParams.get("next")
   const next =
     rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
       ? rawNext
-      : "/"
-  const [email, setEmail] = useState("")
+      : null
+  const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [otpCaptchaToken, setOtpCaptchaToken] = useState<string | null>(null)
@@ -29,6 +39,7 @@ export function useSignInFlow() {
   const [otp, setOtp] = useState("")
   const [step, setStep] = useState<SignInStep>("form")
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const handleCaptchaChange = useCallback(
@@ -43,6 +54,7 @@ export function useSignInFlow() {
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setNotice(null)
     setLoading(true)
     try {
       const result = await authClient.signIn.email({
@@ -58,7 +70,7 @@ export function useSignInFlow() {
         setError(translateAuthError(result.error))
         return
       }
-      window.location.href = next
+      completeSignIn()
     } finally {
       setLoading(false)
     }
@@ -66,6 +78,7 @@ export function useSignInFlow() {
 
   async function handleSendOtp() {
     setError(null)
+    setNotice(null)
     setLoading(true)
     try {
       const result = await authClient.emailOtp.sendVerificationOtp({
@@ -86,6 +99,7 @@ export function useSignInFlow() {
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setNotice(null)
     setLoading(true)
     try {
       const result = await authClient.emailOtp.verifyEmail({ email, otp })
@@ -93,17 +107,27 @@ export function useSignInFlow() {
         setError(translateAuthError(result.error))
         return
       }
-      window.location.href = "/connexion"
+      setNotice("Votre e-mail est vérifié. Connectez-vous.")
+      backToForm()
     } finally {
       setLoading(false)
     }
   }
 
+  function completeSignIn() {
+    if (next) {
+      window.location.href = next
+      return
+    }
+    onSuccess()
+  }
+
   async function handleSocial(provider: "google" | "apple") {
     setError(null)
+    setNotice(null)
     const result = await authClient.signIn.social({
       provider,
-      callbackURL: next,
+      callbackURL: next ?? "/",
     })
     if (result.error) setError(translateAuthError(result.error))
   }
@@ -126,6 +150,7 @@ export function useSignInFlow() {
     setOtp,
     step,
     error,
+    notice,
     loading,
     handleCaptchaChange,
     handleOtpCaptchaChange,

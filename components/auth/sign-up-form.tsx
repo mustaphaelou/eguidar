@@ -1,34 +1,52 @@
 "use client"
 
-import { useCallback, useState } from "react"
-import Link from "next/link"
+import { useCallback, useEffect, useState } from "react"
 
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Turnstile } from "@/components/auth/turnstile"
 import { authClient } from "@/lib/client"
-import { cn } from "@/lib/utils"
 
-const captchaHeaders = (token: string | null) => (token ? { "x-captcha-response": token } : undefined)
+const captchaHeaders = (token: string | null) =>
+  token ? { "x-captcha-response": token } : undefined
 
 const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)
 
-export function SignUpForm() {
+export type SignUpStep = "form" | "otp"
+
+export function SignUpForm({
+  initialEmail,
+  onStepChange,
+  onVerified,
+}: {
+  initialEmail?: string
+  onStepChange?: (step: SignUpStep, email: string) => void
+  onVerified?: (email: string) => void
+}) {
   const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [otpCaptchaToken, setOtpCaptchaToken] = useState<string | null>(null)
   const [otpSent, setOtpSent] = useState(false)
   const [otp, setOtp] = useState("")
-  const [step, setStep] = useState<"form" | "otp" | "done">("form")
+  const [step, setStep] = useState<SignUpStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleCaptchaChange = useCallback((token: string | null) => setCaptchaToken(token), [])
-  const handleOtpCaptchaChange = useCallback((token: string | null) => setOtpCaptchaToken(token), [])
+  useEffect(() => {
+    onStepChange?.(step, email)
+  }, [onStepChange, step, email])
+
+  const handleCaptchaChange = useCallback(
+    (token: string | null) => setCaptchaToken(token),
+    []
+  )
+  const handleOtpCaptchaChange = useCallback(
+    (token: string | null) => setOtpCaptchaToken(token),
+    []
+  )
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
@@ -80,28 +98,30 @@ export function SignUpForm() {
         setError(translateAuthError(result.error))
         return
       }
-      setStep("done")
+      if (onVerified) {
+        onVerified(email)
+      } else {
+        window.location.href = "/connexion"
+      }
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Créer un compte</CardTitle>
-        <CardDescription>
-          {step === "otp"
-            ? `Vérifiez votre adresse e-mail pour finaliser votre inscription (${email}).`
-            : "Inscrivez-vous pour passer commande et suivre vos livraisons."}
-        </CardDescription>
-      </CardHeader>
+    <>
       {step === "form" && (
         <form onSubmit={handleSignUp}>
-          <CardContent className="grid gap-4">
+          <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Nom complet</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                autoComplete="name"
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">E-mail</Label>
@@ -125,20 +145,20 @@ export function SignUpForm() {
                 minLength={8}
                 autoComplete="new-password"
               />
-              <p className="text-xs text-muted-foreground">Au moins 8 caractères.</p>
+              <p className="text-xs text-muted-foreground">
+                Au moins 8 caractères.
+              </p>
             </div>
             <Turnstile onTokenChange={handleCaptchaChange} />
             {error && <p className="text-sm text-destructive">{error}</p>}
-          </CardContent>
-          <CardFooter className="flex flex-col gap-2">
             <Button type="submit" disabled={loading}>
               {loading ? "Création…" : "Créer mon compte"}
             </Button>
-          </CardFooter>
+          </div>
         </form>
       )}
       {step === "otp" && (
-        <CardContent className="grid gap-4">
+        <div className="grid gap-4">
           {otpSent ? (
             <form onSubmit={handleVerifyOtp} className="grid gap-4">
               <div className="grid gap-2">
@@ -161,30 +181,31 @@ export function SignUpForm() {
           ) : (
             <div className="grid gap-4">
               <p className="text-sm text-muted-foreground">
-                Un code de vérification sera envoyé à {email}. Vérifiez votre boîte de réception.
+                Un code de vérification sera envoyé à {email}. Vérifiez votre
+                boîte de réception.
               </p>
               <Turnstile onTokenChange={handleOtpCaptchaChange} />
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="button" onClick={handleSendOtp} disabled={loading || (captchaEnabled && !otpCaptchaToken)}>
+              <Button
+                type="button"
+                onClick={handleSendOtp}
+                disabled={loading || (captchaEnabled && !otpCaptchaToken)}
+              >
                 {loading ? "Envoi…" : "Envoyer le code"}
               </Button>
             </div>
           )}
-        </CardContent>
+        </div>
       )}
-      {step === "done" && (
-        <CardContent>
-          <p className="text-sm text-green-600">Votre e-mail est vérifié. Vous pouvez maintenant vous connecter.</p>
-          <Link href="/connexion" className={cn(buttonVariants(), "mt-4")}>
-            Se connecter
-          </Link>
-        </CardContent>
-      )}
-    </Card>
+    </>
   )
 }
 
-function translateAuthError(error: { code?: string; message?: string; status?: number }): string {
+function translateAuthError(error: {
+  code?: string
+  message?: string
+  status?: number
+}): string {
   switch (error.code) {
     case "USER_ALREADY_EXISTS":
       return "Un compte existe déjà avec cette adresse e-mail."
