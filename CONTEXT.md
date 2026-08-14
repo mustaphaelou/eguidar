@@ -18,4 +18,8 @@ _Avoid_: coût de livraison
 
 **Seuil de livraison offerte**:
 The cart subtotal above which delivery is free regardless of city or items.
+
+**Paiement à la livraison**:
+The only payment method: the courier collects the total in cash at delivery. The total shown at checkout is what the courier collects.
+_Avoid_: cash on delivery, paiement cash, payer à la livraison
 _Avoid_: seuil de gratuité
