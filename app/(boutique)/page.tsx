@@ -3,8 +3,9 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { connection } from "next/server"
 
-import { ProductCardItem } from "@/components/storefront/product-card"
+import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { getHomeData } from "@/lib/use-cases/storefront"
 
 export const metadata: Metadata = {
@@ -15,11 +16,9 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
-      <Suspense fallback={<HomeSkeleton />}>
-        <HomeContent />
-      </Suspense>
-    </div>
+    <Suspense fallback={<HomeSkeleton />}>
+      <HomeContent />
+    </Suspense>
   )
 }
 
@@ -28,101 +27,114 @@ async function HomeContent() {
   const data = await getHomeData()
 
   return (
-    <div className="flex flex-col gap-10">
-      <section className="rounded-2xl bg-gradient-to-br from-primary to-primary/70 px-6 py-10 text-primary-foreground sm:px-10">
-        <div className="max-w-xl">
-          <h1 className="text-[32px] leading-[1.0714] font-semibold tracking-[-0.005em] sm:text-[48px]">
+    <div className="flex flex-col">
+      <section className="bg-muted">
+        <div className="mx-auto max-w-[980px] px-4 py-12 text-center sm:px-6 sm:py-16">
+          <h1 className="mt-2 text-[32px] leading-[1.0714] font-semibold tracking-[-0.005em] sm:text-[48px] lg:text-[56px]">
             L&apos;électronique au meilleur prix, au Maroc
           </h1>
-          <p className="mt-3 text-primary-foreground/80">
+          <p className="mt-3 text-[19px] leading-[1.1429] tracking-[0.007em] text-foreground/80 sm:text-[24px] lg:text-[28px]">
             Smartphones, ordinateurs, TV, gaming et accessoires. Prix en MAD,
-            TVA 20% incluse, paiement à la livraison.
+            TVA incluse, paiement à la livraison.
           </p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            {data.categories.slice(0, 4).map((category) => (
-              <Button
-                key={category.id}
-                render={<Link href={`/categorie/${category.slug}`} />}
-                variant="secondary"
-              >
-                {category.name}
-              </Button>
-            ))}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            <Button
+              render={<Link href="/produits" />}
+              className="h-10 rounded-full px-5 text-[17px]"
+            >
+              Tous nos produits
+            </Button>
+            <Link
+              href="#coups-de-coeur"
+              className="text-[17px] text-link hover:underline"
+            >
+              Nos coups de cœur ›
+            </Link>
           </div>
         </div>
       </section>
 
-      {data.categories.length > 0 ? (
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[24px] font-semibold tracking-[0.002em] sm:text-[28px]">
-              Parcourir par catégorie
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {data.categories.map((category) => (
+      <section className="bg-background">
+        <div className="mx-auto grid max-w-[980px] grid-cols-1 gap-4 px-4 sm:grid-cols-2 sm:gap-5 sm:px-6">
+          {data.categories.map((category, index) => {
+            const dark = index === 0
+            return (
               <Link
                 key={category.id}
                 href={`/categorie/${category.slug}`}
-                className="group flex flex-col gap-2 rounded-2xl border p-3 transition-colors hover:border-ring"
+                className={cn(
+                  "group flex flex-col overflow-hidden rounded-2xl",
+                  dark ? "bg-foreground text-background" : "bg-muted"
+                )}
               >
-                <div className="aspect-square overflow-hidden rounded-xl bg-muted">
-                  {category.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={category.image}
-                      alt={category.name}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center p-4 text-center text-xs text-muted-foreground">
+                {category.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={category.image}
+                    alt={category.name}
+                    loading="lazy"
+                    className="aspect-[16/10] w-full object-cover transition-transform group-hover:scale-[1.02]"
+                  />
+                ) : (
+                  <div className="flex aspect-[16/10] w-full items-center justify-center bg-background">
+                    <span className="text-sm text-muted-foreground">
                       {category.name}
-                    </div>
-                  )}
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1 p-8 sm:p-10">
+                  <p
+                    className={cn(
+                      "text-sm leading-[1.2858] tracking-[-0.016em]",
+                      dark ? "text-background/70" : "text-muted-foreground"
+                    )}
+                  >
+                    {category.productCount} produit
+                    {category.productCount > 1 ? "s" : ""}
+                  </p>
+                  <h2 className="text-[28px] leading-[1.1] font-semibold sm:text-[32px] lg:text-[40px]">
+                    {category.name}
+                  </h2>
+                  <p
+                    className={cn(
+                      "mt-2 text-[17px]",
+                      dark ? "text-[#2997ff]" : "text-link"
+                    )}
+                  >
+                    Découvrir ›
+                  </p>
                 </div>
-                <p className="line-clamp-2 text-sm font-medium">
-                  {category.name}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {category.productCount} produit
-                  {category.productCount > 1 ? "s" : ""}
-                </p>
               </Link>
-            ))}
+            )
+          })}
+        </div>
+      </section>
+
+      {data.featured.length > 0 ? (
+        <section id="coups-de-coeur" className="mt-16 bg-muted">
+          <div className="mx-auto max-w-[980px] px-4 py-12 sm:px-6">
+            <h2 className="text-center text-[24px] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+              Nos coups de cœur
+            </h2>
+            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {data.featured.slice(0, 5).map((product) => (
+                <HomeProductCard key={product.id} product={product} />
+              ))}
+            </div>
           </div>
         </section>
       ) : null}
-
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[24px] font-semibold tracking-[0.002em] sm:text-[28px]">
-            Nos coups de cœur
-          </h2>
-        </div>
-        {data.featured.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {data.featured.map((product) => (
-              <ProductCardItem key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-            Aucun produit mis en avant pour le moment.
-          </div>
-        )}
-      </section>
     </div>
   )
 }
 
 function HomeSkeleton() {
   return (
-    <div className="flex flex-col gap-10">
+    <div className="mx-auto flex max-w-[980px] flex-col gap-10 px-4 py-6 sm:px-6">
       <div className="h-64 animate-pulse rounded-2xl bg-muted" />
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-40 animate-pulse rounded-2xl bg-muted" />
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-80 animate-pulse rounded-2xl bg-muted" />
         ))}
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">

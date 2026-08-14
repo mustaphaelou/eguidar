@@ -11,7 +11,7 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="aspect-square overflow-hidden rounded-2xl border bg-muted">
+      <div className="aspect-square overflow-hidden rounded-2xl bg-muted">
         {safeImages[current] ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={safeImages[current]} alt={name} className="h-full w-full object-cover" />
@@ -30,8 +30,10 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
               onClick={() => setIndex(i)}
               aria-label={`Image ${i + 1}`}
               className={cn(
-                "size-16 overflow-hidden rounded-xl border transition-colors",
-                i === current ? "border-ring" : "border-input opacity-70 hover:opacity-100"
+                "size-16 overflow-hidden rounded-xl transition-opacity",
+                i === current
+                  ? "opacity-100 ring-1 ring-foreground/40"
+                  : "opacity-50 hover:opacity-100"
               )}
             >
               {image ? (
