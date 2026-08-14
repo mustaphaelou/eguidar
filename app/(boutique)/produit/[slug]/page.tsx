@@ -1,19 +1,13 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
+import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
+import { HomeProductCard } from "@/components/storefront/home-product-card"
+import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
-import { VariantPicker } from "@/components/storefront/variant-picker"
-import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { prisma } from "@/lib/db"
+import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { formatPrice } from "@/lib/money"
 import { getProductPageData } from "@/lib/use-cases/storefront"
 
@@ -37,7 +31,7 @@ export default function ProductPage({
   params: Promise<{ slug: string }>
 }) {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
+    <div className="flex flex-col">
       <Suspense fallback={<ProductSkeleton />}>
         <ProductContent paramsPromise={params} />
       </Suspense>
@@ -55,85 +49,87 @@ async function ProductContent({
   if (!data) notFound()
 
   const specEntries = Object.entries(data.specs)
+  const related = await getRelatedProducts(data.category.id, data.id)
 
   return (
     <>
-      <nav aria-label="Fil d'Ariane" className="mb-4 text-sm text-muted-foreground">
-        <ol className="flex flex-wrap items-center gap-1.5">
-          <li>
-            <Link href="/" className="transition-colors hover:text-foreground">
-              Accueil
-            </Link>
-          </li>
-          {data.categoryChain.map((category, index) => (
-            <li key={category.slug} className="flex items-center gap-1.5">
-              <span aria-hidden="true">/</span>
-              {index === data.categoryChain.length - 1 ? (
-                <span className="text-foreground">{category.name}</span>
-              ) : (
-                <Link
-                  href={`/categorie/${category.slug}`}
-                  className="transition-colors hover:text-foreground"
-                >
-                  {category.name}
-                </Link>
-              )}
-            </li>
-          ))}
-        </ol>
-      </nav>
+      <AppleBreadcrumb
+        crumbs={[
+          { name: "Accueil", href: "/" },
+          { name: "Tous nos produits", href: "/produits" },
+          ...data.categoryChain.map((category) => ({
+            name: category.name,
+            href: `/categorie/${category.slug}`,
+          })),
+          { name: data.name },
+        ]}
+      />
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <ProductGallery images={data.images} name={data.name} />
-
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-sm text-muted-foreground">{data.brand}</p>
-            <h1 className="mt-1 text-2xl font-bold">{data.name}</h1>
-            {data.freeShipping ? (
-              <div className="mt-2">
-                <Badge variant="secondary">Livraison offerte</Badge>
-              </div>
-            ) : null}
-          </div>
-
-          <VariantPicker basePrice={data.price} variants={data.variants} productPath={`/produit/${data.slug}`} />
-
-          <p className="text-xs text-muted-foreground">
-            Prix affichés en MAD, TVA 20% incluse. Paiement à la livraison partout au Maroc.
+      <div className="mx-auto w-full max-w-[980px] px-4 pt-8 pb-4 sm:px-6">
+        <div className="max-w-[520px]">
+          <p className="text-sm leading-[1.2858] tracking-[-0.016em] text-muted-foreground">
+            {data.brand}
           </p>
+          <h1 className="mt-1 text-[28px] leading-[1.1] font-semibold tracking-[-0.005em] sm:text-[32px] lg:text-[40px]">
+            {data.name}
+          </h1>
+        </div>
+
+        <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:gap-14">
+          <ProductGallery images={data.images} name={data.name} />
+          <div className="lg:pt-3">
+            <ProductBuyBox
+              basePrice={data.price}
+              variants={data.variants}
+              productPath={`/produit/${data.slug}`}
+              freeShipping={data.freeShipping}
+            />
+          </div>
         </div>
       </div>
 
       {data.description ? (
-        <section className="mt-10">
-          <h2 className="mb-3 text-xl font-bold">Description</h2>
-          <p className="max-w-3xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+        <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
+          <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+            Description
+          </h2>
+          <p className="mt-4 max-w-[70ch] whitespace-pre-line text-[17px] leading-[1.4706] tracking-[-0.022em] text-muted-foreground">
             {data.description}
           </p>
         </section>
       ) : null}
 
       {specEntries.length > 0 ? (
-        <section className="mt-10">
-          <h2 className="mb-3 text-xl font-bold">Caractéristiques</h2>
-          <div className="max-w-3xl overflow-hidden rounded-2xl border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-1/3">Caractéristique</TableHead>
-                  <TableHead>Valeur</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {specEntries.map(([label, value]) => (
-                  <TableRow key={label}>
-                    <TableCell className="font-medium">{label}</TableCell>
-                    <TableCell>{value}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
+          <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+            Caractéristiques
+          </h2>
+          <dl className="mt-4 max-w-[70ch] divide-y divide-foreground/10">
+            {specEntries.map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between gap-8 py-3">
+                <dt className="text-[14px] leading-[1.4286] font-medium tracking-[-0.016em]">
+                  {label}
+                </dt>
+                <dd className="text-right text-[14px] leading-[1.4286] tracking-[-0.016em] text-muted-foreground">
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
+
+      {related.length > 0 ? (
+        <section className="mt-10 bg-muted">
+          <div className="mx-auto max-w-[980px] px-4 py-12 sm:px-6">
+            <h2 className="text-center text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+              Vous aimerez aussi
+            </h2>
+            <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
+              {related.map((product) => (
+                <HomeProductCard key={product.id} product={product} />
+              ))}
+            </div>
           </div>
         </section>
       ) : null}
@@ -141,20 +137,52 @@ async function ProductContent({
   )
 }
 
+async function getRelatedProducts(categoryId: string, productId: string) {
+  const products = await prisma.product.findMany({
+    where: { categoryId, id: { not: productId } },
+    include: { variants: { select: { priceDelta: true, stock: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+  })
+  return products.map((product) => {
+    const images = Array.isArray(product.images) ? (product.images as string[]) : []
+    return {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      brand: product.brand,
+      image: images[0] ?? null,
+      minPrice: minVariantPrice(product.price, product.variants),
+      totalStock: totalVariantStock(product.variants),
+      freeShipping: product.freeShipping,
+    }
+  })
+}
+
 function ProductSkeleton() {
   return (
-    <div className="flex flex-col gap-8">
-      <div className="h-5 w-72 animate-pulse rounded-full bg-muted" />
-      <div className="grid gap-8 lg:grid-cols-2">
-        <div className="aspect-square animate-pulse rounded-2xl bg-muted" />
-        <div className="flex flex-col gap-4">
+    <>
+      <div className="h-11 animate-pulse bg-muted" />
+      <div className="mx-auto flex w-full max-w-[980px] flex-col gap-10 px-4 py-10 sm:px-6">
+        <div className="flex flex-col gap-2">
           <div className="h-4 w-24 animate-pulse rounded-full bg-muted" />
-          <div className="h-8 w-3/4 animate-pulse rounded-full bg-muted" />
-          <div className="h-9 w-64 animate-pulse rounded-full bg-muted" />
-          <div className="h-8 w-40 animate-pulse rounded-full bg-muted" />
-          <div className="h-9 w-full max-w-64 animate-pulse rounded-full bg-muted" />
+          <div className="h-10 w-3/4 animate-pulse rounded-full bg-muted" />
+        </div>
+        <div className="grid gap-10 lg:grid-cols-2">
+          <div className="aspect-square animate-pulse rounded-2xl bg-muted" />
+          <div className="flex flex-col gap-4">
+            <div className="h-9 w-full max-w-64 animate-pulse rounded-full bg-muted" />
+            <div className="h-8 w-40 animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-64 animate-pulse rounded-full bg-muted" />
+            <div className="h-9 w-full max-w-64 animate-pulse rounded-full bg-muted" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="h-8 w-48 animate-pulse rounded-full bg-muted" />
+          <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
+          <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
         </div>
       </div>
-    </div>
+    </>
   )
 }
