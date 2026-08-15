@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { Invoice01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
+import { RequireAuth } from "@/components/auth/require-auth"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
@@ -29,7 +29,7 @@ export default function OrderHistoryPage() {
 
 async function OrderHistoryContent() {
   const user = await getSessionUser()
-  if (!user) redirect("/connexion?next=/commandes")
+  if (!user) return <RequireAuth />
 
   const orders = await listUserOrders(user.id)
 

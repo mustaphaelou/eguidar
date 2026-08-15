@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
+import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { getProfile } from "@/lib/use-cases/account"
 import { getCart } from "@/lib/use-cases/cart"
@@ -37,7 +38,7 @@ async function CheckoutContent({
   searchParams: Promise<{ ville?: string }>
 }) {
   const user = await getSessionUser()
-  if (!user) redirect("/connexion?next=/checkout")
+  if (!user) return <RequireAuth />
 
   const { ville } = await searchParams
   const [cart, cities, profile, freeShippingThreshold] = await Promise.all([

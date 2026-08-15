@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
+import { RequireAuth } from "@/components/auth/require-auth"
 import { ProfileForm } from "@/components/storefront/profile-form"
 import { Button } from "@/components/ui/button"
 import { getProfile } from "@/lib/use-cases/account"
@@ -25,7 +25,7 @@ export default function ProfilePage() {
 
 async function ProfileContent() {
   const user = await getSessionUser()
-  if (!user) redirect("/connexion?next=/profil")
+  if (!user) return <RequireAuth />
 
   const [profile, cities] = await Promise.all([getProfile(user.id), listDeliveryCities()])
 

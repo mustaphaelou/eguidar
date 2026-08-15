@@ -1,11 +1,12 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { Call02Icon, CheckmarkCircle01Icon, MapPinIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
+import { RequireAuth } from "@/components/auth/require-auth"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import { formatPrice, formatShippingFee } from "@/lib/money"
@@ -44,7 +45,7 @@ async function OrderConfirmationContent({
   params: Promise<{ orderId: string }>
 }) {
   const user = await getSessionUser()
-  if (!user) redirect(`/connexion?next=/commande/confirmation/${(await params).orderId}`)
+  if (!user) return <RequireAuth />
 
   const { orderId } = await params
   const order = await getOrder(user.id, orderId)

@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { DeliveryTruck02Icon, ShoppingBag01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
+import { RequireAuth } from "@/components/auth/require-auth"
 import { CartLineRow } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
@@ -42,7 +42,7 @@ async function CartContent({
   searchParams: Promise<{ ville?: string }>
 }) {
   const user = await getSessionUser()
-  if (!user) redirect("/connexion?next=/panier")
+  if (!user) return <RequireAuth />
 
   const { ville } = await searchParams
   const [cart, cities, freeShippingThreshold] = await Promise.all([
