@@ -57,6 +57,7 @@ afterEach(() => {
   roots.length = 0
   container.remove()
   vi.restoreAllMocks()
+  vi.clearAllMocks()
 })
 
 function render(element: ReactElement) {
@@ -81,6 +82,7 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
       />
       <button
         type="button"
+        data-verify-otp
         onClick={() =>
           flow.handleVerifyOtp({ preventDefault() {} } as React.FormEvent)
         }
@@ -92,6 +94,9 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
       <form onSubmit={flow.handleSignIn}>
         <button type="submit">sign in</button>
       </form>
+      <button type="button" data-social-google onClick={() => flow.handleSocial("google")}>
+        social google
+      </button>
     </div>
   )
 }
@@ -108,6 +113,10 @@ function passwordInput() {
 
 function signInButton() {
   return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
+}
+
+function socialButton() {
+  return container.querySelector<HTMLButtonElement>("[data-social-google]")!
 }
 
 function setValue(input: HTMLInputElement, value: string) {
@@ -165,9 +174,7 @@ describe("useSignInFlow", () => {
     render(<Harness onSuccess={onSuccess} />)
 
     await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('button[type="button"]')!
-        .click()
+      container.querySelector<HTMLButtonElement>("[data-verify-otp]")!.click()
       await Promise.resolve()
     })
 
@@ -193,9 +200,7 @@ describe("useSignInFlow", () => {
     render(<Harness onSuccess={onSuccess} />)
 
     await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('button[type="button"]')!
-        .click()
+      container.querySelector<HTMLButtonElement>("[data-verify-otp]")!.click()
       await Promise.resolve()
     })
 
@@ -214,6 +219,57 @@ describe("useSignInFlow", () => {
     )
 
     expect(emailInput().value).toBe("prefilled@example.com")
+  })
+
+  it("uses the current URL without ?open= as the social callbackURL", async () => {
+    window.history.replaceState(null, "", "/panier?open=login")
+    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
+
+    render(<Harness />)
+
+    await act(async () => {
+      socialButton().click()
+      await Promise.resolve()
+    })
+
+    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+      provider: "google",
+      callbackURL: "http://localhost:3000/panier",
+    })
+  })
+
+  it("keeps other search params in the social callbackURL", async () => {
+    window.history.replaceState(null, "", "/?open=login&query=phone")
+    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
+
+    render(<Harness />)
+
+    await act(async () => {
+      socialButton().click()
+      await Promise.resolve()
+    })
+
+    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+      provider: "google",
+      callbackURL: "http://localhost:3000/?query=phone",
+    })
+  })
+
+  it("uses the current URL unchanged as the social callbackURL when there is no ?open=", async () => {
+    window.history.replaceState(null, "", "/produits?query=phone")
+    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
+
+    render(<Harness />)
+
+    await act(async () => {
+      socialButton().click()
+      await Promise.resolve()
+    })
+
+    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+      provider: "google",
+      callbackURL: "http://localhost:3000/produits?query=phone",
+    })
   })
 })
 

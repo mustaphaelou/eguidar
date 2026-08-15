@@ -4,6 +4,7 @@ import { useCallback, useState } from "react"
 import { useSearchParams } from "next/navigation"
 
 import { authClient } from "@/lib/client"
+import { validateNextPath } from "@/lib/validate-next-path"
 
 const captchaHeaders = (token: string | null) =>
   token ? { "x-captcha-response": token } : undefined
@@ -26,11 +27,7 @@ export function useSignInFlow({
   onSuccess?: () => void
 } = {}) {
   const searchParams = useSearchParams()
-  const rawNext = searchParams.get("next")
-  const next =
-    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
-      ? rawNext
-      : null
+  const next = validateNextPath(searchParams.get("next"))
   const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
@@ -127,7 +124,7 @@ export function useSignInFlow({
     setNotice(null)
     const result = await authClient.signIn.social({
       provider,
-      callbackURL: next ?? "/",
+      callbackURL: socialCallbackURL(),
     })
     if (result.error) setError(translateAuthError(result.error))
   }
@@ -160,6 +157,12 @@ export function useSignInFlow({
     handleSocial,
     backToForm,
   }
+}
+
+function socialCallbackURL() {
+  const url = new URL(window.location.href)
+  url.searchParams.delete("open")
+  return url.toString()
 }
 
 export function translateAuthError(error: {
