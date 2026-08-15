@@ -6,17 +6,22 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { auth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
+import { SignInButton } from "./sign-in-button"
 
 export async function SignInStatus() {
   const session = await auth.api.getSession({ headers: await headers() })
 
+  if (!session) {
+    return <SignInButton />
+  }
+
   return (
     <Button
-      render={<Link href={session ? "/profil" : "/connexion"} />}
+      render={<Link href="/profil" />}
       variant="ghost"
       size="icon"
-      aria-label={session ? "Mon profil" : "Connexion"}
-      title={session ? session.user.name : "Connexion"}
+      aria-label="Mon profil"
+      title={session.user.name}
     >
       <HugeiconsIcon icon={UserIcon} strokeWidth={2} />
     </Button>
