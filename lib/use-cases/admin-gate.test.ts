@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { AdminGateError, isAdminRole, requireAdminRole } from "@/lib/use-cases/admin-gate"
+import {
+  AdminGateError,
+  adminLoginUrl,
+  isAdminRole,
+  requireAdminRole,
+} from "@/lib/use-cases/admin-gate"
 
 describe("isAdminRole", () => {
   it("returns true for an admin", () => {
@@ -30,5 +35,11 @@ describe("requireAdminRole", () => {
 
   it("throws AdminGateError when no user is passed", () => {
     expect(() => requireAdminRole(null)).toThrow(AdminGateError)
+  })
+})
+
+describe("adminLoginUrl", () => {
+  it("opens the login modal on the home page with next=/admin", () => {
+    expect(adminLoginUrl()).toBe("/?open=login&next=%2Fadmin")
   })
 })

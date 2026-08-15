@@ -14,3 +14,7 @@ export function requireAdminRole(user: { role?: string | null } | null | undefin
 } {
   if (!isAdminRole(user)) throw new AdminGateError()
 }
+
+export function adminLoginUrl(): string {
+  return "/?open=login&next=%2Fadmin"
+}
