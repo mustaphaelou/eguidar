@@ -1,0 +1,9 @@
+# TypeScript 7 (native port) via npm alias, keeping TS 6 for the ESLint toolchain
+
+We upgraded the codebase to TypeScript 7.0.2 — the native (Go) rewrite — but TypeScript 7 ships no JavaScript compiler API, and `typescript-eslint` (pulled in by `eslint-config-next`) still caps its peer range at `>=4.8.4 <6.1.0` and crashes at module load under TS 7 (typescript-eslint#10940, no ETA). So `typescript` is aliased to `npm:@typescript/typescript6@^6.0.2` (TS 6.0 API for the ESLint toolchain, ships `tsc6`) while `@typescript/native` aliases `npm:typescript@^7.0.2` (the real native `tsc`). `npx tsc` and `next build` run TS 7; `eslint` keeps working on the TS 6 engine. tsconfig also sets `"types": ["node"]` explicitly because TS 7 defaults `types` to `[]` (no auto-inclusion of `@types/*`).
+
+Why: TS 7 is the only way to get the native compiler's speed today, and Microsoft's own 7.0 announcement documents this exact side-by-side alias as the recommended fix for tools that import the `typescript` API. The alternative — pinning `typescript@^6` — would forgo the native compiler entirely until typescript-eslint ships TS 7 support.
+
+Considered options: pinning `typescript@^6` until typescript-eslint#10940 closes (rejected — no native speed, upgrade becomes cosmetic); forcing the peer range via `overrides`/`--legacy-peer-deps` (rejected — silences npm but cannot stop the typescript-eslint module-load crash, since TS 7 exposes no API); upgrading Next to 16.3.x (rejected — `eslint-config-next`'s `typescript-eslint@^8.46.0` dependency is unchanged).
+
+Consequences: every future consumer of the TS compiler API must keep resolving `typescript` as `@typescript/typescript6`; ESLint's type-aware rules run on TS 6's view of the world, not TS 7's; and the `plugins: [{name:"next"}]` editor plugin (API-based) is unverified under TS 7's native LSP — editor-side behavior should be checked separately.
