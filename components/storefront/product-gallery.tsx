@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 
 import { cn } from "@/lib/utils"
@@ -11,10 +12,15 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="aspect-square overflow-hidden rounded-2xl bg-muted">
+      <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
         {safeImages[current] ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={safeImages[current]} alt={name} className="h-full w-full object-cover" />
+          <Image
+            src={safeImages[current]}
+            alt={name}
+            fill
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            className="object-cover"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Aucune image
@@ -30,15 +36,14 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
               onClick={() => setIndex(i)}
               aria-label={`Image ${i + 1}`}
               className={cn(
-                "size-16 overflow-hidden rounded-xl transition-opacity",
+                "relative size-16 overflow-hidden rounded-xl transition-opacity",
                 i === current
                   ? "opacity-100 ring-1 ring-foreground/40"
                   : "opacity-50 hover:opacity-100"
               )}
             >
               {image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={image} alt="" className="h-full w-full object-cover" />
+                <Image src={image} alt="" fill sizes="64px" className="object-cover" />
               ) : null}
             </button>
           ))}

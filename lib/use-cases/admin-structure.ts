@@ -2,6 +2,16 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/db"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { deleteR2Object } from "@/lib/r2"
+
+async function deleteR2ObjectIfChanged(previous: string | null, next: string | null): Promise<void> {
+  if (!previous || previous === next) return
+  try {
+    await deleteR2Object(previous)
+  } catch {
+    // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
+  }
+}
 
 export interface CategoryInput {
   name: string
@@ -169,6 +179,7 @@ export async function updateCategory(id: string, input: CategoryInput, effects: 
     mapCategoryUniqueViolation(error)
   }
 
+  await deleteR2ObjectIfChanged(existing.image, data.image ?? null)
   await effects.reindexCategoryProducts(id)
   effects.revalidateCategories()
   return category
@@ -210,6 +221,7 @@ export async function deleteCategory(
   }
 
   await prisma.category.delete({ where: { id } })
+  await deleteR2ObjectIfChanged(category.image, null)
   effects.revalidateCategories()
 }
 

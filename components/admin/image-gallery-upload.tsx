@@ -2,6 +2,7 @@
 
 import { ArrowLeft01Icon, ArrowRight01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import Image from "next/image"
 import { useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -66,13 +67,34 @@ export function ImageGalleryUpload({ images, onChange }: ImageGalleryUploadProps
     onChange(next)
   }
 
+  async function removeImage(index: number) {
+    const image = images[index]
+    if (!image) return
+    const response = await fetch("/api/admin/uploads/delete", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: image }),
+    })
+    if (!response.ok) {
+      const body = (await response.json()) as { error?: string }
+      setError(body.error ?? "Échec de la suppression de l'image")
+      return
+    }
+    onChange(images.filter((_, i) => i !== index))
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-3">
         {images.map((image, index) => (
           <div key={image} className="relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={image} alt="" className="size-24 rounded-xl border object-cover" />
+            <Image
+              src={image}
+              alt=""
+              width={96}
+              height={96}
+              className="size-24 rounded-xl border object-cover"
+            />
             <span className="absolute start-1 top-1 rounded-full bg-background/80 px-1.5 text-xs">
               {index + 1}
             </span>
@@ -101,7 +123,7 @@ export function ImageGalleryUpload({ images, onChange }: ImageGalleryUploadProps
                 type="button"
                 size="icon-xs"
                 variant="destructive"
-                onClick={() => onChange(images.filter((_, i) => i !== index))}
+                onClick={() => removeImage(index)}
                 aria-label="Supprimer l'image"
               >
                 <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} />

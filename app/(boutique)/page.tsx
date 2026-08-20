@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import type { Metadata } from "next"
 import { connection } from "next/server"
@@ -68,13 +69,15 @@ async function HomeContent() {
                 )}
               >
                 {category.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={category.image}
-                    alt={category.name}
-                    loading="lazy"
-                    className="aspect-[16/10] w-full object-cover transition-transform group-hover:scale-[1.02]"
-                  />
+                  <div className="relative aspect-[16/10] w-full overflow-hidden">
+                    <Image
+                      src={category.image}
+                      alt={category.name}
+                      fill
+                      sizes="(min-width: 640px) 50vw, 100vw"
+                      className="object-cover transition-transform group-hover:scale-[1.02]"
+                    />
+                  </div>
                 ) : (
                   <div className="flex aspect-[16/10] w-full items-center justify-center bg-background">
                     <span className="text-sm text-muted-foreground">

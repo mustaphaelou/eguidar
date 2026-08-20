@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 import type { Metadata } from "next"
 
@@ -61,10 +62,11 @@ export default async function AdminCategoriesPage() {
                 <TableCell>
                   <div className="flex items-center gap-3" style={{ paddingLeft: row.depth * 1.5 }}>
                     {row.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <Image
                         src={row.image}
                         alt=""
+                        width={40}
+                        height={40}
                         className="size-10 shrink-0 rounded-lg border object-cover"
                       />
                     ) : null}

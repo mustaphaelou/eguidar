@@ -6,6 +6,17 @@ const nextConfig: NextConfig = {
   cacheHandlers: {
     remote: require.resolve("./cache-handlers/redis-handler.js"),
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.eguidar.com",
+        pathname: "/**",
+        search: "",
+      },
+    ],
+    qualities: [75],
+  },
   async redirects() {
     return [
       {

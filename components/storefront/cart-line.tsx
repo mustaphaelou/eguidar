@@ -1,6 +1,7 @@
 "use client"
 
 import { useTransition } from "react"
+import Image from "next/image"
 import Link from "next/link"
 
 import { Add01Icon, DeleteThrowIcon, MinusSignIcon } from "@hugeicons/core-free-icons"
@@ -33,10 +34,15 @@ export function CartLineRow({ line }: { line: CartLine }) {
   return (
     <li className="flex items-center gap-4 border-b py-4 last:border-b-0">
       <Link href={`/produit/${line.productSlug}`} className="shrink-0">
-        <div className="h-20 w-20 overflow-hidden rounded-xl bg-muted">
+        <div className="relative h-20 w-20 overflow-hidden rounded-xl bg-muted">
           {line.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={line.image} alt={line.productName} className="h-full w-full object-cover" />
+            <Image
+              src={line.image}
+              alt={line.productName}
+              fill
+              sizes="80px"
+              className="object-cover"
+            />
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
               Aucune image

@@ -28,6 +28,10 @@ _Avoid_: cash on delivery, paiement cash, payer à la livraison
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
 
+**Image produit**:
+A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart.
+_Avoid_: photo, visuel, media
+
 **Compte client**:
 The registered customer entity (Better Auth user) with credentials, email verification, and optional social logins (Google, Apple). Carries a `role` ("user" or "admin").
 _Avoid_: account, user, membre

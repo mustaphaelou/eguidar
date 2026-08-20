@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 
 import { DeliveryTruck02Icon } from "@hugeicons/core-free-icons"
@@ -15,12 +16,12 @@ export function ProductCardItem({ product }: { product: ProductCard }) {
     >
       <div className="relative aspect-square overflow-hidden rounded-xl bg-muted">
         {product.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={product.image}
             alt={product.name}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            fill
+            sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
+            className="object-cover transition-transform group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">

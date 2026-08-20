@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 
 import { formatPrice } from "@/lib/money"
@@ -7,14 +8,14 @@ import type { ProductCard } from "@/lib/use-cases/storefront"
 export function HomeProductCard({ product }: { product: ProductCard }) {
   return (
     <Link href={`/produit/${product.slug}`} className="group flex flex-col gap-2">
-      <div className="aspect-square overflow-hidden rounded-2xl bg-muted">
+      <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
         {product.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={product.image}
             alt={product.name}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            fill
+            sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
           />
         ) : (
           <div className="flex h-full items-center justify-center p-4 text-center text-xs text-muted-foreground">

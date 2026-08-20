@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useActionState, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -135,8 +136,13 @@ export function CategoryForm({
             </div>
           </div>
           {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={image} alt="" className="size-24 rounded-xl border object-cover" />
+            <Image
+              src={image}
+              alt=""
+              width={96}
+              height={96}
+              className="size-24 rounded-xl border object-cover"
+            />
           ) : null}
         </CardContent>
       </Card>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { priceBucketIdFor } from "@/lib/price-buckets"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
+import { deleteR2Object } from "@/lib/r2"
 
 export interface ProductVariantInput {
   id?: string
@@ -160,6 +161,20 @@ function isUniqueViolation(error: unknown, fields: string[]): boolean {
   )
 }
 
+function imageUrls(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+}
+
+async function deleteR2Objects(urls: string[]): Promise<void> {
+  for (const url of urls) {
+    try {
+      await deleteR2Object(url)
+    } catch {
+      // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
+    }
+  }
+}
+
 function mapUniqueViolation(error: unknown): never {
   if (isUniqueViolation(error, ["slug"])) throw new SlugConflictError()
   if (isUniqueViolation(error, ["sku"])) throw new DuplicateSkuError()
@@ -254,6 +269,8 @@ export async function updateProduct(id: string, input: ProductInput, effects: Ca
   await assertUniqueSkus(data.variants.map((variant) => variant.sku), id)
 
   const keptVariantIds = data.variants.flatMap((variant) => (variant.id ? [variant.id] : []))
+  const existingImages = imageUrls(existing.images)
+  const removedImages = existingImages.filter((url) => !data.images.includes(url))
   const existingVariantIds = await prisma.productVariant.findMany({
     where: { productId: id },
     select: { id: true },
@@ -325,6 +342,8 @@ export async function updateProduct(id: string, input: ProductInput, effects: Ca
     mapUniqueViolation(error)
   }
 
+  await deleteR2Objects(removedImages)
+
   await effects.reindexProduct(toIndexableProduct(product))
   effects.revalidateCatalog({
     id: product.id,
@@ -339,6 +358,7 @@ export async function deleteProduct(id: string, effects: CatalogEffects): Promis
   if (!existing) throw new ProductNotFoundError()
 
   await prisma.product.delete({ where: { id } })
+  await deleteR2Objects(imageUrls(existing.images))
   await effects.removeProductFromIndex(id)
   effects.revalidateCatalog({ id, slug: existing.slug })
 }
