@@ -1,8 +1,8 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import { priceBucketIdFor } from "@/lib/price-buckets"
-import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
+import { toIndexableProduct } from "@/lib/index-projection"
+import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteR2Object } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
@@ -28,25 +28,6 @@ export interface ProductInput {
   featuredOrder: number
   freeShipping: boolean
   variants: ProductVariantInput[]
-}
-
-export interface IndexableProduct {
-  id: string
-  name: string
-  slug: string
-  description: string
-  brand: string
-  price: number
-  minPrice: number
-  totalStock: number
-  images: string[]
-  categoryId: string
-  categorySlug: string
-  categoryName: string
-  isFeatured: boolean
-  freeShipping: boolean
-  priceBucket: string
-  updatedAt: number
 }
 
 export interface CatalogEffects {
@@ -170,41 +151,6 @@ function mapUniqueViolation(error: unknown): never {
   if (hasUniqueViolation(error, ["slug"])) throw new SlugConflictError()
   if (hasUniqueViolation(error, ["sku"])) throw new DuplicateSkuError()
   throw error
-}
-
-export function toIndexableProduct(product: {
-  id: string
-  name: string
-  slug: string
-  description: string
-  brand: string
-  price: number
-  images: unknown
-  isFeatured: boolean
-  freeShipping: boolean
-  updatedAt: Date
-  variants: { priceDelta: number; stock: number }[]
-  category: { id: string; slug: string; name: string }
-}): IndexableProduct {
-  const minPrice = minVariantPrice(product.price, product.variants)
-  return {
-    id: product.id,
-    name: product.name,
-    slug: product.slug,
-    description: product.description,
-    brand: product.brand,
-    price: product.price,
-    minPrice,
-    totalStock: totalVariantStock(product.variants),
-    images: Array.isArray(product.images) ? product.images.filter((i): i is string => typeof i === "string") : [],
-    categoryId: product.category.id,
-    categorySlug: product.category.slug,
-    categoryName: product.category.name,
-    isFeatured: product.isFeatured,
-    freeShipping: product.freeShipping,
-    priceBucket: priceBucketIdFor(minPrice),
-    updatedAt: product.updatedAt.getTime(),
-  }
 }
 
 export async function createProduct(input: ProductInput, effects: CatalogEffects) {

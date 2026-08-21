@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db"
 import { indexProductDocuments } from "@/lib/meili"
-import { toIndexableProduct } from "@/lib/use-cases/admin-catalog"
+import { toIndexableProduct } from "@/lib/index-projection"
 import type { StructureEffects } from "@/lib/use-cases/admin-structure"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
 

@@ -33,6 +33,10 @@ _Avoid_: cash on delivery, paiement cash, payer à la livraison
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
 
+**Document d'index**:
+La forme indexable d'un produit pour la recherche : identifiants, libellés, marque, catégorie, prix minimal et son bucket de prix, stock total, images et date de mise à jour.
+_Avoid_: produit indexé, indexable product
+
 **Image produit**:
 A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart.
 _Avoid_: photo, visuel, media

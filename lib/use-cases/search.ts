@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db"
 import { getMeiliSearch, PRODUCTS_INDEX } from "@/lib/meili"
 import { getPriceBucket, priceBucketFilter } from "@/lib/price-buckets"
-import type { IndexableProduct } from "@/lib/use-cases/admin-catalog"
+import type { IndexableProduct } from "@/lib/index-projection"
 
 export interface SearchFilters {
   brand?: string

@@ -1,6 +1,6 @@
 import { Meilisearch } from "meilisearch"
 
-import type { IndexableProduct } from "@/lib/use-cases/admin-catalog"
+import type { IndexableProduct } from "@/lib/index-projection"
 
 const globalForMeili = globalThis as unknown as { meili?: Meilisearch }
 

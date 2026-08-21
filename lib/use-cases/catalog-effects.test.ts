@@ -8,7 +8,7 @@ import {
   getMeiliSearch,
   PRODUCTS_INDEX,
 } from "@/lib/meili"
-import type { IndexableProduct } from "@/lib/use-cases/admin-catalog"
+import type { IndexableProduct } from "@/lib/index-projection"
 import { realCatalogEffects } from "@/lib/use-cases/catalog-effects"
 
 vi.mock("@/lib/use-cases/cache-invalidation", () => ({

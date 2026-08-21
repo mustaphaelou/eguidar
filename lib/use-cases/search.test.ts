@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
 import { ensureProductsIndex, getMeiliSearch, PRODUCTS_INDEX } from "@/lib/meili"
-import type { IndexableProduct } from "@/lib/use-cases/admin-catalog"
+import type { IndexableProduct } from "@/lib/index-projection"
 import {
   buildSearchFilter,
   buildSearchHref,

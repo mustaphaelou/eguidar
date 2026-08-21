@@ -6,7 +6,7 @@ import { hashPassword } from "better-auth/crypto"
 
 import { prisma } from "../lib/db"
 import { indexProductDocuments } from "../lib/meili"
-import { toIndexableProduct } from "../lib/use-cases/admin-catalog"
+import { toIndexableProduct } from "../lib/index-projection"
 
 const adminEmail = process.env.ADMIN_EMAIL ?? "admin@eguidar.ma"
 const adminPassword = process.env.ADMIN_PASSWORD ?? "admin-password-change-me"
