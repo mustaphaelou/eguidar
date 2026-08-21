@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { IndexableProduct } from "@/lib/index-projection"
-import { indexProductDocuments } from "@/lib/meili"
+import { reindexProducts } from "@/lib/use-cases/index-writer"
 import { realStructureEffects } from "@/lib/use-cases/structure-effects"
 
-vi.mock("@/lib/meili", () => ({
-  indexProductDocuments: vi.fn(),
+vi.mock("@/lib/use-cases/index-writer", () => ({
+  reindexProducts: vi.fn(),
 }))
 
 vi.mock("@/lib/use-cases/cache-invalidation", () => ({
@@ -40,12 +40,12 @@ describe("realStructureEffects", () => {
     vi.clearAllMocks()
   })
 
-  it("delegates reindexProducts to indexProductDocuments", async () => {
+  it("delegates reindexProducts to the index writer", async () => {
     const products = [makeDoc("p1"), makeDoc("p2")]
 
     await realStructureEffects.reindexProducts(products)
 
-    expect(indexProductDocuments).toHaveBeenCalledWith(products)
+    expect(reindexProducts).toHaveBeenCalledWith(products)
   })
 
   it("delegates structure revalidation to invalidateStructure", () => {

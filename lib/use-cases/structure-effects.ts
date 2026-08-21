@@ -1,11 +1,9 @@
-import { indexProductDocuments } from "@/lib/meili"
-import type { StructureEffects } from "@/lib/use-cases/admin-structure"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
+import { reindexProducts } from "@/lib/use-cases/index-writer"
+import type { StructureEffects } from "@/lib/use-cases/admin-structure"
 
 export const realStructureEffects: StructureEffects = {
-  async reindexProducts(products) {
-    await indexProductDocuments(products)
-  },
+  reindexProducts,
   revalidateCategories() {
     invalidateStructure()
   },
