@@ -21,10 +21,10 @@ const categorySlug = (suffix: string) => `cat-${runId}-${suffix}`
 const productSlug = (suffix: string) => `struc-${runId}-${suffix}`
 
 function makeEffects(): StructureEffects & {
-  reindexCategoryProducts: ReturnType<typeof vi.fn>
+  reindexProducts: ReturnType<typeof vi.fn>
 } {
   return {
-    reindexCategoryProducts: vi.fn(async () => {}),
+    reindexProducts: vi.fn(async () => {}),
     revalidateCategories: vi.fn(),
   }
 }
@@ -61,7 +61,7 @@ describe("admin structure mutations — categories", () => {
     const persisted = await prisma.category.findUniqueOrThrow({ where: { id: category.id } })
     expect(persisted.image).toBe("https://example.com/cat.jpg")
     expect(effects.revalidateCategories).toHaveBeenCalledOnce()
-    expect(effects.reindexCategoryProducts).not.toHaveBeenCalled()
+    expect(effects.reindexProducts).not.toHaveBeenCalled()
   })
 
   it("creates a nested category under an existing parent", async () => {
@@ -110,25 +110,67 @@ describe("admin structure mutations — categories", () => {
     ).rejects.toThrow(CategoryValidationError)
   })
 
-  it("updates a category, re-indexes its products and revalidates", async () => {
+  it("updates a category and revalidates; an empty category is not re-indexed", async () => {
     const effects = makeEffects()
-    const parent = await createCategory(makeCategoryInput({ slug: categorySlug("up-parent") }), makeEffects())
-    const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("update"), name: "Avant" }),
-      makeEffects()
-    )
+    const parent = await createCategory(makeCategoryInput({ slug: categorySlug("update-parent") }), makeEffects())
+    const category = await createCategory(makeCategoryInput({ slug: categorySlug("update-empty") }), makeEffects())
 
     const updated = await updateCategory(
       category.id,
-      makeCategoryInput({ slug: categorySlug("update"), name: "Après", parentId: parent.id, image: null }),
+      makeCategoryInput({
+        slug: categorySlug("update-empty"),
+        name: "Après",
+        parentId: parent.id,
+        image: null,
+      }),
       effects
     )
 
     expect(updated.name).toBe("Après")
     expect(updated.parentId).toBe(parent.id)
     expect(updated.image).toBeNull()
-    expect(effects.reindexCategoryProducts).toHaveBeenCalledWith(category.id)
     expect(effects.revalidateCategories).toHaveBeenCalled()
+    expect(effects.reindexProducts).not.toHaveBeenCalled()
+  })
+
+  it("updates a category name and re-indexes the documents of its products", async () => {
+    const effects = makeEffects()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("update"), name: "Avant" }),
+      makeEffects()
+    )
+    const product = await prisma.product.create({
+      data: {
+        name: "Produit reindexé",
+        slug: productSlug("update"),
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        categoryId: category.id,
+        variants: {
+          create: { name: "Standard", sku: `STRUC-${runId}-update`, priceDelta: 0, stock: 5 },
+        },
+      },
+    })
+
+    await updateCategory(
+      category.id,
+      makeCategoryInput({ slug: categorySlug("update"), name: "Après" }),
+      effects
+    )
+
+    expect(effects.reindexProducts).toHaveBeenCalledOnce()
+    expect(effects.reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: product.id,
+        name: "Produit reindexé",
+        totalStock: 5,
+        categorySlug: categorySlug("update"),
+        categoryName: "Après",
+      }),
+    ])
   })
 
   it("accepts an unchanged slug on update", async () => {
@@ -204,7 +246,7 @@ describe("admin structure mutations — categories", () => {
 
     await expect(prisma.category.findUnique({ where: { id: category.id } })).resolves.toBeNull()
     expect(effects.revalidateCategories).toHaveBeenCalled()
-    expect(effects.reindexCategoryProducts).not.toHaveBeenCalled()
+    expect(effects.reindexProducts).not.toHaveBeenCalled()
   })
 
   it("blocks deletion of a category that still has children", async () => {
@@ -270,7 +312,13 @@ describe("admin structure mutations — categories", () => {
     await expect(prisma.category.findUnique({ where: { id: category.id } })).resolves.toBeNull()
     const moved = await prisma.product.findUniqueOrThrow({ where: { id: product.id } })
     expect(moved.categoryId).toBe(target.id)
-    expect(effects.reindexCategoryProducts).toHaveBeenCalledWith(target.id)
+    expect(effects.reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: product.id,
+        categorySlug: target.slug,
+        categoryName: target.name,
+      }),
+    ])
     expect(effects.revalidateCategories).toHaveBeenCalled()
   })
 

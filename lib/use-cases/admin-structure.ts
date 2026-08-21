@@ -1,6 +1,8 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import { toIndexableProduct } from "@/lib/index-projection"
+import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteR2Object } from "@/lib/r2"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 
@@ -21,7 +23,7 @@ export interface CategoryInput {
 }
 
 export interface StructureEffects {
-  reindexCategoryProducts(categoryId: string): Promise<void>
+  reindexProducts(products: IndexableProduct[]): Promise<void>
   revalidateCategories(): void
 }
 
@@ -119,6 +121,14 @@ async function assertAcyclicCategoryTree(id: string, parentId: string | null | u
   }
 }
 
+async function readIndexableCategoryProducts(categoryId: string): Promise<IndexableProduct[]> {
+  const products = await prisma.product.findMany({
+    where: { categoryId },
+    include: { variants: true, category: true },
+  })
+  return products.map(toIndexableProduct)
+}
+
 export async function createCategory(input: CategoryInput, effects: StructureEffects) {
   const data = parseCategoryInput(input)
   await assertUniqueCategorySlug(data.slug)
@@ -166,7 +176,8 @@ export async function updateCategory(id: string, input: CategoryInput, effects: 
   }
 
   await deleteR2ObjectIfChanged(existing.image, data.image ?? null)
-  await effects.reindexCategoryProducts(id)
+  const products = await readIndexableCategoryProducts(id)
+  if (products.length > 0) await effects.reindexProducts(products)
   effects.revalidateCategories()
   return category
 }
@@ -200,7 +211,11 @@ export async function deleteCategory(
         where: { categoryId: id },
         data: { categoryId: reassignToCategoryId },
       })
-      await effects.reindexCategoryProducts(reassignToCategoryId)
+      const movedProducts = await prisma.product.findMany({
+        where: { id: { in: category.products.map((product) => product.id) } },
+        include: { variants: true, category: true },
+      })
+      await effects.reindexProducts(movedProducts.map(toIndexableProduct))
     }
   } else if (category.products.length > 0) {
     throw new CategoryHasProductsError(category.products.length)

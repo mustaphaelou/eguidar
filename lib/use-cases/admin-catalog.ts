@@ -31,7 +31,7 @@ export interface ProductInput {
 }
 
 export interface CatalogEffects {
-  reindexProduct(product: IndexableProduct): Promise<void>
+  reindexProducts(products: IndexableProduct[]): Promise<void>
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): void
 }
@@ -190,7 +190,7 @@ export async function createProduct(input: ProductInput, effects: CatalogEffects
     mapUniqueViolation(error)
   }
 
-  await effects.reindexProduct(toIndexableProduct(product))
+  await effects.reindexProducts([toIndexableProduct(product)])
   effects.revalidateCatalog({ id: product.id, slug: product.slug })
   return product
 }
@@ -281,7 +281,7 @@ export async function updateProduct(id: string, input: ProductInput, effects: Ca
 
   await deleteR2Objects(removedImages)
 
-  await effects.reindexProduct(toIndexableProduct(product))
+  await effects.reindexProducts([toIndexableProduct(product)])
   effects.revalidateCatalog({
     id: product.id,
     slug: product.slug,
@@ -320,7 +320,7 @@ export async function updateVariantStock(
     ...variant.product,
     variants: variant.product.variants.map((v) => (v.id === variantId ? { ...v, stock } : v)),
   }
-  await effects.reindexProduct(toIndexableProduct(product))
+  await effects.reindexProducts([toIndexableProduct(product)])
   effects.revalidateCatalog({ id: product.id, slug: product.slug })
   return product
 }

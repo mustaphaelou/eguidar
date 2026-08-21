@@ -20,9 +20,9 @@ import {
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
 
-function makeEffects(): CatalogEffects & { reindexProduct: ReturnType<typeof vi.fn> } {
+function makeEffects(): CatalogEffects & { reindexProducts: ReturnType<typeof vi.fn> } {
   return {
-    reindexProduct: vi.fn(async () => {}),
+    reindexProducts: vi.fn(async () => {}),
     removeProductFromIndex: vi.fn(async () => {}),
     revalidateCatalog: vi.fn(),
   }
@@ -98,8 +98,8 @@ describe("admin catalog mutations", () => {
     const effects = makeEffects()
     const product = await createProduct(makeInput({ slug: slug("reindex") }), effects)
 
-    expect(effects.reindexProduct).toHaveBeenCalledOnce()
-    expect(effects.reindexProduct).toHaveBeenCalledWith(
+    expect(effects.reindexProducts).toHaveBeenCalledOnce()
+    expect(effects.reindexProducts).toHaveBeenCalledWith([
       expect.objectContaining({
         id: product.id,
         slug: product.slug,
@@ -110,8 +110,8 @@ describe("admin catalog mutations", () => {
         categorySlug: `categorie-${runId}`,
         categoryName: "Catégorie Test T2",
         isFeatured: false,
-      })
-    )
+      }),
+    ])
     expect(effects.revalidateCatalog).toHaveBeenCalledWith({
       id: product.id,
       slug: product.slug,
@@ -216,9 +216,9 @@ describe("admin catalog mutations", () => {
       priceDelta: 5000,
       stock: 9,
     })
-    expect(effects.reindexProduct).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Produit renommé" })
-    )
+    expect(effects.reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ name: "Produit renommé" }),
+    ])
   })
 
   it("accepts an unchanged slug on update", async () => {
@@ -352,9 +352,9 @@ describe("admin catalog mutations", () => {
 
     const persisted = await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })
     expect(persisted.stock).toBe(42)
-    expect(effects.reindexProduct).toHaveBeenCalledWith(
-      expect.objectContaining({ id: product.id, totalStock: 42 })
-    )
+    expect(effects.reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ id: product.id, totalStock: 42 }),
+    ])
     expect(effects.revalidateCatalog).toHaveBeenCalledWith({
       id: product.id,
       slug: product.slug,

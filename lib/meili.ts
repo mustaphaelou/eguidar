@@ -40,10 +40,6 @@ export async function ensureProductsIndex(meili: Meilisearch) {
   await meili.index(PRODUCTS_INDEX).updateSettings(settings)
 }
 
-export async function indexProductDocument(product: IndexableProduct) {
-  await indexProductDocuments([product])
-}
-
 export async function indexProductDocuments(products: IndexableProduct[]) {
   const meili = getMeiliSearch()
   if (!meili || products.length === 0) return
