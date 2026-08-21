@@ -1,6 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import type { ShippingSettingsFormState } from "@/components/admin/shipping-settings-form"
@@ -26,7 +25,6 @@ export async function updateShippingSettingsAction(
 
   try {
     await updateShippingSettings({ freeShippingThreshold: cents }, realLivraisonEffects)
-    revalidatePath("/admin/livraison")
   } catch (error) {
     if (error instanceof ShippingValidationError) {
       return { error: error.message }

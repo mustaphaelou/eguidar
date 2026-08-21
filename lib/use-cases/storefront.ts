@@ -2,8 +2,12 @@ import { cacheLife, cacheTag } from "next/cache"
 
 import { prisma } from "@/lib/db"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
-import { HOME_TAG, PRODUCT_TAG, productDetailTag } from "@/lib/use-cases/catalog-effects"
-import { CATEGORY_TAG } from "@/lib/use-cases/structure-effects"
+import {
+  CATEGORY_TAG,
+  HOME_TAG,
+  PRODUCT_TAG,
+  productDetailTag,
+} from "@/lib/use-cases/cache-invalidation"
 
 export interface CategoryNode {
   id: string

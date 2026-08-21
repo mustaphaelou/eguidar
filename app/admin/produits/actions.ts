@@ -1,6 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import type { ProductFormState } from "@/components/admin/product-form"
@@ -102,7 +101,6 @@ export async function createProductAction(
 
   try {
     const product = await createProduct(input, realCatalogEffects)
-    revalidatePath("/admin/produits")
     redirect(`/admin/produits/${product.id}`)
   } catch (error) {
     return toActionError(error)
@@ -128,7 +126,6 @@ export async function updateProductAction(
 
   try {
     await updateProduct(productId, input, realCatalogEffects)
-    revalidatePath("/admin/produits")
     redirect("/admin/produits")
   } catch (error) {
     return toActionError(error)
@@ -143,7 +140,6 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
   if (productId) {
     await deleteProduct(productId, realCatalogEffects)
   }
-  revalidatePath("/admin/produits")
   redirect("/admin/produits")
 }
 
@@ -154,8 +150,6 @@ export async function updateVariantStockAction(formData: FormData): Promise<void
   const variantId = String(formData.get("variantId") ?? "")
   const stock = Number(formData.get("stock") ?? 0)
   if (variantId) {
-    const product = await updateVariantStock(variantId, stock, realCatalogEffects)
-    revalidatePath(`/admin/produits/${product.id}`)
-    revalidatePath("/admin/produits")
+    await updateVariantStock(variantId, stock, realCatalogEffects)
   }
 }

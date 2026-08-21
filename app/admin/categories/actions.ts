@@ -1,6 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import type { CategoryFormState } from "@/components/admin/category-form"
@@ -71,7 +70,6 @@ export async function createCategoryAction(
 
   try {
     await createCategory(input, realStructureEffects)
-    revalidatePath("/admin/categories")
     redirect("/admin/categories")
   } catch (error) {
     return toActionError(error)
@@ -97,7 +95,6 @@ export async function updateCategoryAction(
 
   try {
     await updateCategory(categoryId, input, realStructureEffects)
-    revalidatePath("/admin/categories")
     redirect("/admin/categories")
   } catch (error) {
     return toActionError(error)
@@ -124,7 +121,6 @@ export async function deleteCategoryAction(
       realStructureEffects,
       reassignToCategoryId ? { reassignToCategoryId } : {}
     )
-    revalidatePath("/admin/categories")
   } catch (error) {
     return toActionError(error)
   }

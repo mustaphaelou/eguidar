@@ -1,12 +1,8 @@
-import { revalidateTag } from "next/cache"
-
 import { prisma } from "@/lib/db"
 import { indexProductDocuments } from "@/lib/meili"
 import { toIndexableProduct } from "@/lib/use-cases/admin-catalog"
 import type { StructureEffects } from "@/lib/use-cases/admin-structure"
-import { HOME_TAG, PRODUCT_TAG } from "@/lib/use-cases/catalog-effects"
-
-export const CATEGORY_TAG = "categories"
+import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
 
 export async function reindexCategoryProducts(categoryId: string): Promise<void> {
   const products = await prisma.product.findMany({
@@ -20,8 +16,6 @@ export async function reindexCategoryProducts(categoryId: string): Promise<void>
 export const realStructureEffects: StructureEffects = {
   reindexCategoryProducts,
   revalidateCategories() {
-    revalidateTag(CATEGORY_TAG, "max")
-    revalidateTag(PRODUCT_TAG, "max")
-    revalidateTag(HOME_TAG, "max")
+    invalidateStructure()
   },
 }

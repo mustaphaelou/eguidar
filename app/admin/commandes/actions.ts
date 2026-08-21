@@ -1,6 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import {
@@ -8,6 +7,7 @@ import {
   OrderNotFoundError,
   updateOrderStatus,
 } from "@/lib/use-cases/orders"
+import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 import { realOrderEffects } from "@/lib/use-cases/order-effects"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 
@@ -30,11 +30,7 @@ export async function updateOrderStatusAction(formData: FormData): Promise<void>
     }
   }
 
-  revalidatePath("/admin")
-  revalidatePath("/admin/commandes")
-  revalidatePath(`/admin/commandes/${orderId}`)
-  revalidatePath("/commandes")
-  revalidatePath(`/commande/confirmation/${orderId}`)
+  invalidateCommande(orderId)
   redirect(
     transitionRejected ? `/admin/commandes/${orderId}?transition=refusee` : `/admin/commandes/${orderId}`
   )

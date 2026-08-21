@@ -26,12 +26,10 @@ import {
   type LivraisonEffects,
   type PricingInput,
 } from "@/lib/use-cases/livraison"
-import {
-  realLivraisonEffects,
-  SHIPPING_TAG,
-} from "@/lib/use-cases/livraison-effects"
+import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
+import { SHIPPING_TAG } from "@/lib/use-cases/cache-invalidation"
 
-vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }))
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 const runId = randomUUID().slice(0, 8)
 const cityName = (suffix: string) => `Ville Livraison ${runId} ${suffix}`

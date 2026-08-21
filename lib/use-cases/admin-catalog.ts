@@ -5,6 +5,7 @@ import { Prisma } from "@/lib/generated/prisma/client"
 import { priceBucketIdFor } from "@/lib/price-buckets"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { deleteR2Object } from "@/lib/r2"
+import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 
 export interface ProductVariantInput {
   id?: string
@@ -51,7 +52,7 @@ export interface IndexableProduct {
 export interface CatalogEffects {
   reindexProduct(product: IndexableProduct): Promise<void>
   removeProductFromIndex(productId: string): Promise<void>
-  revalidateCatalog(product: { id: string; slug: string; previousSlug?: string }): void
+  revalidateCatalog(product: CatalogueEventProduct): void
 }
 
 export class CatalogValidationError extends Error {

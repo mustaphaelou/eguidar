@@ -1,6 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import type { CityFormState } from "@/components/admin/city-form"
@@ -63,7 +62,6 @@ export async function createCityAction(
 
   try {
     await createCity(input, realLivraisonEffects)
-    revalidatePath("/admin/villes")
     redirect("/admin/villes")
   } catch (error) {
     return toActionError(error)
@@ -89,7 +87,6 @@ export async function updateCityAction(
 
   try {
     await updateCity(cityId, input, realLivraisonEffects)
-    revalidatePath("/admin/villes")
     redirect("/admin/villes")
   } catch (error) {
     return toActionError(error)
@@ -108,5 +105,4 @@ export async function deleteCityAction(formData: FormData): Promise<void> {
       if (!(error instanceof CityNotFoundError)) throw error
     }
   }
-  revalidatePath("/admin/villes")
 }

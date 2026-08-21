@@ -1,11 +1,6 @@
-import { revalidateTag } from "next/cache"
-
 import { deleteProductDocument, indexProductDocument } from "@/lib/meili"
 import type { CatalogEffects } from "@/lib/use-cases/admin-catalog"
-
-export const PRODUCT_TAG = "products"
-export const HOME_TAG = "home"
-export const productDetailTag = (slug: string) => `product:${slug}`
+import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
 
 export const realCatalogEffects: CatalogEffects = {
   async reindexProduct(product) {
@@ -15,11 +10,6 @@ export const realCatalogEffects: CatalogEffects = {
     await deleteProductDocument(productId)
   },
   revalidateCatalog(product) {
-    revalidateTag(PRODUCT_TAG, "max")
-    revalidateTag(productDetailTag(product.slug), "max")
-    if (product.previousSlug && product.previousSlug !== product.slug) {
-      revalidateTag(productDetailTag(product.previousSlug), "max")
-    }
-    revalidateTag(HOME_TAG, "max")
+    invalidateCatalogue(product)
   },
 }
