@@ -20,6 +20,11 @@ _Avoid_: coût de livraison
 The cart subtotal above which delivery is free regardless of city or items.
 _Avoid_: seuil de gratuité
 
+**Devis**:
+Le calcul du prix d'un panier selon la ville de livraison : les frais de chaque ville de livraison,
+le seuil de livraison offerte appliqué au sous-total, et le total à payer à la livraison pour la ville demandée.
+_Avoid_: quote, estimation de livraison
+
 **Paiement à la livraison**:
 The only payment method: the courier collects the total in cash at delivery. The total shown at checkout is what the courier collects.
 _Avoid_: cash on delivery, paiement cash, payer à la livraison

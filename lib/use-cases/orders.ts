@@ -6,8 +6,8 @@ import { OrderStatus } from "@/lib/generated/prisma/client"
 import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
 import { getCart } from "@/lib/use-cases/cart"
 import {
-  computeShippingFeeFromSettings,
   DeliveryCityNotFoundError,
+  quotePanier,
 } from "@/lib/use-cases/livraison"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
 
@@ -162,14 +162,16 @@ function toOrderEmailSnapshot(order: OrderWithItems, userEmail: string): OrderEm
 export async function placeOrder(userId: string, input: CheckoutInput, effects: OrderEffects) {
   const data = parseCheckoutInput(input)
 
-  const city = await prisma.deliveryCity.findUnique({ where: { id: data.cityId } })
-  if (!city) throw new DeliveryCityNotFoundError()
-
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
   if (!user) throw new UserNotFoundError()
 
   const cart = await getCart(userId)
   if (cart.lines.length === 0) throw new EmptyCartError()
+
+  const quote = await quotePanier(cart, data.cityId)
+  if (!quote.selected) throw new DeliveryCityNotFoundError()
+  const city = quote.cities.find((candidate) => candidate.id === data.cityId)!
+  const shippingFee = quote.selected.shippingFee
 
   const outOfStock = cart.lines
     .filter((line) => line.quantity > line.stock)
@@ -180,14 +182,6 @@ export async function placeOrder(userId: string, input: CheckoutInput, effects: 
       available: line.stock,
     }))
   if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
-
-  const shippingFee = await computeShippingFeeFromSettings(
-    {
-      subtotal: cart.subtotal,
-      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
-    },
-    city.fee
-  )
 
   const order = await prisma.$transaction(async (tx) => {
     for (const line of cart.lines) {

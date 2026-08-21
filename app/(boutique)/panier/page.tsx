@@ -10,11 +10,7 @@ import { CartLineRow } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
 import { getCart } from "@/lib/use-cases/cart"
-import {
-  computeCityQuote,
-  getFreeShippingThreshold,
-  listDeliveryCities,
-} from "@/lib/use-cases/livraison"
+import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
@@ -45,23 +41,9 @@ async function CartContent({
   if (!user) return <RequireAuth />
 
   const { ville } = await searchParams
-  const [cart, cities, freeShippingThreshold] = await Promise.all([
-    getCart(user.id),
-    listDeliveryCities(),
-    getFreeShippingThreshold(),
-  ])
-
-  const selectedCity = ville ? cities.find((city) => city.id === ville) : undefined
-  const quote = selectedCity
-    ? computeCityQuote(
-        selectedCity,
-        {
-          subtotal: cart.subtotal,
-          anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
-        },
-        freeShippingThreshold
-      )
-    : null
+  const cart = await getCart(user.id)
+  const { cities, threshold, selected } = await quotePanier(cart, ville)
+  const quote = selected
 
   if (cart.lines.length === 0) {
     return (
@@ -119,7 +101,7 @@ async function CartContent({
             {quote && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <HugeiconsIcon icon={DeliveryTruck02Icon} strokeWidth={2} className="size-4" />
-                Livraison offerte dès {formatPrice(freeShippingThreshold)}
+                Livraison offerte dès {formatPrice(threshold)}
               </p>
             )}
             <Button

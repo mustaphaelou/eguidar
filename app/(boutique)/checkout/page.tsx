@@ -6,11 +6,7 @@ import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { getProfile } from "@/lib/use-cases/account"
 import { getCart } from "@/lib/use-cases/cart"
-import {
-  computeCityQuotes,
-  getFreeShippingThreshold,
-  listDeliveryCities,
-} from "@/lib/use-cases/livraison"
+import { quotePanier } from "@/lib/use-cases/livraison"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
 
@@ -41,26 +37,12 @@ async function CheckoutContent({
   if (!user) return <RequireAuth />
 
   const { ville } = await searchParams
-  const [cart, cities, profile, freeShippingThreshold] = await Promise.all([
-    getCart(user.id),
-    listDeliveryCities(),
-    getProfile(user.id),
-    getFreeShippingThreshold(),
-  ])
-
+  const [cart, profile] = await Promise.all([getCart(user.id), getProfile(user.id)])
   if (cart.lines.length === 0) redirect("/panier")
 
-  const quotes = computeCityQuotes(
-    cities,
-    {
-      subtotal: cart.subtotal,
-      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
-    },
-    freeShippingThreshold
-  )
-
   const requestedCityId = ville ?? profile.cityId
-  const initialCityId = requestedCityId && quotes[requestedCityId] ? requestedCityId : null
+  const { cities, quotes, selected } = await quotePanier(cart, requestedCityId)
+  const initialCityId = selected ? requestedCityId : null
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">

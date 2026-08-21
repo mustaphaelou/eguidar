@@ -2,11 +2,19 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/db"
 import { Prisma } from "@/lib/generated/prisma/client"
+import type { CartData } from "@/lib/use-cases/cart"
 
 export interface ShippingQuote {
   subtotal: number
   shippingFee: number
   total: number
+}
+
+export interface PanierQuote {
+  cities: DeliveryCityOption[]
+  threshold: number
+  quotes: Record<string, ShippingQuote>
+  selected: ShippingQuote | null
 }
 
 export interface DeliveryCityOption {
@@ -105,17 +113,28 @@ export function computeCityQuotes(
   return quotes
 }
 
-export async function computeShippingFeeFromSettings(
-  pricing: PricingInput,
-  cityFee: number
-): Promise<number> {
-  const freeShippingThreshold = await getFreeShippingThreshold()
-  return computeShippingFee({
-    subtotal: pricing.subtotal,
-    cityFee,
-    freeShippingThreshold,
-    anyFreeShippingItem: pricing.anyFreeShippingItem,
-  })
+export async function quotePanier(
+  cart: CartData,
+  cityId?: string | null
+): Promise<PanierQuote> {
+  const [cities, threshold] = await Promise.all([
+    listDeliveryCities(),
+    getFreeShippingThreshold(),
+  ])
+  const quotes = computeCityQuotes(
+    cities,
+    {
+      subtotal: cart.subtotal,
+      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
+    },
+    threshold
+  )
+  return {
+    cities,
+    threshold,
+    quotes,
+    selected: cityId ? (quotes[cityId] ?? null) : null,
+  }
 }
 
 export async function getFreeShippingThreshold(): Promise<number> {

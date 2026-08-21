@@ -11,7 +11,6 @@ import {
   computeCityQuote,
   computeCityQuotes,
   computeShippingFee,
-  computeShippingFeeFromSettings,
   createCity,
   DEFAULT_FREE_SHIPPING_THRESHOLD,
   deleteCity,
@@ -19,6 +18,7 @@ import {
   getShippingSettings,
   listAdminCities,
   listDeliveryCities,
+  quotePanier,
   ShippingValidationError,
   updateCity,
   updateShippingSettings,
@@ -49,26 +49,6 @@ const pricing = (subtotal: number, anyFreeShippingItem = false): PricingInput =>
 
 function makeEffects(): LivraisonEffects {
   return { revalidateShipping: vi.fn() }
-}
-
-async function quoteForCity(userId: string, requestedCityId: string | null) {
-  const [cart, cities, freeShippingThreshold] = await Promise.all([
-    getCart(userId),
-    listDeliveryCities(),
-    getFreeShippingThreshold(),
-  ])
-  const city = requestedCityId
-    ? cities.find((candidate) => candidate.id === requestedCityId)
-    : undefined
-  if (!city) return null
-  return computeCityQuote(
-    city,
-    {
-      subtotal: cart.subtotal,
-      anyFreeShippingItem: cart.lines.some((line) => line.freeShipping),
-    },
-    freeShippingThreshold
-  )
 }
 
 describe("frais de livraison rule", () => {
@@ -251,57 +231,6 @@ describe("free-shipping threshold read", () => {
     await prisma.shippingSettings.deleteMany({ where: { id: "default" } })
 
     await expect(getFreeShippingThreshold()).resolves.toBe(DEFAULT_FREE_SHIPPING_THRESHOLD)
-
-    await prisma.shippingSettings.create({
-      data: { id: "default", freeShippingThreshold: 100000 },
-    })
-  })
-})
-
-describe("settings-backed fee operation", () => {
-  afterAll(async () => {
-    await prisma.shippingSettings.upsert({
-      where: { id: "default" },
-      update: { freeShippingThreshold: 100000 },
-      create: { id: "default", freeShippingThreshold: 100000 },
-    })
-    await prisma.$disconnect()
-  })
-
-  it("applies the stored threshold below it and charges the city fee", async () => {
-    await prisma.shippingSettings.upsert({
-      where: { id: "default" },
-      update: { freeShippingThreshold: 100000 },
-      create: { id: "default", freeShippingThreshold: 100000 },
-    })
-
-    await expect(computeShippingFeeFromSettings(pricing(50000), 3500)).resolves.toBe(3500)
-  })
-
-  it("quotes free shipping at the stored threshold", async () => {
-    await prisma.shippingSettings.upsert({
-      where: { id: "default" },
-      update: { freeShippingThreshold: 100000 },
-      create: { id: "default", freeShippingThreshold: 100000 },
-    })
-
-    await expect(computeShippingFeeFromSettings(pricing(100000), 3500)).resolves.toBe(0)
-  })
-
-  it("quotes free shipping below the stored threshold with a free-shipping item", async () => {
-    await prisma.shippingSettings.upsert({
-      where: { id: "default" },
-      update: { freeShippingThreshold: 100000 },
-      create: { id: "default", freeShippingThreshold: 100000 },
-    })
-
-    await expect(computeShippingFeeFromSettings(pricing(50000, true), 3500)).resolves.toBe(0)
-  })
-
-  it("falls back to the default threshold when no settings row exists", async () => {
-    await prisma.shippingSettings.deleteMany({ where: { id: "default" } })
-
-    await expect(computeShippingFeeFromSettings(pricing(50000), 3500)).resolves.toBe(3500)
 
     await prisma.shippingSettings.create({
       data: { id: "default", freeShippingThreshold: 100000 },
@@ -559,20 +488,18 @@ describe("storefront quote reads", () => {
   it("quotes the shipping fee for a chosen city below the threshold", async () => {
     await addToCart(userIdA, variantD, 1)
 
-    await expect(quoteForCity(userIdA, cityId)).resolves.toEqual({
-      subtotal: 30000,
-      shippingFee: 3500,
-      total: 33500,
+    const cart = await getCart(userIdA)
+    await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
+      selected: { subtotal: 30000, shippingFee: 3500, total: 33500 },
     })
   })
 
   it("quotes free shipping for an all-free-shipping cart below the threshold", async () => {
     await addToCart(userIdA, variantC, 1)
 
-    await expect(quoteForCity(userIdA, cityId)).resolves.toEqual({
-      subtotal: 50000,
-      shippingFee: 0,
-      total: 50000,
+    const cart = await getCart(userIdA)
+    await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
+      selected: { subtotal: 50000, shippingFee: 0, total: 50000 },
     })
   })
 
@@ -580,27 +507,39 @@ describe("storefront quote reads", () => {
     await addToCart(userIdA, variantC, 1)
     await addToCart(userIdA, variantD, 1)
 
-    await expect(quoteForCity(userIdA, cityId)).resolves.toEqual({
-      subtotal: 80000,
-      shippingFee: 0,
-      total: 80000,
+    const cart = await getCart(userIdA)
+    await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
+      selected: { subtotal: 80000, shippingFee: 0, total: 80000 },
     })
   })
 
   it("quotes free shipping for a cart above the threshold", async () => {
     await addToCart(userIdA, variantA, 20)
 
-    await expect(quoteForCity(userIdA, cityId)).resolves.toEqual({
-      subtotal: 2000000,
-      shippingFee: 0,
-      total: 2000000,
+    const cart = await getCart(userIdA)
+    await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
+      selected: { subtotal: 2000000, shippingFee: 0, total: 2000000 },
     })
   })
 
   it("returns no quote for a ville not in the delivery city list", async () => {
     await addToCart(userIdA, variantA, 1)
 
-    await expect(quoteForCity(userIdA, "ville-inconnue")).resolves.toBeNull()
+    const cart = await getCart(userIdA)
+    const quote = await quotePanier(cart, "ville-inconnue")
+    expect(quote.selected).toBeNull()
+  })
+
+  it("returns the full panier quote shape for a chosen city", async () => {
+    await addToCart(userIdA, variantD, 1)
+
+    const cart = await getCart(userIdA)
+    const quote = await quotePanier(cart, cityId)
+
+    expect(quote.cities.map((candidate) => candidate.id)).toContain(cityId)
+    expect(quote.threshold).toBe(100000)
+    expect(quote.quotes[cityId]).toEqual({ subtotal: 30000, shippingFee: 3500, total: 33500 })
+    expect(quote.selected).toEqual(quote.quotes[cityId])
   })
 })
 
