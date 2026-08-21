@@ -1,11 +1,11 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import { Prisma } from "@/lib/generated/prisma/client"
 import { priceBucketIdFor } from "@/lib/price-buckets"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { deleteR2Object } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
+import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 
 export interface ProductVariantInput {
   id?: string
@@ -152,16 +152,6 @@ async function assertUniqueSkus(skus: string[], excludeProductId?: string): Prom
   })
   if (existing.length > 0) throw new DuplicateSkuError()
 }
-
-function isUniqueViolation(error: unknown, fields: string[]): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002" &&
-    Array.isArray(error.meta?.target) &&
-    (error.meta.target as string[]).some((target) => fields.includes(target))
-  )
-}
-
 function imageUrls(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 }
@@ -177,8 +167,8 @@ async function deleteR2Objects(urls: string[]): Promise<void> {
 }
 
 function mapUniqueViolation(error: unknown): never {
-  if (isUniqueViolation(error, ["slug"])) throw new SlugConflictError()
-  if (isUniqueViolation(error, ["sku"])) throw new DuplicateSkuError()
+  if (hasUniqueViolation(error, ["slug"])) throw new SlugConflictError()
+  if (hasUniqueViolation(error, ["sku"])) throw new DuplicateSkuError()
   throw error
 }
 

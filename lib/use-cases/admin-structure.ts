@@ -1,8 +1,8 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import { Prisma } from "@/lib/generated/prisma/client"
 import { deleteR2Object } from "@/lib/r2"
+import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 
 async function deleteR2ObjectIfChanged(previous: string | null, next: string | null): Promise<void> {
   if (!previous || previous === next) return
@@ -82,22 +82,8 @@ function parseCategoryInput(input: CategoryInput): CategoryInput {
   return result.data
 }
 
-function uniqueViolationFields(error: unknown): string[] {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return []
-  const meta = error.meta as Record<string, unknown> | undefined
-  if (Array.isArray(meta?.target)) return meta.target as string[]
-  const driverError = meta?.driverAdapterError as
-    | { cause?: { constraint?: { fields?: string[] } } }
-    | undefined
-  return driverError?.cause?.constraint?.fields ?? []
-}
-
-function isUniqueViolation(error: unknown, fields: string[]): boolean {
-  return uniqueViolationFields(error).some((target) => fields.includes(target))
-}
-
 function mapCategoryUniqueViolation(error: unknown): never {
-  if (isUniqueViolation(error, ["slug"])) throw new CategorySlugConflictError()
+  if (hasUniqueViolation(error, ["slug"])) throw new CategorySlugConflictError()
   throw error
 }
 

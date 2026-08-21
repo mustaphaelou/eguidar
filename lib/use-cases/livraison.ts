@@ -1,8 +1,8 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import { Prisma } from "@/lib/generated/prisma/client"
 import type { CartData } from "@/lib/use-cases/cart"
+import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 
 export interface ShippingQuote {
   subtotal: number
@@ -166,22 +166,8 @@ function parseCityInput(input: CityInput): CityInput {
   return result.data
 }
 
-function uniqueViolationFields(error: unknown): string[] {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return []
-  const meta = error.meta as Record<string, unknown> | undefined
-  if (Array.isArray(meta?.target)) return meta.target as string[]
-  const driverError = meta?.driverAdapterError as
-    | { cause?: { constraint?: { fields?: string[] } } }
-    | undefined
-  return driverError?.cause?.constraint?.fields ?? []
-}
-
-function isUniqueViolation(error: unknown, fields: string[]): boolean {
-  return uniqueViolationFields(error).some((target) => fields.includes(target))
-}
-
 function mapCityUniqueViolation(error: unknown): never {
-  if (isUniqueViolation(error, ["name"])) throw new CityNameConflictError()
+  if (hasUniqueViolation(error, ["name"])) throw new CityNameConflictError()
   throw error
 }
 
