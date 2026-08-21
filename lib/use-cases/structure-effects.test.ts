@@ -1,10 +1,19 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
 import { ensureProductsIndex, getMeiliSearch, PRODUCTS_INDEX } from "@/lib/meili"
-import { reindexCategoryProducts } from "@/lib/use-cases/structure-effects"
+import {
+  realStructureEffects,
+  reindexCategoryProducts,
+} from "@/lib/use-cases/structure-effects"
+
+vi.mock("@/lib/use-cases/cache-invalidation", () => ({
+  invalidateStructure: vi.fn(),
+}))
+
+import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
 
 const meili = getMeiliSearch()
 const runId = randomUUID().slice(0, 8)
@@ -70,5 +79,17 @@ describe.runIf(!!meili)("structure effects — category re-index", () => {
       categorySlug,
       categoryName: "Catégorie Renommée",
     })
+  })
+})
+
+describe("realStructureEffects revalidation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("delegates structure revalidation to invalidateStructure", () => {
+    realStructureEffects.revalidateCategories()
+
+    expect(invalidateStructure).toHaveBeenCalledOnce()
   })
 })
