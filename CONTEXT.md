@@ -33,8 +33,16 @@ _Avoid_: cash on delivery, paiement cash, payer à la livraison
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
 
+**Recherche**:
+The act of finding products across the Catalogue by free-text query (with typo tolerance),
+filtrable par marque, catégorie et prix, triable (pertinence, prix, nouveautés) et paginée.
+Le header propose des suggestions instantanées de produits et de catégories.
+_Avoid_: search, recherche produit, recherche fuzz
+
 **Document d'index**:
-La forme indexable d'un produit pour la recherche : identifiants, libellés, marque, catégorie, prix minimal et son bucket de prix, stock total, images et date de mise à jour.
+La forme indexable d'un produit pour la recherche : identifiants, libellés, marque, catégorie,
+texte des spécifications (clés et valeurs), noms de variantes et SKU (recherchables), prix
+minimal et son bucket de prix, stock total, images et date de mise à jour.
 _Avoid_: produit indexé, indexable product
 
 **Image produit**:

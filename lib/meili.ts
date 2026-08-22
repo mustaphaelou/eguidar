@@ -16,12 +16,21 @@ export function getMeiliSearch() {
   return globalForMeili.meili
 }
 
-const SEARCHABLE_PRODUCT_ATTRIBUTES = ["name", "brand", "categoryName", "description"]
+const SEARCHABLE_PRODUCT_ATTRIBUTES = [
+  "name",
+  "brand",
+  "categoryName",
+  "description",
+  "specsText",
+  "variantNames",
+  "skus",
+]
 
 export async function ensureProductsIndex(meili: Meilisearch) {
   const settings = {
     searchableAttributes: SEARCHABLE_PRODUCT_ATTRIBUTES,
     filterableAttributes: ["brand", "categorySlug", "minPrice", "priceBucket"],
+    sortableAttributes: ["minPrice", "updatedAt"],
     localizedAttributes: [
       {
         attributePatterns: SEARCHABLE_PRODUCT_ATTRIBUTES,

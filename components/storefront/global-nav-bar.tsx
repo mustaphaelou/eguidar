@@ -12,7 +12,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { SearchSuggestions } from "@/components/storefront/search-suggestions"
 import { cn } from "@/lib/utils"
 
 export type GlobalNavLink = { href: string; label: string }
@@ -123,15 +123,10 @@ export function GlobalNavBar({
               strokeWidth={2}
               className="size-4 shrink-0 text-muted-foreground"
             />
-            <Input
-              ref={searchInputRef}
-              name="q"
-              placeholder="Rechercher un produit, une marque…"
-              className="h-8 rounded-full"
-              aria-label="Rechercher un produit"
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setSearchOpen(false)
-              }}
+            <SearchSuggestions
+              inputRef={searchInputRef}
+              onEscape={() => setSearchOpen(false)}
+              onNavigate={() => setSearchOpen(false)}
             />
             <Button type="submit" size="sm" className="rounded-full">
               Rechercher

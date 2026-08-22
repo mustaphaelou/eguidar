@@ -9,8 +9,11 @@ import {
   buildSearchFilter,
   buildSearchHref,
   escapeFilterValue,
+  parsePage,
   parseSearchParams,
+  parseSort,
   searchProducts,
+  searchSuggestions,
 } from "@/lib/use-cases/search"
 
 const meili = getMeiliSearch()
@@ -59,6 +62,8 @@ describe("parseSearchParams", () => {
     ).toEqual({
       query: "sony",
       filters: { brand: "Sony", categorySlug: "audio-hifi", priceBucketId: "2500-5000" },
+      sort: "pertinence",
+      page: 1,
     })
   })
 
@@ -66,11 +71,50 @@ describe("parseSearchParams", () => {
     expect(parseSearchParams({ q: "sony", marque: "Sony", prix: "bogus" })).toEqual({
       query: "sony",
       filters: { brand: "Sony" },
+      sort: "pertinence",
+      page: 1,
     })
   })
 
   it("returns an empty query and empty filters for empty params", () => {
-    expect(parseSearchParams({})).toEqual({ query: "", filters: {} })
+    expect(parseSearchParams({})).toEqual({ query: "", filters: {}, sort: "pertinence", page: 1 })
+  })
+
+  it("parses sort and page params", () => {
+    expect(parseSearchParams({ tri: "prix-asc", page: "3" }).sort).toBe("prix-asc")
+    expect(parseSearchParams({ tri: "prix-asc", page: "3" }).page).toBe(3)
+  })
+
+  it("falls back to defaults for unknown sort and invalid page", () => {
+    expect(parseSearchParams({ tri: "bogus", page: "-2" }).sort).toBe("pertinence")
+    expect(parseSearchParams({ tri: "bogus", page: "-2" }).page).toBe(1)
+    expect(parseSearchParams({ page: "2.5" }).page).toBe(1)
+  })
+
+  it("uses the provided default sort when tri is absent", () => {
+    expect(parseSearchParams({}, "nouveautes").sort).toBe("nouveautes")
+    expect(parseSearchParams({ tri: "prix-asc" }, "nouveautes").sort).toBe("prix-asc")
+  })
+})
+
+describe("parseSort and parsePage", () => {
+  it("accepts known sort values", () => {
+    expect(parseSort("prix-asc")).toBe("prix-asc")
+    expect(parseSort("prix-desc")).toBe("prix-desc")
+    expect(parseSort("nouveautes")).toBe("nouveautes")
+  })
+
+  it("defaults unknown or empty sort to pertinence", () => {
+    expect(parseSort("inconnu")).toBe("pertinence")
+    expect(parseSort(undefined)).toBe("pertinence")
+  })
+
+  it("parses positive integer pages and defaults otherwise", () => {
+    expect(parsePage("1")).toBe(1)
+    expect(parsePage("24")).toBe(24)
+    expect(parsePage(undefined)).toBe(1)
+    expect(parsePage("0")).toBe(1)
+    expect(parsePage("abc")).toBe(1)
   })
 })
 
@@ -93,6 +137,30 @@ describe("buildSearchHref", () => {
 
   it("omits the query param when the query is empty", () => {
     expect(buildSearchHref("", { brand: "Sony" })).toBe("/recherche?marque=Sony")
+  })
+
+  it("omits default sort and first page from the href", () => {
+    expect(buildSearchHref("casque", {}, {}, { sort: "pertinence", page: 1 })).toBe(
+      "/recherche?q=casque"
+    )
+  })
+
+  it("adds sort and page params when non-default", () => {
+    expect(buildSearchHref("casque", {}, {}, { sort: "prix-asc", page: 2 })).toBe(
+      "/recherche?q=casque&tri=prix-asc&page=2"
+    )
+    expect(buildSearchHref("casque", {}, {}, { sort: "nouveautes", page: 1 })).toBe(
+      "/recherche?q=casque&tri=nouveautes"
+    )
+  })
+
+  it("supports a custom path (catalogue)", () => {
+    expect(buildSearchHref("", { brand: "Sony" }, {}, { sort: "nouveautes" }, "/produits")).toBe(
+      "/produits?marque=Sony&tri=nouveautes"
+    )
+    expect(buildSearchHref("", {}, {}, { sort: "nouveautes" }, "/produits")).toBe(
+      "/produits?tri=nouveautes"
+    )
   })
 })
 
@@ -121,6 +189,9 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       categoryId: "cat",
       categorySlug: smartphonesSlug,
       categoryName: "Smartphones",
+      specsText: "",
+      variantNames: [],
+      skus: [],
       isFeatured: false,
       freeShipping: false,
       priceBucket: "0-1000",
@@ -136,6 +207,10 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       price: 1249900,
       minPrice: 1249900,
       priceBucket: "10000-plus",
+      specsText: "Puce A17 Pro Caméra 48 MP",
+      variantNames: ["128 Go", "256 Go"],
+      skus: ["IP15P-128", "IP15P-256"],
+      updatedAt: new Date("2026-01-01T00:00:00.000Z").getTime(),
     }),
     makeDoc("samsung", {
       name: name("Samsung Galaxy S24"),
@@ -143,6 +218,9 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       price: 699900,
       minPrice: 699900,
       priceBucket: "5000-10000",
+      variantNames: ["256 Go"],
+      skus: ["S24U-256"],
+      updatedAt: new Date("2026-02-01T00:00:00.000Z").getTime(),
     }),
     makeDoc("casque", {
       name: name("Casque Sony WH-1000XM5"),
@@ -153,6 +231,7 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       minPrice: 349900,
       priceBucket: "2500-5000",
       freeShipping: true,
+      updatedAt: new Date("2026-03-01T00:00:00.000Z").getTime(),
     }),
     makeDoc("ecran", {
       name: name("Écran 27 pouces 4K"),
@@ -162,6 +241,7 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       price: 159900,
       minPrice: 159900,
       priceBucket: "1000-2500",
+      updatedAt: new Date("2026-04-01T00:00:00.000Z").getTime(),
     }),
     makeDoc("clavier", {
       name: name("Clavier mécanique"),
@@ -169,6 +249,7 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       price: 39900,
       minPrice: 39900,
       priceBucket: "0-1000",
+      updatedAt: new Date("2026-05-01T00:00:00.000Z").getTime(),
     }),
   ]
 
@@ -291,5 +372,91 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       totalStock: 5,
       freeShipping: true,
     })
+  })
+
+  it("matches skus, variant names and specs text", async () => {
+    const bySku = await searchProducts("ip15p", { categorySlug: smartphonesSlug })
+    expect(bySku.products.map((p) => p.name)).toEqual([name("iPhone 15 Pro")])
+
+    const byVariant = await searchProducts("128 go", { categorySlug: smartphonesSlug })
+    expect(byVariant.products.map((p) => p.name)).toEqual([name("iPhone 15 Pro")])
+
+    const bySpecs = await searchProducts("a17 pro", { categorySlug: smartphonesSlug })
+    expect(bySpecs.products.map((p) => p.name)).toEqual([name("iPhone 15 Pro")])
+  })
+
+  it("sorts by price ascending and descending", async () => {
+    const asc = await searchProducts(token, {}, { sort: "prix-asc" })
+    expect(asc.products.map((p) => p.name)).toEqual([
+      name("Clavier mécanique"),
+      name("Écran 27 pouces 4K"),
+      name("Casque Sony WH-1000XM5"),
+      name("Samsung Galaxy S24"),
+      name("iPhone 15 Pro"),
+    ])
+
+    const desc = await searchProducts(token, {}, { sort: "prix-desc" })
+    expect(desc.products[0].name).toBe(name("iPhone 15 Pro"))
+    expect(desc.products.at(-1)?.name).toBe(name("Clavier mécanique"))
+  })
+
+  it("sorts nouveautes by updatedAt descending", async () => {
+    const result = await searchProducts(token, {}, { sort: "nouveautes" })
+
+    expect(result.products.map((p) => p.name)).toEqual([
+      name("Clavier mécanique"),
+      name("Écran 27 pouces 4K"),
+      name("Casque Sony WH-1000XM5"),
+      name("Samsung Galaxy S24"),
+      name("iPhone 15 Pro"),
+    ])
+  })
+
+  it("paginates with offset and reports page metadata", async () => {
+    const page = await searchProducts(token, {}, { page: 2, pageSize: 2 })
+
+    expect(page.currentPage).toBe(2)
+    expect(page.totalPages).toBe(3)
+    expect(page.pageSize).toBe(2)
+    expect(page.products.length).toBe(2)
+    expect(page.products.map((p) => p.id)).toEqual(["casque", "ecran"])
+  })
+
+  it("clamps an out-of-range page to the last page", async () => {
+    const page = await searchProducts(token, {}, { page: 99, pageSize: 2 })
+
+    expect(page.currentPage).toBe(3)
+    expect(page.products.length).toBe(1)
+    expect(page.products[0].id).toBe("clavier")
+  })
+
+  it("reports a single page and page 1 for the default page size", async () => {
+    const page = await searchProducts(token)
+
+    expect(page.currentPage).toBe(1)
+    expect(page.totalPages).toBe(1)
+    expect(page.pageSize).toBe(24)
+  })
+
+  it("ranks all-terms matches first and keeps categories", async () => {
+    const suggestions = await searchSuggestions(`${token} sony`)
+
+    expect(suggestions.products[0]).toMatchObject({
+      slug: `srch-${runId}-casque`,
+      name: name("Casque Sony WH-1000XM5"),
+      minPrice: 349900,
+    })
+    expect(suggestions.categories).toContainEqual({ slug: audioSlug, name: "Audio & Hi-Fi" })
+  })
+
+  it("caps suggestions at six products", async () => {
+    const suggestions = await searchSuggestions(token)
+
+    expect(suggestions.products.length).toBeGreaterThanOrEqual(5)
+    expect(suggestions.products.length).toBeLessThanOrEqual(6)
+    expect(suggestions.categories.map((c) => c.name).sort()).toEqual([
+      "Audio & Hi-Fi",
+      "Smartphones",
+    ])
   })
 })
