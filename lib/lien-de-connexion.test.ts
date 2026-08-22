@@ -32,6 +32,7 @@ describe("loginUrl", () => {
     for (const unsafe of OPEN_REDIRECT_CASES) {
       expect(loginUrl(unsafe)).toBe("/?open=login")
     }
+    expect(loginUrl("")).toBe("/?open=login")
   })
 })
 
@@ -45,6 +46,7 @@ describe("signupUrl", () => {
     for (const unsafe of OPEN_REDIRECT_CASES) {
       expect(signupUrl(unsafe)).toBe("/?open=signup")
     }
+    expect(signupUrl("")).toBe("/?open=signup")
   })
 })
 
@@ -148,6 +150,9 @@ describe("withAuthParams", () => {
     expect(
       withAuthParams("/?next=%2Fpanier", { dialog: "login", next: "//evil.example" })
     ).toBe("/?open=login")
+    expect(
+      withAuthParams("/compte?next=%2Fpanier", { dialog: "login", next: "" })
+    ).toBe("/compte?open=login")
   })
 
   it("matches builder output", () => {
