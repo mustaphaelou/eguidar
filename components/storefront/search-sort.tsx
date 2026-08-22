@@ -14,7 +14,7 @@ import {
   SEARCH_SORT_OPTIONS,
   type SearchFilters,
   type SearchSort,
-} from "@/lib/use-cases/search"
+} from "@/lib/search-params"
 
 export function SearchSort({
   sort,
