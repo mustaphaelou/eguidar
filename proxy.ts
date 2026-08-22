@@ -1,23 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
 
-import { validateNextPath } from "@/lib/validate-next-path"
+import { loginUrl, signupUrl } from "@/lib/lien-de-connexion"
+
+const LEGACY_DIALOG_PATHS = {
+  "/connexion": loginUrl,
+  "/inscription": signupUrl,
+} as const
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (pathname === "/connexion" || pathname === "/inscription") {
-    const url = new URL("/", request.url)
-    url.searchParams.set("open", pathname === "/connexion" ? "login" : "signup")
-    const next = validateNextPath(request.nextUrl.searchParams.get("next"))
-    if (next) url.searchParams.set("next", next)
-    return NextResponse.redirect(url)
+  const legacyBuilder =
+    LEGACY_DIALOG_PATHS[pathname as keyof typeof LEGACY_DIALOG_PATHS]
+  if (legacyBuilder) {
+    return NextResponse.redirect(
+      new URL(
+        legacyBuilder(request.nextUrl.searchParams.get("next") ?? undefined),
+        request.url
+      )
+    )
   }
 
   if (!getSessionCookie(request)) {
-    const signInUrl = new URL("/connexion", request.url)
-    signInUrl.searchParams.set("next", request.nextUrl.pathname)
-    return NextResponse.redirect(signInUrl)
+    return NextResponse.redirect(new URL(loginUrl(pathname), request.url))
   }
   return NextResponse.next()
 }
