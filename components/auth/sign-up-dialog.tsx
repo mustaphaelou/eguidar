@@ -9,6 +9,10 @@ import {
 } from "@/components/ui/dialog"
 import { SignUpForm, type SignUpStep } from "@/components/auth/sign-up-form"
 import { useAuthDialogs } from "@/components/auth/auth-dialogs-context"
+import {
+  headingForDestination,
+  useAuthDestination,
+} from "@/components/auth/auth-headings"
 import { useAuthDialogHeader } from "@/components/auth/use-auth-dialog-header"
 
 export function SignUpDialog() {
@@ -38,12 +42,16 @@ function SignUpDialogPanel({
 }) {
   const { header, handleStepChange } =
     useAuthDialogHeader<SignUpStep>(initialEmail)
+  const destination = useAuthDestination()
+  const contextualTitle = headingForDestination("signup", destination)
 
   return (
     <>
       <DialogHeader>
         <DialogTitle>
-          {header.step === "otp" ? "Vérifiez votre e-mail" : "Créer un compte"}
+          {header.step === "otp"
+            ? "Vérifiez votre e-mail"
+            : (contextualTitle ?? "Créer un compte")}
         </DialogTitle>
         <DialogDescription>
           {header.step === "otp" ? (

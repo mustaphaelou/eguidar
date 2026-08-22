@@ -2,11 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Loading03Icon } from "@hugeicons/core-free-icons"
+
 import { Button } from "@/components/ui/button"
+import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import Link from "next/link"
+import { PasswordInput } from "@/components/auth/password-input"
 import { Turnstile } from "@/components/auth/turnstile"
 import { authClient } from "@/lib/client"
+import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 const captchaHeaders = (token: string | null) =>
   token ? { "x-captcha-response": token } : undefined
@@ -33,6 +40,7 @@ export function SignUpForm({
   const [otp, setOtp] = useState("")
   const [step, setStep] = useState<SignUpStep>("form")
   const [error, setError] = useState<string | null>(null)
+  const [issues, setIssues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -48,15 +56,30 @@ export function SignUpForm({
     []
   )
 
+  function updateIssue(key: string) {
+    setIssues((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
+    const parsed = signUpSchema.safeParse({ name, email, password })
+    if (!parsed.success) {
+      setIssues(collectFieldIssues(parsed.error))
+      return
+    }
+    setIssues({})
     setError(null)
     setLoading(true)
     try {
       const result = await authClient.signUp.email({
-        name,
-        email,
-        password,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        password: parsed.data.password,
         fetchOptions: { headers: captchaHeaders(captchaToken) },
       })
       if (result.error) {
@@ -111,51 +134,96 @@ export function SignUpForm({
   return (
     <>
       {step === "form" && (
-        <form onSubmit={handleSignUp}>
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Nom complet</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                autoComplete="name"
-              />
+        <>
+          <form onSubmit={handleSignUp} noValidate>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Nom complet</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    updateIssue("name")
+                  }}
+                  autoFocus
+                  autoComplete="name"
+                  placeholder="Ex. : Salma Bennani"
+                  aria-invalid={Boolean(issues.name)}
+                  aria-describedby={issues.name ? "name-issue" : undefined}
+                />
+                <FieldError id="name-issue">{issues.name}</FieldError>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    updateIssue("email")
+                  }}
+                  autoComplete="email"
+                  placeholder="name@email.ma"
+                  aria-invalid={Boolean(issues.email)}
+                  aria-describedby={issues.email ? "signup-email-issue" : undefined}
+                />
+                <FieldError id="signup-email-issue">{issues.email}</FieldError>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <PasswordInput
+                  id="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    updateIssue("password")
+                  }}
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  aria-invalid={Boolean(issues.password)}
+                  aria-describedby={
+                    issues.password ? "signup-password-issue" : "password-hint"
+                  }
+                />
+                <FieldError id="signup-password-issue">
+                  {issues.password}
+                </FieldError>
+                {!issues.password && (
+                  <p id="password-hint" className="text-xs text-muted-foreground">
+                    Au moins 8 caractères.
+                  </p>
+                )}
+              </div>
+              <Turnstile onTokenChange={handleCaptchaChange} />
+              {error && <FieldError>{error}</FieldError>}
+              <Button
+                type="submit"
+                disabled={loading || (captchaEnabled && !captchaToken)}
+              >
+                {loading && (
+                  <HugeiconsIcon
+                    icon={Loading03Icon}
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                )}
+                {loading ? "Création…" : "Créer mon compte"}
+              </Button>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-              <p className="text-xs text-muted-foreground">
-                Au moins 8 caractères.
-              </p>
-            </div>
-            <Turnstile onTokenChange={handleCaptchaChange} />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={loading}>
-              {loading ? "Création…" : "Créer mon compte"}
-            </Button>
-          </div>
-        </form>
+          </form>
+          <p className="text-xs text-muted-foreground">
+            En continuant, vous acceptez nos{" "}
+            <Link
+              href="/conditions"
+              className="underline underline-offset-4 hover:text-primary"
+            >
+              conditions générales et de livraison
+            </Link>
+            .
+          </p>
+        </>
       )}
       {step === "otp" && (
         <div className="grid gap-4">
@@ -173,8 +241,15 @@ export function SignUpForm({
                   placeholder="000000"
                 />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && <FieldError>{error}</FieldError>}
               <Button type="submit" disabled={loading}>
+                {loading && (
+                  <HugeiconsIcon
+                    icon={Loading03Icon}
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                )}
                 {loading ? "Vérification…" : "Vérifier mon e-mail"}
               </Button>
             </form>
@@ -185,12 +260,19 @@ export function SignUpForm({
                 boîte de réception.
               </p>
               <Turnstile onTokenChange={handleOtpCaptchaChange} />
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && <FieldError>{error}</FieldError>}
               <Button
                 type="button"
                 onClick={handleSendOtp}
                 disabled={loading || (captchaEnabled && !otpCaptchaToken)}
               >
+                {loading && (
+                  <HugeiconsIcon
+                    icon={Loading03Icon}
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                )}
                 {loading ? "Envoi…" : "Envoyer le code"}
               </Button>
             </div>

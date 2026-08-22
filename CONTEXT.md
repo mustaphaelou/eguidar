@@ -60,3 +60,7 @@ _Avoid_: login page, se connecter (as the screen name)
 **Inscription**:
 Creating a new customer account, presented in its own modal (distinct from Connexion).
 _Avoid_: sign-up page, register
+
+**Destination post-connexion**:
+Le chemin interne de la boutique où le client reprend son parcours après une authentification réussie ; il est demandé en même temps que la Connexion ou l'Inscription et toujours validé comme chemin relatif.
+_Avoid_: redirect, callback, retour

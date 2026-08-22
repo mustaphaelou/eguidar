@@ -8,6 +8,7 @@ import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs-context"
 import { SignInDialog } from "./sign-in-dialog"
 import { SignUpDialog } from "./sign-up-dialog"
 import { setInputValue } from "./test-utils"
+import { authClient } from "@/lib/client"
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -178,6 +179,79 @@ describe("SignInDialog", () => {
 
     expect(title()).toBe("Connexion à Eguidar")
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
+  })
+
+  it("renders the popup with aria-modal", () => {
+    renderWithDialogs(<Harness />)
+
+    act(() => openButton().click())
+
+    expect(
+      document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")
+    ).toBe("true")
+  })
+
+  it("shows a contextual title when the destination leads to an order", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?open=login&next=/produit/tableau-atlas"
+    )
+    renderWithDialogs(<Harness />)
+
+    act(() => openButton().click())
+
+    expect(title()).toBe("Connectez-vous pour finaliser votre commande")
+  })
+
+  it("falls back to the generic continue title for non-commerce destinations", () => {
+    window.history.replaceState(null, "", "/?open=signup&next=/compte")
+    renderWithDialogs(<SwapHarness />)
+
+    act(() =>
+      container.querySelector<HTMLButtonElement>("[data-open-signup]")!.click()
+    )
+
+    expect(title()).toBe("Créez votre compte pour continuer")
+  })
+
+  it("blocks submit with field issues and does not call the API when invalid", () => {
+    renderWithDialogs(<Harness />)
+
+    act(() => openButton().click())
+    const submit = dialog()!.querySelector<HTMLButtonElement>(
+      'form button[type="submit"]'
+    )!
+    act(() => submit.click())
+
+    const errors = [
+      ...document.querySelectorAll('[data-slot="field-error"]'),
+    ].map((el) => el.textContent)
+    expect(errors).toContain("Saisissez votre adresse e-mail.")
+    expect(errors).toContain("Saisissez votre mot de passe.")
+    expect(authClient.signIn.email).not.toHaveBeenCalled()
+  })
+
+  it("reports an invalid email format inline", () => {
+    renderWithDialogs(<Harness />)
+
+    act(() => openButton().click())
+    setInputValue(emailInput()!, "pas-un-email")
+    setInputValue(
+      dialog()!.querySelector<HTMLInputElement>('input[type="password"]')!,
+      "motdepasse"
+    )
+    act(() =>
+      dialog()!
+        .querySelector<HTMLButtonElement>('form button[type="submit"]')!
+        .click()
+    )
+
+    const errors = [
+      ...document.querySelectorAll('[data-slot="field-error"]'),
+    ].map((el) => el.textContent)
+    expect(errors).toContain("Saisissez une adresse e-mail valide.")
+    expect(authClient.signIn.email).not.toHaveBeenCalled()
   })
 })
 

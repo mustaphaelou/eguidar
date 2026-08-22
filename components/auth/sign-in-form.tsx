@@ -1,10 +1,14 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 
 import { HugeiconsIcon } from "@hugeicons/react"
-import { AppleIcon, GoogleIcon } from "@hugeicons/core-free-icons"
+import {
+  AppleIcon,
+  GoogleIcon,
+  Loading03Icon,
+} from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,12 +20,14 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/auth/password-input"
 import { Turnstile } from "@/components/auth/turnstile"
 import {
   captchaEnabled,
   useSignInFlow,
   type SignInStep,
 } from "@/components/auth/use-sign-in-flow"
+import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 
 export function SignInForm({
   hasGoogle,
@@ -43,10 +49,11 @@ export function SignInForm({
     setEmail,
     password,
     setPassword,
+    captchaToken,
+    otpCaptchaToken,
     otpSent,
     otp,
     setOtp,
-    otpCaptchaToken,
     step,
     error,
     notice,
@@ -59,10 +66,31 @@ export function SignInForm({
     handleSocial,
     backToForm,
   } = useSignInFlow({ initialEmail, onSuccess })
+  const [issues, setIssues] = useState<Record<string, string>>({})
 
   useEffect(() => {
     onStepChange?.(step, email)
   }, [onStepChange, step, email])
+
+  function updateIssue(key: string) {
+    setIssues((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const parsed = signInSchema.safeParse({ email, password })
+    if (!parsed.success) {
+      setIssues(collectFieldIssues(parsed.error))
+      return
+    }
+    setIssues({})
+    await handleSignIn(e)
+  }
 
   return (
     <>
@@ -97,21 +125,27 @@ export function SignInForm({
               <FieldSeparator>ou</FieldSeparator>
             </>
           )}
-          <form onSubmit={handleSignIn}>
+          <form onSubmit={handleSubmit} noValidate>
             <FieldGroup>
-              <Field data-invalid={Boolean(error)}>
+              <Field data-invalid={Boolean(issues.email || error)}>
                 <FieldLabel htmlFor="email">E-mail</FieldLabel>
                 <Input
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    updateIssue("email")
+                  }}
+                  autoFocus
                   autoComplete="email"
-                  aria-invalid={error ? true : undefined}
+                  placeholder="name@email.ma"
+                  aria-invalid={Boolean(issues.email)}
+                  aria-describedby={issues.email ? "email-issue" : undefined}
                 />
+                <FieldError id="email-issue">{issues.email}</FieldError>
               </Field>
-              <Field data-invalid={Boolean(error)}>
+              <Field data-invalid={Boolean(issues.password || error)}>
                 <div className="flex items-center justify-between">
                   <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
                   <Link
@@ -122,15 +156,21 @@ export function SignInForm({
                     Mot de passe oublié ?
                   </Link>
                 </div>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    updateIssue("password")
+                  }}
                   autoComplete="current-password"
-                  aria-invalid={error ? true : undefined}
+                  placeholder="••••••••"
+                  aria-invalid={Boolean(issues.password)}
+                  aria-describedby={
+                    issues.password ? "password-issue" : undefined
+                  }
                 />
+                <FieldError id="password-issue">{issues.password}</FieldError>
               </Field>
               <Turnstile onTokenChange={handleCaptchaChange} />
               {error && <FieldError>{error}</FieldError>}
@@ -138,12 +178,35 @@ export function SignInForm({
                 <p className="text-sm font-medium text-green-600">{notice}</p>
               )}
               <Field>
-                <Button type="submit" disabled={loading}>
+                <Button
+                  type="submit"
+                  disabled={loading || (captchaEnabled && !captchaToken)}
+                >
+                  {loading && (
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      data-icon="inline-start"
+                      className="animate-spin"
+                    />
+                  )}
                   {loading ? "Connexion…" : "Se connecter"}
                 </Button>
               </Field>
             </FieldGroup>
           </form>
+          <p className="text-xs text-muted-foreground">
+            Paiement à la livraison — aucun paiement en ligne requis.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            En continuant, vous acceptez nos{" "}
+            <Link
+              href="/conditions"
+              className="underline underline-offset-4 hover:text-primary"
+            >
+              conditions générales et de livraison
+            </Link>
+            .
+          </p>
         </div>
       )}
       {step === "otp" && (
@@ -167,6 +230,13 @@ export function SignInForm({
                 {error && <FieldError>{error}</FieldError>}
                 <Field>
                   <Button type="submit" disabled={loading}>
+                    {loading && (
+                      <HugeiconsIcon
+                        icon={Loading03Icon}
+                        data-icon="inline-start"
+                        className="animate-spin"
+                      />
+                    )}
                     {loading ? "Vérification…" : "Vérifier mon e-mail"}
                   </Button>
                 </Field>
@@ -186,6 +256,13 @@ export function SignInForm({
                   onClick={handleSendOtp}
                   disabled={loading || (captchaEnabled && !otpCaptchaToken)}
                 >
+                  {loading && (
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      data-icon="inline-start"
+                      className="animate-spin"
+                    />
+                  )}
                   {loading ? "Envoi…" : "Envoyer le code"}
                 </Button>
               </Field>
