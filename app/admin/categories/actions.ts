@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 
 import type { CategoryFormState } from "@/components/admin/category-form"
 import { NO_PARENT_VALUE } from "@/components/admin/category-form"
+import { loginUrl } from "@/lib/lien-de-connexion"
 import {
   CategoryHasChildrenError,
   CategoryHasProductsError,
@@ -59,7 +60,7 @@ export async function createCategoryAction(
   formData: FormData
 ): Promise<CategoryFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/categories")
+  if (!session) redirect(loginUrl("/admin/categories"))
 
   let input: CategoryInput
   try {
@@ -81,7 +82,7 @@ export async function updateCategoryAction(
   formData: FormData
 ): Promise<CategoryFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/categories")
+  if (!session) redirect(loginUrl("/admin/categories"))
 
   const categoryId = String(formData.get("categoryId") ?? "")
   if (!categoryId) return { error: INVALID_FORM_MESSAGE }
@@ -106,7 +107,7 @@ export async function deleteCategoryAction(
   formData: FormData
 ): Promise<CategoryFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/categories")
+  if (!session) redirect(loginUrl("/admin/categories"))
 
   const categoryId = String(formData.get("categoryId") ?? "")
   if (!categoryId) return { error: INVALID_FORM_MESSAGE }

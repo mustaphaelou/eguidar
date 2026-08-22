@@ -10,10 +10,11 @@ import {
 import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 import { realOrderEffects } from "@/lib/use-cases/order-effects"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
+import { loginUrl } from "@/lib/lien-de-connexion"
 
 export async function updateOrderStatusAction(formData: FormData): Promise<void> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/commandes")
+  if (!session) redirect(loginUrl("/admin/commandes"))
 
   const orderId = String(formData.get("orderId") ?? "")
   const nextStatus = String(formData.get("nextStatus") ?? "")

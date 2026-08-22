@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
-import { adminLoginUrl } from "@/lib/use-cases/admin-gate"
+import { loginUrl } from "@/lib/lien-de-connexion"
 
 export const metadata: Metadata = {
   title: {
@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
 async function AdminShell({ children }: { children: React.ReactNode }) {
   const session = await getAdminSession()
-  if (!session) redirect(adminLoginUrl())
+  if (!session) redirect(loginUrl("/admin"))
 
   return (
     <div className="min-h-svh">

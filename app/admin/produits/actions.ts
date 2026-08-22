@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 
 import type { ProductFormState } from "@/components/admin/product-form"
 import { parseMadToCents } from "@/lib/money"
+import { loginUrl } from "@/lib/lien-de-connexion"
 import {
   CatalogValidationError,
   createProduct,
@@ -90,7 +91,7 @@ export async function createProductAction(
   formData: FormData
 ): Promise<ProductFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/produits")
+  if (!session) redirect(loginUrl("/admin/produits"))
 
   let input: ProductInput
   try {
@@ -112,7 +113,7 @@ export async function updateProductAction(
   formData: FormData
 ): Promise<ProductFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/produits")
+  if (!session) redirect(loginUrl("/admin/produits"))
 
   const productId = String(formData.get("productId") ?? "")
   if (!productId) return { error: INVALID_FORM_MESSAGE }
@@ -134,7 +135,7 @@ export async function updateProductAction(
 
 export async function deleteProductAction(formData: FormData): Promise<void> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/produits")
+  if (!session) redirect(loginUrl("/admin/produits"))
 
   const productId = String(formData.get("productId") ?? "")
   if (productId) {
@@ -145,7 +146,7 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
 
 export async function updateVariantStockAction(formData: FormData): Promise<void> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/produits")
+  if (!session) redirect(loginUrl("/admin/produits"))
 
   const variantId = String(formData.get("variantId") ?? "")
   const stock = Number(formData.get("stock") ?? 0)

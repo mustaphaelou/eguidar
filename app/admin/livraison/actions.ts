@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 
 import type { ShippingSettingsFormState } from "@/components/admin/shipping-settings-form"
 import { parseMadToCents } from "@/lib/money"
+import { loginUrl } from "@/lib/lien-de-connexion"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import {
   ShippingValidationError,
@@ -18,7 +19,7 @@ export async function updateShippingSettingsAction(
   formData: FormData
 ): Promise<ShippingSettingsFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/livraison")
+  if (!session) redirect(loginUrl("/admin/livraison"))
 
   const cents = parseMadToCents(String(formData.get("freeShippingThreshold") ?? ""))
   if (cents === null) return { error: INVALID_FORM_MESSAGE }

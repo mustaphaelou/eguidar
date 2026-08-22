@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 
 import type { CityFormState } from "@/components/admin/city-form"
 import { parseMadToCents } from "@/lib/money"
+import { loginUrl } from "@/lib/lien-de-connexion"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import {
   CityNameConflictError,
@@ -51,7 +52,7 @@ export async function createCityAction(
   formData: FormData
 ): Promise<CityFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/villes")
+  if (!session) redirect(loginUrl("/admin/villes"))
 
   let input: CityInput
   try {
@@ -73,7 +74,7 @@ export async function updateCityAction(
   formData: FormData
 ): Promise<CityFormState> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/villes")
+  if (!session) redirect(loginUrl("/admin/villes"))
 
   const cityId = String(formData.get("cityId") ?? "")
   if (!cityId) return { error: INVALID_FORM_MESSAGE }
@@ -95,7 +96,7 @@ export async function updateCityAction(
 
 export async function deleteCityAction(formData: FormData): Promise<void> {
   const session = await getAdminSession()
-  if (!session) redirect("/connexion?next=/admin/villes")
+  if (!session) redirect(loginUrl("/admin/villes"))
 
   const cityId = String(formData.get("cityId") ?? "")
   if (cityId) {
