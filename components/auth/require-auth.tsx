@@ -7,26 +7,25 @@ import { LockKeyIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
-import { validateNextPath } from "@/lib/validate-next-path"
+import {
+  parseAuthParams,
+  withAuthParams,
+  withoutAuthParams,
+} from "@/lib/lien-de-connexion"
+import { replaceUrl } from "@/components/auth/sync-url"
+
+function pageAddressWithoutAuthParams(url: URL): string {
+  return withoutAuthParams(
+    withAuthParams(`${url.pathname}${url.search}`, { next: "" })
+  )
+}
 
 function syncLoginUrl() {
-  const url = new URL(window.location.href)
-  let changed = false
-  if (!validateNextPath(url.searchParams.get("next"))) {
-    const params = new URLSearchParams(url.search)
-    params.delete("open")
-    params.delete("next")
-    const query = params.toString()
-    url.searchParams.set("next", query ? `${url.pathname}?${query}` : url.pathname)
-    changed = true
-  }
-  if (url.searchParams.get("open") !== "login") {
-    url.searchParams.set("open", "login")
-    changed = true
-  }
-  if (changed) {
-    window.history.replaceState(null, "", url.toString())
-  }
+  const { next } = parseAuthParams(window.location.search)
+  replaceUrl((current) => {
+    const destination = next ?? pageAddressWithoutAuthParams(current)
+    return withAuthParams(current.href, { dialog: "login", next: destination })
+  })
 }
 
 export function RequireAuth() {

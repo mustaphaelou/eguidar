@@ -4,6 +4,7 @@ import {
   loginUrl,
   parseAuthParams,
   signupUrl,
+  urlWouldChange,
   withAuthParams,
   withoutAuthParams,
 } from "./lien-de-connexion"
@@ -175,5 +176,45 @@ describe("withoutAuthParams", () => {
       "/compte?onglet=commandes"
     )
     expect(withoutAuthParams("/")).toBe("/")
+  })
+})
+
+describe("urlWouldChange", () => {
+  it("detects an added, removed or changed dialog parameter", () => {
+    expect(urlWouldChange(loginUrl(), "/panier")).toBe(true)
+    expect(
+      urlWouldChange(
+        withoutAuthParams("/panier?open=login"),
+        "/panier?open=login"
+      )
+    ).toBe(true)
+    expect(urlWouldChange("/panier?open=signup", "/panier?open=login")).toBe(
+      true
+    )
+  })
+
+  it("sees through raw and percent-encoded spellings of the same parameters", () => {
+    expect(
+      urlWouldChange(
+        "/panier?next=%2Fpanier&open=login",
+        "/panier?next=/panier&open=login"
+      )
+    ).toBe(false)
+    expect(
+      urlWouldChange(
+        "/panier?open=login&next=%2Fpanier",
+        "/panier?open=login&next=%2Fpanier"
+      )
+    ).toBe(false)
+  })
+
+  it("ignores untouched path and hash while spotting real changes", () => {
+    expect(
+      urlWouldChange("/panier?open=login#avis", "/panier?open=login#avis")
+    ).toBe(false)
+    expect(
+      urlWouldChange("/panier?open=login#apres", "/panier?open=login#avant")
+    ).toBe(true)
+    expect(urlWouldChange("/autre?open=login", "/panier?open=login")).toBe(true)
   })
 })

@@ -25,6 +25,7 @@ import {
   captchaEnabled,
   useForgotPasswordFlow,
 } from "@/components/auth/use-forgot-password-flow"
+import { loginUrl } from "@/lib/lien-de-connexion"
 
 export function ForgotPasswordForm() {
   const {
@@ -104,7 +105,7 @@ export function ForgotPasswordForm() {
           </form>
           <div className="text-center text-sm">
             <Link
-              href="/connexion"
+              href={loginUrl()}
               className="text-muted-foreground underline underline-offset-4 hover:text-primary"
             >
               Retour à la connexion
@@ -181,7 +182,7 @@ export function ForgotPasswordForm() {
               Modifier l&apos;adresse e-mail
             </Button>
             <Link
-              href="/connexion"
+              href={loginUrl()}
               className="text-muted-foreground underline underline-offset-4 hover:text-primary"
             >
               Retour à la connexion
@@ -197,7 +198,7 @@ export function ForgotPasswordForm() {
             nouveau mot de passe.
           </p>
           <Link
-            href="/connexion"
+            href={loginUrl()}
             className="flex h-9 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground shadow transition hover:bg-primary/90"
           >
             Se connecter

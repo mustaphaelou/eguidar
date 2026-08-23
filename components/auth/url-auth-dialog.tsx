@@ -4,21 +4,15 @@ import { Suspense, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 
 import { useSession } from "@/lib/client"
+import { useAuthDialogs } from "@/components/auth/auth-dialogs-context"
 import {
-  useAuthDialogs,
-  type AuthDialogName,
-} from "@/components/auth/auth-dialogs-context"
-
-const OPEN_TO_DIALOG: Partial<Record<string, AuthDialogName>> = {
-  login: "login",
-  signup: "signup",
-}
+  parseAuthParams,
+  withoutAuthParams,
+} from "@/lib/lien-de-connexion"
+import { replaceUrl } from "@/components/auth/sync-url"
 
 function removeOpenParam() {
-  const url = new URL(window.location.href)
-  if (!url.searchParams.has("open")) return
-  url.searchParams.delete("open")
-  window.history.replaceState(null, "", url.toString())
+  replaceUrl((url) => withoutAuthParams(url.href))
 }
 
 export function UrlAuthDialog() {
@@ -33,17 +27,11 @@ function UrlAuthDialogInner() {
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
   const { dialog, openLogin, openSignUp, close } = useAuthDialogs()
-  const open = searchParams.get("open")
+  const target = parseAuthParams(searchParams).dialog
 
   useEffect(() => {
     if (isPending) return
-    const target = OPEN_TO_DIALOG[open ?? ""]
-    if (!target) {
-      if (dialog) close()
-      if (open !== null) removeOpenParam()
-      return
-    }
-    if (session) {
+    if (!target || session) {
       if (dialog) close()
       removeOpenParam()
       return
@@ -52,7 +40,7 @@ function UrlAuthDialogInner() {
       if (target === "login") openLogin()
       else openSignUp()
     }
-  }, [open, isPending, session, dialog, openLogin, openSignUp, close])
+  }, [target, isPending, session, dialog, openLogin, openSignUp, close])
 
   return null
 }

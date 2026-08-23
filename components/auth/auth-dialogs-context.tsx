@@ -8,7 +8,12 @@ import {
   useState,
 } from "react"
 
-export type AuthDialogName = "login" | "signup"
+import {
+  type AuthDialogName,
+  withAuthParams,
+  withoutAuthParams,
+} from "@/lib/lien-de-connexion"
+import { replaceUrl } from "@/components/auth/sync-url"
 
 type AuthDialogsContextValue = {
   dialog: AuthDialogName | null
@@ -21,16 +26,11 @@ type AuthDialogsContextValue = {
 const AuthDialogsContext = createContext<AuthDialogsContextValue | null>(null)
 
 function syncOpenParam(dialog: AuthDialogName | null) {
-  const url = new URL(window.location.href)
-  if (dialog) {
-    if (url.searchParams.get("open") !== dialog) {
-      url.searchParams.set("open", dialog)
-      window.history.replaceState(null, "", url.toString())
-    }
-  } else if (url.searchParams.has("open")) {
-    url.searchParams.delete("open")
-    window.history.replaceState(null, "", url.toString())
-  }
+  replaceUrl((url) =>
+    dialog
+      ? withAuthParams(url.href, { dialog })
+      : withoutAuthParams(url.href)
+  )
 }
 
 export function AuthDialogsProvider({

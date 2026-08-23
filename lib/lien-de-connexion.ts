@@ -73,3 +73,13 @@ export function withoutAuthParams(url: string): string {
     params.delete(OPEN_PARAM)
   })
 }
+
+export function urlWouldChange(updated: string | URL, current: string | URL) {
+  const next = new URL(updated, URL_BASE)
+  const before = new URL(current, URL_BASE)
+  return (
+    next.pathname !== before.pathname ||
+    next.hash !== before.hash ||
+    next.searchParams.toString() !== before.searchParams.toString()
+  )
+}

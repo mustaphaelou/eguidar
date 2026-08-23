@@ -4,7 +4,7 @@ import { useCallback, useState } from "react"
 import { useSearchParams } from "next/navigation"
 
 import { authClient } from "@/lib/client"
-import { validateNextPath } from "@/lib/validate-next-path"
+import { parseAuthParams, withoutAuthParams } from "@/lib/lien-de-connexion"
 
 const captchaHeaders = (token: string | null) =>
   token ? { "x-captcha-response": token } : undefined
@@ -27,7 +27,7 @@ export function useSignInFlow({
   onSuccess?: () => void
 } = {}) {
   const searchParams = useSearchParams()
-  const next = validateNextPath(searchParams.get("next"))
+  const next = parseAuthParams(searchParams).next
   const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
@@ -124,7 +124,7 @@ export function useSignInFlow({
     setNotice(null)
     const result = await authClient.signIn.social({
       provider,
-      callbackURL: socialCallbackURL(),
+      callbackURL: socialSignInDestination(),
     })
     if (result.error) setError(translateAuthError(result.error))
   }
@@ -159,10 +159,11 @@ export function useSignInFlow({
   }
 }
 
-function socialCallbackURL() {
-  const url = new URL(window.location.href)
-  url.searchParams.delete("open")
-  return url.toString()
+function socialSignInDestination() {
+  return new URL(
+    withoutAuthParams(window.location.href),
+    window.location.origin
+  ).toString()
 }
 
 export function translateAuthError(error: {

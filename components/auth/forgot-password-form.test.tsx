@@ -5,6 +5,7 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ForgotPasswordForm } from "./forgot-password-form"
+import { loginUrl } from "@/lib/lien-de-connexion"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -73,7 +74,7 @@ describe("ForgotPasswordForm", () => {
     expect(submitBtn?.textContent).toContain("Envoyer le code")
 
     const loginLink = container.querySelector<HTMLAnchorElement>(
-      "a[href='/connexion']"
+      `a[href='${loginUrl()}']`
     )
     expect(loginLink).not.toBeNull()
   })
