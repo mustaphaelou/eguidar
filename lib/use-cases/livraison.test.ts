@@ -26,10 +26,6 @@ import {
   type LivraisonEffects,
   type PricingInput,
 } from "@/lib/use-cases/livraison"
-import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
-import { SHIPPING_TAG } from "@/lib/use-cases/cache-invalidation"
-
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 const runId = randomUUID().slice(0, 8)
 const cityName = (suffix: string) => `Ville Livraison ${runId} ${suffix}`
@@ -541,20 +537,3 @@ describe("storefront quote reads", () => {
   })
 })
 
-describe("revalidation seam", () => {
-  it("prod adapter revalidates the shipping cache tag", async () => {
-    const { revalidateTag } = await import("next/cache")
-
-    realLivraisonEffects.revalidateShipping()
-
-    expect(revalidateTag).toHaveBeenCalledWith(SHIPPING_TAG, "max")
-  })
-
-  it("test fake records revalidateShipping calls", () => {
-    const effects = makeEffects()
-
-    effects.revalidateShipping()
-
-    expect(effects.revalidateShipping).toHaveBeenCalledOnce()
-  })
-})

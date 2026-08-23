@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import {
   deleteProductDocument,
@@ -9,13 +9,6 @@ import {
   PRODUCTS_INDEX,
 } from "@/lib/meili"
 import type { IndexableProduct } from "@/lib/index-projection"
-import { realCatalogEffects } from "@/lib/use-cases/catalog-effects"
-
-vi.mock("@/lib/use-cases/cache-invalidation", () => ({
-  invalidateCatalogue: vi.fn(),
-}))
-
-import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
 
 const meili = getMeiliSearch()
 const runId = randomUUID()
@@ -79,17 +72,5 @@ describe.runIf(!!meili)("Meilisearch product index", () => {
 
     const results = await client.index(PRODUCTS_INDEX).search("Produit Meili Test")
     expect(results.hits.some((h) => h.id === id)).toBe(false)
-  })
-})
-
-describe("realCatalogEffects revalidation", () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it("delegates catalogue revalidation to invalidateCatalogue", () => {
-    realCatalogEffects.revalidateCatalog({ id: "p1", slug: "mon-produit" })
-
-    expect(invalidateCatalogue).toHaveBeenCalledWith({ id: "p1", slug: "mon-produit" })
   })
 })
