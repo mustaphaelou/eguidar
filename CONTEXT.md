@@ -64,3 +64,8 @@ _Avoid_: sign-up page, register
 **Destination post-connexion**:
 Le chemin interne de la boutique où le client reprend son parcours après une authentification réussie ; il est demandé en même temps que la Connexion ou l'Inscription et toujours validé comme chemin relatif.
 _Avoid_: redirect, callback, retour
+
+**Lien de connexion**:
+Un lien ou une redirection qui ouvre la modale de Connexion ou d'Inscription sur la page courante
+via les paramètres d'URL `?open=login|signup` et `?next`.
+_Avoid_: login link, login URL, route de connexion
