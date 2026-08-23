@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
         pathname: "/**",
         search: "",
       },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        pathname: "/800x800",
+        port: "",
+      },
     ],
     qualities: [75],
   },
