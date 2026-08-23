@@ -15,9 +15,10 @@ import {
 import { replaceUrl } from "@/components/auth/sync-url"
 
 function pageAddressWithoutAuthParams(url: URL): string {
-  return withoutAuthParams(
-    withAuthParams(`${url.pathname}${url.search}`, { next: "" })
-  )
+  const addressWithoutNext = withAuthParams(`${url.pathname}${url.search}`, {
+    next: "",
+  })
+  return withoutAuthParams(addressWithoutNext)
 }
 
 function syncLoginUrl() {
