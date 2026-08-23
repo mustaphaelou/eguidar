@@ -39,7 +39,7 @@
     "zod": "^4.4.3"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.0"
+    "deepmerge-ts": "8.0.2"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
