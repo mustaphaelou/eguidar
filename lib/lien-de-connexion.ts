@@ -29,20 +29,12 @@ function rewriteSearchParams(
   return `${parsed.pathname}${search ? `?${search}` : ""}${parsed.hash}`
 }
 
-function authDialogUrl(dialog: AuthDialogName, next?: string): string {
-  return rewriteSearchParams("/", (params) => {
-    params.set(OPEN_PARAM, dialog)
-    const destination = safeDestination(next)
-    if (destination) params.set(NEXT_PARAM, destination)
-  })
-}
-
 export function loginUrl(next?: string): string {
-  return authDialogUrl("login", next)
+  return withAuthParams("/", { dialog: "login", next })
 }
 
 export function signupUrl(next?: string): string {
-  return authDialogUrl("signup", next)
+  return withAuthParams("/", { dialog: "signup", next })
 }
 
 export function parseAuthParams(search: string | URLSearchParams): AuthParams {

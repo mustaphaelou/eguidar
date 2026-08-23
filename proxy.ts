@@ -23,7 +23,12 @@ export function proxy(request: NextRequest) {
   }
 
   if (!getSessionCookie(request)) {
-    return NextResponse.redirect(new URL(loginUrl(pathname), request.url))
+    return NextResponse.redirect(
+      new URL(
+        loginUrl(request.nextUrl.pathname + request.nextUrl.search),
+        request.url
+      )
+    )
   }
   return NextResponse.next()
 }

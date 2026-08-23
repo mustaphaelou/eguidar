@@ -75,7 +75,7 @@ describe("proxy", () => {
 
       expect(res.status).toBe(307)
       expect(res.headers.get("location")).toBe(
-        absolute(loginUrl("/compte/commandes"))
+        absolute(loginUrl("/compte/commandes?page=2"))
       )
     })
   })
