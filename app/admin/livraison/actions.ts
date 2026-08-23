@@ -1,37 +1,24 @@
 "use server"
 
-import { redirect } from "next/navigation"
-
-import type { ShippingSettingsFormState } from "@/components/admin/shipping-settings-form"
-import { parseMadToCents } from "@/lib/money"
-import { loginUrl } from "@/lib/lien-de-connexion"
-import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import {
-  ShippingValidationError,
-  updateShippingSettings,
-} from "@/lib/use-cases/livraison"
+  adminFormAction,
+  INVALID_FORM_MESSAGE,
+} from "@/lib/use-cases/admin-actions"
+import { parseMadToCents } from "@/lib/money"
+import { updateShippingSettings } from "@/lib/use-cases/livraison"
 import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
 
-const INVALID_FORM_MESSAGE = "Formulaire invalide"
-
-export async function updateShippingSettingsAction(
-  _prevState: ShippingSettingsFormState,
-  formData: FormData
-): Promise<ShippingSettingsFormState> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/livraison"))
-
-  const cents = parseMadToCents(String(formData.get("freeShippingThreshold") ?? ""))
-  if (cents === null) return { error: INVALID_FORM_MESSAGE }
-
-  try {
-    await updateShippingSettings({ freeShippingThreshold: cents }, realLivraisonEffects)
-  } catch (error) {
-    if (error instanceof ShippingValidationError) {
-      return { error: error.message }
-    }
-    throw error
-  }
-
-  return {}
-}
+export const updateShippingSettingsAction = adminFormAction<{
+  freeShippingThreshold: number
+}>({
+  next: "/admin/livraison",
+  parse: (formData) => {
+    const cents = parseMadToCents(String(formData.get("freeShippingThreshold") ?? ""))
+    if (cents === null) throw new Error(INVALID_FORM_MESSAGE)
+    return { freeShippingThreshold: cents }
+  },
+  run: async (input) => {
+    await updateShippingSettings(input, realLivraisonEffects)
+    return {}
+  },
+})

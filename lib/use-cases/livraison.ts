@@ -3,6 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import type { CartData } from "@/lib/use-cases/cart"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface ShippingQuote {
   subtotal: number
@@ -51,28 +52,28 @@ export class DeliveryCityNotFoundError extends Error {
   }
 }
 
-export class CityValidationError extends Error {
+export class CityValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "CityValidationError"
   }
 }
 
-export class CityNameConflictError extends Error {
+export class CityNameConflictError extends UserFacingError {
   constructor() {
     super("Une ville avec ce nom existe déjà")
     this.name = "CityNameConflictError"
   }
 }
 
-export class CityNotFoundError extends Error {
+export class CityNotFoundError extends UserFacingError {
   constructor() {
     super("Ville introuvable")
     this.name = "CityNotFoundError"
   }
 }
 
-export class ShippingValidationError extends Error {
+export class ShippingValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "ShippingValidationError"
