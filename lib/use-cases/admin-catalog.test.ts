@@ -20,11 +20,15 @@ import {
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
 
-function makeEffects(): CatalogEffects & { reindexProducts: ReturnType<typeof vi.fn> } {
+function makeEffects(): CatalogEffects & {
+  reindexProducts: ReturnType<typeof vi.fn>
+  deleteImages: ReturnType<typeof vi.fn>
+} {
   return {
     reindexProducts: vi.fn(async () => {}),
     removeProductFromIndex: vi.fn(async () => {}),
     revalidateCatalog: vi.fn(),
+    deleteImages: vi.fn(async () => {}),
   }
 }
 
@@ -284,6 +288,56 @@ describe("admin catalog mutations", () => {
     })
   })
 
+  it("passes exactly the removed images to deleteImages on update", async () => {
+    const effects = makeEffects()
+    const images = [
+      "https://cdn.example.com/keep-1.jpg",
+      "https://cdn.example.com/remove-1.jpg",
+      "https://cdn.example.com/remove-2.jpg",
+    ]
+    const product = await createProduct(makeInput({ slug: slug("img-update"), images }), effects)
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+
+    await updateProduct(
+      product.id,
+      makeInput({
+        slug: slug("img-update"),
+        images: ["https://cdn.example.com/keep-1.jpg", "https://cdn.example.com/new.jpg"],
+        variants,
+      }),
+      effects
+    )
+
+    expect(effects.deleteImages).toHaveBeenCalledOnce()
+    expect(effects.deleteImages).toHaveBeenCalledWith([
+      "https://cdn.example.com/remove-1.jpg",
+      "https://cdn.example.com/remove-2.jpg",
+    ])
+  })
+
+  it("passes an empty diff to deleteImages when no image was removed on update", async () => {
+    const effects = makeEffects()
+    const product = await createProduct(makeInput({ slug: slug("img-same") }), effects)
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+
+    await updateProduct(product.id, makeInput({ slug: slug("img-same"), variants }), effects)
+
+    expect(effects.deleteImages).toHaveBeenCalledOnce()
+    expect(effects.deleteImages).toHaveBeenCalledWith([])
+  })
+
   it("rejects updating with a variant id belonging to another product", async () => {
     const effects = makeEffects()
     const first = await createProduct(makeInput({ slug: slug("own-a") }), effects)
@@ -337,6 +391,20 @@ describe("admin catalog mutations", () => {
     expect(variantCount).toBe(0)
     expect(effects.removeProductFromIndex).toHaveBeenCalledWith(product.id)
     expect(effects.revalidateCatalog).toHaveBeenCalledWith({ id: product.id, slug: product.slug })
+  })
+
+  it("passes the full gallery to deleteImages on delete", async () => {
+    const effects = makeEffects()
+    const images = [
+      "https://cdn.example.com/gallery-1.jpg",
+      "https://cdn.example.com/gallery-2.jpg",
+    ]
+    const product = await createProduct(makeInput({ slug: slug("img-delete"), images }), effects)
+
+    await deleteProduct(product.id, effects)
+
+    expect(effects.deleteImages).toHaveBeenCalledOnce()
+    expect(effects.deleteImages).toHaveBeenCalledWith(images)
   })
 
   it("throws ProductNotFoundError when deleting an unknown product", async () => {

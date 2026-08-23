@@ -3,7 +3,6 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
-import { deleteR2Object } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -35,6 +34,12 @@ export interface CatalogEffects {
   reindexProducts(products: IndexableProduct[]): Promise<void>
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): void
+  /**
+   * Supprime les images produit données, une par une, en best-effort.
+   * Invariant : ne rejette jamais — un échec de suppression R2 ne doit pas
+   * faire échouer la mutation (ADR-0004).
+   */
+  deleteImages(urls: string[]): Promise<void>
 }
 
 export class CatalogValidationError extends UserFacingError {
@@ -136,16 +141,6 @@ async function assertUniqueSkus(skus: string[], excludeProductId?: string): Prom
 }
 function imageUrls(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
-}
-
-async function deleteR2Objects(urls: string[]): Promise<void> {
-  for (const url of urls) {
-    try {
-      await deleteR2Object(url)
-    } catch {
-      // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
-    }
-  }
 }
 
 function mapUniqueViolation(error: unknown): never {
@@ -280,7 +275,7 @@ export async function updateProduct(id: string, input: ProductInput, effects: Ca
     mapUniqueViolation(error)
   }
 
-  await deleteR2Objects(removedImages)
+  await effects.deleteImages(removedImages)
 
   await effects.reindexProducts([toIndexableProduct(product)])
   effects.revalidateCatalog({
@@ -296,7 +291,7 @@ export async function deleteProduct(id: string, effects: CatalogEffects): Promis
   if (!existing) throw new ProductNotFoundError()
 
   await prisma.product.delete({ where: { id } })
-  await deleteR2Objects(imageUrls(existing.images))
+  await effects.deleteImages(imageUrls(existing.images))
   await effects.removeProductFromIndex(id)
   effects.revalidateCatalog({ id, slug: existing.slug })
 }
