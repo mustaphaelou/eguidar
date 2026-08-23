@@ -6,6 +6,7 @@ import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteR2Object } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface ProductVariantInput {
   id?: string
@@ -36,21 +37,21 @@ export interface CatalogEffects {
   revalidateCatalog(product: CatalogueEventProduct): void
 }
 
-export class CatalogValidationError extends Error {
+export class CatalogValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "CatalogValidationError"
   }
 }
 
-export class SlugConflictError extends Error {
+export class SlugConflictError extends UserFacingError {
   constructor() {
     super("Un produit avec ce slug existe déjà")
     this.name = "SlugConflictError"
   }
 }
 
-export class DuplicateSkuError extends Error {
+export class DuplicateSkuError extends UserFacingError {
   constructor() {
     super("Une variante avec ce SKU existe déjà")
     this.name = "DuplicateSkuError"

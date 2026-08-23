@@ -2,31 +2,18 @@
 
 import { redirect } from "next/navigation"
 
-import type { CategoryFormState } from "@/components/admin/category-form"
 import { NO_PARENT_VALUE } from "@/components/admin/category-form"
-import { loginUrl } from "@/lib/lien-de-connexion"
 import {
-  CategoryHasChildrenError,
-  CategoryHasProductsError,
-  CategoryNotFoundError,
-  CategorySlugConflictError,
-  CategoryValidationError,
+  adminFormAction,
+  INVALID_FORM_MESSAGE,
+} from "@/lib/use-cases/admin-actions"
+import {
   createCategory,
   deleteCategory,
   updateCategory,
   type CategoryInput,
 } from "@/lib/use-cases/admin-structure"
-import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import { realStructureEffects } from "@/lib/use-cases/structure-effects"
-
-const INVALID_FORM_MESSAGE = "Formulaire invalide"
-
-class FormParseError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = "FormParseError"
-  }
-}
 
 function parseCategoryFormData(formData: FormData): CategoryInput {
   const parentIdRaw = formData.get("parentId")
@@ -41,90 +28,53 @@ function parseCategoryFormData(formData: FormData): CategoryInput {
   }
 }
 
-function toActionError(error: unknown): CategoryFormState {
-  if (
-    error instanceof FormParseError ||
-    error instanceof CategoryValidationError ||
-    error instanceof CategorySlugConflictError ||
-    error instanceof CategoryNotFoundError ||
-    error instanceof CategoryHasChildrenError ||
-    error instanceof CategoryHasProductsError
-  ) {
-    return { error: error.message }
-  }
-  throw error
+interface CategoryUpdateInput extends CategoryInput {
+  categoryId: string
 }
 
-export async function createCategoryAction(
-  _prevState: CategoryFormState,
-  formData: FormData
-): Promise<CategoryFormState> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/categories"))
+interface CategoryDeleteInput {
+  categoryId: string
+  reassignToCategoryId?: string
+}
 
-  let input: CategoryInput
-  try {
-    input = parseCategoryFormData(formData)
-  } catch (error) {
-    return toActionError(error)
-  }
-
-  try {
+export const createCategoryAction = adminFormAction<CategoryInput>({
+  next: "/admin/categories",
+  parse: parseCategoryFormData,
+  run: async (input) => {
     await createCategory(input, realStructureEffects)
     redirect("/admin/categories")
-  } catch (error) {
-    return toActionError(error)
-  }
-}
+  },
+})
 
-export async function updateCategoryAction(
-  _prevState: CategoryFormState,
-  formData: FormData
-): Promise<CategoryFormState> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/categories"))
-
-  const categoryId = String(formData.get("categoryId") ?? "")
-  if (!categoryId) return { error: INVALID_FORM_MESSAGE }
-
-  let input: CategoryInput
-  try {
-    input = parseCategoryFormData(formData)
-  } catch (error) {
-    return toActionError(error)
-  }
-
-  try {
+export const updateCategoryAction = adminFormAction<CategoryUpdateInput>({
+  next: "/admin/categories",
+  parse: (formData) => {
+    const categoryId = String(formData.get("categoryId") ?? "")
+    if (!categoryId) throw new Error(INVALID_FORM_MESSAGE)
+    return { ...parseCategoryFormData(formData), categoryId }
+  },
+  run: async ({ categoryId, ...input }) => {
     await updateCategory(categoryId, input, realStructureEffects)
     redirect("/admin/categories")
-  } catch (error) {
-    return toActionError(error)
-  }
-}
+  },
+})
 
-export async function deleteCategoryAction(
-  _prevState: CategoryFormState,
-  formData: FormData
-): Promise<CategoryFormState> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/categories"))
-
-  const categoryId = String(formData.get("categoryId") ?? "")
-  if (!categoryId) return { error: INVALID_FORM_MESSAGE }
-
-  const reassignRaw = formData.get("reassignToCategoryId")
-  const reassignToCategoryId =
-    reassignRaw && reassignRaw !== NO_PARENT_VALUE ? String(reassignRaw) : undefined
-
-  try {
+export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
+  next: "/admin/categories",
+  parse: (formData) => {
+    const categoryId = String(formData.get("categoryId") ?? "")
+    if (!categoryId) throw new Error(INVALID_FORM_MESSAGE)
+    const reassignRaw = formData.get("reassignToCategoryId")
+    const reassignToCategoryId =
+      reassignRaw && reassignRaw !== NO_PARENT_VALUE ? String(reassignRaw) : undefined
+    return reassignToCategoryId ? { categoryId, reassignToCategoryId } : { categoryId }
+  },
+  run: async ({ categoryId, reassignToCategoryId }) => {
     await deleteCategory(
       categoryId,
       realStructureEffects,
       reassignToCategoryId ? { reassignToCategoryId } : {}
     )
-  } catch (error) {
-    return toActionError(error)
-  }
-
-  return {}
-}
+    return {}
+  },
+})

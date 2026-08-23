@@ -2,34 +2,24 @@
 
 import { redirect } from "next/navigation"
 
-import type { ProductFormState } from "@/components/admin/product-form"
-import { parseMadToCents } from "@/lib/money"
-import { loginUrl } from "@/lib/lien-de-connexion"
 import {
-  CatalogValidationError,
+  adminFormAction,
+  adminTaskAction,
+  INVALID_FORM_MESSAGE,
+} from "@/lib/use-cases/admin-actions"
+import { parseMadToCents } from "@/lib/money"
+import {
   createProduct,
   deleteProduct,
-  DuplicateSkuError,
-  SlugConflictError,
   updateProduct,
   updateVariantStock,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 import { realCatalogEffects } from "@/lib/use-cases/catalog-effects"
-import { getAdminSession } from "@/lib/use-cases/get-admin-session"
-
-const INVALID_FORM_MESSAGE = "Formulaire invalide"
-
-class FormParseError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = "FormParseError"
-  }
-}
 
 function parseMoney(value: FormDataEntryValue | null): number {
   const cents = parseMadToCents(String(value ?? ""))
-  if (cents === null) throw new FormParseError(INVALID_FORM_MESSAGE)
+  if (cents === null) throw new Error(INVALID_FORM_MESSAGE)
   return cents
 }
 
@@ -39,7 +29,7 @@ function parseSpecsText(text: string): Record<string, string> {
     const trimmed = line.trim()
     if (!trimmed) continue
     const colon = trimmed.indexOf(":")
-    if (colon <= 0) throw new FormParseError("Format de spécifications invalide (clé : valeur par ligne)")
+    if (colon <= 0) throw new Error("Format de spécifications invalide (clé : valeur par ligne)")
     specs[trimmed.slice(0, colon).trim()] = trimmed.slice(colon + 1).trim()
   }
   return specs
@@ -55,7 +45,7 @@ function parseProductFormData(formData: FormData): ProductInput {
     images = JSON.parse(String(imagesRaw ?? "[]"))
     variants = JSON.parse(String(variantsRaw ?? "[]"))
   } catch {
-    throw new FormParseError(INVALID_FORM_MESSAGE)
+    throw new Error(INVALID_FORM_MESSAGE)
   }
 
   return {
@@ -74,83 +64,52 @@ function parseProductFormData(formData: FormData): ProductInput {
   }
 }
 
-function toActionError(error: unknown): ProductFormState {
-  if (
-    error instanceof FormParseError ||
-    error instanceof CatalogValidationError ||
-    error instanceof SlugConflictError ||
-    error instanceof DuplicateSkuError
-  ) {
-    return { error: error.message }
-  }
-  throw error
+interface ProductUpdateInput extends ProductInput {
+  productId: string
 }
 
-export async function createProductAction(
-  _prevState: ProductFormState,
-  formData: FormData
-): Promise<ProductFormState> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/produits"))
-
-  let input: ProductInput
-  try {
-    input = parseProductFormData(formData)
-  } catch (error) {
-    return toActionError(error)
-  }
-
-  try {
+export const createProductAction = adminFormAction<ProductInput>({
+  next: "/admin/produits",
+  parse: parseProductFormData,
+  run: async (input) => {
     const product = await createProduct(input, realCatalogEffects)
     redirect(`/admin/produits/${product.id}`)
-  } catch (error) {
-    return toActionError(error)
-  }
-}
+  },
+})
 
-export async function updateProductAction(
-  _prevState: ProductFormState,
-  formData: FormData
-): Promise<ProductFormState> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/produits"))
-
-  const productId = String(formData.get("productId") ?? "")
-  if (!productId) return { error: INVALID_FORM_MESSAGE }
-
-  let input: ProductInput
-  try {
-    input = parseProductFormData(formData)
-  } catch (error) {
-    return toActionError(error)
-  }
-
-  try {
+export const updateProductAction = adminFormAction<ProductUpdateInput>({
+  next: "/admin/produits",
+  parse: (formData) => {
+    const productId = String(formData.get("productId") ?? "")
+    if (!productId) throw new Error(INVALID_FORM_MESSAGE)
+    return { ...parseProductFormData(formData), productId }
+  },
+  run: async ({ productId, ...input }) => {
     await updateProduct(productId, input, realCatalogEffects)
     redirect("/admin/produits")
-  } catch (error) {
-    return toActionError(error)
-  }
-}
+  },
+})
 
-export async function deleteProductAction(formData: FormData): Promise<void> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/produits"))
+export const deleteProductAction = adminTaskAction<{ productId: string }>({
+  next: "/admin/produits",
+  parse: (formData) => ({ productId: String(formData.get("productId") ?? "") }),
+  run: async ({ productId }) => {
+    if (productId) await deleteProduct(productId, realCatalogEffects)
+    redirect("/admin/produits")
+  },
+})
 
-  const productId = String(formData.get("productId") ?? "")
-  if (productId) {
-    await deleteProduct(productId, realCatalogEffects)
-  }
-  redirect("/admin/produits")
-}
-
-export async function updateVariantStockAction(formData: FormData): Promise<void> {
-  const session = await getAdminSession()
-  if (!session) redirect(loginUrl("/admin/produits"))
-
-  const variantId = String(formData.get("variantId") ?? "")
-  const stock = Number(formData.get("stock") ?? 0)
-  if (variantId) {
+export const updateVariantStockAction = adminTaskAction<{
+  variantId: string
+  stock: number
+}>({
+  next: "/admin/produits",
+  parse: (formData) => {
+    const variantId = String(formData.get("variantId") ?? "")
+    const stock = Number(formData.get("stock") ?? 0)
+    return variantId ? { variantId, stock } : null
+  },
+  run: async ({ variantId, stock }) => {
     await updateVariantStock(variantId, stock, realCatalogEffects)
-  }
-}
+  },
+})

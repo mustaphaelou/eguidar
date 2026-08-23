@@ -5,6 +5,7 @@ import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteR2Object } from "@/lib/r2"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 async function deleteR2ObjectIfChanged(previous: string | null, next: string | null): Promise<void> {
   if (!previous || previous === next) return
@@ -27,35 +28,35 @@ export interface StructureEffects {
   revalidateCategories(): void
 }
 
-export class CategoryValidationError extends Error {
+export class CategoryValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "CategoryValidationError"
   }
 }
 
-export class CategorySlugConflictError extends Error {
+export class CategorySlugConflictError extends UserFacingError {
   constructor() {
     super("Une catégorie avec ce slug existe déjà")
     this.name = "CategorySlugConflictError"
   }
 }
 
-export class CategoryNotFoundError extends Error {
+export class CategoryNotFoundError extends UserFacingError {
   constructor() {
     super("Catégorie introuvable")
     this.name = "CategoryNotFoundError"
   }
 }
 
-export class CategoryHasChildrenError extends Error {
+export class CategoryHasChildrenError extends UserFacingError {
   constructor() {
     super("Impossible de supprimer : la catégorie contient des sous-catégories")
     this.name = "CategoryHasChildrenError"
   }
 }
 
-export class CategoryHasProductsError extends Error {
+export class CategoryHasProductsError extends UserFacingError {
   constructor(productCount: number) {
     super(
       `Impossible de supprimer : ${productCount} produit${productCount > 1 ? "s" : ""} lui est/sont rattaché(s)`
