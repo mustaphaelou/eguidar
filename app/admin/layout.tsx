@@ -5,11 +5,12 @@ import { Suspense } from "react"
 
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import { loginUrl } from "@/lib/lien-de-connexion"
+import { site } from "@/lib/site"
 
 export const metadata: Metadata = {
   title: {
     default: "Administration",
-    template: "%s — Administration — eguidar.ma",
+    template: `%s — Administration — ${site.name}`,
   },
 }
 

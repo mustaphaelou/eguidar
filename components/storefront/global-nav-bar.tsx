@@ -13,6 +13,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
 import { SearchSuggestions } from "@/components/storefront/search-suggestions"
+import { logoBrand, site } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
 export type GlobalNavLink = { href: string; label: string }
@@ -51,9 +52,10 @@ export function GlobalNavBar({
         <Link
           href="/"
           className="shrink-0 text-[17px] font-semibold tracking-[-0.022em]"
-          aria-label="eguidar.ma — Accueil"
+          aria-label={`${site.name} — Accueil`}
         >
-          eguidar<span className="text-link">.ma</span>
+          {logoBrand.base}
+          <span className="text-link">{logoBrand.accent}</span>
         </Link>
 
         <nav

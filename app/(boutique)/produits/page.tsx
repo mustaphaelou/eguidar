@@ -5,7 +5,7 @@ import { SearchResults, SearchSkeleton } from "@/components/storefront/search-re
 import { parseSearchParams, searchProducts } from "@/lib/use-cases/search"
 
 export const metadata: Metadata = {
-  title: "Catalogue — eguidar.ma",
+  title: "Catalogue",
   description:
     "Tous nos produits : smartphones, ordinateurs, TV, gaming et accessoires. Prix en MAD, TVA 20% incluse, paiement à la livraison partout au Maroc.",
 }

@@ -13,6 +13,12 @@ export const site = {
     "Bonjour Eguidar, j'ai une question concernant votre boutique.",
 } as const
 
+const dotIndex = site.name.indexOf(".")
+export const logoBrand = {
+  base: site.name.slice(0, dotIndex),
+  accent: site.name.slice(dotIndex),
+} as const
+
 export const staticPages = [
   { href: "/a-propos", label: "À propos" },
   { href: "/contact", label: "Contact" },

@@ -69,7 +69,12 @@ describe("GlobalNavBar", () => {
       <GlobalNavBar links={links} actions={<span>actions</span>} />
     )
 
-    expect(container.querySelector("a[href='/']")).not.toBeNull()
+    const home = container.querySelector<HTMLAnchorElement>("a[href='/']")!
+    expect(home.getAttribute("aria-label")).toBe("eguidar.ma — Accueil")
+    expect(home.textContent).toBe("eguidar.ma")
+    const accent = home.querySelector<HTMLElement>(".text-link")!
+    expect(accent.textContent).toBe(".ma")
+
     expect(container.textContent).toContain("À propos")
     expect(container.textContent).toContain("Contact")
     expect(container.textContent).toContain("actions")

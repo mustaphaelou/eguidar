@@ -14,7 +14,7 @@ const fontMono = Geist_Mono({
 export const metadata: Metadata = {
   title: {
     default: `${site.legalName} — ${site.tagline}`,
-    template: "%s — eguidar.ma",
+    template: `%s — ${site.name}`,
   },
   description: site.description,
 }

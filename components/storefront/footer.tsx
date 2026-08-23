@@ -3,7 +3,7 @@ import Link from "next/link"
 import { DeliveryTruck02Icon, Money01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { site, staticPages } from "@/lib/site"
+import { logoBrand, site, staticPages } from "@/lib/site"
 
 const shopLinks = [{ href: "/", label: "Accueil" }, ...staticPages]
 
@@ -46,7 +46,8 @@ export function StorefrontFooter() {
         <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-3">
           <div>
             <p className="text-[17px] font-semibold tracking-[-0.022em]">
-              eguidar<span className="text-link">.ma</span>
+              {logoBrand.base}
+              <span className="text-link">{logoBrand.accent}</span>
             </p>
             <p className="mt-2 text-xs text-muted-foreground">{site.tagline}</p>
           </div>
@@ -86,7 +87,7 @@ export function StorefrontFooter() {
             </p>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-x-2">
-            <span>© eguidar.ma — Tous droits réservés.</span>
+            <span>© {site.name} — Tous droits réservés.</span>
             {staticPages.map((link, index) => (
               <span key={link.href} className="flex items-center gap-x-2">
                 {index > 0 ? (
