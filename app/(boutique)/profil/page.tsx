@@ -12,7 +12,7 @@ import { getSessionUser } from "@/lib/use-cases/get-session"
 export const metadata: Metadata = {
   title: "Mon profil",
   description:
-    "Gérez vos informations personnelles, votre numéro de téléphone et votre adresse de livraison eguidar.ma.",
+    "Gérez vos informations personnelles, votre numéro de téléphone et votre adresse de livraison eguidar.com.",
 }
 
 export default function ProfilePage() {

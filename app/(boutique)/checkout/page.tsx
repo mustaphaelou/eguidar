@@ -13,7 +13,7 @@ import { formatPrice } from "@/lib/money"
 export const metadata: Metadata = {
   title: "Commander",
   description:
-    "Finalisez votre commande eguidar.ma : confirmez votre adresse et votre téléphone, et réglez en espèces à la livraison.",
+    "Finalisez votre commande eguidar.com : confirmez votre adresse et votre téléphone, et réglez en espèces à la livraison.",
 }
 
 export default function CheckoutPage({

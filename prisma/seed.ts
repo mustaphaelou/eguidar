@@ -8,7 +8,7 @@ import { prisma } from "../lib/db"
 import { indexProductDocuments } from "../lib/meili"
 import { toIndexableProduct } from "../lib/index-projection"
 
-const adminEmail = process.env.ADMIN_EMAIL ?? "admin@eguidar.ma"
+const adminEmail = process.env.ADMIN_EMAIL ?? "admin@eguidar.com"
 const adminPassword = process.env.ADMIN_PASSWORD ?? "admin-password-change-me"
 const adminName = process.env.ADMIN_NAME ?? "Administrateur"
 

@@ -23,7 +23,7 @@ export async function generateMetadata({
   return {
     title: `Commande ${shortOrderId(orderId)}`,
     description:
-      "Confirmation de votre commande eguidar.ma : récapitulatif des articles, montant total et détails de livraison.",
+      "Confirmation de votre commande eguidar.com : récapitulatif des articles, montant total et détails de livraison.",
   }
 }
 

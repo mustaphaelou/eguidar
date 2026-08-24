@@ -16,7 +16,7 @@ import { shortOrderId } from "@/lib/order-status"
 export const metadata: Metadata = {
   title: "Mes commandes",
   description:
-    "Suivez vos commandes eguidar.ma : statut en attente, confirmée, expédiée ou livrée, et détails de chaque achat.",
+    "Suivez vos commandes eguidar.com : statut en attente, confirmée, expédiée ou livrée, et détails de chaque achat.",
 }
 
 export default function OrderHistoryPage() {

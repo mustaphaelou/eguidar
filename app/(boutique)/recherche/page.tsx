@@ -15,8 +15,8 @@ export async function generateMetadata({
   return {
     title: query ? `Recherche : ${query}` : "Recherche",
     description: query
-      ? `Résultats pour « ${query} » sur eguidar.ma : filtres par marque, catégorie et prix, TVA incluse, paiement à la livraison.`
-      : "Recherchez un produit, une marque dans le catalogue eguidar.ma.",
+      ? `Résultats pour « ${query} » sur eguidar.com : filtres par marque, catégorie et prix, TVA incluse, paiement à la livraison.`
+      : "Recherchez un produit, une marque dans le catalogue eguidar.com.",
   }
 }
 

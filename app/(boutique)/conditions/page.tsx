@@ -6,7 +6,7 @@ import { site } from "@/lib/site"
 export const metadata: Metadata = {
   title: "Conditions & livraison",
   description:
-    "Conditions générales de vente et politique de livraison d'eguidar.ma : paiement à la livraison, frais de livraison par ville, délais, retours et remboursements.",
+    "Conditions générales de vente et politique de livraison d'eguidar.com : paiement à la livraison, frais de livraison par ville, délais, retours et remboursements.",
 }
 
 export default function ConditionsPage() {
@@ -14,7 +14,7 @@ export default function ConditionsPage() {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-3xl font-bold">Conditions &amp; livraison</h1>
       <p className="mt-3 text-muted-foreground">
-        Les conditions générales de vente de la boutique eguidar.ma, applicables
+        Les conditions générales de vente de la boutique eguidar.com, applicables
         à toute commande passée sur le site.
       </p>
 

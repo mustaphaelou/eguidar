@@ -6,7 +6,7 @@ import { site } from "@/lib/site"
 export const metadata: Metadata = {
   title: "FAQ",
   description:
-    "Questions fréquentes sur eguidar.ma : commande, paiement à la livraison, frais de livraison, suivi de commande, retours et remboursements.",
+    "Questions fréquentes sur eguidar.com : commande, paiement à la livraison, frais de livraison, suivi de commande, retours et remboursements.",
 }
 
 const faqs = [

@@ -13,7 +13,7 @@ import { site } from "@/lib/site"
 export const metadata: Metadata = {
   title: "À propos",
   description:
-    "Découvrez eguidar.ma, la boutique d'électronique en ligne au Maroc : prix en MAD avec TVA incluse, paiement à la livraison et livraison partout au Maroc.",
+    "Découvrez eguidar.com, la boutique d'électronique en ligne au Maroc : prix en MAD avec TVA incluse, paiement à la livraison et livraison partout au Maroc.",
 }
 
 const values = [

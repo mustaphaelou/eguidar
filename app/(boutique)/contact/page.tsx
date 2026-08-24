@@ -15,7 +15,7 @@ import { site } from "@/lib/site"
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Contactez eguidar.ma par e-mail, téléphone ou WhatsApp. Notre équipe répond rapidement à toutes vos questions sur vos commandes et livraisons.",
+    "Contactez eguidar.com par e-mail, téléphone ou WhatsApp. Notre équipe répond rapidement à toutes vos questions sur vos commandes et livraisons.",
 }
 
 const whatsappUrl = `https://wa.me/${site.contactPhoneDigits}?text=${encodeURIComponent(site.whatsappMessage)}`

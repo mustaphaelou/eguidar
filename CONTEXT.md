@@ -1,6 +1,6 @@
 # Eguidar
 
-A French-language Moroccan e-commerce storefront (eguidar.ma): catalog with categories and product variants, cart, cash-on-delivery checkout, order lifecycle, and an admin back-office. Single context.
+A French-language Moroccan e-commerce storefront (eguidar.com): catalog with categories and product variants, cart, cash-on-delivery checkout, order lifecycle, and an admin back-office. Single context.
 
 ## Language
 
