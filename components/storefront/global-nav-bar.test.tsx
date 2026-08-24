@@ -70,10 +70,10 @@ describe("GlobalNavBar", () => {
     )
 
     const home = container.querySelector<HTMLAnchorElement>("a[href='/']")!
-    expect(home.getAttribute("aria-label")).toBe("eguidar.ma — Accueil")
-    expect(home.textContent).toBe("eguidar.ma")
+    expect(home.getAttribute("aria-label")).toBe("eguidar.com — Accueil")
+    expect(home.textContent).toBe("eguidar.com")
     const accent = home.querySelector<HTMLElement>(".text-link")!
-    expect(accent.textContent).toBe(".ma")
+    expect(accent.textContent).toBe(".com")
 
     expect(container.textContent).toContain("À propos")
     expect(container.textContent).toContain("Contact")
