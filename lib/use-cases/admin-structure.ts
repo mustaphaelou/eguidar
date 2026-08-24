@@ -3,18 +3,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
-import { deleteR2Object } from "@/lib/r2"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
-
-async function deleteR2ObjectIfChanged(previous: string | null, next: string | null): Promise<void> {
-  if (!previous || previous === next) return
-  try {
-    await deleteR2Object(previous)
-  } catch {
-    // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
-  }
-}
 
 export interface CategoryInput {
   name: string
@@ -26,6 +16,12 @@ export interface CategoryInput {
 export interface StructureEffects {
   reindexProducts(products: IndexableProduct[]): Promise<void>
   revalidateCategories(): void
+  /**
+   * Supprime l'image de catégorie donnée, en best-effort.
+   * Invariant : ne rejette jamais — un échec de suppression R2 ne doit pas
+   * faire échouer la mutation (ADR-0004).
+   */
+  deleteImage(url: string): Promise<void>
 }
 
 export class CategoryValidationError extends UserFacingError {
@@ -176,7 +172,8 @@ export async function updateCategory(id: string, input: CategoryInput, effects: 
     mapCategoryUniqueViolation(error)
   }
 
-  await deleteR2ObjectIfChanged(existing.image, data.image ?? null)
+  const nextImage = data.image ?? null
+  if (existing.image && existing.image !== nextImage) await effects.deleteImage(existing.image)
   const products = await readIndexableCategoryProducts(id)
   if (products.length > 0) await effects.reindexProducts(products)
   effects.revalidateCategories()
@@ -223,7 +220,7 @@ export async function deleteCategory(
   }
 
   await prisma.category.delete({ where: { id } })
-  await deleteR2ObjectIfChanged(category.image, null)
+  if (category.image) await effects.deleteImage(category.image)
   effects.revalidateCategories()
 }
 

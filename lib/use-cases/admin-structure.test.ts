@@ -22,10 +22,12 @@ const productSlug = (suffix: string) => `struc-${runId}-${suffix}`
 
 function makeEffects(): StructureEffects & {
   reindexProducts: ReturnType<typeof vi.fn>
+  deleteImage: ReturnType<typeof vi.fn>
 } {
   return {
     reindexProducts: vi.fn(async () => {}),
     revalidateCategories: vi.fn(),
+    deleteImage: vi.fn(async () => {}),
   }
 }
 
@@ -131,6 +133,46 @@ describe("admin structure mutations — categories", () => {
     expect(updated.image).toBeNull()
     expect(effects.revalidateCategories).toHaveBeenCalled()
     expect(effects.reindexProducts).not.toHaveBeenCalled()
+  })
+
+  it("deletes the previous image through effects when it is replaced on update", async () => {
+    const effects = makeEffects()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("img-replace"), image: "https://example.com/old-cat.jpg" }),
+      makeEffects()
+    )
+
+    await updateCategory(
+      category.id,
+      makeCategoryInput({ slug: categorySlug("img-replace"), image: "https://example.com/new-cat.jpg" }),
+      effects
+    )
+
+    expect(effects.deleteImage).toHaveBeenCalledOnce()
+    expect(effects.deleteImage).toHaveBeenCalledWith("https://example.com/old-cat.jpg")
+  })
+
+  it("does not delete any image when it is unchanged on update", async () => {
+    const effects = makeEffects()
+    const category = await createCategory(makeCategoryInput({ slug: categorySlug("img-same") }), makeEffects())
+
+    await updateCategory(category.id, makeCategoryInput({ slug: categorySlug("img-same") }), effects)
+
+    expect(effects.deleteImage).not.toHaveBeenCalled()
+  })
+
+  it("deletes the previous image when it is removed on update", async () => {
+    const effects = makeEffects()
+    const category = await createCategory(makeCategoryInput({ slug: categorySlug("img-remove") }), makeEffects())
+
+    await updateCategory(
+      category.id,
+      makeCategoryInput({ slug: categorySlug("img-remove"), image: null }),
+      effects
+    )
+
+    expect(effects.deleteImage).toHaveBeenCalledOnce()
+    expect(effects.deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
   })
 
   it("updates a category name and re-indexes the documents of its products", async () => {
@@ -247,6 +289,28 @@ describe("admin structure mutations — categories", () => {
     await expect(prisma.category.findUnique({ where: { id: category.id } })).resolves.toBeNull()
     expect(effects.revalidateCategories).toHaveBeenCalled()
     expect(effects.reindexProducts).not.toHaveBeenCalled()
+  })
+
+  it("deletes the category image through effects when present", async () => {
+    const effects = makeEffects()
+    const category = await createCategory(makeCategoryInput({ slug: categorySlug("del-img") }), makeEffects())
+
+    await deleteCategory(category.id, effects)
+
+    expect(effects.deleteImage).toHaveBeenCalledOnce()
+    expect(effects.deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
+  })
+
+  it("does not delete any image when the deleted category has none", async () => {
+    const effects = makeEffects()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-no-img"), image: null }),
+      makeEffects()
+    )
+
+    await deleteCategory(category.id, effects)
+
+    expect(effects.deleteImage).not.toHaveBeenCalled()
   })
 
   it("blocks deletion of a category that still has children", async () => {
