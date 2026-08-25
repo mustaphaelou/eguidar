@@ -1,19 +1,20 @@
 import { Suspense } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import type { Metadata } from "next"
 import { connection } from "next/server"
 
 import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { Button } from "@/components/ui/button"
+import { pageMetadata } from "@/lib/metadata"
 import { cn } from "@/lib/utils"
 import { getHomeData } from "@/lib/use-cases/storefront"
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Électronique au meilleur prix au Maroc",
   description:
     "Smartphones, ordinateurs, TV, gaming et accessoires au meilleur prix au Maroc. Prix en MAD, TVA 20% incluse, paiement à la livraison partout au Maroc.",
-}
+  path: "/",
+})
 
 export default function HomePage() {
   return (

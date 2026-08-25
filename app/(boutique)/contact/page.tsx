@@ -10,13 +10,15 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
+import { pageMetadata } from "@/lib/metadata"
 import { site } from "@/lib/site"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Contact",
   description:
     "Contactez eguidar.com par e-mail, téléphone ou WhatsApp. Notre équipe répond rapidement à toutes vos questions sur vos commandes et livraisons.",
-}
+  path: "/contact",
+})
 
 const whatsappUrl = `https://wa.me/${site.contactPhoneDigits}?text=${encodeURIComponent(site.whatsappMessage)}`
 const phoneUrl = `tel:+${site.contactPhoneDigits}`

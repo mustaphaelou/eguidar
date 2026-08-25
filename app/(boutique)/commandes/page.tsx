@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
 
@@ -9,15 +8,18 @@ import { RequireAuth } from "@/components/auth/require-auth"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
+import { pageMetadata } from "@/lib/metadata"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { listUserOrders } from "@/lib/use-cases/orders"
 import { shortOrderId } from "@/lib/order-status"
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Mes commandes",
   description:
     "Suivez vos commandes eguidar.com : statut en attente, confirmée, expédiée ou livrée, et détails de chaque achat.",
-}
+  path: "/commandes",
+  noindex: true,
+})
 
 export default function OrderHistoryPage() {
   return (

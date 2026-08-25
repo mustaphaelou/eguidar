@@ -46,7 +46,7 @@ minimal et son bucket de prix, stock total, images et date de mise à jour.
 _Avoid_: produit indexé, indexable product
 
 **Image produit**:
-A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart.
+A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X.
 _Avoid_: photo, visuel, media
 
 **Compte client**:

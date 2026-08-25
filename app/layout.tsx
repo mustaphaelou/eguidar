@@ -12,6 +12,7 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(site.url),
   title: {
     default: `${site.legalName} — ${site.tagline}`,
     template: `%s — ${site.name}`,

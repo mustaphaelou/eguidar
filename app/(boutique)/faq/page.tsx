@@ -1,13 +1,15 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { pageMetadata } from "@/lib/metadata"
 import { site } from "@/lib/site"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "FAQ",
   description:
     "Questions fréquentes sur eguidar.com : commande, paiement à la livraison, frais de livraison, suivi de commande, retours et remboursements.",
-}
+  path: "/faq",
+})
 
 const faqs = [
   {

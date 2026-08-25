@@ -1,7 +1,7 @@
-import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { SearchResults, SearchSkeleton } from "@/components/storefront/search-results"
+import { pageMetadata } from "@/lib/metadata"
 import { parseSearchParams, searchProducts } from "@/lib/use-cases/search"
 
 type SearchParams = Record<string, string | string[] | undefined>
@@ -10,14 +10,16 @@ export async function generateMetadata({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
-}): Promise<Metadata> {
+}) {
   const { query } = parseSearchParams(await searchParams)
-  return {
+  return pageMetadata({
     title: query ? `Recherche : ${query}` : "Recherche",
     description: query
       ? `Résultats pour « ${query} » sur eguidar.com : filtres par marque, catégorie et prix, TVA incluse, paiement à la livraison.`
       : "Recherchez un produit, une marque dans le catalogue eguidar.com.",
-  }
+    path: "/recherche",
+    noindex: true,
+  })
 }
 
 export default function SearchPage({

@@ -8,13 +8,15 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
+import { pageMetadata } from "@/lib/metadata"
 import { site } from "@/lib/site"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "À propos",
   description:
     "Découvrez eguidar.com, la boutique d'électronique en ligne au Maroc : prix en MAD avec TVA incluse, paiement à la livraison et livraison partout au Maroc.",
-}
+  path: "/a-propos",
+})
 
 const values = [
   {

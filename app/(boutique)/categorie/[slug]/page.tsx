@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
@@ -6,6 +5,7 @@ import { Suspense } from "react"
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
 import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { Button } from "@/components/ui/button"
+import { pageMetadata } from "@/lib/metadata"
 import { prisma } from "@/lib/db"
 import { getCategoryPageData } from "@/lib/use-cases/storefront"
 
@@ -13,14 +13,15 @@ export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>
-}): Promise<Metadata> {
+}) {
   const { slug } = await params
   const data = await getCategoryPageData(slug)
   if (!data) return { title: "Catégorie introuvable" }
-  return {
+  return pageMetadata({
     title: data.category.name,
     description: `Achetez ${data.category.name.toLowerCase()} au meilleur prix au Maroc. TVA 20% incluse, paiement à la livraison.`,
-  }
+    path: `/categorie/${slug}`,
+  })
 }
 
 export default function CategoryPage({

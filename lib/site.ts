@@ -3,6 +3,7 @@ const contactPhone = "+212 661 234 567"
 export const site = {
   name: "eguidar.com",
   legalName: "Eguidar",
+  url: "https://eguidar.com",
   tagline: "L'électronique au meilleur prix, livrée partout au Maroc.",
   description:
     "Smartphones, ordinateurs, TV, gaming et accessoires au meilleur prix au Maroc. Prix en MAD, TVA 20% incluse, paiement à la livraison.",

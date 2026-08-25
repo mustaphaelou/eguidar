@@ -1,20 +1,22 @@
-import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
+import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
 import { getCart } from "@/lib/use-cases/cart"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Commander",
   description:
     "Finalisez votre commande eguidar.com : confirmez votre adresse et votre téléphone, et réglez en espèces à la livraison.",
-}
+  path: "/checkout",
+  noindex: true,
+})
 
 export default function CheckoutPage({
   searchParams,

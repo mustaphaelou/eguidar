@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
@@ -10,6 +9,7 @@ import { RequireAuth } from "@/components/auth/require-auth"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import { formatPrice, formatShippingFee } from "@/lib/money"
+import { pageMetadata } from "@/lib/metadata"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { getOrder } from "@/lib/use-cases/orders"
 import { shortOrderId } from "@/lib/order-status"
@@ -18,13 +18,15 @@ export async function generateMetadata({
   params,
 }: {
   params: Promise<{ orderId: string }>
-}): Promise<Metadata> {
+}) {
   const { orderId } = await params
-  return {
+  return pageMetadata({
     title: `Commande ${shortOrderId(orderId)}`,
     description:
       "Confirmation de votre commande eguidar.com : récapitulatif des articles, montant total et détails de livraison.",
-  }
+    path: `/commande/confirmation/${orderId}`,
+    noindex: true,
+  })
 }
 
 export default function OrderConfirmationPage({

@@ -1,19 +1,21 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
 
 import { RequireAuth } from "@/components/auth/require-auth"
 import { ProfileForm } from "@/components/storefront/profile-form"
 import { Button } from "@/components/ui/button"
+import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
 import { listDeliveryCities } from "@/lib/use-cases/livraison"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Mon profil",
   description:
     "Gérez vos informations personnelles, votre numéro de téléphone et votre adresse de livraison eguidar.com.",
-}
+  path: "/profil",
+  noindex: true,
+})
 
 export default function ProfilePage() {
   return (

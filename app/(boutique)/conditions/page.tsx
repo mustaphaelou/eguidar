@@ -1,13 +1,15 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { pageMetadata } from "@/lib/metadata"
 import { site } from "@/lib/site"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Conditions & livraison",
   description:
     "Conditions générales de vente et politique de livraison d'eguidar.com : paiement à la livraison, frais de livraison par ville, délais, retours et remboursements.",
-}
+  path: "/conditions",
+})
 
 export default function ConditionsPage() {
   return (

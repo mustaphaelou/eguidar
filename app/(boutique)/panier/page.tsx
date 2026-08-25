@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
 
@@ -9,16 +8,19 @@ import { RequireAuth } from "@/components/auth/require-auth"
 import { CartLineRow } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
+import { pageMetadata } from "@/lib/metadata"
 import { getCart } from "@/lib/use-cases/cart"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Panier",
   description:
     "Votre panier eguidar.com : vérifiez vos articles, les frais de livraison selon votre ville et le total TVA incluse avant de passer commande.",
-}
+  path: "/panier",
+  noindex: true,
+})
 
 export default function CartPage({
   searchParams,

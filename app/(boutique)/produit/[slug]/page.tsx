@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
@@ -6,6 +5,7 @@ import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
 import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
+import { pageMetadata } from "@/lib/metadata"
 import { prisma } from "@/lib/db"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { formatPrice } from "@/lib/money"
@@ -15,14 +15,16 @@ export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>
-}): Promise<Metadata> {
+}) {
   const { slug } = await params
   const data = await getProductPageData(slug)
   if (!data) return { title: "Produit introuvable" }
-  return {
+  return pageMetadata({
     title: data.name,
     description: `${data.brand} ${data.name}. Prix ${formatPrice(data.price)} (TVA 20% incluse), paiement à la livraison.`,
-  }
+    path: `/produit/${data.slug}`,
+    images: data.images[0] ? [data.images[0]] : undefined,
+  })
 }
 
 export default function ProductPage({
