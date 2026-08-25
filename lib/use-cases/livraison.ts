@@ -45,7 +45,7 @@ export interface LivraisonEffects {
   revalidateShipping(): void
 }
 
-export class DeliveryCityNotFoundError extends Error {
+export class DeliveryCityNotFoundError extends UserFacingError {
   constructor() {
     super("Ville de livraison introuvable")
     this.name = "DeliveryCityNotFoundError"

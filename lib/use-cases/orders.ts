@@ -10,6 +10,7 @@ import {
   quotePanier,
 } from "@/lib/use-cases/livraison"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface CheckoutInput {
   cityId: string
@@ -53,21 +54,21 @@ export interface OrderSummary {
   itemCount: number
 }
 
-export class CheckoutValidationError extends Error {
+export class CheckoutValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "CheckoutValidationError"
   }
 }
 
-export class EmptyCartError extends Error {
+export class EmptyCartError extends UserFacingError {
   constructor() {
     super("Votre panier est vide")
     this.name = "EmptyCartError"
   }
 }
 
-export class OutOfStockError extends Error {
+export class OutOfStockError extends UserFacingError {
   items: OutOfStockItem[]
 
   constructor(items: OutOfStockItem[]) {

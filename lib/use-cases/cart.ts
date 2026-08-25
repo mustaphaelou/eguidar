@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface CartLine {
   cartItemId: string
@@ -23,21 +24,21 @@ export interface CartData {
   itemCount: number
 }
 
-export class CartValidationError extends Error {
+export class CartValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "CartValidationError"
   }
 }
 
-export class CartVariantNotFoundError extends Error {
+export class CartVariantNotFoundError extends UserFacingError {
   constructor() {
     super("Variante introuvable")
     this.name = "CartVariantNotFoundError"
   }
 }
 
-export class CartItemNotFoundError extends Error {
+export class CartItemNotFoundError extends UserFacingError {
   constructor() {
     super("Article du panier introuvable")
     this.name = "CartItemNotFoundError"
