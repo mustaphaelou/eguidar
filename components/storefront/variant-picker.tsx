@@ -13,20 +13,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { addToCartAction } from "@/app/(boutique)/actions"
+import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
 export function VariantPicker({
   basePrice,
   variants,
-  productPath,
 }: {
   basePrice: number
   variants: ProductVariantDto[]
-  productPath: string
 }) {
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
   const [added, setAdded] = useState(false)
+  const [capAtteint, setCapAtteint] = useState(false)
   const [isPending, startTransition] = useTransition()
   const selected = variants.find((variant) => variant.id === variantId)
 
@@ -49,9 +49,11 @@ export function VariantPicker({
   function handleAddToCart() {
     if (!selected || outOfStock) return
     setAdded(false)
+    setCapAtteint(false)
     startTransition(async () => {
-      const ok = await addToCartAction(selected.id, 1, productPath)
-      if (ok) setAdded(true)
+      const resultat = await addToCartAction(selected.id, 1)
+      if (resultat === true) setAdded(true)
+      else if (resultat === "cap-atteinte") setCapAtteint(true)
     })
   }
 
@@ -94,6 +96,11 @@ export function VariantPicker({
         </Button>
         {added && <span className="text-sm text-emerald-600">Ajouté au panier</span>}
       </div>
+      {capAtteint && (
+        <p role="alert" className="text-sm text-destructive">
+          {MESSAGE_CAP_ATTEINTE}
+        </p>
+      )}
     </div>
   )
 }

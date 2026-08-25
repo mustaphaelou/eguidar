@@ -7,27 +7,7 @@ import { LockKeyIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
-import {
-  parseAuthParams,
-  withAuthParams,
-  withoutAuthParams,
-} from "@/lib/lien-de-connexion"
-import { replaceUrl } from "@/components/auth/sync-url"
-
-function pageAddressWithoutAuthParams(url: URL): string {
-  const addressWithoutNext = withAuthParams(`${url.pathname}${url.search}`, {
-    next: "",
-  })
-  return withoutAuthParams(addressWithoutNext)
-}
-
-function syncLoginUrl() {
-  const { next } = parseAuthParams(window.location.search)
-  replaceUrl((current) => {
-    const destination = next ?? pageAddressWithoutAuthParams(current)
-    return withAuthParams(current.href, { dialog: "login", next: destination })
-  })
-}
+import { syncLoginUrl } from "@/components/auth/sync-url"
 
 export function RequireAuth() {
   useEffect(() => {

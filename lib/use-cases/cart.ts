@@ -93,28 +93,54 @@ export async function getCart(userId: string): Promise<CartData> {
     include: { variant: { include: { product: true } } },
   })
 
-  const lines: CartLine[] = items.map((item) => {
-    const unitPrice = item.variant.product.price + item.variant.priceDelta
-    return {
-      cartItemId: item.id,
-      variantId: item.variantId,
-      variantName: item.variant.name,
-      productId: item.variant.productId,
-      productName: item.variant.product.name,
-      productSlug: item.variant.product.slug,
-      image: Array.isArray(item.variant.product.images)
-        ? (item.variant.product.images[0] as string | undefined) ?? null
-        : null,
-      unitPrice,
-      quantity: item.quantity,
-      lineTotal: unitPrice * item.quantity,
-      stock: item.variant.stock,
-      freeShipping: item.variant.product.freeShipping,
-    }
-  })
+  const lines = items.map((item) => buildCartLine(item.variant, item.quantity, item.id))
 
+  return { lines, ...buildCartTotals(lines) }
+}
+
+interface VarianteAvecProduit {
+  id: string
+  name: string
+  productId: string
+  priceDelta: number
+  stock: number
+  product: {
+    price: number
+    name: string
+    slug: string
+    images: unknown
+    freeShipping: boolean
+  }
+}
+
+export function buildCartLine(
+  variant: VarianteAvecProduit,
+  quantity: number,
+  cartItemId: string = variant.id
+): CartLine {
+  const unitPrice = variant.product.price + variant.priceDelta
   return {
-    lines,
+    cartItemId,
+    variantId: variant.id,
+    variantName: variant.name,
+    productId: variant.productId,
+    productName: variant.product.name,
+    productSlug: variant.product.slug,
+    image: Array.isArray(variant.product.images)
+      ? (variant.product.images[0] as string | undefined) ?? null
+      : null,
+    unitPrice,
+    quantity,
+    lineTotal: unitPrice * quantity,
+    stock: variant.stock,
+    freeShipping: variant.product.freeShipping,
+  }
+}
+
+export function buildCartTotals(
+  lines: readonly CartLine[]
+): Pick<CartData, "subtotal" | "itemCount"> {
+  return {
     subtotal: lines.reduce((sum, line) => sum + line.lineTotal, 0),
     itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
   }
