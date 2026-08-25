@@ -21,9 +21,11 @@ export type GlobalNavLink = { href: string; label: string }
 export function GlobalNavBar({
   links,
   actions,
+  panierBadge,
 }: {
   links: GlobalNavLink[]
   actions: React.ReactNode
+  panierBadge?: React.ReactNode
 }) {
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -93,8 +95,10 @@ export function GlobalNavBar({
             variant="ghost"
             size="icon"
             aria-label="Panier"
+            className="relative"
           >
             <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
+            {panierBadge}
           </Button>
           <Button
             variant="ghost"
