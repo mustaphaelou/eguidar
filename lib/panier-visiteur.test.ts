@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   MAX_ARTICLES_PANIER_VISITEUR,
+  NOM_COOKIE_PANIER_VISITEUR,
   addToPanierVisiteur,
   mergePaniersVisiteur,
   parsePanierVisiteur,
@@ -32,6 +33,12 @@ function articles(n: number): ArticlePanierVisiteur[] {
     quantity: i + 1,
   }))
 }
+
+describe("NOM_COOKIE_PANIER_VISITEUR", () => {
+  it("names the httpOnly cookie holding the Visiteur's Panier", () => {
+    expect(NOM_COOKIE_PANIER_VISITEUR).toBe("panier-visiteur")
+  })
+})
 
 describe("MAX_ARTICLES_PANIER_VISITEUR", () => {
   it("fixe la cap à vingt articles distincts", () => {
