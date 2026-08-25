@@ -19,7 +19,10 @@ function parseCheckoutFormData(formData: FormData): CheckoutInput {
   }
 }
 
-export const placeOrderAction = formAction<CheckoutInput, CheckoutFormState>({
+export const placeOrderAction: (
+  prevState: CheckoutFormState,
+  formData: FormData
+) => Promise<CheckoutFormState> = formAction<CheckoutInput, CheckoutFormState>({
   next: "/checkout",
   parse: parseCheckoutFormData,
   run: async (input, user) => {

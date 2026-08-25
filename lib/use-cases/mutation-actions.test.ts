@@ -1,30 +1,23 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
-const { redirectMock, sessionUserMock, adminSessionMock } = vi.hoisted(() => {
-  class RedirectSentinel extends Error {
-    url: string
-    constructor(url: string) {
-      super(`NEXT_REDIRECT;replace;${url};307;`)
-      this.name = "NEXT_REDIRECT"
-      this.url = url
-    }
-  }
-  return {
-    redirectMock: vi.fn((url: string) => {
-      throw new RedirectSentinel(url)
-    }),
-    sessionUserMock: vi.fn(),
-    adminSessionMock: vi.fn(),
-  }
-})
+import {
+  adminSessionMock,
+  redirectMock,
+  sessionUserMock,
+} from "@/test/navigation-mocks"
 
-vi.mock("next/navigation", () => ({ redirect: redirectMock }))
-vi.mock("@/lib/use-cases/get-session", () => ({
-  getSessionUser: sessionUserMock,
-}))
-vi.mock("@/lib/use-cases/get-admin-session", () => ({
-  getAdminSession: adminSessionMock,
-}))
+vi.mock("next/navigation", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { redirect: h.redirectMock }
+})
+vi.mock("@/lib/use-cases/get-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getSessionUser: h.sessionUserMock }
+})
+vi.mock("@/lib/use-cases/get-admin-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getAdminSession: h.adminSessionMock }
+})
 
 import {
   adminFormAction,
@@ -58,7 +51,7 @@ describe("formAction", () => {
     redirectMock.mockClear()
   })
 
-  it("redirects an anonymous session to loginUrl(next)", async () => {
+  it("sends an anonymous Compte client to the Lien de connexion carrying /checkout as its Destination post-connexion", async () => {
     sessionUserMock.mockResolvedValue(null)
     const action = formAction({
       next: "/checkout",
@@ -169,7 +162,7 @@ describe("taskAction", () => {
     redirectMock.mockClear()
   })
 
-  it("redirects an anonymous session to loginUrl(next)", async () => {
+  it("sends an anonymous Compte client to the Lien de connexion carrying /panier as its Destination post-connexion", async () => {
     sessionUserMock.mockResolvedValue(null)
     const action = taskAction({
       next: "/panier",
@@ -278,7 +271,7 @@ describe("adminFormAction", () => {
     redirectMock.mockClear()
   })
 
-  it("redirects an anonymous session to loginUrl(next)", async () => {
+  it("sends an anonymous Compte client to the Lien de connexion carrying /admin/villes as its Destination post-connexion", async () => {
     adminSessionMock.mockResolvedValue(null)
     const action = adminFormAction({
       next: "/admin/villes",
@@ -395,7 +388,7 @@ describe("adminTaskAction", () => {
     redirectMock.mockClear()
   })
 
-  it("redirects an anonymous session to loginUrl(next)", async () => {
+  it("sends an anonymous Compte client to the Lien de connexion carrying /admin/villes as its Destination post-connexion", async () => {
     adminSessionMock.mockResolvedValue(null)
     const action = adminTaskAction({
       next: "/admin/villes",

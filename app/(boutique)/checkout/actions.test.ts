@@ -1,38 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const {
+import {
+  adminSessionMock,
   redirectMock,
   sessionUserMock,
-  adminSessionMock,
-  placeOrderMock,
-  updateProfileMock,
-} = vi.hoisted(() => {
-    class RedirectSentinel extends Error {
-      url: string
-      constructor(url: string) {
-        super(`NEXT_REDIRECT;replace;${url};307;`)
-        this.name = "NEXT_REDIRECT"
-        this.url = url
-      }
-    }
-    return {
-      redirectMock: vi.fn((url: string) => {
-        throw new RedirectSentinel(url)
-      }),
-      sessionUserMock: vi.fn(),
-      adminSessionMock: vi.fn(),
-      placeOrderMock: vi.fn(),
-      updateProfileMock: vi.fn(),
-    }
-  })
+} from "@/test/navigation-mocks"
 
-vi.mock("next/navigation", () => ({ redirect: redirectMock }))
-vi.mock("@/lib/use-cases/get-session", () => ({
-  getSessionUser: sessionUserMock,
+const { placeOrderMock, updateProfileMock } = vi.hoisted(() => ({
+  placeOrderMock: vi.fn(),
+  updateProfileMock: vi.fn(),
 }))
-vi.mock("@/lib/use-cases/get-admin-session", () => ({
-  getAdminSession: adminSessionMock,
-}))
+
+vi.mock("next/navigation", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { redirect: h.redirectMock }
+})
+vi.mock("@/lib/use-cases/get-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getSessionUser: h.sessionUserMock }
+})
+vi.mock("@/lib/use-cases/get-admin-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getAdminSession: h.adminSessionMock }
+})
 vi.mock("@/lib/use-cases/orders", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/use-cases/orders")>()),
   placeOrder: placeOrderMock,
@@ -75,7 +65,7 @@ describe("placeOrderAction", () => {
     redirectMock.mockClear()
   })
 
-  it("redirects an anonymous session to loginUrl(/checkout) without placing an order", async () => {
+  it("sends an anonymous Compte client to the Lien de connexion carrying /checkout as its Destination post-connexion without placing an order", async () => {
     sessionUserMock.mockResolvedValue(null)
 
     await expect(placeOrderAction({}, formData())).rejects.toMatchObject({
@@ -122,7 +112,7 @@ describe("placeOrderAction", () => {
     }
   )
 
-  it("places the order, prefills the profile, and reaches the confirmation redirect", async () => {
+  it("places the order, prefills the profile, and sends the Compte client to the confirmation destination", async () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     placeOrderMock.mockResolvedValue({ id: "cmd-1" })
     updateProfileMock.mockResolvedValue({})
@@ -143,7 +133,7 @@ describe("placeOrderAction", () => {
     })
   })
 
-  it("swallows a failed profile prefill and still reaches the confirmation redirect", async () => {
+  it("swallows a failed profile prefill and still sends the Compte client to the confirmation destination", async () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     placeOrderMock.mockResolvedValue({ id: "cmd-2" })
     updateProfileMock.mockRejectedValue(new Error("boom"))

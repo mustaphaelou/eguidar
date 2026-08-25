@@ -1,30 +1,23 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
-const { redirectMock, sessionUserMock, updateProfileMock } = vi.hoisted(() => {
-  class RedirectSentinel extends Error {
-    url: string
-    constructor(url: string) {
-      super(`NEXT_REDIRECT;replace;${url};307;`)
-      this.name = "NEXT_REDIRECT"
-      this.url = url
-    }
-  }
-  return {
-    redirectMock: vi.fn((url: string) => {
-      throw new RedirectSentinel(url)
-    }),
-    sessionUserMock: vi.fn(),
-    updateProfileMock: vi.fn(),
-  }
-})
+import { redirectMock, sessionUserMock } from "@/test/navigation-mocks"
 
-vi.mock("next/navigation", () => ({ redirect: redirectMock }))
-vi.mock("@/lib/use-cases/get-session", () => ({
-  getSessionUser: sessionUserMock,
+const { updateProfileMock } = vi.hoisted(() => ({
+  updateProfileMock: vi.fn(),
 }))
-vi.mock("@/lib/use-cases/get-admin-session", () => ({
-  getAdminSession: vi.fn(),
-}))
+
+vi.mock("next/navigation", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { redirect: h.redirectMock }
+})
+vi.mock("@/lib/use-cases/get-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getSessionUser: h.sessionUserMock }
+})
+vi.mock("@/lib/use-cases/get-admin-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getAdminSession: h.adminSessionMock }
+})
 vi.mock("@/lib/use-cases/account", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/use-cases/account")>()
   return { ...actual, updateProfile: updateProfileMock }
@@ -48,7 +41,7 @@ describe("updateProfileAction", () => {
     redirectMock.mockClear()
   })
 
-  it("redirects an anonymous session to the Lien de connexion carrying /profil", async () => {
+  it("sends an anonymous Compte client to the Lien de connexion carrying /profil as its Destination post-connexion", async () => {
     sessionUserMock.mockResolvedValue(null)
 
     await expect(updateProfileAction({}, formData())).rejects.toMatchObject({
