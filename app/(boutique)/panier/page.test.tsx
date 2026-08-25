@@ -75,8 +75,10 @@ async function renderPage(searchParams: { ville?: string } = {}) {
 }
 
 beforeAll(async () => {
-  await prisma.shippingSettings.create({
-    data: { id: "default", freeShippingThreshold: 10000000 },
+  await prisma.shippingSettings.upsert({
+    where: { id: "default" },
+    create: { id: "default", freeShippingThreshold: 10000000 },
+    update: { freeShippingThreshold: 10000000 },
   })
 
   const user = await prisma.user.create({
