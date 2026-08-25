@@ -29,6 +29,14 @@ _Avoid_: quote, estimation de livraison
 The only payment method: the courier collects the total in cash at delivery. The total shown at checkout is what the courier collects.
 _Avoid_: cash on delivery, paiement cash, payer à la livraison
 
+**Panier**:
+The selection of articles a person assembles before ordering; both a Visiteur and a Client have one.
+_Avoid_: cart, caddie
+
+**Article du panier**:
+One product variant with its chosen quantity inside a Panier.
+_Avoid_: ligne de panier, line item
+
 **Catalogue**:
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
@@ -52,6 +60,14 @@ _Avoid_: photo, visuel, media
 **Compte client**:
 The registered customer entity (Better Auth user) with credentials, email verification, and optional social logins (Google, Apple). Carries a `role` ("user" or "admin").
 _Avoid_: account, user, membre
+
+**Visiteur**:
+A person browsing without an active session; becomes a Client upon Connexion or Inscription.
+_Avoid_: invité, guest, utilisateur anonyme
+
+**Client**:
+The person acting through a Compte client; a Visiteur becomes one by authenticating.
+_Avoid_: shopper, customer, utilisateur
 
 **Connexion**:
 The act of authenticating an existing customer into their account — a modal over the current page, never a standalone page. The modal is a reusable component available on every storefront page.
