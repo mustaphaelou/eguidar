@@ -1,12 +1,12 @@
 import { getCart } from "@/lib/use-cases/cart"
 import { getSessionUser } from "@/lib/use-cases/get-session"
-import { lireArticlesPanierVisiteur } from "@/lib/use-cases/get-panier-visiteur"
+import { getPanierVisiteur } from "@/lib/use-cases/get-panier-visiteur"
 
 export async function PanierBadge() {
   const user = await getSessionUser()
   const count = user
     ? (await getCart(user.id)).itemCount
-    : (await lireArticlesPanierVisiteur()).length
+    : (await getPanierVisiteur()).itemCount
 
   if (count === 0) return null
 

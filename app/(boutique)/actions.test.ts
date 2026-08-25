@@ -124,7 +124,7 @@ describe("addToCartAction", () => {
     it("persists the article through the DB use-case and returns true", async () => {
       commeClient(userIdA)
 
-      const ok = await addToCartAction(variantA, 2, "/produit/x")
+      const ok = await addToCartAction(variantA, 2)
 
       expect(ok).toBe(true)
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
@@ -136,15 +136,15 @@ describe("addToCartAction", () => {
     it("returns false on an invalid quantity and persists nothing", async () => {
       commeClient(userIdA)
 
-      expect(await addToCartAction(variantA, 0, "/produit/x")).toBe(false)
-      expect(await addToCartAction(variantA, 1.5, "/produit/x")).toBe(false)
+      expect(await addToCartAction(variantA, 0)).toBe(false)
+      expect(await addToCartAction(variantA, 1.5)).toBe(false)
       expect(await compterArticlesClient()).toBe(0)
     })
 
     it("returns false on an unknown variant", async () => {
       commeClient(userIdA)
 
-      expect(await addToCartAction("variante-inconnue", 1, "/produit/x")).toBe(false)
+      expect(await addToCartAction("variante-inconnue", 1)).toBe(false)
       expect(await compterArticlesClient()).toBe(0)
     })
   })
@@ -153,7 +153,7 @@ describe("addToCartAction", () => {
     it("writes the article into the cookie and survives a re-parse", async () => {
       commeVisiteur()
 
-      const ok = await addToCartAction(variantA, 2, "/produit/x")
+      const ok = await addToCartAction(variantA, 2)
 
       expect(ok).toBe(true)
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 2 }])
@@ -163,8 +163,8 @@ describe("addToCartAction", () => {
     it("sums quantities per variant across adds", async () => {
       commeVisiteur()
 
-      await addToCartAction(variantA, 2, "/produit/x")
-      await addToCartAction(variantA, 3, "/produit/x")
+      await addToCartAction(variantA, 2)
+      await addToCartAction(variantA, 3)
 
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 5 }])
     })
@@ -172,19 +172,19 @@ describe("addToCartAction", () => {
     it("refuses an unknown variant with false and leaves the cookie untouched", async () => {
       commeVisiteur()
 
-      expect(await addToCartAction("variante-inconnue", 1, "/produit/x")).toBe(false)
+      expect(await addToCartAction("variante-inconnue", 1)).toBe(false)
       expect(panierCookie()).toBeUndefined()
     })
 
     it("refuses an invalid quantity with false and leaves the cookie untouched", async () => {
       commeVisiteur()
 
-      expect(await addToCartAction(variantA, 0, "/produit/x")).toBe(false)
-      expect(await addToCartAction(variantA, 1.5, "/produit/x")).toBe(false)
+      expect(await addToCartAction(variantA, 0)).toBe(false)
+      expect(await addToCartAction(variantA, 1.5)).toBe(false)
       expect(panierCookie()).toBeUndefined()
     })
 
-    it("refuses a 21st distinct article with false and keeps the cap intact", async () => {
+    it("refuses a 21st distinct article with cap-atteinte and keeps the cap intact", async () => {
       commeVisiteur()
       const pleins = Array.from({ length: 20 }, (_unused, index) => ({
         variantId: `variant-fantome-${index}`,
@@ -192,18 +192,34 @@ describe("addToCartAction", () => {
       }))
       cookieJar.set(PANIER_COOKIE, serializePanierVisiteur(pleins))
 
-      expect(await addToCartAction("variant-fantome-nouveau", 1, "/produit/x")).toBe(false)
+      expect(await addToCartAction("variant-fantome-nouveau", 1)).toBe("cap-atteinte")
       expect(articlesDuCookie()).toHaveLength(20)
       expect(
         articlesDuCookie().some((article) => article.variantId === "variant-fantome-nouveau")
       ).toBe(false)
     })
 
+    it("still sums an already-held article past the cap and returns true", async () => {
+      commeVisiteur()
+      const pleins = Array.from({ length: 20 }, (_unused, index) => ({
+        variantId: index === 0 ? variantA : `variant-fantome-${index}`,
+        quantity: 1,
+      }))
+      cookieJar.set(PANIER_COOKIE, serializePanierVisiteur(pleins))
+
+      expect(await addToCartAction(variantA, 2)).toBe(true)
+      const article = articlesDuCookie().find(
+        (candidate) => candidate.variantId === variantA
+      )
+      expect(article?.quantity).toBe(3)
+      expect(articlesDuCookie()).toHaveLength(20)
+    })
+
     it("recovers from a tampered cookie by starting a fresh Panier", async () => {
       commeVisiteur()
       cookieJar.set(PANIER_COOKIE, "pas-du-json")
 
-      expect(await addToCartAction(variantA, 1, "/produit/x")).toBe(true)
+      expect(await addToCartAction(variantA, 1)).toBe(true)
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 1 }])
     })
   })
@@ -213,7 +229,7 @@ describe("updateCartItemQuantityAction", () => {
   describe("Compte client owner", () => {
     it("updates the persisted article quantity", async () => {
       commeClient(userIdA)
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
 
       await updateCartItemQuantityAction(item.id, 4)
@@ -224,7 +240,7 @@ describe("updateCartItemQuantityAction", () => {
 
     it("silently ignores an invalid quantity", async () => {
       commeClient(userIdA)
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
 
       await updateCartItemQuantityAction(item.id, 0)
@@ -243,7 +259,7 @@ describe("updateCartItemQuantityAction", () => {
   describe("Visiteur owner", () => {
     it("updates the article quantity inside the cookie", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
 
       await updateCartItemQuantityAction(variantA, 4)
 
@@ -252,7 +268,7 @@ describe("updateCartItemQuantityAction", () => {
 
     it("silently ignores an invalid quantity", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
 
       await updateCartItemQuantityAction(variantA, 0)
 
@@ -261,7 +277,7 @@ describe("updateCartItemQuantityAction", () => {
 
     it("silently ignores an unknown article and leaves the cookie untouched", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
 
       await updateCartItemQuantityAction("article-inconnu", 3)
 
@@ -270,7 +286,7 @@ describe("updateCartItemQuantityAction", () => {
 
     it("silently ignores an article whose variant vanished from the database", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
 
       await updateCartItemQuantityAction("variant-fantome", 3)
 
@@ -283,7 +299,7 @@ describe("removeCartItemAction", () => {
   describe("Compte client owner", () => {
     it("deletes the persisted article", async () => {
       commeClient(userIdA)
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
 
       await removeCartItemAction(item.id)
@@ -301,8 +317,8 @@ describe("removeCartItemAction", () => {
   describe("Visiteur owner", () => {
     it("removes only the targeted article from the cookie", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2, "/produit/x")
-      await addToCartAction(variantB, 1, "/produit/x")
+      await addToCartAction(variantA, 2)
+      await addToCartAction(variantB, 1)
 
       await removeCartItemAction(variantA)
 
@@ -311,7 +327,7 @@ describe("removeCartItemAction", () => {
 
     it("leaves an empty serialized Panier when the last article is removed", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
 
       await removeCartItemAction(variantA)
 
@@ -321,7 +337,7 @@ describe("removeCartItemAction", () => {
 
     it("silently ignores an unknown article and leaves the cookie untouched", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2, "/produit/x")
+      await addToCartAction(variantA, 2)
 
       await removeCartItemAction("article-inconnu")
 

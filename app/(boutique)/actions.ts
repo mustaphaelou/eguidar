@@ -5,7 +5,9 @@ import { cookies } from "next/headers"
 import { prisma } from "@/lib/db"
 import {
   addToPanierVisiteur,
+  NOM_COOKIE_PANIER_VISITEUR,
   parsePanierVisiteur,
+  quantiteValide,
   serializePanierVisiteur,
   type ArticlePanierVisiteur,
 } from "@/lib/panier-visiteur"
@@ -19,23 +21,18 @@ import {
 } from "@/lib/use-cases/cart"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
-const PANIER_VISITEUR_COOKIE = "panier-visiteur"
 const PANIER_VISITEUR_MAX_AGE = 60 * 60 * 24 * 30
-
-function quantiteValide(quantity: number): boolean {
-  return Number.isInteger(quantity) && quantity >= 1
-}
 
 async function lirePanierVisiteur(): Promise<ArticlePanierVisiteur[]> {
   const jar = await cookies()
-  return parsePanierVisiteur(jar.get(PANIER_VISITEUR_COOKIE)?.value)
+  return parsePanierVisiteur(jar.get(NOM_COOKIE_PANIER_VISITEUR)?.value)
 }
 
 async function ecrirePanierVisiteur(
   articles: readonly ArticlePanierVisiteur[]
 ): Promise<void> {
   const jar = await cookies()
-  jar.set(PANIER_VISITEUR_COOKIE, serializePanierVisiteur(articles), {
+  jar.set(NOM_COOKIE_PANIER_VISITEUR, serializePanierVisiteur(articles), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
@@ -45,14 +42,15 @@ async function ecrirePanierVisiteur(
 
 export async function addToCartAction(
   variantId: string,
-  quantity: number,
-  _nextPath: string
-): Promise<boolean> {
+  quantity: number
+): Promise<boolean | "cap-atteinte"> {
   const user = await getSessionUser()
   if (!user) {
     const panier = await lirePanierVisiteur()
     const resultat = addToPanierVisiteur(panier, variantId, quantity)
-    if (!resultat.ok) return false
+    if (!resultat.ok) {
+      return resultat.motif === "cap-atteinte" ? "cap-atteinte" : false
+    }
     const variant = await prisma.productVariant.findUnique({
       where: { id: variantId },
     })

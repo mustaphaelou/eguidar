@@ -115,7 +115,7 @@ describe("PanierBadge", () => {
     expect((await renderBadge()).trim()).toBe("")
   })
 
-  it("counts the Visiteur's distinct articles from the cookie", async () => {
+  it("counts the Visiteur's Panier as summed quantities, like a Client's", async () => {
     commeVisiteur()
     cookieJar.set(
       PANIER_COOKIE,
@@ -127,8 +127,24 @@ describe("PanierBadge", () => {
 
     const html = await renderBadge()
 
-    expect(html).toContain(">2</span>")
-    expect(html).not.toContain(">5<")
+    expect(html).toContain(">5</span>")
+    expect(html).not.toContain(">2<")
+  })
+
+  it("skips a Visiteur article whose variant vanished, exactly like a Client's Panier", async () => {
+    commeVisiteur()
+    cookieJar.set(
+      PANIER_COOKIE,
+      serializePanierVisiteur([
+        { variantId: "variante-fantome", quantity: 4 },
+        { variantId: variantA, quantity: 3 },
+      ])
+    )
+
+    const html = await renderBadge()
+
+    expect(html).toContain(">3</span>")
+    expect(html).not.toContain(">7<")
   })
 
   it("counts the Client's persisted Panier item count", async () => {

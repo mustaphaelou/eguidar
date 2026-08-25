@@ -2,6 +2,8 @@ export const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
 
 export const MAX_ARTICLES_PANIER_VISITEUR = 20
 
+export const MESSAGE_CAP_ATTEINTE = `Votre panier est plein : ${MAX_ARTICLES_PANIER_VISITEUR} articles maximum.`
+
 export interface ArticlePanierVisiteur {
   variantId: string
   quantity: number
@@ -17,7 +19,7 @@ export type AjoutPanierVisiteur =
       articles: ArticlePanierVisiteur[]
     }
 
-function quantiteValide(quantity: number): boolean {
+export function quantiteValide(quantity: number): boolean {
   return Number.isInteger(quantity) && quantity >= 1
 }
 

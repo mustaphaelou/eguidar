@@ -83,7 +83,6 @@ async function ProductContent({
             <ProductBuyBox
               basePrice={data.price}
               variants={data.variants}
-              productPath={`/produit/${data.slug}`}
               freeShipping={data.freeShipping}
             />
           </div>

@@ -2,18 +2,22 @@ import { cookies } from "next/headers"
 
 import { prisma } from "@/lib/db"
 import {
+  NOM_COOKIE_PANIER_VISITEUR,
   parsePanierVisiteur,
   type ArticlePanierVisiteur,
 } from "@/lib/panier-visiteur"
-import type { CartData, CartLine } from "@/lib/use-cases/cart"
-
-const PANIER_VISITEUR_COOKIE = "panier-visiteur"
+import {
+  buildCartLine,
+  buildCartTotals,
+  type CartData,
+  type CartLine,
+} from "@/lib/use-cases/cart"
 
 export async function lireArticlesPanierVisiteur(): Promise<
   ArticlePanierVisiteur[]
 > {
   const jar = await cookies()
-  return parsePanierVisiteur(jar.get(PANIER_VISITEUR_COOKIE)?.value)
+  return parsePanierVisiteur(jar.get(NOM_COOKIE_PANIER_VISITEUR)?.value)
 }
 
 export async function getPanierVisiteur(): Promise<CartData> {
@@ -30,29 +34,8 @@ export async function getPanierVisiteur(): Promise<CartData> {
   for (const article of articles) {
     const variant = parId.get(article.variantId)
     if (!variant) continue
-
-    const unitPrice = variant.product.price + variant.priceDelta
-    lines.push({
-      cartItemId: article.variantId,
-      variantId: article.variantId,
-      variantName: variant.name,
-      productId: variant.productId,
-      productName: variant.product.name,
-      productSlug: variant.product.slug,
-      image: Array.isArray(variant.product.images)
-        ? (variant.product.images[0] as string | undefined) ?? null
-        : null,
-      unitPrice,
-      quantity: article.quantity,
-      lineTotal: unitPrice * article.quantity,
-      stock: variant.stock,
-      freeShipping: variant.product.freeShipping,
-    })
+    lines.push(buildCartLine(variant, article.quantity))
   }
 
-  return {
-    lines,
-    subtotal: lines.reduce((sum, line) => sum + line.lineTotal, 0),
-    itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
-  }
+  return { lines, ...buildCartTotals(lines) }
 }

@@ -204,6 +204,7 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
         { variantId: variantA, quantity: 5 },
       ])
       expect(hasCookie(NOM_COOKIE_PANIER_VISITEUR)).toBe(false)
+      expect(deletedCookieNames).toEqual([NOM_COOKIE_PANIER_VISITEUR])
       expect(reponse).toBe(reponseCallback)
     }
   )
