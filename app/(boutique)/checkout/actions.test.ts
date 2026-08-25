@@ -32,7 +32,6 @@ vi.mock("@/lib/use-cases/account", () => ({
 }))
 
 import { placeOrderAction } from "@/app/(boutique)/checkout/actions"
-import { loginUrl } from "@/lib/lien-de-connexion"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import { realOrderEffects } from "@/lib/use-cases/order-effects"
 import {
@@ -65,13 +64,13 @@ describe("placeOrderAction", () => {
     redirectMock.mockClear()
   })
 
-  it("sends an anonymous Compte client to the Lien de connexion carrying /checkout as its Destination post-connexion without placing an order", async () => {
+  it("refuses an anonymous Compte client with a typed result instead of a redirect, without placing an order", async () => {
     sessionUserMock.mockResolvedValue(null)
 
-    await expect(placeOrderAction({}, formData())).rejects.toMatchObject({
-      url: loginUrl("/checkout"),
+    await expect(placeOrderAction({}, formData())).resolves.toEqual({
+      unauthenticated: true,
     })
-    expect(redirectMock).toHaveBeenCalledWith(loginUrl("/checkout"))
+    expect(redirectMock).not.toHaveBeenCalled()
     expect(placeOrderMock).not.toHaveBeenCalled()
   })
 

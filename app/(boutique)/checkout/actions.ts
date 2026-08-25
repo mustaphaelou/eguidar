@@ -9,6 +9,7 @@ import { placeOrder, type CheckoutInput } from "@/lib/use-cases/orders"
 
 export interface CheckoutFormState {
   error?: string
+  unauthenticated?: true
 }
 
 function parseCheckoutFormData(formData: FormData): CheckoutInput {
@@ -23,7 +24,6 @@ export const placeOrderAction: (
   prevState: CheckoutFormState,
   formData: FormData
 ) => Promise<CheckoutFormState> = formAction<CheckoutInput, CheckoutFormState>({
-  next: "/checkout",
   parse: parseCheckoutFormData,
   run: async (input, user) => {
     const order = await placeOrder(user.id, input, realOrderEffects)

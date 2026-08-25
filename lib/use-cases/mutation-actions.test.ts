@@ -51,24 +51,22 @@ describe("formAction", () => {
     redirectMock.mockClear()
   })
 
-  it("sends an anonymous Compte client to the Lien de connexion carrying /checkout as its Destination post-connexion", async () => {
+  it("refuses an anonymous Compte client with a typed result instead of a redirect", async () => {
     sessionUserMock.mockResolvedValue(null)
     const action = formAction({
-      next: "/checkout",
       run: async () => ({}),
     })
 
-    await expect(action({}, formData())).rejects.toMatchObject({
-      url: loginUrl("/checkout"),
+    await expect(action({}, formData())).resolves.toEqual({
+      unauthenticated: true,
     })
-    expect(redirectMock).toHaveBeenCalledWith(loginUrl("/checkout"))
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
   it("passes the parsed input and the authenticated user to run", async () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async (_input: { phone: string }, _user: unknown) => ({}))
     const action = formAction<{ phone: string }>({
-      next: "/profil",
       parse: (fd) => ({ phone: String(fd.get("phone") ?? "") }),
       run,
     })
@@ -83,7 +81,6 @@ describe("formAction", () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async () => ({}))
     const action = formAction<{ phone: string }>({
-      next: "/profil",
       parse: () => {
         throw new Error("Téléphone invalide")
       },
@@ -99,7 +96,6 @@ describe("formAction", () => {
   it("turns a UserFacingError from run into { error: error.message }", async () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const action = formAction({
-      next: "/profil",
       run: async () => {
         throw new StubUserFacingError("Ville de livraison introuvable")
       },
@@ -114,7 +110,6 @@ describe("formAction", () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const boom = new Error("boom")
     const action = formAction({
-      next: "/profil",
       run: async () => {
         throw boom
       },
@@ -126,7 +121,6 @@ describe("formAction", () => {
   it("rethrows the redirect control flow thrown by run untouched", async () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const action = formAction({
-      next: "/checkout",
       run: async () => {
         redirectMock("/commande/confirmation/1")
         return {}
@@ -143,7 +137,6 @@ describe("formAction", () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async () => ({}))
     const action = formAction<unknown>({
-      next: "/profil",
       parse: () => null,
       run,
     })
@@ -162,16 +155,16 @@ describe("taskAction", () => {
     redirectMock.mockClear()
   })
 
-  it("sends an anonymous Compte client to the Lien de connexion carrying /panier as its Destination post-connexion", async () => {
+  it("refuses an anonymous Compte client with a typed result instead of a redirect", async () => {
     sessionUserMock.mockResolvedValue(null)
     const action = taskAction({
-      next: "/panier",
       run: async () => {},
     })
 
-    await expect(action(formData())).rejects.toMatchObject({
-      url: loginUrl("/panier"),
+    await expect(action(formData())).resolves.toEqual({
+      unauthenticated: true,
     })
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
   it("passes the parsed input and the authenticated user to run", async () => {
@@ -180,7 +173,6 @@ describe("taskAction", () => {
       expect(input).toEqual({ variantId: "42" })
     })
     const action = taskAction<{ variantId: string }>({
-      next: "/panier",
       parse: (fd) => {
         const variantId = String(fd.get("variantId") ?? "")
         return variantId ? { variantId } : null
@@ -198,7 +190,6 @@ describe("taskAction", () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async () => {})
     const action = taskAction<{ variantId: string }>({
-      next: "/panier",
       parse: () => {
         throw new Error("Format invalide")
       },
@@ -212,7 +203,6 @@ describe("taskAction", () => {
   it("swallows a UserFacingError from run as a silent no-op", async () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const action = taskAction<{ variantId: string }>({
-      next: "/panier",
       parse: (fd) => ({ variantId: String(fd.get("variantId") ?? "") }),
       run: async () => {
         throw new StubUserFacingError("Variante introuvable")
@@ -226,7 +216,6 @@ describe("taskAction", () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const boom = new Error("boom")
     const action = taskAction({
-      next: "/panier",
       run: async () => {
         throw boom
       },
@@ -238,7 +227,6 @@ describe("taskAction", () => {
   it("rethrows the redirect control flow thrown by run untouched", async () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const action = taskAction({
-      next: "/checkout",
       run: async () => {
         redirectMock("/commande/confirmation/1")
       },
@@ -254,7 +242,6 @@ describe("taskAction", () => {
     sessionUserMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async () => {})
     const action = taskAction<unknown>({
-      next: "/panier",
       parse: () => null,
       run,
     })
