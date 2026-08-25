@@ -1,8 +1,9 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useEffect } from "react"
 
 import { updateProfileAction, type ProfileFormState } from "@/app/(boutique)/profil/actions"
+import { syncLoginUrl } from "@/components/auth/sync-url"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,6 +34,11 @@ export function ProfileForm({
   initialPhone,
 }: ProfileFormProps) {
   const [state, formAction, isPending] = useActionState(updateProfileAction, initialState)
+
+  useEffect(() => {
+    if (!state.unauthenticated) return
+    syncLoginUrl()
+  }, [state])
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

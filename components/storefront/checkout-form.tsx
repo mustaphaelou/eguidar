@@ -1,11 +1,12 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState, useEffect, useState } from "react"
 
 import { Cash01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { placeOrderAction, type CheckoutFormState } from "@/app/(boutique)/checkout/actions"
+import { syncLoginUrl } from "@/components/auth/sync-url"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -43,6 +44,11 @@ export function CheckoutForm({
   const [selectedCityId, setSelectedCityId] = useState(initialCityId ?? "")
   const quote = selectedCityId ? quotes[selectedCityId] : undefined
   const shippingFee = quote ? quote.shippingFee : null
+
+  useEffect(() => {
+    if (!state.unauthenticated) return
+    syncLoginUrl()
+  }, [state])
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

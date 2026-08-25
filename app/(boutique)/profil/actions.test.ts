@@ -25,7 +25,6 @@ vi.mock("@/lib/use-cases/account", async (importOriginal) => {
 
 import { updateProfileAction } from "@/app/(boutique)/profil/actions"
 import { ProfileValidationError } from "@/lib/use-cases/account"
-import { loginUrl } from "@/lib/lien-de-connexion"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 
 const SESSION_USER = { id: "user-1", email: "client@example.ma", role: "user" }
@@ -41,14 +40,14 @@ describe("updateProfileAction", () => {
     redirectMock.mockClear()
   })
 
-  it("sends an anonymous Compte client to the Lien de connexion carrying /profil as its Destination post-connexion", async () => {
+  it("refuses an anonymous Compte client with a typed result instead of a redirect, without saving", async () => {
     sessionUserMock.mockResolvedValue(null)
 
-    await expect(updateProfileAction({}, formData())).rejects.toMatchObject({
-      url: loginUrl("/profil"),
-      name: "NEXT_REDIRECT",
+    await expect(updateProfileAction({}, formData())).resolves.toEqual({
+      unauthenticated: true,
     })
-    expect(redirectMock).toHaveBeenCalledWith(loginUrl("/profil"))
+    expect(redirectMock).not.toHaveBeenCalled()
+    expect(updateProfileMock).not.toHaveBeenCalled()
   })
 
   it("turns a profile-validation refusal into { error } without saving", async () => {
