@@ -1,3 +1,5 @@
+export const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
+
 export const MAX_ARTICLES_PANIER_VISITEUR = 20
 
 export interface ArticlePanierVisiteur {
