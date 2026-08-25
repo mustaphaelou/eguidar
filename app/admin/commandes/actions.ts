@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation"
 
-import { adminTaskAction } from "@/lib/use-cases/admin-actions"
+import { adminTaskAction } from "@/lib/use-cases/mutation-actions"
 import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 import { realOrderEffects } from "@/lib/use-cases/order-effects"
 import {

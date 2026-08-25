@@ -3,7 +3,7 @@
 import {
   adminFormAction,
   INVALID_FORM_MESSAGE,
-} from "@/lib/use-cases/admin-actions"
+} from "@/lib/use-cases/mutation-actions"
 import { parseMadToCents } from "@/lib/money"
 import { updateShippingSettings } from "@/lib/use-cases/livraison"
 import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
