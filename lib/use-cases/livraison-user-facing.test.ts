@@ -4,6 +4,7 @@ import {
   CityNameConflictError,
   CityNotFoundError,
   CityValidationError,
+  DeliveryCityNotFoundError,
   ShippingValidationError,
 } from "@/lib/use-cases/livraison"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -12,6 +13,7 @@ const errorFactory: [string, () => unknown][] = [
   ["CityValidationError", () => new CityValidationError(["nom requis"])],
   ["CityNameConflictError", () => new CityNameConflictError()],
   ["CityNotFoundError", () => new CityNotFoundError()],
+  ["DeliveryCityNotFoundError", () => new DeliveryCityNotFoundError()],
   [
     "ShippingValidationError",
     () => new ShippingValidationError(["le seuil de livraison offerte doit être positif"]),

@@ -3,6 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface ProfileInput {
   phone: string
@@ -17,7 +18,7 @@ export interface Profile {
   cityName: string | null
 }
 
-export class ProfileValidationError extends Error {
+export class ProfileValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "ProfileValidationError"

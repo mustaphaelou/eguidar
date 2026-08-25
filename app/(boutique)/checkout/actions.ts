@@ -3,34 +3,29 @@
 import { redirect } from "next/navigation"
 
 import { updateProfile } from "@/lib/use-cases/account"
-import { requireSessionUser } from "@/lib/use-cases/get-session"
+import { formAction } from "@/lib/use-cases/mutation-actions"
 import { realOrderEffects } from "@/lib/use-cases/order-effects"
-import {
-  CheckoutValidationError,
-  EmptyCartError,
-  OutOfStockError,
-  placeOrder,
-  type CheckoutInput,
-} from "@/lib/use-cases/orders"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
+import { placeOrder, type CheckoutInput } from "@/lib/use-cases/orders"
 
 export interface CheckoutFormState {
   error?: string
 }
 
-export async function placeOrderAction(
-  _prevState: CheckoutFormState,
-  formData: FormData
-): Promise<CheckoutFormState> {
-  const user = await requireSessionUser("/checkout")
-
-  const input: CheckoutInput = {
+function parseCheckoutFormData(formData: FormData): CheckoutInput {
+  return {
     cityId: String(formData.get("cityId") ?? ""),
     address: String(formData.get("address") ?? ""),
     phone: String(formData.get("phone") ?? ""),
   }
+}
 
-  try {
+export const placeOrderAction: (
+  prevState: CheckoutFormState,
+  formData: FormData
+) => Promise<CheckoutFormState> = formAction<CheckoutInput, CheckoutFormState>({
+  next: "/checkout",
+  parse: parseCheckoutFormData,
+  run: async (input, user) => {
     const order = await placeOrder(user.id, input, realOrderEffects)
     try {
       await updateProfile(user.id, {
@@ -42,15 +37,5 @@ export async function placeOrderAction(
       // Le profil pré-remplit le prochain paiement : son échec ne doit pas bloquer la commande.
     }
     redirect(`/commande/confirmation/${order.id}`)
-  } catch (error) {
-    if (
-      error instanceof CheckoutValidationError ||
-      error instanceof EmptyCartError ||
-      error instanceof OutOfStockError ||
-      error instanceof DeliveryCityNotFoundError
-    ) {
-      return { error: error.message }
-    }
-    throw error
-  }
-}
+  },
+})

@@ -6,7 +6,7 @@ import { NO_PARENT_VALUE } from "@/components/admin/category-form"
 import {
   adminFormAction,
   INVALID_FORM_MESSAGE,
-} from "@/lib/use-cases/admin-actions"
+} from "@/lib/use-cases/mutation-actions"
 import {
   createCategory,
   deleteCategory,
