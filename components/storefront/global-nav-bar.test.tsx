@@ -116,4 +116,30 @@ describe("GlobalNavBar", () => {
     act(() => menu.click())
     expect(container.querySelector("nav[aria-label='Menu mobile']")).toBeNull()
   })
+
+  it("renders the panier link without a badge by default", () => {
+    renderCapturingErrors(<GlobalNavBar links={links} actions={null} />)
+
+    const panier = container.querySelector<HTMLAnchorElement>(
+      "a[href='/panier']"
+    )!
+    expect(panier.getAttribute("aria-label")).toBe("Panier")
+    expect(panier.textContent).toBe("")
+  })
+
+  it("renders the streamed panier badge inside the panier link", () => {
+    renderCapturingErrors(
+      <GlobalNavBar
+        links={links}
+        actions={null}
+        panierBadge={<span data-testid="badge">3</span>}
+      />
+    )
+
+    const panier = container.querySelector<HTMLAnchorElement>(
+      "a[href='/panier']"
+    )!
+    const badge = panier.querySelector<HTMLElement>("[data-testid='badge']")!
+    expect(badge.textContent).toBe("3")
+  })
 })

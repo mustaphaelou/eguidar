@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 
 import { GlobalNavBar } from "@/components/storefront/global-nav-bar"
+import { PanierBadge } from "@/components/storefront/panier-badge"
 import { SignInStatus } from "@/components/storefront/sign-in-status"
 import { staticPages } from "@/lib/site"
 
@@ -15,6 +16,11 @@ export function StorefrontHeader() {
       actions={
         <Suspense fallback={<SignInSkeleton />}>
           <SignInStatus />
+        </Suspense>
+      }
+      panierBadge={
+        <Suspense fallback={null}>
+          <PanierBadge />
         </Suspense>
       }
     />

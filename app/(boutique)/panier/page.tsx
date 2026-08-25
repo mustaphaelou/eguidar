@@ -4,12 +4,12 @@ import { Suspense } from "react"
 import { DeliveryTruck02Icon, ShoppingBag01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { RequireAuth } from "@/components/auth/require-auth"
 import { CartLineRow } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { getCart } from "@/lib/use-cases/cart"
+import { getPanierVisiteur } from "@/lib/use-cases/get-panier-visiteur"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
@@ -40,10 +40,8 @@ async function CartContent({
   searchParams: Promise<{ ville?: string }>
 }) {
   const user = await getSessionUser()
-  if (!user) return <RequireAuth />
-
   const { ville } = await searchParams
-  const cart = await getCart(user.id)
+  const cart = user ? await getCart(user.id) : await getPanierVisiteur()
   const { cities, threshold, selected } = await quotePanier(cart, ville)
   const quote = selected
 
