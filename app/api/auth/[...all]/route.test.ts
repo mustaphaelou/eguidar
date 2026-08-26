@@ -220,15 +220,16 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
     expect(await lignesPanier()).toEqual([])
   })
 
-  it("leaves requests without a Visiteur Panier completely untouched", async () => {
+  it("replays nothing when no Visiteur cookie is present", async () => {
     handlerMock.mockResolvedValue(reponseAuth(200))
     const requeteSansPanier = requete("POST", "/api/auth/sign-in/email")
 
     await POST(requeteSansPanier)
 
-    expect(getSessionMock).not.toHaveBeenCalled()
+    expect(getSessionMock).toHaveBeenCalled()
     expect(deletedCookieNames).toEqual([])
     expect(hasCookie(NOM_COOKIE_PANIER_VISITEUR)).toBe(false)
+    expect(await lignesPanier()).toEqual([])
   })
 
   it("does not attempt a replay on other auth endpoints like get-session polling", async () => {
