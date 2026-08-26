@@ -2,28 +2,20 @@ import { randomUUID } from "node:crypto"
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-const cookieJar = vi.hoisted(() => new Map<string, string>())
-
-vi.mock("next/headers", () => ({
-  cookies: async () => ({
-    get: (name: string) => {
-      const value = cookieJar.get(name)
-      return value === undefined ? undefined : { name, value }
-    },
-    set: (name: string, value: string) => {
-      cookieJar.set(name, value)
-    },
-    delete: (name: string) => {
-      cookieJar.delete(name)
-    },
-  }),
-}))
-
 import { prisma } from "@/lib/db"
-import { serializePanierVisiteur } from "@/lib/panier-visiteur"
+import {
+  NOM_COOKIE_PANIER_VISITEUR,
+  serializePanierVisiteur,
+} from "@/lib/panier-visiteur"
+import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
+
+vi.mock("next/headers", async () => {
+  const h = await import("@/test/cookie-store")
+  return { cookies: async () => h.cookieStoreMock }
+})
+
 import { getPanierVisiteur, lireArticlesPanierVisiteur } from "./get-panier-visiteur"
 
-const PANIER_COOKIE = "panier-visiteur"
 const runId = randomUUID().slice(0, 8)
 
 let variantStandard: string
@@ -83,20 +75,20 @@ afterAll(async () => {
 })
 
 beforeEach(() => {
-  cookieJar.clear()
+  resetCookieStoreMock()
 })
 
 describe("lireArticlesPanierVisiteur", () => {
   it("returns an empty Panier when the cookie is absent or unreadable", async () => {
     expect(await lireArticlesPanierVisiteur()).toEqual([])
 
-    cookieJar.set(PANIER_COOKIE, "pas-du-json")
+    setCookie(NOM_COOKIE_PANIER_VISITEUR, "pas-du-json")
     expect(await lireArticlesPanierVisiteur()).toEqual([])
   })
 
   it("parses the serialized articles stored in the cookie", async () => {
-    cookieJar.set(
-      PANIER_COOKIE,
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
       serializePanierVisiteur([
         { variantId: variantStandard, quantity: 2 },
         { variantId: variantUnique, quantity: 1 },
@@ -114,13 +106,13 @@ describe("getPanierVisiteur", () => {
   it("yields an empty CartData when the cookie holds no article", async () => {
     expect(await getPanierVisiteur()).toEqual({ lines: [], subtotal: 0, itemCount: 0 })
 
-    cookieJar.set(PANIER_COOKIE, "[]")
+    setCookie(NOM_COOKIE_PANIER_VISITEUR, "[]")
     expect(await getPanierVisiteur()).toEqual({ lines: [], subtotal: 0, itemCount: 0 })
   })
 
   it("prices every article from database variant prices, exactly like a Client's lines", async () => {
-    cookieJar.set(
-      PANIER_COOKIE,
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
       serializePanierVisiteur([
         { variantId: variantStandard, quantity: 2 },
         { variantId: variantPremium, quantity: 1 },
@@ -166,8 +158,8 @@ describe("getPanierVisiteur", () => {
   })
 
   it("skips stale articles whose variant vanished from the database", async () => {
-    cookieJar.set(
-      PANIER_COOKIE,
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
       serializePanierVisiteur([
         { variantId: "variante-fantome", quantity: 4 },
         { variantId: variantUnique, quantity: 1 },

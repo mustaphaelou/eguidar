@@ -1,17 +1,14 @@
-import { cookies } from "next/headers"
-
 import {
-  NOM_COOKIE_PANIER_VISITEUR,
-  parsePanierVisiteur,
-} from "@/lib/panier-visiteur"
+  lireArticlesPanierVisiteur,
+  possedeCookiePanierVisiteur,
+  supprimerCookiePanierVisiteur,
+} from "@/lib/panier"
 import { addToCart } from "@/lib/use-cases/cart"
 
 export async function replayPanierVisiteur(userId: string): Promise<void> {
-  const cookieStore = await cookies()
-  const brut = cookieStore.get(NOM_COOKIE_PANIER_VISITEUR)?.value
-  if (!brut) return
+  if (!(await possedeCookiePanierVisiteur())) return
 
-  for (const article of parsePanierVisiteur(brut)) {
+  for (const article of await lireArticlesPanierVisiteur()) {
     try {
       await addToCart(userId, article.variantId, article.quantity)
     } catch {
@@ -19,5 +16,5 @@ export async function replayPanierVisiteur(userId: string): Promise<void> {
     }
   }
 
-  cookieStore.delete(NOM_COOKIE_PANIER_VISITEUR)
+  await supprimerCookiePanierVisiteur()
 }

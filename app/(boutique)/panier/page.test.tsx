@@ -5,22 +5,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { sessionUserMock } from "@/test/navigation-mocks"
 
-const cookieJar = vi.hoisted(() => new Map<string, string>())
-
-vi.mock("next/headers", () => ({
-  cookies: async () => ({
-    get: (name: string) => {
-      const value = cookieJar.get(name)
-      return value === undefined ? undefined : { name, value }
-    },
-    set: (name: string, value: string) => {
-      cookieJar.set(name, value)
-    },
-    delete: (name: string) => {
-      cookieJar.delete(name)
-    },
-  }),
-}))
+vi.mock("next/headers", async () => {
+  const h = await import("@/test/cookie-store")
+  return { cookies: async () => h.cookieStoreMock }
+})
 
 vi.mock("@/lib/use-cases/get-session", async () => {
   const h = await import("@/test/navigation-mocks")
@@ -46,12 +34,16 @@ vi.mock("@/components/storefront/city-picker", () => ({
   CityPicker: () => <div data-testid="city-picker-stub" />,
 }))
 
+import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
+
 import CartPage from "./page"
 import { prisma } from "@/lib/db"
-import { serializePanierVisiteur } from "@/lib/panier-visiteur"
+import {
+  NOM_COOKIE_PANIER_VISITEUR,
+  serializePanierVisiteur,
+} from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 
-const PANIER_COOKIE = "panier-visiteur"
 const runId = randomUUID().slice(0, 8)
 
 let userIdA: string
@@ -141,7 +133,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  cookieJar.clear()
+  resetCookieStoreMock()
   sessionUserMock.mockReset()
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `panier-page-${runId}-` } } },
@@ -167,8 +159,8 @@ afterAll(async () => {
 describe("CartPage — Visiteur (cookie Panier)", () => {
   it("renders the cookie Panier fully — no placeholder, no forced modal", async () => {
     commeVisiteur()
-    cookieJar.set(
-      PANIER_COOKIE,
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
       serializePanierVisiteur([
         { variantId: variantStandard, quantity: 2 },
         { variantId: variantUnique, quantity: 1 },
@@ -188,8 +180,8 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
 
   it("computes prices and totals from database variant prices, like a Client's view", async () => {
     commeVisiteur()
-    cookieJar.set(
-      PANIER_COOKIE,
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
       serializePanierVisiteur([
         { variantId: variantStandard, quantity: 2 },
         { variantId: variantUnique, quantity: 1 },
@@ -218,8 +210,8 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
 
   it("skips stale articles instead of failing the render", async () => {
     commeVisiteur()
-    cookieJar.set(
-      PANIER_COOKIE,
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
       serializePanierVisiteur([
         { variantId: "variante-fantome", quantity: 4 },
         { variantId: variantUnique, quantity: 1 },
@@ -234,8 +226,8 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
 
   it("keeps pointing Passer commande at the client-gated /checkout", async () => {
     commeVisiteur()
-    cookieJar.set(
-      PANIER_COOKIE,
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
       serializePanierVisiteur([{ variantId: variantStandard, quantity: 1 }])
     )
 
