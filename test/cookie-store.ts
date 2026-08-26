@@ -27,3 +27,7 @@ export function setCookie(name: string, value: string) {
 export function hasCookie(name: string) {
   return paires.has(name)
 }
+
+export function readCookie(name: string): string | undefined {
+  return cookieStoreMock.get(name)?.value
+}

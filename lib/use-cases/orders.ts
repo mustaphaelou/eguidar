@@ -3,8 +3,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
+import { getCart } from "@/lib/panier"
 import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
-import { getCart } from "@/lib/use-cases/cart"
 import {
   DeliveryCityNotFoundError,
   quotePanier,

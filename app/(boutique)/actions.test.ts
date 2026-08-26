@@ -2,24 +2,20 @@ import { randomUUID } from "node:crypto"
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { prisma } from "@/lib/db"
+import {
+  NOM_COOKIE_PANIER_VISITEUR,
+  parsePanierVisiteur,
+  serializePanierVisiteur,
+} from "@/lib/panier-visiteur"
 import { sessionUserMock } from "@/test/navigation-mocks"
+import { readCookie, resetCookieStoreMock, setCookie } from "@/test/cookie-store"
 
-const cookieJar = vi.hoisted(() => new Map<string, string>())
+vi.mock("next/headers", async () => {
+  const h = await import("@/test/cookie-store")
+  return { cookies: async () => h.cookieStoreMock }
+})
 
-vi.mock("next/headers", () => ({
-  cookies: async () => ({
-    get: (name: string) => {
-      const value = cookieJar.get(name)
-      return value === undefined ? undefined : { name, value }
-    },
-    set: (name: string, value: string) => {
-      cookieJar.set(name, value)
-    },
-    delete: (name: string) => {
-      cookieJar.delete(name)
-    },
-  }),
-}))
 vi.mock("@/lib/use-cases/get-session", async () => {
   const h = await import("@/test/navigation-mocks")
   return { getSessionUser: h.sessionUserMock }
@@ -30,10 +26,7 @@ import {
   removeCartItemAction,
   updateCartItemQuantityAction,
 } from "./actions"
-import { prisma } from "@/lib/db"
-import { parsePanierVisiteur, serializePanierVisiteur } from "@/lib/panier-visiteur"
 
-const PANIER_COOKIE = "panier-visiteur"
 const runId = randomUUID().slice(0, 8)
 
 let userIdA: string
@@ -49,7 +42,7 @@ function commeVisiteur() {
 }
 
 function panierCookie(): string | undefined {
-  return cookieJar.get(PANIER_COOKIE)
+  return readCookie(NOM_COOKIE_PANIER_VISITEUR)
 }
 
 function articlesDuCookie() {
@@ -100,7 +93,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  cookieJar.clear()
+  resetCookieStoreMock()
   sessionUserMock.mockReset()
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `boutique-actions-${runId}-` } } },
@@ -190,7 +183,7 @@ describe("addToCartAction", () => {
         variantId: `variant-fantome-${index}`,
         quantity: 1,
       }))
-      cookieJar.set(PANIER_COOKIE, serializePanierVisiteur(pleins))
+      setCookie(NOM_COOKIE_PANIER_VISITEUR, serializePanierVisiteur(pleins))
 
       expect(await addToCartAction("variant-fantome-nouveau", 1)).toBe("cap-atteinte")
       expect(articlesDuCookie()).toHaveLength(20)
@@ -205,7 +198,7 @@ describe("addToCartAction", () => {
         variantId: index === 0 ? variantA : `variant-fantome-${index}`,
         quantity: 1,
       }))
-      cookieJar.set(PANIER_COOKIE, serializePanierVisiteur(pleins))
+      setCookie(NOM_COOKIE_PANIER_VISITEUR, serializePanierVisiteur(pleins))
 
       expect(await addToCartAction(variantA, 2)).toBe(true)
       const article = articlesDuCookie().find(
@@ -217,7 +210,7 @@ describe("addToCartAction", () => {
 
     it("recovers from a tampered cookie by starting a fresh Panier", async () => {
       commeVisiteur()
-      cookieJar.set(PANIER_COOKIE, "pas-du-json")
+      setCookie(NOM_COOKIE_PANIER_VISITEUR, "pas-du-json")
 
       expect(await addToCartAction(variantA, 1)).toBe(true)
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 1 }])
