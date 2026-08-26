@@ -14,7 +14,7 @@ vi.mock("next/headers", async () => {
   return { cookies: async () => h.cookieStoreMock }
 })
 
-import { getPanierVisiteur, lireArticlesPanierVisiteur } from "./get-panier-visiteur"
+import { getPanierVisiteur } from "./get-panier-visiteur"
 
 const runId = randomUUID().slice(0, 8)
 
@@ -78,30 +78,6 @@ beforeEach(() => {
   resetCookieStoreMock()
 })
 
-describe("lireArticlesPanierVisiteur", () => {
-  it("returns an empty Panier when the cookie is absent or unreadable", async () => {
-    expect(await lireArticlesPanierVisiteur()).toEqual([])
-
-    setCookie(NOM_COOKIE_PANIER_VISITEUR, "pas-du-json")
-    expect(await lireArticlesPanierVisiteur()).toEqual([])
-  })
-
-  it("parses the serialized articles stored in the cookie", async () => {
-    setCookie(
-      NOM_COOKIE_PANIER_VISITEUR,
-      serializePanierVisiteur([
-        { variantId: variantStandard, quantity: 2 },
-        { variantId: variantUnique, quantity: 1 },
-      ])
-    )
-
-    expect(await lireArticlesPanierVisiteur()).toEqual([
-      { variantId: variantStandard, quantity: 2 },
-      { variantId: variantUnique, quantity: 1 },
-    ])
-  })
-})
-
 describe("getPanierVisiteur", () => {
   it("yields an empty CartData when the cookie holds no article", async () => {
     expect(await getPanierVisiteur()).toEqual({ lines: [], subtotal: 0, itemCount: 0 })
@@ -122,13 +98,13 @@ describe("getPanierVisiteur", () => {
 
     const cart = await getPanierVisiteur()
 
-    expect(cart.lines.map((line) => line.cartItemId)).toEqual([
+    expect(cart.lines.map((line) => line.articlePanierId)).toEqual([
       variantStandard,
       variantPremium,
       variantUnique,
     ])
     expect(cart.lines[0]).toMatchObject({
-      cartItemId: variantStandard,
+      articlePanierId: variantStandard,
       variantId: variantStandard,
       variantName: "Standard",
       productName: "Produit GPV A",

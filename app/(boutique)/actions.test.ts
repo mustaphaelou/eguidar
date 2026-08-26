@@ -22,9 +22,9 @@ vi.mock("@/lib/use-cases/get-session", async () => {
 })
 
 import {
-  addToCartAction,
-  removeCartItemAction,
-  updateCartItemQuantityAction,
+  ajouterArticleAuPanierAction,
+  modifierQuantiteArticlePanierAction,
+  retirerArticleDuPanierAction,
 } from "./actions"
 
 const runId = randomUUID().slice(0, 8)
@@ -112,32 +112,41 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-describe("addToCartAction", () => {
+describe("ajouterArticleAuPanierAction", () => {
   describe("Compte client owner", () => {
-    it("persists the article through the DB use-case and returns true", async () => {
+    it("persists the article through the DB use-case and answers ok", async () => {
       commeClient(userIdA)
 
-      const ok = await addToCartAction(variantA, 2)
+      const resultat = await ajouterArticleAuPanierAction(variantA, 2)
 
-      expect(ok).toBe(true)
+      expect(resultat).toEqual({ ok: true })
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
       expect(item.variantId).toBe(variantA)
       expect(item.quantity).toBe(2)
       expect(panierCookie()).toBeUndefined()
     })
 
-    it("returns false on an invalid quantity and persists nothing", async () => {
+    it("refuses an invalid quantity with the quantite-invalide motif and persists nothing", async () => {
       commeClient(userIdA)
 
-      expect(await addToCartAction(variantA, 0)).toBe(false)
-      expect(await addToCartAction(variantA, 1.5)).toBe(false)
+      expect(await ajouterArticleAuPanierAction(variantA, 0)).toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+      })
+      expect(await ajouterArticleAuPanierAction(variantA, 1.5)).toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+      })
       expect(await compterArticlesClient()).toBe(0)
     })
 
-    it("returns false on an unknown variant", async () => {
+    it("refuses an unknown variant with the variante-inconnue motif", async () => {
       commeClient(userIdA)
 
-      expect(await addToCartAction("variante-inconnue", 1)).toBe(false)
+      expect(await ajouterArticleAuPanierAction("variante-inconnue", 1)).toEqual({
+        ok: false,
+        motif: "variante-inconnue",
+      })
       expect(await compterArticlesClient()).toBe(0)
     })
   })
@@ -146,9 +155,9 @@ describe("addToCartAction", () => {
     it("writes the article into the cookie and survives a re-parse", async () => {
       commeVisiteur()
 
-      const ok = await addToCartAction(variantA, 2)
+      const resultat = await ajouterArticleAuPanierAction(variantA, 2)
 
-      expect(ok).toBe(true)
+      expect(resultat).toEqual({ ok: true })
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 2 }])
       expect(await compterArticlesClient()).toBe(0)
     })
@@ -156,28 +165,37 @@ describe("addToCartAction", () => {
     it("sums quantities per variant across adds", async () => {
       commeVisiteur()
 
-      await addToCartAction(variantA, 2)
-      await addToCartAction(variantA, 3)
+      await ajouterArticleAuPanierAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 3)
 
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 5 }])
     })
 
-    it("refuses an unknown variant with false and leaves the cookie untouched", async () => {
+    it("refuses an unknown variant with the variante-inconnue motif and leaves the cookie untouched", async () => {
       commeVisiteur()
 
-      expect(await addToCartAction("variante-inconnue", 1)).toBe(false)
+      expect(await ajouterArticleAuPanierAction("variante-inconnue", 1)).toEqual({
+        ok: false,
+        motif: "variante-inconnue",
+      })
       expect(panierCookie()).toBeUndefined()
     })
 
-    it("refuses an invalid quantity with false and leaves the cookie untouched", async () => {
+    it("refuses an invalid quantity with the quantite-invalide motif and leaves the cookie untouched", async () => {
       commeVisiteur()
 
-      expect(await addToCartAction(variantA, 0)).toBe(false)
-      expect(await addToCartAction(variantA, 1.5)).toBe(false)
+      expect(await ajouterArticleAuPanierAction(variantA, 0)).toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+      })
+      expect(await ajouterArticleAuPanierAction(variantA, 1.5)).toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+      })
       expect(panierCookie()).toBeUndefined()
     })
 
-    it("refuses a 21st distinct article with cap-atteinte and keeps the cap intact", async () => {
+    it("refuses a 21st distinct article with the cap-atteinte motif and keeps the cap intact", async () => {
       commeVisiteur()
       const pleins = Array.from({ length: 20 }, (_unused, index) => ({
         variantId: `variant-fantome-${index}`,
@@ -185,14 +203,17 @@ describe("addToCartAction", () => {
       }))
       setCookie(NOM_COOKIE_PANIER_VISITEUR, serializePanierVisiteur(pleins))
 
-      expect(await addToCartAction("variant-fantome-nouveau", 1)).toBe("cap-atteinte")
+      expect(await ajouterArticleAuPanierAction("variant-fantome-nouveau", 1)).toEqual({
+        ok: false,
+        motif: "cap-atteinte",
+      })
       expect(articlesDuCookie()).toHaveLength(20)
       expect(
         articlesDuCookie().some((article) => article.variantId === "variant-fantome-nouveau")
       ).toBe(false)
     })
 
-    it("still sums an already-held article past the cap and returns true", async () => {
+    it("still sums an already-held article past the cap and answers ok", async () => {
       commeVisiteur()
       const pleins = Array.from({ length: 20 }, (_unused, index) => ({
         variantId: index === 0 ? variantA : `variant-fantome-${index}`,
@@ -200,7 +221,7 @@ describe("addToCartAction", () => {
       }))
       setCookie(NOM_COOKIE_PANIER_VISITEUR, serializePanierVisiteur(pleins))
 
-      expect(await addToCartAction(variantA, 2)).toBe(true)
+      expect(await ajouterArticleAuPanierAction(variantA, 2)).toEqual({ ok: true })
       const article = articlesDuCookie().find(
         (candidate) => candidate.variantId === variantA
       )
@@ -212,127 +233,167 @@ describe("addToCartAction", () => {
       commeVisiteur()
       setCookie(NOM_COOKIE_PANIER_VISITEUR, "pas-du-json")
 
-      expect(await addToCartAction(variantA, 1)).toBe(true)
+      expect(await ajouterArticleAuPanierAction(variantA, 1)).toEqual({ ok: true })
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 1 }])
     })
   })
 })
 
-describe("updateCartItemQuantityAction", () => {
+describe("modifierQuantiteArticlePanierAction", () => {
   describe("Compte client owner", () => {
-    it("updates the persisted article quantity", async () => {
+    it("updates the persisted article quantity and answers ok", async () => {
       commeClient(userIdA)
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
 
-      await updateCartItemQuantityAction(item.id, 4)
+      const resultat = await modifierQuantiteArticlePanierAction(item.id, 4)
 
+      expect(resultat).toEqual({ ok: true })
       const updated = await prisma.cartItem.findUniqueOrThrow({ where: { id: item.id } })
       expect(updated.quantity).toBe(4)
     })
 
-    it("silently ignores an invalid quantity", async () => {
+    it("refuses an invalid quantity with the quantite-invalide motif", async () => {
       commeClient(userIdA)
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
 
-      await updateCartItemQuantityAction(item.id, 0)
+      expect(await modifierQuantiteArticlePanierAction(item.id, 0)).toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+      })
 
       const unchanged = await prisma.cartItem.findUniqueOrThrow({ where: { id: item.id } })
       expect(unchanged.quantity).toBe(2)
     })
 
-    it("silently ignores an unknown article", async () => {
+    it("refuses an unknown article with the article-inconnu motif", async () => {
       commeClient(userIdA)
 
-      await expect(updateCartItemQuantityAction("article-inconnu", 2)).resolves.toBeUndefined()
+      expect(await modifierQuantiteArticlePanierAction("article-inconnu", 2)).toEqual({
+        ok: false,
+        motif: "article-inconnu",
+      })
+    })
+
+    it("refuses another account's article with the article-inconnu motif", async () => {
+      commeClient(userIdA)
+      await ajouterArticleAuPanierAction(variantA, 2)
+      const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
+
+      commeClient(randomUUID())
+      expect(await modifierQuantiteArticlePanierAction(item.id, 4)).toEqual({
+        ok: false,
+        motif: "article-inconnu",
+      })
     })
   })
 
   describe("Visiteur owner", () => {
-    it("updates the article quantity inside the cookie", async () => {
+    it("updates the article quantity inside the cookie and answers ok", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
 
-      await updateCartItemQuantityAction(variantA, 4)
+      const resultat = await modifierQuantiteArticlePanierAction(variantA, 4)
 
+      expect(resultat).toEqual({ ok: true })
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 4 }])
     })
 
-    it("silently ignores an invalid quantity", async () => {
+    it("refuses an invalid quantity with the quantite-invalide motif", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
 
-      await updateCartItemQuantityAction(variantA, 0)
+      expect(await modifierQuantiteArticlePanierAction(variantA, 0)).toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+      })
 
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 2 }])
     })
 
-    it("silently ignores an unknown article and leaves the cookie untouched", async () => {
+    it("refuses an unknown article with the article-inconnu motif and leaves the cookie untouched", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
 
-      await updateCartItemQuantityAction("article-inconnu", 3)
+      expect(await modifierQuantiteArticlePanierAction("article-inconnu", 3)).toEqual({
+        ok: false,
+        motif: "article-inconnu",
+      })
 
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 2 }])
     })
 
-    it("silently ignores an article whose variant vanished from the database", async () => {
+    it("refuses an article whose variant vanished from the database with the variante-inconnue motif", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2)
+      setCookie(
+        NOM_COOKIE_PANIER_VISITEUR,
+        serializePanierVisiteur([{ variantId: "variant-fantome", quantity: 1 }])
+      )
 
-      await updateCartItemQuantityAction("variant-fantome", 3)
+      expect(await modifierQuantiteArticlePanierAction("variant-fantome", 3)).toEqual({
+        ok: false,
+        motif: "variante-inconnue",
+      })
 
-      expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 2 }])
+      expect(articlesDuCookie()).toEqual([{ variantId: "variant-fantome", quantity: 1 }])
     })
   })
 })
 
-describe("removeCartItemAction", () => {
+describe("retirerArticleDuPanierAction", () => {
   describe("Compte client owner", () => {
-    it("deletes the persisted article", async () => {
+    it("deletes the persisted article and answers ok", async () => {
       commeClient(userIdA)
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
       const item = await prisma.cartItem.findFirstOrThrow({ where: { userId: userIdA } })
 
-      await removeCartItemAction(item.id)
+      const resultat = await retirerArticleDuPanierAction(item.id)
 
+      expect(resultat).toEqual({ ok: true })
       expect(await compterArticlesClient()).toBe(0)
     })
 
-    it("silently ignores an unknown article", async () => {
+    it("refuses an unknown article with the article-inconnu motif", async () => {
       commeClient(userIdA)
 
-      await expect(removeCartItemAction("article-inconnu")).resolves.toBeUndefined()
+      expect(await retirerArticleDuPanierAction("article-inconnu")).toEqual({
+        ok: false,
+        motif: "article-inconnu",
+      })
     })
   })
 
   describe("Visiteur owner", () => {
-    it("removes only the targeted article from the cookie", async () => {
+    it("removes only the targeted article from the cookie and answers ok", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2)
-      await addToCartAction(variantB, 1)
+      await ajouterArticleAuPanierAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantB, 1)
 
-      await removeCartItemAction(variantA)
+      const resultat = await retirerArticleDuPanierAction(variantA)
 
+      expect(resultat).toEqual({ ok: true })
       expect(articlesDuCookie()).toEqual([{ variantId: variantB, quantity: 1 }])
     })
 
     it("leaves an empty serialized Panier when the last article is removed", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
 
-      await removeCartItemAction(variantA)
+      await retirerArticleDuPanierAction(variantA)
 
       expect(panierCookie()).toBe("[]")
       expect(articlesDuCookie()).toEqual([])
     })
 
-    it("silently ignores an unknown article and leaves the cookie untouched", async () => {
+    it("refuses an unknown article with the article-inconnu motif and leaves the cookie untouched", async () => {
       commeVisiteur()
-      await addToCartAction(variantA, 2)
+      await ajouterArticleAuPanierAction(variantA, 2)
 
-      await removeCartItemAction("article-inconnu")
+      expect(await retirerArticleDuPanierAction("article-inconnu")).toEqual({
+        ok: false,
+        motif: "article-inconnu",
+      })
 
       expect(articlesDuCookie()).toEqual([{ variantId: variantA, quantity: 2 }])
     })

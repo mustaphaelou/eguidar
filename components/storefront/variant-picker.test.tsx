@@ -4,12 +4,12 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { addToCartActionMock } = vi.hoisted(() => ({
-  addToCartActionMock: vi.fn(),
+const { ajouterArticleAuPanierActionMock } = vi.hoisted(() => ({
+  ajouterArticleAuPanierActionMock: vi.fn(),
 }))
 
 vi.mock("@/app/(boutique)/actions", () => ({
-  addToCartAction: addToCartActionMock,
+  ajouterArticleAuPanierAction: ajouterArticleAuPanierActionMock,
 }))
 
 vi.mock("@/components/ui/select", () => ({
@@ -46,7 +46,7 @@ const roots: ReturnType<typeof createRoot>[] = []
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  addToCartActionMock.mockReset()
+  ajouterArticleAuPanierActionMock.mockReset()
 })
 
 afterEach(() => {
@@ -78,7 +78,7 @@ async function cliquerAjouter() {
 
 describe("VariantPicker", () => {
   it("confirms the addition when the action succeeds", async () => {
-    addToCartActionMock.mockResolvedValue(true)
+    ajouterArticleAuPanierActionMock.mockResolvedValue({ ok: true })
 
     render(picker())
     await cliquerAjouter()
@@ -88,13 +88,16 @@ describe("VariantPicker", () => {
   })
 
   it("shows the explicit cap message when the Visiteur's Panier is full", async () => {
-    addToCartActionMock.mockResolvedValue("cap-atteinte")
+    ajouterArticleAuPanierActionMock.mockResolvedValue({
+      ok: false,
+      motif: "cap-atteinte",
+    })
 
     render(picker())
     await cliquerAjouter()
 
-    expect(addToCartActionMock).toHaveBeenCalledTimes(1)
-    expect(addToCartActionMock.mock.calls[0]).toHaveLength(2)
+    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledTimes(1)
+    expect(ajouterArticleAuPanierActionMock.mock.calls[0]).toHaveLength(2)
     expect(container.querySelector("[role='alert']")?.textContent).toBe(
       MESSAGE_CAP_ATTEINTE
     )
@@ -103,7 +106,10 @@ describe("VariantPicker", () => {
   })
 
   it("stays silent on any other refusal", async () => {
-    addToCartActionMock.mockResolvedValue(false)
+    ajouterArticleAuPanierActionMock.mockResolvedValue({
+      ok: false,
+      motif: "quantite-invalide",
+    })
 
     render(picker())
     await cliquerAjouter()

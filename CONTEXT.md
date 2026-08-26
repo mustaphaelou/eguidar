@@ -37,6 +37,10 @@ _Avoid_: cart, caddie
 One product variant with its chosen quantity inside a Panier.
 _Avoid_: ligne de panier, line item
 
+**Propriétaire du panier**:
+The Visiteur or the Client whose Panier it is; resolved once per request from the session.
+_Avoid_: owner, cart owner, panier owner
+
 **Catalogue**:
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)

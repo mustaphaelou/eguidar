@@ -1,7 +1,7 @@
 import { toNextJsHandler } from "better-auth/next-js"
 
 import { auth } from "@/lib/auth"
-import { possedeCookiePanierVisiteur } from "@/lib/panier"
+import { possedePanierVisiteur } from "@/lib/panier"
 import { replayPanierVisiteur } from "@/lib/use-cases/replay-panier-visiteur"
 
 const handlers = toNextJsHandler(auth)
@@ -43,7 +43,7 @@ async function traiterAvecRejou(
   const reponse = await traiter(requete)
   const { pathname } = new URL(requete.url)
   if (!estTentativeConnexion(requete.method, pathname)) return reponse
-  if (!(await possedeCookiePanierVisiteur())) return reponse
+  if (!(await possedePanierVisiteur())) return reponse
   try {
     const session = await auth.api.getSession({
       headers: fusionnerCookies(requete.headers, reponse),
