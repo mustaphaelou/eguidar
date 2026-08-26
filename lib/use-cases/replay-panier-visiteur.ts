@@ -1,20 +1,5 @@
-import {
-  lireArticlesPanierVisiteur,
-  possedeCookiePanierVisiteur,
-  supprimerCookiePanierVisiteur,
-} from "@/lib/panier"
-import { addToCart } from "@/lib/use-cases/cart"
+import { rejouerPanierVisiteur } from "@/lib/panier"
 
-export async function replayPanierVisiteur(userId: string): Promise<void> {
-  if (!(await possedeCookiePanierVisiteur())) return
-
-  for (const article of await lireArticlesPanierVisiteur()) {
-    try {
-      await addToCart(userId, article.variantId, article.quantity)
-    } catch {
-      continue
-    }
-  }
-
-  await supprimerCookiePanierVisiteur()
+export function replayPanierVisiteur(compteId: string): Promise<void> {
+  return rejouerPanierVisiteur({ role: "client", compteId })
 }

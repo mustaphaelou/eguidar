@@ -66,7 +66,7 @@ async function CartContent({
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <ul>
           {cart.lines.map((line) => (
-            <CartLineRow key={line.cartItemId} line={line} />
+            <CartLineRow key={line.articlePanierId} line={line} />
           ))}
         </ul>
 

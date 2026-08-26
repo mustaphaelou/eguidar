@@ -1,1 +1,1 @@
-export { getPanierVisiteur, lireArticlesPanierVisiteur } from "@/lib/panier"
+export { getPanierVisiteur } from "@/lib/panier"

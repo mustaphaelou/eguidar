@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface CartLine {
-  cartItemId: string
+  articlePanierId: string
   variantId: string
   variantName: string
   productId: string
@@ -69,21 +69,21 @@ export async function addToCart(userId: string, variantId: string, quantity: num
 
 export async function updateCartItemQuantity(
   userId: string,
-  cartItemId: string,
+  articlePanierId: string,
   quantity: number
 ): Promise<void> {
   const qty = parseQuantity(quantity)
-  const existing = await prisma.cartItem.findFirst({ where: { id: cartItemId, userId } })
+  const existing = await prisma.cartItem.findFirst({ where: { id: articlePanierId, userId } })
   if (!existing) throw new CartItemNotFoundError()
 
-  await prisma.cartItem.update({ where: { id: cartItemId }, data: { quantity: qty } })
+  await prisma.cartItem.update({ where: { id: articlePanierId }, data: { quantity: qty } })
 }
 
-export async function removeCartItem(userId: string, cartItemId: string): Promise<void> {
-  const existing = await prisma.cartItem.findFirst({ where: { id: cartItemId, userId } })
+export async function removeCartItem(userId: string, articlePanierId: string): Promise<void> {
+  const existing = await prisma.cartItem.findFirst({ where: { id: articlePanierId, userId } })
   if (!existing) throw new CartItemNotFoundError()
 
-  await prisma.cartItem.delete({ where: { id: cartItemId } })
+  await prisma.cartItem.delete({ where: { id: articlePanierId } })
 }
 
 export async function getCart(userId: string): Promise<CartData> {
@@ -116,11 +116,11 @@ interface VarianteAvecProduit {
 export function buildCartLine(
   variant: VarianteAvecProduit,
   quantity: number,
-  cartItemId: string = variant.id
+  articlePanierId: string = variant.id
 ): CartLine {
   const unitPrice = variant.product.price + variant.priceDelta
   return {
-    cartItemId,
+    articlePanierId,
     variantId: variant.id,
     variantName: variant.name,
     productId: variant.productId,

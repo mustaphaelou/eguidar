@@ -228,7 +228,7 @@ export async function placeOrder(userId: string, input: CheckoutInput, effects: 
     })
 
     await tx.cartItem.deleteMany({
-      where: { id: { in: cart.lines.map((line) => line.cartItemId) } },
+      where: { id: { in: cart.lines.map((line) => line.articlePanierId) } },
     })
     return created
   })
