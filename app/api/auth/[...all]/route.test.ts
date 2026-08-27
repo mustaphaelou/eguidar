@@ -16,7 +16,7 @@ import {
   serializePanierVisiteur,
   type ArticlePanierVisiteur,
 } from "@/lib/panier-visiteur"
-import { addToCart } from "@/lib/use-cases/cart"
+import { addToCart } from "@/lib/panier"
 import {
   deletedCookieNames,
   hasCookie,

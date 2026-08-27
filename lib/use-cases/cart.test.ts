@@ -11,7 +11,7 @@ import {
   CartVariantNotFoundError,
   removeCartItem,
   updateCartItemQuantity,
-} from "@/lib/use-cases/cart"
+} from "@/lib/panier"
 
 const runId = randomUUID().slice(0, 8)
 const email = (suffix: string) => `cart-${runId}-${suffix}@test.ma`

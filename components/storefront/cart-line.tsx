@@ -13,7 +13,7 @@ import {
 } from "@/app/(boutique)/actions"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
-import type { CartLine } from "@/lib/use-cases/cart"
+import type { CartLine } from "@/lib/panier"
 
 export function CartLineRow({ line }: { line: CartLine }) {
   const [isPending, startTransition] = useTransition()

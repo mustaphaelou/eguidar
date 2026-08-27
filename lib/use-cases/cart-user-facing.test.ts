@@ -4,7 +4,7 @@ import {
   CartItemNotFoundError,
   CartValidationError,
   CartVariantNotFoundError,
-} from "@/lib/use-cases/cart"
+} from "@/lib/panier"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const errorFactory: [string, () => unknown][] = [
