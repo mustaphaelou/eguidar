@@ -1,3 +1,4 @@
+import { PAGE_SIZES } from "@/lib/table-config"
 import { prisma } from "@/lib/db"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import { OrderNotFoundError } from "@/lib/use-cases/orders"
@@ -43,8 +44,6 @@ const ALL_STATUSES = [
   "cancelled",
   "returned",
 ] as const satisfies readonly OrderStatus[]
-
-const PAGE_SIZES = [10, 20, 50] as const
 
 export interface AdminOrdersParams {
   statuses?: OrderStatus[]
@@ -98,7 +97,7 @@ export function parseAdminOrdersSearchParams(
     page: Number.isInteger(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
     pageSize: (PAGE_SIZES as readonly number[]).includes(pageSizeRaw)
       ? (pageSizeRaw as (typeof PAGE_SIZES)[number])
-      : 10,
+      : PAGE_SIZES[0],
   }
 }
 
@@ -127,7 +126,7 @@ async function runListAdminOrders(
   const orderBy: Prisma.OrderOrderByWithRelationInput =
     params?.tri === "total" ? { total: sens } : { createdAt: sens }
   const page = params?.page ?? 1
-  const pageSize = params?.pageSize ?? 10
+  const pageSize = params?.pageSize ?? PAGE_SIZES[0]
 
   const [orders, totalCount] = await prisma.$transaction([
     prisma.order.findMany({
