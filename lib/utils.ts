@@ -48,3 +48,7 @@ export function getDisplayNameInitials(displayName: string): string {
   const last = parts[parts.length - 1]?.[0] ?? ""
   return (first + last).toUpperCase()
 }
+
+export function shortOrderId(orderId: string): string {
+  return `#${orderId.slice(0, 8).toUpperCase()}`
+}

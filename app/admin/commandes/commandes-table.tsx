@@ -33,8 +33,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatPrice } from "@/lib/money"
+import { formatPrice, totalPayable } from "@/lib/money"
+import { PAGE_SIZES } from "@/lib/table-config"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
+import { shortOrderId } from "@/lib/utils"
 import type {
   AdminOrdersPage,
   AdminOrdersParams,
@@ -49,7 +51,7 @@ const TOTAL_COLUMN_ID = "Total à payer"
 const ACTIONS_COLUMN_ID = "actions"
 
 const SEARCH_DEBOUNCE_MS = 300
-const DEFAULT_PAGE_SIZE = 10
+const DEFAULT_PAGE_SIZE = PAGE_SIZES[0]
 
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>
 
@@ -72,10 +74,6 @@ const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] = [
 ]
 
 const STATUS_FILTER_VALUES = STATUS_FILTER_OPTIONS.map((option) => option.value)
-
-function shortOrderId(orderId: string): string {
-  return `#${orderId.slice(0, 8).toUpperCase()}`
-}
 
 const dateFormatter = new Intl.DateTimeFormat("fr-MA", { dateStyle: "medium" })
 
@@ -129,11 +127,11 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
   },
   {
     id: TOTAL_COLUMN_ID,
-    accessorFn: (row) => row.total + row.shippingFee,
+    accessorFn: (row) => totalPayable(row),
     header: ({ column }) => <DataTableColumnHeader column={column} title="Total à payer" />,
     cell: ({ row }) => (
       <span className="whitespace-nowrap font-medium">
-        {formatPrice(row.original.total + row.original.shippingFee)}
+        {formatPrice(totalPayable(row.original))}
       </span>
     ),
   },

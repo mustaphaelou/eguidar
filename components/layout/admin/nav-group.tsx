@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { HugeiconsIcon } from "@hugeicons/react"
+import { ExternalLinkIcon } from "@hugeicons/core-free-icons"
 
 import {
   SidebarGroup,
@@ -38,7 +39,17 @@ export function NavGroup({ section }: { section: NavSection }) {
                 <SidebarMenuButton
                   isActive={isActive}
                   tooltip={item.title}
-                  render={<Link href={item.url} />}
+                  render={
+                    item.isExternal ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
+                    ) : (
+                      <Link href={item.url} />
+                    )
+                  }
                   onClick={() => {
                     if (isMobile) setOpenMobile(false)
                   }}
@@ -47,6 +58,13 @@ export function NavGroup({ section }: { section: NavSection }) {
                     <HugeiconsIcon icon={item.icon} strokeWidth={2} />
                   ) : null}
                   <span>{item.title}</span>
+                  {item.isExternal ? (
+                    <HugeiconsIcon
+                      icon={ExternalLinkIcon}
+                      strokeWidth={2}
+                      className="size-4 text-muted-foreground"
+                    />
+                  ) : null}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )

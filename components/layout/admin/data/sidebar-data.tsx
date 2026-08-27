@@ -16,6 +16,7 @@ export interface NavItem {
   title: string
   url: string
   icon?: HugeiconsGlyph
+  isExternal?: boolean
 }
 
 export interface NavSection {
@@ -48,5 +49,12 @@ export const navSections: NavSection[] = [
 ]
 
 export const boutiqueSection: NavSection = {
-  items: [{ title: "Boutique", url: "/", icon: StoreManagement02Icon }],
+  items: [
+    {
+      title: "Boutique",
+      url: "https://eguidar.com",
+      icon: StoreManagement02Icon,
+      isExternal: true,
+    },
+  ],
 }

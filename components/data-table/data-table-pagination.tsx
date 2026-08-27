@@ -9,6 +9,7 @@ import {
   ChevronRightIcon,
 } from "@hugeicons/core-free-icons"
 
+import { PAGE_SIZES } from "@/lib/table-config"
 import { cn, getPageNumbers } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,13 +22,13 @@ import {
 
 type DataTablePaginationProps<TData> = {
   table: Table<TData>
-  pageSizeOptions?: number[]
+  pageSizeOptions?: readonly number[]
   className?: string
 }
 
 function DataTablePagination<TData>({
   table,
-  pageSizeOptions = [10, 20, 50],
+  pageSizeOptions = PAGE_SIZES,
   className,
 }: DataTablePaginationProps<TData>) {
   const currentPage = table.getState().pagination.pageIndex + 1

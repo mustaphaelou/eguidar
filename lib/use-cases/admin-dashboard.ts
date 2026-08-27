@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { totalPayable } from "@/lib/money"
 
 export const LOW_STOCK_THRESHOLD = 5
 
@@ -55,20 +56,21 @@ function localMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
-function collectedMoney(
-  total: number | null,
-  shippingFee: number | null
-): number {
-  return (total ?? 0) + (shippingFee ?? 0)
+function last30Window(nowMs: number) {
+  return { start: new Date(nowMs - 30 * DAY_MS), end: new Date(nowMs) }
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
-  const nowMs = Date.now()
-  const currentWindowStart = new Date(nowMs - 30 * DAY_MS)
-  const previousWindowStart = new Date(nowMs - 60 * DAY_MS)
-  const now = new Date(nowMs)
+function prior30Window(nowMs: number, previousEnd: Date) {
+  return { start: new Date(nowMs - 60 * DAY_MS), end: previousEnd }
+}
 
-  const oldestBucketStart = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+function last12MonthWindows(nowMs: number) {
+  const now = new Date(nowMs)
+  const oldestBucketStart = new Date(
+    now.getFullYear(),
+    now.getMonth() - 11,
+    1
+  )
   const monthKeys: string[] = []
   for (let offset = 0; offset < 12; offset++) {
     const bucketStart = new Date(
@@ -78,6 +80,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     )
     monthKeys.push(localMonthKey(bucketStart))
   }
+  return { oldestBucketStart, monthKeys }
+}
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const nowMs = Date.now()
+  const { start: currentWindowStart, end: now } = last30Window(nowMs)
+  const { start: previousWindowStart } = prior30Window(nowMs, now)
+  const { oldestBucketStart, monthKeys } = last12MonthWindows(nowMs)
 
   const [
     productCount,
@@ -151,14 +161,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }),
   ])
 
-  const caEncaisse30j = collectedMoney(
-    currentWindowSums._sum.total,
-    currentWindowSums._sum.shippingFee
-  )
-  const priorCaEncaisse = collectedMoney(
-    previousWindowSums._sum.total,
-    previousWindowSums._sum.shippingFee
-  )
+  const caEncaisse30j = totalPayable({
+    total: currentWindowSums._sum.total ?? 0,
+    shippingFee: currentWindowSums._sum.shippingFee ?? 0,
+  })
+  const priorCaEncaisse = totalPayable({
+    total: previousWindowSums._sum.total ?? 0,
+    shippingFee: previousWindowSums._sum.shippingFee ?? 0,
+  })
   const caDelta =
     priorCaEncaisse === 0
       ? undefined
@@ -169,10 +179,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const revenueByKey = new Map<string, number>()
   for (const row of twelveMonthRows) {
     const key = localMonthKey(row.createdAt)
-    revenueByKey.set(
-      key,
-      (revenueByKey.get(key) ?? 0) + row.total + row.shippingFee
-    )
+    revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + totalPayable(row))
   }
 
   return {
@@ -203,7 +210,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       total: order.total,
       createdAt: order.createdAt,
       itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-      totalPayable: order.total + order.shippingFee,
+      totalPayable: totalPayable(order),
     })),
   }
 }
