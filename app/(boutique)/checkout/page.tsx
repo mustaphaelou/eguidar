@@ -4,8 +4,8 @@ import { Suspense } from "react"
 import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
+import { getCart } from "@/lib/panier"
 import { getProfile } from "@/lib/use-cases/account"
-import { getCart } from "@/lib/use-cases/cart"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
@@ -67,7 +67,7 @@ async function CheckoutContent({
           <h2 className="mb-4 text-lg font-semibold">Votre panier</h2>
           <ul className="flex flex-col gap-3 text-sm">
             {cart.lines.map((line) => (
-              <li key={line.cartItemId} className="flex justify-between gap-3">
+              <li key={line.articlePanierId} className="flex justify-between gap-3">
                 <span className="text-muted-foreground">
                   {line.productName} {line.variantName} × {line.quantity}
                 </span>

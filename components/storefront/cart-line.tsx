@@ -8,8 +8,8 @@ import { Add01Icon, DeleteThrowIcon, MinusSignIcon } from "@hugeicons/core-free-
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import {
-  removeCartItemAction,
-  updateCartItemQuantityAction,
+  modifierQuantiteArticlePanierAction,
+  retirerArticleDuPanierAction,
 } from "@/app/(boutique)/actions"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
@@ -21,13 +21,13 @@ export function CartLineRow({ line }: { line: CartLine }) {
   function setQuantity(quantity: number) {
     if (quantity < 1) return
     startTransition(async () => {
-      await updateCartItemQuantityAction(line.cartItemId, quantity)
+      await modifierQuantiteArticlePanierAction(line.articlePanierId, quantity)
     })
   }
 
   function remove() {
     startTransition(async () => {
-      await removeCartItemAction(line.cartItemId)
+      await retirerArticleDuPanierAction(line.articlePanierId)
     })
   }
 

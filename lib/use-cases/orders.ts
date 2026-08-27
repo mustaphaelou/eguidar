@@ -3,8 +3,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
+import { getCart } from "@/lib/panier"
 import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
-import { getCart } from "@/lib/use-cases/cart"
 import {
   DeliveryCityNotFoundError,
   quotePanier,
@@ -228,7 +228,7 @@ export async function placeOrder(userId: string, input: CheckoutInput, effects: 
     })
 
     await tx.cartItem.deleteMany({
-      where: { id: { in: cart.lines.map((line) => line.cartItemId) } },
+      where: { id: { in: cart.lines.map((line) => line.articlePanierId) } },
     })
     return created
   })

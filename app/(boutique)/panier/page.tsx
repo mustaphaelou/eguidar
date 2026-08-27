@@ -8,8 +8,7 @@ import { CartLineRow } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { getCart } from "@/lib/use-cases/cart"
-import { getPanierVisiteur } from "@/lib/use-cases/get-panier-visiteur"
+import { getCart, getPanierVisiteur } from "@/lib/panier"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
@@ -67,7 +66,7 @@ async function CartContent({
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <ul>
           {cart.lines.map((line) => (
-            <CartLineRow key={line.cartItemId} line={line} />
+            <CartLineRow key={line.articlePanierId} line={line} />
           ))}
         </ul>
 

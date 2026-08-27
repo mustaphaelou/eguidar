@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { addToCartAction } from "@/app/(boutique)/actions"
+import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
@@ -51,9 +51,9 @@ export function VariantPicker({
     setAdded(false)
     setCapAtteint(false)
     startTransition(async () => {
-      const resultat = await addToCartAction(selected.id, 1)
-      if (resultat === true) setAdded(true)
-      else if (resultat === "cap-atteinte") setCapAtteint(true)
+      const resultat = await ajouterArticleAuPanierAction(selected.id, 1)
+      if (resultat.ok) setAdded(true)
+      else if (resultat.motif === "cap-atteinte") setCapAtteint(true)
     })
   }
 

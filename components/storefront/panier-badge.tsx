@@ -1,6 +1,5 @@
-import { getCart } from "@/lib/use-cases/cart"
+import { getCart, getPanierVisiteur } from "@/lib/panier"
 import { getSessionUser } from "@/lib/use-cases/get-session"
-import { getPanierVisiteur } from "@/lib/use-cases/get-panier-visiteur"
 
 export async function PanierBadge() {
   const user = await getSessionUser()
