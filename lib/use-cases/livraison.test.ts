@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { prisma } from "@/lib/db"
 import { lirePanier } from "@/lib/panier"
-import { addToCart } from "@/lib/use-cases/cart"
+import { addToCart } from "@/lib/panier"
 import {
   CityNameConflictError,
   CityNotFoundError,

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart } from "@/lib/use-cases/cart"
+import { addToCart } from "@/lib/panier"
 import { getAdminOrder, listAdminOrders } from "@/lib/use-cases/admin-orders"
 import { OrderNotFoundError, placeOrder, updateOrderStatus } from "@/lib/use-cases/orders"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
