@@ -1,18 +1,54 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 
+import {
+  ClockIcon,
+  PackageIcon,
+  ShoppingBasket02Icon,
+  Wallet01Icon,
+} from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+
+import { RevenueChart } from "@/components/admin/revenue-chart"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { OrderStatus } from "@/lib/generated/prisma/client"
 import { formatPrice } from "@/lib/money"
-import { getDashboardStats, LOW_STOCK_THRESHOLD } from "@/lib/use-cases/admin-dashboard"
+import { ORDER_STATUS_LABELS, shortOrderId } from "@/lib/order-status"
+import {
+  getDashboardStats,
+  LOW_STOCK_THRESHOLD,
+} from "@/lib/use-cases/admin-dashboard"
 
 export const metadata: Metadata = {
   title: "Tableau de bord",
 }
 
+const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
+const percentFormatter = new Intl.NumberFormat("fr-FR", {
+  maximumFractionDigits: 1,
+})
+const monthFormatter = new Intl.DateTimeFormat("fr-FR", { month: "short" })
+
+function frenchMonthLabel(key: string): string {
+  const [year, month] = key.split("-")
+  return monthFormatter.format(new Date(Number(year), Number(month) - 1, 1))
+}
+
 export default async function AdminDashboardPage() {
   const stats = await getDashboardStats()
+  const revenueByMonth = stats.revenueByMonth.map((bucket) => ({
+    month: frenchMonthLabel(bucket.month),
+    revenue: bucket.revenue,
+  }))
 
   return (
     <div className="flex flex-col gap-6">
@@ -21,29 +57,116 @@ export default async function AdminDashboardPage() {
         <Button render={<Link href="/admin/produits/nouveau" />}>Nouveau produit</Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Produits</p>
-            <p className="text-3xl font-semibold">{stats.productCount}</p>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">CA encaissé</CardTitle>
+            <CardAction>
+              <HugeiconsIcon icon={Wallet01Icon} strokeWidth={2} className="size-5 text-muted-foreground" />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatPrice(stats.caEncaisse30j)}</p>
+            <p className="text-xs text-muted-foreground">
+              {stats.caDelta === undefined
+                ? "—"
+                : `${percentFormatter.format(stats.caDelta)} % vs 30 jours précédents`}
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Catégories</p>
-            <p className="text-3xl font-semibold">{stats.categoryCount}</p>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Commandes</CardTitle>
+            <CardAction>
+              <HugeiconsIcon icon={ShoppingBasket02Icon} strokeWidth={2} className="size-5 text-muted-foreground" />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{stats.ordersLast30}</p>
+            <p className="text-xs text-muted-foreground">30 derniers jours</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Commandes</p>
-            <p className="text-3xl font-semibold">{stats.orderCount}</p>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">En attente</CardTitle>
+            <CardAction>
+              <HugeiconsIcon icon={ClockIcon} strokeWidth={2} className="size-5 text-muted-foreground" />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              <Link href="/admin/commandes?statut=pending" className="hover:underline">
+                {stats.pendingOrderCount}
+              </Link>
+            </p>
+            <p className="text-xs text-muted-foreground">Commandes à traiter</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">En attente</p>
-            <p className="text-3xl font-semibold">{stats.pendingOrderCount}</p>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Stock faible</CardTitle>
+            <CardAction>
+              <HugeiconsIcon icon={PackageIcon} strokeWidth={2} className="size-5 text-muted-foreground" />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              <Link href="/admin/produits" className="hover:underline">
+                {stats.lowStockVariants.length}
+              </Link>
+            </p>
+            <p className="text-xs text-muted-foreground">≤ {LOW_STOCK_THRESHOLD} unités</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
+          <CardHeader>
+            <CardTitle>CA encaissé — 12 derniers mois</CardTitle>
+            <CardDescription>Commandes livrées, frais de livraison inclus.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RevenueChart data={revenueByMonth} />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Commandes récentes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.recentOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucune commande récente.</p>
+            ) : (
+              <ul className="flex flex-col divide-y">
+                {stats.recentOrders.map((order) => (
+                  <li key={order.id} className="py-2">
+                    <Link
+                      href={`/admin/commandes/${order.id}`}
+                      className="flex items-center justify-between gap-4"
+                    >
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate font-medium">
+                          {shortOrderId(order.id)} — {order.itemCount} article
+                          {order.itemCount > 1 ? "s" : ""}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {dateFormatter.format(order.createdAt)} —{" "}
+                          {ORDER_STATUS_LABELS[order.status as OrderStatus]}
+                        </span>
+                      </span>
+                      <span className="whitespace-nowrap text-sm font-medium">
+                        {formatPrice(order.totalPayable)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -82,63 +205,6 @@ export default async function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Activité récente — Produits</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats.recentProducts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun produit récent.</p>
-            ) : (
-              <ul className="flex flex-col divide-y">
-                {stats.recentProducts.map((product) => (
-                  <li key={product.id} className="flex items-center justify-between gap-4 py-2">
-                    <Link
-                      href={`/admin/produits/${product.id}`}
-                      className="truncate font-medium hover:underline"
-                    >
-                      {product.name}
-                    </Link>
-                    <span className="text-sm text-muted-foreground">{formatPrice(product.price)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Activité récente — Commandes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats.recentOrders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucune commande récente.</p>
-            ) : (
-              <ul className="flex flex-col divide-y">
-                {stats.recentOrders.map((order) => (
-                  <li key={order.id} className="flex items-center justify-between gap-4 py-2">
-                    <Link
-                      href={`/admin/commandes/${order.id}`}
-                      className="flex min-w-0 flex-col hover:underline"
-                    >
-                      <span className="truncate font-medium">
-                        {order.id.slice(0, 8)} — {order.itemCount} article{order.itemCount > 1 ? "s" : ""}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(order.createdAt).toLocaleDateString("fr-FR")}
-                      </span>
-                    </Link>
-                    <span className="text-sm text-muted-foreground">{formatPrice(order.total)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
     </div>
   )
 }
