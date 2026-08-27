@@ -1,6 +1,6 @@
 # Eguidar
 
-A French-language Moroccan e-commerce storefront (eguidar.com): catalog with categories and product variants, cart, cash-on-delivery checkout, order lifecycle, and an admin back-office. Single context.
+A French-language Moroccan e-commerce storefront (eguidar.com): catalog with categories and product variants, cart, cash-on-delivery checkout, order lifecycle, and the Administration space. Single context.
 
 ## Language
 
@@ -89,3 +89,31 @@ _Avoid_: redirect, callback, retour
 Un lien ou une redirection qui ouvre la modale de Connexion ou d'Inscription sur la page courante
 via les paramètres d'URL `?open=login|signup` et `?next`.
 _Avoid_: login link, login URL, route de connexion
+
+**Administration**:
+L'espace privé réservé aux Comptes clients de rôle « admin » (/admin) : gestion du Catalogue,
+des Commandes, des Villes de livraison et de la Livraison.
+_Avoid_: back-office, dashboard, espace admin
+
+**Tableau de bord**:
+La page d'accueil de l'Administration : chiffre d'affaires encaissé, indicateurs clés et activité récente.
+_Avoid_: dashboard
+
+**Commande**:
+Ce qu'un Client passe : ses Articles du panier réunis pour une livraison vers une Ville de livraison,
+réglée en Paiement à la livraison.
+_Avoid_: order, achat
+
+**Statut de commande**:
+Le cycle de vie d'une Commande : En attente, Confirmée, Expédiée, Livrée ; ou Annulée, Retournée.
+_Avoid_: état, order status
+
+**Total à payer**:
+Le montant collecté auprès du Client lors de la livraison d'une Commande : le sous-total des
+Articles du panier plus les Frais de livraison.
+_Avoid_: montant total, grand total
+
+**Chiffre d'affaires encaissé**:
+La somme des Totaux à payer des Commandes au statut Livrée : l'argent réellement collecté.
+Une Commande En attente, Confirmée ou Expédiée n'est pas encore encaissée.
+_Avoid_: revenu, revenue, ventes, CA brut

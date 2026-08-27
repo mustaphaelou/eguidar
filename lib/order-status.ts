@@ -9,4 +9,4 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   returned: "Retournée",
 }
 
-export const shortOrderId = (orderId: string) => `#${orderId.slice(0, 8).toUpperCase()}`
+export { shortOrderId } from "@/lib/utils"
