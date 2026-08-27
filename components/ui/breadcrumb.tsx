@@ -1,6 +1,7 @@
+"use client"
+
 import * as React from "react"
 import { useRender } from "@base-ui/react/use-render"
-import { mergeProps } from "@base-ui/react/merge-props"
 
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -39,17 +40,17 @@ function BreadcrumbLink({
   render,
   ...props
 }: useRender.ComponentProps<"span">) {
-  const { renderElement } = useRender<"span">({
+  return useRender<Record<string, unknown>, HTMLSpanElement>({
     defaultTagName: "span",
-    props: mergeProps<"span">(
-      {
-        className: cn("me-1.5 transition-colors hover:text-foreground", className),
-      },
-      props
-    ),
     render,
+    props: {
+      className: cn(
+        "me-1.5 transition-colors hover:text-foreground",
+        className
+      ),
+      ...props,
+    },
   })
-  return renderElement
 }
 
 function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
