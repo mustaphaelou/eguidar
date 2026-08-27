@@ -16,19 +16,20 @@ import {
   CartItemNotFoundError,
   CartValidationError,
   CartVariantNotFoundError,
+  getCart,
   removeCartItem,
   updateCartItemQuantity,
   type CartData,
   type CartLine,
 } from "@/lib/use-cases/cart"
 
-export { getCart } from "@/lib/use-cases/cart"
-
 const PANIER_VISITEUR_MAX_AGE = 60 * 60 * 24 * 30
 
 export type ProprietairePanier =
   | { role: "visiteur" }
   | { role: "client"; compteId: string }
+
+export type Panier = CartData & { proprietaire: ProprietairePanier }
 
 export type MotifRefusPanier =
   | "cap-atteinte"
@@ -187,9 +188,15 @@ export async function rejouerPanierVisiteur(
   await supprimerCookiePanierVisiteur()
 }
 
-export async function getPanierVisiteur(): Promise<CartData> {
+export async function lirePanier(proprietaire: ProprietairePanier): Promise<Panier> {
+  if (proprietaire.role === "client") {
+    return { proprietaire, ...(await getCart(proprietaire.compteId)) }
+  }
+
   const articles = await lireArticlesPanierVisiteur()
-  if (articles.length === 0) return { lines: [], subtotal: 0, itemCount: 0 }
+  if (articles.length === 0) {
+    return { proprietaire, lines: [], subtotal: 0, itemCount: 0 }
+  }
 
   const variants = await prisma.productVariant.findMany({
     where: { id: { in: articles.map((article) => article.variantId) } },
@@ -204,5 +211,5 @@ export async function getPanierVisiteur(): Promise<CartData> {
     lines.push(buildCartLine(variant, article.quantity))
   }
 
-  return { lines, ...buildCartTotals(lines) }
+  return { proprietaire, lines, ...buildCartTotals(lines) }
 }

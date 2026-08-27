@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { lirePanier } from "@/lib/panier"
 import {
   addToCart,
   CartItemNotFoundError,
   CartValidationError,
   CartVariantNotFoundError,
-  getCart,
   removeCartItem,
   updateCartItemQuantity,
 } from "@/lib/use-cases/cart"
@@ -167,7 +167,7 @@ describe("cart reads", () => {
     await addToCart(userIdA, variantB, 1)
     await addToCart(userIdA, variantC, 3)
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
 
     expect(cart.itemCount).toBe(6)
     expect(cart.subtotal).toBe(100000 * 2 + 150000 + 50000 * 3)
@@ -187,7 +187,8 @@ describe("cart reads", () => {
   })
 
   it("returns an empty cart with zero totals", async () => {
-    const cart = await getCart(userIdB)
-    expect(cart).toEqual({ lines: [], subtotal: 0, itemCount: 0 })
+    const proprietaire = { role: "client", compteId: userIdB } as const
+    const cart = await lirePanier(proprietaire)
+    expect(cart).toEqual({ proprietaire, lines: [], subtotal: 0, itemCount: 0 })
   })
 })

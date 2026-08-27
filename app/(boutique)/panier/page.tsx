@@ -8,7 +8,7 @@ import { CartLineRow } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { getCart, getPanierVisiteur } from "@/lib/panier"
+import { lirePanier } from "@/lib/panier"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
@@ -40,7 +40,9 @@ async function CartContent({
 }) {
   const user = await getSessionUser()
   const { ville } = await searchParams
-  const cart = user ? await getCart(user.id) : await getPanierVisiteur()
+  const cart = await lirePanier(
+    user ? { role: "client", compteId: user.id } : { role: "visiteur" }
+  )
   const { cities, threshold, selected } = await quotePanier(cart, ville)
   const quote = selected
 

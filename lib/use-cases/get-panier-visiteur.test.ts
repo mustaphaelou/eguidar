@@ -14,7 +14,9 @@ vi.mock("next/headers", async () => {
   return { cookies: async () => h.cookieStoreMock }
 })
 
-import { getPanierVisiteur } from "./get-panier-visiteur"
+import { lirePanier } from "@/lib/panier"
+
+const proprietaireVisiteur = { role: "visiteur" } as const
 
 const runId = randomUUID().slice(0, 8)
 
@@ -78,12 +80,13 @@ beforeEach(() => {
   resetCookieStoreMock()
 })
 
-describe("getPanierVisiteur", () => {
-  it("yields an empty CartData when the cookie holds no article", async () => {
-    expect(await getPanierVisiteur()).toEqual({ lines: [], subtotal: 0, itemCount: 0 })
+describe("lirePanier — Propriétaire visiteur (cookie Panier)", () => {
+  it("yields an empty Panier when the cookie holds no article", async () => {
+    const vide = { proprietaire: proprietaireVisiteur, lines: [], subtotal: 0, itemCount: 0 }
+    expect(await lirePanier(proprietaireVisiteur)).toEqual(vide)
 
     setCookie(NOM_COOKIE_PANIER_VISITEUR, "[]")
-    expect(await getPanierVisiteur()).toEqual({ lines: [], subtotal: 0, itemCount: 0 })
+    expect(await lirePanier(proprietaireVisiteur)).toEqual(vide)
   })
 
   it("prices every article from database variant prices, exactly like a Client's lines", async () => {
@@ -96,8 +99,9 @@ describe("getPanierVisiteur", () => {
       ])
     )
 
-    const cart = await getPanierVisiteur()
+    const cart = await lirePanier(proprietaireVisiteur)
 
+    expect(cart.proprietaire).toEqual(proprietaireVisiteur)
     expect(cart.lines.map((line) => line.articlePanierId)).toEqual([
       variantStandard,
       variantPremium,
@@ -142,7 +146,7 @@ describe("getPanierVisiteur", () => {
       ])
     )
 
-    const cart = await getPanierVisiteur()
+    const cart = await lirePanier(proprietaireVisiteur)
 
     expect(cart.lines).toHaveLength(1)
     expect(cart.lines[0].variantId).toBe(variantUnique)
