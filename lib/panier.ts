@@ -67,10 +67,6 @@ async function supprimerCookiePanierVisiteur(): Promise<void> {
   jar.delete(NOM_COOKIE_PANIER_VISITEUR)
 }
 
-export async function possedePanierVisiteur(): Promise<boolean> {
-  return possedeCookiePanierVisiteur()
-}
-
 export async function ajouterArticleAuPanier(
   proprietaire: ProprietairePanier,
   variantId: string,
