@@ -1,11 +1,13 @@
-import { getCart, getPanierVisiteur } from "@/lib/panier"
+import { lirePanier } from "@/lib/panier"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 
 export async function PanierBadge() {
   const user = await getSessionUser()
-  const count = user
-    ? (await getCart(user.id)).itemCount
-    : (await getPanierVisiteur()).itemCount
+  const count = (
+    await lirePanier(
+      user ? { role: "client", compteId: user.id } : { role: "visiteur" }
+    )
+  ).itemCount
 
   if (count === 0) return null
 

@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart, getCart } from "@/lib/use-cases/cart"
+import { lirePanier } from "@/lib/panier"
+import { addToCart } from "@/lib/use-cases/cart"
 import {
   CityNameConflictError,
   CityNotFoundError,
@@ -482,7 +483,7 @@ describe("storefront quote reads", () => {
   it("quotes the shipping fee for a chosen city below the threshold", async () => {
     await addToCart(userIdA, variantD, 1)
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 30000, shippingFee: 3500, total: 33500 },
     })
@@ -491,7 +492,7 @@ describe("storefront quote reads", () => {
   it("quotes free shipping for an all-free-shipping cart below the threshold", async () => {
     await addToCart(userIdA, variantC, 1)
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 50000, shippingFee: 0, total: 50000 },
     })
@@ -501,7 +502,7 @@ describe("storefront quote reads", () => {
     await addToCart(userIdA, variantC, 1)
     await addToCart(userIdA, variantD, 1)
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 80000, shippingFee: 0, total: 80000 },
     })
@@ -510,7 +511,7 @@ describe("storefront quote reads", () => {
   it("quotes free shipping for a cart above the threshold", async () => {
     await addToCart(userIdA, variantA, 20)
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 2000000, shippingFee: 0, total: 2000000 },
     })
@@ -519,7 +520,7 @@ describe("storefront quote reads", () => {
   it("returns no quote for a ville not in the delivery city list", async () => {
     await addToCart(userIdA, variantA, 1)
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     const quote = await quotePanier(cart, "ville-inconnue")
     expect(quote.selected).toBeNull()
   })
@@ -527,7 +528,7 @@ describe("storefront quote reads", () => {
   it("returns the full panier quote shape for a chosen city", async () => {
     await addToCart(userIdA, variantD, 1)
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     const quote = await quotePanier(cart, cityId)
 
     expect(quote.cities.map((candidate) => candidate.id)).toContain(cityId)

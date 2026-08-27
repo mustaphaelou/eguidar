@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart, getCart } from "@/lib/use-cases/cart"
+import { lirePanier } from "@/lib/panier"
+import { addToCart } from "@/lib/use-cases/cart"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
@@ -198,7 +199,7 @@ describe("order placement", () => {
 
     const stock = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })
     expect(stock.stock).toBe(0)
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     expect(cart.lines).toHaveLength(0)
   })
 
@@ -267,7 +268,7 @@ describe("order placement", () => {
 
     const stock = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP2 } })
     expect(stock.stock).toBe(1)
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     expect(cart.lines).toHaveLength(1)
     const orderCount = await prisma.order.count({ where: { userId: userIdA } })
     expect(orderCount).toBe(0)
