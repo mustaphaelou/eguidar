@@ -13,24 +13,32 @@ function TooltipProvider({
 }
 
 function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return (
-    <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-  )
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 
 function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
 }
 
+type TooltipContentProps = TooltipPrimitive.Popup.Props &
+  Pick<
+    TooltipPrimitive.Positioner.Props,
+    "side" | "align" | "sideOffset"
+  > & { children?: React.ReactNode }
+
 function TooltipContent({
   className,
-  sideOffset = 4,
   children,
+  side,
+  align,
+  sideOffset = 4,
   ...props
-}: TooltipPrimitive.Popup.Props) {
+}: TooltipContentProps) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Positioner
+        side={side}
+        align={align}
         sideOffset={sideOffset}
         className="isolate z-50"
       >
