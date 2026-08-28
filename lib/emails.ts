@@ -47,6 +47,7 @@ export interface OrderEmailSnapshot {
   items: OrderEmailItem[]
   total: number
   shippingFee: number
+  totalPayable: number
   cityName: string
   address: string
   phone: string
@@ -84,7 +85,7 @@ function orderDetailsHtml(snapshot: OrderEmailSnapshot): string {
       </tr>
       <tr>
         <td style="padding: 8px 0; font-weight: bold;">Total à payer à la livraison</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: bold; white-space: nowrap;">${formatPrice(snapshot.total + snapshot.shippingFee)}</td>
+        <td style="padding: 8px 0; text-align: right; font-weight: bold; white-space: nowrap;">${formatPrice(snapshot.totalPayable)}</td>
       </tr>
     </table>
   `

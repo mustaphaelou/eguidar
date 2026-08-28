@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatPrice, totalPayable } from "@/lib/money"
+import { formatPrice } from "@/lib/money"
 import { PAGE_SIZES } from "@/lib/table-config"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { shortOrderId } from "@/lib/utils"
@@ -127,11 +127,11 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
   },
   {
     id: TOTAL_COLUMN_ID,
-    accessorFn: (row) => totalPayable(row),
+    accessorFn: (row) => row.totalPayable,
     header: ({ column }) => <DataTableColumnHeader column={column} title="Total à payer" />,
     cell: ({ row }) => (
       <span className="whitespace-nowrap font-medium">
-        {formatPrice(totalPayable(row.original))}
+        {formatPrice(row.original.totalPayable)}
       </span>
     ),
   },

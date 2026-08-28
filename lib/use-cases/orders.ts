@@ -3,6 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
+import { totalPayable } from "@/lib/money"
 import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import {
   deliveryAddressField,
@@ -44,6 +45,7 @@ export interface OrderDetail {
   phone: string
   total: number
   shippingFee: number
+  totalPayable: number
   createdAt: Date
   items: OrderItemDetail[]
 }
@@ -53,6 +55,7 @@ export interface OrderSummary {
   status: OrderStatus
   total: number
   shippingFee: number
+  totalPayable: number
   createdAt: Date
   itemCount: number
 }
@@ -167,6 +170,7 @@ function toOrderEmailSnapshot(
     })),
     total: order.total,
     shippingFee: order.shippingFee,
+    totalPayable: totalPayable(order),
     cityName: order.cityName,
     address: order.address,
     phone: order.phone,
@@ -282,6 +286,7 @@ export async function getOrder(
     phone: order.phone,
     total: order.total,
     shippingFee: order.shippingFee,
+    totalPayable: totalPayable(order),
     createdAt: order.createdAt,
     items: order.items.map((item) => ({
       id: item.id,
@@ -304,6 +309,7 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
     status: order.status,
     total: order.total,
     shippingFee: order.shippingFee,
+    totalPayable: totalPayable(order),
     createdAt: order.createdAt,
     itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
   }))

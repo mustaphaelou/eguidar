@@ -219,6 +219,7 @@ describe("admin order reads", () => {
       status: "pending",
       total: 100000,
       shippingFee: 3500,
+      totalPayable: 103500,
       itemCount: 2,
       customerName: "Utilisateur a",
       customerEmail: email("a"),
@@ -243,6 +244,7 @@ describe("admin order reads", () => {
       phone: PHONE,
       total: 170000,
       shippingFee: 3500,
+      totalPayable: 173500,
       customerName: "Utilisateur a",
       customerEmail: email("a"),
     })

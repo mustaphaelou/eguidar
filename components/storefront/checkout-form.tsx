@@ -139,10 +139,10 @@ export function CheckoutForm({
             )}
           </dd>
         </div>
-        {shippingFee !== null && (
+        {quote && (
           <div className="flex justify-between border-t pt-2 text-base">
             <dt className="font-bold">Total à payer à la livraison</dt>
-            <dd className="font-bold">{formatPrice(subtotal + shippingFee)}</dd>
+            <dd className="font-bold">{formatPrice(quote.total)}</dd>
           </div>
         )}
       </dl>

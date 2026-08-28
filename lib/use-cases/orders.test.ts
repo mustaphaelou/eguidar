@@ -280,6 +280,7 @@ describe("order placement", () => {
     ])
     expect(snapshot.total).toBe(30000)
     expect(snapshot.shippingFee).toBe(3500)
+    expect(snapshot.totalPayable).toBe(33500)
     expect(snapshot.cityName).toBe(cityName)
     expect(effects.sendOrderStatusEmail).not.toHaveBeenCalled()
   })
@@ -415,11 +416,13 @@ describe("order placement", () => {
       placeOrder(userIdC, checkoutInput(), makeEffects()),
     ])
 
-    expect(first.status).toBe("fulfilled")
-    expect(second.status).toBe("rejected")
-    if (second.status === "rejected") {
-      expect(second.reason).toBeInstanceOf(OutOfStockError)
-    }
+    expect(
+      [first.status, second.status].sort()
+    ).toEqual(["fulfilled", "rejected"])
+    const rejected = [first, second].find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    )
+    expect(rejected!.reason).toBeInstanceOf(OutOfStockError)
     const stock = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantP2 },
     })
@@ -481,6 +484,7 @@ describe("order reads", () => {
     const fetched = await getOrder(userIdA, order.id)
     expect(fetched).not.toBeNull()
     expect(fetched!.status).toBe("pending")
+    expect(fetched!.totalPayable).toBe(33500)
     expect(fetched!.items).toHaveLength(1)
   })
 
@@ -522,6 +526,7 @@ describe("order reads", () => {
       status: "pending",
       total: 30000,
       shippingFee: 3500,
+      totalPayable: 33500,
     })
     expect(orders[0].itemCount).toBe(1)
   })

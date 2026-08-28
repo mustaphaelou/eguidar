@@ -153,7 +153,7 @@ export default async function AdminOrderDetailPage({
             </div>
             <div className="flex justify-between border-t pt-2 text-base">
               <dt className="font-bold">Total à payer à la livraison</dt>
-              <dd className="font-bold">{formatPrice(order.total + order.shippingFee)}</dd>
+              <dd className="font-bold">{formatPrice(order.totalPayable)}</dd>
             </div>
           </dl>
         </CardContent>

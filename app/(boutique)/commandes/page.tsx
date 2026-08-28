@@ -71,7 +71,7 @@ async function OrderHistoryContent() {
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 <OrderStatusBadge status={order.status} />
-                <p className="text-sm font-bold">{formatPrice(order.total + order.shippingFee)}</p>
+                <p className="text-sm font-bold">{formatPrice(order.totalPayable)}</p>
               </div>
             </Link>
           </li>
