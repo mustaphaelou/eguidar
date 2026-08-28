@@ -1,8 +1,7 @@
 import { toNextJsHandler } from "better-auth/next-js"
 
 import { auth } from "@/lib/auth"
-import { possedePanierVisiteur } from "@/lib/panier"
-import { replayPanierVisiteur } from "@/lib/use-cases/replay-panier-visiteur"
+import { rejouerPanierVisiteur } from "@/lib/panier"
 
 const handlers = toNextJsHandler(auth)
 
@@ -43,12 +42,12 @@ async function traiterAvecRejou(
   const reponse = await traiter(requete)
   const { pathname } = new URL(requete.url)
   if (!estTentativeConnexion(requete.method, pathname)) return reponse
-  if (!(await possedePanierVisiteur())) return reponse
   try {
     const session = await auth.api.getSession({
       headers: fusionnerCookies(requete.headers, reponse),
     })
-    if (session?.user) await replayPanierVisiteur(session.user.id)
+    if (session?.user)
+      await rejouerPanierVisiteur({ role: "client", compteId: session.user.id })
   } catch {
     // Le rejou du Panier Visiteur ne doit jamais bloquer l'authentification.
   }

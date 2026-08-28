@@ -1,9 +1,18 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart, getCart } from "@/lib/use-cases/cart"
+import { lirePanier } from "@/lib/panier"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import {
   CityNameConflictError,
   CityNotFoundError,
@@ -36,7 +45,10 @@ const city = (id: string, name: string, fee: number): DeliveryCityOption => ({
   fee,
 })
 
-const pricing = (subtotal: number, anyFreeShippingItem = false): PricingInput => ({
+const pricing = (
+  subtotal: number,
+  anyFreeShippingItem = false
+): PricingInput => ({
   subtotal,
   anyFreeShippingItem,
 })
@@ -116,7 +128,9 @@ describe("frais de livraison rule", () => {
 describe("pure quote operations", () => {
   describe("computeCityQuote", () => {
     it("quotes the city fee below the threshold", () => {
-      expect(computeCityQuote(city("c1", "Casablanca", 3500), pricing(50000), 100000)).toEqual({
+      expect(
+        computeCityQuote(city("c1", "Casablanca", 3500), pricing(50000), 100000)
+      ).toEqual({
         subtotal: 50000,
         shippingFee: 3500,
         total: 53500,
@@ -124,7 +138,13 @@ describe("pure quote operations", () => {
     })
 
     it("quotes free shipping exactly at the threshold", () => {
-      expect(computeCityQuote(city("c1", "Casablanca", 3500), pricing(100000), 100000)).toEqual({
+      expect(
+        computeCityQuote(
+          city("c1", "Casablanca", 3500),
+          pricing(100000),
+          100000
+        )
+      ).toEqual({
         subtotal: 100000,
         shippingFee: 0,
         total: 100000,
@@ -132,7 +152,13 @@ describe("pure quote operations", () => {
     })
 
     it("quotes free shipping above the threshold", () => {
-      expect(computeCityQuote(city("c1", "Casablanca", 3500), pricing(150000), 100000)).toEqual({
+      expect(
+        computeCityQuote(
+          city("c1", "Casablanca", 3500),
+          pricing(150000),
+          100000
+        )
+      ).toEqual({
         subtotal: 150000,
         shippingFee: 0,
         total: 150000,
@@ -141,7 +167,11 @@ describe("pure quote operations", () => {
 
     it("quotes free shipping below the threshold with a free-shipping item", () => {
       expect(
-        computeCityQuote(city("c1", "Casablanca", 3500), pricing(50000, true), 100000)
+        computeCityQuote(
+          city("c1", "Casablanca", 3500),
+          pricing(50000, true),
+          100000
+        )
       ).toEqual({ subtotal: 50000, shippingFee: 0, total: 50000 })
     })
   })
@@ -182,23 +212,40 @@ describe("pure quote operations", () => {
 
 describe("delivery reads", () => {
   beforeEach(async () => {
-    await prisma.deliveryCity.deleteMany({ where: { name: { startsWith: `Ville Livraison ${runId}` } } })
+    await prisma.deliveryCity.deleteMany({
+      where: { name: { startsWith: `Ville Livraison ${runId}` } },
+    })
   })
 
   afterAll(async () => {
-    await prisma.deliveryCity.deleteMany({ where: { name: { startsWith: `Ville Livraison ${runId}` } } })
+    await prisma.deliveryCity.deleteMany({
+      where: { name: { startsWith: `Ville Livraison ${runId}` } },
+    })
     await prisma.$disconnect()
   })
 
   it("lists delivery cities ordered by name", async () => {
-    await prisma.deliveryCity.create({ data: { name: cityName("b"), fee: 5000 } })
-    await prisma.deliveryCity.create({ data: { name: cityName("a"), fee: 3500 } })
+    await prisma.deliveryCity.create({
+      data: { name: cityName("b"), fee: 5000 },
+    })
+    await prisma.deliveryCity.create({
+      data: { name: cityName("a"), fee: 3500 },
+    })
 
     const cities = await listDeliveryCities()
 
-    const relevant = cities.filter((candidate) => candidate.name.startsWith(`Ville Livraison ${runId}`))
-    expect(relevant.map((candidate) => candidate.name)).toEqual([cityName("a"), cityName("b")])
-    expect(relevant[0]).toEqual({ id: relevant[0].id, name: cityName("a"), fee: 3500 })
+    const relevant = cities.filter((candidate) =>
+      candidate.name.startsWith(`Ville Livraison ${runId}`)
+    )
+    expect(relevant.map((candidate) => candidate.name)).toEqual([
+      cityName("a"),
+      cityName("b"),
+    ])
+    expect(relevant[0]).toEqual({
+      id: relevant[0].id,
+      name: cityName("a"),
+      fee: 3500,
+    })
   })
 })
 
@@ -224,7 +271,9 @@ describe("free-shipping threshold read", () => {
   it("falls back to the default threshold when no settings row exists", async () => {
     await prisma.shippingSettings.deleteMany({ where: { id: "default" } })
 
-    await expect(getFreeShippingThreshold()).resolves.toBe(DEFAULT_FREE_SHIPPING_THRESHOLD)
+    await expect(getFreeShippingThreshold()).resolves.toBe(
+      DEFAULT_FREE_SHIPPING_THRESHOLD
+    )
 
     await prisma.shippingSettings.create({
       data: { id: "default", freeShippingThreshold: 100000 },
@@ -234,33 +283,45 @@ describe("free-shipping threshold read", () => {
 
 describe("admin city writes", () => {
   beforeEach(async () => {
-    await prisma.deliveryCity.deleteMany({ where: { name: { startsWith: `Ville Livraison ${runId}` } } })
+    await prisma.deliveryCity.deleteMany({
+      where: { name: { startsWith: `Ville Livraison ${runId}` } },
+    })
   })
 
   afterAll(async () => {
-    await prisma.deliveryCity.deleteMany({ where: { name: { startsWith: `Ville Livraison ${runId}` } } })
+    await prisma.deliveryCity.deleteMany({
+      where: { name: { startsWith: `Ville Livraison ${runId}` } },
+    })
   })
 
   it("creates a city with its flat fee and revalidates shipping", async () => {
     const effects = makeEffects()
 
-    const created = await createCity({ name: cityName("creer"), fee: 3500 }, effects)
+    const created = await createCity(
+      { name: cityName("creer"), fee: 3500 },
+      effects
+    )
 
     expect(created.id).toBeTruthy()
-    const persisted = await prisma.deliveryCity.findUniqueOrThrow({ where: { id: created.id } })
+    const persisted = await prisma.deliveryCity.findUniqueOrThrow({
+      where: { id: created.id },
+    })
     expect(persisted.name).toBe(cityName("creer"))
     expect(persisted.fee).toBe(3500)
     expect(effects.revalidateShipping).toHaveBeenCalledOnce()
   })
 
   it("rejects a negative city fee", async () => {
-    await expect(createCity({ name: cityName("negatif"), fee: -100 }, makeEffects())).rejects.toThrow(
-      CityValidationError
-    )
+    await expect(
+      createCity({ name: cityName("negatif"), fee: -100 }, makeEffects())
+    ).rejects.toThrow(CityValidationError)
   })
 
   it("accepts a zero fee city", async () => {
-    const created = await createCity({ name: cityName("gratuite"), fee: 0 }, makeEffects())
+    const created = await createCity(
+      { name: cityName("gratuite"), fee: 0 },
+      makeEffects()
+    )
     expect(created.fee).toBe(0)
   })
 
@@ -268,34 +329,48 @@ describe("admin city writes", () => {
     const effects = makeEffects()
     await createCity({ name: cityName("dupliquee"), fee: 3000 }, effects)
 
-    await expect(createCity({ name: cityName("dupliquee"), fee: 4000 }, makeEffects())).rejects.toThrow(
-      CityNameConflictError
-    )
+    await expect(
+      createCity({ name: cityName("dupliquee"), fee: 4000 }, makeEffects())
+    ).rejects.toThrow(CityNameConflictError)
 
-    const count = await prisma.deliveryCity.count({ where: { name: cityName("dupliquee") } })
+    const count = await prisma.deliveryCity.count({
+      where: { name: cityName("dupliquee") },
+    })
     expect(count).toBe(1)
   })
 
   it("rejects an empty city name", async () => {
-    await expect(createCity({ name: " ", fee: 3000 }, makeEffects())).rejects.toThrow(
-      CityValidationError
-    )
+    await expect(
+      createCity({ name: " ", fee: 3000 }, makeEffects())
+    ).rejects.toThrow(CityValidationError)
   })
 
   it("updates a city and revalidates shipping", async () => {
     const effects = makeEffects()
-    const created = await createCity({ name: cityName("maj"), fee: 3000 }, makeEffects())
+    const created = await createCity(
+      { name: cityName("maj"), fee: 3000 },
+      makeEffects()
+    )
 
-    const updated = await updateCity(created.id, { name: cityName("maj"), fee: 4500 }, effects)
+    const updated = await updateCity(
+      created.id,
+      { name: cityName("maj"), fee: 4500 },
+      effects
+    )
 
     expect(updated.fee).toBe(4500)
-    const persisted = await prisma.deliveryCity.findUniqueOrThrow({ where: { id: created.id } })
+    const persisted = await prisma.deliveryCity.findUniqueOrThrow({
+      where: { id: created.id },
+    })
     expect(persisted.fee).toBe(4500)
     expect(effects.revalidateShipping).toHaveBeenCalled()
   })
 
   it("rejects updating a city to another city's name", async () => {
-    const first = await createCity({ name: cityName("a"), fee: 3000 }, makeEffects())
+    const first = await createCity(
+      { name: cityName("a"), fee: 3000 },
+      makeEffects()
+    )
     await createCity({ name: cityName("b"), fee: 3000 }, makeEffects())
 
     await expect(
@@ -305,29 +380,45 @@ describe("admin city writes", () => {
 
   it("deletes a city and revalidates shipping", async () => {
     const effects = makeEffects()
-    const created = await createCity({ name: cityName("suppression"), fee: 3000 }, makeEffects())
+    const created = await createCity(
+      { name: cityName("suppression"), fee: 3000 },
+      makeEffects()
+    )
 
     await deleteCity(created.id, effects)
 
-    await expect(prisma.deliveryCity.findUnique({ where: { id: created.id } })).resolves.toBeNull()
+    await expect(
+      prisma.deliveryCity.findUnique({ where: { id: created.id } })
+    ).resolves.toBeNull()
     expect(effects.revalidateShipping).toHaveBeenCalled()
   })
 
   it("throws CityNotFoundError for unknown cities", async () => {
-    await expect(updateCity("unknown-id", { name: "X", fee: 1 }, makeEffects())).rejects.toThrow(
+    await expect(
+      updateCity("unknown-id", { name: "X", fee: 1 }, makeEffects())
+    ).rejects.toThrow(CityNotFoundError)
+    await expect(deleteCity("unknown-id", makeEffects())).rejects.toThrow(
       CityNotFoundError
     )
-    await expect(deleteCity("unknown-id", makeEffects())).rejects.toThrow(CityNotFoundError)
   })
 
   it("lists admin cities ordered by name", async () => {
-    await prisma.deliveryCity.create({ data: { name: cityName("b"), fee: 5000 } })
-    await prisma.deliveryCity.create({ data: { name: cityName("a"), fee: 3500 } })
+    await prisma.deliveryCity.create({
+      data: { name: cityName("b"), fee: 5000 },
+    })
+    await prisma.deliveryCity.create({
+      data: { name: cityName("a"), fee: 3500 },
+    })
 
     const cities = await listAdminCities()
 
-    const relevant = cities.filter((candidate) => candidate.name.startsWith(`Ville Livraison ${runId}`))
-    expect(relevant.map((candidate) => candidate.name)).toEqual([cityName("a"), cityName("b")])
+    const relevant = cities.filter((candidate) =>
+      candidate.name.startsWith(`Ville Livraison ${runId}`)
+    )
+    expect(relevant.map((candidate) => candidate.name)).toEqual([
+      cityName("a"),
+      cityName("b"),
+    ])
   })
 })
 
@@ -346,7 +437,9 @@ describe("admin shipping settings writes", () => {
 
     await updateShippingSettings({ freeShippingThreshold: 250000 }, effects)
 
-    const settings = await prisma.shippingSettings.findUniqueOrThrow({ where: { id: "default" } })
+    const settings = await prisma.shippingSettings.findUniqueOrThrow({
+      where: { id: "default" },
+    })
     expect(settings.freeShippingThreshold).toBe(250000)
     expect(effects.revalidateShipping).toHaveBeenCalledOnce()
   })
@@ -386,16 +479,24 @@ describe("storefront quote reads", () => {
   let variantD: string
   let cityId: string
 
-  const quoteEmail = (suffix: string) => `livraison-quote-${runId}-${suffix}@test.ma`
+  const quoteEmail = (suffix: string) =>
+    `livraison-quote-${runId}-${suffix}@test.ma`
 
   beforeAll(async () => {
     const user = await prisma.user.create({
-      data: { id: randomUUID(), email: quoteEmail("a"), name: "Utilisateur Quote A" },
+      data: {
+        id: randomUUID(),
+        email: quoteEmail("a"),
+        name: "Utilisateur Quote A",
+      },
     })
     userIdA = user.id
 
     const category = await prisma.category.create({
-      data: { name: `Catégorie Livraison ${runId}`, slug: `livraison-cat-${runId}` },
+      data: {
+        name: `Catégorie Livraison ${runId}`,
+        slug: `livraison-cat-${runId}`,
+      },
     })
     const [productA, productB, productC] = await Promise.all([
       prisma.product.create({
@@ -410,7 +511,14 @@ describe("storefront quote reads", () => {
           images: ["https://example.com/a.jpg"],
           freeShipping: false,
           variants: {
-            create: [{ name: "Standard", sku: `LIV-${runId}-A1`, priceDelta: 0, stock: 10 }],
+            create: [
+              {
+                name: "Standard",
+                sku: `LIV-${runId}-A1`,
+                priceDelta: 0,
+                stock: 10,
+              },
+            ],
           },
         },
         include: { variants: true },
@@ -427,7 +535,14 @@ describe("storefront quote reads", () => {
           images: ["https://example.com/b.jpg"],
           freeShipping: true,
           variants: {
-            create: [{ name: "Standard", sku: `LIV-${runId}-B1`, priceDelta: 0, stock: 5 }],
+            create: [
+              {
+                name: "Standard",
+                sku: `LIV-${runId}-B1`,
+                priceDelta: 0,
+                stock: 5,
+              },
+            ],
           },
         },
         include: { variants: true },
@@ -444,7 +559,14 @@ describe("storefront quote reads", () => {
           images: ["https://example.com/c.jpg"],
           freeShipping: false,
           variants: {
-            create: [{ name: "Standard", sku: `LIV-${runId}-C1`, priceDelta: 0, stock: 5 }],
+            create: [
+              {
+                name: "Standard",
+                sku: `LIV-${runId}-C1`,
+                priceDelta: 0,
+                stock: 5,
+              },
+            ],
           },
         },
         include: { variants: true },
@@ -454,7 +576,9 @@ describe("storefront quote reads", () => {
     variantC = productB.variants[0].id
     variantD = productC.variants[0].id
 
-    const city = await prisma.deliveryCity.create({ data: { name: cityName("quote"), fee: 3500 } })
+    const city = await prisma.deliveryCity.create({
+      data: { name: cityName("quote"), fee: 3500 },
+    })
     cityId = city.id
   })
 
@@ -473,67 +597,104 @@ describe("storefront quote reads", () => {
     await prisma.cartItem.deleteMany({
       where: { user: { email: { startsWith: `livraison-quote-${runId}-` } } },
     })
-    await prisma.user.deleteMany({ where: { email: { startsWith: `livraison-quote-${runId}-` } } })
-    await prisma.product.deleteMany({ where: { slug: { startsWith: `livraison-prod-` } } })
-    await prisma.category.deleteMany({ where: { slug: `livraison-cat-${runId}` } })
+    await prisma.user.deleteMany({
+      where: { email: { startsWith: `livraison-quote-${runId}-` } },
+    })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `livraison-prod-` } },
+    })
+    await prisma.category.deleteMany({
+      where: { slug: `livraison-cat-${runId}` },
+    })
     await prisma.deliveryCity.deleteMany({ where: { name: cityName("quote") } })
   })
 
   it("quotes the shipping fee for a chosen city below the threshold", async () => {
-    await addToCart(userIdA, variantD, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantD,
+      1
+    )
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 30000, shippingFee: 3500, total: 33500 },
     })
   })
 
   it("quotes free shipping for an all-free-shipping cart below the threshold", async () => {
-    await addToCart(userIdA, variantC, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantC,
+      1
+    )
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 50000, shippingFee: 0, total: 50000 },
     })
   })
 
   it("quotes free shipping for a mixed cart with one free-shipping item below the threshold", async () => {
-    await addToCart(userIdA, variantC, 1)
-    await addToCart(userIdA, variantD, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantC,
+      1
+    )
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantD,
+      1
+    )
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 80000, shippingFee: 0, total: 80000 },
     })
   })
 
   it("quotes free shipping for a cart above the threshold", async () => {
-    await addToCart(userIdA, variantA, 20)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantA,
+      20
+    )
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
       selected: { subtotal: 2000000, shippingFee: 0, total: 2000000 },
     })
   })
 
   it("returns no quote for a ville not in the delivery city list", async () => {
-    await addToCart(userIdA, variantA, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantA,
+      1
+    )
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     const quote = await quotePanier(cart, "ville-inconnue")
     expect(quote.selected).toBeNull()
   })
 
   it("returns the full panier quote shape for a chosen city", async () => {
-    await addToCart(userIdA, variantD, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantD,
+      1
+    )
 
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     const quote = await quotePanier(cart, cityId)
 
     expect(quote.cities.map((candidate) => candidate.id)).toContain(cityId)
     expect(quote.threshold).toBe(100000)
-    expect(quote.quotes[cityId]).toEqual({ subtotal: 30000, shippingFee: 3500, total: 33500 })
+    expect(quote.quotes[cityId]).toEqual({
+      subtotal: 30000,
+      shippingFee: 3500,
+      total: 33500,
+    })
     expect(quote.selected).toEqual(quote.quotes[cityId])
   })
 })
-

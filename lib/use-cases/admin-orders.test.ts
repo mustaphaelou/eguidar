@@ -11,7 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart } from "@/lib/use-cases/cart"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import {
   getAdminOrder,
   listAdminOrders,
@@ -264,7 +264,11 @@ describe("admin order reads", () => {
 
 describe("admin lifecycle", () => {
   it("walks an order to delivered and reflects it in the admin reads", async () => {
-    await addToCart(userIdA, variantP1, 2)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP1,
+      2
+    )
     const order = await placeOrder(
       userIdA,
       { cityId, address: ADDRESS, phone: PHONE },
@@ -284,7 +288,11 @@ describe("admin lifecycle", () => {
   })
 
   it("cancels a pending order, restocks the variants and reflects it in admin reads", async () => {
-    await addToCart(userIdA, variantP1, 2)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP1,
+      2
+    )
     const order = await placeOrder(
       userIdA,
       { cityId, address: ADDRESS, phone: PHONE },

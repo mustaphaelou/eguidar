@@ -1,14 +1,17 @@
 import Link from "next/link"
 import { Suspense } from "react"
 
-import { DeliveryTruck02Icon, ShoppingBag01Icon } from "@hugeicons/core-free-icons"
+import {
+  DeliveryTruck02Icon,
+  ShoppingBag01Icon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { CartLineRow } from "@/components/storefront/cart-line"
+import { LigneArticlePanier } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { getCart, getPanierVisiteur } from "@/lib/panier"
+import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
@@ -40,14 +43,18 @@ async function CartContent({
 }) {
   const user = await getSessionUser()
   const { ville } = await searchParams
-  const cart = user ? await getCart(user.id) : await getPanierVisiteur()
+  const cart = await lirePanier(resoudreProprietairePanier(user))
   const { cities, threshold, selected } = await quotePanier(cart, ville)
   const quote = selected
 
   if (cart.lines.length === 0) {
     return (
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-4 py-24 text-center">
-        <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} className="size-12 text-muted-foreground" />
+        <HugeiconsIcon
+          icon={ShoppingBag01Icon}
+          strokeWidth={2}
+          className="size-12 text-muted-foreground"
+        />
         <h1 className="text-2xl font-bold">Votre panier est vide</h1>
         <p className="max-w-md text-sm text-muted-foreground">
           Parcourez le catalogue et ajoutez vos premiers produits.
@@ -66,7 +73,7 @@ async function CartContent({
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <ul>
           {cart.lines.map((line) => (
-            <CartLineRow key={line.articlePanierId} line={line} />
+            <LigneArticlePanier key={line.articlePanierId} line={line} />
           ))}
         </ul>
 
@@ -74,13 +81,19 @@ async function CartContent({
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
           <dl className="flex flex-col gap-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Sous-total (TVA incluse)</dt>
+              <dt className="text-muted-foreground">
+                Sous-total (TVA incluse)
+              </dt>
               <dd className="font-semibold">{formatPrice(cart.subtotal)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Livraison</dt>
               <dd className="font-semibold">
-                {quote ? formatShippingFee(quote.shippingFee) : <span className="text-muted-foreground">À choisir</span>}
+                {quote ? (
+                  formatShippingFee(quote.shippingFee)
+                ) : (
+                  <span className="text-muted-foreground">À choisir</span>
+                )}
               </dd>
             </div>
             {quote ? (
@@ -99,12 +112,20 @@ async function CartContent({
             />
             {quote && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <HugeiconsIcon icon={DeliveryTruck02Icon} strokeWidth={2} className="size-4" />
+                <HugeiconsIcon
+                  icon={DeliveryTruck02Icon}
+                  strokeWidth={2}
+                  className="size-4"
+                />
                 Livraison offerte dès {formatPrice(threshold)}
               </p>
             )}
             <Button
-              render={<Link href={`/checkout${ville ? `?ville=${encodeURIComponent(ville)}` : ""}`} />}
+              render={
+                <Link
+                  href={`/checkout${ville ? `?ville=${encodeURIComponent(ville)}` : ""}`}
+                />
+              }
               className="w-full"
             >
               Passer commande

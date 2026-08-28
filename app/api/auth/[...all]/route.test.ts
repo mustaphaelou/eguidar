@@ -16,7 +16,7 @@ import {
   serializePanierVisiteur,
   type ArticlePanierVisiteur,
 } from "@/lib/panier-visiteur"
-import { addToCart } from "@/lib/use-cases/cart"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import {
   deletedCookieNames,
   hasCookie,
@@ -129,8 +129,18 @@ beforeAll(async () => {
       freeShipping: false,
       variants: {
         create: [
-          { name: "Standard", sku: `REPLAY-${runId}-A1`, priceDelta: 0, stock: 10 },
-          { name: "Premium", sku: `REPLAY-${runId}-A2`, priceDelta: 50000, stock: 3 },
+          {
+            name: "Standard",
+            sku: `REPLAY-${runId}-A1`,
+            priceDelta: 0,
+            stock: 10,
+          },
+          {
+            name: "Premium",
+            sku: `REPLAY-${runId}-A2`,
+            priceDelta: 50000,
+            stock: 3,
+          },
         ],
       },
     },
@@ -154,7 +164,9 @@ afterAll(async () => {
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `replay-${runId}-` } } },
   })
-  await prisma.user.deleteMany({ where: { email: { startsWith: `replay-${runId}-` } } })
+  await prisma.user.deleteMany({
+    where: { email: { startsWith: `replay-${runId}-` } },
+  })
   await prisma.product.deleteMany({ where: { slug: `replay-prod-${runId}` } })
   await prisma.category.deleteMany({ where: { slug: `replay-cat-${runId}` } })
   await prisma.$disconnect()
@@ -162,7 +174,11 @@ afterAll(async () => {
 
 describe("auth route replaying the Visiteur's cookie Panier", () => {
   it("sums the cookie articles into the persisted Panier after a password sign-in and deletes the cookie", async () => {
-    await addToCart(userId, variantA, 3)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userId },
+      variantA,
+      3
+    )
     const requeteConnexion = connexionMotDePasse([
       { variantId: variantA, quantity: 2 },
       { variantId: variantB, quantity: 1 },
@@ -189,7 +205,11 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
   it.each(["google", "apple"])(
     "lands the same merged Panier through the same helper after a %s social callback",
     async (fournisseur) => {
-      await addToCart(userId, variantA, 3)
+      await ajouterArticleAuPanier(
+        { role: "client", compteId: userId },
+        variantA,
+        3
+      )
       const reponseCallback = reponseAuth(302)
       handlerMock.mockResolvedValue(reponseCallback)
 
@@ -220,15 +240,16 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
     expect(await lignesPanier()).toEqual([])
   })
 
-  it("leaves requests without a Visiteur Panier completely untouched", async () => {
+  it("replays nothing when no Visiteur cookie is present", async () => {
     handlerMock.mockResolvedValue(reponseAuth(200))
     const requeteSansPanier = requete("POST", "/api/auth/sign-in/email")
 
     await POST(requeteSansPanier)
 
-    expect(getSessionMock).not.toHaveBeenCalled()
+    expect(getSessionMock).toHaveBeenCalled()
     expect(deletedCookieNames).toEqual([])
     expect(hasCookie(NOM_COOKIE_PANIER_VISITEUR)).toBe(false)
+    expect(await lignesPanier()).toEqual([])
   })
 
   it("does not attempt a replay on other auth endpoints like get-session polling", async () => {

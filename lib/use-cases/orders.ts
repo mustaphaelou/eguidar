@@ -3,8 +3,11 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
-import { getCart } from "@/lib/panier"
-import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
+import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
+import {
+  deliveryAddressField,
+  deliveryPhoneField,
+} from "@/lib/use-cases/contact"
 import {
   DeliveryCityNotFoundError,
   quotePanier,
@@ -114,7 +117,9 @@ const checkoutInputSchema = z.object({
 function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
   const result = checkoutInputSchema.safeParse(input)
   if (!result.success) {
-    throw new CheckoutValidationError(result.error.issues.map((issue) => issue.message))
+    throw new CheckoutValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
   }
   return result.data
 }
@@ -139,10 +144,18 @@ type OrderWithItems = {
   phone: string
   total: number
   shippingFee: number
-  items: { productName: string; variantName: string; price: number; quantity: number }[]
+  items: {
+    productName: string
+    variantName: string
+    price: number
+    quantity: number
+  }[]
 }
 
-function toOrderEmailSnapshot(order: OrderWithItems, userEmail: string): OrderEmailSnapshot {
+function toOrderEmailSnapshot(
+  order: OrderWithItems,
+  userEmail: string
+): OrderEmailSnapshot {
   return {
     userEmail,
     orderId: order.id,
@@ -160,13 +173,20 @@ function toOrderEmailSnapshot(order: OrderWithItems, userEmail: string): OrderEm
   }
 }
 
-export async function placeOrder(userId: string, input: CheckoutInput, effects: OrderEffects) {
+export async function placeOrder(
+  userId: string,
+  input: CheckoutInput,
+  effects: OrderEffects
+) {
   const data = parseCheckoutInput(input)
 
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  })
   if (!user) throw new UserNotFoundError()
 
-  const cart = await getCart(userId)
+  const cart = await lirePanier(resoudreProprietairePanier({ id: userId }))
   if (cart.lines.length === 0) throw new EmptyCartError()
 
   const quote = await quotePanier(cart, data.cityId)
@@ -236,12 +256,18 @@ export async function placeOrder(userId: string, input: CheckoutInput, effects: 
   try {
     await effects.sendOrderPlacedEmail(toOrderEmailSnapshot(order, user.email))
   } catch (error) {
-    console.warn(`[order] e-mail de confirmation non envoyé pour ${order.id}`, error)
+    console.warn(
+      `[order] e-mail de confirmation non envoyé pour ${order.id}`,
+      error
+    )
   }
   return order
 }
 
-export async function getOrder(userId: string, orderId: string): Promise<OrderDetail | null> {
+export async function getOrder(
+  userId: string,
+  orderId: string
+): Promise<OrderDetail | null> {
   const order = await prisma.order.findFirst({
     where: { id: orderId, userId },
     include: { items: true },
@@ -288,7 +314,8 @@ export async function updateOrderStatus(
   nextStatus: string,
   effects: OrderEffects
 ) {
-  if (!isOrderStatus(nextStatus)) throw new InvalidOrderTransitionError("inconnu", nextStatus)
+  if (!isOrderStatus(nextStatus))
+    throw new InvalidOrderTransitionError("inconnu", nextStatus)
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },

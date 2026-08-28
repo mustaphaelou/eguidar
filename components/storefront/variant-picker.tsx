@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
+import { MOTIF_CAP_ATTEINTE } from "@/lib/panier"
 import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
@@ -53,7 +54,7 @@ export function VariantPicker({
     startTransition(async () => {
       const resultat = await ajouterArticleAuPanierAction(selected.id, 1)
       if (resultat.ok) setAdded(true)
-      else if (resultat.motif === "cap-atteinte") setCapAtteint(true)
+      else if (resultat.motif === MOTIF_CAP_ATTEINTE) setCapAtteint(true)
     })
   }
 
@@ -61,7 +62,10 @@ export function VariantPicker({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         <Label htmlFor="variant">Variante</Label>
-        <Select value={variantId} onValueChange={(value) => setVariantId(value ?? "")}>
+        <Select
+          value={variantId}
+          onValueChange={(value) => setVariantId(value ?? "")}
+        >
           <SelectTrigger id="variant" className="w-full sm:w-64">
             <SelectValue />
           </SelectTrigger>
@@ -94,7 +98,9 @@ export function VariantPicker({
         >
           {isPending ? "Ajout…" : "Ajouter au panier"}
         </Button>
-        {added && <span className="text-sm text-emerald-600">Ajouté au panier</span>}
+        {added && (
+          <span className="text-sm text-emerald-600">Ajouté au panier</span>
+        )}
       </div>
       {capAtteint && (
         <p role="alert" className="text-sm text-destructive">

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
+import { MOTIF_CAP_ATTEINTE } from "@/lib/panier"
 import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
@@ -40,7 +41,10 @@ export function ProductBuyBox({
       <div className="flex flex-col gap-3">
         <p className="text-[28px] font-semibold">{formatPrice(basePrice)}</p>
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span aria-hidden="true" className="size-2 rounded-full bg-destructive" />
+          <span
+            aria-hidden="true"
+            className="size-2 rounded-full bg-destructive"
+          />
           Rupture de stock
         </p>
         <Button disabled className="w-full rounded-full text-[17px]">
@@ -61,7 +65,7 @@ export function ProductBuyBox({
     startTransition(async () => {
       const resultat = await ajouterArticleAuPanierAction(selected.id, 1)
       if (resultat.ok) setAdded(true)
-      else if (resultat.motif === "cap-atteinte") setCapAtteint(true)
+      else if (resultat.motif === MOTIF_CAP_ATTEINTE) setCapAtteint(true)
     })
   }
 
@@ -72,7 +76,11 @@ export function ProductBuyBox({
           {variants.length <= MAX_CHIPS ? (
             <>
               <Label className="text-[14px]">Variante</Label>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Variante">
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Variante"
+              >
                 {variants.map((variant) => (
                   <button
                     key={variant.id}
@@ -95,7 +103,10 @@ export function ProductBuyBox({
               <Label htmlFor="variant" className="text-[14px]">
                 Variante
               </Label>
-              <Select value={variantId} onValueChange={(value) => setVariantId(value ?? "")}>
+              <Select
+                value={variantId}
+                onValueChange={(value) => setVariantId(value ?? "")}
+              >
                 <SelectTrigger id="variant" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -103,7 +114,8 @@ export function ProductBuyBox({
                   <SelectGroup>
                     {variants.map((variant) => (
                       <SelectItem key={variant.id} value={variant.id}>
-                        {variant.name} — {formatPrice(basePrice + variant.priceDelta)}
+                        {variant.name} —{" "}
+                        {formatPrice(basePrice + variant.priceDelta)}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -123,12 +135,18 @@ export function ProductBuyBox({
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         {outOfStock ? (
           <>
-            <span aria-hidden="true" className="size-2 rounded-full bg-destructive" />
+            <span
+              aria-hidden="true"
+              className="size-2 rounded-full bg-destructive"
+            />
             Rupture de stock
           </>
         ) : (
           <>
-            <span aria-hidden="true" className="size-2 rounded-full bg-emerald-500" />
+            <span
+              aria-hidden="true"
+              className="size-2 rounded-full bg-emerald-500"
+            />
             En stock ({stock} disponible{stock > 1 ? "s" : ""})
             {freeShipping ? " · Livraison offerte" : ""}
           </>

@@ -3,22 +3,21 @@
 import {
   ajouterArticleAuPanier,
   modifierQuantiteArticlePanier,
+  resoudreProprietairePanier,
   retirerArticleDuPanier,
-  type ProprietairePanier,
   type ResultatPanier,
 } from "@/lib/panier"
 import { getSessionUser } from "@/lib/use-cases/get-session"
-
-async function construireProprietairePanier(): Promise<ProprietairePanier> {
-  const user = await getSessionUser()
-  return user ? { role: "client", compteId: user.id } : { role: "visiteur" }
-}
 
 export async function ajouterArticleAuPanierAction(
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return ajouterArticleAuPanier(await construireProprietairePanier(), variantId, quantity)
+  return ajouterArticleAuPanier(
+    resoudreProprietairePanier(await getSessionUser()),
+    variantId,
+    quantity
+  )
 }
 
 export async function modifierQuantiteArticlePanierAction(
@@ -26,7 +25,7 @@ export async function modifierQuantiteArticlePanierAction(
   quantity: number
 ): Promise<ResultatPanier> {
   return modifierQuantiteArticlePanier(
-    await construireProprietairePanier(),
+    resoudreProprietairePanier(await getSessionUser()),
     articlePanierId,
     quantity
   )
@@ -35,5 +34,8 @@ export async function modifierQuantiteArticlePanierAction(
 export async function retirerArticleDuPanierAction(
   articlePanierId: string
 ): Promise<ResultatPanier> {
-  return retirerArticleDuPanier(await construireProprietairePanier(), articlePanierId)
+  return retirerArticleDuPanier(
+    resoudreProprietairePanier(await getSessionUser()),
+    articlePanierId
+  )
 }

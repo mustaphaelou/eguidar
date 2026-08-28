@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
-import { getCart } from "@/lib/panier"
+import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import { getProfile } from "@/lib/use-cases/account"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { getSessionUser } from "@/lib/use-cases/get-session"
@@ -39,7 +39,10 @@ async function CheckoutContent({
   if (!user) return <RequireAuth />
 
   const { ville } = await searchParams
-  const [cart, profile] = await Promise.all([getCart(user.id), getProfile(user.id)])
+  const [cart, profile] = await Promise.all([
+    lirePanier(resoudreProprietairePanier(user)),
+    getProfile(user.id),
+  ])
   if (cart.lines.length === 0) redirect("/panier")
 
   const requestedCityId = ville ?? profile.cityId
@@ -67,11 +70,16 @@ async function CheckoutContent({
           <h2 className="mb-4 text-lg font-semibold">Votre panier</h2>
           <ul className="flex flex-col gap-3 text-sm">
             {cart.lines.map((line) => (
-              <li key={line.articlePanierId} className="flex justify-between gap-3">
+              <li
+                key={line.articlePanierId}
+                className="flex justify-between gap-3"
+              >
                 <span className="text-muted-foreground">
                   {line.productName} {line.variantName} × {line.quantity}
                 </span>
-                <span className="shrink-0 font-medium">{formatPrice(line.lineTotal)}</span>
+                <span className="shrink-0 font-medium">
+                  {formatPrice(line.lineTotal)}
+                </span>
               </li>
             ))}
           </ul>

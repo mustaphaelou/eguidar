@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import type { CartData } from "@/lib/use-cases/cart"
+import type { DonneesPanier } from "@/lib/panier"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -99,7 +99,11 @@ export function computeCityQuote(
     freeShippingThreshold,
     anyFreeShippingItem: pricing.anyFreeShippingItem,
   })
-  return { subtotal: pricing.subtotal, shippingFee, total: pricing.subtotal + shippingFee }
+  return {
+    subtotal: pricing.subtotal,
+    shippingFee,
+    total: pricing.subtotal + shippingFee,
+  }
 }
 
 export function computeCityQuotes(
@@ -115,7 +119,7 @@ export function computeCityQuotes(
 }
 
 export async function quotePanier(
-  cart: CartData,
+  cart: DonneesPanier,
   cityId?: string | null
 ): Promise<PanierQuote> {
   const [cities, threshold] = await Promise.all([
@@ -139,7 +143,9 @@ export async function quotePanier(
 }
 
 export async function getFreeShippingThreshold(): Promise<number> {
-  const settings = await prisma.shippingSettings.findUnique({ where: { id: "default" } })
+  const settings = await prisma.shippingSettings.findUnique({
+    where: { id: "default" },
+  })
   return settings?.freeShippingThreshold ?? DEFAULT_FREE_SHIPPING_THRESHOLD
 }
 
@@ -152,17 +158,25 @@ export function listDeliveryCities(): Promise<DeliveryCityOption[]> {
 
 const cityInputSchema = z.object({
   name: z.string().trim().min(1, "nom requis"),
-  fee: z.number().int().min(0, "le frais de livraison doit être positif ou nul"),
+  fee: z
+    .number()
+    .int()
+    .min(0, "le frais de livraison doit être positif ou nul"),
 })
 
 const shippingInputSchema = z.object({
-  freeShippingThreshold: z.number().int().min(1, "le seuil de livraison offerte doit être positif"),
+  freeShippingThreshold: z
+    .number()
+    .int()
+    .min(1, "le seuil de livraison offerte doit être positif"),
 })
 
 function parseCityInput(input: CityInput): CityInput {
   const result = cityInputSchema.safeParse(input)
   if (!result.success) {
-    throw new CityValidationError(result.error.issues.map((issue) => issue.message))
+    throw new CityValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
   }
   return result.data
 }
@@ -172,9 +186,13 @@ function mapCityUniqueViolation(error: unknown): never {
   throw error
 }
 
-async function assertUniqueCityName(name: string, excludeCityId?: string): Promise<void> {
+async function assertUniqueCityName(
+  name: string,
+  excludeCityId?: string
+): Promise<void> {
   const existing = await prisma.deliveryCity.findUnique({ where: { name } })
-  if (existing && existing.id !== excludeCityId) throw new CityNameConflictError()
+  if (existing && existing.id !== excludeCityId)
+    throw new CityNameConflictError()
 }
 
 export async function createCity(input: CityInput, effects: LivraisonEffects) {
@@ -192,7 +210,11 @@ export async function createCity(input: CityInput, effects: LivraisonEffects) {
   return city
 }
 
-export async function updateCity(id: string, input: CityInput, effects: LivraisonEffects) {
+export async function updateCity(
+  id: string,
+  input: CityInput,
+  effects: LivraisonEffects
+) {
   const existing = await prisma.deliveryCity.findUnique({ where: { id } })
   if (!existing) throw new CityNotFoundError()
 
@@ -210,7 +232,10 @@ export async function updateCity(id: string, input: CityInput, effects: Livraiso
   return city
 }
 
-export async function deleteCity(id: string, effects: LivraisonEffects): Promise<void> {
+export async function deleteCity(
+  id: string,
+  effects: LivraisonEffects
+): Promise<void> {
   const existing = await prisma.deliveryCity.findUnique({ where: { id } })
   if (!existing) throw new CityNotFoundError()
 
@@ -232,13 +257,18 @@ export async function updateShippingSettings(
 ) {
   const result = shippingInputSchema.safeParse(input)
   if (!result.success) {
-    throw new ShippingValidationError(result.error.issues.map((issue) => issue.message))
+    throw new ShippingValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
   }
 
   const settings = await prisma.shippingSettings.upsert({
     where: { id: "default" },
     update: { freeShippingThreshold: result.data.freeShippingThreshold },
-    create: { id: "default", freeShippingThreshold: result.data.freeShippingThreshold },
+    create: {
+      id: "default",
+      freeShippingThreshold: result.data.freeShippingThreshold,
+    },
   })
 
   effects.revalidateShipping()

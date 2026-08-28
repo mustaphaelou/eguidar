@@ -1,9 +1,18 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart, getCart } from "@/lib/use-cases/cart"
+import { lirePanier } from "@/lib/panier"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
@@ -39,14 +48,22 @@ function makeEffects(): OrderEffects & {
   sendOrderStatusEmail: ReturnType<typeof vi.fn>
 } {
   return {
-    sendOrderPlacedEmail: vi.fn<OrderEffects["sendOrderPlacedEmail"]>(async () => {}),
-    sendOrderStatusEmail: vi.fn<OrderEffects["sendOrderStatusEmail"]>(async () => {}),
+    sendOrderPlacedEmail: vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    ),
+    sendOrderStatusEmail: vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    ),
   }
 }
 
 async function createUser(suffix: string): Promise<string> {
   const user = await prisma.user.create({
-    data: { id: randomUUID(), email: email(suffix), name: `Utilisateur ${suffix}` },
+    data: {
+      id: randomUUID(),
+      email: email(suffix),
+      name: `Utilisateur ${suffix}`,
+    },
   })
   return user.id
 }
@@ -73,8 +90,18 @@ beforeAll(async () => {
         freeShipping: false,
         variants: {
           create: [
-            { name: "Standard", sku: `ORD-${runId}-A1`, priceDelta: 0, stock: 5 },
-            { name: "Premium", sku: `ORD-${runId}-A2`, priceDelta: 50000, stock: 1 },
+            {
+              name: "Standard",
+              sku: `ORD-${runId}-A1`,
+              priceDelta: 0,
+              stock: 5,
+            },
+            {
+              name: "Premium",
+              sku: `ORD-${runId}-A2`,
+              priceDelta: 50000,
+              stock: 1,
+            },
           ],
         },
       },
@@ -92,7 +119,14 @@ beforeAll(async () => {
         images: [],
         freeShipping: true,
         variants: {
-          create: [{ name: "Standard", sku: `ORD-${runId}-B1`, priceDelta: 0, stock: 3 }],
+          create: [
+            {
+              name: "Standard",
+              sku: `ORD-${runId}-B1`,
+              priceDelta: 0,
+              stock: 3,
+            },
+          ],
         },
       },
       include: { variants: true },
@@ -109,7 +143,14 @@ beforeAll(async () => {
         images: [],
         freeShipping: false,
         variants: {
-          create: [{ name: "Standard", sku: `ORD-${runId}-C1`, priceDelta: 0, stock: 2 }],
+          create: [
+            {
+              name: "Standard",
+              sku: `ORD-${runId}-C1`,
+              priceDelta: 0,
+              stock: 2,
+            },
+          ],
         },
       },
       include: { variants: true },
@@ -120,7 +161,9 @@ beforeAll(async () => {
   variantP3 = products[1].variants[0].id
   variantP4 = products[2].variants[0].id
 
-  const city = await prisma.deliveryCity.create({ data: { name: cityName, fee: 3500 } })
+  const city = await prisma.deliveryCity.create({
+    data: { name: cityName, fee: 3500 },
+  })
   cityId = city.id
 })
 
@@ -159,8 +202,12 @@ afterAll(async () => {
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `orders-${runId}-` } } },
   })
-  await prisma.user.deleteMany({ where: { email: { startsWith: `orders-${runId}-` } } })
-  await prisma.product.deleteMany({ where: { slug: { endsWith: `-${runId}` } } })
+  await prisma.user.deleteMany({
+    where: { email: { startsWith: `orders-${runId}-` } },
+  })
+  await prisma.product.deleteMany({
+    where: { slug: { endsWith: `-${runId}` } },
+  })
   await prisma.category.deleteMany({ where: { slug: `orders-cat-${runId}` } })
   await prisma.deliveryCity.deleteMany({ where: { name: cityName } })
   await prisma.$disconnect()
@@ -178,7 +225,11 @@ function checkoutInput(overrides: Partial<CheckoutInput> = {}): CheckoutInput {
 describe("order placement", () => {
   it("snapshots the cart into the order, decrements stock and empties the cart", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP4, 2)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      2
+    )
 
     const order = await placeOrder(userIdA, checkoutInput(), effects)
 
@@ -196,24 +247,36 @@ describe("order placement", () => {
       quantity: 2,
     })
 
-    const stock = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
     expect(stock.stock).toBe(0)
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     expect(cart.lines).toHaveLength(0)
   })
 
   it("sends the order placed email with the snapshot", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
 
     const order = await placeOrder(userIdA, checkoutInput(), effects)
 
     expect(effects.sendOrderPlacedEmail).toHaveBeenCalledOnce()
-    const snapshot = effects.sendOrderPlacedEmail.mock.calls[0][0] as OrderEmailSnapshot
+    const snapshot = effects.sendOrderPlacedEmail.mock
+      .calls[0][0] as OrderEmailSnapshot
     expect(snapshot.userEmail).toBe(email("a"))
     expect(snapshot.orderId).toBe(order.id)
     expect(snapshot.items).toEqual([
-      { productName: "Ordres Produit C", variantName: "Standard", quantity: 1, price: 30000 },
+      {
+        productName: "Ordres Produit C",
+        variantName: "Standard",
+        quantity: 1,
+        price: 30000,
+      },
     ])
     expect(snapshot.total).toBe(30000)
     expect(snapshot.shippingFee).toBe(3500)
@@ -222,27 +285,47 @@ describe("order placement", () => {
   })
 
   it("charges the city fee below the free-shipping threshold", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.shippingFee).toBe(3500)
   })
 
   it("offers free shipping above the threshold", async () => {
-    await addToCart(userIdA, variantP1, 4)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP1,
+      4
+    )
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.total).toBe(400000)
     expect(order.shippingFee).toBe(0)
   })
 
   it("offers free shipping below the threshold when every item is flagged", async () => {
-    await addToCart(userIdA, variantP3, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP3,
+      1
+    )
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.shippingFee).toBe(0)
   })
 
   it("offers free shipping below the threshold when at least one item is flagged", async () => {
-    await addToCart(userIdA, variantP3, 1)
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP3,
+      1
+    )
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.total).toBe(80000)
     expect(order.shippingFee).toBe(0)
@@ -250,7 +333,11 @@ describe("order placement", () => {
 
   it("blocks out-of-stock variants at checkout without creating anything", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP2, 2)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP2,
+      2
+    )
 
     try {
       await placeOrder(userIdA, checkoutInput(), effects)
@@ -260,14 +347,21 @@ describe("order placement", () => {
       if (error instanceof OutOfStockError) {
         expect(error.message).toContain("Ordres Produit A")
         expect(error.items).toEqual([
-          { productName: "Ordres Produit A", variantName: "Premium", requested: 2, available: 1 },
+          {
+            productName: "Ordres Produit A",
+            variantName: "Premium",
+            requested: 2,
+            available: 1,
+          },
         ])
       }
     }
 
-    const stock = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP2 } })
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP2 },
+    })
     expect(stock.stock).toBe(1)
-    const cart = await getCart(userIdA)
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
     expect(cart.lines).toHaveLength(1)
     const orderCount = await prisma.order.count({ where: { userId: userIdA } })
     expect(orderCount).toBe(0)
@@ -276,16 +370,28 @@ describe("order placement", () => {
 
   it("rolls back the whole order when one line goes out of stock mid-placement", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP1, 1)
-    await addToCart(userIdA, variantP2, 2)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP1,
+      1
+    )
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP2,
+      2
+    )
     await prisma.productVariant.update({
       where: { id: variantP2 },
       data: { stock: { set: 1 } },
     })
 
-    await expect(placeOrder(userIdA, checkoutInput(), effects)).rejects.toThrow(OutOfStockError)
+    await expect(placeOrder(userIdA, checkoutInput(), effects)).rejects.toThrow(
+      OutOfStockError
+    )
 
-    const stockP1 = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP1 } })
+    const stockP1 = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP1 },
+    })
     expect(stockP1.stock).toBe(5)
     const orderCount = await prisma.order.count({ where: { userId: userIdA } })
     expect(orderCount).toBe(0)
@@ -293,8 +399,16 @@ describe("order placement", () => {
   })
 
   it("allows only one order to take the last unit under concurrency", async () => {
-    await addToCart(userIdB, variantP2, 1)
-    await addToCart(userIdC, variantP2, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdB },
+      variantP2,
+      1
+    )
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdC },
+      variantP2,
+      1
+    )
 
     const [first, second] = await Promise.allSettled([
       placeOrder(userIdB, checkoutInput(), makeEffects()),
@@ -306,7 +420,9 @@ describe("order placement", () => {
     if (second.status === "rejected") {
       expect(second.reason).toBeInstanceOf(OutOfStockError)
     }
-    const stock = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP2 } })
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP2 },
+    })
     expect(stock.stock).toBe(0)
     const orderCount = await prisma.order.count({
       where: { userId: { in: [userIdB, userIdC] } },
@@ -321,14 +437,26 @@ describe("order placement", () => {
   })
 
   it("rejects an unknown delivery city", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     await expect(
-      placeOrder(userIdA, checkoutInput({ cityId: "ville-inconnue" }), makeEffects())
+      placeOrder(
+        userIdA,
+        checkoutInput({ cityId: "ville-inconnue" }),
+        makeEffects()
+      )
     ).rejects.toThrow(DeliveryCityNotFoundError)
   })
 
   it("rejects invalid address, phone and missing city", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     await expect(
       placeOrder(userIdA, checkoutInput({ address: "X" }), makeEffects())
     ).rejects.toThrow(/invalides/)
@@ -343,7 +471,11 @@ describe("order placement", () => {
 
 describe("order reads", () => {
   it("returns an order with its items to its owner", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
 
     const fetched = await getOrder(userIdA, order.id)
@@ -353,38 +485,66 @@ describe("order reads", () => {
   })
 
   it("hides an order from another user", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
 
     await expect(getOrder(userIdB, order.id)).resolves.toBeNull()
   })
 
   it("lists only the user's orders, newest first", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     const first = await placeOrder(userIdA, checkoutInput(), makeEffects())
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     const second = await placeOrder(userIdA, checkoutInput(), makeEffects())
-    await addToCart(userIdB, variantP3, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdB },
+      variantP3,
+      1
+    )
     await placeOrder(userIdB, checkoutInput(), makeEffects())
 
     const orders = await listUserOrders(userIdA)
 
     expect(orders.map((order) => order.id)).toEqual([second.id, first.id])
-    expect(orders[0]).toMatchObject({ status: "pending", total: 30000, shippingFee: 3500 })
+    expect(orders[0]).toMatchObject({
+      status: "pending",
+      total: 30000,
+      shippingFee: 3500,
+    })
     expect(orders[0].itemCount).toBe(1)
   })
 })
 
 describe("order status transitions", () => {
   async function placeSmallOrder(userId: string): Promise<string> {
-    await addToCart(userId, variantP4, 2)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userId },
+      variantP4,
+      2
+    )
     const order = await placeOrder(userId, checkoutInput(), makeEffects())
     return order.id
   }
 
   it("walks pending → confirmed → shipped → delivered, emailing each change", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
     const order = await placeOrder(userIdA, checkoutInput(), effects)
     effects.sendOrderStatusEmail.mockClear()
 
@@ -395,12 +555,11 @@ describe("order status transitions", () => {
     const final = await getOrder(userIdA, order.id)
     expect(final!.status).toBe("delivered")
     expect(effects.sendOrderStatusEmail).toHaveBeenCalledTimes(3)
-    expect(effects.sendOrderStatusEmail.mock.calls.map((call) => call[1])).toEqual([
-      "confirmed",
-      "shipped",
-      "delivered",
-    ])
-    const lastSnapshot = effects.sendOrderStatusEmail.mock.calls[2][0] as OrderEmailSnapshot
+    expect(
+      effects.sendOrderStatusEmail.mock.calls.map((call) => call[1])
+    ).toEqual(["confirmed", "shipped", "delivered"])
+    const lastSnapshot = effects.sendOrderStatusEmail.mock
+      .calls[2][0] as OrderEmailSnapshot
     expect(lastSnapshot.orderId).toBe(order.id)
     expect(lastSnapshot.userEmail).toBe(email("a"))
   })
@@ -409,7 +568,11 @@ describe("order status transitions", () => {
     const effects = makeEffects()
     const orderId = await placeSmallOrder(userIdA)
     expect(
-      (await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })).stock
+      (
+        await prisma.productVariant.findUniqueOrThrow({
+          where: { id: variantP4 },
+        })
+      ).stock
     ).toBe(0)
 
     await updateOrderStatus(orderId, "cancelled", effects)
@@ -417,7 +580,11 @@ describe("order status transitions", () => {
     const order = await getOrder(userIdA, orderId)
     expect(order!.status).toBe("cancelled")
     expect(
-      (await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })).stock
+      (
+        await prisma.productVariant.findUniqueOrThrow({
+          where: { id: variantP4 },
+        })
+      ).stock
     ).toBe(2)
     expect(effects.sendOrderStatusEmail).toHaveBeenCalledWith(
       expect.objectContaining({ orderId }),
@@ -437,7 +604,11 @@ describe("order status transitions", () => {
     const order = await getOrder(userIdA, orderId)
     expect(order!.status).toBe("returned")
     expect(
-      (await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })).stock
+      (
+        await prisma.productVariant.findUniqueOrThrow({
+          where: { id: variantP4 },
+        })
+      ).stock
     ).toBe(2)
   })
 
@@ -471,7 +642,11 @@ describe("order status transitions", () => {
     ).rejects.toThrow(InvalidOrderTransitionError)
 
     expect(
-      (await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })).stock
+      (
+        await prisma.productVariant.findUniqueOrThrow({
+          where: { id: variantP4 },
+        })
+      ).stock
     ).toBe(2)
     expect(effects.sendOrderStatusEmail).toHaveBeenCalledTimes(1)
   })
@@ -484,13 +659,21 @@ describe("order status transitions", () => {
       updateOrderStatus(orderId, "cancelled", makeEffects()),
     ])
 
-    expect([first.status, second.status].sort()).toEqual(["fulfilled", "rejected"])
-    if (first.status === "rejected") expect(first.reason).toBeInstanceOf(InvalidOrderTransitionError)
+    expect([first.status, second.status].sort()).toEqual([
+      "fulfilled",
+      "rejected",
+    ])
+    if (first.status === "rejected")
+      expect(first.reason).toBeInstanceOf(InvalidOrderTransitionError)
     if (second.status === "rejected") {
       expect(second.reason).toBeInstanceOf(InvalidOrderTransitionError)
     }
     expect(
-      (await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP4 } })).stock
+      (
+        await prisma.productVariant.findUniqueOrThrow({
+          where: { id: variantP4 },
+        })
+      ).stock
     ).toBe(2)
   })
 

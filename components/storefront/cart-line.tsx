@@ -4,7 +4,11 @@ import { useTransition } from "react"
 import Image from "next/image"
 import Link from "next/link"
 
-import { Add01Icon, DeleteThrowIcon, MinusSignIcon } from "@hugeicons/core-free-icons"
+import {
+  Add01Icon,
+  DeleteThrowIcon,
+  MinusSignIcon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import {
@@ -13,9 +17,9 @@ import {
 } from "@/app/(boutique)/actions"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
-import type { CartLine } from "@/lib/use-cases/cart"
+import type { ArticleDuPanier } from "@/lib/panier"
 
-export function CartLineRow({ line }: { line: CartLine }) {
+export function LigneArticlePanier({ line }: { line: ArticleDuPanier }) {
   const [isPending, startTransition] = useTransition()
 
   function setQuantity(quantity: number) {
@@ -59,7 +63,9 @@ export function CartLineRow({ line }: { line: CartLine }) {
           {line.productName}
         </Link>
         <p className="text-xs text-muted-foreground">{line.variantName}</p>
-        <p className="text-xs text-muted-foreground">{formatPrice(line.unitPrice)} / unité</p>
+        <p className="text-xs text-muted-foreground">
+          {formatPrice(line.unitPrice)} / unité
+        </p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -73,7 +79,9 @@ export function CartLineRow({ line }: { line: CartLine }) {
         >
           <HugeiconsIcon icon={MinusSignIcon} strokeWidth={2} />
         </Button>
-        <span className="w-8 text-center text-sm font-semibold">{line.quantity}</span>
+        <span className="w-8 text-center text-sm font-semibold">
+          {line.quantity}
+        </span>
         <Button
           variant="outline"
           size="icon"
@@ -86,7 +94,9 @@ export function CartLineRow({ line }: { line: CartLine }) {
         </Button>
       </div>
 
-      <p className="w-24 text-right text-sm font-bold">{formatPrice(line.lineTotal)}</p>
+      <p className="w-24 text-right text-sm font-bold">
+        {formatPrice(line.lineTotal)}
+      </p>
 
       <Button
         variant="ghost"
