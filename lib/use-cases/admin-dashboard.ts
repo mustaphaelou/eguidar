@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { totalPayable } from "@/lib/money"
+import { STATUTS_ENCAISSÉS } from "@/lib/order-status"
 
 export const LOW_STOCK_THRESHOLD = 5
 
@@ -52,7 +53,7 @@ export interface DashboardStats {
 
 const DAY_MS = 86_400_000
 
-function localMonthKey(date: Date): string {
+export function localMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
@@ -138,14 +139,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     prisma.order.aggregate({
       _sum: { total: true, shippingFee: true },
       where: {
-        status: "delivered",
+        status: { in: [...STATUTS_ENCAISSÉS] },
         createdAt: { gte: currentWindowStart, lte: now },
       },
     }),
     prisma.order.aggregate({
       _sum: { total: true, shippingFee: true },
       where: {
-        status: "delivered",
+        status: { in: [...STATUTS_ENCAISSÉS] },
         createdAt: { gte: previousWindowStart, lt: currentWindowStart },
       },
     }),
@@ -154,7 +155,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }),
     prisma.order.findMany({
       where: {
-        status: "delivered",
+        status: { in: [...STATUTS_ENCAISSÉS] },
         createdAt: { gte: oldestBucketStart, lte: now },
       },
       select: { id: true, total: true, shippingFee: true, createdAt: true },
