@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { prisma } from "@/lib/db"
 import { lirePanier } from "@/lib/panier"
-import { addToCart } from "@/lib/panier"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
@@ -179,7 +179,7 @@ function checkoutInput(overrides: Partial<CheckoutInput> = {}): CheckoutInput {
 describe("order placement", () => {
   it("snapshots the cart into the order, decrements stock and empties the cart", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP4, 2)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 2)
 
     const order = await placeOrder(userIdA, checkoutInput(), effects)
 
@@ -205,7 +205,7 @@ describe("order placement", () => {
 
   it("sends the order placed email with the snapshot", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
 
     const order = await placeOrder(userIdA, checkoutInput(), effects)
 
@@ -223,27 +223,27 @@ describe("order placement", () => {
   })
 
   it("charges the city fee below the free-shipping threshold", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.shippingFee).toBe(3500)
   })
 
   it("offers free shipping above the threshold", async () => {
-    await addToCart(userIdA, variantP1, 4)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP1, 4)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.total).toBe(400000)
     expect(order.shippingFee).toBe(0)
   })
 
   it("offers free shipping below the threshold when every item is flagged", async () => {
-    await addToCart(userIdA, variantP3, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP3, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.shippingFee).toBe(0)
   })
 
   it("offers free shipping below the threshold when at least one item is flagged", async () => {
-    await addToCart(userIdA, variantP3, 1)
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP3, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.total).toBe(80000)
     expect(order.shippingFee).toBe(0)
@@ -251,7 +251,7 @@ describe("order placement", () => {
 
   it("blocks out-of-stock variants at checkout without creating anything", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP2, 2)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP2, 2)
 
     try {
       await placeOrder(userIdA, checkoutInput(), effects)
@@ -277,8 +277,8 @@ describe("order placement", () => {
 
   it("rolls back the whole order when one line goes out of stock mid-placement", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP1, 1)
-    await addToCart(userIdA, variantP2, 2)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP1, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP2, 2)
     await prisma.productVariant.update({
       where: { id: variantP2 },
       data: { stock: { set: 1 } },
@@ -294,8 +294,8 @@ describe("order placement", () => {
   })
 
   it("allows only one order to take the last unit under concurrency", async () => {
-    await addToCart(userIdB, variantP2, 1)
-    await addToCart(userIdC, variantP2, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdB }, variantP2, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdC }, variantP2, 1)
 
     const [first, second] = await Promise.allSettled([
       placeOrder(userIdB, checkoutInput(), makeEffects()),
@@ -322,14 +322,14 @@ describe("order placement", () => {
   })
 
   it("rejects an unknown delivery city", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     await expect(
       placeOrder(userIdA, checkoutInput({ cityId: "ville-inconnue" }), makeEffects())
     ).rejects.toThrow(DeliveryCityNotFoundError)
   })
 
   it("rejects invalid address, phone and missing city", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     await expect(
       placeOrder(userIdA, checkoutInput({ address: "X" }), makeEffects())
     ).rejects.toThrow(/invalides/)
@@ -344,7 +344,7 @@ describe("order placement", () => {
 
 describe("order reads", () => {
   it("returns an order with its items to its owner", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
 
     const fetched = await getOrder(userIdA, order.id)
@@ -354,18 +354,18 @@ describe("order reads", () => {
   })
 
   it("hides an order from another user", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
 
     await expect(getOrder(userIdB, order.id)).resolves.toBeNull()
   })
 
   it("lists only the user's orders, newest first", async () => {
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     const first = await placeOrder(userIdA, checkoutInput(), makeEffects())
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     const second = await placeOrder(userIdA, checkoutInput(), makeEffects())
-    await addToCart(userIdB, variantP3, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdB }, variantP3, 1)
     await placeOrder(userIdB, checkoutInput(), makeEffects())
 
     const orders = await listUserOrders(userIdA)
@@ -378,14 +378,14 @@ describe("order reads", () => {
 
 describe("order status transitions", () => {
   async function placeSmallOrder(userId: string): Promise<string> {
-    await addToCart(userId, variantP4, 2)
+    await ajouterArticleAuPanier({ role: "client", compteId: userId }, variantP4, 2)
     const order = await placeOrder(userId, checkoutInput(), makeEffects())
     return order.id
   }
 
   it("walks pending → confirmed → shipped → delivered, emailing each change", async () => {
     const effects = makeEffects()
-    await addToCart(userIdA, variantP4, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), effects)
     effects.sendOrderStatusEmail.mockClear()
 

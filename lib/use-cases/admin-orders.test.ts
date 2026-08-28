@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { addToCart } from "@/lib/panier"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import { getAdminOrder, listAdminOrders } from "@/lib/use-cases/admin-orders"
 import { OrderNotFoundError, placeOrder, updateOrderStatus } from "@/lib/use-cases/orders"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
@@ -193,7 +193,7 @@ describe("admin order reads", () => {
 
 describe("admin lifecycle", () => {
   it("walks an order to delivered and reflects it in the admin reads", async () => {
-    await addToCart(userIdA, variantP1, 2)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP1, 2)
     const order = await placeOrder(userIdA, { cityId, address: ADDRESS, phone: PHONE }, makeEffects())
 
     await updateOrderStatus(order.id, "confirmed", makeEffects())
@@ -207,7 +207,7 @@ describe("admin lifecycle", () => {
   })
 
   it("cancels a pending order, restocks the variants and reflects it in admin reads", async () => {
-    await addToCart(userIdA, variantP1, 2)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantP1, 2)
     const order = await placeOrder(userIdA, { cityId, address: ADDRESS, phone: PHONE }, makeEffects())
     expect(
       (await prisma.productVariant.findUniqueOrThrow({ where: { id: variantP1 } })).stock

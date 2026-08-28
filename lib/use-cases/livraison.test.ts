@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { prisma } from "@/lib/db"
 import { lirePanier } from "@/lib/panier"
-import { addToCart } from "@/lib/panier"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import {
   CityNameConflictError,
   CityNotFoundError,
@@ -481,7 +481,7 @@ describe("storefront quote reads", () => {
   })
 
   it("quotes the shipping fee for a chosen city below the threshold", async () => {
-    await addToCart(userIdA, variantD, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantD, 1)
 
     const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
@@ -490,7 +490,7 @@ describe("storefront quote reads", () => {
   })
 
   it("quotes free shipping for an all-free-shipping cart below the threshold", async () => {
-    await addToCart(userIdA, variantC, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantC, 1)
 
     const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
@@ -499,8 +499,8 @@ describe("storefront quote reads", () => {
   })
 
   it("quotes free shipping for a mixed cart with one free-shipping item below the threshold", async () => {
-    await addToCart(userIdA, variantC, 1)
-    await addToCart(userIdA, variantD, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantC, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantD, 1)
 
     const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
@@ -509,7 +509,7 @@ describe("storefront quote reads", () => {
   })
 
   it("quotes free shipping for a cart above the threshold", async () => {
-    await addToCart(userIdA, variantA, 20)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantA, 20)
 
     const cart = await lirePanier({ role: "client", compteId: userIdA })
     await expect(quotePanier(cart, cityId)).resolves.toMatchObject({
@@ -518,7 +518,7 @@ describe("storefront quote reads", () => {
   })
 
   it("returns no quote for a ville not in the delivery city list", async () => {
-    await addToCart(userIdA, variantA, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantA, 1)
 
     const cart = await lirePanier({ role: "client", compteId: userIdA })
     const quote = await quotePanier(cart, "ville-inconnue")
@@ -526,7 +526,7 @@ describe("storefront quote reads", () => {
   })
 
   it("returns the full panier quote shape for a chosen city", async () => {
-    await addToCart(userIdA, variantD, 1)
+    await ajouterArticleAuPanier({ role: "client", compteId: userIdA }, variantD, 1)
 
     const cart = await lirePanier({ role: "client", compteId: userIdA })
     const quote = await quotePanier(cart, cityId)

@@ -276,6 +276,15 @@ describe("modifierQuantiteArticlePanierAction", () => {
       })
     })
 
+    it("answers the quantite-invalide motif before article-inconnu when both apply (quantite checked first)", async () => {
+      commeClient(userIdA)
+
+      expect(await modifierQuantiteArticlePanierAction("article-inconnu", 0)).toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+      })
+    })
+
     it("refuses another account's article with the article-inconnu motif", async () => {
       commeClient(userIdA)
       await ajouterArticleAuPanierAction(variantA, 2)

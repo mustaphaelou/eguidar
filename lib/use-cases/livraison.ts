@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import type { CartData } from "@/lib/panier"
+import type { DonneesPanier } from "@/lib/panier"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -115,7 +115,7 @@ export function computeCityQuotes(
 }
 
 export async function quotePanier(
-  cart: CartData,
+  cart: DonneesPanier,
   cityId?: string | null
 ): Promise<PanierQuote> {
   const [cities, threshold] = await Promise.all([
