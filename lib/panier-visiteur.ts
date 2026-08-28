@@ -4,6 +4,8 @@ export const MAX_ARTICLES_PANIER_VISITEUR = 20
 
 export const MESSAGE_CAP_ATTEINTE = `Votre panier est plein : ${MAX_ARTICLES_PANIER_VISITEUR} articles maximum.`
 
+export const MOTIF_CAP_ATTEINTE = "cap-atteinte" as const
+
 export interface ArticlePanierVisiteur {
   variantId: string
   quantity: number
@@ -23,9 +25,7 @@ export function quantiteValide(quantity: number): boolean {
   return Number.isInteger(quantity) && quantity >= 1
 }
 
-function estArticleValide(
-  article: unknown
-): article is ArticlePanierVisiteur {
+function estArticleValide(article: unknown): article is ArticlePanierVisiteur {
   if (typeof article !== "object" || article === null) return false
   const { variantId, quantity } = article as Record<string, unknown>
   return (

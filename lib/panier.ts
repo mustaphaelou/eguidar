@@ -13,7 +13,6 @@ import {
 
 const PANIER_VISITEUR_MAX_AGE = 60 * 60 * 24 * 30
 
-export const MOTIF_CAP_ATTEINTE = "cap-atteinte" as const
 export const MOTIF_QUANTITE_INVALIDE = "quantite-invalide" as const
 export const MOTIF_VARIANTE_INCONNUE = "variante-inconnue" as const
 export const MOTIF_ARTICLE_INCONNU = "article-inconnu" as const

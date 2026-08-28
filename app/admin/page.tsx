@@ -1,5 +1,6 @@
 import Link from "next/link"
 import type { Metadata } from "next"
+import { connection } from "next/server"
 
 import {
   ClockIcon,
@@ -44,6 +45,7 @@ function frenchMonthLabel(key: string): string {
 }
 
 export default async function AdminDashboardPage() {
+  await connection()
   const stats = await getDashboardStats()
   const revenueByMonth = stats.revenueByMonth.map((bucket) => ({
     month: frenchMonthLabel(bucket.month),
@@ -54,7 +56,9 @@ export default async function AdminDashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Tableau de bord</h1>
-        <Button render={<Link href="/admin/produits/nouveau" />}>Nouveau produit</Button>
+        <Button render={<Link href="/admin/produits/nouveau" />}>
+          Nouveau produit
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -62,11 +66,17 @@ export default async function AdminDashboardPage() {
           <CardHeader>
             <CardTitle className="text-sm font-medium">CA encaissé</CardTitle>
             <CardAction>
-              <HugeiconsIcon icon={Wallet01Icon} strokeWidth={2} className="size-5 text-muted-foreground" />
+              <HugeiconsIcon
+                icon={Wallet01Icon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
             </CardAction>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(stats.caEncaisse30j)}</p>
+            <p className="text-2xl font-bold">
+              {formatPrice(stats.caEncaisse30j)}
+            </p>
             <p className="text-xs text-muted-foreground">
               {stats.caDelta === undefined
                 ? "—"
@@ -79,7 +89,11 @@ export default async function AdminDashboardPage() {
           <CardHeader>
             <CardTitle className="text-sm font-medium">Commandes</CardTitle>
             <CardAction>
-              <HugeiconsIcon icon={ShoppingBasket02Icon} strokeWidth={2} className="size-5 text-muted-foreground" />
+              <HugeiconsIcon
+                icon={ShoppingBasket02Icon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
             </CardAction>
           </CardHeader>
           <CardContent>
@@ -92,12 +106,19 @@ export default async function AdminDashboardPage() {
           <CardHeader>
             <CardTitle className="text-sm font-medium">En attente</CardTitle>
             <CardAction>
-              <HugeiconsIcon icon={ClockIcon} strokeWidth={2} className="size-5 text-muted-foreground" />
+              <HugeiconsIcon
+                icon={ClockIcon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
             </CardAction>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">
-              <Link href="/admin/commandes?statut=pending" className="hover:underline">
+              <Link
+                href="/admin/commandes?statut=pending"
+                className="hover:underline"
+              >
                 {stats.pendingOrderCount}
               </Link>
             </p>
@@ -109,7 +130,11 @@ export default async function AdminDashboardPage() {
           <CardHeader>
             <CardTitle className="text-sm font-medium">Stock faible</CardTitle>
             <CardAction>
-              <HugeiconsIcon icon={PackageIcon} strokeWidth={2} className="size-5 text-muted-foreground" />
+              <HugeiconsIcon
+                icon={PackageIcon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
             </CardAction>
           </CardHeader>
           <CardContent>
@@ -118,7 +143,9 @@ export default async function AdminDashboardPage() {
                 {stats.lowStockVariants.length}
               </Link>
             </p>
-            <p className="text-xs text-muted-foreground">≤ {LOW_STOCK_THRESHOLD} unités</p>
+            <p className="text-xs text-muted-foreground">
+              ≤ {LOW_STOCK_THRESHOLD} unités
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -127,7 +154,9 @@ export default async function AdminDashboardPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>CA encaissé — 12 derniers mois</CardTitle>
-            <CardDescription>Commandes livrées, frais de livraison inclus.</CardDescription>
+            <CardDescription>
+              Commandes livrées, frais de livraison inclus.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <RevenueChart data={revenueByMonth} />
@@ -140,7 +169,9 @@ export default async function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             {stats.recentOrders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucune commande récente.</p>
+              <p className="text-sm text-muted-foreground">
+                Aucune commande récente.
+              </p>
             ) : (
               <ul className="flex flex-col divide-y">
                 {stats.recentOrders.map((order) => (
@@ -159,7 +190,7 @@ export default async function AdminDashboardPage() {
                           {ORDER_STATUS_LABELS[order.status as OrderStatus]}
                         </span>
                       </span>
-                      <span className="whitespace-nowrap text-sm font-medium">
+                      <span className="text-sm font-medium whitespace-nowrap">
                         {formatPrice(order.totalPayable)}
                       </span>
                     </Link>
@@ -180,11 +211,16 @@ export default async function AdminDashboardPage() {
         </CardHeader>
         <CardContent>
           {stats.lowStockVariants.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune variante en stock faible.</p>
+            <p className="text-sm text-muted-foreground">
+              Aucune variante en stock faible.
+            </p>
           ) : (
             <ul className="flex flex-col divide-y">
               {stats.lowStockVariants.map((variant) => (
-                <li key={variant.id} className="flex items-center justify-between gap-4 py-2">
+                <li
+                  key={variant.id}
+                  className="flex items-center justify-between gap-4 py-2"
+                >
                   <div className="flex min-w-0 flex-col">
                     <Link
                       href={`/admin/produits/${variant.productId}`}
@@ -196,8 +232,12 @@ export default async function AdminDashboardPage() {
                       {variant.name} — {variant.sku}
                     </span>
                   </div>
-                  <Badge variant={variant.stock === 0 ? "destructive" : "outline"}>
-                    {variant.stock === 0 ? "Rupture" : `${variant.stock} restants`}
+                  <Badge
+                    variant={variant.stock === 0 ? "destructive" : "outline"}
+                  >
+                    {variant.stock === 0
+                      ? "Rupture"
+                      : `${variant.stock} restants`}
                   </Badge>
                 </li>
               ))}

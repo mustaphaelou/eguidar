@@ -13,8 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
-import { MOTIF_CAP_ATTEINTE } from "@/lib/panier"
-import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
+import { MESSAGE_CAP_ATTEINTE, MOTIF_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
