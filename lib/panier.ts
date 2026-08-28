@@ -1,5 +1,4 @@
 import { cookies } from "next/headers"
-import { z } from "zod"
 
 import { prisma } from "@/lib/db"
 import {
@@ -9,28 +8,30 @@ import {
   quantiteValide,
   serializePanierVisiteur,
   type ArticlePanierVisiteur,
+  type MotifRefusPanierVisiteur,
 } from "@/lib/panier-visiteur"
-import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const PANIER_VISITEUR_MAX_AGE = 60 * 60 * 24 * 30
+
+export const MOTIF_CAP_ATTEINTE = "cap-atteinte" as const
+export const MOTIF_QUANTITE_INVALIDE = "quantite-invalide" as const
+export const MOTIF_VARIANTE_INCONNUE = "variante-inconnue" as const
+export const MOTIF_ARTICLE_INCONNU = "article-inconnu" as const
 
 export type ProprietairePanier =
   | { role: "visiteur" }
   | { role: "client"; compteId: string }
 
-export type Panier = CartData & { proprietaire: ProprietairePanier }
-
 export type MotifRefusPanier =
-  | "cap-atteinte"
-  | "quantite-invalide"
-  | "variante-inconnue"
-  | "article-inconnu"
+  | MotifRefusPanierVisiteur
+  | typeof MOTIF_VARIANTE_INCONNUE
+  | typeof MOTIF_ARTICLE_INCONNU
 
 export type ResultatPanier =
   | { ok: true }
   | { ok: false; motif: MotifRefusPanier }
 
-export interface CartLine {
+export interface ArticleDuPanier {
   articlePanierId: string
   variantId: string
   variantName: string
@@ -45,41 +46,19 @@ export interface CartLine {
   freeShipping: boolean
 }
 
-export interface CartData {
-  lines: CartLine[]
+export interface DonneesPanier {
+  lines: ArticleDuPanier[]
   subtotal: number
   itemCount: number
 }
 
-export class CartValidationError extends UserFacingError {
-  constructor(issues: string[]) {
-    super(`Données invalides : ${issues.join(" ; ")}`)
-    this.name = "CartValidationError"
-  }
-}
+export type Panier = DonneesPanier & { proprietaire: ProprietairePanier }
 
-export class CartVariantNotFoundError extends UserFacingError {
-  constructor() {
-    super("Variante introuvable")
-    this.name = "CartVariantNotFoundError"
-  }
-}
-
-export class CartItemNotFoundError extends UserFacingError {
-  constructor() {
-    super("Article du panier introuvable")
-    this.name = "CartItemNotFoundError"
-  }
-}
-
-const quantitySchema = z.number().int().min(1, "la quantité doit être au moins 1")
-
-function parseQuantity(quantity: number): number {
-  const result = quantitySchema.safeParse(quantity)
-  if (!result.success) {
-    throw new CartValidationError(result.error.issues.map((issue) => issue.message))
-  }
-  return result.data
+/** Résout le Propriétaire du panier à partir de la session courante (ou null). */
+export function resoudreProprietairePanier(
+  user: { id: string } | null
+): ProprietairePanier {
+  return user ? { role: "client", compteId: user.id } : { role: "visiteur" }
 }
 
 async function lireArticlesPanierVisiteur(): Promise<ArticlePanierVisiteur[]> {
@@ -109,70 +88,59 @@ async function supprimerCookiePanierVisiteur(): Promise<void> {
   jar.delete(NOM_COOKIE_PANIER_VISITEUR)
 }
 
-export async function ajouterArticleAuPanier(
-  proprietaire: ProprietairePanier,
+async function ajouterArticleAuPanierClient(
+  compteId: string,
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  if (proprietaire.role === "client") {
-    try {
-      await addToCart(proprietaire.compteId, variantId, quantity)
-      return { ok: true }
-    } catch (error) {
-      if (error instanceof CartValidationError) {
-        return { ok: false, motif: "quantite-invalide" }
-      }
-      if (error instanceof CartVariantNotFoundError) {
-        return { ok: false, motif: "variante-inconnue" }
-      }
-      throw error
-    }
+  if (!quantiteValide(quantity)) {
+    return { ok: false, motif: MOTIF_QUANTITE_INVALIDE }
   }
+  const variant = await prisma.productVariant.findUnique({ where: { id: variantId } })
+  if (!variant) return { ok: false, motif: MOTIF_VARIANTE_INCONNUE }
 
-  const articles = await lireArticlesPanierVisiteur()
-  const resultat = addToPanierVisiteur(articles, variantId, quantity)
-  if (!resultat.ok) return { ok: false, motif: resultat.motif }
-
-  const variant = await prisma.productVariant.findUnique({
-    where: { id: variantId },
+  await prisma.cartItem.upsert({
+    where: { userId_variantId: { userId: compteId, variantId } },
+    update: { quantity: { increment: quantity } },
+    create: { userId: compteId, variantId, quantity },
   })
-  if (!variant) return { ok: false, motif: "variante-inconnue" }
-
-  await ecrirePanierVisiteur(resultat.articles)
   return { ok: true }
 }
 
+/**
+ * Modifie la quantité d'un article du panier.
+ *
+ * `articlePanierId` identifie l'article visé, selon le Propriétaire : pour un
+ * Client, l'identifiant persisté de l'article du panier dans sa base ; pour un
+ * Visiteur, le `variantId` porté par l'article de son cookie. Le module
+ * interprète ce paramètre selon le Propriétaire courant.
+ */
 export async function modifierQuantiteArticlePanier(
   proprietaire: ProprietairePanier,
   articlePanierId: string,
   quantity: number
 ): Promise<ResultatPanier> {
   if (proprietaire.role === "client") {
-    try {
-      await updateCartItemQuantity(proprietaire.compteId, articlePanierId, quantity)
-      return { ok: true }
-    } catch (error) {
-      if (error instanceof CartValidationError) {
-        return { ok: false, motif: "quantite-invalide" }
-      }
-      if (error instanceof CartItemNotFoundError) {
-        return { ok: false, motif: "article-inconnu" }
-      }
-      throw error
-    }
+    return modifierQuantiteArticlePanierClient(
+      proprietaire.compteId,
+      articlePanierId,
+      quantity
+    )
   }
 
-  if (!quantiteValide(quantity)) return { ok: false, motif: "quantite-invalide" }
+  if (!quantiteValide(quantity)) {
+    return { ok: false, motif: MOTIF_QUANTITE_INVALIDE }
+  }
 
   const articles = await lireArticlesPanierVisiteur()
   if (!articles.some((article) => article.variantId === articlePanierId)) {
-    return { ok: false, motif: "article-inconnu" }
+    return { ok: false, motif: MOTIF_ARTICLE_INCONNU }
   }
 
   const variant = await prisma.productVariant.findUnique({
     where: { id: articlePanierId },
   })
-  if (!variant) return { ok: false, motif: "variante-inconnue" }
+  if (!variant) return { ok: false, motif: MOTIF_VARIANTE_INCONNUE }
 
   await ecrirePanierVisiteur(
     articles.map((article) =>
@@ -182,29 +150,84 @@ export async function modifierQuantiteArticlePanier(
   return { ok: true }
 }
 
+async function modifierQuantiteArticlePanierClient(
+  compteId: string,
+  articlePanierId: string,
+  quantity: number
+): Promise<ResultatPanier> {
+  if (!quantiteValide(quantity)) {
+    return { ok: false, motif: MOTIF_QUANTITE_INVALIDE }
+  }
+  const existing = await prisma.cartItem.findFirst({
+    where: { id: articlePanierId, userId: compteId },
+  })
+  if (!existing) return { ok: false, motif: MOTIF_ARTICLE_INCONNU }
+
+  await prisma.cartItem.update({
+    where: { id: articlePanierId },
+    data: { quantity },
+  })
+  return { ok: true }
+}
+
+/**
+ * Retire un article du panier.
+ *
+ * `articlePanierId` identifie l'article visé, selon le Propriétaire : pour un
+ * Client, l'identifiant persisté de l'article du panier dans sa base ; pour un
+ * Visiteur, le `variantId` porté par l'article de son cookie. Le module
+ * interprète ce paramètre selon le Propriétaire courant.
+ */
 export async function retirerArticleDuPanier(
   proprietaire: ProprietairePanier,
   articlePanierId: string
 ): Promise<ResultatPanier> {
   if (proprietaire.role === "client") {
-    try {
-      await removeCartItem(proprietaire.compteId, articlePanierId)
-      return { ok: true }
-    } catch (error) {
-      if (error instanceof CartItemNotFoundError) {
-        return { ok: false, motif: "article-inconnu" }
-      }
-      throw error
-    }
+    return retirerArticleDuPanierClient(proprietaire.compteId, articlePanierId)
   }
 
   const articles = await lireArticlesPanierVisiteur()
   const restants = articles.filter((article) => article.variantId !== articlePanierId)
   if (restants.length === articles.length) {
-    return { ok: false, motif: "article-inconnu" }
+    return { ok: false, motif: MOTIF_ARTICLE_INCONNU }
   }
 
   await ecrirePanierVisiteur(restants)
+  return { ok: true }
+}
+
+async function retirerArticleDuPanierClient(
+  compteId: string,
+  articlePanierId: string
+): Promise<ResultatPanier> {
+  const existing = await prisma.cartItem.findFirst({
+    where: { id: articlePanierId, userId: compteId },
+  })
+  if (!existing) return { ok: false, motif: MOTIF_ARTICLE_INCONNU }
+
+  await prisma.cartItem.delete({ where: { id: articlePanierId } })
+  return { ok: true }
+}
+
+export async function ajouterArticleAuPanier(
+  proprietaire: ProprietairePanier,
+  variantId: string,
+  quantity: number
+): Promise<ResultatPanier> {
+  if (proprietaire.role === "client") {
+    return ajouterArticleAuPanierClient(proprietaire.compteId, variantId, quantity)
+  }
+
+  const articles = await lireArticlesPanierVisiteur()
+  const resultat = addToPanierVisiteur(articles, variantId, quantity)
+  if (!resultat.ok) return { ok: false, motif: resultat.motif }
+
+  const variant = await prisma.productVariant.findUnique({
+    where: { id: variantId },
+  })
+  if (!variant) return { ok: false, motif: MOTIF_VARIANTE_INCONNUE }
+
+  await ecrirePanierVisiteur(resultat.articles)
   return { ok: true }
 }
 
@@ -216,7 +239,11 @@ export async function rejouerPanierVisiteur(
 
   for (const article of await lireArticlesPanierVisiteur()) {
     try {
-      await ajouterArticleAuPanier(proprietaire, article.variantId, article.quantity)
+      await ajouterArticleAuPanierClient(
+        proprietaire.compteId,
+        article.variantId,
+        article.quantity
+      )
     } catch {
       // Article mort : le rejou est best-effort, il ne doit jamais bloquer.
     }
@@ -227,7 +254,17 @@ export async function rejouerPanierVisiteur(
 
 export async function lirePanier(proprietaire: ProprietairePanier): Promise<Panier> {
   if (proprietaire.role === "client") {
-    return { proprietaire, ...(await getCart(proprietaire.compteId)) }
+    const items = await prisma.cartItem.findMany({
+      where: { userId: proprietaire.compteId },
+      orderBy: { createdAt: "asc" },
+      include: { variant: { include: { product: true } } },
+    })
+
+    const lignes = items.map((item) =>
+      construireArticleDuPanier(item.variant, item.quantity, item.id)
+    )
+
+    return { proprietaire, lines: lignes, ...calculerTotauxPanier(lignes) }
   }
 
   const articles = await lireArticlesPanierVisiteur()
@@ -241,61 +278,14 @@ export async function lirePanier(proprietaire: ProprietairePanier): Promise<Pani
   })
   const parId = new Map(variants.map((variant) => [variant.id, variant]))
 
-  const lines: CartLine[] = []
+  const lignes: ArticleDuPanier[] = []
   for (const article of articles) {
     const variant = parId.get(article.variantId)
     if (!variant) continue
-    lines.push(buildCartLine(variant, article.quantity))
+    lignes.push(construireArticleDuPanier(variant, article.quantity))
   }
 
-  return { proprietaire, lines, ...buildCartTotals(lines) }
-}
-
-export async function addToCart(
-  userId: string,
-  variantId: string,
-  quantity: number
-): Promise<void> {
-  const qty = parseQuantity(quantity)
-  const variant = await prisma.productVariant.findUnique({ where: { id: variantId } })
-  if (!variant) throw new CartVariantNotFoundError()
-
-  await prisma.cartItem.upsert({
-    where: { userId_variantId: { userId, variantId } },
-    update: { quantity: { increment: qty } },
-    create: { userId, variantId, quantity: qty },
-  })
-}
-
-export async function updateCartItemQuantity(
-  userId: string,
-  articlePanierId: string,
-  quantity: number
-): Promise<void> {
-  const qty = parseQuantity(quantity)
-  const existing = await prisma.cartItem.findFirst({ where: { id: articlePanierId, userId } })
-  if (!existing) throw new CartItemNotFoundError()
-
-  await prisma.cartItem.update({ where: { id: articlePanierId }, data: { quantity: qty } })
-}
-
-export async function removeCartItem(userId: string, articlePanierId: string): Promise<void> {
-  const existing = await prisma.cartItem.findFirst({ where: { id: articlePanierId, userId } })
-  if (!existing) throw new CartItemNotFoundError()
-
-  await prisma.cartItem.delete({ where: { id: articlePanierId } })
-}
-
-export async function getCart(userId: string): Promise<CartData> {
-  const items = await prisma.cartItem.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-    include: { variant: { include: { product: true } } },
-  })
-
-  const lines = items.map((item) => buildCartLine(item.variant, item.quantity, item.id))
-
-  return { lines, ...buildCartTotals(lines) }
+  return { proprietaire, lines: lignes, ...calculerTotauxPanier(lignes) }
 }
 
 interface VarianteAvecProduit {
@@ -313,11 +303,11 @@ interface VarianteAvecProduit {
   }
 }
 
-export function buildCartLine(
+function construireArticleDuPanier(
   variant: VarianteAvecProduit,
   quantity: number,
   articlePanierId: string = variant.id
-): CartLine {
+): ArticleDuPanier {
   const unitPrice = variant.product.price + variant.priceDelta
   return {
     articlePanierId,
@@ -337,11 +327,11 @@ export function buildCartLine(
   }
 }
 
-export function buildCartTotals(
-  lines: readonly CartLine[]
-): Pick<CartData, "subtotal" | "itemCount"> {
+function calculerTotauxPanier(
+  lignes: readonly ArticleDuPanier[]
+): Pick<DonneesPanier, "subtotal" | "itemCount"> {
   return {
-    subtotal: lines.reduce((sum, line) => sum + line.lineTotal, 0),
-    itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
+    subtotal: lignes.reduce((somme, ligne) => somme + ligne.lineTotal, 0),
+    itemCount: lignes.reduce((somme, ligne) => somme + ligne.quantity, 0),
   }
 }

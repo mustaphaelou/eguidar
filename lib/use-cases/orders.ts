@@ -3,7 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
-import { lirePanier } from "@/lib/panier"
+import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
 import {
   DeliveryCityNotFoundError,
@@ -166,7 +166,7 @@ export async function placeOrder(userId: string, input: CheckoutInput, effects: 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
   if (!user) throw new UserNotFoundError()
 
-  const cart = await lirePanier({ role: "client", compteId: userId })
+  const cart = await lirePanier(resoudreProprietairePanier({ id: userId }))
   if (cart.lines.length === 0) throw new EmptyCartError()
 
   const quote = await quotePanier(cart, data.cityId)

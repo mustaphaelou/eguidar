@@ -4,11 +4,11 @@ import { Suspense } from "react"
 import { DeliveryTruck02Icon, ShoppingBag01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { CartLineRow } from "@/components/storefront/cart-line"
+import { LigneArticlePanier } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { lirePanier } from "@/lib/panier"
+import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { getSessionUser } from "@/lib/use-cases/get-session"
@@ -40,9 +40,7 @@ async function CartContent({
 }) {
   const user = await getSessionUser()
   const { ville } = await searchParams
-  const cart = await lirePanier(
-    user ? { role: "client", compteId: user.id } : { role: "visiteur" }
-  )
+  const cart = await lirePanier(resoudreProprietairePanier(user))
   const { cities, threshold, selected } = await quotePanier(cart, ville)
   const quote = selected
 
@@ -68,7 +66,7 @@ async function CartContent({
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <ul>
           {cart.lines.map((line) => (
-            <CartLineRow key={line.articlePanierId} line={line} />
+            <LigneArticlePanier key={line.articlePanierId} line={line} />
           ))}
         </ul>
 

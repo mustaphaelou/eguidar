@@ -13,9 +13,9 @@ import {
 } from "@/app/(boutique)/actions"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
-import type { CartLine } from "@/lib/panier"
+import type { ArticleDuPanier } from "@/lib/panier"
 
-export function CartLineRow({ line }: { line: CartLine }) {
+export function LigneArticlePanier({ line }: { line: ArticleDuPanier }) {
   const [isPending, startTransition] = useTransition()
 
   function setQuantity(quantity: number) {

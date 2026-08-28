@@ -16,7 +16,7 @@ import {
   serializePanierVisiteur,
   type ArticlePanierVisiteur,
 } from "@/lib/panier-visiteur"
-import { addToCart } from "@/lib/panier"
+import { ajouterArticleAuPanier } from "@/lib/panier"
 import {
   deletedCookieNames,
   hasCookie,
@@ -162,7 +162,7 @@ afterAll(async () => {
 
 describe("auth route replaying the Visiteur's cookie Panier", () => {
   it("sums the cookie articles into the persisted Panier after a password sign-in and deletes the cookie", async () => {
-    await addToCart(userId, variantA, 3)
+    await ajouterArticleAuPanier({ role: "client", compteId: userId }, variantA, 3)
     const requeteConnexion = connexionMotDePasse([
       { variantId: variantA, quantity: 2 },
       { variantId: variantB, quantity: 1 },
@@ -189,7 +189,7 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
   it.each(["google", "apple"])(
     "lands the same merged Panier through the same helper after a %s social callback",
     async (fournisseur) => {
-      await addToCart(userId, variantA, 3)
+      await ajouterArticleAuPanier({ role: "client", compteId: userId }, variantA, 3)
       const reponseCallback = reponseAuth(302)
       handlerMock.mockResolvedValue(reponseCallback)
 
