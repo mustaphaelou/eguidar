@@ -15,7 +15,6 @@ import {
 } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Search01Icon } from "@hugeicons/core-free-icons"
-import type { VariantProps } from "class-variance-authority"
 
 import {
   DataTablePagination,
@@ -23,7 +22,7 @@ import {
   type DataTableFacetedFilterOption,
 } from "@/components/data-table"
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
-import { Badge, badgeVariants } from "@/components/ui/badge"
+import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -34,8 +33,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
+import { ORDER_STATUS_LABELS } from "@/lib/order-status"
 import { PAGE_SIZES } from "@/lib/table-config"
-import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { shortOrderId } from "@/lib/utils"
 import type {
   AdminOrdersPage,
@@ -53,25 +52,9 @@ const ACTIONS_COLUMN_ID = "actions"
 const SEARCH_DEBOUNCE_MS = 300
 const DEFAULT_PAGE_SIZE = PAGE_SIZES[0]
 
-type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>
-
-const STATUS_BADGE_VARIANTS: Record<OrderStatus, BadgeVariant> = {
-  pending: "outline",
-  confirmed: "secondary",
-  shipped: "default",
-  delivered: "default",
-  cancelled: "destructive",
-  returned: "destructive",
-}
-
-const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] = [
-  { value: "pending", label: "En attente" },
-  { value: "confirmed", label: "Confirmée" },
-  { value: "shipped", label: "Expédiée" },
-  { value: "delivered", label: "Livrée" },
-  { value: "cancelled", label: "Annulée" },
-  { value: "returned", label: "Retournée" },
-]
+const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] = Object.entries(
+  ORDER_STATUS_LABELS
+).map(([value, label]) => ({ value, label }))
 
 const STATUS_FILTER_VALUES = STATUS_FILTER_OPTIONS.map((option) => option.value)
 
@@ -117,13 +100,7 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
     accessorFn: (row) => row.status,
     enableSorting: false,
     header: STATUT_COLUMN_ID,
-    cell: ({ row }) => (
-      <Badge variant={STATUS_BADGE_VARIANTS[row.original.status]}>
-        {STATUS_FILTER_OPTIONS.find(
-          (option) => option.value === row.original.status
-        )?.label ?? row.original.status}
-      </Badge>
-    ),
+    cell: ({ row }) => <OrderStatusBadge status={row.original.status} />,
   },
   {
     id: TOTAL_COLUMN_ID,

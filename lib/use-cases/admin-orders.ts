@@ -2,6 +2,7 @@ import { PAGE_SIZES } from "@/lib/table-config"
 import { prisma } from "@/lib/db"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
+import { ORDER_STATUS_LABELS } from "@/lib/order-status"
 import { OrderNotFoundError } from "@/lib/use-cases/orders"
 
 export interface AdminOrderSummary {
@@ -39,14 +40,7 @@ export interface AdminOrderDetail {
   items: AdminOrderItem[]
 }
 
-const ALL_STATUSES = [
-  "pending",
-  "confirmed",
-  "shipped",
-  "delivered",
-  "cancelled",
-  "returned",
-] as const satisfies readonly OrderStatus[]
+const ALL_STATUSES = Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]
 
 export interface AdminOrdersParams {
   statuses?: OrderStatus[]
