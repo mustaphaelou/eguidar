@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { prisma } from "@/lib/db"
 import {
   getDashboardStats,
+  localMonthKey,
   LOW_STOCK_THRESHOLD,
 } from "@/lib/use-cases/admin-dashboard"
 
@@ -66,10 +67,6 @@ async function createSeedOrderAt(
       createdAt,
     },
   })
-}
-
-function localMonthKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
 describe("admin dashboard stats", () => {
