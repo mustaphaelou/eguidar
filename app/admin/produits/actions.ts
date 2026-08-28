@@ -6,8 +6,9 @@ import {
   adminFormAction,
   adminTaskAction,
   INVALID_FORM_MESSAGE,
+  parseMoneyField,
+  parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
-import { parseMadToCents } from "@/lib/money"
 import {
   createProduct,
   deleteProduct,
@@ -16,12 +17,6 @@ import {
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 import { realCatalogEffects } from "@/lib/use-cases/catalog-effects"
-
-function parseMoney(value: FormDataEntryValue | null): number {
-  const cents = parseMadToCents(String(value ?? ""))
-  if (cents === null) throw new Error(INVALID_FORM_MESSAGE)
-  return cents
-}
 
 function parseSpecsText(text: string): Record<string, string> {
   const specs: Record<string, string> = {}
@@ -54,7 +49,7 @@ function parseProductFormData(formData: FormData): ProductInput {
     brand: String(formData.get("brand") ?? ""),
     categoryId: String(formData.get("categoryId") ?? ""),
     description: String(formData.get("description") ?? ""),
-    price: parseMoney(formData.get("price")),
+    price: parseMoneyField(formData, "price"),
     isFeatured: formData.get("isFeatured") === "on",
     featuredOrder: Number(formData.get("featuredOrder") ?? 0) || 0,
     freeShipping: formData.get("freeShipping") === "on",
@@ -80,9 +75,7 @@ export const createProductAction = adminFormAction<ProductInput>({
 export const updateProductAction = adminFormAction<ProductUpdateInput>({
   next: "/admin/produits",
   parse: (formData) => {
-    const productId = String(formData.get("productId") ?? "")
-    if (!productId) throw new Error(INVALID_FORM_MESSAGE)
-    return { ...parseProductFormData(formData), productId }
+    return { ...parseProductFormData(formData), productId: parseRequiredId(formData, "productId") }
   },
   run: async ({ productId, ...input }) => {
     await updateProduct(productId, input, realCatalogEffects)
@@ -92,9 +85,9 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
 
 export const deleteProductAction = adminTaskAction<{ productId: string }>({
   next: "/admin/produits",
-  parse: (formData) => ({ productId: String(formData.get("productId") ?? "") }),
+  parse: (formData) => ({ productId: parseRequiredId(formData, "productId") }),
   run: async ({ productId }) => {
-    if (productId) await deleteProduct(productId, realCatalogEffects)
+    await deleteProduct(productId, realCatalogEffects)
     redirect("/admin/produits")
   },
 })
@@ -104,11 +97,10 @@ export const updateVariantStockAction = adminTaskAction<{
   stock: number
 }>({
   next: "/admin/produits",
-  parse: (formData) => {
-    const variantId = String(formData.get("variantId") ?? "")
-    const stock = Number(formData.get("stock") ?? 0)
-    return variantId ? { variantId, stock } : null
-  },
+  parse: (formData) => ({
+    variantId: parseRequiredId(formData, "variantId"),
+    stock: Number(formData.get("stock") ?? 0),
+  }),
   run: async ({ variantId, stock }) => {
     await updateVariantStock(variantId, stock, realCatalogEffects)
   },

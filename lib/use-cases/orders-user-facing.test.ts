@@ -15,13 +15,6 @@ describe.each([
     "InvalidOrderTransitionError",
     () => new InvalidOrderTransitionError("pending", "shipped"),
   ],
-])("%s", (_name, create) => {
-  it("stays a plain error so the run callback owns the refusal branch", () => {
-    expect(create()).not.toBeInstanceOf(UserFacingError)
-  })
-})
-
-describe.each([
   [
     "CheckoutValidationError",
     () => new CheckoutValidationError(["ville de livraison requise"]),

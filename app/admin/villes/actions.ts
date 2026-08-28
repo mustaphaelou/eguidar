@@ -5,9 +5,9 @@ import { redirect } from "next/navigation"
 import {
   adminFormAction,
   adminTaskAction,
-  INVALID_FORM_MESSAGE,
+  parseMoneyField,
+  parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
-import { parseMadToCents } from "@/lib/money"
 import {
   createCity,
   deleteCity,
@@ -17,11 +17,9 @@ import {
 import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
 
 function parseCityFormData(formData: FormData): CityInput {
-  const cents = parseMadToCents(String(formData.get("fee") ?? ""))
-  if (cents === null) throw new Error(INVALID_FORM_MESSAGE)
   return {
     name: String(formData.get("name") ?? ""),
-    fee: cents,
+    fee: parseMoneyField(formData, "fee"),
   }
 }
 
@@ -40,11 +38,10 @@ export const createCityAction = adminFormAction<CityInput>({
 
 export const updateCityAction = adminFormAction<CityUpdateInput>({
   next: "/admin/villes",
-  parse: (formData) => {
-    const cityId = String(formData.get("cityId") ?? "")
-    if (!cityId) throw new Error(INVALID_FORM_MESSAGE)
-    return { ...parseCityFormData(formData), cityId }
-  },
+  parse: (formData) => ({
+    ...parseCityFormData(formData),
+    cityId: parseRequiredId(formData, "cityId"),
+  }),
   run: async ({ cityId, ...input }) => {
     await updateCity(cityId, input, realLivraisonEffects)
     redirect("/admin/villes")
@@ -53,10 +50,7 @@ export const updateCityAction = adminFormAction<CityUpdateInput>({
 
 export const deleteCityAction = adminTaskAction<{ cityId: string }>({
   next: "/admin/villes",
-  parse: (formData) => {
-    const cityId = String(formData.get("cityId") ?? "")
-    return cityId ? { cityId } : null
-  },
+  parse: (formData) => ({ cityId: parseRequiredId(formData, "cityId") }),
   run: async ({ cityId }) => {
     await deleteCity(cityId, realLivraisonEffects)
   },

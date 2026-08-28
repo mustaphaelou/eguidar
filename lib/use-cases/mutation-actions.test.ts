@@ -24,6 +24,8 @@ import {
   adminTaskAction,
   formAction,
   INVALID_FORM_MESSAGE,
+  parseMoneyField,
+  parseRequiredId,
   taskAction,
 } from "@/lib/use-cases/mutation-actions"
 import { loginUrl } from "@/lib/lien-de-connexion"
@@ -41,6 +43,37 @@ function formData(): FormData {
 describe("INVALID_FORM_MESSAGE", () => {
   it("is the one shared constant", () => {
     expect(INVALID_FORM_MESSAGE).toBe("Formulaire invalide")
+  })
+})
+
+describe("parseMoneyField", () => {
+  it("parses a MAD amount into cents", () => {
+    const fd = formData()
+    fd.append("fee", "12,50")
+    expect(parseMoneyField(fd, "fee")).toBe(1250)
+  })
+
+  it("throws the shared refusal message for a malformed amount", () => {
+    const fd = formData()
+    fd.append("fee", "beaucoup")
+    expect(() => parseMoneyField(fd, "fee")).toThrow(INVALID_FORM_MESSAGE)
+  })
+})
+
+describe("parseRequiredId", () => {
+  it("returns the field value", () => {
+    const fd = formData()
+    fd.append("cityId", "42")
+    expect(parseRequiredId(fd, "cityId")).toBe("42")
+  })
+
+  it("throws the shared refusal message when the field is missing or empty", () => {
+    expect(() => parseRequiredId(formData(), "cityId")).toThrow(
+      INVALID_FORM_MESSAGE
+    )
+    const fd = formData()
+    fd.append("cityId", "")
+    expect(() => parseRequiredId(fd, "cityId")).toThrow(INVALID_FORM_MESSAGE)
   })
 })
 
@@ -132,20 +165,6 @@ describe("formAction", () => {
       name: "NEXT_REDIRECT",
     })
   })
-
-  it("skips run and reports success when the parser returns null", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
-    const run = vi.fn(async () => ({}))
-    const action = formAction<unknown>({
-      parse: () => null,
-      run,
-    })
-
-    await expect(
-      action({ error: "ancienne erreur" }, formData())
-    ).resolves.toEqual({})
-    expect(run).not.toHaveBeenCalled()
-  })
 })
 
 describe("taskAction", () => {
@@ -175,7 +194,7 @@ describe("taskAction", () => {
     const action = taskAction<{ variantId: string }>({
       parse: (fd) => {
         const variantId = String(fd.get("variantId") ?? "")
-        return variantId ? { variantId } : null
+        return { variantId }
       },
       run,
     })
@@ -236,18 +255,6 @@ describe("taskAction", () => {
       url: "/commande/confirmation/1",
       name: "NEXT_REDIRECT",
     })
-  })
-
-  it("skips run and resolves void when the parser returns null", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
-    const run = vi.fn(async () => {})
-    const action = taskAction<unknown>({
-      parse: () => null,
-      run,
-    })
-
-    await expect(action(formData())).resolves.toBeUndefined()
-    expect(run).not.toHaveBeenCalled()
   })
 })
 
@@ -351,21 +358,6 @@ describe("adminFormAction", () => {
       name: "NEXT_REDIRECT",
     })
   })
-
-  it("skips run and reports success when the parser returns null", async () => {
-    adminSessionMock.mockResolvedValue(ADMIN_SESSION)
-    const run = vi.fn(async () => ({}))
-    const action = adminFormAction<unknown>({
-      next: "/admin/villes",
-      parse: () => null,
-      run,
-    })
-
-    await expect(
-      action({ error: "ancienne erreur" }, formData())
-    ).resolves.toEqual({})
-    expect(run).not.toHaveBeenCalled()
-  })
 })
 
 describe("adminTaskAction", () => {
@@ -398,7 +390,7 @@ describe("adminTaskAction", () => {
       next: "/admin/villes",
       parse: (fd) => {
         const cityId = String(fd.get("cityId") ?? "")
-        return cityId ? { cityId } : null
+        return cityId ? { cityId } : { cityId }
       },
       run,
     })
@@ -424,7 +416,7 @@ describe("adminTaskAction", () => {
     expect(run).not.toHaveBeenCalled()
   })
 
-  it("swallows a UserFacingError from run as a silent no-op", async () => {
+  it("swallows a UserFacingError from run as a silent no-op when no refusalUrl is given", async () => {
     adminSessionMock.mockResolvedValue(ADMIN_SESSION)
     const action = adminTaskAction<{ cityId: string }>({
       next: "/admin/villes",
@@ -435,13 +427,55 @@ describe("adminTaskAction", () => {
     })
 
     await expect(action(formData())).resolves.toBeUndefined()
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
-  it("rethrows a plain error verbatim", async () => {
+  it("redirects a UserFacingError from run to the refusalUrl derived from the parsed input", async () => {
+    adminSessionMock.mockResolvedValue(ADMIN_SESSION)
+    const action = adminTaskAction<{ orderId: string }>({
+      next: "/admin/commandes",
+      parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),
+      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
+      run: async () => {
+        throw new StubUserFacingError("Transition invalide : pending → cancelled")
+      },
+    })
+    const fd = formData()
+    fd.append("orderId", "7")
+
+    await expect(action(fd)).rejects.toMatchObject({
+      url: "/admin/commandes/7?transition=refusee",
+      name: "NEXT_REDIRECT",
+    })
+    expect(redirectMock).toHaveBeenCalledWith(
+      "/admin/commandes/7?transition=refusee"
+    )
+  })
+
+  it("keeps parse failures silent even when refusalUrl is set", async () => {
+    adminSessionMock.mockResolvedValue(ADMIN_SESSION)
+    const run = vi.fn(async () => {})
+    const action = adminTaskAction<{ orderId: string }>({
+      next: "/admin/commandes",
+      parse: () => {
+        throw new Error(INVALID_FORM_MESSAGE)
+      },
+      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
+      run,
+    })
+
+    await expect(action(formData())).resolves.toBeUndefined()
+    expect(run).not.toHaveBeenCalled()
+    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it("rethrows a plain error verbatim even when refusalUrl is set", async () => {
     adminSessionMock.mockResolvedValue(ADMIN_SESSION)
     const boom = new Error("boom")
-    const action = adminTaskAction({
-      next: "/admin/villes",
+    const action = adminTaskAction<{ orderId: string }>({
+      next: "/admin/commandes",
+      parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),
+      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
       run: async () => {
         throw boom
       },
@@ -450,31 +484,20 @@ describe("adminTaskAction", () => {
     await expect(action(formData())).rejects.toBe(boom)
   })
 
-  it("rethrows the redirect control flow thrown by run untouched", async () => {
+  it("rethrows the redirect control flow thrown by run untouched even when refusalUrl is set", async () => {
     adminSessionMock.mockResolvedValue(ADMIN_SESSION)
-    const action = adminTaskAction({
-      next: "/admin/produits",
+    const action = adminTaskAction<{ orderId: string }>({
+      next: "/admin/commandes",
+      parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),
+      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
       run: async () => {
-        redirectMock("/admin/produits")
+        redirectMock("/admin/commandes/7")
       },
     })
 
     await expect(action(formData())).rejects.toMatchObject({
-      url: "/admin/produits",
+      url: "/admin/commandes/7",
       name: "NEXT_REDIRECT",
     })
-  })
-
-  it("skips run and resolves void when the parser returns null", async () => {
-    adminSessionMock.mockResolvedValue(ADMIN_SESSION)
-    const run = vi.fn(async () => {})
-    const action = adminTaskAction<unknown>({
-      next: "/admin/villes",
-      parse: () => null,
-      run,
-    })
-
-    await expect(action(formData())).resolves.toBeUndefined()
-    expect(run).not.toHaveBeenCalled()
   })
 })

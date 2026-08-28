@@ -1,11 +1,24 @@
 import { redirect } from "next/navigation"
 
 import { loginUrl } from "@/lib/lien-de-connexion"
+import { parseMadToCents } from "@/lib/money"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export const INVALID_FORM_MESSAGE = "Formulaire invalide"
+
+export function parseMoneyField(formData: FormData, key: string): number {
+  const cents = parseMadToCents(String(formData.get(key) ?? ""))
+  if (cents === null) throw new Error(INVALID_FORM_MESSAGE)
+  return cents
+}
+
+export function parseRequiredId(formData: FormData, key: string): string {
+  const value = String(formData.get(key) ?? "")
+  if (!value) throw new Error(INVALID_FORM_MESSAGE)
+  return value
+}
 
 export interface MutationActionState {
   error?: string
@@ -20,7 +33,7 @@ export type SessionUser = NonNullable<Awaited<ReturnType<typeof getSessionUser>>
 export interface MutationActionOptions<Input, Caller> {
   gate: () => Promise<Caller | null>
   next: string
-  parse?: (formData: FormData) => Input | null
+  parse?: (formData: FormData) => Input
 }
 
 export interface MutationFormActionOptions<
@@ -36,6 +49,11 @@ export interface MutationTaskActionOptions<
   Caller,
 > extends MutationActionOptions<Input, Caller> {
   run: (input: Input, caller: Caller) => void | Promise<void>
+}
+
+export interface AdminTaskActionOptions<Input, Caller>
+  extends MutationTaskActionOptions<Input, Caller> {
+  refusalUrl?: (input: Input) => string
 }
 
 export type MutationFormAction<
@@ -68,28 +86,26 @@ async function executeMutationAction<Input, Caller, Result>(
     refuse: () => Result
   },
   formData: FormData,
-  resolveUserFacingError: (message: string) => Result,
-  successResult: Result
+  resolveRunRefusal: (input: Input, message: string) => Result,
+  resolveParseFailure: (message: string) => Result
 ): Promise<Result> {
   const caller = await options.gate()
   if (!caller) return options.refuse()
 
-  let input: Input | null
+  let input: Input
   try {
     input = options.parse
       ? options.parse(formData)
       : (formData as unknown as Input)
   } catch (error) {
-    return resolveUserFacingError(errorMessage(error))
+    return resolveParseFailure(errorMessage(error))
   }
-
-  if (input === null) return successResult
 
   try {
     return await options.run(input, caller)
   } catch (error) {
     if (error instanceof UserFacingError) {
-      return resolveUserFacingError(error.message)
+      return resolveRunRefusal(input, error.message)
     }
     throw error
   }
@@ -116,8 +132,8 @@ export function formAction<
         refuse: () => ({ unauthenticated: true }),
       },
       formData,
-      (message) => ({ error: message }),
-      {} as State
+      (_input, message) => ({ error: message }),
+      (message) => ({ error: message })
     )
 }
 
@@ -137,7 +153,7 @@ export function taskAction<Input = FormData>(
       },
       formData,
       () => undefined,
-      undefined
+      () => undefined
     )
   }
 }
@@ -161,15 +177,16 @@ export function adminFormAction<
         refuse: () => redirect(loginUrl(options.next)),
       },
       formData,
-      (message) => ({ error: message }),
-      {} as State
+      (_input, message) => ({ error: message }),
+      (message) => ({ error: message })
     )
 }
 
 export function adminTaskAction<Input = FormData>(
-  options: Omit<MutationTaskActionOptions<Input, SessionUser>, "gate">
+  options: Omit<AdminTaskActionOptions<Input, SessionUser>, "gate">
 ): MutationTaskAction {
   return async (formData) => {
+    const { refusalUrl } = options
     await executeMutationAction<Input, SessionUser, void>(
       {
         ...options,
@@ -177,8 +194,10 @@ export function adminTaskAction<Input = FormData>(
         refuse: () => redirect(loginUrl(options.next)),
       },
       formData,
-      () => undefined,
-      undefined
+      refusalUrl
+        ? (input, _message) => redirect(refusalUrl(input))
+        : () => undefined,
+      () => undefined
     )
   }
 }

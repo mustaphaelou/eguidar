@@ -90,7 +90,7 @@ export class OutOfStockError extends UserFacingError {
   }
 }
 
-export class OrderNotFoundError extends Error {
+export class OrderNotFoundError extends UserFacingError {
   constructor() {
     super("Commande introuvable")
     this.name = "OrderNotFoundError"
@@ -104,7 +104,7 @@ export class UserNotFoundError extends Error {
   }
 }
 
-export class InvalidOrderTransitionError extends Error {
+export class InvalidOrderTransitionError extends UserFacingError {
   constructor(fromStatus: string, nextStatus: string) {
     super(`Transition invalide : ${fromStatus} → ${nextStatus}`)
     this.name = "InvalidOrderTransitionError"

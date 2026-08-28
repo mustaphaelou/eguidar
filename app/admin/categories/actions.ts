@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { NO_PARENT_VALUE } from "@/components/admin/category-form"
 import {
   adminFormAction,
-  INVALID_FORM_MESSAGE,
+  parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
 import {
   createCategory,
@@ -49,9 +49,7 @@ export const createCategoryAction = adminFormAction<CategoryInput>({
 export const updateCategoryAction = adminFormAction<CategoryUpdateInput>({
   next: "/admin/categories",
   parse: (formData) => {
-    const categoryId = String(formData.get("categoryId") ?? "")
-    if (!categoryId) throw new Error(INVALID_FORM_MESSAGE)
-    return { ...parseCategoryFormData(formData), categoryId }
+    return { ...parseCategoryFormData(formData), categoryId: parseRequiredId(formData, "categoryId") }
   },
   run: async ({ categoryId, ...input }) => {
     await updateCategory(categoryId, input, realStructureEffects)
@@ -62,8 +60,7 @@ export const updateCategoryAction = adminFormAction<CategoryUpdateInput>({
 export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
   next: "/admin/categories",
   parse: (formData) => {
-    const categoryId = String(formData.get("categoryId") ?? "")
-    if (!categoryId) throw new Error(INVALID_FORM_MESSAGE)
+    const categoryId = parseRequiredId(formData, "categoryId")
     const reassignRaw = formData.get("reassignToCategoryId")
     const reassignToCategoryId =
       reassignRaw && reassignRaw !== NO_PARENT_VALUE ? String(reassignRaw) : undefined
