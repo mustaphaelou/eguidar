@@ -48,6 +48,15 @@ export const REGISTRE_STATUTS = {
   },
 } as const satisfies Record<OrderStatus, SpecStatut>
 
+export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["shipped", "cancelled"],
+  shipped: ["delivered", "returned"],
+  delivered: ["returned"],
+  cancelled: [],
+  returned: [],
+}
+
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: REGISTRE_STATUTS.pending.libellé,
   confirmed: REGISTRE_STATUTS.confirmed.libellé,

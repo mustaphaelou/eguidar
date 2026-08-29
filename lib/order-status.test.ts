@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   estEncaissée,
   FRAGMENT_WHERE_ENCAISSÉS,
+  ORDER_TRANSITIONS,
   REGISTRE_STATUTS,
   STATUTS_ENCAISSÉS,
   STATUTS_VALIDES,
@@ -37,6 +38,30 @@ describe("REGISTRE_STATUTS", () => {
 describe("FRAGMENT_WHERE_ENCAISSÉS", () => {
   it("carries the delivered-only filter", () => {
     expect(FRAGMENT_WHERE_ENCAISSÉS).toEqual({ statut: { in: ["delivered"] } })
+  })
+})
+
+describe("ORDER_TRANSITIONS", () => {
+  it("maps every statut to exactly its allowed next statuts", () => {
+    expect(ORDER_TRANSITIONS).toEqual({
+      pending: ["confirmed", "cancelled"],
+      confirmed: ["shipped", "cancelled"],
+      shipped: ["delivered", "returned"],
+      delivered: ["returned"],
+      cancelled: [],
+      returned: [],
+    })
+  })
+
+  it("gives terminal statuts no possible transition", () => {
+    expect(ORDER_TRANSITIONS.cancelled).toEqual([])
+    expect(ORDER_TRANSITIONS.returned).toEqual([])
+  })
+
+  it("never lets a statut transition to itself", () => {
+    for (const statut of STATUTS) {
+      expect(ORDER_TRANSITIONS[statut]).not.toContain(statut)
+    }
   })
 })
 
