@@ -12,11 +12,7 @@ import {
 
 import { prisma } from "@/lib/db"
 import { ajouterArticleAuPanier } from "@/lib/panier"
-import {
-  getAdminOrder,
-  listAdminOrders,
-  parseAdminOrdersSearchParams,
-} from "@/lib/use-cases/admin-orders"
+import { getAdminOrder, listAdminOrders } from "@/lib/use-cases/admin-orders"
 import {
   OrderNotFoundError,
   placeOrder,
@@ -511,75 +507,5 @@ describe("admin orders listing pagination", () => {
     expect(beyondRange.orders).toEqual([])
     expect(beyondRange.totalCount).toBe(25)
     expect(beyondRange.pageCount).toBe(3)
-  })
-})
-
-describe("parseAdminOrdersSearchParams", () => {
-  it("maps a fully valid query", () => {
-    expect(
-      parseAdminOrdersSearchParams({
-        statut: "pending,confirmed",
-        q: " alix ",
-        page: "3",
-        pageSize: "20",
-        tri: "total",
-        sens: "asc",
-      })
-    ).toEqual({
-      statuses: ["pending", "confirmed"],
-      q: "alix",
-      tri: "total",
-      sens: "asc",
-      page: 3,
-      pageSize: 20,
-    })
-  })
-
-  it("falls back per rule on invalid scalar values", () => {
-    for (const badPage of ["-4", "0", "abc", "2.5", ""]) {
-      expect(parseAdminOrdersSearchParams({ page: badPage }).page).toBe(1)
-    }
-    expect(parseAdminOrdersSearchParams({ pageSize: "35" }).pageSize).toBe(10)
-    expect(parseAdminOrdersSearchParams({ pageSize: "abc" }).pageSize).toBe(10)
-    expect(parseAdminOrdersSearchParams({ pageSize: "20" }).pageSize).toBe(20)
-    expect(parseAdminOrdersSearchParams({ tri: "weight" }).tri).toBe("date")
-    expect(parseAdminOrdersSearchParams({ sens: "upward" }).sens).toBe("desc")
-  })
-
-  it("returns pure defaults on empty input", () => {
-    expect(parseAdminOrdersSearchParams({})).toEqual({
-      tri: "date",
-      sens: "desc",
-      page: 1,
-      pageSize: 10,
-    })
-  })
-
-  it("keeps valid statut entries, drops unknown ones and deduplicates", () => {
-    expect(
-      parseAdminOrdersSearchParams({ statut: "bogus,pending , returned,bogus" })
-        .statuses
-    ).toEqual(["pending", "returned"])
-    expect(
-      parseAdminOrdersSearchParams({ statut: "bogus,weird" }).statuses
-    ).toBeUndefined()
-    expect(
-      parseAdminOrdersSearchParams({ statut: "cancelled,cancelled" }).statuses
-    ).toEqual(["cancelled"])
-    expect(
-      parseAdminOrdersSearchParams({ statut: "" }).statuses
-    ).toBeUndefined()
-  })
-
-  it("tolerates duplicated params, keeping the first occurrence", () => {
-    expect(parseAdminOrdersSearchParams({ page: ["7", "9"] }).page).toBe(7)
-    expect(
-      parseAdminOrdersSearchParams({ statut: ["pending", "delivered"] })
-        .statuses
-    ).toEqual(["pending"])
-  })
-
-  it("treats whitespace-only q as absent", () => {
-    expect(parseAdminOrdersSearchParams({ q: "   " }).q).toBeUndefined()
   })
 })

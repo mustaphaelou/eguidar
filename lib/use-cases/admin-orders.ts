@@ -1,8 +1,8 @@
+import type { CommandeListingParams } from "@/lib/commande-listing"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { prisma } from "@/lib/db"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
-import { STATUTS_VALIDES } from "@/lib/order-status"
 import { OrderNotFoundError } from "@/lib/use-cases/orders"
 
 export interface AdminOrderSummary {
@@ -40,65 +40,15 @@ export interface AdminOrderDetail {
   items: AdminOrderItem[]
 }
 
-const ALL_STATUSES = STATUTS_VALIDES
-
-export interface AdminOrdersParams {
-  statuses?: OrderStatus[]
-  q?: string
-  tri?: "date" | "total"
-  sens?: "asc" | "desc"
-  page?: number
-  pageSize?: (typeof PAGE_SIZES)[number]
-}
-
 export interface AdminOrdersPage {
   orders: AdminOrderSummary[]
   totalCount: number
   pageCount: number
 }
 
-function firstValue(
-  raw: Record<string, string | string[] | undefined>,
-  key: string
-): string | undefined {
-  const value = raw[key]
-  if (value === undefined) return undefined
-  return Array.isArray(value) ? value[0] : value
-}
-
-export function parseAdminOrdersSearchParams(
-  raw: Record<string, string | string[] | undefined>
-): AdminOrdersParams {
-  const statusTokens = (firstValue(raw, "statut") ?? "").split(",")
-  const statuses = [
-    ...new Set(
-      statusTokens
-        .map((token) => token.trim())
-        .filter((token): token is OrderStatus =>
-          (ALL_STATUSES as readonly string[]).includes(token)
-        )
-    ),
-  ]
-
-  const pageRaw = Number(firstValue(raw, "page"))
-  const pageSizeRaw = Number(firstValue(raw, "pageSize"))
-  const triRaw = firstValue(raw, "tri")
-  const sensRaw = firstValue(raw, "sens")
-  const qRaw = firstValue(raw, "q")?.trim()
-
-  return {
-    ...(statuses.length > 0 ? { statuses } : {}),
-    ...(qRaw ? { q: qRaw } : {}),
-    tri: triRaw === "date" || triRaw === "total" ? triRaw : "date",
-    sens: sensRaw === "asc" || sensRaw === "desc" ? sensRaw : "desc",
-    page: Number.isInteger(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
-    pageSize: (PAGE_SIZES as readonly number[]).includes(pageSizeRaw)
-      ? (pageSizeRaw as (typeof PAGE_SIZES)[number])
-      : PAGE_SIZES[0],
-  }
-}
-
-function buildOrdersWhere(params?: AdminOrdersParams): Prisma.OrderWhereInput {
+function buildOrdersWhere(
+  params?: CommandeListingParams
+): Prisma.OrderWhereInput {
   const where: Prisma.OrderWhereInput = {}
   if (params?.statuses && params.statuses.length > 0) {
     where.status = { in: params.statuses }
@@ -115,7 +65,7 @@ function buildOrdersWhere(params?: AdminOrdersParams): Prisma.OrderWhereInput {
 }
 
 async function runListAdminOrders(
-  params?: AdminOrdersParams
+  params?: CommandeListingParams
 ): Promise<AdminOrdersPage> {
   const where = buildOrdersWhere(params)
   const sens = params?.sens ?? "desc"
@@ -158,10 +108,10 @@ async function runListAdminOrders(
 
 export async function listAdminOrders(): Promise<AdminOrderSummary[]>
 export async function listAdminOrders(
-  params: AdminOrdersParams
+  params: CommandeListingParams
 ): Promise<AdminOrdersPage>
 export async function listAdminOrders(
-  params?: AdminOrdersParams
+  params?: CommandeListingParams
 ): Promise<AdminOrdersPage | AdminOrderSummary[]> {
   const result = await runListAdminOrders(params)
   return params ? result : result.orders

@@ -1,8 +1,12 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
 
-import { CommandesSkeleton, CommandesTable } from "@/app/admin/commandes/commandes-table"
-import { listAdminOrders, parseAdminOrdersSearchParams } from "@/lib/use-cases/admin-orders"
+import {
+  CommandesSkeleton,
+  CommandesTable,
+} from "@/app/admin/commandes/commandes-table"
+import { parseCommandeListingParams } from "@/lib/commande-listing"
+import { listAdminOrders } from "@/lib/use-cases/admin-orders"
 
 export const metadata: Metadata = {
   title: "Commandes",
@@ -31,7 +35,7 @@ async function CommandesContent({
   searchParamsPromise: Promise<RawSearchParams>
 }) {
   const raw = await searchParamsPromise
-  const params = parseAdminOrdersSearchParams(raw)
+  const params = parseCommandeListingParams(raw)
   const ordersPage = await listAdminOrders(params)
 
   return <CommandesTable params={params} page={ordersPage} />
