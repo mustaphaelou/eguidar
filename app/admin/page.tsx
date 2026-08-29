@@ -21,6 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { buildCommandeListingUrl } from "@/lib/commande-listing"
 import { formatPrice } from "@/lib/money"
 import { ORDER_STATUS_LABELS } from "@/lib/order-status"
 import {
@@ -51,6 +52,7 @@ export default async function AdminDashboardPage() {
     month: frenchMonthLabel(bucket.month),
     revenue: bucket.revenue,
   }))
+  const enAttenteUrl = buildCommandeListingUrl({ statuses: ["pending"] })
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,10 +117,7 @@ export default async function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">
-              <Link
-                href="/admin/commandes?statut=pending"
-                className="hover:underline"
-              >
+              <Link href={enAttenteUrl} className="hover:underline">
                 {stats.pendingOrderCount}
               </Link>
             </p>
