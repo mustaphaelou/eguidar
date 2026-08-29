@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
+import { ORDER_TRANSITIONS } from "@/lib/order-status"
 import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import {
   deliveryAddressField,
@@ -125,15 +126,6 @@ function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
     )
   }
   return result.data
-}
-
-export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  pending: ["confirmed", "cancelled"],
-  confirmed: ["shipped", "cancelled"],
-  shipped: ["delivered", "returned"],
-  delivered: ["returned"],
-  cancelled: [],
-  returned: [],
 }
 
 function isOrderStatus(value: string): value is OrderStatus {
