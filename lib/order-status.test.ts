@@ -37,7 +37,7 @@ describe("REGISTRE_STATUTS", () => {
 
 describe("FRAGMENT_WHERE_ENCAISSÉS", () => {
   it("carries the delivered-only filter", () => {
-    expect(FRAGMENT_WHERE_ENCAISSÉS).toEqual({ statut: { in: ["delivered"] } })
+    expect(FRAGMENT_WHERE_ENCAISSÉS).toEqual({ status: { in: ["delivered"] } })
   })
 })
 

@@ -73,7 +73,7 @@ export const STATUTS_ENCAISSÉS = Object.entries(REGISTRE_STATUTS)
 export const STATUTS_VALIDES = Object.keys(REGISTRE_STATUTS) as OrderStatus[]
 
 export const FRAGMENT_WHERE_ENCAISSÉS = {
-  statut: { in: [...STATUTS_ENCAISSÉS] },
+  status: { in: [...STATUTS_ENCAISSÉS] },
 }
 
 export function estEncaissée(statut: OrderStatus): boolean {
