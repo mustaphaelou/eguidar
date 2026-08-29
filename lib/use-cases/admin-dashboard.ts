@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
-import { STATUTS_ENCAISSÉS } from "@/lib/order-status"
+import { FRAGMENT_WHERE_ENCAISSÉS } from "@/lib/order-status"
 
 export const LOW_STOCK_THRESHOLD = 5
 
@@ -140,14 +140,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     prisma.order.aggregate({
       _sum: { total: true, shippingFee: true },
       where: {
-        status: { in: [...STATUTS_ENCAISSÉS] },
+        ...FRAGMENT_WHERE_ENCAISSÉS,
         createdAt: { gte: currentWindowStart, lte: now },
       },
     }),
     prisma.order.aggregate({
       _sum: { total: true, shippingFee: true },
       where: {
-        status: { in: [...STATUTS_ENCAISSÉS] },
+        ...FRAGMENT_WHERE_ENCAISSÉS,
         createdAt: { gte: previousWindowStart, lt: currentWindowStart },
       },
     }),
@@ -156,7 +156,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }),
     prisma.order.findMany({
       where: {
-        status: { in: [...STATUTS_ENCAISSÉS] },
+        ...FRAGMENT_WHERE_ENCAISSÉS,
         createdAt: { gte: oldestBucketStart, lte: now },
       },
       select: { id: true, total: true, shippingFee: true, createdAt: true },
