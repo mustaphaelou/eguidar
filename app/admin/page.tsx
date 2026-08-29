@@ -21,13 +21,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { OrderStatus } from "@/lib/generated/prisma/client"
 import { formatPrice } from "@/lib/money"
-import { ORDER_STATUS_LABELS, shortOrderId } from "@/lib/order-status"
+import { ORDER_STATUS_LABELS } from "@/lib/order-status"
 import {
   getDashboardStats,
   LOW_STOCK_THRESHOLD,
 } from "@/lib/use-cases/admin-dashboard"
+import { shortOrderId } from "@/lib/utils"
 
 export const metadata: Metadata = {
   title: "Tableau de bord",
@@ -187,7 +187,7 @@ export default async function AdminDashboardPage() {
                         </span>
                         <span className="text-sm text-muted-foreground">
                           {dateFormatter.format(order.createdAt)} —{" "}
-                          {ORDER_STATUS_LABELS[order.status as OrderStatus]}
+                          {ORDER_STATUS_LABELS[order.status]}
                         </span>
                       </span>
                       <span className="text-sm font-medium whitespace-nowrap">

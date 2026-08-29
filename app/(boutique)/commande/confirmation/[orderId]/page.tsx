@@ -12,7 +12,7 @@ import { formatPrice, formatShippingFee } from "@/lib/money"
 import { pageMetadata } from "@/lib/metadata"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { getOrder } from "@/lib/use-cases/orders"
-import { shortOrderId } from "@/lib/order-status"
+import { shortOrderId } from "@/lib/utils"
 
 export async function generateMetadata({
   params,

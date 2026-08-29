@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
 import { STATUTS_ENCAISSÉS } from "@/lib/order-status"
 
@@ -25,7 +26,7 @@ export interface RecentProduct {
 
 export interface RecentOrder {
   id: string
-  status: string
+  status: OrderStatus
   total: number
   createdAt: Date
   itemCount: number
