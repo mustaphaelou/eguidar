@@ -32,13 +32,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  buildCommandeListingUrl,
+  type CommandeListingParams,
+} from "@/lib/commande-listing"
+import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { formatPrice } from "@/lib/money"
 import { ORDER_STATUS_LABELS, STATUTS_VALIDES } from "@/lib/order-status"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { shortOrderId } from "@/lib/utils"
 import type {
   AdminOrdersPage,
-  AdminOrdersParams,
   AdminOrderSummary,
 } from "@/lib/use-cases/admin-orders"
 
@@ -52,9 +56,8 @@ const ACTIONS_COLUMN_ID = "actions"
 const SEARCH_DEBOUNCE_MS = 300
 const DEFAULT_PAGE_SIZE = PAGE_SIZES[0]
 
-const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] = STATUTS_VALIDES.map(
-  (value) => ({ value, label: ORDER_STATUS_LABELS[value] })
-)
+const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] =
+  STATUTS_VALIDES.map((value) => ({ value, label: ORDER_STATUS_LABELS[value] }))
 
 const STATUS_FILTER_VALUES: string[] = STATUTS_VALIDES
 
@@ -64,7 +67,9 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
   {
     id: COMMANDE_COLUMN_ID,
     accessorFn: (row) => row.createdAt.getTime(),
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Commande" />,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Commande" />
+    ),
     cell: ({ row }) => (
       <div className="flex min-w-24 flex-col">
         <span className="font-medium">{shortOrderId(row.original.id)}</span>
@@ -80,7 +85,7 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
     enableSorting: false,
     header: CLIENT_COLUMN_ID,
     cell: ({ row }) => (
-      <div className="flex min-w-0 max-w-56 flex-col">
+      <div className="flex max-w-56 min-w-0 flex-col">
         <span className="truncate">{row.original.customerName}</span>
         <span className="truncate text-sm text-muted-foreground">
           {row.original.customerEmail}
@@ -93,7 +98,9 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
     accessorFn: (row) => row.itemCount,
     enableSorting: false,
     header: ARTICLES_COLUMN_ID,
-    cell: ({ row }) => <span className="whitespace-nowrap">{row.original.itemCount}</span>,
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap">{row.original.itemCount}</span>
+    ),
   },
   {
     id: STATUT_COLUMN_ID,
@@ -105,9 +112,11 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
   {
     id: TOTAL_COLUMN_ID,
     accessorFn: (row) => row.totalPayable,
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Total à payer" />,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Total à payer" />
+    ),
     cell: ({ row }) => (
-      <span className="whitespace-nowrap font-medium">
+      <span className="font-medium whitespace-nowrap">
         {formatPrice(row.original.totalPayable)}
       </span>
     ),
@@ -135,9 +144,9 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
 
 type CommandesTableView = {
   pageIndex: number
-  pageSize: number
+  pageSize: (typeof PAGE_SIZES)[number]
   q: string
-  statuses: string[]
+  statuses: OrderStatus[]
   tri: "date" | "total"
   sens: "asc" | "desc"
 }
@@ -145,7 +154,7 @@ type CommandesTableView = {
 const BLANK_VIEW_EXTRA = { tri: "date" as const, sens: "desc" as const }
 
 function viewFromParams(
-  params: AdminOrdersParams,
+  params: CommandeListingParams,
   pageCount: number
 ): CommandesTableView {
   return {
@@ -169,25 +178,22 @@ function signatureOf(view: CommandesTableView): string {
   })
 }
 
-function buildHref(view: CommandesTableView): string {
-  const searchParams = new URLSearchParams()
-  const q = view.q.trim()
-  if (view.pageIndex > 0) searchParams.set("page", String(view.pageIndex + 1))
-  if (view.pageSize !== DEFAULT_PAGE_SIZE)
-    searchParams.set("pageSize", String(view.pageSize))
-  if (view.statuses.length > 0) searchParams.set("statut", view.statuses.join(","))
-  if (q) searchParams.set("q", q)
-  if (view.tri !== "date") searchParams.set("tri", view.tri)
-  if (view.sens !== "desc") searchParams.set("sens", view.sens)
-  const query = searchParams.toString()
-  return query ? `/admin/commandes?${query}` : "/admin/commandes"
+function hrefOf(view: CommandesTableView): string {
+  return buildCommandeListingUrl({
+    page: view.pageIndex + 1,
+    pageSize: view.pageSize,
+    q: view.q,
+    statuses: view.statuses,
+    tri: view.tri,
+    sens: view.sens,
+  })
 }
 
 export function CommandesTable({
   params,
   page,
 }: {
-  params: AdminOrdersParams
+  params: CommandeListingParams
   page: AdminOrdersPage
 }) {
   const router = useRouter()
@@ -212,7 +218,7 @@ export function CommandesTable({
       lastPushedRef.current = signatureOf(next)
       setView(next)
       setQueryDraft(next.q)
-      router.replace(buildHref(next), { scroll: false })
+      router.replace(hrefOf(next), { scroll: false })
     },
     [cancelPendingSearch, router]
   )
@@ -227,7 +233,7 @@ export function CommandesTable({
     setView(incoming)
     setQueryDraft(incoming.q)
     if (incoming.pageIndex !== (params.page ?? 1) - 1) {
-      router.replace(buildHref(incoming), { scroll: false })
+      router.replace(hrefOf(incoming), { scroll: false })
     }
   }, [cancelPendingSearch, params, page.pageCount, router])
 
@@ -281,7 +287,7 @@ export function CommandesTable({
     if (next.pageSize !== view.pageSize) {
       commit({
         ...intentRef.current,
-        pageSize: next.pageSize,
+        pageSize: next.pageSize as (typeof PAGE_SIZES)[number],
         pageIndex: 0,
       })
       return
@@ -304,7 +310,7 @@ export function CommandesTable({
     const next = resolveUpdater(updater, columnFilters)
     const entry = next.find((filter) => filter.id === STATUT_COLUMN_ID)
     const statuses = Array.isArray(entry?.value)
-      ? entry.value.filter((value): value is string =>
+      ? entry.value.filter((value): value is OrderStatus =>
           STATUS_FILTER_VALUES.includes(value as string)
         )
       : []
@@ -355,7 +361,11 @@ export function CommandesTable({
       {page.orders.length === 0 ? (
         <div className="rounded-xl border border-dashed p-10 text-center">
           <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-muted">
-            <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-5 text-muted-foreground" />
+            <HugeiconsIcon
+              icon={Search01Icon}
+              strokeWidth={2}
+              className="size-5 text-muted-foreground"
+            />
           </div>
           <p className="text-sm font-medium">
             {hasActiveCriteria
@@ -383,7 +393,10 @@ export function CommandesTable({
                     <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -394,7 +407,10 @@ export function CommandesTable({
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
