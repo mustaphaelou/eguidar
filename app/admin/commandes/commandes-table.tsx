@@ -33,7 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
-import { ORDER_STATUS_LABELS } from "@/lib/order-status"
+import { ORDER_STATUS_LABELS, STATUTS_VALIDES } from "@/lib/order-status"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { shortOrderId } from "@/lib/utils"
 import type {
@@ -52,11 +52,11 @@ const ACTIONS_COLUMN_ID = "actions"
 const SEARCH_DEBOUNCE_MS = 300
 const DEFAULT_PAGE_SIZE = PAGE_SIZES[0]
 
-const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] = Object.entries(
-  ORDER_STATUS_LABELS
-).map(([value, label]) => ({ value, label }))
+const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] = STATUTS_VALIDES.map(
+  (value) => ({ value, label: ORDER_STATUS_LABELS[value] })
+)
 
-const STATUS_FILTER_VALUES = STATUS_FILTER_OPTIONS.map((option) => option.value)
+const STATUS_FILTER_VALUES: string[] = STATUTS_VALIDES
 
 const dateFormatter = new Intl.DateTimeFormat("fr-MA", { dateStyle: "medium" })
 
