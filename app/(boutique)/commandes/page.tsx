@@ -11,7 +11,7 @@ import { formatPrice } from "@/lib/money"
 import { pageMetadata } from "@/lib/metadata"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { listUserOrders } from "@/lib/use-cases/orders"
-import { shortOrderId } from "@/lib/order-status"
+import { shortOrderId } from "@/lib/utils"
 
 export const metadata = pageMetadata({
   title: "Mes commandes",
