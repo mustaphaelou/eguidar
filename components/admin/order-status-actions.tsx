@@ -4,15 +4,16 @@ import type { VariantProps } from "class-variance-authority"
 
 import { Button, type buttonVariants } from "@/components/ui/button"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
+import { REGISTRE_STATUTS, type TonStatut } from "@/lib/order-status"
 
-const STATUS_ACTIONS: Partial<
-  Record<OrderStatus, { label: string; variant: VariantProps<typeof buttonVariants>["variant"] }>
+const toneVariants: Record<
+  TonStatut,
+  VariantProps<typeof buttonVariants>["variant"]
 > = {
-  confirmed: { label: "Confirmer", variant: "secondary" },
-  shipped: { label: "Expédier", variant: "default" },
-  delivered: { label: "Marquer livrée", variant: "default" },
-  cancelled: { label: "Annuler", variant: "destructive" },
-  returned: { label: "Retourner", variant: "destructive" },
+  neutre: "ghost",
+  intermédiaire: "secondary",
+  positif: "default",
+  négatif: "destructive",
 }
 
 interface OrderStatusActionsProps {
@@ -21,22 +22,30 @@ interface OrderStatusActionsProps {
   action: (formData: FormData) => Promise<void>
 }
 
-export function OrderStatusActions({ orderId, nextStatuses, action }: OrderStatusActionsProps) {
+export function OrderStatusActions({
+  orderId,
+  nextStatuses,
+  action,
+}: OrderStatusActionsProps) {
   if (nextStatuses.length === 0) {
-    return <p className="text-sm text-muted-foreground">Aucune action disponible pour ce statut.</p>
+    return (
+      <p className="text-sm text-muted-foreground">
+        Aucune action disponible pour ce statut.
+      </p>
+    )
   }
 
   return (
     <div className="flex flex-wrap gap-2">
       {nextStatuses.map((status) => {
-        const actionSpec = STATUS_ACTIONS[status]
-        if (!actionSpec) return null
+        const spec = REGISTRE_STATUTS[status]
+        if (spec.verbe === null) return null
         return (
           <form key={status} action={action}>
             <input type="hidden" name="orderId" value={orderId} />
             <input type="hidden" name="nextStatus" value={status} />
-            <Button type="submit" size="sm" variant={actionSpec.variant}>
-              {actionSpec.label}
+            <Button type="submit" size="sm" variant={toneVariants[spec.ton]}>
+              {spec.verbe}
             </Button>
           </form>
         )
