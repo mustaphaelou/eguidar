@@ -13,6 +13,19 @@ export interface CommandeListingParams {
   pageSize?: (typeof PAGE_SIZES)[number]
 }
 
+export const COMMANDE_LISTING_TRI_DEFAULT: NonNullable<
+  CommandeListingParams["tri"]
+> = "date"
+
+export const COMMANDE_LISTING_SENS_DEFAULT: NonNullable<
+  CommandeListingParams["sens"]
+> = "desc"
+
+export const COMMANDE_LISTING_PAGE_DEFAULT = 1
+
+export const COMMANDE_LISTING_PAGE_SIZE_DEFAULT: (typeof PAGE_SIZES)[number] =
+  PAGE_SIZES[0]
+
 function firstValue(
   raw: Record<string, string | string[] | undefined>,
   key: string
@@ -45,30 +58,40 @@ export function parseCommandeListingParams(
   return {
     ...(statuses.length > 0 ? { statuses } : {}),
     ...(qRaw ? { q: qRaw } : {}),
-    tri: triRaw === "date" || triRaw === "total" ? triRaw : "date",
-    sens: sensRaw === "asc" || sensRaw === "desc" ? sensRaw : "desc",
-    page: Number.isInteger(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+    tri:
+      triRaw === "date" || triRaw === "total"
+        ? triRaw
+        : COMMANDE_LISTING_TRI_DEFAULT,
+    sens:
+      sensRaw === "asc" || sensRaw === "desc"
+        ? sensRaw
+        : COMMANDE_LISTING_SENS_DEFAULT,
+    page:
+      Number.isInteger(pageRaw) && pageRaw >= 1
+        ? pageRaw
+        : COMMANDE_LISTING_PAGE_DEFAULT,
     pageSize: (PAGE_SIZES as readonly number[]).includes(pageSizeRaw)
       ? (pageSizeRaw as (typeof PAGE_SIZES)[number])
-      : PAGE_SIZES[0],
+      : COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
   }
 }
 
 export function buildCommandeListingUrl(view: CommandeListingParams): string {
-  const page = view.page ?? 1
-  const pageSize = view.pageSize ?? PAGE_SIZES[0]
+  const page = view.page ?? COMMANDE_LISTING_PAGE_DEFAULT
+  const pageSize = view.pageSize ?? COMMANDE_LISTING_PAGE_SIZE_DEFAULT
   const q = view.q?.trim()
-  const tri = view.tri ?? "date"
-  const sens = view.sens ?? "desc"
+  const tri = view.tri ?? COMMANDE_LISTING_TRI_DEFAULT
+  const sens = view.sens ?? COMMANDE_LISTING_SENS_DEFAULT
 
   const searchParams = new URLSearchParams()
   if (page > 1) searchParams.set("page", String(page))
-  if (pageSize !== PAGE_SIZES[0]) searchParams.set("pageSize", String(pageSize))
+  if (pageSize !== COMMANDE_LISTING_PAGE_SIZE_DEFAULT)
+    searchParams.set("pageSize", String(pageSize))
   if (view.statuses && view.statuses.length > 0)
     searchParams.set("statut", view.statuses.join(","))
   if (q) searchParams.set("q", q)
-  if (tri !== "date") searchParams.set("tri", tri)
-  if (sens !== "desc") searchParams.set("sens", sens)
+  if (tri !== COMMANDE_LISTING_TRI_DEFAULT) searchParams.set("tri", tri)
+  if (sens !== COMMANDE_LISTING_SENS_DEFAULT) searchParams.set("sens", sens)
   const query = searchParams.toString()
   return query ? `${COMMANDE_LISTING_PATH}?${query}` : COMMANDE_LISTING_PATH
 }

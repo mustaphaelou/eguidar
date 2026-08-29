@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildCommandeListingUrl,
+  COMMANDE_LISTING_PAGE_DEFAULT,
+  COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
+  COMMANDE_LISTING_SENS_DEFAULT,
+  COMMANDE_LISTING_TRI_DEFAULT,
   parseCommandeListingParams,
   type CommandeListingParams,
 } from "@/lib/commande-listing"
@@ -29,21 +33,31 @@ describe("parseCommandeListingParams", () => {
 
   it("falls back per rule on invalid scalar values", () => {
     for (const badPage of ["-4", "0", "abc", "2.5", ""]) {
-      expect(parseCommandeListingParams({ page: badPage }).page).toBe(1)
+      expect(parseCommandeListingParams({ page: badPage }).page).toBe(
+        COMMANDE_LISTING_PAGE_DEFAULT
+      )
     }
-    expect(parseCommandeListingParams({ pageSize: "35" }).pageSize).toBe(10)
-    expect(parseCommandeListingParams({ pageSize: "abc" }).pageSize).toBe(10)
+    expect(parseCommandeListingParams({ pageSize: "35" }).pageSize).toBe(
+      COMMANDE_LISTING_PAGE_SIZE_DEFAULT
+    )
+    expect(parseCommandeListingParams({ pageSize: "abc" }).pageSize).toBe(
+      COMMANDE_LISTING_PAGE_SIZE_DEFAULT
+    )
     expect(parseCommandeListingParams({ pageSize: "20" }).pageSize).toBe(20)
-    expect(parseCommandeListingParams({ tri: "weight" }).tri).toBe("date")
-    expect(parseCommandeListingParams({ sens: "upward" }).sens).toBe("desc")
+    expect(parseCommandeListingParams({ tri: "weight" }).tri).toBe(
+      COMMANDE_LISTING_TRI_DEFAULT
+    )
+    expect(parseCommandeListingParams({ sens: "upward" }).sens).toBe(
+      COMMANDE_LISTING_SENS_DEFAULT
+    )
   })
 
   it("returns pure defaults on empty input", () => {
     expect(parseCommandeListingParams({})).toEqual({
-      tri: "date",
-      sens: "desc",
-      page: 1,
-      pageSize: 10,
+      tri: COMMANDE_LISTING_TRI_DEFAULT,
+      sens: COMMANDE_LISTING_SENS_DEFAULT,
+      page: COMMANDE_LISTING_PAGE_DEFAULT,
+      pageSize: COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
     })
   })
 
@@ -78,10 +92,10 @@ describe("buildCommandeListingUrl", () => {
     expect(buildCommandeListingUrl({})).toBe("/admin/commandes")
     expect(
       buildCommandeListingUrl({
-        tri: "date",
-        sens: "desc",
-        page: 1,
-        pageSize: 10,
+        tri: COMMANDE_LISTING_TRI_DEFAULT,
+        sens: COMMANDE_LISTING_SENS_DEFAULT,
+        page: COMMANDE_LISTING_PAGE_DEFAULT,
+        pageSize: COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
       })
     ).toBe("/admin/commandes")
   })
@@ -168,10 +182,10 @@ describe("round trip", () => {
   ]
 
   const defaults: CommandeListingParams = {
-    tri: "date",
-    sens: "desc",
-    page: 1,
-    pageSize: 10,
+    tri: COMMANDE_LISTING_TRI_DEFAULT,
+    sens: COMMANDE_LISTING_SENS_DEFAULT,
+    page: COMMANDE_LISTING_PAGE_DEFAULT,
+    pageSize: COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
   }
 
   function rawFromUrl(url: string): Record<string, string> {
