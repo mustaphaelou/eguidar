@@ -61,6 +61,10 @@ _Avoid_: produit indexé, indexable product
 A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X.
 _Avoid_: photo, visuel, media
 
+**Variante**:
+Une déclinaison achetable d'un Produit, identifiée par son SKU, avec son propre écart de prix et son propre stock.
+_Avoid_: product variant, version, option
+
 **Compte client**:
 The registered customer entity (Better Auth user) with credentials, email verification, and optional social logins (Google, Apple). Carries a `role` ("user" or "admin").
 _Avoid_: account, user, membre
@@ -117,3 +121,11 @@ _Avoid_: montant total, grand total
 La somme des Totaux à payer des Commandes au statut Livrée : l'argent réellement collecté.
 Une Commande En attente, Confirmée ou Expédiée n'est pas encore encaissée.
 _Avoid_: revenu, revenue, ventes, CA brut
+
+**FAQ**:
+Les questions et réponses publiées sur /faq, couvrant la commande, le Paiement à la livraison, la Livraison et les retours.
+_Avoid_: questions fréquentes, centre d'aide, help center
+
+**Données structurées**:
+La description lisible par les machines du contenu d'une page (JSON-LD), émise pour les moteurs de recherche et les IA.
+_Avoid_: JSON-LD (comme nom du concept), schema markup, rich snippets, données enrichies
