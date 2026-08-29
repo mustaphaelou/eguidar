@@ -232,6 +232,18 @@ describe("storefront browse", () => {
     ])
   })
 
+  it("category browse: exposes the full root-to-current chain with the current category last", async () => {
+    const grandPage = await fetchCategoryPageData(cSlug("grand"))
+    expect(grandPage!.categoryChain.map((c) => c.slug)).toEqual([
+      cSlug("root"),
+      cSlug("child"),
+      cSlug("grand"),
+    ])
+
+    const rootPage = await fetchCategoryPageData(cSlug("root"))
+    expect(rootPage!.categoryChain.map((c) => c.slug)).toEqual([cSlug("root")])
+  })
+
   it("product detail: variants ordered by createdAt with priceDelta and stock", async () => {
     await createProduct(cSlug("grand"), {
       name: "Produit détail",

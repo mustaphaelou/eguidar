@@ -41,6 +41,7 @@ export interface CategoryPageData {
     slug: string
     image: string | null
   }
+  categoryChain: { name: string; slug: string }[]
   children: { id: string; name: string; slug: string; image: string | null }[]
   products: ProductCard[]
 }
@@ -186,6 +187,7 @@ export async function fetchCategoryPageData(slug: string): Promise<CategoryPageD
   })
   return {
     category: { id: category.id, name: category.name, slug: category.slug, image: category.image },
+    categoryChain: await getCategoryChain(category),
     children: await prisma.category.findMany({
       where: { parentId: category.id },
       select: { id: true, name: true, slug: true, image: true },
