@@ -65,6 +65,11 @@ _Avoid_: photo, visuel, media
 Une déclinaison achetable d'un Produit, identifiée par son SKU, avec son propre écart de prix et son propre stock.
 _Avoid_: product variant, version, option
 
+**Barre d'achat**:
+La barre fixée en bas de l'écran sur mobile, sur la page produit, qui répète le prix courant
+et l'action « Ajouter au panier » pendant que l'utilisateur fait défiler la page.
+_Avoid_: sticky bar, buy bar, barre collante
+
 **Compte client**:
 The registered customer entity (Better Auth user) with credentials, email verification, and optional social logins (Google, Apple). Carries a `role` ("user" or "admin").
 _Avoid_: account, user, membre
