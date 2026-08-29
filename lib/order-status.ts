@@ -66,9 +66,11 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   returned: REGISTRE_STATUTS.returned.libellé,
 }
 
-export const STATUTS_ENCAISSÉS = Object.entries(REGISTRE_STATUTS)
+export const STATUTS_ENCAISSÉS: readonly OrderStatus[] = (
+  Object.entries(REGISTRE_STATUTS) as [OrderStatus, SpecStatut][]
+)
   .filter(([, spec]) => spec.encaissée)
-  .map(([statut]) => statut) as unknown as readonly ["delivered"]
+  .map(([statut]) => statut)
 
 export const STATUTS_VALIDES = Object.keys(REGISTRE_STATUTS) as OrderStatus[]
 
