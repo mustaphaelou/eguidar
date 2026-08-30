@@ -70,7 +70,7 @@ export interface SchemaOrganization {
   contactPoint: SchemaContactPoint
 }
 
-export interface ProductVariantStructureesInput {
+export interface VarianteDonneesStructureesInput {
   sku: string
   priceDelta: number
   stock: number
@@ -83,7 +83,7 @@ export interface ProductDonneesStructureesInput {
   brand: string
   slug: string
   price: number
-  variants?: ProductVariantStructureesInput[]
+  variants?: VarianteDonneesStructureesInput[]
 }
 
 export interface BreadcrumbDonneesStructureesInput {

@@ -14,7 +14,7 @@ export const faqs: readonly FaqEntry[] = [
   {
     question: "Quels sont les moyens de paiement ?",
     answer:
-      "Le paiement à la livraison (COD) est le seul moyen de paiement : vous réglez le montant total en espèces directement au livreur à la réception de votre colis. Aucun paiement en ligne n'est demandé.",
+      "Le paiement à la livraison est le seul moyen de paiement : vous réglez le montant total en espèces directement au livreur à la réception de votre colis. Aucun paiement en ligne n'est demandé.",
   },
   {
     question: "Les prix affichés incluent-ils la TVA ?",
