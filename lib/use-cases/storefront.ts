@@ -29,6 +29,11 @@ export interface ProductCard {
   freeShipping: boolean
 }
 
+export interface CategoryChainEntry {
+  name: string
+  slug: string
+}
+
 export interface HomeData {
   categories: CategoryNode[]
   featured: ProductCard[]
@@ -41,7 +46,7 @@ export interface CategoryPageData {
     slug: string
     image: string | null
   }
-  categoryChain: { name: string; slug: string }[]
+  categoryChain: CategoryChainEntry[]
   children: { id: string; name: string; slug: string; image: string | null }[]
   products: ProductCard[]
 }
@@ -65,7 +70,7 @@ export interface ProductDetailData {
   price: number
   freeShipping: boolean
   category: { id: string; name: string; slug: string }
-  categoryChain: { name: string; slug: string }[]
+  categoryChain: CategoryChainEntry[]
   variants: ProductVariantDto[]
   related: ProductCard[]
 }
@@ -155,10 +160,24 @@ function accumulateProductCounts(nodes: CategoryNode[]): void {
   }
 }
 
+type CategoryLink = {
+  id: string
+  name: string
+  slug: string
+  parentId: string | null
+}
+
+async function loadCategoryLinks(): Promise<Map<string, CategoryLink>> {
+  const categories = await prisma.category.findMany({
+    select: { id: true, name: true, slug: true, parentId: true },
+  })
+  return new Map(categories.map((category) => [category.id, category]))
+}
+
 async function collectCategoryAndDescendantIds(rootId: string): Promise<string[]> {
-  const categories = await prisma.category.findMany({ select: { id: true, parentId: true } })
+  const categoriesById = await loadCategoryLinks()
   const childrenByParent = new Map<string, string[]>()
-  for (const category of categories) {
+  for (const category of categoriesById.values()) {
     if (!category.parentId) continue
     const siblings = childrenByParent.get(category.parentId) ?? []
     siblings.push(category.id)
@@ -186,31 +205,31 @@ export async function fetchCategoryPageData(slug: string): Promise<CategoryPageD
     include: { variants: { select: { priceDelta: true, stock: true } } },
     orderBy: [{ createdAt: "desc" }, { name: "asc" }],
   })
-  return {
-    category: { id: category.id, name: category.name, slug: category.slug, image: category.image },
-    categoryChain: await getCategoryChain(category),
-    children: await prisma.category.findMany({
+  const [categoryChain, children] = await Promise.all([
+    getCategoryChain(category),
+    prisma.category.findMany({
       where: { parentId: category.id },
       select: { id: true, name: true, slug: true, image: true },
       orderBy: { name: "asc" },
     }),
+  ])
+  return {
+    category: { id: category.id, name: category.name, slug: category.slug, image: category.image },
+    categoryChain,
+    children,
     products: products.map((product) => toProductCard(product)),
   }
 }
 
 async function getCategoryChain(
   category: { id: string; name: string; slug: string; parentId: string | null }
-): Promise<{ name: string; slug: string }[]> {
-  const categories = await prisma.category.findMany({
-    select: { id: true, name: true, slug: true, parentId: true },
-  })
-  const byId = new Map(categories.map((c) => [c.id, c]))
-  const chain: { name: string; slug: string }[] = []
-  let current: { id: string; name: string; slug: string; parentId: string | null } | undefined =
-    category
+): Promise<CategoryChainEntry[]> {
+  const categoriesById = await loadCategoryLinks()
+  const chain: CategoryChainEntry[] = []
+  let current: CategoryLink | undefined = category
   while (current) {
     chain.unshift({ name: current.name, slug: current.slug })
-    current = current.parentId ? byId.get(current.parentId) : undefined
+    current = current.parentId ? categoriesById.get(current.parentId) : undefined
   }
   return chain
 }
@@ -248,7 +267,7 @@ export async function fetchProductPageData(slug: string): Promise<ProductDetailD
       priceDelta: variant.priceDelta,
       stock: variant.stock,
     })),
-    related: related.map((product) => toProductCard(product)),
+    related: related.map((item) => toProductCard(item)),
   }
 }
 
