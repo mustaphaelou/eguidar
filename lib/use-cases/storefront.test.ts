@@ -22,6 +22,7 @@ interface SeedProduct {
   isFeatured?: boolean
   featuredOrder?: number
   freeShipping?: boolean
+  createdAt?: Date
   variants: { name: string; sku: string; priceDelta: number; stock: number }[]
 }
 
@@ -40,6 +41,7 @@ async function createProduct(categorySlug: string, product: SeedProduct) {
       isFeatured: product.isFeatured ?? false,
       featuredOrder: product.featuredOrder ?? 0,
       freeShipping: product.freeShipping ?? false,
+      ...(product.createdAt ? { createdAt: product.createdAt } : {}),
       variants: { create: product.variants },
     },
     include: { variants: true, category: true },
@@ -305,6 +307,60 @@ describe("storefront browse", () => {
     expect(card.minPrice).toBe(50000)
     expect(card.totalStock).toBe(7)
     expect(child).toBeDefined()
+  })
+
+  it("product detail: related strip holds same-category cards, self excluded, capped at eight, most recent first", async () => {
+    await createProduct(cSlug("child"), {
+      name: "Produit principal",
+      slug: pSlug("related-self"),
+      brand: "Marque",
+      price: 100000,
+      images: ["https://example.com/self.jpg"],
+      variants: [{ name: "Standard", sku: `SKU-${runId}-rs`, priceDelta: 0, stock: 1 }],
+    })
+    for (let index = 0; index < 10; index++) {
+      await createProduct(cSlug("child"), {
+        name: `Produit lié ${index}`,
+        slug: pSlug(`rel-${index}`),
+        brand: "Marque",
+        price: 100000,
+        images: [`https://example.com/rel-${index}.jpg`],
+        variants: [
+          { name: "128 Go", sku: `SKU-${runId}-r${index}a`, priceDelta: 0, stock: 2 },
+          { name: "256 Go", sku: `SKU-${runId}-r${index}b`, priceDelta: -50000, stock: 4 },
+        ],
+        createdAt: new Date(Date.UTC(2026, 0, 1, 9, index)),
+      })
+    }
+    await createProduct(cSlug("other"), {
+      name: "Produit autre catégorie",
+      slug: pSlug("rel-other"),
+      brand: "Marque",
+      price: 100000,
+      images: ["https://example.com/other.jpg"],
+      variants: [{ name: "Standard", sku: `SKU-${runId}-ro`, priceDelta: 0, stock: 1 }],
+      createdAt: new Date(Date.UTC(2026, 0, 1, 23, 59)),
+    })
+
+    const detail = await fetchProductPageData(pSlug("related-self"))
+
+    expect(detail).not.toBeNull()
+    expect(detail!.related.map((p) => p.slug)).toEqual([
+      pSlug("rel-9"),
+      pSlug("rel-8"),
+      pSlug("rel-7"),
+      pSlug("rel-6"),
+      pSlug("rel-5"),
+      pSlug("rel-4"),
+      pSlug("rel-3"),
+      pSlug("rel-2"),
+    ])
+    expect(detail!.related.some((p) => p.slug === pSlug("related-self"))).toBe(false)
+    expect(detail!.related.some((p) => p.slug === pSlug("rel-other"))).toBe(false)
+    const newest = detail!.related[0]
+    expect(newest.image).toBe("https://example.com/rel-9.jpg")
+    expect(newest.minPrice).toBe(50000)
+    expect(newest.totalStock).toBe(6)
   })
 
   it("unknown slugs return null", async () => {

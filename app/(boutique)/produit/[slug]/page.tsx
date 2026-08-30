@@ -6,8 +6,6 @@ import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
 import { pageMetadata } from "@/lib/metadata"
-import { prisma } from "@/lib/db"
-import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { formatPrice } from "@/lib/money"
 import { getProductPageData } from "@/lib/use-cases/storefront"
 
@@ -51,7 +49,6 @@ async function ProductContent({
   if (!data) notFound()
 
   const specEntries = Object.entries(data.specs)
-  const related = await getRelatedProducts(data.category.id, data.id)
 
   return (
     <>
@@ -120,14 +117,14 @@ async function ProductContent({
         </section>
       ) : null}
 
-      {related.length > 0 ? (
+      {data.related.length > 0 ? (
         <section className="mt-10 bg-muted">
           <div className="mx-auto max-w-[980px] px-4 py-12 sm:px-6">
             <h2 className="text-center text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
               Vous aimerez aussi
             </h2>
             <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
-              {related.map((product) => (
+              {data.related.map((product) => (
                 <HomeProductCard key={product.id} product={product} />
               ))}
             </div>
@@ -136,28 +133,6 @@ async function ProductContent({
       ) : null}
     </>
   )
-}
-
-async function getRelatedProducts(categoryId: string, productId: string) {
-  const products = await prisma.product.findMany({
-    where: { categoryId, id: { not: productId } },
-    include: { variants: { select: { priceDelta: true, stock: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  })
-  return products.map((product) => {
-    const images = Array.isArray(product.images) ? (product.images as string[]) : []
-    return {
-      id: product.id,
-      name: product.name,
-      slug: product.slug,
-      brand: product.brand,
-      image: images[0] ?? null,
-      minPrice: minVariantPrice(product.price, product.variants),
-      totalStock: totalVariantStock(product.variants),
-      freeShipping: product.freeShipping,
-    }
-  })
 }
 
 function ProductSkeleton() {

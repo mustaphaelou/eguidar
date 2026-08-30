@@ -67,6 +67,7 @@ export interface ProductDetailData {
   category: { id: string; name: string; slug: string }
   categoryChain: { name: string; slug: string }[]
   variants: ProductVariantDto[]
+  related: ProductCard[]
 }
 
 type CategoryWithCount = {
@@ -221,6 +222,13 @@ export async function fetchProductPageData(slug: string): Promise<ProductDetailD
   })
   if (!product) return null
 
+  const related = await prisma.product.findMany({
+    where: { categoryId: product.categoryId, id: { not: product.id } },
+    include: { variants: { select: { priceDelta: true, stock: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+  })
+
   return {
     id: product.id,
     name: product.name,
@@ -240,6 +248,7 @@ export async function fetchProductPageData(slug: string): Promise<ProductDetailD
       priceDelta: variant.priceDelta,
       stock: variant.stock,
     })),
+    related: related.map((product) => toProductCard(product)),
   }
 }
 
