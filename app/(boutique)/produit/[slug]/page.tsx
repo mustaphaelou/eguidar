@@ -5,6 +5,11 @@ import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
 import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
+import {
+  buildBreadcrumbListDonneesStructurees,
+  buildProductDonneesStructurees,
+  serializeJsonLd,
+} from "@/lib/donnees-structurees"
 import { pageMetadata } from "@/lib/metadata"
 import { formatPrice } from "@/lib/money"
 import { getProductPageData } from "@/lib/use-cases/storefront"
@@ -49,20 +54,33 @@ async function ProductContent({
   if (!data) notFound()
 
   const specEntries = Object.entries(data.specs)
+  const crumbs = [
+    { name: "Accueil", href: "/" },
+    { name: "Tous nos produits", href: "/produits" },
+    ...data.categoryChain.map((category) => ({
+      name: category.name,
+      href: `/categorie/${category.slug}`,
+    })),
+    { name: data.name },
+  ]
 
   return (
     <>
-      <AppleBreadcrumb
-        crumbs={[
-          { name: "Accueil", href: "/" },
-          { name: "Tous nos produits", href: "/produits" },
-          ...data.categoryChain.map((category) => ({
-            name: category.name,
-            href: `/categorie/${category.slug}`,
-          })),
-          { name: data.name },
-        ]}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(buildProductDonneesStructurees(data)),
+        }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(
+            buildBreadcrumbListDonneesStructurees(crumbs)
+          ),
+        }}
+      />
+      <AppleBreadcrumb crumbs={crumbs} />
 
       <div className="mx-auto w-full max-w-[980px] px-4 pt-8 pb-4 sm:px-6">
         <div className="max-w-[520px]">
@@ -91,7 +109,7 @@ async function ProductContent({
           <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
             Description
           </h2>
-          <p className="mt-4 max-w-[70ch] whitespace-pre-line text-[17px] leading-[1.4706] tracking-[-0.022em] text-muted-foreground">
+          <p className="mt-4 max-w-[70ch] text-[17px] leading-[1.4706] tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
             {data.description}
           </p>
         </section>
@@ -104,7 +122,10 @@ async function ProductContent({
           </h2>
           <dl className="mt-4 max-w-[70ch] divide-y divide-foreground/10">
             {specEntries.map(([label, value]) => (
-              <div key={label} className="flex items-baseline justify-between gap-8 py-3">
+              <div
+                key={label}
+                className="flex items-baseline justify-between gap-8 py-3"
+              >
                 <dt className="text-[14px] leading-[1.4286] font-medium tracking-[-0.016em]">
                   {label}
                 </dt>

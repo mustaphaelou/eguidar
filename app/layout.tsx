@@ -3,8 +3,12 @@ import type { Metadata } from "next"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils"
+import {
+  buildOrganizationDonneesStructurees,
+  serializeJsonLd,
+} from "@/lib/donnees-structurees"
 import { site } from "@/lib/site"
+import { cn } from "@/lib/utils"
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -31,6 +35,14 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn("antialiased", fontMono.variable, "font-sans")}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(buildOrganizationDonneesStructurees()),
+          }}
+        />
+      </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
