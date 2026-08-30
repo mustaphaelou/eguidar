@@ -6,7 +6,6 @@ import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
 import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { prisma } from "@/lib/db"
 import { getCategoryPageData } from "@/lib/use-cases/storefront"
 
 export async function generateMetadata({
@@ -47,7 +46,7 @@ async function CategoryContent({
   const data = await getCategoryPageData(slug)
   if (!data) notFound()
 
-  const chain = await getParentChain(data.category.id)
+  const chain = data.categoryChain
 
   return (
     <>
@@ -114,20 +113,6 @@ async function CategoryContent({
       )}
     </>
   )
-}
-
-async function getParentChain(categoryId: string): Promise<{ name: string; slug: string }[]> {
-  const categories = await prisma.category.findMany({
-    select: { id: true, name: true, slug: true, parentId: true },
-  })
-  const byId = new Map(categories.map((category) => [category.id, category]))
-  const chain: { name: string; slug: string }[] = []
-  let current = byId.get(categoryId) ?? null
-  while (current) {
-    chain.unshift({ name: current.name, slug: current.slug })
-    current = current.parentId ? (byId.get(current.parentId) ?? null) : null
-  }
-  return chain
 }
 
 function CategorySkeleton() {
