@@ -1,3 +1,4 @@
+import type { FaqEntry } from "@/lib/faq"
 import { site } from "@/lib/site"
 
 export interface SchemaBrand {
@@ -85,6 +86,11 @@ export interface ProductDonneesStructureesInput {
   variants?: ProductVariantStructureesInput[]
 }
 
+export interface BreadcrumbDonneesStructureesInput {
+  name: string
+  href?: string
+}
+
 export function serializeJsonLd(data: unknown): string {
   return JSON.stringify(data).replace(/</g, "\\u003c")
 }
@@ -134,4 +140,59 @@ export function buildProductDonneesStructurees(
   }
 
   return schemaProduct
+}
+
+export function buildBreadcrumbListDonneesStructurees(
+  crumbs: readonly BreadcrumbDonneesStructureesInput[]
+): SchemaBreadcrumbList {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((crumb, index) => {
+      const item: SchemaBreadcrumbListItem = {
+        "@type": "ListItem",
+        position: index + 1,
+        name: crumb.name,
+      }
+      if (crumb.href) {
+        item.item = crumb.href.startsWith("http")
+          ? crumb.href
+          : `${site.url}${crumb.href}`
+      }
+      return item
+    }),
+  }
+}
+
+export function buildFaqPageDonneesStructurees(
+  faqEntries: readonly FaqEntry[]
+): SchemaFaqPage {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqEntries.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  }
+}
+
+export function buildOrganizationDonneesStructurees(): SchemaOrganization {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: site.name,
+    legalName: site.legalName,
+    url: site.url,
+    contactPoint: {
+      "@type": "ContactPoint",
+      telephone: site.contactPhone,
+      email: site.contactEmail,
+      contactType: "customer service",
+    },
+  }
 }

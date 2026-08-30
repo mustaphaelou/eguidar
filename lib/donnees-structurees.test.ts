@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  buildBreadcrumbListDonneesStructurees,
+  buildFaqPageDonneesStructurees,
+  buildOrganizationDonneesStructurees,
   buildProductDonneesStructurees,
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
+import { faqs } from "@/lib/faq"
 import { site } from "@/lib/site"
 
 describe("serializeJsonLd", () => {
@@ -183,5 +187,139 @@ describe("buildProductDonneesStructurees", () => {
       expect(result[field]).toBeUndefined()
       expect(offer[field]).toBeUndefined()
     }
+  })
+})
+
+describe("buildBreadcrumbListDonneesStructurees", () => {
+  it("builds a BreadcrumbList matching product page crumbs exactly", () => {
+    const productCrumbs = [
+      { name: "Accueil", href: "/" },
+      { name: "Tous nos produits", href: "/produits" },
+      { name: "Smartphones", href: "/categorie/smartphones" },
+      { name: "iPhone 15 Pro" },
+    ]
+
+    const result = buildBreadcrumbListDonneesStructurees(productCrumbs)
+
+    expect(result).toEqual({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Accueil",
+          item: `${site.url}/`,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Tous nos produits",
+          item: `${site.url}/produits`,
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: "Smartphones",
+          item: `${site.url}/categorie/smartphones`,
+        },
+        {
+          "@type": "ListItem",
+          position: 4,
+          name: "iPhone 15 Pro",
+        },
+      ],
+    })
+  })
+
+  it("builds a BreadcrumbList matching category page crumbs exactly", () => {
+    const categoryCrumbs = [
+      { name: "Accueil", href: "/" },
+      { name: "Tous nos produits", href: "/produits" },
+      { name: "Informatique", href: "/categorie/informatique" },
+      { name: "Ordinateurs portables" },
+    ]
+
+    const result = buildBreadcrumbListDonneesStructurees(categoryCrumbs)
+
+    expect(result).toEqual({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Accueil",
+          item: `${site.url}/`,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Tous nos produits",
+          item: `${site.url}/produits`,
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: "Informatique",
+          item: `${site.url}/categorie/informatique`,
+        },
+        {
+          "@type": "ListItem",
+          position: 4,
+          name: "Ordinateurs portables",
+        },
+      ],
+    })
+  })
+})
+
+describe("buildFaqPageDonneesStructurees", () => {
+  it("builds a FAQPage matching the shared FAQ entries", () => {
+    const result = buildFaqPageDonneesStructurees(faqs)
+
+    expect(result["@context"]).toBe("https://schema.org")
+    expect(result["@type"]).toBe("FAQPage")
+    expect(result.mainEntity).toHaveLength(10)
+
+    expect(result.mainEntity[0]).toEqual({
+      "@type": "Question",
+      name: "Comment passer commande ?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Parcourez le catalogue, ajoutez vos produits au panier puis choisissez votre ville de livraison. À l'étape de commande, vérifiez votre adresse et votre numéro de téléphone, puis confirmez. Vous recevrez une confirmation par e-mail avec le détail de votre commande.",
+      },
+    })
+  })
+})
+
+describe("buildOrganizationDonneesStructurees", () => {
+  it("builds a minimal Organization node with the exact field set", () => {
+    const result = buildOrganizationDonneesStructurees()
+
+    expect(result).toEqual({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "eguidar.com",
+      legalName: "Eguidar",
+      url: "https://eguidar.com",
+      contactPoint: {
+        "@type": "ContactPoint",
+        telephone: "+212 661 234 567",
+        email: "contact@eguidar.com",
+        contactType: "customer service",
+      },
+    })
+  })
+
+  it("verifies deliberate absence of logo and sameAs", () => {
+    const result = buildOrganizationDonneesStructurees() as unknown as Record<
+      string,
+      unknown
+    >
+    expect(result.logo).toBeUndefined()
+    expect(result.sameAs).toBeUndefined()
+    expect("logo" in result).toBe(false)
+    expect("sameAs" in result).toBe(false)
   })
 })

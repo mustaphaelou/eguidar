@@ -5,6 +5,10 @@ import { Suspense } from "react"
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
 import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { Button } from "@/components/ui/button"
+import {
+  buildBreadcrumbListDonneesStructurees,
+  serializeJsonLd,
+} from "@/lib/donnees-structurees"
 import { pageMetadata } from "@/lib/metadata"
 import { getCategoryPageData } from "@/lib/use-cases/storefront"
 
@@ -47,20 +51,27 @@ async function CategoryContent({
   if (!data) notFound()
 
   const chain = data.categoryChain
+  const crumbs = [
+    { name: "Accueil", href: "/" },
+    { name: "Tous nos produits", href: "/produits" },
+    ...chain.map((category, index) =>
+      index === chain.length - 1
+        ? { name: category.name }
+        : { name: category.name, href: `/categorie/${category.slug}` }
+    ),
+  ]
 
   return (
     <>
-      <AppleBreadcrumb
-        crumbs={[
-          { name: "Accueil", href: "/" },
-          { name: "Tous nos produits", href: "/produits" },
-          ...chain.map((category, index) =>
-            index === chain.length - 1
-              ? { name: category.name }
-              : { name: category.name, href: `/categorie/${category.slug}` }
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(
+            buildBreadcrumbListDonneesStructurees(crumbs)
           ),
-        ]}
+        }}
       />
+      <AppleBreadcrumb crumbs={crumbs} />
 
       <section className="bg-muted">
         <div className="mx-auto max-w-[980px] px-4 py-12 text-center sm:px-6 sm:py-16">
@@ -123,7 +134,10 @@ function CategorySkeleton() {
         <div className="mx-auto h-64 w-full max-w-[980px] animate-pulse rounded-2xl bg-muted" />
         <div className="mx-auto flex w-full max-w-[980px] flex-wrap justify-center gap-2 px-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-8 w-24 animate-pulse rounded-full bg-muted" />
+            <div
+              key={i}
+              className="h-8 w-24 animate-pulse rounded-full bg-muted"
+            />
           ))}
         </div>
         <div className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-4 px-4 sm:grid-cols-3 lg:grid-cols-4">

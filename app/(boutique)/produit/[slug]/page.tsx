@@ -6,6 +6,7 @@ import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
 import {
+  buildBreadcrumbListDonneesStructurees,
   buildProductDonneesStructurees,
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
@@ -53,6 +54,15 @@ async function ProductContent({
   if (!data) notFound()
 
   const specEntries = Object.entries(data.specs)
+  const crumbs = [
+    { name: "Accueil", href: "/" },
+    { name: "Tous nos produits", href: "/produits" },
+    ...data.categoryChain.map((category) => ({
+      name: category.name,
+      href: `/categorie/${category.slug}`,
+    })),
+    { name: data.name },
+  ]
 
   return (
     <>
@@ -62,17 +72,15 @@ async function ProductContent({
           __html: serializeJsonLd(buildProductDonneesStructurees(data)),
         }}
       />
-      <AppleBreadcrumb
-        crumbs={[
-          { name: "Accueil", href: "/" },
-          { name: "Tous nos produits", href: "/produits" },
-          ...data.categoryChain.map((category) => ({
-            name: category.name,
-            href: `/categorie/${category.slug}`,
-          })),
-          { name: data.name },
-        ]}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(
+            buildBreadcrumbListDonneesStructurees(crumbs)
+          ),
+        }}
       />
+      <AppleBreadcrumb crumbs={crumbs} />
 
       <div className="mx-auto w-full max-w-[980px] px-4 pt-8 pb-4 sm:px-6">
         <div className="max-w-[520px]">
