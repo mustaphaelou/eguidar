@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { BarreDAchat } from "@/components/storefront/barre-d-achat"
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { MESSAGE_CAP_ATTEINTE, MOTIF_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
@@ -32,8 +33,21 @@ export function ProductBuyBox({
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
   const [added, setAdded] = useState(false)
   const [capAtteint, setCapAtteint] = useState(false)
+  const [barVisible, setBarVisible] = useState(true)
   const [isPending, startTransition] = useTransition()
   const selected = variants.find((variant) => variant.id === variantId)
+  const buyButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return
+    const bouton = buyButtonRef.current
+    if (!bouton) return
+    const observer = new IntersectionObserver(
+      ([entree]) => setBarVisible(entree ? !entree.isIntersecting : true)
+    )
+    observer.observe(bouton)
+    return () => observer.disconnect()
+  }, [])
 
   if (variants.length === 0) {
     return (
@@ -153,6 +167,7 @@ export function ProductBuyBox({
       </p>
 
       <Button
+        ref={buyButtonRef}
         onClick={handleAddToCart}
         disabled={outOfStock || isPending}
         className="h-12 lg:h-9 w-full rounded-full text-[17px]"
@@ -165,6 +180,8 @@ export function ProductBuyBox({
           {MESSAGE_CAP_ATTEINTE}
         </p>
       )}
+
+      <BarreDAchat visible={barVisible} prix={price} onAjouter={handleAddToCart} />
     </div>
   )
 }
