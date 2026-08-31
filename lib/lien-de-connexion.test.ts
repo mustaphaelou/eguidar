@@ -73,7 +73,9 @@ describe("parseAuthParams", () => {
   })
 
   it("decodes a destination that carries its own query", () => {
-    expect(parseAuthParams("?open=login&next=%2Fprofil%2Fcommandes%3Fpage%3D2")).toEqual({
+    expect(
+      parseAuthParams("?open=login&next=%2Fprofil%2Fcommandes%3Fpage%3D2")
+    ).toEqual({
       dialog: "login",
       next: "/profil/commandes?page=2",
     })
@@ -88,7 +90,10 @@ describe("parseAuthParams", () => {
   })
 
   it("yields a null dialog for unknown open values", () => {
-    expect(parseAuthParams("?open=checkout")).toEqual({ dialog: null, next: null })
+    expect(parseAuthParams("?open=checkout")).toEqual({
+      dialog: null,
+      next: null,
+    })
     expect(parseAuthParams("?open=")).toEqual({ dialog: null, next: null })
   })
 
@@ -129,9 +134,11 @@ describe("withAuthParams", () => {
 
   it("leaves a parameter untouched when its option is omitted", () => {
     expect(withAuthParams("/", { dialog: "signup" })).toBe("/?open=signup")
-    expect(withAuthParams("/compte?open=login&next=%2Fpanier", { next: "/commandes" })).toBe(
-      "/compte?open=login&next=%2Fcommandes"
-    )
+    expect(
+      withAuthParams("/compte?open=login&next=%2Fpanier", {
+        next: "/commandes",
+      })
+    ).toBe("/compte?open=login&next=%2Fcommandes")
   })
 
   it("treats an absolute URL as its same-site path", () => {
@@ -149,7 +156,10 @@ describe("withAuthParams", () => {
       )
     }
     expect(
-      withAuthParams("/?next=%2Fpanier", { dialog: "login", next: "//evil.example" })
+      withAuthParams("/?next=%2Fpanier", {
+        dialog: "login",
+        next: "//evil.example",
+      })
     ).toBe("/?open=login")
     expect(
       withAuthParams("/compte?next=%2Fpanier", { dialog: "login", next: "" })
@@ -166,9 +176,9 @@ describe("withAuthParams", () => {
 
 describe("withoutAuthParams", () => {
   it("removes only the dialog parameter", () => {
-    expect(withoutAuthParams("/recherche?q=chaussure&open=login&next=%2Fpanier")).toBe(
-      "/recherche?q=chaussure&next=%2Fpanier"
-    )
+    expect(
+      withoutAuthParams("/recherche?q=chaussure&open=login&next=%2Fpanier")
+    ).toBe("/recherche?q=chaussure&next=%2Fpanier")
   })
 
   it("leaves URLs without a dialog parameter unchanged", () => {

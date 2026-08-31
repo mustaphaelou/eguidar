@@ -5,7 +5,13 @@ import { useState } from "react"
 
 import { cn } from "@/lib/utils"
 
-export function ProductGallery({ images, name }: { images: string[]; name: string }) {
+export function ProductGallery({
+  images,
+  name,
+}: {
+  images: string[]
+  name: string
+}) {
   const safeImages = images.length > 0 ? images : [null]
   const [index, setIndex] = useState(0)
   const current = Math.min(index, safeImages.length - 1)
@@ -43,7 +49,13 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
               )}
             >
               {image ? (
-                <Image src={image} alt="" fill sizes="64px" className="object-cover" />
+                <Image
+                  src={image}
+                  alt=""
+                  fill
+                  sizes="64px"
+                  className="object-cover"
+                />
               ) : null}
             </button>
           ))}

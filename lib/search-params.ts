@@ -36,7 +36,8 @@ export function escapeFilterValue(value: string): string {
 
 export function buildSearchFilter(filters: SearchFilters): string | undefined {
   const clauses: string[] = []
-  if (filters.brand) clauses.push(`brand = "${escapeFilterValue(filters.brand)}"`)
+  if (filters.brand)
+    clauses.push(`brand = "${escapeFilterValue(filters.brand)}"`)
   if (filters.categorySlug) {
     clauses.push(`categorySlug = "${escapeFilterValue(filters.categorySlug)}"`)
   }

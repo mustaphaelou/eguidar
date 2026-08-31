@@ -22,8 +22,9 @@ export function parseMadToCents(value: string): number | null {
   return Math.round(parsed * 100)
 }
 
-export function totalPayable(
-  pick: { total: number; shippingFee: number }
-): number {
+export function totalPayable(pick: {
+  total: number
+  shippingFee: number
+}): number {
   return pick.total + pick.shippingFee
 }

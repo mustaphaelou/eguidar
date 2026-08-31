@@ -19,7 +19,10 @@ interface ShippingSettingsFormProps {
   ) => Promise<ShippingSettingsFormState>
 }
 
-export function ShippingSettingsForm({ threshold, action }: ShippingSettingsFormProps) {
+export function ShippingSettingsForm({
+  threshold,
+  action,
+}: ShippingSettingsFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
 
   return (
@@ -31,7 +34,9 @@ export function ShippingSettingsForm({ threshold, action }: ShippingSettingsForm
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="freeShippingThreshold">Seuil de livraison offerte (MAD)</Label>
+        <Label htmlFor="freeShippingThreshold">
+          Seuil de livraison offerte (MAD)
+        </Label>
         <Input
           id="freeShippingThreshold"
           name="freeShippingThreshold"
@@ -42,8 +47,8 @@ export function ShippingSettingsForm({ threshold, action }: ShippingSettingsForm
           defaultValue={threshold !== null ? centsToInputValue(threshold) : ""}
         />
         <p className="text-sm text-muted-foreground">
-          Les commandes dont le sous-total atteint ce montant bénéficient de la livraison gratuite,
-          quel que soit le frais de la ville.
+          Les commandes dont le sous-total atteint ce montant bénéficient de la
+          livraison gratuite, quel que soit le frais de la ville.
         </p>
       </div>
 

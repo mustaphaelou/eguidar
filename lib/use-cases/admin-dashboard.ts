@@ -68,11 +68,7 @@ function prior30Window(nowMs: number, previousEnd: Date) {
 
 function last12MonthWindows(nowMs: number) {
   const now = new Date(nowMs)
-  const oldestBucketStart = new Date(
-    now.getFullYear(),
-    now.getMonth() - 11,
-    1
-  )
+  const oldestBucketStart = new Date(now.getFullYear(), now.getMonth() - 11, 1)
   const monthKeys: string[] = []
   for (let offset = 0; offset < 12; offset++) {
     const bucketStart = new Date(

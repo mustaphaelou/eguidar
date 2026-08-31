@@ -67,7 +67,9 @@ describe("proxy", () => {
       const res = proxy(request("/admin/produits"))
 
       expect(res.status).toBe(307)
-      expect(res.headers.get("location")).toBe(absolute(loginUrl("/admin/produits")))
+      expect(res.headers.get("location")).toBe(
+        absolute(loginUrl("/admin/produits"))
+      )
     })
 
     it("takes one redirect straight to the final-form login URL for a compte section", () => {

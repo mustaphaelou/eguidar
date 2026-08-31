@@ -5,10 +5,7 @@ import { useSearchParams } from "next/navigation"
 
 import { useSession } from "@/lib/client"
 import { useAuthDialogs } from "@/components/auth/auth-dialogs-context"
-import {
-  parseAuthParams,
-  withoutAuthParams,
-} from "@/lib/lien-de-connexion"
+import { parseAuthParams, withoutAuthParams } from "@/lib/lien-de-connexion"
 import { replaceUrl } from "@/components/auth/sync-url"
 
 function removeOpenParam() {

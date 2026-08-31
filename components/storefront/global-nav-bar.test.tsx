@@ -120,9 +120,8 @@ describe("GlobalNavBar", () => {
   it("renders the panier link without a badge by default", () => {
     renderCapturingErrors(<GlobalNavBar links={links} actions={null} />)
 
-    const panier = container.querySelector<HTMLAnchorElement>(
-      "a[href='/panier']"
-    )!
+    const panier =
+      container.querySelector<HTMLAnchorElement>("a[href='/panier']")!
     expect(panier.getAttribute("aria-label")).toBe("Panier")
     expect(panier.textContent).toBe("")
   })
@@ -136,9 +135,8 @@ describe("GlobalNavBar", () => {
       />
     )
 
-    const panier = container.querySelector<HTMLAnchorElement>(
-      "a[href='/panier']"
-    )!
+    const panier =
+      container.querySelector<HTMLAnchorElement>("a[href='/panier']")!
     const badge = panier.querySelector<HTMLElement>("[data-testid='badge']")!
     expect(badge.textContent).toBe("3")
   })

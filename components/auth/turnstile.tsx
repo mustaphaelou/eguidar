@@ -115,7 +115,11 @@ export function Turnstile({
       />
       {status !== "idle" && (
         <div className="flex items-center justify-between gap-2 text-xs">
-          <span className={status === "error" ? "text-destructive" : "text-muted-foreground"}>
+          <span
+            className={
+              status === "error" ? "text-destructive" : "text-muted-foreground"
+            }
+          >
             {status === "expired"
               ? "Vérification de sécurité expirée."
               : "Impossible de charger le test de sécurité."}

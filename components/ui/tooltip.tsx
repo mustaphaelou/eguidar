@@ -21,10 +21,9 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
 }
 
 type TooltipContentProps = TooltipPrimitive.Popup.Props &
-  Pick<
-    TooltipPrimitive.Positioner.Props,
-    "side" | "align" | "sideOffset"
-  > & { children?: React.ReactNode }
+  Pick<TooltipPrimitive.Positioner.Props, "side" | "align" | "sideOffset"> & {
+    children?: React.ReactNode
+  }
 
 function TooltipContent({
   className,

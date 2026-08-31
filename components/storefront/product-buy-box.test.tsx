@@ -24,7 +24,13 @@ const variantes = [
 
 const variantesMultiples = [
   { id: "variante-a", name: "Standard", sku: "PBB-A", priceDelta: 0, stock: 4 },
-  { id: "variante-b", name: "Premium", sku: "PBB-B", priceDelta: 25000, stock: 2 },
+  {
+    id: "variante-b",
+    name: "Premium",
+    sku: "PBB-B",
+    priceDelta: 25000,
+    stock: 2,
+  },
 ]
 
 let container: HTMLDivElement
@@ -63,7 +69,9 @@ async function cliquerAjouter() {
     button.textContent?.includes("Ajouter au panier")
   )!
   act(() => {
-    bouton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
+    bouton.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true })
+    )
   })
   await act(async () => {})
   await act(async () => {})
@@ -184,7 +192,10 @@ describe("ProductBuyBox", () => {
     await act(async () => {})
 
     expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledTimes(1)
-    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledWith("variante-b", 1)
+    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledWith(
+      "variante-b",
+      1
+    )
   })
 
   it("ne rend aucune barre pour un produit sans variante", () => {
@@ -284,8 +295,20 @@ describe("ProductBuyBox", () => {
 
   it("désactive le bouton de la barre quand la variante sélectionnée est épuisée", () => {
     const variantesEpuisees = [
-      { id: "variante-a", name: "Standard", sku: "PBB-A", priceDelta: 0, stock: 0 },
-      { id: "variante-b", name: "Rare", sku: "PBB-B", priceDelta: 20000, stock: 4 },
+      {
+        id: "variante-a",
+        name: "Standard",
+        sku: "PBB-A",
+        priceDelta: 0,
+        stock: 0,
+      },
+      {
+        id: "variante-b",
+        name: "Rare",
+        sku: "PBB-B",
+        priceDelta: 20000,
+        stock: 4,
+      },
     ]
     render(
       <ProductBuyBox
@@ -324,11 +347,13 @@ describe("ProductBuyBox", () => {
     const boutonBarre = container.querySelector(
       "[data-slot='barre-d-achat'] button"
     )!
-    expect(boutonBarre.getAttribute("aria-label")).toContain("Ajouter au panier")
+    expect(boutonBarre.getAttribute("aria-label")).toContain(
+      "Ajouter au panier"
+    )
     expect(boutonBarre.getAttribute("aria-label")).toContain("Standard")
 
-    const pucePremium = [...container.querySelectorAll("button")].find((button) =>
-      button.textContent?.includes("Premium")
+    const pucePremium = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Premium")
     )!
     act(() => {
       pucePremium.dispatchEvent(

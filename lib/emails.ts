@@ -11,10 +11,16 @@ const otpTypeLabels: Record<string, string> = {
   "change-email": "le changement de votre adresse e-mail",
 }
 
-export async function sendOtpEmail(email: string, otp: string, type: string): Promise<void> {
+export async function sendOtpEmail(
+  email: string,
+  otp: string,
+  type: string
+): Promise<void> {
   const resend = getResend()
   if (!resend) {
-    console.warn(`[email] RESEND_API_KEY absent — OTP ${type} non envoyé à ${email} (code : ${otp})`)
+    console.warn(
+      `[email] RESEND_API_KEY absent — OTP ${type} non envoyé à ${email} (code : ${otp})`
+    )
     return
   }
   const label = otpTypeLabels[type] ?? "l'utilisation de votre compte"
@@ -99,7 +105,9 @@ async function sendOrderEmail(
 ): Promise<void> {
   const resend = getResend()
   if (!resend) {
-    console.warn(`[email] RESEND_API_KEY absent — e-mail de commande non envoyé à ${snapshot.userEmail}`)
+    console.warn(
+      `[email] RESEND_API_KEY absent — e-mail de commande non envoyé à ${snapshot.userEmail}`
+    )
     return
   }
   await resend.emails.send({
@@ -120,7 +128,9 @@ async function sendOrderEmail(
   })
 }
 
-export async function sendOrderPlacedEmail(snapshot: OrderEmailSnapshot): Promise<void> {
+export async function sendOrderPlacedEmail(
+  snapshot: OrderEmailSnapshot
+): Promise<void> {
   await sendOrderEmail(
     snapshot,
     `Commande ${shortOrderId(snapshot.orderId)} reçue — Eguidar`,

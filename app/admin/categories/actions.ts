@@ -49,7 +49,10 @@ export const createCategoryAction = adminFormAction<CategoryInput>({
 export const updateCategoryAction = adminFormAction<CategoryUpdateInput>({
   next: "/admin/categories",
   parse: (formData) => {
-    return { ...parseCategoryFormData(formData), categoryId: parseRequiredId(formData, "categoryId") }
+    return {
+      ...parseCategoryFormData(formData),
+      categoryId: parseRequiredId(formData, "categoryId"),
+    }
   },
   run: async ({ categoryId, ...input }) => {
     await updateCategory(categoryId, input, realStructureEffects)
@@ -63,8 +66,12 @@ export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
     const categoryId = parseRequiredId(formData, "categoryId")
     const reassignRaw = formData.get("reassignToCategoryId")
     const reassignToCategoryId =
-      reassignRaw && reassignRaw !== NO_PARENT_VALUE ? String(reassignRaw) : undefined
-    return reassignToCategoryId ? { categoryId, reassignToCategoryId } : { categoryId }
+      reassignRaw && reassignRaw !== NO_PARENT_VALUE
+        ? String(reassignRaw)
+        : undefined
+    return reassignToCategoryId
+      ? { categoryId, reassignToCategoryId }
+      : { categoryId }
   },
   run: async ({ categoryId, reassignToCategoryId }) => {
     await deleteCategory(

@@ -10,7 +10,10 @@ import {
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const errorFactory: [string, () => unknown][] = [
-  ["CategoryValidationError", () => new CategoryValidationError(["slug requis"])],
+  [
+    "CategoryValidationError",
+    () => new CategoryValidationError(["slug requis"]),
+  ],
   ["CategorySlugConflictError", () => new CategorySlugConflictError()],
   ["CategoryNotFoundError", () => new CategoryNotFoundError()],
   ["CategoryHasChildrenError", () => new CategoryHasChildrenError()],

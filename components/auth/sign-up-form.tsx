@@ -168,7 +168,9 @@ export function SignUpForm({
                   autoComplete="email"
                   placeholder="name@email.ma"
                   aria-invalid={Boolean(issues.email)}
-                  aria-describedby={issues.email ? "signup-email-issue" : undefined}
+                  aria-describedby={
+                    issues.email ? "signup-email-issue" : undefined
+                  }
                 />
                 <FieldError id="signup-email-issue">{issues.email}</FieldError>
               </div>
@@ -192,7 +194,10 @@ export function SignUpForm({
                   {issues.password}
                 </FieldError>
                 {!issues.password && (
-                  <p id="password-hint" className="text-xs text-muted-foreground">
+                  <p
+                    id="password-hint"
+                    className="text-xs text-muted-foreground"
+                  >
                     Au moins 8 caractères.
                   </p>
                 )}

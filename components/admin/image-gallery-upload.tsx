@@ -1,6 +1,10 @@
 "use client"
 
-import { ArrowLeft01Icon, ArrowRight01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Delete01Icon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import Image from "next/image"
 import { useRef, useState } from "react"
@@ -15,7 +19,10 @@ interface ImageGalleryUploadProps {
 
 const MAX_FILES = 8
 
-export function ImageGalleryUpload({ images, onChange }: ImageGalleryUploadProps) {
+export function ImageGalleryUpload({
+  images,
+  onChange,
+}: ImageGalleryUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -151,9 +158,12 @@ export function ImageGalleryUpload({ images, onChange }: ImageGalleryUploadProps
         {uploading ? "Envoi en cours…" : "Ajouter des images"}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Envoyées vers Cloudflare R2, {images.length}/{MAX_FILES} images (10 Mo max par image).
+        Envoyées vers Cloudflare R2, {images.length}/{MAX_FILES} images (10 Mo
+        max par image).
       </p>
-      {error ? <p className={cn("text-sm", "text-destructive")}>{error}</p> : null}
+      {error ? (
+        <p className={cn("text-sm", "text-destructive")}>{error}</p>
+      ) : null}
     </div>
   )
 }

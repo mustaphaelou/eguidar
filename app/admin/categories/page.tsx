@@ -5,7 +5,14 @@ import type { Metadata } from "next"
 import { DeleteCategoryButton } from "@/components/admin/delete-category-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { deleteCategoryAction } from "@/app/admin/categories/actions"
 
@@ -13,7 +20,9 @@ export const metadata: Metadata = {
   title: "Catégories",
 }
 
-type AdminCategory = Awaited<ReturnType<typeof listAdminCategoriesWithCounts>>[number]
+type AdminCategory = Awaited<
+  ReturnType<typeof listAdminCategoriesWithCounts>
+>[number]
 
 function buildRows(
   categories: AdminCategory[],
@@ -26,7 +35,14 @@ function buildRows(
   return children.flatMap((category) => {
     const depth = (parentId ? (depthByParent.get(parentId) ?? 0) : -1) + 1
     const row = { ...category, depth }
-    return [row, ...buildRows(categories, category.id, depthByParent.set(category.id, depth))]
+    return [
+      row,
+      ...buildRows(
+        categories,
+        category.id,
+        depthByParent.set(category.id, depth)
+      ),
+    ]
   })
 }
 
@@ -38,7 +54,9 @@ export default async function AdminCategoriesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Catégories</h1>
-        <Button render={<Link href="/admin/categories/nouveau" />}>Nouvelle catégorie</Button>
+        <Button render={<Link href="/admin/categories/nouveau" />}>
+          Nouvelle catégorie
+        </Button>
       </div>
 
       {rows.length === 0 ? (
@@ -60,7 +78,10 @@ export default async function AdminCategoriesPage() {
             {rows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>
-                  <div className="flex items-center gap-3" style={{ paddingLeft: row.depth * 1.5 }}>
+                  <div
+                    className="flex items-center gap-3"
+                    style={{ paddingLeft: row.depth * 1.5 }}
+                  >
                     {row.image ? (
                       <Image
                         src={row.image}
@@ -77,13 +98,17 @@ export default async function AdminCategoriesPage() {
                           sous {row.parent?.name ?? "catégorie inconnue"}
                         </span>
                       ) : (
-                        <span className="text-sm text-muted-foreground">Catégorie racine</span>
+                        <span className="text-sm text-muted-foreground">
+                          Catégorie racine
+                        </span>
                       )}
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className="font-mono text-sm text-muted-foreground">{row.slug}</span>
+                  <span className="font-mono text-sm text-muted-foreground">
+                    {row.slug}
+                  </span>
                 </TableCell>
                 <TableCell>
                   {row._count.products > 0 ? (
@@ -94,7 +119,9 @@ export default async function AdminCategoriesPage() {
                 </TableCell>
                 <TableCell>
                   {row._count.children > 0 ? (
-                    <span className="text-sm text-muted-foreground">{row._count.children}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {row._count.children}
+                    </span>
                   ) : (
                     <span className="text-sm text-muted-foreground">—</span>
                   )}

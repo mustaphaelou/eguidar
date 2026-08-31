@@ -53,7 +53,10 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         {[...navSections, boutiqueSection].map((section, index) => (
-          <NavGroup key={section.title ?? `section-${index}`} section={section} />
+          <NavGroup
+            key={section.title ?? `section-${index}`}
+            section={section}
+          />
         ))}
       </SidebarContent>
       <SidebarFooter>

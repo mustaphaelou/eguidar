@@ -3,7 +3,14 @@ import type { Metadata } from "next"
 
 import { DeleteCityButton } from "@/components/admin/delete-city-button"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
 import { listAdminCities } from "@/lib/use-cases/livraison"
 import { deleteCityAction } from "@/app/admin/villes/actions"
@@ -19,12 +26,15 @@ export default async function AdminCitiesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Villes de livraison</h1>
-        <Button render={<Link href="/admin/villes/nouveau" />}>Nouvelle ville</Button>
+        <Button render={<Link href="/admin/villes/nouveau" />}>
+          Nouvelle ville
+        </Button>
       </div>
 
       {cities.length === 0 ? (
         <p className="text-muted-foreground">
-          Aucune ville pour le moment. Ajoutez les villes couvertes par la livraison COD.
+          Aucune ville pour le moment. Ajoutez les villes couvertes par la
+          livraison COD.
         </p>
       ) : (
         <Table>
@@ -42,10 +52,18 @@ export default async function AdminCitiesPage() {
                 <TableCell>{formatPrice(city.fee)}</TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-2">
-                    <Button render={<Link href={`/admin/villes/${city.id}`} />} variant="outline" size="sm">
+                    <Button
+                      render={<Link href={`/admin/villes/${city.id}`} />}
+                      variant="outline"
+                      size="sm"
+                    >
                       Modifier
                     </Button>
-                    <DeleteCityButton cityId={city.id} cityName={city.name} action={deleteCityAction} />
+                    <DeleteCityButton
+                      cityId={city.id}
+                      cityName={city.name}
+                      action={deleteCityAction}
+                    />
                   </div>
                 </TableCell>
               </TableRow>

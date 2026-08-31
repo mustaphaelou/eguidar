@@ -35,7 +35,9 @@ function matchRemotePattern(pattern: RemotePattern, url: URL): boolean {
     }
   }
   if (pattern.hostname === undefined) {
-    throw new Error(`Pattern should define hostname but found\n${JSON.stringify(pattern)}`)
+    throw new Error(
+      `Pattern should define hostname but found\n${JSON.stringify(pattern)}`
+    )
   } else {
     if (!makeRe(pattern.hostname).test(url.hostname)) {
       return false
@@ -53,7 +55,9 @@ function matchRemotePattern(pattern: RemotePattern, url: URL): boolean {
 }
 
 function isAllowed(src: string): boolean {
-  return remotePatterns.some((pattern) => matchRemotePattern(pattern, new URL(src)))
+  return remotePatterns.some((pattern) =>
+    matchRemotePattern(pattern, new URL(src))
+  )
 }
 
 beforeAll(async () => {
@@ -79,14 +83,14 @@ const seedSrcs = [
   "https://placehold.co/800x800?text=TV+LG+OLED",
   "https://placehold.co/800x800?text=PS5+Slim",
   "https://placehold.co/800x800?text=Anker+65W",
-  "https://cdn.eguidar.com/products/iphone-15-pro.jpg"
+  "https://cdn.eguidar.com/products/iphone-15-pro.jpg",
 ]
 
 const hostileSrcs = [
   "https://evil.example.com/steal.png",
   "https://placehold.co:8443/800x800?text=X",
   "https://placehold.co/900x900?text=X",
-  "https://cdn.eguidar.com/x.jpg?v=1"
+  "https://cdn.eguidar.com/x.jpg?v=1",
 ]
 
 describe("images.remotePatterns couvre les src du seed", () => {

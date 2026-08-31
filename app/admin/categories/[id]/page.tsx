@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation"
 
-import { CategoryForm, type CategoryFormInitial } from "@/components/admin/category-form"
+import {
+  CategoryForm,
+  type CategoryFormInitial,
+} from "@/components/admin/category-form"
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { updateCategoryAction } from "@/app/admin/categories/actions"
 
@@ -27,7 +30,11 @@ function collectDescendantIds(
   return descendants
 }
 
-export default async function EditCategoryPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditCategoryPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = await params
   const categories = await listAdminCategoriesWithCounts()
   const category = categories.find((candidate) => candidate.id === id)
@@ -47,7 +54,10 @@ export default async function EditCategoryPage({ params }: { params: Promise<{ i
       <CategoryForm
         category={initial}
         categories={categories}
-        excludedParentIds={[category.id, ...collectDescendantIds(categories, category.id)]}
+        excludedParentIds={[
+          category.id,
+          ...collectDescendantIds(categories, category.id),
+        ]}
         action={updateCategoryAction}
       />
     </div>

@@ -4,7 +4,13 @@ import { createPresignedUploadUrl } from "@/lib/r2"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 
 const presignSchema = z.object({
-  contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"]),
+  contentType: z.enum([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/avif",
+    "image/gif",
+  ]),
   size: z.number().int().positive(),
 })
 
@@ -16,18 +22,25 @@ export async function POST(request: Request) {
   try {
     body = await request.json()
   } catch {
-    return Response.json({ error: "Corps de requête invalide" }, { status: 400 })
+    return Response.json(
+      { error: "Corps de requête invalide" },
+      { status: 400 }
+    )
   }
 
   const parsed = presignSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: "Requête invalide" }, { status: 400 })
+  if (!parsed.success)
+    return Response.json({ error: "Requête invalide" }, { status: 400 })
 
   try {
     const { uploadUrl, publicUrl } = await createPresignedUploadUrl(parsed.data)
     return Response.json({ uploadUrl, publicUrl })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Échec de la pré-signature" },
+      {
+        error:
+          error instanceof Error ? error.message : "Échec de la pré-signature",
+      },
       { status: 500 }
     )
   }

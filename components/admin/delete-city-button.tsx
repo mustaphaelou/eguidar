@@ -10,7 +10,11 @@ interface DeleteCityButtonProps {
   action: (formData: FormData) => Promise<void>
 }
 
-export function DeleteCityButton({ cityId, cityName, action }: DeleteCityButtonProps) {
+export function DeleteCityButton({
+  cityId,
+  cityName,
+  action,
+}: DeleteCityButtonProps) {
   const formRef = useRef<HTMLFormElement>(null)
 
   return (
@@ -18,7 +22,9 @@ export function DeleteCityButton({ cityId, cityName, action }: DeleteCityButtonP
       ref={formRef}
       action={action}
       onSubmit={(event) => {
-        if (!confirm(`Supprimer « ${cityName} » ? Cette action est définitive.`)) {
+        if (
+          !confirm(`Supprimer « ${cityName} » ? Cette action est définitive.`)
+        ) {
           event.preventDefault()
         }
       }}

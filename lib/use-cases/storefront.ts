@@ -84,7 +84,9 @@ type CategoryWithCount = {
   _count: { products: number }
 }
 
-export function buildCategoryTree(categories: CategoryWithCount[]): CategoryNode[] {
+export function buildCategoryTree(
+  categories: CategoryWithCount[]
+): CategoryNode[] {
   const nodes = new Map<string, CategoryNode>()
   for (const category of categories) {
     nodes.set(category.id, {
@@ -118,7 +120,9 @@ function toProductCard(product: {
   freeShipping: boolean
   variants: VariantSummary[]
 }): ProductCard {
-  const images = Array.isArray(product.images) ? (product.images as string[]) : []
+  const images = Array.isArray(product.images)
+    ? (product.images as string[])
+    : []
   const minPrice = minVariantPrice(product.price, product.variants)
   const totalStock = totalVariantStock(product.variants)
   return {
@@ -156,7 +160,10 @@ export async function fetchHomeData(): Promise<HomeData> {
 function accumulateProductCounts(nodes: CategoryNode[]): void {
   for (const node of nodes) {
     accumulateProductCounts(node.children)
-    node.productCount += node.children.reduce((sum, child) => sum + child.productCount, 0)
+    node.productCount += node.children.reduce(
+      (sum, child) => sum + child.productCount,
+      0
+    )
   }
 }
 
@@ -174,7 +181,9 @@ async function loadCategoryLinks(): Promise<Map<string, CategoryLink>> {
   return new Map(categories.map((category) => [category.id, category]))
 }
 
-async function collectCategoryAndDescendantIds(rootId: string): Promise<string[]> {
+async function collectCategoryAndDescendantIds(
+  rootId: string
+): Promise<string[]> {
   const categoriesById = await loadCategoryLinks()
   const childrenByParent = new Map<string, string[]>()
   for (const category of categoriesById.values()) {
@@ -195,7 +204,9 @@ async function collectCategoryAndDescendantIds(rootId: string): Promise<string[]
   return ids
 }
 
-export async function fetchCategoryPageData(slug: string): Promise<CategoryPageData | null> {
+export async function fetchCategoryPageData(
+  slug: string
+): Promise<CategoryPageData | null> {
   const category = await prisma.category.findUnique({ where: { slug } })
   if (!category) return null
 
@@ -214,27 +225,39 @@ export async function fetchCategoryPageData(slug: string): Promise<CategoryPageD
     }),
   ])
   return {
-    category: { id: category.id, name: category.name, slug: category.slug, image: category.image },
+    category: {
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      image: category.image,
+    },
     categoryChain,
     children,
     products: products.map((product) => toProductCard(product)),
   }
 }
 
-async function getCategoryChain(
-  category: { id: string; name: string; slug: string; parentId: string | null }
-): Promise<CategoryChainEntry[]> {
+async function getCategoryChain(category: {
+  id: string
+  name: string
+  slug: string
+  parentId: string | null
+}): Promise<CategoryChainEntry[]> {
   const categoriesById = await loadCategoryLinks()
   const chain: CategoryChainEntry[] = []
   let current: CategoryLink | undefined = category
   while (current) {
     chain.unshift({ name: current.name, slug: current.slug })
-    current = current.parentId ? categoriesById.get(current.parentId) : undefined
+    current = current.parentId
+      ? categoriesById.get(current.parentId)
+      : undefined
   }
   return chain
 }
 
-export async function fetchProductPageData(slug: string): Promise<ProductDetailData | null> {
+export async function fetchProductPageData(
+  slug: string
+): Promise<ProductDetailData | null> {
   const product = await prisma.product.findUnique({
     where: { slug },
     include: { category: true, variants: { orderBy: { createdAt: "asc" } } },
@@ -258,7 +281,11 @@ export async function fetchProductPageData(slug: string): Promise<ProductDetailD
     images: Array.isArray(product.images) ? (product.images as string[]) : [],
     price: product.price,
     freeShipping: product.freeShipping,
-    category: { id: product.category.id, name: product.category.name, slug: product.category.slug },
+    category: {
+      id: product.category.id,
+      name: product.category.name,
+      slug: product.category.slug,
+    },
     categoryChain: await getCategoryChain(product.category),
     variants: product.variants.map((variant) => ({
       id: variant.id,
@@ -280,14 +307,18 @@ export async function getHomeData(): Promise<HomeData> {
   return fetchHomeData()
 }
 
-export async function getCategoryPageData(slug: string): Promise<CategoryPageData | null> {
+export async function getCategoryPageData(
+  slug: string
+): Promise<CategoryPageData | null> {
   "use cache: remote"
   cacheTag(CATEGORY_TAG, PRODUCT_TAG)
   cacheLife(STORE_CACHE_LIFE)
   return fetchCategoryPageData(slug)
 }
 
-export async function getProductPageData(slug: string): Promise<ProductDetailData | null> {
+export async function getProductPageData(
+  slug: string
+): Promise<ProductDetailData | null> {
   "use cache: remote"
   cacheTag(PRODUCT_TAG, productDetailTag(slug), CATEGORY_TAG)
   cacheLife(STORE_CACHE_LIFE)

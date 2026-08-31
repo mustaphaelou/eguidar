@@ -24,7 +24,10 @@ function parseSpecsText(text: string): Record<string, string> {
     const trimmed = line.trim()
     if (!trimmed) continue
     const colon = trimmed.indexOf(":")
-    if (colon <= 0) throw new Error("Format de spécifications invalide (clé : valeur par ligne)")
+    if (colon <= 0)
+      throw new Error(
+        "Format de spécifications invalide (clé : valeur par ligne)"
+      )
     specs[trimmed.slice(0, colon).trim()] = trimmed.slice(colon + 1).trim()
   }
   return specs
@@ -75,7 +78,10 @@ export const createProductAction = adminFormAction<ProductInput>({
 export const updateProductAction = adminFormAction<ProductUpdateInput>({
   next: "/admin/produits",
   parse: (formData) => {
-    return { ...parseProductFormData(formData), productId: parseRequiredId(formData, "productId") }
+    return {
+      ...parseProductFormData(formData),
+      productId: parseRequiredId(formData, "productId"),
+    }
   },
   run: async ({ productId, ...input }) => {
     await updateProduct(productId, input, realCatalogEffects)

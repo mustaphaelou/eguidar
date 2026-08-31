@@ -2,7 +2,10 @@
 
 import { useActionState, useEffect } from "react"
 
-import { updateProfileAction, type ProfileFormState } from "@/app/(boutique)/profil/actions"
+import {
+  updateProfileAction,
+  type ProfileFormState,
+} from "@/app/(boutique)/profil/actions"
 import { syncLoginUrl } from "@/components/auth/sync-url"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,7 +36,10 @@ export function ProfileForm({
   initialAddress,
   initialPhone,
 }: ProfileFormProps) {
-  const [state, formAction, isPending] = useActionState(updateProfileAction, initialState)
+  const [state, formAction, isPending] = useActionState(
+    updateProfileAction,
+    initialState
+  )
 
   useEffect(() => {
     if (!state.unauthenticated) return

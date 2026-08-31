@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto"
 
 import { renderToReadableStream } from "react-dom/server"
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { sessionUserMock } from "@/test/navigation-mocks"
 
@@ -69,7 +77,12 @@ beforeAll(async () => {
       freeShipping: false,
       variants: {
         create: [
-          { name: "Standard", sku: `PBD-${runId}-A1`, priceDelta: 0, stock: 10 },
+          {
+            name: "Standard",
+            sku: `PBD-${runId}-A1`,
+            priceDelta: 0,
+            stock: 10,
+          },
           { name: "Premium", sku: `PBD-${runId}-A2`, priceDelta: 0, stock: 5 },
         ],
       },
@@ -95,8 +108,12 @@ afterAll(async () => {
   await prisma.user.deleteMany({
     where: { email: { startsWith: `panier-badge-${runId}-` } },
   })
-  await prisma.product.deleteMany({ where: { slug: `panier-badge-prod-${runId}` } })
-  await prisma.category.deleteMany({ where: { slug: `panier-badge-cat-${runId}` } })
+  await prisma.product.deleteMany({
+    where: { slug: `panier-badge-prod-${runId}` },
+  })
+  await prisma.category.deleteMany({
+    where: { slug: `panier-badge-cat-${runId}` },
+  })
   await prisma.$disconnect()
 })
 

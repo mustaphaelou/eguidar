@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto"
 
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 export class R2NotConfiguredError extends Error {
@@ -47,7 +51,8 @@ export async function createPresignedUploadUrl(input: {
 
   const extension = EXTENSIONS[input.contentType]
   if (!extension) throw new Error("Type de fichier non pris en charge")
-  if (input.size > MAX_UPLOAD_SIZE) throw new Error("Fichier trop volumineux (10 Mo maximum)")
+  if (input.size > MAX_UPLOAD_SIZE)
+    throw new Error("Fichier trop volumineux (10 Mo maximum)")
 
   const key = `products/${randomUUID()}${extension}`
   const command = new PutObjectCommand({
@@ -58,10 +63,17 @@ export async function createPresignedUploadUrl(input: {
   })
   const uploadUrl = await getSignedUrl(client, command, { expiresIn: 300 })
 
-  return { uploadUrl, publicUrl: `${publicBase.replace(/\/$/, "")}/${key}`, key }
+  return {
+    uploadUrl,
+    publicUrl: `${publicBase.replace(/\/$/, "")}/${key}`,
+    key,
+  }
 }
 
-function objectKeyFromPublicUrl(publicUrl: string, publicBase: string): string | null {
+function objectKeyFromPublicUrl(
+  publicUrl: string,
+  publicBase: string
+): string | null {
   const base = publicBase.replace(/\/$/, "")
   if (!publicUrl.startsWith(`${base}/`)) return null
   const key = publicUrl.slice(base.length + 1)

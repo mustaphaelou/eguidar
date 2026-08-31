@@ -45,7 +45,9 @@ describe("toIndexableProduct", () => {
 
   it("computes minPrice over base price plus variant deltas", () => {
     const doc = toIndexableProduct(
-      makeProduct({ variants: [{ name: "Var", sku: "V1", priceDelta: 150000, stock: 3 }] })
+      makeProduct({
+        variants: [{ name: "Var", sku: "V1", priceDelta: 150000, stock: 3 }],
+      })
     )
 
     expect(doc.minPrice).toBe(100000)
@@ -79,7 +81,9 @@ describe("toIndexableProduct", () => {
 
   it("buckets the minimum price, not the base price", () => {
     const doc = toIndexableProduct(
-      makeProduct({ variants: [{ name: "Var", sku: "V1", priceDelta: -1, stock: 5 }] })
+      makeProduct({
+        variants: [{ name: "Var", sku: "V1", priceDelta: -1, stock: 5 }],
+      })
     )
 
     expect(doc.minPrice).toBe(99999)
@@ -87,26 +91,42 @@ describe("toIndexableProduct", () => {
   })
 
   it("buckets the boundary prices", () => {
-    expect(toIndexableProduct(makeProduct({ price: 99999 })).priceBucket).toBe("0-1000")
-    expect(toIndexableProduct(makeProduct({ price: 100000 })).priceBucket).toBe("1000-2500")
-    expect(toIndexableProduct(makeProduct({ price: 250000 })).priceBucket).toBe("2500-5000")
-    expect(toIndexableProduct(makeProduct({ price: 1000000 })).priceBucket).toBe("10000-plus")
+    expect(toIndexableProduct(makeProduct({ price: 99999 })).priceBucket).toBe(
+      "0-1000"
+    )
+    expect(toIndexableProduct(makeProduct({ price: 100000 })).priceBucket).toBe(
+      "1000-2500"
+    )
+    expect(toIndexableProduct(makeProduct({ price: 250000 })).priceBucket).toBe(
+      "2500-5000"
+    )
+    expect(
+      toIndexableProduct(makeProduct({ price: 1000000 })).priceBucket
+    ).toBe("10000-plus")
   })
 
   it("coerces images to an array of strings", () => {
     expect(
       toIndexableProduct(makeProduct({ images: ["a.jpg", 42, null] })).images
     ).toEqual(["a.jpg"])
-    expect(toIndexableProduct(makeProduct({ images: "not-an-array" })).images).toEqual([])
+    expect(
+      toIndexableProduct(makeProduct({ images: "not-an-array" })).images
+    ).toEqual([])
     expect(toIndexableProduct(makeProduct({ images: [] })).images).toEqual([])
   })
 
   it("joins the category fields", () => {
     const doc = toIndexableProduct(
-      makeProduct({ category: { id: "cat-9", slug: "magasins", name: "Magasins" } })
+      makeProduct({
+        category: { id: "cat-9", slug: "magasins", name: "Magasins" },
+      })
     )
 
-    expect(doc).toMatchObject({ categoryId: "cat-9", categorySlug: "magasins", categoryName: "Magasins" })
+    expect(doc).toMatchObject({
+      categoryId: "cat-9",
+      categorySlug: "magasins",
+      categoryName: "Magasins",
+    })
   })
 
   it("converts updatedAt to milliseconds", () => {
@@ -117,7 +137,9 @@ describe("toIndexableProduct", () => {
 
   it("flattens specs keys and values into searchable text", () => {
     const doc = toIndexableProduct(
-      makeProduct({ specs: { Écran: "6.1 inch", Puce: "A17 Pro", Batterie: "3274 mAh" } })
+      makeProduct({
+        specs: { Écran: "6.1 inch", Puce: "A17 Pro", Batterie: "3274 mAh" },
+      })
     )
 
     expect(doc.specsText).toBe("Écran 6.1 inch Puce A17 Pro Batterie 3274 mAh")
@@ -132,8 +154,12 @@ describe("toIndexableProduct", () => {
   })
 
   it("produces empty specs text for non-object specs", () => {
-    expect(toIndexableProduct(makeProduct({ specs: undefined })).specsText).toBe("")
-    expect(toIndexableProduct(makeProduct({ specs: "nope" })).specsText).toBe("")
+    expect(
+      toIndexableProduct(makeProduct({ specs: undefined })).specsText
+    ).toBe("")
+    expect(toIndexableProduct(makeProduct({ specs: "nope" })).specsText).toBe(
+      ""
+    )
     expect(toIndexableProduct(makeProduct({ specs: [] })).specsText).toBe("")
   })
 

@@ -33,8 +33,7 @@ function DataTableToolbar<TData>({
   className,
 }: DataTableToolbarProps<TData>) {
   const isFiltered =
-    table.getState().columnFilters.length > 0 ||
-    !!table.getState().globalFilter
+    table.getState().columnFilters.length > 0 || !!table.getState().globalFilter
 
   return (
     <div

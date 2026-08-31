@@ -416,9 +416,10 @@ describe("order placement", () => {
       placeOrder(userIdC, checkoutInput(), makeEffects()),
     ])
 
-    expect(
-      [first.status, second.status].sort()
-    ).toEqual(["fulfilled", "rejected"])
+    expect([first.status, second.status].sort()).toEqual([
+      "fulfilled",
+      "rejected",
+    ])
     const rejected = [first, second].find(
       (result): result is PromiseRejectedResult => result.status === "rejected"
     )

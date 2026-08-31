@@ -31,7 +31,11 @@ export function ProductCardItem({ product }: { product: ProductCard }) {
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {product.freeShipping && (
             <Badge variant="secondary" className="gap-1">
-              <HugeiconsIcon icon={DeliveryTruck02Icon} strokeWidth={2} className="size-3" />
+              <HugeiconsIcon
+                icon={DeliveryTruck02Icon}
+                strokeWidth={2}
+                className="size-3"
+              />
               Livraison offerte
             </Badge>
           )}
@@ -39,11 +43,15 @@ export function ProductCardItem({ product }: { product: ProductCard }) {
       </div>
       <div className="flex flex-col gap-1 px-0.5">
         <p className="text-xs text-muted-foreground">{product.brand}</p>
-        <p className="line-clamp-2 min-h-10 text-sm font-medium">{product.name}</p>
+        <p className="line-clamp-2 min-h-10 text-sm font-medium">
+          {product.name}
+        </p>
         <p className="text-base font-bold">{formatPrice(product.minPrice)}</p>
         <p className="text-xs text-muted-foreground">
           {product.totalStock > 0 ? (
-            <span className="text-emerald-600 dark:text-emerald-400">En stock</span>
+            <span className="text-emerald-600 dark:text-emerald-400">
+              En stock
+            </span>
           ) : (
             <span className="text-destructive">Rupture de stock</span>
           )}

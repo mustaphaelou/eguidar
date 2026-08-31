@@ -90,7 +90,10 @@ const productInputSchema = z.object({
   slug: z
     .string()
     .min(1, "slug requis")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug invalide (minuscules, chiffres et tirets uniquement)"),
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "slug invalide (minuscules, chiffres et tirets uniquement)"
+    ),
   description: z.string(),
   brand: z.string().min(1, "marque requise"),
   categoryId: z.string().min(1, "catégorie requise"),
@@ -106,7 +109,9 @@ const productInputSchema = z.object({
 function parseProductInput(input: ProductInput): ProductInput {
   const result = productInputSchema.safeParse(input)
   if (!result.success) {
-    throw new CatalogValidationError(result.error.issues.map((issue) => issue.message))
+    throw new CatalogValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
   }
   return result.data
 }
@@ -126,21 +131,33 @@ function assertUniqueSkusInInput(variants: ProductVariantInput[]): void {
   }
 }
 
-async function assertUniqueSlug(slug: string, excludeProductId?: string): Promise<void> {
+async function assertUniqueSlug(
+  slug: string,
+  excludeProductId?: string
+): Promise<void> {
   const existing = await prisma.product.findUnique({ where: { slug } })
-  if (existing && existing.id !== excludeProductId) throw new SlugConflictError()
+  if (existing && existing.id !== excludeProductId)
+    throw new SlugConflictError()
 }
 
-async function assertUniqueSkus(skus: string[], excludeProductId?: string): Promise<void> {
+async function assertUniqueSkus(
+  skus: string[],
+  excludeProductId?: string
+): Promise<void> {
   if (skus.length === 0) return
   const existing = await prisma.productVariant.findMany({
-    where: { sku: { in: skus }, ...(excludeProductId ? { productId: { not: excludeProductId } } : {}) },
+    where: {
+      sku: { in: skus },
+      ...(excludeProductId ? { productId: { not: excludeProductId } } : {}),
+    },
     select: { sku: true },
   })
   if (existing.length > 0) throw new DuplicateSkuError()
 }
 function imageUrls(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : []
 }
 
 function mapUniqueViolation(error: unknown): never {
@@ -149,7 +166,10 @@ function mapUniqueViolation(error: unknown): never {
   throw error
 }
 
-export async function createProduct(input: ProductInput, effects: CatalogEffects) {
+export async function createProduct(
+  input: ProductInput,
+  effects: CatalogEffects
+) {
   const data = parseProductInput(input)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -191,7 +211,11 @@ export async function createProduct(input: ProductInput, effects: CatalogEffects
   return product
 }
 
-export async function updateProduct(id: string, input: ProductInput, effects: CatalogEffects) {
+export async function updateProduct(
+  id: string,
+  input: ProductInput,
+  effects: CatalogEffects
+) {
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -199,16 +223,25 @@ export async function updateProduct(id: string, input: ProductInput, effects: Ca
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug, id)
-  await assertUniqueSkus(data.variants.map((variant) => variant.sku), id)
+  await assertUniqueSkus(
+    data.variants.map((variant) => variant.sku),
+    id
+  )
 
-  const keptVariantIds = data.variants.flatMap((variant) => (variant.id ? [variant.id] : []))
+  const keptVariantIds = data.variants.flatMap((variant) =>
+    variant.id ? [variant.id] : []
+  )
   const existingImages = imageUrls(existing.images)
-  const removedImages = existingImages.filter((url) => !data.images.includes(url))
+  const removedImages = existingImages.filter(
+    (url) => !data.images.includes(url)
+  )
   const existingVariantIds = await prisma.productVariant.findMany({
     where: { productId: id },
     select: { id: true },
   })
-  const ownedVariantIds = new Set(existingVariantIds.map((variant) => variant.id))
+  const ownedVariantIds = new Set(
+    existingVariantIds.map((variant) => variant.id)
+  )
   for (const variant of data.variants) {
     if (variant.id && !ownedVariantIds.has(variant.id)) {
       throw new CatalogValidationError(["variante inconnue pour ce produit"])
@@ -286,7 +319,10 @@ export async function updateProduct(id: string, input: ProductInput, effects: Ca
   return product
 }
 
-export async function deleteProduct(id: string, effects: CatalogEffects): Promise<void> {
+export async function deleteProduct(
+  id: string,
+  effects: CatalogEffects
+): Promise<void> {
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -311,10 +347,15 @@ export async function updateVariantStock(
   })
   if (!variant) throw new VariantNotFoundError()
 
-  await prisma.productVariant.update({ where: { id: variantId }, data: { stock } })
+  await prisma.productVariant.update({
+    where: { id: variantId },
+    data: { stock },
+  })
   const product = {
     ...variant.product,
-    variants: variant.product.variants.map((v) => (v.id === variantId ? { ...v, stock } : v)),
+    variants: variant.product.variants.map((v) =>
+      v.id === variantId ? { ...v, stock } : v
+    ),
   }
   await effects.reindexProducts([toIndexableProduct(product)])
   effects.revalidateCatalog({ id: product.id, slug: product.slug })

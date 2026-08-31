@@ -107,7 +107,9 @@ export function SearchSuggestions({
         <div className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/5">
           {result.categories.length > 0 ? (
             <div className="border-b border-border/50 px-2 py-2">
-              <p className="px-2 py-1 text-xs text-muted-foreground">Catégories</p>
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                Catégories
+              </p>
               <div className="flex flex-col">
                 {result.categories.map((category) => (
                   <Link
@@ -147,8 +149,12 @@ export function SearchSuggestions({
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{product.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{product.brand}</p>
+                    <p className="truncate text-sm font-medium">
+                      {product.name}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {product.brand}
+                    </p>
                   </div>
                   <p className="shrink-0 text-sm font-semibold">
                     {formatPrice(product.minPrice)}

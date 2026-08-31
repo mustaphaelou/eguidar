@@ -18,7 +18,9 @@ type DataTableViewOptionsProps<TData> = {
   table: Table<TData>
 }
 
-function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps<TData>) {
+function DataTableViewOptions<TData>({
+  table,
+}: DataTableViewOptionsProps<TData>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -58,7 +60,4 @@ function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps<TData>
   )
 }
 
-export {
-  DataTableViewOptions,
-  type DataTableViewOptionsProps,
-}
+export { DataTableViewOptions, type DataTableViewOptionsProps }

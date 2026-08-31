@@ -28,7 +28,8 @@ function specsToText(specs: unknown): string {
   return Object.entries(specs as Record<string, unknown>)
     .flatMap(([key, value]) => {
       if (typeof value === "string") return [key, value]
-      if (typeof value === "number" || typeof value === "boolean") return [key, String(value)]
+      if (typeof value === "number" || typeof value === "boolean")
+        return [key, String(value)]
       return [key]
     })
     .join(" ")
@@ -59,7 +60,9 @@ export function toIndexableProduct(product: {
     price: product.price,
     minPrice,
     totalStock: totalVariantStock(product.variants),
-    images: Array.isArray(product.images) ? product.images.filter((i): i is string => typeof i === "string") : [],
+    images: Array.isArray(product.images)
+      ? product.images.filter((i): i is string => typeof i === "string")
+      : [],
     categoryId: product.category.id,
     categorySlug: product.category.slug,
     categoryName: product.category.name,

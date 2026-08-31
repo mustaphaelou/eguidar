@@ -59,7 +59,7 @@ function DropdownMenuItem({
       data-slot="dropdown-menu-item"
       data-variant={variant}
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-lg py-1.5 pe-2 ps-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 data-destructive:text-destructive data-destructive:focus:bg-destructive/10 data-destructive:focus:text-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex w-full cursor-default items-center gap-2 rounded-lg py-1.5 ps-2 pe-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-destructive:text-destructive data-destructive:focus:bg-destructive/10 data-destructive:focus:text-destructive data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -77,7 +77,7 @@ function DropdownMenuCheckboxItem({
     <MenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-lg py-1.5 pe-2 ps-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex w-full cursor-default items-center gap-2 rounded-lg py-1.5 ps-2 pe-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       checked={checked}
@@ -86,7 +86,11 @@ function DropdownMenuCheckboxItem({
       <span className="absolute inset-y-0 start-0 flex w-7 items-center justify-center">
         <MenuPrimitive.CheckboxItemIndicator
           render={
-            <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} className="size-3.5" />
+            <HugeiconsIcon
+              icon={Tick02Icon}
+              strokeWidth={2}
+              className="size-3.5"
+            />
           }
         />
       </span>

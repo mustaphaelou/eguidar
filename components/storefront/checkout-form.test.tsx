@@ -4,7 +4,10 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { AuthDialogsProvider, useAuthDialogs } from "@/components/auth/auth-dialogs-context"
+import {
+  AuthDialogsProvider,
+  useAuthDialogs,
+} from "@/components/auth/auth-dialogs-context"
 import { UrlAuthDialog } from "@/components/auth/url-auth-dialog"
 
 const { placeOrderMock, searchParamsState } = vi.hoisted(() => ({

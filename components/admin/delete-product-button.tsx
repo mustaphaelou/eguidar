@@ -10,7 +10,11 @@ interface DeleteProductButtonProps {
   action: (formData: FormData) => Promise<void>
 }
 
-export function DeleteProductButton({ productId, productName, action }: DeleteProductButtonProps) {
+export function DeleteProductButton({
+  productId,
+  productName,
+  action,
+}: DeleteProductButtonProps) {
   const formRef = useRef<HTMLFormElement>(null)
 
   return (
@@ -18,7 +22,11 @@ export function DeleteProductButton({ productId, productName, action }: DeletePr
       ref={formRef}
       action={action}
       onSubmit={(event) => {
-        if (!confirm(`Supprimer « ${productName} » ? Cette action est définitive.`)) {
+        if (
+          !confirm(
+            `Supprimer « ${productName} » ? Cette action est définitive.`
+          )
+        ) {
           event.preventDefault()
         }
       }}

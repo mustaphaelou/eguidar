@@ -24,11 +24,16 @@ export function PasswordInput({
       <button
         type="button"
         tabIndex={-1}
-        aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+        aria-label={
+          visible ? "Masquer le mot de passe" : "Afficher le mot de passe"
+        }
         onClick={() => setVisible((v) => !v)}
         className="absolute inset-y-0 end-0 flex w-10 items-center justify-center rounded-e-4xl text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
-        <HugeiconsIcon icon={visible ? ViewOffIcon : ViewIcon} className="size-4" />
+        <HugeiconsIcon
+          icon={visible ? ViewOffIcon : ViewIcon}
+          className="size-4"
+        />
       </button>
     </div>
   )

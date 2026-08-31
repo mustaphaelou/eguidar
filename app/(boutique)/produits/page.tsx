@@ -1,6 +1,9 @@
 import { Suspense } from "react"
 
-import { SearchResults, SearchSkeleton } from "@/components/storefront/search-results"
+import {
+  SearchResults,
+  SearchSkeleton,
+} from "@/components/storefront/search-results"
 import { pageMetadata } from "@/lib/metadata"
 import { parseSearchParams, searchProducts } from "@/lib/use-cases/search"
 
@@ -32,9 +35,19 @@ async function CatalogueContent({
 }: {
   searchParamsPromise: Promise<SearchParams>
 }) {
-  const { filters, sort, page } = parseSearchParams(await searchParamsPromise, "nouveautes")
+  const { filters, sort, page } = parseSearchParams(
+    await searchParamsPromise,
+    "nouveautes"
+  )
 
   const data = await searchProducts("", filters, { sort, page })
 
-  return <SearchResults data={data} query="" filters={filters} hrefBase="/produits" />
+  return (
+    <SearchResults
+      data={data}
+      query=""
+      filters={filters}
+      hrefBase="/produits"
+    />
+  )
 }

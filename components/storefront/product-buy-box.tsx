@@ -43,8 +43,8 @@ export function ProductBuyBox({
     if (typeof IntersectionObserver === "undefined") return
     const bouton = buyButtonRef.current
     if (!bouton) return
-    const observer = new IntersectionObserver(
-      ([entree]) => setBarVisible(!entree.isIntersecting)
+    const observer = new IntersectionObserver(([entree]) =>
+      setBarVisible(!entree.isIntersecting)
     )
     observer.observe(bouton)
     return () => observer.disconnect()
@@ -61,7 +61,11 @@ export function ProductBuyBox({
           />
           Rupture de stock
         </p>
-        <Button disabled size="xl" className="lg:h-9 w-full rounded-full text-[17px]">
+        <Button
+          disabled
+          size="xl"
+          className="w-full rounded-full text-[17px] lg:h-9"
+        >
           Ajouter au panier
         </Button>
       </div>
@@ -129,7 +133,9 @@ export function ProductBuyBox({
                     {variants.map((variant) => (
                       <SelectItem key={variant.id} value={variant.id}>
                         {variant.name} —{" "}
-                        {formatPrice(prixVariante(basePrice, variant.priceDelta))}
+                        {formatPrice(
+                          prixVariante(basePrice, variant.priceDelta)
+                        )}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -172,7 +178,7 @@ export function ProductBuyBox({
         size="xl"
         onClick={handleAddToCart}
         disabled={outOfStock || isPending}
-        className="lg:h-9 w-full rounded-full text-[17px]"
+        className="w-full rounded-full text-[17px] lg:h-9"
       >
         {isPending ? "Ajout…" : "Ajouter au panier"}
       </Button>

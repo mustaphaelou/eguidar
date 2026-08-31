@@ -16,8 +16,8 @@ export default function ConditionsPage() {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-3xl font-bold">Conditions &amp; livraison</h1>
       <p className="mt-3 text-muted-foreground">
-        Les conditions générales de vente de la boutique eguidar.com, applicables
-        à toute commande passée sur le site.
+        Les conditions générales de vente de la boutique eguidar.com,
+        applicables à toute commande passée sur le site.
       </p>
 
       <div className="mt-10 flex flex-col gap-8">

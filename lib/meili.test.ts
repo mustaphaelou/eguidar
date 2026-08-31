@@ -45,7 +45,9 @@ describe.runIf(!!meili)("Meilisearch product index", () => {
   })
 
   afterAll(async () => {
-    await client.index(PRODUCTS_INDEX).deleteDocuments({ filter: `categorySlug = categorie-meili` })
+    await client
+      .index(PRODUCTS_INDEX)
+      .deleteDocuments({ filter: `categorySlug = categorie-meili` })
   })
 
   it("indexes a product so it becomes searchable", async () => {
@@ -55,7 +57,9 @@ describe.runIf(!!meili)("Meilisearch product index", () => {
     const task = await client.index(PRODUCTS_INDEX).addDocuments([doc])
     await client.tasks.waitForTask(task.taskUid)
 
-    const results = await client.index(PRODUCTS_INDEX).search("Produit Meili Test")
+    const results = await client
+      .index(PRODUCTS_INDEX)
+      .search("Produit Meili Test")
     const hit = results.hits.find((h) => h.id === id)
     expect(hit).toMatchObject({ id, brand: "Marque Meili", price: 50000 })
   })
@@ -70,7 +74,9 @@ describe.runIf(!!meili)("Meilisearch product index", () => {
     const deleteTask = await deleteProductDocument(id)
     await client.tasks.waitForTask(deleteTask!.taskUid)
 
-    const results = await client.index(PRODUCTS_INDEX).search("Produit Meili Test")
+    const results = await client
+      .index(PRODUCTS_INDEX)
+      .search("Produit Meili Test")
     expect(results.hits.some((h) => h.id === id)).toBe(false)
   })
 })

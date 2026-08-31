@@ -32,7 +32,9 @@ describe("price buckets", () => {
       "5000-10000",
       "10000-plus",
     ])
-    expect(new Set(PRICE_BUCKETS.map((bucket) => bucket.id)).size).toBe(PRICE_BUCKETS.length)
+    expect(new Set(PRICE_BUCKETS.map((bucket) => bucket.id)).size).toBe(
+      PRICE_BUCKETS.length
+    )
     for (const bucket of PRICE_BUCKETS) {
       expect(bucket.label.length).toBeGreaterThan(0)
       expect(bucket.minCents).toBeGreaterThanOrEqual(0)
@@ -49,7 +51,9 @@ describe("price buckets", () => {
   })
 
   it("builds Meilisearch filters for each bucket", () => {
-    expect(priceBucketFilter(PRICE_BUCKETS[0])).toBe("minPrice >= 0 AND minPrice < 100000")
+    expect(priceBucketFilter(PRICE_BUCKETS[0])).toBe(
+      "minPrice >= 0 AND minPrice < 100000"
+    )
     expect(priceBucketFilter(PRICE_BUCKETS[2])).toBe(
       "minPrice >= 250000 AND minPrice < 500000"
     )

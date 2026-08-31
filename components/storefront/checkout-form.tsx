@@ -5,7 +5,10 @@ import { useActionState, useEffect, useState } from "react"
 import { Cash01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { placeOrderAction, type CheckoutFormState } from "@/app/(boutique)/checkout/actions"
+import {
+  placeOrderAction,
+  type CheckoutFormState,
+} from "@/app/(boutique)/checkout/actions"
 import { syncLoginUrl } from "@/components/auth/sync-url"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +22,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatPrice, formatShippingFee } from "@/lib/money"
-import type { DeliveryCityOption, ShippingQuote } from "@/lib/use-cases/livraison"
+import type {
+  DeliveryCityOption,
+  ShippingQuote,
+} from "@/lib/use-cases/livraison"
 
 export interface CheckoutFormProps {
   cities: DeliveryCityOption[]
@@ -40,7 +46,10 @@ export function CheckoutForm({
   initialPhone,
   subtotal,
 }: CheckoutFormProps) {
-  const [state, formAction, isPending] = useActionState(placeOrderAction, initialState)
+  const [state, formAction, isPending] = useActionState(
+    placeOrderAction,
+    initialState
+  )
   const [selectedCityId, setSelectedCityId] = useState(initialCityId ?? "")
   const quote = selectedCityId ? quotes[selectedCityId] : undefined
   const shippingFee = quote ? quote.shippingFee : null
@@ -117,8 +126,8 @@ export function CheckoutForm({
           Paiement à la livraison
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Réglez en espèces au livreur lors de la réception de votre colis. C&apos;est le seul mode
-          de paiement disponible.
+          Réglez en espèces au livreur lors de la réception de votre colis.
+          C&apos;est le seul mode de paiement disponible.
         </p>
       </div>
 
@@ -133,7 +142,9 @@ export function CheckoutForm({
             {shippingFee === null ? (
               <span className="text-muted-foreground">À choisir</span>
             ) : shippingFee === 0 ? (
-              <span className="text-emerald-600 dark:text-emerald-400">Livraison offerte</span>
+              <span className="text-emerald-600 dark:text-emerald-400">
+                Livraison offerte
+              </span>
             ) : (
               formatPrice(shippingFee)
             )}

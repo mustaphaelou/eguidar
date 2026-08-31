@@ -4,9 +4,15 @@ import { CityForm } from "@/components/admin/city-form"
 import { listAdminCities } from "@/lib/use-cases/livraison"
 import { updateCityAction } from "@/app/admin/villes/actions"
 
-export default async function EditCityPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditCityPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = await params
-  const city = await listAdminCities().then((cities) => cities.find((candidate) => candidate.id === id))
+  const city = await listAdminCities().then((cities) =>
+    cities.find((candidate) => candidate.id === id)
+  )
   if (!city) notFound()
 
   return (

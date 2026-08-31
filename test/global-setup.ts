@@ -30,7 +30,7 @@ export default async function globalSetup() {
 
   const { prisma } = await import("@/lib/db")
   await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE ${TEST_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`,
+    `TRUNCATE TABLE ${TEST_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`
   )
   await prisma.$disconnect()
 }

@@ -36,14 +36,22 @@ export const navSections: NavSection[] = [
     title: "Ventes",
     items: [
       { title: "Tableau de bord", url: "/admin", icon: DashboardSpeed02Icon },
-      { title: "Commandes", url: "/admin/commandes", icon: ShoppingBasket02Icon },
+      {
+        title: "Commandes",
+        url: "/admin/commandes",
+        icon: ShoppingBasket02Icon,
+      },
     ],
   },
   {
     title: "Configuration",
     items: [
       { title: "Villes", url: "/admin/villes", icon: MapsLocation01Icon },
-      { title: "Livraison", url: "/admin/livraison", icon: DeliveryTruck01Icon },
+      {
+        title: "Livraison",
+        url: "/admin/livraison",
+        icon: DeliveryTruck01Icon,
+      },
     ],
   },
 ]

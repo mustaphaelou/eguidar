@@ -19,7 +19,8 @@ vi.mock("@/lib/use-cases/get-admin-session", async () => {
   return { getAdminSession: h.adminSessionMock }
 })
 vi.mock("@/lib/use-cases/account", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/use-cases/account")>()
+  const actual =
+    await importOriginal<typeof import("@/lib/use-cases/account")>()
   return { ...actual, updateProfile: updateProfileMock }
 })
 

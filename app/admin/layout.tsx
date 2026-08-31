@@ -18,7 +18,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <Suspense fallback={<div className="min-h-svh" />}>
       <AdminShell>{children}</AdminShell>
@@ -35,10 +39,18 @@ async function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <AppSidebar userName={session.user.name ?? ""} userEmail={session.user.email} />
+      <AppSidebar
+        userName={session.user.name ?? ""}
+        userEmail={session.user.email}
+      />
       <SidebarInset className="@container/content">
-        <SiteHeader userName={session.user.name ?? ""} userEmail={session.user.email} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+        <SiteHeader
+          userName={session.user.name ?? ""}
+          userEmail={session.user.email}
+        />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+          {children}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   )

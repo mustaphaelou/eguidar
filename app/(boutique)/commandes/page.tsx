@@ -38,10 +38,15 @@ async function OrderHistoryContent() {
   if (orders.length === 0) {
     return (
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-4 py-24 text-center">
-        <HugeiconsIcon icon={Invoice01Icon} strokeWidth={2} className="size-12 text-muted-foreground" />
+        <HugeiconsIcon
+          icon={Invoice01Icon}
+          strokeWidth={2}
+          className="size-12 text-muted-foreground"
+        />
         <h1 className="text-2xl font-bold">Aucune commande pour le moment</h1>
         <p className="max-w-md text-sm text-muted-foreground">
-          Vos commandes apparaîtront ici dès que vous aurez passé votre premier achat.
+          Vos commandes apparaîtront ici dès que vous aurez passé votre premier
+          achat.
         </p>
         <Button render={<Link href="/" />} className="mt-2">
           Découvrir les produits
@@ -63,15 +68,20 @@ async function OrderHistoryContent() {
               className="flex items-center justify-between gap-4 rounded-2xl border p-5 transition-colors hover:border-ring"
             >
               <div>
-                <p className="font-semibold">Commande {shortOrderId(order.id)}</p>
+                <p className="font-semibold">
+                  Commande {shortOrderId(order.id)}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {dateFormatter.format(order.createdAt)} — {order.itemCount} article
+                  {dateFormatter.format(order.createdAt)} — {order.itemCount}{" "}
+                  article
                   {order.itemCount > 1 ? "s" : ""}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 <OrderStatusBadge status={order.status} />
-                <p className="text-sm font-bold">{formatPrice(order.totalPayable)}</p>
+                <p className="text-sm font-bold">
+                  {formatPrice(order.totalPayable)}
+                </p>
               </div>
             </Link>
           </li>

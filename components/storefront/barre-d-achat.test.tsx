@@ -63,7 +63,11 @@ describe("BarreDAchat", () => {
 
   it("masque la barre (aria-hidden + pointer-events-none + inert) quand visible est faux", () => {
     render(
-      <BarreDAchat visible={false} prix="1 050,00 MAD" onAjouter={onAjouterMock} />
+      <BarreDAchat
+        visible={false}
+        prix="1 050,00 MAD"
+        onAjouter={onAjouterMock}
+      />
     )
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
@@ -75,7 +79,11 @@ describe("BarreDAchat", () => {
 
   it("reste montée dans le DOM quand elle est masquée", () => {
     render(
-      <BarreDAchat visible={false} prix="1 050,00 MAD" onAjouter={onAjouterMock} />
+      <BarreDAchat
+        visible={false}
+        prix="1 050,00 MAD"
+        onAjouter={onAjouterMock}
+      />
     )
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
@@ -93,7 +101,9 @@ describe("BarreDAchat", () => {
       />
     )
 
-    const bouton = container.querySelector("[data-slot='barre-d-achat'] button")!
+    const bouton = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
     expect(bouton.textContent).toContain("Ajout…")
     expect(bouton.textContent).not.toContain("Ajouter au panier")
     expect(container.textContent).toContain("1 050,00 MAD")
@@ -162,7 +172,9 @@ describe("BarreDAchat", () => {
       />
     )
 
-    const bouton = container.querySelector("[data-slot='barre-d-achat'] button")!
+    const bouton = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
     expect(bouton.getAttribute("aria-label")).toContain("Ajouter au panier")
     expect(bouton.getAttribute("aria-label")).toContain("Premium")
   })
@@ -172,7 +184,9 @@ describe("BarreDAchat", () => {
       <BarreDAchat visible prix="1 050,00 MAD" onAjouter={onAjouterMock} />
     )
 
-    const bouton = container.querySelector("[data-slot='barre-d-achat'] button")!
+    const bouton = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
     expect(bouton.getAttribute("aria-label")).toBeNull()
   })
 

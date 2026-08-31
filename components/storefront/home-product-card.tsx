@@ -7,7 +7,10 @@ import type { ProductCard } from "@/lib/use-cases/storefront"
 
 export function HomeProductCard({ product }: { product: ProductCard }) {
   return (
-    <Link href={`/produit/${product.slug}`} className="group flex flex-col gap-2">
+    <Link
+      href={`/produit/${product.slug}`}
+      className="group flex flex-col gap-2"
+    >
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
         {product.image ? (
           <Image
@@ -32,11 +35,15 @@ export function HomeProductCard({ product }: { product: ProductCard }) {
         <p
           className={cn(
             "text-xs",
-            product.totalStock > 0 ? "text-muted-foreground" : "text-destructive"
+            product.totalStock > 0
+              ? "text-muted-foreground"
+              : "text-destructive"
           )}
         >
           {product.totalStock > 0 ? "En stock" : "Rupture de stock"}
-          {product.totalStock > 0 && product.freeShipping ? " · Livraison offerte" : ""}
+          {product.totalStock > 0 && product.freeShipping
+            ? " · Livraison offerte"
+            : ""}
         </p>
       </div>
     </Link>

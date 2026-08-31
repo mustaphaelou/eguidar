@@ -27,7 +27,9 @@ interface SeedProduct {
 }
 
 async function createProduct(categorySlug: string, product: SeedProduct) {
-  const category = await prisma.category.findUniqueOrThrow({ where: { slug: categorySlug } })
+  const category = await prisma.category.findUniqueOrThrow({
+    where: { slug: categorySlug },
+  })
   return prisma.product.create({
     data: {
       name: product.name,
@@ -50,23 +52,33 @@ async function createProduct(categorySlug: string, product: SeedProduct) {
 
 describe("storefront browse", () => {
   beforeAll(async () => {
-    const root = await prisma.category.create({ data: { name: "Racine", slug: cSlug("root") } })
+    const root = await prisma.category.create({
+      data: { name: "Racine", slug: cSlug("root") },
+    })
     const child = await prisma.category.create({
       data: { name: "Enfant", slug: cSlug("child"), parentId: root.id },
     })
     await prisma.category.create({
       data: { name: "Petit-fils", slug: cSlug("grand"), parentId: child.id },
     })
-    await prisma.category.create({ data: { name: "Indépendante", slug: cSlug("other") } })
+    await prisma.category.create({
+      data: { name: "Indépendante", slug: cSlug("other") },
+    })
   })
 
   beforeEach(async () => {
-    await prisma.product.deleteMany({ where: { slug: { startsWith: `p-${runId}-` } } })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `p-${runId}-` } },
+    })
   })
 
   afterAll(async () => {
-    await prisma.product.deleteMany({ where: { slug: { startsWith: `p-${runId}-` } } })
-    await prisma.category.deleteMany({ where: { slug: { startsWith: `sf-${runId}-` } } })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `p-${runId}-` } },
+    })
+    await prisma.category.deleteMany({
+      where: { slug: { startsWith: `sf-${runId}-` } },
+    })
     await prisma.$disconnect()
   })
 
@@ -79,7 +91,9 @@ describe("storefront browse", () => {
       images: ["https://example.com/3.jpg"],
       isFeatured: true,
       featuredOrder: 3,
-      variants: [{ name: "Standard", sku: `SKU-${runId}-f3`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-f3`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("root"), {
       name: "Non mise en avant",
@@ -87,7 +101,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/plain.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-p1`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-p1`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("root"), {
       name: "Première",
@@ -97,7 +113,9 @@ describe("storefront browse", () => {
       images: ["https://example.com/1.jpg"],
       isFeatured: true,
       featuredOrder: 1,
-      variants: [{ name: "Standard", sku: `SKU-${runId}-f1`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-f1`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("root"), {
       name: "Deuxième",
@@ -107,7 +125,9 @@ describe("storefront browse", () => {
       images: ["https://example.com/2.jpg"],
       isFeatured: true,
       featuredOrder: 2,
-      variants: [{ name: "Standard", sku: `SKU-${runId}-f2`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-f2`, priceDelta: 0, stock: 1 },
+      ],
     })
 
     const home = await fetchHomeData()
@@ -127,7 +147,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/r.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-tr`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-tr`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("child"), {
       name: "Produit enfant A",
@@ -135,7 +157,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/ca.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-tca`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-tca`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("child"), {
       name: "Produit enfant B",
@@ -143,7 +167,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/cb.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-tcb`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-tcb`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("grand"), {
       name: "Produit petit-fils",
@@ -151,7 +177,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/g.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-tg`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-tg`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("other"), {
       name: "Produit indépendant",
@@ -159,7 +187,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/o.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-to`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-to`, priceDelta: 0, stock: 1 },
+      ],
     })
 
     const home = await fetchHomeData()
@@ -190,7 +220,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/r.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-br`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-br`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("child"), {
       name: "Produit enfant",
@@ -198,7 +230,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/c.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-bc`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-bc`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("grand"), {
       name: "Produit petit-fils",
@@ -206,7 +240,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/g.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-bg`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-bg`, priceDelta: 0, stock: 1 },
+      ],
     })
     await createProduct(cSlug("other"), {
       name: "Produit indépendant",
@@ -214,7 +250,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/o.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-bo`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-bo`, priceDelta: 0, stock: 1 },
+      ],
     })
 
     const childPage = await fetchCategoryPageData(cSlug("child"))
@@ -256,8 +294,18 @@ describe("storefront browse", () => {
       freeShipping: true,
       variants: [
         { name: "128 Go", sku: `SKU-${runId}-d1`, priceDelta: 0, stock: 10 },
-        { name: "256 Go", sku: `SKU-${runId}-d2`, priceDelta: 150000, stock: 3 },
-        { name: "512 Go", sku: `SKU-${runId}-d3`, priceDelta: 350000, stock: 0 },
+        {
+          name: "256 Go",
+          sku: `SKU-${runId}-d2`,
+          priceDelta: 150000,
+          stock: 3,
+        },
+        {
+          name: "512 Go",
+          sku: `SKU-${runId}-d3`,
+          priceDelta: 350000,
+          stock: 0,
+        },
       ],
     })
 
@@ -268,7 +316,10 @@ describe("storefront browse", () => {
     expect(detail!.brand).toBe("Marque Test")
     expect(detail!.price).toBe(100000)
     expect(detail!.freeShipping).toBe(true)
-    expect(detail!.images).toEqual(["https://example.com/a.jpg", "https://example.com/b.jpg"])
+    expect(detail!.images).toEqual([
+      "https://example.com/a.jpg",
+      "https://example.com/b.jpg",
+    ])
     expect(detail!.variants.map((v) => v.sku)).toEqual([
       `SKU-${runId}-d1`,
       `SKU-${runId}-d2`,
@@ -292,8 +343,18 @@ describe("storefront browse", () => {
       images: ["https://example.com/1.jpg", "https://example.com/2.jpg"],
       variants: [
         { name: "128 Go", sku: `SKU-${runId}-c1`, priceDelta: 0, stock: 2 },
-        { name: "256 Go", sku: `SKU-${runId}-c2`, priceDelta: -50000, stock: 4 },
-        { name: "512 Go", sku: `SKU-${runId}-c3`, priceDelta: 100000, stock: 1 },
+        {
+          name: "256 Go",
+          sku: `SKU-${runId}-c2`,
+          priceDelta: -50000,
+          stock: 4,
+        },
+        {
+          name: "512 Go",
+          sku: `SKU-${runId}-c3`,
+          priceDelta: 100000,
+          stock: 1,
+        },
       ],
     })
 
@@ -316,7 +377,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/self.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-rs`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-rs`, priceDelta: 0, stock: 1 },
+      ],
     })
     for (let index = 0; index < 10; index++) {
       await createProduct(cSlug("child"), {
@@ -326,8 +389,18 @@ describe("storefront browse", () => {
         price: 100000,
         images: [`https://example.com/rel-${index}.jpg`],
         variants: [
-          { name: "128 Go", sku: `SKU-${runId}-r${index}a`, priceDelta: 0, stock: 2 },
-          { name: "256 Go", sku: `SKU-${runId}-r${index}b`, priceDelta: -50000, stock: 4 },
+          {
+            name: "128 Go",
+            sku: `SKU-${runId}-r${index}a`,
+            priceDelta: 0,
+            stock: 2,
+          },
+          {
+            name: "256 Go",
+            sku: `SKU-${runId}-r${index}b`,
+            priceDelta: -50000,
+            stock: 4,
+          },
         ],
         createdAt: new Date(Date.UTC(2026, 0, 1, 9, index)),
       })
@@ -338,7 +411,9 @@ describe("storefront browse", () => {
       brand: "Marque",
       price: 100000,
       images: ["https://example.com/other.jpg"],
-      variants: [{ name: "Standard", sku: `SKU-${runId}-ro`, priceDelta: 0, stock: 1 }],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-ro`, priceDelta: 0, stock: 1 },
+      ],
       createdAt: new Date(Date.UTC(2026, 0, 1, 23, 59)),
     })
 
@@ -355,8 +430,12 @@ describe("storefront browse", () => {
       pSlug("rel-3"),
       pSlug("rel-2"),
     ])
-    expect(detail!.related.some((p) => p.slug === pSlug("related-self"))).toBe(false)
-    expect(detail!.related.some((p) => p.slug === pSlug("rel-other"))).toBe(false)
+    expect(detail!.related.some((p) => p.slug === pSlug("related-self"))).toBe(
+      false
+    )
+    expect(detail!.related.some((p) => p.slug === pSlug("rel-other"))).toBe(
+      false
+    )
     const newest = detail!.related[0]
     expect(newest.image).toBe("https://example.com/rel-9.jpg")
     expect(newest.minPrice).toBe(50000)
@@ -364,7 +443,9 @@ describe("storefront browse", () => {
   })
 
   it("unknown slugs return null", async () => {
-    await expect(fetchCategoryPageData("categorie-inconnue")).resolves.toBeNull()
+    await expect(
+      fetchCategoryPageData("categorie-inconnue")
+    ).resolves.toBeNull()
     await expect(fetchProductPageData("produit-inconnu")).resolves.toBeNull()
   })
 })

@@ -29,7 +29,10 @@ async function ProfileContent() {
   const user = await getSessionUser()
   if (!user) return <RequireAuth />
 
-  const [profile, cities] = await Promise.all([getProfile(user.id), listDeliveryCities()])
+  const [profile, cities] = await Promise.all([
+    getProfile(user.id),
+    listDeliveryCities(),
+  ])
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">

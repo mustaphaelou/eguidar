@@ -84,7 +84,9 @@ export interface SearchOptions {
 
 const FACET_ATTRIBUTES = ["brand", "categorySlug", "priceBucket"]
 
-async function fetchCategoryNames(slugs: string[]): Promise<Map<string, string>> {
+async function fetchCategoryNames(
+  slugs: string[]
+): Promise<Map<string, string>> {
   if (slugs.length === 0) return new Map()
   const categories = await prisma.category.findMany({
     where: { slug: { in: slugs } },
@@ -173,17 +175,29 @@ export async function searchProducts(
     .sort((a, b) => a.value.localeCompare(b.value, "fr"))
 
   const categorySlugCounts = Object.entries(distribution.categorySlug ?? {})
-  const categoryNames = await fetchCategoryNames(categorySlugCounts.map(([slug]) => slug))
+  const categoryNames = await fetchCategoryNames(
+    categorySlugCounts.map(([slug]) => slug)
+  )
   const categories: SearchCategoryFacet[] = categorySlugCounts
-    .map(([value, count]) => ({ value, name: categoryNames.get(value) ?? value, count }))
+    .map(([value, count]) => ({
+      value,
+      name: categoryNames.get(value) ?? value,
+      count,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name, "fr"))
 
-  const priceBuckets: SearchPriceBucketFacet[] = Object.entries(distribution.priceBucket ?? {})
+  const priceBuckets: SearchPriceBucketFacet[] = Object.entries(
+    distribution.priceBucket ?? {}
+  )
     .flatMap(([id, count]) => {
       const bucket = getPriceBucket(id)
       return bucket ? [{ id, label: bucket.label, count }] : []
     })
-    .sort((a, b) => (getPriceBucket(a.id)?.minCents ?? 0) - (getPriceBucket(b.id)?.minCents ?? 0))
+    .sort(
+      (a, b) =>
+        (getPriceBucket(a.id)?.minCents ?? 0) -
+        (getPriceBucket(b.id)?.minCents ?? 0)
+    )
 
   return {
     query,
@@ -228,22 +242,35 @@ export interface SearchSuggestionsData {
 const SEARCH_SUGGESTION_LIMIT = 6
 const SEARCH_SUGGESTION_CATEGORY_LIMIT = 5
 
-export async function searchSuggestions(query: string): Promise<SearchSuggestionsData> {
+export async function searchSuggestions(
+  query: string
+): Promise<SearchSuggestionsData> {
   const emptyResult: SearchSuggestionsData = { products: [], categories: [] }
 
   const meili = getMeiliSearch()
   if (!meili) return emptyResult
 
-  const result = await meili.index<IndexableProduct>(PRODUCTS_INDEX).search(query, {
-    limit: SEARCH_SUGGESTION_LIMIT,
-    facets: ["categorySlug"],
-    attributesToRetrieve: ["id", "name", "slug", "brand", "images", "minPrice"],
-  })
+  const result = await meili
+    .index<IndexableProduct>(PRODUCTS_INDEX)
+    .search(query, {
+      limit: SEARCH_SUGGESTION_LIMIT,
+      facets: ["categorySlug"],
+      attributesToRetrieve: [
+        "id",
+        "name",
+        "slug",
+        "brand",
+        "images",
+        "minPrice",
+      ],
+    })
 
   const categorySlugCounts = Object.entries(
     result.facetDistribution?.categorySlug ?? {}
   ).slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
-  const categoryNames = await fetchCategoryNames(categorySlugCounts.map(([slug]) => slug))
+  const categoryNames = await fetchCategoryNames(
+    categorySlugCounts.map(([slug]) => slug)
+  )
 
   return {
     products: result.hits.map((hit) => ({

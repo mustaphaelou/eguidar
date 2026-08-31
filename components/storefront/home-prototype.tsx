@@ -8,10 +8,13 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
-import type { CategoryNode, HomeData, ProductCard } from "@/lib/use-cases/storefront"
+import type {
+  CategoryNode,
+  HomeData,
+  ProductCard,
+} from "@/lib/use-cases/storefront"
 
-const HERO_HEADLINE =
-  "L'électronique au meilleur prix, au Maroc"
+const HERO_HEADLINE = "L'électronique au meilleur prix, au Maroc"
 const HERO_SUBHEAD =
   "Smartphones, ordinateurs, TV, gaming et accessoires. Prix en MAD, TVA incluse, paiement à la livraison."
 const HERO_LINK_LABEL = "Tous nos produits"
@@ -34,7 +37,12 @@ function CategoryImage({
 }) {
   if (!category.image) {
     return (
-      <div className={cn("flex items-center justify-center bg-background", className)}>
+      <div
+        className={cn(
+          "flex items-center justify-center bg-background",
+          className
+        )}
+      >
         <span className="text-sm text-muted-foreground">{category.name}</span>
       </div>
     )
@@ -82,11 +90,15 @@ function HomeProductCard({ product }: { product: ProductCard }) {
         <p
           className={cn(
             "text-xs",
-            product.totalStock > 0 ? "text-muted-foreground" : "text-destructive"
+            product.totalStock > 0
+              ? "text-muted-foreground"
+              : "text-destructive"
           )}
         >
           {product.totalStock > 0 ? "En stock" : "Rupture de stock"}
-          {product.totalStock > 0 && product.freeShipping ? " · Livraison offerte" : ""}
+          {product.totalStock > 0 && product.freeShipping
+            ? " · Livraison offerte"
+            : ""}
         </p>
       </div>
     </Link>
@@ -103,7 +115,9 @@ export function HomeVariantA({ data }: { data: HomeData }) {
       <section className="bg-muted">
         <div className="mx-auto max-w-[980px] px-4 py-12 text-center sm:px-6 sm:py-16">
           <h1 className={heroHeadlineClass()}>{HERO_HEADLINE}</h1>
-          <p className={cn(heroSubheadClass(), "text-foreground/80")}>{HERO_SUBHEAD}</p>
+          <p className={cn(heroSubheadClass(), "text-foreground/80")}>
+            {HERO_SUBHEAD}
+          </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <Button
               render={<Link href="/produits" />}
@@ -143,7 +157,8 @@ export function HomeVariantA({ data }: { data: HomeData }) {
               )}
             >
               <p className="text-sm leading-[1.2858] tracking-[-0.016em] text-muted-foreground">
-                {category.productCount} produit{category.productCount > 1 ? "s" : ""}
+                {category.productCount} produit
+                {category.productCount > 1 ? "s" : ""}
               </p>
               <h2 className="mt-1 text-[28px] leading-[1.1] font-semibold sm:text-[32px] lg:text-[40px]">
                 {category.name}
@@ -189,7 +204,9 @@ export function HomeVariantB({ data }: { data: HomeData }) {
       <section className="bg-background">
         <div className="mx-auto max-w-[980px] px-4 py-12 text-center sm:px-6 sm:py-16">
           <h1 className={heroHeadlineClass()}>{HERO_HEADLINE}</h1>
-          <p className={cn(heroSubheadClass(), "text-foreground/80")}>{HERO_SUBHEAD}</p>
+          <p className={cn(heroSubheadClass(), "text-foreground/80")}>
+            {HERO_SUBHEAD}
+          </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <Button
               render={<Link href="/produits" />}
@@ -231,7 +248,8 @@ export function HomeVariantB({ data }: { data: HomeData }) {
                       dark ? "text-background/70" : "text-muted-foreground"
                     )}
                   >
-                    {category.productCount} produit{category.productCount > 1 ? "s" : ""}
+                    {category.productCount} produit
+                    {category.productCount > 1 ? "s" : ""}
                   </p>
                   <h2 className="text-[28px] leading-[1.1] font-semibold sm:text-[32px] lg:text-[40px]">
                     {category.name}
@@ -278,8 +296,12 @@ export function HomeVariantC({ data }: { data: HomeData }) {
     <div className="flex flex-col">
       <section className="bg-foreground">
         <div className="mx-auto max-w-[980px] px-4 py-12 text-center sm:px-6 sm:py-16">
-          <h1 className={cn(heroHeadlineClass(), "text-background")}>{HERO_HEADLINE}</h1>
-          <p className={cn(heroSubheadClass(), "text-background/70")}>{HERO_SUBHEAD}</p>
+          <h1 className={cn(heroHeadlineClass(), "text-background")}>
+            {HERO_HEADLINE}
+          </h1>
+          <p className={cn(heroSubheadClass(), "text-background/70")}>
+            {HERO_SUBHEAD}
+          </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <Button
               render={<Link href="/produits" />}
@@ -305,7 +327,8 @@ export function HomeVariantC({ data }: { data: HomeData }) {
                 {category.name}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {category.productCount} produit{category.productCount > 1 ? "s" : ""}
+                {category.productCount} produit
+                {category.productCount > 1 ? "s" : ""}
               </p>
               <Link
                 href={`/categorie/${category.slug}`}
@@ -314,8 +337,14 @@ export function HomeVariantC({ data }: { data: HomeData }) {
                 Découvrir ›
               </Link>
             </div>
-            <Link href={`/categorie/${category.slug}`} className="w-full lg:w-1/2">
-              <CategoryImage category={category} className="aspect-[4/3] w-full rounded-2xl" />
+            <Link
+              href={`/categorie/${category.slug}`}
+              className="w-full lg:w-1/2"
+            >
+              <CategoryImage
+                category={category}
+                className="aspect-[4/3] w-full rounded-2xl"
+              />
             </Link>
           </div>
         </section>
@@ -329,7 +358,7 @@ export function HomeVariantC({ data }: { data: HomeData }) {
           {data.featured.length > 0 ? (
             <div className="mt-6 flex gap-4 overflow-x-auto pb-4">
               {data.featured.map((product) => (
-                <div key={product.id} className="min-w-[240px] max-w-[240px]">
+                <div key={product.id} className="max-w-[240px] min-w-[240px]">
                   <HomeProductCard product={product} />
                 </div>
               ))}

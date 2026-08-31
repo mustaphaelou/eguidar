@@ -45,7 +45,10 @@ describe("invalidateCatalogue", () => {
 
     expect(mockedRevalidateTag).toHaveBeenCalledTimes(3)
     expect(mockedRevalidateTag).toHaveBeenCalledWith(PRODUCT_TAG, "max")
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(productDetailTag("mon-produit"), "max")
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      productDetailTag("mon-produit"),
+      "max"
+    )
     expect(mockedRevalidateTag).toHaveBeenCalledWith(HOME_TAG, "max")
     expect(mockedRevalidatePath).toHaveBeenCalledTimes(2)
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/produits")
@@ -53,15 +56,29 @@ describe("invalidateCatalogue", () => {
   })
 
   it("invalidates the previous slug detail tag when the product changed slug", () => {
-    invalidateCatalogue({ id: "p1", slug: "nouveau-slug", previousSlug: "ancien-slug" })
+    invalidateCatalogue({
+      id: "p1",
+      slug: "nouveau-slug",
+      previousSlug: "ancien-slug",
+    })
 
     expect(mockedRevalidateTag).toHaveBeenCalledTimes(4)
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(productDetailTag("nouveau-slug"), "max")
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(productDetailTag("ancien-slug"), "max")
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      productDetailTag("nouveau-slug"),
+      "max"
+    )
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      productDetailTag("ancien-slug"),
+      "max"
+    )
   })
 
   it("does not invalidate the previous slug tag when it equals the new slug", () => {
-    invalidateCatalogue({ id: "p1", slug: "meme-slug", previousSlug: "meme-slug" })
+    invalidateCatalogue({
+      id: "p1",
+      slug: "meme-slug",
+      previousSlug: "meme-slug",
+    })
 
     expect(mockedRevalidateTag).toHaveBeenCalledTimes(3)
     expect(mockedRevalidatePath).toHaveBeenCalledTimes(2)
@@ -113,8 +130,12 @@ describe("invalidateCommande", () => {
     expect(mockedRevalidatePath).toHaveBeenCalledTimes(5)
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin")
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/commandes")
-    expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/commandes/order-42")
+    expect(mockedRevalidatePath).toHaveBeenCalledWith(
+      "/admin/commandes/order-42"
+    )
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/commandes")
-    expect(mockedRevalidatePath).toHaveBeenCalledWith("/commande/confirmation/order-42")
+    expect(mockedRevalidatePath).toHaveBeenCalledWith(
+      "/commande/confirmation/order-42"
+    )
   })
 })

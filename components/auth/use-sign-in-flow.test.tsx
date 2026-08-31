@@ -94,7 +94,11 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
       <form onSubmit={flow.handleSignIn}>
         <button type="submit">sign in</button>
       </form>
-      <button type="button" data-social-google onClick={() => flow.handleSocial("google")}>
+      <button
+        type="button"
+        data-social-google
+        onClick={() => flow.handleSocial("google")}
+      >
         social google
       </button>
     </div>

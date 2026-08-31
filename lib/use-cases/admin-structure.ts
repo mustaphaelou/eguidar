@@ -64,7 +64,10 @@ export class CategoryHasProductsError extends UserFacingError {
 const slugSchema = z
   .string()
   .min(1, "slug requis")
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug invalide (minuscules, chiffres et tirets uniquement)")
+  .regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "slug invalide (minuscules, chiffres et tirets uniquement)"
+  )
 
 const categoryInputSchema = z.object({
   name: z.string().trim().min(1, "nom requis"),
@@ -76,7 +79,9 @@ const categoryInputSchema = z.object({
 function parseCategoryInput(input: CategoryInput): CategoryInput {
   const result = categoryInputSchema.safeParse(input)
   if (!result.success) {
-    throw new CategoryValidationError(result.error.issues.map((issue) => issue.message))
+    throw new CategoryValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
   }
   return result.data
 }
@@ -86,21 +91,35 @@ function mapCategoryUniqueViolation(error: unknown): never {
   throw error
 }
 
-async function assertUniqueCategorySlug(slug: string, excludeCategoryId?: string): Promise<void> {
+async function assertUniqueCategorySlug(
+  slug: string,
+  excludeCategoryId?: string
+): Promise<void> {
   const existing = await prisma.category.findUnique({ where: { slug } })
-  if (existing && existing.id !== excludeCategoryId) throw new CategorySlugConflictError()
+  if (existing && existing.id !== excludeCategoryId)
+    throw new CategorySlugConflictError()
 }
 
-async function assertCategoryParent(parentId: string | null | undefined): Promise<void> {
+async function assertCategoryParent(
+  parentId: string | null | undefined
+): Promise<void> {
   if (!parentId) return
-  const parent = await prisma.category.findUnique({ where: { id: parentId }, select: { id: true } })
+  const parent = await prisma.category.findUnique({
+    where: { id: parentId },
+    select: { id: true },
+  })
   if (!parent) throw new CategoryValidationError(["catégorie parente inconnue"])
 }
 
-async function assertAcyclicCategoryTree(id: string, parentId: string | null | undefined): Promise<void> {
+async function assertAcyclicCategoryTree(
+  id: string,
+  parentId: string | null | undefined
+): Promise<void> {
   if (!parentId) return
   if (parentId === id) {
-    throw new CategoryValidationError(["une catégorie ne peut pas être sa propre parente"])
+    throw new CategoryValidationError([
+      "une catégorie ne peut pas être sa propre parente",
+    ])
   }
   let cursor: string | null = parentId
   while (cursor) {
@@ -109,16 +128,20 @@ async function assertAcyclicCategoryTree(id: string, parentId: string | null | u
         "une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes",
       ])
     }
-    const parent: { parentId: string | null } | null = await prisma.category.findUnique({
-      where: { id: cursor },
-      select: { parentId: true },
-    })
-    if (!parent) throw new CategoryValidationError(["catégorie parente inconnue"])
+    const parent: { parentId: string | null } | null =
+      await prisma.category.findUnique({
+        where: { id: cursor },
+        select: { parentId: true },
+      })
+    if (!parent)
+      throw new CategoryValidationError(["catégorie parente inconnue"])
     cursor = parent.parentId
   }
 }
 
-async function readIndexableCategoryProducts(categoryId: string): Promise<IndexableProduct[]> {
+async function readIndexableCategoryProducts(
+  categoryId: string
+): Promise<IndexableProduct[]> {
   const products = await prisma.product.findMany({
     where: { categoryId },
     include: { variants: true, category: true },
@@ -126,7 +149,10 @@ async function readIndexableCategoryProducts(categoryId: string): Promise<Indexa
   return products.map(toIndexableProduct)
 }
 
-export async function createCategory(input: CategoryInput, effects: StructureEffects) {
+export async function createCategory(
+  input: CategoryInput,
+  effects: StructureEffects
+) {
   const data = parseCategoryInput(input)
   await assertUniqueCategorySlug(data.slug)
   await assertCategoryParent(data.parentId)
@@ -149,7 +175,11 @@ export async function createCategory(input: CategoryInput, effects: StructureEff
   return category
 }
 
-export async function updateCategory(id: string, input: CategoryInput, effects: StructureEffects) {
+export async function updateCategory(
+  id: string,
+  input: CategoryInput,
+  effects: StructureEffects
+) {
   const existing = await prisma.category.findUnique({ where: { id } })
   if (!existing) throw new CategoryNotFoundError()
 
@@ -173,7 +203,8 @@ export async function updateCategory(id: string, input: CategoryInput, effects: 
   }
 
   const nextImage = data.image ?? null
-  if (existing.image && existing.image !== nextImage) await effects.deleteImage(existing.image)
+  if (existing.image && existing.image !== nextImage)
+    await effects.deleteImage(existing.image)
   const products = await readIndexableCategoryProducts(id)
   if (products.length > 0) await effects.reindexProducts(products)
   effects.revalidateCategories()

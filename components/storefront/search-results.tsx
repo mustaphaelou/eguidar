@@ -24,15 +24,27 @@ export function SearchResults({
   filters: SearchFilters
   hrefBase?: string
 }) {
-  const hasFilters = Boolean(filters.brand || filters.categorySlug || filters.priceBucketId)
-  const resetHref = buildSearchHref(query, {}, {}, { sort: data.sort, page: 1 }, hrefBase)
+  const hasFilters = Boolean(
+    filters.brand || filters.categorySlug || filters.priceBucketId
+  )
+  const resetHref = buildSearchHref(
+    query,
+    {},
+    {},
+    { sort: data.sort, page: 1 },
+    hrefBase
+  )
   const heading = query ? `Résultats pour « ${query} »` : "Catalogue"
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
       <aside className="flex flex-col gap-6">
         {hasFilters ? (
-          <Button variant="ghost" render={<Link href={resetHref} />} className="justify-start">
+          <Button
+            variant="ghost"
+            render={<Link href={resetHref} />}
+            className="justify-start"
+          >
             Réinitialiser les filtres
           </Button>
         ) : null}
@@ -43,7 +55,9 @@ export function SearchResults({
             href: buildSearchHref(
               query,
               filters,
-              { brand: filters.brand === facet.value ? undefined : facet.value },
+              {
+                brand: filters.brand === facet.value ? undefined : facet.value,
+              },
               { sort: data.sort, page: 1 },
               hrefBase
             ),
@@ -59,7 +73,12 @@ export function SearchResults({
             href: buildSearchHref(
               query,
               filters,
-              { categorySlug: filters.categorySlug === facet.value ? undefined : facet.value },
+              {
+                categorySlug:
+                  filters.categorySlug === facet.value
+                    ? undefined
+                    : facet.value,
+              },
               { sort: data.sort, page: 1 },
               hrefBase
             ),
@@ -82,7 +101,9 @@ export function SearchResults({
                 hrefBase
               ),
               label: bucket.label,
-              count: data.facets.priceBuckets.find((facet) => facet.id === bucket.id)?.count,
+              count: data.facets.priceBuckets.find(
+                (facet) => facet.id === bucket.id
+              )?.count,
               active,
             }
           })}
@@ -97,7 +118,12 @@ export function SearchResults({
               {data.totalHits} produit{data.totalHits > 1 ? "s" : ""}
             </p>
           </div>
-          <SearchSort sort={data.sort} query={query} filters={filters} hrefBase={hrefBase} />
+          <SearchSort
+            sort={data.sort}
+            query={query}
+            filters={filters}
+            hrefBase={hrefBase}
+          />
         </div>
 
         {data.products.length > 0 ? (
@@ -115,7 +141,11 @@ export function SearchResults({
             />
           </>
         ) : (
-          <EmptyResults query={query} hasFilters={hasFilters} resetHref={resetHref} />
+          <EmptyResults
+            query={query}
+            hasFilters={hasFilters}
+            resetHref={resetHref}
+          />
         )}
       </section>
     </div>
@@ -152,7 +182,11 @@ function EmptyResults({
         </>
       )}
       {hasFilters ? (
-        <Button variant="outline" render={<Link href={resetHref} />} className="mt-4">
+        <Button
+          variant="outline"
+          render={<Link href={resetHref} />}
+          className="mt-4"
+        >
           Réinitialiser les filtres
         </Button>
       ) : (
@@ -249,12 +283,23 @@ function Pagination({
   )
 }
 
-function paginationWindow(currentPage: number, totalPages: number): (number | null)[] {
+function paginationWindow(
+  currentPage: number,
+  totalPages: number
+): (number | null)[] {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1)
   }
-  const wanted = new Set([1, currentPage - 1, currentPage, currentPage + 1, totalPages])
-  const sorted = [...wanted].filter((page) => page >= 1 && page <= totalPages).sort((a, b) => a - b)
+  const wanted = new Set([
+    1,
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    totalPages,
+  ])
+  const sorted = [...wanted]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b)
   const window: (number | null)[] = []
   let previous = 0
   for (const page of sorted) {
@@ -274,7 +319,7 @@ function FacetGroup({
 }) {
   return (
     <div>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
         {title}
       </h2>
       <ul className="flex flex-col gap-1">
@@ -318,7 +363,9 @@ function FacetLink({
       >
         <span className="min-w-0 truncate">{label}</span>
         {count !== undefined ? (
-          <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {count}
+          </span>
         ) : null}
       </Link>
     </li>
@@ -326,7 +373,11 @@ function FacetLink({
 }
 
 function FacetEmpty() {
-  return <li className="px-2 py-1 text-sm text-muted-foreground">Aucun filtre disponible</li>
+  return (
+    <li className="px-2 py-1 text-sm text-muted-foreground">
+      Aucun filtre disponible
+    </li>
+  )
 }
 
 export function SearchSkeleton() {

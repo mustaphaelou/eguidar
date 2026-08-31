@@ -27,9 +27,7 @@ const AuthDialogsContext = createContext<AuthDialogsContextValue | null>(null)
 
 function syncOpenParam(dialog: AuthDialogName | null) {
   replaceUrl((url) =>
-    dialog
-      ? withAuthParams(url.href, { dialog })
-      : withoutAuthParams(url.href)
+    dialog ? withAuthParams(url.href, { dialog }) : withoutAuthParams(url.href)
   )
 }
 

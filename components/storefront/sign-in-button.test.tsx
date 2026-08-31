@@ -4,7 +4,10 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { AuthDialogsProvider, useAuthDialogs } from "@/components/auth/auth-dialogs-context"
+import {
+  AuthDialogsProvider,
+  useAuthDialogs,
+} from "@/components/auth/auth-dialogs-context"
 import { SignInButton } from "./sign-in-button"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -45,7 +48,9 @@ function renderWithProvider() {
 }
 
 function signInButton() {
-  return container.querySelector<HTMLButtonElement>('button[aria-label="Connexion"]')!
+  return container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Connexion"]'
+  )!
 }
 
 describe("SignInButton", () => {

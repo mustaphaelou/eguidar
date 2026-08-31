@@ -12,20 +12,29 @@ function Avatar({
   return (
     <AvatarPrimitive.Root
       data-slot="avatar"
-      render={<span className={cn("relative flex size-8 shrink-0 overflow-hidden rounded-full", className)} />}
+      render={
+        <span
+          className={cn(
+            "relative flex size-8 shrink-0 overflow-hidden rounded-full",
+            className
+          )}
+        />
+      }
       {...props}
     />
   )
 }
 
-function AvatarImage({
-  className,
-  ...props
-}: React.ComponentProps<"img">) {
+function AvatarImage({ className, ...props }: React.ComponentProps<"img">) {
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
-      render={<img aria-hidden="true" className={cn("aspect-square size-full object-cover", className)} />}
+      render={
+        <img
+          aria-hidden="true"
+          className={cn("aspect-square size-full object-cover", className)}
+        />
+      }
       {...props}
     />
   )

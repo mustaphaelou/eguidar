@@ -7,7 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export const NO_PARENT_VALUE = "none"
 
@@ -27,7 +34,10 @@ interface CategoryFormProps {
   category?: CategoryFormInitial
   categories: { id: string; name: string }[]
   excludedParentIds?: string[]
-  action: (prevState: CategoryFormState, formData: FormData) => Promise<CategoryFormState>
+  action: (
+    prevState: CategoryFormState,
+    formData: FormData
+  ) => Promise<CategoryFormState>
 }
 
 function slugify(name: string): string {
@@ -47,14 +57,20 @@ export function CategoryForm({
 }: CategoryFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const slugRef = useRef<HTMLInputElement>(null)
-  const [parentId, setParentId] = useState(category?.parentId ?? NO_PARENT_VALUE)
+  const [parentId, setParentId] = useState(
+    category?.parentId ?? NO_PARENT_VALUE
+  )
   const [image, setImage] = useState(category?.image ?? "")
   const excluded = new Set(excludedParentIds)
-  const parentOptions = categories.filter((candidate) => !excluded.has(candidate.id))
+  const parentOptions = categories.filter(
+    (candidate) => !excluded.has(candidate.id)
+  )
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      {category?.id ? <input type="hidden" name="categoryId" value={category.id} /> : null}
+      {category?.id ? (
+        <input type="hidden" name="categoryId" value={category.id} />
+      ) : null}
       <input type="hidden" name="parentId" value={parentId} />
 
       {state.error ? (
@@ -99,7 +115,8 @@ export function CategoryForm({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (slugRef.current) slugRef.current.value = slugify(slugRef.current.value)
+                    if (slugRef.current)
+                      slugRef.current.value = slugify(slugRef.current.value)
                   }}
                 >
                   Générer
@@ -108,13 +125,18 @@ export function CategoryForm({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="parentId">Catégorie parente</Label>
-              <Select value={parentId} onValueChange={(value) => setParentId(value ?? NO_PARENT_VALUE)}>
+              <Select
+                value={parentId}
+                onValueChange={(value) => setParentId(value ?? NO_PARENT_VALUE)}
+              >
                 <SelectTrigger id="parentId" className="w-full">
                   <SelectValue placeholder="Aucune (catégorie racine)" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value={NO_PARENT_VALUE}>Aucune (catégorie racine)</SelectItem>
+                    <SelectItem value={NO_PARENT_VALUE}>
+                      Aucune (catégorie racine)
+                    </SelectItem>
                     {parentOptions.map((candidate) => (
                       <SelectItem key={candidate.id} value={candidate.id}>
                         {candidate.name}

@@ -119,7 +119,9 @@ function dialog() {
 }
 
 function signInButton() {
-  return container.querySelector<HTMLButtonElement>('button[data-slot="button"]')
+  return container.querySelector<HTMLButtonElement>(
+    'button[data-slot="button"]'
+  )
 }
 
 function closeButton() {
@@ -203,9 +205,7 @@ describe("RequireAuth", () => {
 
     act(() => signInButton()!.click())
 
-    expect(new URL(window.location.href).searchParams.get("open")).toBe(
-      "login"
-    )
+    expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
   })
 })
 

@@ -16,12 +16,12 @@ export const signUpSchema = z.object({
   email: emailField,
   password: z
     .string()
-    .min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
+    .min(8, {
+      message: "Le mot de passe doit contenir au moins 8 caractères.",
+    }),
 })
 
-export function collectFieldIssues(
-  error: z.ZodError
-): Record<string, string> {
+export function collectFieldIssues(error: z.ZodError): Record<string, string> {
   const issues: Record<string, string> = {}
   for (const issue of error.issues) {
     const key = issue.path[0]

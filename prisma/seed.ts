@@ -26,12 +26,36 @@ const cities = [
 ]
 
 const categories = [
-  { name: "Smartphones", slug: "smartphones", image: "https://placehold.co/800x800?text=Smartphones" },
-  { name: "Ordinateurs & Tablettes", slug: "ordinateurs-tablettes", image: "https://placehold.co/800x800?text=Ordinateurs" },
-  { name: "Audio & Hi-Fi", slug: "audio-hifi", image: "https://placehold.co/800x800?text=Audio" },
-  { name: "TV & Home Cinema", slug: "tv-home-cinema", image: "https://placehold.co/800x800?text=TV" },
-  { name: "Gaming", slug: "gaming", image: "https://placehold.co/800x800?text=Gaming" },
-  { name: "Accessoires", slug: "accessoires", image: "https://placehold.co/800x800?text=Accessoires" },
+  {
+    name: "Smartphones",
+    slug: "smartphones",
+    image: "https://placehold.co/800x800?text=Smartphones",
+  },
+  {
+    name: "Ordinateurs & Tablettes",
+    slug: "ordinateurs-tablettes",
+    image: "https://placehold.co/800x800?text=Ordinateurs",
+  },
+  {
+    name: "Audio & Hi-Fi",
+    slug: "audio-hifi",
+    image: "https://placehold.co/800x800?text=Audio",
+  },
+  {
+    name: "TV & Home Cinema",
+    slug: "tv-home-cinema",
+    image: "https://placehold.co/800x800?text=TV",
+  },
+  {
+    name: "Gaming",
+    slug: "gaming",
+    image: "https://placehold.co/800x800?text=Gaming",
+  },
+  {
+    name: "Accessoires",
+    slug: "accessoires",
+    image: "https://placehold.co/800x800?text=Accessoires",
+  },
 ]
 
 const products = [
@@ -45,7 +69,12 @@ const products = [
     price: 1249900,
     isFeatured: true,
     featuredOrder: 1,
-    specs: { Écran: '6.1" Super Retina XDR', Puce: "A17 Pro", Caméra: "48 MP", Batterie: "3274 mAh" },
+    specs: {
+      Écran: '6.1" Super Retina XDR',
+      Puce: "A17 Pro",
+      Caméra: "48 MP",
+      Batterie: "3274 mAh",
+    },
     images: ["https://placehold.co/800x800?text=iPhone+15+Pro"],
     variants: [
       { name: "128 Go", sku: "IP15P-128", priceDelta: 0, stock: 12 },
@@ -57,13 +86,18 @@ const products = [
     name: "Samsung Galaxy S24 Ultra",
     slug: "samsung-galaxy-s24-ultra",
     description:
-      "Le flagship Samsung : écran 6,8\" AMOLED, S Pen intégré, caméra 200 MP et 7 ans de mises à jour. TVA 20% incluse.",
+      'Le flagship Samsung : écran 6,8" AMOLED, S Pen intégré, caméra 200 MP et 7 ans de mises à jour. TVA 20% incluse.',
     brand: "Samsung",
     category: "smartphones",
     price: 1199900,
     isFeatured: true,
     featuredOrder: 2,
-    specs: { Écran: '6.8" AMOLED 120 Hz', Puce: "Snapdragon 8 Gen 3", Caméra: "200 MP", Batterie: "5000 mAh" },
+    specs: {
+      Écran: '6.8" AMOLED 120 Hz',
+      Puce: "Snapdragon 8 Gen 3",
+      Caméra: "200 MP",
+      Batterie: "5000 mAh",
+    },
     images: ["https://placehold.co/800x800?text=Galaxy+S24+Ultra"],
     variants: [
       { name: "256 Go", sku: "S24U-256", priceDelta: 0, stock: 10 },
@@ -81,12 +115,27 @@ const products = [
     isFeatured: true,
     featuredOrder: 3,
     freeShipping: true,
-    specs: { Écran: '13.6" Liquid Retina', Puce: "Apple M3", RAM: "8 Go", Stockage: "256 Go SSD" },
+    specs: {
+      Écran: '13.6" Liquid Retina',
+      Puce: "Apple M3",
+      RAM: "8 Go",
+      Stockage: "256 Go SSD",
+    },
     images: ["https://placehold.co/800x800?text=MacBook+Air+M3"],
     variants: [
       { name: "8 Go / 256 Go", sku: "MBA13M3-8-256", priceDelta: 0, stock: 7 },
-      { name: "8 Go / 512 Go", sku: "MBA13M3-8-512", priceDelta: 200000, stock: 5 },
-      { name: "16 Go / 512 Go", sku: "MBA13M3-16-512", priceDelta: 400000, stock: 3 },
+      {
+        name: "8 Go / 512 Go",
+        sku: "MBA13M3-8-512",
+        priceDelta: 200000,
+        stock: 5,
+      },
+      {
+        name: "16 Go / 512 Go",
+        sku: "MBA13M3-16-512",
+        priceDelta: 400000,
+        stock: 3,
+      },
     ],
   },
   {
@@ -97,9 +146,21 @@ const products = [
     brand: "Dell",
     category: "ordinateurs-tablettes",
     price: 1699900,
-    specs: { Écran: '13.4" OLED', Processeur: "Intel Core Ultra 7", RAM: "16 Go", Stockage: "512 Go SSD" },
+    specs: {
+      Écran: '13.4" OLED',
+      Processeur: "Intel Core Ultra 7",
+      RAM: "16 Go",
+      Stockage: "512 Go SSD",
+    },
     images: ["https://placehold.co/800x800?text=Dell+XPS+13"],
-    variants: [{ name: "Modèle standard", sku: "XPS13-ULTRA7-16-512", priceDelta: 0, stock: 4 }],
+    variants: [
+      {
+        name: "Modèle standard",
+        sku: "XPS13-ULTRA7-16-512",
+        priceDelta: 0,
+        stock: 4,
+      },
+    ],
   },
   {
     name: "Casque Sony WH-1000XM5",
@@ -111,7 +172,12 @@ const products = [
     price: 349900,
     isFeatured: true,
     featuredOrder: 4,
-    specs: { Type: "Circum-aural", Bluetooth: "5.2", Autonomie: "30 h", Réduction: "ANC adaptative" },
+    specs: {
+      Type: "Circum-aural",
+      Bluetooth: "5.2",
+      Autonomie: "30 h",
+      Réduction: "ANC adaptative",
+    },
     images: ["https://placehold.co/800x800?text=WH-1000XM5"],
     variants: [
       { name: "Noir", sku: "WH1000XM5-NOIR", priceDelta: 0, stock: 15 },
@@ -126,7 +192,12 @@ const products = [
     brand: "JBL",
     category: "audio-hifi",
     price: 159900,
-    specs: { Bluetooth: "5.1", Puissance: "40 W RMS", Autonomie: "20 h", Étanchéité: "IP67" },
+    specs: {
+      Bluetooth: "5.1",
+      Puissance: "40 W RMS",
+      Autonomie: "20 h",
+      Étanchéité: "IP67",
+    },
     images: ["https://placehold.co/800x800?text=JBL+Charge+5"],
     variants: [
       { name: "Noir", sku: "JBLCH5-NOIR", priceDelta: 0, stock: 20 },
@@ -134,19 +205,24 @@ const products = [
     ],
   },
   {
-    name: "TV Samsung 55\" QLED 4K",
+    name: 'TV Samsung 55" QLED 4K',
     slug: "tv-samsung-55-qled-4k",
     description:
       "Téléviseur QLED 4K avec Quantum Processor, HDR10+ et Tizen Smart TV. TVA 20% incluse.",
     brand: "Samsung",
     category: "tv-home-cinema",
     price: 699900,
-    specs: { Taille: '55"', Résolution: "4K UHD", Technologie: "QLED", HDR: "HDR10+" },
+    specs: {
+      Taille: '55"',
+      Résolution: "4K UHD",
+      Technologie: "QLED",
+      HDR: "HDR10+",
+    },
     images: ["https://placehold.co/800x800?text=TV+Samsung+55"],
     variants: [{ name: "55 pouces", sku: "TV55Q60D", priceDelta: 0, stock: 6 }],
   },
   {
-    name: "TV LG OLED 65\" C4",
+    name: 'TV LG OLED 65" C4',
     slug: "tv-lg-oled-65-c4",
     description:
       "Téléviseur OLED avec a9 Gen7 AI Processor, Dolby Vision et webOS. TVA 20% incluse.",
@@ -156,9 +232,16 @@ const products = [
     isFeatured: true,
     featuredOrder: 5,
     freeShipping: true,
-    specs: { Taille: '65"', Résolution: "4K UHD", Technologie: "OLED evo", HDR: "Dolby Vision" },
+    specs: {
+      Taille: '65"',
+      Résolution: "4K UHD",
+      Technologie: "OLED evo",
+      HDR: "Dolby Vision",
+    },
     images: ["https://placehold.co/800x800?text=TV+LG+OLED"],
-    variants: [{ name: "65 pouces", sku: "LGOLED65C4", priceDelta: 0, stock: 3 }],
+    variants: [
+      { name: "65 pouces", sku: "LGOLED65C4", priceDelta: 0, stock: 3 },
+    ],
   },
   {
     name: "PlayStation 5 Slim",
@@ -170,7 +253,11 @@ const products = [
     price: 549900,
     isFeatured: true,
     featuredOrder: 6,
-    specs: { Stockage: "1 To SSD", Résolution: "4K 120 Hz", Lecteur: "Blu-ray 4K" },
+    specs: {
+      Stockage: "1 To SSD",
+      Résolution: "4K 120 Hz",
+      Lecteur: "Blu-ray 4K",
+    },
     images: ["https://placehold.co/800x800?text=PS5+Slim"],
     variants: [
       { name: "Avec lecteur", sku: "PS5SLIM-BD", priceDelta: 0, stock: 8 },
@@ -239,7 +326,9 @@ async function main() {
     }
   }
 
-  const adminUser = await prisma.user.findUnique({ where: { email: adminEmail } })
+  const adminUser = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  })
   if (adminUser) {
     await prisma.user.update({
       where: { email: adminEmail },
@@ -274,7 +363,9 @@ async function main() {
     ).map(toIndexableProduct)
   )
 
-  console.log("Seed terminé : villes, catégories, produits, variantes et compte admin créés.")
+  console.log(
+    "Seed terminé : villes, catégories, produits, variantes et compte admin créés."
+  )
 }
 
 main()

@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { prisma } from "@/lib/db"
 import {
@@ -63,11 +71,15 @@ describe("admin catalog mutations", () => {
   })
 
   beforeEach(async () => {
-    await prisma.product.deleteMany({ where: { slug: { startsWith: `p-${runId}-` } } })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `p-${runId}-` } },
+    })
   })
 
   afterAll(async () => {
-    await prisma.product.deleteMany({ where: { slug: { startsWith: `p-${runId}-` } } })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `p-${runId}-` } },
+    })
     await prisma.category.deleteMany({ where: { slug: `categorie-${runId}` } })
     await prisma.$disconnect()
   })
@@ -100,7 +112,10 @@ describe("admin catalog mutations", () => {
 
   it("triggers a Meilisearch re-index and cache revalidation after creating", async () => {
     const effects = makeEffects()
-    const product = await createProduct(makeInput({ slug: slug("reindex") }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("reindex") }),
+      effects
+    )
 
     expect(effects.reindexProducts).toHaveBeenCalledOnce()
     expect(effects.reindexProducts).toHaveBeenCalledWith([
@@ -127,10 +142,15 @@ describe("admin catalog mutations", () => {
     await createProduct(makeInput({ slug: slug("dup-slug") }), effects)
 
     await expect(
-      createProduct(makeInput({ slug: slug("dup-slug"), name: "Autre produit" }), makeEffects())
+      createProduct(
+        makeInput({ slug: slug("dup-slug"), name: "Autre produit" }),
+        makeEffects()
+      )
     ).rejects.toThrow(SlugConflictError)
 
-    const count = await prisma.product.count({ where: { slug: slug("dup-slug") } })
+    const count = await prisma.product.count({
+      where: { slug: slug("dup-slug") },
+    })
     expect(count).toBe(1)
   })
 
@@ -150,26 +170,38 @@ describe("admin catalog mutations", () => {
 
   it("rejects a SKU already used by another product", async () => {
     const sharedSku = `SKU-${runId}-shared`
-    await createProduct(makeInput({ variants: [{ name: "A", sku: sharedSku, priceDelta: 0, stock: 1 }] }), makeEffects())
+    await createProduct(
+      makeInput({
+        variants: [{ name: "A", sku: sharedSku, priceDelta: 0, stock: 1 }],
+      }),
+      makeEffects()
+    )
 
     await expect(
       createProduct(
-        makeInput({ slug: slug("sku-conflict"), variants: [{ name: "A", sku: sharedSku, priceDelta: 0, stock: 1 }] }),
+        makeInput({
+          slug: slug("sku-conflict"),
+          variants: [{ name: "A", sku: sharedSku, priceDelta: 0, stock: 1 }],
+        }),
         makeEffects()
       )
     ).rejects.toThrow(DuplicateSkuError)
   })
 
   it("rejects a negative product price", async () => {
-    await expect(createProduct(makeInput({ price: -100 }), makeEffects())).rejects.toThrow(
-      CatalogValidationError
-    )
+    await expect(
+      createProduct(makeInput({ price: -100 }), makeEffects())
+    ).rejects.toThrow(CatalogValidationError)
   })
 
   it("rejects negative stock on a variant", async () => {
     await expect(
       createProduct(
-        makeInput({ variants: [{ name: "A", sku: `SKU-${runId}-neg`, priceDelta: 0, stock: -2 }] }),
+        makeInput({
+          variants: [
+            { name: "A", sku: `SKU-${runId}-neg`, priceDelta: 0, stock: -2 },
+          ],
+        }),
         makeEffects()
       )
     ).rejects.toThrow(CatalogValidationError)
@@ -178,7 +210,16 @@ describe("admin catalog mutations", () => {
   it("rejects a variant whose final price (price + delta) is negative", async () => {
     await expect(
       createProduct(
-        makeInput({ variants: [{ name: "A", sku: `SKU-${runId}-negprice`, priceDelta: -200000, stock: 1 }] }),
+        makeInput({
+          variants: [
+            {
+              name: "A",
+              sku: `SKU-${runId}-negprice`,
+              priceDelta: -200000,
+              stock: 1,
+            },
+          ],
+        }),
         makeEffects()
       )
     ).rejects.toThrow(CatalogValidationError)
@@ -191,7 +232,12 @@ describe("admin catalog mutations", () => {
         slug: slug("update"),
         variants: [
           { name: "128 Go", sku: `SKU-${runId}-u1`, priceDelta: 0, stock: 5 },
-          { name: "256 Go", sku: `SKU-${runId}-u2`, priceDelta: 100000, stock: 3 },
+          {
+            name: "256 Go",
+            sku: `SKU-${runId}-u2`,
+            priceDelta: 100000,
+            stock: 3,
+          },
         ],
       }),
       effects
@@ -204,7 +250,13 @@ describe("admin catalog mutations", () => {
       name: "Produit renommé",
       price: 150000,
       variants: [
-        { id: kept.id, name: kept.name, sku: kept.sku, priceDelta: 5000, stock: 9 },
+        {
+          id: kept.id,
+          name: kept.name,
+          sku: kept.sku,
+          priceDelta: 5000,
+          stock: 9,
+        },
         { name: "Nouveau", sku: `SKU-${runId}-u3`, priceDelta: 0, stock: 2 },
       ],
     })
@@ -227,7 +279,10 @@ describe("admin catalog mutations", () => {
 
   it("accepts an unchanged slug on update", async () => {
     const effects = makeEffects()
-    const product = await createProduct(makeInput({ slug: slug("self-slug") }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("self-slug") }),
+      effects
+    )
     const variants = product.variants.map((v) => ({
       id: v.id,
       name: v.name,
@@ -237,17 +292,26 @@ describe("admin catalog mutations", () => {
     }))
 
     await expect(
-      updateProduct(product.id, makeInput({ slug: slug("self-slug"), variants }), makeEffects())
+      updateProduct(
+        product.id,
+        makeInput({ slug: slug("self-slug"), variants }),
+        makeEffects()
+      )
     ).resolves.toMatchObject({ slug: slug("self-slug") })
   })
 
   it("rejects updating a product to another product's slug", async () => {
     const effects = makeEffects()
-    const first = await createProduct(makeInput({ slug: slug("slug-a") }), effects)
+    const first = await createProduct(
+      makeInput({ slug: slug("slug-a") }),
+      effects
+    )
     await createProduct(
       makeInput({
         slug: slug("slug-b"),
-        variants: [{ name: "Standard", sku: `SKU-${runId}-b`, priceDelta: 0, stock: 5 }],
+        variants: [
+          { name: "Standard", sku: `SKU-${runId}-b`, priceDelta: 0, stock: 5 },
+        ],
       }),
       makeEffects()
     )
@@ -260,13 +324,20 @@ describe("admin catalog mutations", () => {
     }))
 
     await expect(
-      updateProduct(first.id, makeInput({ slug: slug("slug-b"), variants }), makeEffects())
+      updateProduct(
+        first.id,
+        makeInput({ slug: slug("slug-b"), variants }),
+        makeEffects()
+      )
     ).rejects.toThrow(SlugConflictError)
   })
 
   it("revalidates the previous slug when the product is renamed", async () => {
     const effects = makeEffects()
-    const product = await createProduct(makeInput({ slug: slug("before-rename") }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("before-rename") }),
+      effects
+    )
     const variants = product.variants.map((v) => ({
       id: v.id,
       name: v.name,
@@ -295,7 +366,10 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/remove-1.jpg",
       "https://cdn.example.com/remove-2.jpg",
     ]
-    const product = await createProduct(makeInput({ slug: slug("img-update"), images }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("img-update"), images }),
+      effects
+    )
     const variants = product.variants.map((v) => ({
       id: v.id,
       name: v.name,
@@ -308,7 +382,10 @@ describe("admin catalog mutations", () => {
       product.id,
       makeInput({
         slug: slug("img-update"),
-        images: ["https://cdn.example.com/keep-1.jpg", "https://cdn.example.com/new.jpg"],
+        images: [
+          "https://cdn.example.com/keep-1.jpg",
+          "https://cdn.example.com/new.jpg",
+        ],
         variants,
       }),
       effects
@@ -323,7 +400,10 @@ describe("admin catalog mutations", () => {
 
   it("passes an empty diff to deleteImages when no image was removed on update", async () => {
     const effects = makeEffects()
-    const product = await createProduct(makeInput({ slug: slug("img-same") }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("img-same") }),
+      effects
+    )
     const variants = product.variants.map((v) => ({
       id: v.id,
       name: v.name,
@@ -332,7 +412,11 @@ describe("admin catalog mutations", () => {
       stock: v.stock,
     }))
 
-    await updateProduct(product.id, makeInput({ slug: slug("img-same"), variants }), effects)
+    await updateProduct(
+      product.id,
+      makeInput({ slug: slug("img-same"), variants }),
+      effects
+    )
 
     expect(effects.deleteImages).toHaveBeenCalledOnce()
     expect(effects.deleteImages).toHaveBeenCalledWith([])
@@ -340,11 +424,21 @@ describe("admin catalog mutations", () => {
 
   it("rejects updating with a variant id belonging to another product", async () => {
     const effects = makeEffects()
-    const first = await createProduct(makeInput({ slug: slug("own-a") }), effects)
+    const first = await createProduct(
+      makeInput({ slug: slug("own-a") }),
+      effects
+    )
     const second = await createProduct(
       makeInput({
         slug: slug("own-b"),
-        variants: [{ name: "Standard", sku: `SKU-${runId}-own`, priceDelta: 0, stock: 5 }],
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-own`,
+            priceDelta: 0,
+            stock: 5,
+          },
+        ],
       }),
       effects
     )
@@ -365,7 +459,11 @@ describe("admin catalog mutations", () => {
     })
 
     await expect(
-      updateProduct(first.id, makeInput({ slug: slug("own-a"), variants }), effects)
+      updateProduct(
+        first.id,
+        makeInput({ slug: slug("own-a"), variants }),
+        effects
+      )
     ).rejects.toThrow(CatalogValidationError)
 
     const untouched = await prisma.productVariant.findUniqueOrThrow({
@@ -382,15 +480,25 @@ describe("admin catalog mutations", () => {
 
   it("deletes the product with its variants and clears the search index", async () => {
     const effects = makeEffects()
-    const product = await createProduct(makeInput({ slug: slug("delete") }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("delete") }),
+      effects
+    )
 
     await deleteProduct(product.id, effects)
 
-    await expect(prisma.product.findUnique({ where: { id: product.id } })).resolves.toBeNull()
-    const variantCount = await prisma.productVariant.count({ where: { productId: product.id } })
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toBeNull()
+    const variantCount = await prisma.productVariant.count({
+      where: { productId: product.id },
+    })
     expect(variantCount).toBe(0)
     expect(effects.removeProductFromIndex).toHaveBeenCalledWith(product.id)
-    expect(effects.revalidateCatalog).toHaveBeenCalledWith({ id: product.id, slug: product.slug })
+    expect(effects.revalidateCatalog).toHaveBeenCalledWith({
+      id: product.id,
+      slug: product.slug,
+    })
   })
 
   it("passes the full gallery to deleteImages on delete", async () => {
@@ -399,7 +507,10 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/gallery-1.jpg",
       "https://cdn.example.com/gallery-2.jpg",
     ]
-    const product = await createProduct(makeInput({ slug: slug("img-delete"), images }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("img-delete"), images }),
+      effects
+    )
 
     await deleteProduct(product.id, effects)
 
@@ -408,17 +519,24 @@ describe("admin catalog mutations", () => {
   })
 
   it("throws ProductNotFoundError when deleting an unknown product", async () => {
-    await expect(deleteProduct("unknown-id", makeEffects())).rejects.toThrow(ProductNotFoundError)
+    await expect(deleteProduct("unknown-id", makeEffects())).rejects.toThrow(
+      ProductNotFoundError
+    )
   })
 
   it("updates variant stock inline and re-indexes the product", async () => {
     const effects = makeEffects()
-    const product = await createProduct(makeInput({ slug: slug("stock") }), effects)
+    const product = await createProduct(
+      makeInput({ slug: slug("stock") }),
+      effects
+    )
     const variant = product.variants[0]
 
     await updateVariantStock(variant.id, 42, effects)
 
-    const persisted = await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })
+    const persisted = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    })
     expect(persisted.stock).toBe(42)
     expect(effects.reindexProducts).toHaveBeenCalledWith([
       expect.objectContaining({ id: product.id, totalStock: 42 }),
@@ -430,16 +548,19 @@ describe("admin catalog mutations", () => {
   })
 
   it("rejects negative stock on inline update", async () => {
-    const product = await createProduct(makeInput({ slug: slug("stock-neg") }), makeEffects())
-
-    await expect(updateVariantStock(product.variants[0].id, -1, makeEffects())).rejects.toThrow(
-      CatalogValidationError
+    const product = await createProduct(
+      makeInput({ slug: slug("stock-neg") }),
+      makeEffects()
     )
+
+    await expect(
+      updateVariantStock(product.variants[0].id, -1, makeEffects())
+    ).rejects.toThrow(CatalogValidationError)
   })
 
   it("throws VariantNotFoundError for an unknown variant", async () => {
-    await expect(updateVariantStock("unknown-variant", 5, makeEffects())).rejects.toThrow(
-      VariantNotFoundError
-    )
+    await expect(
+      updateVariantStock("unknown-variant", 5, makeEffects())
+    ).rejects.toThrow(VariantNotFoundError)
   })
 })

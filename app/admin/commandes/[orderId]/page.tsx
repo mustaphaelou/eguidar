@@ -9,7 +9,14 @@ import { OrderStatusActions } from "@/components/admin/order-status-actions"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { formatPrice, formatShippingFee } from "@/lib/money"
 import { ORDER_TRANSITIONS } from "@/lib/order-status"
 import { getAdminOrder } from "@/lib/use-cases/admin-orders"
@@ -53,18 +60,25 @@ export default async function AdminOrderDetailPage({
     <div className="flex flex-col gap-6">
       {transition === "refusee" ? (
         <div className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Transition de statut refusée : la commande n&apos;est plus dans l&apos;état attendu.
+          Transition de statut refusée : la commande n&apos;est plus dans
+          l&apos;état attendu.
         </div>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Commande {shortOrderId(order.id)}</h1>
+          <h1 className="text-2xl font-semibold">
+            Commande {shortOrderId(order.id)}
+          </h1>
           <p className="text-sm text-muted-foreground">{orderDate}</p>
         </div>
         <div className="flex items-center gap-3">
           <OrderStatusBadge status={order.status} />
-          <Button render={<Link href="/admin/commandes" />} variant="outline" size="sm">
+          <Button
+            render={<Link href="/admin/commandes" />}
+            variant="outline"
+            size="sm"
+          >
             Toutes les commandes
           </Button>
         </div>
@@ -87,7 +101,11 @@ export default async function AdminOrderDetailPage({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="size-4" />
+              <HugeiconsIcon
+                icon={UserIcon}
+                strokeWidth={2}
+                className="size-4"
+              />
               Client
             </CardTitle>
           </CardHeader>
@@ -100,7 +118,11 @@ export default async function AdminOrderDetailPage({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <HugeiconsIcon icon={MapPinIcon} strokeWidth={2} className="size-4" />
+              <HugeiconsIcon
+                icon={MapPinIcon}
+                strokeWidth={2}
+                className="size-4"
+              />
               Livraison
             </CardTitle>
           </CardHeader>
@@ -109,7 +131,11 @@ export default async function AdminOrderDetailPage({
               {order.address}, {order.cityName}
             </p>
             <p className="mt-1 flex items-center gap-2 text-muted-foreground">
-              <HugeiconsIcon icon={Call02Icon} strokeWidth={2} className="size-4" />
+              <HugeiconsIcon
+                icon={Call02Icon}
+                strokeWidth={2}
+                className="size-4"
+              />
               {order.phone}
             </p>
           </CardContent>
@@ -135,22 +161,34 @@ export default async function AdminOrderDetailPage({
               {order.items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.productName}</TableCell>
-                  <TableCell className="text-muted-foreground">{item.variantName}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {item.variantName}
+                  </TableCell>
                   <TableCell className="text-end">{item.quantity}</TableCell>
-                  <TableCell className="text-end">{formatPrice(item.price)}</TableCell>
-                  <TableCell className="text-end">{formatPrice(item.price * item.quantity)}</TableCell>
+                  <TableCell className="text-end">
+                    {formatPrice(item.price)}
+                  </TableCell>
+                  <TableCell className="text-end">
+                    {formatPrice(item.price * item.quantity)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
           <dl className="flex flex-col gap-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Sous-total (TVA incluse)</dt>
+              <dt className="text-muted-foreground">
+                Sous-total (TVA incluse)
+              </dt>
               <dd className="font-semibold">{formatPrice(order.total)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Livraison ({order.cityName})</dt>
-              <dd className="font-semibold">{formatShippingFee(order.shippingFee)}</dd>
+              <dt className="text-muted-foreground">
+                Livraison ({order.cityName})
+              </dt>
+              <dd className="font-semibold">
+                {formatShippingFee(order.shippingFee)}
+              </dd>
             </div>
             <div className="flex justify-between border-t pt-2 text-base">
               <dt className="font-bold">Total à payer à la livraison</dt>

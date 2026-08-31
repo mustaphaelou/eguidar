@@ -14,7 +14,10 @@ export interface CityFormState {
 
 interface CityFormProps {
   city?: { id: string; name: string; fee: number }
-  action: (prevState: CityFormState, formData: FormData) => Promise<CityFormState>
+  action: (
+    prevState: CityFormState,
+    formData: FormData
+  ) => Promise<CityFormState>
 }
 
 export function CityForm({ city, action }: CityFormProps) {
@@ -37,7 +40,13 @@ export function CityForm({ city, action }: CityFormProps) {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">Nom de la ville</Label>
-            <Input id="name" name="name" required defaultValue={city?.name} placeholder="Casablanca" />
+            <Input
+              id="name"
+              name="name"
+              required
+              defaultValue={city?.name}
+              placeholder="Casablanca"
+            />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="fee">Frais de livraison (MAD)</Label>

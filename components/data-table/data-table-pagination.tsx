@@ -90,7 +90,7 @@ function DataTablePagination<TData>({
               <span
                 key={`dots-${index}`}
                 aria-hidden="true"
-                className="flex size-8 select-none items-center justify-center text-sm text-muted-foreground"
+                className="flex size-8 items-center justify-center text-sm text-muted-foreground select-none"
               >
                 …
               </span>
@@ -130,7 +130,4 @@ function DataTablePagination<TData>({
   )
 }
 
-export {
-  DataTablePagination,
-  type DataTablePaginationProps,
-}
+export { DataTablePagination, type DataTablePaginationProps }

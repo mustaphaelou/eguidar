@@ -50,7 +50,10 @@ function DataTableFacetedFilter<TData, TValue>({
             {title}
             {selectedOptions.length > 0 && (
               <>
-                <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-border" />
+                <span
+                  aria-hidden="true"
+                  className="mx-0.5 h-4 w-px bg-border"
+                />
                 {(selectedOptions.length > 2
                   ? selectedOptions.slice(0, 2)
                   : selectedOptions
@@ -87,7 +90,7 @@ function DataTableFacetedFilter<TData, TValue>({
                   filterValues.length ? filterValues : undefined
                 )
               }}
-              className="relative flex w-full cursor-default items-center gap-2 rounded-lg py-1.5 pe-2 ps-8 text-sm outline-hidden select-none hover:bg-accent focus-visible:bg-accent"
+              className="relative flex w-full cursor-default items-center gap-2 rounded-lg py-1.5 ps-8 pe-2 text-sm outline-hidden select-none hover:bg-accent focus-visible:bg-accent"
             >
               <span className="absolute inset-y-0 start-0 flex w-7 items-center justify-center">
                 {isSelected && (
@@ -122,7 +125,4 @@ function DataTableFacetedFilter<TData, TValue>({
   )
 }
 
-export {
-  DataTableFacetedFilter,
-  type DataTableFacetedFilterProps,
-}
+export { DataTableFacetedFilter, type DataTableFacetedFilterProps }

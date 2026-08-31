@@ -7,9 +7,13 @@ export function prixVariante(basePrice: number, priceDelta: number): number {
   return basePrice + priceDelta
 }
 
-export function minVariantPrice(basePrice: number, variants: VariantPriceAndStock[]): number {
+export function minVariantPrice(
+  basePrice: number,
+  variants: VariantPriceAndStock[]
+): number {
   return variants.reduce(
-    (min, variant) => Math.min(min, prixVariante(basePrice, variant.priceDelta)),
+    (min, variant) =>
+      Math.min(min, prixVariante(basePrice, variant.priceDelta)),
     basePrice
   )
 }

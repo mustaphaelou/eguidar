@@ -1,6 +1,9 @@
 import { Suspense } from "react"
 
-import { SearchResults, SearchSkeleton } from "@/components/storefront/search-results"
+import {
+  SearchResults,
+  SearchSkeleton,
+} from "@/components/storefront/search-results"
 import { pageMetadata } from "@/lib/metadata"
 import { parseSearchParams, searchProducts } from "@/lib/use-cases/search"
 
@@ -41,12 +44,15 @@ async function SearchContent({
 }: {
   searchParamsPromise: Promise<SearchParams>
 }) {
-  const { query, filters, sort, page } = parseSearchParams(await searchParamsPromise)
+  const { query, filters, sort, page } = parseSearchParams(
+    await searchParamsPromise
+  )
 
   if (!query) {
     return (
       <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-        Recherchez un produit, une marque… Nous trouvons même ce que vous épelez mal.
+        Recherchez un produit, une marque… Nous trouvons même ce que vous épelez
+        mal.
       </div>
     )
   }

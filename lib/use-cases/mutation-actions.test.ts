@@ -296,7 +296,10 @@ describe("adminFormAction", () => {
     fd.append("fee", "1250")
 
     await expect(action({}, fd)).resolves.toEqual({})
-    expect(run).toHaveBeenCalledWith({ name: "Rabat", fee: 1250 }, ADMIN_SESSION.user)
+    expect(run).toHaveBeenCalledWith(
+      { name: "Rabat", fee: 1250 },
+      ADMIN_SESSION.user
+    )
   })
 
   it("turns a parser throw into { error: message } without running", async () => {
@@ -381,11 +384,9 @@ describe("adminTaskAction", () => {
 
   it("passes the parsed input to run and resolves void when authenticated", async () => {
     adminSessionMock.mockResolvedValue(ADMIN_SESSION)
-    const run = vi.fn(
-      async (input: { cityId: string }, _user: unknown) => {
-        expect(input).toEqual({ cityId: "42" })
-      }
-    )
+    const run = vi.fn(async (input: { cityId: string }, _user: unknown) => {
+      expect(input).toEqual({ cityId: "42" })
+    })
     const action = adminTaskAction<{ cityId: string }>({
       next: "/admin/villes",
       parse: (fd) => {
@@ -435,9 +436,12 @@ describe("adminTaskAction", () => {
     const action = adminTaskAction<{ orderId: string }>({
       next: "/admin/commandes",
       parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),
-      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
+      refusalUrl: ({ orderId }) =>
+        `/admin/commandes/${orderId}?transition=refusee`,
       run: async () => {
-        throw new StubUserFacingError("Transition invalide : pending → cancelled")
+        throw new StubUserFacingError(
+          "Transition invalide : pending → cancelled"
+        )
       },
     })
     const fd = formData()
@@ -460,7 +464,8 @@ describe("adminTaskAction", () => {
       parse: () => {
         throw new Error(INVALID_FORM_MESSAGE)
       },
-      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
+      refusalUrl: ({ orderId }) =>
+        `/admin/commandes/${orderId}?transition=refusee`,
       run,
     })
 
@@ -475,7 +480,8 @@ describe("adminTaskAction", () => {
     const action = adminTaskAction<{ orderId: string }>({
       next: "/admin/commandes",
       parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),
-      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
+      refusalUrl: ({ orderId }) =>
+        `/admin/commandes/${orderId}?transition=refusee`,
       run: async () => {
         throw boom
       },
@@ -489,7 +495,8 @@ describe("adminTaskAction", () => {
     const action = adminTaskAction<{ orderId: string }>({
       next: "/admin/commandes",
       parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),
-      refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
+      refusalUrl: ({ orderId }) =>
+        `/admin/commandes/${orderId}?transition=refusee`,
       run: async () => {
         redirectMock("/admin/commandes/7")
       },

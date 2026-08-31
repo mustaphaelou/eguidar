@@ -8,15 +8,37 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { ChevronRightIcon } from "@hugeicons/core-free-icons"
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
-  return <nav aria-label="Fil d'Ariane" data-slot="breadcrumb" className={cn("flex flex-1 items-center", className)} {...props} />
+  return (
+    <nav
+      aria-label="Fil d'Ariane"
+      data-slot="breadcrumb"
+      className={cn("flex flex-1 items-center", className)}
+      {...props}
+    />
+  )
 }
 
 function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
-  return <ol data-slot="breadcrumb-list" className={cn("flex items-center gap-1.5 text-sm text-muted-foreground [&>li]:flex [&>li]:items-center [&>li]:gap-1.5", className)} {...props} />
+  return (
+    <ol
+      data-slot="breadcrumb-list"
+      className={cn(
+        "flex items-center gap-1.5 text-sm text-muted-foreground [&>li]:flex [&>li]:items-center [&>li]:gap-1.5",
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
 function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
-  return <li data-slot="breadcrumb-item" className={cn("shrink-0", className)} {...props} />
+  return (
+    <li
+      data-slot="breadcrumb-item"
+      className={cn("shrink-0", className)}
+      {...props}
+    />
+  )
 }
 
 function BreadcrumbSeparator({
@@ -30,7 +52,11 @@ function BreadcrumbSeparator({
       className={cn("text-muted-foreground/60", className)}
       {...props}
     >
-      <HugeiconsIcon icon={ChevronRightIcon} strokeWidth={2} className="size-3.5" />
+      <HugeiconsIcon
+        icon={ChevronRightIcon}
+        strokeWidth={2}
+        className="size-3.5"
+      />
     </li>
   )
 }

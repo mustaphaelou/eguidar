@@ -28,7 +28,9 @@ export interface UnauthenticatedRefusal {
   unauthenticated: true
 }
 
-export type SessionUser = NonNullable<Awaited<ReturnType<typeof getSessionUser>>>
+export type SessionUser = NonNullable<
+  Awaited<ReturnType<typeof getSessionUser>>
+>
 
 export interface MutationActionOptions<Input, Caller> {
   gate: () => Promise<Caller | null>
@@ -41,7 +43,10 @@ export interface MutationFormActionOptions<
   Caller,
   State extends MutationActionState = MutationActionState,
 > extends MutationActionOptions<Input, Caller> {
-  run: (input: Input, caller: Caller) => NoInfer<State> | Promise<NoInfer<State>>
+  run: (
+    input: Input,
+    caller: Caller
+  ) => NoInfer<State> | Promise<NoInfer<State>>
 }
 
 export interface MutationTaskActionOptions<
@@ -51,17 +56,16 @@ export interface MutationTaskActionOptions<
   run: (input: Input, caller: Caller) => void | Promise<void>
 }
 
-export interface AdminTaskActionOptions<Input, Caller>
-  extends MutationTaskActionOptions<Input, Caller> {
+export interface AdminTaskActionOptions<
+  Input,
+  Caller,
+> extends MutationTaskActionOptions<Input, Caller> {
   refusalUrl?: (input: Input) => string
 }
 
 export type MutationFormAction<
   State extends MutationActionState = MutationActionState,
-> = (
-  prevState: State,
-  formData: FormData
-) => Promise<State | { error: string }>
+> = (prevState: State, formData: FormData) => Promise<State | { error: string }>
 
 export type MutationTaskAction = (formData: FormData) => Promise<void>
 

@@ -2,7 +2,10 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/db"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
-import { deliveryAddressField, deliveryPhoneField } from "@/lib/use-cases/contact"
+import {
+  deliveryAddressField,
+  deliveryPhoneField,
+} from "@/lib/use-cases/contact"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface ProfileInput {
@@ -34,7 +37,9 @@ const profileInputSchema = z.object({
 function parseProfileInput(input: ProfileInput): ProfileInput {
   const result = profileInputSchema.safeParse(input)
   if (!result.success) {
-    throw new ProfileValidationError(result.error.issues.map((issue) => issue.message))
+    throw new ProfileValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
   }
   return {
     phone: result.data.phone,
@@ -56,11 +61,16 @@ export async function getProfile(userId: string): Promise<Profile> {
   }
 }
 
-export async function updateProfile(userId: string, input: ProfileInput): Promise<Profile> {
+export async function updateProfile(
+  userId: string,
+  input: ProfileInput
+): Promise<Profile> {
   const data = parseProfileInput(input)
 
   if (data.cityId) {
-    const city = await prisma.deliveryCity.findUnique({ where: { id: data.cityId } })
+    const city = await prisma.deliveryCity.findUnique({
+      where: { id: data.cityId },
+    })
     if (!city) throw new DeliveryCityNotFoundError()
   }
 

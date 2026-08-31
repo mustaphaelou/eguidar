@@ -24,7 +24,11 @@ type UserMenuProps = {
   variant?: "full" | "compact"
 }
 
-export function UserMenu({ userName, userEmail, variant = "full" }: UserMenuProps) {
+export function UserMenu({
+  userName,
+  userEmail,
+  variant = "full",
+}: UserMenuProps) {
   const router = useRouter()
   const [pending, setPending] = React.useState(false)
 
@@ -92,7 +96,9 @@ export function UserMenu({ userName, userEmail, variant = "full" }: UserMenuProp
           </Avatar>
           <span className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-sm font-medium">{displayName}</span>
-            <span className="truncate text-xs text-muted-foreground">{userEmail}</span>
+            <span className="truncate text-xs text-muted-foreground">
+              {userEmail}
+            </span>
           </span>
           <HugeiconsIcon
             icon={ArrowUp01Icon}

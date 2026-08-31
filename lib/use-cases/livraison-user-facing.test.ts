@@ -16,7 +16,10 @@ const errorFactory: [string, () => unknown][] = [
   ["DeliveryCityNotFoundError", () => new DeliveryCityNotFoundError()],
   [
     "ShippingValidationError",
-    () => new ShippingValidationError(["le seuil de livraison offerte doit être positif"]),
+    () =>
+      new ShippingValidationError([
+        "le seuil de livraison offerte doit être positif",
+      ]),
   ],
 ]
 

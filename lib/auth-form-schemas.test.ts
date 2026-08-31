@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  signInSchema,
-  signUpSchema,
-} from "./auth-form-schemas"
+import { signInSchema, signUpSchema } from "./auth-form-schemas"
 
 describe("signInSchema", () => {
   it("requires an email", () => {
@@ -27,9 +24,7 @@ describe("signInSchema", () => {
       const emailIssue = result.error.issues.find(
         (issue) => issue.path[0] === "email"
       )
-      expect(emailIssue?.message).toBe(
-        "Saisissez une adresse e-mail valide."
-      )
+      expect(emailIssue?.message).toBe("Saisissez une adresse e-mail valide.")
     }
   })
 
