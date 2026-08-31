@@ -33,7 +33,7 @@ export function ProductBuyBox({
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
   const [added, setAdded] = useState(false)
   const [capAtteint, setCapAtteint] = useState(false)
-  const [barVisible, setBarVisible] = useState(true)
+  const [barVisible, setBarVisible] = useState(false)
   const [isPending, startTransition] = useTransition()
   const selected = variants.find((variant) => variant.id === variantId)
   const buyButtonRef = useRef<HTMLButtonElement>(null)
@@ -43,7 +43,7 @@ export function ProductBuyBox({
     const bouton = buyButtonRef.current
     if (!bouton) return
     const observer = new IntersectionObserver(
-      ([entree]) => setBarVisible(entree ? !entree.isIntersecting : true)
+      ([entree]) => setBarVisible(!entree.isIntersecting)
     )
     observer.observe(bouton)
     return () => observer.disconnect()
@@ -60,7 +60,7 @@ export function ProductBuyBox({
           />
           Rupture de stock
         </p>
-        <Button disabled className="h-12 lg:h-9 w-full rounded-full text-[17px]">
+        <Button disabled size="xl" className="lg:h-9 w-full rounded-full text-[17px]">
           Ajouter au panier
         </Button>
       </div>
@@ -168,9 +168,10 @@ export function ProductBuyBox({
 
       <Button
         ref={buyButtonRef}
+        size="xl"
         onClick={handleAddToCart}
         disabled={outOfStock || isPending}
-        className="h-12 lg:h-9 w-full rounded-full text-[17px]"
+        className="lg:h-9 w-full rounded-full text-[17px]"
       >
         {isPending ? "Ajout…" : "Ajouter au panier"}
       </Button>

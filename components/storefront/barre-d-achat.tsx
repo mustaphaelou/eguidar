@@ -26,6 +26,7 @@ export function BarreDAchat({
   return (
     <div
       data-slot="barre-d-achat"
+      inert={!visible}
       aria-hidden={!visible}
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/75 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none sm:px-6 lg:hidden",

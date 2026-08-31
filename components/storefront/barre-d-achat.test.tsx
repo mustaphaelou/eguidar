@@ -43,6 +43,7 @@ describe("BarreDAchat", () => {
     expect(barreEl.textContent).toContain("1 050,00 MAD")
     expect(barreEl.textContent).toContain("Ajouter au panier")
     expect(barreEl.getAttribute("aria-hidden")).toBe("false")
+    expect(barreEl.hasAttribute("inert")).toBe(false)
   })
 
   it("appelle onAjouter quand on clique sur le bouton", () => {
@@ -60,7 +61,7 @@ describe("BarreDAchat", () => {
     expect(onAjouterMock).toHaveBeenCalledTimes(1)
   })
 
-  it("masque la barre (aria-hidden + pointer-events-none) quand visible est faux", () => {
+  it("masque la barre (aria-hidden + pointer-events-none + inert) quand visible est faux", () => {
     render(
       <BarreDAchat visible={false} prix="1 050,00 MAD" onAjouter={onAjouterMock} />
     )
@@ -68,6 +69,8 @@ describe("BarreDAchat", () => {
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.getAttribute("aria-hidden")).toBe("true")
     expect(barreEl.className).toContain("pointer-events-none")
+    expect(barreEl.hasAttribute("inert")).toBe(true)
+    expect((barreEl as HTMLElement).inert).toBe(true)
   })
 
   it("reste montée dans le DOM quand elle est masquée", () => {
