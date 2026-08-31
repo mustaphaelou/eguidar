@@ -36,7 +36,7 @@ export default function ProductPage({
   params: Promise<{ slug: string }>
 }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pb-24 lg:pb-0">
       <Suspense fallback={<ProductSkeleton />}>
         <ProductContent paramsPromise={params} />
       </Suspense>
