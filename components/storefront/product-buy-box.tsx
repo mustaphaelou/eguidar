@@ -181,7 +181,16 @@ export function ProductBuyBox({
         </p>
       )}
 
-      <BarreDAchat visible={barVisible} prix={price} onAjouter={handleAddToCart} />
+      <BarreDAchat
+        visible={barVisible}
+        prix={price}
+        onAjouter={handleAddToCart}
+        enAttente={isPending}
+        ajoute={added}
+        capAtteint={capAtteint}
+        desactive={outOfStock || isPending}
+        variantNom={variants.length > 1 ? selected?.name : undefined}
+      />
     </div>
   )
 }
