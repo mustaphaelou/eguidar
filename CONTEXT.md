@@ -134,3 +134,9 @@ _Avoid_: questions fréquentes, centre d'aide, help center
 **Données structurées**:
 La description lisible par les machines du contenu d'une page (JSON-LD), émise pour les moteurs de recherche et les IA.
 _Avoid_: JSON-LD (comme nom du concept), schema markup, rich snippets, données enrichies
+
+**Hôte canonique**:
+Le seul hôte servi depuis l'origine : l'apex `eguidar.com`. `www` n'existe que pour y rediriger à
+l'edge (301) ; `cdn.`, `ssh.` et `send.` sont traités à la couche Cloudflare, et tout autre
+sous-domaine s'arrête sur l'erreur 503 de l'origine.
+_Avoid_: domaine principal, canonical domain
