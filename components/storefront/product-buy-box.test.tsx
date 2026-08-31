@@ -13,12 +13,18 @@ vi.mock("@/app/(boutique)/actions", () => ({
 }))
 
 import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
+import { formatPrice } from "@/lib/money"
 import { ProductBuyBox } from "./product-buy-box"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 const variantes = [
   { id: "variante-a", name: "Standard", sku: "PBB-A", priceDelta: 0, stock: 4 },
+]
+
+const variantesMultiples = [
+  { id: "variante-a", name: "Standard", sku: "PBB-A", priceDelta: 0, stock: 4 },
+  { id: "variante-b", name: "Premium", sku: "PBB-B", priceDelta: 25000, stock: 2 },
 ]
 
 let container: HTMLDivElement
@@ -103,5 +109,244 @@ describe("ProductBuyBox", () => {
 
     expect(container.textContent).not.toContain("Ajouté au panier")
     expect(container.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
+  })
+
+  it("rend la Barre d'achat initialement masquée tant que le bouton est visible", () => {
+    render(buyBox())
+
+    const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
+    expect(barreEl.getAttribute("aria-hidden")).toBe("true")
+  })
+
+  it("rend la Barre d'achat avec le prix de la variante sélectionnée", () => {
+    render(buyBox())
+
+    const barreEl = container.querySelector<HTMLElement>(
+      "[data-slot='barre-d-achat']"
+    )
+    expect(barreEl).not.toBeNull()
+    expect(barreEl!.textContent).toContain(formatPrice(100000))
+    expect(barreEl!.textContent).toContain("Ajouter au panier")
+  })
+
+  it("met à jour le prix affiché dans la barre quand la variante sélectionnée change", () => {
+    render(
+      <ProductBuyBox
+        basePrice={100000}
+        variants={variantesMultiples}
+        freeShipping={false}
+      />
+    )
+
+    const puce = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Premium")
+    )!
+    act(() => {
+      puce.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+
+    const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
+    expect(barreEl.textContent).toContain(formatPrice(100000 + 25000))
+    expect(barreEl.textContent).not.toContain(formatPrice(100000))
+  })
+
+  it("ajoute la variante sélectionnée au panier depuis le bouton de la barre", async () => {
+    ajouterArticleAuPanierActionMock.mockResolvedValue({ ok: true })
+
+    render(
+      <ProductBuyBox
+        basePrice={100000}
+        variants={variantesMultiples}
+        freeShipping={false}
+      />
+    )
+
+    const puce = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Premium")
+    )!
+    act(() => {
+      puce.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+
+    const boutonBarre = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
+    act(() => {
+      boutonBarre.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+    await act(async () => {})
+    await act(async () => {})
+
+    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledTimes(1)
+    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledWith("variante-b", 1)
+  })
+
+  it("ne rend aucune barre pour un produit sans variante", () => {
+    render(
+      <ProductBuyBox basePrice={100000} variants={[]} freeShipping={false} />
+    )
+
+    expect(container.querySelector("[data-slot='barre-d-achat']")).toBeNull()
+  })
+
+  it("reflète « Ajout… » puis « Ajouté au panier » dans la barre", async () => {
+    let resoudreAjout: (valeur: unknown) => void = () => {}
+    ajouterArticleAuPanierActionMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resoudreAjout = resolve
+        })
+    )
+
+    render(buyBox())
+
+    const boutonBarre = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
+    act(() => {
+      boutonBarre.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+    await act(async () => {})
+
+    expect(boutonBarre.textContent).toContain("Ajout…")
+    expect(boutonBarre.textContent).not.toContain("Ajouter au panier")
+
+    await act(async () => {
+      resoudreAjout({ ok: true })
+    })
+    await act(async () => {})
+
+    expect(boutonBarre.textContent).toContain("Ajouter au panier")
+    const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
+    expect(barreEl.textContent).toContain("Ajouté au panier")
+    expect(barreEl.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
+  })
+
+  it("affiche le message de cap dans role='alert' de la barre", async () => {
+    ajouterArticleAuPanierActionMock.mockResolvedValue({
+      ok: false,
+      motif: "cap-atteinte",
+    })
+
+    render(buyBox())
+
+    const boutonBarre = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
+    act(() => {
+      boutonBarre.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+    await act(async () => {})
+    await act(async () => {})
+
+    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledTimes(1)
+    expect(ajouterArticleAuPanierActionMock.mock.calls[0]).toHaveLength(2)
+    const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
+    expect(barreEl.querySelector("[role='alert']")?.textContent).toBe(
+      MESSAGE_CAP_ATTEINTE
+    )
+    expect(barreEl.textContent).not.toContain("Ajouté au panier")
+  })
+
+  it("reste silencieuse dans la barre sur un autre motif de refus", async () => {
+    ajouterArticleAuPanierActionMock.mockResolvedValue({
+      ok: false,
+      motif: "quantite-invalide",
+    })
+
+    render(buyBox())
+
+    const boutonBarre = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
+    act(() => {
+      boutonBarre.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+    await act(async () => {})
+    await act(async () => {})
+
+    const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
+    expect(barreEl.textContent).not.toContain("Ajouté au panier")
+    expect(barreEl.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
+  })
+
+  it("désactive le bouton de la barre quand la variante sélectionnée est épuisée", () => {
+    const variantesEpuisees = [
+      { id: "variante-a", name: "Standard", sku: "PBB-A", priceDelta: 0, stock: 0 },
+      { id: "variante-b", name: "Rare", sku: "PBB-B", priceDelta: 20000, stock: 4 },
+    ]
+    render(
+      <ProductBuyBox
+        basePrice={100000}
+        variants={variantesEpuisees}
+        freeShipping={false}
+      />
+    )
+
+    const boutonBarre = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    ) as HTMLButtonElement
+    expect(boutonBarre.disabled).toBe(true)
+
+    const puceRare = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Rare")
+    )!
+    act(() => {
+      puceRare.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(boutonBarre.disabled).toBe(false)
+  })
+
+  it("porte un aria-label contextuel dans la barre quand il y a plusieurs variantes", () => {
+    render(
+      <ProductBuyBox
+        basePrice={100000}
+        variants={variantesMultiples}
+        freeShipping={false}
+      />
+    )
+
+    const boutonBarre = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
+    expect(boutonBarre.getAttribute("aria-label")).toContain("Ajouter au panier")
+    expect(boutonBarre.getAttribute("aria-label")).toContain("Standard")
+
+    const pucePremium = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Premium")
+    )!
+    act(() => {
+      pucePremium.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(boutonBarre.getAttribute("aria-label")).toContain("Premium")
+    expect(boutonBarre.getAttribute("aria-label")).not.toContain("Standard")
+  })
+
+  it("conserve le libellé simple dans la barre pour une variante unique", () => {
+    render(buyBox())
+
+    const boutonBarre = container.querySelector(
+      "[data-slot='barre-d-achat'] button"
+    )!
+    expect(boutonBarre.getAttribute("aria-label")).toBeNull()
+    expect(boutonBarre.textContent).toContain("Ajouter au panier")
   })
 })
