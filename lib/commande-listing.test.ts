@@ -6,9 +6,18 @@ import {
   COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
   COMMANDE_LISTING_SENS_DEFAULT,
   COMMANDE_LISTING_TRI_DEFAULT,
+  hrefOf,
   parseCommandeListingParams,
+  reconcile,
+  signatureOf,
   type CommandeListingParams,
+  type CommandeListingView,
+  viewFromParams,
 } from "@/lib/commande-listing"
+
+function rawFromUrl(url: string): Record<string, string> {
+  return Object.fromEntries(new URL(url, "https://eguidar.test").searchParams)
+}
 
 describe("parseCommandeListingParams", () => {
   it("maps a fully valid query", () => {
@@ -188,10 +197,6 @@ describe("round trip", () => {
     pageSize: COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
   }
 
-  function rawFromUrl(url: string): Record<string, string> {
-    return Object.fromEntries(new URL(url, "https://eguidar.test").searchParams)
-  }
-
   it("keeps full views identical through build then parse", () => {
     for (const view of fullViews) {
       expect(
@@ -215,5 +220,185 @@ describe("round trip", () => {
         buildCommandeListingUrl(parseCommandeListingParams(rawFromUrl(url)))
       ).toBe(url)
     }
+  })
+})
+
+describe("viewFromParams", () => {
+  it("projects params onto the full view, filling defaults", () => {
+    expect(
+      viewFromParams(
+        {
+          statuses: ["pending", "returned"],
+          q: "alix",
+          tri: "total",
+          sens: "asc",
+          page: 3,
+          pageSize: 20,
+        },
+        10
+      )
+    ).toEqual<CommandeListingView>({
+      pageIndex: 2,
+      pageSize: 20,
+      q: "alix",
+      statuses: ["pending", "returned"],
+      tri: "total",
+      sens: "asc",
+    })
+    expect(viewFromParams({}, 10)).toEqual<CommandeListingView>({
+      pageIndex: 0,
+      pageSize: COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
+      q: "",
+      statuses: [],
+      tri: COMMANDE_LISTING_TRI_DEFAULT,
+      sens: COMMANDE_LISTING_SENS_DEFAULT,
+    })
+  })
+
+  it("clamps pageIndex into [0, pageCount - 1] for out-of-range pages", () => {
+    expect(viewFromParams({ page: 99 }, 5).pageIndex).toBe(4)
+    expect(viewFromParams({ page: 1 }, 5).pageIndex).toBe(0)
+    expect(
+      viewFromParams({ page: COMMANDE_LISTING_PAGE_DEFAULT }, 5).pageIndex
+    ).toBe(0)
+    expect(viewFromParams({ page: 7 }, 1).pageIndex).toBe(0)
+    expect(viewFromParams({ page: 7 }, 0).pageIndex).toBe(0)
+    expect(viewFromParams({}, 0).pageIndex).toBe(0)
+  })
+
+  it("copies statuses so the view is isolated from the params", () => {
+    const statuses: CommandeListingParams["statuses"] = ["pending"]
+    const view = viewFromParams({ statuses }, 5)
+    view.statuses.push("returned")
+    expect(statuses).toEqual(["pending"])
+  })
+
+  it("keeps views identical through view, href then parse", () => {
+    const pageCount = 50
+    for (const full of [
+      { tri: "date", sens: "desc", page: 1, pageSize: 10 },
+      {
+        statuses: ["pending", "returned"],
+        q: "alix",
+        tri: "total",
+        sens: "asc",
+        page: 3,
+        pageSize: 20,
+      },
+      { q: "anne", tri: "date", sens: "asc", page: 2, pageSize: 10 },
+    ] as CommandeListingParams[]) {
+      const params = parseCommandeListingParams(
+        rawFromUrl(buildCommandeListingUrl(full))
+      )
+      const view = viewFromParams(params, pageCount)
+      const reparsed = parseCommandeListingParams(rawFromUrl(hrefOf(view)))
+      expect(viewFromParams(reparsed, pageCount)).toEqual(view)
+    }
+  })
+})
+
+describe("signatureOf", () => {
+  const base: CommandeListingView = {
+    pageIndex: 2,
+    pageSize: 20,
+    q: "alix",
+    statuses: ["pending"],
+    tri: "total",
+    sens: "asc",
+  }
+
+  it("compares the trimmed q", () => {
+    expect(signatureOf({ ...base, q: " alix " })).toBe(signatureOf(base))
+    expect(signatureOf({ ...base, q: "alix " })).toBe(signatureOf(base))
+    expect(signatureOf({ ...base, q: "alixx" })).not.toBe(signatureOf(base))
+  })
+
+  it("distinguishes every field", () => {
+    const variants: CommandeListingView[] = [
+      { ...base, pageIndex: 3 },
+      { ...base, pageSize: 50 },
+      { ...base, statuses: ["returned"] },
+      { ...base, statuses: ["pending", "returned"] },
+      { ...base, tri: "date" },
+      { ...base, sens: "desc" },
+    ]
+    for (const variant of variants) {
+      expect(signatureOf(variant)).not.toBe(signatureOf(base))
+    }
+  })
+})
+
+describe("hrefOf", () => {
+  it("maps the 0-based pageIndex onto the 1-based page param", () => {
+    const view: CommandeListingView = {
+      pageIndex: 2,
+      pageSize: 20,
+      q: "alix",
+      statuses: ["pending"],
+      tri: "total",
+      sens: "asc",
+    }
+    expect(hrefOf(view)).toBe(
+      buildCommandeListingUrl({
+        page: 3,
+        pageSize: 20,
+        q: "alix",
+        statuses: ["pending"],
+        tri: "total",
+        sens: "asc",
+      })
+    )
+    expect(hrefOf(view)).toBe(
+      "/admin/commandes?page=3&pageSize=20&statut=pending&q=alix&tri=total&sens=asc"
+    )
+  })
+})
+
+describe("reconcile", () => {
+  const pageCount = 5
+
+  it("reports an echo and corrects nothing when the signature matches", () => {
+    const params = parseCommandeListingParams({ page: "3", q: "alix" })
+    const view = viewFromParams(params, pageCount)
+    const result = reconcile(params, pageCount, signatureOf(view))
+    expect(result.echo).toBe(true)
+    expect(result.correctedHref).toBeUndefined()
+    expect(result.view).toEqual(view)
+  })
+
+  it("returns the incoming view without a corrected href for an in-range page", () => {
+    const params = parseCommandeListingParams({ page: "2", q: "alix" })
+    const lastPushed = signatureOf(
+      viewFromParams(parseCommandeListingParams({ q: "alix" }), pageCount)
+    )
+    const result = reconcile(params, pageCount, lastPushed)
+    expect(result.echo).toBe(false)
+    expect(result.view).toEqual(viewFromParams(params, pageCount))
+    expect(result.correctedHref).toBeUndefined()
+  })
+
+  it("returns a corrected href when the requested page was clamped", () => {
+    const params = parseCommandeListingParams({ page: "99", q: "alix" })
+    const result = reconcile(
+      params,
+      pageCount,
+      signatureOf(viewFromParams({}, pageCount))
+    )
+    expect(result.echo).toBe(false)
+    expect(result.view.pageIndex).toBe(pageCount - 1)
+    expect(result.correctedHref).toBe(hrefOf(result.view))
+    expect(result.correctedHref).toBe("/admin/commandes?page=5&q=alix")
+  })
+
+  it("returns a corrected href when a page is requested with no pages at all", () => {
+    const params = parseCommandeListingParams({ page: "3", q: "alix" })
+    const result = reconcile(
+      params,
+      0,
+      signatureOf(viewFromParams({}, pageCount))
+    )
+    expect(result.echo).toBe(false)
+    expect(result.view.pageIndex).toBe(0)
+    expect(result.correctedHref).toBe(hrefOf(result.view))
   })
 })

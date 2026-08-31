@@ -108,6 +108,12 @@ _Avoid_: back-office, dashboard, espace admin
 La page d'accueil de l'Administration : chiffre d'affaires encaissé, indicateurs clés et activité récente.
 _Avoid_: dashboard
 
+**Liste des Commandes**:
+La liste des Commandes dans l'Administration (/admin/commandes) : un langage d'URL
+(`page`, `pageSize`, `q`, `statut`, `tri`, `sens`) et sa projection en vue côté client —
+recherche, filtres de Statut de commande, tri et pagination.
+_Avoid_: table des commandes, orders table, tableau des commandes
+
 **Commande**:
 Ce qu'un Client passe : ses Articles du panier réunis pour une livraison vers une Ville de livraison,
 réglée en Paiement à la livraison.

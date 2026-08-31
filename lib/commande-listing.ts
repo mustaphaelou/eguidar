@@ -95,3 +95,63 @@ export function buildCommandeListingUrl(view: CommandeListingParams): string {
   const query = searchParams.toString()
   return query ? `${COMMANDE_LISTING_PATH}?${query}` : COMMANDE_LISTING_PATH
 }
+
+export type CommandeListingView = {
+  pageIndex: number
+  pageSize: (typeof PAGE_SIZES)[number]
+  q: string
+  statuses: OrderStatus[]
+  tri: "date" | "total"
+  sens: "asc" | "desc"
+}
+
+export function viewFromParams(
+  params: CommandeListingParams,
+  pageCount: number
+): CommandeListingView {
+  return {
+    pageIndex: Math.min((params.page ?? 1) - 1, Math.max(0, pageCount - 1)),
+    pageSize: params.pageSize ?? COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
+    q: params.q ?? "",
+    statuses: params.statuses ? [...params.statuses] : [],
+    tri: params.tri ?? COMMANDE_LISTING_TRI_DEFAULT,
+    sens: params.sens ?? COMMANDE_LISTING_SENS_DEFAULT,
+  }
+}
+
+export function signatureOf(view: CommandeListingView): string {
+  return JSON.stringify({
+    p: view.pageIndex,
+    s: view.pageSize,
+    q: view.q.trim(),
+    f: [...view.statuses],
+    t: view.tri,
+    d: view.sens,
+  })
+}
+
+export function hrefOf(view: CommandeListingView): string {
+  return buildCommandeListingUrl({
+    page: view.pageIndex + 1,
+    pageSize: view.pageSize,
+    q: view.q,
+    statuses: view.statuses,
+    tri: view.tri,
+    sens: view.sens,
+  })
+}
+
+export function reconcile(
+  params: CommandeListingParams,
+  pageCount: number,
+  lastPushedSignature: string
+): { echo: boolean; view: CommandeListingView; correctedHref?: string } {
+  const view = viewFromParams(params, pageCount)
+  if (signatureOf(view) === lastPushedSignature) {
+    return { echo: true, view }
+  }
+  const requestedPageIndex = (params.page ?? 1) - 1
+  const correctedHref =
+    view.pageIndex !== requestedPageIndex ? hrefOf(view) : undefined
+  return { echo: false, view, correctedHref }
+}

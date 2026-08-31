@@ -33,8 +33,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  buildCommandeListingUrl,
+  hrefOf,
+  reconcile,
+  signatureOf,
   type CommandeListingParams,
+  type CommandeListingView,
+  viewFromParams,
 } from "@/lib/commande-listing"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { formatPrice } from "@/lib/money"
@@ -54,7 +58,6 @@ const TOTAL_COLUMN_ID = "Total à payer"
 const ACTIONS_COLUMN_ID = "actions"
 
 const SEARCH_DEBOUNCE_MS = 300
-const DEFAULT_PAGE_SIZE = PAGE_SIZES[0]
 
 const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] =
   STATUTS_VALIDES.map((value) => ({ value, label: ORDER_STATUS_LABELS[value] }))
@@ -142,52 +145,7 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
   },
 ]
 
-type CommandesTableView = {
-  pageIndex: number
-  pageSize: (typeof PAGE_SIZES)[number]
-  q: string
-  statuses: OrderStatus[]
-  tri: "date" | "total"
-  sens: "asc" | "desc"
-}
-
 const BLANK_VIEW_EXTRA = { tri: "date" as const, sens: "desc" as const }
-
-function viewFromParams(
-  params: CommandeListingParams,
-  pageCount: number
-): CommandesTableView {
-  return {
-    pageIndex: Math.min((params.page ?? 1) - 1, Math.max(0, pageCount - 1)),
-    pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
-    q: params.q ?? "",
-    statuses: params.statuses ? [...params.statuses] : [],
-    tri: params.tri ?? "date",
-    sens: params.sens ?? "desc",
-  }
-}
-
-function signatureOf(view: CommandesTableView): string {
-  return JSON.stringify({
-    p: view.pageIndex,
-    s: view.pageSize,
-    q: view.q.trim(),
-    f: [...view.statuses],
-    t: view.tri,
-    d: view.sens,
-  })
-}
-
-function hrefOf(view: CommandesTableView): string {
-  return buildCommandeListingUrl({
-    page: view.pageIndex + 1,
-    pageSize: view.pageSize,
-    q: view.q,
-    statuses: view.statuses,
-    tri: view.tri,
-    sens: view.sens,
-  })
-}
 
 export function CommandesTable({
   params,
@@ -197,11 +155,11 @@ export function CommandesTable({
   page: AdminOrdersPage
 }) {
   const router = useRouter()
-  const [view, setView] = React.useState<CommandesTableView>(() =>
+  const [view, setView] = React.useState<CommandeListingView>(() =>
     viewFromParams(params, page.pageCount)
   )
   const [queryDraft, setQueryDraft] = React.useState<string>(view.q)
-  const intentRef = React.useRef<CommandesTableView>(view)
+  const intentRef = React.useRef<CommandeListingView>(view)
   const lastPushedRef = React.useRef<string>(signatureOf(view))
   const searchTimerRef = React.useRef<number | null>(null)
 
@@ -213,7 +171,7 @@ export function CommandesTable({
   }, [])
 
   const commit = React.useCallback(
-    (next: CommandesTableView, fromSearch = false) => {
+    (next: CommandeListingView, fromSearch = false) => {
       if (!fromSearch) cancelPendingSearch()
       lastPushedRef.current = signatureOf(next)
       setView(next)
@@ -224,16 +182,19 @@ export function CommandesTable({
   )
 
   React.useEffect(() => {
-    const incoming = viewFromParams(params, page.pageCount)
-    const incomingSignature = signatureOf(incoming)
-    if (incomingSignature === lastPushedRef.current) return
+    const {
+      echo,
+      view: incoming,
+      correctedHref,
+    } = reconcile(params, page.pageCount, lastPushedRef.current)
+    if (echo) return
     cancelPendingSearch()
-    lastPushedRef.current = incomingSignature
+    lastPushedRef.current = signatureOf(incoming)
     intentRef.current = incoming
     setView(incoming)
     setQueryDraft(incoming.q)
-    if (incoming.pageIndex !== (params.page ?? 1) - 1) {
-      router.replace(hrefOf(incoming), { scroll: false })
+    if (correctedHref) {
+      router.replace(correctedHref, { scroll: false })
     }
   }, [cancelPendingSearch, params, page.pageCount, router])
 
