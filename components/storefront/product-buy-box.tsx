@@ -16,6 +16,7 @@ import { BarreDAchat } from "@/components/storefront/barre-d-achat"
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { MESSAGE_CAP_ATTEINTE, MOTIF_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
+import { prixVariante } from "@/lib/product-metrics"
 import { cn } from "@/lib/utils"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
@@ -67,7 +68,7 @@ export function ProductBuyBox({
     )
   }
 
-  const price = formatPrice(basePrice + (selected?.priceDelta ?? 0))
+  const price = formatPrice(prixVariante(basePrice, selected?.priceDelta ?? 0))
   const stock = selected?.stock ?? 0
   const outOfStock = stock === 0
 
@@ -128,7 +129,7 @@ export function ProductBuyBox({
                     {variants.map((variant) => (
                       <SelectItem key={variant.id} value={variant.id}>
                         {variant.name} —{" "}
-                        {formatPrice(basePrice + variant.priceDelta)}
+                        {formatPrice(prixVariante(basePrice, variant.priceDelta))}
                       </SelectItem>
                     ))}
                   </SelectGroup>
