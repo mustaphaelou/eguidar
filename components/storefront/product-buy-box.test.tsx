@@ -111,6 +111,13 @@ describe("ProductBuyBox", () => {
     expect(container.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
   })
 
+  it("rend la Barre d'achat initialement masquée tant que le bouton est visible", () => {
+    render(buyBox())
+
+    const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
+    expect(barreEl.getAttribute("aria-hidden")).toBe("true")
+  })
+
   it("rend la Barre d'achat avec le prix de la variante sélectionnée", () => {
     render(buyBox())
 
