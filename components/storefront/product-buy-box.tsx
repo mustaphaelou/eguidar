@@ -46,7 +46,7 @@ export function ProductBuyBox({
           />
           Rupture de stock
         </p>
-        <Button disabled className="w-full rounded-full text-[17px]">
+        <Button disabled className="h-12 lg:h-9 w-full rounded-full text-[17px]">
           Ajouter au panier
         </Button>
       </div>
@@ -155,7 +155,7 @@ export function ProductBuyBox({
       <Button
         onClick={handleAddToCart}
         disabled={outOfStock || isPending}
-        className="w-full rounded-full text-[17px]"
+        className="h-12 lg:h-9 w-full rounded-full text-[17px]"
       >
         {isPending ? "Ajout…" : "Ajouter au panier"}
       </Button>
