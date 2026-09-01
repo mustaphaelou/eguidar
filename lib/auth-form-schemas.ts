@@ -14,11 +14,9 @@ export const signInSchema = z.object({
 export const signUpSchema = z.object({
   name: z.string().trim().min(1, { message: "Saisissez votre nom complet." }),
   email: emailField,
-  password: z
-    .string()
-    .min(8, {
-      message: "Le mot de passe doit contenir au moins 8 caractères.",
-    }),
+  password: z.string().min(8, {
+    message: "Le mot de passe doit contenir au moins 8 caractères.",
+  }),
 })
 
 export function collectFieldIssues(error: z.ZodError): Record<string, string> {
