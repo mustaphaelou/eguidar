@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState } from "react"
 
+import { BarreDAchat } from "@/components/storefront/barre-d-achat"
+import { useAjoutAuPanier } from "@/components/storefront/use-ajout-au-panier"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -12,9 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { BarreDAchat } from "@/components/storefront/barre-d-achat"
-import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
-import { MESSAGE_CAP_ATTEINTE, MOTIF_CAP_ATTEINTE } from "@/lib/panier-visiteur"
+import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import { prixVariante } from "@/lib/product-metrics"
 import { cn } from "@/lib/utils"
@@ -31,12 +31,20 @@ export function ProductBuyBox({
   variants: ProductVariantDto[]
   freeShipping: boolean
 }) {
-  const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
-  const [added, setAdded] = useState(false)
-  const [capAtteint, setCapAtteint] = useState(false)
+  const {
+    variantId,
+    setVariantId,
+    prix,
+    stock,
+    outOfStock,
+    enAttente,
+    ajoute,
+    capAtteint,
+    desactive,
+    variantNom,
+    ajouter,
+  } = useAjoutAuPanier({ basePrice, variants })
   const [barVisible, setBarVisible] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const selected = variants.find((variant) => variant.id === variantId)
   const buyButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -70,21 +78,6 @@ export function ProductBuyBox({
         </Button>
       </div>
     )
-  }
-
-  const price = formatPrice(prixVariante(basePrice, selected?.priceDelta ?? 0))
-  const stock = selected?.stock ?? 0
-  const outOfStock = stock === 0
-
-  function handleAddToCart() {
-    if (!selected || outOfStock) return
-    setAdded(false)
-    setCapAtteint(false)
-    startTransition(async () => {
-      const resultat = await ajouterArticleAuPanierAction(selected.id, 1)
-      if (resultat.ok) setAdded(true)
-      else if (resultat.motif === MOTIF_CAP_ATTEINTE) setCapAtteint(true)
-    })
   }
 
   return (
@@ -146,7 +139,7 @@ export function ProductBuyBox({
         </div>
       ) : null}
 
-      <p className="text-[28px] font-semibold">{price}</p>
+      <p className="text-[28px] font-semibold">{prix}</p>
 
       <p className="text-sm leading-[1.4286] tracking-[-0.016em] text-muted-foreground">
         TVA 20% incluse · Paiement à la livraison
@@ -176,13 +169,13 @@ export function ProductBuyBox({
       <Button
         ref={buyButtonRef}
         size="xl"
-        onClick={handleAddToCart}
-        disabled={outOfStock || isPending}
+        onClick={ajouter}
+        disabled={outOfStock || enAttente}
         className="w-full rounded-full text-[17px] lg:h-9"
       >
-        {isPending ? "Ajout…" : "Ajouter au panier"}
+        {enAttente ? "Ajout…" : "Ajouter au panier"}
       </Button>
-      {added && <p className="text-sm text-emerald-600">Ajouté au panier</p>}
+      {ajoute && <p className="text-sm text-emerald-600">Ajouté au panier</p>}
       {capAtteint && (
         <p role="alert" className="text-sm text-destructive">
           {MESSAGE_CAP_ATTEINTE}
@@ -191,13 +184,15 @@ export function ProductBuyBox({
 
       <BarreDAchat
         visible={barVisible}
-        prix={price}
-        onAjouter={handleAddToCart}
-        enAttente={isPending}
-        ajoute={added}
-        capAtteint={capAtteint}
-        desactive={outOfStock || isPending}
-        variantNom={variants.length > 1 ? selected?.name : undefined}
+        etat={{
+          prix,
+          ajouter,
+          enAttente,
+          ajoute,
+          capAtteint,
+          desactive,
+          variantNom,
+        }}
       />
     </div>
   )

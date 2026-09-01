@@ -4,25 +4,25 @@ import { Button } from "@/components/ui/button"
 import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { cn } from "@/lib/utils"
 
+import type { EtatAjoutAuPanier } from "./use-ajout-au-panier"
+
 export function BarreDAchat({
   visible,
-  prix,
-  onAjouter,
-  enAttente = false,
-  ajoute = false,
-  capAtteint = false,
-  desactive = false,
-  variantNom,
+  etat,
 }: {
   visible: boolean
-  prix: string
-  onAjouter: () => void
-  enAttente?: boolean
-  ajoute?: boolean
-  capAtteint?: boolean
-  desactive?: boolean
-  variantNom?: string
+  etat: EtatAjoutAuPanier
 }) {
+  const {
+    prix,
+    ajouter,
+    enAttente = false,
+    ajoute = false,
+    capAtteint = false,
+    desactive = false,
+    variantNom,
+  } = etat
+
   return (
     <div
       data-slot="barre-d-achat"
@@ -41,7 +41,7 @@ export function BarreDAchat({
           <Button
             size="xl"
             disabled={desactive}
-            onClick={onAjouter}
+            onClick={ajouter}
             aria-label={
               variantNom ? `Ajouter au panier — ${variantNom}` : undefined
             }

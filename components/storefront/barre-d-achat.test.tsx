@@ -5,6 +5,7 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BarreDAchat } from "./barre-d-achat"
+import type { EtatAjoutAuPanier } from "./use-ajout-au-panier"
 import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -31,13 +32,13 @@ function render(element: ReactElement) {
   act(() => root.render(element))
 }
 
-function barre() {
-  return <BarreDAchat visible prix="1 050,00 MAD" onAjouter={onAjouterMock} />
+function etat(overrides: Partial<EtatAjoutAuPanier> = {}): EtatAjoutAuPanier {
+  return { prix: "1 050,00 MAD", ajouter: onAjouterMock, ...overrides }
 }
 
 describe("BarreDAchat", () => {
   it("affiche le prix courant et le libellé « Ajouter au panier »", () => {
-    render(barre())
+    render(<BarreDAchat visible etat={etat()} />)
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.textContent).toContain("1 050,00 MAD")
@@ -46,8 +47,8 @@ describe("BarreDAchat", () => {
     expect(barreEl.hasAttribute("inert")).toBe(false)
   })
 
-  it("appelle onAjouter quand on clique sur le bouton", () => {
-    render(barre())
+  it("appelle l'ajout de l'état quand on clique sur le bouton", () => {
+    render(<BarreDAchat visible etat={etat()} />)
 
     const bouton = [...container.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("Ajouter au panier")
@@ -62,13 +63,7 @@ describe("BarreDAchat", () => {
   })
 
   it("masque la barre (aria-hidden + pointer-events-none + inert) quand visible est faux", () => {
-    render(
-      <BarreDAchat
-        visible={false}
-        prix="1 050,00 MAD"
-        onAjouter={onAjouterMock}
-      />
-    )
+    render(<BarreDAchat visible={false} etat={etat()} />)
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.getAttribute("aria-hidden")).toBe("true")
@@ -78,13 +73,7 @@ describe("BarreDAchat", () => {
   })
 
   it("reste montée dans le DOM quand elle est masquée", () => {
-    render(
-      <BarreDAchat
-        visible={false}
-        prix="1 050,00 MAD"
-        onAjouter={onAjouterMock}
-      />
-    )
+    render(<BarreDAchat visible={false} etat={etat()} />)
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.textContent).toContain("1 050,00 MAD")
@@ -92,14 +81,7 @@ describe("BarreDAchat", () => {
   })
 
   it("affiche « Ajout… » dans le bouton pendant l'ajout", () => {
-    render(
-      <BarreDAchat
-        visible
-        prix="1 050,00 MAD"
-        onAjouter={onAjouterMock}
-        enAttente
-      />
-    )
+    render(<BarreDAchat visible etat={etat({ enAttente: true })} />)
 
     const bouton = container.querySelector(
       "[data-slot='barre-d-achat'] button"
@@ -110,14 +92,7 @@ describe("BarreDAchat", () => {
   })
 
   it("affiche « Ajouté au panier » sous le bouton après un ajout réussi", () => {
-    render(
-      <BarreDAchat
-        visible
-        prix="1 050,00 MAD"
-        onAjouter={onAjouterMock}
-        ajoute
-      />
-    )
+    render(<BarreDAchat visible etat={etat({ ajoute: true })} />)
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.textContent).toContain("Ajouté au panier")
@@ -126,14 +101,7 @@ describe("BarreDAchat", () => {
   })
 
   it("affiche le message de cap dans role='alert' sous le bouton", () => {
-    render(
-      <BarreDAchat
-        visible
-        prix="1 050,00 MAD"
-        onAjouter={onAjouterMock}
-        capAtteint
-      />
-    )
+    render(<BarreDAchat visible etat={etat({ capAtteint: true })} />)
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.querySelector("[role='alert']")?.textContent).toBe(
@@ -145,14 +113,7 @@ describe("BarreDAchat", () => {
   })
 
   it("désactive le bouton quand la variante sélectionnée est en rupture", () => {
-    render(
-      <BarreDAchat
-        visible
-        prix="1 050,00 MAD"
-        onAjouter={onAjouterMock}
-        desactive
-      />
-    )
+    render(<BarreDAchat visible etat={etat({ desactive: true })} />)
 
     const bouton = container.querySelector(
       "[data-slot='barre-d-achat'] button"
@@ -163,14 +124,7 @@ describe("BarreDAchat", () => {
   })
 
   it("porte un aria-label contextuel nommant la variante sélectionnée", () => {
-    render(
-      <BarreDAchat
-        visible
-        prix="1 050,00 MAD"
-        onAjouter={onAjouterMock}
-        variantNom="Premium"
-      />
-    )
+    render(<BarreDAchat visible etat={etat({ variantNom: "Premium" })} />)
 
     const bouton = container.querySelector(
       "[data-slot='barre-d-achat'] button"
@@ -180,9 +134,7 @@ describe("BarreDAchat", () => {
   })
 
   it("garde le libellé simple sans aria-label pour une variante unique", () => {
-    render(
-      <BarreDAchat visible prix="1 050,00 MAD" onAjouter={onAjouterMock} />
-    )
+    render(<BarreDAchat visible etat={etat()} />)
 
     const bouton = container.querySelector(
       "[data-slot='barre-d-achat'] button"
@@ -191,9 +143,7 @@ describe("BarreDAchat", () => {
   })
 
   it("reste silencieuse quand aucun état de retour n'est fourni", () => {
-    render(
-      <BarreDAchat visible prix="1 050,00 MAD" onAjouter={onAjouterMock} />
-    )
+    render(<BarreDAchat visible etat={etat()} />)
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.textContent).not.toContain("Ajouté au panier")
