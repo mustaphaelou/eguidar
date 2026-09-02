@@ -9,10 +9,11 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { LigneArticlePanier } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
+import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { quotePanier } from "@/lib/use-cases/livraison"
-import { formatPrice, formatShippingFee } from "@/lib/money"
+import { formatPrice } from "@/lib/money"
 import { lirePanierCourant } from "@/lib/use-cases/panier-courant"
 
 export const metadata = pageMetadata({
@@ -77,30 +78,11 @@ async function CartContent({
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
-          <dl className="flex flex-col gap-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">
-                Sous-total (TVA incluse)
-              </dt>
-              <dd className="font-semibold">{formatPrice(panier.subtotal)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Livraison</dt>
-              <dd className="font-semibold">
-                {quote ? (
-                  formatShippingFee(quote.shippingFee)
-                ) : (
-                  <span className="text-muted-foreground">À choisir</span>
-                )}
-              </dd>
-            </div>
-            {quote ? (
-              <div className="flex justify-between border-t pt-2 text-base">
-                <dt className="font-bold">Total</dt>
-                <dd className="font-bold">{formatPrice(quote.total)}</dd>
-              </div>
-            ) : null}
-          </dl>
+          <RecapitulatifPaiement
+            sousTotal={panier.subtotal}
+            shipping={quote ? { fee: quote.shippingFee } : null}
+            total={quote ? quote.total : null}
+          />
 
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker

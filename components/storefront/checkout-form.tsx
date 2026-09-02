@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { formatPrice, formatShippingFee } from "@/lib/money"
+import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
+import { formatShippingFee } from "@/lib/money"
 import type {
   DeliveryCityOption,
   ShippingQuote,
@@ -131,32 +132,12 @@ export function CheckoutForm({
         </p>
       </div>
 
-      <dl className="flex flex-col gap-2 border-t pt-4 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">Sous-total (TVA incluse)</dt>
-          <dd className="font-semibold">{formatPrice(subtotal)}</dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">Livraison</dt>
-          <dd className="font-semibold">
-            {shippingFee === null ? (
-              <span className="text-muted-foreground">À choisir</span>
-            ) : shippingFee === 0 ? (
-              <span className="text-emerald-600 dark:text-emerald-400">
-                Livraison offerte
-              </span>
-            ) : (
-              formatPrice(shippingFee)
-            )}
-          </dd>
-        </div>
-        {quote && (
-          <div className="flex justify-between border-t pt-2 text-base">
-            <dt className="font-bold">Total à payer à la livraison</dt>
-            <dd className="font-bold">{formatPrice(quote.total)}</dd>
-          </div>
-        )}
-      </dl>
+      <RecapitulatifPaiement
+        className="border-t pt-4"
+        sousTotal={subtotal}
+        shipping={shippingFee !== null ? { fee: shippingFee } : null}
+        total={quote ? quote.total : null}
+      />
 
       <Button type="submit" disabled={isPending} className="w-full">
         {isPending ? "Commande en cours…" : "Confirmer la commande"}
