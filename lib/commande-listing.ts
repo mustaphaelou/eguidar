@@ -167,9 +167,9 @@ export function resolveUpdater<T>(updater: T | ((old: T) => T), current: T): T {
 }
 
 export function partialViewFromSorting(
-  sorting: readonly { id: string; desc: boolean }[]
+  sorting: readonly { id: string; desc: boolean }[] | undefined
 ): Partial<CommandeListingView> {
-  const first = sorting[0]
+  const first = sorting?.[0]
   return {
     tri: first?.id === TOTAL_COLUMN_ID ? "total" : "date",
     sens: first?.desc ? "desc" : "asc",

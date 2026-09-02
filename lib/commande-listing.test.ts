@@ -443,6 +443,14 @@ describe("partialViewFromSorting", () => {
       pageIndex: 0,
     })
   })
+
+  it("treats undefined sorting as empty and resets to page 1", () => {
+    expect(partialViewFromSorting(undefined)).toEqual({
+      tri: "date",
+      sens: "asc",
+      pageIndex: 0,
+    })
+  })
 })
 
 describe("partialViewFromFilters", () => {
