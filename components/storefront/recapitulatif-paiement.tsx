@@ -1,18 +1,47 @@
-import type { RécapitulatifFacts } from "@/lib/recapitulatif-paiement"
-import { récapitulatifRows } from "@/lib/recapitulatif-paiement"
+import type {
+  CommandePourRécapitulatif,
+  DevisPourRécapitulatif,
+} from "@/lib/recapitulatif-paiement"
+import {
+  récapitulatifRowsFromCommande,
+  récapitulatifRowsFromDevis,
+} from "@/lib/recapitulatif-paiement"
 import { cn } from "@/lib/utils"
 
-export interface RecapitulatifPaiementProps extends RécapitulatifFacts {
+type RecapitulatifPaiementBase = {
   className?: string
 }
 
-export function RecapitulatifPaiement({
-  sousTotal,
-  shipping,
-  total,
-  className,
-}: RecapitulatifPaiementProps) {
-  const rows = récapitulatifRows({ sousTotal, shipping, total })
+/**
+ * Entrées du Récapitulatif de paiement.
+ *
+ * - `devis` : Devis (villes disponibles + devis par ville + identifiant de
+ *   Ville de livraison optionnel), résolution identifiant → nom avec repli
+ *   vers « Livraison » sans ville.
+ * - `commande` : Commande sous forme structurelle minimale
+ *   (`total`, `shippingFee`, `totalPayable`, `cityName`), Total à payer
+ *   consommé tel quel, jamais re-dérivé.
+ *
+ * Un seul chemin, six adapteurs : le module ne se rend plus que par la
+ * nouvelle interface (l'ancienne interface à faits assemblés à la main et
+ * ses props de compatibilité sont supprimées).
+ */
+export type RecapitulatifPaiementProps =
+  | (RecapitulatifPaiementBase & {
+      devis: DevisPourRécapitulatif
+      commande?: never
+    })
+  | (RecapitulatifPaiementBase & {
+      commande: CommandePourRécapitulatif
+      devis?: never
+    })
+
+export function RecapitulatifPaiement(props: RecapitulatifPaiementProps) {
+  const { className } = props
+
+  const rows = props.devis
+    ? récapitulatifRowsFromDevis(props.devis)
+    : récapitulatifRowsFromCommande(props.commande)
 
   return (
     <dl className={cn("flex flex-col gap-2 text-sm", className)}>

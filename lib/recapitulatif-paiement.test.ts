@@ -1,20 +1,98 @@
 import { describe, expect, it } from "vitest"
 
+import { formatPrice } from "./money"
 import {
-  type RécapitulatifFacts,
   type RécapitulatifRow,
-  récapitulatifRows,
+  récapitulatifRowsFromCommande,
+  récapitulatifRowsFromDevis,
 } from "./recapitulatif-paiement"
 
-describe("récapitulatifRows", () => {
-  it("pins the exact label strings and detail kinds for a full quote", () => {
-    const facts: RécapitulatifFacts = {
-      sousTotal: 25000,
-      shipping: { fee: 3000, city: "Casablanca" },
-      total: 28000,
-    }
+describe("récapitulatifRowsFromDevis", () => {
+  const cities = [
+    { id: "casa", name: "Casablanca", fee: 3000 },
+    { id: "rabat", name: "Rabat", fee: 2500 },
+  ]
+  const quotes = {
+    casa: { subtotal: 25000, shippingFee: 3000, total: 28000 },
+    rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
+  }
 
-    const rows = récapitulatifRows(facts)
+  function expectLivraisonAChoisir(rows: RécapitulatifRow[]) {
+    expect(rows[1]).toEqual<RécapitulatifRow>({
+      label: "Livraison",
+      value: "À choisir",
+      kind: "detail",
+      tone: "muted",
+    })
+    expect(rows.some((r) => r.kind === "total")).toBe(false)
+    expect(rows).toHaveLength(2)
+  }
+
+  it("renders 'Livraison — À choisir' with muted tone and omits the total when no city is selected", () => {
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 15000,
+      cities,
+      quotes,
+      selectedCityId: null,
+    })
+
+    expect(rows[0]).toEqual<RécapitulatifRow>({
+      label: "Sous-total (TVA incluse)",
+      value: "150,00 MAD",
+      kind: "detail",
+    })
+    expectLivraisonAChoisir(rows)
+  })
+
+  it("falls back to 'Livraison' without city when the selected city id is omitted", () => {
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 15000,
+      cities,
+      quotes,
+    })
+
+    expectLivraisonAChoisir(rows)
+  })
+
+  it("falls back to 'Livraison' without city for an unknown city id without throwing", () => {
+    expect(() =>
+      récapitulatifRowsFromDevis({
+        sousTotal: 15000,
+        cities,
+        quotes,
+        selectedCityId: "ville-perimee",
+      }),
+    ).not.toThrow()
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 15000,
+      cities,
+      quotes,
+      selectedCityId: "ville-perimee",
+    })
+
+    expectLivraisonAChoisir(rows)
+  })
+
+  it("falls back to 'Livraison' without city when the Devis is malformed (known city without quote)", () => {
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 15000,
+      cities,
+      quotes: {
+        rabat: { subtotal: 15000, shippingFee: 2500, total: 17500 },
+      },
+      selectedCityId: "casa",
+    })
+
+    expectLivraisonAChoisir(rows)
+  })
+
+  it("renders 'Livraison (Ville)' with the Devis fee and total when a city is selected", () => {
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 25000,
+      cities,
+      quotes,
+      selectedCityId: "casa",
+    })
 
     expect(rows).toEqual<RécapitulatifRow[]>([
       {
@@ -35,30 +113,98 @@ describe("récapitulatifRows", () => {
     ])
   })
 
-  it("renders 'Livraison' without parenthetical when no city is specified", () => {
-    const facts: RécapitulatifFacts = {
-      sousTotal: 10000,
-      shipping: { fee: 2000 },
-      total: 12000,
-    }
-
-    const rows = récapitulatifRows(facts)
+  it("renders the offered tone for a Devis with free shipping", () => {
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 30000,
+      cities: [{ id: "rabat", name: "Rabat", fee: 2500 }],
+      quotes: {
+        rabat: { subtotal: 30000, shippingFee: 0, total: 30000 },
+      },
+      selectedCityId: "rabat",
+    })
 
     expect(rows[1]).toEqual<RécapitulatifRow>({
-      label: "Livraison",
-      value: "20,00\u00A0MAD",
+      label: "Livraison (Rabat)",
+      value: "Livraison offerte",
       kind: "detail",
+      tone: "offered",
+    })
+    expect(rows[2]).toEqual<RécapitulatifRow>({
+      label: "Total à payer à la livraison",
+      value: "300,00\u00A0MAD",
+      kind: "total",
     })
   })
 
-  it("applies the zero-fee rule with 'Livraison offerte' and the offered tone", () => {
-    const facts: RécapitulatifFacts = {
-      sousTotal: 30000,
-      shipping: { fee: 0, city: "Rabat" },
-      total: 30000,
-    }
+  it("builds an explicit Devis without spread extras", () => {
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 25000,
+      cities,
+      quotes,
+      selectedCityId: "rabat",
+    })
 
-    const rows = récapitulatifRows(facts)
+    expect(rows[1]).toEqual<RécapitulatifRow>({
+      label: "Livraison (Rabat)",
+      value: "25,00\u00A0MAD",
+      kind: "detail",
+    })
+    expect(rows[2]?.value).toBe("275,00\u00A0MAD")
+  })
+})
+
+describe("récapitulatifRowsFromCommande", () => {
+  it("renders the city, fee and the Commande totalPayable", () => {
+    const rows = récapitulatifRowsFromCommande({
+      total: 25000,
+      shippingFee: 3000,
+      totalPayable: 28000,
+      cityName: "Casablanca",
+    })
+
+    expect(rows).toEqual<RécapitulatifRow[]>([
+      {
+        label: "Sous-total (TVA incluse)",
+        value: "250,00\u00A0MAD",
+        kind: "detail",
+      },
+      {
+        label: "Livraison (Casablanca)",
+        value: "30,00\u00A0MAD",
+        kind: "detail",
+      },
+      {
+        label: "Total à payer à la livraison",
+        value: "280,00\u00A0MAD",
+        kind: "total",
+      },
+    ])
+  })
+
+  it("consumes the precomputed totalPayable and never re-derives total + shippingFee", () => {
+    const rows = récapitulatifRowsFromCommande({
+      total: 20000,
+      shippingFee: 3000,
+      // Volontairement distinct de total + shippingFee (23000)
+      // pour verrouiller la règle : on affiche totalPayable tel quel.
+      totalPayable: 25000,
+      cityName: "Casablanca",
+    })
+
+    expect(rows.find((r) => r.kind === "total")).toEqual<RécapitulatifRow>({
+      label: "Total à payer à la livraison",
+      value: "250,00\u00A0MAD",
+      kind: "total",
+    })
+  })
+
+  it("renders the offered tone for a Commande with free shipping", () => {
+    const rows = récapitulatifRowsFromCommande({
+      total: 30000,
+      shippingFee: 0,
+      totalPayable: 30000,
+      cityName: "Rabat",
+    })
 
     expect(rows[1]).toEqual<RécapitulatifRow>({
       label: "Livraison (Rabat)",
@@ -68,88 +214,78 @@ describe("récapitulatifRows", () => {
     })
   })
 
-  it("renders 'À choisir' with muted tone when shipping is null and omits the total row", () => {
-    const facts: RécapitulatifFacts = {
-      sousTotal: 15000,
-      shipping: null,
-      total: null,
-    }
-
-    const rows = récapitulatifRows(facts)
-
-    expect(rows).toEqual<RécapitulatifRow[]>([
-      {
-        label: "Sous-total (TVA incluse)",
-        value: "150,00\u00A0MAD",
-        kind: "detail",
-      },
-      {
-        label: "Livraison",
-        value: "À choisir",
-        kind: "detail",
-        tone: "muted",
-      },
-    ])
-    expect(rows.some((r) => r.kind === "total")).toBe(false)
-  })
-
-  it("renders 'À choisir' with muted tone when shipping fee is null", () => {
-    const facts: RécapitulatifFacts = {
-      sousTotal: 15000,
-      shipping: { fee: null, city: "Tanger" },
-      total: null,
-    }
-
-    const rows = récapitulatifRows(facts)
-
-    expect(rows[1]).toEqual<RécapitulatifRow>({
-      label: "Livraison (Tanger)",
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
+  it("renders 'Livraison' without city when cityName is omitted, totals intact", () => {
+    const rows = récapitulatifRowsFromCommande({
+      total: 25000,
+      shippingFee: 3000,
+      totalPayable: 28000,
     })
-    expect(rows).toHaveLength(2)
+
+    expect(rows[0]).toEqual<RécapitulatifRow>({
+      label: "Sous-total (TVA incluse)",
+      value: formatPrice(25000),
+      kind: "detail",
+    })
+    expect(rows[1]).toEqual<RécapitulatifRow>({
+      label: "Livraison",
+      value: formatPrice(3000),
+      kind: "detail",
+    })
+    expect(rows[2]).toEqual<RécapitulatifRow>({
+      label: "Total à payer à la livraison",
+      value: formatPrice(28000),
+      kind: "total",
+    })
   })
 
-  it("rejects retired spellings across all rows", () => {
-    const samples: RécapitulatifFacts[] = [
-      {
+  it("rejects retired spellings through the Devis and Commande entries", () => {
+    const rowsList = [
+      récapitulatifRowsFromDevis({
         sousTotal: 10000,
-        shipping: { fee: 0, city: "Casablanca" },
+        cities: [{ id: "casa", name: "Casablanca", fee: 2000 }],
+        quotes: {
+          casa: { subtotal: 10000, shippingFee: 0, total: 10000 },
+        },
+        selectedCityId: "casa",
+      }),
+      récapitulatifRowsFromDevis({
+        sousTotal: 10000,
+        cities: [{ id: "fes", name: "Fès", fee: 2000 }],
+        quotes: {
+          fes: { subtotal: 10000, shippingFee: 2000, total: 12000 },
+        },
+        selectedCityId: "fes",
+      }),
+      récapitulatifRowsFromDevis({
+        sousTotal: 10000,
+        cities: [],
+        quotes: {},
+        selectedCityId: null,
+      }),
+      récapitulatifRowsFromCommande({
         total: 10000,
-      },
-      {
-        sousTotal: 10000,
-        shipping: { fee: 2000, city: "Fès" },
-        total: 12000,
-      },
-      {
-        sousTotal: 10000,
-        shipping: null,
-        total: null,
-      },
+        shippingFee: 2000,
+        totalPayable: 12000,
+        cityName: "Fès",
+      }),
     ]
 
-    for (const facts of samples) {
-      const rows = récapitulatifRows(facts)
+    for (const rows of rowsList) {
       const labels = rows.map((r) => r.label)
       const values = rows.map((r) => r.value)
 
-      // Retired total spelling
       expect(labels).not.toContain("Total")
       expect(labels).not.toContain("Total général")
       expect(labels).not.toContain("Montant total")
 
-      // Retired delivery spellings
       for (const label of labels) {
         expect(label).not.toMatch(/^Livraison à /)
         expect(label).not.toBe("Frais de livraison")
         expect(label).not.toBe("Coût de livraison")
       }
 
-      // Zero-fee rule should never output 0,00 MAD
-      if (facts.shipping?.fee === 0) {
-        expect(values).not.toContain("0,00 MAD")
+      if (values.includes("Livraison offerte")) {
+        expect(values).not.toContain("0,00\u00A0MAD")
       }
     }
   })

@@ -43,7 +43,10 @@ async function CartContent({
 }) {
   const { ville } = await searchParams
   const panier = await lirePanierCourant()
-  const { cities, threshold, selected } = await quotePanier(panier, ville)
+  const { cities, threshold, quotes, selected } = await quotePanier(
+    panier,
+    ville
+  )
   const quote = selected
 
   if (panier.lines.length === 0) {
@@ -79,9 +82,12 @@ async function CartContent({
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
           <RecapitulatifPaiement
-            sousTotal={panier.subtotal}
-            shipping={quote ? { fee: quote.shippingFee } : null}
-            total={quote ? quote.total : null}
+            devis={{
+              sousTotal: panier.subtotal,
+              cities,
+              quotes,
+              selectedCityId: ville ?? null,
+            }}
           />
 
           <div className="mt-5 flex flex-col gap-4">

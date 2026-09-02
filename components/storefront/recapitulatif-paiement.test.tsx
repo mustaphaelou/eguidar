@@ -31,17 +31,70 @@ function render(element: ReactElement) {
 }
 
 describe("RecapitulatifPaiement", () => {
-  it("renders rows in order with their values and the total row last", () => {
+  it("passes className through to the dl container", () => {
     render(
       <RecapitulatifPaiement
-        sousTotal={25000}
-        shipping={{ fee: 3000, city: "Casablanca" }}
-        total={28000}
+        className="bg-muted/40 px-5 py-4"
+        commande={{
+          total: 10000,
+          shippingFee: 2000,
+          totalPayable: 12000,
+          cityName: "Rabat",
+        }}
       />
     )
 
     const dl = container.querySelector("dl")
-    expect(dl).not.toBeNull()
+    expect(dl?.className).toContain("bg-muted/40")
+    expect(dl?.className).toContain("px-5")
+    expect(dl?.className).toContain("py-4")
+    expect(dl?.className).toContain("flex")
+    expect(dl?.className).toContain("flex-col")
+  })
+
+  it("renders a Devis without a selected city as À choisir with muted tone and omits the total", () => {
+    render(
+      <RecapitulatifPaiement
+        devis={{
+          sousTotal: 15000,
+          cities: [{ id: "casa", name: "Casablanca", fee: 3000 }],
+          quotes: {
+            casa: { subtotal: 15000, shippingFee: 3000, total: 18000 },
+          },
+          selectedCityId: null,
+        }}
+      />
+    )
+
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
+    )
+    const dds = container.querySelectorAll("dd")
+    expect(dts).toEqual(["Sous-total (TVA incluse)", "Livraison"])
+    expect(dds[1].textContent).toBe("À choisir")
+    expect(dds[1].className).toContain("text-muted-foreground")
+
+    // Total omis quand aucune Ville de livraison n'est choisie
+    expect(container.querySelectorAll("dl > div")).toHaveLength(2)
+  })
+
+  it("renders a Devis with a selected city as Livraison (Ville) with fee and total", () => {
+    render(
+      <RecapitulatifPaiement
+        devis={{
+          sousTotal: 25000,
+          cities: [
+            { id: "casa", name: "Casablanca", fee: 3000 },
+            { id: "rabat", name: "Rabat", fee: 2500 },
+          ],
+          quotes: {
+            casa: { subtotal: 25000, shippingFee: 3000, total: 28000 },
+            rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
+          },
+          selectedCityId: "casa",
+        }}
+      />
+    )
 
     const dts = Array.from(container.querySelectorAll("dt")).map(
       (el) => el.textContent
@@ -49,7 +102,6 @@ describe("RecapitulatifPaiement", () => {
     const dds = Array.from(container.querySelectorAll("dd")).map(
       (el) => el.textContent
     )
-
     expect(dts).toEqual([
       "Sous-total (TVA incluse)",
       "Livraison (Casablanca)",
@@ -66,43 +118,43 @@ describe("RecapitulatifPaiement", () => {
     expect(totalDiv.classList.contains("text-base")).toBe(true)
   })
 
-  it("passes className through to the dl container", () => {
+  it("renders a Devis with free shipping using the offered tone", () => {
     render(
       <RecapitulatifPaiement
-        className="bg-muted/40 px-5 py-4"
-        sousTotal={10000}
-        shipping={{ fee: 2000, city: "Rabat" }}
-        total={12000}
+        devis={{
+          sousTotal: 30000,
+          cities: [{ id: "rabat", name: "Rabat", fee: 2500 }],
+          quotes: {
+            rabat: { subtotal: 30000, shippingFee: 0, total: 30000 },
+          },
+          selectedCityId: "rabat",
+        }}
       />
     )
 
-    const dl = container.querySelector("dl")
-    expect(dl?.className).toContain("bg-muted/40")
-    expect(dl?.className).toContain("px-5")
-    expect(dl?.className).toContain("py-4")
-    expect(dl?.className).toContain("flex")
-    expect(dl?.className).toContain("flex-col")
-  })
-
-  it("maps the offered tone to emerald classes on zero delivery fee", () => {
-    render(
-      <RecapitulatifPaiement
-        sousTotal={30000}
-        shipping={{ fee: 0, city: "Tanger" }}
-        total={30000}
-      />
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
     )
+    expect(dts[1]).toBe("Livraison (Rabat)")
 
     const dds = container.querySelectorAll("dd")
-    const deliveryDd = dds[1]
-    expect(deliveryDd.textContent).toBe("Livraison offerte")
-    expect(deliveryDd.className).toContain("text-emerald-600")
-    expect(deliveryDd.className).toContain("dark:text-emerald-400")
+    expect(dds[1].textContent).toBe("Livraison offerte")
+    expect(dds[1].className).toContain("text-emerald-600")
+    expect(dds[1].className).toContain("dark:text-emerald-400")
   })
 
-  it("maps the muted tone to muted-foreground when delivery fee is not chosen", () => {
+  it("falls back to Livraison without city through display for an unknown city id", () => {
     render(
-      <RecapitulatifPaiement sousTotal={15000} shipping={null} total={null} />
+      <RecapitulatifPaiement
+        devis={{
+          sousTotal: 15000,
+          cities: [{ id: "casa", name: "Casablanca", fee: 3000 }],
+          quotes: {
+            casa: { subtotal: 15000, shippingFee: 3000, total: 18000 },
+          },
+          selectedCityId: "ville-perimee",
+        }}
+      />
     )
 
     const dts = Array.from(container.querySelectorAll("dt")).map(
@@ -112,8 +164,36 @@ describe("RecapitulatifPaiement", () => {
     expect(dts).toEqual(["Sous-total (TVA incluse)", "Livraison"])
     expect(dds[1].textContent).toBe("À choisir")
     expect(dds[1].className).toContain("text-muted-foreground")
-
-    // Total row omitted
     expect(container.querySelectorAll("dl > div")).toHaveLength(2)
+  })
+
+  it("renders a Commande with city and consumes the precomputed Total à payer", () => {
+    render(
+      <RecapitulatifPaiement
+        commande={{
+          total: 20000,
+          shippingFee: 3000,
+          // Volontairement distinct de total + shippingFee (23000) :
+          // le module d'affichage consomme totalPayable tel quel.
+          totalPayable: 25000,
+          cityName: "Casablanca",
+        }}
+      />
+    )
+
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
+    )
+    const dds = Array.from(container.querySelectorAll("dd")).map(
+      (el) => el.textContent
+    )
+    expect(dts).toEqual([
+      "Sous-total (TVA incluse)",
+      "Livraison (Casablanca)",
+      "Total à payer à la livraison",
+    ])
+    expect(dds[0]).toContain("200,00")
+    expect(dds[1]).toContain("30,00")
+    expect(dds[2]).toContain("250,00")
   })
 })
