@@ -176,11 +176,7 @@ export default async function AdminOrderDetailPage({
               ))}
             </TableBody>
           </Table>
-          <RecapitulatifPaiement
-            sousTotal={order.total}
-            shipping={{ fee: order.shippingFee, city: order.cityName }}
-            total={order.totalPayable}
-          />
+          <RecapitulatifPaiement commande={order} />
         </CardContent>
       </Card>
     </div>
