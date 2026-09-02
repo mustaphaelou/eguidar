@@ -1,18 +1,58 @@
-import type { RécapitulatifFacts } from "@/lib/recapitulatif-paiement"
-import { récapitulatifRows } from "@/lib/recapitulatif-paiement"
+import type {
+  CommandePourRécapitulatif,
+  DevisPourRécapitulatif,
+  RécapitulatifFacts,
+  RécapitulatifRow,
+} from "@/lib/recapitulatif-paiement"
+import {
+  récapitulatifRows,
+  récapitulatifRowsFromCommande,
+  récapitulatifRowsFromDevis,
+} from "@/lib/recapitulatif-paiement"
 import { cn } from "@/lib/utils"
 
-export interface RecapitulatifPaiementProps extends RécapitulatifFacts {
+type RecapitulatifPaiementBase = {
   className?: string
 }
 
-export function RecapitulatifPaiement({
-  sousTotal,
-  shipping,
-  total,
-  className,
-}: RecapitulatifPaiementProps) {
-  const rows = récapitulatifRows({ sousTotal, shipping, total })
+/**
+ * Entrées du Récapitulatif de paiement.
+ *
+ * - Faits assemblés (`sousTotal` + `shipping` + `total`) : chemin de
+ *   compatibilité pour les pages existantes, rendu inchangé.
+ * - `devis` : Devis (villes disponibles + devis par ville + identifiant de
+ *   Ville de livraison optionnel), résolution identifiant → nom avec repli
+ *   vers « Livraison » sans ville.
+ * - `commande` : Commande sous forme structurelle minimale
+ *   (`total`, `shippingFee`, `totalPayable`, `cityName`), Total à payer
+ *   consommé tel quel, jamais re-dérivé.
+ */
+export type RecapitulatifPaiementProps =
+  | (RecapitulatifPaiementBase &
+      RécapitulatifFacts & { devis?: never; commande?: never })
+  | (RecapitulatifPaiementBase & {
+      devis: DevisPourRécapitulatif
+      commande?: never
+    })
+  | (RecapitulatifPaiementBase & {
+      commande: CommandePourRécapitulatif
+      devis?: never
+    })
+
+export function RecapitulatifPaiement(props: RecapitulatifPaiementProps) {
+  const { className } = props
+
+  let rows: RécapitulatifRow[]
+  const devis = (props as { devis?: DevisPourRécapitulatif }).devis
+  const commande = (props as { commande?: CommandePourRécapitulatif }).commande
+  if (devis) {
+    rows = récapitulatifRowsFromDevis(devis)
+  } else if (commande) {
+    rows = récapitulatifRowsFromCommande(commande)
+  } else {
+    const { sousTotal, shipping, total } = props as RécapitulatifFacts
+    rows = récapitulatifRows({ sousTotal, shipping, total })
+  }
 
   return (
     <dl className={cn("flex flex-col gap-2 text-sm", className)}>

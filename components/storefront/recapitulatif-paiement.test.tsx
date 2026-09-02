@@ -116,4 +116,151 @@ describe("RecapitulatifPaiement", () => {
     // Total row omitted
     expect(container.querySelectorAll("dl > div")).toHaveLength(2)
   })
+
+  it("renders a Devis without a selected city as À choisir with muted tone and omits the total", () => {
+    render(
+      <RecapitulatifPaiement
+        devis={{
+          sousTotal: 15000,
+          cities: [{ id: "casa", name: "Casablanca", fee: 3000 }],
+          quotes: {
+            casa: { subtotal: 15000, shippingFee: 3000, total: 18000 },
+          },
+          selectedCityId: null,
+        }}
+      />
+    )
+
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
+    )
+    const dds = container.querySelectorAll("dd")
+    expect(dts).toEqual(["Sous-total (TVA incluse)", "Livraison"])
+    expect(dds[1].textContent).toBe("À choisir")
+    expect(dds[1].className).toContain("text-muted-foreground")
+
+    // Total omis quand aucune Ville de livraison n'est choisie
+    expect(container.querySelectorAll("dl > div")).toHaveLength(2)
+  })
+
+  it("renders a Devis with a selected city as Livraison (Ville) with fee and total", () => {
+    const panierQuote = {
+      cities: [
+        { id: "casa", name: "Casablanca", fee: 3000 },
+        { id: "rabat", name: "Rabat", fee: 2500 },
+      ],
+      threshold: 100000,
+      quotes: {
+        casa: { subtotal: 25000, shippingFee: 3000, total: 28000 },
+        rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
+      },
+      selected: null,
+    }
+
+    render(
+      <RecapitulatifPaiement
+        devis={{ ...panierQuote, sousTotal: 25000, selectedCityId: "casa" }}
+      />
+    )
+
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
+    )
+    const dds = Array.from(container.querySelectorAll("dd")).map(
+      (el) => el.textContent
+    )
+    expect(dts).toEqual([
+      "Sous-total (TVA incluse)",
+      "Livraison (Casablanca)",
+      "Total à payer à la livraison",
+    ])
+    expect(dds[0]).toContain("250,00")
+    expect(dds[1]).toContain("30,00")
+    expect(dds[2]).toContain("280,00")
+
+    const rowDivs = container.querySelectorAll("dl > div")
+    expect(rowDivs).toHaveLength(3)
+    const totalDiv = rowDivs[rowDivs.length - 1]
+    expect(totalDiv.classList.contains("border-t")).toBe(true)
+    expect(totalDiv.classList.contains("text-base")).toBe(true)
+  })
+
+  it("renders a Devis with free shipping using the offered tone", () => {
+    render(
+      <RecapitulatifPaiement
+        devis={{
+          sousTotal: 30000,
+          cities: [{ id: "rabat", name: "Rabat", fee: 2500 }],
+          quotes: {
+            rabat: { subtotal: 30000, shippingFee: 0, total: 30000 },
+          },
+          selectedCityId: "rabat",
+        }}
+      />
+    )
+
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
+    )
+    expect(dts[1]).toBe("Livraison (Rabat)")
+
+    const dds = container.querySelectorAll("dd")
+    expect(dds[1].textContent).toBe("Livraison offerte")
+    expect(dds[1].className).toContain("text-emerald-600")
+    expect(dds[1].className).toContain("dark:text-emerald-400")
+  })
+
+  it("falls back to Livraison without city through display for an unknown city id", () => {
+    render(
+      <RecapitulatifPaiement
+        devis={{
+          sousTotal: 15000,
+          cities: [{ id: "casa", name: "Casablanca", fee: 3000 }],
+          quotes: {
+            casa: { subtotal: 15000, shippingFee: 3000, total: 18000 },
+          },
+          selectedCityId: "ville-perimee",
+        }}
+      />
+    )
+
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
+    )
+    const dds = container.querySelectorAll("dd")
+    expect(dts).toEqual(["Sous-total (TVA incluse)", "Livraison"])
+    expect(dds[1].textContent).toBe("À choisir")
+    expect(dds[1].className).toContain("text-muted-foreground")
+    expect(container.querySelectorAll("dl > div")).toHaveLength(2)
+  })
+
+  it("renders a Commande with city and consumes the precomputed Total à payer", () => {
+    render(
+      <RecapitulatifPaiement
+        commande={{
+          total: 20000,
+          shippingFee: 3000,
+          // Volontairement distinct de total + shippingFee (23000) :
+          // le module d'affichage consomme totalPayable tel quel.
+          totalPayable: 25000,
+          cityName: "Casablanca",
+        }}
+      />
+    )
+
+    const dts = Array.from(container.querySelectorAll("dt")).map(
+      (el) => el.textContent
+    )
+    const dds = Array.from(container.querySelectorAll("dd")).map(
+      (el) => el.textContent
+    )
+    expect(dts).toEqual([
+      "Sous-total (TVA incluse)",
+      "Livraison (Casablanca)",
+      "Total à payer à la livraison",
+    ])
+    expect(dds[0]).toContain("200,00")
+    expect(dds[1]).toContain("30,00")
+    expect(dds[2]).toContain("250,00")
+  })
 })
