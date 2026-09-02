@@ -187,9 +187,9 @@ describe("PanierBadge", () => {
 
     expect((await renderBadge()).trim()).toBe("")
 
-    await expect(
-      ajouterArticleAuPanierAction(variantA, 2)
-    ).resolves.toEqual({ ok: true })
+    await expect(ajouterArticleAuPanierAction(variantA, 2)).resolves.toEqual({
+      ok: true,
+    })
     expect(refreshMock).toHaveBeenCalledTimes(1)
 
     expect(await renderBadge()).toContain(">2</span>")
