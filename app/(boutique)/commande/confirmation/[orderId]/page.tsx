@@ -103,9 +103,7 @@ async function OrderConfirmationContent({
         </ul>
         <RecapitulatifPaiement
           className="bg-muted/40 px-5 py-4"
-          sousTotal={order.total}
-          shipping={{ fee: order.shippingFee, city: order.cityName }}
-          total={order.totalPayable}
+          commande={order}
         />
       </div>
 
