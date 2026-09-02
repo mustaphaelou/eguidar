@@ -33,43 +33,39 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  hrefOf,
-  reconcile,
-  signatureOf,
+  partialViewFromFilters,
+  partialViewFromPagination,
+  partialViewFromSorting,
+  resolveUpdater,
   type CommandeListingParams,
-  type CommandeListingView,
-  viewFromParams,
 } from "@/lib/commande-listing"
-import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { formatPrice } from "@/lib/money"
 import { ORDER_STATUS_LABELS, STATUTS_VALIDES } from "@/lib/order-status"
-import { PAGE_SIZES } from "@/lib/table-config"
 import { shortOrderId } from "@/lib/utils"
 import type {
   AdminOrdersPage,
   AdminOrderSummary,
 } from "@/lib/use-cases/admin-orders"
 
-const COMMANDE_COLUMN_ID = "Commande"
+import { useCommandeListing } from "./use-commande-listing"
+
+const DATE_COLUMN_ID = "date"
 const CLIENT_COLUMN_ID = "Client"
 const ARTICLES_COLUMN_ID = "Articles"
-const STATUT_COLUMN_ID = "Statut"
-const TOTAL_COLUMN_ID = "Total à payer"
+const STATUT_COLUMN_ID = "statut"
+const TOTAL_COLUMN_ID = "total"
 const ACTIONS_COLUMN_ID = "actions"
-
-const SEARCH_DEBOUNCE_MS = 300
 
 const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] =
   STATUTS_VALIDES.map((value) => ({ value, label: ORDER_STATUS_LABELS[value] }))
-
-const STATUS_FILTER_VALUES: string[] = STATUTS_VALIDES
 
 const dateFormatter = new Intl.DateTimeFormat("fr-MA", { dateStyle: "medium" })
 
 const columns: ColumnDef<AdminOrderSummary>[] = [
   {
-    id: COMMANDE_COLUMN_ID,
+    id: DATE_COLUMN_ID,
     accessorFn: (row) => row.createdAt.getTime(),
+    meta: { label: "Commande" },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Commande" />
     ),
@@ -109,12 +105,14 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
     id: STATUT_COLUMN_ID,
     accessorFn: (row) => row.status,
     enableSorting: false,
-    header: STATUT_COLUMN_ID,
+    meta: { label: "Statut" },
+    header: "Statut",
     cell: ({ row }) => <OrderStatusBadge status={row.original.status} />,
   },
   {
     id: TOTAL_COLUMN_ID,
     accessorFn: (row) => row.totalPayable,
+    meta: { label: "Total à payer" },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Total à payer" />
     ),
@@ -145,8 +143,6 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
   },
 ]
 
-const BLANK_VIEW_EXTRA = { tri: "date" as const, sens: "desc" as const }
-
 export function CommandesTable({
   params,
   page,
@@ -155,88 +151,22 @@ export function CommandesTable({
   page: AdminOrdersPage
 }) {
   const router = useRouter()
-  const [view, setView] = React.useState<CommandeListingView>(() =>
-    viewFromParams(params, page.pageCount)
+  const { view, queryDraft, onQueryChange, update, reset } = useCommandeListing(
+    {
+      params,
+      pageCount: page.pageCount,
+      navigation: {
+        replace: (href: string) => router.replace(href, { scroll: false }),
+      },
+    }
   )
-  const [queryDraft, setQueryDraft] = React.useState<string>(view.q)
-  const intentRef = React.useRef<CommandeListingView>(view)
-  const lastPushedRef = React.useRef<string>(signatureOf(view))
-  const searchTimerRef = React.useRef<number | null>(null)
-
-  const cancelPendingSearch = React.useCallback(() => {
-    if (searchTimerRef.current !== null) {
-      window.clearTimeout(searchTimerRef.current)
-      searchTimerRef.current = null
-    }
-  }, [])
-
-  const commit = React.useCallback(
-    (next: CommandeListingView, fromSearch = false) => {
-      if (!fromSearch) cancelPendingSearch()
-      lastPushedRef.current = signatureOf(next)
-      setView(next)
-      setQueryDraft(next.q)
-      router.replace(hrefOf(next), { scroll: false })
-    },
-    [cancelPendingSearch, router]
-  )
-
-  React.useEffect(() => {
-    const {
-      echo,
-      view: incoming,
-      correctedHref,
-    } = reconcile(params, page.pageCount, lastPushedRef.current)
-    if (echo) return
-    cancelPendingSearch()
-    lastPushedRef.current = signatureOf(incoming)
-    intentRef.current = incoming
-    setView(incoming)
-    setQueryDraft(incoming.q)
-    if (correctedHref) {
-      router.replace(correctedHref, { scroll: false })
-    }
-  }, [cancelPendingSearch, params, page.pageCount, router])
-
-  React.useEffect(() => {
-    return () => {
-      if (searchTimerRef.current !== null) {
-        window.clearTimeout(searchTimerRef.current)
-      }
-    }
-  }, [])
-
-  const handleGlobalFilterChange = (value: string) => {
-    setQueryDraft(value)
-    const q = value.trim()
-    if (!q) {
-      commit({ ...intentRef.current, q: "", pageIndex: 0 })
-      return
-    }
-    intentRef.current = { ...intentRef.current, q, pageIndex: 0 }
-    cancelPendingSearch()
-    searchTimerRef.current = window.setTimeout(() => {
-      searchTimerRef.current = null
-      commit(intentRef.current, true)
-    }, SEARCH_DEBOUNCE_MS)
-  }
-
-  const resolveUpdater = <T,>(updater: Updater<T>, current: T): T =>
-    typeof updater === "function"
-      ? (updater as (old: T) => T)(current)
-      : updater
 
   const pagination: PaginationState = {
     pageIndex: view.pageIndex,
     pageSize: view.pageSize,
   }
 
-  const sorting: SortingState = [
-    {
-      id: view.tri === "total" ? TOTAL_COLUMN_ID : COMMANDE_COLUMN_ID,
-      desc: view.sens === "desc",
-    },
-  ]
+  const sorting: SortingState = [{ id: view.tri, desc: view.sens === "desc" }]
 
   const columnFilters: ColumnFiltersState =
     view.statuses.length > 0
@@ -244,48 +174,15 @@ export function CommandesTable({
       : []
 
   const handlePaginationChange = (updater: Updater<PaginationState>) => {
-    const next = resolveUpdater(updater, pagination)
-    if (next.pageSize !== view.pageSize) {
-      commit({
-        ...intentRef.current,
-        pageSize: next.pageSize as (typeof PAGE_SIZES)[number],
-        pageIndex: 0,
-      })
-      return
-    }
-    commit({ ...intentRef.current, pageIndex: next.pageIndex })
+    update(partialViewFromPagination(resolveUpdater(updater, pagination), view))
   }
 
   const handleSortingChange = (updater: Updater<SortingState>) => {
-    const next = resolveUpdater(updater, sorting)
-    const first = next[0]
-    commit({
-      ...intentRef.current,
-      tri: first?.id === TOTAL_COLUMN_ID ? "total" : "date",
-      sens: first?.desc ? "desc" : "asc",
-      pageIndex: 0,
-    })
+    update(partialViewFromSorting(resolveUpdater(updater, sorting)))
   }
 
   const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
-    const next = resolveUpdater(updater, columnFilters)
-    const entry = next.find((filter) => filter.id === STATUT_COLUMN_ID)
-    const statuses = Array.isArray(entry?.value)
-      ? entry.value.filter((value): value is OrderStatus =>
-          STATUS_FILTER_VALUES.includes(value as string)
-        )
-      : []
-    commit({ ...intentRef.current, statuses, pageIndex: 0 })
-  }
-
-  const resetCriteria = () => {
-    commit({
-      ...intentRef.current,
-      ...BLANK_VIEW_EXTRA,
-      q: "",
-      statuses: [],
-      pageIndex: 0,
-    })
+    update(partialViewFromFilters(resolveUpdater(updater, columnFilters)))
   }
 
   const table = useReactTable({
@@ -296,7 +193,7 @@ export function CommandesTable({
     onSortingChange: handleSortingChange,
     onPaginationChange: handlePaginationChange,
     onColumnFiltersChange: handleColumnFiltersChange,
-    onGlobalFilterChange: handleGlobalFilterChange,
+    onGlobalFilterChange: onQueryChange,
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
@@ -339,7 +236,7 @@ export function CommandesTable({
               : "Les nouvelles commandes apparaîtront ici."}
           </p>
           {hasActiveCriteria && (
-            <Button variant="outline" className="mt-4" onClick={resetCriteria}>
+            <Button variant="outline" className="mt-4" onClick={reset}>
               Réinitialiser les filtres
             </Button>
           )}

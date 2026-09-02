@@ -8,7 +8,11 @@ import {
   COMMANDE_LISTING_TRI_DEFAULT,
   hrefOf,
   parseCommandeListingParams,
+  partialViewFromFilters,
+  partialViewFromPagination,
+  partialViewFromSorting,
   reconcile,
+  resolveUpdater,
   signatureOf,
   type CommandeListingParams,
   type CommandeListingView,
@@ -400,5 +404,93 @@ describe("reconcile", () => {
     expect(result.echo).toBe(false)
     expect(result.view.pageIndex).toBe(0)
     expect(result.correctedHref).toBe(hrefOf(result.view))
+  })
+})
+
+describe("resolveUpdater", () => {
+  it("returns a value updater as-is", () => {
+    expect(resolveUpdater(3, 7)).toBe(3)
+  })
+
+  it("applies a function updater to the current value", () => {
+    expect(resolveUpdater((old: number) => old + 1, 7)).toBe(8)
+  })
+})
+
+describe("partialViewFromSorting", () => {
+  it("maps the sorted column id onto tri and the direction onto sens", () => {
+    expect(partialViewFromSorting([{ id: "total", desc: true }])).toEqual({
+      tri: "total",
+      sens: "desc",
+      pageIndex: 0,
+    })
+    expect(partialViewFromSorting([{ id: "date", desc: false }])).toEqual({
+      tri: "date",
+      sens: "asc",
+      pageIndex: 0,
+    })
+  })
+
+  it("falls back to date/asc on empty sorting and keeps the direction on an unknown id", () => {
+    expect(partialViewFromSorting([])).toEqual({
+      tri: "date",
+      sens: "asc",
+      pageIndex: 0,
+    })
+    expect(partialViewFromSorting([{ id: "bogus", desc: true }])).toEqual({
+      tri: "date",
+      sens: "desc",
+      pageIndex: 0,
+    })
+  })
+})
+
+describe("partialViewFromFilters", () => {
+  it("decodes valid statut values from the statut column filter", () => {
+    expect(
+      partialViewFromFilters([{ id: "statut", value: ["pending", "returned"] }])
+    ).toEqual({ statuses: ["pending", "returned"], pageIndex: 0 })
+  })
+
+  it("drops invalid statut tokens", () => {
+    expect(
+      partialViewFromFilters([{ id: "statut", value: ["bogus", "pending"] }])
+    ).toEqual({ statuses: ["pending"], pageIndex: 0 })
+  })
+
+  it("returns no statuses without a statut entry or a non-array value", () => {
+    expect(partialViewFromFilters([])).toEqual({
+      statuses: [],
+      pageIndex: 0,
+    })
+    expect(
+      partialViewFromFilters([{ id: "client", value: ["pending"] }])
+    ).toEqual({ statuses: [], pageIndex: 0 })
+    expect(
+      partialViewFromFilters([{ id: "statut", value: "pending" }])
+    ).toEqual({ statuses: [], pageIndex: 0 })
+  })
+})
+
+describe("partialViewFromPagination", () => {
+  const current: CommandeListingView = {
+    pageIndex: 2,
+    pageSize: 10,
+    q: "alix",
+    statuses: [],
+    tri: "date",
+    sens: "desc",
+  }
+
+  it("resets to the first page when the page size changes", () => {
+    expect(
+      partialViewFromPagination({ pageIndex: 4, pageSize: 50 }, current)
+    ).toEqual({ pageSize: 50, pageIndex: 0 })
+  })
+
+  it("keeps the requested page when the page size is unchanged", () => {
+    expect(
+      partialViewFromPagination({ pageIndex: 3, pageSize: 10 }, current)
+    ).toEqual({ pageIndex: 3 })
   })
 })

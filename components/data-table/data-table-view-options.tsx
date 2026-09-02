@@ -1,6 +1,6 @@
 "use client"
 
-import { type Table } from "@tanstack/react-table"
+import { type RowData, type Table } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SlidersHorizontalIcon } from "@hugeicons/core-free-icons"
 
@@ -13,6 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    label?: string
+  }
+}
 
 type DataTableViewOptionsProps<TData> = {
   table: Table<TData>
@@ -51,7 +58,7 @@ function DataTableViewOptions<TData>({
                 checked={column.getIsVisible()}
                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
               >
-                {column.id}
+                {column.columnDef.meta?.label ?? column.id}
               </DropdownMenuCheckboxItem>
             )
           })}

@@ -155,3 +155,45 @@ export function reconcile(
     view.pageIndex !== requestedPageIndex ? hrefOf(view) : undefined
   return { echo: false, view, correctedHref }
 }
+
+export function resolveUpdater<T>(updater: T | ((old: T) => T), current: T): T {
+  return typeof updater === "function"
+    ? (updater as (old: T) => T)(current)
+    : updater
+}
+
+export function partialViewFromSorting(
+  sorting: readonly { id: string; desc: boolean }[]
+): Partial<CommandeListingView> {
+  const first = sorting[0]
+  return {
+    tri: first?.id === "total" ? "total" : "date",
+    sens: first?.desc ? "desc" : "asc",
+    pageIndex: 0,
+  }
+}
+
+export function partialViewFromFilters(
+  filters: readonly { id: string; value: unknown }[]
+): Partial<CommandeListingView> {
+  const entry = filters.find((filter) => filter.id === "statut")
+  const statuses = Array.isArray(entry?.value)
+    ? entry.value.filter((value): value is OrderStatus =>
+        (STATUTS_VALIDES as readonly string[]).includes(value as string)
+      )
+    : []
+  return { statuses, pageIndex: 0 }
+}
+
+export function partialViewFromPagination(
+  next: { pageIndex: number; pageSize: number },
+  current: CommandeListingView
+): Partial<CommandeListingView> {
+  if (next.pageSize !== current.pageSize) {
+    return {
+      pageSize: next.pageSize as CommandeListingView["pageSize"],
+      pageIndex: 0,
+    }
+  }
+  return { pageIndex: next.pageIndex }
+}
