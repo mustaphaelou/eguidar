@@ -1,11 +1,9 @@
 import type {
   CommandePourRécapitulatif,
   DevisPourRécapitulatif,
-  RécapitulatifFacts,
   RécapitulatifRow,
 } from "@/lib/recapitulatif-paiement"
 import {
-  récapitulatifRows,
   récapitulatifRowsFromCommande,
   récapitulatifRowsFromDevis,
 } from "@/lib/recapitulatif-paiement"
@@ -18,18 +16,18 @@ type RecapitulatifPaiementBase = {
 /**
  * Entrées du Récapitulatif de paiement.
  *
- * - Faits assemblés (`sousTotal` + `shipping` + `total`) : chemin de
- *   compatibilité pour les pages existantes, rendu inchangé.
  * - `devis` : Devis (villes disponibles + devis par ville + identifiant de
  *   Ville de livraison optionnel), résolution identifiant → nom avec repli
  *   vers « Livraison » sans ville.
  * - `commande` : Commande sous forme structurelle minimale
  *   (`total`, `shippingFee`, `totalPayable`, `cityName`), Total à payer
  *   consommé tel quel, jamais re-dérivé.
+ *
+ * Un seul chemin, six adapteurs : le module ne se rend plus que par la
+ * nouvelle interface (l'ancienne interface à faits assemblés à la main et
+ * ses props de compatibilité sont supprimées).
  */
 export type RecapitulatifPaiementProps =
-  | (RecapitulatifPaiementBase &
-      RécapitulatifFacts & { devis?: never; commande?: never })
   | (RecapitulatifPaiementBase & {
       devis: DevisPourRécapitulatif
       commande?: never
@@ -47,11 +45,10 @@ export function RecapitulatifPaiement(props: RecapitulatifPaiementProps) {
   const commande = (props as { commande?: CommandePourRécapitulatif }).commande
   if (devis) {
     rows = récapitulatifRowsFromDevis(devis)
-  } else if (commande) {
-    rows = récapitulatifRowsFromCommande(commande)
   } else {
-    const { sousTotal, shipping, total } = props as RécapitulatifFacts
-    rows = récapitulatifRows({ sousTotal, shipping, total })
+    rows = récapitulatifRowsFromCommande(
+      commande as CommandePourRécapitulatif
+    )
   }
 
   return (
