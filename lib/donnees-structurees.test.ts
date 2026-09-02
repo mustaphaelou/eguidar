@@ -40,16 +40,16 @@ describe("buildProductDonneesStructurees", () => {
         "https://cdn.eguidar.com/products/iphone-1.webp",
         "https://cdn.eguidar.com/products/iphone-2.webp",
       ],
-      price: 1299900, // 12,999.00 MAD in cents
+      minPrice: 1299900, // 12,999.00 MAD in cents
       variants: [
         {
           sku: "IPH15P-128-TI",
-          priceDelta: 0,
+          prix: 1299900,
           stock: 5,
         },
         {
           sku: "IPH15P-256-TI",
-          priceDelta: 150000, // +1,500.00 MAD -> 14,499.00 MAD
+          prix: 1449900, // 14,499.00 MAD
           stock: 0,
         },
       ],
@@ -99,7 +99,7 @@ describe("buildProductDonneesStructurees", () => {
       slug: "cable-usb-c",
       description: "Câble USB-C résistant.",
       images: ["https://cdn.eguidar.com/products/cable.webp"],
-      price: 19900, // 199.00 MAD in cents
+      minPrice: 19900, // 199.00 MAD in cents
       variants: [],
     }
 
@@ -123,7 +123,7 @@ describe("buildProductDonneesStructurees", () => {
       brand: "Apple",
       slug: "coque-silicone",
       images: [],
-      price: 4900,
+      minPrice: 4900,
     }
 
     const result = buildProductDonneesStructurees(product)
@@ -144,7 +144,7 @@ describe("buildProductDonneesStructurees", () => {
       slug: "accessoire",
       description: "",
       images: [],
-      price: 1000,
+      minPrice: 1000,
     }
 
     const result = buildProductDonneesStructurees(product)
@@ -158,8 +158,8 @@ describe("buildProductDonneesStructurees", () => {
       brand: "Dell",
       slug: "ecran-4k",
       images: [],
-      price: 450000,
-      variants: [{ sku: "DELL-4K", priceDelta: 0, stock: 2 }],
+      minPrice: 450000,
+      variants: [{ sku: "DELL-4K", prix: 450000, stock: 2 }],
     }
 
     const result = buildProductDonneesStructurees(product) as unknown as Record<

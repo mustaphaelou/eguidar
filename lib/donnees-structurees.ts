@@ -72,7 +72,7 @@ export interface SchemaOrganization {
 
 export interface VarianteDonneesStructureesInput {
   sku: string
-  priceDelta: number
+  prix: number
   stock: number
 }
 
@@ -82,7 +82,7 @@ export interface ProductDonneesStructureesInput {
   images: string[]
   brand: string
   slug: string
-  price: number
+  minPrice: number
   variants?: VarianteDonneesStructureesInput[]
 }
 
@@ -104,7 +104,7 @@ export function buildProductDonneesStructurees(
       ? product.variants.map((v) => ({
           "@type": "Offer",
           sku: v.sku,
-          price: (product.price + v.priceDelta) / 100,
+          price: v.prix / 100,
           priceCurrency: "MAD",
           availability:
             v.stock > 0
@@ -115,7 +115,7 @@ export function buildProductDonneesStructurees(
       : [
           {
             "@type": "Offer",
-            price: product.price / 100,
+            price: product.minPrice / 100,
             priceCurrency: "MAD",
             availability: "https://schema.org/InStock",
             itemCondition: "https://schema.org/NewCondition",

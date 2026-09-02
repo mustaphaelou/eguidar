@@ -60,7 +60,6 @@ export interface ProductVariantDto {
   name: string
   sku: string
   prix: number
-  priceDelta: number
   stock: number
 }
 
@@ -72,7 +71,6 @@ export interface ProductDetailData {
   description: string
   specs: Record<string, string>
   images: string[]
-  price: number
   minPrice: number
   freeShipping: boolean
   category: { id: string; name: string; slug: string }
@@ -285,7 +283,6 @@ export async function fetchProductPageData(
     description: product.description,
     specs: (product.specs as Record<string, string>) ?? {},
     images: Array.isArray(product.images) ? (product.images as string[]) : [],
-    price: product.price,
     minPrice: minVariantPrice(product.price, product.variants),
     freeShipping: product.freeShipping,
     category: {
@@ -299,7 +296,6 @@ export async function fetchProductPageData(
       name: variant.name,
       sku: variant.sku,
       prix: prixVariante(product.price, variant.priceDelta),
-      priceDelta: variant.priceDelta,
       stock: variant.stock,
     })),
     related: related.map((item) => toProductCard(item)),

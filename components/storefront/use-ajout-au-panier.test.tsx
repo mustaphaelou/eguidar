@@ -21,7 +21,6 @@ const varianteStandard = {
   name: "Standard",
   sku: "UAP-A",
   prix: 100000,
-  priceDelta: 0,
   stock: 4,
 }
 const variantePremium = {
@@ -29,7 +28,6 @@ const variantePremium = {
   name: "Premium",
   sku: "UAP-B",
   prix: 125000,
-  priceDelta: 25000,
   stock: 2,
 }
 const varianteEpuisee = {
@@ -37,7 +35,6 @@ const varianteEpuisee = {
   name: "Épuisée",
   sku: "UAP-C",
   prix: 100000,
-  priceDelta: 0,
   stock: 0,
 }
 

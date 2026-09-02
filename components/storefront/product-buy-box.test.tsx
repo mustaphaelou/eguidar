@@ -24,7 +24,6 @@ const variantes = [
     name: "Standard",
     sku: "PBB-A",
     prix: 100000,
-    priceDelta: 0,
     stock: 4,
   },
 ]
@@ -35,7 +34,6 @@ const variantesMultiples = [
     name: "Standard",
     sku: "PBB-A",
     prix: 100000,
-    priceDelta: 0,
     stock: 4,
   },
   {
@@ -43,7 +41,6 @@ const variantesMultiples = [
     name: "Premium",
     sku: "PBB-B",
     prix: 125000,
-    priceDelta: 25000,
     stock: 2,
   },
 ]
@@ -228,7 +225,6 @@ describe("ProductBuyBox", () => {
       name: `Option ${i + 1}`,
       sku: `SKU-${i}`,
       prix: 100000 + i * 10000,
-      priceDelta: i * 10000,
       stock: 5,
     }))
 

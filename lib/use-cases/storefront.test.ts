@@ -314,7 +314,7 @@ describe("storefront browse", () => {
     expect(detail).not.toBeNull()
     expect(detail!.name).toBe("Produit détail")
     expect(detail!.brand).toBe("Marque Test")
-    expect(detail!.price).toBe(100000)
+    expect(detail!.minPrice).toBe(100000)
     expect(detail!.freeShipping).toBe(true)
     expect(detail!.images).toEqual([
       "https://example.com/a.jpg",
@@ -325,20 +325,16 @@ describe("storefront browse", () => {
       `SKU-${runId}-d2`,
       `SKU-${runId}-d3`,
     ])
-    expect(detail!.minPrice).toBe(100000)
     expect(detail!.variants[0]).toMatchObject({
       prix: 100000,
-      priceDelta: 0,
       stock: 10,
     })
     expect(detail!.variants[1]).toMatchObject({
       prix: 250000,
-      priceDelta: 150000,
       stock: 3,
     })
     expect(detail!.variants[2]).toMatchObject({
       prix: 450000,
-      priceDelta: 350000,
       stock: 0,
     })
     expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
