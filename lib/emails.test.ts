@@ -1,8 +1,18 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { type OrderEmailSnapshot, orderDetailsHtml } from "./emails"
+import {
+  type OrderEmailSnapshot,
+  orderDetailsHtml,
+  sendOrderPlacedEmail,
+  sendOrderStatusEmail,
+} from "./emails"
 import { formatPrice } from "./money"
-import { récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
+
+const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
+
+vi.mock("@/lib/email", () => ({
+  getResend: () => ({ emails: { send: sendMock } }),
+}))
 
 const baseSnapshot: OrderEmailSnapshot = {
   userEmail: "client@example.com",
@@ -74,18 +84,46 @@ describe("orderDetailsHtml", () => {
   })
 
   it("rend un contenu identique à l'entrée Commande pour une même Commande (ville, frais, Total à payer)", () => {
-    // Les deux e-mails (confirmation + statut) partagent orderDetailsHtml :
-    // ce test garde les deux chemins via le rendu partagé.
     const html = orderDetailsHtml(baseSnapshot)
-    const rows = récapitulatifRowsFromCommande(baseSnapshot)
 
-    for (const row of rows) {
-      expect(html).toContain(row.label)
-      expect(html).toContain(row.value)
-    }
-    expect(html).toContain("Livraison (Casablanca)")
+    expect(html).toContain("Sous-total (TVA incluse)")
     expect(html).toContain(formatPrice(25000))
+    expect(html).toContain("Livraison (Casablanca)")
     expect(html).toContain(formatPrice(3000))
+    expect(html).toContain("Total à payer à la livraison")
     expect(html).toContain(formatPrice(28000))
+    expect(html).toContain("<table")
+    expect(html).toContain(
+      '<td style="padding: 8px 0; font-weight: bold;">Total à payer à la livraison</td>',
+    )
+  })
+})
+
+describe("sendOrderPlacedEmail / sendOrderStatusEmail", () => {
+  beforeEach(() => {
+    sendMock.mockReset()
+    sendMock.mockResolvedValue({ id: "mock-id" })
+  })
+
+  it("flows both confirmation and status emails through the shared Commande récapitulatif", async () => {
+    await sendOrderPlacedEmail(baseSnapshot)
+    await sendOrderStatusEmail(baseSnapshot, "confirmed")
+
+    expect(sendMock).toHaveBeenCalledTimes(2)
+
+    const placedHtml = (sendMock.mock.calls[0][0] as { html: string }).html
+    const statusHtml = (sendMock.mock.calls[1][0] as { html: string }).html
+
+    for (const html of [placedHtml, statusHtml]) {
+      expect(html).toContain("Sous-total (TVA incluse)")
+      expect(html).toContain("Livraison (Casablanca)")
+      expect(html).toContain("Total à payer à la livraison")
+      expect(html).toContain(formatPrice(25000))
+      expect(html).toContain(formatPrice(3000))
+      expect(html).toContain(formatPrice(28000))
+    }
+
+    expect(placedHtml).toContain("Merci pour votre commande")
+    expect(statusHtml).toContain("Confirmée")
   })
 })

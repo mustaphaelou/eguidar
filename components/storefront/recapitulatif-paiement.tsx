@@ -1,7 +1,6 @@
 import type {
   CommandePourRécapitulatif,
   DevisPourRécapitulatif,
-  RécapitulatifRow,
 } from "@/lib/recapitulatif-paiement"
 import {
   récapitulatifRowsFromCommande,
@@ -40,16 +39,9 @@ export type RecapitulatifPaiementProps =
 export function RecapitulatifPaiement(props: RecapitulatifPaiementProps) {
   const { className } = props
 
-  let rows: RécapitulatifRow[]
-  const devis = (props as { devis?: DevisPourRécapitulatif }).devis
-  const commande = (props as { commande?: CommandePourRécapitulatif }).commande
-  if (devis) {
-    rows = récapitulatifRowsFromDevis(devis)
-  } else {
-    rows = récapitulatifRowsFromCommande(
-      commande as CommandePourRécapitulatif
-    )
-  }
+  const rows = props.devis
+    ? récapitulatifRowsFromDevis(props.devis)
+    : récapitulatifRowsFromCommande(props.commande)
 
   return (
     <dl className={cn("flex flex-col gap-2 text-sm", className)}>

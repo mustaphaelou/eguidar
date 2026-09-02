@@ -33,8 +33,25 @@ vi.mock("@/lib/client", () => ({
 }))
 
 vi.mock("@/components/ui/select", () => ({
-  Select: ({ children }: { children?: React.ReactNode }) => (
-    <div data-slot="select-stub">{children}</div>
+  Select: ({
+    children,
+    onValueChange,
+    value,
+  }: {
+    children?: React.ReactNode
+    onValueChange?: (value: string) => void
+    value?: string
+  }) => (
+    <div data-slot="select-stub" data-value={value ?? ""}>
+      <button
+        type="button"
+        data-testid="mock-select-casa"
+        onClick={() => onValueChange?.("42")}
+      >
+        Choisir Casablanca
+      </button>
+      {children}
+    </div>
   ),
   SelectContent: ({ children }: { children?: React.ReactNode }) => (
     <div>{children}</div>
@@ -202,5 +219,31 @@ describe("CheckoutForm", () => {
     expect(container.textContent).toContain(formatPrice(2500))
     expect(container.textContent).toContain("Total à payer à la livraison")
     expect(container.textContent).toContain(formatPrice(102500))
+  })
+
+  it("updates the récapitulatif instantly from À choisir to Livraison (Ville) when the city changes, without reload", () => {
+    render(
+      recapHarness({
+        quotes: { 42: { subtotal: 100000, shippingFee: 2500, total: 102500 } },
+        initialCityId: null,
+      })
+    )
+
+    expect(container.textContent).toContain("À choisir")
+    expect(container.textContent).not.toContain("Total à payer à la livraison")
+
+    const chooseButton = container.querySelector(
+      '[data-testid="mock-select-casa"]',
+    )
+    expect(chooseButton).not.toBeNull()
+    act(() => {
+      ;(chooseButton as HTMLButtonElement).click()
+    })
+
+    expect(container.textContent).toContain("Livraison (Casablanca)")
+    expect(container.textContent).toContain(formatPrice(2500))
+    expect(container.textContent).toContain("Total à payer à la livraison")
+    expect(container.textContent).toContain(formatPrice(102500))
+    expect(new URL(window.location.href).search).toBe("")
   })
 })
