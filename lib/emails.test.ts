@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { type OrderEmailSnapshot, orderDetailsHtml } from "./emails"
+import { formatPrice } from "./money"
+import { récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
 
 const baseSnapshot: OrderEmailSnapshot = {
   userEmail: "client@example.com",
@@ -55,5 +57,35 @@ describe("orderDetailsHtml", () => {
     expect(html).toContain(
       '<td style="padding: 8px 0;">Livraison (Casablanca)</td>'
     )
+  })
+
+  it("consomme le totalPayable précalculé sans re-dériver total + shippingFee", () => {
+    const html = orderDetailsHtml({
+      ...baseSnapshot,
+      total: 20000,
+      shippingFee: 3000,
+      // Volontairement distinct de total + shippingFee (23000)
+      // pour verrouiller la règle : l'e-mail affiche totalPayable tel quel.
+      totalPayable: 25000,
+    })
+
+    expect(html).toContain(formatPrice(25000))
+    expect(html).not.toContain(formatPrice(23000))
+  })
+
+  it("rend un contenu identique à l'entrée Commande pour une même Commande (ville, frais, Total à payer)", () => {
+    // Les deux e-mails (confirmation + statut) partagent orderDetailsHtml :
+    // ce test garde les deux chemins via le rendu partagé.
+    const html = orderDetailsHtml(baseSnapshot)
+    const rows = récapitulatifRowsFromCommande(baseSnapshot)
+
+    for (const row of rows) {
+      expect(html).toContain(row.label)
+      expect(html).toContain(row.value)
+    }
+    expect(html).toContain("Livraison (Casablanca)")
+    expect(html).toContain(formatPrice(25000))
+    expect(html).toContain(formatPrice(3000))
+    expect(html).toContain(formatPrice(28000))
   })
 })

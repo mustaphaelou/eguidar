@@ -2,7 +2,7 @@ import { getResend } from "@/lib/email"
 import { OrderStatus } from "@/lib/generated/prisma/client"
 import { ORDER_STATUS_LABELS } from "@/lib/order-status"
 import { formatPrice } from "@/lib/money"
-import { récapitulatifRows } from "@/lib/recapitulatif-paiement"
+import { récapitulatifRowsFromCommande } from "@/lib/recapitulatif-paiement"
 import { shortOrderId } from "@/lib/utils"
 
 const otpTypeLabels: Record<string, string> = {
@@ -81,11 +81,7 @@ export function orderDetailsHtml(snapshot: OrderEmailSnapshot): string {
     )
     .join("")
 
-  const recapRows = récapitulatifRows({
-    sousTotal: snapshot.total,
-    shipping: { fee: snapshot.shippingFee, city: snapshot.cityName },
-    total: snapshot.totalPayable,
-  })
+  const recapRows = récapitulatifRowsFromCommande(snapshot)
 
   const summaryRows = recapRows
     .map((row) => {
