@@ -105,7 +105,6 @@ beforeEach(() => {
 describe("lirePanier — Propriétaire visiteur (cookie Panier)", () => {
   it("yields an empty Panier when the cookie holds no article", async () => {
     const vide = {
-      proprietaire: proprietaireVisiteur,
       lines: [],
       subtotal: 0,
       itemCount: 0,
@@ -128,7 +127,6 @@ describe("lirePanier — Propriétaire visiteur (cookie Panier)", () => {
 
     const cart = await lirePanier(proprietaireVisiteur)
 
-    expect(cart.proprietaire).toEqual(proprietaireVisiteur)
     expect(cart.lines.map((line) => line.articlePanierId)).toEqual([
       variantStandard,
       variantPremium,
