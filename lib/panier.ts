@@ -49,8 +49,6 @@ export interface DonneesPanier {
   itemCount: number
 }
 
-export type Panier = DonneesPanier & { proprietaire: ProprietairePanier }
-
 /** Résout le Propriétaire du panier à partir de la session courante (ou null). */
 export function resoudreProprietairePanier(
   user: { id: string } | null
@@ -257,9 +255,42 @@ export async function rejouerPanierVisiteur(
   await supprimerCookiePanierVisiteur()
 }
 
+export async function compterArticlesDuPanier(
+  proprietaire: ProprietairePanier
+): Promise<number> {
+  if (proprietaire.role === "client") {
+    return compterArticlesDuPanierClient(proprietaire.compteId)
+  }
+
+  const articles = await lireArticlesPanierVisiteur()
+  if (articles.length === 0) return 0
+
+  const variantsSurvivants = await prisma.productVariant.findMany({
+    where: { id: { in: articles.map((article) => article.variantId) } },
+    select: { id: true },
+  })
+  const survivants = new Set(variantsSurvivants.map((v) => v.id))
+
+  return articles.reduce(
+    (somme, article) =>
+      survivants.has(article.variantId) ? somme + article.quantity : somme,
+    0
+  )
+}
+
+async function compterArticlesDuPanierClient(
+  compteId: string
+): Promise<number> {
+  const aggregate = await prisma.cartItem.aggregate({
+    where: { userId: compteId },
+    _sum: { quantity: true },
+  })
+  return aggregate._sum.quantity ?? 0
+}
+
 export async function lirePanier(
   proprietaire: ProprietairePanier
-): Promise<Panier> {
+): Promise<DonneesPanier> {
   if (proprietaire.role === "client") {
     const items = await prisma.cartItem.findMany({
       where: { userId: proprietaire.compteId },
@@ -271,12 +302,12 @@ export async function lirePanier(
       construireArticleDuPanier(item.variant, item.quantity, item.id)
     )
 
-    return { proprietaire, lines: lignes, ...calculerTotauxPanier(lignes) }
+    return { lines: lignes, ...calculerTotauxPanier(lignes) }
   }
 
   const articles = await lireArticlesPanierVisiteur()
   if (articles.length === 0) {
-    return { proprietaire, lines: [], subtotal: 0, itemCount: 0 }
+    return { lines: [], subtotal: 0, itemCount: 0 }
   }
 
   const variants = await prisma.productVariant.findMany({
@@ -292,7 +323,7 @@ export async function lirePanier(
     lignes.push(construireArticleDuPanier(variant, article.quantity))
   }
 
-  return { proprietaire, lines: lignes, ...calculerTotauxPanier(lignes) }
+  return { lines: lignes, ...calculerTotauxPanier(lignes) }
 }
 
 interface VarianteAvecProduit {

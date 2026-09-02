@@ -1,9 +1,7 @@
-import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
-import { getSessionUser } from "@/lib/use-cases/get-session"
+import { compterArticlesDuPanierCourant } from "@/lib/use-cases/panier-courant"
 
 export async function PanierBadge() {
-  const user = await getSessionUser()
-  const count = (await lirePanier(resoudreProprietairePanier(user))).itemCount
+  const count = await compterArticlesDuPanierCourant()
 
   if (count === 0) return null
 

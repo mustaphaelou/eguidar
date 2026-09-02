@@ -4,9 +4,9 @@ import { Suspense } from "react"
 import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
-import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import { getProfile } from "@/lib/use-cases/account"
 import { quotePanier } from "@/lib/use-cases/livraison"
+import { lirePanierCourant } from "@/lib/use-cases/panier-courant"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
 
@@ -39,14 +39,17 @@ async function CheckoutContent({
   if (!user) return <RequireAuth />
 
   const { ville } = await searchParams
-  const [cart, profile] = await Promise.all([
-    lirePanier(resoudreProprietairePanier(user)),
+  const [panier, profile] = await Promise.all([
+    lirePanierCourant(),
     getProfile(user.id),
   ])
-  if (cart.lines.length === 0) redirect("/panier")
+  if (panier.lines.length === 0) redirect("/panier")
 
   const requestedCityId = ville ?? profile.cityId
-  const { cities, quotes, selected } = await quotePanier(cart, requestedCityId)
+  const { cities, quotes, selected } = await quotePanier(
+    panier,
+    requestedCityId
+  )
   const initialCityId = selected ? requestedCityId : null
 
   return (
@@ -62,14 +65,14 @@ async function CheckoutContent({
             initialCityId={initialCityId}
             initialAddress={profile.address ?? ""}
             initialPhone={profile.phone ?? ""}
-            subtotal={cart.subtotal}
+            subtotal={panier.subtotal}
           />
         </section>
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Votre panier</h2>
           <ul className="flex flex-col gap-3 text-sm">
-            {cart.lines.map((line) => (
+            {panier.lines.map((line) => (
               <li
                 key={line.articlePanierId}
                 className="flex justify-between gap-3"
