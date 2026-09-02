@@ -33,6 +33,10 @@ vi.mock("@/lib/use-cases/get-session", async () => {
   return { getSessionUser: h.sessionUserMock }
 })
 
+const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
+
+vi.mock("next/cache", () => ({ refresh: refreshMock }))
+
 import {
   ajouterArticleAuPanierAction,
   modifierQuantiteArticlePanierAction,

@@ -1,3 +1,5 @@
+import { refresh } from "next/cache"
+
 import {
   ajouterArticleAuPanier,
   compterArticlesDuPanier,
@@ -15,6 +17,11 @@ async function resoudreProprietaireCourant(): Promise<ProprietairePanier> {
   return resoudreProprietairePanier(await getSessionUser())
 }
 
+function avecRevalidation(resultat: ResultatPanier): ResultatPanier {
+  if (resultat.ok) refresh()
+  return resultat
+}
+
 export async function lirePanierCourant(): Promise<DonneesPanier> {
   return lirePanier(await resoudreProprietaireCourant())
 }
@@ -27,10 +34,12 @@ export async function ajouterArticleAuPanierCourant(
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return ajouterArticleAuPanier(
-    await resoudreProprietaireCourant(),
-    variantId,
-    quantity
+  return avecRevalidation(
+    await ajouterArticleAuPanier(
+      await resoudreProprietaireCourant(),
+      variantId,
+      quantity
+    )
   )
 }
 
@@ -38,18 +47,22 @@ export async function modifierQuantiteArticlePanierCourant(
   articlePanierId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return modifierQuantiteArticlePanier(
-    await resoudreProprietaireCourant(),
-    articlePanierId,
-    quantity
+  return avecRevalidation(
+    await modifierQuantiteArticlePanier(
+      await resoudreProprietaireCourant(),
+      articlePanierId,
+      quantity
+    )
   )
 }
 
 export async function retirerArticleDuPanierCourant(
   articlePanierId: string
 ): Promise<ResultatPanier> {
-  return retirerArticleDuPanier(
-    await resoudreProprietaireCourant(),
-    articlePanierId
+  return avecRevalidation(
+    await retirerArticleDuPanier(
+      await resoudreProprietaireCourant(),
+      articlePanierId
+    )
   )
 }

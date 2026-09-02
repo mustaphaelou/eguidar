@@ -23,6 +23,10 @@ vi.mock("@/lib/use-cases/get-session", async () => {
   return { getSessionUser: h.sessionUserMock }
 })
 
+const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
+
+vi.mock("next/cache", () => ({ refresh: refreshMock }))
+
 import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
 
 import { PanierBadge } from "./panier-badge"
@@ -31,6 +35,7 @@ import {
   NOM_COOKIE_PANIER_VISITEUR,
   serializePanierVisiteur,
 } from "@/lib/panier-visiteur"
+import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 
 const runId = randomUUID().slice(0, 8)
 
@@ -96,6 +101,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   resetCookieStoreMock()
   sessionUserMock.mockReset()
+  refreshMock.mockClear()
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `panier-badge-${runId}-` } } },
   })
@@ -174,5 +180,18 @@ describe("PanierBadge", () => {
     commeClient(userIdA)
 
     expect((await renderBadge()).trim()).toBe("")
+  })
+
+  it("a mutation updates the badge deterministically through explicit revalidation", async () => {
+    commeClient(userIdA)
+
+    expect((await renderBadge()).trim()).toBe("")
+
+    await expect(
+      ajouterArticleAuPanierAction(variantA, 2)
+    ).resolves.toEqual({ ok: true })
+    expect(refreshMock).toHaveBeenCalledTimes(1)
+
+    expect(await renderBadge()).toContain(">2</span>")
   })
 })
