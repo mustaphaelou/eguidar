@@ -14,12 +14,6 @@ export interface RécapitulatifRow {
   tone?: RécapitulatifRowTone
 }
 
-export interface RécapitulatifFacts {
-  sousTotal: number
-  shipping: { fee: number | null; city?: string } | null
-  total: number | null
-}
-
 /**
  * Entrée Devis du Récapitulatif de paiement.
  *
@@ -58,6 +52,68 @@ export interface CommandePourRécapitulatif {
 }
 
 /**
+ * Faits normalisés internes — seul chemin de construction des lignes.
+ *
+ * `shipping: null` est le seul cas « À choisir » (aucun Devis sélectionné).
+ * L'orthographe `{ fee: null }` est supprimée : `fromDevis` n'émet que
+ * `null` (sans ville) ou `{ fee: number, city }` (avec ville), et
+ * `fromCommande` n'émet que `{ fee: number, city? }` (la Commande porte
+ * toujours des frais numériques). `total: null` omet la ligne Total
+ * (Devis sans ville) ; la Commande fournit toujours son `totalPayable`.
+ */
+type FaitsNormalisés = {
+  sousTotal: number
+  shipping: { fee: number; city?: string } | null
+  total: number | null
+}
+
+function construireLignes(faits: FaitsNormalisés): RécapitulatifRow[] {
+  const rows: RécapitulatifRow[] = [
+    {
+      label: "Sous-total (TVA incluse)",
+      value: formatPrice(faits.sousTotal),
+      kind: "detail",
+    },
+  ]
+
+  const shippingLabel = faits.shipping?.city
+    ? `Livraison (${faits.shipping.city})`
+    : "Livraison"
+
+  if (faits.shipping === null) {
+    rows.push({
+      label: shippingLabel,
+      value: "À choisir",
+      kind: "detail",
+      tone: "muted",
+    })
+  } else if (faits.shipping.fee === 0) {
+    rows.push({
+      label: shippingLabel,
+      value: formatShippingFee(0),
+      kind: "detail",
+      tone: "offered",
+    })
+  } else {
+    rows.push({
+      label: shippingLabel,
+      value: formatPrice(faits.shipping.fee),
+      kind: "detail",
+    })
+  }
+
+  if (faits.total !== null) {
+    rows.push({
+      label: "Total à payer à la livraison",
+      value: formatPrice(faits.total),
+      kind: "total",
+    })
+  }
+
+  return rows
+}
+
+/**
  * Construit les lignes Sous-total / Livraison / Total à payer depuis un Devis.
  *
  * Ville inconnue ou absente → repli « Livraison » sans ville + « À choisir »
@@ -73,14 +129,14 @@ export function récapitulatifRowsFromDevis(
     : null
 
   if (!quote || !city) {
-    return récapitulatifRows({
+    return construireLignes({
       sousTotal: devis.sousTotal,
       shipping: null,
       total: null,
     })
   }
 
-  return récapitulatifRows({
+  return construireLignes({
     sousTotal: devis.sousTotal,
     shipping: { fee: quote.shippingFee, city: city.name },
     total: quote.total,
@@ -96,7 +152,7 @@ export function récapitulatifRowsFromDevis(
 export function récapitulatifRowsFromCommande(
   commande: CommandePourRécapitulatif
 ): RécapitulatifRow[] {
-  return récapitulatifRows({
+  return construireLignes({
     sousTotal: commande.total,
     shipping: {
       fee: commande.shippingFee,
@@ -104,52 +160,4 @@ export function récapitulatifRowsFromCommande(
     },
     total: commande.totalPayable,
   })
-}
-
-export function récapitulatifRows(
-  facts: RécapitulatifFacts
-): RécapitulatifRow[] {
-  const rows: RécapitulatifRow[] = [
-    {
-      label: "Sous-total (TVA incluse)",
-      value: formatPrice(facts.sousTotal),
-      kind: "detail",
-    },
-  ]
-
-  const shippingLabel = facts.shipping?.city
-    ? `Livraison (${facts.shipping.city})`
-    : "Livraison"
-
-  if (facts.shipping === null || facts.shipping.fee === null) {
-    rows.push({
-      label: shippingLabel,
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
-    })
-  } else if (facts.shipping.fee === 0) {
-    rows.push({
-      label: shippingLabel,
-      value: formatShippingFee(0),
-      kind: "detail",
-      tone: "offered",
-    })
-  } else {
-    rows.push({
-      label: shippingLabel,
-      value: formatPrice(facts.shipping.fee),
-      kind: "detail",
-    })
-  }
-
-  if (facts.total !== null) {
-    rows.push({
-      label: "Total à payer à la livraison",
-      value: formatPrice(facts.total),
-      kind: "total",
-    })
-  }
-
-  return rows
 }
