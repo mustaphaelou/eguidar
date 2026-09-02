@@ -33,6 +33,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  DATE_COLUMN_ID,
+  STATUT_COLUMN_ID,
+  TOTAL_COLUMN_ID,
   partialViewFromFilters,
   partialViewFromPagination,
   partialViewFromSorting,
@@ -49,11 +52,8 @@ import type {
 
 import { useCommandeListing } from "./use-commande-listing"
 
-const DATE_COLUMN_ID = "date"
 const CLIENT_COLUMN_ID = "Client"
 const ARTICLES_COLUMN_ID = "Articles"
-const STATUT_COLUMN_ID = "statut"
-const TOTAL_COLUMN_ID = "total"
 const ACTIONS_COLUMN_ID = "actions"
 
 const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] =

@@ -26,6 +26,10 @@ export const COMMANDE_LISTING_PAGE_DEFAULT = 1
 export const COMMANDE_LISTING_PAGE_SIZE_DEFAULT: (typeof PAGE_SIZES)[number] =
   PAGE_SIZES[0]
 
+export const DATE_COLUMN_ID = "date"
+export const STATUT_COLUMN_ID = "statut"
+export const TOTAL_COLUMN_ID = "total"
+
 function firstValue(
   raw: Record<string, string | string[] | undefined>,
   key: string
@@ -167,7 +171,7 @@ export function partialViewFromSorting(
 ): Partial<CommandeListingView> {
   const first = sorting[0]
   return {
-    tri: first?.id === "total" ? "total" : "date",
+    tri: first?.id === TOTAL_COLUMN_ID ? "total" : "date",
     sens: first?.desc ? "desc" : "asc",
     pageIndex: 0,
   }
@@ -176,7 +180,7 @@ export function partialViewFromSorting(
 export function partialViewFromFilters(
   filters: readonly { id: string; value: unknown }[]
 ): Partial<CommandeListingView> {
-  const entry = filters.find((filter) => filter.id === "statut")
+  const entry = filters.find((filter) => filter.id === STATUT_COLUMN_ID)
   const statuses = Array.isArray(entry?.value)
     ? entry.value.filter((value): value is OrderStatus =>
         (STATUTS_VALIDES as readonly string[]).includes(value as string)
