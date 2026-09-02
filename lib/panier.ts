@@ -49,8 +49,6 @@ export interface DonneesPanier {
   itemCount: number
 }
 
-export type Panier = DonneesPanier & { proprietaire: ProprietairePanier }
-
 /** Résout le Propriétaire du panier à partir de la session courante (ou null). */
 export function resoudreProprietairePanier(
   user: { id: string } | null
@@ -259,7 +257,7 @@ export async function rejouerPanierVisiteur(
 
 export async function lirePanier(
   proprietaire: ProprietairePanier
-): Promise<Panier> {
+): Promise<DonneesPanier> {
   if (proprietaire.role === "client") {
     const items = await prisma.cartItem.findMany({
       where: { userId: proprietaire.compteId },
@@ -271,12 +269,12 @@ export async function lirePanier(
       construireArticleDuPanier(item.variant, item.quantity, item.id)
     )
 
-    return { proprietaire, lines: lignes, ...calculerTotauxPanier(lignes) }
+    return { lines: lignes, ...calculerTotauxPanier(lignes) }
   }
 
   const articles = await lireArticlesPanierVisiteur()
   if (articles.length === 0) {
-    return { proprietaire, lines: [], subtotal: 0, itemCount: 0 }
+    return { lines: [], subtotal: 0, itemCount: 0 }
   }
 
   const variants = await prisma.productVariant.findMany({
@@ -292,7 +290,7 @@ export async function lirePanier(
     lignes.push(construireArticleDuPanier(variant, article.quantity))
   }
 
-  return { proprietaire, lines: lignes, ...calculerTotauxPanier(lignes) }
+  return { lines: lignes, ...calculerTotauxPanier(lignes) }
 }
 
 interface VarianteAvecProduit {

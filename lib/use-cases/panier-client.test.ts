@@ -266,7 +266,6 @@ describe("lectures du Panier client — lirePanier", () => {
     const proprietaire = { role: "client", compteId: userIdB } as const
     const panier = await lirePanier(proprietaire)
     expect(panier).toEqual({
-      proprietaire,
       lines: [],
       subtotal: 0,
       itemCount: 0,
