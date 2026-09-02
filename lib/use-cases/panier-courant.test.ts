@@ -13,9 +13,14 @@ import {
 import { prisma } from "@/lib/db"
 import {
   NOM_COOKIE_PANIER_VISITEUR,
+  parsePanierVisiteur,
   serializePanierVisiteur,
 } from "@/lib/panier-visiteur"
-import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
+import {
+  readCookie,
+  resetCookieStoreMock,
+  setCookie,
+} from "@/test/cookie-store"
 import { sessionUserMock } from "@/test/navigation-mocks"
 
 vi.mock("next/headers", async () => {
@@ -29,7 +34,12 @@ vi.mock("@/lib/use-cases/get-session", async () => {
 })
 
 import { ajouterArticleAuPanier } from "@/lib/panier"
-import { lirePanierCourant } from "./panier-courant"
+import {
+  ajouterArticleAuPanierCourant,
+  lirePanierCourant,
+  modifierQuantiteArticlePanierCourant,
+  retirerArticleDuPanierCourant,
+} from "./panier-courant"
 
 const runId = randomUUID().slice(0, 8)
 const emailPrefix = `panier-courant-${runId}-`
@@ -248,6 +258,164 @@ describe("lirePanierCourant — lecture du Panier courant", () => {
       expect(panier.lines[0].variantId).toBe(variantPremium)
       expect(panier.subtotal).toBe(150000)
       expect(panier.itemCount).toBe(1)
+    })
+  })
+})
+
+describe("écritures du Panier courant — ajouter, modifier, retirer", () => {
+  describe("Client (session active — Panier persisté)", () => {
+    it("adds an article to the persisted Panier and merges repeated adds", async () => {
+      commeClient(userId)
+
+      await expect(
+        ajouterArticleAuPanierCourant(variantStandard, 2)
+      ).resolves.toEqual({ ok: true })
+      await expect(
+        ajouterArticleAuPanierCourant(variantStandard, 1)
+      ).resolves.toEqual({ ok: true })
+
+      const panier = await lirePanierCourant()
+      expect(panier.lines).toHaveLength(1)
+      expect(panier.lines[0]).toMatchObject({
+        variantId: variantStandard,
+        quantity: 3,
+        lineTotal: 300000,
+      })
+      expect(panier.itemCount).toBe(3)
+    })
+
+    it("changes an article quantity identified by the persisted id", async () => {
+      commeClient(userId)
+      await ajouterArticleAuPanierCourant(variantStandard, 2)
+      const item = await prisma.cartItem.findFirstOrThrow({
+        where: { userId, variantId: variantStandard },
+      })
+
+      await expect(
+        modifierQuantiteArticlePanierCourant(item.id, 5)
+      ).resolves.toEqual({ ok: true })
+
+      const panier = await lirePanierCourant()
+      expect(panier.lines[0]).toMatchObject({
+        articlePanierId: item.id,
+        variantId: variantStandard,
+        quantity: 5,
+        lineTotal: 500000,
+      })
+    })
+
+    it("removes an article identified by the persisted id", async () => {
+      commeClient(userId)
+      await ajouterArticleAuPanierCourant(variantStandard, 2)
+      await ajouterArticleAuPanierCourant(variantPremium, 1)
+      const item = await prisma.cartItem.findFirstOrThrow({
+        where: { userId, variantId: variantStandard },
+      })
+
+      await expect(retirerArticleDuPanierCourant(item.id)).resolves.toEqual({
+        ok: true,
+      })
+
+      const panier = await lirePanierCourant()
+      expect(panier.lines.map((ligne) => ligne.variantId)).toEqual([
+        variantPremium,
+      ])
+      expect(await prisma.cartItem.count({ where: { userId } })).toBe(1)
+    })
+
+    it("answers with the refusal motif without touching the Panier", async () => {
+      commeClient(userId)
+      await ajouterArticleAuPanierCourant(variantStandard, 2)
+
+      await expect(
+        ajouterArticleAuPanierCourant(variantStandard, 0)
+      ).resolves.toEqual({ ok: false, motif: "quantite-invalide" })
+      await expect(
+        modifierQuantiteArticlePanierCourant("article-fantome", 1)
+      ).resolves.toEqual({ ok: false, motif: "article-inconnu" })
+
+      const panier = await lirePanierCourant()
+      expect(panier.lines[0]).toMatchObject({
+        variantId: variantStandard,
+        quantity: 2,
+      })
+    })
+  })
+
+  describe("Visiteur (sans session — Panier cookie)", () => {
+    it("adds an article to the cookie Panier", async () => {
+      commeVisiteur()
+
+      await expect(
+        ajouterArticleAuPanierCourant(variantStandard, 2)
+      ).resolves.toEqual({ ok: true })
+      await expect(
+        ajouterArticleAuPanierCourant(variantPremium, 1)
+      ).resolves.toEqual({ ok: true })
+
+      expect(
+        parsePanierVisiteur(readCookie(NOM_COOKIE_PANIER_VISITEUR))
+      ).toEqual([
+        { variantId: variantStandard, quantity: 2 },
+        { variantId: variantPremium, quantity: 1 },
+      ])
+      const panier = await lirePanierCourant()
+      expect(panier.lines.map((ligne) => ligne.articlePanierId)).toEqual([
+        variantStandard,
+        variantPremium,
+      ])
+      expect(panier.subtotal).toBe(200000 + 150000)
+    })
+
+    it("changes an article quantity identified by variantId", async () => {
+      commeVisiteur()
+      await ajouterArticleAuPanierCourant(variantStandard, 2)
+
+      await expect(
+        modifierQuantiteArticlePanierCourant(variantStandard, 4)
+      ).resolves.toEqual({ ok: true })
+
+      const panier = await lirePanierCourant()
+      expect(panier.lines[0]).toMatchObject({
+        articlePanierId: variantStandard,
+        variantId: variantStandard,
+        quantity: 4,
+        lineTotal: 400000,
+      })
+    })
+
+    it("removes an article identified by variantId", async () => {
+      commeVisiteur()
+      await ajouterArticleAuPanierCourant(variantStandard, 2)
+      await ajouterArticleAuPanierCourant(variantPremium, 1)
+
+      await expect(
+        retirerArticleDuPanierCourant(variantStandard)
+      ).resolves.toEqual({ ok: true })
+
+      const panier = await lirePanierCourant()
+      expect(panier.lines.map((ligne) => ligne.variantId)).toEqual([
+        variantPremium,
+      ])
+      expect(
+        parsePanierVisiteur(readCookie(NOM_COOKIE_PANIER_VISITEUR))
+      ).toEqual([{ variantId: variantPremium, quantity: 1 }])
+    })
+
+    it("answers with the refusal motif without touching the cookie", async () => {
+      commeVisiteur()
+      await ajouterArticleAuPanierCourant(variantStandard, 2)
+
+      await expect(
+        ajouterArticleAuPanierCourant("variante-fantome", 1)
+      ).resolves.toEqual({ ok: false, motif: "variante-inconnue" })
+      await expect(
+        retirerArticleDuPanierCourant("variante-fantome")
+      ).resolves.toEqual({ ok: false, motif: "article-inconnu" })
+
+      expect(
+        parsePanierVisiteur(readCookie(NOM_COOKIE_PANIER_VISITEUR))
+      ).toEqual([{ variantId: variantStandard, quantity: 2 }])
     })
   })
 })
