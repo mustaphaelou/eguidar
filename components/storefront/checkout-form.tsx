@@ -52,8 +52,8 @@ export function CheckoutForm({
     initialState
   )
   const [selectedCityId, setSelectedCityId] = useState(initialCityId ?? "")
-  const quote = selectedCityId ? quotes[selectedCityId] : undefined
-  const shippingFee = quote ? quote.shippingFee : null
+  // Le récapitulatif dérive du Devis via l'état local : il réagit
+  // instantanément au changement de ville, sans rechargement.
 
   useEffect(() => {
     if (!state.unauthenticated) return
@@ -134,9 +134,12 @@ export function CheckoutForm({
 
       <RecapitulatifPaiement
         className="border-t pt-4"
-        sousTotal={subtotal}
-        shipping={shippingFee !== null ? { fee: shippingFee } : null}
-        total={quote ? quote.total : null}
+        devis={{
+          sousTotal: subtotal,
+          cities,
+          quotes,
+          selectedCityId: selectedCityId || null,
+        }}
       />
 
       <Button type="submit" disabled={isPending} className="w-full">
