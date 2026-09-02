@@ -52,6 +52,8 @@ vi.mock("@/components/ui/select", () => ({
 }))
 
 import { CheckoutForm } from "./checkout-form"
+import { formatPrice } from "@/lib/money"
+import type { ShippingQuote } from "@/lib/use-cases/livraison"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -115,6 +117,27 @@ function checkoutHarness() {
   )
 }
 
+function recapHarness({
+  quotes,
+  initialCityId,
+}: {
+  quotes: Record<string, ShippingQuote>
+  initialCityId: string | null
+}) {
+  return (
+    <AuthDialogsProvider>
+      <CheckoutForm
+        cities={[{ id: "42", name: "Casablanca", fee: 2500 }]}
+        quotes={quotes}
+        initialCityId={initialCityId}
+        initialAddress=""
+        initialPhone=""
+        subtotal={100000}
+      />
+    </AuthDialogsProvider>
+  )
+}
+
 function dialog() {
   return container.querySelector("[data-dialog]")?.getAttribute("data-dialog")
 }
@@ -158,5 +181,26 @@ describe("CheckoutForm", () => {
     expect(placeOrderMock.mock.calls[0][1]).toBeInstanceOf(FormData)
     expect(new URL(window.location.href).search).toBe("")
     expect(dialog()).toBe("none")
+  })
+
+  it("shows « À choisir » without total when no Ville de livraison is selected", () => {
+    render(recapHarness({ quotes: {}, initialCityId: null }))
+
+    expect(container.textContent).toContain("À choisir")
+    expect(container.textContent).not.toContain("Total à payer à la livraison")
+  })
+
+  it("names the Ville de livraison with its fees and total when a ville is selected", () => {
+    render(
+      recapHarness({
+        quotes: { 42: { subtotal: 100000, shippingFee: 2500, total: 102500 } },
+        initialCityId: "42",
+      })
+    )
+
+    expect(container.textContent).toContain("Livraison (Casablanca)")
+    expect(container.textContent).toContain(formatPrice(2500))
+    expect(container.textContent).toContain("Total à payer à la livraison")
+    expect(container.textContent).toContain(formatPrice(102500))
   })
 })

@@ -253,6 +253,56 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
   })
 })
 
+describe("CartPage — Récapitulatif Ville de livraison", () => {
+  it("names the Ville de livraison with its fees and total when a ville is chosen", async () => {
+    commeVisiteur()
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
+      serializePanierVisiteur([
+        { variantId: variantStandard, quantity: 2 },
+        { variantId: variantUnique, quantity: 1 },
+      ])
+    )
+
+    const html = await renderPage({ ville: cityId })
+
+    expect(html).toContain(`Livraison (Ville ${runId})`)
+    expect(html).toContain(formatPrice(3000))
+    expect(html).toContain(formatPrice(253000))
+  })
+
+  it("shows « À choisir » without total when no ville is chosen", async () => {
+    commeVisiteur()
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
+      serializePanierVisiteur([
+        { variantId: variantStandard, quantity: 2 },
+        { variantId: variantUnique, quantity: 1 },
+      ])
+    )
+
+    const html = await renderPage()
+
+    expect(html).toContain("À choisir")
+    expect(html).toContain(formatPrice(250000))
+    expect(html).not.toContain(formatPrice(253000))
+  })
+
+  it("falls back to « Livraison » without crashing on a stale ville param", async () => {
+    commeVisiteur()
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
+      serializePanierVisiteur([{ variantId: variantStandard, quantity: 1 }])
+    )
+
+    const html = await renderPage({ ville: "ville-perimee" })
+
+    expect(html).toContain("Mon panier")
+    expect(html).toContain("À choisir")
+    expect(html).not.toContain("Livraison (")
+  })
+})
+
 describe("CartPage — Compte client (persisted Panier)", () => {
   it("renders the persisted Panier unchanged through the same view", async () => {
     commeClient(userIdA)
