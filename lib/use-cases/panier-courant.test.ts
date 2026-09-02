@@ -29,7 +29,7 @@ vi.mock("@/lib/use-cases/get-session", async () => {
 })
 
 import { ajouterArticleAuPanier } from "@/lib/panier"
-import { lirePanierCourant } from "./panier-courant"
+import { compterArticlesDuPanierCourant, lirePanierCourant } from "./panier-courant"
 
 const runId = randomUUID().slice(0, 8)
 const emailPrefix = `panier-courant-${runId}-`
@@ -248,6 +248,72 @@ describe("lirePanierCourant — lecture du Panier courant", () => {
       expect(panier.lines[0].variantId).toBe(variantPremium)
       expect(panier.subtotal).toBe(150000)
       expect(panier.itemCount).toBe(1)
+    })
+  })
+})
+
+describe("compterArticlesDuPanierCourant — comptage du Panier courant", () => {
+  describe("Client (session active — Panier persisté)", () => {
+    it("counts the somme des quantités, not the number of lines", async () => {
+      commeClient(userId)
+      await ajouterArticleAuPanier(
+        { role: "client", compteId: userId },
+        variantStandard,
+        2
+      )
+      await ajouterArticleAuPanier(
+        { role: "client", compteId: userId },
+        variantPremium,
+        3
+      )
+
+      const compte = await compterArticlesDuPanierCourant()
+
+      expect(compte).toBe(5)
+      expect(compte).not.toBe(2)
+    })
+
+    it("yields zero for an empty persisted Panier", async () => {
+      commeClient(userId)
+
+      await expect(compterArticlesDuPanierCourant()).resolves.toBe(0)
+    })
+  })
+
+  describe("Visiteur (sans session — Panier cookie)", () => {
+    it("counts the somme des quantités from the cookie, not the number of lines", async () => {
+      commeVisiteur()
+      setCookie(
+        NOM_COOKIE_PANIER_VISITEUR,
+        serializePanierVisiteur([
+          { variantId: variantStandard, quantity: 3 },
+          { variantId: variantPremium, quantity: 2 },
+        ])
+      )
+
+      const compte = await compterArticlesDuPanierCourant()
+
+      expect(compte).toBe(5)
+      expect(compte).not.toBe(2)
+    })
+
+    it("skips stale cookie articles whose variant vanished from the database", async () => {
+      commeVisiteur()
+      setCookie(
+        NOM_COOKIE_PANIER_VISITEUR,
+        serializePanierVisiteur([
+          { variantId: "variante-fantome", quantity: 4 },
+          { variantId: variantPremium, quantity: 1 },
+        ])
+      )
+
+      await expect(compterArticlesDuPanierCourant()).resolves.toBe(1)
+    })
+
+    it("yields zero when the cookie holds no article", async () => {
+      commeVisiteur()
+
+      await expect(compterArticlesDuPanierCourant()).resolves.toBe(0)
     })
   })
 })
