@@ -255,6 +255,39 @@ export async function rejouerPanierVisiteur(
   await supprimerCookiePanierVisiteur()
 }
 
+export async function compterArticlesDuPanier(
+  proprietaire: ProprietairePanier
+): Promise<number> {
+  if (proprietaire.role === "client") {
+    return compterArticlesDuPanierClient(proprietaire.compteId)
+  }
+
+  const articles = await lireArticlesPanierVisiteur()
+  if (articles.length === 0) return 0
+
+  const variantsSurvivants = await prisma.productVariant.findMany({
+    where: { id: { in: articles.map((article) => article.variantId) } },
+    select: { id: true },
+  })
+  const survivants = new Set(variantsSurvivants.map((v) => v.id))
+
+  return articles.reduce(
+    (somme, article) =>
+      survivants.has(article.variantId) ? somme + article.quantity : somme,
+    0
+  )
+}
+
+async function compterArticlesDuPanierClient(
+  compteId: string
+): Promise<number> {
+  const aggregate = await prisma.cartItem.aggregate({
+    where: { userId: compteId },
+    _sum: { quantity: true },
+  })
+  return aggregate._sum.quantity ?? 0
+}
+
 export async function lirePanier(
   proprietaire: ProprietairePanier
 ): Promise<DonneesPanier> {

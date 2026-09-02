@@ -41,11 +41,11 @@ async function CartContent({
   searchParams: Promise<{ ville?: string }>
 }) {
   const { ville } = await searchParams
-  const cart = await lirePanierCourant()
-  const { cities, threshold, selected } = await quotePanier(cart, ville)
+  const panier = await lirePanierCourant()
+  const { cities, threshold, selected } = await quotePanier(panier, ville)
   const quote = selected
 
-  if (cart.lines.length === 0) {
+  if (panier.lines.length === 0) {
     return (
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-4 py-24 text-center">
         <HugeiconsIcon
@@ -70,7 +70,7 @@ async function CartContent({
 
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <ul>
-          {cart.lines.map((line) => (
+          {panier.lines.map((line) => (
             <LigneArticlePanier key={line.articlePanierId} line={line} />
           ))}
         </ul>
@@ -82,7 +82,7 @@ async function CartContent({
               <dt className="text-muted-foreground">
                 Sous-total (TVA incluse)
               </dt>
-              <dd className="font-semibold">{formatPrice(cart.subtotal)}</dd>
+              <dd className="font-semibold">{formatPrice(panier.subtotal)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Livraison</dt>

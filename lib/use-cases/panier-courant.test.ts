@@ -171,7 +171,7 @@ describe("lirePanierCourant — lecture du Panier courant", () => {
       expect(panier.itemCount).toBe(3)
     })
 
-    it("returns the data shape only — no owner echo", async () => {
+    it("returns the data shape only — sans écho du Propriétaire", async () => {
       commeClient(userId)
       await ajouterArticleAuPanier(
         { role: "client", compteId: userId },
