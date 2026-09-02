@@ -2,6 +2,7 @@ import { getResend } from "@/lib/email"
 import { OrderStatus } from "@/lib/generated/prisma/client"
 import { ORDER_STATUS_LABELS } from "@/lib/order-status"
 import { formatPrice } from "@/lib/money"
+import { récapitulatifRows } from "@/lib/recapitulatif-paiement"
 import { shortOrderId } from "@/lib/utils"
 
 const otpTypeLabels: Record<string, string> = {
@@ -69,8 +70,8 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;")
 }
 
-function orderDetailsHtml(snapshot: OrderEmailSnapshot): string {
-  const rows = snapshot.items
+export function orderDetailsHtml(snapshot: OrderEmailSnapshot): string {
+  const itemRows = snapshot.items
     .map(
       (item) => `
         <tr>
@@ -79,21 +80,28 @@ function orderDetailsHtml(snapshot: OrderEmailSnapshot): string {
         </tr>`
     )
     .join("")
+
+  const recapRows = récapitulatifRows({
+    sousTotal: snapshot.total,
+    shipping: { fee: snapshot.shippingFee, city: snapshot.cityName },
+    total: snapshot.totalPayable,
+  })
+
+  const summaryRows = recapRows
+    .map((row) => {
+      const bold = row.kind === "total" ? " font-weight: bold;" : ""
+      return `
+      <tr>
+        <td style="padding: 8px 0;${bold}">${escapeHtml(row.label)}</td>
+        <td style="padding: 8px 0; text-align: right;${bold} white-space: nowrap;">${escapeHtml(row.value)}</td>
+      </tr>`
+    })
+    .join("")
+
   return `
     <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-      ${rows}
-      <tr>
-        <td style="padding: 8px 0;">Sous-total (TVA incluse)</td>
-        <td style="padding: 8px 0; text-align: right; white-space: nowrap;">${formatPrice(snapshot.total)}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0;">Livraison à ${escapeHtml(snapshot.cityName)}</td>
-        <td style="padding: 8px 0; text-align: right; white-space: nowrap;">${formatPrice(snapshot.shippingFee)}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0; font-weight: bold;">Total à payer à la livraison</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: bold; white-space: nowrap;">${formatPrice(snapshot.totalPayable)}</td>
-      </tr>
+      ${itemRows}
+      ${summaryRows}
     </table>
   `
 }

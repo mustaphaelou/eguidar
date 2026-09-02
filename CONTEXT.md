@@ -25,6 +25,10 @@ Le calcul du prix d'un panier selon la ville de livraison : les frais de chaque 
 le seuil de livraison offerte appliqué au sous-total, et le total à payer à la livraison pour la ville demandée.
 _Avoid_: quote, estimation de livraison
 
+**Récapitulatif de paiement**:
+Le bloc présentant le Sous-total (TVA incluse), la Livraison et le Total à payer à la livraison sur le Panier, la commande, la confirmation, l'Administration et l'e-mail de commande.
+_Avoid_: order summary, résumé de commande, récapitulatif de commande, récap
+
 **Paiement à la livraison**:
 The only payment method: the courier collects the total in cash at delivery. The total shown at checkout is what the courier collects.
 _Avoid_: cash on delivery, paiement cash, payer à la livraison
