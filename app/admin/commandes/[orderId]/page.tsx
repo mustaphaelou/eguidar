@@ -7,6 +7,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { OrderStatusActions } from "@/components/admin/order-status-actions"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
+import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -17,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatPrice, formatShippingFee } from "@/lib/money"
+import { formatPrice } from "@/lib/money"
 import { ORDER_TRANSITIONS } from "@/lib/order-status"
 import { getAdminOrder } from "@/lib/use-cases/admin-orders"
 import { OrderNotFoundError } from "@/lib/use-cases/orders"
@@ -175,26 +176,11 @@ export default async function AdminOrderDetailPage({
               ))}
             </TableBody>
           </Table>
-          <dl className="flex flex-col gap-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">
-                Sous-total (TVA incluse)
-              </dt>
-              <dd className="font-semibold">{formatPrice(order.total)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">
-                Livraison ({order.cityName})
-              </dt>
-              <dd className="font-semibold">
-                {formatShippingFee(order.shippingFee)}
-              </dd>
-            </div>
-            <div className="flex justify-between border-t pt-2 text-base">
-              <dt className="font-bold">Total à payer à la livraison</dt>
-              <dd className="font-bold">{formatPrice(order.totalPayable)}</dd>
-            </div>
-          </dl>
+          <RecapitulatifPaiement
+            sousTotal={order.total}
+            shipping={{ fee: order.shippingFee, city: order.cityName }}
+            total={order.totalPayable}
+          />
         </CardContent>
       </Card>
     </div>
