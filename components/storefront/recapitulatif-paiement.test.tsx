@@ -79,22 +79,20 @@ describe("RecapitulatifPaiement", () => {
   })
 
   it("renders a Devis with a selected city as Livraison (Ville) with fee and total", () => {
-    const panierQuote = {
-      cities: [
-        { id: "casa", name: "Casablanca", fee: 3000 },
-        { id: "rabat", name: "Rabat", fee: 2500 },
-      ],
-      threshold: 100000,
-      quotes: {
-        casa: { subtotal: 25000, shippingFee: 3000, total: 28000 },
-        rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
-      },
-      selected: null,
-    }
-
     render(
       <RecapitulatifPaiement
-        devis={{ ...panierQuote, sousTotal: 25000, selectedCityId: "casa" }}
+        devis={{
+          sousTotal: 25000,
+          cities: [
+            { id: "casa", name: "Casablanca", fee: 3000 },
+            { id: "rabat", name: "Rabat", fee: 2500 },
+          ],
+          quotes: {
+            casa: { subtotal: 25000, shippingFee: 3000, total: 28000 },
+            rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
+          },
+          selectedCityId: "casa",
+        }}
       />
     )
 

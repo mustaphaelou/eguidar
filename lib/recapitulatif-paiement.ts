@@ -19,23 +19,15 @@ export interface RécapitulatifRow {
  *
  * Le Devis calcule le prix d'un panier selon la Ville de livraison :
  * villes disponibles + devis par ville + identifiant de ville optionnel.
- * Un `PanierQuote` étalé (`{ ...panierQuote, sousTotal, selectedCityId }`)
- * satisfait cette forme ; `threshold` / `selected` sont ignorés — la
- * résolution `quotes[cityId]` + `cities.find(id)` vit derrière l'interface.
+ * La résolution `quotes[cityId]` + `cities.find(id)` vit derrière
+ * l'interface — construire l'objet explicitement, sans étalement.
  */
 export interface DevisPourRécapitulatif {
   sousTotal: number
   cities: DeliveryCityOption[]
   quotes: Record<string, ShippingQuote>
   selectedCityId?: string | null
-  /** Champ du PanierQuote conservé par étalement — ignoré. */
-  threshold?: number
-  /** Champ du PanierQuote conservé par étalement — ignoré (source : quotes). */
-  selected?: ShippingQuote | null
 }
-
-/** Alias historique du code pour le Devis (voir glossaire : Devis). */
-export type QuotePourRécapitulatif = DevisPourRécapitulatif
 
 /**
  * Entrée Commande du Récapitulatif de paiement (forme structurelle minimale).

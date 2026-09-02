@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { formatPrice } from "./money"
 import {
   type RécapitulatifRow,
   récapitulatifRowsFromCommande,
@@ -16,6 +17,17 @@ describe("récapitulatifRowsFromDevis", () => {
     rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
   }
 
+  function expectLivraisonAChoisir(rows: RécapitulatifRow[]) {
+    expect(rows[1]).toEqual<RécapitulatifRow>({
+      label: "Livraison",
+      value: "À choisir",
+      kind: "detail",
+      tone: "muted",
+    })
+    expect(rows.some((r) => r.kind === "total")).toBe(false)
+    expect(rows).toHaveLength(2)
+  }
+
   it("renders 'Livraison — À choisir' with muted tone and omits the total when no city is selected", () => {
     const rows = récapitulatifRowsFromDevis({
       sousTotal: 15000,
@@ -24,19 +36,12 @@ describe("récapitulatifRowsFromDevis", () => {
       selectedCityId: null,
     })
 
-    expect(rows).toEqual<RécapitulatifRow[]>([
-      {
-        label: "Sous-total (TVA incluse)",
-        value: "150,00\u00A0MAD",
-        kind: "detail",
-      },
-      {
-        label: "Livraison",
-        value: "À choisir",
-        kind: "detail",
-        tone: "muted",
-      },
-    ])
+    expect(rows[0]).toEqual<RécapitulatifRow>({
+      label: "Sous-total (TVA incluse)",
+      value: "150,00 MAD",
+      kind: "detail",
+    })
+    expectLivraisonAChoisir(rows)
   })
 
   it("falls back to 'Livraison' without city when the selected city id is omitted", () => {
@@ -46,13 +51,7 @@ describe("récapitulatifRowsFromDevis", () => {
       quotes,
     })
 
-    expect(rows[1]).toEqual<RécapitulatifRow>({
-      label: "Livraison",
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
-    })
-    expect(rows.some((r) => r.kind === "total")).toBe(false)
+    expectLivraisonAChoisir(rows)
   })
 
   it("falls back to 'Livraison' without city for an unknown city id without throwing", () => {
@@ -71,13 +70,20 @@ describe("récapitulatifRowsFromDevis", () => {
       selectedCityId: "ville-perimee",
     })
 
-    expect(rows[1]).toEqual<RécapitulatifRow>({
-      label: "Livraison",
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
+    expectLivraisonAChoisir(rows)
+  })
+
+  it("falls back to 'Livraison' without city when the Devis is malformed (known city without quote)", () => {
+    const rows = récapitulatifRowsFromDevis({
+      sousTotal: 15000,
+      cities,
+      quotes: {
+        rabat: { subtotal: 15000, shippingFee: 2500, total: 17500 },
+      },
+      selectedCityId: "casa",
     })
-    expect(rows.some((r) => r.kind === "total")).toBe(false)
+
+    expectLivraisonAChoisir(rows)
   })
 
   it("renders 'Livraison (Ville)' with the Devis fee and total when a city is selected", () => {
@@ -130,17 +136,11 @@ describe("récapitulatifRowsFromDevis", () => {
     })
   })
 
-  it("accepts a spread PanierQuote (threshold/selected extras are ignored)", () => {
-    const panierQuote = {
-      cities,
-      threshold: 100000,
-      quotes,
-      selected: null,
-    }
-
+  it("builds an explicit Devis without spread extras", () => {
     const rows = récapitulatifRowsFromDevis({
-      ...panierQuote,
       sousTotal: 25000,
+      cities,
+      quotes,
       selectedCityId: "rabat",
     })
 
@@ -211,6 +211,30 @@ describe("récapitulatifRowsFromCommande", () => {
       value: "Livraison offerte",
       kind: "detail",
       tone: "offered",
+    })
+  })
+
+  it("renders 'Livraison' without city when cityName is omitted, totals intact", () => {
+    const rows = récapitulatifRowsFromCommande({
+      total: 25000,
+      shippingFee: 3000,
+      totalPayable: 28000,
+    })
+
+    expect(rows[0]).toEqual<RécapitulatifRow>({
+      label: "Sous-total (TVA incluse)",
+      value: formatPrice(25000),
+      kind: "detail",
+    })
+    expect(rows[1]).toEqual<RécapitulatifRow>({
+      label: "Livraison",
+      value: formatPrice(3000),
+      kind: "detail",
+    })
+    expect(rows[2]).toEqual<RécapitulatifRow>({
+      label: "Total à payer à la livraison",
+      value: formatPrice(28000),
+      kind: "total",
     })
   })
 
