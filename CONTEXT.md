@@ -78,6 +78,10 @@ La barre fixée en bas de l'écran sur mobile, sur la page produit, qui répète
 et l'action « Ajouter au panier » pendant que l'utilisateur fait défiler la page.
 _Avoid_: sticky bar, buy bar, barre collante
 
+**Prix courant**:
+Le prix affiché pour une Variante (prix de base plus écart de prix) et pour un Produit (son prix minimal).
+_Avoid_: current price, prix effectif, prix calculé
+
 **Compte client**:
 The registered customer entity (Better Auth user) with credentials, email verification, and optional social logins (Google, Apple). Carries a `role` ("user" or "admin").
 _Avoid_: account, user, membre

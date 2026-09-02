@@ -5,7 +5,6 @@ import { useState, useTransition } from "react"
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { formatPrice } from "@/lib/money"
 import { MOTIF_CAP_ATTEINTE } from "@/lib/panier-visiteur"
-import { prixVariante } from "@/lib/product-metrics"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
 export type EtatAjoutAuPanier = {
@@ -19,10 +18,8 @@ export type EtatAjoutAuPanier = {
 }
 
 export function useAjoutAuPanier({
-  basePrice,
   variants,
 }: {
-  basePrice: number
   variants: ProductVariantDto[]
 }) {
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
@@ -49,7 +46,7 @@ export function useAjoutAuPanier({
     setVariantId,
     stock,
     outOfStock,
-    prix: formatPrice(prixVariante(basePrice, selected?.priceDelta ?? 0)),
+    prix: selected ? formatPrice(selected.prix) : "",
     enAttente: isPending,
     ajoute: added,
     capAtteint,

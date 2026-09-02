@@ -20,6 +20,7 @@ const varianteStandard = {
   id: "variante-a",
   name: "Standard",
   sku: "UAP-A",
+  prix: 100000,
   priceDelta: 0,
   stock: 4,
 }
@@ -27,6 +28,7 @@ const variantePremium = {
   id: "variante-b",
   name: "Premium",
   sku: "UAP-B",
+  prix: 125000,
   priceDelta: 25000,
   stock: 2,
 }
@@ -34,6 +36,7 @@ const varianteEpuisee = {
   id: "variante-c",
   name: "Épuisée",
   sku: "UAP-C",
+  prix: 100000,
   priceDelta: 0,
   stock: 0,
 }
@@ -41,11 +44,8 @@ const varianteEpuisee = {
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 
-function Harness({
-  basePrice,
-  variants,
-}: Parameters<typeof useAjoutAuPanier>[0]) {
-  const ajout = useAjoutAuPanier({ basePrice, variants })
+function Harness({ variants }: Parameters<typeof useAjoutAuPanier>[0]) {
+  const ajout = useAjoutAuPanier({ variants })
   return (
     <div
       data-variant-id={ajout.variantId}
@@ -97,7 +97,6 @@ function monter(props?: Parameters<typeof useAjoutAuPanier>[0]) {
   act(() =>
     root.render(
       <Harness
-        basePrice={props?.basePrice ?? 100000}
         variants={props?.variants ?? [varianteStandard, variantePremium]}
       />
     )
@@ -145,8 +144,8 @@ function choisir(id: string) {
 }
 
 describe("useAjoutAuPanier", () => {
-  it("sélectionne la première Variante et dérive son état", () => {
-    monter({ basePrice: 100000, variants: [varianteStandard] })
+  it("sélectionne la première Variante et lit son état", () => {
+    monter({ variants: [varianteStandard] })
 
     expect(etat().variantId).toBe("variante-a")
     expect(etat().prix).toBe(formatPrice(100000))
@@ -157,14 +156,14 @@ describe("useAjoutAuPanier", () => {
     expect(etat().variantNom).toBeUndefined()
   })
 
-  it("dérive le prix et le nom de la Variante quand la sélection change", () => {
+  it("lit le prix et le nom de la Variante quand la sélection change", () => {
     monter()
 
     expect(etat().variantNom).toBe("Standard")
     choisir("variante-b")
 
     expect(etat().variantId).toBe("variante-b")
-    expect(etat().prix).toBe(formatPrice(100000 + 25000))
+    expect(etat().prix).toBe(formatPrice(125000))
     expect(etat().stock).toBe(2)
     expect(etat().outOfStock).toBe(false)
     expect(etat().variantNom).toBe("Premium")
@@ -235,7 +234,7 @@ describe("useAjoutAuPanier", () => {
   })
 
   it("does not call the action while the selected Variante is out of stock", () => {
-    monter({ basePrice: 100000, variants: [varianteEpuisee, variantePremium] })
+    monter({ variants: [varianteEpuisee, variantePremium] })
 
     expect(etat().outOfStock).toBe(true)
     expect(etat().desactive).toBe(true)
@@ -247,10 +246,10 @@ describe("useAjoutAuPanier", () => {
     expect(etat().desactive).toBe(false)
   })
 
-  it("prices a product without Variante at its base price and refuses to add", () => {
-    monter({ basePrice: 100000, variants: [] })
+  it("handles a product without Variante and refuses to add", () => {
+    monter({ variants: [] })
 
-    expect(etat().prix).toBe(formatPrice(100000))
+    expect(etat().prix).toBe("")
     expect(etat().outOfStock).toBe(true)
     expect(etat().desactive).toBe(true)
     expect(etat().variantNom).toBeUndefined()

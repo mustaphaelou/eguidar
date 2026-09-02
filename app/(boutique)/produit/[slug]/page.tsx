@@ -24,7 +24,7 @@ export async function generateMetadata({
   if (!data) return { title: "Produit introuvable" }
   return pageMetadata({
     title: data.name,
-    description: `${data.brand} ${data.name}. Prix ${formatPrice(data.price)} (TVA 20% incluse), paiement à la livraison.`,
+    description: `${data.brand} ${data.name}. Prix ${formatPrice(data.minPrice)} (TVA 20% incluse), paiement à la livraison.`,
     path: `/produit/${data.slug}`,
     images: data.images[0] ? [data.images[0]] : undefined,
   })
@@ -96,7 +96,7 @@ async function ProductContent({
           <ProductGallery images={data.images} name={data.name} />
           <div className="lg:pt-3">
             <ProductBuyBox
-              basePrice={data.price}
+              minPrice={data.minPrice}
               variants={data.variants}
               freeShipping={data.freeShipping}
             />

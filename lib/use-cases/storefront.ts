@@ -1,7 +1,11 @@
 import { cacheLife, cacheTag } from "next/cache"
 
 import { prisma } from "@/lib/db"
-import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
+import {
+  minVariantPrice,
+  prixVariante,
+  totalVariantStock,
+} from "@/lib/product-metrics"
 import {
   CATEGORY_TAG,
   HOME_TAG,
@@ -55,6 +59,7 @@ export interface ProductVariantDto {
   id: string
   name: string
   sku: string
+  prix: number
   priceDelta: number
   stock: number
 }
@@ -68,6 +73,7 @@ export interface ProductDetailData {
   specs: Record<string, string>
   images: string[]
   price: number
+  minPrice: number
   freeShipping: boolean
   category: { id: string; name: string; slug: string }
   categoryChain: CategoryChainEntry[]
@@ -280,6 +286,7 @@ export async function fetchProductPageData(
     specs: (product.specs as Record<string, string>) ?? {},
     images: Array.isArray(product.images) ? (product.images as string[]) : [],
     price: product.price,
+    minPrice: minVariantPrice(product.price, product.variants),
     freeShipping: product.freeShipping,
     category: {
       id: product.category.id,
@@ -291,6 +298,7 @@ export async function fetchProductPageData(
       id: variant.id,
       name: variant.name,
       sku: variant.sku,
+      prix: prixVariante(product.price, variant.priceDelta),
       priceDelta: variant.priceDelta,
       stock: variant.stock,
     })),

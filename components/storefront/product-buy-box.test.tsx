@@ -19,15 +19,30 @@ import { ProductBuyBox } from "./product-buy-box"
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 const variantes = [
-  { id: "variante-a", name: "Standard", sku: "PBB-A", priceDelta: 0, stock: 4 },
+  {
+    id: "variante-a",
+    name: "Standard",
+    sku: "PBB-A",
+    prix: 100000,
+    priceDelta: 0,
+    stock: 4,
+  },
 ]
 
 const variantesMultiples = [
-  { id: "variante-a", name: "Standard", sku: "PBB-A", priceDelta: 0, stock: 4 },
+  {
+    id: "variante-a",
+    name: "Standard",
+    sku: "PBB-A",
+    prix: 100000,
+    priceDelta: 0,
+    stock: 4,
+  },
   {
     id: "variante-b",
     name: "Premium",
     sku: "PBB-B",
+    prix: 125000,
     priceDelta: 25000,
     stock: 2,
   },
@@ -57,7 +72,7 @@ function render(element: ReactElement) {
 function buyBox() {
   return (
     <ProductBuyBox
-      basePrice={100000}
+      minPrice={100000}
       variants={variantes}
       freeShipping={false}
     />
@@ -140,7 +155,7 @@ describe("ProductBuyBox", () => {
   it("met à jour le prix affiché dans la barre quand la variante sélectionnée change", () => {
     render(
       <ProductBuyBox
-        basePrice={100000}
+        minPrice={100000}
         variants={variantesMultiples}
         freeShipping={false}
       />
@@ -156,7 +171,7 @@ describe("ProductBuyBox", () => {
     })
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
-    expect(barreEl.textContent).toContain(formatPrice(100000 + 25000))
+    expect(barreEl.textContent).toContain(formatPrice(125000))
     expect(barreEl.textContent).not.toContain(formatPrice(100000))
   })
 
@@ -165,7 +180,7 @@ describe("ProductBuyBox", () => {
 
     render(
       <ProductBuyBox
-        basePrice={100000}
+        minPrice={100000}
         variants={variantesMultiples}
         freeShipping={false}
       />
@@ -198,11 +213,46 @@ describe("ProductBuyBox", () => {
     )
   })
 
-  it("ne rend aucune barre pour un produit sans variante", () => {
+  it("ne rend aucune barre pour un produit sans variante et affiche son prix minimal", () => {
     render(
-      <ProductBuyBox basePrice={100000} variants={[]} freeShipping={false} />
+      <ProductBuyBox minPrice={100000} variants={[]} freeShipping={false} />
     )
 
     expect(container.querySelector("[data-slot='barre-d-achat']")).toBeNull()
+    expect(container.textContent).toContain(formatPrice(100000))
+  })
+
+  it("affiche le prix calculé dans les options du sélecteur quand les variantes dépassent six", () => {
+    const septVariantes = Array.from({ length: 7 }, (_, i) => ({
+      id: `v-${i}`,
+      name: `Option ${i + 1}`,
+      sku: `SKU-${i}`,
+      prix: 100000 + i * 10000,
+      priceDelta: i * 10000,
+      stock: 5,
+    }))
+
+    render(
+      <ProductBuyBox
+        minPrice={100000}
+        variants={septVariantes}
+        freeShipping={false}
+      />
+    )
+
+    const trigger =
+      container.querySelector<HTMLButtonElement>("[id='variant']")!
+    act(() => {
+      trigger.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(document.body.textContent).toContain(
+      `Option 2 — ${formatPrice(110000)}`
+    )
+    expect(document.body.textContent).toContain(
+      `Option 7 — ${formatPrice(160000)}`
+    )
   })
 })

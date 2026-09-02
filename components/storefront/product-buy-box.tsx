@@ -16,18 +16,17 @@ import {
 } from "@/components/ui/select"
 import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
-import { prixVariante } from "@/lib/product-metrics"
 import { cn } from "@/lib/utils"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
 const MAX_CHIPS = 6
 
 export function ProductBuyBox({
-  basePrice,
+  minPrice,
   variants,
   freeShipping,
 }: {
-  basePrice: number
+  minPrice: number
   variants: ProductVariantDto[]
   freeShipping: boolean
 }) {
@@ -43,7 +42,7 @@ export function ProductBuyBox({
     desactive,
     variantNom,
     ajouter,
-  } = useAjoutAuPanier({ basePrice, variants })
+  } = useAjoutAuPanier({ variants })
   const [barVisible, setBarVisible] = useState(false)
   const buyButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -61,7 +60,7 @@ export function ProductBuyBox({
   if (variants.length === 0) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-[28px] font-semibold">{formatPrice(basePrice)}</p>
+        <p className="text-[28px] font-semibold">{formatPrice(minPrice)}</p>
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <span
             aria-hidden="true"
@@ -125,10 +124,7 @@ export function ProductBuyBox({
                   <SelectGroup>
                     {variants.map((variant) => (
                       <SelectItem key={variant.id} value={variant.id}>
-                        {variant.name} —{" "}
-                        {formatPrice(
-                          prixVariante(basePrice, variant.priceDelta)
-                        )}
+                        {variant.name} — {formatPrice(variant.prix)}
                       </SelectItem>
                     ))}
                   </SelectGroup>

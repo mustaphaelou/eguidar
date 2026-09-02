@@ -325,13 +325,68 @@ describe("storefront browse", () => {
       `SKU-${runId}-d2`,
       `SKU-${runId}-d3`,
     ])
-    expect(detail!.variants[1]).toMatchObject({ priceDelta: 150000, stock: 3 })
-    expect(detail!.variants[2]).toMatchObject({ stock: 0 })
+    expect(detail!.minPrice).toBe(100000)
+    expect(detail!.variants[0]).toMatchObject({
+      prix: 100000,
+      priceDelta: 0,
+      stock: 10,
+    })
+    expect(detail!.variants[1]).toMatchObject({
+      prix: 250000,
+      priceDelta: 150000,
+      stock: 3,
+    })
+    expect(detail!.variants[2]).toMatchObject({
+      prix: 450000,
+      priceDelta: 350000,
+      stock: 0,
+    })
     expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
       cSlug("root"),
       cSlug("child"),
       cSlug("grand"),
     ])
+  })
+
+  it("product detail: negative priceDelta produces minPrice below base price and correct variant prix", async () => {
+    await createProduct(cSlug("grand"), {
+      name: "Produit avec remise variante",
+      slug: pSlug("detail-negative-delta"),
+      brand: "Marque Test",
+      price: 100000,
+      images: ["https://example.com/neg.jpg"],
+      variants: [
+        {
+          name: "Promo",
+          sku: `SKU-${runId}-neg1`,
+          priceDelta: -20000,
+          stock: 5,
+        },
+        { name: "Standard", sku: `SKU-${runId}-neg2`, priceDelta: 0, stock: 3 },
+      ],
+    })
+
+    const detail = await fetchProductPageData(pSlug("detail-negative-delta"))
+    expect(detail).not.toBeNull()
+    expect(detail!.minPrice).toBe(80000)
+    expect(detail!.variants[0]).toMatchObject({ prix: 80000, stock: 5 })
+    expect(detail!.variants[1]).toMatchObject({ prix: 100000, stock: 3 })
+  })
+
+  it("product detail: product without variants has minPrice equal to base price and empty variants", async () => {
+    await createProduct(cSlug("grand"), {
+      name: "Produit sans variante",
+      slug: pSlug("detail-no-variant"),
+      brand: "Marque Test",
+      price: 50000,
+      images: ["https://example.com/novar.jpg"],
+      variants: [],
+    })
+
+    const detail = await fetchProductPageData(pSlug("detail-no-variant"))
+    expect(detail).not.toBeNull()
+    expect(detail!.minPrice).toBe(50000)
+    expect(detail!.variants).toEqual([])
   })
 
   it("product cards expose the first image, the lowest price and the total stock", async () => {
