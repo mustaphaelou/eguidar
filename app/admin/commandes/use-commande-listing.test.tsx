@@ -36,7 +36,11 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const mounted of roots) mounted.unmount()
+  for (const mounted of roots) {
+    act(() => {
+      mounted.unmount()
+    })
+  }
   roots.length = 0
   container.remove()
   vi.useRealTimers()

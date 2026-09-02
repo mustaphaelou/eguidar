@@ -3,6 +3,8 @@
 import * as React from "react"
 
 import {
+  COMMANDE_LISTING_SENS_DEFAULT,
+  COMMANDE_LISTING_TRI_DEFAULT,
   hrefOf,
   reconcile,
   signatureOf,
@@ -119,8 +121,8 @@ export function useCommandeListing({
   const reset = React.useCallback(() => {
     commit({
       ...intentRef.current,
-      tri: "date",
-      sens: "desc",
+      tri: COMMANDE_LISTING_TRI_DEFAULT,
+      sens: COMMANDE_LISTING_SENS_DEFAULT,
       q: "",
       statuses: [],
       pageIndex: 0,
