@@ -11,10 +11,9 @@ import { LigneArticlePanier } from "@/components/storefront/cart-line"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice, formatShippingFee } from "@/lib/money"
-import { getSessionUser } from "@/lib/use-cases/get-session"
+import { lirePanierCourant } from "@/lib/use-cases/panier-courant"
 
 export const metadata = pageMetadata({
   title: "Panier",
@@ -41,9 +40,8 @@ async function CartContent({
 }: {
   searchParams: Promise<{ ville?: string }>
 }) {
-  const user = await getSessionUser()
   const { ville } = await searchParams
-  const cart = await lirePanier(resoudreProprietairePanier(user))
+  const cart = await lirePanierCourant()
   const { cities, threshold, selected } = await quotePanier(cart, ville)
   const quote = selected
 

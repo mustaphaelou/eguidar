@@ -41,6 +41,10 @@ _Avoid_: ligne de panier, line item
 The Visiteur or the Client whose Panier it is; resolved once per request from the session.
 _Avoid_: owner, cart owner, panier owner
 
+**Panier courant**:
+The Panier of the request's Propriétaire du panier, resolved once per request from the session.
+_Avoid_: current cart, session cart
+
 **Catalogue**:
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)

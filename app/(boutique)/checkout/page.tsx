@@ -4,9 +4,9 @@ import { Suspense } from "react"
 import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
-import { lirePanier, resoudreProprietairePanier } from "@/lib/panier"
 import { getProfile } from "@/lib/use-cases/account"
 import { quotePanier } from "@/lib/use-cases/livraison"
+import { lirePanierCourant } from "@/lib/use-cases/panier-courant"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
 
@@ -40,7 +40,7 @@ async function CheckoutContent({
 
   const { ville } = await searchParams
   const [cart, profile] = await Promise.all([
-    lirePanier(resoudreProprietairePanier(user)),
+    lirePanierCourant(),
     getProfile(user.id),
   ])
   if (cart.lines.length === 0) redirect("/panier")
