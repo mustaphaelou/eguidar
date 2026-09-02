@@ -1,9 +1,13 @@
 import { cookies } from "next/headers"
 
 import {
+  ajouterArticleAuPanier,
   lirePanier,
+  modifierQuantiteArticlePanier,
   resoudreProprietairePanier,
+  retirerArticleDuPanier,
   type DonneesPanier,
+  type ResultatPanier,
 } from "@/lib/panier"
 import { prisma } from "@/lib/db"
 import {
@@ -46,5 +50,39 @@ export async function compterArticlesDuPanierCourant(): Promise<number> {
     (somme, article) =>
       survivants.has(article.variantId) ? somme + article.quantity : somme,
     0
+  )
+}
+
+export async function ajouterArticleAuPanierCourant(
+  variantId: string,
+  quantity: number
+): Promise<ResultatPanier> {
+  const user = await getSessionUser()
+  return ajouterArticleAuPanier(
+    resoudreProprietairePanier(user),
+    variantId,
+    quantity
+  )
+}
+
+export async function modifierQuantiteArticlePanierCourant(
+  articlePanierId: string,
+  quantity: number
+): Promise<ResultatPanier> {
+  const user = await getSessionUser()
+  return modifierQuantiteArticlePanier(
+    resoudreProprietairePanier(user),
+    articlePanierId,
+    quantity
+  )
+}
+
+export async function retirerArticleDuPanierCourant(
+  articlePanierId: string
+): Promise<ResultatPanier> {
+  const user = await getSessionUser()
+  return retirerArticleDuPanier(
+    resoudreProprietairePanier(user),
+    articlePanierId
   )
 }
