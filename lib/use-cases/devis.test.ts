@@ -1,10 +1,29 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { selectionnerDevis } from "@/lib/use-cases/devis"
+import { chargerDevis, selectionnerDevis } from "@/lib/use-cases/devis"
+import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
+import { récapitulatifRowsFromDevis } from "@/lib/recapitulatif-paiement"
 import type {
   DeliveryCityOption,
   ShippingQuote,
 } from "@/lib/use-cases/livraison"
+
+const { listDeliveryCitiesMock, getFreeShippingThresholdMock } = vi.hoisted(
+  () => ({
+    listDeliveryCitiesMock: vi.fn(),
+    getFreeShippingThresholdMock: vi.fn(),
+  })
+)
+
+vi.mock("@/lib/use-cases/livraison", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/use-cases/livraison")>()
+  return {
+    ...actual,
+    listDeliveryCities: listDeliveryCitiesMock,
+    getFreeShippingThreshold: getFreeShippingThresholdMock,
+  }
+})
 
 const city = (id: string, name: string, fee: number): DeliveryCityOption => ({
   id,
@@ -100,5 +119,150 @@ describe("selectionnerDevis", () => {
     expect(() => selectionnerDevis([], {}, "c1")).not.toThrow()
     expect(selectionnerDevis([], {}, "c1")).toEqual(nullTrio)
     expect(selectionnerDevis([], {}, undefined)).toEqual(nullTrio)
+  })
+})
+
+function lignePanier(
+  overrides?: Partial<ArticleDuPanier>
+): ArticleDuPanier {
+  return {
+    articlePanierId: "a1",
+    variantId: "v1",
+    variantName: "Standard",
+    productId: "p1",
+    productName: "Produit",
+    productSlug: "produit",
+    image: null,
+    unitPrice: 50000,
+    quantity: 1,
+    lineTotal: 50000,
+    stock: 10,
+    freeShipping: false,
+    ...overrides,
+  }
+}
+
+function panierPourDevis(
+  subtotal: number,
+  freeShippingFlags: boolean[] = [false]
+): DonneesPanier {
+  return {
+    lines: freeShippingFlags.map((freeShipping, index) =>
+      lignePanier({
+        articlePanierId: `a${index}`,
+        variantId: `v${index}`,
+        freeShipping,
+        lineTotal: subtotal,
+      })
+    ),
+    subtotal,
+    itemCount: freeShippingFlags.length,
+  }
+}
+
+describe("chargerDevis", () => {
+  const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
+
+  beforeEach(() => {
+    listDeliveryCitiesMock.mockReset()
+    getFreeShippingThresholdMock.mockReset()
+    listDeliveryCitiesMock.mockResolvedValue(villes)
+    getFreeShippingThresholdMock.mockResolvedValue(100000)
+  })
+
+  it("returns cities, threshold, quotes, selection and rows in one call for a valid ville", async () => {
+    const panier = panierPourDevis(50000)
+
+    const devis = await chargerDevis(panier, "c1")
+
+    expect(devis.cities).toEqual(villes)
+    expect(devis.threshold).toBe(100000)
+    expect(devis.quotes).toEqual({
+      c1: { subtotal: 50000, shippingFee: 3500, total: 53500 },
+      c2: { subtotal: 50000, shippingFee: 5000, total: 55000 },
+    })
+    expect(devis.selectedCityId).toBe("c1")
+    expect(devis.selectedCity).toEqual(city("c1", "Casablanca", 3500))
+    expect(devis.selectedQuote).toEqual({
+      subtotal: 50000,
+      shippingFee: 3500,
+      total: 53500,
+    })
+    expect(devis.selectedQuote).toBe(devis.quotes["c1"])
+    expect(devis.rows).toEqual(
+      récapitulatifRowsFromDevis({
+        sousTotal: 50000,
+        cities: villes,
+        quotes: devis.quotes,
+        selectedCityId: "c1",
+      })
+    )
+    expect(devis.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      kind: "detail",
+    })
+    expect(devis.rows.find((row) => row.kind === "total")).toBeDefined()
+  })
+
+  it("yields the null trio plus À choisir rows without throwing for an unknown ville", async () => {
+    const panier = panierPourDevis(50000)
+
+    let devis: Awaited<ReturnType<typeof chargerDevis>> | null = null
+    await expect(
+      (async () => {
+        devis = await chargerDevis(panier, "ville-inconnue")
+      })()
+    ).resolves.not.toThrow()
+
+    expect(devis!.selectedCityId).toBeNull()
+    expect(devis!.selectedCity).toBeNull()
+    expect(devis!.selectedQuote).toBeNull()
+    expect(devis!.rows[1]).toEqual({
+      label: "Livraison",
+      value: "À choisir",
+      kind: "detail",
+      tone: "muted",
+    })
+    expect(devis!.rows.some((row) => row.kind === "total")).toBe(false)
+    expect(devis!.rows).toHaveLength(2)
+  })
+
+  it("yields the null trio plus À choisir rows when no ville is requested", async () => {
+    const panier = panierPourDevis(50000)
+
+    for (const requested of [undefined, null] as const) {
+      const devis = await chargerDevis(panier, requested)
+
+      expect(devis.selectedCityId).toBeNull()
+      expect(devis.selectedCity).toBeNull()
+      expect(devis.selectedQuote).toBeNull()
+      expect(devis.rows[1]).toMatchObject({
+        label: "Livraison",
+        value: "À choisir",
+        tone: "muted",
+      })
+      expect(devis.rows.some((row) => row.kind === "total")).toBe(false)
+    }
+  })
+
+  it("renders the offered tone when the threshold is reached or a free-shipping article is present", async () => {
+    const auSeuil = await chargerDevis(panierPourDevis(150000), "c1")
+    expect(auSeuil.selectedQuote).toMatchObject({ shippingFee: 0 })
+    expect(auSeuil.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      value: "Livraison offerte",
+      tone: "offered",
+    })
+
+    const articleOffert = await chargerDevis(
+      panierPourDevis(50000, [false, true]),
+      "c2"
+    )
+    expect(articleOffert.selectedQuote).toMatchObject({ shippingFee: 0 })
+    expect(articleOffert.rows[1]).toMatchObject({
+      label: "Livraison (Rabat)",
+      value: "Livraison offerte",
+      tone: "offered",
+    })
   })
 })

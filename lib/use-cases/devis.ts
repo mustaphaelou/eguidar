@@ -1,6 +1,12 @@
-import type {
-  DeliveryCityOption,
-  ShippingQuote,
+import type { DonneesPanier } from "@/lib/panier"
+import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
+import { récapitulatifRowsFromDevis } from "@/lib/recapitulatif-paiement"
+import {
+  computeCityQuotes,
+  getFreeShippingThreshold,
+  listDeliveryCities,
+  type DeliveryCityOption,
+  type ShippingQuote,
 } from "@/lib/use-cases/livraison"
 
 export interface SelectionDevis {
@@ -40,5 +46,60 @@ export function selectionnerDevis(
     selectedCityId: requestedCityId,
     selectedCity,
     selectedQuote,
+  }
+}
+
+/**
+ * Devis chargé : Villes de livraison, seuil et devis par ville, sélection
+ * validée (identifiant, ville, devis — tous nuls par défaut) et lignes du
+ * Récapitulatif de paiement prêtes à afficher.
+ */
+export interface Devis extends SelectionDevis {
+  cities: DeliveryCityOption[]
+  threshold: number
+  quotes: Record<string, ShippingQuote>
+  rows: RécapitulatifRow[]
+}
+
+/**
+ * Entrée async du Devis pour les surfaces d'affichage.
+ *
+ * Récupère Villes de livraison + seuil (même source que `quotePanier`),
+ * chiffre chaque ville via `computeCityQuotes` (`panier.subtotal` +
+ * `lines.some(freeShipping)`), résout la sélection via `selectionnerDevis`
+ * puis construit les lignes via le chemin `récapitulatifRowsFromDevis`
+ * (offerte / À choisir avec Total omis quand non sélectionné).
+ *
+ * Ville inconnue → trio nul + lignes À choisir, ne lève jamais.
+ */
+export async function chargerDevis(
+  panier: DonneesPanier,
+  requestedCityId?: string | null
+): Promise<Devis> {
+  const [cities, threshold] = await Promise.all([
+    listDeliveryCities(),
+    getFreeShippingThreshold(),
+  ])
+  const quotes = computeCityQuotes(
+    cities,
+    {
+      subtotal: panier.subtotal,
+      anyFreeShippingItem: panier.lines.some((line) => line.freeShipping),
+    },
+    threshold
+  )
+  const selection = selectionnerDevis(cities, quotes, requestedCityId)
+  const rows = récapitulatifRowsFromDevis({
+    sousTotal: panier.subtotal,
+    cities,
+    quotes,
+    selectedCityId: selection.selectedCityId,
+  })
+  return {
+    cities,
+    threshold,
+    quotes,
+    ...selection,
+    rows,
   }
 }
