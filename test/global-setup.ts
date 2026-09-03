@@ -15,6 +15,9 @@ const TEST_TABLES = [
   "OrderItem",
   "DeliveryCity",
   "ShippingSettings",
+  "Theme",
+  "ArticleBlog",
+  "ArticleBlogProduit",
 ] as const
 
 export default async function globalSetup() {

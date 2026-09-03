@@ -106,3 +106,18 @@ export type DeliveryCity = Prisma.DeliveryCityModel
  *
  */
 export type ShippingSettings = Prisma.ShippingSettingsModel
+/**
+ * Model Theme
+ *
+ */
+export type Theme = Prisma.ThemeModel
+/**
+ * Model ArticleBlog
+ *
+ */
+export type ArticleBlog = Prisma.ArticleBlogModel
+/**
+ * Model ArticleBlogProduit
+ *
+ */
+export type ArticleBlogProduit = Prisma.ArticleBlogProduitModel
