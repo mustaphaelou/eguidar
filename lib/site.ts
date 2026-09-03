@@ -24,5 +24,6 @@ export const staticPages = [
   { href: "/a-propos", label: "À propos" },
   { href: "/contact", label: "Contact" },
   { href: "/faq", label: "FAQ" },
+  { href: "/blog", label: "Blog" },
   { href: "/conditions", label: "Conditions & livraison" },
 ] as const
