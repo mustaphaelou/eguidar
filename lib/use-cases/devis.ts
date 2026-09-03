@@ -64,6 +64,21 @@ export interface Devis extends SelectionDevis {
 }
 
 /**
+ * Prédicat partagé : une sélection Devis n'est valide que lorsque la ville
+ * ET le devis sont tous deux renseignés (jamais à moitié). Utilisé par
+ * `lignesDevis` et `placeOrder` pour ne définir la validité qu'en un seul
+ * endroit.
+ */
+export function estSélectionValide(
+  selection: SelectionDevis
+): selection is SelectionDevis & {
+  selectedCity: DeliveryCityOption
+  selectedQuote: ShippingQuote
+} {
+  return selection.selectedCity !== null && selection.selectedQuote !== null
+}
+
+/**
  * Lignes du Récapitulatif de paiement pour un Devis validé.
  *
  * Détail interne du Devis (l'ancienne entrée Devis du Récapitulatif est
@@ -76,7 +91,7 @@ export function lignesDevis(
   sousTotal: number,
   selection: SelectionDevis
 ): RécapitulatifRow[] {
-  if (!selection.selectedCity || !selection.selectedQuote) {
+  if (!estSélectionValide(selection)) {
     return construireLignes({
       sousTotal,
       shipping: null,

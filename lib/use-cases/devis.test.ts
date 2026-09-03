@@ -59,7 +59,14 @@ describe("selectionnerDevis", () => {
     expect(selection.selectedCityId).toBe("c1")
     expect(selection.selectedCity).toEqual(city("c1", "Casablanca", 3500))
     expect(selection.selectedQuote).toEqual(quote(50000, 3500))
-    expect(selection.selectedQuote).toBe(quotes["c1"])
+    expect(selection.selectedCity).toMatchObject({
+      id: "c1",
+      name: "Casablanca",
+    })
+    expect(selection.selectedQuote).toMatchObject({
+      shippingFee: 3500,
+      total: 53500,
+    })
   })
 
   it("resolves the other known city id to its own city and quote", () => {
@@ -67,7 +74,12 @@ describe("selectionnerDevis", () => {
 
     expect(selection.selectedCityId).toBe("c2")
     expect(selection.selectedCity).toEqual(city("c2", "Rabat", 5000))
-    expect(selection.selectedQuote).toBe(quotes["c2"])
+    expect(selection.selectedQuote).toEqual(quote(50000, 5000))
+    expect(selection.selectedCity).toMatchObject({ id: "c2", name: "Rabat" })
+    expect(selection.selectedQuote).toMatchObject({
+      shippingFee: 5000,
+      total: 55000,
+    })
   })
 
   it("resolves an absent requested id to the null trio", () => {
@@ -107,7 +119,7 @@ describe("selectionnerDevis", () => {
     expect(selectionnerDevis(cities, freeQuotes, "c1")).toEqual({
       selectedCityId: "c1",
       selectedCity: city("c1", "Casablanca", 3500),
-      selectedQuote: freeQuotes["c1"],
+      selectedQuote: quote(50000, 0),
     })
     expect(selectionnerDevis(cities, quotes, "c1").selectedCityId).toBe(
       selectionnerDevis(cities, freeQuotes, "c1").selectedCityId
@@ -187,12 +199,19 @@ describe("chargerDevis", () => {
       shippingFee: 3500,
       total: 53500,
     })
-    expect(devis.selectedQuote).toBe(devis.quotes["c1"])
+    expect(devis.selectedQuote).toMatchObject({
+      shippingFee: 3500,
+      total: 53500,
+    })
+    expect(devis.selectedCity).toMatchObject({
+      id: "c1",
+      name: "Casablanca",
+    })
     expect(devis.rows).toEqual(
       lignesDevis(50000, {
         selectedCityId: "c1",
         selectedCity: city("c1", "Casablanca", 3500),
-        selectedQuote: devis.quotes["c1"],
+        selectedQuote: { subtotal: 50000, shippingFee: 3500, total: 53500 },
       })
     )
     expect(devis.rows[1]).toMatchObject({

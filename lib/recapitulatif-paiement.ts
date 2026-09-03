@@ -34,10 +34,10 @@ export interface CommandePourRécapitulatif {
  * ligne Total (Devis sans ville) ; la Commande fournit toujours son
  * `totalPayable`.
  *
- * Exporté pour le Devis, seul consommateur avec la Commande : la formulation
- * (offerte / À choisir / libellés) vit ici, en un seul endroit.
+ * Volontairement non exporté : les consommateurs construisent le littéral
+ * d'objet de manière structurelle sans importer le type.
  */
-export type FaitsRécapitulatif = {
+type FaitsRécapitulatif = {
   sousTotal: number
   shipping: { fee: number; city?: string } | null
   total: number | null

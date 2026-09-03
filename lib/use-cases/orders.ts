@@ -10,7 +10,7 @@ import {
   deliveryAddressField,
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
-import { chargerDevis } from "@/lib/use-cases/devis"
+import { chargerDevis, estSélectionValide } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -184,7 +184,7 @@ export async function placeOrder(
   if (cart.lines.length === 0) throw new EmptyCartError()
 
   const devis = await chargerDevis(cart, data.cityId)
-  if (!devis.selectedCity || !devis.selectedQuote)
+  if (!estSélectionValide(devis))
     throw new DeliveryCityNotFoundError()
   const city = devis.selectedCity
   const shippingFee = devis.selectedQuote.shippingFee
