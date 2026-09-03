@@ -39,7 +39,9 @@ vi.mock("next/link", () => ({
 }))
 
 vi.mock("@/components/storefront/city-picker", () => ({
-  CityPicker: () => <div data-testid="city-picker-stub" />,
+  CityPicker: ({ selectedId }: { selectedId: string | null }) => (
+    <div data-testid="city-picker-stub" data-selected={selectedId ?? ""} />
+  ),
 }))
 
 import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
@@ -269,6 +271,9 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain(`Livraison (Ville ${runId})`)
     expect(html).toContain(formatPrice(3000))
     expect(html).toContain(formatPrice(253000))
+    expect(html).toContain(`data-selected="${cityId}"`)
+    expect(html).toContain("Livraison offerte d")
+    expect(html).toContain(`href="/checkout?ville=${cityId}"`)
   })
 
   it("shows « À choisir » without total when no ville is chosen", async () => {
@@ -286,6 +291,9 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain("À choisir")
     expect(html).toContain(formatPrice(250000))
     expect(html).not.toContain(formatPrice(253000))
+    expect(html).not.toContain("Livraison offerte d")
+    expect(html).toContain('data-selected=""')
+    expect(html).not.toContain("?ville=")
   })
 
   it("falls back to « Livraison » without crashing on a stale ville param", async () => {
@@ -300,6 +308,10 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain("Mon panier")
     expect(html).toContain("À choisir")
     expect(html).not.toContain("Livraison (")
+    expect(html).not.toContain("Livraison offerte d")
+    expect(html).toContain('data-selected=""')
+    expect(html).toContain('href="/checkout?ville=ville-perimee"')
+    expect(html).not.toContain(formatPrice(103000))
   })
 })
 
