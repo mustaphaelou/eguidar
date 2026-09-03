@@ -171,11 +171,18 @@ export interface ArticleBlogPublic {
   contenu: string
   theme: { slug: string; nom: string }
   publishedAt: Date | null
+  statut: string
+  /**
+   * Produits liés de l'Article de blog — vide pour l'instant (#162).
+   * Rempli en #164 (attachement + cartes Produit lié).
+   */
+  produits: []
 }
 
 /**
  * Résolution publique d'un Article de blog par son slug.
  * Un Brouillon n'est jamais résolu publiquement (retourne null).
+ * La résolution Archivé arrive en #163 — pour l'instant, seul Publié résout.
  */
 export async function fetchArticleParSlug(
   slug: string
@@ -194,6 +201,8 @@ export async function fetchArticleParSlug(
     contenu: article.contenu,
     theme: { slug: article.theme.slug, nom: article.theme.nom },
     publishedAt: article.publishedAt,
+    statut: article.statut,
+    produits: [],
   }
 }
 
