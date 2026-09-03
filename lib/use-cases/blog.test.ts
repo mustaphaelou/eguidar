@@ -16,10 +16,13 @@ import {
   BlogValidationError,
   createBrouillon,
   fetchArticleParSlug,
+  fetchBlogLanding,
+  publier,
   ThemeNotFoundError,
   type BlogEffects,
   type CreateBrouillonInput,
 } from "@/lib/use-cases/blog"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const runId = randomUUID().slice(0, 8)
 const bSlug = (suffix: string) => `b-${runId}-${suffix}`
@@ -173,5 +176,129 @@ describe("blog brouillon foundation", () => {
 
   it("returns null for an unknown slug", async () => {
     await expect(fetchArticleParSlug(bSlug("inexistant"))).resolves.toBeNull()
+  })
+
+  describe("publier + landing", () => {
+    async function publierArticle(suffix: string) {
+      const effets = makeEffects()
+      const brouillon = await createBrouillon(
+        makeInput({ slug: bSlug(suffix) }),
+        effets
+      )
+      const publie = await publier(brouillon.id, effets)
+      return { brouillon, publie, effets }
+    }
+
+    it("publishes a brouillon, stamps the publication date and revalidates", async () => {
+      const { publie, effets } = await publierArticle("publie")
+
+      expect(publie.statut).toBe("publie")
+      expect(publie.publishedAt).toBeInstanceOf(Date)
+      expect(effets.revalidateBlog).toHaveBeenCalledWith({
+        id: publie.id,
+        slug: bSlug("publie"),
+      })
+
+      const landing = await fetchBlogLanding()
+      expect(landing.hero?.slug).toBe(bSlug("publie"))
+      expect(landing.articles).toEqual([])
+
+      await expect(fetchArticleParSlug(bSlug("publie"))).resolves.toMatchObject(
+        { titre: "Guide de test" }
+      )
+    })
+
+    it("keeps the first publication date when publishing twice", async () => {
+      const { publie } = await publierArticle("idempotent")
+
+      const republication = await publier(publie.id, makeEffects())
+
+      expect(republication.statut).toBe("publie")
+      expect(republication.publishedAt?.getTime()).toBe(
+        publie.publishedAt?.getTime()
+      )
+    })
+
+    it("re-publishes an archive keeping the original date", async () => {
+      const { publie } = await publierArticle("republie")
+      const firstDate = publie.publishedAt?.getTime()
+
+      await prisma.articleBlog.update({
+        where: { id: publie.id },
+        data: { statut: "archive" },
+      })
+      await expect(fetchBlogLanding()).resolves.toEqual({
+        hero: null,
+        articles: [],
+      })
+
+      const republication = await publier(publie.id, makeEffects())
+
+      expect(republication.statut).toBe("publie")
+      expect(republication.publishedAt?.getTime()).toBe(firstDate)
+    })
+
+    it("throws a user-facing error for an unknown article", async () => {
+      await expect(publier("inexistant", makeEffects())).rejects.toThrow(
+        "Article de blog introuvable"
+      )
+      await expect(publier("inexistant", makeEffects())).rejects.toThrow(
+        UserFacingError
+      )
+    })
+
+    it("lists publie articles newest first with the hero split from the feed", async () => {
+      const ancien = await publierArticle("ordre-ancien")
+      const moyen = await publierArticle("ordre-moyen")
+      const recent = await publierArticle("ordre-recent")
+
+      await prisma.articleBlog.update({
+        where: { id: ancien.publie.id },
+        data: { publishedAt: new Date("2026-01-10T10:00:00Z") },
+      })
+      await prisma.articleBlog.update({
+        where: { id: moyen.publie.id },
+        data: { publishedAt: new Date("2026-02-10T10:00:00Z") },
+      })
+      await prisma.articleBlog.update({
+        where: { id: recent.publie.id },
+        data: { publishedAt: new Date("2026-03-10T10:00:00Z") },
+      })
+
+      const landing = await fetchBlogLanding()
+
+      expect(landing.hero?.slug).toBe(bSlug("ordre-recent"))
+      expect(landing.hero?.theme).toMatchObject({
+        slug: "guides",
+        nom: "Guides",
+      })
+      expect(landing.hero?.publishedAt).toBeInstanceOf(Date)
+      expect(landing.articles.map((article) => article.slug)).toEqual([
+        bSlug("ordre-moyen"),
+        bSlug("ordre-ancien"),
+      ])
+    })
+
+    it("never lists brouillon articles on the landing", async () => {
+      await createBrouillon(
+        makeInput({ slug: bSlug("reste-brouillon") }),
+        makeEffects()
+      )
+      await publierArticle("visible")
+
+      const landing = await fetchBlogLanding()
+
+      expect(landing.hero?.slug).toBe(bSlug("visible"))
+      expect(landing.articles.map((article) => article.slug)).not.toContain(
+        bSlug("reste-brouillon")
+      )
+    })
+
+    it("returns an empty landing when nothing is publie", async () => {
+      await expect(fetchBlogLanding()).resolves.toEqual({
+        hero: null,
+        articles: [],
+      })
+    })
   })
 })
