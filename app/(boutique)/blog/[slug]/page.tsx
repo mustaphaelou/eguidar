@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
+import { HomeProductCard } from "@/components/storefront/home-product-card"
 import {
   buildArticleDonneesStructurees,
   buildBreadcrumbListDonneesStructurees,
@@ -131,6 +132,21 @@ async function ArticleContent({
           {data.contenu}
         </div>
       </article>
+
+      {data.produits.length > 0 ? (
+        <section className="mt-12 bg-muted">
+          <div className="mx-auto max-w-[980px] px-4 py-12 sm:px-6">
+            <h2 className="text-center text-[24px] leading-[1.125] font-bold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+              Produits liés
+            </h2>
+            <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
+              {data.produits.map((product) => (
+                <HomeProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </>
   )
 }

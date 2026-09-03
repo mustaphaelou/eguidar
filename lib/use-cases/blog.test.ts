@@ -17,6 +17,7 @@ import {
   createBrouillon,
   fetchArticleParSlug,
   fetchBlogLanding,
+  lierProduits,
   publier,
   ThemeNotFoundError,
   type BlogEffects,
@@ -26,6 +27,47 @@ import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const runId = randomUUID().slice(0, 8)
 const bSlug = (suffix: string) => `b-${runId}-${suffix}`
+const cSlug = `b-${runId}-cat`
+
+interface SeedVariant {
+  name: string
+  sku: string
+  priceDelta: number
+  stock: number
+}
+
+async function createProduit(
+  suffix: string,
+  overrides: {
+    price?: number
+    images?: string[]
+    freeShipping?: boolean
+    variants?: SeedVariant[]
+  } = {}
+) {
+  const category = await prisma.category.findUniqueOrThrow({
+    where: { slug: cSlug },
+  })
+  return prisma.product.create({
+    data: {
+      name: `Produit ${suffix}`,
+      slug: bSlug(`prod-${suffix}`),
+      description: "Description de test",
+      brand: "Marque",
+      categoryId: category.id,
+      price: overrides.price ?? 100000,
+      specs: {},
+      images: overrides.images ?? [`https://example.com/${suffix}.jpg`],
+      freeShipping: overrides.freeShipping ?? false,
+      variants: {
+        create:
+          overrides.variants ??
+          [{ name: "Standard", sku: `SKU-${runId}-${suffix}`, priceDelta: 0, stock: 5 }],
+      },
+    },
+    include: { variants: true },
+  })
+}
 
 function makeEffects(): BlogEffects & {
   revalidateBlog: ReturnType<typeof vi.fn>
@@ -62,6 +104,11 @@ describe("blog brouillon foundation", () => {
       update: {},
       create: { slug: "annonces", nom: "Annonces" },
     })
+    await prisma.category.upsert({
+      where: { slug: cSlug },
+      update: {},
+      create: { name: "Catégorie blog test", slug: cSlug },
+    })
   })
 
   beforeEach(async () => {
@@ -70,6 +117,9 @@ describe("blog brouillon foundation", () => {
     })
     await prisma.articleBlog.deleteMany({
       where: { slug: { startsWith: `b-${runId}-` } },
+    })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `b-${runId}-prod-` } },
     })
   })
 
@@ -80,6 +130,10 @@ describe("blog brouillon foundation", () => {
     await prisma.articleBlog.deleteMany({
       where: { slug: { startsWith: `b-${runId}-` } },
     })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `b-${runId}-prod-` } },
+    })
+    await prisma.category.deleteMany({ where: { slug: cSlug } })
     await prisma.$disconnect()
   })
 
@@ -347,6 +401,172 @@ describe("blog brouillon foundation", () => {
       await expect(
         fetchArticleParSlug(bSlug("detail-brouillon"))
       ).resolves.toBeNull()
+    })
+  })
+
+  describe("produits liés", () => {
+    async function publierArticleAvecLien(suffix: string) {
+      const effets = makeEffects()
+      const brouillon = await createBrouillon(
+        makeInput({ slug: bSlug(suffix) }),
+        effets
+      )
+      const publie = await publier(brouillon.id, effets)
+      return { brouillon, publie }
+    }
+
+    it("attaches 0..n produits en préservant l'ordre et remplace à chaque appel", async () => {
+      const { publie } = await publierArticleAvecLien("lies-ordre")
+      const p1 = await createProduit("ordre-1")
+      const p2 = await createProduit("ordre-2")
+      const p3 = await createProduit("ordre-3")
+
+      const effets = makeEffects()
+      const resultat = await lierProduits(
+        publie.id,
+        [p3.id, p1.id, p2.id],
+        effets
+      )
+
+      expect(resultat).toEqual({
+        articleId: publie.id,
+        productIds: [p3.id, p1.id, p2.id],
+      })
+      expect(effets.revalidateBlog).toHaveBeenCalledWith({
+        id: publie.id,
+        slug: bSlug("lies-ordre"),
+      })
+      expect(effets.deleteImages).not.toHaveBeenCalled()
+
+      const rows = await prisma.articleBlogProduit.findMany({
+        where: { articleId: publie.id },
+        orderBy: { ordre: "asc" },
+      })
+      expect(rows.map((row) => row.productId)).toEqual([p3.id, p1.id, p2.id])
+      expect(rows.map((row) => row.ordre)).toEqual([0, 1, 2])
+
+      const article = await fetchArticleParSlug(bSlug("lies-ordre"))
+      expect(article?.produits.map((produit) => produit.slug)).toEqual([
+        p3.slug,
+        p1.slug,
+        p2.slug,
+      ])
+
+      await lierProduits(publie.id, [p2.id], makeEffects())
+      const remplace = await fetchArticleParSlug(bSlug("lies-ordre"))
+      expect(remplace?.produits.map((produit) => produit.slug)).toEqual([
+        p2.slug,
+      ])
+
+      await lierProduits(publie.id, [], makeEffects())
+      const vide = await fetchArticleParSlug(bSlug("lies-ordre"))
+      expect(vide?.statut).toBe("publie")
+      expect(vide?.produits).toEqual([])
+    })
+
+    it("expose des cartes catalogue avec minPrice calculé (ADR-0013)", async () => {
+      const { publie } = await publierArticleAvecLien("lies-prix")
+      const produit = await createProduit("prix", {
+        price: 100000,
+        freeShipping: true,
+        images: ["https://example.com/prix.jpg"],
+        variants: [
+          { name: "Base", sku: `SKU-${runId}-prix-base`, priceDelta: 0, stock: 5 },
+          { name: "Remise", sku: `SKU-${runId}-prix-remise`, priceDelta: -20000, stock: 3 },
+          { name: "Premium", sku: `SKU-${runId}-prix-prem`, priceDelta: 10000, stock: 2 },
+        ],
+      })
+
+      await lierProduits(publie.id, [produit.id], makeEffects())
+
+      const article = await fetchArticleParSlug(bSlug("lies-prix"))
+
+      expect(article?.produits).toHaveLength(1)
+      expect(article?.produits[0]).toMatchObject({
+        id: produit.id,
+        slug: produit.slug,
+        brand: "Marque",
+        image: "https://example.com/prix.jpg",
+        minPrice: 80000,
+        totalStock: 10,
+        freeShipping: true,
+      })
+    })
+
+    it("déduplique en préservant le premier ordre et rejette les inconnus", async () => {
+      const { publie } = await publierArticleAvecLien("lies-dedupe")
+      const p1 = await createProduit("dedupe-1")
+      const p2 = await createProduit("dedupe-2")
+
+      await lierProduits(publie.id, [p1.id, p1.id, p2.id, p1.id], makeEffects())
+
+      const article = await fetchArticleParSlug(bSlug("lies-dedupe"))
+      expect(article?.produits.map((produit) => produit.slug)).toEqual([
+        p1.slug,
+        p2.slug,
+      ])
+
+      await expect(
+        lierProduits(publie.id, [p1.id, "produit-inexistant"], makeEffects())
+      ).rejects.toThrow(UserFacingError)
+
+      const inchange = await fetchArticleParSlug(bSlug("lies-dedupe"))
+      expect(inchange?.produits.map((produit) => produit.slug)).toEqual([
+        p1.slug,
+        p2.slug,
+      ])
+    })
+
+    it("rejette un article inconnu sans rien écrire", async () => {
+      const produit = await createProduit("inconnu")
+
+      await expect(
+        lierProduits("article-inexistant", [produit.id], makeEffects())
+      ).rejects.toThrow("Article de blog introuvable")
+
+      const liens = await prisma.articleBlogProduit.count({
+        where: { productId: produit.id },
+      })
+      expect(liens).toBe(0)
+    })
+
+    it("masque un produit supprimé, l'article reste en ligne", async () => {
+      const { publie } = await publierArticleAvecLien("lies-supprime")
+      const garde = await createProduit("garde")
+      const supprime = await createProduit("supprime")
+
+      await lierProduits(publie.id, [garde.id, supprime.id], makeEffects())
+      await prisma.product.delete({ where: { id: supprime.id } })
+
+      const article = await fetchArticleParSlug(bSlug("lies-supprime"))
+
+      expect(article?.statut).toBe("publie")
+      expect(article?.produits.map((produit) => produit.slug)).toEqual([
+        garde.slug,
+      ])
+    })
+
+    it("masque un produit en rupture (totalStock === 0), l'article reste en ligne", async () => {
+      const { publie } = await publierArticleAvecLien("lies-rupture")
+      const disponible = await createProduit("dispo")
+      const rupture = await createProduit("rupture", {
+        variants: [
+          { name: "Standard", sku: `SKU-${runId}-rupture`, priceDelta: 0, stock: 0 },
+        ],
+      })
+
+      await lierProduits(
+        publie.id,
+        [disponible.id, rupture.id],
+        makeEffects()
+      )
+
+      const article = await fetchArticleParSlug(bSlug("lies-rupture"))
+
+      expect(article?.statut).toBe("publie")
+      expect(article?.produits.map((produit) => produit.slug)).toEqual([
+        disponible.slug,
+      ])
     })
   })
 })
