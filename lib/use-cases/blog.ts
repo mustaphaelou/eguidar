@@ -2,12 +2,14 @@ import { cacheLife, cacheTag } from "next/cache"
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import {
   BLOG_TAG,
   blogDetailTag,
   type BlogEventArticle,
 } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
+import type { ProductCard } from "@/lib/use-cases/storefront"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface CreateBrouillonInput {
@@ -321,10 +323,83 @@ export interface ArticleBlogPublic {
   publishedAt: Date | null
   statut: string
   /**
-   * Produits liés de l'Article de blog — vide pour l'instant (#162).
-   * Rempli en #164 (attachement + cartes Produit lié).
+   * Produits liés de l'Article de blog, en cartes catalogue (#164).
+   * Ordre d'attachement préservé (ordre croissant), indisponibles masqués
+   * à la lecture (produit supprimé ou stock total nul) — `[]` possible,
+   * l'article reste Publié dans tous les cas.
    */
-  produits: []
+  produits: ProductCard[]
+}
+
+function toProduitLieCard(product: {
+  id: string
+  name: string
+  slug: string
+  brand: string
+  images: unknown
+  price: number
+  freeShipping: boolean
+  variants: { priceDelta: number; stock: number }[]
+}): ProductCard {
+  const images = Array.isArray(product.images)
+    ? (product.images as string[])
+    : []
+  return {
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    brand: product.brand,
+    image: images[0] ?? null,
+    minPrice: minVariantPrice(product.price, product.variants),
+    totalStock: totalVariantStock(product.variants),
+    freeShipping: product.freeShipping,
+  }
+}
+
+/**
+ * Attache 0..n Produits liés à un Article de blog (sémantique de
+ * remplacement, ordre préservé via `ordre`, `[]` autorisé pour tout
+ * détacher). Déduplique en préservant le premier ordre d'apparition.
+ * Rejette les identifiants inconnus (UserFacingError) sans rien écrire.
+ * Ne touche jamais aux médias (best-effort delete = #163 `mettreAJour`).
+ */
+export async function lierProduits(
+  articleId: string,
+  productIds: string[],
+  effects: BlogEffects
+) {
+  const article = await prisma.articleBlog.findUnique({
+    where: { id: articleId },
+  })
+  if (!article) throw new UserFacingError("Article de blog introuvable")
+
+  const deduped = [...new Set(productIds)]
+
+  if (deduped.length > 0) {
+    const existing = await prisma.product.findMany({
+      where: { id: { in: deduped } },
+      select: { id: true },
+    })
+    if (existing.length !== deduped.length) {
+      throw new UserFacingError("Produit lié introuvable")
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.articleBlogProduit.deleteMany({ where: { articleId } })
+    if (deduped.length > 0) {
+      await tx.articleBlogProduit.createMany({
+        data: deduped.map((productId, ordre) => ({
+          articleId,
+          productId,
+          ordre,
+        })),
+      })
+    }
+  })
+
+  effects.revalidateBlog?.({ id: article.id, slug: article.slug })
+  return { articleId: article.id, productIds: deduped }
 }
 
 /**
@@ -337,10 +412,30 @@ export async function fetchArticleParSlug(
 ): Promise<ArticleBlogPublic | null> {
   const article = await prisma.articleBlog.findUnique({
     where: { slug },
-    include: { theme: true },
+    include: {
+      theme: true,
+      produits: {
+        orderBy: { ordre: "asc" },
+        include: {
+          produit: {
+            include: {
+              variants: { select: { priceDelta: true, stock: true } },
+            },
+          },
+        },
+      },
+    },
   })
   if (!article || (article.statut !== "publie" && article.statut !== "archive"))
     return null
+  const produits: ProductCard[] = []
+  for (const lien of article.produits) {
+    const produit = lien.produit
+    if (!produit) continue
+    const totalStock = totalVariantStock(produit.variants)
+    if (totalStock === 0) continue
+    produits.push(toProduitLieCard(produit))
+  }
   return {
     id: article.id,
     titre: article.titre,
@@ -351,7 +446,7 @@ export async function fetchArticleParSlug(
     theme: { slug: article.theme.slug, nom: article.theme.nom },
     publishedAt: article.publishedAt,
     statut: article.statut,
-    produits: [],
+    produits,
   }
 }
 
