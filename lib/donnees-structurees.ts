@@ -86,9 +86,32 @@ export interface ProductDonneesStructureesInput {
   variants?: VarianteDonneesStructureesInput[]
 }
 
+export interface SchemaArticleAuthor {
+  "@type": "Organization"
+  name: string
+  url: string
+}
+
+export interface SchemaArticle {
+  "@context": "https://schema.org"
+  "@type": "Article"
+  headline: string
+  description: string
+  image: string[]
+  datePublished: string
+  author: SchemaArticleAuthor
+}
+
 export interface BreadcrumbDonneesStructureesInput {
   name: string
   href?: string
+}
+
+export interface ArticleDonneesStructureesInput {
+  titre: string
+  extrait: string
+  couverture?: string | null
+  publishedAt: Date | string
 }
 
 export function serializeJsonLd(data: unknown): string {
@@ -140,6 +163,24 @@ export function buildProductDonneesStructurees(
   }
 
   return schemaProduct
+}
+
+export function buildArticleDonneesStructurees(
+  article: ArticleDonneesStructureesInput
+): SchemaArticle {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.titre,
+    description: article.extrait,
+    image: article.couverture ? [article.couverture] : [],
+    datePublished: new Date(article.publishedAt).toISOString(),
+    author: {
+      "@type": "Organization",
+      name: site.name,
+      url: site.url,
+    },
+  }
 }
 
 export function buildBreadcrumbListDonneesStructurees(

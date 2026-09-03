@@ -301,4 +301,52 @@ describe("blog brouillon foundation", () => {
       })
     })
   })
+
+  describe("page Article de blog", () => {
+    it("returns the full detail shape for a publie article", async () => {
+      const effets = makeEffects()
+      const brouillon = await createBrouillon(
+        makeInput({
+          slug: bSlug("detail"),
+          titre: "Bien choisir son smartphone",
+          extrait: "Nos conseils pour un achat serein.",
+          couverture: "https://example.com/smartphone.jpg",
+          contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+          themeSlug: "annonces",
+        }),
+        effets
+      )
+      await publier(brouillon.id, effets)
+
+      const article = await fetchArticleParSlug(bSlug("detail"))
+
+      expect(article).toMatchObject({
+        titre: "Bien choisir son smartphone",
+        slug: bSlug("detail"),
+        extrait: "Nos conseils pour un achat serein.",
+        couverture: "https://example.com/smartphone.jpg",
+        contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+        theme: { slug: "annonces", nom: "Annonces" },
+        statut: "publie",
+        produits: [],
+      })
+      expect(article?.id).toBe(brouillon.id)
+      expect(article?.publishedAt).toBeInstanceOf(Date)
+    })
+
+    it("returns null for an unknown slug", async () => {
+      await expect(fetchArticleParSlug(bSlug("inexistant"))).resolves.toBeNull()
+    })
+
+    it("returns null for a brouillon slug", async () => {
+      await createBrouillon(
+        makeInput({ slug: bSlug("detail-brouillon") }),
+        makeEffects()
+      )
+
+      await expect(
+        fetchArticleParSlug(bSlug("detail-brouillon"))
+      ).resolves.toBeNull()
+    })
+  })
 })
