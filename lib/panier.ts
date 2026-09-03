@@ -373,3 +373,87 @@ function calculerTotauxPanier(
     itemCount: lignes.reduce((somme, ligne) => somme + ligne.quantity, 0),
   }
 }
+
+/**
+ * Interface du Panier courant : la même lecture et les mêmes écritures que
+ * l'interface à Propriétaire explicite, sans que l'appelant connaisse la
+ * session. La résolution du Propriétaire du panier (session → Visiteur ou
+ * Client) vit derrière l'interface comme aide privée. Le suffixe courant
+ * distingue cette interface sans session de l'interface à Propriétaire
+ * explicite, réservée aux appelants hors requête (création de Commande,
+ * rejeu du Panier Visiteur à la connexion).
+ *
+ * `articlePanierId` garde son double sens documenté au contrat : pour un
+ * Client, l'identifiant persisté de l'article du panier dans sa base ; pour
+ * un Visiteur, le `variantId` porté par l'article de son cookie. Le module
+ * interprète ce paramètre selon le Propriétaire courant, l'appelant ne
+ * choisit jamais de branche.
+ *
+ * Le module ne rafraîchit rien : le rafraîchissement du routeur après
+ * écriture réussie vit dans les adapteurs d'action de la boutique.
+ */
+async function resoudreProprietaireCourant(): Promise<ProprietairePanier> {
+  // Import dynamique : un import statique tirerait `server-only` (via
+  // get-session) dans chaque consommateur de l'interface à Propriétaire
+  // explicite (création de Commande, Devis, suites sans session mockée).
+  // Le mock `vi.mock("@/lib/use-cases/get-session")` de la suite de la
+  // couture intercepte aussi cet import dynamique.
+  const { getSessionUser } = await import("@/lib/use-cases/get-session")
+  return resoudreProprietairePanier(await getSessionUser())
+}
+
+/** Lit le Panier courant (données complètes, tarifées depuis la base). */
+export async function lirePanierCourant(): Promise<DonneesPanier> {
+  return lirePanier(await resoudreProprietaireCourant())
+}
+
+/** Compte le Panier courant (somme des quantités seule). */
+export async function compterArticlesDuPanierCourant(): Promise<number> {
+  return compterArticlesDuPanier(await resoudreProprietaireCourant())
+}
+
+/** Ajoute une Variante (identifiant de Variante + quantité) au Panier courant. */
+export async function ajouterArticleAuPanierCourant(
+  variantId: string,
+  quantity: number
+): Promise<ResultatPanier> {
+  return ajouterArticleAuPanier(
+    await resoudreProprietaireCourant(),
+    variantId,
+    quantity
+  )
+}
+
+/**
+ * Modifie la quantité d'un article du Panier courant.
+ *
+ * `articlePanierId` identifie l'article visé, selon le Propriétaire courant :
+ * pour un Client, l'identifiant persisté de l'article du panier dans sa base ;
+ * pour un Visiteur, le `variantId` porté par l'article de son cookie.
+ */
+export async function modifierQuantiteArticlePanierCourant(
+  articlePanierId: string,
+  quantity: number
+): Promise<ResultatPanier> {
+  return modifierQuantiteArticlePanier(
+    await resoudreProprietaireCourant(),
+    articlePanierId,
+    quantity
+  )
+}
+
+/**
+ * Retire un article du Panier courant.
+ *
+ * `articlePanierId` identifie l'article visé, selon le Propriétaire courant :
+ * pour un Client, l'identifiant persisté de l'article du panier dans sa base ;
+ * pour un Visiteur, le `variantId` porté par l'article de son cookie.
+ */
+export async function retirerArticleDuPanierCourant(
+  articlePanierId: string
+): Promise<ResultatPanier> {
+  return retirerArticleDuPanier(
+    await resoudreProprietaireCourant(),
+    articlePanierId
+  )
+}
