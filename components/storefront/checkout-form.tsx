@@ -23,15 +23,14 @@ import {
 } from "@/components/ui/select"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { formatShippingFee } from "@/lib/money"
-import type {
-  DeliveryCityOption,
-  ShippingQuote,
-} from "@/lib/use-cases/livraison"
+import {
+  lignesDevis,
+  selectionnerDevis,
+  type Devis,
+} from "@/lib/use-cases/devis"
 
 export interface CheckoutFormProps {
-  cities: DeliveryCityOption[]
-  quotes: Record<string, ShippingQuote>
-  initialCityId: string | null
+  devis: Devis
   initialAddress: string
   initialPhone: string
   subtotal: number
@@ -40,9 +39,7 @@ export interface CheckoutFormProps {
 const initialState: CheckoutFormState = { error: undefined }
 
 export function CheckoutForm({
-  cities,
-  quotes,
-  initialCityId,
+  devis,
   initialAddress,
   initialPhone,
   subtotal,
@@ -51,9 +48,19 @@ export function CheckoutForm({
     placeOrderAction,
     initialState
   )
-  const [selectedCityId, setSelectedCityId] = useState(initialCityId ?? "")
+  const [selectedCityId, setSelectedCityId] = useState(
+    devis.selectedCityId ?? ""
+  )
   // Le récapitulatif dérive du Devis via l'état local : il réagit
   // instantanément au changement de ville, sans rechargement.
+  // La re-sélection passe par le cœur pur pour rester sur le même seam
+  // que la page (chargerDevis) et le placement.
+  const selection = selectionnerDevis(
+    devis.cities,
+    devis.quotes,
+    selectedCityId || null
+  )
+  const rows = lignesDevis(subtotal, selection)
 
   useEffect(() => {
     if (!state.unauthenticated) return
@@ -84,7 +91,7 @@ export function CheckoutForm({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {cities.map((city) => (
+              {devis.cities.map((city) => (
                 <SelectItem key={city.id} value={city.id}>
                   {city.name} — {formatShippingFee(city.fee)}
                 </SelectItem>
@@ -132,15 +139,7 @@ export function CheckoutForm({
         </p>
       </div>
 
-      <RecapitulatifPaiement
-        className="border-t pt-4"
-        devis={{
-          sousTotal: subtotal,
-          cities,
-          quotes,
-          selectedCityId: selectedCityId || null,
-        }}
-      />
+      <RecapitulatifPaiement className="border-t pt-4" rows={rows} />
 
       <Button type="submit" disabled={isPending} className="w-full">
         {isPending ? "Commande en cours…" : "Confirmer la commande"}

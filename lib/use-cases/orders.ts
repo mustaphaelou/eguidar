@@ -10,10 +10,8 @@ import {
   deliveryAddressField,
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
-import {
-  DeliveryCityNotFoundError,
-  quotePanier,
-} from "@/lib/use-cases/livraison"
+import { chargerDevis, estSélectionValide } from "@/lib/use-cases/devis"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -185,10 +183,11 @@ export async function placeOrder(
   const cart = await lirePanier({ role: "client", compteId: userId })
   if (cart.lines.length === 0) throw new EmptyCartError()
 
-  const quote = await quotePanier(cart, data.cityId)
-  if (!quote.selected) throw new DeliveryCityNotFoundError()
-  const city = quote.cities.find((candidate) => candidate.id === data.cityId)!
-  const shippingFee = quote.selected.shippingFee
+  const devis = await chargerDevis(cart, data.cityId)
+  if (!estSélectionValide(devis))
+    throw new DeliveryCityNotFoundError()
+  const city = devis.selectedCity
+  const shippingFee = devis.selectedQuote.shippingFee
 
   const outOfStock = cart.lines
     .filter((line) => line.quantity > line.stock)

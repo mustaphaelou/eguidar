@@ -12,7 +12,7 @@ import { CityPicker } from "@/components/storefront/city-picker"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { quotePanier } from "@/lib/use-cases/livraison"
+import { chargerDevis } from "@/lib/use-cases/devis"
 import { formatPrice } from "@/lib/money"
 import { lirePanierCourant } from "@/lib/panier"
 
@@ -43,11 +43,7 @@ async function CartContent({
 }) {
   const { ville } = await searchParams
   const panier = await lirePanierCourant()
-  const { cities, threshold, quotes, selected } = await quotePanier(
-    panier,
-    ville
-  )
-  const quote = selected
+  const devis = await chargerDevis(panier, ville)
 
   if (panier.lines.length === 0) {
     return (
@@ -81,29 +77,22 @@ async function CartContent({
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
-          <RecapitulatifPaiement
-            devis={{
-              sousTotal: panier.subtotal,
-              cities,
-              quotes,
-              selectedCityId: ville ?? null,
-            }}
-          />
+          <RecapitulatifPaiement rows={devis.rows} />
 
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker
-              cities={cities}
-              selectedId={quote && ville ? ville : null}
+              cities={devis.cities}
+              selectedId={devis.selectedCityId}
               path="/panier"
             />
-            {quote && (
+            {devis.selectedQuote && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <HugeiconsIcon
                   icon={DeliveryTruck02Icon}
                   strokeWidth={2}
                   className="size-4"
                 />
-                Livraison offerte dès {formatPrice(threshold)}
+                Livraison offerte dès {formatPrice(devis.threshold)}
               </p>
             )}
             <Button

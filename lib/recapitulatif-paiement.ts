@@ -1,8 +1,4 @@
 import { formatPrice, formatShippingFee } from "@/lib/money"
-import type {
-  DeliveryCityOption,
-  ShippingQuote,
-} from "@/lib/use-cases/livraison"
 
 export type RécapitulatifRowKind = "detail" | "total"
 export type RécapitulatifRowTone = "offered" | "muted"
@@ -12,21 +8,6 @@ export interface RécapitulatifRow {
   value: string
   kind: RécapitulatifRowKind
   tone?: RécapitulatifRowTone
-}
-
-/**
- * Entrée Devis du Récapitulatif de paiement.
- *
- * Le Devis calcule le prix d'un panier selon la Ville de livraison :
- * villes disponibles + devis par ville + identifiant de ville optionnel.
- * La résolution `quotes[cityId]` + `cities.find(id)` vit derrière
- * l'interface — construire l'objet explicitement, sans étalement.
- */
-export interface DevisPourRécapitulatif {
-  sousTotal: number
-  cities: DeliveryCityOption[]
-  quotes: Record<string, ShippingQuote>
-  selectedCityId?: string | null
 }
 
 /**
@@ -44,22 +25,25 @@ export interface CommandePourRécapitulatif {
 }
 
 /**
- * Faits normalisés internes — seul chemin de construction des lignes.
+ * Faits normalisés — seul chemin de construction des lignes.
  *
  * `shipping: null` est le seul cas « À choisir » (aucun Devis sélectionné).
- * L'orthographe `{ fee: null }` est supprimée : `fromDevis` n'émet que
- * `null` (sans ville) ou `{ fee: number, city }` (avec ville), et
- * `fromCommande` n'émet que `{ fee: number, city? }` (la Commande porte
- * toujours des frais numériques). `total: null` omet la ligne Total
- * (Devis sans ville) ; la Commande fournit toujours son `totalPayable`.
+ * Le Devis ne produit que `null` (sans ville) ou `{ fee: number, city }`
+ * (avec ville validée), et `fromCommande` n'émet que `{ fee: number, city? }`
+ * (la Commande porte toujours des frais numériques). `total: null` omet la
+ * ligne Total (Devis sans ville) ; la Commande fournit toujours son
+ * `totalPayable`.
+ *
+ * Volontairement non exporté : les consommateurs construisent le littéral
+ * d'objet de manière structurelle sans importer le type.
  */
-type FaitsNormalisés = {
+type FaitsRécapitulatif = {
   sousTotal: number
   shipping: { fee: number; city?: string } | null
   total: number | null
 }
 
-function construireLignes(faits: FaitsNormalisés): RécapitulatifRow[] {
+export function construireLignes(faits: FaitsRécapitulatif): RécapitulatifRow[] {
   const rows: RécapitulatifRow[] = [
     {
       label: "Sous-total (TVA incluse)",
@@ -103,36 +87,6 @@ function construireLignes(faits: FaitsNormalisés): RécapitulatifRow[] {
   }
 
   return rows
-}
-
-/**
- * Construit les lignes Sous-total / Livraison / Total à payer depuis un Devis.
- *
- * Ville inconnue ou absente → repli « Livraison » sans ville + « À choisir »
- * + total omis (nul). Ne lève jamais.
- */
-export function récapitulatifRowsFromDevis(
-  devis: DevisPourRécapitulatif
-): RécapitulatifRow[] {
-  const cityId = devis.selectedCityId ?? null
-  const quote = cityId ? (devis.quotes[cityId] ?? null) : null
-  const city = cityId
-    ? (devis.cities.find((c) => c.id === cityId) ?? null)
-    : null
-
-  if (!quote || !city) {
-    return construireLignes({
-      sousTotal: devis.sousTotal,
-      shipping: null,
-      total: null,
-    })
-  }
-
-  return construireLignes({
-    sousTotal: devis.sousTotal,
-    shipping: { fee: quote.shippingFee, city: city.name },
-    total: quote.total,
-  })
 }
 
 /**

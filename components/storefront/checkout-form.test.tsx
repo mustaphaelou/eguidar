@@ -37,12 +37,15 @@ vi.mock("@/components/ui/select", () => ({
     children,
     onValueChange,
     value,
+    name,
   }: {
     children?: React.ReactNode
     onValueChange?: (value: string) => void
     value?: string
+    name?: string
   }) => (
     <div data-slot="select-stub" data-value={value ?? ""}>
+      {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}
       <button
         type="button"
         data-testid="mock-select-casa"
@@ -70,6 +73,7 @@ vi.mock("@/components/ui/select", () => ({
 
 import { CheckoutForm } from "./checkout-form"
 import { formatPrice } from "@/lib/money"
+import { lignesDevis, selectionnerDevis, type Devis } from "@/lib/use-cases/devis"
 import type { ShippingQuote } from "@/lib/use-cases/livraison"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -117,14 +121,38 @@ function Probe() {
   return <div data-dialog={dialog ?? "none"} />
 }
 
+const CASA = { id: "42", name: "Casablanca", fee: 2500 }
+
+function devisPourTest({
+  selectedCityId,
+  quotes,
+}: {
+  selectedCityId: string | null
+  quotes: Record<string, ShippingQuote>
+}): Devis {
+  const cities = [CASA]
+  const selection = selectionnerDevis(cities, quotes, selectedCityId)
+  return {
+    cities,
+    threshold: 100000,
+    quotes,
+    ...selection,
+    rows: lignesDevis(100000, selection),
+  }
+}
+
+function selectValue() {
+  return container
+    .querySelector('[data-slot="select-stub"]')
+    ?.getAttribute("data-value")
+}
+
 function checkoutHarness() {
   return (
     <AuthDialogsProvider>
       <Probe />
       <CheckoutForm
-        cities={[{ id: "42", name: "Casablanca", fee: 2500 }]}
-        quotes={{}}
-        initialCityId=""
+        devis={devisPourTest({ selectedCityId: null, quotes: {} })}
         initialAddress=""
         initialPhone=""
         subtotal={100000}
@@ -144,9 +172,7 @@ function recapHarness({
   return (
     <AuthDialogsProvider>
       <CheckoutForm
-        cities={[{ id: "42", name: "Casablanca", fee: 2500 }]}
-        quotes={quotes}
-        initialCityId={initialCityId}
+        devis={devisPourTest({ selectedCityId: initialCityId, quotes })}
         initialAddress=""
         initialPhone=""
         subtotal={100000}
@@ -205,6 +231,9 @@ describe("CheckoutForm", () => {
 
     expect(container.textContent).toContain("À choisir")
     expect(container.textContent).not.toContain("Total à payer à la livraison")
+    // Unknown URL ville collapses to the null selection upstream
+    // (chargerDevis) : the select stays empty, it never falls back.
+    expect(selectValue()).toBe("")
   })
 
   it("names the Ville de livraison with its fees and total when a ville is selected", () => {
@@ -219,6 +248,8 @@ describe("CheckoutForm", () => {
     expect(container.textContent).toContain(formatPrice(2500))
     expect(container.textContent).toContain("Total à payer à la livraison")
     expect(container.textContent).toContain(formatPrice(102500))
+    // Devis-selected id (profile pre-fill when no URL ville) preselects.
+    expect(selectValue()).toBe("42")
   })
 
   it("updates the récapitulatif instantly from À choisir to Livraison (Ville) when the city changes, without reload", () => {
@@ -231,6 +262,7 @@ describe("CheckoutForm", () => {
 
     expect(container.textContent).toContain("À choisir")
     expect(container.textContent).not.toContain("Total à payer à la livraison")
+    expect(selectValue()).toBe("")
 
     const chooseButton = container.querySelector(
       '[data-testid="mock-select-casa"]',
@@ -244,6 +276,32 @@ describe("CheckoutForm", () => {
     expect(container.textContent).toContain(formatPrice(2500))
     expect(container.textContent).toContain("Total à payer à la livraison")
     expect(container.textContent).toContain(formatPrice(102500))
+    expect(selectValue()).toBe("42")
     expect(new URL(window.location.href).search).toBe("")
+  })
+
+  it("posts the currently selected city on submit", async () => {
+    placeOrderMock.mockResolvedValue({})
+
+    render(
+      recapHarness({
+        quotes: { 42: { subtotal: 100000, shippingFee: 2500, total: 102500 } },
+        initialCityId: null,
+      })
+    )
+
+    const chooseButton = container.querySelector(
+      '[data-testid="mock-select-casa"]',
+    )
+    act(() => {
+      ;(chooseButton as HTMLButtonElement).click()
+    })
+    expect(selectValue()).toBe("42")
+
+    await act(async () => submitForm())
+
+    expect(placeOrderMock).toHaveBeenCalledTimes(1)
+    const formData = placeOrderMock.mock.calls[0][1] as FormData
+    expect(formData.get("cityId")).toBe("42")
   })
 })
