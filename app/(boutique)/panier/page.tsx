@@ -77,14 +77,7 @@ async function CartContent({
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
-          <RecapitulatifPaiement
-            devis={{
-              sousTotal: panier.subtotal,
-              cities: devis.cities,
-              quotes: devis.quotes,
-              selectedCityId: devis.selectedCityId,
-            }}
-          />
+          <RecapitulatifPaiement rows={devis.rows} />
 
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker

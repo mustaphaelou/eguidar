@@ -73,8 +73,7 @@ vi.mock("@/components/ui/select", () => ({
 
 import { CheckoutForm } from "./checkout-form"
 import { formatPrice } from "@/lib/money"
-import { récapitulatifRowsFromDevis } from "@/lib/recapitulatif-paiement"
-import type { Devis } from "@/lib/use-cases/devis"
+import { lignesDevis, selectionnerDevis, type Devis } from "@/lib/use-cases/devis"
 import type { ShippingQuote } from "@/lib/use-cases/livraison"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -132,22 +131,13 @@ function devisPourTest({
   quotes: Record<string, ShippingQuote>
 }): Devis {
   const cities = [CASA]
-  const city = cities.find((c) => c.id === selectedCityId) ?? null
-  const quote = selectedCityId ? (quotes[selectedCityId] ?? null) : null
-  const valid = city !== null && quote !== null
+  const selection = selectionnerDevis(cities, quotes, selectedCityId)
   return {
     cities,
     threshold: 100000,
     quotes,
-    selectedCityId: valid ? selectedCityId : null,
-    selectedCity: valid ? city : null,
-    selectedQuote: valid ? quote : null,
-    rows: récapitulatifRowsFromDevis({
-      sousTotal: 100000,
-      cities,
-      quotes,
-      selectedCityId: valid ? selectedCityId : null,
-    }),
+    ...selection,
+    rows: lignesDevis(100000, selection),
   }
 }
 

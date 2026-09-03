@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { chargerDevis, selectionnerDevis } from "@/lib/use-cases/devis"
+import { chargerDevis, lignesDevis, selectionnerDevis } from "@/lib/use-cases/devis"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
-import { récapitulatifRowsFromDevis } from "@/lib/recapitulatif-paiement"
 import type {
   DeliveryCityOption,
   ShippingQuote,
@@ -190,11 +189,10 @@ describe("chargerDevis", () => {
     })
     expect(devis.selectedQuote).toBe(devis.quotes["c1"])
     expect(devis.rows).toEqual(
-      récapitulatifRowsFromDevis({
-        sousTotal: 50000,
-        cities: villes,
-        quotes: devis.quotes,
+      lignesDevis(50000, {
         selectedCityId: "c1",
+        selectedCity: city("c1", "Casablanca", 3500),
+        selectedQuote: devis.quotes["c1"],
       })
     )
     expect(devis.rows[1]).toMatchObject({

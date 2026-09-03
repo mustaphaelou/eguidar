@@ -1,157 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { formatPrice } from "./money"
-import {
-  type RécapitulatifRow,
-  récapitulatifRowsFromCommande,
-  récapitulatifRowsFromDevis,
-} from "./recapitulatif-paiement"
-
-describe("récapitulatifRowsFromDevis", () => {
-  const cities = [
-    { id: "casa", name: "Casablanca", fee: 3000 },
-    { id: "rabat", name: "Rabat", fee: 2500 },
-  ]
-  const quotes = {
-    casa: { subtotal: 25000, shippingFee: 3000, total: 28000 },
-    rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
-  }
-
-  function expectLivraisonAChoisir(rows: RécapitulatifRow[]) {
-    expect(rows[1]).toEqual<RécapitulatifRow>({
-      label: "Livraison",
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
-    })
-    expect(rows.some((r) => r.kind === "total")).toBe(false)
-    expect(rows).toHaveLength(2)
-  }
-
-  it("renders 'Livraison — À choisir' with muted tone and omits the total when no city is selected", () => {
-    const rows = récapitulatifRowsFromDevis({
-      sousTotal: 15000,
-      cities,
-      quotes,
-      selectedCityId: null,
-    })
-
-    expect(rows[0]).toEqual<RécapitulatifRow>({
-      label: "Sous-total (TVA incluse)",
-      value: "150,00 MAD",
-      kind: "detail",
-    })
-    expectLivraisonAChoisir(rows)
-  })
-
-  it("falls back to 'Livraison' without city when the selected city id is omitted", () => {
-    const rows = récapitulatifRowsFromDevis({
-      sousTotal: 15000,
-      cities,
-      quotes,
-    })
-
-    expectLivraisonAChoisir(rows)
-  })
-
-  it("falls back to 'Livraison' without city for an unknown city id without throwing", () => {
-    expect(() =>
-      récapitulatifRowsFromDevis({
-        sousTotal: 15000,
-        cities,
-        quotes,
-        selectedCityId: "ville-perimee",
-      }),
-    ).not.toThrow()
-    const rows = récapitulatifRowsFromDevis({
-      sousTotal: 15000,
-      cities,
-      quotes,
-      selectedCityId: "ville-perimee",
-    })
-
-    expectLivraisonAChoisir(rows)
-  })
-
-  it("falls back to 'Livraison' without city when the Devis is malformed (known city without quote)", () => {
-    const rows = récapitulatifRowsFromDevis({
-      sousTotal: 15000,
-      cities,
-      quotes: {
-        rabat: { subtotal: 15000, shippingFee: 2500, total: 17500 },
-      },
-      selectedCityId: "casa",
-    })
-
-    expectLivraisonAChoisir(rows)
-  })
-
-  it("renders 'Livraison (Ville)' with the Devis fee and total when a city is selected", () => {
-    const rows = récapitulatifRowsFromDevis({
-      sousTotal: 25000,
-      cities,
-      quotes,
-      selectedCityId: "casa",
-    })
-
-    expect(rows).toEqual<RécapitulatifRow[]>([
-      {
-        label: "Sous-total (TVA incluse)",
-        value: "250,00\u00A0MAD",
-        kind: "detail",
-      },
-      {
-        label: "Livraison (Casablanca)",
-        value: "30,00\u00A0MAD",
-        kind: "detail",
-      },
-      {
-        label: "Total à payer à la livraison",
-        value: "280,00\u00A0MAD",
-        kind: "total",
-      },
-    ])
-  })
-
-  it("renders the offered tone for a Devis with free shipping", () => {
-    const rows = récapitulatifRowsFromDevis({
-      sousTotal: 30000,
-      cities: [{ id: "rabat", name: "Rabat", fee: 2500 }],
-      quotes: {
-        rabat: { subtotal: 30000, shippingFee: 0, total: 30000 },
-      },
-      selectedCityId: "rabat",
-    })
-
-    expect(rows[1]).toEqual<RécapitulatifRow>({
-      label: "Livraison (Rabat)",
-      value: "Livraison offerte",
-      kind: "detail",
-      tone: "offered",
-    })
-    expect(rows[2]).toEqual<RécapitulatifRow>({
-      label: "Total à payer à la livraison",
-      value: "300,00\u00A0MAD",
-      kind: "total",
-    })
-  })
-
-  it("builds an explicit Devis without spread extras", () => {
-    const rows = récapitulatifRowsFromDevis({
-      sousTotal: 25000,
-      cities,
-      quotes,
-      selectedCityId: "rabat",
-    })
-
-    expect(rows[1]).toEqual<RécapitulatifRow>({
-      label: "Livraison (Rabat)",
-      value: "25,00\u00A0MAD",
-      kind: "detail",
-    })
-    expect(rows[2]?.value).toBe("275,00\u00A0MAD")
-  })
-})
+import { type RécapitulatifRow, récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
+import { lignesDevis } from "./use-cases/devis"
 
 describe("récapitulatifRowsFromCommande", () => {
   it("renders the city, fee and the Commande totalPayable", () => {
@@ -240,27 +91,20 @@ describe("récapitulatifRowsFromCommande", () => {
 
   it("rejects retired spellings through the Devis and Commande entries", () => {
     const rowsList = [
-      récapitulatifRowsFromDevis({
-        sousTotal: 10000,
-        cities: [{ id: "casa", name: "Casablanca", fee: 2000 }],
-        quotes: {
-          casa: { subtotal: 10000, shippingFee: 0, total: 10000 },
-        },
+      lignesDevis(10000, {
         selectedCityId: "casa",
+        selectedCity: { id: "casa", name: "Casablanca", fee: 2000 },
+        selectedQuote: { subtotal: 10000, shippingFee: 0, total: 10000 },
       }),
-      récapitulatifRowsFromDevis({
-        sousTotal: 10000,
-        cities: [{ id: "fes", name: "Fès", fee: 2000 }],
-        quotes: {
-          fes: { subtotal: 10000, shippingFee: 2000, total: 12000 },
-        },
+      lignesDevis(10000, {
         selectedCityId: "fes",
+        selectedCity: { id: "fes", name: "Fès", fee: 2000 },
+        selectedQuote: { subtotal: 10000, shippingFee: 2000, total: 12000 },
       }),
-      récapitulatifRowsFromDevis({
-        sousTotal: 10000,
-        cities: [],
-        quotes: {},
+      lignesDevis(10000, {
         selectedCityId: null,
+        selectedCity: null,
+        selectedQuote: null,
       }),
       récapitulatifRowsFromCommande({
         total: 10000,
