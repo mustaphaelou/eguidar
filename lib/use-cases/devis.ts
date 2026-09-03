@@ -1,6 +1,8 @@
 import type { DonneesPanier } from "@/lib/panier"
-import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
-import { récapitulatifRowsFromDevis } from "@/lib/recapitulatif-paiement"
+import {
+  construireLignes,
+  type RécapitulatifRow,
+} from "@/lib/recapitulatif-paiement"
 import {
   computeCityQuotes,
   getFreeShippingThreshold,
@@ -62,12 +64,43 @@ export interface Devis extends SelectionDevis {
 }
 
 /**
+ * Lignes du Récapitulatif de paiement pour un Devis validé.
+ *
+ * Détail interne du Devis (l'ancienne entrée Devis du Récapitulatif est
+ * retirée) : sans ville ni devis validés → « Livraison » + « À choisir » + Total omis ;
+ * sinon « Livraison (Ville) » + frais + Total. La formulation vit dans
+ * `construireLignes`, ici on ne fait que projeter la sélection validée.
+ * Ne lève jamais.
+ */
+export function lignesDevis(
+  sousTotal: number,
+  selection: SelectionDevis
+): RécapitulatifRow[] {
+  if (!selection.selectedCity || !selection.selectedQuote) {
+    return construireLignes({
+      sousTotal,
+      shipping: null,
+      total: null,
+    })
+  }
+
+  return construireLignes({
+    sousTotal,
+    shipping: {
+      fee: selection.selectedQuote.shippingFee,
+      city: selection.selectedCity.name,
+    },
+    total: selection.selectedQuote.total,
+  })
+}
+
+/**
  * Entrée async du Devis pour les surfaces d'affichage.
  *
- * Récupère Villes de livraison + seuil (même source que `quotePanier`),
+ * Récupère Villes de livraison + seuil (administration Livraison),
  * chiffre chaque ville via `computeCityQuotes` (`panier.subtotal` +
  * `lines.some(freeShipping)`), résout la sélection via `selectionnerDevis`
- * puis construit les lignes via le chemin `récapitulatifRowsFromDevis`
+ * puis construit les lignes via `lignesDevis`
  * (offerte / À choisir avec Total omis quand non sélectionné).
  *
  * Ville inconnue → trio nul + lignes À choisir, ne lève jamais.
@@ -89,12 +122,7 @@ export async function chargerDevis(
     threshold
   )
   const selection = selectionnerDevis(cities, quotes, requestedCityId)
-  const rows = récapitulatifRowsFromDevis({
-    sousTotal: panier.subtotal,
-    cities,
-    quotes,
-    selectedCityId: selection.selectedCityId,
-  })
+  const rows = lignesDevis(panier.subtotal, selection)
   return {
     cities,
     threshold,

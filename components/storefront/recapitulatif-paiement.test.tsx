@@ -52,17 +52,22 @@ describe("RecapitulatifPaiement", () => {
     expect(dl?.className).toContain("flex-col")
   })
 
-  it("renders a Devis without a selected city as À choisir with muted tone and omits the total", () => {
+  it("renders Devis rows without total as À choisir with muted tone", () => {
     render(
       <RecapitulatifPaiement
-        devis={{
-          sousTotal: 15000,
-          cities: [{ id: "casa", name: "Casablanca", fee: 3000 }],
-          quotes: {
-            casa: { subtotal: 15000, shippingFee: 3000, total: 18000 },
+        rows={[
+          {
+            label: "Sous-total (TVA incluse)",
+            value: "150,00 MAD",
+            kind: "detail",
           },
-          selectedCityId: null,
-        }}
+          {
+            label: "Livraison",
+            value: "À choisir",
+            kind: "detail",
+            tone: "muted",
+          },
+        ]}
       />
     )
 
@@ -78,21 +83,26 @@ describe("RecapitulatifPaiement", () => {
     expect(container.querySelectorAll("dl > div")).toHaveLength(2)
   })
 
-  it("renders a Devis with a selected city as Livraison (Ville) with fee and total", () => {
+  it("renders Devis rows with Livraison (Ville), fee and total", () => {
     render(
       <RecapitulatifPaiement
-        devis={{
-          sousTotal: 25000,
-          cities: [
-            { id: "casa", name: "Casablanca", fee: 3000 },
-            { id: "rabat", name: "Rabat", fee: 2500 },
-          ],
-          quotes: {
-            casa: { subtotal: 25000, shippingFee: 3000, total: 28000 },
-            rabat: { subtotal: 25000, shippingFee: 2500, total: 27500 },
+        rows={[
+          {
+            label: "Sous-total (TVA incluse)",
+            value: "250,00 MAD",
+            kind: "detail",
           },
-          selectedCityId: "casa",
-        }}
+          {
+            label: "Livraison (Casablanca)",
+            value: "30,00 MAD",
+            kind: "detail",
+          },
+          {
+            label: "Total à payer à la livraison",
+            value: "280,00 MAD",
+            kind: "total",
+          },
+        ]}
       />
     )
 
@@ -118,17 +128,27 @@ describe("RecapitulatifPaiement", () => {
     expect(totalDiv.classList.contains("text-base")).toBe(true)
   })
 
-  it("renders a Devis with free shipping using the offered tone", () => {
+  it("renders Devis rows with free shipping using the offered tone", () => {
     render(
       <RecapitulatifPaiement
-        devis={{
-          sousTotal: 30000,
-          cities: [{ id: "rabat", name: "Rabat", fee: 2500 }],
-          quotes: {
-            rabat: { subtotal: 30000, shippingFee: 0, total: 30000 },
+        rows={[
+          {
+            label: "Sous-total (TVA incluse)",
+            value: "300,00 MAD",
+            kind: "detail",
           },
-          selectedCityId: "rabat",
-        }}
+          {
+            label: "Livraison (Rabat)",
+            value: "Livraison offerte",
+            kind: "detail",
+            tone: "offered",
+          },
+          {
+            label: "Total à payer à la livraison",
+            value: "300,00 MAD",
+            kind: "total",
+          },
+        ]}
       />
     )
 
@@ -143,17 +163,22 @@ describe("RecapitulatifPaiement", () => {
     expect(dds[1].className).toContain("dark:text-emerald-400")
   })
 
-  it("falls back to Livraison without city through display for an unknown city id", () => {
+  it("passes Devis À choisir rows through without a total", () => {
     render(
       <RecapitulatifPaiement
-        devis={{
-          sousTotal: 15000,
-          cities: [{ id: "casa", name: "Casablanca", fee: 3000 }],
-          quotes: {
-            casa: { subtotal: 15000, shippingFee: 3000, total: 18000 },
+        rows={[
+          {
+            label: "Sous-total (TVA incluse)",
+            value: "150,00 MAD",
+            kind: "detail",
           },
-          selectedCityId: "ville-perimee",
-        }}
+          {
+            label: "Livraison",
+            value: "À choisir",
+            kind: "detail",
+            tone: "muted",
+          },
+        ]}
       />
     )
 

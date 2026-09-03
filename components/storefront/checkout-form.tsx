@@ -23,7 +23,11 @@ import {
 } from "@/components/ui/select"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { formatShippingFee } from "@/lib/money"
-import { selectionnerDevis, type Devis } from "@/lib/use-cases/devis"
+import {
+  lignesDevis,
+  selectionnerDevis,
+  type Devis,
+} from "@/lib/use-cases/devis"
 
 export interface CheckoutFormProps {
   devis: Devis
@@ -56,6 +60,7 @@ export function CheckoutForm({
     devis.quotes,
     selectedCityId || null
   )
+  const rows = lignesDevis(subtotal, selection)
 
   useEffect(() => {
     if (!state.unauthenticated) return
@@ -134,15 +139,7 @@ export function CheckoutForm({
         </p>
       </div>
 
-      <RecapitulatifPaiement
-        className="border-t pt-4"
-        devis={{
-          sousTotal: subtotal,
-          cities: devis.cities,
-          quotes: devis.quotes,
-          selectedCityId: selection.selectedCityId,
-        }}
-      />
+      <RecapitulatifPaiement className="border-t pt-4" rows={rows} />
 
       <Button type="submit" disabled={isPending} className="w-full">
         {isPending ? "Commande en cours…" : "Confirmer la commande"}
