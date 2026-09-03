@@ -12,6 +12,13 @@ import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import type { ProductCard } from "@/lib/use-cases/storefront"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
+export type StatutPublication = "brouillon" | "publie" | "archive"
+
+export interface ThemeRef {
+  slug: string
+  nom: string
+}
+
 export interface CreateBrouillonInput {
   titre: string
   slug: string
@@ -87,6 +94,7 @@ function parseCreateBrouillonInput(
       result.error.issues.map((issue) => issue.message)
     )
   }
+  // Choix d'implémentation : themeSlug ou themeId (XOR) pour le 0..n côté admin.
   const hasThemeSlug = !!result.data.themeSlug
   const hasThemeId = !!result.data.themeId
   if (hasThemeSlug === hasThemeId) {
@@ -108,16 +116,21 @@ function mapBlogUniqueViolation(error: unknown): never {
   throw error
 }
 
+async function resolveTheme(themeSlug?: string, themeId?: string) {
+  const theme = themeId
+    ? await prisma.theme.findUnique({ where: { id: themeId } })
+    : await prisma.theme.findUnique({ where: { slug: themeSlug! } })
+  if (!theme) throw new ThemeNotFoundError()
+  return theme
+}
+
 export async function createBrouillon(
   input: CreateBrouillonInput,
   effects: BlogEffects
 ) {
   const data = parseCreateBrouillonInput(input)
 
-  const theme = data.themeId
-    ? await prisma.theme.findUnique({ where: { id: data.themeId } })
-    : await prisma.theme.findUnique({ where: { slug: data.themeSlug! } })
-  if (!theme) throw new ThemeNotFoundError()
+  const theme = await resolveTheme(data.themeSlug, data.themeId)
 
   await assertUniqueArticleSlug(data.slug)
 
@@ -145,9 +158,11 @@ export async function createBrouillon(
 }
 
 /**
- * Publie un Article de blog (Brouillon → Publié, ou Archivé → Publié).
+ * Publie un Article de blog (Brouillon → Publié uniquement).
  * Tamponne publishedAt à la première publication puis la conserve
- * (re-publication idempotente et re-publication après archive).
+ * (re-publication Publié → Publié idempotente). Un Archivé refuse
+ * la re-publication (UserFacingError — spec : publier = Brouillon,
+ * archiver = Publié).
  */
 export async function publier(id: string, effects: BlogEffects) {
   const article = await prisma.articleBlog.findUnique({
@@ -159,6 +174,10 @@ export async function publier(id: string, effects: BlogEffects) {
   if (article.statut === "publie") {
     effects.revalidateBlog?.({ id: article.id, slug: article.slug })
     return article
+  }
+
+  if (article.statut === "archive") {
+    throw new UserFacingError("Un article archivé ne peut plus être publié")
   }
 
   const updated = await prisma.articleBlog.update({
@@ -236,10 +255,7 @@ export async function mettreAJour(
 
   let themeId: string | undefined
   if (data.themeSlug !== undefined || data.themeId !== undefined) {
-    const theme = data.themeId
-      ? await prisma.theme.findUnique({ where: { id: data.themeId } })
-      : await prisma.theme.findUnique({ where: { slug: data.themeSlug! } })
-    if (!theme) throw new ThemeNotFoundError()
+    const theme = await resolveTheme(data.themeSlug, data.themeId)
     themeId = theme.id
   }
 
@@ -280,15 +296,21 @@ export async function mettreAJour(
     // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
   }
 
-  effects.revalidateBlog?.({ id: updated.id, slug: updated.slug })
+  const previousSlug =
+    updated.slug !== article.slug ? article.slug : undefined
+  effects.revalidateBlog?.({
+    id: updated.id,
+    slug: updated.slug,
+    ...(previousSlug ? { previousSlug } : {}),
+  })
   return updated
 }
 
 /**
- * Archive un Article de blog (Publié → Archivé).
- * Choix #163 : Brouillon → Archivé autorisé (mise au rebut sans publier) ;
- * Archivé → Archivé idempotent (comme `publier`).
- * `publishedAt` est conservé tel quel (première date gardée).
+ * Archive un Article de blog (Publié → Archivé uniquement).
+ * Archivé → Archivé idempotent (comme `publier`). Un Brouillon refuse
+ * l'archivage (UserFacingError — spec : archiver = Publié).
+ * `publishedAt` est conservé tel quel, donc un Archivé a toujours sa date.
  */
 export async function archiver(id: string, effects: BlogEffects) {
   const article = await prisma.articleBlog.findUnique({
@@ -302,6 +324,10 @@ export async function archiver(id: string, effects: BlogEffects) {
     return article
   }
 
+  if (article.statut === "brouillon") {
+    throw new UserFacingError("Seul un article publié peut être archivé")
+  }
+
   const updated = await prisma.articleBlog.update({
     where: { id },
     data: { statut: "archive" },
@@ -312,6 +338,11 @@ export async function archiver(id: string, effects: BlogEffects) {
   return updated
 }
 
+export interface ProduitLie extends ProductCard {
+  /** Première variante disponible (stock > 0), pour l'ajout au panier. */
+  varianteId: string | null
+}
+
 export interface ArticleBlogPublic {
   id: string
   titre: string
@@ -319,16 +350,16 @@ export interface ArticleBlogPublic {
   extrait: string
   couverture: string | null
   contenu: string
-  theme: { slug: string; nom: string }
+  theme: ThemeRef
   publishedAt: Date | null
-  statut: string
+  statut: StatutPublication
   /**
    * Produits liés de l'Article de blog, en cartes catalogue (#164).
    * Ordre d'attachement préservé (ordre croissant), indisponibles masqués
    * à la lecture (produit supprimé ou stock total nul) — `[]` possible,
    * l'article reste Publié dans tous les cas.
    */
-  produits: ProductCard[]
+  produits: ProduitLie[]
 }
 
 function toProduitLieCard(product: {
@@ -339,11 +370,14 @@ function toProduitLieCard(product: {
   images: unknown
   price: number
   freeShipping: boolean
-  variants: { priceDelta: number; stock: number }[]
-}): ProductCard {
+  variants: { id: string; priceDelta: number; stock: number }[]
+}): ProduitLie | null {
+  const totalStock = totalVariantStock(product.variants)
+  if (totalStock === 0) return null
   const images = Array.isArray(product.images)
     ? (product.images as string[])
     : []
+  const disponible = product.variants.find((v) => v.stock > 0)
   return {
     id: product.id,
     name: product.name,
@@ -351,8 +385,9 @@ function toProduitLieCard(product: {
     brand: product.brand,
     image: images[0] ?? null,
     minPrice: minVariantPrice(product.price, product.variants),
-    totalStock: totalVariantStock(product.variants),
+    totalStock,
     freeShipping: product.freeShipping,
+    varianteId: disponible?.id ?? null,
   }
 }
 
@@ -362,6 +397,7 @@ function toProduitLieCard(product: {
  * détacher). Déduplique en préservant le premier ordre d'apparition.
  * Rejette les identifiants inconnus (UserFacingError) sans rien écrire.
  * Ne touche jamais aux médias (best-effort delete = #163 `mettreAJour`).
+ * Choix d'implémentation : remplacement atomique + ordre + dédupe pour le 0..n.
  */
 export async function lierProduits(
   articleId: string,
@@ -419,7 +455,10 @@ export async function fetchArticleParSlug(
         include: {
           produit: {
             include: {
-              variants: { select: { priceDelta: true, stock: true } },
+              variants: {
+                select: { id: true, priceDelta: true, stock: true },
+                orderBy: { createdAt: "asc" },
+              },
             },
           },
         },
@@ -428,13 +467,12 @@ export async function fetchArticleParSlug(
   })
   if (!article || (article.statut !== "publie" && article.statut !== "archive"))
     return null
-  const produits: ProductCard[] = []
+  const produits: ProduitLie[] = []
   for (const lien of article.produits) {
     const produit = lien.produit
     if (!produit) continue
-    const totalStock = totalVariantStock(produit.variants)
-    if (totalStock === 0) continue
-    produits.push(toProduitLieCard(produit))
+    const carte = toProduitLieCard(produit)
+    if (carte) produits.push(carte)
   }
   return {
     id: article.id,
@@ -455,7 +493,7 @@ export interface CardBlog {
   titre: string
   extrait: string
   couverture: string | null
-  theme: { slug: string; nom: string }
+  theme: ThemeRef
   publishedAt: Date
 }
 
@@ -471,21 +509,26 @@ function toCardBlog(article: {
   couverture: string | null
   publishedAt: Date | null
   createdAt: Date
-  theme: { slug: string; nom: string }
-}): CardBlog {
+  theme: ThemeRef
+}): CardBlog | null {
+  if (!article.publishedAt) {
+    console.warn(`[blog] article publié sans date ignoré : ${article.slug}`)
+    return null
+  }
   return {
     slug: article.slug,
     titre: article.titre,
     extrait: article.extrait,
     couverture: article.couverture,
     theme: { slug: article.theme.slug, nom: article.theme.nom },
-    publishedAt: article.publishedAt ?? article.createdAt,
+    publishedAt: article.publishedAt,
   }
 }
 
 /**
  * Données de la landing /blog : hero = l'Article de blog Publié le plus
- * récent, articles = la suite du fil. Publié uniquement, plus récent d'abord.
+ * récent, articles = la suite du fil. Publié uniquement, plus récent d'abord
+ * (publishedAt desc, createdAt desc en départage).
  */
 export async function fetchBlogLanding(): Promise<BlogLanding> {
   const articles = await prisma.articleBlog.findMany({
@@ -493,7 +536,10 @@ export async function fetchBlogLanding(): Promise<BlogLanding> {
     include: { theme: true },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
   })
-  const [hero, ...rest] = articles.map(toCardBlog)
+  const cartes = articles
+    .map(toCardBlog)
+    .filter((carte): carte is CardBlog => carte !== null)
+  const [hero, ...rest] = cartes
   return { hero: hero ?? null, articles: rest }
 }
 

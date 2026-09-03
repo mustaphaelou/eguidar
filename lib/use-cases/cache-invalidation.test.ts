@@ -166,4 +166,33 @@ describe("invalidateBlog", () => {
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/blog")
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/blog/mon-article")
   })
+
+  it("invalidates the previous slug detail tag when the article changed slug", () => {
+    invalidateBlog({
+      id: "a1",
+      slug: "nouveau-slug",
+      previousSlug: "ancien-slug",
+    })
+
+    expect(mockedRevalidateTag).toHaveBeenCalledTimes(3)
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      blogDetailTag("nouveau-slug"),
+      "max"
+    )
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      blogDetailTag("ancien-slug"),
+      "max"
+    )
+  })
+
+  it("does not invalidate the previous slug tag when it equals the new slug", () => {
+    invalidateBlog({
+      id: "a1",
+      slug: "meme-slug",
+      previousSlug: "meme-slug",
+    })
+
+    expect(mockedRevalidateTag).toHaveBeenCalledTimes(2)
+    expect(mockedRevalidatePath).toHaveBeenCalledTimes(2)
+  })
 })

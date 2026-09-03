@@ -225,6 +225,19 @@ describe("buildArticleDonneesStructurees", () => {
 
     expect(result.image).toEqual([])
   })
+
+  it("emits Article DS for an archivé article keeping its publication date", () => {
+    const result = buildArticleDonneesStructurees({
+      titre: "Guide archivé",
+      extrait: "Un extrait archivé.",
+      couverture: "https://cdn.eguidar.com/blog/archive.webp",
+      publishedAt: new Date("2026-02-10T10:00:00Z"),
+    })
+
+    expect(result["@type"]).toBe("Article")
+    expect(result.headline).toBe("Guide archivé")
+    expect(result.datePublished).toBe("2026-02-10T10:00:00.000Z")
+  })
 })
 
 describe("buildBreadcrumbListDonneesStructurees", () => {
