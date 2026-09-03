@@ -13,6 +13,7 @@ import {
 import { prisma } from "@/lib/db"
 import { lirePanier } from "@/lib/panier"
 import { ajouterArticleAuPanier } from "@/lib/panier"
+import { chargerDevis } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
@@ -293,6 +294,25 @@ describe("order placement", () => {
     )
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.shippingFee).toBe(3500)
+  })
+
+  it("persists the Devis-computed fee and total", async () => {
+    await ajouterArticleAuPanier(
+      { role: "client", compteId: userIdA },
+      variantP4,
+      1
+    )
+    const cart = await lirePanier({ role: "client", compteId: userIdA })
+    const devis = await chargerDevis(cart, cityId)
+    expect(devis.selectedCity).not.toBeNull()
+    expect(devis.selectedQuote).not.toBeNull()
+
+    const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
+
+    expect(order.cityName).toBe(devis.selectedCity!.name)
+    expect(order.shippingFee).toBe(devis.selectedQuote!.shippingFee)
+    expect(order.total).toBe(cart.subtotal)
+    expect(order.total + order.shippingFee).toBe(devis.selectedQuote!.total)
   })
 
   it("offers free shipping above the threshold", async () => {
