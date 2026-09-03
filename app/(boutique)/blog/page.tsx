@@ -1,11 +1,11 @@
-import Image from "next/image"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
 
+import { BlogFeedCard, BlogHeroCard } from "@/components/storefront/blog-carte"
 import { BlogReveal } from "@/components/storefront/blog-reveal"
 import { pageMetadata } from "@/lib/metadata"
-import { getBlogLanding, type CardBlog } from "@/lib/use-cases/blog"
+import { getBlogLanding } from "@/lib/use-cases/blog"
 
 export const metadata: Metadata = pageMetadata({
   title: "Blog",
@@ -13,18 +13,6 @@ export const metadata: Metadata = pageMetadata({
     "Le blog Eguidar : guides d'achat, conseils et annonces — smartphones, ordinateurs, TV, gaming et accessoires au meilleur prix au Maroc.",
   path: "/blog",
 })
-
-const formatDateArticle = new Intl.DateTimeFormat("fr-FR", {
-  dateStyle: "long",
-})
-
-function formatPublishedAt(value: Date | string): string {
-  return formatDateArticle.format(new Date(value))
-}
-
-function publishedAtISO(value: Date | string): string {
-  return new Date(value).toISOString()
-}
 
 export default function BlogPage() {
   return (
@@ -91,86 +79,6 @@ async function BlogContent() {
         ) : null}
       </div>
     </section>
-  )
-}
-
-function BlogHeroCard({ article }: { article: CardBlog }) {
-  return (
-    <Link
-      href={`/blog/${article.slug}`}
-      aria-label={`Lire : ${article.titre}`}
-      className="group relative block aspect-video w-full overflow-hidden rounded-[32px] bg-[#1d1d1f]"
-    >
-      {article.couverture ? (
-        <Image
-          src={article.couverture}
-          alt=""
-          fill
-          sizes="(min-width: 1024px) 980px, 100vw"
-          className="object-cover transition-transform duration-500 [@media(hover:hover)]:group-hover:scale-[1.03]"
-        />
-      ) : null}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"
-      />
-      <div className="absolute inset-x-0 bottom-0 p-6 sm:p-9">
-        <p className="text-[12px] leading-[1.3334] font-bold tracking-[-0.01em] text-white/80 uppercase sm:text-[14px]">
-          {article.theme.nom}
-        </p>
-        <h2 className="mt-2 line-clamp-3 text-[24px] leading-[1.1667] font-bold tracking-[0.009em] text-white sm:text-[40px] sm:leading-[1.1] sm:tracking-[0em] lg:text-[48px] lg:leading-[1.0835] lg:tracking-[-0.003em] [@media(hover:hover)]:group-hover:underline">
-          {article.titre}
-        </h2>
-        <p className="mt-2 line-clamp-2 text-[17px] leading-[1.4706] tracking-[-0.022em] text-white/80">
-          {article.extrait}
-        </p>
-        <p className="mt-3 text-[14px] leading-[1.4286] font-semibold tracking-[-0.016em] text-[#86868b] sm:text-[17px] sm:tracking-[-0.022em]">
-          <time dateTime={publishedAtISO(article.publishedAt)}>
-            {formatPublishedAt(article.publishedAt)}
-          </time>
-        </p>
-      </div>
-    </Link>
-  )
-}
-
-function BlogFeedCard({ article }: { article: CardBlog }) {
-  return (
-    <Link
-      href={`/blog/${article.slug}`}
-      aria-label={`Lire : ${article.titre}`}
-      className="group relative flex min-h-[328px] flex-col justify-end overflow-hidden rounded-2xl bg-[#1d1d1f] sm:min-h-[332px] lg:min-h-[314px]"
-    >
-      {article.couverture ? (
-        <Image
-          src={article.couverture}
-          alt=""
-          fill
-          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-          className="object-cover transition-transform duration-500 [@media(hover:hover)]:group-hover:scale-[1.03]"
-        />
-      ) : null}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"
-      />
-      <div className="relative p-6">
-        <p className="text-[12px] leading-[1.3334] font-bold tracking-[-0.01em] text-white/80 uppercase">
-          {article.theme.nom}
-        </p>
-        <h3 className="mt-2 line-clamp-4 text-[24px] leading-[1.1667] font-bold tracking-[0.009em] text-white lg:text-[21px] lg:leading-[1.1905] lg:tracking-[0.011em] [@media(hover:hover)]:group-hover:underline">
-          {article.titre}
-        </h3>
-        <p className="mt-2 line-clamp-2 text-[14px] leading-[1.4286] tracking-[-0.016em] text-white/80">
-          {article.extrait}
-        </p>
-        <p className="mt-2 text-[14px] leading-[1.4286] font-semibold tracking-[-0.016em] text-[#86868b]">
-          <time dateTime={publishedAtISO(article.publishedAt)}>
-            {formatPublishedAt(article.publishedAt)}
-          </time>
-        </p>
-      </div>
-    </Link>
   )
 }
 

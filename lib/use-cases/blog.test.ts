@@ -276,23 +276,16 @@ describe("blog brouillon foundation", () => {
       )
     })
 
-    it("re-publishes an archive keeping the original date", async () => {
+    it("rejects publishing an archived article", async () => {
       const { publie } = await publierArticle("republie")
-      const firstDate = publie.publishedAt?.getTime()
+      await archiver(publie.id, makeEffects())
 
-      await prisma.articleBlog.update({
-        where: { id: publie.id },
-        data: { statut: "archive" },
-      })
-      await expect(fetchBlogLanding()).resolves.toEqual({
-        hero: null,
-        articles: [],
-      })
-
-      const republication = await publier(publie.id, makeEffects())
-
-      expect(republication.statut).toBe("publie")
-      expect(republication.publishedAt?.getTime()).toBe(firstDate)
+      await expect(publier(publie.id, makeEffects())).rejects.toThrow(
+        "Un article archivé ne peut plus être publié"
+      )
+      await expect(publier(publie.id, makeEffects())).rejects.toThrow(
+        UserFacingError
+      )
     })
 
     it("throws a user-facing error for an unknown article", async () => {
@@ -438,6 +431,7 @@ describe("blog brouillon foundation", () => {
       expect(effets.revalidateBlog).toHaveBeenCalledWith({
         id: brouillon.id,
         slug: bSlug("edit-brouillon-v2"),
+        previousSlug: bSlug("edit-brouillon"),
       })
 
       await expect(
@@ -523,28 +517,33 @@ describe("blog brouillon foundation", () => {
         contenu: "Un contenu de test",
         statut: "archive",
       })
+
+      const resolu = await fetchArticleParSlug(bSlug("archive-visible"))
+      expect(resolu?.publishedAt).toBeInstanceOf(Date)
     })
 
-    it("archives a brouillon and stays idempotent on a second archive", async () => {
+    it("rejects archiving a brouillon and stays idempotent on a second archive", async () => {
       const brouillon = await createBrouillon(
         makeInput({ slug: bSlug("archive-brouillon") }),
         makeEffects()
       )
 
-      const archive = await archiver(brouillon.id, makeEffects())
-      expect(archive.statut).toBe("archive")
-      expect(archive.publishedAt).toBeNull()
+      await expect(archiver(brouillon.id, makeEffects())).rejects.toThrow(
+        "Seul un article publié peut être archivé"
+      )
+      await expect(archiver(brouillon.id, makeEffects())).rejects.toThrow(
+        UserFacingError
+      )
 
-      const second = await archiver(brouillon.id, makeEffects())
+      const { publie } = await publierArticle("archive-idempotent")
+      const firstDate = publie.publishedAt?.getTime()
+      await archiver(publie.id, makeEffects())
+      const second = await archiver(publie.id, makeEffects())
       expect(second.statut).toBe("archive")
+      expect(second.publishedAt?.getTime()).toBe(firstDate)
 
-      await expect(fetchBlogLanding()).resolves.toEqual({
-        hero: null,
-        articles: [],
-      })
-      await expect(
-        fetchArticleParSlug(bSlug("archive-brouillon"))
-      ).resolves.toMatchObject({ statut: "archive" })
+      const resolu = await fetchArticleParSlug(bSlug("archive-idempotent"))
+      expect(resolu?.publishedAt).toBeInstanceOf(Date)
     })
 
     it("rejects edits on an archived article", async () => {
@@ -695,6 +694,7 @@ describe("blog brouillon foundation", () => {
         totalStock: 10,
         freeShipping: true,
       })
+      expect(article?.produits[0].varianteId).toBeTruthy()
     })
 
     it("déduplique en préservant le premier ordre et rejette les inconnus", async () => {

@@ -17,6 +17,7 @@ export interface CatalogueEventProduct {
 export interface BlogEventArticle {
   id: string
   slug: string
+  previousSlug?: string
 }
 
 export function invalidateCatalogue(product: CatalogueEventProduct): void {
@@ -54,6 +55,9 @@ export function invalidateCommande(orderId: string): void {
 export function invalidateBlog(article: BlogEventArticle): void {
   revalidateTag(BLOG_TAG, "max")
   revalidateTag(blogDetailTag(article.slug), "max")
+  if (article.previousSlug && article.previousSlug !== article.slug) {
+    revalidateTag(blogDetailTag(article.previousSlug), "max")
+  }
   revalidatePath("/blog")
   revalidatePath(`/blog/${article.slug}`)
 }

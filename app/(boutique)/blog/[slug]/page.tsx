@@ -3,26 +3,16 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
-import { HomeProductCard } from "@/components/storefront/home-product-card"
+import { ProduitLieCarte } from "@/components/storefront/produit-lie-carte"
 import {
   buildArticleDonneesStructurees,
   buildBreadcrumbListDonneesStructurees,
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
+import { aDesSectionsArticle, decoupeContenuArticle } from "@/lib/blog-contenu"
+import { formatPublishedAt, publishedAtISO } from "@/lib/blog-dates"
 import { pageMetadata } from "@/lib/metadata"
 import { getArticleParSlug } from "@/lib/use-cases/blog"
-
-const formatDateArticle = new Intl.DateTimeFormat("fr-FR", {
-  dateStyle: "long",
-})
-
-function formatPublishedAt(value: Date | string): string {
-  return formatDateArticle.format(new Date(value))
-}
-
-function publishedAtISO(value: Date | string): string {
-  return new Date(value).toISOString()
-}
 
 export async function generateMetadata({
   params,
@@ -31,7 +21,13 @@ export async function generateMetadata({
 }) {
   const { slug } = await params
   const data = await getArticleParSlug(slug)
-  if (!data) return { title: "Article de blog introuvable" }
+  if (!data)
+    return pageMetadata({
+      title: "Article de blog introuvable",
+      description: "Cet article de blog est introuvable.",
+      path: `/blog/${slug}`,
+      noindex: true,
+    })
   return pageMetadata({
     title: data.titre,
     description: data.extrait,
@@ -68,6 +64,9 @@ async function ArticleContent({
     { name: "Blog", href: "/blog" },
     { name: data.titre },
   ]
+
+  const avecSections = aDesSectionsArticle(data.contenu)
+  const blocs = avecSections ? decoupeContenuArticle(data.contenu) : []
 
   return (
     <>
@@ -128,9 +127,28 @@ async function ArticleContent({
           </div>
         ) : null}
 
-        <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] whitespace-pre-line max-md:text-[17px] max-md:leading-[1.4706] max-md:tracking-[-0.022em]">
-          {data.contenu}
-        </div>
+        {avecSections ? (
+          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] max-md:text-[17px] max-md:leading-[1.4706] max-md:tracking-[-0.022em]">
+            {blocs.map((bloc, index) =>
+              bloc.type === "titre-section" ? (
+                <h2
+                  key={index}
+                  className="mt-11 text-[21px] leading-[1.1905] font-bold tracking-[0.011em] sm:mt-12 sm:text-[24px] sm:leading-[1.1667] sm:tracking-[0.009em] lg:mt-[52px]"
+                >
+                  {bloc.texte}
+                </h2>
+              ) : (
+                <p key={index} className="mt-6 whitespace-pre-line first:mt-0">
+                  {bloc.texte}
+                </p>
+              )
+            )}
+          </div>
+        ) : (
+          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] whitespace-pre-line max-md:text-[17px] max-md:leading-[1.4706] max-md:tracking-[-0.022em]">
+            {data.contenu}
+          </div>
+        )}
       </article>
 
       {data.produits.length > 0 ? (
@@ -141,7 +159,7 @@ async function ArticleContent({
             </h2>
             <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
               {data.produits.map((product) => (
-                <HomeProductCard key={product.id} product={product} />
+                <ProduitLieCarte key={product.id} product={product} />
               ))}
             </div>
           </div>
