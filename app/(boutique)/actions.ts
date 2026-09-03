@@ -9,31 +9,33 @@ import {
   type ResultatPanier,
 } from "@/lib/panier"
 
+function avecRafraichissement(resultat: ResultatPanier): ResultatPanier {
+  if (resultat.ok) refresh()
+  return resultat
+}
+
 export async function ajouterArticleAuPanierAction(
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  const resultat = await ajouterArticleAuPanierCourant(variantId, quantity)
-  if (resultat.ok) refresh()
-  return resultat
+  return avecRafraichissement(
+    await ajouterArticleAuPanierCourant(variantId, quantity)
+  )
 }
 
 export async function modifierQuantiteArticlePanierAction(
   articlePanierId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  const resultat = await modifierQuantiteArticlePanierCourant(
-    articlePanierId,
-    quantity
+  return avecRafraichissement(
+    await modifierQuantiteArticlePanierCourant(articlePanierId, quantity)
   )
-  if (resultat.ok) refresh()
-  return resultat
 }
 
 export async function retirerArticleDuPanierAction(
   articlePanierId: string
 ): Promise<ResultatPanier> {
-  const resultat = await retirerArticleDuPanierCourant(articlePanierId)
-  if (resultat.ok) refresh()
-  return resultat
+  return avecRafraichissement(
+    await retirerArticleDuPanierCourant(articlePanierId)
+  )
 }
