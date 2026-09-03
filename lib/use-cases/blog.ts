@@ -44,6 +44,13 @@ export class BlogSlugConflictError extends UserFacingError {
   }
 }
 
+export class SlugImmutableError extends UserFacingError {
+  constructor() {
+    super("Le slug est figé après publication")
+    this.name = "SlugImmutableError"
+  }
+}
+
 export class ThemeNotFoundError extends Error {
   constructor() {
     super("Thème introuvable")
@@ -86,9 +93,12 @@ function parseCreateBrouillonInput(
   return result.data
 }
 
-async function assertUniqueArticleSlug(slug: string): Promise<void> {
+async function assertUniqueArticleSlug(
+  slug: string,
+  excludeId?: string
+): Promise<void> {
   const existing = await prisma.articleBlog.findUnique({ where: { slug } })
-  if (existing) throw new BlogSlugConflictError()
+  if (existing && existing.id !== excludeId) throw new BlogSlugConflictError()
 }
 
 function mapBlogUniqueViolation(error: unknown): never {
@@ -162,6 +172,144 @@ export async function publier(id: string, effects: BlogEffects) {
   return updated
 }
 
+export interface MettreAJourInput {
+  titre?: string
+  slug?: string
+  extrait?: string
+  couverture?: string | null
+  contenu?: string
+  themeSlug?: string
+  themeId?: string
+}
+
+const mettreAJourSchema = z.object({
+  titre: z.string().trim().min(1, "titre requis").optional(),
+  slug: slugSchema.optional(),
+  extrait: z.string().trim().min(1, "extrait requis").optional(),
+  couverture: z.string().nullable().optional(),
+  contenu: z.string().trim().min(1, "contenu requis").optional(),
+  themeSlug: z.string().min(1).optional(),
+  themeId: z.string().min(1).optional(),
+})
+
+/**
+ * Retouches d'un Article de blog (Brouillon ou Publié, sans dépublication).
+ * Choix #163 : un article Archivé refuse toute retouche (UserFacingError —
+ * l'archive est terminale pour les edits ; republier via `publier` d'abord).
+ * Le slug est figé dès la première publication (`publishedAt != null`),
+ * y compris après archive (SlugImmutableError).
+ */
+export async function mettreAJour(
+  id: string,
+  patch: MettreAJourInput,
+  effects: BlogEffects
+) {
+  const result = mettreAJourSchema.safeParse(patch)
+  if (!result.success) {
+    throw new BlogValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
+  }
+  const data = result.data
+  if (data.themeSlug !== undefined && data.themeId !== undefined) {
+    throw new BlogValidationError(["thème requis (themeSlug ou themeId)"])
+  }
+
+  const article = await prisma.articleBlog.findUnique({
+    where: { id },
+    include: { theme: true },
+  })
+  if (!article) throw new UserFacingError("Article de blog introuvable")
+  if (article.statut === "archive") {
+    throw new UserFacingError("Un article archivé ne peut plus être modifié")
+  }
+
+  if (
+    data.slug !== undefined &&
+    data.slug !== article.slug &&
+    article.publishedAt !== null
+  ) {
+    throw new SlugImmutableError()
+  }
+
+  let themeId: string | undefined
+  if (data.themeSlug !== undefined || data.themeId !== undefined) {
+    const theme = data.themeId
+      ? await prisma.theme.findUnique({ where: { id: data.themeId } })
+      : await prisma.theme.findUnique({ where: { slug: data.themeSlug! } })
+    if (!theme) throw new ThemeNotFoundError()
+    themeId = theme.id
+  }
+
+  if (data.slug !== undefined && data.slug !== article.slug) {
+    await assertUniqueArticleSlug(data.slug, id)
+  }
+
+  const removedImages =
+    data.couverture !== undefined &&
+    article.couverture !== null &&
+    article.couverture !== data.couverture
+      ? [article.couverture]
+      : []
+
+  let updated
+  try {
+    updated = await prisma.articleBlog.update({
+      where: { id },
+      data: {
+        ...(data.titre !== undefined ? { titre: data.titre } : {}),
+        ...(data.slug !== undefined ? { slug: data.slug } : {}),
+        ...(data.extrait !== undefined ? { extrait: data.extrait } : {}),
+        ...(data.couverture !== undefined
+          ? { couverture: data.couverture }
+          : {}),
+        ...(data.contenu !== undefined ? { contenu: data.contenu } : {}),
+        ...(themeId !== undefined ? { themeId } : {}),
+      },
+      include: { theme: true },
+    })
+  } catch (error) {
+    mapBlogUniqueViolation(error)
+  }
+
+  try {
+    await effects.deleteImages(removedImages)
+  } catch {
+    // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
+  }
+
+  effects.revalidateBlog?.({ id: updated.id, slug: updated.slug })
+  return updated
+}
+
+/**
+ * Archive un Article de blog (Publié → Archivé).
+ * Choix #163 : Brouillon → Archivé autorisé (mise au rebut sans publier) ;
+ * Archivé → Archivé idempotent (comme `publier`).
+ * `publishedAt` est conservé tel quel (première date gardée).
+ */
+export async function archiver(id: string, effects: BlogEffects) {
+  const article = await prisma.articleBlog.findUnique({
+    where: { id },
+    include: { theme: true },
+  })
+  if (!article) throw new UserFacingError("Article de blog introuvable")
+
+  if (article.statut === "archive") {
+    effects.revalidateBlog?.({ id: article.id, slug: article.slug })
+    return article
+  }
+
+  const updated = await prisma.articleBlog.update({
+    where: { id },
+    data: { statut: "archive" },
+    include: { theme: true },
+  })
+
+  effects.revalidateBlog?.({ id: updated.id, slug: updated.slug })
+  return updated
+}
+
 export interface ArticleBlogPublic {
   id: string
   titre: string
@@ -181,8 +329,8 @@ export interface ArticleBlogPublic {
 
 /**
  * Résolution publique d'un Article de blog par son slug.
- * Un Brouillon n'est jamais résolu publiquement (retourne null).
- * La résolution Archivé arrive en #163 — pour l'instant, seul Publié résout.
+ * Publié + Archivé résolvent (l'Archivé garde son URL avec contenu complet) ;
+ * un Brouillon n'est jamais résolu publiquement (retourne null).
  */
 export async function fetchArticleParSlug(
   slug: string
@@ -191,7 +339,8 @@ export async function fetchArticleParSlug(
     where: { slug },
     include: { theme: true },
   })
-  if (!article || article.statut !== "publie") return null
+  if (!article || (article.statut !== "publie" && article.statut !== "archive"))
+    return null
   return {
     id: article.id,
     titre: article.titre,
