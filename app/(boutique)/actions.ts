@@ -1,28 +1,39 @@
 "use server"
 
-import { type ResultatPanier } from "@/lib/panier"
+import { refresh } from "next/cache"
+
 import {
   ajouterArticleAuPanierCourant,
   modifierQuantiteArticlePanierCourant,
   retirerArticleDuPanierCourant,
-} from "@/lib/use-cases/panier-courant"
+  type ResultatPanier,
+} from "@/lib/panier"
 
 export async function ajouterArticleAuPanierAction(
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return ajouterArticleAuPanierCourant(variantId, quantity)
+  const resultat = await ajouterArticleAuPanierCourant(variantId, quantity)
+  if (resultat.ok) refresh()
+  return resultat
 }
 
 export async function modifierQuantiteArticlePanierAction(
   articlePanierId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return modifierQuantiteArticlePanierCourant(articlePanierId, quantity)
+  const resultat = await modifierQuantiteArticlePanierCourant(
+    articlePanierId,
+    quantity
+  )
+  if (resultat.ok) refresh()
+  return resultat
 }
 
 export async function retirerArticleDuPanierAction(
   articlePanierId: string
 ): Promise<ResultatPanier> {
-  return retirerArticleDuPanierCourant(articlePanierId)
+  const resultat = await retirerArticleDuPanierCourant(articlePanierId)
+  if (resultat.ok) refresh()
+  return resultat
 }
