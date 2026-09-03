@@ -1,4 +1,4 @@
-import { compterArticlesDuPanierCourant } from "@/lib/use-cases/panier-courant"
+import { compterArticlesDuPanierCourant } from "@/lib/panier"
 
 export async function PanierBadge() {
   const count = await compterArticlesDuPanierCourant()

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { quotePanier } from "@/lib/use-cases/livraison"
 import { formatPrice } from "@/lib/money"
-import { lirePanierCourant } from "@/lib/use-cases/panier-courant"
+import { lirePanierCourant } from "@/lib/panier"
 
 export const metadata = pageMetadata({
   title: "Panier",
