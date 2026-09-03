@@ -18,3 +18,12 @@ export const OrderStatus = {
 } as const
 
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
+
+export const StatutPublication = {
+  brouillon: "brouillon",
+  publie: "publie",
+  archive: "archive",
+} as const
+
+export type StatutPublication =
+  (typeof StatutPublication)[keyof typeof StatutPublication]

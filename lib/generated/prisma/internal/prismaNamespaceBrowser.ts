@@ -66,6 +66,9 @@ export const ModelName = {
   OrderItem: "OrderItem",
   DeliveryCity: "DeliveryCity",
   ShippingSettings: "ShippingSettings",
+  Theme: "Theme",
+  ArticleBlog: "ArticleBlog",
+  ArticleBlogProduit: "ArticleBlogProduit",
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -254,6 +257,43 @@ export const ShippingSettingsScalarFieldEnum = {
 
 export type ShippingSettingsScalarFieldEnum =
   (typeof ShippingSettingsScalarFieldEnum)[keyof typeof ShippingSettingsScalarFieldEnum]
+
+export const ThemeScalarFieldEnum = {
+  id: "id",
+  slug: "slug",
+  nom: "nom",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type ThemeScalarFieldEnum =
+  (typeof ThemeScalarFieldEnum)[keyof typeof ThemeScalarFieldEnum]
+
+export const ArticleBlogScalarFieldEnum = {
+  id: "id",
+  titre: "titre",
+  slug: "slug",
+  extrait: "extrait",
+  couverture: "couverture",
+  contenu: "contenu",
+  themeId: "themeId",
+  statut: "statut",
+  publishedAt: "publishedAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type ArticleBlogScalarFieldEnum =
+  (typeof ArticleBlogScalarFieldEnum)[keyof typeof ArticleBlogScalarFieldEnum]
+
+export const ArticleBlogProduitScalarFieldEnum = {
+  articleId: "articleId",
+  productId: "productId",
+  ordre: "ordre",
+} as const
+
+export type ArticleBlogProduitScalarFieldEnum =
+  (typeof ArticleBlogProduitScalarFieldEnum)[keyof typeof ArticleBlogProduitScalarFieldEnum]
 
 export const SortOrder = {
   asc: "asc",

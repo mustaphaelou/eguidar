@@ -158,3 +158,27 @@ Le seul hôte servi depuis l'origine : l'apex `eguidar.com`. `www` n'existe que 
 l'edge (301) ; `cdn.`, `ssh.` et `send.` sont traités à la couche Cloudflare, et tout autre
 sous-domaine s'arrête sur l'erreur 503 de l'origine.
 _Avoid_: domaine principal, canonical domain
+
+**Blog**:
+Le journal éditorial d'eguidar.com (`/blog`) : guides et annonces en style Apple Newsroom,
+distinct du Catalogue et de la FAQ.
+_Avoid_: news, actualités (comme nom du concept)
+
+**Article de blog**:
+Une page éditoriale du Blog (`/blog/[slug]`) avec titre, slug, extrait, couverture, contenu,
+un Thème et un Statut de publication.
+_Avoid_: Article (seul, réservé à l'Article du panier), post, billet
+
+**Thème**:
+Le regroupement éditorial d'un Article de blog (Guides, Annonces pour le MVP) ;
+liste fermée sans hiérarchie. Catégorie reste Catalogue-only.
+_Avoid_: catégorie, tag
+
+**Statut de publication**:
+Le cycle de vie d'un Article de blog : Brouillon, Publié, Archivé.
+_Avoid_: état, status
+
+**Produit lié**:
+Un Produit du Catalogue attaché à un Article de blog, affiché en carte avec Prix courant
+vers la page Produit.
+_Avoid_: produit associé, related product

@@ -105,6 +105,7 @@ model Product {
   categoryId    String
   category      Category         @relation(fields: [categoryId], references: [id])
   variants      ProductVariant[]
+  articlesBlog  ArticleBlogProduit[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -195,4 +196,51 @@ model ShippingSettings {
   id                    String @id @default("default")
   freeShippingThreshold Int
   updatedAt             DateTime @updatedAt
+}
+
+// --- Blog ---
+
+enum StatutPublication {
+  brouillon
+  publie
+  archive
+}
+
+model Theme {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  nom       String       @unique
+  articles  ArticleBlog[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model ArticleBlog {
+  id          String            @id @default(cuid())
+  titre       String
+  slug        String            @unique
+  extrait     String
+  couverture  String?
+  contenu     String
+  themeId     String
+  theme       Theme             @relation(fields: [themeId], references: [id])
+  statut      StatutPublication @default(brouillon)
+  publishedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  produits    ArticleBlogProduit[]
+
+  @@index([statut, publishedAt])
+  @@index([themeId])
+}
+
+model ArticleBlogProduit {
+  articleId String
+  productId String
+  ordre     Int         @default(0)
+  article   ArticleBlog @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  produit   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, productId])
+  @@index([productId])
 }

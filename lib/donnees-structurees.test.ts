@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  buildArticleDonneesStructurees,
   buildBreadcrumbListDonneesStructurees,
   buildFaqPageDonneesStructurees,
   buildOrganizationDonneesStructurees,
@@ -187,6 +188,55 @@ describe("buildProductDonneesStructurees", () => {
       expect(result[field]).toBeUndefined()
       expect(offer[field]).toBeUndefined()
     }
+  })
+})
+
+describe("buildArticleDonneesStructurees", () => {
+  it("builds a schema.org Article for an Article de blog", () => {
+    const result = buildArticleDonneesStructurees({
+      titre: "Bien choisir son smartphone",
+      extrait: "Nos conseils pour un achat serein.",
+      couverture: "https://cdn.eguidar.com/blog/smartphone.webp",
+      publishedAt: new Date("2026-03-10T10:00:00Z"),
+    })
+
+    expect(result).toEqual({
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: "Bien choisir son smartphone",
+      description: "Nos conseils pour un achat serein.",
+      image: ["https://cdn.eguidar.com/blog/smartphone.webp"],
+      datePublished: "2026-03-10T10:00:00.000Z",
+      author: {
+        "@type": "Organization",
+        name: site.name,
+        url: site.url,
+      },
+    })
+  })
+
+  it("emits an empty image list when the article has no couverture", () => {
+    const result = buildArticleDonneesStructurees({
+      titre: "Sans image",
+      extrait: "Un extrait.",
+      couverture: null,
+      publishedAt: new Date("2026-03-10T10:00:00Z"),
+    })
+
+    expect(result.image).toEqual([])
+  })
+
+  it("emits Article DS for an archivé article keeping its publication date", () => {
+    const result = buildArticleDonneesStructurees({
+      titre: "Guide archivé",
+      extrait: "Un extrait archivé.",
+      couverture: "https://cdn.eguidar.com/blog/archive.webp",
+      publishedAt: new Date("2026-02-10T10:00:00Z"),
+    })
+
+    expect(result["@type"]).toBe("Article")
+    expect(result.headline).toBe("Guide archivé")
+    expect(result.datePublished).toBe("2026-02-10T10:00:00.000Z")
   })
 })
 
