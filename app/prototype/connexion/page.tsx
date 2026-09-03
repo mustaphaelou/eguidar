@@ -21,18 +21,30 @@ interface PrototypeConnexionPageProps {
   searchParams: Promise<{ variant?: string }>
 }
 
-export default async function PrototypeConnexionPage({
+export default function PrototypeConnexionPage({
+  searchParams,
+}: PrototypeConnexionPageProps) {
+  return (
+    <main className="relative min-h-svh w-full bg-background">
+      <Suspense fallback={null}>
+        <PrototypeConnexionContent searchParams={searchParams} />
+      </Suspense>
+    </main>
+  )
+}
+
+async function PrototypeConnexionContent({
   searchParams,
 }: PrototypeConnexionPageProps) {
   const { variant } = await searchParams
   const activeVariant = parsePrototypeVariant(variant)
 
   return (
-    <main className="relative min-h-svh w-full bg-background">
+    <>
       <LoginPrototypeShell variant={activeVariant} />
       <Suspense fallback={null}>
         <PrototypeVariantSwitcher names={LOGIN_PROTOTYPE_VARIANT_NAMES} />
       </Suspense>
-    </main>
+    </>
   )
 }
