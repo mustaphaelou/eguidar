@@ -12,12 +12,15 @@ import {
 
 import { prisma } from "@/lib/db"
 import {
+  archiver,
   BlogSlugConflictError,
   BlogValidationError,
   createBrouillon,
   fetchArticleParSlug,
   fetchBlogLanding,
+  mettreAJour,
   publier,
+  SlugImmutableError,
   ThemeNotFoundError,
   type BlogEffects,
   type CreateBrouillonInput,
@@ -347,6 +350,207 @@ describe("blog brouillon foundation", () => {
       await expect(
         fetchArticleParSlug(bSlug("detail-brouillon"))
       ).resolves.toBeNull()
+    })
+  })
+
+  describe("retouches + archive", () => {
+    async function publierArticle(suffix: string) {
+      const effets = makeEffects()
+      const brouillon = await createBrouillon(
+        makeInput({ slug: bSlug(suffix) }),
+        effets
+      )
+      const publie = await publier(brouillon.id, effets)
+      return { brouillon, publie }
+    }
+
+    it("edits a brouillon in place, slug change allowed before publication", async () => {
+      const effets = makeEffects()
+      const brouillon = await createBrouillon(
+        makeInput({ slug: bSlug("edit-brouillon") }),
+        effets
+      )
+
+      const updated = await mettreAJour(
+        brouillon.id,
+        { titre: "Titre retouché", slug: bSlug("edit-brouillon-v2") },
+        effets
+      )
+
+      expect(updated.titre).toBe("Titre retouché")
+      expect(updated.slug).toBe(bSlug("edit-brouillon-v2"))
+      expect(updated.statut).toBe("brouillon")
+      expect(updated.publishedAt).toBeNull()
+      expect(effets.revalidateBlog).toHaveBeenCalledWith({
+        id: brouillon.id,
+        slug: bSlug("edit-brouillon-v2"),
+      })
+
+      await expect(
+        fetchArticleParSlug(bSlug("edit-brouillon-v2"))
+      ).resolves.toBeNull()
+    })
+
+    it("edits a publie article without unpublishing", async () => {
+      const { publie } = await publierArticle("edit-publie")
+      const firstDate = publie.publishedAt?.getTime()
+      const effets = makeEffects()
+
+      const updated = await mettreAJour(
+        publie.id,
+        {
+          titre: "Titre corrigé",
+          extrait: "Extrait corrigé",
+          contenu: "Contenu corrigé",
+          themeSlug: "annonces",
+        },
+        effets
+      )
+
+      expect(updated.statut).toBe("publie")
+      expect(updated.publishedAt?.getTime()).toBe(firstDate)
+      expect(updated.titre).toBe("Titre corrigé")
+      expect(effets.revalidateBlog).toHaveBeenCalledWith({
+        id: publie.id,
+        slug: bSlug("edit-publie"),
+      })
+
+      await expect(fetchArticleParSlug(bSlug("edit-publie"))).resolves.toMatchObject(
+        { titre: "Titre corrigé", statut: "publie" }
+      )
+      const landing = await fetchBlogLanding()
+      expect(landing.hero?.slug).toBe(bSlug("edit-publie"))
+      expect(landing.hero?.titre).toBe("Titre corrigé")
+    })
+
+    it("rejects a slug change after publication", async () => {
+      const { publie } = await publierArticle("slug-frozen")
+
+      await expect(
+        mettreAJour(publie.id, { slug: bSlug("nouveau-slug") }, makeEffects())
+      ).rejects.toThrow(SlugImmutableError)
+      await expect(
+        mettreAJour(publie.id, { slug: bSlug("nouveau-slug") }, makeEffects())
+      ).rejects.toThrow("Le slug est figé après publication")
+      await expect(
+        mettreAJour(publie.id, { slug: bSlug("nouveau-slug") }, makeEffects())
+      ).rejects.toThrow(UserFacingError)
+
+      const persisted = await prisma.articleBlog.findUniqueOrThrow({
+        where: { id: publie.id },
+      })
+      expect(persisted.slug).toBe(bSlug("slug-frozen"))
+    })
+
+    it("excludes an archived article from the landing but keeps its URL resolving", async () => {
+      const effets = makeEffects()
+      const { publie } = await publierArticle("archive-visible")
+      await publierArticle("archive-autre")
+
+      const archive = await archiver(publie.id, effets)
+
+      expect(archive.statut).toBe("archive")
+      expect(effets.revalidateBlog).toHaveBeenCalledWith({
+        id: publie.id,
+        slug: bSlug("archive-visible"),
+      })
+
+      const landing = await fetchBlogLanding()
+      expect(
+        [landing.hero?.slug, ...landing.articles.map((a) => a.slug)]
+      ).not.toContain(bSlug("archive-visible"))
+      expect(landing.hero?.slug).toBe(bSlug("archive-autre"))
+
+      await expect(
+        fetchArticleParSlug(bSlug("archive-visible"))
+      ).resolves.toMatchObject({
+        titre: "Guide de test",
+        slug: bSlug("archive-visible"),
+        contenu: "Un contenu de test",
+        statut: "archive",
+      })
+    })
+
+    it("archives a brouillon and stays idempotent on a second archive", async () => {
+      const brouillon = await createBrouillon(
+        makeInput({ slug: bSlug("archive-brouillon") }),
+        makeEffects()
+      )
+
+      const archive = await archiver(brouillon.id, makeEffects())
+      expect(archive.statut).toBe("archive")
+      expect(archive.publishedAt).toBeNull()
+
+      const second = await archiver(brouillon.id, makeEffects())
+      expect(second.statut).toBe("archive")
+
+      await expect(fetchBlogLanding()).resolves.toEqual({
+        hero: null,
+        articles: [],
+      })
+      await expect(
+        fetchArticleParSlug(bSlug("archive-brouillon"))
+      ).resolves.toMatchObject({ statut: "archive" })
+    })
+
+    it("rejects edits on an archived article", async () => {
+      const { publie } = await publierArticle("archive-fige")
+      await archiver(publie.id, makeEffects())
+
+      await expect(
+        mettreAJour(publie.id, { titre: "Retouche tardive" }, makeEffects())
+      ).rejects.toThrow("Un article archivé ne peut plus être modifié")
+    })
+
+    it("deletes the old cover best-effort on swap", async () => {
+      const effets = makeEffects()
+      const brouillon = await createBrouillon(
+        makeInput({
+          slug: bSlug("cover-swap"),
+          couverture: "https://example.com/ancienne.jpg",
+        }),
+        effets
+      )
+      const publie = await publier(brouillon.id, effets)
+
+      const updated = await mettreAJour(
+        publie.id,
+        { couverture: "https://example.com/nouvelle.jpg" },
+        effets
+      )
+
+      expect(updated.couverture).toBe("https://example.com/nouvelle.jpg")
+      expect(effets.deleteImages).toHaveBeenCalledWith([
+        "https://example.com/ancienne.jpg",
+      ])
+    })
+
+    it("still succeeds when the cover delete fails", async () => {
+      const { publie } = await publierArticle("cover-echec")
+      await prisma.articleBlog.update({
+        where: { id: publie.id },
+        data: { couverture: "https://example.com/ancienne.jpg" },
+      })
+      const effets = makeEffects()
+      effets.deleteImages.mockRejectedValueOnce(new Error("R2 indisponible"))
+
+      const updated = await mettreAJour(
+        publie.id,
+        { couverture: "https://example.com/nouvelle.jpg" },
+        effets
+      )
+
+      expect(updated.couverture).toBe("https://example.com/nouvelle.jpg")
+      expect(updated.statut).toBe("publie")
+    })
+
+    it("throws a user-facing error for an unknown article", async () => {
+      await expect(
+        mettreAJour("inexistant", { titre: "X" }, makeEffects())
+      ).rejects.toThrow("Article de blog introuvable")
+      await expect(archiver("inexistant", makeEffects())).rejects.toThrow(
+        "Article de blog introuvable"
+      )
     })
   })
 })
