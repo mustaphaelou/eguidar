@@ -27,7 +27,7 @@ import {
   lignesDevis,
   selectionnerDevis,
   type Devis,
-} from "@/lib/use-cases/devis"
+} from "@/lib/use-cases/devis-selection"
 
 export interface CheckoutFormProps {
   devis: Devis
