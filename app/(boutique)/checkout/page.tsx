@@ -5,7 +5,7 @@ import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
-import { quotePanier } from "@/lib/use-cases/livraison"
+import { chargerDevis } from "@/lib/use-cases/devis"
 import { lirePanierCourant } from "@/lib/panier"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
@@ -46,11 +46,7 @@ async function CheckoutContent({
   if (panier.lines.length === 0) redirect("/panier")
 
   const requestedCityId = ville ?? profile.cityId
-  const { cities, quotes, selected } = await quotePanier(
-    panier,
-    requestedCityId
-  )
-  const initialCityId = selected ? requestedCityId : null
+  const devis = await chargerDevis(panier, requestedCityId)
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -60,9 +56,7 @@ async function CheckoutContent({
         <section>
           <h2 className="mb-4 text-lg font-semibold">Adresse de livraison</h2>
           <CheckoutForm
-            cities={cities}
-            quotes={quotes}
-            initialCityId={initialCityId}
+            devis={devis}
             initialAddress={profile.address ?? ""}
             initialPhone={profile.phone ?? ""}
             subtotal={panier.subtotal}
