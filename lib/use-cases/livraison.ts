@@ -1,32 +1,25 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import {
+  DEFAULT_FREE_SHIPPING_THRESHOLD,
+  type DeliveryCityOption,
+} from "@/lib/use-cases/livraison-prix"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-export interface ShippingQuote {
-  subtotal: number
-  shippingFee: number
-  total: number
-}
-
-export interface DeliveryCityOption {
-  id: string
-  name: string
-  fee: number
-}
-
-export interface PricingInput {
-  subtotal: number
-  anyFreeShippingItem: boolean
-}
-
-export interface ShippingFeeInput {
-  subtotal: number
-  cityFee: number
-  freeShippingThreshold: number
-  anyFreeShippingItem: boolean
-}
+export type {
+  DeliveryCityOption,
+  PricingInput,
+  ShippingFeeInput,
+  ShippingQuote,
+} from "@/lib/use-cases/livraison-prix"
+export {
+  computeCityQuote,
+  computeCityQuotes,
+  computeShippingFee,
+  DEFAULT_FREE_SHIPPING_THRESHOLD,
+} from "@/lib/use-cases/livraison-prix"
 
 export interface CityInput {
   name: string
@@ -70,44 +63,6 @@ export class ShippingValidationError extends UserFacingError {
     super(`Données invalides : ${issues.join(" ; ")}`)
     this.name = "ShippingValidationError"
   }
-}
-
-export const DEFAULT_FREE_SHIPPING_THRESHOLD = 100000
-
-export function computeShippingFee(input: ShippingFeeInput): number {
-  if (input.subtotal >= input.freeShippingThreshold) return 0
-  if (input.anyFreeShippingItem) return 0
-  return input.cityFee
-}
-
-export function computeCityQuote(
-  city: DeliveryCityOption,
-  pricing: PricingInput,
-  freeShippingThreshold: number
-): ShippingQuote {
-  const shippingFee = computeShippingFee({
-    subtotal: pricing.subtotal,
-    cityFee: city.fee,
-    freeShippingThreshold,
-    anyFreeShippingItem: pricing.anyFreeShippingItem,
-  })
-  return {
-    subtotal: pricing.subtotal,
-    shippingFee,
-    total: pricing.subtotal + shippingFee,
-  }
-}
-
-export function computeCityQuotes(
-  cities: DeliveryCityOption[],
-  pricing: PricingInput,
-  freeShippingThreshold: number
-): Record<string, ShippingQuote> {
-  const quotes: Record<string, ShippingQuote> = {}
-  for (const city of cities) {
-    quotes[city.id] = computeCityQuote(city, pricing, freeShippingThreshold)
-  }
-  return quotes
 }
 
 export async function getFreeShippingThreshold(): Promise<number> {
