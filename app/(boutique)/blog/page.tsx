@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { connection } from "next/server"
 import { Suspense } from "react"
 
 import { BlogFeedCard, BlogHeroCard } from "@/components/storefront/blog-carte"
@@ -25,6 +26,7 @@ export default function BlogPage() {
 }
 
 async function BlogContent() {
+  await connection()
   const landing = await getBlogLanding()
   const isEmpty = !landing.hero && landing.articles.length === 0
 

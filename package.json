@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:check": "DATABASE_URL=postgresql://build:build@localhost:5432/build next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
