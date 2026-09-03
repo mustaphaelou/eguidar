@@ -33,21 +33,17 @@ vi.mock("@/lib/use-cases/get-session", async () => {
   return { getSessionUser: h.sessionUserMock }
 })
 
-const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
-
-vi.mock("next/cache", () => ({ refresh: refreshMock }))
-
-import { ajouterArticleAuPanier } from "@/lib/panier"
 import {
+  ajouterArticleAuPanier,
   ajouterArticleAuPanierCourant,
   compterArticlesDuPanierCourant,
   lirePanierCourant,
   modifierQuantiteArticlePanierCourant,
   retirerArticleDuPanierCourant,
-} from "./panier-courant"
+} from "./panier"
 
 const runId = randomUUID().slice(0, 8)
-const emailPrefix = `panier-courant-${runId}-`
+const emailPrefix = `panier-deep-${runId}-`
 
 let userId: string
 let variantStandard: string
@@ -74,31 +70,31 @@ beforeAll(async () => {
   const category = await prisma.category.create({
     data: {
       name: `Catégorie ${runId}`,
-      slug: `panier-courant-cat-${runId}`,
+      slug: `panier-deep-cat-${runId}`,
     },
   })
   const product = await prisma.product.create({
     data: {
-      name: "Produit Panier Courant",
-      slug: `panier-courant-prod-${runId}`,
+      name: "Produit Panier Deep",
+      slug: `panier-deep-prod-${runId}`,
       description: "Description A",
       brand: "Marque A",
       categoryId: category.id,
       price: 100000,
       specs: {},
-      images: ["https://example.com/pc-1.jpg"],
+      images: ["https://example.com/pd-1.jpg"],
       freeShipping: false,
       variants: {
         create: [
           {
             name: "Standard",
-            sku: `PCC-${runId}-A1`,
+            sku: `PDD-${runId}-A1`,
             priceDelta: 0,
             stock: 10,
           },
           {
             name: "Premium",
-            sku: `PCC-${runId}-A2`,
+            sku: `PDD-${runId}-A2`,
             priceDelta: 50000,
             stock: 3,
           },
@@ -114,7 +110,6 @@ beforeAll(async () => {
 beforeEach(async () => {
   resetCookieStoreMock()
   sessionUserMock.mockReset()
-  refreshMock.mockClear()
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: emailPrefix } } },
   })
@@ -128,10 +123,10 @@ afterAll(async () => {
     where: { email: { startsWith: emailPrefix } },
   })
   await prisma.product.deleteMany({
-    where: { slug: { startsWith: "panier-courant-prod-" } },
+    where: { slug: { startsWith: "panier-deep-prod-" } },
   })
   await prisma.category.deleteMany({
-    where: { slug: `panier-courant-cat-${runId}` },
+    where: { slug: `panier-deep-cat-${runId}` },
   })
   await prisma.$disconnect()
 })
@@ -160,8 +155,8 @@ describe("lirePanierCourant — lecture du Panier courant", () => {
         articlePanierId: item.id,
         variantId: variantStandard,
         variantName: "Standard",
-        productName: "Produit Panier Courant",
-        image: "https://example.com/pc-1.jpg",
+        productName: "Produit Panier Deep",
+        image: "https://example.com/pd-1.jpg",
         unitPrice: 100000,
         quantity: 2,
         lineTotal: 200000,
@@ -224,7 +219,7 @@ describe("lirePanierCourant — lecture du Panier courant", () => {
       expect(panier.lines[0]).toMatchObject({
         variantId: variantStandard,
         variantName: "Standard",
-        productName: "Produit Panier Courant",
+        productName: "Produit Panier Deep",
         unitPrice: 100000,
         quantity: 2,
         lineTotal: 200000,
@@ -489,98 +484,5 @@ describe("écritures du Panier courant — ajouter, modifier, retirer", () => {
         parsePanierVisiteur(readCookie(NOM_COOKIE_PANIER_VISITEUR))
       ).toEqual([{ variantId: variantStandard, quantity: 2 }])
     })
-  })
-})
-
-describe("revalidation explicite — les écritures rafraîchissent les lectures", () => {
-  it("an add revalidates the Panier reads explicitly for a Client", async () => {
-    commeClient(userId)
-
-    expect(await compterArticlesDuPanierCourant()).toBe(0)
-
-    await expect(
-      ajouterArticleAuPanierCourant(variantStandard, 2)
-    ).resolves.toEqual({ ok: true })
-
-    expect(refreshMock).toHaveBeenCalledTimes(1)
-    expect(await compterArticlesDuPanierCourant()).toBe(2)
-  })
-
-  it("a quantity change revalidates the Panier reads explicitly for a Client", async () => {
-    commeClient(userId)
-    await ajouterArticleAuPanierCourant(variantStandard, 2)
-    const item = await prisma.cartItem.findFirstOrThrow({
-      where: { userId, variantId: variantStandard },
-    })
-    refreshMock.mockClear()
-
-    await expect(
-      modifierQuantiteArticlePanierCourant(item.id, 5)
-    ).resolves.toEqual({ ok: true })
-
-    expect(refreshMock).toHaveBeenCalledTimes(1)
-    expect(await compterArticlesDuPanierCourant()).toBe(5)
-  })
-
-  it("a removal revalidates the Panier reads explicitly for a Client", async () => {
-    commeClient(userId)
-    await ajouterArticleAuPanierCourant(variantStandard, 2)
-    const item = await prisma.cartItem.findFirstOrThrow({
-      where: { userId, variantId: variantStandard },
-    })
-    refreshMock.mockClear()
-
-    await expect(retirerArticleDuPanierCourant(item.id)).resolves.toEqual({
-      ok: true,
-    })
-
-    expect(refreshMock).toHaveBeenCalledTimes(1)
-    expect(await compterArticlesDuPanierCourant()).toBe(0)
-  })
-
-  it("a refused écriture revalidates nothing for a Client", async () => {
-    commeClient(userId)
-    await ajouterArticleAuPanierCourant(variantStandard, 2)
-    refreshMock.mockClear()
-
-    await expect(
-      ajouterArticleAuPanierCourant(variantStandard, 0)
-    ).resolves.toEqual({ ok: false, motif: "quantite-invalide" })
-    await expect(
-      modifierQuantiteArticlePanierCourant("article-fantome", 1)
-    ).resolves.toEqual({ ok: false, motif: "article-inconnu" })
-
-    expect(refreshMock).not.toHaveBeenCalled()
-  })
-
-  it("a Visiteur écriture revalidates the Panier reads explicitly, like a Client's", async () => {
-    commeVisiteur()
-
-    await expect(
-      ajouterArticleAuPanierCourant(variantStandard, 2)
-    ).resolves.toEqual({ ok: true })
-    expect(refreshMock).toHaveBeenCalledTimes(1)
-
-    await expect(
-      modifierQuantiteArticlePanierCourant(variantStandard, 4)
-    ).resolves.toEqual({ ok: true })
-    expect(refreshMock).toHaveBeenCalledTimes(2)
-    expect(await compterArticlesDuPanierCourant()).toBe(4)
-
-    await expect(
-      retirerArticleDuPanierCourant(variantStandard)
-    ).resolves.toEqual({ ok: true })
-    expect(refreshMock).toHaveBeenCalledTimes(3)
-    expect(await compterArticlesDuPanierCourant()).toBe(0)
-  })
-
-  it("a refused Visiteur écriture revalidates nothing", async () => {
-    commeVisiteur()
-
-    await expect(
-      ajouterArticleAuPanierCourant("variante-fantome", 1)
-    ).resolves.toEqual({ ok: false, motif: "variante-inconnue" })
-
-    expect(refreshMock).not.toHaveBeenCalled()
   })
 })

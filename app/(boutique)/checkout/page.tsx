@@ -6,7 +6,7 @@ import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
 import { quotePanier } from "@/lib/use-cases/livraison"
-import { lirePanierCourant } from "@/lib/use-cases/panier-courant"
+import { lirePanierCourant } from "@/lib/panier"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
 
