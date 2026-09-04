@@ -48,11 +48,12 @@ import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
 
 import CartPage from "./page"
 import { prisma } from "@/lib/db"
-import {
-  NOM_COOKIE_PANIER_VISITEUR,
-  serializePanierVisiteur,
-} from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
+
+const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
+const serializePanierVisiteur = (
+  articles: readonly { variantId: string; quantity: number }[]
+) => JSON.stringify(articles)
 
 const runId = randomUUID().slice(0, 8)
 

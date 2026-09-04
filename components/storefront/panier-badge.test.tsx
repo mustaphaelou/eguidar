@@ -31,11 +31,12 @@ import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
 
 import { PanierBadge } from "./panier-badge"
 import { prisma } from "@/lib/db"
-import {
-  NOM_COOKIE_PANIER_VISITEUR,
-  serializePanierVisiteur,
-} from "@/lib/panier-visiteur"
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
+
+const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
+const serializePanierVisiteur = (
+  articles: readonly { variantId: string; quantity: number }[]
+) => JSON.stringify(articles)
 
 const runId = randomUUID().slice(0, 8)
 
