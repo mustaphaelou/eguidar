@@ -516,30 +516,33 @@ describe("order status transitions", () => {
   }
 
   it("walks pending → confirmed → shipped → delivered, emailing each change", async () => {
-    const effects = makeEffects()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const order = await placeOrder(userIdA, checkoutInput(), effects)
-    effects.sendOrderStatusEmail.mockClear()
+    const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
 
-    await updateOrderStatus(order.id, "confirmed", effects)
-    await updateOrderStatus(order.id, "shipped", effects)
-    await updateOrderStatus(order.id, "delivered", effects)
+    await updateOrderStatus(order.id, "confirmed", { sendOrderStatusEmail })
+    await updateOrderStatus(order.id, "shipped", { sendOrderStatusEmail })
+    await updateOrderStatus(order.id, "delivered", { sendOrderStatusEmail })
 
     const final = await getOrder(userIdA, order.id)
     expect(final!.status).toBe("delivered")
-    expect(effects.sendOrderStatusEmail).toHaveBeenCalledTimes(3)
+    expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
     expect(
-      effects.sendOrderStatusEmail.mock.calls.map((call) => call[1])
+      sendOrderStatusEmail.mock.calls.map((call) => call[1])
     ).toEqual(["confirmed", "shipped", "delivered"])
-    const lastSnapshot = effects.sendOrderStatusEmail.mock
+    const lastSnapshot = sendOrderStatusEmail.mock
       .calls[2][0] as OrderEmailSnapshot
     expect(lastSnapshot.orderId).toBe(order.id)
     expect(lastSnapshot.userEmail).toBe(email("a"))
   })
 
   it("cancels a pending order and restocks the variants", async () => {
-    const effects = makeEffects()
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
     const orderId = await placeSmallOrder(userIdA)
     expect(
       (
@@ -549,7 +552,7 @@ describe("order status transitions", () => {
       ).stock
     ).toBe(0)
 
-    await updateOrderStatus(orderId, "cancelled", effects)
+    await updateOrderStatus(orderId, "cancelled", { sendOrderStatusEmail })
 
     const order = await getOrder(userIdA, orderId)
     expect(order!.status).toBe("cancelled")
@@ -560,20 +563,65 @@ describe("order status transitions", () => {
         })
       ).stock
     ).toBe(2)
-    expect(effects.sendOrderStatusEmail).toHaveBeenCalledWith(
+    expect(sendOrderStatusEmail).toHaveBeenCalledWith(
       expect.objectContaining({ orderId }),
       "cancelled"
     )
   })
 
-  it("returns a delivered order and restocks the variants", async () => {
-    const effects = makeEffects()
+  it("invalidates the order cache post-commit", async () => {
     const orderId = await placeSmallOrder(userIdA)
-    await updateOrderStatus(orderId, "confirmed", effects)
-    await updateOrderStatus(orderId, "shipped", effects)
-    await updateOrderStatus(orderId, "delivered", effects)
+    const invalidateOrder = vi.fn<(orderId: string) => void>()
 
-    await updateOrderStatus(orderId, "returned", effects)
+    await updateOrderStatus(orderId, "confirmed", { invalidateOrder })
+
+    expect(invalidateOrder).toHaveBeenCalledOnce()
+    expect(invalidateOrder).toHaveBeenCalledWith(orderId)
+  })
+
+  it("still updates the status when email dispatch fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const orderId = await placeSmallOrder(userIdA)
+
+      const updated = await updateOrderStatus(orderId, "confirmed", {
+        sendOrderStatusEmail: vi.fn(async () => {
+          throw new Error("resend down")
+        }),
+      })
+
+      expect(updated.status).toBe("confirmed")
+      const fetched = await getOrder(userIdA, orderId)
+      expect(fetched!.status).toBe("confirmed")
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("still updates the status when cache invalidation fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const orderId = await placeSmallOrder(userIdA)
+
+      const updated = await updateOrderStatus(orderId, "confirmed", {
+        invalidateOrder: vi.fn(() => {
+          throw new Error("cache down")
+        }),
+      })
+
+      expect(updated.status).toBe("confirmed")
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("returns a delivered order and restocks the variants", async () => {
+    const orderId = await placeSmallOrder(userIdA)
+    await updateOrderStatus(orderId, "confirmed")
+    await updateOrderStatus(orderId, "shipped")
+    await updateOrderStatus(orderId, "delivered")
+
+    await updateOrderStatus(orderId, "returned")
 
     const order = await getOrder(userIdA, orderId)
     expect(order!.status).toBe("returned")
@@ -588,31 +636,33 @@ describe("order status transitions", () => {
 
   it("rejects invalid transitions", async () => {
     const orderId = await placeSmallOrder(userIdA)
-    await updateOrderStatus(orderId, "confirmed", makeEffects())
-    await updateOrderStatus(orderId, "shipped", makeEffects())
+    await updateOrderStatus(orderId, "confirmed")
+    await updateOrderStatus(orderId, "shipped")
 
     await expect(
-      updateOrderStatus(orderId, "cancelled", makeEffects())
+      updateOrderStatus(orderId, "cancelled")
     ).rejects.toThrow(InvalidOrderTransitionError)
     await expect(
-      updateOrderStatus(orderId, "confirmed", makeEffects())
+      updateOrderStatus(orderId, "confirmed")
     ).rejects.toThrow(InvalidOrderTransitionError)
   })
 
   it("rejects skipping a step", async () => {
     const orderId = await placeSmallOrder(userIdA)
     await expect(
-      updateOrderStatus(orderId, "delivered", makeEffects())
+      updateOrderStatus(orderId, "delivered")
     ).rejects.toThrow(InvalidOrderTransitionError)
   })
 
   it("restocks exactly once when a double cancel is attempted", async () => {
-    const effects = makeEffects()
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
     const orderId = await placeSmallOrder(userIdA)
-    await updateOrderStatus(orderId, "cancelled", effects)
+    await updateOrderStatus(orderId, "cancelled", { sendOrderStatusEmail })
 
     await expect(
-      updateOrderStatus(orderId, "cancelled", effects)
+      updateOrderStatus(orderId, "cancelled", { sendOrderStatusEmail })
     ).rejects.toThrow(InvalidOrderTransitionError)
 
     expect(
@@ -622,15 +672,15 @@ describe("order status transitions", () => {
         })
       ).stock
     ).toBe(2)
-    expect(effects.sendOrderStatusEmail).toHaveBeenCalledTimes(1)
+    expect(sendOrderStatusEmail).toHaveBeenCalledTimes(1)
   })
 
   it("restocks exactly once when two cancels race", async () => {
     const orderId = await placeSmallOrder(userIdA)
 
     const [first, second] = await Promise.allSettled([
-      updateOrderStatus(orderId, "cancelled", makeEffects()),
-      updateOrderStatus(orderId, "cancelled", makeEffects()),
+      updateOrderStatus(orderId, "cancelled"),
+      updateOrderStatus(orderId, "cancelled"),
     ])
 
     expect([first.status, second.status].sort()).toEqual([
@@ -653,7 +703,7 @@ describe("order status transitions", () => {
 
   it("rejects an unknown order", async () => {
     await expect(
-      updateOrderStatus("commande-inconnue", "confirmed", makeEffects())
+      updateOrderStatus("commande-inconnue", "confirmed")
     ).rejects.toThrow(OrderNotFoundError)
   })
 })

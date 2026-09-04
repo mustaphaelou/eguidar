@@ -281,9 +281,9 @@ describe("admin lifecycle", () => {
       makeEffects()
     )
 
-    await updateOrderStatus(order.id, "confirmed", makeEffects())
-    await updateOrderStatus(order.id, "shipped", makeEffects())
-    await updateOrderStatus(order.id, "delivered", makeEffects())
+    await updateOrderStatus(order.id, "confirmed")
+    await updateOrderStatus(order.id, "shipped")
+    await updateOrderStatus(order.id, "delivered")
 
     const fetched = await getAdminOrder(order.id)
     expect(fetched.status).toBe("delivered")
@@ -309,7 +309,7 @@ describe("admin lifecycle", () => {
       ).stock
     ).toBe(3)
 
-    await updateOrderStatus(order.id, "cancelled", makeEffects())
+    await updateOrderStatus(order.id, "cancelled")
 
     expect((await getAdminOrder(order.id)).status).toBe("cancelled")
     expect(
