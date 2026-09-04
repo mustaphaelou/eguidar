@@ -12,9 +12,9 @@ type RecapitulatifPaiementBase = {
 /**
  * Entrées du Récapitulatif de paiement.
  *
- * - `rows` : lignes prêtes du Devis (`chargerDevis` / `lignesDevis`) —
- *   le Devis possède la résolution ville + lignes, le composant ne fait
- *   que passer la sortie du module.
+ * - `rows` : lignes projetées via le projecteur unique
+ *   `lignesDevis(devis.sousTotal, devis)` — le Devis porte la résolution
+ *   ville + sous-total, le composant ne fait que passer la sortie du module.
  * - `commande` : Commande sous forme structurelle minimale
  *   (`total`, `shippingFee`, `totalPayable`, `cityName`), Total à payer
  *   consommé tel quel, jamais re-dérivé.

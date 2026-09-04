@@ -7,6 +7,16 @@
  * directement (porte d'entrée cliente : `useDevisSelection`) — jamais ce
  * module, qui tire `prisma` (`pg`) via `@/lib/use-cases/livraison`.
  *
+ * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
+ * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
+ * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
+ * serveur comme hook partagent la même couture.
+ *
+ * Non-buts : pas de re-sélection synchronisée avec l'URL sur checkout
+ * (état local `useDevisSelection`) ; pas d'entrée de sélection allégée à
+ * côté de `chargerDevis` — `placeOrder` garde `chargerDevis` et rétrécit
+ * l'union.
+ *
  * Volontairement sans `import "server-only"` : ce garde-foo lève sous
  * vitest (condition d'export `default`) et casserait `devis.test.ts` /
  * `orders.test.ts` (précédent : `lib/panier.ts` évite l'import statique
@@ -15,7 +25,6 @@
  */
 import type { DonneesPanier } from "@/lib/panier"
 import {
-  lignesDevis,
   selectionnerDevis,
   type Devis,
 } from "@/lib/use-cases/devis-selection"
@@ -36,16 +45,16 @@ export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
  *
  * Récupère Villes de livraison + seuil (administration Livraison),
  * chiffre chaque ville via `computeCityQuotes` (`panier.subtotal` +
- * `lines.some(freeShipping)`), résout la sélection via `selectionnerDevis`
- * puis construit les lignes via `lignesDevis`
- * (offerte / À choisir avec Total omis quand non sélectionné).
+ * `lines.some(freeShipping)`), puis résout la sélection via
+ * `selectionnerDevis` (offerte / À choisir avec Total omis quand non
+ * sélectionné).
  *
  * Le Devis retourné est auto-porteur : il porte le `sousTotal`
- * (`panier.subtotal`) qui a chiffré ses devis. Les `rows` se dérivent
- * de ce fait propre (`lignesDevis(sousTotal, selection)`, soit
- * `lignesDevis(devis.sousTotal, devis)`).
+ * (`panier.subtotal`) qui a chiffré ses devis. Les lignes ne sont pas
+ * construites ici : elles se dérivent via le projecteur unique
+ * `lignesDevis(devis.sousTotal, devis)`.
  *
- * Ville inconnue → sélection « aucune » + lignes À choisir, ne lève jamais.
+ * Ville inconnue → sélection « aucune », ne lève jamais.
  */
 export async function chargerDevis(
   panier: DonneesPanier,
@@ -65,13 +74,11 @@ export async function chargerDevis(
     threshold
   )
   const selection = selectionnerDevis(cities, quotes, requestedCityId)
-  const rows = lignesDevis(sousTotal, selection)
   return {
     cities,
     threshold,
     quotes,
     sousTotal,
     ...selection,
-    rows,
   }
 }

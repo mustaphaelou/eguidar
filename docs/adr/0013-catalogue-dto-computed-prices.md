@@ -21,3 +21,13 @@ Le champ dérivé `rows` devient redondant : il se dérive du fait propre via
 `lignesDevis(devis.sousTotal, devis)` et sera supprimé par le ticket de
 contraction. En attendant, `rows` reste présent et consommé — l'expansion ne
 casse aucun appelant.
+
+## Amendement — Devis contracté (#195)
+
+Contraction faite : le type `Devis` ne porte plus `rows`. `lignesDevis`
+est le projecteur unique — la page Panier dérive son Récapitulatif via
+`lignesDevis(devis.sousTotal, devis)` et le hook re-chiffre depuis le
+`sousTotal` propre du Devis ; `chargerDevis` ne construit plus de lignes.
+Pas de re-sélection synchronisée avec l'URL sur checkout, pas d'entrée de
+sélection allégée à côté de `chargerDevis` (`placeOrder` garde
+`chargerDevis` et rétrécit l'union).

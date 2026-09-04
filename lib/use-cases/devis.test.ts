@@ -196,7 +196,7 @@ describe("chargerDevis", () => {
     getFreeShippingThresholdMock.mockResolvedValue(100000)
   })
 
-  it("returns cities, threshold, quotes, selection and rows in one call for a valid ville", async () => {
+  it("returns cities, threshold, quotes and selection in one call for a valid ville", async () => {
     const panier = panierPourDevis(50000)
 
     const devis = selectionValidee(await chargerDevis(panier, "c1"))
@@ -215,21 +215,23 @@ describe("chargerDevis", () => {
       shippingFee: 3500,
       total: 53500,
     })
-    expect(devis.rows).toEqual(
+    expect("rows" in devis).toBe(false)
+    const rows = lignesDevis(devis.sousTotal, devis)
+    expect(rows).toEqual(
       lignesDevis(50000, {
         cas: "validée",
         ville: city("c1", "Casablanca", 3500),
         devis: { subtotal: 50000, shippingFee: 3500, total: 53500 },
       })
     )
-    expect(devis.rows[1]).toMatchObject({
+    expect(rows[1]).toMatchObject({
       label: "Livraison (Casablanca)",
       kind: "detail",
     })
-    expect(devis.rows.find((row) => row.kind === "total")).toBeDefined()
+    expect(rows.find((row) => row.kind === "total")).toBeDefined()
   })
 
-  it("yields the aucune selection plus À choisir rows without throwing for an unknown ville", async () => {
+  it("yields the aucune selection without throwing for an unknown ville (rows derive via lignesDevis)", async () => {
     const panier = panierPourDevis(50000)
 
     let devis: Awaited<ReturnType<typeof chargerDevis>> | null = null
@@ -241,17 +243,19 @@ describe("chargerDevis", () => {
 
     expect(devis!.cas).toBe("aucune")
     expect(devis!.sousTotal).toBe(panier.subtotal)
-    expect(devis!.rows[1]).toEqual({
+    expect("rows" in devis!).toBe(false)
+    const rows = lignesDevis(devis!.sousTotal, devis!)
+    expect(rows[1]).toEqual({
       label: "Livraison",
       value: "À choisir",
       kind: "detail",
       tone: "muted",
     })
-    expect(devis!.rows.some((row) => row.kind === "total")).toBe(false)
-    expect(devis!.rows).toHaveLength(2)
+    expect(rows.some((row) => row.kind === "total")).toBe(false)
+    expect(rows).toHaveLength(2)
   })
 
-  it("yields the aucune selection plus À choisir rows when no ville is requested", async () => {
+  it("yields the aucune selection when no ville is requested (rows derive via lignesDevis)", async () => {
     const panier = panierPourDevis(50000)
 
     for (const requested of [undefined, null] as const) {
@@ -259,12 +263,14 @@ describe("chargerDevis", () => {
 
       expect(devis.cas).toBe("aucune")
       expect(devis.sousTotal).toBe(panier.subtotal)
-      expect(devis.rows[1]).toMatchObject({
+      expect("rows" in devis).toBe(false)
+      const rows = lignesDevis(devis.sousTotal, devis)
+      expect(rows[1]).toMatchObject({
         label: "Livraison",
         value: "À choisir",
         tone: "muted",
       })
-      expect(devis.rows.some((row) => row.kind === "total")).toBe(false)
+      expect(rows.some((row) => row.kind === "total")).toBe(false)
     }
   })
 
@@ -273,7 +279,7 @@ describe("chargerDevis", () => {
     const auSeuil = selectionValidee(await chargerDevis(panierAuSeuil, "c1"))
     expect(auSeuil.sousTotal).toBe(panierAuSeuil.subtotal)
     expect(auSeuil.devis).toMatchObject({ shippingFee: 0 })
-    expect(auSeuil.rows[1]).toMatchObject({
+    expect(lignesDevis(auSeuil.sousTotal, auSeuil)[1]).toMatchObject({
       label: "Livraison (Casablanca)",
       value: "Livraison offerte",
       tone: "offered",
@@ -285,7 +291,7 @@ describe("chargerDevis", () => {
     )
     expect(articleOffert.sousTotal).toBe(panierOffert.subtotal)
     expect(articleOffert.devis).toMatchObject({ shippingFee: 0 })
-    expect(articleOffert.rows[1]).toMatchObject({
+    expect(lignesDevis(articleOffert.sousTotal, articleOffert)[1]).toMatchObject({
       label: "Livraison (Rabat)",
       value: "Livraison offerte",
       tone: "offered",

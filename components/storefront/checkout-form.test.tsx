@@ -73,7 +73,7 @@ vi.mock("@/components/ui/select", () => ({
 
 import { CheckoutForm } from "./checkout-form"
 import { formatPrice } from "@/lib/money"
-import { lignesDevis, type Devis, type SelectionDevis } from "@/lib/use-cases/devis-selection"
+import type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
 import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -142,7 +142,6 @@ function devisPourTest({
     quotes,
     sousTotal: 100000,
     ...selection,
-    rows: lignesDevis(100000, selection),
   }
 }
 

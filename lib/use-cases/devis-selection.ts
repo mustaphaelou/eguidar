@@ -13,12 +13,21 @@
  * `@/lib/use-cases/devis` — les composants clients importent ce module-ci,
  * jamais l'entrée serveur.
  *
+ * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
+ * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
+ * `lignesDevis(devis.sousTotal, devis)` — `lignesDevis` est le projecteur
+ * unique pour les pages serveur comme pour le hook.
+ *
  * La re-sélection est un état local côté client, volontairement non
  * synchronisé avec l'URL : `useDevisSelection` initialise la Ville de
  * livraison depuis le Devis chargé puis re-chiffre le Récapitulatif de
  * paiement instantanément à chaque `choisir(villeId)`, sans rechargement.
  * `selectionnerDevis` et `lignesDevis` restent exportées comme coutures
  * internes ; le hook est la porte d'entrée cliente.
+ *
+ * Non-buts : pas de re-sélection synchronisée avec l'URL sur checkout ;
+ * pas d'entrée de sélection allégée à côté de `chargerDevis` — `placeOrder`
+ * garde `chargerDevis` et rétrécit l'union.
  */
 import { useState } from "react"
 
@@ -70,28 +79,27 @@ export function selectionnerDevis(
 
 /**
  * Devis chargé : Villes de livraison, seuil et devis par ville, le
- * sous-total (cents) qui a chiffré les devis, la Sélection du Devis
+ * sous-total (cents) qui a chiffré les devis, et la Sélection du Devis
  * absorbée à plat (un seul test du discriminant `cas` rétrécit
- * `ville` + `devis`) et lignes du Récapitulatif de paiement prêtes à
- * afficher.
+ * `ville` + `devis`).
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier
  * dont il a été chargé, pour que les surfaces d'affichage ne reçoivent
  * plus le sous-total comme un fait séparé qui pourrait dériver des
- * devis. Les `rows` restent dérivées via
- * `lignesDevis(devis.sousTotal, devis)` — champ redondant voué à être
- * supprimé par le ticket de contraction.
+ * devis. Les lignes ne sont jamais cuites dans le type : elles se
+ * dérivent toujours via le projecteur unique
+ * `lignesDevis(devis.sousTotal, devis)`.
  */
 export type Devis = {
   cities: DeliveryCityOption[]
   threshold: number
   quotes: Record<string, ShippingQuote>
   sousTotal: number
-  rows: RécapitulatifRow[]
 } & SelectionDevis
 
 /**
- * Lignes du Récapitulatif de paiement pour une Sélection du Devis.
+ * Lignes du Récapitulatif de paiement pour une Sélection du Devis —
+ * projecteur unique pour les pages serveur comme pour le hook.
  *
  * Détail interne du Devis (l'ancienne entrée Devis du Récapitulatif est
  * retirée) : cas « aucune » → « Livraison » + « À choisir » + Total omis ;

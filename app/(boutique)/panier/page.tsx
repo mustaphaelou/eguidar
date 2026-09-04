@@ -12,7 +12,7 @@ import { CityPicker } from "@/components/storefront/city-picker"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { chargerDevis } from "@/lib/use-cases/devis"
+import { chargerDevis, lignesDevis } from "@/lib/use-cases/devis"
 import { formatPrice } from "@/lib/money"
 import { lirePanier } from "@/lib/panier"
 
@@ -80,7 +80,7 @@ async function CartContent({
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
-          <RecapitulatifPaiement rows={devis.rows} />
+          <RecapitulatifPaiement rows={lignesDevis(devis.sousTotal, devis)} />
 
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker
