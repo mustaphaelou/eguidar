@@ -9,3 +9,15 @@ The read path is enforced in code:
 - Display surfaces (the buy box, the variant picker, the Barre d'achat, Données structurées, and page metadata) consume these baked facts directly and never re-derive «prix de base + écart de prix».
 - The écart de prix (`priceDelta`) remains a storage and Administration fact for variant editing, never a storefront display input.
 - The Panier module already exposes the computed `unitPrice` on its Article du panier DTO; its internal computation remains an isolated module concern. The Document d'index and Recherche retain their own `minPrice` computed at reindex time.
+
+## Amendement — Devis auto-porteur (#193)
+
+Les faits calculés voyagent cuits : le Devis est auto-porteur — il porte le
+`sousTotal` (cents) issu du Panier dont il a été chargé par `chargerDevis`.
+Les surfaces d'affichage ne reçoivent plus le sous-total comme un fait
+séparé, filé à part, qui pourrait dériver des devis.
+
+Le champ dérivé `rows` devient redondant : il se dérive du fait propre via
+`lignesDevis(devis.sousTotal, devis)` et sera supprimé par le ticket de
+contraction. En attendant, `rows` reste présent et consommé — l'expansion ne
+casse aucun appelant.

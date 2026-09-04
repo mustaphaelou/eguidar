@@ -57,15 +57,24 @@ export function selectionnerDevis(
 }
 
 /**
- * Devis chargé : Villes de livraison, seuil et devis par ville, la
- * Sélection du Devis absorbée à plat (un seul test du discriminant
- * `cas` rétrécit `ville` + `devis`) et lignes du Récapitulatif de
- * paiement prêtes à afficher.
+ * Devis chargé : Villes de livraison, seuil et devis par ville, le
+ * sous-total (cents) qui a chiffré les devis, la Sélection du Devis
+ * absorbée à plat (un seul test du discriminant `cas` rétrécit
+ * `ville` + `devis`) et lignes du Récapitulatif de paiement prêtes à
+ * afficher.
+ *
+ * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier
+ * dont il a été chargé, pour que les surfaces d'affichage ne reçoivent
+ * plus le sous-total comme un fait séparé qui pourrait dériver des
+ * devis. Les `rows` restent dérivées via
+ * `lignesDevis(devis.sousTotal, devis)` — champ redondant voué à être
+ * supprimé par le ticket de contraction.
  */
 export type Devis = {
   cities: DeliveryCityOption[]
   threshold: number
   quotes: Record<string, ShippingQuote>
+  sousTotal: number
   rows: RécapitulatifRow[]
 } & SelectionDevis
 

@@ -201,6 +201,7 @@ describe("chargerDevis", () => {
 
     const devis = selectionValidee(await chargerDevis(panier, "c1"))
 
+    expect(devis.sousTotal).toBe(panier.subtotal)
     expect(devis.cities).toEqual(villes)
     expect(devis.threshold).toBe(100000)
     expect(devis.quotes).toEqual({
@@ -239,6 +240,7 @@ describe("chargerDevis", () => {
     ).resolves.not.toThrow()
 
     expect(devis!.cas).toBe("aucune")
+    expect(devis!.sousTotal).toBe(panier.subtotal)
     expect(devis!.rows[1]).toEqual({
       label: "Livraison",
       value: "À choisir",
@@ -256,6 +258,7 @@ describe("chargerDevis", () => {
       const devis = await chargerDevis(panier, requested)
 
       expect(devis.cas).toBe("aucune")
+      expect(devis.sousTotal).toBe(panier.subtotal)
       expect(devis.rows[1]).toMatchObject({
         label: "Livraison",
         value: "À choisir",
@@ -266,7 +269,9 @@ describe("chargerDevis", () => {
   })
 
   it("renders the offered tone when the threshold is reached or a free-shipping article is present", async () => {
-    const auSeuil = selectionValidee(await chargerDevis(panierPourDevis(150000), "c1"))
+    const panierAuSeuil = panierPourDevis(150000)
+    const auSeuil = selectionValidee(await chargerDevis(panierAuSeuil, "c1"))
+    expect(auSeuil.sousTotal).toBe(panierAuSeuil.subtotal)
     expect(auSeuil.devis).toMatchObject({ shippingFee: 0 })
     expect(auSeuil.rows[1]).toMatchObject({
       label: "Livraison (Casablanca)",
@@ -274,9 +279,11 @@ describe("chargerDevis", () => {
       tone: "offered",
     })
 
+    const panierOffert = panierPourDevis(50000, [false, true])
     const articleOffert = selectionValidee(
-      await chargerDevis(panierPourDevis(50000, [false, true]), "c2")
+      await chargerDevis(panierOffert, "c2")
     )
+    expect(articleOffert.sousTotal).toBe(panierOffert.subtotal)
     expect(articleOffert.devis).toMatchObject({ shippingFee: 0 })
     expect(articleOffert.rows[1]).toMatchObject({
       label: "Livraison (Rabat)",
