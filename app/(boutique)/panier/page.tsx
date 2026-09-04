@@ -64,6 +64,9 @@ async function CartContent({
     )
   }
 
+  const villeLivraison =
+    devis.cas === "validée" ? devis.ville : null
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
       <h1 className="mb-4 text-2xl font-bold">Mon panier</h1>
@@ -82,10 +85,10 @@ async function CartContent({
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker
               cities={devis.cities}
-              selectedId={devis.selectedCityId}
+              selectedId={villeLivraison?.id ?? null}
               path="/panier"
             />
-            {devis.selectedQuote && (
+            {villeLivraison && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <HugeiconsIcon
                   icon={DeliveryTruck02Icon}
