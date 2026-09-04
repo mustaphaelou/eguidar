@@ -8,12 +8,6 @@ export const PROTOTYPE_VARIANT_NAMES: Record<PrototypeVariant, string> = {
   C: "Accent noir",
 }
 
-export const LOGIN_PROTOTYPE_VARIANT_NAMES: Record<PrototypeVariant, string> = {
-  A: "Éditorial Split & Réassurance",
-  B: "Minimaliste Apple Card",
-  C: "Hub Client & Suivi Express",
-}
-
 export function parsePrototypeVariant(
   value: string | null | undefined
 ): PrototypeVariant {

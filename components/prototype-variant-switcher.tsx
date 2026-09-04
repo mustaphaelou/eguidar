@@ -10,11 +10,7 @@ import {
   type PrototypeVariant,
 } from "@/lib/prototype-variant"
 
-export function PrototypeVariantSwitcher({
-  names = PROTOTYPE_VARIANT_NAMES,
-}: {
-  names?: Record<PrototypeVariant, string>
-} = {}) {
+export function PrototypeVariantSwitcher() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -58,7 +54,7 @@ export function PrototypeVariantSwitcher({
         ←
       </button>
       <span className="text-sm font-medium">
-        {current} — {names[current] ?? PROTOTYPE_VARIANT_NAMES[current]}
+        {current} — {PROTOTYPE_VARIANT_NAMES[current]}
       </span>
       <button
         type="button"
