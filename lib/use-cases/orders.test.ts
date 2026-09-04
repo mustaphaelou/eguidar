@@ -19,7 +19,6 @@ import { sessionUserMock } from "@/test/navigation-mocks"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
-import type { OrderEffects } from "@/lib/use-cases/order-effects"
 import {
   EmptyCartError,
   getOrder,
@@ -30,6 +29,7 @@ import {
   placeOrder,
   updateOrderStatus,
   type CheckoutInput,
+  type OrderEffects,
 } from "@/lib/use-cases/orders"
 
 vi.mock("@/lib/use-cases/get-session", async () => {
@@ -51,20 +51,6 @@ let variantP2: string
 let variantP3: string
 let variantP4: string
 let cityId: string
-
-function makeEffects(): OrderEffects & {
-  sendOrderPlacedEmail: ReturnType<typeof vi.fn>
-  sendOrderStatusEmail: ReturnType<typeof vi.fn>
-} {
-  return {
-    sendOrderPlacedEmail: vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    ),
-    sendOrderStatusEmail: vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    ),
-  }
-}
 
 async function createUser(suffix: string): Promise<string> {
   const user = await prisma.user.create({
@@ -397,14 +383,11 @@ describe("order placement", () => {
   })
 
   it("blocks out-of-stock variants at checkout without creating anything", async () => {
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP2, 2)
 
     try {
-      await placeOrder(userIdA, checkoutInput(), { sendOrderPlacedEmail })
+      await placeOrder(userIdA, checkoutInput())
       throw new Error("placeOrder should have rejected")
     } catch (error) {
       expect(error).toBeInstanceOf(OutOfStockError)
@@ -429,13 +412,9 @@ describe("order placement", () => {
     expect(cart.lines).toHaveLength(1)
     const orderCount = await prisma.order.count({ where: { userId: userIdA } })
     expect(orderCount).toBe(0)
-    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
   })
 
   it("rolls back the whole order when one line goes out of stock mid-placement", async () => {
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 1)
     commeClient(userIdA)
@@ -445,9 +424,9 @@ describe("order placement", () => {
       data: { stock: { set: 1 } },
     })
 
-    await expect(
-      placeOrder(userIdA, checkoutInput(), { sendOrderPlacedEmail })
-    ).rejects.toThrow(OutOfStockError)
+    await expect(placeOrder(userIdA, checkoutInput())).rejects.toThrow(
+      OutOfStockError
+    )
 
     const stockP1 = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantP1 },
@@ -455,7 +434,6 @@ describe("order placement", () => {
     expect(stockP1.stock).toBe(5)
     const orderCount = await prisma.order.count({ where: { userId: userIdA } })
     expect(orderCount).toBe(0)
-    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
   })
 
   it("allows only one order to take the last unit under concurrency", async () => {
