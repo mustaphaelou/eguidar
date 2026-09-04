@@ -70,7 +70,7 @@ export const createProductAction = adminFormAction<ProductInput>({
   next: "/admin/produits",
   parse: parseProductFormData,
   run: async (input) => {
-    const product = await createProduct(input, realCatalogEffects)
+    const product = await createProduct(input)
     redirect(`/admin/produits/${product.id}`)
   },
 })
@@ -84,7 +84,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     }
   },
   run: async ({ productId, ...input }) => {
-    await updateProduct(productId, input, realCatalogEffects)
+    await updateProduct(productId, input)
     redirect("/admin/produits")
   },
 })
