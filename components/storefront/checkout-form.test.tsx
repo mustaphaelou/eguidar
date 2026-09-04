@@ -38,13 +38,19 @@ vi.mock("@/components/ui/select", () => ({
     onValueChange,
     value,
     name,
+    required,
   }: {
     children?: React.ReactNode
     onValueChange?: (value: string) => void
     value?: string
     name?: string
+    required?: boolean
   }) => (
-    <div data-slot="select-stub" data-value={value ?? ""}>
+    <div
+      data-slot="select-stub"
+      data-value={value ?? ""}
+      data-required={required ? "true" : "false"}
+    >
       {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}
       <button
         type="button"
@@ -72,7 +78,6 @@ vi.mock("@/components/ui/select", () => ({
 }))
 
 import { CheckoutForm } from "./checkout-form"
-import { formatPrice } from "@/lib/money"
 import type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
 import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
 
@@ -128,6 +133,11 @@ const QUOTE_CASA: ShippingQuote = {
   total: 102500,
 }
 
+/**
+ * Fixture minimale : un Devis déjà résolu, jamais re-dérivé ici —
+ * les faits du formulaire uniquement, la re-sélection vit dans
+ * `lib/use-cases/devis-selection.test.tsx`.
+ */
 function devisPourTest({
   selection,
   quotes,
@@ -165,7 +175,7 @@ function checkoutHarness() {
   )
 }
 
-function recapHarness({
+function formHarness({
   quotes,
   selection,
 }: {
@@ -199,6 +209,27 @@ async function flushDeferredUrlSync() {
 }
 
 describe("CheckoutForm", () => {
+  it("exige la ville, l'adresse et le téléphone avant soumission", () => {
+    render(checkoutHarness())
+
+    expect(
+      container
+        .querySelector('[data-slot="select-stub"]')
+        ?.getAttribute("data-required")
+    ).toBe("true")
+
+    const address = container.querySelector<HTMLInputElement>(
+      "#checkout-address"
+    )!
+    expect(address.required).toBe(true)
+    expect(address.getAttribute("minlength")).toBe("5")
+
+    const phone =
+      container.querySelector<HTMLInputElement>("#checkout-phone")!
+    expect(phone.required).toBe(true)
+    expect(phone.getAttribute("minlength")).toBe("8")
+  })
+
   it("opens the Connexion modal over /checkout with ?next=/checkout when the order is refused, leaving the path unchanged", async () => {
     placeOrderMock.mockResolvedValue({ unauthenticated: true })
 
@@ -228,69 +259,11 @@ describe("CheckoutForm", () => {
     expect(dialog()).toBe("none")
   })
 
-  it("shows « À choisir » without total when no Ville de livraison is selected", () => {
-    render(recapHarness({ quotes: {}, selection: { cas: "aucune" } }))
-
-    expect(container.textContent).toContain("À choisir")
-    expect(container.textContent).not.toContain("Total à payer à la livraison")
-    // Unknown URL ville collapses to the null selection upstream
-    // (chargerDevis) : the select stays empty, it never falls back.
-    expect(selectValue()).toBe("")
-  })
-
-  it("names the Ville de livraison with its fees and total when a ville is selected", () => {
-    render(
-      recapHarness({
-        quotes: { 42: QUOTE_CASA },
-        selection: {
-          cas: "validée",
-          ville: CASA,
-          devis: QUOTE_CASA,
-        },
-      })
-    )
-
-    expect(container.textContent).toContain("Livraison (Casablanca)")
-    expect(container.textContent).toContain(formatPrice(2500))
-    expect(container.textContent).toContain("Total à payer à la livraison")
-    expect(container.textContent).toContain(formatPrice(102500))
-    // Devis-selected id (profile pre-fill when no URL ville) preselects.
-    expect(selectValue()).toBe("42")
-  })
-
-  it("updates the récapitulatif instantly from À choisir to Livraison (Ville) when the city changes, without reload", () => {
-    render(
-      recapHarness({
-        quotes: { 42: QUOTE_CASA },
-        selection: { cas: "aucune" },
-      })
-    )
-
-    expect(container.textContent).toContain("À choisir")
-    expect(container.textContent).not.toContain("Total à payer à la livraison")
-    expect(selectValue()).toBe("")
-
-    const chooseButton = container.querySelector(
-      '[data-testid="mock-select-casa"]',
-    )
-    expect(chooseButton).not.toBeNull()
-    act(() => {
-      ;(chooseButton as HTMLButtonElement).click()
-    })
-
-    expect(container.textContent).toContain("Livraison (Casablanca)")
-    expect(container.textContent).toContain(formatPrice(2500))
-    expect(container.textContent).toContain("Total à payer à la livraison")
-    expect(container.textContent).toContain(formatPrice(102500))
-    expect(selectValue()).toBe("42")
-    expect(new URL(window.location.href).search).toBe("")
-  })
-
   it("posts the currently selected city on submit", async () => {
     placeOrderMock.mockResolvedValue({})
 
     render(
-      recapHarness({
+      formHarness({
         quotes: { 42: QUOTE_CASA },
         selection: { cas: "aucune" },
       })
