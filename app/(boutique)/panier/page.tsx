@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { formatPrice } from "@/lib/money"
-import { lirePanierCourant } from "@/lib/panier"
+import { lirePanier } from "@/lib/panier"
 
 export const metadata = pageMetadata({
   title: "Panier",
@@ -42,7 +42,7 @@ async function CartContent({
   searchParams: Promise<{ ville?: string }>
 }) {
   const { ville } = await searchParams
-  const panier = await lirePanierCourant()
+  const panier = await lirePanier()
   const devis = await chargerDevis(panier, ville)
 
   if (panier.lines.length === 0) {
