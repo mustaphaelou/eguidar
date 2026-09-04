@@ -19,20 +19,26 @@ import type {
   ShippingQuote,
 } from "@/lib/use-cases/livraison-prix"
 
-export interface SelectionDevis {
-  selectedCityId: string | null
-  selectedCity: DeliveryCityOption | null
-  selectedQuote: ShippingQuote | null
-}
+/**
+ * Une Sélection du Devis répond par exactement un cas : **aucune** (rien
+ * choisi, rien dû) ou **validée** (une Ville de livraison et son Devis,
+ * toujours cohérents — jamais à moitié). Le cas validée porte exactement
+ * deux faits : `ville` et `devis` ; l'identifiant se lit via
+ * `ville.id` après rétrécissement.
+ */
+export type SelectionDevis =
+  | { cas: "aucune" }
+  | { cas: "validée"; ville: DeliveryCityOption; devis: ShippingQuote }
 
 /**
  * Résolution pure du Devis : transforme des Villes de livraison déjà
  * récupérées plus leurs devis et un identifiant de ville demandé en une
- * sélection validée (identifiant, ville, devis — tous nuls par défaut).
+ * Sélection du Devis.
  *
- * Identifiant connu AVEC devis existant ET ville existante → trio renseigné.
- * Identifiant absent / nul / inconnu, ou identifiant connu sans devis ou sans
- * ville → trio nul. Ne lève jamais, ne sélectionne jamais à moitié.
+ * Identifiant connu AVEC devis existant ET ville existante → cas
+ * « validée » (ville + devis). Identifiant absent / nul / inconnu, ou
+ * identifiant connu sans devis ou sans ville → cas « aucune ».
+ * Ne lève jamais, ne sélectionne jamais à moitié.
  * Résolution pure uniquement — indépendante du calcul des prix
  * (seuil, livraison offerte).
  */
@@ -41,65 +47,42 @@ export function selectionnerDevis(
   quotes: Record<string, ShippingQuote>,
   requestedCityId?: string | null
 ): SelectionDevis {
-  const nullTrio: SelectionDevis = {
-    selectedCityId: null,
-    selectedCity: null,
-    selectedQuote: null,
-  }
-  if (!requestedCityId) return nullTrio
-  const selectedQuote = quotes[requestedCityId] ?? null
-  if (!selectedQuote) return nullTrio
-  const selectedCity =
-    cities.find((city) => city.id === requestedCityId) ?? null
-  if (!selectedCity) return nullTrio
-  return {
-    selectedCityId: requestedCityId,
-    selectedCity,
-    selectedQuote,
-  }
+  const aucune: SelectionDevis = { cas: "aucune" }
+  if (!requestedCityId) return aucune
+  const devis = quotes[requestedCityId] ?? null
+  if (!devis) return aucune
+  const ville = cities.find((city) => city.id === requestedCityId)
+  if (!ville) return aucune
+  return { cas: "validée", ville, devis }
 }
 
 /**
- * Devis chargé : Villes de livraison, seuil et devis par ville, sélection
- * validée (identifiant, ville, devis — tous nuls par défaut) et lignes du
- * Récapitulatif de paiement prêtes à afficher.
+ * Devis chargé : Villes de livraison, seuil et devis par ville, la
+ * Sélection du Devis absorbée à plat (un seul test du discriminant
+ * `cas` rétrécit `ville` + `devis`) et lignes du Récapitulatif de
+ * paiement prêtes à afficher.
  */
-export interface Devis extends SelectionDevis {
+export type Devis = {
   cities: DeliveryCityOption[]
   threshold: number
   quotes: Record<string, ShippingQuote>
   rows: RécapitulatifRow[]
-}
+} & SelectionDevis
 
 /**
- * Prédicat partagé : une sélection Devis n'est valide que lorsque la ville
- * ET le devis sont tous deux renseignés (jamais à moitié). Utilisé par
- * `lignesDevis` et `placeOrder` pour ne définir la validité qu'en un seul
- * endroit.
- */
-export function estSélectionValide(
-  selection: SelectionDevis
-): selection is SelectionDevis & {
-  selectedCity: DeliveryCityOption
-  selectedQuote: ShippingQuote
-} {
-  return selection.selectedCity !== null && selection.selectedQuote !== null
-}
-
-/**
- * Lignes du Récapitulatif de paiement pour un Devis validé.
+ * Lignes du Récapitulatif de paiement pour une Sélection du Devis.
  *
  * Détail interne du Devis (l'ancienne entrée Devis du Récapitulatif est
- * retirée) : sans ville ni devis validés → « Livraison » + « À choisir » + Total omis ;
- * sinon « Livraison (Ville) » + frais + Total. La formulation vit dans
- * `construireLignes`, ici on ne fait que projeter la sélection validée.
+ * retirée) : cas « aucune » → « Livraison » + « À choisir » + Total omis ;
+ * cas « validée » → « Livraison (Ville) » + frais + Total. La formulation
+ * vit dans `construireLignes`, ici on ne fait que projeter la sélection.
  * Ne lève jamais.
  */
 export function lignesDevis(
   sousTotal: number,
   selection: SelectionDevis
 ): RécapitulatifRow[] {
-  if (!estSélectionValide(selection)) {
+  if (selection.cas === "aucune") {
     return construireLignes({
       sousTotal,
       shipping: null,
@@ -110,9 +93,9 @@ export function lignesDevis(
   return construireLignes({
     sousTotal,
     shipping: {
-      fee: selection.selectedQuote.shippingFee,
-      city: selection.selectedCity.name,
+      fee: selection.devis.shippingFee,
+      city: selection.ville.name,
     },
-    total: selection.selectedQuote.total,
+    total: selection.devis.total,
   })
 }

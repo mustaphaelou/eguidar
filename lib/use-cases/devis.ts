@@ -26,7 +26,6 @@ import {
 } from "@/lib/use-cases/livraison"
 
 export {
-  estSélectionValide,
   lignesDevis,
   selectionnerDevis,
 } from "@/lib/use-cases/devis-selection"
@@ -41,7 +40,7 @@ export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
  * puis construit les lignes via `lignesDevis`
  * (offerte / À choisir avec Total omis quand non sélectionné).
  *
- * Ville inconnue → trio nul + lignes À choisir, ne lève jamais.
+ * Ville inconnue → sélection « aucune » + lignes À choisir, ne lève jamais.
  */
 export async function chargerDevis(
   panier: DonneesPanier,
