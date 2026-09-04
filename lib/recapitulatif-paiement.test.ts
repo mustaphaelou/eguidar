@@ -92,20 +92,16 @@ describe("récapitulatifRowsFromCommande", () => {
   it("rejects retired spellings through the Devis and Commande entries", () => {
     const rowsList = [
       lignesDevis(10000, {
-        selectedCityId: "casa",
-        selectedCity: { id: "casa", name: "Casablanca", fee: 2000 },
-        selectedQuote: { subtotal: 10000, shippingFee: 0, total: 10000 },
+        cas: "validée",
+        ville: { id: "casa", name: "Casablanca", fee: 2000 },
+        devis: { subtotal: 10000, shippingFee: 0, total: 10000 },
       }),
       lignesDevis(10000, {
-        selectedCityId: "fes",
-        selectedCity: { id: "fes", name: "Fès", fee: 2000 },
-        selectedQuote: { subtotal: 10000, shippingFee: 2000, total: 12000 },
+        cas: "validée",
+        ville: { id: "fes", name: "Fès", fee: 2000 },
+        devis: { subtotal: 10000, shippingFee: 2000, total: 12000 },
       }),
-      lignesDevis(10000, {
-        selectedCityId: null,
-        selectedCity: null,
-        selectedQuote: null,
-      }),
+      lignesDevis(10000, { cas: "aucune" }),
       récapitulatifRowsFromCommande({
         total: 10000,
         shippingFee: 2000,
