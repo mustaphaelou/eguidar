@@ -154,7 +154,7 @@ async function supprimerCookiePanierVisiteur(): Promise<void> {
   jar.delete(NOM_COOKIE_PANIER_VISITEUR)
 }
 
-async function resoudreProprietaireCourant(): Promise<ProprietaireDuPanier> {
+async function resoudreProprietaire(): Promise<ProprietaireDuPanier> {
   // Import dynamique : un import statique tirerait `server-only` (via
   // get-session) dans chaque consommateur sans session mockée. Le mock
   // `vi.mock("@/lib/use-cases/get-session")` intercepte cet import dynamique.
@@ -428,12 +428,12 @@ async function panierRetirer(
  * Visiteur, le `variantId` porté par l'article de son cookie.
  */
 export async function lirePanier(): Promise<DonneesPanier> {
-  return panierLire(await resoudreProprietaireCourant())
+  return panierLire(await resoudreProprietaire())
 }
 
 /** Compte le Panier courant (somme des quantités). */
 export async function compterArticlesDuPanier(): Promise<number> {
-  return panierCompter(await resoudreProprietaireCourant())
+  return panierCompter(await resoudreProprietaire())
 }
 
 /** Ajoute une Variante (identifiant de Variante + quantité) au Panier courant. */
@@ -441,7 +441,7 @@ export async function ajouterArticleAuPanier(
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return panierAjouter(await resoudreProprietaireCourant(), variantId, quantity)
+  return panierAjouter(await resoudreProprietaire(), variantId, quantity)
 }
 
 /**
@@ -456,7 +456,7 @@ export async function modifierQuantiteArticlePanier(
   quantity: number
 ): Promise<ResultatPanier> {
   return panierModifier(
-    await resoudreProprietaireCourant(),
+    await resoudreProprietaire(),
     articlePanierId,
     quantity
   )
@@ -472,7 +472,7 @@ export async function modifierQuantiteArticlePanier(
 export async function retirerArticleDuPanier(
   articlePanierId: string
 ): Promise<ResultatPanier> {
-  return panierRetirer(await resoudreProprietaireCourant(), articlePanierId)
+  return panierRetirer(await resoudreProprietaire(), articlePanierId)
 }
 
 /**
