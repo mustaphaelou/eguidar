@@ -33,7 +33,6 @@ vi.mock("@/lib/use-cases/account", () => ({
 
 import { placeOrderAction } from "@/app/(boutique)/checkout/actions"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
-import { realOrderEffects } from "@/lib/use-cases/order-effects"
 import {
   CheckoutValidationError,
   EmptyCartError,
@@ -120,11 +119,7 @@ describe("placeOrderAction", () => {
       url: "/commande/confirmation/cmd-1",
       name: "NEXT_REDIRECT",
     })
-    expect(placeOrderMock).toHaveBeenCalledWith(
-      SESSION_USER.id,
-      INPUT,
-      realOrderEffects
-    )
+    expect(placeOrderMock).toHaveBeenCalledWith(SESSION_USER.id, INPUT)
     expect(updateProfileMock).toHaveBeenCalledWith(SESSION_USER.id, {
       phone: INPUT.phone,
       address: INPUT.address,
