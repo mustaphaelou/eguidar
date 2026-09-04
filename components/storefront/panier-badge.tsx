@@ -1,7 +1,7 @@
-import { compterArticlesDuPanierCourant } from "@/lib/panier"
+import { compterArticlesDuPanier } from "@/lib/panier"
 
 export async function PanierBadge() {
-  const count = await compterArticlesDuPanierCourant()
+  const count = await compterArticlesDuPanier()
 
   if (count === 0) return null
 
