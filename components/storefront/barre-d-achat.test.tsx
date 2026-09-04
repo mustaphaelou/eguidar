@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BarreDAchat } from "./barre-d-achat"
 import type { EtatAjoutAuPanier } from "./use-ajout-au-panier"
-import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
+
+const MESSAGE_CAP_ATTEINTE = "Votre panier est plein : 20 articles maximum."
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 

@@ -1,29 +1,16 @@
 import { cookies } from "next/headers"
 
 import { prisma } from "@/lib/db"
-import {
-  MESSAGE_CAP_ATTEINTE,
-  NOM_COOKIE_PANIER_VISITEUR,
-  addToPanierVisiteur,
-  parsePanierVisiteur,
-  quantiteValide,
-  serializePanierVisiteur,
-  type ArticlePanierVisiteur,
-} from "@/lib/panier-visiteur"
 
+const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
+const MAX_ARTICLES_PANIER_VISITEUR = 20
 const PANIER_VISITEUR_MAX_AGE = 60 * 60 * 24 * 30
 
+const MESSAGE_CAP_ATTEINTE = `Votre panier est plein : ${MAX_ARTICLES_PANIER_VISITEUR} articles maximum.`
 const MESSAGE_QUANTITE_INVALIDE =
   "Quantité invalide : la quantité doit être un entier d'au moins 1."
 const MESSAGE_VARIANTE_INCONNUE = "Cet article n'est plus disponible."
 const MESSAGE_ARTICLE_INCONNU = "Cet article est introuvable dans votre panier."
-
-/**
- * @deprecated Compatibilité transitoire (#190-#192 la retire) : le
- * Propriétaire du panier est résolu en interne par l'interface canonique.
- */
-export type ProprietairePanier =
-  { role: "visiteur" } | { role: "client"; compteId: string }
 
 export type MotifRefusPanier =
   "cap-atteinte" | "quantite-invalide" | "variante-inconnue" | "article-inconnu"
@@ -52,22 +39,92 @@ export interface DonneesPanier {
   itemCount: number
 }
 
-/**
- * @deprecated Compatibilité transitoire (#190-#192 la retire) : la
- * résolution du Propriétaire vit derrière l'interface canonique.
- */
-export function resoudreProprietairePanier(
-  user: { id: string } | null
-): ProprietairePanier {
-  return user ? { role: "client", compteId: user.id } : { role: "visiteur" }
+type ProprietaireDuPanier =
+  { role: "visiteur" } | { role: "client"; compteId: string }
+
+interface ArticlePanierVisiteur {
+  variantId: string
+  quantity: number
 }
 
-async function resoudreProprietaireCourant(): Promise<ProprietairePanier> {
-  // Import dynamique : un import statique tirerait `server-only` (via
-  // get-session) dans chaque consommateur sans session mockée. Le mock
-  // `vi.mock("@/lib/use-cases/get-session")` intercepte cet import dynamique.
-  const { getSessionUser } = await import("@/lib/use-cases/get-session")
-  return resoudreProprietairePanier(await getSessionUser())
+function quantiteValide(quantity: number): boolean {
+  return Number.isInteger(quantity) && quantity >= 1
+}
+
+function estArticleValide(article: unknown): article is ArticlePanierVisiteur {
+  if (typeof article !== "object" || article === null) return false
+  const { variantId, quantity } = article as Record<string, unknown>
+  return (
+    typeof variantId === "string" &&
+    variantId.length > 0 &&
+    typeof quantity === "number" &&
+    quantiteValide(quantity)
+  )
+}
+
+function normaliser(
+  articles: readonly ArticlePanierVisiteur[]
+): ArticlePanierVisiteur[] {
+  const quantitesParVariant = new Map<string, number>()
+  for (const article of articles) {
+    if (!estArticleValide(article)) continue
+    quantitesParVariant.set(
+      article.variantId,
+      (quantitesParVariant.get(article.variantId) ?? 0) + article.quantity
+    )
+  }
+  const fusionnes = [...quantitesParVariant].map(([variantId, quantity]) => ({
+    variantId,
+    quantity,
+  }))
+  return fusionnes.slice(0, MAX_ARTICLES_PANIER_VISITEUR)
+}
+
+function serializePanierVisiteur(
+  articles: readonly ArticlePanierVisiteur[]
+): string {
+  return JSON.stringify(normaliser(articles))
+}
+
+function parsePanierVisiteur(raw?: string | null): ArticlePanierVisiteur[] {
+  if (!raw) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(parsed)) return []
+  return normaliser(parsed.filter(estArticleValide))
+}
+
+function ajouterAuPanierVisiteur(
+  articles: readonly ArticlePanierVisiteur[],
+  variantId: string,
+  quantity: number
+): { ok: true; articles: ArticlePanierVisiteur[] } | {
+  ok: false
+  motif: "cap-atteinte" | "quantite-invalide"
+} {
+  const actuels = normaliser(articles)
+  if (variantId.length === 0 || !quantiteValide(quantity)) {
+    return { ok: false, motif: "quantite-invalide" }
+  }
+  const existant = actuels.find((article) => article.variantId === variantId)
+  if (existant) {
+    return {
+      ok: true,
+      articles: actuels.map((article) =>
+        article.variantId === variantId
+          ? { ...article, quantity: article.quantity + quantity }
+          : article
+      ),
+    }
+  }
+  if (actuels.length >= MAX_ARTICLES_PANIER_VISITEUR) {
+    return { ok: false, motif: "cap-atteinte" }
+  }
+  return { ok: true, articles: [...actuels, { variantId, quantity }] }
 }
 
 async function lireArticlesPanierVisiteur(): Promise<ArticlePanierVisiteur[]> {
@@ -95,6 +152,15 @@ async function possedeCookiePanierVisiteur(): Promise<boolean> {
 async function supprimerCookiePanierVisiteur(): Promise<void> {
   const jar = await cookies()
   jar.delete(NOM_COOKIE_PANIER_VISITEUR)
+}
+
+async function resoudreProprietaireCourant(): Promise<ProprietaireDuPanier> {
+  // Import dynamique : un import statique tirerait `server-only` (via
+  // get-session) dans chaque consommateur sans session mockée. Le mock
+  // `vi.mock("@/lib/use-cases/get-session")` intercepte cet import dynamique.
+  const { getSessionUser } = await import("@/lib/use-cases/get-session")
+  const user = await getSessionUser()
+  return user ? { role: "client", compteId: user.id } : { role: "visiteur" }
 }
 
 async function ajouterArticleAuPanierClient(
@@ -188,7 +254,7 @@ async function compterArticlesDuPanierClient(
 }
 
 async function panierLire(
-  proprietaire: ProprietairePanier
+  proprietaire: ProprietaireDuPanier
 ): Promise<DonneesPanier> {
   if (proprietaire.role === "client") {
     return lirePanierClient(proprietaire.compteId)
@@ -216,7 +282,7 @@ async function panierLire(
 }
 
 async function panierCompter(
-  proprietaire: ProprietairePanier
+  proprietaire: ProprietaireDuPanier
 ): Promise<number> {
   if (proprietaire.role === "client") {
     return compterArticlesDuPanierClient(proprietaire.compteId)
@@ -239,7 +305,7 @@ async function panierCompter(
 }
 
 async function panierAjouter(
-  proprietaire: ProprietairePanier,
+  proprietaire: ProprietaireDuPanier,
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
@@ -252,7 +318,7 @@ async function panierAjouter(
   }
 
   const articles = await lireArticlesPanierVisiteur()
-  const resultat = addToPanierVisiteur(articles, variantId, quantity)
+  const resultat = ajouterAuPanierVisiteur(articles, variantId, quantity)
   if (!resultat.ok) {
     return {
       ok: false,
@@ -280,7 +346,7 @@ async function panierAjouter(
 }
 
 async function panierModifier(
-  proprietaire: ProprietairePanier,
+  proprietaire: ProprietaireDuPanier,
   articlePanierId: string,
   quantity: number
 ): Promise<ResultatPanier> {
@@ -329,7 +395,7 @@ async function panierModifier(
 }
 
 async function panierRetirer(
-  proprietaire: ProprietairePanier,
+  proprietaire: ProprietaireDuPanier,
   articlePanierId: string
 ): Promise<ResultatPanier> {
   if (proprietaire.role === "client") {
@@ -361,57 +427,21 @@ async function panierRetirer(
  * l'identifiant persisté de l'article du panier dans sa base ; pour un
  * Visiteur, le `variantId` porté par l'article de son cookie.
  */
-export function lirePanier(): Promise<DonneesPanier>
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez lirePanier() sans argument. */
-export function lirePanier(
-  proprietaire: ProprietairePanier
-): Promise<DonneesPanier>
-export async function lirePanier(
-  proprietaire?: ProprietairePanier
-): Promise<DonneesPanier> {
-  return panierLire(proprietaire ?? (await resoudreProprietaireCourant()))
+export async function lirePanier(): Promise<DonneesPanier> {
+  return panierLire(await resoudreProprietaireCourant())
 }
 
 /** Compte le Panier courant (somme des quantités). */
-export function compterArticlesDuPanier(): Promise<number>
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez compterArticlesDuPanier() sans argument. */
-export function compterArticlesDuPanier(
-  proprietaire: ProprietairePanier
-): Promise<number>
-export async function compterArticlesDuPanier(
-  proprietaire?: ProprietairePanier
-): Promise<number> {
-  return panierCompter(proprietaire ?? (await resoudreProprietaireCourant()))
+export async function compterArticlesDuPanier(): Promise<number> {
+  return panierCompter(await resoudreProprietaireCourant())
 }
 
 /** Ajoute une Variante (identifiant de Variante + quantité) au Panier courant. */
-export function ajouterArticleAuPanier(
-  variantId: string,
-  quantity: number
-): Promise<ResultatPanier>
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez ajouterArticleAuPanier(variantId, quantity). */
-export function ajouterArticleAuPanier(
-  proprietaire: ProprietairePanier,
-  variantId: string,
-  quantity: number
-): Promise<ResultatPanier>
 export async function ajouterArticleAuPanier(
-  proprietaireOuVariantId: ProprietairePanier | string,
-  variantIdOuQuantity: string | number,
-  quantityCompat?: number
+  variantId: string,
+  quantity: number
 ): Promise<ResultatPanier> {
-  if (typeof proprietaireOuVariantId === "string") {
-    return panierAjouter(
-      await resoudreProprietaireCourant(),
-      proprietaireOuVariantId,
-      variantIdOuQuantity as number
-    )
-  }
-  return panierAjouter(
-    proprietaireOuVariantId,
-    variantIdOuQuantity as string,
-    quantityCompat as number
-  )
+  return panierAjouter(await resoudreProprietaireCourant(), variantId, quantity)
 }
 
 /**
@@ -421,32 +451,14 @@ export async function ajouterArticleAuPanier(
  * pour un Client, l'identifiant persisté de l'article du panier dans sa base ;
  * pour un Visiteur, le `variantId` porté par l'article de son cookie.
  */
-export function modifierQuantiteArticlePanier(
-  articlePanierId: string,
-  quantity: number
-): Promise<ResultatPanier>
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez modifierQuantiteArticlePanier(articlePanierId, quantity). */
-export function modifierQuantiteArticlePanier(
-  proprietaire: ProprietairePanier,
-  articlePanierId: string,
-  quantity: number
-): Promise<ResultatPanier>
 export async function modifierQuantiteArticlePanier(
-  articlePanierIdOuProprietaire: string | ProprietairePanier,
-  quantityOuArticlePanierId: number | string,
-  quantityCompat?: number
+  articlePanierId: string,
+  quantity: number
 ): Promise<ResultatPanier> {
-  if (typeof articlePanierIdOuProprietaire === "string") {
-    return panierModifier(
-      await resoudreProprietaireCourant(),
-      articlePanierIdOuProprietaire,
-      quantityOuArticlePanierId as number
-    )
-  }
   return panierModifier(
-    articlePanierIdOuProprietaire,
-    quantityOuArticlePanierId as string,
-    quantityCompat as number
+    await resoudreProprietaireCourant(),
+    articlePanierId,
+    quantity
   )
 }
 
@@ -457,28 +469,10 @@ export async function modifierQuantiteArticlePanier(
  * pour un Client, l'identifiant persisté de l'article du panier dans sa base ;
  * pour un Visiteur, le `variantId` porté par l'article de son cookie.
  */
-export function retirerArticleDuPanier(
-  articlePanierId: string
-): Promise<ResultatPanier>
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez retirerArticleDuPanier(articlePanierId). */
-export function retirerArticleDuPanier(
-  proprietaire: ProprietairePanier,
-  articlePanierId: string
-): Promise<ResultatPanier>
 export async function retirerArticleDuPanier(
-  articlePanierIdOuProprietaire: string | ProprietairePanier,
-  articlePanierIdCompat?: string
+  articlePanierId: string
 ): Promise<ResultatPanier> {
-  if (typeof articlePanierIdOuProprietaire === "string") {
-    return panierRetirer(
-      await resoudreProprietaireCourant(),
-      articlePanierIdOuProprietaire
-    )
-  }
-  return panierRetirer(
-    articlePanierIdOuProprietaire,
-    articlePanierIdCompat as string
-  )
+  return panierRetirer(await resoudreProprietaireCourant(), articlePanierId)
 }
 
 /**
@@ -508,21 +502,7 @@ export async function lirePanierClient(
  * d'authentification, qui prend l'identifiant du compte directement.
  * Le rejeu est best-effort : un article mort ne le bloque jamais.
  */
-export function rejouerPanierVisiteur(compteId: string): Promise<void>
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez rejouerPanierVisiteur(compteId). */
-export function rejouerPanierVisiteur(
-  proprietaire: ProprietairePanier
-): Promise<void>
-export async function rejouerPanierVisiteur(
-  compteIdOuProprietaire: string | ProprietairePanier
-): Promise<void> {
-  const compteId =
-    typeof compteIdOuProprietaire === "string"
-      ? compteIdOuProprietaire
-      : compteIdOuProprietaire.role === "client"
-        ? compteIdOuProprietaire.compteId
-        : null
-  if (!compteId) return
+export async function rejouerPanierVisiteur(compteId: string): Promise<void> {
   if (!(await possedeCookiePanierVisiteur())) return
 
   for (const article of await lireArticlesPanierVisiteur()) {
@@ -538,39 +518,6 @@ export async function rejouerPanierVisiteur(
   }
 
   await supprimerCookiePanierVisiteur()
-}
-
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez lirePanier(). */
-export async function lirePanierCourant(): Promise<DonneesPanier> {
-  return lirePanier()
-}
-
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez compterArticlesDuPanier(). */
-export async function compterArticlesDuPanierCourant(): Promise<number> {
-  return compterArticlesDuPanier()
-}
-
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez ajouterArticleAuPanier(variantId, quantity). */
-export async function ajouterArticleAuPanierCourant(
-  variantId: string,
-  quantity: number
-): Promise<ResultatPanier> {
-  return ajouterArticleAuPanier(variantId, quantity)
-}
-
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez modifierQuantiteArticlePanier(articlePanierId, quantity). */
-export async function modifierQuantiteArticlePanierCourant(
-  articlePanierId: string,
-  quantity: number
-): Promise<ResultatPanier> {
-  return modifierQuantiteArticlePanier(articlePanierId, quantity)
-}
-
-/** @deprecated Compatibilité transitoire (#190-#192 la retire) : appelez retirerArticleDuPanier(articlePanierId). */
-export async function retirerArticleDuPanierCourant(
-  articlePanierId: string
-): Promise<ResultatPanier> {
-  return retirerArticleDuPanier(articlePanierId)
 }
 
 interface VarianteAvecProduit {

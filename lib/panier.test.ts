@@ -12,10 +12,6 @@ import {
 
 import { prisma } from "@/lib/db"
 import {
-  NOM_COOKIE_PANIER_VISITEUR,
-  serializePanierVisiteur,
-} from "@/lib/panier-visiteur"
-import {
   deletedCookieNames,
   hasCookie,
   readCookie,
@@ -44,6 +40,10 @@ import {
   retirerArticleDuPanier,
 } from "./panier"
 
+const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
+const serializePanierVisiteur = (
+  articles: readonly { variantId: string; quantity: number }[]
+) => JSON.stringify(articles)
 const MESSAGE_CAP_ATTEINTE = "Votre panier est plein : 20 articles maximum."
 const MESSAGE_QUANTITE_INVALIDE =
   "Quantité invalide : la quantité doit être un entier d'au moins 1."
@@ -54,6 +54,7 @@ const runId = randomUUID().slice(0, 8)
 const emailPrefix = `panier-deep-${runId}-`
 
 let userId: string
+let userIdB: string
 let variantStandard: string
 let variantPremium: string
 let variantesCap: string[]
@@ -82,6 +83,15 @@ beforeAll(async () => {
     },
   })
   userId = user.id
+  userIdB = (
+    await prisma.user.create({
+      data: {
+        id: randomUUID(),
+        email: `${emailPrefix}b@test.ma`,
+        name: "Utilisateur B",
+      },
+    })
+  ).id
 
   const category = await prisma.category.create({
     data: {
@@ -250,6 +260,7 @@ describe("lirePanier — lecture du Panier", () => {
         variantId: variantStandard,
         variantName: "Standard",
         productName: "Produit Panier Deep",
+        image: "https://example.com/pd-1.jpg",
         unitPrice: 100000,
         quantity: 2,
         lineTotal: 200000,
@@ -271,6 +282,25 @@ describe("lirePanier — lecture du Panier", () => {
         subtotal: 0,
         itemCount: 0,
       })
+
+      setCookie(NOM_COOKIE_PANIER_VISITEUR, "[]")
+      await expect(lirePanier()).resolves.toEqual({
+        lines: [],
+        subtotal: 0,
+        itemCount: 0,
+      })
+    })
+
+    it("yields an empty Panier when the cookie value is corrupted", async () => {
+      commeVisiteur()
+      setCookie(NOM_COOKIE_PANIER_VISITEUR, "panier-corrompu{{{pas-du-json")
+
+      await expect(lirePanier()).resolves.toEqual({
+        lines: [],
+        subtotal: 0,
+        itemCount: 0,
+      })
+      await expect(compterArticlesDuPanier()).resolves.toBe(0)
     })
 
     it("skips stale cookie articles whose variant vanished from the database", async () => {
@@ -384,6 +414,20 @@ describe("ajouterArticleAuPanier — ajout d'un article", () => {
           message: MESSAGE_QUANTITE_INVALIDE,
         }
       )
+      await expect(ajouterArticleAuPanier(variantStandard, -1)).resolves.toEqual(
+        {
+          ok: false,
+          motif: "quantite-invalide",
+          message: MESSAGE_QUANTITE_INVALIDE,
+        }
+      )
+      await expect(
+        ajouterArticleAuPanier(variantStandard, 1.5)
+      ).resolves.toEqual({
+        ok: false,
+        motif: "quantite-invalide",
+        message: MESSAGE_QUANTITE_INVALIDE,
+      })
       await expect(
         ajouterArticleAuPanier("variante-fantome", 1)
       ).resolves.toEqual({
@@ -397,6 +441,31 @@ describe("ajouterArticleAuPanier — ajout d'un article", () => {
         variantId: variantStandard,
         quantity: 2,
       })
+      expect(await prisma.cartItem.count({ where: { userId } })).toBe(1)
+    })
+
+    it("isole le Panier de chaque Compte : un Client ne lit ni n'écrit celui d'un autre", async () => {
+      commeClient(userId)
+      await ajouterArticleAuPanier(variantStandard, 2)
+      const item = await prisma.cartItem.findFirstOrThrow({
+        where: { userId, variantId: variantStandard },
+      })
+
+      commeClient(userIdB)
+
+      await expect(lirePanier()).resolves.toEqual({
+        lines: [],
+        subtotal: 0,
+        itemCount: 0,
+      })
+      await expect(
+        modifierQuantiteArticlePanier(item.id, 2)
+      ).resolves.toMatchObject({ ok: false, motif: "article-inconnu" })
+      await expect(retirerArticleDuPanier(item.id)).resolves.toMatchObject({
+        ok: false,
+        motif: "article-inconnu",
+      })
+      expect(await prisma.cartItem.count({ where: { userId } })).toBe(1)
     })
   })
 
@@ -452,6 +521,7 @@ describe("ajouterArticleAuPanier — ajout d'un article", () => {
 
       const panier = await lirePanier()
       expect(panier.lines).toHaveLength(20)
+      expect(panier.lines[0].image).toBeNull()
       expect(cookiePanier()).toHaveLength(20)
     })
 

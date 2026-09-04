@@ -12,8 +12,9 @@ vi.mock("@/app/(boutique)/actions", () => ({
 }))
 
 import { formatPrice } from "@/lib/money"
-import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { useAjoutAuPanier } from "./use-ajout-au-panier"
+
+const MESSAGE_CAP_ATTEINTE = "Votre panier est plein : 20 articles maximum."
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
