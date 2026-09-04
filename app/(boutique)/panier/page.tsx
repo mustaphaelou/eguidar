@@ -82,10 +82,10 @@ async function CartContent({
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker
               cities={devis.cities}
-              selectedId={devis.selectedCityId}
+              selectedId={devis.cas === "validée" ? devis.ville.id : null}
               path="/panier"
             />
-            {devis.selectedQuote && (
+            {devis.cas === "validée" && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <HugeiconsIcon
                   icon={DeliveryTruck02Icon}
