@@ -73,7 +73,7 @@ vi.mock("@/components/ui/select", () => ({
 
 import { CheckoutForm } from "./checkout-form"
 import { formatPrice } from "@/lib/money"
-import { lignesDevis, selectionnerDevis, type Devis } from "@/lib/use-cases/devis-selection"
+import { lignesDevis, type Devis, type SelectionDevis } from "@/lib/use-cases/devis-selection"
 import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -122,16 +122,20 @@ function Probe() {
 }
 
 const CASA = { id: "42", name: "Casablanca", fee: 2500 }
+const QUOTE_CASA: ShippingQuote = {
+  subtotal: 100000,
+  shippingFee: 2500,
+  total: 102500,
+}
 
 function devisPourTest({
-  selectedCityId,
+  selection,
   quotes,
 }: {
-  selectedCityId: string | null
+  selection: SelectionDevis
   quotes: Record<string, ShippingQuote>
 }): Devis {
   const cities = [CASA]
-  const selection = selectionnerDevis(cities, quotes, selectedCityId)
   return {
     cities,
     threshold: 100000,
@@ -152,7 +156,7 @@ function checkoutHarness() {
     <AuthDialogsProvider>
       <Probe />
       <CheckoutForm
-        devis={devisPourTest({ selectedCityId: null, quotes: {} })}
+        devis={devisPourTest({ selection: { cas: "aucune" }, quotes: {} })}
         initialAddress=""
         initialPhone=""
         subtotal={100000}
@@ -164,15 +168,15 @@ function checkoutHarness() {
 
 function recapHarness({
   quotes,
-  initialCityId,
+  selection,
 }: {
   quotes: Record<string, ShippingQuote>
-  initialCityId: string | null
+  selection: SelectionDevis
 }) {
   return (
     <AuthDialogsProvider>
       <CheckoutForm
-        devis={devisPourTest({ selectedCityId: initialCityId, quotes })}
+        devis={devisPourTest({ selection, quotes })}
         initialAddress=""
         initialPhone=""
         subtotal={100000}
@@ -227,7 +231,7 @@ describe("CheckoutForm", () => {
   })
 
   it("shows « À choisir » without total when no Ville de livraison is selected", () => {
-    render(recapHarness({ quotes: {}, initialCityId: null }))
+    render(recapHarness({ quotes: {}, selection: { cas: "aucune" } }))
 
     expect(container.textContent).toContain("À choisir")
     expect(container.textContent).not.toContain("Total à payer à la livraison")
@@ -239,8 +243,12 @@ describe("CheckoutForm", () => {
   it("names the Ville de livraison with its fees and total when a ville is selected", () => {
     render(
       recapHarness({
-        quotes: { 42: { subtotal: 100000, shippingFee: 2500, total: 102500 } },
-        initialCityId: "42",
+        quotes: { 42: QUOTE_CASA },
+        selection: {
+          cas: "validée",
+          ville: CASA,
+          devis: QUOTE_CASA,
+        },
       })
     )
 
@@ -255,8 +263,8 @@ describe("CheckoutForm", () => {
   it("updates the récapitulatif instantly from À choisir to Livraison (Ville) when the city changes, without reload", () => {
     render(
       recapHarness({
-        quotes: { 42: { subtotal: 100000, shippingFee: 2500, total: 102500 } },
-        initialCityId: null,
+        quotes: { 42: QUOTE_CASA },
+        selection: { cas: "aucune" },
       })
     )
 
@@ -285,8 +293,8 @@ describe("CheckoutForm", () => {
 
     render(
       recapHarness({
-        quotes: { 42: { subtotal: 100000, shippingFee: 2500, total: 102500 } },
-        initialCityId: null,
+        quotes: { 42: QUOTE_CASA },
+        selection: { cas: "aucune" },
       })
     )
 

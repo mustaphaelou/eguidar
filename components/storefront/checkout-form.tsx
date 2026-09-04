@@ -49,7 +49,7 @@ export function CheckoutForm({
     initialState
   )
   const [selectedCityId, setSelectedCityId] = useState(
-    devis.selectedCityId ?? ""
+    devis.cas === "validée" ? devis.ville.id : ""
   )
   // Le récapitulatif dérive du Devis via l'état local : il réagit
   // instantanément au changement de ville, sans rechargement.
