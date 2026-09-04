@@ -104,16 +104,36 @@ describe("selectionnerDevis", () => {
       c2: quote(50000, 0),
     }
 
-    expect(selectionnerDevis(cities, freeQuotes, "c1")).toStrictEqual({
+    const selectionC1 = (cityQuote: ShippingQuote) => ({
       cas: "validée",
       ville: city("c1", "Casablanca", 3500),
-      devis: quote(50000, 0),
+      devis: cityQuote,
     })
-    expect(selectionnerDevis(cities, quotes, "c1")).toStrictEqual({
+
+    expect(selectionnerDevis(cities, freeQuotes, "c1")).toStrictEqual(
+      selectionC1(quote(50000, 0))
+    )
+    expect(selectionnerDevis(cities, quotes, "c1")).toStrictEqual(
+      selectionC1(quote(50000, 3500))
+    )
+  })
+
+  it("is idempotent (same inputs twice → same case)", () => {
+    const first = selectionnerDevis(cities, quotes, "c1")
+    const second = selectionnerDevis(cities, quotes, "c1")
+
+    expect(first).toStrictEqual({
       cas: "validée",
       ville: city("c1", "Casablanca", 3500),
       devis: quote(50000, 3500),
     })
+    expect(second).toStrictEqual(first)
+
+    const unknownFirst = selectionnerDevis(cities, quotes, "ville-inconnue")
+    const unknownSecond = selectionnerDevis(cities, quotes, "ville-inconnue")
+
+    expect(unknownFirst).toStrictEqual(aucune)
+    expect(unknownSecond).toStrictEqual(unknownFirst)
   })
 
   it("never throws on empty inputs", () => {
