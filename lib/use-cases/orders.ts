@@ -14,7 +14,6 @@ import {
 } from "@/lib/use-cases/contact"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
-import type { OrderEffects as LegacyOrderEffects } from "@/lib/use-cases/order-effects"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = {
@@ -334,8 +333,9 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
 export async function updateOrderStatus(
   orderId: string,
   nextStatus: string,
-  effects: LegacyOrderEffects
+  overrides?: Partial<OrderEffects>
 ) {
+  const effects = { ...defaultOrderEffects, ...overrides }
   if (!isOrderStatus(nextStatus))
     throw new InvalidOrderTransitionError("inconnu", nextStatus)
 
@@ -389,6 +389,14 @@ export async function updateOrderStatus(
     )
   } catch (error) {
     console.warn(`[order] e-mail de statut non envoyé pour ${orderId}`, error)
+  }
+  try {
+    effects.invalidateOrder(orderId)
+  } catch (error) {
+    console.warn(
+      `[order] invalidation du cache non effectuée pour ${orderId}`,
+      error
+    )
   }
   return updated
 }

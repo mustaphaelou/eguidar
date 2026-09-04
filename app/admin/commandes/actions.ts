@@ -6,8 +6,6 @@ import {
   adminTaskAction,
   parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
-import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
-import { realOrderEffects } from "@/lib/use-cases/order-effects"
 import { updateOrderStatus } from "@/lib/use-cases/orders"
 
 export const updateOrderStatusAction = adminTaskAction<{
@@ -21,8 +19,7 @@ export const updateOrderStatusAction = adminTaskAction<{
   }),
   refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
   run: async ({ orderId, nextStatus }) => {
-    await updateOrderStatus(orderId, nextStatus, realOrderEffects)
-    invalidateCommande(orderId)
+    await updateOrderStatus(orderId, nextStatus)
     redirect(`/admin/commandes/${orderId}`)
   },
 })
