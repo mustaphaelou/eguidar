@@ -12,6 +12,7 @@ vi.mock("@/app/(boutique)/actions", () => ({
 }))
 
 import { formatPrice } from "@/lib/money"
+import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { useAjoutAuPanier } from "./use-ajout-au-panier"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -51,7 +52,7 @@ function Harness({ variants }: Parameters<typeof useAjoutAuPanier>[0]) {
       data-out-of-stock={String(ajout.outOfStock)}
       data-en-attente={String(ajout.enAttente)}
       data-ajoute={String(ajout.ajoute)}
-      data-cap-atteint={String(ajout.capAtteint)}
+      data-message-erreur={ajout.messageErreur ?? ""}
       data-desactive={String(ajout.desactive)}
       data-variant-nom={ajout.variantNom ?? ""}
     >
@@ -109,7 +110,7 @@ function etat() {
     outOfStock: el.getAttribute("data-out-of-stock") === "true",
     enAttente: el.getAttribute("data-en-attente") === "true",
     ajoute: el.getAttribute("data-ajoute") === "true",
-    capAtteint: el.getAttribute("data-cap-atteint") === "true",
+    messageErreur: el.getAttribute("data-message-erreur") || undefined,
     desactive: el.getAttribute("data-desactive") === "true",
     variantNom: el.getAttribute("data-variant-nom") || undefined,
   }
@@ -181,14 +182,15 @@ describe("useAjoutAuPanier", () => {
       1
     )
     expect(etat().ajoute).toBe(true)
-    expect(etat().capAtteint).toBe(false)
+    expect(etat().messageErreur).toBeUndefined()
     expect(etat().enAttente).toBe(false)
   })
 
-  it("shows the explicit cap state when the Visiteur's Panier is full", async () => {
+  it("shows the cap message returned by the action when the Visiteur's Panier is full", async () => {
     ajouterArticleAuPanierActionMock.mockResolvedValue({
       ok: false,
       motif: "cap-atteinte",
+      message: MESSAGE_CAP_ATTEINTE,
     })
     monter()
 
@@ -196,14 +198,15 @@ describe("useAjoutAuPanier", () => {
     await rejouerTransition()
 
     expect(ajouterArticleAuPanierActionMock.mock.calls[0]).toHaveLength(2)
-    expect(etat().capAtteint).toBe(true)
+    expect(etat().messageErreur).toBe(MESSAGE_CAP_ATTEINTE)
     expect(etat().ajoute).toBe(false)
   })
 
-  it("stays silent on any other refusal", async () => {
+  it("shows the message of any other refusal verbatim", async () => {
     ajouterArticleAuPanierActionMock.mockResolvedValue({
       ok: false,
-      motif: "quantite-invalide",
+      motif: "variante-inconnue",
+      message: "Cet article n'est plus disponible.",
     })
     monter()
 
@@ -211,13 +214,17 @@ describe("useAjoutAuPanier", () => {
     await rejouerTransition()
 
     expect(etat().ajoute).toBe(false)
-    expect(etat().capAtteint).toBe(false)
+    expect(etat().messageErreur).toBe("Cet article n'est plus disponible.")
   })
 
   it("resets the previous outcome when a new addition starts", async () => {
     ajouterArticleAuPanierActionMock
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({ ok: false, motif: "cap-atteinte" })
+      .mockResolvedValueOnce({
+        ok: false,
+        motif: "cap-atteinte",
+        message: MESSAGE_CAP_ATTEINTE,
+      })
     monter()
 
     cliquerAjouter()
@@ -227,7 +234,7 @@ describe("useAjoutAuPanier", () => {
     cliquerAjouter()
     await rejouerTransition()
     expect(etat().ajoute).toBe(false)
-    expect(etat().capAtteint).toBe(true)
+    expect(etat().messageErreur).toBe(MESSAGE_CAP_ATTEINTE)
   })
 
   it("does not call the action while the selected Variante is out of stock", () => {

@@ -101,7 +101,12 @@ describe("BarreDAchat", () => {
   })
 
   it("affiche le message de cap dans role='alert' sous le bouton", () => {
-    render(<BarreDAchat visible etat={etat({ capAtteint: true })} />)
+    render(
+      <BarreDAchat
+        visible
+        etat={etat({ messageErreur: MESSAGE_CAP_ATTEINTE })}
+      />
+    )
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.querySelector("[role='alert']")?.textContent).toBe(

@@ -6,27 +6,26 @@ import { useState, useTransition } from "react"
 
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { Button } from "@/components/ui/button"
-import { MESSAGE_CAP_ATTEINTE, MOTIF_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import type { ProduitLie } from "@/lib/use-cases/blog"
 
 export function ProduitLieCarte({ product }: { product: ProduitLie }) {
   const [ajoute, setAjoute] = useState(false)
-  const [capAtteint, setCapAtteint] = useState(false)
+  const [messageErreur, setMessageErreur] = useState("")
   const [enAttente, demarrer] = useTransition()
 
   function ajouter() {
     if (!product.varianteId || enAttente) return
     setAjoute(false)
-    setCapAtteint(false)
+    setMessageErreur("")
     demarrer(async () => {
       const resultat = await ajouterArticleAuPanierAction(
         product.varianteId!,
         1
       )
       if (resultat.ok) setAjoute(true)
-      else if (resultat.motif === MOTIF_CAP_ATTEINTE) setCapAtteint(true)
+      else setMessageErreur(resultat.message)
     })
   }
 
@@ -86,9 +85,9 @@ export function ProduitLieCarte({ product }: { product: ProduitLie }) {
       {ajoute ? (
         <p className="text-xs text-emerald-600">Ajouté au panier</p>
       ) : null}
-      {capAtteint ? (
+      {messageErreur ? (
         <p role="alert" className="text-xs text-destructive">
-          {MESSAGE_CAP_ATTEINTE}
+          {messageErreur}
         </p>
       ) : null}
     </div>

@@ -104,6 +104,7 @@ describe("ProductBuyBox", () => {
     ajouterArticleAuPanierActionMock.mockResolvedValue({
       ok: false,
       motif: "cap-atteinte",
+      message: MESSAGE_CAP_ATTEINTE,
     })
 
     render(buyBox())
@@ -118,16 +119,20 @@ describe("ProductBuyBox", () => {
     expect(container.textContent).not.toContain("Ajouté au panier")
   })
 
-  it("stays silent on any other refusal", async () => {
+  it("shows the message of any other refusal verbatim", async () => {
     ajouterArticleAuPanierActionMock.mockResolvedValue({
       ok: false,
-      motif: "quantite-invalide",
+      motif: "variante-inconnue",
+      message: "Cet article n'est plus disponible.",
     })
 
     render(buyBox())
     await cliquerAjouter()
 
     expect(container.textContent).not.toContain("Ajouté au panier")
+    expect(container.textContent).toContain(
+      "Cet article n'est plus disponible."
+    )
     expect(container.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
   })
 
