@@ -140,6 +140,7 @@ function devisPourTest({
     cities,
     threshold: 100000,
     quotes,
+    sousTotal: 100000,
     ...selection,
     rows: lignesDevis(100000, selection),
   }

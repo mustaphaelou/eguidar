@@ -40,6 +40,10 @@ export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
  * puis construit les lignes via `lignesDevis`
  * (offerte / À choisir avec Total omis quand non sélectionné).
  *
+ * Le Devis retourné est auto-porteur : il porte le `sousTotal`
+ * (`panier.subtotal`) qui a chiffré ses devis. Les `rows` se dérivent
+ * de ce fait propre via `lignesDevis(devis.sousTotal, devis)`.
+ *
  * Ville inconnue → sélection « aucune » + lignes À choisir, ne lève jamais.
  */
 export async function chargerDevis(
@@ -64,6 +68,7 @@ export async function chargerDevis(
     cities,
     threshold,
     quotes,
+    sousTotal: panier.subtotal,
     ...selection,
     rows,
   }
