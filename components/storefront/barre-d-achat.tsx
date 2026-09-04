@@ -1,7 +1,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { cn } from "@/lib/utils"
 
 import type { EtatAjoutAuPanier } from "./use-ajout-au-panier"
@@ -18,7 +17,7 @@ export function BarreDAchat({
     ajouter,
     enAttente = false,
     ajoute = false,
-    capAtteint = false,
+    messageErreur,
     desactive = false,
     variantNom,
   } = etat
@@ -52,9 +51,9 @@ export function BarreDAchat({
           {ajoute && (
             <p className="text-sm text-emerald-600">Ajouté au panier</p>
           )}
-          {capAtteint && (
+          {messageErreur && (
             <p role="alert" className="text-sm text-destructive">
-              {MESSAGE_CAP_ATTEINTE}
+              {messageErreur}
             </p>
           )}
         </div>
