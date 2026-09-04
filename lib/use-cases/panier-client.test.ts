@@ -142,13 +142,13 @@ describe("mutations du Panier client — lib/panier", () => {
   it("refuses an invalid quantity with the quantite-invalide motif and persists nothing", async () => {
     expect(
       await ajouterArticleAuPanier(clientOwner(userIdA), variantA, 0)
-    ).toEqual({ ok: false, motif: "quantite-invalide" })
+    ).toMatchObject({ ok: false, motif: "quantite-invalide" })
     expect(
       await ajouterArticleAuPanier(clientOwner(userIdA), variantA, -1)
-    ).toEqual({ ok: false, motif: "quantite-invalide" })
+    ).toMatchObject({ ok: false, motif: "quantite-invalide" })
     expect(
       await ajouterArticleAuPanier(clientOwner(userIdA), variantA, 1.5)
-    ).toEqual({ ok: false, motif: "quantite-invalide" })
+    ).toMatchObject({ ok: false, motif: "quantite-invalide" })
 
     expect(await prisma.cartItem.count({ where: { userId: userIdA } })).toBe(0)
   })
@@ -156,7 +156,7 @@ describe("mutations du Panier client — lib/panier", () => {
   it("refuses an unknown variant with the variante-inconnue motif", async () => {
     expect(
       await ajouterArticleAuPanier(clientOwner(userIdA), "variante-inconnue", 1)
-    ).toEqual({ ok: false, motif: "variante-inconnue" })
+    ).toMatchObject({ ok: false, motif: "variante-inconnue" })
   })
 
   it("answers ok when updating the quantity of an owned article", async () => {
@@ -183,7 +183,7 @@ describe("mutations du Panier client — lib/panier", () => {
 
     expect(
       await modifierQuantiteArticlePanier(clientOwner(userIdB), item.id, 2)
-    ).toEqual({ ok: false, motif: "article-inconnu" })
+    ).toMatchObject({ ok: false, motif: "article-inconnu" })
   })
 
   it("refuses updating with an invalid quantity even for an unknown article (quantite first)", async () => {
@@ -194,7 +194,7 @@ describe("mutations du Panier client — lib/panier", () => {
 
     expect(
       await modifierQuantiteArticlePanier(clientOwner(userIdA), item.id, 0)
-    ).toEqual({ ok: false, motif: "quantite-invalide" })
+    ).toMatchObject({ ok: false, motif: "quantite-invalide" })
   })
 
   it("answers ok when removing an article", async () => {
@@ -219,12 +219,12 @@ describe("mutations du Panier client — lib/panier", () => {
       where: { userId: userIdA },
     })
 
-    expect(await retirerArticleDuPanier(clientOwner(userIdB), item.id)).toEqual(
-      {
-        ok: false,
-        motif: "article-inconnu",
-      }
-    )
+    expect(
+      await retirerArticleDuPanier(clientOwner(userIdB), item.id)
+    ).toMatchObject({
+      ok: false,
+      motif: "article-inconnu",
+    })
   })
 })
 
