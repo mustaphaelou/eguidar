@@ -380,22 +380,45 @@ export async function updateProduct(
 
 export async function deleteProduct(
   id: string,
-  effects: CatalogEffects
+  overrides?: Partial<CatalogEffects>
 ): Promise<void> {
+  const effects = { ...defaultCatalogEffects, ...overrides }
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
   await prisma.product.delete({ where: { id } })
-  await effects.deleteImages(imageUrls(existing.images))
-  await effects.removeProductFromIndex(id)
-  effects.revalidateCatalog({ id, slug: existing.slug })
+  try {
+    await effects.deleteImages(imageUrls(existing.images))
+  } catch (error) {
+    console.warn(
+      `[catalog] suppression d'images R2 non effectuée pour ${id}`,
+      error
+    )
+  }
+  try {
+    await effects.removeProductFromIndex(id)
+  } catch (error) {
+    console.warn(
+      `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
+      error
+    )
+  }
+  try {
+    effects.revalidateCatalog({ id, slug: existing.slug })
+  } catch (error) {
+    console.warn(
+      `[catalog] invalidation du cache non effectuée pour ${id}`,
+      error
+    )
+  }
 }
 
 export async function updateVariantStock(
   variantId: string,
   stock: number,
-  effects: CatalogEffects
+  overrides?: Partial<CatalogEffects>
 ) {
+  const effects = { ...defaultCatalogEffects, ...overrides }
   if (!Number.isInteger(stock) || stock < 0) {
     throw new CatalogValidationError(["le stock doit être positif ou nul"])
   }
@@ -416,8 +439,22 @@ export async function updateVariantStock(
       v.id === variantId ? { ...v, stock } : v
     ),
   }
-  await effects.reindexProducts([toIndexableProduct(product)])
-  effects.revalidateCatalog({ id: product.id, slug: product.slug })
+  try {
+    await effects.reindexProducts([toIndexableProduct(product)])
+  } catch (error) {
+    console.warn(
+      `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+      error
+    )
+  }
+  try {
+    effects.revalidateCatalog({ id: product.id, slug: product.slug })
+  } catch (error) {
+    console.warn(
+      `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+      error
+    )
+  }
   return product
 }
 

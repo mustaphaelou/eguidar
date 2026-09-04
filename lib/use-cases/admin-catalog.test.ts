@@ -461,10 +461,14 @@ describe("admin catalog mutations", () => {
   })
 
   it("deletes the product with its variants and clears the search index", async () => {
-    const effects = makeEffects()
+    const removeProductFromIndex = vi.fn(async () => {})
+    const revalidateCatalog = vi.fn()
     const product = await createProduct(makeInput({ slug: slug("delete") }))
 
-    await deleteProduct(product.id, effects)
+    await deleteProduct(product.id, {
+      removeProductFromIndex,
+      revalidateCatalog,
+    })
 
     await expect(
       prisma.product.findUnique({ where: { id: product.id } })
@@ -473,15 +477,15 @@ describe("admin catalog mutations", () => {
       where: { productId: product.id },
     })
     expect(variantCount).toBe(0)
-    expect(effects.removeProductFromIndex).toHaveBeenCalledWith(product.id)
-    expect(effects.revalidateCatalog).toHaveBeenCalledWith({
+    expect(removeProductFromIndex).toHaveBeenCalledWith(product.id)
+    expect(revalidateCatalog).toHaveBeenCalledWith({
       id: product.id,
       slug: product.slug,
     })
   })
 
   it("passes the full gallery to deleteImages on delete", async () => {
-    const effects = makeEffects()
+    const deleteImages = vi.fn(async () => {})
     const images = [
       "https://cdn.example.com/gallery-1.jpg",
       "https://cdn.example.com/gallery-2.jpg",
@@ -490,33 +494,37 @@ describe("admin catalog mutations", () => {
       makeInput({ slug: slug("img-delete"), images })
     )
 
-    await deleteProduct(product.id, effects)
+    await deleteProduct(product.id, { deleteImages })
 
-    expect(effects.deleteImages).toHaveBeenCalledOnce()
-    expect(effects.deleteImages).toHaveBeenCalledWith(images)
+    expect(deleteImages).toHaveBeenCalledOnce()
+    expect(deleteImages).toHaveBeenCalledWith(images)
   })
 
   it("throws ProductNotFoundError when deleting an unknown product", async () => {
-    await expect(deleteProduct("unknown-id", makeEffects())).rejects.toThrow(
+    await expect(deleteProduct("unknown-id")).rejects.toThrow(
       ProductNotFoundError
     )
   })
 
   it("updates variant stock inline and re-indexes the product", async () => {
-    const effects = makeEffects()
+    const reindexProducts = vi.fn(async () => {})
+    const revalidateCatalog = vi.fn()
     const product = await createProduct(makeInput({ slug: slug("stock") }))
     const variant = product.variants[0]
 
-    await updateVariantStock(variant.id, 42, effects)
+    await updateVariantStock(variant.id, 42, {
+      reindexProducts,
+      revalidateCatalog,
+    })
 
     const persisted = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variant.id },
     })
     expect(persisted.stock).toBe(42)
-    expect(effects.reindexProducts).toHaveBeenCalledWith([
+    expect(reindexProducts).toHaveBeenCalledWith([
       expect.objectContaining({ id: product.id, totalStock: 42 }),
     ])
-    expect(effects.revalidateCatalog).toHaveBeenCalledWith({
+    expect(revalidateCatalog).toHaveBeenCalledWith({
       id: product.id,
       slug: product.slug,
     })
@@ -526,13 +534,13 @@ describe("admin catalog mutations", () => {
     const product = await createProduct(makeInput({ slug: slug("stock-neg") }))
 
     await expect(
-      updateVariantStock(product.variants[0].id, -1, makeEffects())
+      updateVariantStock(product.variants[0].id, -1)
     ).rejects.toThrow(CatalogValidationError)
   })
 
   it("throws VariantNotFoundError for an unknown variant", async () => {
-    await expect(
-      updateVariantStock("unknown-variant", 5, makeEffects())
-    ).rejects.toThrow(VariantNotFoundError)
+    await expect(updateVariantStock("unknown-variant", 5)).rejects.toThrow(
+      VariantNotFoundError
+    )
   })
 })
