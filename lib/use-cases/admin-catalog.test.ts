@@ -21,24 +21,11 @@ import {
   updateProduct,
   updateVariantStock,
   VariantNotFoundError,
-  type CatalogEffects,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
-
-function makeEffects(): CatalogEffects & {
-  reindexProducts: ReturnType<typeof vi.fn>
-  deleteImages: ReturnType<typeof vi.fn>
-} {
-  return {
-    reindexProducts: vi.fn(async () => {}),
-    removeProductFromIndex: vi.fn(async () => {}),
-    revalidateCatalog: vi.fn(),
-    deleteImages: vi.fn(async () => {}),
-  }
-}
 
 function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
   return {
