@@ -42,7 +42,8 @@ export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
  *
  * Le Devis retourné est auto-porteur : il porte le `sousTotal`
  * (`panier.subtotal`) qui a chiffré ses devis. Les `rows` se dérivent
- * de ce fait propre via `lignesDevis(devis.sousTotal, devis)`.
+ * de ce fait propre (`lignesDevis(sousTotal, selection)`, soit
+ * `lignesDevis(devis.sousTotal, devis)`).
  *
  * Ville inconnue → sélection « aucune » + lignes À choisir, ne lève jamais.
  */
@@ -50,6 +51,7 @@ export async function chargerDevis(
   panier: DonneesPanier,
   requestedCityId?: string | null
 ): Promise<Devis> {
+  const sousTotal = panier.subtotal
   const [cities, threshold] = await Promise.all([
     listDeliveryCities(),
     getFreeShippingThreshold(),
@@ -57,18 +59,18 @@ export async function chargerDevis(
   const quotes = computeCityQuotes(
     cities,
     {
-      subtotal: panier.subtotal,
+      subtotal: sousTotal,
       anyFreeShippingItem: panier.lines.some((line) => line.freeShipping),
     },
     threshold
   )
   const selection = selectionnerDevis(cities, quotes, requestedCityId)
-  const rows = lignesDevis(panier.subtotal, selection)
+  const rows = lignesDevis(sousTotal, selection)
   return {
     cities,
     threshold,
     quotes,
-    sousTotal: panier.subtotal,
+    sousTotal,
     ...selection,
     rows,
   }
