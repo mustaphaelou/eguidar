@@ -304,15 +304,16 @@ describe("order placement", () => {
     )
     const cart = await lirePanier({ role: "client", compteId: userIdA })
     const devis = await chargerDevis(cart, cityId)
-    expect(devis.selectedCity).not.toBeNull()
-    expect(devis.selectedQuote).not.toBeNull()
+    if (devis.cas !== "validée") {
+      throw new Error("expected the Sélection du Devis to be validée")
+    }
 
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
 
-    expect(order.cityName).toBe(devis.selectedCity!.name)
-    expect(order.shippingFee).toBe(devis.selectedQuote!.shippingFee)
+    expect(order.cityName).toBe(devis.ville.name)
+    expect(order.shippingFee).toBe(devis.devis.shippingFee)
     expect(order.total).toBe(cart.subtotal)
-    expect(order.total + order.shippingFee).toBe(devis.selectedQuote!.total)
+    expect(order.total + order.shippingFee).toBe(devis.devis.total)
   })
 
   it("offers free shipping above the threshold", async () => {
