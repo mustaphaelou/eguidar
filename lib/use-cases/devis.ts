@@ -4,8 +4,8 @@
  * (`panier/page.tsx`, `checkout/page.tsx`, `placeOrder`).
  *
  * Les composants clients doivent importer `@/lib/use-cases/devis-selection`
- * directement — jamais ce module, qui tire `prisma` (`pg`) via
- * `@/lib/use-cases/livraison`.
+ * directement (porte d'entrée cliente : `useDevisSelection`) — jamais ce
+ * module, qui tire `prisma` (`pg`) via `@/lib/use-cases/livraison`.
  *
  * Volontairement sans `import "server-only"` : ce garde-foo lève sous
  * vitest (condition d'export `default`) et casserait `devis.test.ts` /

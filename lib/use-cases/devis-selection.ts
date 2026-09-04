@@ -1,15 +1,27 @@
+"use client"
+
 /**
- * Sélection pure du Devis — module client-safe.
+ * Sélection du Devis — module client-safe, seule porte d'entrée Devis côté client.
  *
  * Ne doit jamais importer `@/lib/db` (ni aucun module qui l'importe) :
- * consommé directement par le composant client
- * `components/storefront/checkout-form.tsx` pour la re-sélection
- * instantanée de la Ville de livraison. Un import serveur ici
+ * consommé directement par les composants clients (dont
+ * `components/storefront/checkout-form.tsx` via `useDevisSelection`) pour la
+ * re-sélection instantanée de la Ville de livraison. Un import serveur ici
  * réintroduirait `pg` (`require('dns')`) dans le bundle navigateur et
  * casserait `next build` (Turbopack). L'entrée async (`chargerDevis`,
  * accès base via l'administration Livraison) reste dans
- * `@/lib/use-cases/devis`.
+ * `@/lib/use-cases/devis` — les composants clients importent ce module-ci,
+ * jamais l'entrée serveur.
+ *
+ * La re-sélection est un état local côté client, volontairement non
+ * synchronisé avec l'URL : `useDevisSelection` initialise la Ville de
+ * livraison depuis le Devis chargé puis re-chiffre le Récapitulatif de
+ * paiement instantanément à chaque `choisir(villeId)`, sans rechargement.
+ * `selectionnerDevis` et `lignesDevis` restent exportées comme coutures
+ * internes ; le hook est la porte d'entrée cliente.
  */
+import { useState } from "react"
+
 import {
   construireLignes,
   type RécapitulatifRow,
@@ -107,4 +119,42 @@ export function lignesDevis(
     },
     total: selection.devis.total,
   })
+}
+
+/**
+ * Re-sélection du Devis côté client — porte d'entrée cliente du module.
+ *
+ * Possède l'état de la Ville de livraison sélectionnée (initialisé depuis
+ * le Devis chargé) et expose `{ villes, selection, rows, choisir(villeId) }`.
+ * Chaque `choisir` re-chiffre les lignes instantanément depuis le
+ * `sousTotal` propre du Devis (`lignesDevis(devis.sousTotal, selection)`),
+ * sur la même couture pure que `chargerDevis` — l'invariant
+ * « jamais à moitié » vit ici, en un seul endroit.
+ *
+ * `choisir("")` retombe sur le cas « aucune » ; un identifiant inconnu
+ * retombe aussi sur « aucune » — jamais à moitié, ne lève jamais.
+ * État local volontairement non synchronisé avec l'URL.
+ */
+export function useDevisSelection(devis: Devis): {
+  villes: DeliveryCityOption[]
+  selection: SelectionDevis
+  rows: RécapitulatifRow[]
+  choisir: (villeId: string) => void
+} {
+  const [villeId, setVilleId] = useState(
+    devis.cas === "validée" ? devis.ville.id : ""
+  )
+  const selection = selectionnerDevis(
+    devis.cities,
+    devis.quotes,
+    villeId || null
+  )
+  const rows = lignesDevis(devis.sousTotal, selection)
+
+  return {
+    villes: devis.cities,
+    selection,
+    rows,
+    choisir: (nouvelleVilleId: string) => setVilleId(nouvelleVilleId),
+  }
 }

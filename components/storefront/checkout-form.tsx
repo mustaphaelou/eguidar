@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useEffect, useState } from "react"
+import { useActionState, useEffect } from "react"
 
 import { Cash01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -24,8 +24,7 @@ import {
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { formatShippingFee } from "@/lib/money"
 import {
-  lignesDevis,
-  selectionnerDevis,
+  useDevisSelection,
   type Devis,
 } from "@/lib/use-cases/devis-selection"
 
@@ -33,7 +32,6 @@ export interface CheckoutFormProps {
   devis: Devis
   initialAddress: string
   initialPhone: string
-  subtotal: number
 }
 
 const initialState: CheckoutFormState = { error: undefined }
@@ -42,25 +40,17 @@ export function CheckoutForm({
   devis,
   initialAddress,
   initialPhone,
-  subtotal,
 }: CheckoutFormProps) {
   const [state, formAction, isPending] = useActionState(
     placeOrderAction,
     initialState
   )
-  const [selectedCityId, setSelectedCityId] = useState(
-    devis.cas === "validée" ? devis.ville.id : ""
-  )
-  // Le récapitulatif dérive du Devis via l'état local : il réagit
-  // instantanément au changement de ville, sans rechargement.
-  // La re-sélection passe par le cœur pur pour rester sur le même seam
-  // que la page (chargerDevis) et le placement.
-  const selection = selectionnerDevis(
-    devis.cities,
-    devis.quotes,
-    selectedCityId || null
-  )
-  const rows = lignesDevis(subtotal, selection)
+  // Le récapitulatif re-chiffre instantanément au changement de ville via
+  // la porte d'entrée cliente du Devis — champs du formulaire + soumission
+  // ici, jamais les ingrédients bruts.
+  const { villes, selection, rows, choisir } = useDevisSelection(devis)
+  const selectedCityId =
+    selection.cas === "validée" ? selection.ville.id : ""
 
   useEffect(() => {
     if (!state.unauthenticated) return
@@ -83,7 +73,7 @@ export function CheckoutForm({
         <Select
           name="cityId"
           value={selectedCityId}
-          onValueChange={(cityId) => setSelectedCityId(cityId ?? "")}
+          onValueChange={(cityId) => choisir(cityId ?? "")}
           required
         >
           <SelectTrigger id="checkout-city" className="w-full">
@@ -91,7 +81,7 @@ export function CheckoutForm({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {devis.cities.map((city) => (
+              {villes.map((city) => (
                 <SelectItem key={city.id} value={city.id}>
                   {city.name} — {formatShippingFee(city.fee)}
                 </SelectItem>

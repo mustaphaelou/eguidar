@@ -59,7 +59,6 @@ async function CheckoutContent({
             devis={devis}
             initialAddress={profile.address ?? ""}
             initialPhone={profile.phone ?? ""}
-            subtotal={panier.subtotal}
           />
         </section>
 

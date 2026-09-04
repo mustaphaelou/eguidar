@@ -160,7 +160,6 @@ function checkoutHarness() {
         devis={devisPourTest({ selection: { cas: "aucune" }, quotes: {} })}
         initialAddress=""
         initialPhone=""
-        subtotal={100000}
       />
       <UrlAuthDialog />
     </AuthDialogsProvider>
@@ -180,7 +179,6 @@ function recapHarness({
         devis={devisPourTest({ selection, quotes })}
         initialAddress=""
         initialPhone=""
-        subtotal={100000}
       />
     </AuthDialogsProvider>
   )
