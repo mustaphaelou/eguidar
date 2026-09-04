@@ -5,7 +5,7 @@ import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
 import { ORDER_TRANSITIONS } from "@/lib/order-status"
-import { lirePanier } from "@/lib/panier"
+import { lirePanierClient } from "@/lib/panier"
 import {
   deliveryAddressField,
   deliveryPhoneField,
@@ -180,7 +180,7 @@ export async function placeOrder(
   })
   if (!user) throw new UserNotFoundError()
 
-  const cart = await lirePanier({ role: "client", compteId: userId })
+  const cart = await lirePanierClient(userId)
   if (cart.lines.length === 0) throw new EmptyCartError()
 
   const devis = await chargerDevis(cart, data.cityId)
