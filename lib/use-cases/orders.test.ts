@@ -11,8 +11,11 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { lirePanier } from "@/lib/panier"
-import { ajouterArticleAuPanier } from "@/lib/panier"
+import {
+  ajouterArticleAuPanier,
+  lirePanierClient,
+} from "@/lib/panier"
+import { sessionUserMock } from "@/test/navigation-mocks"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
@@ -28,6 +31,11 @@ import {
   updateOrderStatus,
   type CheckoutInput,
 } from "@/lib/use-cases/orders"
+
+vi.mock("@/lib/use-cases/get-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getSessionUser: h.sessionUserMock }
+})
 
 const runId = randomUUID().slice(0, 8)
 const email = (suffix: string) => `orders-${runId}-${suffix}@test.ma`
@@ -67,6 +75,10 @@ async function createUser(suffix: string): Promise<string> {
     },
   })
   return user.id
+}
+
+function commeClient(userId: string) {
+  sessionUserMock.mockResolvedValue({ id: userId })
 }
 
 beforeAll(async () => {
@@ -169,6 +181,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
+  sessionUserMock.mockReset()
   await prisma.orderItem.deleteMany({
     where: { order: { user: { email: { startsWith: `orders-${runId}-` } } } },
   })
@@ -226,11 +239,8 @@ function checkoutInput(overrides: Partial<CheckoutInput> = {}): CheckoutInput {
 describe("order placement", () => {
   it("snapshots the cart into the order, decrements stock and empties the cart", async () => {
     const effects = makeEffects()
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      2
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 2)
 
     const order = await placeOrder(userIdA, checkoutInput(), effects)
 
@@ -252,17 +262,14 @@ describe("order placement", () => {
       where: { id: variantP4 },
     })
     expect(stock.stock).toBe(0)
-    const cart = await lirePanier({ role: "client", compteId: userIdA })
+    const cart = await lirePanierClient(userIdA)
     expect(cart.lines).toHaveLength(0)
   })
 
   it("sends the order placed email with the snapshot", async () => {
     const effects = makeEffects()
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
 
     const order = await placeOrder(userIdA, checkoutInput(), effects)
 
@@ -287,22 +294,16 @@ describe("order placement", () => {
   })
 
   it("charges the city fee below the free-shipping threshold", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.shippingFee).toBe(3500)
   })
 
   it("persists the Devis-computed fee and total", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
-    const cart = await lirePanier({ role: "client", compteId: userIdA })
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
+    const cart = await lirePanierClient(userIdA)
     const devis = await chargerDevis(cart, cityId)
     if (devis.cas !== "validée") {
       throw new Error("expected the Sélection du Devis to be validée")
@@ -317,37 +318,25 @@ describe("order placement", () => {
   })
 
   it("offers free shipping above the threshold", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP1,
-      4
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 4)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.total).toBe(400000)
     expect(order.shippingFee).toBe(0)
   })
 
   it("offers free shipping below the threshold when every item is flagged", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP3,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP3, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.shippingFee).toBe(0)
   })
 
   it("offers free shipping below the threshold when at least one item is flagged", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP3,
-      1
-    )
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP3, 1)
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
     expect(order.total).toBe(80000)
     expect(order.shippingFee).toBe(0)
@@ -355,11 +344,8 @@ describe("order placement", () => {
 
   it("blocks out-of-stock variants at checkout without creating anything", async () => {
     const effects = makeEffects()
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP2,
-      2
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP2, 2)
 
     try {
       await placeOrder(userIdA, checkoutInput(), effects)
@@ -383,7 +369,7 @@ describe("order placement", () => {
       where: { id: variantP2 },
     })
     expect(stock.stock).toBe(1)
-    const cart = await lirePanier({ role: "client", compteId: userIdA })
+    const cart = await lirePanierClient(userIdA)
     expect(cart.lines).toHaveLength(1)
     const orderCount = await prisma.order.count({ where: { userId: userIdA } })
     expect(orderCount).toBe(0)
@@ -392,16 +378,10 @@ describe("order placement", () => {
 
   it("rolls back the whole order when one line goes out of stock mid-placement", async () => {
     const effects = makeEffects()
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP1,
-      1
-    )
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP2,
-      2
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 1)
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP2, 2)
     await prisma.productVariant.update({
       where: { id: variantP2 },
       data: { stock: { set: 1 } },
@@ -421,16 +401,10 @@ describe("order placement", () => {
   })
 
   it("allows only one order to take the last unit under concurrency", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdB },
-      variantP2,
-      1
-    )
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdC },
-      variantP2,
-      1
-    )
+    commeClient(userIdB)
+    await ajouterArticleAuPanier(variantP2, 1)
+    commeClient(userIdC)
+    await ajouterArticleAuPanier(variantP2, 1)
 
     const [first, second] = await Promise.allSettled([
       placeOrder(userIdB, checkoutInput(), makeEffects()),
@@ -462,11 +436,8 @@ describe("order placement", () => {
   })
 
   it("rejects an unknown delivery city", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     await expect(
       placeOrder(
         userIdA,
@@ -477,11 +448,8 @@ describe("order placement", () => {
   })
 
   it("rejects invalid address, phone and missing city", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     await expect(
       placeOrder(userIdA, checkoutInput({ address: "X" }), makeEffects())
     ).rejects.toThrow(/invalides/)
@@ -496,11 +464,8 @@ describe("order placement", () => {
 
 describe("order reads", () => {
   it("returns an order with its items to its owner", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
 
     const fetched = await getOrder(userIdA, order.id)
@@ -511,34 +476,22 @@ describe("order reads", () => {
   })
 
   it("hides an order from another user", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), makeEffects())
 
     await expect(getOrder(userIdB, order.id)).resolves.toBeNull()
   })
 
   it("lists only the user's orders, newest first", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     const first = await placeOrder(userIdA, checkoutInput(), makeEffects())
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     const second = await placeOrder(userIdA, checkoutInput(), makeEffects())
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdB },
-      variantP3,
-      1
-    )
+    commeClient(userIdB)
+    await ajouterArticleAuPanier(variantP3, 1)
     await placeOrder(userIdB, checkoutInput(), makeEffects())
 
     const orders = await listUserOrders(userIdA)
@@ -556,22 +509,16 @@ describe("order reads", () => {
 
 describe("order status transitions", () => {
   async function placeSmallOrder(userId: string): Promise<string> {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userId },
-      variantP4,
-      2
-    )
+    commeClient(userId)
+    await ajouterArticleAuPanier(variantP4, 2)
     const order = await placeOrder(userId, checkoutInput(), makeEffects())
     return order.id
   }
 
   it("walks pending → confirmed → shipped → delivered, emailing each change", async () => {
     const effects = makeEffects()
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP4,
-      1
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput(), effects)
     effects.sendOrderStatusEmail.mockClear()
 

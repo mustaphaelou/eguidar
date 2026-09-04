@@ -11,11 +11,6 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
-import {
-  NOM_COOKIE_PANIER_VISITEUR,
-  serializePanierVisiteur,
-  type ArticlePanierVisiteur,
-} from "@/lib/panier-visiteur"
 import { ajouterArticleAuPanier } from "@/lib/panier"
 import {
   deletedCookieNames,
@@ -23,6 +18,7 @@ import {
   resetCookieStoreMock,
   setCookie,
 } from "@/test/cookie-store"
+import { sessionUserMock } from "@/test/navigation-mocks"
 
 const { handlerMock, getSessionMock } = vi.hoisted(() => ({
   handlerMock: vi.fn(),
@@ -41,7 +37,20 @@ vi.mock("next/headers", async () => {
   return { cookies: async () => h.cookieStoreMock }
 })
 
+vi.mock("@/lib/use-cases/get-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getSessionUser: h.sessionUserMock }
+})
+
 import { GET, POST } from "./route"
+
+const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
+
+type ArticlePanierVisiteur = { variantId: string; quantity: number }
+
+const serializePanierVisiteur = (
+  articles: readonly ArticlePanierVisiteur[]
+) => JSON.stringify(articles)
 
 const runId = randomUUID().slice(0, 8)
 const email = (suffix: string) => `replay-${runId}-${suffix}@test.ma`
@@ -158,6 +167,8 @@ beforeEach(async () => {
   handlerMock.mockReset()
   getSessionMock.mockReset()
   getSessionMock.mockResolvedValue({ user: { id: userId } })
+  sessionUserMock.mockReset()
+  sessionUserMock.mockResolvedValue({ id: userId })
 })
 
 afterAll(async () => {
@@ -174,11 +185,7 @@ afterAll(async () => {
 
 describe("auth route replaying the Visiteur's cookie Panier", () => {
   it("sums the cookie articles into the persisted Panier after a password sign-in and deletes the cookie", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userId },
-      variantA,
-      3
-    )
+    await ajouterArticleAuPanier(variantA, 3)
     const requeteConnexion = connexionMotDePasse([
       { variantId: variantA, quantity: 2 },
       { variantId: variantB, quantity: 1 },
@@ -205,11 +212,7 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
   it.each(["google", "apple"])(
     "lands the same merged Panier through the same helper after a %s social callback",
     async (fournisseur) => {
-      await ajouterArticleAuPanier(
-        { role: "client", compteId: userId },
-        variantA,
-        3
-      )
+      await ajouterArticleAuPanier(variantA, 3)
       const reponseCallback = reponseAuth(302)
       handlerMock.mockResolvedValue(reponseCallback)
 

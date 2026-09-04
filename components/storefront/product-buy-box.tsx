@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MESSAGE_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
@@ -38,7 +37,7 @@ export function ProductBuyBox({
     outOfStock,
     enAttente,
     ajoute,
-    capAtteint,
+    messageErreur,
     desactive,
     variantNom,
     ajouter,
@@ -172,9 +171,9 @@ export function ProductBuyBox({
         {enAttente ? "Ajout…" : "Ajouter au panier"}
       </Button>
       {ajoute && <p className="text-sm text-emerald-600">Ajouté au panier</p>}
-      {capAtteint && (
+      {messageErreur && (
         <p role="alert" className="text-sm text-destructive">
-          {MESSAGE_CAP_ATTEINTE}
+          {messageErreur}
         </p>
       )}
 
@@ -185,7 +184,7 @@ export function ProductBuyBox({
           ajouter,
           enAttente,
           ajoute,
-          capAtteint,
+          messageErreur,
           desactive,
           variantNom,
         }}

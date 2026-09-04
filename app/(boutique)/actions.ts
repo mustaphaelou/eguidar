@@ -3,9 +3,9 @@
 import { refresh } from "next/cache"
 
 import {
-  ajouterArticleAuPanierCourant,
-  modifierQuantiteArticlePanierCourant,
-  retirerArticleDuPanierCourant,
+  ajouterArticleAuPanier,
+  modifierQuantiteArticlePanier,
+  retirerArticleDuPanier,
   type ResultatPanier,
 } from "@/lib/panier"
 
@@ -19,7 +19,7 @@ export async function ajouterArticleAuPanierAction(
   quantity: number
 ): Promise<ResultatPanier> {
   return avecRafraichissement(
-    await ajouterArticleAuPanierCourant(variantId, quantity)
+    await ajouterArticleAuPanier(variantId, quantity)
   )
 }
 
@@ -28,7 +28,7 @@ export async function modifierQuantiteArticlePanierAction(
   quantity: number
 ): Promise<ResultatPanier> {
   return avecRafraichissement(
-    await modifierQuantiteArticlePanierCourant(articlePanierId, quantity)
+    await modifierQuantiteArticlePanier(articlePanierId, quantity)
   )
 }
 
@@ -36,6 +36,6 @@ export async function retirerArticleDuPanierAction(
   articlePanierId: string
 ): Promise<ResultatPanier> {
   return avecRafraichissement(
-    await retirerArticleDuPanierCourant(articlePanierId)
+    await retirerArticleDuPanier(articlePanierId)
   )
 }

@@ -4,7 +4,6 @@ import { useState, useTransition } from "react"
 
 import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { formatPrice } from "@/lib/money"
-import { MOTIF_CAP_ATTEINTE } from "@/lib/panier-visiteur"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
 export type EtatAjoutAuPanier = {
@@ -12,7 +11,7 @@ export type EtatAjoutAuPanier = {
   ajouter: () => void
   enAttente?: boolean
   ajoute?: boolean
-  capAtteint?: boolean
+  messageErreur?: string
   desactive?: boolean
   variantNom?: string
 }
@@ -24,7 +23,7 @@ export function useAjoutAuPanier({
 }) {
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
   const [added, setAdded] = useState(false)
-  const [capAtteint, setCapAtteint] = useState(false)
+  const [messageErreur, setMessageErreur] = useState("")
   const [isPending, startTransition] = useTransition()
   const selected = variants.find((variant) => variant.id === variantId)
   const stock = selected?.stock ?? 0
@@ -33,11 +32,11 @@ export function useAjoutAuPanier({
   function ajouter() {
     if (!selected || outOfStock) return
     setAdded(false)
-    setCapAtteint(false)
+    setMessageErreur("")
     startTransition(async () => {
       const resultat = await ajouterArticleAuPanierAction(selected.id, 1)
       if (resultat.ok) setAdded(true)
-      else if (resultat.motif === MOTIF_CAP_ATTEINTE) setCapAtteint(true)
+      else setMessageErreur(resultat.message)
     })
   }
 
@@ -49,7 +48,7 @@ export function useAjoutAuPanier({
     prix: selected ? formatPrice(selected.prix) : "",
     enAttente: isPending,
     ajoute: added,
-    capAtteint,
+    messageErreur: messageErreur || undefined,
     desactive: outOfStock || isPending,
     variantNom: variants.length > 1 ? selected?.name : undefined,
     ajouter,

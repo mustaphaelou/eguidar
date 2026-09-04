@@ -12,12 +12,18 @@ import {
 
 import { prisma } from "@/lib/db"
 import { ajouterArticleAuPanier } from "@/lib/panier"
+import { sessionUserMock } from "@/test/navigation-mocks"
 import { getAdminOrder, listAdminOrders } from "@/lib/use-cases/admin-orders"
 import {
   OrderNotFoundError,
   placeOrder,
   updateOrderStatus,
 } from "@/lib/use-cases/orders"
+
+vi.mock("@/lib/use-cases/get-session", async () => {
+  const h = await import("@/test/navigation-mocks")
+  return { getSessionUser: h.sessionUserMock }
+})
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import type { OrderEffects } from "@/lib/use-cases/order-effects"
 
@@ -56,6 +62,10 @@ async function createUser(suffix: string): Promise<string> {
     },
   })
   return user.id
+}
+
+function commeClient(userId: string) {
+  sessionUserMock.mockResolvedValue({ id: userId })
 }
 
 beforeAll(async () => {
@@ -108,6 +118,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
+  sessionUserMock.mockReset()
   await prisma.orderItem.deleteMany({
     where: {
       order: { user: { email: { startsWith: `admin-orders-${runId}-` } } },
@@ -262,11 +273,8 @@ describe("admin order reads", () => {
 
 describe("admin lifecycle", () => {
   it("walks an order to delivered and reflects it in the admin reads", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP1,
-      2
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 2)
     const order = await placeOrder(
       userIdA,
       { cityId, address: ADDRESS, phone: PHONE },
@@ -286,11 +294,8 @@ describe("admin lifecycle", () => {
   })
 
   it("cancels a pending order, restocks the variants and reflects it in admin reads", async () => {
-    await ajouterArticleAuPanier(
-      { role: "client", compteId: userIdA },
-      variantP1,
-      2
-    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 2)
     const order = await placeOrder(
       userIdA,
       { cityId, address: ADDRESS, phone: PHONE },
