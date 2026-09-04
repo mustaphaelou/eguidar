@@ -3,7 +3,10 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
+import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
+import { deleteR2Object } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
+import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -40,6 +43,25 @@ export interface CatalogEffects {
    * faire échouer la mutation (ADR-0004).
    */
   deleteImages(urls: string[]): Promise<void>
+}
+
+const defaultCatalogEffects: CatalogEffects = {
+  reindexProducts: indexProductDocuments,
+  async removeProductFromIndex(productId) {
+    await deleteProductDocument(productId)
+  },
+  revalidateCatalog(product) {
+    invalidateCatalogue(product)
+  },
+  async deleteImages(urls) {
+    for (const url of urls) {
+      try {
+        await deleteR2Object(url)
+      } catch {
+        // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
+      }
+    }
+  },
 }
 
 export class CatalogValidationError extends UserFacingError {
@@ -168,8 +190,9 @@ function mapUniqueViolation(error: unknown): never {
 
 export async function createProduct(
   input: ProductInput,
-  effects: CatalogEffects
+  overrides?: Partial<CatalogEffects>
 ) {
+  const effects = { ...defaultCatalogEffects, ...overrides }
   const data = parseProductInput(input)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -206,16 +229,31 @@ export async function createProduct(
     mapUniqueViolation(error)
   }
 
-  await effects.reindexProducts([toIndexableProduct(product)])
-  effects.revalidateCatalog({ id: product.id, slug: product.slug })
+  try {
+    await effects.reindexProducts([toIndexableProduct(product)])
+  } catch (error) {
+    console.warn(
+      `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+      error
+    )
+  }
+  try {
+    effects.revalidateCatalog({ id: product.id, slug: product.slug })
+  } catch (error) {
+    console.warn(
+      `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+      error
+    )
+  }
   return product
 }
 
 export async function updateProduct(
   id: string,
   input: ProductInput,
-  effects: CatalogEffects
+  overrides?: Partial<CatalogEffects>
 ) {
+  const effects = { ...defaultCatalogEffects, ...overrides }
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -308,14 +346,35 @@ export async function updateProduct(
     mapUniqueViolation(error)
   }
 
-  await effects.deleteImages(removedImages)
+  try {
+    await effects.deleteImages(removedImages)
+  } catch (error) {
+    console.warn(
+      `[catalog] suppression d'images R2 non effectuée pour ${id}`,
+      error
+    )
+  }
 
-  await effects.reindexProducts([toIndexableProduct(product)])
-  effects.revalidateCatalog({
-    id: product.id,
-    slug: product.slug,
-    previousSlug: existing.slug !== product.slug ? existing.slug : undefined,
-  })
+  try {
+    await effects.reindexProducts([toIndexableProduct(product)])
+  } catch (error) {
+    console.warn(
+      `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+      error
+    )
+  }
+  try {
+    effects.revalidateCatalog({
+      id: product.id,
+      slug: product.slug,
+      previousSlug: existing.slug !== product.slug ? existing.slug : undefined,
+    })
+  } catch (error) {
+    console.warn(
+      `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+      error
+    )
+  }
   return product
 }
 
