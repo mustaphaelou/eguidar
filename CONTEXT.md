@@ -25,6 +25,12 @@ Le calcul du prix d'un panier selon la ville de livraison : les frais de chaque 
 le seuil de livraison offerte appliqué au sous-total, et le total à payer à la livraison pour la ville demandée.
 _Avoid_: quote, estimation de livraison
 
+**Sélection du Devis**:
+La sélection validée d'une Ville de livraison et de son devis, ou « aucune » tant qu'aucune ville
+n'est choisie ; jamais à moitié. Une sélection validée porte exactement deux faits : la Ville
+de livraison et son devis.
+_Avoid_: selected city, city selection, sélection de ville
+
 **Récapitulatif de paiement**:
 Le bloc présentant le Sous-total (TVA incluse), la Livraison et le Total à payer à la livraison sur le Panier, la commande, la confirmation, l'Administration et l'e-mail de commande.
 _Avoid_: order summary, résumé de commande, récapitulatif de commande, récap
