@@ -1,19 +1,43 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
 import { ORDER_TRANSITIONS } from "@/lib/order-status"
 import { lirePanierClient } from "@/lib/panier"
+import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 import {
   deliveryAddressField,
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
-import type { OrderEffects } from "@/lib/use-cases/order-effects"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
+
+export type OrderEffects = {
+  sendOrderPlacedEmail(order: OrderEmailSnapshot): Promise<void>
+  sendOrderStatusEmail(
+    order: OrderEmailSnapshot,
+    newStatus: OrderStatus
+  ): Promise<void>
+  invalidateCommande(orderId: string): void
+}
+
+const defaultOrderEffects: OrderEffects = {
+  sendOrderPlacedEmail,
+  sendOrderStatusEmail,
+  invalidateCommande,
+}
+
+async function runEffect(message: string, fn: () => void): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.warn(message, error)
+  }
+}
 
 export interface CheckoutInput {
   cityId: string
@@ -170,8 +194,9 @@ function toOrderEmailSnapshot(
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
-  effects: OrderEffects
+  overrides?: Partial<OrderEffects>
 ) {
+  const effects = { ...defaultOrderEffects, ...overrides }
   const data = parseCheckoutInput(input)
 
   const user = await prisma.user.findUnique({
@@ -255,6 +280,10 @@ export async function placeOrder(
       error
     )
   }
+  await runEffect(
+    `[order] invalidation du cache non effectuée pour ${order.id}`,
+    () => effects.invalidateCommande(order.id)
+  )
   return order
 }
 
@@ -308,8 +337,9 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
 export async function updateOrderStatus(
   orderId: string,
   nextStatus: string,
-  effects: OrderEffects
+  overrides?: Partial<OrderEffects>
 ) {
+  const effects = { ...defaultOrderEffects, ...overrides }
   if (!isOrderStatus(nextStatus))
     throw new InvalidOrderTransitionError("inconnu", nextStatus)
 
@@ -364,5 +394,9 @@ export async function updateOrderStatus(
   } catch (error) {
     console.warn(`[order] e-mail de statut non envoyé pour ${orderId}`, error)
   }
+  await runEffect(
+    `[order] invalidation du cache non effectuée pour ${orderId}`,
+    () => effects.invalidateCommande(orderId)
+  )
   return updated
 }

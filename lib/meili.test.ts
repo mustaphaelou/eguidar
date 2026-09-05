@@ -13,6 +13,9 @@ import type { IndexableProduct } from "@/lib/index-projection"
 const meili = getMeiliSearch()
 const runId = randomUUID()
 
+// large timeout: parallel mutation suites with default effects queue many Meili tasks
+const TASK_WAIT_TIMEOUT = 60_000
+
 function makeDoc(id: string): IndexableProduct {
   return {
     id,
@@ -50,33 +53,47 @@ describe.runIf(!!meili)("Meilisearch product index", () => {
       .deleteDocuments({ filter: `categorySlug = categorie-meili` })
   })
 
-  it("indexes a product so it becomes searchable", async () => {
-    const id = randomUUID()
-    const doc = makeDoc(id)
+  it(
+    "indexes a product so it becomes searchable",
+    { timeout: TASK_WAIT_TIMEOUT },
+    async () => {
+      const id = randomUUID()
+      const doc = makeDoc(id)
 
-    const task = await client.index(PRODUCTS_INDEX).addDocuments([doc])
-    await client.tasks.waitForTask(task.taskUid)
+      const task = await client.index(PRODUCTS_INDEX).addDocuments([doc])
+      await client.tasks.waitForTask(task.taskUid, {
+        timeout: TASK_WAIT_TIMEOUT,
+      })
 
-    const results = await client
-      .index(PRODUCTS_INDEX)
-      .search("Produit Meili Test")
-    const hit = results.hits.find((h) => h.id === id)
-    expect(hit).toMatchObject({ id, brand: "Marque Meili", price: 50000 })
-  })
+      const results = await client
+        .index(PRODUCTS_INDEX)
+        .search("Produit Meili Test")
+      const hit = results.hits.find((h) => h.id === id)
+      expect(hit).toMatchObject({ id, brand: "Marque Meili", price: 50000 })
+    }
+  )
 
-  it("removes a product from the index", async () => {
-    const id = randomUUID()
-    const doc = makeDoc(id)
+  it(
+    "removes a product from the index",
+    { timeout: TASK_WAIT_TIMEOUT },
+    async () => {
+      const id = randomUUID()
+      const doc = makeDoc(id)
 
-    const addTask = await client.index(PRODUCTS_INDEX).addDocuments([doc])
-    await client.tasks.waitForTask(addTask.taskUid)
+      const addTask = await client.index(PRODUCTS_INDEX).addDocuments([doc])
+      await client.tasks.waitForTask(addTask.taskUid, {
+        timeout: TASK_WAIT_TIMEOUT,
+      })
 
-    const deleteTask = await deleteProductDocument(id)
-    await client.tasks.waitForTask(deleteTask!.taskUid)
+      const deleteTask = await deleteProductDocument(id)
+      await client.tasks.waitForTask(deleteTask!.taskUid, {
+        timeout: TASK_WAIT_TIMEOUT,
+      })
 
-    const results = await client
-      .index(PRODUCTS_INDEX)
-      .search("Produit Meili Test")
-    expect(results.hits.some((h) => h.id === id)).toBe(false)
-  })
+      const results = await client
+        .index(PRODUCTS_INDEX)
+        .search("Produit Meili Test")
+      expect(results.hits.some((h) => h.id === id)).toBe(false)
+    }
+  )
 })

@@ -18,6 +18,7 @@ import {
   OrderNotFoundError,
   placeOrder,
   updateOrderStatus,
+  type OrderEffects,
 } from "@/lib/use-cases/orders"
 
 vi.mock("@/lib/use-cases/get-session", async () => {
@@ -25,7 +26,6 @@ vi.mock("@/lib/use-cases/get-session", async () => {
   return { getSessionUser: h.sessionUserMock }
 })
 import type { OrderStatus } from "@/lib/generated/prisma/client"
-import type { OrderEffects } from "@/lib/use-cases/order-effects"
 
 const runId = randomUUID().slice(0, 8)
 const email = (suffix: string) => `admin-orders-${runId}-${suffix}@test.ma`
@@ -38,20 +38,6 @@ let userIdB: string
 let variantP1: string
 let variantP2: string
 let cityId: string
-
-function makeEffects(): OrderEffects & {
-  sendOrderPlacedEmail: ReturnType<typeof vi.fn>
-  sendOrderStatusEmail: ReturnType<typeof vi.fn>
-} {
-  return {
-    sendOrderPlacedEmail: vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    ),
-    sendOrderStatusEmail: vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    ),
-  }
-}
 
 async function createUser(suffix: string): Promise<string> {
   const user = await prisma.user.create({
@@ -275,15 +261,15 @@ describe("admin lifecycle", () => {
   it("walks an order to delivered and reflects it in the admin reads", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
-    const order = await placeOrder(
-      userIdA,
-      { cityId, address: ADDRESS, phone: PHONE },
-      makeEffects()
-    )
+    const order = await placeOrder(userIdA, {
+      cityId,
+      address: ADDRESS,
+      phone: PHONE,
+    })
 
-    await updateOrderStatus(order.id, "confirmed", makeEffects())
-    await updateOrderStatus(order.id, "shipped", makeEffects())
-    await updateOrderStatus(order.id, "delivered", makeEffects())
+    await updateOrderStatus(order.id, "confirmed")
+    await updateOrderStatus(order.id, "shipped")
+    await updateOrderStatus(order.id, "delivered")
 
     const fetched = await getAdminOrder(order.id)
     expect(fetched.status).toBe("delivered")
@@ -293,14 +279,58 @@ describe("admin lifecycle", () => {
     )
   })
 
+  it("emails the customer on each status change", async () => {
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 2)
+    const order = await placeOrder(userIdA, {
+      cityId,
+      address: ADDRESS,
+      phone: PHONE,
+    })
+
+    await updateOrderStatus(order.id, "confirmed", { sendOrderStatusEmail })
+    await updateOrderStatus(order.id, "shipped", { sendOrderStatusEmail })
+    await updateOrderStatus(order.id, "delivered", { sendOrderStatusEmail })
+
+    expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
+    expect(sendOrderStatusEmail.mock.calls.map((call) => call[1])).toEqual([
+      "confirmed",
+      "shipped",
+      "delivered",
+    ])
+    expect(sendOrderStatusEmail.mock.calls[0][0]).toMatchObject({
+      userEmail: email("a"),
+      orderId: order.id,
+    })
+  })
+
+  it("invalidates the order cache post-commit", async () => {
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 2)
+    const order = await placeOrder(userIdA, {
+      cityId,
+      address: ADDRESS,
+      phone: PHONE,
+    })
+
+    await updateOrderStatus(order.id, "confirmed", { invalidateCommande })
+
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
+  })
+
   it("cancels a pending order, restocks the variants and reflects it in admin reads", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
-    const order = await placeOrder(
-      userIdA,
-      { cityId, address: ADDRESS, phone: PHONE },
-      makeEffects()
-    )
+    const order = await placeOrder(userIdA, {
+      cityId,
+      address: ADDRESS,
+      phone: PHONE,
+    })
     expect(
       (
         await prisma.productVariant.findUniqueOrThrow({
@@ -309,7 +339,7 @@ describe("admin lifecycle", () => {
       ).stock
     ).toBe(3)
 
-    await updateOrderStatus(order.id, "cancelled", makeEffects())
+    await updateOrderStatus(order.id, "cancelled")
 
     expect((await getAdminOrder(order.id)).status).toBe("cancelled")
     expect(

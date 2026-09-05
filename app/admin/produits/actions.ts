@@ -16,7 +16,6 @@ import {
   updateVariantStock,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
-import { realCatalogEffects } from "@/lib/use-cases/catalog-effects"
 
 function parseSpecsText(text: string): Record<string, string> {
   const specs: Record<string, string> = {}
@@ -70,7 +69,7 @@ export const createProductAction = adminFormAction<ProductInput>({
   next: "/admin/produits",
   parse: parseProductFormData,
   run: async (input) => {
-    const product = await createProduct(input, realCatalogEffects)
+    const product = await createProduct(input)
     redirect(`/admin/produits/${product.id}`)
   },
 })
@@ -84,7 +83,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     }
   },
   run: async ({ productId, ...input }) => {
-    await updateProduct(productId, input, realCatalogEffects)
+    await updateProduct(productId, input)
     redirect("/admin/produits")
   },
 })
@@ -93,7 +92,7 @@ export const deleteProductAction = adminTaskAction<{ productId: string }>({
   next: "/admin/produits",
   parse: (formData) => ({ productId: parseRequiredId(formData, "productId") }),
   run: async ({ productId }) => {
-    await deleteProduct(productId, realCatalogEffects)
+    await deleteProduct(productId)
     redirect("/admin/produits")
   },
 })
@@ -108,6 +107,6 @@ export const updateVariantStockAction = adminTaskAction<{
     stock: Number(formData.get("stock") ?? 0),
   }),
   run: async ({ variantId, stock }) => {
-    await updateVariantStock(variantId, stock, realCatalogEffects)
+    await updateVariantStock(variantId, stock)
   },
 })
