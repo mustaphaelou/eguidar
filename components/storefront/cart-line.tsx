@@ -25,13 +25,13 @@ export function LigneArticlePanier({ line }: { line: ArticleDuPanier }) {
   function setQuantity(quantity: number) {
     if (quantity < 1) return
     startTransition(async () => {
-      await modifierQuantiteArticlePanierAction(line.articlePanierId, quantity)
+      await modifierQuantiteArticlePanierAction(line.variantId, quantity)
     })
   }
 
   function remove() {
     startTransition(async () => {
-      await retirerArticleDuPanierAction(line.articlePanierId)
+      await retirerArticleDuPanierAction(line.variantId)
     })
   }
 

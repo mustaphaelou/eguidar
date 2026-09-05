@@ -60,14 +60,14 @@ describe("ajouterArticleAuPanierAction — couture cadre", () => {
 })
 
 describe("modifierQuantiteArticlePanierAction — couture cadre", () => {
-  it("delegates to the deepened write and refreshes on success", async () => {
+  it("passes the Variante identity of the Article to the deepened write and refreshes on success", async () => {
     modifierQuantiteMock.mockResolvedValue({ ok: true })
 
-    const resultat = await modifierQuantiteArticlePanierAction("article-a", 4)
+    const resultat = await modifierQuantiteArticlePanierAction("variante-a", 4)
 
     expect(resultat).toEqual({ ok: true })
     expect(modifierQuantiteMock).toHaveBeenCalledTimes(1)
-    expect(modifierQuantiteMock).toHaveBeenCalledWith("article-a", 4)
+    expect(modifierQuantiteMock).toHaveBeenCalledWith("variante-a", 4)
     expect(refreshMock).toHaveBeenCalledTimes(1)
   })
 
@@ -78,13 +78,13 @@ describe("modifierQuantiteArticlePanierAction — couture cadre", () => {
     })
 
     const resultat = await modifierQuantiteArticlePanierAction(
-      "article-inconnu",
+      "variante-inconnue",
       3
     )
 
     expect(resultat).toEqual({ ok: false, motif: "article-inconnu" })
     expect(modifierQuantiteMock).toHaveBeenCalledWith(
-      "article-inconnu",
+      "variante-inconnue",
       3
     )
     expect(refreshMock).not.toHaveBeenCalled()
@@ -92,14 +92,14 @@ describe("modifierQuantiteArticlePanierAction — couture cadre", () => {
 })
 
 describe("retirerArticleDuPanierAction — couture cadre", () => {
-  it("delegates to the deepened write and refreshes on success", async () => {
+  it("passes the Variante identity of the Article to the deepened write and refreshes on success", async () => {
     retirerDuPanierMock.mockResolvedValue({ ok: true })
 
-    const resultat = await retirerArticleDuPanierAction("article-a")
+    const resultat = await retirerArticleDuPanierAction("variante-a")
 
     expect(resultat).toEqual({ ok: true })
     expect(retirerDuPanierMock).toHaveBeenCalledTimes(1)
-    expect(retirerDuPanierMock).toHaveBeenCalledWith("article-a")
+    expect(retirerDuPanierMock).toHaveBeenCalledWith("variante-a")
     expect(refreshMock).toHaveBeenCalledTimes(1)
   })
 
@@ -109,10 +109,10 @@ describe("retirerArticleDuPanierAction — couture cadre", () => {
       motif: "article-inconnu",
     })
 
-    const resultat = await retirerArticleDuPanierAction("article-inconnu")
+    const resultat = await retirerArticleDuPanierAction("variante-inconnue")
 
     expect(resultat).toEqual({ ok: false, motif: "article-inconnu" })
-    expect(retirerDuPanierMock).toHaveBeenCalledWith("article-inconnu")
+    expect(retirerDuPanierMock).toHaveBeenCalledWith("variante-inconnue")
     expect(refreshMock).not.toHaveBeenCalled()
   })
 })

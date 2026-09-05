@@ -24,18 +24,18 @@ export async function ajouterArticleAuPanierAction(
 }
 
 export async function modifierQuantiteArticlePanierAction(
-  articlePanierId: string,
+  variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
   return avecRafraichissement(
-    await modifierQuantiteArticlePanier(articlePanierId, quantity)
+    await modifierQuantiteArticlePanier(variantId, quantity)
   )
 }
 
 export async function retirerArticleDuPanierAction(
-  articlePanierId: string
+  variantId: string
 ): Promise<ResultatPanier> {
   return avecRafraichissement(
-    await retirerArticleDuPanier(articlePanierId)
+    await retirerArticleDuPanier(variantId)
   )
 }
