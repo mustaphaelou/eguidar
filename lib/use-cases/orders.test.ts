@@ -11,10 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
-import {
-  ajouterArticleAuPanier,
-  lirePanierClient,
-} from "@/lib/panier"
+import { ajouterArticleAuPanier, lirePanierClient } from "@/lib/panier"
 import { sessionUserMock } from "@/test/navigation-mocks"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
@@ -263,8 +260,7 @@ describe("order placement", () => {
     })
 
     expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
-    const snapshot = sendOrderPlacedEmail.mock
-      .calls[0][0] as OrderEmailSnapshot
+    const snapshot = sendOrderPlacedEmail.mock.calls[0][0] as OrderEmailSnapshot
     expect(snapshot.userEmail).toBe(email("a"))
     expect(snapshot.orderId).toBe(order.id)
     expect(snapshot.items).toEqual([
@@ -282,16 +278,16 @@ describe("order placement", () => {
   })
 
   it("invalidates the order cache post-commit", async () => {
-    const invalidateOrder = vi.fn<(orderId: string) => void>()
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
     const order = await placeOrder(userIdA, checkoutInput(), {
-      invalidateOrder,
+      invalidateCommande,
     })
 
-    expect(invalidateOrder).toHaveBeenCalledOnce()
-    expect(invalidateOrder).toHaveBeenCalledWith(order.id)
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
   })
 
   it("still places the order when email dispatch fails", async () => {
@@ -322,7 +318,7 @@ describe("order placement", () => {
       await ajouterArticleAuPanier(variantP4, 1)
 
       const order = await placeOrder(userIdA, checkoutInput(), {
-        invalidateOrder: vi.fn(() => {
+        invalidateCommande: vi.fn(() => {
           throw new Error("cache down")
         }),
       })
@@ -562,9 +558,11 @@ describe("order status transitions", () => {
     const final = await getOrder(userIdA, order.id)
     expect(final!.status).toBe("delivered")
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
-    expect(
-      sendOrderStatusEmail.mock.calls.map((call) => call[1])
-    ).toEqual(["confirmed", "shipped", "delivered"])
+    expect(sendOrderStatusEmail.mock.calls.map((call) => call[1])).toEqual([
+      "confirmed",
+      "shipped",
+      "delivered",
+    ])
     const lastSnapshot = sendOrderStatusEmail.mock
       .calls[2][0] as OrderEmailSnapshot
     expect(lastSnapshot.orderId).toBe(order.id)
@@ -603,12 +601,12 @@ describe("order status transitions", () => {
 
   it("invalidates the order cache post-commit", async () => {
     const orderId = await placeSmallOrder(userIdA)
-    const invalidateOrder = vi.fn<(orderId: string) => void>()
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
 
-    await updateOrderStatus(orderId, "confirmed", { invalidateOrder })
+    await updateOrderStatus(orderId, "confirmed", { invalidateCommande })
 
-    expect(invalidateOrder).toHaveBeenCalledOnce()
-    expect(invalidateOrder).toHaveBeenCalledWith(orderId)
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(orderId)
   })
 
   it("still updates the status when email dispatch fails", async () => {
@@ -636,7 +634,7 @@ describe("order status transitions", () => {
       const orderId = await placeSmallOrder(userIdA)
 
       const updated = await updateOrderStatus(orderId, "confirmed", {
-        invalidateOrder: vi.fn(() => {
+        invalidateCommande: vi.fn(() => {
           throw new Error("cache down")
         }),
       })
@@ -671,19 +669,19 @@ describe("order status transitions", () => {
     await updateOrderStatus(orderId, "confirmed")
     await updateOrderStatus(orderId, "shipped")
 
-    await expect(
-      updateOrderStatus(orderId, "cancelled")
-    ).rejects.toThrow(InvalidOrderTransitionError)
-    await expect(
-      updateOrderStatus(orderId, "confirmed")
-    ).rejects.toThrow(InvalidOrderTransitionError)
+    await expect(updateOrderStatus(orderId, "cancelled")).rejects.toThrow(
+      InvalidOrderTransitionError
+    )
+    await expect(updateOrderStatus(orderId, "confirmed")).rejects.toThrow(
+      InvalidOrderTransitionError
+    )
   })
 
   it("rejects skipping a step", async () => {
     const orderId = await placeSmallOrder(userIdA)
-    await expect(
-      updateOrderStatus(orderId, "delivered")
-    ).rejects.toThrow(InvalidOrderTransitionError)
+    await expect(updateOrderStatus(orderId, "delivered")).rejects.toThrow(
+      InvalidOrderTransitionError
+    )
   })
 
   it("restocks exactly once when a double cancel is attempted", async () => {

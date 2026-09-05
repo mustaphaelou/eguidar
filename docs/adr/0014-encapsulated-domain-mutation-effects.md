@@ -21,7 +21,7 @@ stock, validation, or transitions.
   effects argument and import no adapter.
 
 - **Co-located cache invalidation.** `invalidateCommande` was added to the order seam as
-  `invalidateOrder` and fires inside both `placeOrder` and `updateOrderStatus`; catalog
+  `invalidateCommande` and fires inside both `placeOrder` and `updateOrderStatus`; catalog
   mutations already revalidate via `revalidateCatalog`. No mutation call site can omit it.
 
 - **Uniform best-effort post-commit boundary.** Committed DB transactions are authoritative.
@@ -54,8 +54,9 @@ stock, validation, or transitions.
 
 - The database is authoritative: a committed mutation is never rolled back because a
   side-effect failed; failures are logged warnings.
-- `deleteImages` never rejects (ADR-0004): each R2 deletion is guarded, and the whole call sits
-  under an outer guard so injected spies also cannot throw.
+- `deleteImages` never rejects (ADR-0004): each R2 deletion is guarded and logs a structured
+  `console.warn` per failed URL, and the whole call sits under an outer guard so injected
+  spies also cannot throw.
 - Task-action refusal mechanics are untouched (ADR-0010): `InvalidOrderTransitionError` and
   `OrderNotFoundError` stay `UserFacingError` and the `adminTaskAction({ refusalUrl })` redirect
   still decides the UX for refusals.

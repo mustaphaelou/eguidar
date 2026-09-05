@@ -10,6 +10,17 @@ import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
+async function runEffect(
+  message: string,
+  fn: () => Promise<unknown> | unknown
+): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.warn(message, error)
+  }
+}
+
 export interface ProductVariantInput {
   id?: string
   name: string
@@ -57,8 +68,11 @@ const defaultCatalogEffects: CatalogEffects = {
     for (const url of urls) {
       try {
         await deleteR2Object(url)
-      } catch {
-        // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
+      } catch (error) {
+        console.warn(
+          `[catalog] suppression d'image R2 non effectuée pour ${url}`,
+          error
+        )
       }
     }
   },
@@ -229,22 +243,14 @@ export async function createProduct(
     mapUniqueViolation(error)
   }
 
-  try {
-    await effects.reindexProducts([toIndexableProduct(product)])
-  } catch (error) {
-    console.warn(
-      `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-      error
-    )
-  }
-  try {
-    effects.revalidateCatalog({ id: product.id, slug: product.slug })
-  } catch (error) {
-    console.warn(
-      `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-      error
-    )
-  }
+  await runEffect(
+    `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+    () => effects.reindexProducts([toIndexableProduct(product)])
+  )
+  await runEffect(
+    `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+    () => effects.revalidateCatalog({ id: product.id, slug: product.slug })
+  )
   return product
 }
 
@@ -346,35 +352,25 @@ export async function updateProduct(
     mapUniqueViolation(error)
   }
 
-  try {
-    await effects.deleteImages(removedImages)
-  } catch (error) {
-    console.warn(
-      `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-      error
-    )
-  }
+  await runEffect(
+    `[catalog] suppression d'images R2 non effectuée pour ${id}`,
+    () => effects.deleteImages(removedImages)
+  )
 
-  try {
-    await effects.reindexProducts([toIndexableProduct(product)])
-  } catch (error) {
-    console.warn(
-      `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-      error
-    )
-  }
-  try {
-    effects.revalidateCatalog({
-      id: product.id,
-      slug: product.slug,
-      previousSlug: existing.slug !== product.slug ? existing.slug : undefined,
-    })
-  } catch (error) {
-    console.warn(
-      `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-      error
-    )
-  }
+  await runEffect(
+    `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+    () => effects.reindexProducts([toIndexableProduct(product)])
+  )
+  await runEffect(
+    `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+    () =>
+      effects.revalidateCatalog({
+        id: product.id,
+        slug: product.slug,
+        previousSlug:
+          existing.slug !== product.slug ? existing.slug : undefined,
+      })
+  )
   return product
 }
 
@@ -387,30 +383,18 @@ export async function deleteProduct(
   if (!existing) throw new ProductNotFoundError()
 
   await prisma.product.delete({ where: { id } })
-  try {
-    await effects.deleteImages(imageUrls(existing.images))
-  } catch (error) {
-    console.warn(
-      `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-      error
-    )
-  }
-  try {
-    await effects.removeProductFromIndex(id)
-  } catch (error) {
-    console.warn(
-      `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
-      error
-    )
-  }
-  try {
-    effects.revalidateCatalog({ id, slug: existing.slug })
-  } catch (error) {
-    console.warn(
-      `[catalog] invalidation du cache non effectuée pour ${id}`,
-      error
-    )
-  }
+  await runEffect(
+    `[catalog] suppression d'images R2 non effectuée pour ${id}`,
+    () => effects.deleteImages(imageUrls(existing.images))
+  )
+  await runEffect(
+    `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
+    () => effects.removeProductFromIndex(id)
+  )
+  await runEffect(
+    `[catalog] invalidation du cache non effectuée pour ${id}`,
+    () => effects.revalidateCatalog({ id, slug: existing.slug })
+  )
 }
 
 export async function updateVariantStock(
@@ -439,22 +423,14 @@ export async function updateVariantStock(
       v.id === variantId ? { ...v, stock } : v
     ),
   }
-  try {
-    await effects.reindexProducts([toIndexableProduct(product)])
-  } catch (error) {
-    console.warn(
-      `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-      error
-    )
-  }
-  try {
-    effects.revalidateCatalog({ id: product.id, slug: product.slug })
-  } catch (error) {
-    console.warn(
-      `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-      error
-    )
-  }
+  await runEffect(
+    `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+    () => effects.reindexProducts([toIndexableProduct(product)])
+  )
+  await runEffect(
+    `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+    () => effects.revalidateCatalog({ id: product.id, slug: product.slug })
+  )
   return product
 }
 

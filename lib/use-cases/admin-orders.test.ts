@@ -296,9 +296,11 @@ describe("admin lifecycle", () => {
     await updateOrderStatus(order.id, "delivered", { sendOrderStatusEmail })
 
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
-    expect(
-      sendOrderStatusEmail.mock.calls.map((call) => call[1])
-    ).toEqual(["confirmed", "shipped", "delivered"])
+    expect(sendOrderStatusEmail.mock.calls.map((call) => call[1])).toEqual([
+      "confirmed",
+      "shipped",
+      "delivered",
+    ])
     expect(sendOrderStatusEmail.mock.calls[0][0]).toMatchObject({
       userEmail: email("a"),
       orderId: order.id,
@@ -306,7 +308,7 @@ describe("admin lifecycle", () => {
   })
 
   it("invalidates the order cache post-commit", async () => {
-    const invalidateOrder = vi.fn<(orderId: string) => void>()
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
     const order = await placeOrder(userIdA, {
@@ -315,10 +317,10 @@ describe("admin lifecycle", () => {
       phone: PHONE,
     })
 
-    await updateOrderStatus(order.id, "confirmed", { invalidateOrder })
+    await updateOrderStatus(order.id, "confirmed", { invalidateCommande })
 
-    expect(invalidateOrder).toHaveBeenCalledOnce()
-    expect(invalidateOrder).toHaveBeenCalledWith(order.id)
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
   })
 
   it("cancels a pending order, restocks the variants and reflects it in admin reads", async () => {

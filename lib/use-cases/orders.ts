@@ -22,13 +22,21 @@ export type OrderEffects = {
     order: OrderEmailSnapshot,
     newStatus: OrderStatus
   ): Promise<void>
-  invalidateOrder(orderId: string): void
+  invalidateCommande(orderId: string): void
 }
 
 const defaultOrderEffects: OrderEffects = {
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
-  invalidateOrder: (orderId) => invalidateCommande(orderId),
+  invalidateCommande,
+}
+
+async function runEffect(message: string, fn: () => void): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.warn(message, error)
+  }
 }
 
 export interface CheckoutInput {
@@ -272,14 +280,10 @@ export async function placeOrder(
       error
     )
   }
-  try {
-    effects.invalidateOrder(order.id)
-  } catch (error) {
-    console.warn(
-      `[order] invalidation du cache non effectuée pour ${order.id}`,
-      error
-    )
-  }
+  await runEffect(
+    `[order] invalidation du cache non effectuée pour ${order.id}`,
+    () => effects.invalidateCommande(order.id)
+  )
   return order
 }
 
@@ -390,13 +394,9 @@ export async function updateOrderStatus(
   } catch (error) {
     console.warn(`[order] e-mail de statut non envoyé pour ${orderId}`, error)
   }
-  try {
-    effects.invalidateOrder(orderId)
-  } catch (error) {
-    console.warn(
-      `[order] invalidation du cache non effectuée pour ${orderId}`,
-      error
-    )
-  }
+  await runEffect(
+    `[order] invalidation du cache non effectuée pour ${orderId}`,
+    () => effects.invalidateCommande(orderId)
+  )
   return updated
 }
