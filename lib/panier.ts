@@ -196,7 +196,7 @@ async function ajouterArticleAuPanierClient(
 
 async function modifierQuantiteArticlePanierClient(
   compteId: string,
-  articlePanierId: string,
+  variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
   if (!quantiteValide(quantity)) {
@@ -206,8 +206,8 @@ async function modifierQuantiteArticlePanierClient(
       message: MESSAGE_QUANTITE_INVALIDE,
     }
   }
-  const existing = await prisma.cartItem.findFirst({
-    where: { id: articlePanierId, userId: compteId },
+  const existing = await prisma.cartItem.findUnique({
+    where: { userId_variantId: { userId: compteId, variantId } },
   })
   if (!existing) {
     return {
@@ -218,7 +218,7 @@ async function modifierQuantiteArticlePanierClient(
   }
 
   await prisma.cartItem.update({
-    where: { id: articlePanierId },
+    where: { id: existing.id },
     data: { quantity },
   })
   return { ok: true }
@@ -226,10 +226,10 @@ async function modifierQuantiteArticlePanierClient(
 
 async function retirerArticleDuPanierClient(
   compteId: string,
-  articlePanierId: string
+  variantId: string
 ): Promise<ResultatPanier> {
-  const existing = await prisma.cartItem.findFirst({
-    where: { id: articlePanierId, userId: compteId },
+  const existing = await prisma.cartItem.findUnique({
+    where: { userId_variantId: { userId: compteId, variantId } },
   })
   if (!existing) {
     return {
@@ -239,7 +239,7 @@ async function retirerArticleDuPanierClient(
     }
   }
 
-  await prisma.cartItem.delete({ where: { id: articlePanierId } })
+  await prisma.cartItem.delete({ where: { id: existing.id } })
   return { ok: true }
 }
 
@@ -347,13 +347,13 @@ async function panierAjouter(
 
 async function panierModifier(
   proprietaire: ProprietaireDuPanier,
-  articlePanierId: string,
+  variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
   if (proprietaire.role === "client") {
     return modifierQuantiteArticlePanierClient(
       proprietaire.compteId,
-      articlePanierId,
+      variantId,
       quantity
     )
   }
@@ -367,7 +367,7 @@ async function panierModifier(
   }
 
   const articles = await lireArticlesPanierVisiteur()
-  if (!articles.some((article) => article.variantId === articlePanierId)) {
+  if (!articles.some((article) => article.variantId === variantId)) {
     return {
       ok: false,
       motif: "article-inconnu",
@@ -376,7 +376,7 @@ async function panierModifier(
   }
 
   const variant = await prisma.productVariant.findUnique({
-    where: { id: articlePanierId },
+    where: { id: variantId },
   })
   if (!variant) {
     return {
@@ -388,7 +388,7 @@ async function panierModifier(
 
   await ecrirePanierVisiteur(
     articles.map((article) =>
-      article.variantId === articlePanierId ? { ...article, quantity } : article
+      article.variantId === variantId ? { ...article, quantity } : article
     )
   )
   return { ok: true }
@@ -396,15 +396,15 @@ async function panierModifier(
 
 async function panierRetirer(
   proprietaire: ProprietaireDuPanier,
-  articlePanierId: string
+  variantId: string
 ): Promise<ResultatPanier> {
   if (proprietaire.role === "client") {
-    return retirerArticleDuPanierClient(proprietaire.compteId, articlePanierId)
+    return retirerArticleDuPanierClient(proprietaire.compteId, variantId)
   }
 
   const articles = await lireArticlesPanierVisiteur()
   const restants = articles.filter(
-    (article) => article.variantId !== articlePanierId
+    (article) => article.variantId !== variantId
   )
   if (restants.length === articles.length) {
     return {
@@ -445,34 +445,26 @@ export async function ajouterArticleAuPanier(
 }
 
 /**
- * Modifie la quantité d'un article du Panier courant.
- *
- * `articlePanierId` identifie l'article visé, selon le Propriétaire courant :
- * pour un Client, l'identifiant persisté de l'article du panier dans sa base ;
- * pour un Visiteur, le `variantId` porté par l'article de son cookie.
+ * Modifie la quantité d'un Article du Panier courant, identifié par le
+ * `variantId` de sa Variante — pour le Client comme pour le Visiteur.
+ * Le Client est résolu sur sa ligne persistée via l'unicité par-compte
+ * de la Variante.
  */
 export async function modifierQuantiteArticlePanier(
-  articlePanierId: string,
+  variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return panierModifier(
-    await resoudreProprietaire(),
-    articlePanierId,
-    quantity
-  )
+  return panierModifier(await resoudreProprietaire(), variantId, quantity)
 }
 
 /**
- * Retire un article du Panier courant.
- *
- * `articlePanierId` identifie l'article visé, selon le Propriétaire courant :
- * pour un Client, l'identifiant persisté de l'article du panier dans sa base ;
- * pour un Visiteur, le `variantId` porté par l'article de son cookie.
+ * Retire un Article du Panier courant, identifié par le `variantId` de sa
+ * Variante — pour le Client comme pour le Visiteur.
  */
 export async function retirerArticleDuPanier(
-  articlePanierId: string
+  variantId: string
 ): Promise<ResultatPanier> {
-  return panierRetirer(await resoudreProprietaire(), articlePanierId)
+  return panierRetirer(await resoudreProprietaire(), variantId)
 }
 
 /**

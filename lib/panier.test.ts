@@ -572,16 +572,16 @@ describe("ajouterArticleAuPanier — ajout d'un article", () => {
 
 describe("modifierQuantiteArticlePanier et retirerArticleDuPanier — écritures", () => {
   describe("Client (session active — Panier persisté)", () => {
-    it("changes an article quantity identified by the persisted id", async () => {
+    it("changes an article quantity identified by the Variante", async () => {
       commeClient(userId)
       await ajouterArticleAuPanier(variantStandard, 2)
       const item = await prisma.cartItem.findFirstOrThrow({
         where: { userId, variantId: variantStandard },
       })
 
-      await expect(modifierQuantiteArticlePanier(item.id, 5)).resolves.toEqual({
-        ok: true,
-      })
+      await expect(
+        modifierQuantiteArticlePanier(variantStandard, 5)
+      ).resolves.toEqual({ ok: true })
 
       const panier = await lirePanier()
       expect(panier.lines[0]).toMatchObject({
@@ -590,17 +590,15 @@ describe("modifierQuantiteArticlePanier et retirerArticleDuPanier — écritures
         quantity: 5,
         lineTotal: 500000,
       })
+      expect(await prisma.cartItem.count({ where: { userId } })).toBe(1)
     })
 
-    it("removes an article identified by the persisted id", async () => {
+    it("removes an article identified by the Variante", async () => {
       commeClient(userId)
       await ajouterArticleAuPanier(variantStandard, 2)
       await ajouterArticleAuPanier(variantPremium, 1)
-      const item = await prisma.cartItem.findFirstOrThrow({
-        where: { userId, variantId: variantStandard },
-      })
 
-      await expect(retirerArticleDuPanier(item.id)).resolves.toEqual({
+      await expect(retirerArticleDuPanier(variantStandard)).resolves.toEqual({
         ok: true,
       })
 
