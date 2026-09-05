@@ -315,8 +315,9 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       skipDuplicates: true,
     })
     const task = await client.index(PRODUCTS_INDEX).addDocuments(docs)
-    await client.tasks.waitForTask(task.taskUid)
-  })
+    // large timeout: parallel mutation suites with default effects queue many Meili tasks
+    await client.tasks.waitForTask(task.taskUid, { timeout: 60_000 })
+  }, 60_000)
 
   afterAll(async () => {
     await client.index(PRODUCTS_INDEX).deleteDocuments({

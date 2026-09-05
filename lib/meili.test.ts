@@ -50,33 +50,44 @@ describe.runIf(!!meili)("Meilisearch product index", () => {
       .deleteDocuments({ filter: `categorySlug = categorie-meili` })
   })
 
-  it("indexes a product so it becomes searchable", async () => {
-    const id = randomUUID()
-    const doc = makeDoc(id)
+  it(
+    "indexes a product so it becomes searchable",
+    { timeout: 60_000 },
+    async () => {
+      const id = randomUUID()
+      const doc = makeDoc(id)
 
-    const task = await client.index(PRODUCTS_INDEX).addDocuments([doc])
-    await client.tasks.waitForTask(task.taskUid)
+      const task = await client.index(PRODUCTS_INDEX).addDocuments([doc])
+      // large timeout: parallel mutation suites with default effects queue many Meili tasks
+      await client.tasks.waitForTask(task.taskUid, { timeout: 60_000 })
 
-    const results = await client
-      .index(PRODUCTS_INDEX)
-      .search("Produit Meili Test")
-    const hit = results.hits.find((h) => h.id === id)
-    expect(hit).toMatchObject({ id, brand: "Marque Meili", price: 50000 })
-  })
+      const results = await client
+        .index(PRODUCTS_INDEX)
+        .search("Produit Meili Test")
+      const hit = results.hits.find((h) => h.id === id)
+      expect(hit).toMatchObject({ id, brand: "Marque Meili", price: 50000 })
+    },
+  )
 
-  it("removes a product from the index", async () => {
-    const id = randomUUID()
-    const doc = makeDoc(id)
+  it(
+    "removes a product from the index",
+    { timeout: 60_000 },
+    async () => {
+      const id = randomUUID()
+      const doc = makeDoc(id)
 
-    const addTask = await client.index(PRODUCTS_INDEX).addDocuments([doc])
-    await client.tasks.waitForTask(addTask.taskUid)
+      const addTask = await client.index(PRODUCTS_INDEX).addDocuments([doc])
+      // large timeout: parallel mutation suites with default effects queue many Meili tasks
+      await client.tasks.waitForTask(addTask.taskUid, { timeout: 60_000 })
 
-    const deleteTask = await deleteProductDocument(id)
-    await client.tasks.waitForTask(deleteTask!.taskUid)
+      const deleteTask = await deleteProductDocument(id)
+      // large timeout: parallel mutation suites with default effects queue many Meili tasks
+      await client.tasks.waitForTask(deleteTask!.taskUid, { timeout: 60_000 })
 
-    const results = await client
-      .index(PRODUCTS_INDEX)
-      .search("Produit Meili Test")
-    expect(results.hits.some((h) => h.id === id)).toBe(false)
-  })
+      const results = await client
+        .index(PRODUCTS_INDEX)
+        .search("Produit Meili Test")
+      expect(results.hits.some((h) => h.id === id)).toBe(false)
+    },
+  )
 })
