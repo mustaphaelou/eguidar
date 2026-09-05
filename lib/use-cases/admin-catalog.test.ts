@@ -171,9 +171,9 @@ describe("admin catalog mutations", () => {
   })
 
   it("rejects a negative product price", async () => {
-    await expect(
-      createProduct(makeInput({ price: -100 }))
-    ).rejects.toThrow(CatalogValidationError)
+    await expect(createProduct(makeInput({ price: -100 }))).rejects.toThrow(
+      CatalogValidationError
+    )
   })
 
   it("rejects negative stock on a variant", async () => {
@@ -265,7 +265,11 @@ describe("admin catalog mutations", () => {
 
     await updateProduct(
       product.id,
-      makeInput({ slug: slug("update-idx"), name: "Produit renommé", variants: kept }),
+      makeInput({
+        slug: slug("update-idx"),
+        name: "Produit renommé",
+        variants: kept,
+      }),
       { reindexProducts }
     )
 
@@ -442,9 +446,9 @@ describe("admin catalog mutations", () => {
   })
 
   it("throws ProductNotFoundError when updating an unknown product", async () => {
-    await expect(
-      updateProduct("unknown-id", makeInput())
-    ).rejects.toThrow(ProductNotFoundError)
+    await expect(updateProduct("unknown-id", makeInput())).rejects.toThrow(
+      ProductNotFoundError
+    )
   })
 
   it("deletes the product with its variants and clears the search index", async () => {
@@ -529,5 +533,100 @@ describe("admin catalog mutations", () => {
     await expect(updateVariantStock("unknown-variant", 5)).rejects.toThrow(
       VariantNotFoundError
     )
+  })
+
+  it("still persists an update when reindexing fails", async () => {
+    const product = await createProduct(
+      makeInput({ slug: slug("fail-reindex") })
+    )
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const updated = await updateProduct(
+        product.id,
+        makeInput({ slug: slug("fail-reindex"), name: "Renommé", variants }),
+        {
+          reindexProducts: vi.fn(async () => {
+            throw new Error("meili down")
+          }),
+        }
+      )
+
+      expect(updated.name).toBe("Renommé")
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("réindexation"),
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("still persists an update when R2 image deletion fails", async () => {
+    const product = await createProduct(makeInput({ slug: slug("fail-r2") }))
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const updated = await updateProduct(
+        product.id,
+        makeInput({
+          slug: slug("fail-r2"),
+          name: "Renommé",
+          images: [],
+          variants,
+        }),
+        {
+          deleteImages: vi.fn(async () => {
+            throw new Error("r2 down")
+          }),
+        }
+      )
+
+      expect(updated.name).toBe("Renommé")
+      const persisted = await prisma.product.findUniqueOrThrow({
+        where: { id: product.id },
+      })
+      expect(persisted.name).toBe("Renommé")
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("suppression"),
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("still deletes the product when index removal fails", async () => {
+    const product = await createProduct(makeInput({ slug: slug("fail-index") }))
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      await deleteProduct(product.id, {
+        removeProductFromIndex: vi.fn(async () => {
+          throw new Error("meili down")
+        }),
+      })
+
+      await expect(
+        prisma.product.findUnique({ where: { id: product.id } })
+      ).resolves.toBeNull()
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("index"),
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 })

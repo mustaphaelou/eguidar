@@ -22,6 +22,9 @@ import {
 
 const meili = getMeiliSearch()
 
+// large timeout: parallel mutation suites with default effects queue many Meili tasks
+const TASK_WAIT_TIMEOUT = 60_000
+
 describe("search filter building", () => {
   it("returns undefined when no filters are applied", () => {
     expect(buildSearchFilter({})).toBeUndefined()
@@ -315,9 +318,10 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       skipDuplicates: true,
     })
     const task = await client.index(PRODUCTS_INDEX).addDocuments(docs)
-    // large timeout: parallel mutation suites with default effects queue many Meili tasks
-    await client.tasks.waitForTask(task.taskUid, { timeout: 60_000 })
-  }, 60_000)
+    await client.tasks.waitForTask(task.taskUid, {
+      timeout: TASK_WAIT_TIMEOUT,
+    })
+  }, TASK_WAIT_TIMEOUT)
 
   afterAll(async () => {
     await client.index(PRODUCTS_INDEX).deleteDocuments({
