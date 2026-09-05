@@ -248,6 +248,23 @@ describe("order placement", () => {
     expect(cart.lines).toHaveLength(0)
   })
 
+  it("clears only the buyer's persisted Panier, leaving another compte's line on the same Variante intact", async () => {
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
+    await prisma.cartItem.create({
+      data: { userId: userIdB, variantId: variantP4, quantity: 1 },
+    })
+
+    await placeOrder(userIdA, checkoutInput())
+
+    const cartA = await lirePanierClient(userIdA)
+    expect(cartA.lines).toHaveLength(0)
+    const itemB = await prisma.cartItem.findFirstOrThrow({
+      where: { userId: userIdB, variantId: variantP4 },
+    })
+    expect(itemB.quantity).toBe(1)
+  })
+
   it("sends the order placed email with the snapshot", async () => {
     const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
       async () => {}

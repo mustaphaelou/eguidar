@@ -19,7 +19,6 @@ export type ResultatPanier =
   { ok: true } | { ok: false; motif: MotifRefusPanier; message: string }
 
 export interface ArticleDuPanier {
-  articlePanierId: string
   variantId: string
   variantName: string
   productId: string
@@ -422,10 +421,6 @@ async function panierRetirer(
  * Lit le Panier du Visiteur ou du Client courant : la résolution du
  * Propriétaire (session → Client, sinon cookie Visiteur) vit derrière
  * l'interface, l'appelant ne choisit jamais de branche.
- *
- * `articlePanierId` garde son double sens au contrat : pour un Client,
- * l'identifiant persisté de l'article du panier dans sa base ; pour un
- * Visiteur, le `variantId` porté par l'article de son cookie.
  */
 export async function lirePanier(): Promise<DonneesPanier> {
   return panierLire(await resoudreProprietaire())
@@ -482,7 +477,7 @@ export async function lirePanierClient(
   })
 
   const lignes = items.map((item) =>
-    construireArticleDuPanier(item.variant, item.quantity, item.id)
+    construireArticleDuPanier(item.variant, item.quantity)
   )
 
   return { lines: lignes, ...calculerTotauxPanier(lignes) }
@@ -529,12 +524,10 @@ interface VarianteAvecProduit {
 
 function construireArticleDuPanier(
   variant: VarianteAvecProduit,
-  quantity: number,
-  articlePanierId: string = variant.id
+  quantity: number
 ): ArticleDuPanier {
   const unitPrice = variant.product.price + variant.priceDelta
   return {
-    articlePanierId,
     variantId: variant.id,
     variantName: variant.name,
     productId: variant.productId,

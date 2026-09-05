@@ -45,7 +45,6 @@ const roots: ReturnType<typeof createRoot>[] = []
 
 function ligne(overrides: Partial<ArticleDuPanier> = {}): ArticleDuPanier {
   return {
-    articlePanierId: "article-panier-1",
     variantId: "variante-x",
     variantName: "Standard",
     productId: "produit-1",
@@ -106,7 +105,6 @@ describe("LigneArticlePanier", () => {
 
     expect(modifierQuantiteMock).toHaveBeenCalledTimes(1)
     expect(modifierQuantiteMock).toHaveBeenCalledWith("variante-x", 3)
-    expect(modifierQuantiteMock).not.toHaveBeenCalledWith("article-panier-1", 3)
   })
 
   it("hands the Variante identity to the removal write", async () => {
@@ -121,7 +119,6 @@ describe("LigneArticlePanier", () => {
 
     expect(retirerMock).toHaveBeenCalledTimes(1)
     expect(retirerMock).toHaveBeenCalledWith("variante-x")
-    expect(retirerMock).not.toHaveBeenCalledWith("article-panier-1")
   })
 
   it("asks for quantity - 1 on decrease", async () => {

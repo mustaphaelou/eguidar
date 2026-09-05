@@ -192,11 +192,7 @@ describe("lirePanier — lecture du Panier", () => {
 
       const panier = await lirePanier()
 
-      const item = await prisma.cartItem.findFirstOrThrow({
-        where: { userId, variantId: variantStandard },
-      })
       expect(panier.lines[0]).toMatchObject({
-        articlePanierId: item.id,
         variantId: variantStandard,
         variantName: "Standard",
         productName: "Produit Panier Deep",
@@ -252,7 +248,7 @@ describe("lirePanier — lecture du Panier", () => {
 
       const panier = await lirePanier()
 
-      expect(panier.lines.map((ligne) => ligne.articlePanierId)).toEqual([
+      expect(panier.lines.map((ligne) => ligne.variantId)).toEqual([
         variantStandard,
         variantPremium,
       ])
@@ -447,9 +443,6 @@ describe("ajouterArticleAuPanier — ajout d'un article", () => {
     it("isole le Panier de chaque Compte : un Client ne lit ni n'écrit celui d'un autre", async () => {
       commeClient(userId)
       await ajouterArticleAuPanier(variantStandard, 2)
-      const item = await prisma.cartItem.findFirstOrThrow({
-        where: { userId, variantId: variantStandard },
-      })
 
       commeClient(userIdB)
 
@@ -459,9 +452,9 @@ describe("ajouterArticleAuPanier — ajout d'un article", () => {
         itemCount: 0,
       })
       await expect(
-        modifierQuantiteArticlePanier(item.id, 2)
+        modifierQuantiteArticlePanier(variantStandard, 2)
       ).resolves.toMatchObject({ ok: false, motif: "article-inconnu" })
-      await expect(retirerArticleDuPanier(item.id)).resolves.toMatchObject({
+      await expect(retirerArticleDuPanier(variantStandard)).resolves.toMatchObject({
         ok: false,
         motif: "article-inconnu",
       })
@@ -485,7 +478,7 @@ describe("ajouterArticleAuPanier — ajout d'un article", () => {
         { variantId: variantPremium, quantity: 1 },
       ])
       const panier = await lirePanier()
-      expect(panier.lines.map((ligne) => ligne.articlePanierId)).toEqual([
+      expect(panier.lines.map((ligne) => ligne.variantId)).toEqual([
         variantStandard,
         variantPremium,
       ])
@@ -575,9 +568,6 @@ describe("modifierQuantiteArticlePanier et retirerArticleDuPanier — écritures
     it("changes an article quantity identified by the Variante", async () => {
       commeClient(userId)
       await ajouterArticleAuPanier(variantStandard, 2)
-      const item = await prisma.cartItem.findFirstOrThrow({
-        where: { userId, variantId: variantStandard },
-      })
 
       await expect(
         modifierQuantiteArticlePanier(variantStandard, 5)
@@ -585,7 +575,6 @@ describe("modifierQuantiteArticlePanier et retirerArticleDuPanier — écritures
 
       const panier = await lirePanier()
       expect(panier.lines[0]).toMatchObject({
-        articlePanierId: item.id,
         variantId: variantStandard,
         quantity: 5,
         lineTotal: 500000,
@@ -652,7 +641,6 @@ describe("modifierQuantiteArticlePanier et retirerArticleDuPanier — écritures
 
       const panier = await lirePanier()
       expect(panier.lines[0]).toMatchObject({
-        articlePanierId: variantStandard,
         variantId: variantStandard,
         quantity: 4,
         lineTotal: 400000,

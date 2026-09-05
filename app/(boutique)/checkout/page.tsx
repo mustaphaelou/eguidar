@@ -67,7 +67,7 @@ async function CheckoutContent({
           <ul className="flex flex-col gap-3 text-sm">
             {panier.lines.map((line) => (
               <li
-                key={line.articlePanierId}
+                key={line.variantId}
                 className="flex justify-between gap-3"
               >
                 <span className="text-muted-foreground">

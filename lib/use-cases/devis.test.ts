@@ -147,7 +147,6 @@ function lignePanier(
   overrides?: Partial<ArticleDuPanier>
 ): ArticleDuPanier {
   return {
-    articlePanierId: "a1",
     variantId: "v1",
     variantName: "Standard",
     productId: "p1",
@@ -170,7 +169,6 @@ function panierPourDevis(
   return {
     lines: freeShippingFlags.map((freeShipping, index) =>
       lignePanier({
-        articlePanierId: `a${index}`,
         variantId: `v${index}`,
         freeShipping,
         lineTotal: subtotal,

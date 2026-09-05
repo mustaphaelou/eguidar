@@ -267,7 +267,10 @@ export async function placeOrder(
     })
 
     await tx.cartItem.deleteMany({
-      where: { id: { in: cart.lines.map((line) => line.articlePanierId) } },
+      where: {
+        userId,
+        variantId: { in: cart.lines.map((line) => line.variantId) },
+      },
     })
     return created
   })
