@@ -1,10 +1,7 @@
 import Link from "next/link"
 import { Suspense } from "react"
 
-import {
-  DeliveryTruck02Icon,
-  ShoppingBag01Icon,
-} from "@hugeicons/core-free-icons"
+import { ShoppingBag01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { LigneArticlePanier } from "@/components/storefront/cart-line"
@@ -12,8 +9,7 @@ import { CityPicker } from "@/components/storefront/city-picker"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { chargerDevis, lignesDevis } from "@/lib/use-cases/devis"
-import { formatPrice } from "@/lib/money"
+import { chargerDevisHolder } from "@/lib/use-cases/devis"
 import { lirePanier } from "@/lib/panier"
 
 export const metadata = pageMetadata({
@@ -43,7 +39,7 @@ async function CartContent({
 }) {
   const { ville } = await searchParams
   const panier = await lirePanier()
-  const devis = await chargerDevis(panier, ville)
+  const devis = await chargerDevisHolder(panier, ville)
 
   if (panier.lines.length === 0) {
     return (
@@ -64,9 +60,6 @@ async function CartContent({
     )
   }
 
-  const villeLivraison =
-    devis.cas === "validée" ? devis.ville : null
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
       <h1 className="mb-4 text-2xl font-bold">Mon panier</h1>
@@ -80,28 +73,18 @@ async function CartContent({
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
-          <RecapitulatifPaiement rows={lignesDevis(devis.sousTotal, devis)} />
+          <RecapitulatifPaiement rows={devis.rows} />
 
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker
-              cities={devis.cities}
-              selectedId={villeLivraison?.id ?? null}
+              cities={devis.villes}
+              selectedId={devis.villeId}
               path="/panier"
             />
-            {villeLivraison && (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <HugeiconsIcon
-                  icon={DeliveryTruck02Icon}
-                  strokeWidth={2}
-                  className="size-4"
-                />
-                Livraison offerte dès {formatPrice(devis.threshold)}
-              </p>
-            )}
             <Button
               render={
                 <Link
-                  href={`/checkout${ville ? `?ville=${encodeURIComponent(ville)}` : ""}`}
+                  href={`/checkout${devis.villeId ? `?ville=${encodeURIComponent(devis.villeId)}` : ""}`}
                 />
               }
               className="w-full"

@@ -29,8 +29,11 @@
  */
 import type { DonneesPanier } from "@/lib/panier"
 import {
+  creerDevisHolder,
   selectionnerDevis,
   type Devis,
+  type DevisHolder,
+  type DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
 import { computeCityQuotes } from "@/lib/use-cases/livraison-prix"
 import {
@@ -95,4 +98,15 @@ export async function chargerDevis(
     sousTotal,
     ...selection,
   }
+}
+
+/**
+ * Charge le Devis et l'enveloppe dans l'interface profonde DevisHolder.
+ */
+export async function chargerDevisHolder(
+  panier: DonneesPanier,
+  sources?: string | null | DevisPrecedenceSources
+): Promise<DevisHolder> {
+  const devis = await chargerDevis(panier)
+  return creerDevisHolder(devis, sources)
 }
