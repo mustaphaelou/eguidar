@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { formatPrice } from "./money"
 import { type RécapitulatifRow, récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
-import { lignesDevis } from "./use-cases/devis"
+import { creerDevisHolder } from "./use-cases/devis"
 
 describe("récapitulatifRowsFromCommande", () => {
   it("renders the city, fee and the Commande totalPayable", () => {
@@ -90,18 +90,27 @@ describe("récapitulatifRowsFromCommande", () => {
   })
 
   it("rejects retired spellings through the Devis and Commande entries", () => {
+    const casa = { id: "casa", name: "Casablanca", fee: 2000 }
+    const fes = { id: "fes", name: "Fès", fee: 2000 }
     const rowsList = [
-      lignesDevis(10000, {
-        cas: "validée",
-        ville: { id: "casa", name: "Casablanca", fee: 2000 },
-        devis: { subtotal: 10000, shippingFee: 0, total: 10000 },
-      }),
-      lignesDevis(10000, {
-        cas: "validée",
-        ville: { id: "fes", name: "Fès", fee: 2000 },
-        devis: { subtotal: 10000, shippingFee: 2000, total: 12000 },
-      }),
-      lignesDevis(10000, { cas: "aucune" }),
+      creerDevisHolder({
+        cities: [casa],
+        quotes: { casa: { subtotal: 10000, shippingFee: 0, total: 10000 } },
+        sousTotal: 10000,
+        urlVilleId: "casa",
+      }).rows,
+      creerDevisHolder({
+        cities: [fes],
+        quotes: { fes: { subtotal: 10000, shippingFee: 2000, total: 12000 } },
+        sousTotal: 10000,
+        urlVilleId: "fes",
+      }).rows,
+      creerDevisHolder({
+        cities: [casa],
+        quotes: {},
+        sousTotal: 10000,
+        urlVilleId: null,
+      }).rows,
       récapitulatifRowsFromCommande({
         total: 10000,
         shippingFee: 2000,

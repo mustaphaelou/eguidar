@@ -38,52 +38,71 @@ import { useState } from "react"
 import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import {
-  lignesDevis,
-  selectionnerDevis,
-  type Devis,
+  creerDevisHolder,
+  DeliveryCityNotFoundError,
+  type DevisHolder,
+  type DevisHolderInit,
+  type DevisPrecedenceSources,
   type SelectionDevis,
+  type ValidatedSelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
 export {
-  lignesDevis,
-  selectionnerDevis,
+  creerDevisHolder,
+  DeliveryCityNotFoundError,
 } from "@/lib/use-cases/devis-coeur"
-export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-coeur"
+export type {
+  DevisHolder,
+  DevisHolderInit,
+  DevisPrecedenceSources,
+  SelectionDevis,
+  ValidatedSelectionDevis,
+} from "@/lib/use-cases/devis-coeur"
 
 /**
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.
  *
  * Possède l'état de la Ville de livraison sélectionnée (initialisé depuis
- * le Devis chargé) et expose `{ villes, selection, rows, choisir(villeId) }`.
- * Chaque `choisir` re-chiffre les lignes instantanément depuis le
- * `sousTotal` propre du Devis (`lignesDevis(devis.sousTotal, selection)`),
- * sur la même couture pure que `chargerDevis` — l'invariant
- * « jamais à moitié » vit ici, en un seul endroit.
+ * le DevisHolder) et expose `{ villes, selection, rows, choisir(villeId), recalculer }`.
+ * Chaque `choisir` délègue au holder qui dérive les lignes instantanément.
  *
  * `choisir("")` retombe sur le cas « aucune » ; un identifiant inconnu
  * retombe aussi sur « aucune » — jamais à moitié, ne lève jamais.
  * État local volontairement non synchronisé avec l'URL.
  */
-export function useDevisSelection(devis: Devis): {
+export function useDevisSelection(devis: DevisHolder): {
   villes: DeliveryCityOption[]
   selection: SelectionDevis
   rows: RécapitulatifRow[]
-  choisir: (villeId: string) => void
+  choisir(villeId: string): void
+  recalculer(
+    nouveauSousTotalOuInput:
+      | number
+      | { sousTotal: number; anyFreeShippingItem?: boolean }
+  ): void
+  villeId: string | null
 } {
-  const [villeId, setVilleId] = useState(
-    devis.cas === "validée" ? devis.ville.id : ""
-  )
-  const selection = selectionnerDevis(
-    devis.cities,
-    devis.quotes,
-    villeId || null
-  )
-  const rows = lignesDevis(devis.sousTotal, selection)
+  const [localChoice, setLocalChoice] = useState<string | null>(null)
+  const [hasChosen, setHasChosen] = useState<boolean>(false)
+  const [subtotalOverride, setSubtotalOverride] = useState<
+    number | { sousTotal: number; anyFreeShippingItem?: boolean } | null
+  >(null)
+
+  const baseHolder =
+    subtotalOverride !== null ? devis.recalculer(subtotalOverride) : devis
+  const activeHolder = hasChosen ? baseHolder.choisir(localChoice) : baseHolder
 
   return {
-    villes: devis.cities,
-    selection,
-    rows,
-    choisir: (nouvelleVilleId: string) => setVilleId(nouvelleVilleId),
+    villes: activeHolder.villes,
+    selection: activeHolder.selection,
+    rows: activeHolder.rows,
+    villeId: activeHolder.villeId,
+    choisir: (nouvelleVilleId: string) => {
+      setHasChosen(true)
+      setLocalChoice(nouvelleVilleId)
+    },
+    recalculer: (nouveauSousTotalOuInput) => {
+      setSubtotalOverride(nouveauSousTotalOuInput)
+    },
   }
 }

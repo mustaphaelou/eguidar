@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
 import { act } from "react"
 import { createRoot } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { formatPrice } from "@/lib/money"
 import {
+  creerDevisHolder,
   useDevisSelection,
-  type Devis,
+  type DevisHolder,
 } from "@/lib/use-cases/devis-selection"
 import type {
   DeliveryCityOption,
@@ -70,26 +71,24 @@ const QUOTES: Record<string, ShippingQuote> = {
   c2: QUOTE_RABAT,
 }
 
-function devisValide(): Devis {
-  return {
+function devisValide(): DevisHolder {
+  return creerDevisHolder({
     cities: VILLES,
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    cas: "validée",
-    ville: CASA,
-    devis: QUOTE_CASA,
-  }
+    urlVilleId: "c1",
+  })
 }
 
-function devisAucune(): Devis {
-  return {
+function devisAucune(): DevisHolder {
+  return creerDevisHolder({
     cities: VILLES,
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    cas: "aucune",
-  }
+    urlVilleId: null,
+  })
 }
 
 describe("useDevisSelection", () => {
@@ -192,4 +191,77 @@ describe("useDevisSelection", () => {
     })
     expect(hook.current.rows.some((row) => row.kind === "total")).toBe(false)
   })
+
+  it("pre-selects the saved profile ville when the link carries none", () => {
+    const holder = creerDevisHolder(VILLES, QUOTES, 50000, {
+      urlVilleId: null,
+      profileVilleId: "c2",
+    })
+    const hook = renderHook(() => useDevisSelection(holder))
+
+    expect(hook.current.villeId).toBe("c2")
+    expect(hook.current.selection).toStrictEqual({
+      cas: "validée",
+      ville: RABAT,
+      devis: QUOTE_RABAT,
+    })
+  })
+
+  it("local choice wins over link and profile after first choisir", () => {
+    const holder = creerDevisHolder(VILLES, QUOTES, 50000, {
+      urlVilleId: "c1",
+      profileVilleId: "c2",
+    })
+    const hook = renderHook(() => useDevisSelection(holder))
+    expect(hook.current.villeId).toBe("c1")
+
+    act(() => {
+      hook.current.choisir("c2")
+    })
+
+    expect(hook.current.villeId).toBe("c2")
+    expect(hook.current.selection).toStrictEqual({
+      cas: "validée",
+      ville: RABAT,
+      devis: QUOTE_RABAT,
+    })
+  })
+
+  it("choosing at Checkout never writes back to the link or window.history", () => {
+    const originalHref = window.location.href
+    const replaceSpy = vi.spyOn(window.history, "replaceState")
+    const pushSpy = vi.spyOn(window.history, "pushState")
+
+    const hook = renderHook(() => useDevisSelection(devisValide()))
+    act(() => {
+      hook.current.choisir("c2")
+    })
+
+    expect(window.location.href).toBe(originalHref)
+    expect(replaceSpy).not.toHaveBeenCalled()
+    expect(pushSpy).not.toHaveBeenCalled()
+    replaceSpy.mockRestore()
+    pushSpy.mockRestore()
+  })
+
+  it("recalculer(nouveauSousTotal) re-prices the hook selection dynamically", () => {
+    const hook = renderHook(() => useDevisSelection(devisValide()))
+    expect(hook.current.rows[0].value).toBe(formatPrice(50000))
+    expect(hook.current.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      value: formatPrice(3500),
+    })
+
+    act(() => {
+      hook.current.recalculer(150000)
+    })
+
+    expect(hook.current.rows[0].value).toBe(formatPrice(150000))
+    expect(hook.current.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      value: "Livraison offerte",
+      tone: "offered",
+    })
+  })
 })
+

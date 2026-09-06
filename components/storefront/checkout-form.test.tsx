@@ -78,7 +78,11 @@ vi.mock("@/components/ui/select", () => ({
 }))
 
 import { CheckoutForm } from "./checkout-form"
-import type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
+import {
+  creerDevisHolder,
+  type DevisHolder,
+  type SelectionDevis,
+} from "@/lib/use-cases/devis-selection"
 import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -144,15 +148,15 @@ function devisPourTest({
 }: {
   selection: SelectionDevis
   quotes: Record<string, ShippingQuote>
-}): Devis {
+}): DevisHolder {
   const cities = [CASA]
-  return {
+  return creerDevisHolder({
     cities,
     threshold: 100000,
     quotes,
     sousTotal: 100000,
-    ...selection,
-  }
+    urlVilleId: selection.cas === "validée" ? selection.ville.id : null,
+  })
 }
 
 function selectValue() {

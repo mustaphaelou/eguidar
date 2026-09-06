@@ -25,11 +25,11 @@ import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-pai
 import { formatShippingFee } from "@/lib/money"
 import {
   useDevisSelection,
-  type Devis,
+  type DevisHolder,
 } from "@/lib/use-cases/devis-selection"
 
 export interface CheckoutFormProps {
-  devis: Devis
+  devis: DevisHolder
   initialAddress: string
   initialPhone: string
 }
@@ -48,9 +48,9 @@ export function CheckoutForm({
   // Le récapitulatif re-chiffre instantanément au changement de ville via
   // la porte d'entrée cliente du Devis — champs du formulaire + soumission
   // ici, jamais les ingrédients bruts.
-  const { villes, selection, rows, choisir } = useDevisSelection(devis)
+  const { villes, selection, rows, choisir, villeId } = useDevisSelection(devis)
   const selectedCityId =
-    selection.cas === "validée" ? selection.ville.id : ""
+    villeId ?? (selection.cas === "validée" ? selection.ville.id : "")
 
   useEffect(() => {
     if (!state.unauthenticated) return

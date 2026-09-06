@@ -23,10 +23,15 @@ import {
   construireLignes,
   type RécapitulatifRow,
 } from "@/lib/recapitulatif-paiement"
-import type {
-  DeliveryCityOption,
-  ShippingQuote,
+import {
+  computeCityQuotes,
+  DEFAULT_FREE_SHIPPING_THRESHOLD,
+  DeliveryCityNotFoundError,
+  type DeliveryCityOption,
+  type ShippingQuote,
 } from "@/lib/use-cases/livraison-prix"
+
+export { DeliveryCityNotFoundError }
 
 /**
  * Une Sélection du Devis répond par exactement un cas : **aucune** (rien
@@ -116,3 +121,188 @@ export function lignesDevis(
     total: selection.devis.total,
   })
 }
+
+/**
+ * Cas validé de la Sélection du Devis (ville + devis).
+ */
+export type ValidatedSelectionDevis = Extract<SelectionDevis, { cas: "validée" }>
+
+/**
+ * Sources de précédence pour l'initialisation de la ville dans le DevisHolder :
+ * le lien partagé (`urlVilleId`) l'emporte, le profil sauvegardé
+ * (`profileVilleId`) sert de repli si le lien est absent ou vide.
+ */
+export interface DevisPrecedenceSources {
+  urlVilleId?: string | null
+  profileVilleId?: string | null
+}
+
+export interface DevisHolderInit {
+  cities: DeliveryCityOption[]
+  quotes?: Record<string, ShippingQuote>
+  sousTotal: number
+  threshold?: number
+  anyFreeShippingItem?: boolean
+  sources?: DevisPrecedenceSources
+  urlVilleId?: string | null
+  profileVilleId?: string | null
+  requestedCityId?: string | null
+}
+
+/**
+ * Interface profonde du DevisHolder : possède les villes, la sélection courante,
+ * les lignes du Récapitulatif projetées depuis son propre sous-total,
+ * le changement de ville (`choisir`), l'identifiant sélectionné (`villeId`),
+ * le re-chiffrage sur changement de panier (`recalculer`),
+ * et le rétrécissement de prise en commande (`selectionValidee` / `validerSelection`).
+ *
+ * Les devis bruts (`quotes`) et le seuil (`threshold`) restent cachés
+ * dans l'implémentation.
+ */
+export interface DevisHolder {
+  readonly villes: DeliveryCityOption[]
+  readonly selection: SelectionDevis
+  readonly rows: RécapitulatifRow[]
+  readonly villeId: string | null
+  choisir(nouvelleVilleId?: string | null): DevisHolder
+  recalculer(
+    nouveauSousTotalOuInput:
+      | number
+      | { sousTotal: number; anyFreeShippingItem?: boolean }
+  ): DevisHolder
+  selectionValidee(): ValidatedSelectionDevis
+}
+
+export function creerDevisHolder(init: DevisHolderInit): DevisHolder
+export function creerDevisHolder(
+  devis: Devis,
+  sources?: string | null | DevisPrecedenceSources
+): DevisHolder
+export function creerDevisHolder(
+  cities: DeliveryCityOption[],
+  quotes: Record<string, ShippingQuote>,
+  sousTotal: number,
+  sources?: string | null | DevisPrecedenceSources
+): DevisHolder
+export function creerDevisHolder(
+  citiesOrInitOrDevis: DeliveryCityOption[] | DevisHolderInit | Devis,
+  quotesOrSources?: Record<string, ShippingQuote> | string | null | DevisPrecedenceSources,
+  sousTotalArg?: number,
+  sourcesArg?: string | null | DevisPrecedenceSources
+): DevisHolder {
+  let cities: DeliveryCityOption[]
+  let quotes: Record<string, ShippingQuote>
+  let sousTotal: number
+  let threshold: number = DEFAULT_FREE_SHIPPING_THRESHOLD
+  let anyFreeShippingItem: boolean = false
+  let sources: string | null | DevisPrecedenceSources | undefined
+
+  if (Array.isArray(citiesOrInitOrDevis)) {
+    cities = citiesOrInitOrDevis
+    quotes = (quotesOrSources as Record<string, ShippingQuote>) ?? {}
+    sousTotal = typeof sousTotalArg === "number" ? sousTotalArg : 0
+    sources = sourcesArg
+  } else {
+    cities = citiesOrInitOrDevis.cities
+    sousTotal = citiesOrInitOrDevis.sousTotal
+    if ("threshold" in citiesOrInitOrDevis && typeof citiesOrInitOrDevis.threshold === "number") {
+      threshold = citiesOrInitOrDevis.threshold
+    }
+    if ("anyFreeShippingItem" in citiesOrInitOrDevis && typeof (citiesOrInitOrDevis as DevisHolderInit).anyFreeShippingItem === "boolean") {
+      anyFreeShippingItem = Boolean((citiesOrInitOrDevis as DevisHolderInit).anyFreeShippingItem)
+    }
+    quotes =
+      citiesOrInitOrDevis.quotes ??
+      computeCityQuotes(cities, { subtotal: sousTotal, anyFreeShippingItem }, threshold)
+
+    if (quotesOrSources !== undefined) {
+      sources = quotesOrSources as string | null | DevisPrecedenceSources
+    } else if ("sources" in citiesOrInitOrDevis && citiesOrInitOrDevis.sources) {
+      sources = citiesOrInitOrDevis.sources
+    } else if (
+      ("urlVilleId" in citiesOrInitOrDevis && citiesOrInitOrDevis.urlVilleId !== undefined) ||
+      ("profileVilleId" in citiesOrInitOrDevis && citiesOrInitOrDevis.profileVilleId !== undefined)
+    ) {
+      sources = {
+        urlVilleId: (citiesOrInitOrDevis as DevisHolderInit).urlVilleId,
+        profileVilleId: (citiesOrInitOrDevis as DevisHolderInit).profileVilleId,
+      }
+    } else if ("requestedCityId" in citiesOrInitOrDevis && (citiesOrInitOrDevis as DevisHolderInit).requestedCityId) {
+      sources = (citiesOrInitOrDevis as DevisHolderInit).requestedCityId
+    } else if ("cas" in citiesOrInitOrDevis && (citiesOrInitOrDevis as Devis).cas === "validée") {
+      sources = (citiesOrInitOrDevis as Devis & { cas: "validée" }).ville.id
+    }
+  }
+
+  function resoudrePrecedence(
+    src?: string | null | DevisPrecedenceSources
+  ): string | null {
+    if (!src) return null
+    if (typeof src === "string") {
+      const trimmed = src.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+    const url = src.urlVilleId?.trim()
+    if (url && url.length > 0) return url
+    const profil = src.profileVilleId?.trim()
+    if (profil && profil.length > 0) return profil
+    return null
+  }
+
+  function creerInstance(
+    villeChoisie: string | null,
+    currentQuotes = quotes,
+    currentSousTotal = sousTotal,
+    currentAnyFree = anyFreeShippingItem
+  ): DevisHolder {
+    const selection = selectionnerDevis(cities, currentQuotes, villeChoisie)
+    const rows = lignesDevis(currentSousTotal, selection)
+    const villeId = selection.cas === "validée" ? selection.ville.id : null
+
+    return {
+      get villes() {
+        return cities
+      },
+      get selection() {
+        return selection
+      },
+      get rows() {
+        return rows
+      },
+      get villeId() {
+        return villeId
+      },
+      choisir(nouvelleVilleId?: string | null) {
+        const trimmed = nouvelleVilleId?.trim() || null
+        return creerInstance(trimmed, currentQuotes, currentSousTotal, currentAnyFree)
+      },
+      recalculer(nouveauSousTotalOuInput) {
+        const nextSousTotal =
+          typeof nouveauSousTotalOuInput === "number"
+            ? nouveauSousTotalOuInput
+            : nouveauSousTotalOuInput.sousTotal
+        const nextAnyFree =
+          typeof nouveauSousTotalOuInput === "object" &&
+          nouveauSousTotalOuInput.anyFreeShippingItem !== undefined
+            ? Boolean(nouveauSousTotalOuInput.anyFreeShippingItem)
+            : currentAnyFree
+        const nextQuotes = computeCityQuotes(
+          cities,
+          { subtotal: nextSousTotal, anyFreeShippingItem: nextAnyFree },
+          threshold
+        )
+        return creerInstance(villeChoisie, nextQuotes, nextSousTotal, nextAnyFree)
+      },
+      selectionValidee() {
+        if (selection.cas !== "validée") {
+          throw new DeliveryCityNotFoundError()
+        }
+        return selection
+      },
+    }
+  }
+
+  const initialCityId = resoudrePrecedence(sources)
+  return creerInstance(initialCityId)
+}
+

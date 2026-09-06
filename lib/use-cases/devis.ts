@@ -29,8 +29,9 @@
  */
 import type { DonneesPanier } from "@/lib/panier"
 import {
-  selectionnerDevis,
-  type Devis,
+  creerDevisHolder,
+  type DevisHolder,
+  type DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
 import { computeCityQuotes } from "@/lib/use-cases/livraison-prix"
 import {
@@ -39,31 +40,35 @@ import {
 } from "@/lib/use-cases/livraison"
 
 export {
-  lignesDevis,
-  selectionnerDevis,
+  creerDevisHolder,
+  DeliveryCityNotFoundError,
 } from "@/lib/use-cases/devis-coeur"
-export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-coeur"
+export type {
+  DevisHolder,
+  DevisHolderInit,
+  DevisPrecedenceSources,
+  SelectionDevis,
+  ValidatedSelectionDevis,
+} from "@/lib/use-cases/devis-coeur"
 
 /**
- * Entrée async du Devis pour les surfaces d'affichage.
+ * Charge le Devis et l'enveloppe dans l'interface profonde DevisHolder.
  *
  * Récupère Villes de livraison + seuil (administration Livraison),
  * chiffre chaque ville via `computeCityQuotes` (`panier.subtotal` +
- * `lines.some(freeShipping)`), puis résout la sélection via
- * `selectionnerDevis` (offerte / À choisir avec Total omis quand non
- * sélectionné).
+ * `lines.some(freeShipping)`), puis initialise le DevisHolder avec la précédence
+ * (URL ville > profil sauvegardé > aucune).
  *
- * Le Devis retourné est auto-porteur : il porte le `sousTotal`
- * (`panier.subtotal`) qui a chiffré ses devis. Les lignes ne sont pas
- * construites ici : elles se dérivent via le projecteur unique
- * `lignesDevis(devis.sousTotal, devis)`.
+ * Le DevisHolder retourné est auto-porteur : ses lignes (`rows`), sa sélection
+ * (`selection`), sa ville (`villeId`), et la narrowing d'intake (`selectionValidee`)
+ * sont exposées derrière une couture unique.
  *
  * Ville inconnue → sélection « aucune », ne lève jamais.
  */
-export async function chargerDevis(
+export async function chargerDevisHolder(
   panier: DonneesPanier,
-  requestedCityId?: string | null
-): Promise<Devis> {
+  sources?: string | null | DevisPrecedenceSources
+): Promise<DevisHolder> {
   const sousTotal = panier.subtotal
   const [cities, threshold] = await Promise.all([
     listDeliveryCities(),
@@ -77,12 +82,13 @@ export async function chargerDevis(
     },
     threshold
   )
-  const selection = selectionnerDevis(cities, quotes, requestedCityId)
-  return {
+  return creerDevisHolder({
     cities,
     threshold,
     quotes,
     sousTotal,
-    ...selection,
-  }
+    ...(typeof sources === "string" || sources === null || sources === undefined
+      ? { urlVilleId: sources }
+      : sources),
+  })
 }
