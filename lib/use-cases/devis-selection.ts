@@ -38,7 +38,6 @@ import { useState } from "react"
 import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import {
-  createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
   type DevisHolder,
@@ -49,7 +48,6 @@ import {
 } from "@/lib/use-cases/devis-coeur"
 
 export {
-  createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
 } from "@/lib/use-cases/devis-coeur"
@@ -65,7 +63,7 @@ export type {
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.
  *
  * Possède l'état de la Ville de livraison sélectionnée (initialisé depuis
- * le DevisHolder) et expose `{ villes, selection, rows, choisir(villeId) }`.
+ * le DevisHolder) et expose `{ villes, selection, rows, choisir(villeId), recalculer }`.
  * Chaque `choisir` délègue au holder qui dérive les lignes instantanément.
  *
  * `choisir("")` retombe sur le cas « aucune » ; un identifiant inconnu
@@ -86,8 +84,13 @@ export function useDevisSelection(devis: DevisHolder): {
 } {
   const [localChoice, setLocalChoice] = useState<string | null>(null)
   const [hasChosen, setHasChosen] = useState<boolean>(false)
+  const [subtotalOverride, setSubtotalOverride] = useState<
+    number | { sousTotal: number; anyFreeShippingItem?: boolean } | null
+  >(null)
 
-  const activeHolder = hasChosen ? devis.choisir(localChoice) : devis
+  const baseHolder =
+    subtotalOverride !== null ? devis.recalculer(subtotalOverride) : devis
+  const activeHolder = hasChosen ? baseHolder.choisir(localChoice) : baseHolder
 
   return {
     villes: activeHolder.villes,
@@ -98,8 +101,8 @@ export function useDevisSelection(devis: DevisHolder): {
       setHasChosen(true)
       setLocalChoice(nouvelleVilleId)
     },
-    recalculer: () => {
-      // Re-pricing is automatic on render from baseHolder
+    recalculer: (nouveauSousTotalOuInput) => {
+      setSubtotalOverride(nouveauSousTotalOuInput)
     },
   }
 }

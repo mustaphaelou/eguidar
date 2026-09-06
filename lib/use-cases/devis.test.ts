@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   chargerDevisHolder,
-  createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
   type DevisHolder,
@@ -249,11 +248,9 @@ describe("chargerDevisHolder", () => {
     const panier = panierPourDevis(50000)
     const validHolder = await chargerDevisHolder(panier, "c1")
     expect(validHolder.selectionValidee().cas).toBe("validée")
-    expect(validHolder.validerSelection().ville.id).toBe("c1")
 
     const emptyHolder = await chargerDevisHolder(panier, null)
     expect(() => emptyHolder.selectionValidee()).toThrow(DeliveryCityNotFoundError)
-    expect(() => emptyHolder.validerSelection()).toThrow(DeliveryCityNotFoundError)
   })
 
   it("renders offered tone when threshold is reached or free-shipping item is present", async () => {
@@ -347,12 +344,10 @@ describe("DevisHolder", () => {
     expect(choseUnknown.selection.cas).toBe("aucune")
   })
 
-  it("intake narrowing: selectionValidee and validerSelection return validated selection when valid", () => {
+  it("intake narrowing: selectionValidee returns validated selection when valid", () => {
     const holder = creerDevisHolder(cities, quotes, sousTotal, "c1")
     const validated1 = holder.selectionValidee()
-    const validated2 = holder.validerSelection()
     expect(validated1).toStrictEqual(holder.selection)
-    expect(validated2).toStrictEqual(holder.selection)
     expect(validated1.cas).toBe("validée")
     expect(validated1.ville.id).toBe("c1")
   })
@@ -360,7 +355,6 @@ describe("DevisHolder", () => {
   it("intake narrowing: refuses aucune with DeliveryCityNotFoundError (UserFacingError)", () => {
     const holder = creerDevisHolder(cities, quotes, sousTotal, null)
     expect(() => holder.selectionValidee()).toThrow(DeliveryCityNotFoundError)
-    expect(() => holder.validerSelection()).toThrow(DeliveryCityNotFoundError)
     expect(() => holder.selectionValidee()).toThrow(UserFacingError)
   })
 
@@ -413,7 +407,7 @@ describe("DevisHolder", () => {
     })
     expect(hFromInit.villeId).toBe("c1")
 
-    const hFromArgs = createDevisHolder(cities, quotes, sousTotal, "c1")
+    const hFromArgs = creerDevisHolder(cities, quotes, sousTotal, "c1")
     expect(hFromArgs.villeId).toBe("c1")
   })
 

@@ -40,7 +40,6 @@ import {
 } from "@/lib/use-cases/livraison"
 
 export {
-  createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
 } from "@/lib/use-cases/devis-coeur"

@@ -171,7 +171,6 @@ export interface DevisHolder {
       | { sousTotal: number; anyFreeShippingItem?: boolean }
   ): DevisHolder
   selectionValidee(): ValidatedSelectionDevis
-  validerSelection(): ValidatedSelectionDevis
 }
 
 export function creerDevisHolder(init: DevisHolderInit): DevisHolder
@@ -300,15 +299,10 @@ export function creerDevisHolder(
         }
         return selection
       },
-      validerSelection() {
-        return this.selectionValidee()
-      },
     }
   }
 
   const initialCityId = resoudrePrecedence(sources)
   return creerInstance(initialCityId)
 }
-
-export const createDevisHolder = creerDevisHolder
 

@@ -243,5 +243,25 @@ describe("useDevisSelection", () => {
     replaceSpy.mockRestore()
     pushSpy.mockRestore()
   })
+
+  it("recalculer(nouveauSousTotal) re-prices the hook selection dynamically", () => {
+    const hook = renderHook(() => useDevisSelection(devisValide()))
+    expect(hook.current.rows[0].value).toBe(formatPrice(50000))
+    expect(hook.current.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      value: formatPrice(3500),
+    })
+
+    act(() => {
+      hook.current.recalculer(150000)
+    })
+
+    expect(hook.current.rows[0].value).toBe(formatPrice(150000))
+    expect(hook.current.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      value: "Livraison offerte",
+      tone: "offered",
+    })
+  })
 })
 
