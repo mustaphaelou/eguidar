@@ -285,14 +285,14 @@ const storeVisiteur: PanierStore = {
     })
     const parId = new Map(variants.map((variant) => [variant.id, variant]))
 
-    const lignes: ArticleDuPanier[] = []
+    const articlesDuPanier: ArticleDuPanier[] = []
     for (const article of articles) {
       const variant = parId.get(article.variantId)
       if (!variant) continue
-      lignes.push(construireArticleDuPanier(variant, article.quantity))
+      articlesDuPanier.push(construireArticleDuPanier(variant, article.quantity))
     }
 
-    return { lines: lignes, ...calculerTotauxPanier(lignes) }
+    return { lines: articlesDuPanier, ...calculerTotauxPanier(articlesDuPanier) }
   },
 
   async compter(): Promise<number> {
@@ -409,11 +409,11 @@ function creerStoreClient(compteId: string): PanierStore {
         include: { variant: { include: { product: true } } },
       })
 
-      const lignes = items.map((item) =>
+      const articlesDuPanier = items.map((item) =>
         construireArticleDuPanier(item.variant, item.quantity)
       )
 
-      return { lines: lignes, ...calculerTotauxPanier(lignes) }
+      return { lines: articlesDuPanier, ...calculerTotauxPanier(articlesDuPanier) }
     },
 
     async compter(): Promise<number> {
@@ -537,10 +537,10 @@ function construireArticleDuPanier(
 }
 
 function calculerTotauxPanier(
-  lignes: readonly ArticleDuPanier[]
+  articles: readonly ArticleDuPanier[]
 ): Pick<DonneesPanier, "subtotal" | "itemCount"> {
   return {
-    subtotal: lignes.reduce((somme, ligne) => somme + ligne.lineTotal, 0),
-    itemCount: lignes.reduce((somme, ligne) => somme + ligne.quantity, 0),
+    subtotal: articles.reduce((somme, article) => somme + article.lineTotal, 0),
+    itemCount: articles.reduce((somme, article) => somme + article.quantity, 0),
   }
 }

@@ -283,10 +283,10 @@ describe("lirePanier — lecture du Panier via l'interface", () => {
     await ajouterArticleAuPanier(variantPremium, 1)
 
     const panier = await lirePanier()
-    const ligne = panier.lines.find((l) => l.variantId === variantPremium)
+    const article = panier.lines.find((a) => a.variantId === variantPremium)
 
-    expect(ligne).toBeDefined()
-    expect(ligne?.unitPrice).toBe(prixVariante(100000, 50000))
+    expect(article).toBeDefined()
+    expect(article?.unitPrice).toBe(prixVariante(100000, 50000))
   })
 })
 
