@@ -24,6 +24,8 @@ import {
   type RécapitulatifRow,
 } from "@/lib/recapitulatif-paiement"
 import {
+  computeCityQuotes,
+  DEFAULT_FREE_SHIPPING_THRESHOLD,
   DeliveryCityNotFoundError,
   type DeliveryCityOption,
   type ShippingQuote,
@@ -137,8 +139,10 @@ export interface DevisPrecedenceSources {
 
 export interface DevisHolderInit {
   cities: DeliveryCityOption[]
-  quotes: Record<string, ShippingQuote>
+  quotes?: Record<string, ShippingQuote>
   sousTotal: number
+  threshold?: number
+  anyFreeShippingItem?: boolean
   sources?: DevisPrecedenceSources
   urlVilleId?: string | null
   profileVilleId?: string | null
@@ -149,6 +153,7 @@ export interface DevisHolderInit {
  * Interface profonde du DevisHolder : possède les villes, la sélection courante,
  * les lignes du Récapitulatif projetées depuis son propre sous-total,
  * le changement de ville (`choisir`), l'identifiant sélectionné (`villeId`),
+ * le re-chiffrage sur changement de panier (`recalculer`),
  * et le rétrécissement de prise en commande (`selectionValidee` / `validerSelection`).
  *
  * Les devis bruts (`quotes`) et le seuil (`threshold`) restent cachés
@@ -160,6 +165,11 @@ export interface DevisHolder {
   readonly rows: RécapitulatifRow[]
   readonly villeId: string | null
   choisir(nouvelleVilleId?: string | null): DevisHolder
+  recalculer(
+    nouveauSousTotalOuInput:
+      | number
+      | { sousTotal: number; anyFreeShippingItem?: boolean }
+  ): DevisHolder
   selectionValidee(): ValidatedSelectionDevis
   validerSelection(): ValidatedSelectionDevis
 }
@@ -184,6 +194,8 @@ export function creerDevisHolder(
   let cities: DeliveryCityOption[]
   let quotes: Record<string, ShippingQuote>
   let sousTotal: number
+  let threshold: number = DEFAULT_FREE_SHIPPING_THRESHOLD
+  let anyFreeShippingItem: boolean = false
   let sources: string | null | DevisPrecedenceSources | undefined
 
   if (Array.isArray(citiesOrInitOrDevis)) {
@@ -193,8 +205,17 @@ export function creerDevisHolder(
     sources = sourcesArg
   } else {
     cities = citiesOrInitOrDevis.cities
-    quotes = citiesOrInitOrDevis.quotes
     sousTotal = citiesOrInitOrDevis.sousTotal
+    if ("threshold" in citiesOrInitOrDevis && typeof citiesOrInitOrDevis.threshold === "number") {
+      threshold = citiesOrInitOrDevis.threshold
+    }
+    if ("anyFreeShippingItem" in citiesOrInitOrDevis && typeof (citiesOrInitOrDevis as DevisHolderInit).anyFreeShippingItem === "boolean") {
+      anyFreeShippingItem = Boolean((citiesOrInitOrDevis as DevisHolderInit).anyFreeShippingItem)
+    }
+    quotes =
+      citiesOrInitOrDevis.quotes ??
+      computeCityQuotes(cities, { subtotal: sousTotal, anyFreeShippingItem }, threshold)
+
     if (quotesOrSources !== undefined) {
       sources = quotesOrSources as string | null | DevisPrecedenceSources
     } else if ("sources" in citiesOrInitOrDevis && citiesOrInitOrDevis.sources) {
@@ -229,9 +250,14 @@ export function creerDevisHolder(
     return null
   }
 
-  function creerInstance(villeChoisie: string | null): DevisHolder {
-    const selection = selectionnerDevis(cities, quotes, villeChoisie)
-    const rows = lignesDevis(sousTotal, selection)
+  function creerInstance(
+    villeChoisie: string | null,
+    currentQuotes = quotes,
+    currentSousTotal = sousTotal,
+    currentAnyFree = anyFreeShippingItem
+  ): DevisHolder {
+    const selection = selectionnerDevis(cities, currentQuotes, villeChoisie)
+    const rows = lignesDevis(currentSousTotal, selection)
     const villeId = selection.cas === "validée" ? selection.ville.id : null
 
     return {
@@ -249,7 +275,24 @@ export function creerDevisHolder(
       },
       choisir(nouvelleVilleId?: string | null) {
         const trimmed = nouvelleVilleId?.trim() || null
-        return creerInstance(trimmed)
+        return creerInstance(trimmed, currentQuotes, currentSousTotal, currentAnyFree)
+      },
+      recalculer(nouveauSousTotalOuInput) {
+        const nextSousTotal =
+          typeof nouveauSousTotalOuInput === "number"
+            ? nouveauSousTotalOuInput
+            : nouveauSousTotalOuInput.sousTotal
+        const nextAnyFree =
+          typeof nouveauSousTotalOuInput === "object" &&
+          nouveauSousTotalOuInput.anyFreeShippingItem !== undefined
+            ? Boolean(nouveauSousTotalOuInput.anyFreeShippingItem)
+            : currentAnyFree
+        const nextQuotes = computeCityQuotes(
+          cities,
+          { subtotal: nextSousTotal, anyFreeShippingItem: nextAnyFree },
+          threshold
+        )
+        return creerInstance(villeChoisie, nextQuotes, nextSousTotal, nextAnyFree)
       },
       selectionValidee() {
         if (selection.cas !== "validée") {

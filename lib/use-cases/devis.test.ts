@@ -15,6 +15,7 @@ import type {
   DeliveryCityOption,
   ShippingQuote,
 } from "@/lib/use-cases/livraison"
+import { formatPrice } from "@/lib/money"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const { listDeliveryCitiesMock, getFreeShippingThresholdMock } = vi.hoisted(
@@ -452,5 +453,78 @@ describe("DevisHolder", () => {
     const hFromDevis = createDevisHolder(fakeDevis)
     expect(hFromDevis.villeId).toBe("c1")
   })
+
+  describe("staleness & re-pricing on Panier change", () => {
+    it("pins re-pricing after quantity changes (crossing threshold to free shipping)", () => {
+      const initial = creerDevisHolder({
+        cities,
+        sousTotal: 50000,
+        threshold: 100000,
+        urlVilleId: "c1",
+      })
+      expect(initial.rows[0].value).toBe(formatPrice(50000))
+      expect(initial.rows[1]).toMatchObject({
+        label: "Livraison (Casablanca)",
+        value: formatPrice(3500),
+      })
+      expect(initial.rows.find((r) => r.kind === "total")?.value).toBe(
+        formatPrice(53500)
+      )
+
+      // Re-quantify: quantity doubled, subtotal reaches threshold
+      const requantified = initial.recalculer(100000)
+      expect(requantified.rows[0].value).toBe(formatPrice(100000))
+      expect(requantified.rows[1]).toMatchObject({
+        label: "Livraison (Casablanca)",
+        value: "Livraison offerte",
+        tone: "offered",
+      })
+      expect(requantified.rows.find((r) => r.kind === "total")?.value).toBe(
+        formatPrice(100000)
+      )
+    })
+
+    it("pins re-pricing after adding an article", () => {
+      const initial = creerDevisHolder({
+        cities,
+        sousTotal: 50000,
+        threshold: 100000,
+        urlVilleId: "c1",
+      })
+      const afterAdd = initial.recalculer(80000)
+      expect(afterAdd.rows[0].value).toBe(formatPrice(80000))
+      expect(afterAdd.rows[1]).toMatchObject({
+        label: "Livraison (Casablanca)",
+        value: formatPrice(3500),
+      })
+      expect(afterAdd.rows.find((r) => r.kind === "total")?.value).toBe(
+        formatPrice(83500)
+      )
+    })
+
+    it("pins re-pricing after removing an article (falling below threshold)", () => {
+      const initial = creerDevisHolder({
+        cities,
+        sousTotal: 120000,
+        threshold: 100000,
+        urlVilleId: "c1",
+      })
+      expect(initial.rows[1]).toMatchObject({
+        value: "Livraison offerte",
+        tone: "offered",
+      })
+
+      const afterRemove = initial.recalculer(60000)
+      expect(afterRemove.rows[0].value).toBe(formatPrice(60000))
+      expect(afterRemove.rows[1]).toMatchObject({
+        label: "Livraison (Casablanca)",
+        value: formatPrice(3500),
+      })
+      expect(afterRemove.rows.find((r) => r.kind === "total")?.value).toBe(
+        formatPrice(63500)
+      )
+    })
+  })
 })
+
 

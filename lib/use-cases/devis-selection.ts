@@ -90,19 +90,30 @@ export function useDevisSelection(devis: Devis | DevisHolder): {
   selection: SelectionDevis
   rows: RécapitulatifRow[]
   choisir(villeId: string): void
+  recalculer(
+    nouveauSousTotalOuInput:
+      | number
+      | { sousTotal: number; anyFreeShippingItem?: boolean }
+  ): void
   villeId: string | null
 } {
-  const [holder, setHolder] = useState<DevisHolder>(() =>
-    isDevisHolder(devis) ? devis : creerDevisHolder(devis)
-  )
+  const [localChoice, setLocalChoice] = useState<string | null>(null)
+  const [hasChosen, setHasChosen] = useState<boolean>(false)
+
+  const baseHolder = isDevisHolder(devis) ? devis : creerDevisHolder(devis)
+  const activeHolder = hasChosen ? baseHolder.choisir(localChoice) : baseHolder
 
   return {
-    villes: holder.villes,
-    selection: holder.selection,
-    rows: holder.rows,
-    villeId: holder.villeId,
+    villes: activeHolder.villes,
+    selection: activeHolder.selection,
+    rows: activeHolder.rows,
+    villeId: activeHolder.villeId,
     choisir: (nouvelleVilleId: string) => {
-      setHolder((current) => current.choisir(nouvelleVilleId))
+      setHasChosen(true)
+      setLocalChoice(nouvelleVilleId)
+    },
+    recalculer: () => {
+      // Re-pricing is automatic on render from baseHolder
     },
   }
 }
