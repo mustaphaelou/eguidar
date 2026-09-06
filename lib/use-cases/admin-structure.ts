@@ -3,6 +3,9 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
+import { indexProductDocuments } from "@/lib/meili"
+import { deleteR2Object } from "@/lib/r2"
+import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -22,6 +25,34 @@ export interface StructureEffects {
    * faire échouer la mutation (ADR-0004).
    */
   deleteImage(url: string): Promise<void>
+}
+
+const defaultStructureEffects: StructureEffects = {
+  reindexProducts: indexProductDocuments,
+  revalidateCategories() {
+    invalidateStructure()
+  },
+  async deleteImage(url) {
+    try {
+      await deleteR2Object(url)
+    } catch (error) {
+      console.warn(
+        `[structure] suppression d'image R2 non effectuée pour ${url}`,
+        error
+      )
+    }
+  },
+}
+
+async function runEffect(
+  message: string,
+  fn: () => Promise<unknown> | unknown
+): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.warn(message, error)
+  }
 }
 
 export class CategoryValidationError extends UserFacingError {
@@ -151,8 +182,9 @@ async function readIndexableCategoryProducts(
 
 export async function createCategory(
   input: CategoryInput,
-  effects: StructureEffects
+  overrides?: Partial<StructureEffects>
 ) {
+  const effects = { ...defaultStructureEffects, ...overrides }
   const data = parseCategoryInput(input)
   await assertUniqueCategorySlug(data.slug)
   await assertCategoryParent(data.parentId)
@@ -171,15 +203,19 @@ export async function createCategory(
     mapCategoryUniqueViolation(error)
   }
 
-  effects.revalidateCategories()
+  await runEffect(
+    "[structure] invalidation du cache non effectuée pour la création de catégorie",
+    () => effects.revalidateCategories()
+  )
   return category
 }
 
 export async function updateCategory(
   id: string,
   input: CategoryInput,
-  effects: StructureEffects
+  overrides?: Partial<StructureEffects>
 ) {
+  const effects = { ...defaultStructureEffects, ...overrides }
   const existing = await prisma.category.findUnique({ where: { id } })
   if (!existing) throw new CategoryNotFoundError()
 
@@ -203,19 +239,32 @@ export async function updateCategory(
   }
 
   const nextImage = data.image ?? null
-  if (existing.image && existing.image !== nextImage)
-    await effects.deleteImage(existing.image)
+  if (existing.image && existing.image !== nextImage) {
+    await runEffect(
+      `[structure] suppression d'image R2 non effectuée pour ${existing.image}`,
+      () => effects.deleteImage(existing.image!)
+    )
+  }
   const products = await readIndexableCategoryProducts(id)
-  if (products.length > 0) await effects.reindexProducts(products)
-  effects.revalidateCategories()
+  if (products.length > 0) {
+    await runEffect(
+      `[structure] réindexation meilisearch non effectuée pour ${id}`,
+      () => effects.reindexProducts(products)
+    )
+  }
+  await runEffect(
+    `[structure] invalidation du cache non effectuée pour ${id}`,
+    () => effects.revalidateCategories()
+  )
   return category
 }
 
 export async function deleteCategory(
   id: string,
-  effects: StructureEffects,
+  overrides?: Partial<StructureEffects>,
   options: { reassignToCategoryId?: string } = {}
 ): Promise<void> {
+  const effects = { ...defaultStructureEffects, ...overrides }
   const category = await prisma.category.findUnique({
     where: { id },
     include: {
@@ -244,15 +293,26 @@ export async function deleteCategory(
         where: { id: { in: category.products.map((product) => product.id) } },
         include: { variants: true, category: true },
       })
-      await effects.reindexProducts(movedProducts.map(toIndexableProduct))
+      await runEffect(
+        `[structure] réindexation meilisearch non effectuée pour ${id}`,
+        () => effects.reindexProducts(movedProducts.map(toIndexableProduct))
+      )
     }
   } else if (category.products.length > 0) {
     throw new CategoryHasProductsError(category.products.length)
   }
 
   await prisma.category.delete({ where: { id } })
-  if (category.image) await effects.deleteImage(category.image)
-  effects.revalidateCategories()
+  if (category.image) {
+    await runEffect(
+      `[structure] suppression d'image R2 non effectuée pour ${category.image}`,
+      () => effects.deleteImage(category.image!)
+    )
+  }
+  await runEffect(
+    `[structure] invalidation du cache non effectuée pour ${id}`,
+    () => effects.revalidateCategories()
+  )
 }
 
 export function listAdminCategoriesWithCounts() {
