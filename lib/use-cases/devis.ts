@@ -17,17 +17,21 @@
  * côté de `chargerDevis` — `placeOrder` garde `chargerDevis` et rétrécit
  * l'union.
  *
- * Volontairement sans `import "server-only"` : ce garde-foo lève sous
+ * Volontairement sans `import "server-only"` : ce garde-fou lève sous
  * vitest (condition d'export `default`) et casserait `devis.test.ts` /
  * `orders.test.ts` (précédent : `lib/panier.ts` évite l'import statique
  * de `get-session` pour la même raison). La barrière client/serveur est
- * assurée par le point d'entrée pur `devis-selection`.
+ * assurée par le cœur pur `devis-coeur` (sans directive) : ce module
+ * serveur et l'entrée cliente `devis-selection` (« use client », le
+ * crochet seul) y puisent sans jamais se croiser — un serveur ne doit
+ * jamais importer `devis-selection`, dont les fonctions exportées lèvent
+ * dès qu'on les appelle depuis le serveur.
  */
 import type { DonneesPanier } from "@/lib/panier"
 import {
   selectionnerDevis,
   type Devis,
-} from "@/lib/use-cases/devis-selection"
+} from "@/lib/use-cases/devis-coeur"
 import { computeCityQuotes } from "@/lib/use-cases/livraison-prix"
 import {
   getFreeShippingThreshold,
@@ -37,8 +41,8 @@ import {
 export {
   lignesDevis,
   selectionnerDevis,
-} from "@/lib/use-cases/devis-selection"
-export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-selection"
+} from "@/lib/use-cases/devis-coeur"
+export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-coeur"
 
 /**
  * Entrée async du Devis pour les surfaces d'affichage.
