@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  chargerDevis,
   chargerDevisHolder,
   createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
-  lignesDevis,
-  selectionnerDevis,
-  type Devis,
   type DevisHolder,
 } from "@/lib/use-cases/devis"
+import { selectionnerDevis } from "@/lib/use-cases/devis-coeur"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {
   DeliveryCityOption,
@@ -186,123 +183,7 @@ function panierPourDevis(
   }
 }
 
-function selectionValidee(devis: Devis): Extract<Devis, { cas: "validée" }> {
-  if (devis.cas !== "validée") throw new Error("sélection validée attendue")
-  return devis
-}
 
-describe("chargerDevis", () => {
-  const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
-
-  beforeEach(() => {
-    listDeliveryCitiesMock.mockReset()
-    getFreeShippingThresholdMock.mockReset()
-    listDeliveryCitiesMock.mockResolvedValue(villes)
-    getFreeShippingThresholdMock.mockResolvedValue(100000)
-  })
-
-  it("returns cities, threshold, quotes and selection in one call for a valid ville", async () => {
-    const panier = panierPourDevis(50000)
-
-    const devis = selectionValidee(await chargerDevis(panier, "c1"))
-
-    expect(devis.sousTotal).toBe(panier.subtotal)
-    expect(devis.cities).toEqual(villes)
-    expect(devis.threshold).toBe(100000)
-    expect(devis.quotes).toEqual({
-      c1: { subtotal: 50000, shippingFee: 3500, total: 53500 },
-      c2: { subtotal: 50000, shippingFee: 5000, total: 55000 },
-    })
-    expect(devis.cas).toBe("validée")
-    expect(devis.ville).toStrictEqual(city("c1", "Casablanca", 3500))
-    expect(devis.devis).toStrictEqual({
-      subtotal: 50000,
-      shippingFee: 3500,
-      total: 53500,
-    })
-    expect("rows" in devis).toBe(false)
-    const rows = lignesDevis(devis.sousTotal, devis)
-    expect(rows).toEqual(
-      lignesDevis(50000, {
-        cas: "validée",
-        ville: city("c1", "Casablanca", 3500),
-        devis: { subtotal: 50000, shippingFee: 3500, total: 53500 },
-      })
-    )
-    expect(rows[1]).toMatchObject({
-      label: "Livraison (Casablanca)",
-      kind: "detail",
-    })
-    expect(rows.find((row) => row.kind === "total")).toBeDefined()
-  })
-
-  it("yields the aucune selection without throwing for an unknown ville (rows derive via lignesDevis)", async () => {
-    const panier = panierPourDevis(50000)
-
-    let devis: Awaited<ReturnType<typeof chargerDevis>> | null = null
-    await expect(
-      (async () => {
-        devis = await chargerDevis(panier, "ville-inconnue")
-      })()
-    ).resolves.not.toThrow()
-
-    expect(devis!.cas).toBe("aucune")
-    expect(devis!.sousTotal).toBe(panier.subtotal)
-    expect("rows" in devis!).toBe(false)
-    const rows = lignesDevis(devis!.sousTotal, devis!)
-    expect(rows[1]).toEqual({
-      label: "Livraison",
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
-    })
-    expect(rows.some((row) => row.kind === "total")).toBe(false)
-    expect(rows).toHaveLength(2)
-  })
-
-  it("yields the aucune selection when no ville is requested (rows derive via lignesDevis)", async () => {
-    const panier = panierPourDevis(50000)
-
-    for (const requested of [undefined, null] as const) {
-      const devis = await chargerDevis(panier, requested)
-
-      expect(devis.cas).toBe("aucune")
-      expect(devis.sousTotal).toBe(panier.subtotal)
-      expect("rows" in devis).toBe(false)
-      const rows = lignesDevis(devis.sousTotal, devis)
-      expect(rows[1]).toMatchObject({
-        label: "Livraison",
-        value: "À choisir",
-        tone: "muted",
-      })
-      expect(rows.some((row) => row.kind === "total")).toBe(false)
-    }
-  })
-
-  it("renders the offered tone when the threshold is reached or a free-shipping article is present", async () => {
-    const panierAuSeuil = panierPourDevis(150000)
-    const auSeuil = selectionValidee(await chargerDevis(panierAuSeuil, "c1"))
-    expect(auSeuil.sousTotal).toBe(panierAuSeuil.subtotal)
-    expect(auSeuil.devis).toMatchObject({ shippingFee: 0 })
-    expect(lignesDevis(auSeuil.sousTotal, auSeuil)[1]).toMatchObject({
-      label: "Livraison (Casablanca)",
-      value: "Livraison offerte",
-      tone: "offered",
-    })
-
-    const panierOffert = panierPourDevis(50000, [false, true])
-    const articleOffert = selectionValidee(
-      await chargerDevis(panierOffert, "c2")
-    )
-    expect(articleOffert.sousTotal).toBe(panierOffert.subtotal)
-    expect(articleOffert.devis).toMatchObject({ shippingFee: 0 })
-    expect(lignesDevis(articleOffert.sousTotal, articleOffert)[1]).toMatchObject({
-      label: "Livraison (Rabat)",
-      value: "Livraison offerte",
-      tone: "offered",
-    })
-  })
-})
 
 describe("chargerDevisHolder", () => {
   const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
@@ -523,7 +404,7 @@ describe("DevisHolder", () => {
     expect(h1).not.toBe(h2)
   })
 
-  it("factory overloads: supports init object and loaded Devis", () => {
+  it("factory overloads: supports init object and positional arguments", () => {
     const hFromInit = creerDevisHolder({
       cities,
       quotes,
@@ -532,17 +413,8 @@ describe("DevisHolder", () => {
     })
     expect(hFromInit.villeId).toBe("c1")
 
-    const fakeDevis: Devis = {
-      cities,
-      quotes,
-      threshold: 100000,
-      sousTotal,
-      cas: "validée",
-      ville: cities[0],
-      devis: quotes.c1,
-    }
-    const hFromDevis = createDevisHolder(fakeDevis)
-    expect(hFromDevis.villeId).toBe("c1")
+    const hFromArgs = createDevisHolder(cities, quotes, sousTotal, "c1")
+    expect(hFromArgs.villeId).toBe("c1")
   })
 
   describe("staleness & re-pricing on Panier change", () => {
