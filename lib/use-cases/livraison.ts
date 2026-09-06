@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import { invalidateLivraison } from "@/lib/use-cases/cache-invalidation"
 import {
   DEFAULT_FREE_SHIPPING_THRESHOLD,
   type DeliveryCityOption,
@@ -31,6 +32,22 @@ export interface LivraisonEffects {
   revalidateShipping(): void
 }
 
+const defaultLivraisonEffects: LivraisonEffects = {
+  revalidateShipping() {
+    invalidateLivraison()
+  },
+}
+
+async function runEffect(
+  message: string,
+  fn: () => Promise<unknown> | unknown
+): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.warn(message, error)
+  }
+}
 export class CityValidationError extends UserFacingError {
   constructor(issues: string[]) {
     super(`Données invalides : ${issues.join(" ; ")}`)
@@ -112,7 +129,11 @@ async function assertUniqueCityName(
     throw new CityNameConflictError()
 }
 
-export async function createCity(input: CityInput, effects: LivraisonEffects) {
+export async function createCity(
+  input: CityInput,
+  overrides?: Partial<LivraisonEffects>
+) {
+  const effects = { ...defaultLivraisonEffects, ...overrides }
   const data = parseCityInput(input)
   await assertUniqueCityName(data.name)
 
@@ -123,15 +144,19 @@ export async function createCity(input: CityInput, effects: LivraisonEffects) {
     mapCityUniqueViolation(error)
   }
 
-  effects.revalidateShipping()
+  await runEffect(
+    "[livraison] invalidation du cache non effectuée pour la création de ville",
+    () => effects.revalidateShipping()
+  )
   return city
 }
 
 export async function updateCity(
   id: string,
   input: CityInput,
-  effects: LivraisonEffects
+  overrides?: Partial<LivraisonEffects>
 ) {
+  const effects = { ...defaultLivraisonEffects, ...overrides }
   const existing = await prisma.deliveryCity.findUnique({ where: { id } })
   if (!existing) throw new CityNotFoundError()
 
@@ -145,19 +170,26 @@ export async function updateCity(
     mapCityUniqueViolation(error)
   }
 
-  effects.revalidateShipping()
+  await runEffect(
+    `[livraison] invalidation du cache non effectuée pour ${id}`,
+    () => effects.revalidateShipping()
+  )
   return city
 }
 
 export async function deleteCity(
   id: string,
-  effects: LivraisonEffects
+  overrides?: Partial<LivraisonEffects>
 ): Promise<void> {
+  const effects = { ...defaultLivraisonEffects, ...overrides }
   const existing = await prisma.deliveryCity.findUnique({ where: { id } })
   if (!existing) throw new CityNotFoundError()
 
   await prisma.deliveryCity.delete({ where: { id } })
-  effects.revalidateShipping()
+  await runEffect(
+    `[livraison] invalidation du cache non effectuée pour ${id}`,
+    () => effects.revalidateShipping()
+  )
 }
 
 export function listAdminCities() {
@@ -170,8 +202,9 @@ export function getShippingSettings() {
 
 export async function updateShippingSettings(
   input: { freeShippingThreshold: number },
-  effects: LivraisonEffects
+  overrides?: Partial<LivraisonEffects>
 ) {
+  const effects = { ...defaultLivraisonEffects, ...overrides }
   const result = shippingInputSchema.safeParse(input)
   if (!result.success) {
     throw new ShippingValidationError(
@@ -188,6 +221,9 @@ export async function updateShippingSettings(
     },
   })
 
-  effects.revalidateShipping()
+  await runEffect(
+    "[livraison] invalidation du cache non effectuée pour le seuil de livraison",
+    () => effects.revalidateShipping()
+  )
   return settings
 }

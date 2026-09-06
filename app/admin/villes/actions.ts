@@ -14,7 +14,6 @@ import {
   updateCity,
   type CityInput,
 } from "@/lib/use-cases/livraison"
-import { realLivraisonEffects } from "@/lib/use-cases/livraison-effects"
 
 function parseCityFormData(formData: FormData): CityInput {
   return {
@@ -31,7 +30,7 @@ export const createCityAction = adminFormAction<CityInput>({
   next: "/admin/villes",
   parse: parseCityFormData,
   run: async (input) => {
-    await createCity(input, realLivraisonEffects)
+    await createCity(input)
     redirect("/admin/villes")
   },
 })
@@ -43,7 +42,7 @@ export const updateCityAction = adminFormAction<CityUpdateInput>({
     cityId: parseRequiredId(formData, "cityId"),
   }),
   run: async ({ cityId, ...input }) => {
-    await updateCity(cityId, input, realLivraisonEffects)
+    await updateCity(cityId, input)
     redirect("/admin/villes")
   },
 })
@@ -52,6 +51,6 @@ export const deleteCityAction = adminTaskAction<{ cityId: string }>({
   next: "/admin/villes",
   parse: (formData) => ({ cityId: parseRequiredId(formData, "cityId") }),
   run: async ({ cityId }) => {
-    await deleteCity(cityId, realLivraisonEffects)
+    await deleteCity(cityId)
   },
 })
