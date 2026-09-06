@@ -38,17 +38,34 @@ import { useState } from "react"
 import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import {
+  createDevisHolder,
+  creerDevisHolder,
+  DeliveryCityNotFoundError,
   lignesDevis,
   selectionnerDevis,
   type Devis,
+  type DevisHolder,
+  type DevisHolderInit,
+  type DevisPrecedenceSources,
   type SelectionDevis,
+  type ValidatedSelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
 export {
+  createDevisHolder,
+  creerDevisHolder,
+  DeliveryCityNotFoundError,
   lignesDevis,
   selectionnerDevis,
 } from "@/lib/use-cases/devis-coeur"
-export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-coeur"
+export type {
+  Devis,
+  DevisHolder,
+  DevisHolderInit,
+  DevisPrecedenceSources,
+  SelectionDevis,
+  ValidatedSelectionDevis,
+} from "@/lib/use-cases/devis-coeur"
 
 /**
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.

@@ -10,6 +10,15 @@
  * `@/lib/use-cases/livraison`, qui réexporte ce module pour
  * compatibilité ascendante.
  */
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
+
+export class DeliveryCityNotFoundError extends UserFacingError {
+  constructor() {
+    super("Ville de livraison introuvable")
+    this.name = "DeliveryCityNotFoundError"
+  }
+}
+
 export interface ShippingQuote {
   subtotal: number
   shippingFee: number

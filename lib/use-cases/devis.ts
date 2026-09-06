@@ -39,10 +39,20 @@ import {
 } from "@/lib/use-cases/livraison"
 
 export {
+  createDevisHolder,
+  creerDevisHolder,
+  DeliveryCityNotFoundError,
   lignesDevis,
   selectionnerDevis,
 } from "@/lib/use-cases/devis-coeur"
-export type { Devis, SelectionDevis } from "@/lib/use-cases/devis-coeur"
+export type {
+  Devis,
+  DevisHolder,
+  DevisHolderInit,
+  DevisPrecedenceSources,
+  SelectionDevis,
+  ValidatedSelectionDevis,
+} from "@/lib/use-cases/devis-coeur"
 
 /**
  * Entrée async du Devis pour les surfaces d'affichage.

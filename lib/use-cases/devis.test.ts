@@ -2,15 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   chargerDevis,
+  createDevisHolder,
+  creerDevisHolder,
+  DeliveryCityNotFoundError,
   lignesDevis,
   selectionnerDevis,
   type Devis,
+  type DevisHolder,
 } from "@/lib/use-cases/devis"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {
   DeliveryCityOption,
   ShippingQuote,
 } from "@/lib/use-cases/livraison"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const { listDeliveryCitiesMock, getFreeShippingThresholdMock } = vi.hoisted(
   () => ({
@@ -296,3 +301,156 @@ describe("chargerDevis", () => {
     })
   })
 })
+
+describe("DevisHolder", () => {
+  const sousTotal = 50000
+
+  it("precedence: url ville wins over profile fallback on initial creation", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, {
+      urlVilleId: "c1",
+      profileVilleId: "c2",
+    })
+    expect(holder.villeId).toBe("c1")
+    expect(holder.selection.cas).toBe("validée")
+    if (holder.selection.cas === "validée") {
+      expect(holder.selection.ville.id).toBe("c1")
+    }
+  })
+
+  it("precedence: saved profile fallback is chosen when url ville is absent, empty, or whitespace", () => {
+    for (const urlVilleId of [undefined, null, "", "   "]) {
+      const holder = creerDevisHolder(cities, quotes, sousTotal, {
+        urlVilleId,
+        profileVilleId: "c2",
+      })
+      expect(holder.villeId).toBe("c2")
+      expect(holder.selection.cas).toBe("validée")
+      if (holder.selection.cas === "validée") {
+        expect(holder.selection.ville.id).toBe("c2")
+      }
+    }
+  })
+
+  it("precedence: resolves to aucune when both url and profile are absent or empty", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, {
+      urlVilleId: null,
+      profileVilleId: null,
+    })
+    expect(holder.villeId).toBeNull()
+    expect(holder.selection.cas).toBe("aucune")
+  })
+
+  it("precedence: local choice wins over both url and profile after choisir", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, {
+      urlVilleId: "c1",
+      profileVilleId: "c2",
+    })
+    expect(holder.villeId).toBe("c1")
+
+    const chosenC2 = holder.choisir("c2")
+    expect(chosenC2.villeId).toBe("c2")
+
+    const chosenC1 = chosenC2.choisir("c1")
+    expect(chosenC1.villeId).toBe("c1")
+
+    const chosenAucune = chosenC1.choisir(null)
+    expect(chosenAucune.villeId).toBeNull()
+    expect(chosenAucune.selection.cas).toBe("aucune")
+  })
+
+  it("fallback: unknown ville silently resolves to aucune without throwing", () => {
+    let holderFromUnknown: DevisHolder | null = null
+    expect(() => {
+      holderFromUnknown = creerDevisHolder(cities, quotes, sousTotal, {
+        urlVilleId: "ville-inconnue",
+      })
+    }).not.toThrow()
+    expect(holderFromUnknown!.villeId).toBeNull()
+    expect(holderFromUnknown!.selection.cas).toBe("aucune")
+
+    const validHolder = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    const choseUnknown = validHolder.choisir("ville-inconnue")
+    expect(choseUnknown.villeId).toBeNull()
+    expect(choseUnknown.selection.cas).toBe("aucune")
+  })
+
+  it("intake narrowing: selectionValidee and validerSelection return validated selection when valid", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    const validated1 = holder.selectionValidee()
+    const validated2 = holder.validerSelection()
+    expect(validated1).toStrictEqual(holder.selection)
+    expect(validated2).toStrictEqual(holder.selection)
+    expect(validated1.cas).toBe("validée")
+    expect(validated1.ville.id).toBe("c1")
+  })
+
+  it("intake narrowing: refuses aucune with DeliveryCityNotFoundError (UserFacingError)", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, null)
+    expect(() => holder.selectionValidee()).toThrow(DeliveryCityNotFoundError)
+    expect(() => holder.validerSelection()).toThrow(DeliveryCityNotFoundError)
+    expect(() => holder.selectionValidee()).toThrow(UserFacingError)
+  })
+
+  it("rows derivation: derives rows from carried sousTotal for validated selection", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    expect(holder.rows[0]).toMatchObject({
+      label: "Sous-total (TVA incluse)",
+      kind: "detail",
+    })
+    expect(holder.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      kind: "detail",
+    })
+    expect(holder.rows.find((r) => r.kind === "total")).toBeDefined()
+  })
+
+  it("rows derivation: derives rows from carried sousTotal for aucune selection (total omitted)", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, null)
+    expect(holder.rows[1]).toMatchObject({
+      label: "Livraison",
+      value: "À choisir",
+      tone: "muted",
+    })
+    expect(holder.rows.some((r) => r.kind === "total")).toBe(false)
+  })
+
+  it("hidden details: quotes and threshold are not accessible through holder", () => {
+    const holder = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    expect("quotes" in holder).toBe(false)
+    expect("threshold" in holder).toBe(false)
+    expect((holder as unknown as Record<string, unknown>).quotes).toBeUndefined()
+    expect((holder as unknown as Record<string, unknown>).threshold).toBeUndefined()
+    expect(holder.villes).toEqual(cities)
+  })
+
+  it("immutability: choisir returns a new holder without mutating original", () => {
+    const h1 = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    const h2 = h1.choisir("c2")
+    expect(h1.villeId).toBe("c1")
+    expect(h2.villeId).toBe("c2")
+    expect(h1).not.toBe(h2)
+  })
+
+  it("factory overloads: supports init object and loaded Devis", () => {
+    const hFromInit = creerDevisHolder({
+      cities,
+      quotes,
+      sousTotal,
+      urlVilleId: "c1",
+    })
+    expect(hFromInit.villeId).toBe("c1")
+
+    const fakeDevis: Devis = {
+      cities,
+      quotes,
+      threshold: 100000,
+      sousTotal,
+      cas: "validée",
+      ville: cities[0],
+      devis: quotes.c1,
+    }
+    const hFromDevis = createDevisHolder(fakeDevis)
+    expect(hFromDevis.villeId).toBe("c1")
+  })
+})
+

@@ -19,6 +19,7 @@ export {
   computeCityQuotes,
   computeShippingFee,
   DEFAULT_FREE_SHIPPING_THRESHOLD,
+  DeliveryCityNotFoundError,
 } from "@/lib/use-cases/livraison-prix"
 
 export interface CityInput {
@@ -28,13 +29,6 @@ export interface CityInput {
 
 export interface LivraisonEffects {
   revalidateShipping(): void
-}
-
-export class DeliveryCityNotFoundError extends UserFacingError {
-  constructor() {
-    super("Ville de livraison introuvable")
-    this.name = "DeliveryCityNotFoundError"
-  }
 }
 
 export class CityValidationError extends UserFacingError {
