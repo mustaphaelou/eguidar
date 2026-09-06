@@ -13,7 +13,6 @@ import {
   updateCategory,
   type CategoryInput,
 } from "@/lib/use-cases/admin-structure"
-import { realStructureEffects } from "@/lib/use-cases/structure-effects"
 
 function parseCategoryFormData(formData: FormData): CategoryInput {
   const parentIdRaw = formData.get("parentId")
@@ -41,7 +40,7 @@ export const createCategoryAction = adminFormAction<CategoryInput>({
   next: "/admin/categories",
   parse: parseCategoryFormData,
   run: async (input) => {
-    await createCategory(input, realStructureEffects)
+    await createCategory(input)
     redirect("/admin/categories")
   },
 })
@@ -55,7 +54,7 @@ export const updateCategoryAction = adminFormAction<CategoryUpdateInput>({
     }
   },
   run: async ({ categoryId, ...input }) => {
-    await updateCategory(categoryId, input, realStructureEffects)
+    await updateCategory(categoryId, input)
     redirect("/admin/categories")
   },
 })
@@ -76,7 +75,7 @@ export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
   run: async ({ categoryId, reassignToCategoryId }) => {
     await deleteCategory(
       categoryId,
-      realStructureEffects,
+      undefined,
       reassignToCategoryId ? { reassignToCategoryId } : {}
     )
     return {}

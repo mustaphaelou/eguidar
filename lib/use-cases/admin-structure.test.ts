@@ -13,23 +13,11 @@ import {
   deleteCategory,
   updateCategory,
   type CategoryInput,
-  type StructureEffects,
 } from "@/lib/use-cases/admin-structure"
 
 const runId = randomUUID().slice(0, 8)
 const categorySlug = (suffix: string) => `cat-${runId}-${suffix}`
 const productSlug = (suffix: string) => `struc-${runId}-${suffix}`
-
-function makeEffects(): StructureEffects & {
-  reindexProducts: ReturnType<typeof vi.fn>
-  deleteImage: ReturnType<typeof vi.fn>
-} {
-  return {
-    reindexProducts: vi.fn(async () => {}),
-    revalidateCategories: vi.fn(),
-    deleteImage: vi.fn(async () => {}),
-  }
-}
 
 function makeCategoryInput(
   overrides: Partial<CategoryInput> = {}
@@ -63,9 +51,13 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("creates a root category and revalidates the structure", async () => {
-    const effects = makeEffects()
+    const revalidateCategories = vi.fn()
+    const reindexProducts = vi.fn()
 
-    const category = await createCategory(makeCategoryInput(), effects)
+    const category = await createCategory(makeCategoryInput(), {
+      revalidateCategories,
+      reindexProducts,
+    })
 
     expect(category.id).toBeTruthy()
     expect(category.name).toBe("Catégorie Test T3")
@@ -74,19 +66,17 @@ describe("admin structure mutations — categories", () => {
       where: { id: category.id },
     })
     expect(persisted.image).toBe("https://example.com/cat.jpg")
-    expect(effects.revalidateCategories).toHaveBeenCalledOnce()
-    expect(effects.reindexProducts).not.toHaveBeenCalled()
+    expect(revalidateCategories).toHaveBeenCalledOnce()
+    expect(reindexProducts).not.toHaveBeenCalled()
   })
 
   it("creates a nested category under an existing parent", async () => {
     const parent = await createCategory(
-      makeCategoryInput({ slug: categorySlug("parent") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("parent") })
     )
 
     const child = await createCategory(
-      makeCategoryInput({ slug: categorySlug("child"), parentId: parent.id }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("child"), parentId: parent.id })
     )
 
     expect(child.parentId).toBe(parent.id)
@@ -98,16 +88,11 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("rejects a duplicate category slug and persists nothing", async () => {
-    const effects = makeEffects()
-    await createCategory(
-      makeCategoryInput({ slug: categorySlug("dup") }),
-      effects
-    )
+    await createCategory(makeCategoryInput({ slug: categorySlug("dup") }))
 
     await expect(
       createCategory(
-        makeCategoryInput({ slug: categorySlug("dup"), name: "Autre" }),
-        makeEffects()
+        makeCategoryInput({ slug: categorySlug("dup"), name: "Autre" })
       )
     ).rejects.toThrow(CategorySlugConflictError)
 
@@ -119,37 +104,30 @@ describe("admin structure mutations — categories", () => {
 
   it("rejects an invalid slug format", async () => {
     await expect(
-      createCategory(
-        makeCategoryInput({ slug: "Slug Invalide!" }),
-        makeEffects()
-      )
+      createCategory(makeCategoryInput({ slug: "Slug Invalide!" }))
     ).rejects.toThrow(CategoryValidationError)
   })
 
   it("rejects an empty name", async () => {
     await expect(
-      createCategory(makeCategoryInput({ name: " " }), makeEffects())
+      createCategory(makeCategoryInput({ name: " " }))
     ).rejects.toThrow(CategoryValidationError)
   })
 
   it("rejects an unknown parent", async () => {
     await expect(
-      createCategory(
-        makeCategoryInput({ parentId: "unknown-parent" }),
-        makeEffects()
-      )
+      createCategory(makeCategoryInput({ parentId: "unknown-parent" }))
     ).rejects.toThrow(CategoryValidationError)
   })
 
   it("updates a category and revalidates; an empty category is not re-indexed", async () => {
-    const effects = makeEffects()
+    const revalidateCategories = vi.fn()
+    const reindexProducts = vi.fn()
     const parent = await createCategory(
-      makeCategoryInput({ slug: categorySlug("update-parent") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("update-parent") })
     )
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("update-empty") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("update-empty") })
     )
 
     const updated = await updateCategory(
@@ -160,24 +138,23 @@ describe("admin structure mutations — categories", () => {
         parentId: parent.id,
         image: null,
       }),
-      effects
+      { revalidateCategories, reindexProducts }
     )
 
     expect(updated.name).toBe("Après")
     expect(updated.parentId).toBe(parent.id)
     expect(updated.image).toBeNull()
-    expect(effects.revalidateCategories).toHaveBeenCalled()
-    expect(effects.reindexProducts).not.toHaveBeenCalled()
+    expect(revalidateCategories).toHaveBeenCalled()
+    expect(reindexProducts).not.toHaveBeenCalled()
   })
 
   it("deletes the previous image through effects when it is replaced on update", async () => {
-    const effects = makeEffects()
+    const deleteImage = vi.fn()
     const category = await createCategory(
       makeCategoryInput({
         slug: categorySlug("img-replace"),
         image: "https://example.com/old-cat.jpg",
-      }),
-      makeEffects()
+      })
     )
 
     await updateCategory(
@@ -186,55 +163,52 @@ describe("admin structure mutations — categories", () => {
         slug: categorySlug("img-replace"),
         image: "https://example.com/new-cat.jpg",
       }),
-      effects
+      { deleteImage }
     )
 
-    expect(effects.deleteImage).toHaveBeenCalledOnce()
-    expect(effects.deleteImage).toHaveBeenCalledWith(
+    expect(deleteImage).toHaveBeenCalledOnce()
+    expect(deleteImage).toHaveBeenCalledWith(
       "https://example.com/old-cat.jpg"
     )
   })
 
   it("does not delete any image when it is unchanged on update", async () => {
-    const effects = makeEffects()
+    const deleteImage = vi.fn()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("img-same") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("img-same") })
     )
 
     await updateCategory(
       category.id,
       makeCategoryInput({ slug: categorySlug("img-same") }),
-      effects
+      { deleteImage }
     )
 
-    expect(effects.deleteImage).not.toHaveBeenCalled()
+    expect(deleteImage).not.toHaveBeenCalled()
   })
 
   it("deletes the previous image when it is removed on update", async () => {
-    const effects = makeEffects()
+    const deleteImage = vi.fn()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("img-remove") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("img-remove") })
     )
 
     await updateCategory(
       category.id,
       makeCategoryInput({ slug: categorySlug("img-remove"), image: null }),
-      effects
+      { deleteImage }
     )
 
-    expect(effects.deleteImage).toHaveBeenCalledOnce()
-    expect(effects.deleteImage).toHaveBeenCalledWith(
+    expect(deleteImage).toHaveBeenCalledOnce()
+    expect(deleteImage).toHaveBeenCalledWith(
       "https://example.com/cat.jpg"
     )
   })
 
   it("updates a category name and re-indexes the documents of its products", async () => {
-    const effects = makeEffects()
+    const reindexProducts = vi.fn()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("update"), name: "Avant" }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("update"), name: "Avant" })
     )
     const product = await prisma.product.create({
       data: {
@@ -260,11 +234,11 @@ describe("admin structure mutations — categories", () => {
     await updateCategory(
       category.id,
       makeCategoryInput({ slug: categorySlug("update"), name: "Après" }),
-      effects
+      { reindexProducts }
     )
 
-    expect(effects.reindexProducts).toHaveBeenCalledOnce()
-    expect(effects.reindexProducts).toHaveBeenCalledWith([
+    expect(reindexProducts).toHaveBeenCalledOnce()
+    expect(reindexProducts).toHaveBeenCalledWith([
       expect.objectContaining({
         id: product.id,
         name: "Produit reindexé",
@@ -276,45 +250,37 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("accepts an unchanged slug on update", async () => {
-    const effects = makeEffects()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("self") }),
-      effects
+      makeCategoryInput({ slug: categorySlug("self") })
     )
 
     await expect(
       updateCategory(
         category.id,
-        makeCategoryInput({ slug: categorySlug("self"), name: "Renommé" }),
-        makeEffects()
+        makeCategoryInput({ slug: categorySlug("self"), name: "Renommé" })
       )
     ).resolves.toMatchObject({ slug: categorySlug("self") })
   })
 
   it("rejects updating a category to another category's slug", async () => {
-    const effects = makeEffects()
     const first = await createCategory(
-      makeCategoryInput({ slug: categorySlug("slug-a") }),
-      effects
+      makeCategoryInput({ slug: categorySlug("slug-a") })
     )
     await createCategory(
-      makeCategoryInput({ slug: categorySlug("slug-b") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("slug-b") })
     )
 
     await expect(
       updateCategory(
         first.id,
-        makeCategoryInput({ slug: categorySlug("slug-b") }),
-        makeEffects()
+        makeCategoryInput({ slug: categorySlug("slug-b") })
       )
     ).rejects.toThrow(CategorySlugConflictError)
   })
 
   it("rejects making a category its own parent", async () => {
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("cycle-self") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("cycle-self") })
     )
 
     await expect(
@@ -323,24 +289,20 @@ describe("admin structure mutations — categories", () => {
         makeCategoryInput({
           slug: categorySlug("cycle-self"),
           parentId: category.id,
-        }),
-        makeEffects()
+        })
       )
     ).rejects.toThrow(CategoryValidationError)
   })
 
   it("rejects moving a category under one of its own descendants", async () => {
     const parent = await createCategory(
-      makeCategoryInput({ slug: categorySlug("cyc-a") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("cyc-a") })
     )
     const child = await createCategory(
-      makeCategoryInput({ slug: categorySlug("cyc-b"), parentId: parent.id }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("cyc-b"), parentId: parent.id })
     )
     const grandchild = await createCategory(
-      makeCategoryInput({ slug: categorySlug("cyc-c"), parentId: child.id }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("cyc-c"), parentId: child.id })
     )
 
     await expect(
@@ -349,75 +311,73 @@ describe("admin structure mutations — categories", () => {
         makeCategoryInput({
           slug: categorySlug("cyc-a"),
           parentId: grandchild.id,
-        }),
-        makeEffects()
+        })
       )
     ).rejects.toThrow(CategoryValidationError)
   })
 
   it("throws CategoryNotFoundError when updating an unknown category", async () => {
     await expect(
-      updateCategory("unknown-id", makeCategoryInput(), makeEffects())
+      updateCategory("unknown-id", makeCategoryInput())
     ).rejects.toThrow(CategoryNotFoundError)
   })
 
   it("deletes an empty category and revalidates", async () => {
-    const effects = makeEffects()
+    const revalidateCategories = vi.fn()
+    const reindexProducts = vi.fn()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("delete-empty") }),
-      effects
+      makeCategoryInput({ slug: categorySlug("delete-empty") })
     )
 
-    await deleteCategory(category.id, effects)
+    await deleteCategory(category.id, {
+      revalidateCategories,
+      reindexProducts,
+    })
 
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
-    expect(effects.revalidateCategories).toHaveBeenCalled()
-    expect(effects.reindexProducts).not.toHaveBeenCalled()
+    expect(revalidateCategories).toHaveBeenCalled()
+    expect(reindexProducts).not.toHaveBeenCalled()
   })
 
   it("deletes the category image through effects when present", async () => {
-    const effects = makeEffects()
+    const deleteImage = vi.fn()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-img") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("del-img") })
     )
 
-    await deleteCategory(category.id, effects)
+    await deleteCategory(category.id, { deleteImage })
 
-    expect(effects.deleteImage).toHaveBeenCalledOnce()
-    expect(effects.deleteImage).toHaveBeenCalledWith(
+    expect(deleteImage).toHaveBeenCalledOnce()
+    expect(deleteImage).toHaveBeenCalledWith(
       "https://example.com/cat.jpg"
     )
   })
 
   it("does not delete any image when the deleted category has none", async () => {
-    const effects = makeEffects()
+    const deleteImage = vi.fn()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-no-img"), image: null }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("del-no-img"), image: null })
     )
 
-    await deleteCategory(category.id, effects)
+    await deleteCategory(category.id, { deleteImage })
 
-    expect(effects.deleteImage).not.toHaveBeenCalled()
+    expect(deleteImage).not.toHaveBeenCalled()
   })
 
   it("blocks deletion of a category that still has children", async () => {
     const parent = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-parent") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("del-parent") })
     )
     await createCategory(
       makeCategoryInput({
         slug: categorySlug("del-child"),
         parentId: parent.id,
-      }),
-      makeEffects()
+      })
     )
 
-    await expect(deleteCategory(parent.id, makeEffects())).rejects.toThrow(
+    await expect(deleteCategory(parent.id)).rejects.toThrow(
       CategoryHasChildrenError
     )
 
@@ -428,8 +388,7 @@ describe("admin structure mutations — categories", () => {
 
   it("blocks deletion of a category that still has products", async () => {
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-prods") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("del-prods") })
     )
     await prisma.product.create({
       data: {
@@ -444,7 +403,7 @@ describe("admin structure mutations — categories", () => {
       },
     })
 
-    const promise = deleteCategory(category.id, makeEffects())
+    const promise = deleteCategory(category.id)
     await expect(promise).rejects.toThrow(CategoryHasProductsError)
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
@@ -452,14 +411,13 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("reassigns products to a target category when deleting", async () => {
-    const effects = makeEffects()
+    const reindexProducts = vi.fn()
+    const revalidateCategories = vi.fn()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-reassign") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("del-reassign") })
     )
     const target = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-target") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("del-target") })
     )
     const product = await prisma.product.create({
       data: {
@@ -474,9 +432,11 @@ describe("admin structure mutations — categories", () => {
       },
     })
 
-    await deleteCategory(category.id, effects, {
-      reassignToCategoryId: target.id,
-    })
+    await deleteCategory(
+      category.id,
+      { reindexProducts, revalidateCategories },
+      { reassignToCategoryId: target.id }
+    )
 
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
@@ -485,31 +445,51 @@ describe("admin structure mutations — categories", () => {
       where: { id: product.id },
     })
     expect(moved.categoryId).toBe(target.id)
-    expect(effects.reindexProducts).toHaveBeenCalledWith([
+    expect(reindexProducts).toHaveBeenCalledWith([
       expect.objectContaining({
         id: product.id,
         categorySlug: target.slug,
         categoryName: target.name,
       }),
     ])
-    expect(effects.revalidateCategories).toHaveBeenCalled()
+    expect(revalidateCategories).toHaveBeenCalled()
+  })
+
+  it("still persists the mutation when revalidation throws", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const category = await createCategory(
+        makeCategoryInput({ slug: categorySlug("fail-cache") }),
+        {
+          revalidateCategories: vi.fn(() => {
+            throw new Error("cache down")
+          }),
+        }
+      )
+      expect(category.name).toBe("Catégorie Test T3")
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("invalidation"),
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it("rejects reassigning products to an unknown target", async () => {
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-bad-target") }),
-      makeEffects()
+      makeCategoryInput({ slug: categorySlug("del-bad-target") })
     )
 
     await expect(
-      deleteCategory(category.id, makeEffects(), {
+      deleteCategory(category.id, undefined, {
         reassignToCategoryId: "unknown",
       })
     ).rejects.toThrow(CategoryValidationError)
   })
 
   it("throws CategoryNotFoundError when deleting an unknown category", async () => {
-    await expect(deleteCategory("unknown-id", makeEffects())).rejects.toThrow(
+    await expect(deleteCategory("unknown-id")).rejects.toThrow(
       CategoryNotFoundError
     )
   })
