@@ -81,26 +81,28 @@ export type {
  * retombe aussi sur « aucune » — jamais à moitié, ne lève jamais.
  * État local volontairement non synchronisé avec l'URL.
  */
-export function useDevisSelection(devis: Devis): {
+function isDevisHolder(devis: Devis | DevisHolder): devis is DevisHolder {
+  return "choisir" in devis && typeof devis.choisir === "function"
+}
+
+export function useDevisSelection(devis: Devis | DevisHolder): {
   villes: DeliveryCityOption[]
   selection: SelectionDevis
   rows: RécapitulatifRow[]
-  choisir: (villeId: string) => void
+  choisir(villeId: string): void
+  villeId: string | null
 } {
-  const [villeId, setVilleId] = useState(
-    devis.cas === "validée" ? devis.ville.id : ""
+  const [holder, setHolder] = useState<DevisHolder>(() =>
+    isDevisHolder(devis) ? devis : creerDevisHolder(devis)
   )
-  const selection = selectionnerDevis(
-    devis.cities,
-    devis.quotes,
-    villeId || null
-  )
-  const rows = lignesDevis(devis.sousTotal, selection)
 
   return {
-    villes: devis.cities,
-    selection,
-    rows,
-    choisir: (nouvelleVilleId: string) => setVilleId(nouvelleVilleId),
+    villes: holder.villes,
+    selection: holder.selection,
+    rows: holder.rows,
+    villeId: holder.villeId,
+    choisir: (nouvelleVilleId: string) => {
+      setHolder((current) => current.choisir(nouvelleVilleId))
+    },
   }
 }
