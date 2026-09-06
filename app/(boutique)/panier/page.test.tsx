@@ -273,7 +273,6 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain(formatPrice(3000))
     expect(html).toContain(formatPrice(253000))
     expect(html).toContain(`data-selected="${cityId}"`)
-    expect(html).toContain("Livraison offerte d")
     expect(html).toContain(`href="/checkout?ville=${cityId}"`)
   })
 
@@ -311,7 +310,8 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).not.toContain("Livraison (")
     expect(html).not.toContain("Livraison offerte d")
     expect(html).toContain('data-selected=""')
-    expect(html).toContain('href="/checkout?ville=ville-perimee"')
+    expect(html).toContain('href="/checkout"')
+    expect(html).not.toContain("?ville=")
     expect(html).not.toContain(formatPrice(103000))
   })
 })
