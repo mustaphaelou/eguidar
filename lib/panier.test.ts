@@ -11,6 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { prixVariante } from "@/lib/product-metrics"
 import { resetCookieStoreMock } from "@/test/cookie-store"
 import { sessionUserMock } from "@/test/navigation-mocks"
 
@@ -275,6 +276,17 @@ describe("lirePanier — lecture du Panier via l'interface", () => {
       subtotal: 0,
       itemCount: 0,
     })
+  })
+
+  it("compose le Prix courant via la règle canonique pure sur une Variante avec écart", async () => {
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantPremium, 1)
+
+    const panier = await lirePanier()
+    const ligne = panier.lines.find((l) => l.variantId === variantPremium)
+
+    expect(ligne).toBeDefined()
+    expect(ligne?.unitPrice).toBe(prixVariante(100000, 50000))
   })
 })
 

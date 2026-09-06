@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 
 import { prisma } from "@/lib/db"
+import { prixVariante } from "@/lib/product-metrics"
 
 // ============================================================================
 // Types et interface publique
@@ -517,7 +518,7 @@ function construireArticleDuPanier(
   variant: VarianteAvecProduit,
   quantity: number
 ): ArticleDuPanier {
-  const unitPrice = variant.product.price + variant.priceDelta
+  const unitPrice = prixVariante(variant.product.price, variant.priceDelta)
   return {
     variantId: variant.id,
     variantName: variant.name,
