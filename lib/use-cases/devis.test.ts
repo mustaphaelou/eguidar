@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   chargerDevis,
+  chargerDevisHolder,
   createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
@@ -59,7 +60,7 @@ const quotes: Record<string, ShippingQuote> = {
 
 const aucune = { cas: "aucune" } as const
 
-describe("selectionnerDevis", () => {
+describe("internal seam: selectionnerDevis (core lookup)", () => {
   it("resolves a known city id to that city and its quote", () => {
     expect(selectionnerDevis(cities, quotes, "c1")).toStrictEqual({
       cas: "validée",
@@ -296,6 +297,96 @@ describe("chargerDevis", () => {
     expect(articleOffert.sousTotal).toBe(panierOffert.subtotal)
     expect(articleOffert.devis).toMatchObject({ shippingFee: 0 })
     expect(lignesDevis(articleOffert.sousTotal, articleOffert)[1]).toMatchObject({
+      label: "Livraison (Rabat)",
+      value: "Livraison offerte",
+      tone: "offered",
+    })
+  })
+})
+
+describe("chargerDevisHolder", () => {
+  const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
+
+  beforeEach(() => {
+    listDeliveryCitiesMock.mockReset()
+    getFreeShippingThresholdMock.mockReset()
+    listDeliveryCitiesMock.mockResolvedValue(villes)
+    getFreeShippingThresholdMock.mockResolvedValue(100000)
+  })
+
+  it("yields a DevisHolder with precedence, selection, and pre-derived rows", async () => {
+    const panier = panierPourDevis(50000)
+    const holder = await chargerDevisHolder(panier, "c1")
+
+    expect(holder.villeId).toBe("c1")
+    expect(holder.villes).toEqual(villes)
+    expect(holder.selection.cas).toBe("validée")
+    if (holder.selection.cas === "validée") {
+      expect(holder.selection.ville).toStrictEqual(city("c1", "Casablanca", 3500))
+    }
+    expect(holder.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      kind: "detail",
+    })
+    expect(holder.rows.find((row) => row.kind === "total")).toBeDefined()
+  })
+
+  it("yields aucune selection without throwing for an unknown or absent ville", async () => {
+    const panier = panierPourDevis(50000)
+
+    const holderUnknown = await chargerDevisHolder(panier, "ville-inconnue")
+    expect(holderUnknown.villeId).toBeNull()
+    expect(holderUnknown.selection.cas).toBe("aucune")
+    expect(holderUnknown.rows[1]).toMatchObject({
+      label: "Livraison",
+      value: "À choisir",
+      tone: "muted",
+    })
+    expect(holderUnknown.rows.some((row) => row.kind === "total")).toBe(false)
+
+    const holderNone = await chargerDevisHolder(panier, null)
+    expect(holderNone.villeId).toBeNull()
+    expect(holderNone.selection.cas).toBe("aucune")
+  })
+
+  it("supports precedence sources (url ville winning over profile fallback)", async () => {
+    const panier = panierPourDevis(50000)
+    const holderWithBoth = await chargerDevisHolder(panier, {
+      urlVilleId: "c1",
+      profileVilleId: "c2",
+    })
+    expect(holderWithBoth.villeId).toBe("c1")
+
+    const holderProfileFallback = await chargerDevisHolder(panier, {
+      urlVilleId: null,
+      profileVilleId: "c2",
+    })
+    expect(holderProfileFallback.villeId).toBe("c2")
+  })
+
+  it("intake narrowing on loaded holder validates or throws DeliveryCityNotFoundError", async () => {
+    const panier = panierPourDevis(50000)
+    const validHolder = await chargerDevisHolder(panier, "c1")
+    expect(validHolder.selectionValidee().cas).toBe("validée")
+    expect(validHolder.validerSelection().ville.id).toBe("c1")
+
+    const emptyHolder = await chargerDevisHolder(panier, null)
+    expect(() => emptyHolder.selectionValidee()).toThrow(DeliveryCityNotFoundError)
+    expect(() => emptyHolder.validerSelection()).toThrow(DeliveryCityNotFoundError)
+  })
+
+  it("renders offered tone when threshold is reached or free-shipping item is present", async () => {
+    const panierAuSeuil = panierPourDevis(150000)
+    const holderSeuil = await chargerDevisHolder(panierAuSeuil, "c1")
+    expect(holderSeuil.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      value: "Livraison offerte",
+      tone: "offered",
+    })
+
+    const panierOffert = panierPourDevis(50000, [false, true])
+    const holderArticleOffert = await chargerDevisHolder(panierOffert, "c2")
+    expect(holderArticleOffert.rows[1]).toMatchObject({
       label: "Livraison (Rabat)",
       value: "Livraison offerte",
       tone: "offered",
