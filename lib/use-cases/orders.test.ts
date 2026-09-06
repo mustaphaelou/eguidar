@@ -13,7 +13,7 @@ import {
 import { prisma } from "@/lib/db"
 import { ajouterArticleAuPanier, lirePanierClient } from "@/lib/panier"
 import { sessionUserMock } from "@/test/navigation-mocks"
-import { chargerDevis } from "@/lib/use-cases/devis"
+import { chargerDevisHolder } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import {
@@ -357,17 +357,15 @@ describe("order placement", () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     const cart = await lirePanierClient(userIdA)
-    const devis = await chargerDevis(cart, cityId)
-    if (devis.cas !== "validée") {
-      throw new Error("expected the Sélection du Devis to be validée")
-    }
+    const devis = await chargerDevisHolder(cart, cityId)
+    const selection = devis.selectionValidee()
 
     const order = await placeOrder(userIdA, checkoutInput())
 
-    expect(order.cityName).toBe(devis.ville.name)
-    expect(order.shippingFee).toBe(devis.devis.shippingFee)
+    expect(order.cityName).toBe(selection.ville.name)
+    expect(order.shippingFee).toBe(selection.devis.shippingFee)
     expect(order.total).toBe(cart.subtotal)
-    expect(order.total + order.shippingFee).toBe(devis.devis.total)
+    expect(order.total + order.shippingFee).toBe(selection.devis.total)
   })
 
   it("offers free shipping above the threshold", async () => {

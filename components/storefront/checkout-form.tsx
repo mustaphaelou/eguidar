@@ -25,12 +25,11 @@ import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-pai
 import { formatShippingFee } from "@/lib/money"
 import {
   useDevisSelection,
-  type Devis,
   type DevisHolder,
 } from "@/lib/use-cases/devis-selection"
 
 export interface CheckoutFormProps {
-  devis: Devis | DevisHolder
+  devis: DevisHolder
   initialAddress: string
   initialPhone: string
 }

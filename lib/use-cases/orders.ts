@@ -12,7 +12,7 @@ import {
   deliveryAddressField,
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
-import { chargerDevis, chargerDevisHolder } from "@/lib/use-cases/devis"
+import { chargerDevisHolder } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 

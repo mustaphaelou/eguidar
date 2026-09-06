@@ -7,7 +7,7 @@ import { formatPrice } from "@/lib/money"
 import {
   creerDevisHolder,
   useDevisSelection,
-  type Devis,
+  type DevisHolder,
 } from "@/lib/use-cases/devis-selection"
 import type {
   DeliveryCityOption,
@@ -71,26 +71,24 @@ const QUOTES: Record<string, ShippingQuote> = {
   c2: QUOTE_RABAT,
 }
 
-function devisValide(): Devis {
-  return {
+function devisValide(): DevisHolder {
+  return creerDevisHolder({
     cities: VILLES,
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    cas: "validée",
-    ville: CASA,
-    devis: QUOTE_CASA,
-  }
+    urlVilleId: "c1",
+  })
 }
 
-function devisAucune(): Devis {
-  return {
+function devisAucune(): DevisHolder {
+  return creerDevisHolder({
     cities: VILLES,
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    cas: "aucune",
-  }
+    urlVilleId: null,
+  })
 }
 
 describe("useDevisSelection", () => {

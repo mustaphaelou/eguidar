@@ -41,9 +41,6 @@ import {
   createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
-  lignesDevis,
-  selectionnerDevis,
-  type Devis,
   type DevisHolder,
   type DevisHolderInit,
   type DevisPrecedenceSources,
@@ -55,11 +52,8 @@ export {
   createDevisHolder,
   creerDevisHolder,
   DeliveryCityNotFoundError,
-  lignesDevis,
-  selectionnerDevis,
 } from "@/lib/use-cases/devis-coeur"
 export type {
-  Devis,
   DevisHolder,
   DevisHolderInit,
   DevisPrecedenceSources,
@@ -71,21 +65,14 @@ export type {
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.
  *
  * Possède l'état de la Ville de livraison sélectionnée (initialisé depuis
- * le Devis chargé) et expose `{ villes, selection, rows, choisir(villeId) }`.
- * Chaque `choisir` re-chiffre les lignes instantanément depuis le
- * `sousTotal` propre du Devis (`lignesDevis(devis.sousTotal, selection)`),
- * sur la même couture pure que `chargerDevis` — l'invariant
- * « jamais à moitié » vit ici, en un seul endroit.
+ * le DevisHolder) et expose `{ villes, selection, rows, choisir(villeId) }`.
+ * Chaque `choisir` délègue au holder qui dérive les lignes instantanément.
  *
  * `choisir("")` retombe sur le cas « aucune » ; un identifiant inconnu
  * retombe aussi sur « aucune » — jamais à moitié, ne lève jamais.
  * État local volontairement non synchronisé avec l'URL.
  */
-function isDevisHolder(devis: Devis | DevisHolder): devis is DevisHolder {
-  return "choisir" in devis && typeof devis.choisir === "function"
-}
-
-export function useDevisSelection(devis: Devis | DevisHolder): {
+export function useDevisSelection(devis: DevisHolder): {
   villes: DeliveryCityOption[]
   selection: SelectionDevis
   rows: RécapitulatifRow[]
@@ -100,8 +87,7 @@ export function useDevisSelection(devis: Devis | DevisHolder): {
   const [localChoice, setLocalChoice] = useState<string | null>(null)
   const [hasChosen, setHasChosen] = useState<boolean>(false)
 
-  const baseHolder = isDevisHolder(devis) ? devis : creerDevisHolder(devis)
-  const activeHolder = hasChosen ? baseHolder.choisir(localChoice) : baseHolder
+  const activeHolder = hasChosen ? devis.choisir(localChoice) : devis
 
   return {
     villes: activeHolder.villes,
