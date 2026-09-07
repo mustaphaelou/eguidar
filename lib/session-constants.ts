@@ -1,0 +1,1 @@
+export const SESSION_INACTIVE_SECONDS = 30 * 60
