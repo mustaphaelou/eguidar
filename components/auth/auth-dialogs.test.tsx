@@ -119,6 +119,31 @@ function locationParams() {
   return new URL(window.location.href).searchParams
 }
 
+function overlay() {
+  return document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')
+}
+
+function pressEscape() {
+  act(() => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+    )
+  })
+}
+
+function submitButton() {
+  return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.type === "submit"
+  )!
+}
+
+function swapButton(label: string) {
+  return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) =>
+      button.type === "button" && button.textContent?.includes(label)
+  )!
+}
+
 describe("AuthDialogs", () => {
   it("opens the Connexion modal from the header user button and keeps it open", () => {
     render(() => storefront())
@@ -170,5 +195,191 @@ describe("AuthDialogs", () => {
     expect(dialog()).not.toBeNull()
     expect(locationParams().get("open")).toBe("login")
     expect(locationParams().get("next")).toBe("/panier")
+  })
+
+  it("dismisses the Connexion modal on Escape and cleans open and next from the URL", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?open=login&next=/produit/tableau-atlas&ville=casa"
+    )
+    render(() => storefront())
+    rerender()
+    expect(dialog()).not.toBeNull()
+
+    pressEscape()
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(locationParams().get("ville")).toBe("casa")
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+  })
+
+  it("dismisses the Connexion modal on backdrop click and cleans open and next from the URL", () => {
+    window.history.replaceState(null, "", "/?open=login&next=/panier&tri=prix")
+    render(() => storefront())
+    rerender()
+    expect(overlay()).not.toBeNull()
+
+    act(() => {
+      overlay()!.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(locationParams().get("tri")).toBe("prix")
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+  })
+
+  it("dismisses the Inscription modal with the close button, Escape, and the backdrop while cleaning the URL", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?open=signup&next=/compte&ville=rabat"
+    )
+    render(() => storefront())
+    rerender()
+    expect(dialog()).not.toBeNull()
+
+    act(() => closeButton()!.click())
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(locationParams().get("ville")).toBe("rabat")
+
+    window.history.replaceState(null, "", "/?open=signup")
+    rerender()
+    expect(dialog()).not.toBeNull()
+
+    pressEscape()
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+
+    window.history.replaceState(null, "", "/?open=signup")
+    rerender()
+    expect(overlay()).not.toBeNull()
+
+    act(() => {
+      overlay()!.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+  })
+
+  it("closes cleanly after swapping from Connexion to Inscription without reopening", () => {
+    render(() => storefront())
+
+    act(() => headerButton().click())
+    rerender()
+    expect(locationParams().get("open")).toBe("login")
+
+    act(() => swapButton("Inscrivez-vous").click())
+    rerender()
+
+    expect(dialog()).not.toBeNull()
+    expect(locationParams().get("open")).toBe("signup")
+    expect(
+      document.querySelector('[data-slot="dialog-title"]')?.textContent
+    ).toBe("Créer un compte")
+
+    pressEscape()
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+  })
+
+  it("closes cleanly after swapping from Inscription to Connexion without reopening", () => {
+    window.history.replaceState(null, "", "/?open=signup")
+    render(() => storefront())
+    rerender()
+    expect(dialog()).not.toBeNull()
+
+    act(() => swapButton("Se connecter").click())
+    rerender()
+
+    expect(locationParams().get("open")).toBe("login")
+
+    act(() => closeButton()!.click())
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+  })
+
+  it("resets transient form field errors when the Connexion modal is dismissed and reopened", () => {
+    render(() => storefront())
+
+    act(() => headerButton().click())
+    rerender()
+
+    act(() => submitButton().click())
+    rerender()
+
+    const errors = [
+      ...document.querySelectorAll('[data-slot="field-error"]'),
+    ].map((errorElement) => errorElement.textContent)
+    expect(errors).toContain("Saisissez votre adresse e-mail.")
+    expect(errors).toContain("Saisissez votre mot de passe.")
+
+    pressEscape()
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+
+    act(() => headerButton().click())
+    rerender()
+
+    expect(dialog()).not.toBeNull()
+    expect(document.querySelector('[data-slot="field-error"]')).toBeNull()
+    expect(locationParams().get("open")).toBe("login")
+  })
+
+  it("leaves no residual auth parameters after rapid consecutive Escape presses", () => {
+    window.history.replaceState(null, "", "/?open=login&next=/panier")
+    render(() => storefront())
+    rerender()
+    expect(dialog()).not.toBeNull()
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
   })
 })
