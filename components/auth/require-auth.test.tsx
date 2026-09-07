@@ -21,6 +21,12 @@ const { searchParamsState, sessionState } = vi.hoisted(() => ({
 }))
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => new URL(window.location.href).pathname,
+  useRouter: () => ({
+    replace: (url: string) => {
+      window.history.replaceState(null, "", url)
+    },
+  }),
   useSearchParams: () => searchParamsState.value,
 }))
 
