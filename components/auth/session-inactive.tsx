@@ -39,8 +39,13 @@ export function SessionInactiveController() {
     if (expiringRef.current || !sessionRef.current) return
     expiringRef.current = true
     setNoticeVisible(true)
-    await signOut()
-    openLoginForCurrentPage()
+    try {
+      await signOut()
+    } catch (error) {
+      console.error("Failed to sign out after session inactivity", error)
+    } finally {
+      openLoginForCurrentPage()
+    }
   }, [openLoginForCurrentPage])
 
   useEffect(() => {
@@ -50,15 +55,19 @@ export function SessionInactiveController() {
     }
   }, [session, handleExpiry])
 
-  const resetTimer = useCallback(() => {
-    if (expiringRef.current) return
-    lastActivityRef.current = Date.now()
+  const schedule = useCallback((ms: number) => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
       expiryRef.current()
-    }, SESSION_INACTIVE_SECONDS * 1000)
+    }, ms)
   }, [])
+
+  const resetTimer = useCallback(() => {
+    if (expiringRef.current) return
+    lastActivityRef.current = Date.now()
+    schedule(SESSION_INACTIVE_SECONDS * 1000)
+  }, [schedule])
 
   useEffect(() => {
     if (isPending || !session) return
@@ -70,23 +79,18 @@ export function SessionInactiveController() {
       if (lastActivity === null) return
       const elapsed = Date.now() - lastActivity
       const remaining = SESSION_INACTIVE_SECONDS * 1000 - elapsed
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current)
-      timerRef.current = null
       if (remaining <= 0) {
         expiryRef.current()
         return
       }
-      timerRef.current = window.setTimeout(() => {
-        timerRef.current = null
-        expiryRef.current()
-      }, remaining)
+      schedule(remaining)
     }
 
     document.addEventListener("visibilitychange", onWake)
     return () => {
       document.removeEventListener("visibilitychange", onWake)
     }
-  }, [isPending, session])
+  }, [isPending, session, schedule])
 
   useEffect(() => {
     if (isPending || !session) return

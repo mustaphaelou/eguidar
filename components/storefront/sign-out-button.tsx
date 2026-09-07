@@ -27,7 +27,7 @@ export function SignOutButton() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="sm"
       aria-label="Déconnexion"
       title="Déconnexion"
       disabled={pending}
@@ -35,7 +35,12 @@ export function SignOutButton() {
         void handleSignOut()
       }}
     >
-      <HugeiconsIcon icon={Logout03Icon} strokeWidth={2} />
+      <HugeiconsIcon
+        icon={Logout03Icon}
+        strokeWidth={2}
+        data-icon="inline-start"
+      />
+      Déconnexion
     </Button>
   )
 }

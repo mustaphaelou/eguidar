@@ -5,7 +5,7 @@ import { captcha, emailOTP } from "better-auth/plugins"
 
 import { prisma } from "@/lib/db"
 import { sendOtpEmail } from "@/lib/emails"
-import { SESSION_INACTIVE_SECONDS } from "@/lib/session-constants"
+import { SESSION_INACTIVE_SECONDS, SESSION_UPDATE_AGE_SECONDS } from "@/lib/session-constants"
 
 export const auth = betterAuth({
   appName: "Eguidar",
@@ -14,7 +14,7 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   session: {
     expiresIn: SESSION_INACTIVE_SECONDS,
-    updateAge: SESSION_INACTIVE_SECONDS,
+    updateAge: SESSION_UPDATE_AGE_SECONDS,
   },
   user: {
     additionalFields: {

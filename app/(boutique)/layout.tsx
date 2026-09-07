@@ -1,5 +1,4 @@
-import { AuthDialogs } from "@/components/auth/auth-dialogs"
-import { SessionInactiveController } from "@/components/auth/session-inactive"
+import { AuthSessionLayer } from "@/components/auth/auth-session-layer"
 import { StorefrontFooter } from "@/components/storefront/footer"
 import { StorefrontHeader } from "@/components/storefront/header"
 
@@ -9,13 +8,12 @@ export default function BoutiqueLayout({
   children: React.ReactNode
 }) {
   return (
-    <AuthDialogs>
-      <SessionInactiveController />
+    <AuthSessionLayer>
       <div className="flex min-h-svh flex-col">
         <StorefrontHeader />
         <main className="flex-1">{children}</main>
         <StorefrontFooter />
       </div>
-    </AuthDialogs>
+    </AuthSessionLayer>
   )
 }
