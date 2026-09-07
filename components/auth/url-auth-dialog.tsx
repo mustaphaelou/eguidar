@@ -5,12 +5,8 @@ import { useSearchParams } from "next/navigation"
 
 import { useSession } from "@/lib/client"
 import { useAuthDialogs } from "@/components/auth/auth-dialogs-context"
-import { parseAuthParams, withoutAuthParams } from "@/lib/lien-de-connexion"
-import { replaceUrl } from "@/components/auth/sync-url"
-
-function removeOpenParam() {
-  replaceUrl((url) => withoutAuthParams(url.href))
-}
+import { parseAuthParams } from "@/lib/lien-de-connexion"
+import { useAuthUrlSync } from "@/components/auth/use-auth-url-sync"
 
 export function UrlAuthDialog() {
   return (
@@ -22,6 +18,7 @@ export function UrlAuthDialog() {
 
 function UrlAuthDialogInner() {
   const searchParams = useSearchParams()
+  const { clearAuthParams } = useAuthUrlSync()
   const { data: session, isPending } = useSession()
   const { dialog, openLogin, openSignUp, close } = useAuthDialogs()
   const target = parseAuthParams(searchParams).dialog
@@ -30,14 +27,23 @@ function UrlAuthDialogInner() {
     if (isPending) return
     if (!target || session) {
       if (dialog) close()
-      removeOpenParam()
+      clearAuthParams()
       return
     }
     if (dialog !== target) {
       if (target === "login") openLogin()
       else openSignUp()
     }
-  }, [target, isPending, session, dialog, openLogin, openSignUp, close])
+  }, [
+    target,
+    isPending,
+    session,
+    dialog,
+    openLogin,
+    openSignUp,
+    close,
+    clearAuthParams,
+  ])
 
   return null
 }
