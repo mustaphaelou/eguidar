@@ -414,4 +414,59 @@ describe("SessionInactiveController", () => {
     expect(signOut).toHaveBeenCalledTimes(1)
     expect(currentUrl().searchParams.get("open")).toBe("login")
   })
+
+  describe("SessionInactiveController in the Administration", () => {
+    it("expires an idle admin session: notice first, then signOut, then the Connexion modal over the current admin page", async () => {
+      window.history.replaceState(null, "", "/admin/commandes")
+      signOutControl.hang = true
+      render(() => controllerWithModalHarness())
+
+      act(() => {
+        vi.advanceTimersByTime(IDLE_MS)
+      })
+
+      expect(notice()).not.toBeNull()
+      expect(container.textContent).toContain(SESSION_INACTIVE_NOTICE)
+      expect(signOut).toHaveBeenCalledTimes(1)
+      expect(dialog()).toBeNull()
+      expect(currentUrl().searchParams.has("open")).toBe(false)
+
+      await act(async () => {
+        signOutControl.resolve?.()
+      })
+      sessionState.value = { data: null, isPending: false }
+      rerender()
+      await flush()
+
+      expect(currentUrl().pathname).toBe("/admin/commandes")
+      expect(currentUrl().searchParams.get("open")).toBe("login")
+      expect(currentUrl().searchParams.get("next")).toBe("/admin/commandes")
+      expect(dialog()).not.toBeNull()
+    })
+
+    it("resets the timer for admin activity: navigation and keyboard work in admin forms", async () => {
+      window.history.replaceState(null, "", "/admin/produits")
+      render(() => controllerHarness())
+
+      await avancer(IDLE_MS - 60_000)
+      act(() => {
+        window.history.pushState(null, "", "/admin/categories")
+      })
+      rerender()
+      await avancer(IDLE_MS - 60_000)
+      simulerActivite()
+      await avancer(IDLE_MS - 60_000)
+
+      expect(signOut).not.toHaveBeenCalled()
+      expect(notice()).toBeNull()
+      expect(currentUrl().searchParams.has("open")).toBe(false)
+
+      await avancer(60_000)
+      await flush()
+
+      expect(signOut).toHaveBeenCalledTimes(1)
+      expect(currentUrl().pathname).toBe("/admin/categories")
+      expect(currentUrl().searchParams.get("next")).toBe("/admin/categories")
+    })
+  })
 })
