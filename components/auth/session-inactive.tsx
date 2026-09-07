@@ -31,6 +31,7 @@ export function SessionInactiveController() {
   const [noticeVisible, setNoticeVisible] = useState(false)
   const timerRef = useRef<number | null>(null)
   const expiringRef = useRef(false)
+  const lastActivityRef = useRef<number | null>(null)
   const sessionRef = useRef(session)
   const expiryRef = useRef<() => void>(() => {})
 
@@ -51,12 +52,41 @@ export function SessionInactiveController() {
 
   const resetTimer = useCallback(() => {
     if (expiringRef.current) return
+    lastActivityRef.current = Date.now()
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
       expiryRef.current()
     }, SESSION_INACTIVE_SECONDS * 1000)
   }, [])
+
+  useEffect(() => {
+    if (isPending || !session) return
+
+    const onWake = () => {
+      if (document.visibilityState !== "visible") return
+      if (expiringRef.current) return
+      const lastActivity = lastActivityRef.current
+      if (lastActivity === null) return
+      const elapsed = Date.now() - lastActivity
+      const remaining = SESSION_INACTIVE_SECONDS * 1000 - elapsed
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+      timerRef.current = null
+      if (remaining <= 0) {
+        expiryRef.current()
+        return
+      }
+      timerRef.current = window.setTimeout(() => {
+        timerRef.current = null
+        expiryRef.current()
+      }, remaining)
+    }
+
+    document.addEventListener("visibilitychange", onWake)
+    return () => {
+      document.removeEventListener("visibilitychange", onWake)
+    }
+  }, [isPending, session])
 
   useEffect(() => {
     if (isPending || !session) return
