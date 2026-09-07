@@ -197,6 +197,75 @@ describe("AuthDialogs", () => {
     expect(locationParams().get("next")).toBe("/panier")
   })
 
+  it("silently sanitizes a Lien de connexion for an authenticated Client without mounting any modal", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?open=login&next=/panier&q=chaussures"
+    )
+    ;(window as unknown as Record<string, unknown>).__pageInstance = true
+    sessionState.value = { data: { user: { id: "1" } }, isPending: false }
+    render(() => storefront())
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(locationParams().get("q")).toBe("chaussures")
+    expect(window.location.pathname).toBe("/")
+    expect((window as unknown as Record<string, unknown>).__pageInstance).toBe(
+      true
+    )
+    expect(headerButton()).not.toBeNull()
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+  })
+
+  it("silently sanitizes Inscription parameters for an authenticated Client without mounting any modal", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?open=signup&next=/compte&tri=prix"
+    )
+    ;(window as unknown as Record<string, unknown>).__pageInstance = true
+    sessionState.value = { data: { user: { id: "1" } }, isPending: false }
+    render(() => storefront())
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(locationParams().get("tri")).toBe("prix")
+    expect((window as unknown as Record<string, unknown>).__pageInstance).toBe(
+      true
+    )
+  })
+
+  it("never flashes the Connexion modal while the session check resolves, then sanitizes", () => {
+    window.history.replaceState(null, "", "/?open=login&next=/panier")
+    sessionState.value = { data: null, isPending: true }
+    render(() => storefront())
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBe("login")
+
+    sessionState.value = { data: { user: { id: "1" } }, isPending: false }
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+  })
+
   it("dismisses the Connexion modal on Escape and cleans open and next from the URL", () => {
     window.history.replaceState(
       null,
