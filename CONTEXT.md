@@ -112,6 +112,14 @@ _Avoid_: sign-up page, register
 Le chemin interne de la boutique où le client reprend son parcours après une authentification réussie ; il est demandé en même temps que la Connexion ou l'Inscription et toujours validé comme chemin relatif.
 _Avoid_: redirect, callback, retour
 
+**Déconnexion**:
+The act by which a Client ends their own session via the « Déconnexion » button in the header, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
+_Avoid_: logout, se déconnecter (as the screen name), déconnexion automatique (reserved for Session inactive)
+
+**Session inactive**:
+A Client session ended automatically after 30 minutes without any activity on their part (click, scroll, keypress or navigation). The Client is shown a brief notice, then the Connexion modal with the Destination post-connexion set to the page they were on; their Panier survives and is reattached on reconnection. Distinct from Déconnexion, which is voluntary.
+_Avoid_: logout automatique, timeout, session expirée, expiration de session
+
 **Lien de connexion**:
 Un lien ou une redirection qui ouvre la modale de Connexion ou d'Inscription sur la page courante
 via les paramètres d'URL `?open=login|signup` et `?next`.

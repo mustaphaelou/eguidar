@@ -6,6 +6,7 @@ import { Suspense } from "react"
 import { AppSidebar } from "@/components/layout/admin/app-sidebar"
 import { SiteHeader } from "@/components/layout/admin/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { AuthSessionLayer } from "@/components/auth/auth-session-layer"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import { loginUrl } from "@/lib/lien-de-connexion"
 import { site } from "@/lib/site"
@@ -38,20 +39,22 @@ async function AdminShell({ children }: { children: React.ReactNode }) {
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false"
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen}>
-      <AppSidebar
-        userName={session.user.name ?? ""}
-        userEmail={session.user.email}
-      />
-      <SidebarInset className="@container/content">
-        <SiteHeader
+    <AuthSessionLayer>
+      <SidebarProvider defaultOpen={defaultOpen}>
+        <AppSidebar
           userName={session.user.name ?? ""}
           userEmail={session.user.email}
         />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+        <SidebarInset className="@container/content">
+          <SiteHeader
+            userName={session.user.name ?? ""}
+            userEmail={session.user.email}
+          />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </AuthSessionLayer>
   )
 }
