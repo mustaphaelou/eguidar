@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState } from "react"
 
 import { Cash01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -9,7 +9,7 @@ import {
   placeOrderAction,
   type CheckoutFormState,
 } from "@/app/(boutique)/checkout/actions"
-import { useAuthUrlSync } from "@/components/auth/use-auth-url-sync"
+import { useUnauthenticatedRefusal } from "@/components/auth/use-unauthenticated-refusal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -52,12 +52,7 @@ export function CheckoutForm({
   const selectedCityId =
     villeId ?? (selection.cas === "validée" ? selection.ville.id : "")
 
-  const { openLoginForCurrentPage } = useAuthUrlSync()
-
-  useEffect(() => {
-    if (!state.unauthenticated) return
-    openLoginForCurrentPage()
-  }, [state, openLoginForCurrentPage])
+  useUnauthenticatedRefusal(state)
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

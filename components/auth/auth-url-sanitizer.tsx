@@ -19,13 +19,12 @@ function AuthUrlSanitizerInner() {
   const searchParams = useSearchParams()
   const { clearAuthParams } = useAuthUrlSync()
   const { data: session, isPending } = useSession()
-  const hasOpenParam = searchParams.has("open")
-  const dialog = parseAuthParams(searchParams).dialog
+  const { open, dialog } = parseAuthParams(searchParams)
 
   useEffect(() => {
     if (isPending) return
-    if (hasOpenParam && (session || !dialog)) clearAuthParams()
-  }, [hasOpenParam, dialog, isPending, session, clearAuthParams])
+    if (open !== null && (session || !dialog)) clearAuthParams()
+  }, [open, dialog, isPending, session, clearAuthParams])
 
   return null
 }

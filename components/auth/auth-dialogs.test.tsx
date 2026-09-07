@@ -8,15 +8,20 @@ import { AuthDialogs } from "./auth-dialogs"
 import { RequireAuth } from "./require-auth"
 import { SignInButton } from "@/components/storefront/sign-in-button"
 
-const { sessionState } = vi.hoisted(() => ({
+const { sessionState, historyStack } = vi.hoisted(() => ({
   sessionState: {
     value: { data: null as { user: { id: string } } | null, isPending: false },
   },
+  historyStack: [] as string[],
 }))
 
 vi.mock("next/navigation", () => ({
   usePathname: () => new URL(window.location.href).pathname,
   useRouter: () => ({
+    push: (url: string) => {
+      historyStack.push(window.location.href)
+      window.history.pushState(null, "", url)
+    },
     replace: (url: string) => {
       window.history.replaceState(null, "", url)
     },
@@ -40,7 +45,7 @@ vi.mock("next/link", () => ({
 }))
 
 vi.mock("@/components/auth/turnstile", () => ({
-  Turnstile: () => null,
+  Turnstile: () => <div data-testid="turnstile-challenge" />,
 }))
 
 vi.mock("@/lib/client", () => ({
@@ -67,6 +72,7 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   window.history.replaceState(null, "", "/")
+  historyStack.length = 0
   sessionState.value = { data: null, isPending: false }
 })
 
@@ -190,6 +196,49 @@ describe("AuthDialogs", () => {
     rerender()
 
     expect(dialog()).toBeNull()
+  })
+
+  it("opens the Connexion modal as a history entry so the back button dismisses it", () => {
+    render(() => storefront())
+
+    act(() => headerButton().click())
+    rerender()
+
+    expect(dialog()).not.toBeNull()
+    expect(locationParams().get("open")).toBe("login")
+
+    act(() => {
+      window.history.replaceState(null, "", historyStack.pop()!)
+    })
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(locationParams().has("open")).toBe(false)
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+  })
+
+  it("unmounts the Turnstile challenge when the modal is dismissed", () => {
+    render(() => storefront())
+
+    act(() => headerButton().click())
+    rerender()
+
+    expect(dialog()).not.toBeNull()
+    expect(
+      document.querySelector('[data-testid="turnstile-challenge"]')
+    ).not.toBeNull()
+
+    pressEscape()
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(
+      document.querySelector('[data-testid="turnstile-challenge"]')
+    ).toBeNull()
   })
 
   it("opens the Connexion modal from a Lien de connexion in the URL", () => {

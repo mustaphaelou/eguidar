@@ -6,6 +6,7 @@ const URL_BASE = "http://localhost"
 export type AuthDialogName = "login" | "signup"
 
 export interface AuthParams {
+  open: string | null
   dialog: AuthDialogName | null
   next: string | null
 }
@@ -48,7 +49,7 @@ export function parseAuthParams(search: string | URLSearchParams): AuthParams {
   const open = params.get(OPEN_PARAM)
   const dialog: AuthDialogName | null =
     open === "login" || open === "signup" ? open : null
-  return { dialog, next: safeDestination(params.get(NEXT_PARAM)) }
+  return { open, dialog, next: safeDestination(params.get(NEXT_PARAM)) }
 }
 
 export function withAuthParams(
@@ -74,6 +75,7 @@ export function withoutAuthParams(url: string): string {
 export function withoutAuthSearchParams(
   search: string | URLSearchParams
 ): string {
+  if (search === "") return ""
   if (typeof search === "string" && !search.startsWith("?")) {
     return rewriteSearchParams(search, deleteAuthParams)
   }

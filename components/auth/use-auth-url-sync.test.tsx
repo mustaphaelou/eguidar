@@ -9,11 +9,13 @@ import { useSearchParams } from "next/navigation"
 import { parseAuthParams } from "@/lib/lien-de-connexion"
 import { useAuthUrlSync } from "./use-auth-url-sync"
 
-const { params, replaceSpy, adopt } = vi.hoisted(() => {
+const { params, pushSpy, replaceSpy, adopt } = vi.hoisted(() => {
   const params = new URLSearchParams()
+  const pushSpy = vi.fn()
   const replaceSpy = vi.fn()
   return {
     params,
+    pushSpy,
     replaceSpy,
     adopt(search: string) {
       const next = new URLSearchParams(search)
@@ -26,6 +28,13 @@ const { params, replaceSpy, adopt } = vi.hoisted(() => {
 vi.mock("next/navigation", () => ({
   usePathname: () => new URL(window.location.href).pathname,
   useRouter: () => ({
+    push: (url: string, options: { scroll: boolean }) => {
+      pushSpy(url, options)
+      const parsed = new URL(url, window.location.origin)
+      const address = `${parsed.pathname}${parsed.search}${parsed.hash}`
+      window.history.pushState(null, "", address)
+      adopt(parsed.search)
+    },
     replace: (url: string, options: { scroll: boolean }) => {
       replaceSpy(url, options)
       const parsed = new URL(url, window.location.origin)
@@ -48,6 +57,7 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/panier?q=chaussures")
   adopt(window.location.search)
   replaceSpy.mockClear()
+  pushSpy.mockClear()
 })
 
 afterEach(() => {
@@ -111,12 +121,12 @@ function locationParams() {
 }
 
 describe("useAuthUrlSync", () => {
-  it("opens the Connexion modal through the client router and notifies search-param consumers", () => {
+  it("opens the Connexion modal as a history entry through the client router and notifies search-param consumers", () => {
     render(<Harness />)
 
     click("open-login")
 
-    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=login&next=%2Fpanier",
       { scroll: false }
     )
@@ -134,12 +144,9 @@ describe("useAuthUrlSync", () => {
 
     click("open-signup")
 
-    expect(replaceSpy).toHaveBeenCalledWith(
-      "/panier?q=chaussures&open=signup",
-      {
-        scroll: false,
-      }
-    )
+    expect(pushSpy).toHaveBeenCalledWith("/panier?q=chaussures&open=signup", {
+      scroll: false,
+    })
 
     rerender(<Harness />)
 
@@ -203,6 +210,7 @@ describe("useAuthUrlSync", () => {
 
     click("open-login")
 
+    expect(pushSpy).not.toHaveBeenCalled()
     expect(replaceSpy).not.toHaveBeenCalled()
   })
 
@@ -211,10 +219,49 @@ describe("useAuthUrlSync", () => {
 
     click("open-login-page")
 
-    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures",
       { scroll: false }
     )
+  })
+
+  it("preserves the URL fragment when opening the Connexion modal", () => {
+    window.history.replaceState(null, "", "/panier?q=chaussures#avis")
+    adopt(window.location.search)
+    render(<Harness />)
+
+    click("open-login-page")
+
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures%23avis#avis",
+      { scroll: false }
+    )
+    expect(new URL(window.location.href).hash).toBe("#avis")
+  })
+
+  it("preserves the URL fragment when closing and clearing auth params", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/panier?open=login&next=/profil&q=chaussures#avis"
+    )
+    adopt(window.location.search)
+    render(<Harness />)
+    rerender(<Harness />)
+    expect(dialog()).toBe("login")
+
+    click("clear")
+
+    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures#avis",
+      { scroll: false }
+    )
+    expect(locationParams().get("open")).toBeNull()
+    expect(new URL(window.location.href).hash).toBe("#avis")
+
+    rerender(<Harness />)
+
+    expect(dialog()).toBe("none")
   })
 
   it("reuses an existing validated Destination post-connexion", () => {
@@ -224,7 +271,7 @@ describe("useAuthUrlSync", () => {
 
     click("open-login-page")
 
-    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
       "/panier?next=%2Fprofil&open=login",
       { scroll: false }
     )
@@ -237,7 +284,7 @@ describe("useAuthUrlSync", () => {
 
     click("open-login-page")
 
-    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
       "/panier?next=%2Fpanier&open=login",
       { scroll: false }
     )

@@ -19,16 +19,26 @@ function currentSearch(): string {
   return typeof window === "undefined" ? "" : window.location.search
 }
 
+function currentHash(): string {
+  return typeof window === "undefined" ? "" : window.location.hash
+}
+
 function currentAddress(): string {
-  return `${currentPathname()}${currentSearch()}`
+  return `${currentPathname()}${currentSearch()}${currentHash()}`
 }
 
 function pageAddressWithoutAuthParams(): string {
-  const pathname = currentPathname()
-  const search = currentSearch()
-  if (!search) return pathname
-  const cleaned = withoutAuthSearchParams(search)
-  return cleaned ? `${pathname}${cleaned}` : pathname
+  const cleaned = withoutAuthSearchParams(currentSearch())
+  return `${currentPathname()}${cleaned}${currentHash()}`
+}
+
+function navigateUnlessUnchanged(
+  current: string,
+  updated: string,
+  navigate: (url: string) => void
+): void {
+  if (!urlWouldChange(updated, current)) return
+  navigate(updated)
 }
 
 export function useAuthUrlSync() {
@@ -37,23 +47,22 @@ export function useAuthUrlSync() {
   const openAuthDialog = useCallback(
     (dialog: AuthDialogName, next?: string) => {
       const current = currentAddress()
-      const updated = withAuthParams(current, { dialog, next })
-      if (!urlWouldChange(updated, current)) return
-      router.replace(updated, { scroll: false })
+      navigateUnlessUnchanged(
+        current,
+        withAuthParams(current, { dialog, next }),
+        (url) => router.push(url, { scroll: false })
+      )
     },
     [router]
   )
 
   const clearAuthParams = useCallback(() => {
     const current = currentAddress()
-    const search = currentSearch()
-    if (!search) return
-    const cleaned = withoutAuthSearchParams(search)
-    const updated = cleaned
-      ? `${currentPathname()}${cleaned}`
-      : currentPathname()
-    if (!urlWouldChange(updated, current)) return
-    router.replace(updated, { scroll: false })
+    navigateUnlessUnchanged(
+      current,
+      pageAddressWithoutAuthParams(),
+      (url) => router.replace(url, { scroll: false })
+    )
   }, [router])
 
   const openLoginForCurrentPage = useCallback(() => {

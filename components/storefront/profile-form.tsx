@@ -1,12 +1,12 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState } from "react"
 
 import {
   updateProfileAction,
   type ProfileFormState,
 } from "@/app/(boutique)/profil/actions"
-import { useAuthUrlSync } from "@/components/auth/use-auth-url-sync"
+import { useUnauthenticatedRefusal } from "@/components/auth/use-unauthenticated-refusal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,12 +41,7 @@ export function ProfileForm({
     initialState
   )
 
-  const { openLoginForCurrentPage } = useAuthUrlSync()
-
-  useEffect(() => {
-    if (!state.unauthenticated) return
-    openLoginForCurrentPage()
-  }, [state, openLoginForCurrentPage])
+  useUnauthenticatedRefusal(state)
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

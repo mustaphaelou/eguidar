@@ -25,6 +25,9 @@ vi.mock("@/app/(boutique)/checkout/actions", () => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => new URL(window.location.href).pathname,
   useRouter: () => ({
+    push: (url: string) => {
+      window.history.pushState(null, "", url)
+    },
     replace: (url: string) => {
       window.history.replaceState(null, "", url)
     },
@@ -95,6 +98,7 @@ import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 let originalReplaceState: typeof window.history.replaceState
+let originalPushState: typeof window.history.pushState
 
 beforeEach(() => {
   container = document.createElement("div")
@@ -103,11 +107,19 @@ beforeEach(() => {
   searchParamsState.sync(window.location.search)
   placeOrderMock.mockReset()
   originalReplaceState = window.history.replaceState.bind(window.history)
-  window.history.replaceState = (data, unused, url) => {
-    originalReplaceState(data, unused, url)
+  originalPushState = window.history.pushState.bind(window.history)
+  const syncFromUrl = (url?: string | URL | null) => {
     searchParamsState.sync(
       new URL(url ?? window.location.href, window.location.origin).search
     )
+  }
+  window.history.replaceState = (data, unused, url) => {
+    originalReplaceState(data, unused, url)
+    syncFromUrl(url)
+  }
+  window.history.pushState = (data, unused, url) => {
+    originalPushState(data, unused, url)
+    syncFromUrl(url)
   }
 })
 
@@ -118,6 +130,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.clearAllMocks()
   window.history.replaceState = originalReplaceState
+  window.history.pushState = originalPushState
 })
 
 function render(element: ReactElement) {

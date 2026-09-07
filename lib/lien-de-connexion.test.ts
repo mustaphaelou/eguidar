@@ -58,6 +58,7 @@ describe("parseAuthParams", () => {
     const search = url.slice(url.indexOf("?"))
 
     expect(parseAuthParams(search)).toEqual({
+      open: "login",
       dialog: "login",
       next: "/admin",
     })
@@ -68,6 +69,7 @@ describe("parseAuthParams", () => {
     const search = new URLSearchParams(url.slice(url.indexOf("?")))
 
     expect(parseAuthParams(search)).toEqual({
+      open: "signup",
       dialog: "signup",
       next: "/profil",
     })
@@ -77,14 +79,20 @@ describe("parseAuthParams", () => {
     expect(
       parseAuthParams("?open=login&next=%2Fprofil%2Fcommandes%3Fpage%3D2")
     ).toEqual({
+      open: "login",
       dialog: "login",
       next: "/profil/commandes?page=2",
     })
   })
 
   it("yields nulls for absent parameters", () => {
-    expect(parseAuthParams("")).toEqual({ dialog: null, next: null })
+    expect(parseAuthParams("")).toEqual({
+      open: null,
+      dialog: null,
+      next: null,
+    })
     expect(parseAuthParams("?q=chaussures&tri=prix-asc")).toEqual({
+      open: null,
       dialog: null,
       next: null,
     })
@@ -92,20 +100,27 @@ describe("parseAuthParams", () => {
 
   it("yields a null dialog for unknown open values", () => {
     expect(parseAuthParams("?open=checkout")).toEqual({
+      open: "checkout",
       dialog: null,
       next: null,
     })
-    expect(parseAuthParams("?open=")).toEqual({ dialog: null, next: null })
+    expect(parseAuthParams("?open=")).toEqual({
+      open: "",
+      dialog: null,
+      next: null,
+    })
   })
 
   it("yields a null destination for unsafe values", () => {
     for (const unsafe of OPEN_REDIRECT_CASES) {
       expect(parseAuthParams(`?open=login&next=${unsafe}`)).toEqual({
+        open: "login",
         dialog: "login",
         next: null,
       })
     }
     expect(parseAuthParams("?open=login&next=")).toEqual({
+      open: "login",
       dialog: "login",
       next: null,
     })
@@ -191,6 +206,11 @@ describe("withoutAuthParams", () => {
 })
 
 describe("withoutAuthSearchParams", () => {
+  it("maps an empty search to an empty result", () => {
+    expect(withoutAuthSearchParams("")).toBe("")
+    expect(withoutAuthSearchParams(new URLSearchParams())).toBe("")
+  })
+
   it("strips a single auth parameter from a URL", () => {
     expect(withoutAuthSearchParams("/?open=login")).toBe("/")
     expect(withoutAuthSearchParams("/panier?next=%2Fprofil")).toBe("/panier")

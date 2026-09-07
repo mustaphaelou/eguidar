@@ -13,6 +13,9 @@ import { setInputValue } from "./test-utils"
 vi.mock("next/navigation", () => ({
   usePathname: () => new URL(window.location.href).pathname,
   useRouter: () => ({
+    push: (url: string) => {
+      window.history.pushState(null, "", url)
+    },
     replace: (url: string) => {
       window.history.replaceState(null, "", url)
     },
