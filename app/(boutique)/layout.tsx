@@ -1,4 +1,5 @@
 import { AuthDialogs } from "@/components/auth/auth-dialogs"
+import { SessionInactiveController } from "@/components/auth/session-inactive"
 import { StorefrontFooter } from "@/components/storefront/footer"
 import { StorefrontHeader } from "@/components/storefront/header"
 
@@ -9,6 +10,7 @@ export default function BoutiqueLayout({
 }) {
   return (
     <AuthDialogs>
+      <SessionInactiveController />
       <div className="flex min-h-svh flex-col">
         <StorefrontHeader />
         <main className="flex-1">{children}</main>
