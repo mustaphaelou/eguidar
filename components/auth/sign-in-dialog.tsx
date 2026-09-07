@@ -10,7 +10,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { SignInForm } from "@/components/auth/sign-in-form"
-import { useAuthDialogs } from "@/components/auth/auth-dialogs-context"
+import {
+  useAuthDialogOpen,
+  useAuthDialogs,
+} from "@/components/auth/auth-dialogs-context"
 import {
   headingForDestination,
   useAuthDestination,
@@ -25,8 +28,8 @@ export function SignInDialog({
   hasGoogle: boolean
   hasApple: boolean
 }) {
-  const { dialog, email, openSignUp, close } = useAuthDialogs()
-  const open = dialog === "login"
+  const { email, openSignUp, close } = useAuthDialogs()
+  const open = useAuthDialogOpen("login")
 
   return (
     <Dialog

@@ -27,6 +27,12 @@ vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession } },
 }))
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 import { AuthDialogsProvider } from "@/components/auth/auth-dialogs-context"
 import { SignInStatus } from "./sign-in-status"
 

@@ -7,16 +7,16 @@ import {
   useMemo,
   useState,
 } from "react"
+import { useSearchParams } from "next/navigation"
 
 import {
   type AuthDialogName,
-  withAuthParams,
-  withoutAuthParams,
+  parseAuthParams,
 } from "@/lib/lien-de-connexion"
-import { replaceUrl } from "@/components/auth/sync-url"
+import { useSession } from "@/lib/client"
+import { useAuthUrlSync } from "@/components/auth/use-auth-url-sync"
 
 type AuthDialogsContextValue = {
-  dialog: AuthDialogName | null
   email: string
   openLogin: (email?: string) => void
   openSignUp: (email?: string) => void
@@ -25,41 +25,38 @@ type AuthDialogsContextValue = {
 
 const AuthDialogsContext = createContext<AuthDialogsContextValue | null>(null)
 
-function syncOpenParam(dialog: AuthDialogName | null) {
-  replaceUrl((url) =>
-    dialog ? withAuthParams(url.href, { dialog }) : withoutAuthParams(url.href)
-  )
-}
-
 export function AuthDialogsProvider({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [dialog, setDialog] = useState<AuthDialogName | null>(null)
   const [email, setEmail] = useState("")
+  const { openAuthDialog, clearAuthParams } = useAuthUrlSync()
 
-  const openLogin = useCallback((prefillEmail?: string) => {
-    if (prefillEmail !== undefined) setEmail(prefillEmail)
-    setDialog("login")
-    syncOpenParam("login")
-  }, [])
+  const openLogin = useCallback(
+    (prefillEmail?: string) => {
+      if (prefillEmail !== undefined) setEmail(prefillEmail)
+      openAuthDialog("login")
+    },
+    [openAuthDialog]
+  )
 
-  const openSignUp = useCallback((prefillEmail?: string) => {
-    if (prefillEmail !== undefined) setEmail(prefillEmail)
-    setDialog("signup")
-    syncOpenParam("signup")
-  }, [])
+  const openSignUp = useCallback(
+    (prefillEmail?: string) => {
+      if (prefillEmail !== undefined) setEmail(prefillEmail)
+      openAuthDialog("signup")
+    },
+    [openAuthDialog]
+  )
 
   const close = useCallback(() => {
-    setDialog(null)
     setEmail("")
-    syncOpenParam(null)
-  }, [])
+    clearAuthParams()
+  }, [clearAuthParams])
 
   const value = useMemo(
-    () => ({ dialog, email, openLogin, openSignUp, close }),
-    [dialog, email, openLogin, openSignUp, close]
+    () => ({ email, openLogin, openSignUp, close }),
+    [email, openLogin, openSignUp, close]
   )
 
   return (
@@ -67,6 +64,13 @@ export function AuthDialogsProvider({
       {children}
     </AuthDialogsContext.Provider>
   )
+}
+
+export function useAuthDialogOpen(dialog: AuthDialogName): boolean {
+  const searchParams = useSearchParams()
+  const { data: session, isPending } = useSession()
+  if (isPending || session) return false
+  return parseAuthParams(searchParams).dialog === dialog
 }
 
 export function useAuthDialogs() {

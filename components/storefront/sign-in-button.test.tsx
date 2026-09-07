@@ -2,18 +2,33 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { useSearchParams } from "next/navigation"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { parseAuthParams } from "@/lib/lien-de-connexion"
 import {
   AuthDialogsProvider,
-  useAuthDialogs,
 } from "@/components/auth/auth-dialogs-context"
 import { SignInButton } from "./sign-in-button"
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => new URL(window.location.href).pathname,
+  useRouter: () => ({
+    push: (url: string) => {
+      window.history.pushState(null, "", url)
+    },
+    replace: (url: string) => {
+      window.history.replaceState(null, "", url)
+    },
+  }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}))
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
+let currentElement: (() => ReactElement) | null = null
 
 beforeEach(() => {
   container = document.createElement("div")
@@ -24,33 +39,43 @@ beforeEach(() => {
 afterEach(() => {
   for (const root of roots) root.unmount()
   roots.length = 0
+  currentElement = null
   container.remove()
 })
 
-function render(element: ReactElement) {
+function render(element: () => ReactElement) {
+  currentElement = element
   const root = createRoot(container)
   roots.push(root)
-  act(() => root.render(element))
+  act(() => root.render(element()))
 }
 
 function Probe() {
-  const { dialog } = useAuthDialogs()
+  const searchParams = useSearchParams()
+  const { dialog } = parseAuthParams(searchParams)
   return <div data-dialog={dialog ?? "none"} />
 }
 
 function renderWithProvider() {
-  render(
+  render(() => (
     <AuthDialogsProvider>
       <Probe />
       <SignInButton />
     </AuthDialogsProvider>
-  )
+  ))
 }
 
 function signInButton() {
   return container.querySelector<HTMLButtonElement>(
     'button[aria-label="Connexion"]'
   )!
+}
+
+function clickAndSync(target: HTMLElement) {
+  act(() => {
+    target.click()
+    if (currentElement) roots[roots.length - 1].render(currentElement())
+  })
 }
 
 describe("SignInButton", () => {
@@ -63,7 +88,7 @@ describe("SignInButton", () => {
   it("opens the login dialog in place on click, without navigating", () => {
     renderWithProvider()
 
-    act(() => signInButton().click())
+    clickAndSync(signInButton())
 
     expect(
       container.querySelector("[data-dialog]")!.getAttribute("data-dialog")

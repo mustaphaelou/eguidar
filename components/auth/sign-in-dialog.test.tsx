@@ -11,7 +11,16 @@ import { setInputValue } from "./test-utils"
 import { authClient } from "@/lib/client"
 
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => new URL(window.location.href).pathname,
+  useRouter: () => ({
+    push: (url: string) => {
+      window.history.pushState(null, "", url)
+    },
+    replace: (url: string) => {
+      window.history.replaceState(null, "", url)
+    },
+  }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }))
 
 vi.mock("next/link", () => ({
@@ -34,6 +43,7 @@ vi.mock("@/components/auth/turnstile", () => ({
 }))
 
 vi.mock("@/lib/client", () => ({
+  useSession: () => ({ data: null, isPending: false }),
   authClient: {
     signIn: {
       email: vi.fn(),
@@ -50,6 +60,7 @@ vi.mock("@/lib/client", () => ({
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
+let currentElement: (() => ReactElement) | null = null
 
 beforeEach(() => {
   container = document.createElement("div")
@@ -60,14 +71,23 @@ beforeEach(() => {
 afterEach(() => {
   for (const root of roots) root.unmount()
   roots.length = 0
+  currentElement = null
   container.remove()
   vi.restoreAllMocks()
 })
 
-function render(element: ReactElement) {
+function render(element: () => ReactElement) {
+  currentElement = element
   const root = createRoot(container)
   roots.push(root)
-  act(() => root.render(element))
+  act(() => root.render(element()))
+}
+
+function clickAndSync(target: HTMLElement) {
+  act(() => {
+    target.click()
+    if (currentElement) roots[roots.length - 1].render(currentElement())
+  })
 }
 
 function Harness({ children }: { children?: React.ReactNode }) {
@@ -83,13 +103,13 @@ function Harness({ children }: { children?: React.ReactNode }) {
 }
 
 function renderWithDialogs(harness: React.ReactElement) {
-  render(
+  render(() => (
     <AuthDialogsProvider>
       {harness}
       <SignInDialog hasGoogle={false} hasApple={false} />
       <SignUpDialog />
     </AuthDialogsProvider>
-  )
+  ))
 }
 
 function dialog() {
@@ -120,7 +140,7 @@ describe("SignInDialog", () => {
     renderWithDialogs(<Harness />)
 
     expect(dialog()).toBeNull()
-    act(() => openButton().click())
+    clickAndSync(openButton())
 
     expect(dialog()).not.toBeNull()
     expect(title()).toBe("Connexion à Eguidar")
@@ -130,13 +150,14 @@ describe("SignInDialog", () => {
   it("writes ?open=login to the URL when opened and clears it on close", () => {
     renderWithDialogs(<Harness />)
 
-    act(() => openButton().click())
+    clickAndSync(openButton())
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
 
     act(() => {
       document.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
       )
+      if (currentElement) roots[roots.length - 1].render(currentElement())
     })
 
     expect(dialog()).toBeNull()
@@ -146,9 +167,9 @@ describe("SignInDialog", () => {
   it("swaps to the sign-up dialog with the entered email prefilled", () => {
     renderWithDialogs(<Harness />)
 
-    act(() => openButton().click())
+    clickAndSync(openButton())
     setInputValue(emailInput()!, "swap@example.com")
-    act(() => swapButton()!.click())
+    clickAndSync(swapButton()!)
 
     expect(dialog()).not.toBeNull()
     expect(title()).toBe("Créer un compte")
@@ -164,17 +185,15 @@ describe("SignInDialog", () => {
   it("opens the sign-up dialog and swaps back to login", () => {
     renderWithDialogs(<SwapHarness />)
 
-    act(() =>
-      container.querySelector<HTMLButtonElement>("[data-open-signup]")!.click()
+    clickAndSync(
+      container.querySelector<HTMLButtonElement>("[data-open-signup]")!
     )
 
     expect(title()).toBe("Créer un compte")
-    act(() =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-slot="dialog-description"] button'
-        )!
-        .click()
+    clickAndSync(
+      document.querySelector<HTMLButtonElement>(
+        '[data-slot="dialog-description"] button'
+      )!
     )
 
     expect(title()).toBe("Connexion à Eguidar")
@@ -184,7 +203,7 @@ describe("SignInDialog", () => {
   it("renders the popup with aria-modal", () => {
     renderWithDialogs(<Harness />)
 
-    act(() => openButton().click())
+    clickAndSync(openButton())
 
     expect(
       document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")
@@ -199,7 +218,7 @@ describe("SignInDialog", () => {
     )
     renderWithDialogs(<Harness />)
 
-    act(() => openButton().click())
+    clickAndSync(openButton())
 
     expect(title()).toBe("Connectez-vous pour finaliser votre commande")
   })
@@ -208,8 +227,8 @@ describe("SignInDialog", () => {
     window.history.replaceState(null, "", "/?open=signup&next=/compte")
     renderWithDialogs(<SwapHarness />)
 
-    act(() =>
-      container.querySelector<HTMLButtonElement>("[data-open-signup]")!.click()
+    clickAndSync(
+      container.querySelector<HTMLButtonElement>("[data-open-signup]")!
     )
 
     expect(title()).toBe("Créez votre compte pour continuer")
@@ -218,7 +237,7 @@ describe("SignInDialog", () => {
   it("blocks submit with field issues and does not call the API when invalid", () => {
     renderWithDialogs(<Harness />)
 
-    act(() => openButton().click())
+    clickAndSync(openButton())
     const submit = dialog()!.querySelector<HTMLButtonElement>(
       'form button[type="submit"]'
     )!
@@ -235,7 +254,7 @@ describe("SignInDialog", () => {
   it("reports an invalid email format inline", () => {
     renderWithDialogs(<Harness />)
 
-    act(() => openButton().click())
+    clickAndSync(openButton())
     setInputValue(emailInput()!, "pas-un-email")
     setInputValue(
       dialog()!.querySelector<HTMLInputElement>('input[type="password"]')!,

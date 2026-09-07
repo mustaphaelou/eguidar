@@ -6,6 +6,7 @@ const URL_BASE = "http://localhost"
 export type AuthDialogName = "login" | "signup"
 
 export interface AuthParams {
+  open: string | null
   dialog: AuthDialogName | null
   next: string | null
 }
@@ -17,6 +18,11 @@ export interface AuthParamsOptions {
 
 function safeDestination(raw: string | null | undefined): string | null {
   return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : null
+}
+
+function deleteAuthParams(params: URLSearchParams): void {
+  params.delete(OPEN_PARAM)
+  params.delete(NEXT_PARAM)
 }
 
 function rewriteSearchParams(
@@ -43,7 +49,7 @@ export function parseAuthParams(search: string | URLSearchParams): AuthParams {
   const open = params.get(OPEN_PARAM)
   const dialog: AuthDialogName | null =
     open === "login" || open === "signup" ? open : null
-  return { dialog, next: safeDestination(params.get(NEXT_PARAM)) }
+  return { open, dialog, next: safeDestination(params.get(NEXT_PARAM)) }
 }
 
 export function withAuthParams(
@@ -64,6 +70,19 @@ export function withoutAuthParams(url: string): string {
   return rewriteSearchParams(url, (params) => {
     params.delete(OPEN_PARAM)
   })
+}
+
+export function withoutAuthSearchParams(
+  search: string | URLSearchParams
+): string {
+  if (search === "") return ""
+  if (typeof search === "string" && !search.startsWith("?")) {
+    return rewriteSearchParams(search, deleteAuthParams)
+  }
+  const params = new URLSearchParams(search)
+  deleteAuthParams(params)
+  const cleaned = params.toString()
+  return cleaned ? `?${cleaned}` : ""
 }
 
 export function urlWouldChange(updated: string | URL, current: string | URL) {

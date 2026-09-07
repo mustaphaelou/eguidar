@@ -11,7 +11,16 @@ import { SignUpDialog } from "./sign-up-dialog"
 import { setInputValue } from "./test-utils"
 
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => new URL(window.location.href).pathname,
+  useRouter: () => ({
+    push: (url: string) => {
+      window.history.pushState(null, "", url)
+    },
+    replace: (url: string) => {
+      window.history.replaceState(null, "", url)
+    },
+  }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }))
 
 vi.mock("next/link", () => ({
@@ -34,6 +43,7 @@ vi.mock("@/components/auth/turnstile", () => ({
 }))
 
 vi.mock("@/lib/client", () => ({
+  useSession: () => ({ data: null, isPending: false }),
   authClient: {
     signUp: {
       email: vi.fn(),
@@ -65,6 +75,7 @@ const mockedAuthClient = authClient as unknown as {
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
+let currentElement: (() => ReactElement) | null = null
 
 beforeEach(() => {
   container = document.createElement("div")
@@ -84,14 +95,23 @@ beforeEach(() => {
 afterEach(() => {
   for (const root of roots) root.unmount()
   roots.length = 0
+  currentElement = null
   container.remove()
   vi.restoreAllMocks()
 })
 
-function render(element: ReactElement) {
+function render(element: () => ReactElement) {
+  currentElement = element
   const root = createRoot(container)
   roots.push(root)
-  act(() => root.render(element))
+  act(() => root.render(element()))
+}
+
+function clickAndSync(target: HTMLElement) {
+  act(() => {
+    target.click()
+    if (currentElement) roots[roots.length - 1].render(currentElement())
+  })
 }
 
 function OpenSignUpButton() {
@@ -104,14 +124,14 @@ function OpenSignUpButton() {
 }
 
 function renderSignUpDialog() {
-  render(
+  render(() => (
     <AuthDialogsProvider>
       <OpenSignUpButton />
       <SignInDialog hasGoogle={false} hasApple={false} />
       <SignUpDialog />
     </AuthDialogsProvider>
-  )
-  act(() => container.querySelector("button")!.click())
+  ))
+  clickAndSync(container.querySelector("button")!)
 }
 
 function title() {
@@ -132,6 +152,7 @@ function submitButton(text: string) {
 async function clickAndFlush(button: HTMLButtonElement) {
   await act(async () => {
     button.click()
+    if (currentElement) roots[roots.length - 1].render(currentElement())
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
@@ -149,12 +170,10 @@ describe("SignUpDialog", () => {
     expect(dialog()).not.toBeNull()
     expect(title()).toBe("Créer un compte")
 
-    act(() =>
-      document
-        .querySelector<HTMLButtonElement>(
-          "[data-slot='dialog-description'] button"
-        )!
-        .click()
+    clickAndSync(
+      document.querySelector<HTMLButtonElement>(
+        "[data-slot='dialog-description'] button"
+      )!
     )
 
     expect(title()).toBe("Connexion à Eguidar")
