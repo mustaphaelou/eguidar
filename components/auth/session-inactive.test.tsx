@@ -180,6 +180,12 @@ function simulerActivite() {
   })
 }
 
+function simulerReveil() {
+  act(() => {
+    document.dispatchEvent(new Event("visibilitychange"))
+  })
+}
+
 describe("SessionInactiveController", () => {
   it("shows the notice first, then signs out, then opens the Connexion modal over the current page", async () => {
     signOutControl.hang = true
@@ -314,5 +320,98 @@ describe("SessionInactiveController", () => {
 
     expect(signOut).toHaveBeenCalledTimes(2)
     expect(notice()).not.toBeNull()
+  })
+
+  it("expires on wake after more than 30 minutes of true idle time, exactly like a natural expiry", async () => {
+    signOutControl.hang = true
+    render(() => controllerWithModalHarness())
+
+    act(() => {
+      vi.setSystemTime(Date.now() + IDLE_MS + 60_000)
+    })
+    simulerReveil()
+
+    expect(notice()).not.toBeNull()
+    expect(container.textContent).toContain(SESSION_INACTIVE_NOTICE)
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(dialog()).toBeNull()
+
+    await act(async () => {
+      signOutControl.resolve?.()
+    })
+    sessionState.value = { data: null, isPending: false }
+    rerender()
+    await flush()
+
+    expect(currentUrl().pathname).toBe("/panier")
+    expect(currentUrl().searchParams.get("open")).toBe("login")
+    expect(currentUrl().searchParams.get("next")).toBe("/panier")
+    expect(dialog()).not.toBeNull()
+  })
+
+  it("does nothing on wake after less than 30 minutes and keeps the timer alive on true elapsed time", async () => {
+    render(() => controllerHarness())
+
+    act(() => {
+      vi.setSystemTime(Date.now() + IDLE_MS - 5 * 60_000)
+    })
+    simulerReveil()
+    await flush()
+
+    expect(signOut).not.toHaveBeenCalled()
+    expect(notice()).toBeNull()
+    expect(currentUrl().searchParams.has("open")).toBe(false)
+
+    await avancer(4 * 60_000)
+    expect(signOut).not.toHaveBeenCalled()
+
+    await avancer(60_000)
+    await flush()
+
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(notice()).not.toBeNull()
+  })
+
+  it("never triggers a duplicate expiry when waking past the window after a sign-out already happened", async () => {
+    render(() => controllerHarness())
+
+    await avancer(IDLE_MS)
+    expect(signOut).toHaveBeenCalledTimes(1)
+    await flush()
+
+    act(() => {
+      vi.setSystemTime(Date.now() + IDLE_MS * 2)
+    })
+    simulerReveil()
+    simulerReveil()
+    await flush()
+
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(currentUrl().searchParams.has("open")).toBe(true)
+  })
+
+  it("does not re-fire when a wake past the window lands while signOut is still in flight", async () => {
+    signOutControl.hang = true
+    render(() => controllerHarness())
+
+    await avancer(IDLE_MS)
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(notice()).not.toBeNull()
+
+    act(() => {
+      vi.setSystemTime(Date.now() + IDLE_MS * 2)
+    })
+    simulerReveil()
+    await flush()
+
+    await act(async () => {
+      signOutControl.resolve?.()
+    })
+    sessionState.value = { data: null, isPending: false }
+    rerender()
+    await flush()
+
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(currentUrl().searchParams.get("open")).toBe("login")
   })
 })
