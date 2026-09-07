@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 import {
   type AuthDialogName,
@@ -11,15 +11,20 @@ import {
   withoutAuthSearchParams,
 } from "@/lib/lien-de-connexion"
 
+function currentPathname(): string {
+  return typeof window === "undefined" ? "" : window.location.pathname
+}
+
 function currentSearch(): string {
   return typeof window === "undefined" ? "" : window.location.search
 }
 
-function currentAddress(pathname: string): string {
-  return `${pathname}${currentSearch()}`
+function currentAddress(): string {
+  return `${currentPathname()}${currentSearch()}`
 }
 
-function pageAddressWithoutAuthParams(pathname: string): string {
+function pageAddressWithoutAuthParams(): string {
+  const pathname = currentPathname()
   const search = currentSearch()
   if (!search) return pathname
   const cleaned = withoutAuthSearchParams(search)
@@ -28,34 +33,34 @@ function pageAddressWithoutAuthParams(pathname: string): string {
 
 export function useAuthUrlSync() {
   const router = useRouter()
-  const pathname = usePathname()
 
   const openAuthDialog = useCallback(
     (dialog: AuthDialogName, next?: string) => {
-      const current = currentAddress(pathname)
+      const current = currentAddress()
       const updated = withAuthParams(current, { dialog, next })
       if (!urlWouldChange(updated, current)) return
       router.replace(updated, { scroll: false })
     },
-    [router, pathname]
+    [router]
   )
 
   const clearAuthParams = useCallback(() => {
-    const current = currentAddress(pathname)
+    const current = currentAddress()
     const search = currentSearch()
     if (!search) return
     const cleaned = withoutAuthSearchParams(search)
-    const updated = cleaned ? `${pathname}${cleaned}` : pathname
+    const updated = cleaned
+      ? `${currentPathname()}${cleaned}`
+      : currentPathname()
     if (!urlWouldChange(updated, current)) return
     router.replace(updated, { scroll: false })
-  }, [router, pathname])
+  }, [router])
 
   const openLoginForCurrentPage = useCallback(() => {
     const destination =
-      parseAuthParams(currentSearch()).next ??
-      pageAddressWithoutAuthParams(pathname)
+      parseAuthParams(currentSearch()).next ?? pageAddressWithoutAuthParams()
     openAuthDialog("login", destination)
-  }, [openAuthDialog, pathname])
+  }, [openAuthDialog])
 
   return { openAuthDialog, clearAuthParams, openLoginForCurrentPage }
 }

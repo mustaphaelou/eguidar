@@ -5,6 +5,7 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AuthDialogs } from "./auth-dialogs"
+import { RequireAuth } from "./require-auth"
 import { SignInButton } from "@/components/storefront/sign-in-button"
 
 const { sessionState } = vi.hoisted(() => ({
@@ -121,6 +122,10 @@ function locationParams() {
 
 function overlay() {
   return document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')
+}
+
+async function flushDeferredUrlSync() {
+  await act(async () => {})
 }
 
 function pressEscape() {
@@ -400,6 +405,38 @@ describe("AuthDialogs", () => {
     rerender()
 
     expect(dialog()).toBeNull()
+  })
+
+  it("keeps the shopper on the gated page with the refusal placeholder visible after dismissing the Connexion modal", async () => {
+    window.history.replaceState(null, "", "/checkout?ville=casa")
+    render(() => (
+      <AuthDialogs>
+        <RequireAuth />
+      </AuthDialogs>
+    ))
+    await flushDeferredUrlSync()
+    rerender()
+
+    expect(dialog()).not.toBeNull()
+    expect(container.textContent).toContain("Connectez-vous pour continuer")
+    expect(locationParams().get("open")).toBe("login")
+    expect(locationParams().get("next")).toBe("/checkout?ville=casa")
+
+    act(() => closeButton()!.click())
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.textContent).toContain("Connectez-vous pour continuer")
+    expect(new URL(window.location.href).pathname).toBe("/checkout")
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(locationParams().get("ville")).toBe("casa")
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(container.textContent).toContain("Connectez-vous pour continuer")
   })
 
   it("resets transient form field errors when the Connexion modal is dismissed and reopened", () => {

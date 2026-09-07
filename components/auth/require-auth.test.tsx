@@ -218,6 +218,27 @@ describe("RequireAuth with the Connexion modal", () => {
     )
   })
 
+  it("keeps the shopper on the gated page with the refusal placeholder after dismissal, without redirecting", async () => {
+    render(() => fullHarness())
+    await flushDeferredUrlSync()
+    rerender()
+    expect(dialog()).not.toBeNull()
+
+    act(() => closeButton()!.click())
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(container.textContent).toContain("Connectez-vous pour continuer")
+    expect(new URL(window.location.href).pathname).toBe("/panier")
+    expect(new URL(window.location.href).searchParams.has("open")).toBe(false)
+    expect(new URL(window.location.href).searchParams.has("next")).toBe(false)
+
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(container.textContent).toContain("Connectez-vous pour continuer")
+  })
+
   it("reopens the login dialog via Se connecter after the dialog was closed", async () => {
     render(() => fullHarness())
     await flushDeferredUrlSync()
