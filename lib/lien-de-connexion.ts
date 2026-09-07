@@ -19,6 +19,11 @@ function safeDestination(raw: string | null | undefined): string | null {
   return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : null
 }
 
+function deleteAuthParams(params: URLSearchParams): void {
+  params.delete(OPEN_PARAM)
+  params.delete(NEXT_PARAM)
+}
+
 function rewriteSearchParams(
   url: string,
   rewrite: (params: URLSearchParams) => void
@@ -64,6 +69,18 @@ export function withoutAuthParams(url: string): string {
   return rewriteSearchParams(url, (params) => {
     params.delete(OPEN_PARAM)
   })
+}
+
+export function withoutAuthSearchParams(
+  search: string | URLSearchParams
+): string {
+  if (typeof search === "string" && !search.startsWith("?")) {
+    return rewriteSearchParams(search, deleteAuthParams)
+  }
+  const params = new URLSearchParams(search)
+  deleteAuthParams(params)
+  const cleaned = params.toString()
+  return cleaned ? `?${cleaned}` : ""
 }
 
 export function urlWouldChange(updated: string | URL, current: string | URL) {

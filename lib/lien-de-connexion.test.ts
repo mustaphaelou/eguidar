@@ -7,6 +7,7 @@ import {
   urlWouldChange,
   withAuthParams,
   withoutAuthParams,
+  withoutAuthSearchParams,
 } from "./lien-de-connexion"
 
 const OPEN_REDIRECT_CASES = [
@@ -186,6 +187,83 @@ describe("withoutAuthParams", () => {
       "/compte?onglet=commandes"
     )
     expect(withoutAuthParams("/")).toBe("/")
+  })
+})
+
+describe("withoutAuthSearchParams", () => {
+  it("strips a single auth parameter from a URL", () => {
+    expect(withoutAuthSearchParams("/?open=login")).toBe("/")
+    expect(withoutAuthSearchParams("/panier?next=%2Fprofil")).toBe("/panier")
+  })
+
+  it("strips both parameters while preserving unrelated ones", () => {
+    expect(
+      withoutAuthSearchParams(
+        "/recherche?q=chaussure&tri=prix-asc&open=login&next=%2Fpanier"
+      )
+    ).toBe("/recherche?q=chaussure&tri=prix-asc")
+    expect(
+      withoutAuthSearchParams(
+        "/recherche?q=chaussure&open=signup&tri=prix-asc&next=%2Fpanier&page=2"
+      )
+    ).toBe("/recherche?q=chaussure&tri=prix-asc&page=2")
+  })
+
+  it("preserves the hash", () => {
+    expect(
+      withoutAuthSearchParams("/produit/atlas?open=signup&next=%2Fpanier#avis")
+    ).toBe("/produit/atlas#avis")
+  })
+
+  it("cleans a search string in place", () => {
+    expect(
+      withoutAuthSearchParams("?open=login&next=%2Fpanier&q=chaussure")
+    ).toBe("?q=chaussure")
+    expect(withoutAuthSearchParams("?open=login")).toBe("")
+  })
+
+  it("decodes and drops an encoded destination", () => {
+    expect(
+      withoutAuthSearchParams(
+        "/profil?open=login&next=%2Fprofil%2Fcommandes%3Fpage%3D2"
+      )
+    ).toBe("/profil")
+    expect(
+      withoutAuthSearchParams(
+        "?next=%2Fprofil%2Fcommandes%3Fpage%3D2&open=login"
+      )
+    ).toBe("")
+  })
+
+  it("cleans URLSearchParams without mutating the input", () => {
+    const search = new URLSearchParams(
+      "?open=signup&next=%2Fpanier&tri=prix-asc"
+    )
+    expect(withoutAuthSearchParams(search)).toBe("?tri=prix-asc")
+    expect(search.has("open")).toBe(true)
+    expect(search.has("next")).toBe(true)
+  })
+
+  it("round-trips builder output", () => {
+    const url = loginUrl("/profil/commandes?page=2")
+    expect(withoutAuthSearchParams(url)).toBe("/")
+    expect(withoutAuthSearchParams(url.slice(url.indexOf("?")))).toBe("")
+  })
+
+  it("treats an absolute URL as its same-site path", () => {
+    expect(
+      withoutAuthSearchParams(
+        "https://boutique.example/panier?open=login&next=%2Fprofil#avis"
+      )
+    ).toBe("/panier#avis")
+  })
+
+  it("leaves a clean URL untouched", () => {
+    expect(withoutAuthSearchParams("/compte?onglet=commandes")).toBe(
+      "/compte?onglet=commandes"
+    )
+    expect(withoutAuthSearchParams("/#avis")).toBe("/#avis")
+    expect(withoutAuthSearchParams("/")).toBe("/")
   })
 })
 
