@@ -6,9 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   AuthDialogsProvider,
-  useAuthDialogs,
 } from "@/components/auth/auth-dialogs-context"
-import { UrlAuthDialog } from "@/components/auth/url-auth-dialog"
 
 const { updateProfileMock, searchParamsState } = vi.hoisted(() => ({
   updateProfileMock: vi.fn(),
@@ -58,6 +56,7 @@ vi.mock("@/components/ui/select", () => ({
 }))
 
 import { ProfileForm } from "./profile-form"
+import { parseAuthParams } from "@/lib/lien-de-connexion"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -100,7 +99,7 @@ function rerender(element: ReactElement) {
 }
 
 function Probe() {
-  const { dialog } = useAuthDialogs()
+  const { dialog } = parseAuthParams(searchParamsState.value)
   return <div data-dialog={dialog ?? "none"} />
 }
 
@@ -114,7 +113,6 @@ function profileHarness() {
         initialAddress=""
         initialPhone=""
       />
-      <UrlAuthDialog />
     </AuthDialogsProvider>
   )
 }

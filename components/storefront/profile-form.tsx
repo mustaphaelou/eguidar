@@ -6,7 +6,7 @@ import {
   updateProfileAction,
   type ProfileFormState,
 } from "@/app/(boutique)/profil/actions"
-import { syncLoginUrl } from "@/components/auth/sync-url"
+import { useAuthUrlSync } from "@/components/auth/use-auth-url-sync"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,10 +41,12 @@ export function ProfileForm({
     initialState
   )
 
+  const { openLoginForCurrentPage } = useAuthUrlSync()
+
   useEffect(() => {
     if (!state.unauthenticated) return
-    syncLoginUrl()
-  }, [state])
+    openLoginForCurrentPage()
+  }, [state, openLoginForCurrentPage])
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

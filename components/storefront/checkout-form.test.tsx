@@ -6,9 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   AuthDialogsProvider,
-  useAuthDialogs,
 } from "@/components/auth/auth-dialogs-context"
-import { UrlAuthDialog } from "@/components/auth/url-auth-dialog"
 
 const { placeOrderMock, searchParamsState } = vi.hoisted(() => ({
   placeOrderMock: vi.fn(),
@@ -84,6 +82,7 @@ vi.mock("@/components/ui/select", () => ({
 }))
 
 import { CheckoutForm } from "./checkout-form"
+import { parseAuthParams } from "@/lib/lien-de-connexion"
 import {
   creerDevisHolder,
   type DevisHolder,
@@ -132,7 +131,7 @@ function rerender(element: ReactElement) {
 }
 
 function Probe() {
-  const { dialog } = useAuthDialogs()
+  const { dialog } = parseAuthParams(searchParamsState.value)
   return <div data-dialog={dialog ?? "none"} />
 }
 
@@ -180,7 +179,6 @@ function checkoutHarness() {
         initialAddress=""
         initialPhone=""
       />
-      <UrlAuthDialog />
     </AuthDialogsProvider>
   )
 }

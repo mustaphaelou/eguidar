@@ -8,7 +8,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { SignUpForm, type SignUpStep } from "@/components/auth/sign-up-form"
-import { useAuthDialogs } from "@/components/auth/auth-dialogs-context"
+import {
+  useAuthDialogOpen,
+  useAuthDialogs,
+} from "@/components/auth/auth-dialogs-context"
 import {
   headingForDestination,
   useAuthDestination,
@@ -16,8 +19,8 @@ import {
 import { useAuthDialogHeader } from "@/components/auth/use-auth-dialog-header"
 
 export function SignUpDialog() {
-  const { dialog, email, openLogin, close } = useAuthDialogs()
-  const open = dialog === "signup"
+  const { email, openLogin, close } = useAuthDialogs()
+  const open = useAuthDialogOpen("signup")
 
   return (
     <Dialog

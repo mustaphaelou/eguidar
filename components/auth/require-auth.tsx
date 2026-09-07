@@ -7,12 +7,14 @@ import { LockKeyIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
-import { syncLoginUrl } from "@/components/auth/sync-url"
+import { useAuthUrlSync } from "@/components/auth/use-auth-url-sync"
 
 export function RequireAuth() {
+  const { openLoginForCurrentPage } = useAuthUrlSync()
+
   useEffect(() => {
-    queueMicrotask(syncLoginUrl)
-  }, [])
+    queueMicrotask(openLoginForCurrentPage)
+  }, [openLoginForCurrentPage])
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-4 py-24 text-center">
@@ -26,7 +28,7 @@ export function RequireAuth() {
         Cette page est réservée à votre espace personnel.
       </p>
       <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">
-        <Button onClick={syncLoginUrl}>Se connecter</Button>
+        <Button onClick={openLoginForCurrentPage}>Se connecter</Button>
         <Button render={<Link href="/" />} variant="outline">
           Découvrir les produits
         </Button>

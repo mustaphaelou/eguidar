@@ -70,7 +70,8 @@ function rerender(element: ReactElement) {
 
 function Harness() {
   const searchParams = useSearchParams()
-  const { openAuthDialog, clearAuthParams } = useAuthUrlSync()
+  const { openAuthDialog, clearAuthParams, openLoginForCurrentPage } =
+    useAuthUrlSync()
   const { dialog } = parseAuthParams(searchParams)
   return (
     <div>
@@ -84,6 +85,11 @@ function Harness() {
         type="button"
         data-open-signup
         onClick={() => openAuthDialog("signup")}
+      />
+      <button
+        type="button"
+        data-open-login-page
+        onClick={() => openLoginForCurrentPage()}
       />
       <button type="button" data-clear onClick={() => clearAuthParams()} />
     </div>
@@ -198,6 +204,43 @@ describe("useAuthUrlSync", () => {
     click("open-login")
 
     expect(replaceSpy).not.toHaveBeenCalled()
+  })
+
+  it("opens the Connexion modal for the current page as Destination post-connexion", () => {
+    render(<Harness />)
+
+    click("open-login-page")
+
+    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures",
+      { scroll: false }
+    )
+  })
+
+  it("reuses an existing validated Destination post-connexion", () => {
+    window.history.replaceState(null, "", "/panier?next=/profil")
+    adopt(window.location.search)
+    render(<Harness />)
+
+    click("open-login-page")
+
+    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?next=%2Fprofil&open=login",
+      { scroll: false }
+    )
+  })
+
+  it("replaces an invalid Destination post-connexion with the current page address", () => {
+    window.history.replaceState(null, "", "/panier?next=//evil.example")
+    adopt(window.location.search)
+    render(<Harness />)
+
+    click("open-login-page")
+
+    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?next=%2Fpanier&open=login",
+      { scroll: false }
+    )
   })
 
   it("notifies search-param consumers of navigation to URLs with and without auth params", () => {
