@@ -1,4 +1,10 @@
 // @vitest-environment happy-dom
+import {
+  mockNextLink,
+  mockNextNavigation,
+  resetNavigation,
+  setInputValue,
+} from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -7,36 +13,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs"
 import { SignInDialog } from "./sign-in-dialog"
 import { SignUpDialog } from "./sign-up-dialog"
-import { setInputValue } from "./test-utils"
 import { authClient } from "@/lib/client"
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: {
-    href: string
-    children: React.ReactNode
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}))
+vi.mock("next/link", () => mockNextLink())
 
 vi.mock("@/components/auth/turnstile", () => ({
   Turnstile: () => null,
@@ -65,7 +46,7 @@ let currentElement: (() => ReactElement) | null = null
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/")
+  resetNavigation("/")
 })
 
 afterEach(() => {

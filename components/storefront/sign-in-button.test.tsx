@@ -1,4 +1,8 @@
 // @vitest-environment happy-dom
+import {
+  mockNextNavigation,
+  resetNavigation,
+} from "@/components/auth/test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -9,18 +13,7 @@ import { parseAuthParams } from "@/lib/lien-de-connexion"
 import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 import { SignInButton } from "./sign-in-button"
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -31,7 +24,7 @@ let currentElement: (() => ReactElement) | null = null
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/")
+  resetNavigation("/")
 })
 
 afterEach(() => {

@@ -1,37 +1,26 @@
 // @vitest-environment happy-dom
+import {
+  flush,
+  mockNextNavigation,
+  resetNavigation,
+} from "@/components/auth/test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
+import { useSearchParams } from "next/navigation"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 
-const { updateProfileMock, searchParamsState } = vi.hoisted(() => ({
+const { updateProfileMock } = vi.hoisted(() => ({
   updateProfileMock: vi.fn(),
-  searchParamsState: {
-    value: new URLSearchParams(),
-    sync(query: string) {
-      this.value = new URLSearchParams(query)
-    },
-  },
 }))
 
 vi.mock("@/app/(boutique)/profil/actions", () => ({
   updateProfileAction: updateProfileMock,
 }))
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => searchParamsState.value,
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("@/lib/client", () => ({
   useSession: () => ({ data: null, isPending: false }),
@@ -63,30 +52,12 @@ import { parseAuthParams } from "@/lib/lien-de-connexion"
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
-let originalReplaceState: typeof window.history.replaceState
-let originalPushState: typeof window.history.pushState
 
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/profil")
-  searchParamsState.sync(window.location.search)
+  resetNavigation("/profil")
   updateProfileMock.mockReset()
-  originalReplaceState = window.history.replaceState.bind(window.history)
-  originalPushState = window.history.pushState.bind(window.history)
-  const syncFromUrl = (url?: string | URL | null) => {
-    searchParamsState.sync(
-      new URL(url ?? window.location.href, window.location.origin).search
-    )
-  }
-  window.history.replaceState = (data, unused, url) => {
-    originalReplaceState(data, unused, url)
-    syncFromUrl(url)
-  }
-  window.history.pushState = (data, unused, url) => {
-    originalPushState(data, unused, url)
-    syncFromUrl(url)
-  }
 })
 
 afterEach(() => {
@@ -95,8 +66,6 @@ afterEach(() => {
   container.remove()
   vi.restoreAllMocks()
   vi.clearAllMocks()
-  window.history.replaceState = originalReplaceState
-  window.history.pushState = originalPushState
 })
 
 function render(element: ReactElement) {
@@ -110,7 +79,7 @@ function rerender(element: ReactElement) {
 }
 
 function Probe() {
-  const { dialog } = parseAuthParams(searchParamsState.value)
+  const { dialog } = parseAuthParams(useSearchParams())
   return <div data-dialog={dialog ?? "none"} />
 }
 
@@ -139,17 +108,13 @@ async function submitForm() {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-async function flushDeferredUrlSync() {
-  await act(async () => {})
-}
-
 describe("ProfileForm", () => {
   it("opens the Connexion modal over /profil with ?next=/profil when the save is refused, leaving the path unchanged", async () => {
     updateProfileMock.mockResolvedValue({ unauthenticated: true })
 
     render(profileHarness())
     await act(async () => submitForm())
-    await flushDeferredUrlSync()
+    await flush()
     rerender(profileHarness())
 
     expect(updateProfileMock).toHaveBeenCalledTimes(1)
@@ -165,7 +130,7 @@ describe("ProfileForm", () => {
 
     render(profileHarness())
     await act(async () => submitForm())
-    await flushDeferredUrlSync()
+    await flush()
 
     expect(updateProfileMock).toHaveBeenCalledTimes(1)
     expect(updateProfileMock.mock.calls[0][1]).toBeInstanceOf(FormData)

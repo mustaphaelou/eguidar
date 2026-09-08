@@ -1,10 +1,16 @@
 // @vitest-environment happy-dom
+import {
+  flush,
+  goBack,
+  mockNextLink,
+  mockNextNavigation,
+  navigationSpies,
+  resetNavigation,
+} from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-
-import { useSearchParams } from "next/navigation"
 
 import {
   AuthDialogs,
@@ -14,46 +20,17 @@ import {
 import { RequireAuth } from "./require-auth"
 import { SignInButton } from "@/components/storefront/sign-in-button"
 import { parseAuthParams } from "@/lib/lien-de-connexion"
+import { useSearchParams } from "next/navigation"
 
-const { sessionState, historyStack, pushSpy, replaceSpy } = vi.hoisted(() => ({
+const { sessionState } = vi.hoisted(() => ({
   sessionState: {
     value: { data: null as { user: { id: string } } | null, isPending: false },
   },
-  historyStack: [] as string[],
-  pushSpy: vi.fn(),
-  replaceSpy: vi.fn(),
 }))
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string, options?: { scroll: boolean }) => {
-      pushSpy(url, options)
-      historyStack.push(window.location.href)
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string, options?: { scroll: boolean }) => {
-      replaceSpy(url, options)
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: {
-    href: string
-    children: React.ReactNode
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}))
+vi.mock("next/link", () => mockNextLink())
 
 vi.mock("@/components/auth/turnstile", () => ({
   Turnstile: () => <div data-testid="turnstile-challenge" />,
@@ -82,10 +59,7 @@ let currentElement: (() => ReactElement) | null = null
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/")
-  historyStack.length = 0
-  pushSpy.mockClear()
-  replaceSpy.mockClear()
+  resetNavigation("/")
   sessionState.value = { data: null, isPending: false }
 })
 
@@ -141,10 +115,6 @@ function locationParams() {
 
 function overlay() {
   return document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')
-}
-
-async function flushDeferredUrlSync() {
-  await act(async () => {})
 }
 
 function pressEscape() {
@@ -221,7 +191,7 @@ describe("AuthDialogs", () => {
     expect(locationParams().get("open")).toBe("login")
 
     act(() => {
-      window.history.replaceState(null, "", historyStack.pop()!)
+      goBack()
     })
     rerender()
 
@@ -476,7 +446,7 @@ describe("AuthDialogs", () => {
         <RequireAuth />
       </AuthDialogs>
     ))
-    await flushDeferredUrlSync()
+    await flush()
     rerender()
 
     expect(dialog()).not.toBeNull()
@@ -556,7 +526,7 @@ describe("AuthDialogs", () => {
     render(() => storefront())
     rerender()
 
-    expect(replaceSpy).toHaveBeenCalledTimes(1)
+    expect(navigationSpies.replace).toHaveBeenCalledTimes(1)
     expect(locationParams().get("open")).toBeNull()
     expect(locationParams().get("q")).toBe("chaussures")
     expect(dialog()).toBeNull()
@@ -566,7 +536,7 @@ describe("AuthDialogs", () => {
     render(() => storefront())
     rerender()
 
-    expect(replaceSpy).not.toHaveBeenCalled()
+    expect(navigationSpies.replace).not.toHaveBeenCalled()
   })
 })
 
@@ -608,7 +578,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("open-login")
 
-    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures",
       { scroll: false }
     )
@@ -626,7 +596,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("open-signup")
 
-    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=signup",
       { scroll: false }
     )
@@ -648,7 +618,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("close")
 
-    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith("/panier?q=chaussures", {
+    expect(navigationSpies.replace).toHaveBeenCalledExactlyOnceWith("/panier?q=chaussures", {
       scroll: false,
     })
     expect(locationParams().get("open")).toBeNull()
@@ -666,7 +636,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("close")
 
-    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith("/panier", {
+    expect(navigationSpies.replace).toHaveBeenCalledExactlyOnceWith("/panier", {
       scroll: false,
     })
     expect(new URL(window.location.href).search).toBe("")
@@ -677,7 +647,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("close")
 
-    expect(replaceSpy).not.toHaveBeenCalled()
+    expect(navigationSpies.replace).not.toHaveBeenCalled()
   })
 
   it("does not navigate when the requested Lien de connexion is already in the URL", () => {
@@ -690,8 +660,8 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("open-login")
 
-    expect(pushSpy).not.toHaveBeenCalled()
-    expect(replaceSpy).not.toHaveBeenCalled()
+    expect(navigationSpies.push).not.toHaveBeenCalled()
+    expect(navigationSpies.replace).not.toHaveBeenCalled()
   })
 
   it("reuses an existing validated Destination post-connexion when opening", () => {
@@ -700,7 +670,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("open-login")
 
-    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?next=%2Fprofil&open=login",
       { scroll: false }
     )
@@ -712,7 +682,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("open-login")
 
-    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?next=%2Fpanier&open=login",
       { scroll: false }
     )
@@ -724,7 +694,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("open-login")
 
-    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures%23avis#avis",
       { scroll: false }
     )
@@ -743,7 +713,7 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("close")
 
-    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(navigationSpies.replace).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures#avis",
       { scroll: false }
     )

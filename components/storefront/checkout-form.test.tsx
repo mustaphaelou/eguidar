@@ -1,37 +1,26 @@
 // @vitest-environment happy-dom
+import {
+  flush,
+  mockNextNavigation,
+  resetNavigation,
+} from "@/components/auth/test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
+import { useSearchParams } from "next/navigation"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 
-const { placeOrderMock, searchParamsState } = vi.hoisted(() => ({
+const { placeOrderMock } = vi.hoisted(() => ({
   placeOrderMock: vi.fn(),
-  searchParamsState: {
-    value: new URLSearchParams(),
-    sync(query: string) {
-      this.value = new URLSearchParams(query)
-    },
-  },
 }))
 
 vi.mock("@/app/(boutique)/checkout/actions", () => ({
   placeOrderAction: placeOrderMock,
 }))
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => searchParamsState.value,
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("@/lib/client", () => ({
   useSession: () => ({ data: null, isPending: false }),
@@ -95,30 +84,12 @@ import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
-let originalReplaceState: typeof window.history.replaceState
-let originalPushState: typeof window.history.pushState
 
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/checkout")
-  searchParamsState.sync(window.location.search)
+  resetNavigation("/checkout")
   placeOrderMock.mockReset()
-  originalReplaceState = window.history.replaceState.bind(window.history)
-  originalPushState = window.history.pushState.bind(window.history)
-  const syncFromUrl = (url?: string | URL | null) => {
-    searchParamsState.sync(
-      new URL(url ?? window.location.href, window.location.origin).search
-    )
-  }
-  window.history.replaceState = (data, unused, url) => {
-    originalReplaceState(data, unused, url)
-    syncFromUrl(url)
-  }
-  window.history.pushState = (data, unused, url) => {
-    originalPushState(data, unused, url)
-    syncFromUrl(url)
-  }
 })
 
 afterEach(() => {
@@ -127,8 +98,6 @@ afterEach(() => {
   container.remove()
   vi.restoreAllMocks()
   vi.clearAllMocks()
-  window.history.replaceState = originalReplaceState
-  window.history.pushState = originalPushState
 })
 
 function render(element: ReactElement) {
@@ -142,7 +111,7 @@ function rerender(element: ReactElement) {
 }
 
 function Probe() {
-  const { dialog } = parseAuthParams(searchParamsState.value)
+  const { dialog } = parseAuthParams(useSearchParams())
   return <div data-dialog={dialog ?? "none"} />
 }
 
@@ -223,10 +192,6 @@ async function submitForm() {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-async function flushDeferredUrlSync() {
-  await act(async () => {})
-}
-
 describe("CheckoutForm", () => {
   it("exige la ville, l'adresse et le téléphone avant soumission", () => {
     render(checkoutHarness())
@@ -254,7 +219,7 @@ describe("CheckoutForm", () => {
 
     render(checkoutHarness())
     await act(async () => submitForm())
-    await flushDeferredUrlSync()
+    await flush()
     rerender(checkoutHarness())
 
     expect(placeOrderMock).toHaveBeenCalledTimes(1)
@@ -270,7 +235,7 @@ describe("CheckoutForm", () => {
 
     render(checkoutHarness())
     await act(async () => submitForm())
-    await flushDeferredUrlSync()
+    await flush()
 
     expect(placeOrderMock).toHaveBeenCalledTimes(1)
     expect(placeOrderMock.mock.calls[0][1]).toBeInstanceOf(FormData)
