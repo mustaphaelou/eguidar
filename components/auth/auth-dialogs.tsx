@@ -162,6 +162,11 @@ export function useAuthDialogOpen(dialog: AuthDialogName): boolean {
   return parseAuthParams(searchParams).dialog === dialog
 }
 
+export function useAuthDialogDestination(): string | null {
+  const searchParams = useSearchParams()
+  return parseAuthParams(searchParams).next
+}
+
 export function useAuthDialogs() {
   const context = useContext(AuthDialogsContext)
   if (!context) {
@@ -192,14 +197,10 @@ export function AuthDialogs({ children }: { children: React.ReactNode }) {
       {children}
       <Suspense fallback={null}>
         <AuthUrlCleaner />
-      </Suspense>
-      <Suspense fallback={null}>
         <SignInDialog
           hasGoogle={Boolean(process.env.GOOGLE_CLIENT_ID)}
           hasApple={Boolean(process.env.APPLE_CLIENT_ID)}
         />
-      </Suspense>
-      <Suspense fallback={null}>
         <SignUpDialog />
       </Suspense>
     </AuthDialogsProvider>

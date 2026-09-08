@@ -1,7 +1,5 @@
 "use client"
 
-import { Suspense } from "react"
-
 import {
   Dialog,
   DialogContent,
@@ -11,13 +9,11 @@ import {
 } from "@/components/ui/dialog"
 import { SignInForm } from "@/components/auth/sign-in-form"
 import {
+  useAuthDialogDestination,
   useAuthDialogOpen,
   useAuthDialogs,
 } from "@/components/auth/auth-dialogs"
-import {
-  headingForDestination,
-  useAuthDestination,
-} from "@/components/auth/auth-headings"
+import { headingForDestination } from "@/components/auth/auth-headings"
 import { useAuthDialogHeader } from "@/components/auth/use-auth-dialog-header"
 import type { SignInStep } from "@/components/auth/use-sign-in-flow"
 
@@ -66,7 +62,7 @@ function SignInDialogPanel({
 }) {
   const { header, handleStepChange } =
     useAuthDialogHeader<SignInStep>(initialEmail)
-  const destination = useAuthDestination()
+  const destination = useAuthDialogDestination()
   const contextualTitle = headingForDestination("login", destination)
 
   return (
@@ -94,16 +90,14 @@ function SignInDialogPanel({
           )}
         </DialogDescription>
       </DialogHeader>
-      <Suspense fallback={null}>
-        <SignInForm
-          hasGoogle={hasGoogle}
-          hasApple={hasApple}
-          initialEmail={initialEmail}
-          onStepChange={handleStepChange}
-          onForgotPassword={close}
-          onSuccess={close}
-        />
-      </Suspense>
+      <SignInForm
+        hasGoogle={hasGoogle}
+        hasApple={hasApple}
+        initialEmail={initialEmail}
+        onStepChange={handleStepChange}
+        onForgotPassword={close}
+        onSuccess={close}
+      />
     </>
   )
 }

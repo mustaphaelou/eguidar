@@ -1,10 +1,10 @@
 "use client"
 
 import { useCallback, useState } from "react"
-import { useSearchParams } from "next/navigation"
 
+import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
 import { authClient } from "@/lib/client"
-import { parseAuthParams, withoutAuthParams } from "@/lib/lien-de-connexion"
+import { withoutAuthParams } from "@/lib/lien-de-connexion"
 
 const captchaHeaders = (token: string | null) =>
   token ? { "x-captcha-response": token } : undefined
@@ -24,8 +24,7 @@ export function useSignInFlow({
   initialEmail?: string
   onSuccess?: () => void
 } = {}) {
-  const searchParams = useSearchParams()
-  const next = parseAuthParams(searchParams).next
+  const next = useAuthDialogDestination()
   const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
