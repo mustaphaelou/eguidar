@@ -19,9 +19,7 @@ export type SignInFlow = ReturnType<typeof useSignInFlow>
 
 export function useSignInFlow({
   initialEmail,
-  onSuccess = () => {
-    window.location.href = "/"
-  },
+  onSuccess,
 }: {
   initialEmail?: string
   onSuccess?: () => void
@@ -116,7 +114,7 @@ export function useSignInFlow({
       window.location.href = next
       return
     }
-    onSuccess()
+    onSuccess?.()
   }
 
   async function handleSocial(provider: "google" | "apple") {
