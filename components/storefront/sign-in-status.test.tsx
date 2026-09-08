@@ -136,7 +136,7 @@ describe("SignOutButton", () => {
     await clickAndFlush(signOutButton())
 
     expect(signOut).toHaveBeenCalledTimes(1)
-    expect(navigationSpies.push).toHaveBeenCalledWith("/")
+    expect(navigationSpies.push).toHaveBeenCalledWith("/", undefined)
     expect(navigationSpies.refresh).toHaveBeenCalledTimes(1)
   })
 
@@ -164,7 +164,7 @@ describe("SignOutButton", () => {
     })
     await act(async () => {})
 
-    expect(navigationSpies.push).toHaveBeenCalledWith("/")
+    expect(navigationSpies.push).toHaveBeenCalledWith("/", undefined)
     expect(navigationSpies.refresh).toHaveBeenCalledTimes(1)
     expect(signOutButton().disabled).toBe(false)
   })

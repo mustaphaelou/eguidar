@@ -15,20 +15,12 @@ export function mockNextNavigation() {
     usePathname: () => new URL(window.location.href).pathname,
     useRouter: () => ({
       push: (url: string, options?: { scroll?: boolean }) => {
-        if (options === undefined) {
-          navigationSpies.push(url)
-        } else {
-          navigationSpies.push(url, options)
-        }
+        navigationSpies.push(url, options)
         historyStack.push(window.location.href)
         window.history.pushState(null, "", url)
       },
       replace: (url: string, options?: { scroll?: boolean }) => {
-        if (options === undefined) {
-          navigationSpies.replace(url)
-        } else {
-          navigationSpies.replace(url, options)
-        }
+        navigationSpies.replace(url, options)
         window.history.replaceState(null, "", url)
       },
       refresh: () => {
@@ -52,7 +44,7 @@ export function mockNextLink() {
   }
 }
 
-export function goBack() {
+export function restorePreviousUrl() {
   window.history.replaceState(null, "", historyStack.pop()!)
 }
 

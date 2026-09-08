@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import {
+  flush,
   mockNextLink,
   mockNextNavigation,
   resetNavigation,
@@ -64,9 +65,12 @@ function render(element: () => ReactElement) {
   act(() => root.render(element()))
 }
 
-function clickAndSync(target: HTMLElement) {
+async function clickAndSync(target: HTMLElement) {
   act(() => {
     target.click()
+  })
+  await flush()
+  act(() => {
     if (currentElement) roots[roots.length - 1].render(currentElement())
   })
 }
@@ -117,21 +121,21 @@ function openButton() {
 }
 
 describe("SignInDialog", () => {
-  it("opens from the provider and shows the login dialog", () => {
+  it("opens from the provider and shows the login dialog", async () => {
     renderWithDialogs(<Harness />)
 
     expect(dialog()).toBeNull()
-    clickAndSync(openButton())
+    await clickAndSync(openButton())
 
     expect(dialog()).not.toBeNull()
     expect(title()).toBe("Connectez-vous pour continuer")
     expect(emailInput()).not.toBeNull()
   })
 
-  it("writes ?open=login to the URL when opened and clears it on close", () => {
+  it("writes ?open=login to the URL when opened and clears it on close", async () => {
     renderWithDialogs(<Harness />)
 
-    clickAndSync(openButton())
+    await clickAndSync(openButton())
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
 
     act(() => {
@@ -145,12 +149,12 @@ describe("SignInDialog", () => {
     expect(new URL(window.location.href).searchParams.has("open")).toBe(false)
   })
 
-  it("swaps to the sign-up dialog with the entered email prefilled", () => {
+  it("swaps to the sign-up dialog with the entered email prefilled", async () => {
     renderWithDialogs(<Harness />)
 
-    clickAndSync(openButton())
+    await clickAndSync(openButton())
     setInputValue(emailInput()!, "swap@example.com")
-    clickAndSync(swapButton()!)
+    await clickAndSync(swapButton()!)
 
     expect(dialog()).not.toBeNull()
     expect(title()).toBe("Créez votre compte pour continuer")
@@ -163,15 +167,15 @@ describe("SignInDialog", () => {
     )
   })
 
-  it("opens the sign-up dialog and swaps back to login", () => {
+  it("opens the sign-up dialog and swaps back to login", async () => {
     renderWithDialogs(<SwapHarness />)
 
-    clickAndSync(
+    await clickAndSync(
       container.querySelector<HTMLButtonElement>("[data-open-signup]")!
     )
 
     expect(title()).toBe("Créer un compte")
-    clickAndSync(
+    await clickAndSync(
       document.querySelector<HTMLButtonElement>(
         '[data-slot="dialog-description"] button'
       )!
@@ -181,17 +185,17 @@ describe("SignInDialog", () => {
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
   })
 
-  it("renders the popup with aria-modal", () => {
+  it("renders the popup with aria-modal", async () => {
     renderWithDialogs(<Harness />)
 
-    clickAndSync(openButton())
+    await clickAndSync(openButton())
 
     expect(
       document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")
     ).toBe("true")
   })
 
-  it("shows a contextual title when the destination leads to an order", () => {
+  it("shows a contextual title when the destination leads to an order", async () => {
     window.history.replaceState(
       null,
       "",
@@ -199,26 +203,26 @@ describe("SignInDialog", () => {
     )
     renderWithDialogs(<Harness />)
 
-    clickAndSync(openButton())
+    await clickAndSync(openButton())
 
     expect(title()).toBe("Connectez-vous pour finaliser votre commande")
   })
 
-  it("falls back to the generic continue title for non-commerce destinations", () => {
+  it("falls back to the generic continue title for non-commerce destinations", async () => {
     window.history.replaceState(null, "", "/?open=signup&next=/compte")
     renderWithDialogs(<SwapHarness />)
 
-    clickAndSync(
+    await clickAndSync(
       container.querySelector<HTMLButtonElement>("[data-open-signup]")!
     )
 
     expect(title()).toBe("Créez votre compte pour continuer")
   })
 
-  it("blocks submit with field issues and does not call the API when invalid", () => {
+  it("blocks submit with field issues and does not call the API when invalid", async () => {
     renderWithDialogs(<Harness />)
 
-    clickAndSync(openButton())
+    await clickAndSync(openButton())
     const submit = dialog()!.querySelector<HTMLButtonElement>(
       'form button[type="submit"]'
     )!
@@ -232,10 +236,10 @@ describe("SignInDialog", () => {
     expect(authClient.signIn.email).not.toHaveBeenCalled()
   })
 
-  it("reports an invalid email format inline", () => {
+  it("reports an invalid email format inline", async () => {
     renderWithDialogs(<Harness />)
 
-    clickAndSync(openButton())
+    await clickAndSync(openButton())
     setInputValue(emailInput()!, "pas-un-email")
     setInputValue(
       dialog()!.querySelector<HTMLInputElement>('input[type="password"]')!,

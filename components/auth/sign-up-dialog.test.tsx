@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import {
+  flush,
   mockNextLink,
   mockNextNavigation,
   resetNavigation,
@@ -88,9 +89,12 @@ function render(element: () => ReactElement) {
   act(() => root.render(element()))
 }
 
-function clickAndSync(target: HTMLElement) {
+async function clickAndSync(target: HTMLElement) {
   act(() => {
     target.click()
+  })
+  await flush()
+  act(() => {
     if (currentElement) roots[roots.length - 1].render(currentElement())
   })
 }
@@ -104,7 +108,7 @@ function OpenSignUpButton() {
   )
 }
 
-function renderSignUpDialog() {
+async function renderSignUpDialog() {
   render(() => (
     <AuthDialogsProvider>
       <OpenSignUpButton />
@@ -112,7 +116,7 @@ function renderSignUpDialog() {
       <SignUpDialog />
     </AuthDialogsProvider>
   ))
-  clickAndSync(container.querySelector("button")!)
+  await clickAndSync(container.querySelector("button")!)
 }
 
 function title() {
@@ -145,13 +149,13 @@ function emailInput() {
 }
 
 describe("SignUpDialog", () => {
-  it("opens the sign-up dialog and swaps to login", () => {
-    renderSignUpDialog()
+  it("opens the sign-up dialog and swaps to login", async () => {
+    await renderSignUpDialog()
 
     expect(dialog()).not.toBeNull()
     expect(title()).toBe("Créer un compte")
 
-    clickAndSync(
+    await clickAndSync(
       document.querySelector<HTMLButtonElement>(
         "[data-slot='dialog-description'] button"
       )!
@@ -162,7 +166,7 @@ describe("SignUpDialog", () => {
   })
 
   it("swaps to the login dialog with the email prefilled after OTP verification", async () => {
-    renderSignUpDialog()
+    await renderSignUpDialog()
 
     setInputValue(
       dialog()!.querySelector<HTMLInputElement>("#name")!,
@@ -180,8 +184,12 @@ describe("SignUpDialog", () => {
 
     await clickAndFlush(submitButton("Envoyer le code")!)
 
-    setInputValue(dialog()!.querySelector<HTMLInputElement>("#otp")!, "123456")
-    await clickAndFlush(submitButton("Vérifier mon e-mail")!)
+  setInputValue(dialog()!.querySelector<HTMLInputElement>("#otp")!, "123456")
+  await clickAndFlush(submitButton("Vérifier mon e-mail")!)
+  await flush()
+  act(() => {
+    if (currentElement) roots[roots.length - 1].render(currentElement())
+  })
 
     expect(title()).toBe("Connectez-vous pour continuer")
     expect(emailInput()?.value).toBe("jane@example.com")

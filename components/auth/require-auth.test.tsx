@@ -230,6 +230,7 @@ describe("RequireAuth with the Connexion modal", () => {
     expect(new URL(window.location.href).searchParams.has("open")).toBe(false)
 
     act(() => signInButton()!.click())
+    await flush()
     rerender()
     expect(dialog()).not.toBeNull()
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")

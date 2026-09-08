@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import {
   flush,
-  goBack,
+  restorePreviousUrl,
   mockNextLink,
   mockNextNavigation,
   navigationSpies,
@@ -139,11 +139,12 @@ function swapButton(label: string) {
 }
 
 describe("AuthDialogs", () => {
-  it("opens the Connexion modal from the header user button and keeps it open", () => {
+  it("opens the Connexion modal from the header user button and keeps it open", async () => {
     render(() => storefront())
     expect(dialog()).toBeNull()
 
     act(() => headerButton().click())
+    await flush()
     rerender()
 
     expect(dialog()).not.toBeNull()
@@ -181,17 +182,18 @@ describe("AuthDialogs", () => {
     expect(dialog()).toBeNull()
   })
 
-  it("opens the Connexion modal as a history entry so the back button dismisses it", () => {
+  it("opens the Connexion modal as a history entry so the back button dismisses it", async () => {
     render(() => storefront())
 
     act(() => headerButton().click())
+    await flush()
     rerender()
 
     expect(dialog()).not.toBeNull()
     expect(locationParams().get("open")).toBe("login")
 
     act(() => {
-      goBack()
+      restorePreviousUrl()
     })
     rerender()
 
@@ -204,10 +206,11 @@ describe("AuthDialogs", () => {
     expect(dialog()).toBeNull()
   })
 
-  it("unmounts the Turnstile challenge when the modal is dismissed", () => {
+  it("unmounts the Turnstile challenge when the modal is dismissed", async () => {
     render(() => storefront())
 
     act(() => headerButton().click())
+    await flush()
     rerender()
 
     expect(dialog()).not.toBeNull()
@@ -388,14 +391,16 @@ describe("AuthDialogs", () => {
     expect(locationParams().get("open")).toBeNull()
   })
 
-  it("closes cleanly after swapping from Connexion to Inscription without reopening", () => {
+  it("closes cleanly after swapping from Connexion to Inscription without reopening", async () => {
     render(() => storefront())
 
     act(() => headerButton().click())
+    await flush()
     rerender()
     expect(locationParams().get("open")).toBe("login")
 
     act(() => swapButton("Inscrivez-vous").click())
+    await flush()
     rerender()
 
     expect(dialog()).not.toBeNull()
@@ -416,13 +421,14 @@ describe("AuthDialogs", () => {
     expect(dialog()).toBeNull()
   })
 
-  it("closes cleanly after swapping from Inscription to Connexion without reopening", () => {
+  it("closes cleanly after swapping from Inscription to Connexion without reopening", async () => {
     window.history.replaceState(null, "", "/?open=signup")
     render(() => storefront())
     rerender()
     expect(dialog()).not.toBeNull()
 
     act(() => swapButton("Se connecter").click())
+    await flush()
     rerender()
 
     expect(locationParams().get("open")).toBe("login")
@@ -471,10 +477,11 @@ describe("AuthDialogs", () => {
     expect(container.textContent).toContain("Connectez-vous pour continuer")
   })
 
-  it("resets transient form field errors when the Connexion modal is dismissed and reopened", () => {
+  it("resets transient form field errors when the Connexion modal is dismissed and reopened", async () => {
     render(() => storefront())
 
     act(() => headerButton().click())
+    await flush()
     rerender()
 
     act(() => submitButton().click())
@@ -493,6 +500,7 @@ describe("AuthDialogs", () => {
     expect(locationParams().get("open")).toBeNull()
 
     act(() => headerButton().click())
+    await flush()
     rerender()
 
     expect(dialog()).not.toBeNull()
@@ -572,11 +580,12 @@ function controllerClick(name: string) {
 }
 
 describe("AuthDialogsProvider controller interface", () => {
-  it("opens the Connexion modal with the current page as the default Destination post-connexion", () => {
+  it("opens the Connexion modal with the current page as the default Destination post-connexion", async () => {
     window.history.replaceState(null, "", "/panier?q=chaussures")
     render(() => controllerHarness())
 
     controllerClick("open-login")
+    await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures",
@@ -590,11 +599,12 @@ describe("AuthDialogsProvider controller interface", () => {
     expect(controllerDialog()).toBe("login")
   })
 
-  it("opens the Inscription modal without touching the Destination post-connexion", () => {
+  it("opens the Inscription modal without touching the Destination post-connexion", async () => {
     window.history.replaceState(null, "", "/panier?q=chaussures")
     render(() => controllerHarness())
 
     controllerClick("open-signup")
+    await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=signup",
@@ -664,11 +674,12 @@ describe("AuthDialogsProvider controller interface", () => {
     expect(navigationSpies.replace).not.toHaveBeenCalled()
   })
 
-  it("reuses an existing validated Destination post-connexion when opening", () => {
+  it("reuses an existing validated Destination post-connexion when opening", async () => {
     window.history.replaceState(null, "", "/panier?next=/profil")
     render(() => controllerHarness())
 
     controllerClick("open-login")
+    await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?next=%2Fprofil&open=login",
@@ -676,11 +687,12 @@ describe("AuthDialogsProvider controller interface", () => {
     )
   })
 
-  it("replaces an invalid Destination post-connexion with the current page address", () => {
+  it("replaces an invalid Destination post-connexion with the current page address", async () => {
     window.history.replaceState(null, "", "/panier?next=//evil.example")
     render(() => controllerHarness())
 
     controllerClick("open-login")
+    await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?next=%2Fpanier&open=login",
@@ -688,11 +700,12 @@ describe("AuthDialogsProvider controller interface", () => {
     )
   })
 
-  it("preserves the URL fragment when opening the Connexion modal", () => {
+  it("preserves the URL fragment when opening the Connexion modal", async () => {
     window.history.replaceState(null, "", "/panier?q=chaussures#avis")
     render(() => controllerHarness())
 
     controllerClick("open-login")
+    await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
       "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures%23avis#avis",

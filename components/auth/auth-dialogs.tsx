@@ -72,6 +72,14 @@ function navigateUnlessUnchanged(
   navigate(updated)
 }
 
+function modalAllowed(
+  open: string | null,
+  dialog: AuthDialogName | null,
+  { sessionReady, hasSession }: { sessionReady: boolean; hasSession: boolean }
+): boolean {
+  return sessionReady && open !== null && dialog !== null && !hasSession
+}
+
 export function AuthDialogsProvider({
   children,
 }: {
@@ -83,12 +91,14 @@ export function AuthDialogsProvider({
 
   const openAuthDialog = useCallback(
     (dialog: AuthDialogName, next?: string) => {
-      const current = currentAddress()
-      navigateUnlessUnchanged(
-        current,
-        withAuthParams(current, { dialog, next }),
-        (url) => router.push(url, { scroll: false })
-      )
+      queueMicrotask(() => {
+        const current = currentAddress()
+        navigateUnlessUnchanged(
+          current,
+          withAuthParams(current, { dialog, next }),
+          (url) => router.push(url, { scroll: false })
+        )
+      })
     },
     [router]
   )
@@ -104,7 +114,7 @@ export function AuthDialogsProvider({
 
   const openLogin = useCallback(
     (options?: { email?: string; next?: string }) => {
-      if (options?.email !== undefined) setEmail(options.email)
+      setEmail(options?.email ?? "")
       const next =
         options?.next ??
         parseAuthParams(currentSearch()).next ??
@@ -116,7 +126,7 @@ export function AuthDialogsProvider({
 
   const openSignUp = useCallback(
     (options?: { email?: string }) => {
-      if (options?.email !== undefined) setEmail(options.email)
+      setEmail(options?.email ?? "")
       openAuthDialog("signup")
     },
     [openAuthDialog]
@@ -158,8 +168,8 @@ export function useAuthDialogOpen(dialog: AuthDialogName): boolean {
       "useAuthDialogOpen must be used within an AuthDialogsProvider"
     )
   }
-  if (!internals.sessionReady || internals.hasSession) return false
-  return parseAuthParams(searchParams).dialog === dialog
+  const { open, dialog: openDialog } = parseAuthParams(searchParams)
+  return modalAllowed(open, openDialog, internals) && openDialog === dialog
 }
 
 export function useAuthDialogDestination(): string | null {
@@ -183,7 +193,7 @@ function AuthUrlCleaner() {
   useEffect(() => {
     if (!internals) return
     if (!internals.sessionReady) return
-    if (open !== null && (internals.hasSession || !dialog)) {
+    if (open !== null && !modalAllowed(open, dialog, internals)) {
       internals.cleanAuthParams()
     }
   }, [open, dialog, internals])

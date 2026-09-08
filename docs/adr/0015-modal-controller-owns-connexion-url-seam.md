@@ -19,13 +19,16 @@ happens when the Visiteur opens the modal — required bouncing across five file
   area, and its single read is the only one. The one-read/one-write invariant holds by
   construction, not by convention.
 
-- **The controller interface is five members** — everything a caller must know:
-  `openLogin({ email?, next? })` (opens the Connexion modal; `next` defaults to the current
-  page), `openSignUp({ email? })` (opens the Inscription modal, preserving an existing `?next`),
-  `close()` (strips both auth params and clears the prefill e-mail),
-  `useAuthDialogOpen(dialog)` (the spec's `isOpen`: false while the session is resolving or a
-  session exists, true only for the requested dialog when the URL names it), and
-  `useAuthDialogDestination()` (the reactive Destination post-connexion read from the URL).
+- **The controller surface is five conceptual members, reached through three exported hooks
+  plus the composition wiring** — everything a caller must know: `openLogin({ email?, next? })`
+  (opens the Connexion modal; `next` defaults to the current page), `openSignUp({ email? })`
+  (opens the Inscription modal, preserving an existing `?next`), and `close()` (strips both
+  auth params and clears the prefill e-mail), all three exported through the `useAuthDialogs()`
+  hook; the spec's `isOpen`, exported as `useAuthDialogOpen(dialog)` (false while the session
+  is resolving or a session exists, true only for the requested dialog when the URL names it);
+  and the spec's `destination`, the reactive Destination post-connexion read, exported as
+  `useAuthDialogDestination()`. The `AuthDialogsProvider`/`AuthDialogs` composition wiring is
+  part of the same surface: consumers mount it once and consume the five members through it.
 
 - **The absorbed modules are deleted; their invariants are controller-internal.** The provider,
   the URL-sync seam, the sanitizer, the one-shot destination hook, and the step-state
@@ -41,9 +44,14 @@ happens when the Visiteur opens the modal — required bouncing across five file
   re-litigate why the URL is the source of truth — it records who is allowed to touch it.
 
 - **Dead full-page-reload fallbacks were deleted** from the sign-in and sign-up flows — the
-  last "leave the page" violators of ADR-0001. The one-write-channel invariant now has no
-  known violators; a future standalone page, if ever built, must be built on the controller,
-  not on a reload.
+  last "leave the page" violators of ADR-0001 *inside the modal seam*. The controller's
+  never-leave-the-page/one-write-channel invariant is scoped to the seam it owns: opening,
+  closing, and self-cleaning `?open`/`?next` never leave the page and are the only URL writes
+  in the modal area. One full-page navigation remains, deliberately outside that scope: the
+  post-authentication redirect in `use-sign-in-flow.ts` (`window.location.href = next`). It
+  happens after a session exists and after the Lien de connexion params are gone, so it
+  navigates *to* the Destination post-connexion instead of touching the seam. A future
+  standalone page, if ever built, must be built on the controller, not on a reload.
 
 - **Future consumers go through the interface.** The Session inactive feature will consume
   `openLogin()` (idle detection, notice, Panier reattachment remain its own concern). The
@@ -63,7 +71,7 @@ happens when the Visiteur opens the modal — required bouncing across five file
 ## Trade-offs
 
 - **One large controller file vs five small ones**: the controller is now a deep module —
-  a five-member interface over most of the flow's complexity. The cost is that the file is
+  a five-member surface over most of the flow's complexity. The cost is that the file is
   the single point of understanding for the modal; mitigated by its invariants being
   locally enforced and its behavior fully covered at the interface seam.
 - **Callers depend on one module**: every consumer of the modal flow imports the controller,
@@ -75,6 +83,9 @@ happens when the Visiteur opens the modal — required bouncing across five file
 - One read channel, one write channel: only the controller reads `?open`/`?next` in the modal
   area, and only its router push (open) and router replace (close/clean) write them.
 - The session-gating predicate exists in exactly one copy, inside the controller.
-- The controller never leaves the page: no full-page reloads, no redirects in the flow.
+- The controller never leaves the page within its seam: no full-page reloads, no redirects
+  while opening, closing, or syncing `?open`/`?next`. (The post-authentication redirect to
+  the Destination post-connexion in `use-sign-in-flow.ts` happens after a session exists and
+  the seam's params are gone; it is outside the invariant's scope.)
 - ADR-0001 is untouched: the URL params remain the source of truth; this ADR only narrows
   who may read and write them.

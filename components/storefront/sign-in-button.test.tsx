@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import {
+  flush,
   mockNextNavigation,
   resetNavigation,
 } from "@/components/auth/test-utils"
@@ -62,9 +63,12 @@ function signInButton() {
   )!
 }
 
-function clickAndSync(target: HTMLElement) {
+async function clickAndSync(target: HTMLElement) {
   act(() => {
     target.click()
+  })
+  await flush()
+  act(() => {
     if (currentElement) roots[roots.length - 1].render(currentElement())
   })
 }
@@ -76,10 +80,10 @@ describe("SignInButton", () => {
     expect(signInButton().tagName).toBe("BUTTON")
   })
 
-  it("opens the login dialog in place on click, without navigating", () => {
+  it("opens the login dialog in place on click, without navigating", async () => {
     renderWithProvider()
 
-    clickAndSync(signInButton())
+    await clickAndSync(signInButton())
 
     expect(
       container.querySelector("[data-dialog]")!.getAttribute("data-dialog")

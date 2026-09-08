@@ -13,7 +13,7 @@ export function RequireAuth() {
   const { openLogin } = useAuthDialogs()
 
   useEffect(() => {
-    queueMicrotask(() => openLogin())
+    openLogin()
   }, [openLogin])
 
   return (
