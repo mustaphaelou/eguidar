@@ -1,5 +1,7 @@
 "use client"
 
+import { useCallback, useState } from "react"
+
 import {
   Dialog,
   DialogContent,
@@ -9,14 +11,11 @@ import {
 } from "@/components/ui/dialog"
 import { SignUpForm, type SignUpStep } from "@/components/auth/sign-up-form"
 import {
+  useAuthDialogDestination,
   useAuthDialogOpen,
   useAuthDialogs,
-} from "@/components/auth/auth-dialogs-context"
-import {
-  headingForDestination,
-  useAuthDestination,
-} from "@/components/auth/auth-headings"
-import { useAuthDialogHeader } from "@/components/auth/use-auth-dialog-header"
+} from "@/components/auth/auth-dialogs"
+import { headingForDestination } from "@/components/auth/auth-headings"
 
 export function SignUpDialog() {
   const { email, openLogin, close } = useAuthDialogs()
@@ -41,11 +40,16 @@ function SignUpDialogPanel({
   openLogin,
 }: {
   initialEmail: string
-  openLogin: (email?: string) => void
+  openLogin: (options?: { email?: string; next?: string }) => void
 }) {
-  const { header, handleStepChange } =
-    useAuthDialogHeader<SignUpStep>(initialEmail)
-  const destination = useAuthDestination()
+  const [header, setHeader] = useState<{ step: SignUpStep; email: string }>({
+    step: "form",
+    email: initialEmail,
+  })
+  const handleStepChange = useCallback((step: SignUpStep, email: string) => {
+    setHeader({ step, email })
+  }, [])
+  const destination = useAuthDialogDestination()
   const contextualTitle = headingForDestination("signup", destination)
 
   return (
@@ -67,7 +71,7 @@ function SignUpDialogPanel({
               Déjà un compte ?{" "}
               <button
                 type="button"
-                onClick={() => openLogin(header.email)}
+                onClick={() => openLogin({ email: header.email })}
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Se connecter
@@ -79,7 +83,7 @@ function SignUpDialogPanel({
       <SignUpForm
         initialEmail={initialEmail}
         onStepChange={handleStepChange}
-        onVerified={(verifiedEmail) => openLogin(verifiedEmail)}
+        onVerified={(verifiedEmail) => openLogin({ email: verifiedEmail })}
       />
     </>
   )

@@ -13,7 +13,6 @@ import Link from "next/link"
 import { PasswordInput } from "@/components/auth/password-input"
 import { Turnstile } from "@/components/auth/turnstile"
 import { authClient } from "@/lib/client"
-import { loginUrl } from "@/lib/lien-de-connexion"
 import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 const captchaHeaders = (token: string | null) =>
@@ -122,11 +121,7 @@ export function SignUpForm({
         setError(translateAuthError(result.error))
         return
       }
-      if (onVerified) {
-        onVerified(email)
-      } else {
-        window.location.href = loginUrl()
-      }
+      onVerified?.(email)
     } finally {
       setLoading(false)
     }

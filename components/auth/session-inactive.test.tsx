@@ -1,4 +1,10 @@
 // @vitest-environment happy-dom
+import {
+  flush,
+  mockNextLink,
+  mockNextNavigation,
+  resetNavigation,
+} from "./test-utils"
 import { act, Suspense } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -6,8 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SESSION_INACTIVE_SECONDS } from "@/lib/session-constants"
 
-import { AuthDialogsProvider } from "./auth-dialogs-context"
-import { AuthUrlSanitizer } from "./auth-url-sanitizer"
+import { AuthDialogsProvider } from "./auth-dialogs"
 import {
   SESSION_INACTIVE_NOTICE,
   SessionInactiveController,
@@ -21,33 +26,9 @@ const { sessionState, signOutControl } = vi.hoisted(() => ({
   signOutControl: { hang: false, resolve: null as null | (() => void) },
 }))
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: {
-    href: string
-    children: React.ReactNode
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}))
+vi.mock("next/link", () => mockNextLink())
 
 vi.mock("@/components/auth/turnstile", () => ({
   Turnstile: () => null,
@@ -94,7 +75,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/panier")
+  resetNavigation("/panier")
   signOutControl.hang = false
   signOutControl.resolve = null
   connecter()
@@ -123,10 +104,6 @@ function rerender() {
   })
 }
 
-async function flush() {
-  await act(async () => {})
-}
-
 function controllerHarness() {
   return (
     <AuthDialogsProvider>
@@ -142,7 +119,6 @@ function controllerWithModalHarness() {
       <Suspense fallback={null}>
         <SignInDialog hasGoogle={false} hasApple={false} />
       </Suspense>
-      <AuthUrlSanitizer />
     </AuthDialogsProvider>
   )
 }

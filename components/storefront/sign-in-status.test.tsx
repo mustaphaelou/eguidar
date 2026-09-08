@@ -1,4 +1,10 @@
 // @vitest-environment happy-dom
+import {
+  mockNextLink,
+  mockNextNavigation,
+  navigationSpies,
+  resetNavigation,
+} from "@/components/auth/test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -10,26 +16,11 @@ vi.mock("next/headers", () => ({
   headers: () => Promise.resolve(new Headers()),
 }))
 
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: {
-    href: string
-    children: React.ReactNode
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}))
+vi.mock("next/link", () => mockNextLink())
 
-const { getSession, signOut, push, refresh } = vi.hoisted(() => ({
+const { getSession, signOut } = vi.hoisted(() => ({
   getSession: vi.fn(),
   signOut: vi.fn(),
-  push: vi.fn(),
-  refresh: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({
@@ -41,13 +32,9 @@ vi.mock("@/lib/client", () => ({
   useSession: () => ({ data: null, isPending: false }),
 }))
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({ push, replace: vi.fn(), refresh }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
-import { AuthDialogsProvider } from "@/components/auth/auth-dialogs-context"
+import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 import { SignInStatus } from "./sign-in-status"
 import { SignOutButton } from "./sign-out-button"
 
@@ -111,11 +98,9 @@ const roots: ReturnType<typeof createRoot>[] = []
 
 beforeEach(() => {
   signOut.mockReset()
-  push.mockReset()
-  refresh.mockReset()
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/")
+  resetNavigation("/")
 })
 
 afterEach(() => {
@@ -151,8 +136,8 @@ describe("SignOutButton", () => {
     await clickAndFlush(signOutButton())
 
     expect(signOut).toHaveBeenCalledTimes(1)
-    expect(push).toHaveBeenCalledWith("/")
-    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(navigationSpies.push).toHaveBeenCalledWith("/", undefined)
+    expect(navigationSpies.refresh).toHaveBeenCalledTimes(1)
   })
 
   it("navigates only after signOut has completed", async () => {
@@ -171,16 +156,16 @@ describe("SignOutButton", () => {
 
     expect(signOut).toHaveBeenCalledTimes(1)
     expect(signOutButton().disabled).toBe(true)
-    expect(push).not.toHaveBeenCalled()
-    expect(refresh).not.toHaveBeenCalled()
+    expect(navigationSpies.push).not.toHaveBeenCalled()
+    expect(navigationSpies.refresh).not.toHaveBeenCalled()
 
     await act(async () => {
       resolveSignOut?.()
     })
     await act(async () => {})
 
-    expect(push).toHaveBeenCalledWith("/")
-    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(navigationSpies.push).toHaveBeenCalledWith("/", undefined)
+    expect(navigationSpies.refresh).toHaveBeenCalledTimes(1)
     expect(signOutButton().disabled).toBe(false)
   })
 })

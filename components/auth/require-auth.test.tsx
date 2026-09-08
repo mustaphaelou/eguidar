@@ -1,13 +1,18 @@
 // @vitest-environment happy-dom
+import {
+  flush,
+  mockNextLink,
+  mockNextNavigation,
+  resetNavigation,
+} from "./test-utils"
 import { act, Suspense } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { AuthDialogsProvider } from "./auth-dialogs-context"
+import { AuthDialogsProvider } from "./auth-dialogs"
 import { RequireAuth } from "./require-auth"
 import { SignInDialog } from "./sign-in-dialog"
-import { AuthUrlSanitizer } from "./auth-url-sanitizer"
 
 const { sessionState } = vi.hoisted(() => ({
   sessionState: {
@@ -15,33 +20,9 @@ const { sessionState } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: {
-    href: string
-    children: React.ReactNode
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}))
+vi.mock("next/link", () => mockNextLink())
 
 vi.mock("@/components/auth/turnstile", () => ({
   Turnstile: () => null,
@@ -70,7 +51,7 @@ let currentElement: (() => ReactElement) | null = null
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/panier")
+  resetNavigation("/panier")
   sessionState.value = { data: null, isPending: false }
 })
 
@@ -111,7 +92,6 @@ function fullHarness() {
       <Suspense fallback={null}>
         <SignInDialog hasGoogle={false} hasApple={false} />
       </Suspense>
-      <AuthUrlSanitizer />
     </AuthDialogsProvider>
   )
 }
@@ -132,14 +112,10 @@ function closeButton() {
   )
 }
 
-async function flushDeferredUrlSync() {
-  await act(async () => {})
-}
-
 describe("RequireAuth", () => {
   it("renders a placeholder with a Se connecter button and a catalog link", async () => {
     render(() => gateOnlyHarness())
-    await flushDeferredUrlSync()
+    await flush()
 
     expect(container.textContent).toContain("Connectez-vous pour continuer")
     expect(signInButton()?.textContent).toBe("Se connecter")
@@ -148,7 +124,7 @@ describe("RequireAuth", () => {
 
   it("adds ?open=login and ?next=<current path> on mount, without navigating", async () => {
     render(() => gateOnlyHarness())
-    await flushDeferredUrlSync()
+    await flush()
 
     const url = new URL(window.location.href)
     expect(url.pathname).toBe("/panier")
@@ -160,7 +136,7 @@ describe("RequireAuth", () => {
     window.history.replaceState(null, "", "/panier?next=/profil")
 
     render(() => gateOnlyHarness())
-    await flushDeferredUrlSync()
+    await flush()
 
     expect(new URL(window.location.href).searchParams.get("next")).toBe(
       "/profil"
@@ -171,7 +147,7 @@ describe("RequireAuth", () => {
     window.history.replaceState(null, "", "/panier?next=//evil.example")
 
     render(() => gateOnlyHarness())
-    await flushDeferredUrlSync()
+    await flush()
 
     expect(new URL(window.location.href).searchParams.get("next")).toBe(
       "/panier"
@@ -182,7 +158,7 @@ describe("RequireAuth", () => {
     window.history.replaceState(null, "", "/panier?ville=casa&open=signup")
 
     render(() => gateOnlyHarness())
-    await flushDeferredUrlSync()
+    await flush()
 
     const url = new URL(window.location.href)
     expect(url.searchParams.get("next")).toBe("/panier?ville=casa")
@@ -194,14 +170,14 @@ describe("RequireAuth", () => {
     const spy = vi.spyOn(window.history, "replaceState")
 
     render(() => gateOnlyHarness())
-    await flushDeferredUrlSync()
+    await flush()
 
     expect(spy).not.toHaveBeenCalled()
   })
 
   it("re-sets ?open=login when Se connecter is clicked", async () => {
     render(() => gateOnlyHarness())
-    await flushDeferredUrlSync()
+    await flush()
 
     act(() => signInButton()!.click())
 
@@ -212,7 +188,7 @@ describe("RequireAuth", () => {
 describe("RequireAuth with the Connexion modal", () => {
   it("opens the login dialog on mount, with ?next=<current path>", async () => {
     render(() => fullHarness())
-    await flushDeferredUrlSync()
+    await flush()
     rerender()
 
     expect(dialog()).not.toBeNull()
@@ -223,7 +199,7 @@ describe("RequireAuth with the Connexion modal", () => {
 
   it("keeps the shopper on the gated page with the refusal placeholder after dismissal, without redirecting", async () => {
     render(() => fullHarness())
-    await flushDeferredUrlSync()
+    await flush()
     rerender()
     expect(dialog()).not.toBeNull()
 
@@ -244,7 +220,7 @@ describe("RequireAuth with the Connexion modal", () => {
 
   it("reopens the login dialog via Se connecter after the dialog was closed", async () => {
     render(() => fullHarness())
-    await flushDeferredUrlSync()
+    await flush()
     rerender()
     expect(dialog()).not.toBeNull()
 
@@ -254,6 +230,7 @@ describe("RequireAuth with the Connexion modal", () => {
     expect(new URL(window.location.href).searchParams.has("open")).toBe(false)
 
     act(() => signInButton()!.click())
+    await flush()
     rerender()
     expect(dialog()).not.toBeNull()
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")

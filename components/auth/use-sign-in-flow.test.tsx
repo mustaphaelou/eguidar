@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { mockNextNavigation, resetNavigation, setInputValue } from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -6,15 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
 import { useSignInFlow } from "./use-sign-in-flow"
-import { setInputValue } from "./test-utils"
 
-const { params } = vi.hoisted(() => ({
-  params: new URLSearchParams(),
-}))
-
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => params,
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("@/lib/client", () => ({
   authClient: {
@@ -48,8 +42,7 @@ const roots: ReturnType<typeof createRoot>[] = []
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/")
-  params.delete("next")
+  resetNavigation("/")
 })
 
 afterEach(() => {
@@ -129,7 +122,7 @@ function setValue(input: HTMLInputElement, value: string) {
 
 describe("useSignInFlow", () => {
   it("navigates to a validated ?next= after successful sign-in", async () => {
-    params.set("next", "/profil")
+    window.history.replaceState(null, "", "/?next=/profil")
     mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
 
     render(<Harness />)
@@ -150,7 +143,7 @@ describe("useSignInFlow", () => {
   })
 
   it("calls onSuccess and stays on the page when there is no ?next=", async () => {
-    params.delete("next")
+    window.history.replaceState(null, "", "/")
     mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
     const onSuccess = vi.fn()
 
@@ -168,7 +161,7 @@ describe("useSignInFlow", () => {
   })
 
   it("returns to the form step with a verified notice after OTP verification instead of navigating", async () => {
-    params.set("next", "/profil")
+    window.history.replaceState(null, "", "/?next=/profil")
     mockedAuthClient.emailOtp.verifyEmail.mockResolvedValue({
       data: {},
       error: null,
@@ -194,7 +187,7 @@ describe("useSignInFlow", () => {
   })
 
   it("does not sign in after OTP verification when there is no ?next=", async () => {
-    params.delete("next")
+    window.history.replaceState(null, "", "/")
     mockedAuthClient.emailOtp.verifyEmail.mockResolvedValue({
       data: {},
       error: null,

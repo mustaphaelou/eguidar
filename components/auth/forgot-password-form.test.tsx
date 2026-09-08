@@ -1,4 +1,9 @@
 // @vitest-environment happy-dom
+import {
+  mockNextLink,
+  mockNextNavigation,
+  resetNavigation,
+} from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -7,27 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ForgotPasswordForm } from "./forgot-password-form"
 import { loginUrl } from "@/lib/lien-de-connexion"
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-  }),
-  useSearchParams: () => new URLSearchParams(),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: {
-    href: string
-    children: React.ReactNode
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}))
+vi.mock("next/link", () => mockNextLink())
 
 vi.mock("@/components/auth/turnstile", () => ({
   Turnstile: () => null,
@@ -41,6 +28,7 @@ const roots: ReturnType<typeof createRoot>[] = []
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
+  resetNavigation("/")
 })
 
 afterEach(() => {

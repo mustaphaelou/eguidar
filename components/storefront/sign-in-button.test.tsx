@@ -1,4 +1,9 @@
 // @vitest-environment happy-dom
+import {
+  flush,
+  mockNextNavigation,
+  resetNavigation,
+} from "@/components/auth/test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -6,23 +11,10 @@ import { useSearchParams } from "next/navigation"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { parseAuthParams } from "@/lib/lien-de-connexion"
-import {
-  AuthDialogsProvider,
-} from "@/components/auth/auth-dialogs-context"
+import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 import { SignInButton } from "./sign-in-button"
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -33,7 +25,7 @@ let currentElement: (() => ReactElement) | null = null
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/")
+  resetNavigation("/")
 })
 
 afterEach(() => {
@@ -71,9 +63,12 @@ function signInButton() {
   )!
 }
 
-function clickAndSync(target: HTMLElement) {
+async function clickAndSync(target: HTMLElement) {
   act(() => {
     target.click()
+  })
+  await flush()
+  act(() => {
     if (currentElement) roots[roots.length - 1].render(currentElement())
   })
 }
@@ -85,10 +80,10 @@ describe("SignInButton", () => {
     expect(signInButton().tagName).toBe("BUTTON")
   })
 
-  it("opens the login dialog in place on click, without navigating", () => {
+  it("opens the login dialog in place on click, without navigating", async () => {
     renderWithProvider()
 
-    clickAndSync(signInButton())
+    await clickAndSync(signInButton())
 
     expect(
       container.querySelector("[data-dialog]")!.getAttribute("data-dialog")

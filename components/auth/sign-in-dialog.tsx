@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense } from "react"
+import { useCallback, useState } from "react"
 
 import {
   Dialog,
@@ -11,14 +11,11 @@ import {
 } from "@/components/ui/dialog"
 import { SignInForm } from "@/components/auth/sign-in-form"
 import {
+  useAuthDialogDestination,
   useAuthDialogOpen,
   useAuthDialogs,
-} from "@/components/auth/auth-dialogs-context"
-import {
-  headingForDestination,
-  useAuthDestination,
-} from "@/components/auth/auth-headings"
-import { useAuthDialogHeader } from "@/components/auth/use-auth-dialog-header"
+} from "@/components/auth/auth-dialogs"
+import { headingForDestination } from "@/components/auth/auth-headings"
 import type { SignInStep } from "@/components/auth/use-sign-in-flow"
 
 export function SignInDialog({
@@ -61,12 +58,17 @@ function SignInDialogPanel({
   initialEmail: string
   hasGoogle: boolean
   hasApple: boolean
-  openSignUp: (email?: string) => void
+  openSignUp: (options?: { email?: string }) => void
   close: () => void
 }) {
-  const { header, handleStepChange } =
-    useAuthDialogHeader<SignInStep>(initialEmail)
-  const destination = useAuthDestination()
+  const [header, setHeader] = useState<{ step: SignInStep; email: string }>({
+    step: "form",
+    email: initialEmail,
+  })
+  const handleStepChange = useCallback((step: SignInStep, email: string) => {
+    setHeader({ step, email })
+  }, [])
+  const destination = useAuthDialogDestination()
   const contextualTitle = headingForDestination("login", destination)
 
   return (
@@ -85,7 +87,7 @@ function SignInDialogPanel({
               Pas encore de compte ?{" "}
               <button
                 type="button"
-                onClick={() => openSignUp(header.email)}
+                onClick={() => openSignUp({ email: header.email })}
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Inscrivez-vous
@@ -94,16 +96,14 @@ function SignInDialogPanel({
           )}
         </DialogDescription>
       </DialogHeader>
-      <Suspense fallback={null}>
-        <SignInForm
-          hasGoogle={hasGoogle}
-          hasApple={hasApple}
-          initialEmail={initialEmail}
-          onStepChange={handleStepChange}
-          onForgotPassword={close}
-          onSuccess={close}
-        />
-      </Suspense>
+      <SignInForm
+        hasGoogle={hasGoogle}
+        hasApple={hasApple}
+        initialEmail={initialEmail}
+        onStepChange={handleStepChange}
+        onForgotPassword={close}
+        onSuccess={close}
+      />
     </>
   )
 }

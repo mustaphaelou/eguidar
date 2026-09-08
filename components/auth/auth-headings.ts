@@ -1,9 +1,3 @@
-"use client"
-
-import { useState } from "react"
-
-import { parseAuthParams } from "@/lib/lien-de-connexion"
-
 export type AuthDialogKind = "login" | "signup"
 
 const COMMERCE_PREFIXES = ["/produit", "/panier", "/checkout"]
@@ -31,14 +25,4 @@ export function headingForDestination(
   return order
     ? "Créez votre compte pour finaliser votre commande"
     : "Créez votre compte pour continuer"
-}
-
-export function useAuthDestination(): string | null {
-  const [destination] = useState<string | null>(() =>
-    typeof window === "undefined"
-      ? null
-      : parseAuthParams(window.location.search).next
-  )
-
-  return destination
 }

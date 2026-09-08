@@ -1,42 +1,24 @@
 // @vitest-environment happy-dom
+import {
+  flush,
+  mockNextLink,
+  mockNextNavigation,
+  resetNavigation,
+  setInputValue,
+} from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
-import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs-context"
+import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs"
 import { SignInDialog } from "./sign-in-dialog"
 import { SignUpDialog } from "./sign-up-dialog"
-import { setInputValue } from "./test-utils"
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => new URL(window.location.href).pathname,
-  useRouter: () => ({
-    push: (url: string) => {
-      window.history.pushState(null, "", url)
-    },
-    replace: (url: string) => {
-      window.history.replaceState(null, "", url)
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+vi.mock("next/navigation", () => mockNextNavigation())
 
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: {
-    href: string
-    children: React.ReactNode
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
-}))
+vi.mock("next/link", () => mockNextLink())
 
 vi.mock("@/components/auth/turnstile", () => ({
   Turnstile: () => null,
@@ -80,7 +62,7 @@ let currentElement: (() => ReactElement) | null = null
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  window.history.replaceState(null, "", "/")
+  resetNavigation("/")
   mockedAuthClient.signUp.email.mockResolvedValue({ data: {}, error: null })
   mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
     data: {},
@@ -107,9 +89,12 @@ function render(element: () => ReactElement) {
   act(() => root.render(element()))
 }
 
-function clickAndSync(target: HTMLElement) {
+async function clickAndSync(target: HTMLElement) {
   act(() => {
     target.click()
+  })
+  await flush()
+  act(() => {
     if (currentElement) roots[roots.length - 1].render(currentElement())
   })
 }
@@ -123,7 +108,7 @@ function OpenSignUpButton() {
   )
 }
 
-function renderSignUpDialog() {
+async function renderSignUpDialog() {
   render(() => (
     <AuthDialogsProvider>
       <OpenSignUpButton />
@@ -131,7 +116,7 @@ function renderSignUpDialog() {
       <SignUpDialog />
     </AuthDialogsProvider>
   ))
-  clickAndSync(container.querySelector("button")!)
+  await clickAndSync(container.querySelector("button")!)
 }
 
 function title() {
@@ -164,24 +149,24 @@ function emailInput() {
 }
 
 describe("SignUpDialog", () => {
-  it("opens the sign-up dialog and swaps to login", () => {
-    renderSignUpDialog()
+  it("opens the sign-up dialog and swaps to login", async () => {
+    await renderSignUpDialog()
 
     expect(dialog()).not.toBeNull()
     expect(title()).toBe("Créer un compte")
 
-    clickAndSync(
+    await clickAndSync(
       document.querySelector<HTMLButtonElement>(
         "[data-slot='dialog-description'] button"
       )!
     )
 
-    expect(title()).toBe("Connexion à Eguidar")
+    expect(title()).toBe("Connectez-vous pour continuer")
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
   })
 
   it("swaps to the login dialog with the email prefilled after OTP verification", async () => {
-    renderSignUpDialog()
+    await renderSignUpDialog()
 
     setInputValue(
       dialog()!.querySelector<HTMLInputElement>("#name")!,
@@ -199,10 +184,14 @@ describe("SignUpDialog", () => {
 
     await clickAndFlush(submitButton("Envoyer le code")!)
 
-    setInputValue(dialog()!.querySelector<HTMLInputElement>("#otp")!, "123456")
-    await clickAndFlush(submitButton("Vérifier mon e-mail")!)
+  setInputValue(dialog()!.querySelector<HTMLInputElement>("#otp")!, "123456")
+  await clickAndFlush(submitButton("Vérifier mon e-mail")!)
+  await flush()
+  act(() => {
+    if (currentElement) roots[roots.length - 1].render(currentElement())
+  })
 
-    expect(title()).toBe("Connexion à Eguidar")
+    expect(title()).toBe("Connectez-vous pour continuer")
     expect(emailInput()?.value).toBe("jane@example.com")
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
     expect(mockedAuthClient.emailOtp.verifyEmail).toHaveBeenCalledWith({
