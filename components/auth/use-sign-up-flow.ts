@@ -8,20 +8,12 @@ import {
   useCaptcha,
 } from "@/components/auth/auth-form-glue"
 import { authClient } from "@/lib/client"
-import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 export type SignUpStep = "form" | "otp"
 
-export type SignUpFlow = ReturnType<typeof useSignUpFlow>
-
-export function useSignUpFlow({
-  initialEmail,
-  onVerified,
-  onIssues,
-}: {
+export function useSignUpFlow({ initialEmail, onVerified }: {
   initialEmail?: string
   onVerified?: (email: string) => void
-  onIssues?: (issues: Record<string, string>) => void
 } = {}) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState(initialEmail ?? "")
@@ -31,25 +23,19 @@ export function useSignUpFlow({
   const [step, setStep] = useState<SignUpStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const formCaptcha = useCaptcha()
+  const captcha = useCaptcha()
   const otpCaptcha = useCaptcha()
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
-    const parsed = signUpSchema.safeParse({ name, email, password })
-    if (!parsed.success) {
-      onIssues?.(collectFieldIssues(parsed.error))
-      return
-    }
-    onIssues?.({})
     setError(null)
     setLoading(true)
     try {
       const result = await authClient.signUp.email({
-        name: parsed.data.name,
-        email: parsed.data.email,
-        password: parsed.data.password,
-        fetchOptions: { headers: captchaHeaders(formCaptcha.token) },
+        name,
+        email,
+        password,
+        fetchOptions: { headers: captchaHeaders(captcha.token) },
       })
       if (result.error) {
         setError(translateAuthError(result.error))
@@ -109,7 +95,7 @@ export function useSignUpFlow({
     step,
     error,
     loading,
-    formCaptcha,
+    captcha,
     otpCaptcha,
     handleSignUp,
     handleSendOtp,

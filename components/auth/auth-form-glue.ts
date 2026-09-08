@@ -26,7 +26,6 @@ export function useCaptcha() {
 export function translateAuthError(error: {
   code?: string
   message?: string
-  status?: number
 }): string {
   switch (error.code) {
     case "INVALID_EMAIL_OR_PASSWORD":

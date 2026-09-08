@@ -56,13 +56,11 @@ function render(element: ReactElement) {
 function Harness({
   initialEmail,
   onVerified,
-  onIssues,
 }: {
   initialEmail?: string
   onVerified?: (email: string) => void
-  onIssues?: (issues: Record<string, string>) => void
 }) {
-  const flow = useSignUpFlow({ initialEmail, onVerified, onIssues })
+  const flow = useSignUpFlow({ initialEmail, onVerified })
   return (
     <div>
       <input
@@ -201,22 +199,6 @@ describe("useSignUpFlow", () => {
     expect(step()).toBe("otp")
     expect(container.querySelector("[data-loading]")).toBeNull()
     expect(error()).toBeNull()
-  })
-
-  it("reports validation issues and does not submit an invalid payload", async () => {
-    const onIssues = vi.fn()
-
-    render(<Harness onIssues={onIssues} />)
-
-    await clickAndFlush(signUpButton())
-
-    expect(mockedAuthClient.signUp.email).not.toHaveBeenCalled()
-    expect(step()).toBe("form")
-    expect(onIssues).toHaveBeenCalledWith({
-      name: "Saisissez votre nom complet.",
-      email: "Saisissez votre adresse e-mail.",
-      password: "Le mot de passe doit contenir au moins 8 caractères.",
-    })
   })
 
   it("surfaces USER_ALREADY_EXISTS and stays on the form step", async () => {

@@ -16,6 +16,7 @@ import {
   useSignUpFlow,
   type SignUpStep,
 } from "@/components/auth/use-sign-up-flow"
+import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 export function SignUpForm({
   initialEmail,
@@ -40,12 +41,12 @@ export function SignUpForm({
     step,
     error,
     loading,
-    formCaptcha,
+    captcha,
     otpCaptcha,
     handleSignUp,
     handleSendOtp,
     handleVerifyOtp,
-  } = useSignUpFlow({ initialEmail, onVerified, onIssues: setIssues })
+  } = useSignUpFlow({ initialEmail, onVerified })
 
   useEffect(() => {
     onStepChange?.(step, email)
@@ -60,11 +61,22 @@ export function SignUpForm({
     })
   }
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const parsed = signUpSchema.safeParse({ name, email, password })
+    if (!parsed.success) {
+      setIssues(collectFieldIssues(parsed.error))
+      return
+    }
+    setIssues({})
+    await handleSignUp(e)
+  }
+
   return (
     <>
       {step === "form" && (
         <>
-          <form onSubmit={handleSignUp} noValidate>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="name">Nom complet</Label>
@@ -130,9 +142,9 @@ export function SignUpForm({
                   </p>
                 )}
               </div>
-              <Turnstile onTokenChange={formCaptcha.onChange} />
+              <Turnstile onTokenChange={captcha.onChange} />
               {error && <FieldError>{error}</FieldError>}
-              <Button type="submit" disabled={loading || !formCaptcha.ready}>
+              <Button type="submit" disabled={loading || !captcha.ready}>
                 {loading && (
                   <HugeiconsIcon
                     icon={Loading03Icon}
