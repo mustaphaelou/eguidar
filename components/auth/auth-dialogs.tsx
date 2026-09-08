@@ -199,16 +199,21 @@ function AuthUrlCleaner() {
   return null
 }
 
-export function AuthDialogs({ children }: { children: React.ReactNode }) {
+export function AuthDialogs({
+  children,
+  hasGoogle = false,
+  hasApple = false,
+}: {
+  children: React.ReactNode
+  hasGoogle?: boolean
+  hasApple?: boolean
+}) {
   return (
     <AuthDialogsProvider>
       {children}
       <Suspense fallback={null}>
         <AuthUrlCleaner />
-        <SignInDialog
-          hasGoogle={Boolean(process.env.GOOGLE_CLIENT_ID)}
-          hasApple={Boolean(process.env.APPLE_CLIENT_ID)}
-        />
+        <SignInDialog hasGoogle={hasGoogle} hasApple={hasApple} />
         <SignUpDialog />
       </Suspense>
     </AuthDialogsProvider>
