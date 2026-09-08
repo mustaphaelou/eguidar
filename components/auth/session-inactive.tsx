@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { SESSION_INACTIVE_SECONDS } from "@/lib/session-constants"
 import { signOut, useSession } from "@/lib/client"
 
-import { useAuthUrlSync } from "./use-auth-url-sync"
+import { useAuthDialogs } from "./auth-dialogs"
 
 const ACTIVITY_EVENTS = [
   "pointerdown",
@@ -24,7 +24,7 @@ export const SESSION_INACTIVE_NOTICE =
 
 export function SessionInactiveController() {
   const { data: session, isPending } = useSession()
-  const { openLoginForCurrentPage } = useAuthUrlSync()
+  const { openLogin } = useAuthDialogs()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -44,9 +44,9 @@ export function SessionInactiveController() {
     } catch (error) {
       console.error("Failed to sign out after session inactivity", error)
     } finally {
-      openLoginForCurrentPage()
+      openLogin()
     }
-  }, [openLoginForCurrentPage])
+  }, [openLogin])
 
   useEffect(() => {
     sessionRef.current = session

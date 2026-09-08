@@ -4,9 +4,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  AuthDialogsProvider,
-} from "@/components/auth/auth-dialogs-context"
+import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 
 const { updateProfileMock, searchParamsState } = vi.hoisted(() => ({
   updateProfileMock: vi.fn(),

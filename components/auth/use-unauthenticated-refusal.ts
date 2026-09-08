@@ -2,15 +2,15 @@
 
 import { useEffect } from "react"
 
-import { useAuthUrlSync } from "@/components/auth/use-auth-url-sync"
+import { useAuthDialogs } from "@/components/auth/auth-dialogs"
 
 export function useUnauthenticatedRefusal(
   state: { unauthenticated?: true } | undefined
 ) {
-  const { openLoginForCurrentPage } = useAuthUrlSync()
+  const { openLogin } = useAuthDialogs()
 
   useEffect(() => {
     if (!state?.unauthenticated) return
-    openLoginForCurrentPage()
-  }, [state, openLoginForCurrentPage])
+    openLogin()
+  }, [state, openLogin])
 }

@@ -47,7 +47,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }))
 
-import { AuthDialogsProvider } from "@/components/auth/auth-dialogs-context"
+import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 import { SignInStatus } from "./sign-in-status"
 import { SignOutButton } from "./sign-out-button"
 

@@ -4,10 +4,9 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { AuthDialogsProvider } from "./auth-dialogs-context"
+import { AuthDialogsProvider } from "./auth-dialogs"
 import { RequireAuth } from "./require-auth"
 import { SignInDialog } from "./sign-in-dialog"
-import { AuthUrlSanitizer } from "./auth-url-sanitizer"
 
 const { sessionState } = vi.hoisted(() => ({
   sessionState: {
@@ -111,7 +110,6 @@ function fullHarness() {
       <Suspense fallback={null}>
         <SignInDialog hasGoogle={false} hasApple={false} />
       </Suspense>
-      <AuthUrlSanitizer />
     </AuthDialogsProvider>
   )
 }

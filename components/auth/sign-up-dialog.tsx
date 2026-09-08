@@ -11,7 +11,7 @@ import { SignUpForm, type SignUpStep } from "@/components/auth/sign-up-form"
 import {
   useAuthDialogOpen,
   useAuthDialogs,
-} from "@/components/auth/auth-dialogs-context"
+} from "@/components/auth/auth-dialogs"
 import {
   headingForDestination,
   useAuthDestination,
@@ -41,7 +41,7 @@ function SignUpDialogPanel({
   openLogin,
 }: {
   initialEmail: string
-  openLogin: (email?: string) => void
+  openLogin: (options?: { email?: string; next?: string }) => void
 }) {
   const { header, handleStepChange } =
     useAuthDialogHeader<SignUpStep>(initialEmail)
@@ -67,7 +67,7 @@ function SignUpDialogPanel({
               Déjà un compte ?{" "}
               <button
                 type="button"
-                onClick={() => openLogin(header.email)}
+                onClick={() => openLogin({ email: header.email })}
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Se connecter
@@ -79,7 +79,7 @@ function SignUpDialogPanel({
       <SignUpForm
         initialEmail={initialEmail}
         onStepChange={handleStepChange}
-        onVerified={(verifiedEmail) => openLogin(verifiedEmail)}
+        onVerified={(verifiedEmail) => openLogin({ email: verifiedEmail })}
       />
     </>
   )

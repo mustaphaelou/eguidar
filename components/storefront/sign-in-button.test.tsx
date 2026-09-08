@@ -6,9 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { parseAuthParams } from "@/lib/lien-de-connexion"
-import {
-  AuthDialogsProvider,
-} from "@/components/auth/auth-dialogs-context"
+import { AuthDialogsProvider } from "@/components/auth/auth-dialogs"
 import { SignInButton } from "./sign-in-button"
 
 vi.mock("next/navigation", () => ({

@@ -6,8 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SESSION_INACTIVE_SECONDS } from "@/lib/session-constants"
 
-import { AuthDialogsProvider } from "./auth-dialogs-context"
-import { AuthUrlSanitizer } from "./auth-url-sanitizer"
+import { AuthDialogsProvider } from "./auth-dialogs"
 import {
   SESSION_INACTIVE_NOTICE,
   SessionInactiveController,
@@ -142,7 +141,6 @@ function controllerWithModalHarness() {
       <Suspense fallback={null}>
         <SignInDialog hasGoogle={false} hasApple={false} />
       </Suspense>
-      <AuthUrlSanitizer />
     </AuthDialogsProvider>
   )
 }

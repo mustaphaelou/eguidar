@@ -5,7 +5,7 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
-import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs-context"
+import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs"
 import { SignInDialog } from "./sign-in-dialog"
 import { SignUpDialog } from "./sign-up-dialog"
 import { setInputValue } from "./test-utils"
@@ -176,7 +176,7 @@ describe("SignUpDialog", () => {
       )!
     )
 
-    expect(title()).toBe("Connexion à Eguidar")
+    expect(title()).toBe("Connectez-vous pour continuer")
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
   })
 
@@ -202,7 +202,7 @@ describe("SignUpDialog", () => {
     setInputValue(dialog()!.querySelector<HTMLInputElement>("#otp")!, "123456")
     await clickAndFlush(submitButton("Vérifier mon e-mail")!)
 
-    expect(title()).toBe("Connexion à Eguidar")
+    expect(title()).toBe("Connectez-vous pour continuer")
     expect(emailInput()?.value).toBe("jane@example.com")
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
     expect(mockedAuthClient.emailOtp.verifyEmail).toHaveBeenCalledWith({

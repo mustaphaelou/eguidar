@@ -13,7 +13,7 @@ import { SignInForm } from "@/components/auth/sign-in-form"
 import {
   useAuthDialogOpen,
   useAuthDialogs,
-} from "@/components/auth/auth-dialogs-context"
+} from "@/components/auth/auth-dialogs"
 import {
   headingForDestination,
   useAuthDestination,
@@ -61,7 +61,7 @@ function SignInDialogPanel({
   initialEmail: string
   hasGoogle: boolean
   hasApple: boolean
-  openSignUp: (email?: string) => void
+  openSignUp: (options?: { email?: string }) => void
   close: () => void
 }) {
   const { header, handleStepChange } =
@@ -85,7 +85,7 @@ function SignInDialogPanel({
               Pas encore de compte ?{" "}
               <button
                 type="button"
-                onClick={() => openSignUp(header.email)}
+                onClick={() => openSignUp({ email: header.email })}
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Inscrivez-vous

@@ -4,25 +4,36 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { AuthDialogs } from "./auth-dialogs"
+import { useSearchParams } from "next/navigation"
+
+import {
+  AuthDialogs,
+  AuthDialogsProvider,
+  useAuthDialogs,
+} from "./auth-dialogs"
 import { RequireAuth } from "./require-auth"
 import { SignInButton } from "@/components/storefront/sign-in-button"
+import { parseAuthParams } from "@/lib/lien-de-connexion"
 
-const { sessionState, historyStack } = vi.hoisted(() => ({
+const { sessionState, historyStack, pushSpy, replaceSpy } = vi.hoisted(() => ({
   sessionState: {
     value: { data: null as { user: { id: string } } | null, isPending: false },
   },
   historyStack: [] as string[],
+  pushSpy: vi.fn(),
+  replaceSpy: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
   usePathname: () => new URL(window.location.href).pathname,
   useRouter: () => ({
-    push: (url: string) => {
+    push: (url: string, options?: { scroll: boolean }) => {
+      pushSpy(url, options)
       historyStack.push(window.location.href)
       window.history.pushState(null, "", url)
     },
-    replace: (url: string) => {
+    replace: (url: string, options?: { scroll: boolean }) => {
+      replaceSpy(url, options)
       window.history.replaceState(null, "", url)
     },
   }),
@@ -73,6 +84,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   window.history.replaceState(null, "", "/")
   historyStack.length = 0
+  pushSpy.mockClear()
+  replaceSpy.mockClear()
   sessionState.value = { data: null, isPending: false }
 })
 
@@ -166,7 +179,7 @@ describe("AuthDialogs", () => {
     expect(dialog()).not.toBeNull()
     expect(
       document.querySelector('[data-slot="dialog-title"]')?.textContent
-    ).toBe("Connexion à Eguidar")
+    ).toBe("Connectez-vous pour continuer")
     expect(locationParams().get("open")).toBe("login")
 
     rerender()
@@ -419,7 +432,7 @@ describe("AuthDialogs", () => {
     expect(locationParams().get("open")).toBe("signup")
     expect(
       document.querySelector('[data-slot="dialog-title"]')?.textContent
-    ).toBe("Créer un compte")
+    ).toBe("Créez votre compte pour continuer")
 
     pressEscape()
     rerender()
@@ -536,5 +549,209 @@ describe("AuthDialogs", () => {
     expect(dialog()).toBeNull()
     expect(locationParams().get("open")).toBeNull()
     expect(locationParams().get("next")).toBeNull()
+  })
+
+  it("cleans up an invalid ?open= value while keeping unrelated params", () => {
+    window.history.replaceState(null, "", "/?open=bogus&q=chaussures")
+    render(() => storefront())
+    rerender()
+
+    expect(replaceSpy).toHaveBeenCalledTimes(1)
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("q")).toBe("chaussures")
+    expect(dialog()).toBeNull()
+  })
+
+  it("does not rewrite the URL when there is no Lien de connexion to clean", () => {
+    render(() => storefront())
+    rerender()
+
+    expect(replaceSpy).not.toHaveBeenCalled()
+  })
+})
+
+function ControllerHarness() {
+  const { openLogin, openSignUp, close } = useAuthDialogs()
+  const { dialog } = parseAuthParams(useSearchParams())
+  return (
+    <div>
+      <div data-dialog={dialog ?? "none"} />
+      <button type="button" data-open-login onClick={() => openLogin()} />
+      <button type="button" data-open-signup onClick={() => openSignUp()} />
+      <button type="button" data-close onClick={() => close()} />
+    </div>
+  )
+}
+
+function controllerHarness() {
+  return (
+    <AuthDialogsProvider>
+      <ControllerHarness />
+    </AuthDialogsProvider>
+  )
+}
+
+function controllerDialog() {
+  return container.querySelector("[data-dialog]")?.getAttribute("data-dialog")
+}
+
+function controllerClick(name: string) {
+  act(() =>
+    container.querySelector<HTMLButtonElement>(`[data-${name}]`)!.click()
+  )
+}
+
+describe("AuthDialogsProvider controller interface", () => {
+  it("opens the Connexion modal with the current page as the default Destination post-connexion", () => {
+    window.history.replaceState(null, "", "/panier?q=chaussures")
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures",
+      { scroll: false }
+    )
+    expect(locationParams().get("open")).toBe("login")
+    expect(locationParams().get("next")).toBe("/panier?q=chaussures")
+
+    rerender()
+
+    expect(controllerDialog()).toBe("login")
+  })
+
+  it("opens the Inscription modal without touching the Destination post-connexion", () => {
+    window.history.replaceState(null, "", "/panier?q=chaussures")
+    render(() => controllerHarness())
+
+    controllerClick("open-signup")
+
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures&open=signup",
+      { scroll: false }
+    )
+
+    rerender()
+
+    expect(controllerDialog()).toBe("signup")
+  })
+
+  it("closes through a replace that keeps unrelated params and notifies consumers", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/panier?open=login&next=/profil&q=chaussures"
+    )
+    render(() => controllerHarness())
+    rerender()
+    expect(controllerDialog()).toBe("login")
+
+    controllerClick("close")
+
+    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith("/panier?q=chaussures", {
+      scroll: false,
+    })
+    expect(locationParams().get("open")).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(locationParams().get("q")).toBe("chaussures")
+
+    rerender()
+
+    expect(controllerDialog()).toBe("none")
+  })
+
+  it("closes down to the bare pathname when nothing else remains", () => {
+    window.history.replaceState(null, "", "/panier?open=login&next=/panier")
+    render(() => controllerHarness())
+
+    controllerClick("close")
+
+    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith("/panier", {
+      scroll: false,
+    })
+    expect(new URL(window.location.href).search).toBe("")
+  })
+
+  it("does not navigate when closing with no auth params to clear", () => {
+    render(() => controllerHarness())
+
+    controllerClick("close")
+
+    expect(replaceSpy).not.toHaveBeenCalled()
+  })
+
+  it("does not navigate when the requested Lien de connexion is already in the URL", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/panier?open=login&next=%2Fpanier&q=chaussures"
+    )
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+
+    expect(pushSpy).not.toHaveBeenCalled()
+    expect(replaceSpy).not.toHaveBeenCalled()
+  })
+
+  it("reuses an existing validated Destination post-connexion when opening", () => {
+    window.history.replaceState(null, "", "/panier?next=/profil")
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?next=%2Fprofil&open=login",
+      { scroll: false }
+    )
+  })
+
+  it("replaces an invalid Destination post-connexion with the current page address", () => {
+    window.history.replaceState(null, "", "/panier?next=//evil.example")
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?next=%2Fpanier&open=login",
+      { scroll: false }
+    )
+  })
+
+  it("preserves the URL fragment when opening the Connexion modal", () => {
+    window.history.replaceState(null, "", "/panier?q=chaussures#avis")
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+
+    expect(pushSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures&open=login&next=%2Fpanier%3Fq%3Dchaussures%23avis#avis",
+      { scroll: false }
+    )
+    expect(new URL(window.location.href).hash).toBe("#avis")
+  })
+
+  it("preserves the URL fragment when closing and clearing auth params", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/panier?open=login&next=/profil&q=chaussures#avis"
+    )
+    render(() => controllerHarness())
+    rerender()
+    expect(controllerDialog()).toBe("login")
+
+    controllerClick("close")
+
+    expect(replaceSpy).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures#avis",
+      { scroll: false }
+    )
+    expect(locationParams().get("open")).toBeNull()
+    expect(new URL(window.location.href).hash).toBe("#avis")
+
+    rerender()
+
+    expect(controllerDialog()).toBe("none")
   })
 })

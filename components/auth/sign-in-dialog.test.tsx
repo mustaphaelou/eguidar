@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs-context"
+import { AuthDialogsProvider, useAuthDialogs } from "./auth-dialogs"
 import { SignInDialog } from "./sign-in-dialog"
 import { SignUpDialog } from "./sign-up-dialog"
 import { setInputValue } from "./test-utils"
@@ -143,7 +143,7 @@ describe("SignInDialog", () => {
     clickAndSync(openButton())
 
     expect(dialog()).not.toBeNull()
-    expect(title()).toBe("Connexion à Eguidar")
+    expect(title()).toBe("Connectez-vous pour continuer")
     expect(emailInput()).not.toBeNull()
   })
 
@@ -172,7 +172,7 @@ describe("SignInDialog", () => {
     clickAndSync(swapButton()!)
 
     expect(dialog()).not.toBeNull()
-    expect(title()).toBe("Créer un compte")
+    expect(title()).toBe("Créez votre compte pour continuer")
     expect(
       (dialog()?.querySelector('input[type="email"]') as HTMLInputElement)
         ?.value
@@ -196,7 +196,7 @@ describe("SignInDialog", () => {
       )!
     )
 
-    expect(title()).toBe("Connexion à Eguidar")
+    expect(title()).toBe("Connectez-vous pour continuer")
     expect(new URL(window.location.href).searchParams.get("open")).toBe("login")
   })
 
