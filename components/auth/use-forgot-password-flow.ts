@@ -4,6 +4,8 @@ import { useCallback, useState } from "react"
 
 import { authClient } from "@/lib/client"
 
+import { translateAuthError } from "./auth-form-glue"
+
 const captchaHeaders = (token: string | null) =>
   token ? { "x-captcha-response": token } : undefined
 
@@ -39,7 +41,7 @@ export function useForgotPasswordFlow() {
         fetchOptions: { headers: captchaHeaders(captchaToken) },
       })
       if (result.error) {
-        setError(translateForgotPasswordError(result.error))
+        setError(translateAuthError(result.error))
         return
       }
       setStep("otp")
@@ -70,7 +72,7 @@ export function useForgotPasswordFlow() {
         password,
       })
       if (result.error) {
-        setError(translateForgotPasswordError(result.error))
+        setError(translateAuthError(result.error))
         return
       }
       setStep("success")
@@ -101,32 +103,5 @@ export function useForgotPasswordFlow() {
     handleSendOtp,
     handleResetPassword,
     backToEmail,
-  }
-}
-
-export function translateForgotPasswordError(error: {
-  code?: string
-  message?: string
-  status?: number
-}): string {
-  switch (error.code) {
-    case "USER_NOT_FOUND":
-      return "Aucun compte n'est associé à cette adresse e-mail."
-    case "INVALID_OTP":
-      return "Le code de vérification est invalide ou incorrect."
-    case "OTP_EXPIRED":
-      return "Le code de vérification a expiré. Veuillez en demander un nouveau."
-    case "TOO_MANY_ATTEMPTS":
-      return "Trop de tentatives. Veuillez patienter avant de réessayer."
-    case "PASSWORD_TOO_SHORT":
-      return "Le mot de passe doit contenir au moins 8 caractères."
-    case "PASSWORDS_DO_NOT_MATCH":
-      return "Les mots de passe ne correspondent pas."
-    case "MISSING_RESPONSE":
-      return "Veuillez valider le test de sécurité (Turnstile)."
-    case "INVALID_RESPONSE":
-      return "Le test de sécurité a échoué. Veuillez réessayer."
-    default:
-      return error.message ?? "Une erreur est survenue. Veuillez réessayer."
   }
 }
