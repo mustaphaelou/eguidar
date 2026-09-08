@@ -21,10 +21,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Turnstile } from "@/components/auth/turnstile"
-import {
-  captchaEnabled,
-  useForgotPasswordFlow,
-} from "@/components/auth/use-forgot-password-flow"
+import { useForgotPasswordFlow } from "@/components/auth/use-forgot-password-flow"
 import { loginUrl } from "@/lib/lien-de-connexion"
 
 export function ForgotPasswordForm() {
@@ -37,11 +34,10 @@ export function ForgotPasswordForm() {
     setPassword,
     confirmPassword,
     setConfirmPassword,
-    captchaToken,
+    captcha,
     step,
     error,
     loading,
-    handleCaptchaChange,
     handleSendOtp,
     handleResetPassword,
     backToEmail,
@@ -91,13 +87,10 @@ export function ForgotPasswordForm() {
                   aria-invalid={error ? true : undefined}
                 />
               </Field>
-              <Turnstile onTokenChange={handleCaptchaChange} />
+              <Turnstile onTokenChange={captcha.onChange} />
               {error && <FieldError>{error}</FieldError>}
               <Field>
-                <Button
-                  type="submit"
-                  disabled={loading || (captchaEnabled && !captchaToken)}
-                >
+                <Button type="submit" disabled={loading || !captcha.ready}>
                   {loading ? "Envoi…" : "Envoyer le code"}
                 </Button>
               </Field>

@@ -1,34 +1,26 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useState } from "react"
 
 import { authClient } from "@/lib/client"
 
-import { translateAuthError } from "./auth-form-glue"
-
-const captchaHeaders = (token: string | null) =>
-  token ? { "x-captcha-response": token } : undefined
-
-export const captchaEnabled = Boolean(
-  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
-)
+import {
+  captchaHeaders,
+  translateAuthError,
+  useCaptcha,
+} from "./auth-form-glue"
 
 export type ForgotPasswordStep = "email" | "otp" | "success"
 
 export function useForgotPasswordFlow() {
+  const captcha = useCaptcha()
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [step, setStep] = useState<ForgotPasswordStep>("email")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  const handleCaptchaChange = useCallback(
-    (token: string | null) => setCaptchaToken(token),
-    []
-  )
 
   async function handleSendOtp(e?: React.FormEvent) {
     if (e) e.preventDefault()
@@ -38,7 +30,7 @@ export function useForgotPasswordFlow() {
       const result = await authClient.emailOtp.sendVerificationOtp({
         email,
         type: "forget-password",
-        fetchOptions: { headers: captchaHeaders(captchaToken) },
+        fetchOptions: { headers: captchaHeaders(captcha.token) },
       })
       if (result.error) {
         setError(translateAuthError(result.error))
@@ -95,11 +87,10 @@ export function useForgotPasswordFlow() {
     setPassword,
     confirmPassword,
     setConfirmPassword,
-    captchaToken,
+    captcha,
     step,
     error,
     loading,
-    handleCaptchaChange,
     handleSendOtp,
     handleResetPassword,
     backToEmail,
