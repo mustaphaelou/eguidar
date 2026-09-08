@@ -74,7 +74,7 @@ function SignInDialogPanel({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>
+        <DialogTitle className="text-lg">
           {header.step === "otp"
             ? "Vérifiez votre e-mail"
             : (contextualTitle ?? "Connexion à Eguidar")}

@@ -8,6 +8,7 @@ import {
   AppleIcon,
   GoogleIcon,
   Loading03Icon,
+  TruckDeliveryIcon,
 } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
@@ -103,6 +104,7 @@ export function SignInForm({
                   <Button
                     type="button"
                     variant="outline"
+                    size="lg"
                     onClick={() => handleSocial("apple")}
                     disabled={loading}
                   >
@@ -114,6 +116,7 @@ export function SignInForm({
                   <Button
                     type="button"
                     variant="outline"
+                    size="lg"
                     onClick={() => handleSocial("google")}
                     disabled={loading}
                   >
@@ -122,11 +125,11 @@ export function SignInForm({
                   </Button>
                 )}
               </div>
-              <FieldSeparator>ou</FieldSeparator>
+              <FieldSeparator>ou par e-mail</FieldSeparator>
             </>
           )}
           <form onSubmit={handleSubmit} noValidate>
-            <FieldGroup>
+            <FieldGroup className="gap-3">
               <Field data-invalid={Boolean(issues.email || error)}>
                 <FieldLabel htmlFor="email">E-mail</FieldLabel>
                 <Input
@@ -180,6 +183,7 @@ export function SignInForm({
               <Field>
                 <Button
                   type="submit"
+                  size="lg"
                   disabled={loading || (captchaEnabled && !captchaToken)}
                 >
                   {loading && (
@@ -194,9 +198,15 @@ export function SignInForm({
               </Field>
             </FieldGroup>
           </form>
-          <p className="text-xs text-muted-foreground">
-            Paiement à la livraison — aucun paiement en ligne requis.
-          </p>
+          <div className="flex items-start gap-2.5 rounded-2xl bg-muted p-3 text-xs text-muted-foreground">
+            <HugeiconsIcon
+              icon={TruckDeliveryIcon}
+              className="mt-0.5 size-4 shrink-0"
+            />
+            <span>
+              Paiement à la livraison — aucun paiement en ligne requis.
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground">
             En continuant, vous acceptez nos{" "}
             <Link
@@ -229,7 +239,7 @@ export function SignInForm({
                 </Field>
                 {error && <FieldError>{error}</FieldError>}
                 <Field>
-                  <Button type="submit" disabled={loading}>
+                  <Button type="submit" size="lg" disabled={loading}>
                     {loading && (
                       <HugeiconsIcon
                         icon={Loading03Icon}
@@ -253,6 +263,7 @@ export function SignInForm({
               <Field>
                 <Button
                   type="button"
+                  size="lg"
                   onClick={handleSendOtp}
                   disabled={loading || (captchaEnabled && !otpCaptchaToken)}
                 >

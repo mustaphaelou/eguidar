@@ -20,7 +20,7 @@ import {
 } from "@/lib/lien-de-connexion"
 import { useSession } from "@/lib/client"
 
-import { SignInDialogGate } from "./prototype/sign-in-prototype"
+import { SignInDialog } from "./sign-in-dialog"
 import { SignUpDialog } from "./sign-up-dialog"
 
 type AuthDialogsContextValue = {
@@ -205,7 +205,7 @@ export function AuthDialogs({ children }: { children: React.ReactNode }) {
       {children}
       <Suspense fallback={null}>
         <AuthUrlCleaner />
-        <SignInDialogGate
+        <SignInDialog
           hasGoogle={Boolean(process.env.GOOGLE_CLIENT_ID)}
           hasApple={Boolean(process.env.APPLE_CLIENT_ID)}
         />
