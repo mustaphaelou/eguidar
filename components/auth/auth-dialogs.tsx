@@ -20,7 +20,7 @@ import {
 } from "@/lib/lien-de-connexion"
 import { useSession } from "@/lib/client"
 
-import { SignInDialog } from "./sign-in-dialog"
+import { SignInDialogGate } from "./prototype/sign-in-prototype"
 import { SignUpDialog } from "./sign-up-dialog"
 
 type AuthDialogsContextValue = {
@@ -105,10 +105,8 @@ export function AuthDialogsProvider({
 
   const cleanAuthParams = useCallback(() => {
     const current = currentAddress()
-    navigateUnlessUnchanged(
-      current,
-      pageAddressWithoutAuthParams(),
-      (url) => router.replace(url, { scroll: false })
+    navigateUnlessUnchanged(current, pageAddressWithoutAuthParams(), (url) =>
+      router.replace(url, { scroll: false })
     )
   }, [router])
 
@@ -207,7 +205,7 @@ export function AuthDialogs({ children }: { children: React.ReactNode }) {
       {children}
       <Suspense fallback={null}>
         <AuthUrlCleaner />
-        <SignInDialog
+        <SignInDialogGate
           hasGoogle={Boolean(process.env.GOOGLE_CLIENT_ID)}
           hasApple={Boolean(process.env.APPLE_CLIENT_ID)}
         />
