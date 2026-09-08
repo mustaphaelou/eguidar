@@ -1,5 +1,7 @@
 "use client"
 
+import { useCallback, useState } from "react"
+
 import {
   Dialog,
   DialogContent,
@@ -14,7 +16,6 @@ import {
   useAuthDialogs,
 } from "@/components/auth/auth-dialogs"
 import { headingForDestination } from "@/components/auth/auth-headings"
-import { useAuthDialogHeader } from "@/components/auth/use-auth-dialog-header"
 
 export function SignUpDialog() {
   const { email, openLogin, close } = useAuthDialogs()
@@ -41,8 +42,13 @@ function SignUpDialogPanel({
   initialEmail: string
   openLogin: (options?: { email?: string; next?: string }) => void
 }) {
-  const { header, handleStepChange } =
-    useAuthDialogHeader<SignUpStep>(initialEmail)
+  const [header, setHeader] = useState<{ step: SignUpStep; email: string }>({
+    step: "form",
+    email: initialEmail,
+  })
+  const handleStepChange = useCallback((step: SignUpStep, email: string) => {
+    setHeader({ step, email })
+  }, [])
   const destination = useAuthDialogDestination()
   const contextualTitle = headingForDestination("signup", destination)
 
