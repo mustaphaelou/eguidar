@@ -51,9 +51,10 @@ function headingForDestination(
 
 type AuthDialogHeader = { step: SignInStep | SignUpStep; email: string }
 
+const OTP_TITLE = "Vérifiez votre e-mail"
+
 type AuthDialogConfig = {
   defaultTitle: string
-  otpTitle: string
   otpDescription: (email: string) => string
   swapPrefix: string
   swapLabel: string
@@ -89,7 +90,6 @@ export function AuthDialog({
   const config: Record<AuthDialogName, AuthDialogConfig> = {
     login: {
       defaultTitle: "Connexion à Eguidar",
-      otpTitle: "Vérifiez votre e-mail",
       otpDescription: (otpEmail) =>
         `Saisissez le code de vérification envoyé à ${otpEmail}.`,
       swapPrefix: "Pas encore de compte ?",
@@ -108,7 +108,6 @@ export function AuthDialog({
     },
     signup: {
       defaultTitle: "Créer un compte",
-      otpTitle: "Vérifiez votre e-mail",
       otpDescription: (otpEmail) =>
         `Vérifiez votre adresse e-mail pour finaliser votre inscription (${otpEmail}).`,
       swapPrefix: "Déjà un compte ?",
@@ -125,6 +124,7 @@ export function AuthDialog({
   }
 
   const kind = config[dialog]
+  const isOtp = header.step === "otp"
 
   return (
     <Dialog
@@ -136,12 +136,10 @@ export function AuthDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-lg">
-            {header.step === "otp"
-              ? kind.otpTitle
-              : (contextualTitle ?? kind.defaultTitle)}
+            {isOtp ? OTP_TITLE : (contextualTitle ?? kind.defaultTitle)}
           </DialogTitle>
           <DialogDescription>
-            {header.step === "otp" ? (
+            {isOtp ? (
               kind.otpDescription(header.email)
             ) : (
               <>

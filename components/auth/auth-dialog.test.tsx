@@ -285,6 +285,19 @@ describe("AuthDialog", () => {
       expect(title()).toBe("Connectez-vous pour continuer")
     })
 
+    it("does not treat prefixes as whole-path matches", async () => {
+      window.history.replaceState(
+        null,
+        "",
+        "/?open=login&next=/produits-voisins"
+      )
+      renderWithDialogs(<Harness />)
+
+      await clickAndSync(openButton())
+
+      expect(title()).toBe("Connectez-vous pour continuer")
+    })
+
     it("swaps to Inscription with the entered email prefilled", async () => {
       renderWithDialogs(<Harness />)
 
