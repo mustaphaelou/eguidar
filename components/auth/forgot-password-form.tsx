@@ -20,7 +20,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Turnstile } from "@/components/auth/turnstile"
 import { useForgotPasswordFlow } from "@/components/auth/use-forgot-password-flow"
 import { loginUrl } from "@/lib/lien-de-connexion"
 
@@ -29,16 +28,13 @@ export function ForgotPasswordForm() {
     email,
     setEmail,
     otp,
-    setOtp,
     password,
     setPassword,
     confirmPassword,
     setConfirmPassword,
-    captcha,
     step,
     error,
     loading,
-    handleSendOtp,
     handleResetPassword,
     backToEmail,
   } = useForgotPasswordFlow()
@@ -72,9 +68,14 @@ export function ForgotPasswordForm() {
 
       {step === "email" && (
         <CardContent className="flex flex-col gap-4">
-          <form onSubmit={handleSendOtp}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              otp.send()
+            }}
+          >
             <FieldGroup>
-              <Field data-invalid={Boolean(error)}>
+              <Field data-invalid={Boolean(otp.error)}>
                 <FieldLabel htmlFor="email">E-mail</FieldLabel>
                 <Input
                   id="email"
@@ -84,14 +85,17 @@ export function ForgotPasswordForm() {
                   required
                   autoComplete="email"
                   placeholder="nom@exemple.com"
-                  aria-invalid={error ? true : undefined}
+                  aria-invalid={otp.error ? true : undefined}
                 />
               </Field>
-              <Turnstile onTokenChange={captcha.onChange} />
-              {error && <FieldError>{error}</FieldError>}
+              {otp.captchaField}
+              {otp.error && <FieldError>{otp.error}</FieldError>}
               <Field>
-                <Button type="submit" disabled={loading || !captcha.ready}>
-                  {loading ? "Envoi…" : "Envoyer le code"}
+                <Button
+                  type="submit"
+                  disabled={otp.loading || !otp.captchaReady}
+                >
+                  {otp.loading ? "Envoi…" : "Envoyer le code"}
                 </Button>
               </Field>
             </FieldGroup>
@@ -117,8 +121,8 @@ export function ForgotPasswordForm() {
                   id="otp"
                   inputMode="numeric"
                   maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
+                  value={otp.otp}
+                  onChange={(e) => otp.setOtp(e.target.value)}
                   required
                   placeholder="000000"
                   aria-invalid={error ? true : undefined}
