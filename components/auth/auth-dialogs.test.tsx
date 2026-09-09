@@ -36,6 +36,15 @@ vi.mock("@/components/auth/turnstile", () => ({
   Turnstile: () => <div data-testid="turnstile-challenge" />,
 }))
 
+vi.mock("@/components/auth/test-de-securite", () => ({
+  useTestDeSecurite: () => ({
+    ready: true,
+    headers: undefined,
+    field: <div data-testid="test-de-securite" />,
+    reset: vi.fn(),
+  }),
+}))
+
 vi.mock("@/lib/client", () => ({
   useSession: () => sessionState.value,
   authClient: {
@@ -206,7 +215,7 @@ describe("AuthDialogs", () => {
     expect(dialog()).toBeNull()
   })
 
-  it("unmounts the Turnstile challenge when the modal is dismissed", async () => {
+  it("unmounts the Test de sécurité challenge when the modal is dismissed", async () => {
     render(() => storefront())
 
     act(() => headerButton().click())
@@ -215,7 +224,7 @@ describe("AuthDialogs", () => {
 
     expect(dialog()).not.toBeNull()
     expect(
-      document.querySelector('[data-testid="turnstile-challenge"]')
+      document.querySelector('[data-testid="test-de-securite"]')
     ).not.toBeNull()
 
     pressEscape()
@@ -223,7 +232,7 @@ describe("AuthDialogs", () => {
 
     expect(dialog()).toBeNull()
     expect(
-      document.querySelector('[data-testid="turnstile-challenge"]')
+      document.querySelector('[data-testid="test-de-securite"]')
     ).toBeNull()
   })
 
