@@ -2,11 +2,8 @@
 
 import { useState } from "react"
 
-import {
-  captchaHeaders,
-  translateAuthError,
-  useCaptcha,
-} from "@/components/auth/auth-form-glue"
+import { translateAuthError } from "@/components/auth/auth-form-glue"
+import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 
 export type SignUpStep = "form" | "otp"
@@ -23,8 +20,8 @@ export function useSignUpFlow({ initialEmail, onVerified }: {
   const [step, setStep] = useState<SignUpStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const captcha = useCaptcha()
-  const otpCaptcha = useCaptcha()
+  const captcha = useTestDeSecurite()
+  const otpCaptcha = useTestDeSecurite()
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
@@ -35,9 +32,15 @@ export function useSignUpFlow({ initialEmail, onVerified }: {
         name,
         email,
         password,
-        fetchOptions: { headers: captchaHeaders(captcha.token) },
+        fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
+        if (
+          result.error.code === "MISSING_RESPONSE" ||
+          result.error.code === "INVALID_RESPONSE"
+        ) {
+          captcha.reset()
+        }
         setError(translateAuthError(result.error))
         return
       }
@@ -54,9 +57,15 @@ export function useSignUpFlow({ initialEmail, onVerified }: {
       const result = await authClient.emailOtp.sendVerificationOtp({
         email,
         type: "email-verification",
-        fetchOptions: { headers: captchaHeaders(otpCaptcha.token) },
+        fetchOptions: { headers: otpCaptcha.headers },
       })
       if (result.error) {
+        if (
+          result.error.code === "MISSING_RESPONSE" ||
+          result.error.code === "INVALID_RESPONSE"
+        ) {
+          otpCaptcha.reset()
+        }
         setError(translateAuthError(result.error))
         return
       }

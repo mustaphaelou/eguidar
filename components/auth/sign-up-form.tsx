@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { PasswordInput } from "@/components/auth/password-input"
-import { Turnstile } from "@/components/auth/turnstile"
 import {
   useSignUpFlow,
   type SignUpStep,
@@ -142,7 +141,7 @@ export function SignUpForm({
                   </p>
                 )}
               </div>
-              <Turnstile onTokenChange={captcha.onChange} />
+              {captcha.field}
               {error && <FieldError>{error}</FieldError>}
               <Button type="submit" disabled={loading || !captcha.ready}>
                 {loading && (
@@ -202,7 +201,7 @@ export function SignUpForm({
                 Un code de vérification sera envoyé à {email}. Vérifiez votre
                 boîte de réception.
               </p>
-              <Turnstile onTokenChange={otpCaptcha.onChange} />
+              {otpCaptcha.field}
               {error && <FieldError>{error}</FieldError>}
               <Button
                 type="button"

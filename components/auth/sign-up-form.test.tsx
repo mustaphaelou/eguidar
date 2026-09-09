@@ -12,8 +12,18 @@ vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("next/link", () => mockNextLink())
 
-vi.mock("@/components/auth/turnstile", () => ({
-  Turnstile: () => null,
+const captchaStub = vi.hoisted(() => ({
+  ready: true,
+  reset: vi.fn(),
+}))
+
+vi.mock("@/components/auth/test-de-securite", () => ({
+  useTestDeSecurite: () => ({
+    ready: captchaStub.ready,
+    headers: undefined,
+    field: null,
+    reset: captchaStub.reset,
+  }),
 }))
 
 vi.mock("@/lib/client", () => ({
@@ -41,6 +51,8 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   resetNavigation("/")
+  captchaStub.ready = true
+  captchaStub.reset.mockClear()
 })
 
 afterEach(() => {
@@ -103,5 +115,17 @@ describe("SignUpForm", () => {
       fetchOptions: { headers: undefined },
     })
     expect(container.textContent).not.toContain("Saisissez votre nom complet.")
+  })
+
+  it("keeps the submit button disabled while the captcha is not ready", async () => {
+    captchaStub.ready = false
+
+    render(<SignUpForm />)
+    setInputValue(input("name"), "Jane Doe")
+    setInputValue(input("email"), "jane@example.com")
+    setInputValue(input("password"), "password123")
+
+    expect(submitButton().disabled).toBe(true)
+    expect(mockedAuthClient.signUp.email).not.toHaveBeenCalled()
   })
 })

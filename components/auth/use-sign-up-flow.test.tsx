@@ -8,6 +8,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { authClient } from "@/lib/client"
 import { useSignUpFlow } from "./use-sign-up-flow"
 
+const captchaStub = vi.hoisted(() => ({
+  ready: true,
+  reset: vi.fn(),
+}))
+
+vi.mock("@/components/auth/test-de-securite", () => ({
+  useTestDeSecurite: () => ({
+    ready: captchaStub.ready,
+    headers: undefined,
+    field: null,
+    reset: captchaStub.reset,
+  }),
+}))
+
 vi.mock("@/lib/client", () => ({
   authClient: {
     signUp: {
@@ -37,6 +51,8 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   resetNavigation("/")
+  captchaStub.ready = true
+  captchaStub.reset.mockClear()
 })
 
 afterEach(() => {
@@ -86,13 +102,6 @@ function Harness({
         value={flow.otp}
         onChange={(e) => flow.setOtp(e.target.value)}
       />
-      <button
-        type="button"
-        data-set-otp-captcha
-        onClick={() => flow.otpCaptcha.onChange("otp-token")}
-      >
-        set otp captcha token
-      </button>
       <button type="button" data-send-otp onClick={() => flow.handleSendOtp()}>
         send otp
       </button>
@@ -144,10 +153,6 @@ function otpInput() {
 
 function signUpButton() {
   return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
-}
-
-function otpCaptchaButton() {
-  return container.querySelector<HTMLButtonElement>("[data-set-otp-captcha]")!
 }
 
 function sendOtpButton() {
@@ -248,7 +253,7 @@ describe("useSignUpFlow", () => {
     expect(step()).toBe("otp")
   })
 
-  it("sends the verification OTP with the otp-step captcha token in the fetch headers", async () => {
+  it("sends the verification OTP with the module's headers on the otp step", async () => {
     mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
       data: {},
       error: null,
@@ -257,19 +262,67 @@ describe("useSignUpFlow", () => {
     render(<Harness />)
     setInputValue(emailInput(), "jane@example.com")
 
-    await act(async () => {
-      otpCaptchaButton().click()
-      await Promise.resolve()
-    })
     await clickAndFlush(sendOtpButton())
 
     expect(mockedAuthClient.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
       email: "jane@example.com",
       type: "email-verification",
-      fetchOptions: { headers: { "x-captcha-response": "otp-token" } },
+      fetchOptions: { headers: undefined },
     })
     expect(otpSent()).toBe("true")
     expect(error()).toBeNull()
+  })
+
+  it("resets the captcha so a rejected sign-up retries with a fresh token", async () => {
+    mockedAuthClient.signUp.email.mockResolvedValue({
+      data: null,
+      error: { code: "INVALID_RESPONSE", message: "captcha rejected" },
+    })
+
+    render(<Harness />)
+    setInputValue(nameInput(), "Jane Doe")
+    setInputValue(emailInput(), "jane@example.com")
+    setInputValue(passwordInput(), "password123")
+
+    await clickAndFlush(signUpButton())
+
+    expect(captchaStub.reset).toHaveBeenCalled()
+    expect(error()).toBe("Le test de sécurité a échoué. Veuillez réessayer.")
+    expect(step()).toBe("form")
+  })
+
+  it("does not reset the captcha when the sign-up is rejected for a non-captcha reason", async () => {
+    mockedAuthClient.signUp.email.mockResolvedValue({
+      data: null,
+      error: { code: "USER_ALREADY_EXISTS", message: "already exists" },
+    })
+
+    render(<Harness />)
+    setInputValue(nameInput(), "Jane Doe")
+    setInputValue(emailInput(), "jane@example.com")
+    setInputValue(passwordInput(), "password123")
+
+    await clickAndFlush(signUpButton())
+
+    expect(captchaStub.reset).not.toHaveBeenCalled()
+  })
+
+  it("resets the otp captcha so a rejected send retries with a fresh token", async () => {
+    mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
+      data: null,
+      error: { code: "MISSING_RESPONSE", message: "captcha missing" },
+    })
+
+    render(<Harness />)
+    setInputValue(emailInput(), "jane@example.com")
+
+    await clickAndFlush(sendOtpButton())
+
+    expect(captchaStub.reset).toHaveBeenCalled()
+    expect(otpSent()).toBe("false")
+    expect(error()).toBe(
+      "Veuillez valider le test de sécurité (Turnstile)."
+    )
   })
 
   it("keeps the otp step un-sent and surfaces the translated error when the OTP send fails", async () => {
