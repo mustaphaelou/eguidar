@@ -12,12 +12,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SESSION_INACTIVE_SECONDS } from "@/lib/session-constants"
 
+import { AuthDialog } from "./auth-dialog"
 import { AuthDialogsProvider } from "./auth-dialogs"
 import {
   SESSION_INACTIVE_NOTICE,
   SessionInactiveController,
 } from "./session-inactive"
-import { SignInDialog } from "./sign-in-dialog"
 
 const { sessionState, signOutControl } = vi.hoisted(() => ({
   sessionState: {
@@ -125,7 +125,7 @@ function controllerWithModalHarness() {
     <AuthDialogsProvider>
       <SessionInactiveController />
       <Suspense fallback={null}>
-        <SignInDialog hasGoogle={false} hasApple={false} />
+        <AuthDialog dialog="login" hasGoogle={false} hasApple={false} />
       </Suspense>
     </AuthDialogsProvider>
   )
