@@ -1,17 +1,16 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useState } from "react"
 
 import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
 import { authClient } from "@/lib/client"
 import { withoutAuthParams } from "@/lib/lien-de-connexion"
 
-const captchaHeaders = (token: string | null) =>
-  token ? { "x-captcha-response": token } : undefined
-
-export const captchaEnabled = Boolean(
-  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
-)
+import {
+  captchaHeaders,
+  translateAuthError,
+  useCaptcha,
+} from "./auth-form-glue"
 
 export type SignInStep = "form" | "otp"
 
@@ -25,25 +24,16 @@ export function useSignInFlow({
   onSuccess?: () => void
 } = {}) {
   const next = useAuthDialogDestination()
+  const captcha = useCaptcha()
+  const otpCaptcha = useCaptcha()
   const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-  const [otpCaptchaToken, setOtpCaptchaToken] = useState<string | null>(null)
   const [otpSent, setOtpSent] = useState(false)
   const [otp, setOtp] = useState("")
   const [step, setStep] = useState<SignInStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  const handleCaptchaChange = useCallback(
-    (token: string | null) => setCaptchaToken(token),
-    []
-  )
-  const handleOtpCaptchaChange = useCallback(
-    (token: string | null) => setOtpCaptchaToken(token),
-    []
-  )
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -54,7 +44,7 @@ export function useSignInFlow({
       const result = await authClient.signIn.email({
         email,
         password,
-        fetchOptions: { headers: captchaHeaders(captchaToken) },
+        fetchOptions: { headers: captchaHeaders(captcha.token) },
       })
       if (result.error) {
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
@@ -78,7 +68,7 @@ export function useSignInFlow({
       const result = await authClient.emailOtp.sendVerificationOtp({
         email,
         type: "email-verification",
-        fetchOptions: { headers: captchaHeaders(otpCaptchaToken) },
+        fetchOptions: { headers: captchaHeaders(otpCaptcha.token) },
       })
       if (result.error) {
         setError(translateAuthError(result.error))
@@ -137,8 +127,8 @@ export function useSignInFlow({
     setEmail,
     password,
     setPassword,
-    captchaToken,
-    otpCaptchaToken,
+    captcha,
+    otpCaptcha,
     otpSent,
     otp,
     setOtp,
@@ -146,8 +136,6 @@ export function useSignInFlow({
     error,
     notice,
     loading,
-    handleCaptchaChange,
-    handleOtpCaptchaChange,
     handleSignIn,
     handleSendOtp,
     handleVerifyOtp,
@@ -161,23 +149,4 @@ function socialSignInDestination() {
     withoutAuthParams(window.location.href),
     window.location.origin
   ).toString()
-}
-
-export function translateAuthError(error: {
-  code?: string
-  message?: string
-  status?: number
-}): string {
-  switch (error.code) {
-    case "INVALID_EMAIL_OR_PASSWORD":
-      return "E-mail ou mot de passe invalide."
-    case "EMAIL_NOT_VERIFIED":
-      return "Votre adresse e-mail n'est pas encore vérifiée."
-    case "MISSING_RESPONSE":
-      return "Veuillez valider le test de sécurité (Turnstile)."
-    case "INVALID_RESPONSE":
-      return "Le test de sécurité a échoué. Veuillez réessayer."
-    default:
-      return error.message ?? "Une erreur est survenue. Veuillez réessayer."
-  }
 }

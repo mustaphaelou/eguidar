@@ -9,7 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { SignUpForm, type SignUpStep } from "@/components/auth/sign-up-form"
+import { SignUpForm } from "@/components/auth/sign-up-form"
+import type { SignUpStep } from "@/components/auth/use-sign-up-flow"
 import {
   useAuthDialogDestination,
   useAuthDialogOpen,

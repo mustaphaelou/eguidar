@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/auth/password-input"
 import { Turnstile } from "@/components/auth/turnstile"
 import {
-  captchaEnabled,
   useSignInFlow,
   type SignInStep,
 } from "@/components/auth/use-sign-in-flow"
@@ -50,8 +49,8 @@ export function SignInForm({
     setEmail,
     password,
     setPassword,
-    captchaToken,
-    otpCaptchaToken,
+    captcha,
+    otpCaptcha,
     otpSent,
     otp,
     setOtp,
@@ -59,8 +58,6 @@ export function SignInForm({
     error,
     notice,
     loading,
-    handleCaptchaChange,
-    handleOtpCaptchaChange,
     handleSignIn,
     handleSendOtp,
     handleVerifyOtp,
@@ -175,7 +172,7 @@ export function SignInForm({
                 />
                 <FieldError id="password-issue">{issues.password}</FieldError>
               </Field>
-              <Turnstile onTokenChange={handleCaptchaChange} />
+              <Turnstile onTokenChange={captcha.onChange} />
               {error && <FieldError>{error}</FieldError>}
               {notice && (
                 <p className="text-sm font-medium text-green-600">{notice}</p>
@@ -184,7 +181,7 @@ export function SignInForm({
                 <Button
                   type="submit"
                   size="lg"
-                  disabled={loading || (captchaEnabled && !captchaToken)}
+                  disabled={loading || !captcha.ready}
                 >
                   {loading && (
                     <HugeiconsIcon
@@ -258,14 +255,14 @@ export function SignInForm({
                 Un code de vérification sera envoyé à {email}. Vérifiez votre
                 boîte de réception.
               </FieldDescription>
-              <Turnstile onTokenChange={handleOtpCaptchaChange} />
+              <Turnstile onTokenChange={otpCaptcha.onChange} />
               {error && <FieldError>{error}</FieldError>}
               <Field>
                 <Button
                   type="button"
                   size="lg"
                   onClick={handleSendOtp}
-                  disabled={loading || (captchaEnabled && !otpCaptchaToken)}
+                  disabled={loading || !otpCaptcha.ready}
                 >
                   {loading && (
                     <HugeiconsIcon
