@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { PasswordInput } from "@/components/auth/password-input"
-import { Turnstile } from "@/components/auth/turnstile"
 import {
   useSignUpFlow,
   type SignUpStep,
@@ -35,17 +34,12 @@ export function SignUpForm({
     setEmail,
     password,
     setPassword,
-    otpSent,
     otp,
-    setOtp,
     step,
     error,
     loading,
     captcha,
-    otpCaptcha,
     handleSignUp,
-    handleSendOtp,
-    handleVerifyOtp,
   } = useSignUpFlow({ initialEmail, onVerified })
 
   useEffect(() => {
@@ -142,7 +136,7 @@ export function SignUpForm({
                   </p>
                 )}
               </div>
-              <Turnstile onTokenChange={captcha.onChange} />
+              {captcha.field}
               {error && <FieldError>{error}</FieldError>}
               <Button type="submit" disabled={loading || !captcha.ready}>
                 {loading && (
@@ -170,30 +164,36 @@ export function SignUpForm({
       )}
       {step === "otp" && (
         <div className="grid gap-4">
-          {otpSent ? (
-            <form onSubmit={handleVerifyOtp} className="grid gap-4">
+          {otp.otpSent ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                otp.verify()
+              }}
+              className="grid gap-4"
+            >
               <div className="grid gap-2">
                 <Label htmlFor="otp">Code de vérification</Label>
                 <Input
                   id="otp"
                   inputMode="numeric"
                   maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
+                  value={otp.otp}
+                  onChange={(e) => otp.setOtp(e.target.value)}
                   required
                   placeholder="000000"
                 />
               </div>
-              {error && <FieldError>{error}</FieldError>}
-              <Button type="submit" disabled={loading}>
-                {loading && (
+              {otp.error && <FieldError>{otp.error}</FieldError>}
+              <Button type="submit" disabled={otp.loading}>
+                {otp.loading && (
                   <HugeiconsIcon
                     icon={Loading03Icon}
                     data-icon="inline-start"
                     className="animate-spin"
                   />
                 )}
-                {loading ? "Vérification…" : "Vérifier mon e-mail"}
+                {otp.loading ? "Vérification…" : "Vérifier mon e-mail"}
               </Button>
             </form>
           ) : (
@@ -202,21 +202,21 @@ export function SignUpForm({
                 Un code de vérification sera envoyé à {email}. Vérifiez votre
                 boîte de réception.
               </p>
-              <Turnstile onTokenChange={otpCaptcha.onChange} />
-              {error && <FieldError>{error}</FieldError>}
+              {otp.captchaField}
+              {otp.error && <FieldError>{otp.error}</FieldError>}
               <Button
                 type="button"
-                onClick={handleSendOtp}
-                disabled={loading || !otpCaptcha.ready}
+                onClick={() => otp.send()}
+                disabled={otp.loading || !otp.captchaReady}
               >
-                {loading && (
+                {otp.loading && (
                   <HugeiconsIcon
                     icon={Loading03Icon}
                     data-icon="inline-start"
                     className="animate-spin"
                   />
                 )}
-                {loading ? "Envoi…" : "Envoyer le code"}
+                {otp.loading ? "Envoi…" : "Envoyer le code"}
               </Button>
             </div>
           )}

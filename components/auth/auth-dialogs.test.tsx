@@ -32,8 +32,16 @@ vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("next/link", () => mockNextLink())
 
-vi.mock("@/components/auth/turnstile", () => ({
-  Turnstile: () => <div data-testid="turnstile-challenge" />,
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
+  useTestDeSecurite: () => ({
+    ready: true,
+    headers: undefined,
+    field: <div data-testid="test-de-securite" />,
+    reset: vi.fn(),
+  }),
 }))
 
 vi.mock("@/lib/client", () => ({
@@ -133,8 +141,7 @@ function submitButton() {
 
 function swapButton(label: string) {
   return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
-    (button) =>
-      button.type === "button" && button.textContent?.includes(label)
+    (button) => button.type === "button" && button.textContent?.includes(label)
   )!
 }
 
@@ -206,7 +213,7 @@ describe("AuthDialogs", () => {
     expect(dialog()).toBeNull()
   })
 
-  it("unmounts the Turnstile challenge when the modal is dismissed", async () => {
+  it("unmounts the Test de sécurité challenge when the modal is dismissed", async () => {
     render(() => storefront())
 
     act(() => headerButton().click())
@@ -215,7 +222,7 @@ describe("AuthDialogs", () => {
 
     expect(dialog()).not.toBeNull()
     expect(
-      document.querySelector('[data-testid="turnstile-challenge"]')
+      document.querySelector('[data-testid="test-de-securite"]')
     ).not.toBeNull()
 
     pressEscape()
@@ -223,7 +230,7 @@ describe("AuthDialogs", () => {
 
     expect(dialog()).toBeNull()
     expect(
-      document.querySelector('[data-testid="turnstile-challenge"]')
+      document.querySelector('[data-testid="test-de-securite"]')
     ).toBeNull()
   })
 
@@ -266,11 +273,7 @@ describe("AuthDialogs", () => {
   })
 
   it("silently sanitizes Inscription parameters for an authenticated Client without mounting any modal", () => {
-    window.history.replaceState(
-      null,
-      "",
-      "/?open=signup&next=/compte&tri=prix"
-    )
+    window.history.replaceState(null, "", "/?open=signup&next=/compte&tri=prix")
     ;(window as unknown as Record<string, unknown>).__pageInstance = true
     sessionState.value = { data: { user: { id: "1" } }, isPending: false }
     render(() => storefront())
@@ -628,9 +631,12 @@ describe("AuthDialogsProvider controller interface", () => {
 
     controllerClick("close")
 
-    expect(navigationSpies.replace).toHaveBeenCalledExactlyOnceWith("/panier?q=chaussures", {
-      scroll: false,
-    })
+    expect(navigationSpies.replace).toHaveBeenCalledExactlyOnceWith(
+      "/panier?q=chaussures",
+      {
+        scroll: false,
+      }
+    )
     expect(locationParams().get("open")).toBeNull()
     expect(locationParams().get("next")).toBeNull()
     expect(locationParams().get("q")).toBe("chaussures")

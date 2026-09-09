@@ -3,14 +3,14 @@
 import { useState } from "react"
 
 import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
+import { translateAuthError } from "@/components/auth/auth-form-glue"
+import { useOtpExchange } from "@/components/auth/verification-de-l-email"
+import {
+  isCaptchaRejection,
+  useTestDeSecurite,
+} from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 import { withoutAuthParams } from "@/lib/lien-de-connexion"
-
-import {
-  captchaHeaders,
-  translateAuthError,
-  useCaptcha,
-} from "./auth-form-glue"
 
 export type SignInStep = "form" | "otp"
 
@@ -24,16 +24,21 @@ export function useSignInFlow({
   onSuccess?: () => void
 } = {}) {
   const next = useAuthDialogDestination()
-  const captcha = useCaptcha()
-  const otpCaptcha = useCaptcha()
   const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
-  const [otpSent, setOtpSent] = useState(false)
-  const [otp, setOtp] = useState("")
   const [step, setStep] = useState<SignInStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const captcha = useTestDeSecurite()
+  const otp = useOtpExchange({
+    email,
+    type: "email-verification",
+    onVerified: () => {
+      setNotice("Votre e-mail est vérifié. Connectez-vous.")
+      backToForm()
+    },
+  })
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -44,12 +49,15 @@ export function useSignInFlow({
       const result = await authClient.signIn.email({
         email,
         password,
-        fetchOptions: { headers: captchaHeaders(captcha.token) },
+        fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
           setStep("otp")
           return
+        }
+        if (isCaptchaRejection(result.error)) {
+          captcha.reset()
         }
         setError(translateAuthError(result.error))
         return
@@ -60,52 +68,6 @@ export function useSignInFlow({
     }
   }
 
-  async function handleSendOtp() {
-    setError(null)
-    setNotice(null)
-    setLoading(true)
-    try {
-      const result = await authClient.emailOtp.sendVerificationOtp({
-        email,
-        type: "email-verification",
-        fetchOptions: { headers: captchaHeaders(otpCaptcha.token) },
-      })
-      if (result.error) {
-        setError(translateAuthError(result.error))
-        return
-      }
-      setOtpSent(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setNotice(null)
-    setLoading(true)
-    try {
-      const result = await authClient.emailOtp.verifyEmail({ email, otp })
-      if (result.error) {
-        setError(translateAuthError(result.error))
-        return
-      }
-      setNotice("Votre e-mail est vérifié. Connectez-vous.")
-      backToForm()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function completeSignIn() {
-    if (next) {
-      window.location.href = next
-      return
-    }
-    onSuccess?.()
-  }
-
   async function handleSocial(provider: "google" | "apple") {
     setError(null)
     setNotice(null)
@@ -114,6 +76,14 @@ export function useSignInFlow({
       callbackURL: socialSignInDestination(),
     })
     if (result.error) setError(translateAuthError(result.error))
+  }
+
+  function completeSignIn() {
+    if (next) {
+      window.location.href = next
+      return
+    }
+    onSuccess?.()
   }
 
   function backToForm() {
@@ -127,18 +97,13 @@ export function useSignInFlow({
     setEmail,
     password,
     setPassword,
-    captcha,
-    otpCaptcha,
-    otpSent,
     otp,
-    setOtp,
     step,
     error,
     notice,
     loading,
+    captcha,
     handleSignIn,
-    handleSendOtp,
-    handleVerifyOtp,
     handleSocial,
     backToForm,
   }

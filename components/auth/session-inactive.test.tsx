@@ -30,8 +30,16 @@ vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("next/link", () => mockNextLink())
 
-vi.mock("@/components/auth/turnstile", () => ({
-  Turnstile: () => null,
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
+  useTestDeSecurite: () => ({
+    ready: true,
+    headers: undefined,
+    field: null,
+    reset: vi.fn(),
+  }),
 }))
 
 vi.mock("@/lib/client", () => ({

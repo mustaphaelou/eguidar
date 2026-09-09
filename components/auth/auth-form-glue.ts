@@ -1,28 +1,5 @@
 "use client"
 
-import { useCallback, useState } from "react"
-
-export function captchaHeaders(token: string | null) {
-  return token ? { "x-captcha-response": token } : undefined
-}
-
-export function useCaptcha() {
-  const [token, setToken] = useState<string | null>(null)
-
-  const onChange = useCallback((nextToken: string | null) => {
-    setToken(nextToken)
-  }, [])
-
-  const required = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)
-
-  return {
-    token,
-    onChange,
-    required,
-    ready: !required || token !== null,
-  }
-}
-
 export function translateAuthError(error: {
   code?: string
   message?: string

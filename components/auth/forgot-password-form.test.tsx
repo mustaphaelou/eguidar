@@ -1,9 +1,5 @@
 // @vitest-environment happy-dom
-import {
-  mockNextLink,
-  mockNextNavigation,
-  resetNavigation,
-} from "./test-utils"
+import { mockNextLink, mockNextNavigation, resetNavigation } from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -16,8 +12,21 @@ vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("next/link", () => mockNextLink())
 
-vi.mock("@/components/auth/turnstile", () => ({
-  Turnstile: () => null,
+const captchaStub = vi.hoisted(() => ({
+  ready: true,
+  reset: vi.fn(),
+}))
+
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
+  useTestDeSecurite: () => ({
+    ready: captchaStub.ready,
+    headers: undefined,
+    field: null,
+    reset: captchaStub.reset,
+  }),
 }))
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true

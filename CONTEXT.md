@@ -112,6 +112,14 @@ _Avoid_: sign-up page, register
 Le chemin interne de la boutique où le client reprend son parcours après une authentification réussie ; il est demandé en même temps que la Connexion ou l'Inscription et toujours validé comme chemin relatif.
 _Avoid_: redirect, callback, retour
 
+**Vérification de l'e-mail**:
+L'échange d'un code à usage unique envoyé à l'adresse e-mail contre la validation de cette adresse. Le Compte client est créé dès l'Inscription mais n'est un Client de plein droit qu'une fois son e-mail vérifié ; à la Connexion, un Compte client non vérifié reprend ce même échange avant de pouvoir se connecter.
+_Avoid_: OTP, code de vérification, vérification OTP
+
+**Test de sécurité**:
+La vérification anti-robot (implémentée avec Turnstile) exigée avant les envois protégés : l'envoi du code de la Vérification de l'e-mail, la création de compte à l'Inscription, la Connexion par mot de passe et la demande de réinitialisation du mot de passe. Elle produit un jeton à usage unique, transmis avec l'envoi protégé et consommé par le serveur ; l'envoi n'est possible qu'une fois le jeton obtenu.
+_Avoid_: captcha, widget, Turnstile (comme nom du concept), vérification humaine
+
 **Déconnexion**:
 The act by which a Client ends their own session via the « Déconnexion » button in the header, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
 _Avoid_: logout, se déconnecter (as the screen name), déconnexion automatique (reserved for Session inactive)

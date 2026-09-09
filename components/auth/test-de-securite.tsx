@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 
 type TurnstileOptions = {
   sitekey: string
@@ -28,27 +27,42 @@ const SCRIPT_SRC =
 
 type WidgetStatus = "idle" | "expired" | "error"
 
-export function Turnstile({
+function TestSecuriteWidget({
+  siteKey,
   onTokenChange,
-  className,
+  status,
+  onStatusChange,
+  resetSignal,
 }: {
+  siteKey: string
   onTokenChange: (token: string | null) => void
-  className?: string
+  status: WidgetStatus
+  onStatusChange: (status: WidgetStatus) => void
+  resetSignal: number
 }) {
-  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetIdRef = useRef<string | null>(null)
   const onTokenChangeRef = useRef(onTokenChange)
 
   const [loaded, setLoaded] = useState(false)
-  const [status, setStatus] = useState<WidgetStatus>("idle")
+
+  const resetWidget = useCallback(() => {
+    if (!widgetIdRef.current || !window.turnstile) return
+    try {
+      window.turnstile.reset(widgetIdRef.current)
+    } catch {
+      window.turnstile.remove(widgetIdRef.current)
+      widgetIdRef.current = null
+      setLoaded(false)
+      queueMicrotask(() => setLoaded(true))
+    }
+  }, [])
 
   useEffect(() => {
     onTokenChangeRef.current = onTokenChange
   })
 
   useEffect(() => {
-    if (!siteKey) return
     const existing = document.getElementById(
       "turnstile-script"
     ) as HTMLScriptElement | null
@@ -65,21 +79,20 @@ export function Turnstile({
     script.addEventListener("load", () => setLoaded(true))
     document.head.appendChild(script)
     return () => script.remove()
-  }, [siteKey])
+  }, [])
 
   useEffect(() => {
-    if (!loaded || !siteKey || !containerRef.current || !window.turnstile)
-      return
+    if (!loaded || !containerRef.current || !window.turnstile) return
     widgetIdRef.current = window.turnstile.render(containerRef.current, {
       sitekey: siteKey,
       callback: (token) => onTokenChangeRef.current(token),
       "expired-callback": () => {
         onTokenChangeRef.current(null)
-        setStatus("expired")
+        onStatusChange("expired")
       },
       "error-callback": () => {
         onTokenChangeRef.current(null)
-        setStatus("error")
+        onStatusChange("error")
       },
       theme: "auto",
     })
@@ -89,26 +102,20 @@ export function Turnstile({
         widgetIdRef.current = null
       }
     }
-  }, [loaded, siteKey])
+  }, [loaded, siteKey, onStatusChange])
+
+  useEffect(() => {
+    if (resetSignal === 0) return
+    queueMicrotask(() => resetWidget())
+  }, [resetSignal, resetWidget])
 
   function retry() {
-    setStatus("idle")
-    if (widgetIdRef.current && window.turnstile) {
-      try {
-        window.turnstile.reset(widgetIdRef.current)
-      } catch {
-        window.turnstile?.remove(widgetIdRef.current)
-        widgetIdRef.current = null
-        setLoaded(false)
-        queueMicrotask(() => setLoaded(true))
-      }
-    }
+    onStatusChange("idle")
+    resetWidget()
   }
 
-  if (!siteKey) return null
-
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    <div className="flex flex-col gap-1">
       <div
         ref={containerRef}
         className="min-h-16 overflow-hidden rounded-xl border bg-background/60 p-1"
@@ -137,4 +144,40 @@ export function Turnstile({
       )}
     </div>
   )
+}
+
+export function isCaptchaRejection(
+  error: { code?: string } | null | undefined
+): boolean {
+  return (
+    error?.code === "MISSING_RESPONSE" || error?.code === "INVALID_RESPONSE"
+  )
+}
+
+export function useTestDeSecurite() {
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+  const [token, setToken] = useState<string | null>(null)
+  const [status, setStatus] = useState<WidgetStatus>("idle")
+  const [resetSignal, setResetSignal] = useState(0)
+
+  function reset() {
+    setToken(null)
+    setStatus("idle")
+    setResetSignal((count) => count + 1)
+  }
+
+  return {
+    ready: !siteKey || token !== null,
+    headers: token ? { "x-captcha-response": token } : undefined,
+    field: siteKey ? (
+      <TestSecuriteWidget
+        siteKey={siteKey}
+        onTokenChange={setToken}
+        status={status}
+        onStatusChange={setStatus}
+        resetSignal={resetSignal}
+      />
+    ) : null,
+    reset,
+  }
 }

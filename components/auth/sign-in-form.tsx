@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/auth/password-input"
-import { Turnstile } from "@/components/auth/turnstile"
 import {
   useSignInFlow,
   type SignInStep,
@@ -49,18 +48,13 @@ export function SignInForm({
     setEmail,
     password,
     setPassword,
-    captcha,
-    otpCaptcha,
-    otpSent,
     otp,
-    setOtp,
     step,
     error,
     notice,
     loading,
+    captcha,
     handleSignIn,
-    handleSendOtp,
-    handleVerifyOtp,
     handleSocial,
     backToForm,
   } = useSignInFlow({ initialEmail, onSuccess })
@@ -172,7 +166,7 @@ export function SignInForm({
                 />
                 <FieldError id="password-issue">{issues.password}</FieldError>
               </Field>
-              <Turnstile onTokenChange={captcha.onChange} />
+              {captcha.field}
               {error && <FieldError>{error}</FieldError>}
               {notice && (
                 <p className="text-sm font-medium text-green-600">{notice}</p>
@@ -218,33 +212,38 @@ export function SignInForm({
       )}
       {step === "otp" && (
         <div className="flex flex-col gap-4">
-          {otpSent ? (
-            <form onSubmit={handleVerifyOtp}>
+          {otp.otpSent ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                otp.verify()
+              }}
+            >
               <FieldGroup>
-                <Field data-invalid={Boolean(error)}>
+                <Field data-invalid={Boolean(otp.error)}>
                   <FieldLabel htmlFor="otp">Code de vérification</FieldLabel>
                   <Input
                     id="otp"
                     inputMode="numeric"
                     maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
+                    value={otp.otp}
+                    onChange={(e) => otp.setOtp(e.target.value)}
                     required
                     placeholder="000000"
-                    aria-invalid={error ? true : undefined}
+                    aria-invalid={otp.error ? true : undefined}
                   />
                 </Field>
-                {error && <FieldError>{error}</FieldError>}
+                {otp.error && <FieldError>{otp.error}</FieldError>}
                 <Field>
-                  <Button type="submit" size="lg" disabled={loading}>
-                    {loading && (
+                  <Button type="submit" size="lg" disabled={otp.loading}>
+                    {otp.loading && (
                       <HugeiconsIcon
                         icon={Loading03Icon}
                         data-icon="inline-start"
                         className="animate-spin"
                       />
                     )}
-                    {loading ? "Vérification…" : "Vérifier mon e-mail"}
+                    {otp.loading ? "Vérification…" : "Vérifier mon e-mail"}
                   </Button>
                 </Field>
               </FieldGroup>
@@ -255,23 +254,23 @@ export function SignInForm({
                 Un code de vérification sera envoyé à {email}. Vérifiez votre
                 boîte de réception.
               </FieldDescription>
-              <Turnstile onTokenChange={otpCaptcha.onChange} />
-              {error && <FieldError>{error}</FieldError>}
+              {otp.captchaField}
+              {otp.error && <FieldError>{otp.error}</FieldError>}
               <Field>
                 <Button
                   type="button"
                   size="lg"
-                  onClick={handleSendOtp}
-                  disabled={loading || !otpCaptcha.ready}
+                  onClick={() => otp.send()}
+                  disabled={otp.loading || !otp.captchaReady}
                 >
-                  {loading && (
+                  {otp.loading && (
                     <HugeiconsIcon
                       icon={Loading03Icon}
                       data-icon="inline-start"
                       className="animate-spin"
                     />
                   )}
-                  {loading ? "Envoi…" : "Envoyer le code"}
+                  {otp.loading ? "Envoi…" : "Envoyer le code"}
                 </Button>
               </Field>
             </FieldGroup>

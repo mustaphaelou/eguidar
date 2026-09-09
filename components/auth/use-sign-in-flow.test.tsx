@@ -1,5 +1,9 @@
 // @vitest-environment happy-dom
-import { mockNextNavigation, resetNavigation, setInputValue } from "./test-utils"
+import {
+  mockNextNavigation,
+  resetNavigation,
+  setInputValue,
+} from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -7,6 +11,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
 import { useSignInFlow } from "./use-sign-in-flow"
+
+const captchaStub = vi.hoisted(() => ({
+  ready: true,
+  reset: vi.fn(),
+}))
+
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
+  useTestDeSecurite: () => ({
+    ready: captchaStub.ready,
+    headers: undefined,
+    field: null,
+    reset: captchaStub.reset,
+  }),
+}))
 
 vi.mock("next/navigation", () => mockNextNavigation())
 
@@ -18,7 +39,6 @@ vi.mock("@/lib/client", () => ({
     },
     emailOtp: {
       verifyEmail: vi.fn(),
-      sendVerificationOtp: vi.fn(),
     },
   },
 }))
@@ -30,7 +50,6 @@ const mockedAuthClient = authClient as unknown as {
   }
   emailOtp: {
     verifyEmail: ReturnType<typeof vi.fn>
-    sendVerificationOtp: ReturnType<typeof vi.fn>
   }
 }
 
@@ -43,6 +62,8 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   resetNavigation("/")
+  captchaStub.ready = true
+  captchaStub.reset.mockClear()
 })
 
 afterEach(() => {
@@ -73,17 +94,14 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
         value={flow.password}
         onChange={(e) => flow.setPassword(e.target.value)}
       />
-      <button
-        type="button"
-        data-verify-otp
-        onClick={() =>
-          flow.handleVerifyOtp({ preventDefault() {} } as React.FormEvent)
-        }
-      >
+      <input
+        aria-label="otp"
+        value={flow.otp.otp}
+        onChange={(e) => flow.otp.setOtp(e.target.value)}
+      />
+      <button type="button" data-verify-otp onClick={() => flow.otp.verify()}>
         verify otp
       </button>
-      <div data-step={flow.step} />
-      {flow.notice && <p data-notice>{flow.notice}</p>}
       <form onSubmit={flow.handleSignIn}>
         <button type="submit">sign in</button>
       </form>
@@ -94,7 +112,22 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
       >
         social google
       </button>
+      <div data-step={flow.step} />
+      {flow.notice && <p data-notice>{flow.notice}</p>}
+      {flow.error && <p data-error>{flow.error}</p>}
+      {flow.loading && <p data-loading>loading</p>}
     </div>
+  )
+}
+
+function PrefillHarness() {
+  const flow = useSignInFlow({ initialEmail: "prefilled@example.com" })
+  return (
+    <input
+      aria-label="email"
+      value={flow.email}
+      onChange={(e) => flow.setEmail(e.target.value)}
+    />
   )
 }
 
@@ -108,6 +141,10 @@ function passwordInput() {
   )!
 }
 
+function otpInput() {
+  return container.querySelector<HTMLInputElement>('input[aria-label="otp"]')!
+}
+
 function signInButton() {
   return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
 }
@@ -116,8 +153,23 @@ function socialButton() {
   return container.querySelector<HTMLButtonElement>("[data-social-google]")!
 }
 
-function setValue(input: HTMLInputElement, value: string) {
-  setInputValue(input, value)
+function step() {
+  return container.querySelector("[data-step]")?.getAttribute("data-step")
+}
+
+function notice() {
+  return container.querySelector("[data-notice]")?.textContent ?? null
+}
+
+function error() {
+  return container.querySelector("[data-error]")?.textContent ?? null
+}
+
+async function clickAndFlush(target: HTMLElement) {
+  await act(async () => {
+    target.click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 }
 
 describe("useSignInFlow", () => {
@@ -126,13 +178,10 @@ describe("useSignInFlow", () => {
     mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
 
     render(<Harness />)
-    setValue(emailInput(), "test@example.com")
-    setValue(passwordInput(), "secret123")
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
 
-    await act(async () => {
-      signInButton().click()
-      await Promise.resolve()
-    })
+    await clickAndFlush(signInButton())
 
     expect(window.location.pathname).toBe("/profil")
     expect(mockedAuthClient.signIn.email).toHaveBeenCalledWith({
@@ -140,6 +189,7 @@ describe("useSignInFlow", () => {
       password: "secret123",
       fetchOptions: { headers: undefined },
     })
+    expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
   it("calls onSuccess and stays on the page when there is no ?next=", async () => {
@@ -148,46 +198,79 @@ describe("useSignInFlow", () => {
     const onSuccess = vi.fn()
 
     render(<Harness onSuccess={onSuccess} />)
-    setValue(emailInput(), "test@example.com")
-    setValue(passwordInput(), "secret123")
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
 
-    await act(async () => {
-      signInButton().click()
-      await Promise.resolve()
-    })
+    await clickAndFlush(signInButton())
 
     expect(onSuccess).toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
+    expect(step()).toBe("form")
   })
 
-  it("returns to the form step with a verified notice after OTP verification instead of navigating", async () => {
+  it("moves to the code-verification step when the e-mail is not verified", async () => {
     window.history.replaceState(null, "", "/?next=/profil")
-    mockedAuthClient.emailOtp.verifyEmail.mockResolvedValue({
-      data: {},
-      error: null,
+    mockedAuthClient.signIn.email.mockResolvedValue({
+      data: null,
+      error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
     })
     const onSuccess = vi.fn()
 
     render(<Harness onSuccess={onSuccess} />)
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
 
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-verify-otp]")!.click()
-      await Promise.resolve()
-    })
+    await clickAndFlush(signInButton())
 
-    expect(mockedAuthClient.emailOtp.verifyEmail).toHaveBeenCalled()
+    expect(step()).toBe("otp")
     expect(onSuccess).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
-    expect(
-      container.querySelector("[data-step]")?.getAttribute("data-step")
-    ).toBe("form")
-    expect(container.querySelector("[data-notice]")?.textContent).toContain(
-      "Votre e-mail est vérifié"
-    )
+    expect(error()).toBeNull()
+    expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
-  it("does not sign in after OTP verification when there is no ?next=", async () => {
-    window.history.replaceState(null, "", "/")
+  it("surfaces INVALID_EMAIL_OR_PASSWORD and stays on the form step", async () => {
+    mockedAuthClient.signIn.email.mockResolvedValue({
+      data: null,
+      error: { code: "INVALID_EMAIL_OR_PASSWORD", message: "bad credentials" },
+    })
+
+    render(<Harness />)
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
+
+    await clickAndFlush(signInButton())
+
+    expect(error()).toBe("E-mail ou mot de passe invalide.")
+    expect(step()).toBe("form")
+    expect(container.querySelector("[data-loading]")).toBeNull()
+  })
+
+  it("resets the captcha so a rejected sign-in retries with a fresh token", async () => {
+    mockedAuthClient.signIn.email.mockResolvedValue({
+      data: null,
+      error: { code: "INVALID_RESPONSE", message: "captcha rejected" },
+    })
+
+    render(<Harness />)
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
+
+    await clickAndFlush(signInButton())
+
+    expect(captchaStub.reset).toHaveBeenCalled()
+    expect(error()).toBe("Le test de sécurité a échoué. Veuillez réessayer.")
+    expect(step()).toBe("form")
+  })
+
+  it("walks the tail from the unverified e-mail to the code step, the verified notice, and a successful sign-in", async () => {
+    window.history.replaceState(null, "", "/?next=/profil")
+    mockedAuthClient.signIn.email
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
+      })
+      .mockResolvedValueOnce({ data: {}, error: null })
     mockedAuthClient.emailOtp.verifyEmail.mockResolvedValue({
       data: {},
       error: null,
@@ -195,17 +278,28 @@ describe("useSignInFlow", () => {
     const onSuccess = vi.fn()
 
     render(<Harness onSuccess={onSuccess} />)
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
 
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-verify-otp]")!.click()
-      await Promise.resolve()
-    })
+    await clickAndFlush(signInButton())
 
+    expect(step()).toBe("otp")
     expect(onSuccess).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
-    expect(container.querySelector("[data-notice]")?.textContent).toContain(
-      "Votre e-mail est vérifié"
-    )
+
+    setInputValue(otpInput(), "123456")
+    await clickAndFlush(container.querySelector("[data-verify-otp]")!)
+
+    expect(step()).toBe("form")
+    expect(notice()).toContain("Votre e-mail est vérifié")
+
+    await clickAndFlush(signInButton())
+
+    expect(mockedAuthClient.emailOtp.verifyEmail).toHaveBeenCalledWith({
+      email: "test@example.com",
+      otp: "123456",
+    })
+    expect(window.location.pathname).toBe("/profil")
   })
 
   it("initializes the email from initialEmail", () => {
@@ -224,10 +318,7 @@ describe("useSignInFlow", () => {
 
     render(<Harness />)
 
-    await act(async () => {
-      socialButton().click()
-      await Promise.resolve()
-    })
+    await clickAndFlush(socialButton())
 
     expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
       provider: "google",
@@ -241,10 +332,7 @@ describe("useSignInFlow", () => {
 
     render(<Harness />)
 
-    await act(async () => {
-      socialButton().click()
-      await Promise.resolve()
-    })
+    await clickAndFlush(socialButton())
 
     expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
       provider: "google",
@@ -258,10 +346,7 @@ describe("useSignInFlow", () => {
 
     render(<Harness />)
 
-    await act(async () => {
-      socialButton().click()
-      await Promise.resolve()
-    })
+    await clickAndFlush(socialButton())
 
     expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
       provider: "google",
@@ -269,14 +354,3 @@ describe("useSignInFlow", () => {
     })
   })
 })
-
-function PrefillHarness() {
-  const flow = useSignInFlow({ initialEmail: "prefilled@example.com" })
-  return (
-    <input
-      aria-label="email"
-      value={flow.email}
-      onChange={(e) => flow.setEmail(e.target.value)}
-    />
-  )
-}
