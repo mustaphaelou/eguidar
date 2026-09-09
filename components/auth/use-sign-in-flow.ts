@@ -5,7 +5,10 @@ import { useState } from "react"
 import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
 import { translateAuthError } from "@/components/auth/auth-form-glue"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
-import { useTestDeSecurite } from "@/components/auth/test-de-securite"
+import {
+  isCaptchaRejection,
+  useTestDeSecurite,
+} from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 import { withoutAuthParams } from "@/lib/lien-de-connexion"
 
@@ -53,10 +56,7 @@ export function useSignInFlow({
           setStep("otp")
           return
         }
-        if (
-          result.error.code === "MISSING_RESPONSE" ||
-          result.error.code === "INVALID_RESPONSE"
-        ) {
+        if (isCaptchaRejection(result.error)) {
           captcha.reset()
         }
         setError(translateAuthError(result.error))

@@ -4,7 +4,10 @@ import { useState } from "react"
 
 import { translateAuthError } from "@/components/auth/auth-form-glue"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
-import { useTestDeSecurite } from "@/components/auth/test-de-securite"
+import {
+  isCaptchaRejection,
+  useTestDeSecurite,
+} from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 
 export type SignUpStep = "form" | "otp"
@@ -37,10 +40,7 @@ export function useSignUpFlow({
         fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
-        if (
-          result.error.code === "MISSING_RESPONSE" ||
-          result.error.code === "INVALID_RESPONSE"
-        ) {
+        if (isCaptchaRejection(result.error)) {
           captcha.reset()
         }
         setError(translateAuthError(result.error))

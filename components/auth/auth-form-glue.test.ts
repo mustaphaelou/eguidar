@@ -1,54 +1,6 @@
-// @vitest-environment happy-dom
-import { createElement } from "react"
-import { act } from "react"
-import { createRoot } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import {
-  captchaHeaders,
-  translateAuthError,
-  useCaptcha,
-} from "./auth-form-glue"
-
-;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
-
-let container: HTMLDivElement
-const roots: ReturnType<typeof createRoot>[] = []
-
-beforeEach(() => {
-  container = document.createElement("div")
-  document.body.appendChild(container)
-})
-
-afterEach(() => {
-  for (const root of roots) root.unmount()
-  roots.length = 0
-  container.remove()
-  vi.unstubAllEnvs()
-})
-
-function renderCaptcha() {
-  let current: ReturnType<typeof useCaptcha> | undefined
-  function Harness() {
-    current = useCaptcha()
-    return null
-  }
-  const root = createRoot(container)
-  roots.push(root)
-  act(() => {
-    root.render(createElement(Harness))
-  })
-  return {
-    get value() {
-      return current as ReturnType<typeof useCaptcha>
-    },
-    rerender() {
-      act(() => {
-        root.render(createElement(Harness))
-      })
-    },
-  }
-}
+import { translateAuthError } from "./auth-form-glue"
 
 describe("translateAuthError", () => {
   it("translates known error codes to French user-friendly messages", () => {
@@ -95,59 +47,5 @@ describe("translateAuthError", () => {
     expect(translateAuthError({})).toBe(
       "Une erreur est survenue. Veuillez réessayer."
     )
-  })
-})
-
-describe("captchaHeaders", () => {
-  it("returns the x-captcha-response header object for a token", () => {
-    expect(captchaHeaders("abc123")).toEqual({
-      "x-captcha-response": "abc123",
-    })
-  })
-
-  it("returns undefined for a null token", () => {
-    expect(captchaHeaders(null)).toBeUndefined()
-  })
-})
-
-describe("useCaptcha", () => {
-  it("is always ready when the site key is absent", () => {
-    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "")
-
-    const hook = renderCaptcha()
-
-    expect(hook.value.required).toBe(false)
-    expect(hook.value.ready).toBe(true)
-  })
-
-  it("is required but not ready without a token when the site key is set", () => {
-    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
-
-    const hook = renderCaptcha()
-
-    expect(hook.value.required).toBe(true)
-    expect(hook.value.ready).toBe(false)
-    expect(hook.value.token).toBeNull()
-  })
-
-  it("becomes ready once a token arrives and not ready again when it clears to null", () => {
-    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
-
-    const hook = renderCaptcha()
-    act(() => {
-      hook.value.onChange("token-1")
-    })
-    hook.rerender()
-
-    expect(hook.value.token).toBe("token-1")
-    expect(hook.value.ready).toBe(true)
-
-    act(() => {
-      hook.value.onChange(null)
-    })
-    hook.rerender()
-
-    expect(hook.value.token).toBeNull()
-    expect(hook.value.ready).toBe(false)
   })
 })

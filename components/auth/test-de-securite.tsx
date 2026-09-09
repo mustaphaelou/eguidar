@@ -146,6 +146,14 @@ function TestSecuriteWidget({
   )
 }
 
+export function isCaptchaRejection(
+  error: { code?: string } | null | undefined
+): boolean {
+  return (
+    error?.code === "MISSING_RESPONSE" || error?.code === "INVALID_RESPONSE"
+  )
+}
+
 export function useTestDeSecurite() {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const [token, setToken] = useState<string | null>(null)

@@ -1,5 +1,9 @@
 // @vitest-environment happy-dom
-import { mockNextNavigation, resetNavigation, setInputValue } from "./test-utils"
+import {
+  mockNextNavigation,
+  resetNavigation,
+  setInputValue,
+} from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -13,7 +17,10 @@ const captchaStub = vi.hoisted(() => ({
   reset: vi.fn(),
 }))
 
-vi.mock("@/components/auth/test-de-securite", () => ({
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
   useTestDeSecurite: () => ({
     ready: captchaStub.ready,
     headers: undefined,
@@ -92,11 +99,7 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
         value={flow.otp.otp}
         onChange={(e) => flow.otp.setOtp(e.target.value)}
       />
-      <button
-        type="button"
-        data-verify-otp
-        onClick={() => flow.otp.verify()}
-      >
+      <button type="button" data-verify-otp onClick={() => flow.otp.verify()}>
         verify otp
       </button>
       <form onSubmit={flow.handleSignIn}>
@@ -260,8 +263,14 @@ describe("useSignInFlow", () => {
     expect(step()).toBe("form")
   })
 
-  it("returns to the form step with a verified notice after the code is verified instead of navigating", async () => {
+  it("walks the tail from the unverified e-mail to the code step, the verified notice, and a successful sign-in", async () => {
     window.history.replaceState(null, "", "/?next=/profil")
+    mockedAuthClient.signIn.email
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
+      })
+      .mockResolvedValueOnce({ data: {}, error: null })
     mockedAuthClient.emailOtp.verifyEmail.mockResolvedValue({
       data: {},
       error: null,
@@ -269,15 +278,28 @@ describe("useSignInFlow", () => {
     const onSuccess = vi.fn()
 
     render(<Harness onSuccess={onSuccess} />)
-    setInputValue(otpInput(), "123456")
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
 
-    await clickAndFlush(container.querySelector("[data-verify-otp]")!)
+    await clickAndFlush(signInButton())
 
+    expect(step()).toBe("otp")
     expect(onSuccess).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
+
+    setInputValue(otpInput(), "123456")
+    await clickAndFlush(container.querySelector("[data-verify-otp]")!)
+
     expect(step()).toBe("form")
     expect(notice()).toContain("Votre e-mail est vérifié")
-    expect(container.querySelector("[data-loading]")).toBeNull()
+
+    await clickAndFlush(signInButton())
+
+    expect(mockedAuthClient.emailOtp.verifyEmail).toHaveBeenCalledWith({
+      email: "test@example.com",
+      otp: "123456",
+    })
+    expect(window.location.pathname).toBe("/profil")
   })
 
   it("initializes the email from initialEmail", () => {

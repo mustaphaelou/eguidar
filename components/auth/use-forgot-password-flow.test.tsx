@@ -13,7 +13,10 @@ const captchaStub = vi.hoisted(() => ({
   reset: vi.fn(),
 }))
 
-vi.mock("@/components/auth/test-de-securite", () => ({
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
   useTestDeSecurite: () => ({
     ready: captchaStub.ready,
     headers: undefined,
@@ -168,9 +171,7 @@ describe("useForgotPasswordFlow", () => {
     render(<Harness />)
     await sendCode()
 
-    expect(
-      mockedAuthClient.emailOtp.sendVerificationOtp
-    ).toHaveBeenCalledWith({
+    expect(mockedAuthClient.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
       email: "jane@example.com",
       type: "forget-password",
       fetchOptions: { headers: undefined },
@@ -226,9 +227,7 @@ describe("useForgotPasswordFlow", () => {
     await clickAndFlush(resetButton())
 
     expect(mockedAuthClient.emailOtp.resetPassword).not.toHaveBeenCalled()
-    expect(error()).toBe(
-      "Le mot de passe doit contenir au moins 8 caractères."
-    )
+    expect(error()).toBe("Le mot de passe doit contenir au moins 8 caractères.")
     expect(step()).toBe("otp")
   })
 

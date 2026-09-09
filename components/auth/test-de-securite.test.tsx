@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { useTestDeSecurite } from "./test-de-securite"
+import { isCaptchaRejection, useTestDeSecurite } from "./test-de-securite"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -76,9 +76,7 @@ function ready() {
 }
 
 function headers() {
-  return container
-    .querySelector("[data-headers]")
-    ?.getAttribute("data-headers")
+  return container.querySelector("[data-headers]")?.getAttribute("data-headers")
 }
 
 async function resetClick() {
@@ -99,6 +97,21 @@ async function loadScript() {
     script!.dispatchEvent(new Event("load"))
   })
 }
+
+describe("isCaptchaRejection", () => {
+  it("matches the two captcha-rejection codes", () => {
+    expect(isCaptchaRejection({ code: "MISSING_RESPONSE" })).toBe(true)
+    expect(isCaptchaRejection({ code: "INVALID_RESPONSE" })).toBe(true)
+  })
+
+  it("does not match other error codes, missing codes or a missing error", () => {
+    expect(isCaptchaRejection({ code: "INVALID_OTP" })).toBe(false)
+    expect(isCaptchaRejection({ code: "TOO_MANY_ATTEMPTS" })).toBe(false)
+    expect(isCaptchaRejection({})).toBe(false)
+    expect(isCaptchaRejection(null)).toBe(false)
+    expect(isCaptchaRejection(undefined)).toBe(false)
+  })
+})
 
 describe("useTestDeSecurite", () => {
   it("is always ready, renders nothing and issues no headers when the site key is absent", async () => {
@@ -136,9 +149,7 @@ describe("useTestDeSecurite", () => {
     })
 
     expect(ready()).toBe("true")
-    expect(headers()).toBe(
-      JSON.stringify({ "x-captcha-response": "tok-1" })
-    )
+    expect(headers()).toBe(JSON.stringify({ "x-captcha-response": "tok-1" }))
   })
 
   it("clears the jeton and shows expiry feedback on the expired callback", async () => {
@@ -204,8 +215,6 @@ describe("useTestDeSecurite", () => {
     })
 
     expect(ready()).toBe("true")
-    expect(headers()).toBe(
-      JSON.stringify({ "x-captcha-response": "tok-2" })
-    )
+    expect(headers()).toBe(JSON.stringify({ "x-captcha-response": "tok-2" }))
   })
 })

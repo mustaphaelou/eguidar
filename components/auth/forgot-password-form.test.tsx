@@ -1,9 +1,5 @@
 // @vitest-environment happy-dom
-import {
-  mockNextLink,
-  mockNextNavigation,
-  resetNavigation,
-} from "./test-utils"
+import { mockNextLink, mockNextNavigation, resetNavigation } from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -21,7 +17,10 @@ const captchaStub = vi.hoisted(() => ({
   reset: vi.fn(),
 }))
 
-vi.mock("@/components/auth/test-de-securite", () => ({
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
   useTestDeSecurite: () => ({
     ready: captchaStub.ready,
     headers: undefined,

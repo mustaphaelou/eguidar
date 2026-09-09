@@ -13,7 +13,10 @@ const captchaStub = vi.hoisted(() => ({
   reset: vi.fn(),
 }))
 
-vi.mock("@/components/auth/test-de-securite", () => ({
+vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/auth/test-de-securite")
+  >()),
   useTestDeSecurite: () => ({
     ready: captchaStub.ready,
     headers: undefined,
