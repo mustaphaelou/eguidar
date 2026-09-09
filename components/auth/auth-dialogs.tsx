@@ -20,8 +20,7 @@ import {
 } from "@/lib/lien-de-connexion"
 import { useSession } from "@/lib/client"
 
-import { SignInDialog } from "./sign-in-dialog"
-import { SignUpDialog } from "./sign-up-dialog"
+import { AuthDialog } from "./auth-dialog"
 
 type AuthDialogsContextValue = {
   email: string
@@ -213,8 +212,8 @@ export function AuthDialogs({
       {children}
       <Suspense fallback={null}>
         <AuthUrlCleaner />
-        <SignInDialog hasGoogle={hasGoogle} hasApple={hasApple} />
-        <SignUpDialog />
+        <AuthDialog dialog="login" hasGoogle={hasGoogle} hasApple={hasApple} />
+        <AuthDialog dialog="signup" hasGoogle={hasGoogle} hasApple={hasApple} />
       </Suspense>
     </AuthDialogsProvider>
   )
