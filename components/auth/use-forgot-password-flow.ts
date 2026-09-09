@@ -2,45 +2,24 @@
 
 import { useState } from "react"
 
+import { translateAuthError } from "./auth-form-glue"
+import { useOtpExchange } from "./verification-de-l-email"
 import { authClient } from "@/lib/client"
-
-import {
-  captchaHeaders,
-  translateAuthError,
-  useCaptcha,
-} from "./auth-form-glue"
 
 export type ForgotPasswordStep = "email" | "otp" | "success"
 
 export function useForgotPasswordFlow() {
-  const captcha = useCaptcha()
   const [email, setEmail] = useState("")
-  const [otp, setOtp] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [step, setStep] = useState<ForgotPasswordStep>("email")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  async function handleSendOtp(e?: React.FormEvent) {
-    if (e) e.preventDefault()
-    setError(null)
-    setLoading(true)
-    try {
-      const result = await authClient.emailOtp.sendVerificationOtp({
-        email,
-        type: "forget-password",
-        fetchOptions: { headers: captchaHeaders(captcha.token) },
-      })
-      if (result.error) {
-        setError(translateAuthError(result.error))
-        return
-      }
-      setStep("otp")
-    } finally {
-      setLoading(false)
-    }
-  }
+  const otp = useOtpExchange({
+    email,
+    type: "forget-password",
+    onSent: () => setStep("otp"),
+  })
 
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault()
@@ -60,7 +39,7 @@ export function useForgotPasswordFlow() {
     try {
       const result = await authClient.emailOtp.resetPassword({
         email,
-        otp,
+        otp: otp.otp,
         password,
       })
       if (result.error) {
@@ -82,16 +61,13 @@ export function useForgotPasswordFlow() {
     email,
     setEmail,
     otp,
-    setOtp,
     password,
     setPassword,
     confirmPassword,
     setConfirmPassword,
-    captcha,
     step,
     error,
     loading,
-    handleSendOtp,
     handleResetPassword,
     backToEmail,
   }
