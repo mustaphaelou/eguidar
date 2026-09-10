@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { formatPrice } from "./money"
 import { type RécapitulatifRow, récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
-import { creerDevisHolder } from "./use-cases/devis"
+import { creerDevisHolder } from "./use-cases/devis-coeur"
 
 describe("récapitulatifRowsFromCommande", () => {
   it("renders the city, fee and the Commande totalPayable", () => {
@@ -95,21 +95,24 @@ describe("récapitulatifRowsFromCommande", () => {
     const rowsList = [
       creerDevisHolder({
         cities: [casa],
+        threshold: 100000,
         quotes: { casa: { subtotal: 10000, shippingFee: 0, total: 10000 } },
         sousTotal: 10000,
-        urlVilleId: "casa",
+        sources: { urlVilleId: "casa" },
       }).rows,
       creerDevisHolder({
         cities: [fes],
+        threshold: 100000,
         quotes: { fes: { subtotal: 10000, shippingFee: 2000, total: 12000 } },
         sousTotal: 10000,
-        urlVilleId: "fes",
+        sources: { urlVilleId: "fes" },
       }).rows,
       creerDevisHolder({
         cities: [casa],
+        threshold: 100000,
         quotes: {},
         sousTotal: 10000,
-        urlVilleId: null,
+        sources: { urlVilleId: null },
       }).rows,
       récapitulatifRowsFromCommande({
         total: 10000,

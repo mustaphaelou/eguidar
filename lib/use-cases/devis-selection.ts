@@ -11,8 +11,8 @@
  * couture (via `creerDevisHolder`) : la précédence (lien > profil >
  * aucune) vit dans la fabrique, jamais dans la page.
  *
- * Le pur partagé (`SelectionDevis`, `Devis`, `selectionnerDevis`,
- * `lignesDevis`) vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
+ * Le pur partagé (`SelectionDevis`, `selectionnerDevis`, `lignesDevis`)
+ * vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
  * (sans directive), consommé aussi côté serveur (`chargerDevis`, pages
  * Panier/Checkout, `placeOrder`). Définir ce pur ici — module « use
  * client » — faisait lever la production dès qu'un serveur l'appelait
@@ -34,8 +34,8 @@
  * synchronisé avec l'URL : `useDevisSelection` initialise la Ville de
  * livraison depuis le Devis chargé puis re-chiffre le Récapitulatif de
  * paiement instantanément à chaque `choisir(villeId)`, sans rechargement.
- * `selectionnerDevis` et `lignesDevis` restent exportées comme coutures
- * internes ; le hook est la porte d'entrée cliente.
+ * `selectionnerDevis` et `lignesDevis` restent exportées par le cœur
+ * comme coutures internes ; le hook est la porte d'entrée cliente.
  *
  * Non-buts : pas de re-sélection synchronisée avec l'URL sur checkout ;
  * pas d'entrée de sélection allégée à côté de `chargerDevis` — `placeOrder`
@@ -51,17 +51,9 @@ import {
   type SelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
-export {
-  creerDevisHolder,
-  DeliveryCityNotFoundError,
-} from "@/lib/use-cases/devis-coeur"
 export type {
   DevisChargé,
-  DevisHolder,
-  DevisHolderInit,
-  DevisPrecedenceSources,
   SelectionDevis,
-  ValidatedSelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
 /**

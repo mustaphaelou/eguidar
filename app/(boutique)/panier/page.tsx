@@ -9,7 +9,8 @@ import { CityPicker } from "@/components/storefront/city-picker"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
-import { chargerDevisHolder } from "@/lib/use-cases/devis"
+import { chargerDevis } from "@/lib/use-cases/devis"
+import { creerDevisHolder } from "@/lib/use-cases/devis-coeur"
 import { lirePanier } from "@/lib/panier"
 
 export const metadata = pageMetadata({
@@ -39,7 +40,7 @@ async function CartContent({
 }) {
   const { ville } = await searchParams
   const panier = await lirePanier()
-  const devis = await chargerDevisHolder(panier, ville)
+  const devis = creerDevisHolder(await chargerDevis(panier, ville))
 
   if (panier.lines.length === 0) {
     return (

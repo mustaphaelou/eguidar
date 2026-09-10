@@ -1,8 +1,9 @@
 /**
  * Entrée serveur du Devis : `chargerDevis` retourne le Devis chargé — la
  * donnée pure d'un Panier chiffré (accès base via l'administration
- * Livraison) — et `chargerDevisHolder` compose ces faits en interface
- * profonde derrière la couture (`creerDevisHolder(await chargerDevis(...))`).
+ * Livraison). Construire l'interface profonde est l'affaire de
+ * l'appelant : `creerDevisHolder(await chargerDevis(...))` — la fabrique
+ * (`@/lib/use-cases/devis-coeur`) prend exactement le Devis chargé.
  * Réexport du cœur pur pour les appelants serveur (`panier/page.tsx`,
  * `checkout/page.tsx`, `placeOrder`).
  *
@@ -38,11 +39,9 @@
  * dès qu'on les appelle depuis le serveur.
  */
 import type { DonneesPanier } from "@/lib/panier"
-import {
-  creerDevisHolder,
-  type DevisChargé,
-  type DevisHolder,
-  type DevisPrecedenceSources,
+import type {
+  DevisChargé,
+  DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
 import { computeCityQuotes } from "@/lib/use-cases/livraison-prix"
 import {
@@ -50,18 +49,7 @@ import {
   listDeliveryCities,
 } from "@/lib/use-cases/livraison"
 
-export {
-  creerDevisHolder,
-  DeliveryCityNotFoundError,
-} from "@/lib/use-cases/devis-coeur"
-export type {
-  DevisChargé,
-  DevisHolder,
-  DevisHolderInit,
-  DevisPrecedenceSources,
-  SelectionDevis,
-  ValidatedSelectionDevis,
-} from "@/lib/use-cases/devis-coeur"
+export { DeliveryCityNotFoundError } from "@/lib/use-cases/devis-coeur"
 
 /**
  * Charge le Devis chargé — les faits purs d'un Panier chiffré.
@@ -111,21 +99,4 @@ export async function chargerDevis(
               : sources,
         }),
   }
-}
-
-/**
- * Charge le Devis et l'enveloppe dans l'interface profonde DevisHolder —
- * une composition : `creerDevisHolder(await chargerDevis(panier, sources))`.
- *
- * Le DevisHolder retourné est auto-porteur : ses lignes (`rows`), sa sélection
- * (`selection`), sa ville (`villeId`), et la narrowing d'intake (`selectionValidee`)
- * sont exposées derrière une couture unique.
- *
- * Ville inconnue → sélection « aucune », ne lève jamais.
- */
-export async function chargerDevisHolder(
-  panier: DonneesPanier,
-  sources?: string | null | DevisPrecedenceSources
-): Promise<DevisHolder> {
-  return creerDevisHolder(await chargerDevis(panier, sources))
 }

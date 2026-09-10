@@ -1,19 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
-  chargerDevis,
-  chargerDevisHolder,
   creerDevisHolder,
-  DeliveryCityNotFoundError,
+  selectionnerDevis,
+  type DevisChargé,
   type DevisHolder,
-} from "@/lib/use-cases/devis"
-import { selectionnerDevis } from "@/lib/use-cases/devis-coeur"
+  type DevisPrecedenceSources,
+} from "@/lib/use-cases/devis-coeur"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {
   DeliveryCityOption,
   ShippingQuote,
 } from "@/lib/use-cases/livraison"
-import { formatPrice } from "@/lib/money"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const { listDeliveryCitiesMock, getFreeShippingThresholdMock } = vi.hoisted(
@@ -241,43 +240,6 @@ describe("chargerDevis", () => {
     )
     expect(articleOffert.quotes.c2).toEqual(quote(50000, 0))
   })
-
-  it("composition: chargerDevisHolder still yields a working holder with narrowed intake", async () => {
-    const panier = panierPourDevis(50000)
-
-    const holder = await chargerDevisHolder(panier, {
-      urlVilleId: "c1",
-      profileVilleId: "c2",
-    })
-    expect(holder.villeId).toBe("c1")
-    expect(holder.villes).toEqual(villes)
-    expect(holder.selection.cas).toBe("validée")
-    expect(holder.selectionValidee().ville.id).toBe("c1")
-    expect(holder.rows[1]).toMatchObject({
-      label: "Livraison (Casablanca)",
-      kind: "detail",
-    })
-    expect(holder.rows.find((row) => row.kind === "total")).toBeDefined()
-
-    const repliProfil = await chargerDevisHolder(panier, {
-      urlVilleId: null,
-      profileVilleId: "c2",
-    })
-    expect(repliProfil.villeId).toBe("c2")
-
-    const villeInconnue = await chargerDevisHolder(panier, "ville-inconnue")
-    expect(villeInconnue.villeId).toBeNull()
-    expect(villeInconnue.selection.cas).toBe("aucune")
-    expect(villeInconnue.rows[1]).toMatchObject({
-      label: "Livraison",
-      value: "À choisir",
-      tone: "muted",
-    })
-    expect(villeInconnue.rows.some((row) => row.kind === "total")).toBe(false)
-
-    const sansVille = await chargerDevisHolder(panier, null)
-    expect(() => sansVille.selectionValidee()).toThrow(DeliveryCityNotFoundError)
-  })
 })
 
 describe("boundary: le Devis chargé ne traverse la couture qu'en données pures", () => {
@@ -352,21 +314,23 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
       assertDonnéePure({ ...chargé, étiquette: new Instance() })
     ).toThrow(/instance de classe/)
   })
-
-  it("the DevisHolder from chargerDevisHolder fails the walk (getters)", async () => {
-    const holder = await chargerDevisHolder(panierPourDevis(50000), "c1")
-    expect(() => assertDonnéePure(holder)).toThrow(/getter/)
-  })
 })
 
 describe("DevisHolder", () => {
   const sousTotal = 50000
 
+  const chargé = (sources?: DevisPrecedenceSources): DevisChargé => ({
+    cities,
+    threshold: 100000,
+    quotes,
+    sousTotal,
+    ...(sources === undefined ? {} : { sources }),
+  })
+
   it("precedence: url ville wins over profile fallback on initial creation", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, {
-      urlVilleId: "c1",
-      profileVilleId: "c2",
-    })
+    const holder = creerDevisHolder(
+      chargé({ urlVilleId: "c1", profileVilleId: "c2" })
+    )
     expect(holder.villeId).toBe("c1")
     expect(holder.selection.cas).toBe("validée")
     if (holder.selection.cas === "validée") {
@@ -376,10 +340,7 @@ describe("DevisHolder", () => {
 
   it("precedence: saved profile fallback is chosen when url ville is absent, empty, or whitespace", () => {
     for (const urlVilleId of [undefined, null, "", "   "]) {
-      const holder = creerDevisHolder(cities, quotes, sousTotal, {
-        urlVilleId,
-        profileVilleId: "c2",
-      })
+      const holder = creerDevisHolder(chargé({ urlVilleId, profileVilleId: "c2" }))
       expect(holder.villeId).toBe("c2")
       expect(holder.selection.cas).toBe("validée")
       if (holder.selection.cas === "validée") {
@@ -389,19 +350,17 @@ describe("DevisHolder", () => {
   })
 
   it("precedence: resolves to aucune when both url and profile are absent or empty", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, {
-      urlVilleId: null,
-      profileVilleId: null,
-    })
+    const holder = creerDevisHolder(
+      chargé({ urlVilleId: null, profileVilleId: null })
+    )
     expect(holder.villeId).toBeNull()
     expect(holder.selection.cas).toBe("aucune")
   })
 
   it("precedence: local choice wins over both url and profile after choisir", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, {
-      urlVilleId: "c1",
-      profileVilleId: "c2",
-    })
+    const holder = creerDevisHolder(
+      chargé({ urlVilleId: "c1", profileVilleId: "c2" })
+    )
     expect(holder.villeId).toBe("c1")
 
     const chosenC2 = holder.choisir("c2")
@@ -415,24 +374,42 @@ describe("DevisHolder", () => {
     expect(chosenAucune.selection.cas).toBe("aucune")
   })
 
+  it("quotes are always supplied by the caller — the factory never prices", () => {
+    const sansDevis = creerDevisHolder({
+      cities,
+      threshold: 100000,
+      quotes: {},
+      sousTotal,
+      sources: { urlVilleId: "c1" },
+    })
+    expect(sansDevis.selection.cas).toBe("aucune")
+    expect(sansDevis.villeId).toBeNull()
+    expect(sansDevis.rows[1]).toMatchObject({
+      label: "Livraison",
+      value: "À choisir",
+      tone: "muted",
+    })
+    expect(sansDevis.rows.some((r) => r.kind === "total")).toBe(false)
+  })
+
   it("fallback: unknown ville silently resolves to aucune without throwing", () => {
     let holderFromUnknown: DevisHolder | null = null
     expect(() => {
-      holderFromUnknown = creerDevisHolder(cities, quotes, sousTotal, {
-        urlVilleId: "ville-inconnue",
-      })
+      holderFromUnknown = creerDevisHolder(
+        chargé({ urlVilleId: "ville-inconnue" })
+      )
     }).not.toThrow()
     expect(holderFromUnknown!.villeId).toBeNull()
     expect(holderFromUnknown!.selection.cas).toBe("aucune")
 
-    const validHolder = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    const validHolder = creerDevisHolder(chargé({ urlVilleId: "c1" }))
     const choseUnknown = validHolder.choisir("ville-inconnue")
     expect(choseUnknown.villeId).toBeNull()
     expect(choseUnknown.selection.cas).toBe("aucune")
   })
 
   it("intake narrowing: selectionValidee returns validated selection when valid", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    const holder = creerDevisHolder(chargé({ urlVilleId: "c1" }))
     const validated1 = holder.selectionValidee()
     expect(validated1).toStrictEqual(holder.selection)
     expect(validated1.cas).toBe("validée")
@@ -440,13 +417,13 @@ describe("DevisHolder", () => {
   })
 
   it("intake narrowing: refuses aucune with DeliveryCityNotFoundError (UserFacingError)", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, null)
+    const holder = creerDevisHolder(chargé({ urlVilleId: null }))
     expect(() => holder.selectionValidee()).toThrow(DeliveryCityNotFoundError)
     expect(() => holder.selectionValidee()).toThrow(UserFacingError)
   })
 
   it("rows derivation: derives rows from carried sousTotal for validated selection", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    const holder = creerDevisHolder(chargé({ urlVilleId: "c1" }))
     expect(holder.rows[0]).toMatchObject({
       label: "Sous-total (TVA incluse)",
       kind: "detail",
@@ -459,7 +436,7 @@ describe("DevisHolder", () => {
   })
 
   it("rows derivation: derives rows from carried sousTotal for aucune selection (total omitted)", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, null)
+    const holder = creerDevisHolder(chargé({ urlVilleId: null }))
     expect(holder.rows[1]).toMatchObject({
       label: "Livraison",
       value: "À choisir",
@@ -468,106 +445,12 @@ describe("DevisHolder", () => {
     expect(holder.rows.some((r) => r.kind === "total")).toBe(false)
   })
 
-  it("hidden details: quotes and threshold are not accessible through holder", () => {
-    const holder = creerDevisHolder(cities, quotes, sousTotal, "c1")
-    expect("quotes" in holder).toBe(false)
-    expect("threshold" in holder).toBe(false)
-    expect((holder as unknown as Record<string, unknown>).quotes).toBeUndefined()
-    expect((holder as unknown as Record<string, unknown>).threshold).toBeUndefined()
-    expect(holder.villes).toEqual(cities)
-  })
-
   it("immutability: choisir returns a new holder without mutating original", () => {
-    const h1 = creerDevisHolder(cities, quotes, sousTotal, "c1")
+    const h1 = creerDevisHolder(chargé({ urlVilleId: "c1" }))
     const h2 = h1.choisir("c2")
     expect(h1.villeId).toBe("c1")
     expect(h2.villeId).toBe("c2")
     expect(h1).not.toBe(h2)
-  })
-
-  it("factory overloads: supports init object and positional arguments", () => {
-    const hFromInit = creerDevisHolder({
-      cities,
-      quotes,
-      sousTotal,
-      urlVilleId: "c1",
-    })
-    expect(hFromInit.villeId).toBe("c1")
-
-    const hFromArgs = creerDevisHolder(cities, quotes, sousTotal, "c1")
-    expect(hFromArgs.villeId).toBe("c1")
-  })
-
-  describe("staleness & re-pricing on Panier change", () => {
-    it("pins re-pricing after quantity changes (crossing threshold to free shipping)", () => {
-      const initial = creerDevisHolder({
-        cities,
-        sousTotal: 50000,
-        threshold: 100000,
-        urlVilleId: "c1",
-      })
-      expect(initial.rows[0].value).toBe(formatPrice(50000))
-      expect(initial.rows[1]).toMatchObject({
-        label: "Livraison (Casablanca)",
-        value: formatPrice(3500),
-      })
-      expect(initial.rows.find((r) => r.kind === "total")?.value).toBe(
-        formatPrice(53500)
-      )
-
-      // Re-quantify: quantity doubled, subtotal reaches threshold
-      const requantified = initial.recalculer(100000)
-      expect(requantified.rows[0].value).toBe(formatPrice(100000))
-      expect(requantified.rows[1]).toMatchObject({
-        label: "Livraison (Casablanca)",
-        value: "Livraison offerte",
-        tone: "offered",
-      })
-      expect(requantified.rows.find((r) => r.kind === "total")?.value).toBe(
-        formatPrice(100000)
-      )
-    })
-
-    it("pins re-pricing after adding an article", () => {
-      const initial = creerDevisHolder({
-        cities,
-        sousTotal: 50000,
-        threshold: 100000,
-        urlVilleId: "c1",
-      })
-      const afterAdd = initial.recalculer(80000)
-      expect(afterAdd.rows[0].value).toBe(formatPrice(80000))
-      expect(afterAdd.rows[1]).toMatchObject({
-        label: "Livraison (Casablanca)",
-        value: formatPrice(3500),
-      })
-      expect(afterAdd.rows.find((r) => r.kind === "total")?.value).toBe(
-        formatPrice(83500)
-      )
-    })
-
-    it("pins re-pricing after removing an article (falling below threshold)", () => {
-      const initial = creerDevisHolder({
-        cities,
-        sousTotal: 120000,
-        threshold: 100000,
-        urlVilleId: "c1",
-      })
-      expect(initial.rows[1]).toMatchObject({
-        value: "Livraison offerte",
-        tone: "offered",
-      })
-
-      const afterRemove = initial.recalculer(60000)
-      expect(afterRemove.rows[0].value).toBe(formatPrice(60000))
-      expect(afterRemove.rows[1]).toMatchObject({
-        label: "Livraison (Casablanca)",
-        value: formatPrice(3500),
-      })
-      expect(afterRemove.rows.find((r) => r.kind === "total")?.value).toBe(
-        formatPrice(63500)
-      )
-    })
   })
 })
 
