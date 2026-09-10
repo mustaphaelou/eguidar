@@ -68,9 +68,21 @@ _Avoid_: tous les produits (as the concept name)
 
 **Recherche**:
 The act of finding products across the Catalogue by free-text query (with typo tolerance),
-filtrable par marque, catégorie et prix, triable (pertinence, prix, nouveautés) et paginée.
+filtrable par une ou plusieurs marques, une catégorie et une tranche de prix, triable (pertinence, prix, nouveautés) et paginée.
 Le header propose des suggestions instantanées de produits et de catégories.
 _Avoid_: search, recherche produit, recherche fuzz
+
+**Tranche de prix**:
+L'une des cinq fourchettes de prix fixes (par exemple « Moins de 1 000 MAD ») par lesquelles la Recherche peut être filtrée.
+_Avoid_: bucket de prix, intervalle de prix
+
+**Filtre de recherche**:
+Une contrainte choisie sur la Recherche : une ou plusieurs marques, une catégorie ou une tranche de prix.
+_Avoid_: facette, critère
+
+**Filtres actifs**:
+L'ensemble des Filtres de recherche en vigueur pour la Recherche courante, présentés au-dessus des résultats et retirables individuellement.
+_Avoid_: chips, tags
 
 **Document d'index**:
 La forme indexable d'un produit pour la recherche : identifiants, libellés, marque, catégorie,

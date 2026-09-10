@@ -7,6 +7,7 @@ import {
   buildSearchFilter,
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
+  type SearchFacet,
   type SearchFilters,
   type SearchSort,
 } from "@/lib/search-params"
@@ -22,7 +23,9 @@ export {
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
   SEARCH_SORT_OPTIONS,
+  toggleBrand,
   type ParsedSearchParams,
+  type SearchFacet,
   type SearchFilters,
   type SearchSort,
   type SearchView,
@@ -82,8 +85,6 @@ export interface SearchOptions {
   pageSize?: number
 }
 
-const FACET_ATTRIBUTES = ["brand", "categorySlug", "priceBucket"]
-
 async function fetchCategoryNames(
   slugs: string[]
 ): Promise<Map<string, string>> {
@@ -105,7 +106,6 @@ async function meiliSearch(
 ) {
   return meili.index<IndexableProduct>(PRODUCTS_INDEX).search(query, {
     filter: buildSearchFilter(filters),
-    facets: FACET_ATTRIBUTES,
     limit,
     offset,
     sort: SORT_TO_MEILI[sort],
@@ -119,6 +119,19 @@ async function meiliSearch(
       "totalStock",
       "freeShipping",
     ],
+  })
+}
+
+async function meiliFacetSearch(
+  meili: Meilisearch,
+  query: string,
+  filters: SearchFilters,
+  facet: SearchFacet
+) {
+  return meili.index<IndexableProduct>(PRODUCTS_INDEX).search(query, {
+    filter: buildSearchFilter(filters, facet),
+    facets: [facet],
+    limit: 0,
   })
 }
 
@@ -145,14 +158,21 @@ export async function searchProducts(
   const meili = getMeiliSearch()
   if (!meili) return emptyResult
 
-  let result = await meiliSearch(
-    meili,
-    query,
-    filters,
-    sort,
-    (requestedPage - 1) * pageSize,
-    pageSize
-  )
+  const [initialResult, brandFacets, categoryFacets, priceFacets] =
+    await Promise.all([
+      meiliSearch(
+        meili,
+        query,
+        filters,
+        sort,
+        (requestedPage - 1) * pageSize,
+        pageSize
+      ),
+      meiliFacetSearch(meili, query, filters, "brand"),
+      meiliFacetSearch(meili, query, filters, "categorySlug"),
+      meiliFacetSearch(meili, query, filters, "priceBucket"),
+    ])
+  let result = initialResult
 
   const totalHits = result.estimatedTotalHits
   const totalPages = Math.max(1, Math.ceil(totalHits / pageSize))
@@ -168,17 +188,21 @@ export async function searchProducts(
     )
   }
 
-  const distribution = result.facetDistribution ?? {}
+  const brandDistribution = brandFacets.facetDistribution?.brand ?? {}
+  const categoryDistribution =
+    categoryFacets.facetDistribution?.categorySlug ?? {}
+  const priceDistribution = priceFacets.facetDistribution?.priceBucket ?? {}
 
-  const brands: SearchFacetValue[] = Object.entries(distribution.brand ?? {})
+  const brands: SearchFacetValue[] = Object.entries(brandDistribution)
     .map(([value, count]) => ({ value, count }))
     .sort((a, b) => a.value.localeCompare(b.value, "fr"))
 
-  const categorySlugCounts = Object.entries(distribution.categorySlug ?? {})
-  const categoryNames = await fetchCategoryNames(
-    categorySlugCounts.map(([slug]) => slug)
-  )
-  const categories: SearchCategoryFacet[] = categorySlugCounts
+  const categoryCounts = new Map(Object.entries(categoryDistribution))
+  if (filters.categorySlug && !categoryCounts.has(filters.categorySlug)) {
+    categoryCounts.set(filters.categorySlug, 0)
+  }
+  const categoryNames = await fetchCategoryNames([...categoryCounts.keys()])
+  const categories: SearchCategoryFacet[] = [...categoryCounts.entries()]
     .map(([value, count]) => ({
       value,
       name: categoryNames.get(value) ?? value,
@@ -187,7 +211,7 @@ export async function searchProducts(
     .sort((a, b) => a.name.localeCompare(b.name, "fr"))
 
   const priceBuckets: SearchPriceBucketFacet[] = Object.entries(
-    distribution.priceBucket ?? {}
+    priceDistribution
   )
     .flatMap(([id, count]) => {
       const bucket = getPriceBucket(id)
