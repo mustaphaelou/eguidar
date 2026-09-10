@@ -20,6 +20,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { centsToInputValue, parseMadToCents } from "@/lib/money"
+import { slugify } from "@/lib/slug"
 
 export interface ProductFormVariant {
   id?: string
@@ -56,15 +57,6 @@ interface ProductFormProps {
     prevState: ProductFormState,
     formData: FormData
   ) => Promise<ProductFormState>
-}
-
-function slugify(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
 }
 
 const emptyVariant = (): ProductFormVariant => ({

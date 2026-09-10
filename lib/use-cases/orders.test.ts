@@ -159,7 +159,7 @@ beforeAll(async () => {
   variantP4 = products[2].variants[0].id
 
   const city = await prisma.deliveryCity.create({
-    data: { name: cityName, fee: 3500 },
+    data: { name: cityName, slug: `ville-${runId}`, fee: 3500 },
   })
   cityId = city.id
 })

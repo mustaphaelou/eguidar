@@ -26,25 +26,6 @@ vi.mock("@/lib/client", () => ({
   useSession: () => ({ data: null, isPending: false }),
 }))
 
-vi.mock("@/components/ui/select", () => ({
-  Select: ({ children }: { children?: React.ReactNode }) => (
-    <div data-slot="select-stub">{children}</div>
-  ),
-  SelectContent: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectGroup: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectItem: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectTrigger: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectValue: () => null,
-}))
-
 import { ProfileForm } from "./profile-form"
 import { parseAuthParams } from "@/lib/lien-de-connexion"
 
@@ -83,13 +64,15 @@ function Probe() {
   return <div data-dialog={dialog ?? "none"} />
 }
 
-function profileHarness() {
+const CITY_ID = "cmsp6pvbu000052p6o2m9o8zw"
+
+function profileHarness({ initialCityId = "" }: { initialCityId?: string } = {}) {
   return (
     <AuthDialogsProvider>
       <Probe />
       <ProfileForm
-        cities={[{ id: "42", name: "Casablanca", fee: 2500 }]}
-        initialCityId=""
+        cities={[{ id: CITY_ID, slug: "casablanca", name: "Casablanca", fee: 2500 }]}
+        initialCityId={initialCityId}
         initialAddress=""
         initialPhone=""
       />
@@ -123,6 +106,16 @@ describe("ProfileForm", () => {
     expect(url.searchParams.get("open")).toBe("login")
     expect(url.searchParams.get("next")).toBe("/profil")
     expect(dialog()).toBe("login")
+  })
+
+  it("shows the saved city's name in the closed trigger, never its identifier", () => {
+    render(profileHarness({ initialCityId: CITY_ID }))
+
+    const trigger = container.querySelector<HTMLElement>(
+      '[data-slot="select-trigger"]'
+    )!
+    expect(trigger.textContent).toBe("Casablanca")
+    expect(trigger.textContent).not.toContain(CITY_ID)
   })
 
   it("leaves the URL and dialogs untouched when the save goes through", async () => {

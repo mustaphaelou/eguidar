@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 
+import { cityOptions } from "@/components/storefront/city-options"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -27,13 +28,19 @@ export function CityPicker({
 
   function handleChange(cityId: string | null) {
     if (!cityId) return
-    router.push(`${path}?ville=${encodeURIComponent(cityId)}`)
+    const city = cities.find((candidate) => candidate.id === cityId)
+    if (!city) return
+    router.push(`${path}?ville=${encodeURIComponent(city.slug)}`)
   }
 
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor="city">Ville de livraison</Label>
-      <Select value={selectedId ?? ""} onValueChange={handleChange}>
+      <Select
+        value={selectedId ?? ""}
+        items={cityOptions(cities)}
+        onValueChange={handleChange}
+      >
         <SelectTrigger id="city" className="w-full sm:w-72">
           <SelectValue placeholder="Choisir une ville" />
         </SelectTrigger>

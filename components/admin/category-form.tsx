@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { slugify } from "@/lib/slug"
 
 export const NO_PARENT_VALUE = "none"
 
@@ -38,15 +39,6 @@ interface CategoryFormProps {
     prevState: CategoryFormState,
     formData: FormData
   ) => Promise<CategoryFormState>
-}
-
-function slugify(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
 }
 
 export function CategoryForm({

@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cityOptions } from "@/components/storefront/city-options"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { formatShippingFee } from "@/lib/money"
 import {
@@ -70,6 +71,7 @@ export function CheckoutForm({
         <Select
           name="cityId"
           value={selectedCityId}
+          items={cityOptions(villes)}
           onValueChange={(cityId) => choisir(cityId ?? "")}
           required
         >

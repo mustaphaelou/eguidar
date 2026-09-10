@@ -6,6 +6,7 @@ import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
 import { chargerDevis } from "@/lib/use-cases/devis"
+import { resoudreVilleId } from "@/lib/use-cases/livraison"
 import { lirePanier } from "@/lib/panier"
 import { getSessionUser } from "@/lib/use-cases/get-session"
 import { formatPrice } from "@/lib/money"
@@ -39,14 +40,16 @@ async function CheckoutContent({
   if (!user) return <RequireAuth />
 
   const { ville } = await searchParams
-  const [panier, profile] = await Promise.all([
+  const [panier, profile, villeId] = await Promise.all([
     lirePanier(),
     getProfile(user.id),
+    resoudreVilleId(ville),
   ])
   if (panier.lines.length === 0) redirect("/panier")
 
   const devis = await chargerDevis(panier, {
-    urlVilleId: ville,
+    urlVilleId: villeId,
+    urlVilleFournie: ville !== undefined && ville.trim() !== "",
     profileVilleId: profile.cityId,
   })
 

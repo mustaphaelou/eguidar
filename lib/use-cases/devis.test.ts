@@ -32,8 +32,14 @@ vi.mock("@/lib/use-cases/livraison", async (importOriginal) => {
   }
 })
 
-const city = (id: string, name: string, fee: number): DeliveryCityOption => ({
+const city = (
+  id: string,
+  name: string,
+  fee: number,
+  slug = `slug-${id}`
+): DeliveryCityOption => ({
   id,
+  slug,
   name,
   fee,
 })
@@ -359,6 +365,28 @@ describe("DevisHolder", () => {
         expect(holder.selection.ville.id).toBe("c2")
       }
     }
+  })
+
+  it("precedence: an explicit url presence suppresses the profile fallback for an unknown ville", () => {
+    const inconnue = creerDevisHolder(
+      chargé({
+        urlVilleId: "ville-inconnue",
+        urlVilleFournie: true,
+        profileVilleId: "c2",
+      })
+    )
+    expect(inconnue.villeId).toBeNull()
+    expect(inconnue.selection.cas).toBe("aucune")
+
+    const vide = creerDevisHolder(
+      chargé({
+        urlVilleId: "   ",
+        urlVilleFournie: true,
+        profileVilleId: "c2",
+      })
+    )
+    expect(vide.villeId).toBeNull()
+    expect(vide.selection.cas).toBe("aucune")
   })
 
   it("precedence: resolves to aucune when both url and profile are absent or empty", () => {

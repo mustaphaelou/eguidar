@@ -26,51 +26,6 @@ vi.mock("@/lib/client", () => ({
   useSession: () => ({ data: null, isPending: false }),
 }))
 
-vi.mock("@/components/ui/select", () => ({
-  Select: ({
-    children,
-    onValueChange,
-    value,
-    name,
-    required,
-  }: {
-    children?: React.ReactNode
-    onValueChange?: (value: string) => void
-    value?: string
-    name?: string
-    required?: boolean
-  }) => (
-    <div
-      data-slot="select-stub"
-      data-value={value ?? ""}
-      data-required={required ? "true" : "false"}
-    >
-      {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}
-      <button
-        type="button"
-        data-testid="mock-select-casa"
-        onClick={() => onValueChange?.("42")}
-      >
-        Choisir Casablanca
-      </button>
-      {children}
-    </div>
-  ),
-  SelectContent: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectGroup: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectItem: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectTrigger: ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SelectValue: () => null,
-}))
-
 import { CheckoutForm } from "./checkout-form"
 import { parseAuthParams } from "@/lib/lien-de-connexion"
 import {
@@ -114,7 +69,13 @@ function Probe() {
   return <div data-dialog={dialog ?? "none"} />
 }
 
-const CASA = { id: "42", name: "Casablanca", fee: 2500 }
+const CASA_ID = "cmsp6pvbu000052p6o2m9o8zw"
+const CASA = {
+  id: CASA_ID,
+  slug: "casablanca",
+  name: "Casablanca",
+  fee: 2500,
+}
 const QUOTE_CASA: ShippingQuote = {
   subtotal: 100000,
   shippingFee: 2500,
@@ -144,10 +105,24 @@ function devisPourTest({
   }
 }
 
-function selectValue() {
-  return container
-    .querySelector('[data-slot="select-stub"]')
-    ?.getAttribute("data-value")
+function selectedCityId() {
+  return container.querySelector<HTMLInputElement>('input[name="cityId"]')
+    ?.value
+}
+
+async function choisirDansLeSelect(index = 0) {
+  await act(async () => {
+    container
+      .querySelector<HTMLElement>('[data-slot="select-trigger"]')!
+      .click()
+  })
+  const item = document.querySelectorAll<HTMLElement>(
+    '[data-slot="select-item"]',
+  )[index]!
+  await act(async () => {
+    item.click()
+  })
+  await flush()
 }
 
 function checkoutHarness() {
@@ -196,11 +171,10 @@ describe("CheckoutForm", () => {
   it("exige la ville, l'adresse et le téléphone avant soumission", () => {
     render(checkoutHarness())
 
-    expect(
-      container
-        .querySelector('[data-slot="select-stub"]')
-        ?.getAttribute("data-required")
-    ).toBe("true")
+    const city = container.querySelector<HTMLInputElement>(
+      'input[name="cityId"]'
+    )!
+    expect(city.required).toBe(true)
 
     const address = container.querySelector<HTMLInputElement>(
       "#checkout-address"
@@ -243,28 +217,38 @@ describe("CheckoutForm", () => {
     expect(dialog()).toBe("none")
   })
 
+  it("shows the selected city's name in the closed trigger, never its identifier", () => {
+    render(
+      formHarness({
+        quotes: { [CASA_ID]: QUOTE_CASA },
+        selection: { cas: "validée", ville: CASA, devis: QUOTE_CASA },
+      })
+    )
+
+    const trigger = container.querySelector<HTMLElement>(
+      '[data-slot="select-trigger"]'
+    )!
+    expect(trigger.textContent).toBe("Casablanca")
+    expect(trigger.textContent).not.toContain(CASA_ID)
+  })
+
   it("posts the currently selected city on submit", async () => {
     placeOrderMock.mockResolvedValue({})
 
     render(
       formHarness({
-        quotes: { 42: QUOTE_CASA },
+        quotes: { [CASA_ID]: QUOTE_CASA },
         selection: { cas: "aucune" },
       })
     )
 
-    const chooseButton = container.querySelector(
-      '[data-testid="mock-select-casa"]',
-    )
-    act(() => {
-      ;(chooseButton as HTMLButtonElement).click()
-    })
-    expect(selectValue()).toBe("42")
-
+    await choisirDansLeSelect()
+    expect(selectedCityId()).toBe(CASA_ID)
+    expect(new URL(window.location.href).search).toBe("")
     await act(async () => submitForm())
 
     expect(placeOrderMock).toHaveBeenCalledTimes(1)
     const formData = placeOrderMock.mock.calls[0][1] as FormData
-    expect(formData.get("cityId")).toBe("42")
+    expect(formData.get("cityId")).toBe(CASA_ID)
   })
 })

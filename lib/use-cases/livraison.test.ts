@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db"
 import {
   CityNameConflictError,
   CityNotFoundError,
+  CitySlugConflictError,
   CityValidationError,
   computeCityQuote,
   computeCityQuotes,
@@ -34,8 +35,14 @@ import {
 const runId = randomUUID().slice(0, 8)
 const cityName = (suffix: string) => `Ville Livraison ${runId} ${suffix}`
 
-const city = (id: string, name: string, fee: number): DeliveryCityOption => ({
+const city = (
+  id: string,
+  name: string,
+  fee: number,
+  slug = `slug-${id}`
+): DeliveryCityOption => ({
   id,
+  slug,
   name,
   fee,
 })
@@ -218,10 +225,18 @@ describe("delivery reads", () => {
 
   it("lists delivery cities ordered by name", async () => {
     await prisma.deliveryCity.create({
-      data: { name: cityName("b"), fee: 5000 },
+      data: {
+        name: cityName("b"),
+        slug: `ville-livraison-${runId}-b`,
+        fee: 5000,
+      },
     })
     await prisma.deliveryCity.create({
-      data: { name: cityName("a"), fee: 3500 },
+      data: {
+        name: cityName("a"),
+        slug: `ville-livraison-${runId}-a`,
+        fee: 3500,
+      },
     })
 
     const cities = await listDeliveryCities()
@@ -235,6 +250,7 @@ describe("delivery reads", () => {
     ])
     expect(relevant[0]).toEqual({
       id: relevant[0].id,
+      slug: `ville-livraison-${runId}-a`,
       name: cityName("a"),
       fee: 3500,
     })
@@ -301,6 +317,49 @@ describe("admin city writes", () => {
     expect(persisted.name).toBe(cityName("creer"))
     expect(persisted.fee).toBe(3500)
     expect(revalidateShipping).toHaveBeenCalledOnce()
+  })
+
+  it("generates the city slug from its name", async () => {
+    const created = await createCity({ name: cityName("Kénitra"), fee: 3500 })
+
+    expect(created.slug).toBe(`ville-livraison-${runId}-kenitra`)
+    const persisted = await prisma.deliveryCity.findUniqueOrThrow({
+      where: { id: created.id },
+    })
+    expect(persisted.slug).toBe(`ville-livraison-${runId}-kenitra`)
+  })
+
+  it("keeps the slug unchanged when the city is renamed", async () => {
+    const created = await createCity({ name: cityName("avant"), fee: 3000 })
+
+    const updated = await updateCity(created.id, {
+      name: cityName("apres"),
+      fee: 3000,
+    })
+
+    expect(updated.name).toBe(cityName("apres"))
+    expect(updated.slug).toBe(created.slug)
+    const persisted = await prisma.deliveryCity.findUniqueOrThrow({
+      where: { id: created.id },
+    })
+    expect(persisted.slug).toBe(created.slug)
+  })
+
+  it("rejects a duplicate folded slug and persists nothing", async () => {
+    await createCity({ name: cityName("Kénitra"), fee: 3500 })
+
+    await expect(
+      createCity({ name: cityName("Kenitra"), fee: 4000 })
+    ).rejects.toThrow(CitySlugConflictError)
+
+    const nameCount = await prisma.deliveryCity.count({
+      where: { name: cityName("Kenitra") },
+    })
+    expect(nameCount).toBe(0)
+    const slugCount = await prisma.deliveryCity.count({
+      where: { slug: `ville-livraison-${runId}-kenitra` },
+    })
+    expect(slugCount).toBe(1)
   })
 
   it("rejects a negative city fee", async () => {
@@ -405,10 +464,18 @@ describe("admin city writes", () => {
 
   it("lists admin cities ordered by name", async () => {
     await prisma.deliveryCity.create({
-      data: { name: cityName("b"), fee: 5000 },
+      data: {
+        name: cityName("b"),
+        slug: `ville-livraison-${runId}-b`,
+        fee: 5000,
+      },
     })
     await prisma.deliveryCity.create({
-      data: { name: cityName("a"), fee: 3500 },
+      data: {
+        name: cityName("a"),
+        slug: `ville-livraison-${runId}-a`,
+        fee: 3500,
+      },
     })
 
     const cities = await listAdminCities()

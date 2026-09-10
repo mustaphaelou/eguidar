@@ -61,6 +61,7 @@ let userIdA: string
 let variantStandard: string
 let variantUnique: string
 let cityId: string
+let citySlug: string
 
 function commeClient(userId: string) {
   sessionUserMock.mockResolvedValue({ id: userId })
@@ -143,9 +144,10 @@ beforeAll(async () => {
   variantUnique = productB.variants[0].id
 
   const city = await prisma.deliveryCity.create({
-    data: { name: `Ville ${runId}`, fee: 3000 },
+    data: { name: `Ville ${runId}`, slug: `ville-${runId}`, fee: 3000 },
   })
   cityId = city.id
+  citySlug = city.slug
 })
 
 beforeEach(async () => {
@@ -251,7 +253,8 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
 
     const html = await renderPage({ ville: cityId })
 
-    expect(html).toContain('href="/checkout?ville=')
+    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
+    expect(html).not.toContain(`href="/checkout?ville=${cityId}"`)
     expect(html).toContain("Passer commande")
   })
 })
@@ -273,7 +276,54 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain(formatPrice(3000))
     expect(html).toContain(formatPrice(253000))
     expect(html).toContain(`data-selected="${cityId}"`)
-    expect(html).toContain(`href="/checkout?ville=${cityId}"`)
+    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
+  })
+
+  it("selects the Ville de livraison from its slug in the URL", async () => {
+    commeVisiteur()
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
+      serializePanierVisiteur([
+        { variantId: variantStandard, quantity: 2 },
+        { variantId: variantUnique, quantity: 1 },
+      ])
+    )
+
+    const html = await renderPage({ ville: `ville-${runId}` })
+
+    expect(html).toContain(`Livraison (Ville ${runId})`)
+    expect(html).toContain(formatPrice(3000))
+    expect(html).toContain(formatPrice(253000))
+    expect(html).toContain(`data-selected="${cityId}"`)
+    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
+  })
+
+  it("still resolves a legacy internal identifier as a read-only alias", async () => {
+    commeVisiteur()
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
+      serializePanierVisiteur([{ variantId: variantStandard, quantity: 1 }])
+    )
+
+    const html = await renderPage({ ville: cityId })
+
+    expect(html).toContain(`Livraison (Ville ${runId})`)
+    expect(html).toContain(`data-selected="${cityId}"`)
+  })
+
+  it("leaves no selection for an unknown slug", async () => {
+    commeVisiteur()
+    setCookie(
+      NOM_COOKIE_PANIER_VISITEUR,
+      serializePanierVisiteur([{ variantId: variantStandard, quantity: 1 }])
+    )
+
+    const html = await renderPage({ ville: `ville-inconnue-${runId}` })
+
+    expect(html).toContain("À choisir")
+    expect(html).not.toContain("Livraison (")
+    expect(html).toContain('data-selected=""')
+    expect(html).not.toContain("?ville=")
   })
 
   it("shows « À choisir » without total when no ville is chosen", async () => {

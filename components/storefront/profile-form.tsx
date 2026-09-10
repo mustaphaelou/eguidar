@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cityOptions } from "@/components/storefront/city-options"
 import { formatShippingFee } from "@/lib/money"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
 
@@ -88,7 +89,11 @@ export function ProfileForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="profile-city">Ville de livraison</Label>
-        <Select name="cityId" defaultValue={initialCityId ?? ""}>
+        <Select
+          name="cityId"
+          defaultValue={initialCityId ?? ""}
+          items={cityOptions(cities)}
+        >
           <SelectTrigger id="profile-city" className="w-full">
             <SelectValue placeholder="Choisir une ville" />
           </SelectTrigger>

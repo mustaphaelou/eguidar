@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import { slugify } from "@/lib/slug"
 import { invalidateLivraison } from "@/lib/use-cases/cache-invalidation"
 import {
   DEFAULT_FREE_SHIPPING_THRESHOLD,
@@ -62,6 +63,13 @@ export class CityNameConflictError extends UserFacingError {
   }
 }
 
+export class CitySlugConflictError extends UserFacingError {
+  constructor() {
+    super("Une ville avec un nom équivalent existe déjà")
+    this.name = "CitySlugConflictError"
+  }
+}
+
 export class CityNotFoundError extends UserFacingError {
   constructor() {
     super("Ville introuvable")
@@ -86,8 +94,34 @@ export async function getFreeShippingThreshold(): Promise<number> {
 export function listDeliveryCities(): Promise<DeliveryCityOption[]> {
   return prisma.deliveryCity.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true, fee: true },
+    select: { id: true, slug: true, name: true, fee: true },
   })
+}
+
+/**
+ * Résout une Ville de livraison demandée dans une URL en son identifiant
+ * interne : le **slug** d'abord (langage public, ADR-0017), puis
+ * l'identifiant interne comme **alias en lecture seule** (liens émis avant
+ * le passage au slug). Jamais de redirect : absente, vide ou inconnue →
+ * `undefined` — la sélection restera « aucune » (placeholder).
+ */
+export async function resoudreVilleId(
+  ville?: string | null
+): Promise<string | undefined> {
+  const demandee = ville?.trim()
+  if (!demandee) return undefined
+
+  const parSlug = await prisma.deliveryCity.findUnique({
+    where: { slug: demandee },
+    select: { id: true },
+  })
+  if (parSlug) return parSlug.id
+
+  const parId = await prisma.deliveryCity.findUnique({
+    where: { id: demandee },
+    select: { id: true },
+  })
+  return parId?.id
 }
 
 const cityInputSchema = z.object({
@@ -117,6 +151,7 @@ function parseCityInput(input: CityInput): CityInput {
 
 function mapCityUniqueViolation(error: unknown): never {
   if (hasUniqueViolation(error, ["name"])) throw new CityNameConflictError()
+  if (hasUniqueViolation(error, ["slug"])) throw new CitySlugConflictError()
   throw error
 }
 
@@ -129,17 +164,24 @@ async function assertUniqueCityName(
     throw new CityNameConflictError()
 }
 
+async function assertUniqueCitySlug(slug: string): Promise<void> {
+  const existing = await prisma.deliveryCity.findUnique({ where: { slug } })
+  if (existing) throw new CitySlugConflictError()
+}
+
 export async function createCity(
   input: CityInput,
   overrides?: Partial<LivraisonEffects>
 ) {
   const effects = { ...defaultLivraisonEffects, ...overrides }
   const data = parseCityInput(input)
+  const slug = slugify(data.name)
   await assertUniqueCityName(data.name)
+  await assertUniqueCitySlug(slug)
 
   let city
   try {
-    city = await prisma.deliveryCity.create({ data })
+    city = await prisma.deliveryCity.create({ data: { ...data, slug } })
   } catch (error) {
     mapCityUniqueViolation(error)
   }
