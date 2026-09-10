@@ -9,8 +9,8 @@ The delivery service for orders: delivery cities, their fees, and the free-shipp
 _Avoid_: shipping, frais de port
 
 **Ville de livraison**:
-A city to which orders can be delivered, each with a fixed delivery fee.
-_Avoid_: ville desservie
+A city to which orders can be delivered, each with a fixed delivery fee. Its public identity in a URL is its slug — the normalized form of its name; the internal identifier never appears in a URL and survives there only as a read-only alias (ADR-0017).
+_Avoid_: ville desservie, identifiant de ville dans l'URL
 
 **Frais de livraison**:
 The fee charged per order for delivery to a given city. Free when the cart subtotal reaches the free-shipping threshold, or when the cart contains a free-shipping item.
@@ -175,6 +175,14 @@ _Avoid_: order, achat
 **Statut de commande**:
 Le cycle de vie d'une Commande : En attente, Confirmée, Expédiée, Livrée ; ou Annulée, Retournée.
 _Avoid_: état, order status
+
+**Transition de statut**:
+Le passage autorisé d'une Commande d'un Statut de commande à un autre ; Annulée et Retournée sont terminales et n'autorisent aucune transition.
+_Avoid_: changement de statut, mouvement d'état
+
+**Réapprovisionnement**:
+Le retour au stock des Variantes d'une Commande lorsque celle-ci passe à Annulée ou Retournée.
+_Avoid_: restock, remise en stock, réintégration de stock
 
 **Total à payer**:
 Le montant collecté auprès du Client lors de la livraison d'une Commande : le sous-total des
