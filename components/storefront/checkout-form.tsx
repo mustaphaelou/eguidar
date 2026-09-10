@@ -70,6 +70,7 @@ export function CheckoutForm({
         <Select
           name="cityId"
           value={selectedCityId}
+          items={villes.map((city) => ({ value: city.id, label: city.name }))}
           onValueChange={(cityId) => choisir(cityId ?? "")}
           required
         >

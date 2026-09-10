@@ -33,7 +33,11 @@ export function CityPicker({
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor="city">Ville de livraison</Label>
-      <Select value={selectedId ?? ""} onValueChange={handleChange}>
+      <Select
+        value={selectedId ?? ""}
+        items={cities.map((city) => ({ value: city.id, label: city.name }))}
+        onValueChange={handleChange}
+      >
         <SelectTrigger id="city" className="w-full sm:w-72">
           <SelectValue placeholder="Choisir une ville" />
         </SelectTrigger>
