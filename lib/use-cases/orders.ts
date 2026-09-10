@@ -12,8 +12,8 @@ import {
   deliveryAddressField,
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
-import { chargerDevisHolder } from "@/lib/use-cases/devis"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
+import { chargerDevis } from "@/lib/use-cases/devis"
+import { creerDevisHolder } from "@/lib/use-cases/devis-coeur"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = {
@@ -208,7 +208,7 @@ export async function placeOrder(
   const cart = await lirePanierClient(userId)
   if (cart.lines.length === 0) throw new EmptyCartError()
 
-  const devis = await chargerDevisHolder(cart, data.cityId)
+  const devis = creerDevisHolder(await chargerDevis(cart, data.cityId))
   const selection = devis.selectionValidee()
   const city = selection.ville
   const shippingFee = selection.devis.shippingFee

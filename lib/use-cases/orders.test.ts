@@ -13,7 +13,8 @@ import {
 import { prisma } from "@/lib/db"
 import { ajouterArticleAuPanier, lirePanierClient } from "@/lib/panier"
 import { sessionUserMock } from "@/test/navigation-mocks"
-import { chargerDevisHolder } from "@/lib/use-cases/devis"
+import { chargerDevis } from "@/lib/use-cases/devis"
+import { creerDevisHolder } from "@/lib/use-cases/devis-coeur"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import {
@@ -357,7 +358,7 @@ describe("order placement", () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     const cart = await lirePanierClient(userIdA)
-    const devis = await chargerDevisHolder(cart, cityId)
+    const devis = creerDevisHolder(await chargerDevis(cart, cityId))
     const selection = devis.selectionValidee()
 
     const order = await placeOrder(userIdA, checkoutInput())
