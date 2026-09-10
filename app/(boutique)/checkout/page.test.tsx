@@ -192,7 +192,7 @@ beforeAll(async () => {
   variantUnique = productB.variants[0].id
 
   const city = await prisma.deliveryCity.create({
-    data: { name: `Ville ${runId}`, fee: 3000 },
+    data: { name: `Ville ${runId}`, slug: `ville-${runId}`, fee: 3000 },
   })
   cityId = city.id
 })

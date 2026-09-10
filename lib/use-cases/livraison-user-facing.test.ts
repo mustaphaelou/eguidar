@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   CityNameConflictError,
   CityNotFoundError,
+  CitySlugConflictError,
   CityValidationError,
   DeliveryCityNotFoundError,
   ShippingValidationError,
@@ -12,6 +13,7 @@ import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 const errorFactory: [string, () => unknown][] = [
   ["CityValidationError", () => new CityValidationError(["nom requis"])],
   ["CityNameConflictError", () => new CityNameConflictError()],
+  ["CitySlugConflictError", () => new CitySlugConflictError()],
   ["CityNotFoundError", () => new CityNotFoundError()],
   ["DeliveryCityNotFoundError", () => new DeliveryCityNotFoundError()],
   [

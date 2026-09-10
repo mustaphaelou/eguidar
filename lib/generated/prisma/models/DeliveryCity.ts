@@ -37,6 +37,7 @@ export type DeliveryCitySumAggregateOutputType = {
 export type DeliveryCityMinAggregateOutputType = {
   id: string | null
   name: string | null
+  slug: string | null
   fee: number | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -45,6 +46,7 @@ export type DeliveryCityMinAggregateOutputType = {
 export type DeliveryCityMaxAggregateOutputType = {
   id: string | null
   name: string | null
+  slug: string | null
   fee: number | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -53,6 +55,7 @@ export type DeliveryCityMaxAggregateOutputType = {
 export type DeliveryCityCountAggregateOutputType = {
   id: number
   name: number
+  slug: number
   fee: number
   createdAt: number
   updatedAt: number
@@ -70,6 +73,7 @@ export type DeliveryCitySumAggregateInputType = {
 export type DeliveryCityMinAggregateInputType = {
   id?: true
   name?: true
+  slug?: true
   fee?: true
   createdAt?: true
   updatedAt?: true
@@ -78,6 +82,7 @@ export type DeliveryCityMinAggregateInputType = {
 export type DeliveryCityMaxAggregateInputType = {
   id?: true
   name?: true
+  slug?: true
   fee?: true
   createdAt?: true
   updatedAt?: true
@@ -86,6 +91,7 @@ export type DeliveryCityMaxAggregateInputType = {
 export type DeliveryCityCountAggregateInputType = {
   id?: true
   name?: true
+  slug?: true
   fee?: true
   createdAt?: true
   updatedAt?: true
@@ -189,6 +195,7 @@ export type DeliveryCityGroupByArgs<
 export type DeliveryCityGroupByOutputType = {
   id: string
   name: string
+  slug: string
   fee: number
   createdAt: Date
   updatedAt: Date
@@ -218,6 +225,7 @@ export type DeliveryCityWhereInput = {
   NOT?: Prisma.DeliveryCityWhereInput | Prisma.DeliveryCityWhereInput[]
   id?: Prisma.StringFilter<"DeliveryCity"> | string
   name?: Prisma.StringFilter<"DeliveryCity"> | string
+  slug?: Prisma.StringFilter<"DeliveryCity"> | string
   fee?: Prisma.IntFilter<"DeliveryCity"> | number
   createdAt?: Prisma.DateTimeFilter<"DeliveryCity"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"DeliveryCity"> | Date | string
@@ -227,6 +235,7 @@ export type DeliveryCityWhereInput = {
 export type DeliveryCityOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  slug?: Prisma.SortOrder
   fee?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -237,6 +246,7 @@ export type DeliveryCityWhereUniqueInput = Prisma.AtLeast<
   {
     id?: string
     name?: string
+    slug?: string
     AND?: Prisma.DeliveryCityWhereInput | Prisma.DeliveryCityWhereInput[]
     OR?: Prisma.DeliveryCityWhereInput[]
     NOT?: Prisma.DeliveryCityWhereInput | Prisma.DeliveryCityWhereInput[]
@@ -245,12 +255,13 @@ export type DeliveryCityWhereUniqueInput = Prisma.AtLeast<
     updatedAt?: Prisma.DateTimeFilter<"DeliveryCity"> | Date | string
     users?: Prisma.UserListRelationFilter
   },
-  "id" | "name"
+  "id" | "name" | "slug"
 >
 
 export type DeliveryCityOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  slug?: Prisma.SortOrder
   fee?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -271,6 +282,7 @@ export type DeliveryCityScalarWhereWithAggregatesInput = {
     | Prisma.DeliveryCityScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"DeliveryCity"> | string
   name?: Prisma.StringWithAggregatesFilter<"DeliveryCity"> | string
+  slug?: Prisma.StringWithAggregatesFilter<"DeliveryCity"> | string
   fee?: Prisma.IntWithAggregatesFilter<"DeliveryCity"> | number
   createdAt?:
     Prisma.DateTimeWithAggregatesFilter<"DeliveryCity"> | Date | string
@@ -281,6 +293,7 @@ export type DeliveryCityScalarWhereWithAggregatesInput = {
 export type DeliveryCityCreateInput = {
   id?: string
   name: string
+  slug: string
   fee: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -290,6 +303,7 @@ export type DeliveryCityCreateInput = {
 export type DeliveryCityUncheckedCreateInput = {
   id?: string
   name: string
+  slug: string
   fee: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -299,6 +313,7 @@ export type DeliveryCityUncheckedCreateInput = {
 export type DeliveryCityUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
   fee?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -308,6 +323,7 @@ export type DeliveryCityUpdateInput = {
 export type DeliveryCityUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
   fee?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -317,6 +333,7 @@ export type DeliveryCityUncheckedUpdateInput = {
 export type DeliveryCityCreateManyInput = {
   id?: string
   name: string
+  slug: string
   fee: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -325,6 +342,7 @@ export type DeliveryCityCreateManyInput = {
 export type DeliveryCityUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
   fee?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -333,6 +351,7 @@ export type DeliveryCityUpdateManyMutationInput = {
 export type DeliveryCityUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
   fee?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -346,6 +365,7 @@ export type DeliveryCityNullableScalarRelationFilter = {
 export type DeliveryCityCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  slug?: Prisma.SortOrder
   fee?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -358,6 +378,7 @@ export type DeliveryCityAvgOrderByAggregateInput = {
 export type DeliveryCityMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  slug?: Prisma.SortOrder
   fee?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -366,6 +387,7 @@ export type DeliveryCityMaxOrderByAggregateInput = {
 export type DeliveryCityMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  slug?: Prisma.SortOrder
   fee?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -406,6 +428,7 @@ export type DeliveryCityUpdateOneWithoutUsersNestedInput = {
 export type DeliveryCityCreateWithoutUsersInput = {
   id?: string
   name: string
+  slug: string
   fee: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -414,6 +437,7 @@ export type DeliveryCityCreateWithoutUsersInput = {
 export type DeliveryCityUncheckedCreateWithoutUsersInput = {
   id?: string
   name: string
+  slug: string
   fee: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -450,6 +474,7 @@ export type DeliveryCityUpdateToOneWithWhereWithoutUsersInput = {
 export type DeliveryCityUpdateWithoutUsersInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
   fee?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -458,6 +483,7 @@ export type DeliveryCityUpdateWithoutUsersInput = {
 export type DeliveryCityUncheckedUpdateWithoutUsersInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
   fee?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -508,6 +534,7 @@ export type DeliveryCitySelect<
   {
     id?: boolean
     name?: boolean
+    slug?: boolean
     fee?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -524,6 +551,7 @@ export type DeliveryCitySelectCreateManyAndReturn<
   {
     id?: boolean
     name?: boolean
+    slug?: boolean
     fee?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -538,6 +566,7 @@ export type DeliveryCitySelectUpdateManyAndReturn<
   {
     id?: boolean
     name?: boolean
+    slug?: boolean
     fee?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -548,6 +577,7 @@ export type DeliveryCitySelectUpdateManyAndReturn<
 export type DeliveryCitySelectScalar = {
   id?: boolean
   name?: boolean
+  slug?: boolean
   fee?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -557,7 +587,7 @@ export type DeliveryCityOmit<
   ExtArgs extends runtime.Types.Extensions.InternalArgs =
     runtime.Types.Extensions.DefaultArgs,
 > = runtime.Types.Extensions.GetOmit<
-  "id" | "name" | "fee" | "createdAt" | "updatedAt",
+  "id" | "name" | "slug" | "fee" | "createdAt" | "updatedAt",
   ExtArgs["result"]["deliveryCity"]
 >
 export type DeliveryCityInclude<
@@ -588,6 +618,7 @@ export type $DeliveryCityPayload<
     {
       id: string
       name: string
+      slug: string
       fee: number
       createdAt: Date
       updatedAt: Date
@@ -1196,6 +1227,7 @@ export interface Prisma__DeliveryCityClient<
 export interface DeliveryCityFieldRefs {
   readonly id: Prisma.FieldRef<"DeliveryCity", "String">
   readonly name: Prisma.FieldRef<"DeliveryCity", "String">
+  readonly slug: Prisma.FieldRef<"DeliveryCity", "String">
   readonly fee: Prisma.FieldRef<"DeliveryCity", "Int">
   readonly createdAt: Prisma.FieldRef<"DeliveryCity", "DateTime">
   readonly updatedAt: Prisma.FieldRef<"DeliveryCity", "DateTime">

@@ -7,6 +7,7 @@ import { hashPassword } from "better-auth/crypto"
 import { prisma } from "../lib/db"
 import { indexProductDocuments } from "../lib/meili"
 import { toIndexableProduct } from "../lib/index-projection"
+import { slugify } from "../lib/slug"
 
 const adminEmail = process.env.ADMIN_EMAIL ?? "admin@eguidar.com"
 const adminPassword = process.env.ADMIN_PASSWORD ?? "admin-password-change-me"
@@ -292,7 +293,7 @@ async function main() {
     await prisma.deliveryCity.upsert({
       where: { name: city.name },
       update: { fee: city.fee },
-      create: city,
+      create: { ...city, slug: slugify(city.name) },
     })
   }
 
