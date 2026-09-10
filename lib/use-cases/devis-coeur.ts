@@ -14,6 +14,15 @@
  * (`require('dns')`) dans le bundle navigateur et casserait `next build`
  * (Turbopack).
  *
+ * Deux formes cohabitent : le Devis chargé (`DevisChargé`) est la donnée
+ * pure qui traverse la couture serveur → client — Villes de livraison,
+ * seuil, devis par ville, sous-total, sources de précédence, aucune
+ * fonction — ; l'interface `DevisHolder` (getters, `choisir`,
+ * `selectionValidee`) n'est pas une donnée : elle se construit derrière
+ * la couture à partir de ces faits via `creerDevisHolder(devisChargé)` —
+ * une seule entrée de construction, les devis étant toujours fournis par
+ * l'appelant (la fabrique ne chiffre jamais).
+ *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
  * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
@@ -24,8 +33,6 @@ import {
   type RécapitulatifRow,
 } from "@/lib/recapitulatif-paiement"
 import {
-  computeCityQuotes,
-  DEFAULT_FREE_SHIPPING_THRESHOLD,
   DeliveryCityNotFoundError,
   type DeliveryCityOption,
   type ShippingQuote,
@@ -71,24 +78,22 @@ export function selectionnerDevis(
 }
 
 /**
- * Devis chargé : Villes de livraison, seuil et devis par ville, le
- * sous-total (cents) qui a chiffré les devis, et la Sélection du Devis
- * absorbée à plat (un seul test du discriminant `cas` rétrécit
- * `ville` + `devis`).
- *
- * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier
- * dont il a été chargé, pour que les surfaces d'affichage ne reçoivent
- * plus le sous-total comme un fait séparé qui pourrait dériver des
- * devis. Les lignes ne sont jamais cuites dans le type : elles se
- * dérivent toujours via le projecteur unique
- * `lignesDevis(devis.sousTotal, devis)`.
+ * Le Devis chargé : les faits purs d'un Panier chiffré — Villes de
+ * livraison, seuil de livraison offerte, devis par ville, sous-total
+ * (cents) et sources de précédence (`urlVilleId` gagne sur
+ * `profileVilleId`). Strictement des données : aucune fonction, aucun
+ * getter, aucune instance de classe — c'est ce qui traverse la couture
+ * serveur → client. L'interface `DevisHolder` (getters, `choisir`,
+ * `selectionValidee`) se construit derrière la couture à partir de ces
+ * faits via `creerDevisHolder`.
  */
-export type Devis = {
+export type DevisChargé = {
   cities: DeliveryCityOption[]
   threshold: number
   quotes: Record<string, ShippingQuote>
   sousTotal: number
-} & SelectionDevis
+  sources?: DevisPrecedenceSources
+}
 
 /**
  * Lignes du Récapitulatif de paiement pour une Sélection du Devis —
@@ -137,27 +142,15 @@ export interface DevisPrecedenceSources {
   profileVilleId?: string | null
 }
 
-export interface DevisHolderInit {
-  cities: DeliveryCityOption[]
-  quotes?: Record<string, ShippingQuote>
-  sousTotal: number
-  threshold?: number
-  anyFreeShippingItem?: boolean
-  sources?: DevisPrecedenceSources
-  urlVilleId?: string | null
-  profileVilleId?: string | null
-  requestedCityId?: string | null
-}
-
 /**
- * Interface profonde du DevisHolder : possède les villes, la sélection courante,
- * les lignes du Récapitulatif projetées depuis son propre sous-total,
- * le changement de ville (`choisir`), l'identifiant sélectionné (`villeId`),
- * le re-chiffrage sur changement de panier (`recalculer`),
- * et le rétrécissement de prise en commande (`selectionValidee` / `validerSelection`).
+ * Interface profonde du DevisHolder : possède les villes, la sélection
+ * courante, les lignes du Récapitulatif projetées depuis le sous-total
+ * du Devis chargé qui l'a construit, le changement de ville (`choisir`),
+ * l'identifiant sélectionné (`villeId`) et le rétrécissement de prise en
+ * commande (`selectionValidee`).
  *
  * Les devis bruts (`quotes`) et le seuil (`threshold`) restent cachés
- * dans l'implémentation.
+ * dans l'implémentation — le holder n'expose que la projection.
  */
 export interface DevisHolder {
   readonly villes: DeliveryCityOption[]
@@ -165,83 +158,26 @@ export interface DevisHolder {
   readonly rows: RécapitulatifRow[]
   readonly villeId: string | null
   choisir(nouvelleVilleId?: string | null): DevisHolder
-  recalculer(
-    nouveauSousTotalOuInput:
-      | number
-      | { sousTotal: number; anyFreeShippingItem?: boolean }
-  ): DevisHolder
   selectionValidee(): ValidatedSelectionDevis
 }
 
-export function creerDevisHolder(init: DevisHolderInit): DevisHolder
-export function creerDevisHolder(
-  devis: Devis,
-  sources?: string | null | DevisPrecedenceSources
-): DevisHolder
-export function creerDevisHolder(
-  cities: DeliveryCityOption[],
-  quotes: Record<string, ShippingQuote>,
-  sousTotal: number,
-  sources?: string | null | DevisPrecedenceSources
-): DevisHolder
-export function creerDevisHolder(
-  citiesOrInitOrDevis: DeliveryCityOption[] | DevisHolderInit | Devis,
-  quotesOrSources?: Record<string, ShippingQuote> | string | null | DevisPrecedenceSources,
-  sousTotalArg?: number,
-  sourcesArg?: string | null | DevisPrecedenceSources
-): DevisHolder {
-  let cities: DeliveryCityOption[]
-  let quotes: Record<string, ShippingQuote>
-  let sousTotal: number
-  let threshold: number = DEFAULT_FREE_SHIPPING_THRESHOLD
-  let anyFreeShippingItem: boolean = false
-  let sources: string | null | DevisPrecedenceSources | undefined
-
-  if (Array.isArray(citiesOrInitOrDevis)) {
-    cities = citiesOrInitOrDevis
-    quotes = (quotesOrSources as Record<string, ShippingQuote>) ?? {}
-    sousTotal = typeof sousTotalArg === "number" ? sousTotalArg : 0
-    sources = sourcesArg
-  } else {
-    cities = citiesOrInitOrDevis.cities
-    sousTotal = citiesOrInitOrDevis.sousTotal
-    if ("threshold" in citiesOrInitOrDevis && typeof citiesOrInitOrDevis.threshold === "number") {
-      threshold = citiesOrInitOrDevis.threshold
-    }
-    if ("anyFreeShippingItem" in citiesOrInitOrDevis && typeof (citiesOrInitOrDevis as DevisHolderInit).anyFreeShippingItem === "boolean") {
-      anyFreeShippingItem = Boolean((citiesOrInitOrDevis as DevisHolderInit).anyFreeShippingItem)
-    }
-    quotes =
-      citiesOrInitOrDevis.quotes ??
-      computeCityQuotes(cities, { subtotal: sousTotal, anyFreeShippingItem }, threshold)
-
-    if (quotesOrSources !== undefined) {
-      sources = quotesOrSources as string | null | DevisPrecedenceSources
-    } else if ("sources" in citiesOrInitOrDevis && citiesOrInitOrDevis.sources) {
-      sources = citiesOrInitOrDevis.sources
-    } else if (
-      ("urlVilleId" in citiesOrInitOrDevis && citiesOrInitOrDevis.urlVilleId !== undefined) ||
-      ("profileVilleId" in citiesOrInitOrDevis && citiesOrInitOrDevis.profileVilleId !== undefined)
-    ) {
-      sources = {
-        urlVilleId: (citiesOrInitOrDevis as DevisHolderInit).urlVilleId,
-        profileVilleId: (citiesOrInitOrDevis as DevisHolderInit).profileVilleId,
-      }
-    } else if ("requestedCityId" in citiesOrInitOrDevis && (citiesOrInitOrDevis as DevisHolderInit).requestedCityId) {
-      sources = (citiesOrInitOrDevis as DevisHolderInit).requestedCityId
-    } else if ("cas" in citiesOrInitOrDevis && (citiesOrInitOrDevis as Devis).cas === "validée") {
-      sources = (citiesOrInitOrDevis as Devis & { cas: "validée" }).ville.id
-    }
-  }
+/**
+ * Construit le DevisHolder depuis le Devis chargé — l'unique entrée de
+ * construction de l'interface : les faits entrants sont exactement le
+ * Devis chargé, et les devis par ville (`quotes`) sont toujours fournis
+ * par l'appelant — la fabrique ne chiffre jamais.
+ *
+ * La précédence (lien > profil > aucune) se résout ici, à la
+ * construction. Ville inconnue ou absente → sélection « aucune » ; la
+ * fabrique ne lève jamais sur une ville absente ou inconnue.
+ */
+export function creerDevisHolder(devisChargé: DevisChargé): DevisHolder {
+  const { cities, quotes, sousTotal } = devisChargé
 
   function resoudrePrecedence(
-    src?: string | null | DevisPrecedenceSources
+    src?: DevisPrecedenceSources
   ): string | null {
     if (!src) return null
-    if (typeof src === "string") {
-      const trimmed = src.trim()
-      return trimmed.length > 0 ? trimmed : null
-    }
     const url = src.urlVilleId?.trim()
     if (url && url.length > 0) return url
     const profil = src.profileVilleId?.trim()
@@ -249,14 +185,9 @@ export function creerDevisHolder(
     return null
   }
 
-  function creerInstance(
-    villeChoisie: string | null,
-    currentQuotes = quotes,
-    currentSousTotal = sousTotal,
-    currentAnyFree = anyFreeShippingItem
-  ): DevisHolder {
-    const selection = selectionnerDevis(cities, currentQuotes, villeChoisie)
-    const rows = lignesDevis(currentSousTotal, selection)
+  function creerInstance(villeChoisie: string | null): DevisHolder {
+    const selection = selectionnerDevis(cities, quotes, villeChoisie)
+    const rows = lignesDevis(sousTotal, selection)
     const villeId = selection.cas === "validée" ? selection.ville.id : null
 
     return {
@@ -274,24 +205,7 @@ export function creerDevisHolder(
       },
       choisir(nouvelleVilleId?: string | null) {
         const trimmed = nouvelleVilleId?.trim() || null
-        return creerInstance(trimmed, currentQuotes, currentSousTotal, currentAnyFree)
-      },
-      recalculer(nouveauSousTotalOuInput) {
-        const nextSousTotal =
-          typeof nouveauSousTotalOuInput === "number"
-            ? nouveauSousTotalOuInput
-            : nouveauSousTotalOuInput.sousTotal
-        const nextAnyFree =
-          typeof nouveauSousTotalOuInput === "object" &&
-          nouveauSousTotalOuInput.anyFreeShippingItem !== undefined
-            ? Boolean(nouveauSousTotalOuInput.anyFreeShippingItem)
-            : currentAnyFree
-        const nextQuotes = computeCityQuotes(
-          cities,
-          { subtotal: nextSousTotal, anyFreeShippingItem: nextAnyFree },
-          threshold
-        )
-        return creerInstance(villeChoisie, nextQuotes, nextSousTotal, nextAnyFree)
+        return creerInstance(trimmed)
       },
       selectionValidee() {
         if (selection.cas !== "validée") {
@@ -302,7 +216,7 @@ export function creerDevisHolder(
     }
   }
 
-  const initialCityId = resoudrePrecedence(sources)
+  const initialCityId = resoudrePrecedence(devisChargé.sources)
   return creerInstance(initialCityId)
 }
 

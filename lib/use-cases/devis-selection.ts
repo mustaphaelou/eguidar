@@ -3,8 +3,16 @@
 /**
  * Sélection du Devis — porte d'entrée cliente, qui ne porte que le crochet.
  *
- * Le pur partagé (`SelectionDevis`, `Devis`, `selectionnerDevis`,
- * `lignesDevis`) vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
+ * La donnée qui traverse la couture serveur → client est le Devis chargé
+ * (`DevisChargé`) : des faits purs — Villes de livraison, seuil de
+ * livraison offerte, devis par ville, sous-total, sources de précédence —
+ * sans fonction, sans getter, sans instance de classe. Le hook prend ces
+ * faits et construit l'interface profonde `DevisHolder` derrière la
+ * couture (via `creerDevisHolder`) : la précédence (lien > profil >
+ * aucune) vit dans la fabrique, jamais dans la page.
+ *
+ * Le pur partagé (`SelectionDevis`, `selectionnerDevis`, `lignesDevis`)
+ * vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
  * (sans directive), consommé aussi côté serveur (`chargerDevis`, pages
  * Panier/Checkout, `placeOrder`). Définir ce pur ici — module « use
  * client » — faisait lever la production dès qu'un serveur l'appelait
@@ -26,8 +34,8 @@
  * synchronisé avec l'URL : `useDevisSelection` initialise la Ville de
  * livraison depuis le Devis chargé puis re-chiffre le Récapitulatif de
  * paiement instantanément à chaque `choisir(villeId)`, sans rechargement.
- * `selectionnerDevis` et `lignesDevis` restent exportées comme coutures
- * internes ; le hook est la porte d'entrée cliente.
+ * `selectionnerDevis` et `lignesDevis` restent exportées par le cœur
+ * comme coutures internes ; le hook est la porte d'entrée cliente.
  *
  * Non-buts : pas de re-sélection synchronisée avec l'URL sur checkout ;
  * pas d'entrée de sélection allégée à côté de `chargerDevis` — `placeOrder`
@@ -39,58 +47,41 @@ import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import {
   creerDevisHolder,
-  DeliveryCityNotFoundError,
-  type DevisHolder,
-  type DevisHolderInit,
-  type DevisPrecedenceSources,
+  type DevisChargé,
   type SelectionDevis,
-  type ValidatedSelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
-export {
-  creerDevisHolder,
-  DeliveryCityNotFoundError,
-} from "@/lib/use-cases/devis-coeur"
 export type {
-  DevisHolder,
-  DevisHolderInit,
-  DevisPrecedenceSources,
+  DevisChargé,
   SelectionDevis,
-  ValidatedSelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
 /**
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.
  *
- * Possède l'état de la Ville de livraison sélectionnée (initialisé depuis
- * le DevisHolder) et expose `{ villes, selection, rows, choisir(villeId), recalculer }`.
- * Chaque `choisir` délègue au holder qui dérive les lignes instantanément.
+ * Prend le Devis chargé (la donnée pure qui a traversé la couture) et
+ * construit le DevisHolder une seule fois derrière la couture ; possède
+ * l'état de la Ville de livraison sélectionnée (initialisé depuis la
+ * précédence du Devis chargé : lien > profil > aucune) et expose
+ * `{ villes, selection, rows, choisir(villeId), villeId }`. Chaque
+ * `choisir` délègue au holder qui dérive les lignes instantanément.
  *
  * `choisir("")` retombe sur le cas « aucune » ; un identifiant inconnu
  * retombe aussi sur « aucune » — jamais à moitié, ne lève jamais.
  * État local volontairement non synchronisé avec l'URL.
  */
-export function useDevisSelection(devis: DevisHolder): {
+export function useDevisSelection(devisChargé: DevisChargé): {
   villes: DeliveryCityOption[]
   selection: SelectionDevis
   rows: RécapitulatifRow[]
   choisir(villeId: string): void
-  recalculer(
-    nouveauSousTotalOuInput:
-      | number
-      | { sousTotal: number; anyFreeShippingItem?: boolean }
-  ): void
   villeId: string | null
 } {
+  const [holder] = useState(() => creerDevisHolder(devisChargé))
   const [localChoice, setLocalChoice] = useState<string | null>(null)
   const [hasChosen, setHasChosen] = useState<boolean>(false)
-  const [subtotalOverride, setSubtotalOverride] = useState<
-    number | { sousTotal: number; anyFreeShippingItem?: boolean } | null
-  >(null)
 
-  const baseHolder =
-    subtotalOverride !== null ? devis.recalculer(subtotalOverride) : devis
-  const activeHolder = hasChosen ? baseHolder.choisir(localChoice) : baseHolder
+  const activeHolder = hasChosen ? holder.choisir(localChoice) : holder
 
   return {
     villes: activeHolder.villes,
@@ -100,9 +91,6 @@ export function useDevisSelection(devis: DevisHolder): {
     choisir: (nouvelleVilleId: string) => {
       setHasChosen(true)
       setLocalChoice(nouvelleVilleId)
-    },
-    recalculer: (nouveauSousTotalOuInput) => {
-      setSubtotalOverride(nouveauSousTotalOuInput)
     },
   }
 }
