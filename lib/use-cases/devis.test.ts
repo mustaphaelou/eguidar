@@ -307,6 +307,18 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
     )
   })
 
+  it("a getter member fails the walk", async () => {
+    const chargé = await chargerDevis(panierPourDevis(50000))
+    expect(() =>
+      assertDonnéePure({
+        ...chargé,
+        get total() {
+          return chargé.sousTotal
+        },
+      })
+    ).toThrow(/getter à/)
+  })
+
   it("a class instance fails the walk", async () => {
     const chargé = await chargerDevis(panierPourDevis(50000))
     class Instance {}

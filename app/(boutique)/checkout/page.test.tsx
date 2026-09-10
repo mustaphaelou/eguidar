@@ -1,7 +1,7 @@
 /**
  * Page Commander (checkout) — test de rendu, façonné comme le test de la
- * page Panier : fixtures réelles en base, session moquée, rendu via
- * `renderToReadableStream`, assertions sur le HTML.
+ * page Panier : fixtures réelles en base, session et profil moqués, rendu
+ * via `renderToReadableStream`, assertions sur le HTML.
  *
  * Limite honnête : vitest ignore « use client » — ce test prouve le rendu
  * de la page, pas la sérialisation RSC ; le verrou de sérialisation est le
@@ -38,6 +38,12 @@ vi.mock("@/lib/use-cases/get-session", async () => {
   const h = await import("@/test/navigation-mocks")
   return { getSessionUser: h.sessionUserMock }
 })
+
+const { profileMock } = vi.hoisted(() => ({ profileMock: vi.fn() }))
+
+vi.mock("@/lib/use-cases/account", () => ({
+  getProfile: profileMock,
+}))
 
 vi.mock("@/components/auth/require-auth", () => ({
   RequireAuth: () => <div data-testid="require-auth-stub" />,
@@ -102,6 +108,15 @@ let cityId: string
 
 function commeClient(userId: string) {
   sessionUserMock.mockResolvedValue({ id: userId })
+}
+
+function profilClient() {
+  return {
+    phone: "+212600000000",
+    address: "12 rue des Orangers",
+    cityId,
+    cityName: `Ville ${runId}`,
+  }
 }
 
 async function renderPage(searchParams: { ville?: string } = {}) {
@@ -185,6 +200,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   resetCookieStoreMock()
   sessionUserMock.mockReset()
+  profileMock.mockReset()
+  profileMock.mockResolvedValue(profilClient())
   redirectMock.mockClear()
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `checkout-page-${runId}-` } } },
@@ -237,6 +254,12 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
 
   it("falls back to « À choisir » without total on a stale ville param", async () => {
     commeClient(userIdA)
+    profileMock.mockResolvedValue({
+      phone: null,
+      address: null,
+      cityId: null,
+      cityName: null,
+    })
     await prisma.cartItem.create({
       data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
     })
@@ -249,6 +272,24 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
     expect(html).not.toContain("Livraison (")
     expect(html).not.toContain("Total à payer à la livraison")
     expect(html).not.toContain(formatPrice(103000))
+  })
+
+  it("preselects the profile's Ville and prefills address and phone when no ville param is present", async () => {
+    commeClient(userIdA)
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
+    })
+
+    const html = await renderPage()
+
+    expect(html).toContain("Commander")
+    expect(html).toContain(`data-value="${cityId}"`)
+    expect(html).toContain(`Livraison (Ville ${runId})`)
+    expect(html).toContain(formatPrice(100000))
+    expect(html).toContain(formatPrice(3000))
+    expect(html).toContain(formatPrice(103000))
+    expect(html).toContain("12 rue des Orangers")
+    expect(html).toContain("+212600000000")
   })
 
   it("redirects an empty Panier to /panier instead of rendering the Commander page", async () => {
