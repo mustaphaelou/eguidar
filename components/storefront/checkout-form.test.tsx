@@ -70,7 +70,12 @@ function Probe() {
 }
 
 const CASA_ID = "cmsp6pvbu000052p6o2m9o8zw"
-const CASA = { id: CASA_ID, name: "Casablanca", fee: 2500 }
+const CASA = {
+  id: CASA_ID,
+  slug: "casablanca",
+  name: "Casablanca",
+  fee: 2500,
+}
 const QUOTE_CASA: ShippingQuote = {
   subtotal: 100000,
   shippingFee: 2500,
@@ -239,6 +244,7 @@ describe("CheckoutForm", () => {
 
     await choisirDansLeSelect()
     expect(selectedCityId()).toBe(CASA_ID)
+    expect(new URL(window.location.href).search).toBe("")
     await act(async () => submitForm())
 
     expect(placeOrderMock).toHaveBeenCalledTimes(1)

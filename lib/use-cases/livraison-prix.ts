@@ -27,6 +27,7 @@ export interface ShippingQuote {
 
 export interface DeliveryCityOption {
   id: string
+  slug: string
   name: string
   fee: number
 }

@@ -36,8 +36,14 @@ import {
 const runId = randomUUID().slice(0, 8)
 const cityName = (suffix: string) => `Ville Livraison ${runId} ${suffix}`
 
-const city = (id: string, name: string, fee: number): DeliveryCityOption => ({
+const city = (
+  id: string,
+  name: string,
+  fee: number,
+  slug = `slug-${id}`
+): DeliveryCityOption => ({
   id,
+  slug,
   name,
   fee,
 })
@@ -245,6 +251,7 @@ describe("delivery reads", () => {
     ])
     expect(relevant[0]).toEqual({
       id: relevant[0].id,
+      slug: `ville-livraison-${runId}-a`,
       name: cityName("a"),
       fee: 3500,
     })

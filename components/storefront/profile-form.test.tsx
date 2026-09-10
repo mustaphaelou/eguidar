@@ -71,7 +71,7 @@ function profileHarness({ initialCityId = "" }: { initialCityId?: string } = {})
     <AuthDialogsProvider>
       <Probe />
       <ProfileForm
-        cities={[{ id: CITY_ID, name: "Casablanca", fee: 2500 }]}
+        cities={[{ id: CITY_ID, slug: "casablanca", name: "Casablanca", fee: 2500 }]}
         initialCityId={initialCityId}
         initialAddress=""
         initialPhone=""

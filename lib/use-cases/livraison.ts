@@ -94,7 +94,7 @@ export async function getFreeShippingThreshold(): Promise<number> {
 export function listDeliveryCities(): Promise<DeliveryCityOption[]> {
   return prisma.deliveryCity.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true, fee: true },
+    select: { id: true, slug: true, name: true, fee: true },
   })
 }
 

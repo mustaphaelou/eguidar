@@ -43,6 +43,9 @@ async function CartContent({
   const villeId = await resoudreVilleId(ville)
   const panier = await lirePanier()
   const devis = creerDevisHolder(await chargerDevis(panier, villeId))
+  const villeSelectionnee = devis.villes.find(
+    (ville) => ville.id === devis.villeId
+  )
 
   if (panier.lines.length === 0) {
     return (
@@ -87,7 +90,7 @@ async function CartContent({
             <Button
               render={
                 <Link
-                  href={`/checkout${devis.villeId ? `?ville=${encodeURIComponent(devis.villeId)}` : ""}`}
+                  href={`/checkout${villeSelectionnee ? `?ville=${encodeURIComponent(villeSelectionnee.slug)}` : ""}`}
                 />
               }
               className="w-full"

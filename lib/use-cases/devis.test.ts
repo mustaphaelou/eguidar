@@ -32,8 +32,14 @@ vi.mock("@/lib/use-cases/livraison", async (importOriginal) => {
   }
 })
 
-const city = (id: string, name: string, fee: number): DeliveryCityOption => ({
+const city = (
+  id: string,
+  name: string,
+  fee: number,
+  slug = `slug-${id}`
+): DeliveryCityOption => ({
   id,
+  slug,
   name,
   fee,
 })

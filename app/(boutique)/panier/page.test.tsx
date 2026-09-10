@@ -61,6 +61,7 @@ let userIdA: string
 let variantStandard: string
 let variantUnique: string
 let cityId: string
+let citySlug: string
 
 function commeClient(userId: string) {
   sessionUserMock.mockResolvedValue({ id: userId })
@@ -146,6 +147,7 @@ beforeAll(async () => {
     data: { name: `Ville ${runId}`, slug: `ville-${runId}`, fee: 3000 },
   })
   cityId = city.id
+  citySlug = city.slug
 })
 
 beforeEach(async () => {
@@ -251,7 +253,8 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
 
     const html = await renderPage({ ville: cityId })
 
-    expect(html).toContain('href="/checkout?ville=')
+    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
+    expect(html).not.toContain(`href="/checkout?ville=${cityId}"`)
     expect(html).toContain("Passer commande")
   })
 })
@@ -273,7 +276,7 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain(formatPrice(3000))
     expect(html).toContain(formatPrice(253000))
     expect(html).toContain(`data-selected="${cityId}"`)
-    expect(html).toContain(`href="/checkout?ville=${cityId}"`)
+    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
   })
 
   it("selects the Ville de livraison from its slug in the URL", async () => {
@@ -292,6 +295,7 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain(formatPrice(3000))
     expect(html).toContain(formatPrice(253000))
     expect(html).toContain(`data-selected="${cityId}"`)
+    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
   })
 
   it("still resolves a legacy internal identifier as a read-only alias", async () => {
