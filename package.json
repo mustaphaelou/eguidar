@@ -44,11 +44,13 @@
   "overrides": {
     "deepmerge-ts": "8.0.2",
     "hono": "^4.13.5",
+    "js-yaml": "^4.3.2",
     "mysql2": "^3.22.0"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
     "@tailwindcss/postcss": "^4",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
