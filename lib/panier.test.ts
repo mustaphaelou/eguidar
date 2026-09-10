@@ -149,7 +149,7 @@ beforeAll(async () => {
 
   cityId = (
     await prisma.deliveryCity.create({
-      data: { name: `Ville ${runId}`, fee: 3500 },
+      data: { name: `Ville ${runId}`, slug: `ville-${runId}`, fee: 3500 },
     })
   ).id
 })

@@ -241,6 +241,7 @@ export type OrderItemScalarFieldEnum =
 export const DeliveryCityScalarFieldEnum = {
   id: "id",
   name: "name",
+  slug: "slug",
   fee: "fee",
   createdAt: "createdAt",
   updatedAt: "updatedAt",

@@ -186,6 +186,7 @@ model OrderItem {
 model DeliveryCity {
   id        String   @id @default(cuid())
   name      String   @unique
+  slug      String   @unique
   fee       Int
   users     user[]
   createdAt DateTime @default(now())
