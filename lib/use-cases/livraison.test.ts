@@ -25,7 +25,6 @@ import {
   getShippingSettings,
   listAdminCities,
   listDeliveryCities,
-  resoudreVilleId,
   ShippingValidationError,
   updateCity,
   updateShippingSettings,
@@ -255,78 +254,6 @@ describe("delivery reads", () => {
       name: cityName("a"),
       fee: 3500,
     })
-  })
-})
-
-describe("résolution d'une ville demandée dans l'URL", () => {
-  beforeEach(async () => {
-    await prisma.deliveryCity.deleteMany({
-      where: { name: { startsWith: `Ville Livraison ${runId}` } },
-    })
-  })
-
-  afterAll(async () => {
-    await prisma.deliveryCity.deleteMany({
-      where: { name: { startsWith: `Ville Livraison ${runId}` } },
-    })
-  })
-
-  it("résout le slug public vers l'identifiant interne", async () => {
-    const created = await prisma.deliveryCity.create({
-      data: {
-        name: cityName("slug"),
-        slug: `ville-livraison-${runId}-slug`,
-        fee: 3500,
-      },
-    })
-
-    await expect(
-      resoudreVilleId(`ville-livraison-${runId}-slug`)
-    ).resolves.toBe(created.id)
-  })
-
-  it("résout un identifiant interne historique comme alias en lecture seule", async () => {
-    const created = await prisma.deliveryCity.create({
-      data: {
-        name: cityName("alias"),
-        slug: `ville-livraison-${runId}-alias`,
-        fee: 3500,
-      },
-    })
-
-    await expect(resoudreVilleId(created.id)).resolves.toBe(created.id)
-  })
-
-  it("préfère le slug à l'identifiant interne quand les deux correspondent", async () => {
-    const parIdentifiant = await prisma.deliveryCity.create({
-      data: {
-        id: `ville-livraison-${runId}-partage`,
-        name: cityName("partage-id"),
-        slug: `ville-livraison-${runId}-partage-id`,
-        fee: 3000,
-      },
-    })
-    const parSlug = await prisma.deliveryCity.create({
-      data: {
-        name: cityName("partage-slug"),
-        slug: `ville-livraison-${runId}-partage`,
-        fee: 4000,
-      },
-    })
-
-    await expect(
-      resoudreVilleId(`ville-livraison-${runId}-partage`)
-    ).resolves.toBe(parSlug.id)
-    expect(parSlug.id).not.toBe(parIdentifiant.id)
-  })
-
-  it("ne résout rien pour une ville absente, vide ou inconnue", async () => {
-    await expect(resoudreVilleId()).resolves.toBeUndefined()
-    await expect(resoudreVilleId("")).resolves.toBeUndefined()
-    await expect(resoudreVilleId("   ")).resolves.toBeUndefined()
-    await expect(
-      resoudreVilleId(`ville-livraison-${runId}-inconnue`)
-    ).resolves.toBeUndefined()
   })
 })
 

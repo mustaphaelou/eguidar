@@ -48,7 +48,8 @@ async function CheckoutContent({
   if (panier.lines.length === 0) redirect("/panier")
 
   const devis = await chargerDevis(panier, {
-    urlVilleId: villeId ?? ville,
+    urlVilleId: villeId,
+    urlVilleFournie: ville !== undefined && ville.trim() !== "",
     profileVilleId: profile.cityId,
   })
 

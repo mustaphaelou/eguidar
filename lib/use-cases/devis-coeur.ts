@@ -133,12 +133,18 @@ export function lignesDevis(
 export type ValidatedSelectionDevis = Extract<SelectionDevis, { cas: "validée" }>
 
 /**
- * Sources de précédence pour l'initialisation de la ville dans le DevisHolder :
- * le lien partagé (`urlVilleId`) l'emporte, le profil sauvegardé
- * (`profileVilleId`) sert de repli si le lien est absent ou vide.
+ * Sources de précédence pour l'initialisation de la ville dans le DevisHolder.
+ *
+ * `urlVilleFournie` dit la **présence** d'un `?ville=` non vide dans l'URL :
+ * le lien partagé l'emporte alors, et une ville inconnue laisse la sélection
+ * « aucune » (pas de repli sur le profil). Sans ce fait — appelants
+ * existants, chaîne simple de `chargerDevis` — `urlVilleId` l'emporte
+ * quand il est renseigné, le profil sauvegardé (`profileVilleId`) sert de
+ * repli si le lien est absent ou vide.
  */
 export interface DevisPrecedenceSources {
   urlVilleId?: string | null
+  urlVilleFournie?: boolean
   profileVilleId?: string | null
 }
 
@@ -178,6 +184,7 @@ export function creerDevisHolder(devisChargé: DevisChargé): DevisHolder {
     src?: DevisPrecedenceSources
   ): string | null {
     if (!src) return null
+    if (src.urlVilleFournie) return src.urlVilleId?.trim() || null
     const url = src.urlVilleId?.trim()
     if (url && url.length > 0) return url
     const profil = src.profileVilleId?.trim()
