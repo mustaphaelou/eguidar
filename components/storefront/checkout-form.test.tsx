@@ -74,8 +74,7 @@ vi.mock("@/components/ui/select", () => ({
 import { CheckoutForm } from "./checkout-form"
 import { parseAuthParams } from "@/lib/lien-de-connexion"
 import {
-  creerDevisHolder,
-  type DevisHolder,
+  type DevisChargé,
   type SelectionDevis,
 } from "@/lib/use-cases/devis-selection"
 import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
@@ -123,7 +122,7 @@ const QUOTE_CASA: ShippingQuote = {
 }
 
 /**
- * Fixture minimale : un Devis déjà résolu, jamais re-dérivé ici —
+ * Fixture minimale : un Devis chargé déjà résolu, jamais re-dérivé ici —
  * les faits du formulaire uniquement, la re-sélection vit dans
  * `lib/use-cases/devis-selection.test.tsx`.
  */
@@ -133,15 +132,16 @@ function devisPourTest({
 }: {
   selection: SelectionDevis
   quotes: Record<string, ShippingQuote>
-}): DevisHolder {
-  const cities = [CASA]
-  return creerDevisHolder({
-    cities,
+}): DevisChargé {
+  return {
+    cities: [CASA],
     threshold: 100000,
     quotes,
     sousTotal: 100000,
-    urlVilleId: selection.cas === "validée" ? selection.ville.id : null,
-  })
+    sources: {
+      urlVilleId: selection.cas === "validée" ? selection.ville.id : null,
+    },
+  }
 }
 
 function selectValue() {

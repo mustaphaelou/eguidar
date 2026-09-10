@@ -3,6 +3,14 @@
 /**
  * Sélection du Devis — porte d'entrée cliente, qui ne porte que le crochet.
  *
+ * La donnée qui traverse la couture serveur → client est le Devis chargé
+ * (`DevisChargé`) : des faits purs — Villes de livraison, seuil de
+ * livraison offerte, devis par ville, sous-total, sources de précédence —
+ * sans fonction, sans getter, sans instance de classe. Le hook prend ces
+ * faits et construit l'interface profonde `DevisHolder` derrière la
+ * couture (via `creerDevisHolder`) : la précédence (lien > profil >
+ * aucune) vit dans la fabrique, jamais dans la page.
+ *
  * Le pur partagé (`SelectionDevis`, `Devis`, `selectionnerDevis`,
  * `lignesDevis`) vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
  * (sans directive), consommé aussi côté serveur (`chargerDevis`, pages
@@ -39,12 +47,8 @@ import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import {
   creerDevisHolder,
-  DeliveryCityNotFoundError,
-  type DevisHolder,
-  type DevisHolderInit,
-  type DevisPrecedenceSources,
+  type DevisChargé,
   type SelectionDevis,
-  type ValidatedSelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
 export {
@@ -63,35 +67,29 @@ export type {
 /**
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.
  *
- * Possède l'état de la Ville de livraison sélectionnée (initialisé depuis
- * le DevisHolder) et expose `{ villes, selection, rows, choisir(villeId), recalculer }`.
- * Chaque `choisir` délègue au holder qui dérive les lignes instantanément.
+ * Prend le Devis chargé (la donnée pure qui a traversé la couture) et
+ * construit le DevisHolder une seule fois derrière la couture ; possède
+ * l'état de la Ville de livraison sélectionnée (initialisé depuis la
+ * précédence du Devis chargé : lien > profil > aucune) et expose
+ * `{ villes, selection, rows, choisir(villeId), villeId }`. Chaque
+ * `choisir` délègue au holder qui dérive les lignes instantanément.
  *
  * `choisir("")` retombe sur le cas « aucune » ; un identifiant inconnu
  * retombe aussi sur « aucune » — jamais à moitié, ne lève jamais.
  * État local volontairement non synchronisé avec l'URL.
  */
-export function useDevisSelection(devis: DevisHolder): {
+export function useDevisSelection(devisChargé: DevisChargé): {
   villes: DeliveryCityOption[]
   selection: SelectionDevis
   rows: RécapitulatifRow[]
   choisir(villeId: string): void
-  recalculer(
-    nouveauSousTotalOuInput:
-      | number
-      | { sousTotal: number; anyFreeShippingItem?: boolean }
-  ): void
   villeId: string | null
 } {
+  const [holder] = useState(() => creerDevisHolder(devisChargé))
   const [localChoice, setLocalChoice] = useState<string | null>(null)
   const [hasChosen, setHasChosen] = useState<boolean>(false)
-  const [subtotalOverride, setSubtotalOverride] = useState<
-    number | { sousTotal: number; anyFreeShippingItem?: boolean } | null
-  >(null)
 
-  const baseHolder =
-    subtotalOverride !== null ? devis.recalculer(subtotalOverride) : devis
-  const activeHolder = hasChosen ? baseHolder.choisir(localChoice) : baseHolder
+  const activeHolder = hasChosen ? holder.choisir(localChoice) : holder
 
   return {
     villes: activeHolder.villes,
@@ -101,9 +99,6 @@ export function useDevisSelection(devis: DevisHolder): {
     choisir: (nouvelleVilleId: string) => {
       setHasChosen(true)
       setLocalChoice(nouvelleVilleId)
-    },
-    recalculer: (nouveauSousTotalOuInput) => {
-      setSubtotalOverride(nouveauSousTotalOuInput)
     },
   }
 }
