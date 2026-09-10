@@ -62,6 +62,11 @@ _Avoid_: owner, cart owner, panier owner
 The Panier of the request's Propriétaire du panier, resolved once per request from the session.
 _Avoid_: current cart, session cart
 
+**Refus du panier**:
+Le refus par le serveur d'une opération sur le Panier : panier plein, quantité invalide,
+article indisponible ou article absent.
+_Avoid_: erreur panier, échec d'ajout, rejection
+
 **Catalogue**:
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
