@@ -1,5 +1,9 @@
 // @vitest-environment happy-dom
-import { mockNextNavigation, resetNavigation } from "@/components/auth/test-utils"
+import {
+  mockNextNavigation,
+  navigationSpies,
+  resetNavigation,
+} from "@/components/auth/test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -17,8 +21,8 @@ const CASA_ID = "cmsp6pvbu000052p6o2m9o8zw"
 const KENITRA_ID = "cmsp6pvbu000152p6o2m9o9bx"
 
 const CITIES: DeliveryCityOption[] = [
-  { id: CASA_ID, name: "Casablanca", fee: 2500 },
-  { id: KENITRA_ID, name: "Kénitra", fee: 0 },
+  { id: CASA_ID, slug: "casablanca", name: "Casablanca", fee: 2500 },
+  { id: KENITRA_ID, slug: "kenitra", name: "Kénitra", fee: 0 },
 ]
 
 let container: HTMLDivElement
@@ -81,5 +85,25 @@ describe("CityPicker", () => {
     ].map((item) => item.textContent)
     expect(options).toContain(`Casablanca — ${formatShippingFee(2500)}`)
     expect(options).toContain(`Kénitra — ${formatShippingFee(0)}`)
+  })
+
+  it("écrit le slug de la ville choisie dans l'URL, jamais son identifiant interne", async () => {
+    render(<CityPicker cities={CITIES} selectedId={null} path="/panier" />)
+
+    await act(async () => {
+      trigger().click()
+    })
+    const items = document.querySelectorAll<HTMLElement>(
+      '[data-slot="select-item"]',
+    )
+    await act(async () => {
+      items[1]!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/panier?ville=kenitra",
+      undefined,
+    )
+    expect(navigationSpies.push.mock.calls[0]?.[0]).not.toContain(KENITRA_ID)
   })
 })

@@ -236,7 +236,7 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
       data: { userId: userIdA, variantId: variantUnique, quantity: 1 },
     })
 
-    const html = await renderPage({ ville: cityId })
+    const html = await renderPage({ ville: `ville-${runId}` })
 
     expect(html).toContain("Commander")
     expect(html).toContain("Théière traditionnelle")

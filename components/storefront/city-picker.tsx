@@ -27,7 +27,9 @@ export function CityPicker({
 
   function handleChange(cityId: string | null) {
     if (!cityId) return
-    router.push(`${path}?ville=${encodeURIComponent(cityId)}`)
+    const city = cities.find((candidate) => candidate.id === cityId)
+    if (!city) return
+    router.push(`${path}?ville=${encodeURIComponent(city.slug)}`)
   }
 
   return (

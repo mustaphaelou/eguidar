@@ -50,8 +50,18 @@ function renderHook<T>(hook: () => T): { readonly current: T } {
   }
 }
 
-const CASA: DeliveryCityOption = { id: "c1", name: "Casablanca", fee: 3500 }
-const RABAT: DeliveryCityOption = { id: "c2", name: "Rabat", fee: 5000 }
+const CASA: DeliveryCityOption = {
+  id: "c1",
+  slug: "casablanca",
+  name: "Casablanca",
+  fee: 3500,
+}
+const RABAT: DeliveryCityOption = {
+  id: "c2",
+  slug: "rabat",
+  name: "Rabat",
+  fee: 5000,
+}
 
 const QUOTE_CASA: ShippingQuote = {
   subtotal: 50000,

@@ -90,8 +90,8 @@ describe("récapitulatifRowsFromCommande", () => {
   })
 
   it("rejects retired spellings through the Devis and Commande entries", () => {
-    const casa = { id: "casa", name: "Casablanca", fee: 2000 }
-    const fes = { id: "fes", name: "Fès", fee: 2000 }
+    const casa = { id: "casa", slug: "casablanca", name: "Casablanca", fee: 2000 }
+    const fes = { id: "fes", slug: "fes", name: "Fès", fee: 2000 }
     const rowsList = [
       creerDevisHolder({
         cities: [casa],
