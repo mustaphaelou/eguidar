@@ -1,7 +1,9 @@
 import { getPriceBucket, priceBucketFilter } from "@/lib/price-buckets"
 
+export type SearchFacet = "brand" | "categorySlug" | "priceBucket"
+
 export interface SearchFilters {
-  brand?: string
+  brand?: string[]
   categorySlug?: string
   priceBucketId?: string
 }
@@ -34,15 +36,50 @@ export function escapeFilterValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
 }
 
-export function buildSearchFilter(filters: SearchFilters): string | undefined {
+function parseBrands(value: string | string[] | undefined): string[] {
+  const values =
+    value === undefined ? [] : Array.isArray(value) ? value : [value]
+  const brands: string[] = []
+  for (const raw of values) {
+    const brand = raw.trim()
+    if (brand && !brands.includes(brand)) brands.push(brand)
+  }
+  return brands
+}
+
+export function toggleBrand(
+  current: string[] | undefined,
+  brand: string
+): string[] {
+  const brands = current ?? []
+  return brands.includes(brand)
+    ? brands.filter((candidate) => candidate !== brand)
+    : [...brands, brand]
+}
+
+export function buildSearchFilter(
+  filters: SearchFilters,
+  omit?: SearchFacet
+): string | undefined {
   const clauses: string[] = []
-  if (filters.brand)
-    clauses.push(`brand = "${escapeFilterValue(filters.brand)}"`)
-  if (filters.categorySlug) {
+
+  const brands = filters.brand ?? []
+  if (omit !== "brand" && brands.length > 0) {
+    const values = brands
+      .map((brand) => `"${escapeFilterValue(brand)}"`)
+      .join(", ")
+    clauses.push(`brand IN [${values}]`)
+  }
+
+  if (omit !== "categorySlug" && filters.categorySlug) {
     clauses.push(`categorySlug = "${escapeFilterValue(filters.categorySlug)}"`)
   }
-  const bucket = getPriceBucket(filters.priceBucketId)
-  if (bucket) clauses.push(`(${priceBucketFilter(bucket)})`)
+
+  if (omit !== "priceBucket") {
+    const bucket = getPriceBucket(filters.priceBucketId)
+    if (bucket) clauses.push(`(${priceBucketFilter(bucket)})`)
+  }
+
   return clauses.length > 0 ? clauses.join(" AND ") : undefined
 }
 
@@ -65,8 +102,8 @@ export function parseSearchParams(
   const query = first("q")?.trim() ?? ""
   const filters: SearchFilters = {}
 
-  const brand = first("marque")?.trim()
-  if (brand) filters.brand = brand
+  const brands = parseBrands(params.marque)
+  if (brands.length > 0) filters.brand = brands
 
   const categorySlug = first("categorie")?.trim()
   if (categorySlug) filters.categorySlug = categorySlug
@@ -95,7 +132,7 @@ export function buildSearchHref(
   const next: SearchFilters = { ...filters, ...overrides }
   const params = new URLSearchParams()
   if (query) params.set("q", query)
-  if (next.brand) params.set("marque", next.brand)
+  for (const brand of next.brand ?? []) params.append("marque", brand)
   if (next.categorySlug) params.set("categorie", next.categorySlug)
   if (next.priceBucketId) params.set("prix", next.priceBucketId)
   const sort = view.sort ?? SEARCH_SORT_DEFAULT

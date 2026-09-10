@@ -18,6 +18,7 @@ import {
   parseSort,
   searchProducts,
   searchSuggestions,
+  toggleBrand,
 } from "@/lib/use-cases/search"
 
 const meili = getMeiliSearch()
@@ -30,8 +31,14 @@ describe("search filter building", () => {
     expect(buildSearchFilter({})).toBeUndefined()
   })
 
-  it("quotes brand and category values", () => {
-    expect(buildSearchFilter({ brand: "Sony" })).toBe('brand = "Sony"')
+  it("builds a brand IN clause for one or several brands", () => {
+    expect(buildSearchFilter({ brand: ["Sony"] })).toBe('brand IN ["Sony"]')
+    expect(buildSearchFilter({ brand: ["Sony", "LG"] })).toBe(
+      'brand IN ["Sony", "LG"]'
+    )
+  })
+
+  it("quotes the category value", () => {
     expect(buildSearchFilter({ categorySlug: "audio-hifi" })).toBe(
       'categorySlug = "audio-hifi"'
     )
@@ -40,27 +47,44 @@ describe("search filter building", () => {
   it("escapes quotes and backslashes inside values", () => {
     expect(escapeFilterValue('Sony "Ultra"')).toBe('Sony \\"Ultra\\"')
     expect(escapeFilterValue("A\\B")).toBe("A\\\\B")
-    expect(buildSearchFilter({ brand: 'Sony "Ultra"' })).toBe(
-      'brand = "Sony \\"Ultra\\""'
+    expect(buildSearchFilter({ brand: ['Sony "Ultra"', "A\\B"] })).toBe(
+      'brand IN ["Sony \\"Ultra\\"", "A\\\\B"]'
     )
   })
 
   it("combines multiple filters with AND", () => {
     expect(
       buildSearchFilter({
-        brand: "Sony",
+        brand: ["Sony", "LG"],
         categorySlug: "audio-hifi",
         priceBucketId: "2500-5000",
       })
     ).toBe(
-      'brand = "Sony" AND categorySlug = "audio-hifi" AND (minPrice >= 250000 AND minPrice < 500000)'
+      'brand IN ["Sony", "LG"] AND categorySlug = "audio-hifi" AND (minPrice >= 250000 AND minPrice < 500000)'
+    )
+  })
+
+  it("omits one facet clause without touching the others", () => {
+    const filters = {
+      brand: ["Sony"],
+      categorySlug: "audio-hifi",
+      priceBucketId: "2500-5000",
+    }
+    expect(buildSearchFilter(filters, "brand")).toBe(
+      'categorySlug = "audio-hifi" AND (minPrice >= 250000 AND minPrice < 500000)'
+    )
+    expect(buildSearchFilter(filters, "categorySlug")).toBe(
+      'brand IN ["Sony"] AND (minPrice >= 250000 AND minPrice < 500000)'
+    )
+    expect(buildSearchFilter(filters, "priceBucket")).toBe(
+      'brand IN ["Sony"] AND categorySlug = "audio-hifi"'
     )
   })
 
   it("drops unknown price bucket ids while keeping the others", () => {
-    expect(buildSearchFilter({ brand: "Sony", priceBucketId: "inconnu" })).toBe(
-      'brand = "Sony"'
-    )
+    expect(
+      buildSearchFilter({ brand: ["Sony"], priceBucketId: "inconnu" })
+    ).toBe('brand IN ["Sony"]')
   })
 })
 
@@ -73,7 +97,7 @@ describe("parseSearchParams", () => {
     expect(parseSearchParams({ q: ["casque", "clavier"] }).query).toBe("casque")
   })
 
-  it("parses brand, category and price bucket filters", () => {
+  it("parses a legacy single marque into a one-element brand list", () => {
     expect(
       parseSearchParams({
         q: "sony",
@@ -84,7 +108,7 @@ describe("parseSearchParams", () => {
     ).toEqual({
       query: "sony",
       filters: {
-        brand: "Sony",
+        brand: ["Sony"],
         categorySlug: "audio-hifi",
         priceBucketId: "2500-5000",
       },
@@ -93,12 +117,24 @@ describe("parseSearchParams", () => {
     })
   })
 
+  it("collects every repeated marque value without duplicates", () => {
+    expect(
+      parseSearchParams({ marque: ["Sony", "LG", "Sony"] }).filters
+    ).toEqual({ brand: ["Sony", "LG"] })
+  })
+
+  it("trims and drops empty marque values", () => {
+    expect(
+      parseSearchParams({ marque: [" Sony ", "", "   ", "LG"] }).filters
+    ).toEqual({ brand: ["Sony", "LG"] })
+  })
+
   it("rejects unknown price buckets and keeps valid filters", () => {
     expect(
       parseSearchParams({ q: "sony", marque: "Sony", prix: "bogus" })
     ).toEqual({
       query: "sony",
-      filters: { brand: "Sony" },
+      filters: { brand: ["Sony"] },
       sort: "pertinence",
       page: 1,
     })
@@ -166,24 +202,33 @@ describe("buildSearchHref", () => {
     expect(
       buildSearchHref(
         "casque",
-        { brand: "Sony" },
+        { brand: ["Sony", "LG"] },
         { categorySlug: "audio-hifi" }
       )
-    ).toBe("/recherche?q=casque&marque=Sony&categorie=audio-hifi")
+    ).toBe("/recherche?q=casque&marque=Sony&marque=LG&categorie=audio-hifi")
+  })
+
+  it("serializes every selected brand as a repeated marque param", () => {
+    expect(buildSearchHref("", { brand: ["Sony", "LG", "Logitech"] })).toBe(
+      "/recherche?marque=Sony&marque=LG&marque=Logitech"
+    )
   })
 
   it("removes a filter when toggled off", () => {
     expect(
       buildSearchHref(
         "casque",
-        { brand: "Sony", categorySlug: "audio-hifi" },
-        { brand: undefined }
+        { brand: ["Sony", "LG"], categorySlug: "audio-hifi" },
+        { brand: ["LG"] }
       )
-    ).toBe("/recherche?q=casque&categorie=audio-hifi")
+    ).toBe("/recherche?q=casque&marque=LG&categorie=audio-hifi")
+    expect(
+      buildSearchHref("casque", { brand: ["Sony"] }, { brand: undefined })
+    ).toBe("/recherche?q=casque")
   })
 
   it("omits the query param when the query is empty", () => {
-    expect(buildSearchHref("", { brand: "Sony" })).toBe(
+    expect(buildSearchHref("", { brand: ["Sony"] })).toBe(
       "/recherche?marque=Sony"
     )
   })
@@ -207,15 +252,27 @@ describe("buildSearchHref", () => {
     expect(
       buildSearchHref(
         "",
-        { brand: "Sony" },
+        { brand: ["Sony", "LG"] },
         {},
         { sort: "nouveautes" },
         "/produits"
       )
-    ).toBe("/produits?marque=Sony&tri=nouveautes")
+    ).toBe("/produits?marque=Sony&marque=LG&tri=nouveautes")
     expect(
       buildSearchHref("", {}, {}, { sort: "nouveautes" }, "/produits")
     ).toBe("/produits?tri=nouveautes")
+  })
+})
+
+describe("toggleBrand", () => {
+  it("adds a brand that is not selected yet", () => {
+    expect(toggleBrand(["Sony"], "LG")).toEqual(["Sony", "LG"])
+    expect(toggleBrand(undefined, "Sony")).toEqual(["Sony"])
+  })
+
+  it("removes a brand that is already selected", () => {
+    expect(toggleBrand(["Sony", "LG"], "Sony")).toEqual(["LG"])
+    expect(toggleBrand(["Sony"], "Sony")).toEqual([])
   })
 })
 
@@ -388,21 +445,47 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
     ])
   })
 
-  it("filters by brand and keeps facet counts consistent", async () => {
-    const result = await searchProducts(token, { brand: "Sony" })
+  it("filters by brand and keeps every brand option countable", async () => {
+    const result = await searchProducts(token, { brand: ["Sony"] })
 
     expect(result.products.map((p) => p.name)).toEqual([
       name("Casque Sony WH-1000XM5"),
     ])
     expect(result.totalHits).toBe(1)
-    expect(result.facets.brands).toEqual([{ value: "Sony", count: 1 }])
+    expect(result.facets.brands).toEqual([
+      { value: "Apple", count: 1 },
+      { value: "LG", count: 1 },
+      { value: "Logitech", count: 1 },
+      { value: "Samsung", count: 1 },
+      { value: "Sony", count: 1 },
+    ])
     expect(result.facets.categories).toEqual([
       { value: audioSlug, name: "Audio & Hi-Fi", count: 1 },
     ])
+    expect(result.facets.priceBuckets).toEqual([
+      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
+    ])
   })
 
-  it("filters by category", async () => {
-    const result = await searchProducts("", { categorySlug: smartphonesSlug })
+  it("selects several brands as a union", async () => {
+    const result = await searchProducts(token, { brand: ["Sony", "LG"] })
+
+    expect(result.totalHits).toBe(2)
+    expect(result.products.map((p) => p.brand).sort()).toEqual(["LG", "Sony"])
+    expect(result.facets.brands).toHaveLength(5)
+    expect(result.facets.categories).toEqual([
+      { value: audioSlug, name: "Audio & Hi-Fi", count: 2 },
+    ])
+    expect(result.facets.priceBuckets).toEqual([
+      { id: "1000-2500", label: "1 000 – 2 500 MAD", count: 1 },
+      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
+    ])
+  })
+
+  it("filters by category while counting every category option", async () => {
+    const result = await searchProducts(token, {
+      categorySlug: smartphonesSlug,
+    })
 
     expect(result.products.map((p) => p.name).sort()).toEqual(
       [
@@ -411,10 +494,31 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
         name("iPhone 15 Pro"),
       ].sort()
     )
-    expect(result.facets.brands).toHaveLength(3)
+    expect(result.facets.brands).toEqual([
+      { value: "Apple", count: 1 },
+      { value: "Logitech", count: 1 },
+      { value: "Samsung", count: 1 },
+    ])
+    expect(result.facets.categories).toEqual([
+      { value: audioSlug, name: "Audio & Hi-Fi", count: 2 },
+      { value: smartphonesSlug, name: "Smartphones", count: 3 },
+    ])
   })
 
-  it("filters by price bucket", async () => {
+  it("keeps the active category visible with its name at zero", async () => {
+    const result = await searchProducts(token, {
+      brand: ["Apple"],
+      categorySlug: audioSlug,
+    })
+
+    expect(result.totalHits).toBe(0)
+    expect(result.facets.categories).toEqual([
+      { value: audioSlug, name: "Audio & Hi-Fi", count: 0 },
+      { value: smartphonesSlug, name: "Smartphones", count: 1 },
+    ])
+  })
+
+  it("filters by price bucket while counting every bucket", async () => {
     const result = await searchProducts(token, { priceBucketId: "0-1000" })
 
     expect(result.products.map((p) => p.name)).toEqual([
@@ -423,6 +527,14 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
     expect(result.totalHits).toBe(1)
     expect(result.facets.priceBuckets).toEqual([
       { id: "0-1000", label: "Moins de 1 000 MAD", count: 1 },
+      { id: "1000-2500", label: "1 000 – 2 500 MAD", count: 1 },
+      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
+      { id: "5000-10000", label: "5 000 – 10 000 MAD", count: 1 },
+      { id: "10000-plus", label: "Plus de 10 000 MAD", count: 1 },
+    ])
+    expect(result.facets.brands).toEqual([{ value: "Logitech", count: 1 }])
+    expect(result.facets.categories).toEqual([
+      { value: smartphonesSlug, name: "Smartphones", count: 1 },
     ])
   })
 
