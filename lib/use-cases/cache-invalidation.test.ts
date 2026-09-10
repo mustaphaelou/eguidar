@@ -12,7 +12,6 @@ import {
   invalidateStructure,
   PRODUCT_TAG,
   productDetailTag,
-  SHIPPING_TAG,
 } from "@/lib/use-cases/cache-invalidation"
 
 vi.mock("next/cache", () => ({
@@ -30,7 +29,6 @@ describe("cache invalidation vocabulary", () => {
     expect(PRODUCT_TAG).toBe("products")
     expect(CATEGORY_TAG).toBe("categories")
     expect(HOME_TAG).toBe("home")
-    expect(SHIPPING_TAG).toBe("shipping")
     expect(BLOG_TAG).toBe("blog")
   })
 
@@ -115,11 +113,10 @@ describe("invalidateLivraison", () => {
     vi.clearAllMocks()
   })
 
-  it("invalidates the shipping tag plus the admin villes and livraison pages", () => {
+  it("revalidates the admin villes and livraison pages without touching cache tags", () => {
     invalidateLivraison()
 
-    expect(mockedRevalidateTag).toHaveBeenCalledTimes(1)
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(SHIPPING_TAG, "max")
+    expect(mockedRevalidateTag).not.toHaveBeenCalled()
     expect(mockedRevalidatePath).toHaveBeenCalledTimes(2)
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/villes")
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/livraison")

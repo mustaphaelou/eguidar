@@ -3,7 +3,6 @@ import { revalidatePath, revalidateTag } from "next/cache"
 export const PRODUCT_TAG = "products"
 export const HOME_TAG = "home"
 export const CATEGORY_TAG = "categories"
-export const SHIPPING_TAG = "shipping"
 export const BLOG_TAG = "blog"
 export const productDetailTag = (slug: string) => `product:${slug}`
 export const blogDetailTag = (slug: string) => `blog:${slug}`
@@ -39,7 +38,6 @@ export function invalidateStructure(): void {
 }
 
 export function invalidateLivraison(): void {
-  revalidateTag(SHIPPING_TAG, "max")
   revalidatePath("/admin/villes")
   revalidatePath("/admin/livraison")
 }
