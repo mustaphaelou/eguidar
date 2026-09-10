@@ -88,7 +88,11 @@ export function ProfileForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="profile-city">Ville de livraison</Label>
-        <Select name="cityId" defaultValue={initialCityId ?? ""}>
+        <Select
+          name="cityId"
+          defaultValue={initialCityId ?? ""}
+          items={cities.map((city) => ({ value: city.id, label: city.name }))}
+        >
           <SelectTrigger id="profile-city" className="w-full">
             <SelectValue placeholder="Choisir une ville" />
           </SelectTrigger>
