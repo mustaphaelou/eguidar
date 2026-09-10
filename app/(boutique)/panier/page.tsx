@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { creerDevisHolder } from "@/lib/use-cases/devis-coeur"
+import { resoudreVilleId } from "@/lib/use-cases/livraison"
 import { lirePanier } from "@/lib/panier"
 
 export const metadata = pageMetadata({
@@ -39,8 +40,9 @@ async function CartContent({
   searchParams: Promise<{ ville?: string }>
 }) {
   const { ville } = await searchParams
+  const villeId = await resoudreVilleId(ville)
   const panier = await lirePanier()
-  const devis = creerDevisHolder(await chargerDevis(panier, ville))
+  const devis = creerDevisHolder(await chargerDevis(panier, villeId))
 
   if (panier.lines.length === 0) {
     return (

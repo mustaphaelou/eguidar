@@ -98,6 +98,32 @@ export function listDeliveryCities(): Promise<DeliveryCityOption[]> {
   })
 }
 
+/**
+ * Résout une Ville de livraison demandée dans une URL en son identifiant
+ * interne : le **slug** d'abord (langage public, ADR-0017), puis
+ * l'identifiant interne comme **alias en lecture seule** (liens émis avant
+ * le passage au slug). Jamais de redirect : absente, vide ou inconnue →
+ * `undefined` — la sélection restera « aucune » (placeholder).
+ */
+export async function resoudreVilleId(
+  ville?: string | null
+): Promise<string | undefined> {
+  const demandee = ville?.trim()
+  if (!demandee) return undefined
+
+  const parSlug = await prisma.deliveryCity.findUnique({
+    where: { slug: demandee },
+    select: { id: true },
+  })
+  if (parSlug) return parSlug.id
+
+  const parId = await prisma.deliveryCity.findUnique({
+    where: { id: demandee },
+    select: { id: true },
+  })
+  return parId?.id
+}
+
 const cityInputSchema = z.object({
   name: z.string().trim().min(1, "nom requis"),
   fee: z

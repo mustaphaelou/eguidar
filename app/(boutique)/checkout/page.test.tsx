@@ -252,6 +252,46 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
     expect(html).toContain("Confirmer la commande")
   })
 
+  it("selects the Ville de livraison from its slug in the URL", async () => {
+    commeClient(userIdA)
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
+    })
+
+    const html = await renderPage({ ville: `ville-${runId}` })
+
+    expect(html).toContain(`data-value="${cityId}"`)
+    expect(html).toContain(`Livraison (Ville ${runId})`)
+    expect(html).toContain(formatPrice(3000))
+    expect(html).toContain(formatPrice(103000))
+  })
+
+  it("still resolves a legacy internal identifier as a read-only alias", async () => {
+    commeClient(userIdA)
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
+    })
+
+    const html = await renderPage({ ville: cityId })
+
+    expect(html).toContain(`data-value="${cityId}"`)
+    expect(html).toContain(`Livraison (Ville ${runId})`)
+  })
+
+  it("leaves no selection for an unknown identifier, even with a profile city", async () => {
+    commeClient(userIdA)
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
+    })
+
+    const html = await renderPage({ ville: `ville-inconnue-${runId}` })
+
+    expect(html).toContain("À choisir")
+    expect(html).toContain('data-value=""')
+    expect(html).not.toContain("Livraison (")
+    expect(html).not.toContain(formatPrice(103000))
+  })
+
   it("falls back to « À choisir » without total on a stale ville param", async () => {
     commeClient(userIdA)
     profileMock.mockResolvedValue({
