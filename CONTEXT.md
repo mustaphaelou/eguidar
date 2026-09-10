@@ -25,6 +25,13 @@ Le calcul du prix d'un panier selon la ville de livraison : les frais de chaque 
 le seuil de livraison offerte appliqué au sous-total, et le total à payer à la livraison pour la ville demandée.
 _Avoid_: quote, estimation de livraison
 
+**Devis chargé**:
+Les faits du Devis d'un Panier chargés côté serveur : les Villes de livraison avec leurs frais,
+le seuil de livraison offerte, le devis de chaque ville et le sous-total — des données pures qui
+traversent la couture serveur vers le client. L'interface DevisHolder se construit ensuite à
+partir de ces faits derrière la couture.
+_Avoid_: quote payload, devis data, devis sérialisé
+
 **Sélection du Devis**:
 La sélection validée d'une Ville de livraison et de son devis, ou « aucune » tant qu'aucune ville
 n'est choisie ; jamais à moitié. Une sélection validée porte exactement deux faits : la Ville

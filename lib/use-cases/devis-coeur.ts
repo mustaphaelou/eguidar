@@ -14,6 +14,13 @@
  * (`require('dns')`) dans le bundle navigateur et casserait `next build`
  * (Turbopack).
  *
+ * Deux formes cohabitent : le Devis chargé (`DevisChargé`) est la donnée
+ * pure qui traverse la couture serveur → client — Villes de livraison,
+ * seuil, devis par ville, sous-total, sources de précédence, aucune
+ * fonction — ; l'interface `DevisHolder` (getters, `choisir`,
+ * `selectionValidee`) n'est pas une donnée : elle se construit derrière
+ * la couture à partir de ces faits via `creerDevisHolder`.
+ *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
  * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
@@ -89,6 +96,24 @@ export type Devis = {
   quotes: Record<string, ShippingQuote>
   sousTotal: number
 } & SelectionDevis
+
+/**
+ * Le Devis chargé : les faits purs d'un Panier chiffré — Villes de
+ * livraison, seuil de livraison offerte, devis par ville, sous-total
+ * (cents) et sources de précédence (`urlVilleId` gagne sur
+ * `profileVilleId`). Strictement des données : aucune fonction, aucun
+ * getter, aucune instance de classe — c'est ce qui traverse la couture
+ * serveur → client. L'interface `DevisHolder` (getters, `choisir`,
+ * `selectionValidee`) se construit derrière la couture à partir de ces
+ * faits via `creerDevisHolder`.
+ */
+export type DevisChargé = {
+  cities: DeliveryCityOption[]
+  threshold: number
+  quotes: Record<string, ShippingQuote>
+  sousTotal: number
+  sources?: DevisPrecedenceSources
+}
 
 /**
  * Lignes du Récapitulatif de paiement pour une Sélection du Devis —
