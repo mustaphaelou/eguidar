@@ -43,9 +43,8 @@ async function CartContent({
   const villeId = await resoudreVilleId(ville)
   const panier = await lirePanier()
   const devis = creerDevisHolder(await chargerDevis(panier, villeId))
-  const villeSelectionnee = devis.villes.find(
-    (ville) => ville.id === devis.villeId
-  )
+  const villeSelectionnee =
+    devis.selection.cas === "validée" ? devis.selection.ville : null
 
   if (panier.lines.length === 0) {
     return (

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 
+import { cityOptions } from "@/components/storefront/city-options"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -37,7 +38,7 @@ export function CityPicker({
       <Label htmlFor="city">Ville de livraison</Label>
       <Select
         value={selectedId ?? ""}
-        items={cities.map((city) => ({ value: city.id, label: city.name }))}
+        items={cityOptions(cities)}
         onValueChange={handleChange}
       >
         <SelectTrigger id="city" className="w-full sm:w-72">

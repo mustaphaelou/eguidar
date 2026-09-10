@@ -65,7 +65,7 @@ export class CityNameConflictError extends UserFacingError {
 
 export class CitySlugConflictError extends UserFacingError {
   constructor() {
-    super("Une ville avec ce slug existe déjà")
+    super("Une ville avec un nom équivalent existe déjà")
     this.name = "CitySlugConflictError"
   }
 }
