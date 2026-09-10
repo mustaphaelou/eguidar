@@ -5,9 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { formatPrice } from "@/lib/money"
 import {
-  creerDevisHolder,
   useDevisSelection,
-  type DevisHolder,
+  type DevisChargé,
 } from "@/lib/use-cases/devis-selection"
 import type {
   DeliveryCityOption,
@@ -71,24 +70,24 @@ const QUOTES: Record<string, ShippingQuote> = {
   c2: QUOTE_RABAT,
 }
 
-function devisValide(): DevisHolder {
-  return creerDevisHolder({
+function devisValide(): DevisChargé {
+  return {
     cities: VILLES,
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    urlVilleId: "c1",
-  })
+    sources: { urlVilleId: "c1" },
+  }
 }
 
-function devisAucune(): DevisHolder {
-  return creerDevisHolder({
+function devisAucune(): DevisChargé {
+  return {
     cities: VILLES,
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    urlVilleId: null,
-  })
+    sources: { urlVilleId: null },
+  }
 }
 
 describe("useDevisSelection", () => {
@@ -193,11 +192,15 @@ describe("useDevisSelection", () => {
   })
 
   it("pre-selects the saved profile ville when the link carries none", () => {
-    const holder = creerDevisHolder(VILLES, QUOTES, 50000, {
-      urlVilleId: null,
-      profileVilleId: "c2",
-    })
-    const hook = renderHook(() => useDevisSelection(holder))
+    const hook = renderHook(() =>
+      useDevisSelection({
+        cities: VILLES,
+        threshold: 100000,
+        quotes: QUOTES,
+        sousTotal: 50000,
+        sources: { urlVilleId: null, profileVilleId: "c2" },
+      })
+    )
 
     expect(hook.current.villeId).toBe("c2")
     expect(hook.current.selection).toStrictEqual({
@@ -208,11 +211,15 @@ describe("useDevisSelection", () => {
   })
 
   it("local choice wins over link and profile after first choisir", () => {
-    const holder = creerDevisHolder(VILLES, QUOTES, 50000, {
-      urlVilleId: "c1",
-      profileVilleId: "c2",
-    })
-    const hook = renderHook(() => useDevisSelection(holder))
+    const hook = renderHook(() =>
+      useDevisSelection({
+        cities: VILLES,
+        threshold: 100000,
+        quotes: QUOTES,
+        sousTotal: 50000,
+        sources: { urlVilleId: "c1", profileVilleId: "c2" },
+      })
+    )
     expect(hook.current.villeId).toBe("c1")
 
     act(() => {
@@ -242,26 +249,6 @@ describe("useDevisSelection", () => {
     expect(pushSpy).not.toHaveBeenCalled()
     replaceSpy.mockRestore()
     pushSpy.mockRestore()
-  })
-
-  it("recalculer(nouveauSousTotal) re-prices the hook selection dynamically", () => {
-    const hook = renderHook(() => useDevisSelection(devisValide()))
-    expect(hook.current.rows[0].value).toBe(formatPrice(50000))
-    expect(hook.current.rows[1]).toMatchObject({
-      label: "Livraison (Casablanca)",
-      value: formatPrice(3500),
-    })
-
-    act(() => {
-      hook.current.recalculer(150000)
-    })
-
-    expect(hook.current.rows[0].value).toBe(formatPrice(150000))
-    expect(hook.current.rows[1]).toMatchObject({
-      label: "Livraison (Casablanca)",
-      value: "Livraison offerte",
-      tone: "offered",
-    })
   })
 })
 
