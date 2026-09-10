@@ -52,6 +52,7 @@ export {
   DeliveryCityNotFoundError,
 } from "@/lib/use-cases/devis-coeur"
 export type {
+  DevisChargé,
   DevisHolder,
   DevisHolderInit,
   DevisPrecedenceSources,

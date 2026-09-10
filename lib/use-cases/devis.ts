@@ -1,7 +1,10 @@
 /**
- * Entrée serveur du Devis : `chargerDevis` (accès base via l'administration
- * Livraison) plus réexport du cœur pur pour les appelants serveur
- * (`panier/page.tsx`, `checkout/page.tsx`, `placeOrder`).
+ * Entrée serveur du Devis : `chargerDevis` retourne le Devis chargé — la
+ * donnée pure d'un Panier chiffré (accès base via l'administration
+ * Livraison) — et `chargerDevisHolder` compose ces faits en interface
+ * profonde derrière la couture (`creerDevisHolder(await chargerDevis(...))`).
+ * Réexport du cœur pur pour les appelants serveur (`panier/page.tsx`,
+ * `checkout/page.tsx`, `placeOrder`).
  *
  * Les composants clients doivent importer `@/lib/use-cases/devis-selection`
  * directement (porte d'entrée cliente : `useDevisSelection`) — jamais ce
@@ -11,6 +14,13 @@
  * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
  * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
  * serveur comme hook partagent la même couture.
+ *
+ * Le Devis chargé (`DevisChargé`) est la donnée pure qui peut traverser
+ * la couture serveur → client — aucune fonction, aucun getter, aucune
+ * instance de classe. L'interface `DevisHolder` (getters, `choisir`,
+ * `selectionValidee`) n'est pas une donnée : elle se construit derrière
+ * la couture à partir de ces faits via `creerDevisHolder`, jamais
+ * l'inverse.
  *
  * Non-buts : pas de re-sélection synchronisée avec l'URL sur checkout
  * (état local `useDevisSelection`) ; pas d'entrée de sélection allégée à
@@ -30,6 +40,7 @@
 import type { DonneesPanier } from "@/lib/panier"
 import {
   creerDevisHolder,
+  type DevisChargé,
   type DevisHolder,
   type DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
@@ -44,6 +55,7 @@ export {
   DeliveryCityNotFoundError,
 } from "@/lib/use-cases/devis-coeur"
 export type {
+  DevisChargé,
   DevisHolder,
   DevisHolderInit,
   DevisPrecedenceSources,
@@ -52,23 +64,26 @@ export type {
 } from "@/lib/use-cases/devis-coeur"
 
 /**
- * Charge le Devis et l'enveloppe dans l'interface profonde DevisHolder.
+ * Charge le Devis chargé — les faits purs d'un Panier chiffré.
  *
- * Récupère Villes de livraison + seuil (administration Livraison),
- * chiffre chaque ville via `computeCityQuotes` (`panier.subtotal` +
- * `lines.some(freeShipping)`), puis initialise le DevisHolder avec la précédence
- * (URL ville > profil sauvegardé > aucune).
+ * Récupère Villes de livraison + seuil (administration Livraison) une
+ * seule fois, chiffre chaque ville via `computeCityQuotes`
+ * (`panier.subtotal` + `lines.some(freeShipping)`) une seule fois, et
+ * reporte les sources de précédence (`urlVilleId` gagne sur
+ * `profileVilleId`).
  *
- * Le DevisHolder retourné est auto-porteur : ses lignes (`rows`), sa sélection
- * (`selection`), sa ville (`villeId`), et la narrowing d'intake (`selectionValidee`)
- * sont exposées derrière une couture unique.
+ * Strictement des données : aucune fonction, aucun getter, aucune
+ * instance de classe — le Devis chargé traverse la couture serveur →
+ * client. L'interface `DevisHolder` se construit derrière la couture à
+ * partir de ces faits via `creerDevisHolder`.
  *
- * Ville inconnue → sélection « aucune », ne lève jamais.
+ * Ville inconnue ou absente → la sélection se résoudra « aucune » à la
+ * construction ; charger ne lève jamais sur une ville inconnue ou absente.
  */
-export async function chargerDevisHolder(
+export async function chargerDevis(
   panier: DonneesPanier,
   sources?: string | null | DevisPrecedenceSources
-): Promise<DevisHolder> {
+): Promise<DevisChargé> {
   const sousTotal = panier.subtotal
   const [cities, threshold] = await Promise.all([
     listDeliveryCities(),
@@ -82,13 +97,35 @@ export async function chargerDevisHolder(
     },
     threshold
   )
-  return creerDevisHolder({
+  return {
     cities,
     threshold,
     quotes,
     sousTotal,
-    ...(typeof sources === "string" || sources === null || sources === undefined
-      ? { urlVilleId: sources }
-      : sources),
-  })
+    ...(sources === undefined
+      ? {}
+      : {
+          sources:
+            typeof sources === "string" || sources === null
+              ? { urlVilleId: sources }
+              : sources,
+        }),
+  }
+}
+
+/**
+ * Charge le Devis et l'enveloppe dans l'interface profonde DevisHolder —
+ * une composition : `creerDevisHolder(await chargerDevis(panier, sources))`.
+ *
+ * Le DevisHolder retourné est auto-porteur : ses lignes (`rows`), sa sélection
+ * (`selection`), sa ville (`villeId`), et la narrowing d'intake (`selectionValidee`)
+ * sont exposées derrière une couture unique.
+ *
+ * Ville inconnue → sélection « aucune », ne lève jamais.
+ */
+export async function chargerDevisHolder(
+  panier: DonneesPanier,
+  sources?: string | null | DevisPrecedenceSources
+): Promise<DevisHolder> {
+  return creerDevisHolder(await chargerDevis(panier, sources))
 }
