@@ -6,16 +6,6 @@ import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { formatPrice } from "@/lib/money"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
-export type EtatAjoutAuPanier = {
-  prix: string
-  ajouter: () => void
-  enAttente?: boolean
-  ajoute?: boolean
-  messageErreur?: string
-  desactive?: boolean
-  variantNom?: string
-}
-
 export function useAjoutAuPanier({
   variants,
 }: {

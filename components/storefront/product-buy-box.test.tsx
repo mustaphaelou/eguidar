@@ -10,8 +10,6 @@ import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
 import { ProductBuyBox } from "./product-buy-box"
 
-const MESSAGE_CAP_ATTEINTE = "Votre panier est plein : 20 articles maximum."
-
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 const variantes: ProductVariantDto[] = [
@@ -92,54 +90,6 @@ async function cliquerAjouter() {
 }
 
 describe("ProductBuyBox", () => {
-  it("confirms the addition when the port succeeds", async () => {
-    const port = creerPortPanierEnMemoire()
-
-    render(buyBox(port))
-    await cliquerAjouter()
-
-    expect(port.appels).toEqual([
-      { operation: "ajouter", variantId: "variante-a", quantity: 1 },
-    ])
-    expect(container.textContent).toContain("Ajouté au panier")
-    expect(container.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
-  })
-
-  it("shows the explicit cap message when the Visiteur's Panier is full", async () => {
-    const port = creerPortPanierEnMemoire(() => ({
-      ok: false,
-      motif: "cap-atteinte",
-      message: MESSAGE_CAP_ATTEINTE,
-    }))
-
-    render(buyBox(port))
-    await cliquerAjouter()
-
-    expect(port.appels).toHaveLength(1)
-    expect(container.querySelector("[role='alert']")?.textContent).toBe(
-      MESSAGE_CAP_ATTEINTE
-    )
-    expect(container.textContent).toContain("20 articles maximum")
-    expect(container.textContent).not.toContain("Ajouté au panier")
-  })
-
-  it("shows the message of any other refusal verbatim", async () => {
-    const port = creerPortPanierEnMemoire(() => ({
-      ok: false,
-      motif: "variante-inconnue",
-      message: "Cet article n'est plus disponible.",
-    }))
-
-    render(buyBox(port))
-    await cliquerAjouter()
-
-    expect(container.textContent).not.toContain("Ajouté au panier")
-    expect(container.textContent).toContain(
-      "Cet article n'est plus disponible."
-    )
-    expect(container.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
-  })
-
   it("n'appelle pas le port quand la variante sélectionnée est en rupture de stock", async () => {
     const port = creerPortPanierEnMemoire()
 

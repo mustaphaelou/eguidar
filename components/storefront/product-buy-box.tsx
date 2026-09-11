@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react"
 
 import { BarreDAchat } from "@/components/storefront/barre-d-achat"
-import type { EtatAjoutAuPanier } from "@/components/storefront/use-ajout-au-panier"
 import {
   useMutationsDuPanier,
   type PortMutationsDuPanier,
@@ -82,16 +81,6 @@ export function ProductBuyBox({
         </Button>
       </div>
     )
-  }
-
-  const etat: EtatAjoutAuPanier = {
-    prix,
-    ajouter: lancerAjout,
-    enAttente,
-    ajoute,
-    messageErreur: messageRefus,
-    desactive: outOfStock || enAttente,
-    variantNom,
   }
 
   return (
@@ -193,7 +182,14 @@ export function ProductBuyBox({
         </p>
       )}
 
-      <BarreDAchat visible={barVisible} etat={etat} />
+      <BarreDAchat
+        visible={barVisible}
+        varianteId={variantId}
+        prix={prix}
+        variantNom={variantNom}
+        indisponible={outOfStock}
+        port={port}
+      />
     </div>
   )
 }
