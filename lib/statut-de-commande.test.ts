@@ -1,17 +1,27 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, expectTypeOf, it } from "vitest"
 
+import type { OrderStatus } from "@/lib/generated/prisma/client"
 import {
   estEncaissée,
   FRAGMENT_WHERE_ENCAISSÉS,
-  ORDER_TRANSITIONS,
+  peutTransitionner,
+  réapprovisionne,
   REGISTRE_STATUTS,
   STATUTS_ENCAISSÉS,
   STATUTS_VALIDES,
+  transitionsDisponibles,
 } from "@/lib/statut-de-commande"
 
-const STATUTS = Object.keys(REGISTRE_STATUTS) as Array<
-  keyof typeof REGISTRE_STATUTS
->
+const STATUTS = Object.keys(REGISTRE_STATUTS) as OrderStatus[]
+
+const MATRICE_ATTENDUE: Record<OrderStatus, readonly OrderStatus[]> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["shipped", "cancelled"],
+  shipped: ["delivered", "returned"],
+  delivered: ["returned"],
+  cancelled: [],
+  returned: [],
+}
 
 describe("estEncaissée", () => {
   it("is true exactly when the statut is Livrée", () => {
@@ -41,26 +51,69 @@ describe("FRAGMENT_WHERE_ENCAISSÉS", () => {
   })
 })
 
-describe("ORDER_TRANSITIONS", () => {
-  it("maps every statut to exactly its allowed next statuts", () => {
-    expect(ORDER_TRANSITIONS).toEqual({
-      pending: ["confirmed", "cancelled"],
-      confirmed: ["shipped", "cancelled"],
-      shipped: ["delivered", "returned"],
-      delivered: ["returned"],
-      cancelled: [],
-      returned: [],
-    })
-  })
-
-  it("gives terminal statuts no possible transition", () => {
-    expect(ORDER_TRANSITIONS.cancelled).toEqual([])
-    expect(ORDER_TRANSITIONS.returned).toEqual([])
-  })
-
-  it("never lets a statut transition to itself", () => {
+describe("peutTransitionner", () => {
+  it("answers the explicit allowed/refused matrix", () => {
     for (const statut of STATUTS) {
-      expect(ORDER_TRANSITIONS[statut]).not.toContain(statut)
+      for (const cible of STATUTS) {
+        expect(peutTransitionner(statut, cible), `${statut} → ${cible}`).toBe(
+          MATRICE_ATTENDUE[statut].includes(cible)
+        )
+      }
+    }
+  })
+
+  it("refuses every self-transition", () => {
+    for (const statut of STATUTS) {
+      expect(peutTransitionner(statut, statut), `${statut} → ${statut}`).toBe(
+        false
+      )
+    }
+  })
+
+  it("lets terminal statuts allow nothing", () => {
+    for (const statut of ["cancelled", "returned"] as const) {
+      for (const cible of STATUTS) {
+        expect(peutTransitionner(statut, cible), `${statut} → ${cible}`).toBe(
+          false
+        )
+      }
+    }
+  })
+})
+
+describe("transitionsDisponibles", () => {
+  it("returns exactly the targets peutTransitionner allows", () => {
+    for (const statut of STATUTS) {
+      const attendues = STATUTS.filter((cible) =>
+        peutTransitionner(statut, cible)
+      )
+      expect([...transitionsDisponibles(statut)].sort()).toEqual(
+        [...attendues].sort()
+      )
+    }
+  })
+
+  it("returns a readonly list", () => {
+    expectTypeOf(transitionsDisponibles).returns.toEqualTypeOf<
+      readonly OrderStatus[]
+    >()
+  })
+
+  it("only offers declared statuts as targets", () => {
+    for (const statut of STATUTS) {
+      for (const cible of transitionsDisponibles(statut)) {
+        expect(STATUTS_VALIDES).toContain(cible)
+      }
+    }
+  })
+})
+
+describe("réapprovisionne", () => {
+  it("is true exactly for Annulée and Retournée", () => {
+    for (const statut of STATUTS) {
+      expect(réapprovisionne(statut), statut).toBe(
+        statut === "cancelled" || statut === "returned"
+      )
     }
   })
 })

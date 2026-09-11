@@ -18,7 +18,7 @@ const toneVariants: Record<
 
 interface OrderStatusActionsProps {
   orderId: string
-  nextStatuses: OrderStatus[]
+  nextStatuses: readonly OrderStatus[]
   action: (formData: FormData) => Promise<void>
 }
 

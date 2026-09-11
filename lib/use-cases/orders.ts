@@ -5,7 +5,7 @@ import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { OrderStatus } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
-import { ORDER_TRANSITIONS } from "@/lib/statut-de-commande"
+import { peutTransitionner, réapprovisionne } from "@/lib/statut-de-commande"
 import { lirePanierClient } from "@/lib/panier"
 import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 import {
@@ -351,7 +351,7 @@ export async function updateOrderStatus(
     include: { items: true, user: { select: { email: true } } },
   })
   if (!existing) throw new OrderNotFoundError()
-  if (!ORDER_TRANSITIONS[existing.status].includes(nextStatus)) {
+  if (!peutTransitionner(existing.status, nextStatus)) {
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
@@ -361,7 +361,7 @@ export async function updateOrderStatus(
       include: { items: true },
     })
     if (!fresh) throw new OrderNotFoundError()
-    if (!ORDER_TRANSITIONS[fresh.status].includes(nextStatus)) {
+    if (!peutTransitionner(fresh.status, nextStatus)) {
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
@@ -373,7 +373,7 @@ export async function updateOrderStatus(
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
-    if (nextStatus === "cancelled" || nextStatus === "returned") {
+    if (réapprovisionne(nextStatus)) {
       for (const item of fresh.items) {
         if (!item.variantId) continue
         await tx.productVariant.updateMany({

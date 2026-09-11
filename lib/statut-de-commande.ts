@@ -7,6 +7,7 @@ interface SpecStatut {
   ton: TonStatut
   verbe: string | null
   encaissée: boolean
+  réapprovisionne: boolean
 }
 
 export const REGISTRE_STATUTS = {
@@ -15,40 +16,46 @@ export const REGISTRE_STATUTS = {
     ton: "neutre",
     verbe: null,
     encaissée: false,
+    réapprovisionne: false,
   },
   confirmed: {
     libellé: "Confirmée",
     ton: "intermédiaire",
     verbe: "Confirmer",
     encaissée: false,
+    réapprovisionne: false,
   },
   shipped: {
     libellé: "Expédiée",
     ton: "positif",
     verbe: "Expédier",
     encaissée: false,
+    réapprovisionne: false,
   },
   delivered: {
     libellé: "Livrée",
     ton: "positif",
     verbe: "Marquer livrée",
     encaissée: true,
+    réapprovisionne: false,
   },
   cancelled: {
     libellé: "Annulée",
     ton: "négatif",
     verbe: "Annuler",
     encaissée: false,
+    réapprovisionne: true,
   },
   returned: {
     libellé: "Retournée",
     ton: "négatif",
     verbe: "Retourner",
     encaissée: false,
+    réapprovisionne: true,
   },
 } as const satisfies Record<OrderStatus, SpecStatut>
 
-export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+const TRANSITIONS_AUTORISÉES: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["shipped", "cancelled"],
   shipped: ["delivered", "returned"],
@@ -80,4 +87,21 @@ export const FRAGMENT_WHERE_ENCAISSÉS = {
 
 export function estEncaissée(statut: OrderStatus): boolean {
   return REGISTRE_STATUTS[statut].encaissée
+}
+
+export function peutTransitionner(
+  statut: OrderStatus,
+  cible: OrderStatus
+): boolean {
+  return TRANSITIONS_AUTORISÉES[statut].includes(cible)
+}
+
+export function transitionsDisponibles(
+  statut: OrderStatus
+): readonly OrderStatus[] {
+  return TRANSITIONS_AUTORISÉES[statut]
+}
+
+export function réapprovisionne(statut: OrderStatus): boolean {
+  return REGISTRE_STATUTS[statut].réapprovisionne
 }
