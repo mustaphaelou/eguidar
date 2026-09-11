@@ -1,5 +1,5 @@
 import type { OrderStatus } from "@/lib/generated/prisma/client"
-import { STATUTS_VALIDES } from "@/lib/order-status"
+import { STATUTS_VALIDES } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 
 const COMMANDE_LISTING_PATH = "/admin/commandes"

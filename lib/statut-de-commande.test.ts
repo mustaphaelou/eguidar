@@ -7,7 +7,7 @@ import {
   REGISTRE_STATUTS,
   STATUTS_ENCAISSÉS,
   STATUTS_VALIDES,
-} from "@/lib/order-status"
+} from "@/lib/statut-de-commande"
 
 const STATUTS = Object.keys(REGISTRE_STATUTS) as Array<
   keyof typeof REGISTRE_STATUTS

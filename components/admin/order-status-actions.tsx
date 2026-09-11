@@ -4,7 +4,7 @@ import type { VariantProps } from "class-variance-authority"
 
 import { Button, type buttonVariants } from "@/components/ui/button"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
-import { REGISTRE_STATUTS, type TonStatut } from "@/lib/order-status"
+import { REGISTRE_STATUTS, type TonStatut } from "@/lib/statut-de-commande"
 
 const toneVariants: Record<
   TonStatut,

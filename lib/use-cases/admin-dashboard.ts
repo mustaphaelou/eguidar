@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
-import { FRAGMENT_WHERE_ENCAISSÉS } from "@/lib/order-status"
+import { FRAGMENT_WHERE_ENCAISSÉS } from "@/lib/statut-de-commande"
 
 export const LOW_STOCK_THRESHOLD = 5
 
