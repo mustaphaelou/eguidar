@@ -2,24 +2,19 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-
-const { ajouterArticleAuPanierActionMock } = vi.hoisted(() => ({
-  ajouterArticleAuPanierActionMock: vi.fn(),
-}))
-
-vi.mock("@/app/(boutique)/actions", () => ({
-  ajouterArticleAuPanierAction: ajouterArticleAuPanierActionMock,
-}))
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { formatPrice } from "@/lib/money"
+import type { ProductVariantDto } from "@/lib/use-cases/storefront"
+import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
+
 import { ProductBuyBox } from "./product-buy-box"
 
 const MESSAGE_CAP_ATTEINTE = "Votre panier est plein : 20 articles maximum."
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-const variantes = [
+const variantes: ProductVariantDto[] = [
   {
     id: "variante-a",
     name: "Standard",
@@ -29,7 +24,7 @@ const variantes = [
   },
 ]
 
-const variantesMultiples = [
+const variantesMultiples: ProductVariantDto[] = [
   {
     id: "variante-a",
     name: "Standard",
@@ -52,7 +47,6 @@ const roots: ReturnType<typeof createRoot>[] = []
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  ajouterArticleAuPanierActionMock.mockReset()
 })
 
 afterEach(() => {
@@ -67,22 +61,29 @@ function render(element: ReactElement) {
   act(() => root.render(element))
 }
 
-function buyBox() {
+function buyBox(
+  port: ReturnType<typeof creerPortPanierEnMemoire>,
+  variants: ProductVariantDto[] = variantes
+) {
   return (
     <ProductBuyBox
       minPrice={100000}
-      variants={variantes}
+      variants={variants}
       freeShipping={false}
+      port={port}
     />
   )
 }
 
-async function cliquerAjouter() {
-  const bouton = [...container.querySelectorAll("button")].find((button) =>
+function boutonAjouter() {
+  return [...container.querySelectorAll("button")].find((button) =>
     button.textContent?.includes("Ajouter au panier")
   )!
+}
+
+async function cliquerAjouter() {
   act(() => {
-    bouton.dispatchEvent(
+    boutonAjouter().dispatchEvent(
       new MouseEvent("click", { bubbles: true, cancelable: true })
     )
   })
@@ -91,28 +92,30 @@ async function cliquerAjouter() {
 }
 
 describe("ProductBuyBox", () => {
-  it("confirms the addition when the action succeeds", async () => {
-    ajouterArticleAuPanierActionMock.mockResolvedValue({ ok: true })
+  it("confirms the addition when the port succeeds", async () => {
+    const port = creerPortPanierEnMemoire()
 
-    render(buyBox())
+    render(buyBox(port))
     await cliquerAjouter()
 
+    expect(port.appels).toEqual([
+      { operation: "ajouter", variantId: "variante-a", quantity: 1 },
+    ])
     expect(container.textContent).toContain("Ajouté au panier")
     expect(container.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
   })
 
   it("shows the explicit cap message when the Visiteur's Panier is full", async () => {
-    ajouterArticleAuPanierActionMock.mockResolvedValue({
+    const port = creerPortPanierEnMemoire(() => ({
       ok: false,
       motif: "cap-atteinte",
       message: MESSAGE_CAP_ATTEINTE,
-    })
+    }))
 
-    render(buyBox())
+    render(buyBox(port))
     await cliquerAjouter()
 
-    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledTimes(1)
-    expect(ajouterArticleAuPanierActionMock.mock.calls[0]).toHaveLength(2)
+    expect(port.appels).toHaveLength(1)
     expect(container.querySelector("[role='alert']")?.textContent).toBe(
       MESSAGE_CAP_ATTEINTE
     )
@@ -121,13 +124,13 @@ describe("ProductBuyBox", () => {
   })
 
   it("shows the message of any other refusal verbatim", async () => {
-    ajouterArticleAuPanierActionMock.mockResolvedValue({
+    const port = creerPortPanierEnMemoire(() => ({
       ok: false,
       motif: "variante-inconnue",
       message: "Cet article n'est plus disponible.",
-    })
+    }))
 
-    render(buyBox())
+    render(buyBox(port))
     await cliquerAjouter()
 
     expect(container.textContent).not.toContain("Ajouté au panier")
@@ -137,15 +140,38 @@ describe("ProductBuyBox", () => {
     expect(container.textContent).not.toContain(MESSAGE_CAP_ATTEINTE)
   })
 
+  it("n'appelle pas le port quand la variante sélectionnée est en rupture de stock", async () => {
+    const port = creerPortPanierEnMemoire()
+
+    render(
+      buyBox(port, [
+        {
+          id: "variante-rupture",
+          name: "Standard",
+          sku: "PBB-R",
+          prix: 100000,
+          stock: 0,
+        },
+      ])
+    )
+
+    expect(boutonAjouter().disabled).toBe(true)
+
+    await cliquerAjouter()
+
+    expect(port.appels).toEqual([])
+    expect(container.textContent).not.toContain("Ajouté au panier")
+  })
+
   it("rend la Barre d'achat initialement masquée tant que le bouton est visible", () => {
-    render(buyBox())
+    render(buyBox(creerPortPanierEnMemoire()))
 
     const barreEl = container.querySelector("[data-slot='barre-d-achat']")!
     expect(barreEl.getAttribute("aria-hidden")).toBe("true")
   })
 
   it("rend la Barre d'achat avec le prix de la variante sélectionnée", () => {
-    render(buyBox())
+    render(buyBox(creerPortPanierEnMemoire()))
 
     const barreEl = container.querySelector<HTMLElement>(
       "[data-slot='barre-d-achat']"
@@ -156,13 +182,7 @@ describe("ProductBuyBox", () => {
   })
 
   it("met à jour le prix affiché dans la barre quand la variante sélectionnée change", () => {
-    render(
-      <ProductBuyBox
-        minPrice={100000}
-        variants={variantesMultiples}
-        freeShipping={false}
-      />
-    )
+    render(buyBox(creerPortPanierEnMemoire(), variantesMultiples))
 
     const puce = [...container.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("Premium")
@@ -179,15 +199,9 @@ describe("ProductBuyBox", () => {
   })
 
   it("ajoute la variante sélectionnée au panier depuis le bouton de la barre", async () => {
-    ajouterArticleAuPanierActionMock.mockResolvedValue({ ok: true })
+    const port = creerPortPanierEnMemoire()
 
-    render(
-      <ProductBuyBox
-        minPrice={100000}
-        variants={variantesMultiples}
-        freeShipping={false}
-      />
-    )
+    render(buyBox(port, variantesMultiples))
 
     const puce = [...container.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("Premium")
@@ -209,38 +223,31 @@ describe("ProductBuyBox", () => {
     await act(async () => {})
     await act(async () => {})
 
-    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledTimes(1)
-    expect(ajouterArticleAuPanierActionMock).toHaveBeenCalledWith(
-      "variante-b",
-      1
-    )
+    expect(port.appels).toEqual([
+      { operation: "ajouter", variantId: "variante-b", quantity: 1 },
+    ])
   })
 
   it("ne rend aucune barre pour un produit sans variante et affiche son prix minimal", () => {
-    render(
-      <ProductBuyBox minPrice={100000} variants={[]} freeShipping={false} />
-    )
+    render(buyBox(creerPortPanierEnMemoire(), []))
 
     expect(container.querySelector("[data-slot='barre-d-achat']")).toBeNull()
     expect(container.textContent).toContain(formatPrice(100000))
   })
 
   it("affiche le prix calculé dans les options du sélecteur quand les variantes dépassent six", () => {
-    const septVariantes = Array.from({ length: 7 }, (_, i) => ({
-      id: `v-${i}`,
-      name: `Option ${i + 1}`,
-      sku: `SKU-${i}`,
-      prix: 100000 + i * 10000,
-      stock: 5,
-    }))
-
-    render(
-      <ProductBuyBox
-        minPrice={100000}
-        variants={septVariantes}
-        freeShipping={false}
-      />
+    const septVariantes: ProductVariantDto[] = Array.from(
+      { length: 7 },
+      (_, i) => ({
+        id: `v-${i}`,
+        name: `Option ${i + 1}`,
+        sku: `SKU-${i}`,
+        prix: 100000 + i * 10000,
+        stock: 5,
+      })
     )
+
+    render(buyBox(creerPortPanierEnMemoire(), septVariantes))
 
     const trigger =
       container.querySelector<HTMLButtonElement>("[id='variant']")!
