@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { ShoppingBag01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { LigneArticlePanier } from "@/components/storefront/cart-line"
+import { ArticleDuPanier } from "@/components/storefront/article-du-panier"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
@@ -72,7 +72,7 @@ async function CartContent({
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <ul>
           {panier.lines.map((line) => (
-            <LigneArticlePanier key={line.variantId} line={line} />
+            <ArticleDuPanier key={line.variantId} line={line} />
           ))}
         </ul>
 
