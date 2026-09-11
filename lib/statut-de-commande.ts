@@ -55,14 +55,16 @@ export const REGISTRE_STATUTS = {
   },
 } as const satisfies Record<OrderStatus, SpecStatut>
 
-const TRANSITIONS_AUTORISÉES: Record<OrderStatus, readonly OrderStatus[]> = {
-  pending: ["confirmed", "cancelled"],
-  confirmed: ["shipped", "cancelled"],
-  shipped: ["delivered", "returned"],
-  delivered: ["returned"],
-  cancelled: [],
-  returned: [],
-}
+const TRANSITIONS_AUTORISÉES: Readonly<
+  Record<OrderStatus, readonly OrderStatus[]>
+> = Object.freeze({
+  pending: Object.freeze(["confirmed", "cancelled"] as const),
+  confirmed: Object.freeze(["shipped", "cancelled"] as const),
+  shipped: Object.freeze(["delivered", "returned"] as const),
+  delivered: Object.freeze(["returned"] as const),
+  cancelled: Object.freeze([] as const),
+  returned: Object.freeze([] as const),
+})
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: REGISTRE_STATUTS.pending.libellé,
