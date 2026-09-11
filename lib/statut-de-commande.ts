@@ -7,6 +7,7 @@ interface SpecStatut {
   ton: TonStatut
   verbe: string | null
   encaissée: boolean
+  réapprovisionne: boolean
 }
 
 export const REGISTRE_STATUTS = {
@@ -15,47 +16,55 @@ export const REGISTRE_STATUTS = {
     ton: "neutre",
     verbe: null,
     encaissée: false,
+    réapprovisionne: false,
   },
   confirmed: {
     libellé: "Confirmée",
     ton: "intermédiaire",
     verbe: "Confirmer",
     encaissée: false,
+    réapprovisionne: false,
   },
   shipped: {
     libellé: "Expédiée",
     ton: "positif",
     verbe: "Expédier",
     encaissée: false,
+    réapprovisionne: false,
   },
   delivered: {
     libellé: "Livrée",
     ton: "positif",
     verbe: "Marquer livrée",
     encaissée: true,
+    réapprovisionne: false,
   },
   cancelled: {
     libellé: "Annulée",
     ton: "négatif",
     verbe: "Annuler",
     encaissée: false,
+    réapprovisionne: true,
   },
   returned: {
     libellé: "Retournée",
     ton: "négatif",
     verbe: "Retourner",
     encaissée: false,
+    réapprovisionne: true,
   },
 } as const satisfies Record<OrderStatus, SpecStatut>
 
-export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  pending: ["confirmed", "cancelled"],
-  confirmed: ["shipped", "cancelled"],
-  shipped: ["delivered", "returned"],
-  delivered: ["returned"],
-  cancelled: [],
-  returned: [],
-}
+const TRANSITIONS_AUTORISÉES: Readonly<
+  Record<OrderStatus, readonly OrderStatus[]>
+> = Object.freeze({
+  pending: Object.freeze(["confirmed", "cancelled"] as const),
+  confirmed: Object.freeze(["shipped", "cancelled"] as const),
+  shipped: Object.freeze(["delivered", "returned"] as const),
+  delivered: Object.freeze(["returned"] as const),
+  cancelled: Object.freeze([] as const),
+  returned: Object.freeze([] as const),
+})
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: REGISTRE_STATUTS.pending.libellé,
@@ -80,4 +89,25 @@ export const FRAGMENT_WHERE_ENCAISSÉS = {
 
 export function estEncaissée(statut: OrderStatus): boolean {
   return REGISTRE_STATUTS[statut].encaissée
+}
+
+export function peutTransitionner(
+  statut: OrderStatus,
+  cible: OrderStatus
+): boolean {
+  return TRANSITIONS_AUTORISÉES[statut].includes(cible)
+}
+
+export function transitionsDisponibles(
+  statut: OrderStatus
+): readonly OrderStatus[] {
+  return TRANSITIONS_AUTORISÉES[statut]
+}
+
+export function réapprovisionne(statut: OrderStatus): boolean {
+  return REGISTRE_STATUTS[statut].réapprovisionne
+}
+
+export function estStatut(token: string): token is OrderStatus {
+  return (STATUTS_VALIDES as readonly string[]).includes(token)
 }

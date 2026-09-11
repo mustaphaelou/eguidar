@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/card"
 import { buildCommandeListingUrl } from "@/lib/commande-listing"
 import { formatPrice } from "@/lib/money"
-import { ORDER_STATUS_LABELS } from "@/lib/order-status"
+import { ORDER_STATUS_LABELS } from "@/lib/statut-de-commande"
 import {
   getDashboardStats,
   LOW_STOCK_THRESHOLD,

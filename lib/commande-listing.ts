@@ -1,5 +1,5 @@
 import type { OrderStatus } from "@/lib/generated/prisma/client"
-import { STATUTS_VALIDES } from "@/lib/order-status"
+import { estStatut } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 
 const COMMANDE_LISTING_PATH = "/admin/commandes"
@@ -45,11 +45,7 @@ export function parseCommandeListingParams(
   const statusTokens = (firstValue(raw, "statut") ?? "").split(",")
   const statuses = [
     ...new Set(
-      statusTokens
-        .map((token) => token.trim())
-        .filter((token): token is OrderStatus =>
-          (STATUTS_VALIDES as readonly string[]).includes(token)
-        )
+      statusTokens.map((token) => token.trim()).filter(estStatut)
     ),
   ]
 
@@ -182,8 +178,9 @@ export function partialViewFromFilters(
 ): Partial<CommandeListingView> {
   const entry = filters.find((filter) => filter.id === STATUT_COLUMN_ID)
   const statuses = Array.isArray(entry?.value)
-    ? entry.value.filter((value): value is OrderStatus =>
-        (STATUTS_VALIDES as readonly string[]).includes(value as string)
+    ? entry.value.filter(
+        (value): value is OrderStatus =>
+          typeof value === "string" && estStatut(value)
       )
     : []
   return { statuses, pageIndex: 0 }

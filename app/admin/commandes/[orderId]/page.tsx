@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
-import { ORDER_TRANSITIONS } from "@/lib/order-status"
+import { transitionsDisponibles } from "@/lib/statut-de-commande"
 import { getAdminOrder } from "@/lib/use-cases/admin-orders"
 import { OrderNotFoundError } from "@/lib/use-cases/orders"
 import { shortOrderId } from "@/lib/utils"
@@ -92,7 +92,7 @@ export default async function AdminOrderDetailPage({
         <CardContent>
           <OrderStatusActions
             orderId={order.id}
-            nextStatuses={ORDER_TRANSITIONS[order.status]}
+            nextStatuses={transitionsDisponibles(order.status)}
             action={updateOrderStatusAction}
           />
         </CardContent>

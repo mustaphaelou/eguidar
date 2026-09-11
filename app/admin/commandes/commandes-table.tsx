@@ -43,7 +43,7 @@ import {
   type CommandeListingParams,
 } from "@/lib/commande-listing"
 import { formatPrice } from "@/lib/money"
-import { ORDER_STATUS_LABELS, STATUTS_VALIDES } from "@/lib/order-status"
+import { ORDER_STATUS_LABELS, STATUTS_VALIDES } from "@/lib/statut-de-commande"
 import { shortOrderId } from "@/lib/utils"
 import type {
   AdminOrdersPage,

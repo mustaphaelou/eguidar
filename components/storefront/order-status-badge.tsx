@@ -6,7 +6,7 @@ import {
   ORDER_STATUS_LABELS,
   REGISTRE_STATUTS,
   type TonStatut,
-} from "@/lib/order-status"
+} from "@/lib/statut-de-commande"
 
 const toneVariants: Record<
   TonStatut,

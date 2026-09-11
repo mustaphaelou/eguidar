@@ -1,6 +1,6 @@
 import { getResend } from "@/lib/email"
 import { OrderStatus } from "@/lib/generated/prisma/client"
-import { ORDER_STATUS_LABELS } from "@/lib/order-status"
+import { ORDER_STATUS_LABELS } from "@/lib/statut-de-commande"
 import { formatPrice } from "@/lib/money"
 import { récapitulatifRowsFromCommande } from "@/lib/recapitulatif-paiement"
 import { shortOrderId } from "@/lib/utils"
