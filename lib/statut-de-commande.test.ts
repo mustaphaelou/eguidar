@@ -3,6 +3,7 @@ import { describe, expect, expectTypeOf, it } from "vitest"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import {
   estEncaissée,
+  estStatut,
   FRAGMENT_WHERE_ENCAISSÉS,
   peutTransitionner,
   réapprovisionne,
@@ -114,6 +115,21 @@ describe("réapprovisionne", () => {
       expect(réapprovisionne(statut), statut).toBe(
         statut === "cancelled" || statut === "returned"
       )
+    }
+  })
+})
+
+describe("estStatut", () => {
+  it("accepts exactly the declared statuts", () => {
+    for (const statut of STATUTS) {
+      expect(estStatut(statut), statut).toBe(true)
+    }
+  })
+
+  it("rejects arbitrary, empty and malformed tokens", () => {
+    const jetons = ["inconnu", "", "PENDING", "pending ", "pendingx", "0"]
+    for (const jeton of jetons) {
+      expect(estStatut(jeton), jeton).toBe(false)
     }
   })
 })

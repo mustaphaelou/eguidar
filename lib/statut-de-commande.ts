@@ -105,3 +105,7 @@ export function transitionsDisponibles(
 export function réapprovisionne(statut: OrderStatus): boolean {
   return REGISTRE_STATUTS[statut].réapprovisionne
 }
+
+export function estStatut(token: string): token is OrderStatus {
+  return (STATUTS_VALIDES as readonly string[]).includes(token)
+}

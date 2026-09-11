@@ -128,7 +128,7 @@ export class UserNotFoundError extends Error {
 }
 
 export class InvalidOrderTransitionError extends UserFacingError {
-  constructor(fromStatus: string, nextStatus: string) {
+  constructor(fromStatus: OrderStatus, nextStatus: OrderStatus) {
     super(`Transition invalide : ${fromStatus} → ${nextStatus}`)
     this.name = "InvalidOrderTransitionError"
   }
@@ -148,10 +148,6 @@ function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
     )
   }
   return result.data
-}
-
-function isOrderStatus(value: string): value is OrderStatus {
-  return (Object.values(OrderStatus) as string[]).includes(value)
 }
 
 type OrderWithItems = {
@@ -339,12 +335,10 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
 
 export async function updateOrderStatus(
   orderId: string,
-  nextStatus: string,
+  nextStatus: OrderStatus,
   overrides?: Partial<OrderEffects>
 ) {
   const effects = { ...defaultOrderEffects, ...overrides }
-  if (!isOrderStatus(nextStatus))
-    throw new InvalidOrderTransitionError("inconnu", nextStatus)
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
