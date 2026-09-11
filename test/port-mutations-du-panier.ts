@@ -8,7 +8,7 @@ export type AppelPanier =
 
 export function creerPortPanierEnMemoire(
   repondre?: (appel: AppelPanier) => ResultatPanier | Promise<ResultatPanier>
-): PortMutationsDuPanier & { appels: AppelPanier[]; reinitialiser(): void } {
+): PortMutationsDuPanier & { appels: AppelPanier[] } {
   const appels: AppelPanier[] = []
 
   async function reponse(appel: AppelPanier): Promise<ResultatPanier> {
@@ -17,9 +17,6 @@ export function creerPortPanierEnMemoire(
 
   return {
     appels,
-    reinitialiser() {
-      appels.length = 0
-    },
     async ajouter(variantId, quantity) {
       const appel: AppelPanier = { operation: "ajouter", variantId, quantity }
       appels.push(appel)

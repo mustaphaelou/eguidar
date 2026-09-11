@@ -25,7 +25,7 @@ vi.mock("next/image", () => ({
   ),
 }))
 
-import type { ArticleDuPanier as ArticleDuPanierFact } from "@/lib/panier"
+import type { ArticleDuPanier as ArticleDuPanierDonnees } from "@/lib/panier"
 import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
 import { ArticleDuPanier } from "./article-du-panier"
@@ -38,7 +38,7 @@ const MESSAGE_VARIANTE_INCONNUE = "Cet article n'est plus disponible."
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 
-function ligne(overrides: Partial<ArticleDuPanierFact> = {}): ArticleDuPanierFact {
+function article(overrides: Partial<ArticleDuPanierDonnees> = {}): ArticleDuPanierDonnees {
   return {
     variantId: "variante-x",
     variantName: "Standard",
@@ -92,7 +92,7 @@ function cliquer(button: HTMLButtonElement) {
 describe("ArticleDuPanier", () => {
   it("hands the Variante identity of the displayed Article to the quantity edit", async () => {
     const port = creerPortPanierEnMemoire()
-    render(<ArticleDuPanier line={ligne()} port={port} />)
+    render(<ArticleDuPanier article={article()} port={port} />)
 
     cliquer(bouton("Augmenter la quantité"))
     await rejouerTransition()
@@ -104,7 +104,7 @@ describe("ArticleDuPanier", () => {
 
   it("hands the Variante identity to the removal write", async () => {
     const port = creerPortPanierEnMemoire()
-    render(<ArticleDuPanier line={ligne()} port={port} />)
+    render(<ArticleDuPanier article={article()} port={port} />)
 
     cliquer(bouton("Retirer du panier"))
     await rejouerTransition()
@@ -116,7 +116,7 @@ describe("ArticleDuPanier", () => {
 
   it("asks for quantity - 1 on decrease", async () => {
     const port = creerPortPanierEnMemoire()
-    render(<ArticleDuPanier line={ligne()} port={port} />)
+    render(<ArticleDuPanier article={article()} port={port} />)
 
     cliquer(bouton("Diminuer la quantité"))
     await rejouerTransition()
@@ -128,7 +128,7 @@ describe("ArticleDuPanier", () => {
 
   it("locks the decrease at quantity 1 and writes nothing below it", async () => {
     const port = creerPortPanierEnMemoire()
-    render(<ArticleDuPanier line={ligne({ quantity: 1 })} port={port} />)
+    render(<ArticleDuPanier article={article({ quantity: 1 })} port={port} />)
 
     const diminuer = bouton("Diminuer la quantité")
     expect(diminuer.disabled).toBe(true)
@@ -144,7 +144,7 @@ describe("ArticleDuPanier", () => {
       motif: "article-inconnu",
       message: MESSAGE_ARTICLE_INCONNU,
     }))
-    render(<ArticleDuPanier line={ligne()} port={port} />)
+    render(<ArticleDuPanier article={article()} port={port} />)
 
     cliquer(bouton("Retirer du panier"))
     await rejouerTransition()
@@ -160,7 +160,7 @@ describe("ArticleDuPanier", () => {
       motif: "variante-inconnue",
       message: MESSAGE_VARIANTE_INCONNUE,
     }))
-    render(<ArticleDuPanier line={ligne()} port={port} />)
+    render(<ArticleDuPanier article={article()} port={port} />)
 
     cliquer(bouton("Augmenter la quantité"))
     await rejouerTransition()
@@ -170,7 +170,7 @@ describe("ArticleDuPanier", () => {
     )
   })
 
-  it("clears the refusal on the next operation on the same line", async () => {
+  it("clears the refusal on the next operation on the same Article du panier", async () => {
     let refuser = true
     const port = creerPortPanierEnMemoire(() =>
       refuser
@@ -181,7 +181,7 @@ describe("ArticleDuPanier", () => {
           }
         : { ok: true }
     )
-    render(<ArticleDuPanier line={ligne()} port={port} />)
+    render(<ArticleDuPanier article={article()} port={port} />)
 
     cliquer(bouton("Augmenter la quantité"))
     await rejouerTransition()

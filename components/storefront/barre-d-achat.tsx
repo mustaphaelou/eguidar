@@ -7,23 +7,26 @@ import {
   type PortMutationsDuPanier,
 } from "./use-mutations-du-panier"
 
-export function BarreDAchat({
-  visible,
-  varianteId,
-  prix,
-  variantNom,
-  indisponible = false,
-  port,
-}: {
-  visible: boolean
+export type FaitsAffichageBarre = {
   varianteId: string
   prix: string
   variantNom?: string
   indisponible?: boolean
+}
+
+export function BarreDAchat({
+  visible,
+  faits,
+  port,
+}: {
+  visible: boolean
+  faits: FaitsAffichageBarre
   port?: PortMutationsDuPanier
 }) {
   const { enAttente, messageRefus, ajoute, ajouter } =
     useMutationsDuPanier(port)
+
+  const { varianteId, prix, variantNom, indisponible = false } = faits
 
   function lancerAjout() {
     if (!varianteId || indisponible || enAttente) return
