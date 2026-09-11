@@ -12,17 +12,17 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
-import type { ArticleDuPanier as ArticleDuPanierFact } from "@/lib/panier"
+import type { ArticleDuPanier as ArticleDuPanierDonnees } from "@/lib/panier"
 import {
   useMutationsDuPanier,
   type PortMutationsDuPanier,
 } from "./use-mutations-du-panier"
 
 export function ArticleDuPanier({
-  line,
+  article,
   port,
 }: {
-  line: ArticleDuPanierFact
+  article: ArticleDuPanierDonnees
   port?: PortMutationsDuPanier
 }) {
   const { enAttente, messageRefus, modifier, retirer } =
@@ -30,22 +30,22 @@ export function ArticleDuPanier({
 
   function setQuantity(quantity: number) {
     if (quantity < 1) return
-    modifier(line.variantId, quantity)
+    modifier(article.variantId, quantity)
   }
 
   function remove() {
-    retirer(line.variantId)
+    retirer(article.variantId)
   }
 
   return (
     <li className="border-b py-4 last:border-b-0">
       <div className="flex items-center gap-4">
-        <Link href={`/produit/${line.productSlug}`} className="shrink-0">
+        <Link href={`/produit/${article.productSlug}`} className="shrink-0">
           <div className="relative h-20 w-20 overflow-hidden rounded-xl bg-muted">
-            {line.image ? (
+            {article.image ? (
               <Image
-                src={line.image}
-                alt={line.productName}
+                src={article.image}
+                alt={article.productName}
                 fill
                 sizes="80px"
                 className="object-cover"
@@ -60,14 +60,14 @@ export function ArticleDuPanier({
 
         <div className="min-w-0 flex-1">
           <Link
-            href={`/produit/${line.productSlug}`}
+            href={`/produit/${article.productSlug}`}
             className="line-clamp-2 text-sm font-medium transition-colors hover:text-primary"
           >
-            {line.productName}
+            {article.productName}
           </Link>
-          <p className="text-xs text-muted-foreground">{line.variantName}</p>
+          <p className="text-xs text-muted-foreground">{article.variantName}</p>
           <p className="text-xs text-muted-foreground">
-            {formatPrice(line.unitPrice)} / unité
+            {formatPrice(article.unitPrice)} / unité
           </p>
         </div>
 
@@ -77,13 +77,13 @@ export function ArticleDuPanier({
             size="icon"
             className="size-8 rounded-full"
             aria-label="Diminuer la quantité"
-            disabled={enAttente || line.quantity <= 1}
-            onClick={() => setQuantity(line.quantity - 1)}
+            disabled={enAttente || article.quantity <= 1}
+            onClick={() => setQuantity(article.quantity - 1)}
           >
             <HugeiconsIcon icon={MinusSignIcon} strokeWidth={2} />
           </Button>
           <span className="w-8 text-center text-sm font-semibold">
-            {line.quantity}
+            {article.quantity}
           </span>
           <Button
             variant="outline"
@@ -91,14 +91,14 @@ export function ArticleDuPanier({
             className="size-8 rounded-full"
             aria-label="Augmenter la quantité"
             disabled={enAttente}
-            onClick={() => setQuantity(line.quantity + 1)}
+            onClick={() => setQuantity(article.quantity + 1)}
           >
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
           </Button>
         </div>
 
         <p className="w-24 text-right text-sm font-bold">
-          {formatPrice(line.lineTotal)}
+          {formatPrice(article.lineTotal)}
         </p>
 
         <Button

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import type { ResultatPanier } from "@/lib/panier"
 import { formatPrice } from "@/lib/money"
 import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
@@ -11,6 +12,8 @@ import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 import { ProductBuyBox } from "./product-buy-box"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+
+const MESSAGE_CAP_ATTEINTE = "Votre panier est plein : 20 articles maximum."
 
 const variantes: ProductVariantDto[] = [
   {
@@ -74,8 +77,10 @@ function buyBox(
 }
 
 function boutonAjouter() {
-  return [...container.querySelectorAll("button")].find((button) =>
-    button.textContent?.includes("Ajouter au panier")
+  return [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) =>
+      !button.closest("[data-slot='barre-d-achat']") &&
+      button.textContent?.includes("Ajouter au panier")
   )!
 }
 
@@ -176,6 +181,65 @@ describe("ProductBuyBox", () => {
     expect(port.appels).toEqual([
       { operation: "ajouter", variantId: "variante-b", quantity: 1 },
     ])
+  })
+
+  it("ajoute depuis le bouton du bloc d'achat et affiche l'accusé", async () => {
+    const port = creerPortPanierEnMemoire()
+
+    render(buyBox(port))
+
+    await cliquerAjouter()
+
+    expect(port.appels).toEqual([
+      { operation: "ajouter", variantId: "variante-a", quantity: 1 },
+    ])
+    expect(container.textContent).toContain("Ajouté au panier")
+  })
+
+  it("affiche le Refus du panier du bouton du bloc d'achat dans role='alert'", async () => {
+    const port = creerPortPanierEnMemoire(() => ({
+      ok: false,
+      motif: "cap-atteinte",
+      message: MESSAGE_CAP_ATTEINTE,
+    }))
+
+    render(buyBox(port))
+
+    await cliquerAjouter()
+
+    expect(container.querySelector("[role='alert']")?.textContent).toBe(
+      MESSAGE_CAP_ATTEINTE
+    )
+    expect(container.textContent).not.toContain("Ajouté au panier")
+  })
+
+  it("affiche « Ajout… » et verrouille le bouton du bloc d'achat pendant l'ajout", async () => {
+    let resoudre!: (resultat: ResultatPanier) => void
+    const port = creerPortPanierEnMemoire(
+      () =>
+        new Promise<ResultatPanier>((resolve) => {
+          resoudre = resolve
+        })
+    )
+
+    render(buyBox(port))
+    const bouton = boutonAjouter()
+    act(() => {
+      bouton.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(bouton.textContent).toContain("Ajout…")
+    expect(bouton.textContent).not.toContain("Ajouter au panier")
+    expect(bouton.disabled).toBe(true)
+
+    await act(async () => {
+      resoudre({ ok: true })
+    })
+    await act(async () => {})
+
+    expect(container.textContent).toContain("Ajouté au panier")
   })
 
   it("ne rend aucune barre pour un produit sans variante et affiche son prix minimal", () => {

@@ -184,10 +184,12 @@ export function ProductBuyBox({
 
       <BarreDAchat
         visible={barVisible}
-        varianteId={variantId}
-        prix={prix}
-        variantNom={variantNom}
-        indisponible={outOfStock}
+        faits={{
+          varianteId: variantId,
+          prix,
+          variantNom,
+          indisponible: outOfStock,
+        }}
         port={port}
       />
     </div>

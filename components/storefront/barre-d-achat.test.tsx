@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { ResultatPanier } from "@/lib/panier"
 import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
-import { BarreDAchat } from "./barre-d-achat"
+import { BarreDAchat, type FaitsAffichageBarre } from "./barre-d-achat"
 
 const MESSAGE_CAP_ATTEINTE = "Votre panier est plein : 20 articles maximum."
 const MESSAGE_VARIANTE_INCONNUE = "Cet article n'est plus disponible."
@@ -34,25 +34,23 @@ function render(element: ReactElement) {
   act(() => root.render(element))
 }
 
-type FaitsAffichage = {
+type FaitsAffichageTest = {
   visible?: boolean
-  varianteId?: string
-  prix?: string
-  variantNom?: string
-  indisponible?: boolean
-}
+} & Partial<FaitsAffichageBarre>
 
 function rendreBarre(
   port = creerPortPanierEnMemoire(),
-  faits: FaitsAffichage = {}
+  faits: FaitsAffichageTest = {}
 ) {
   render(
     <BarreDAchat
       visible={faits.visible ?? true}
-      varianteId={faits.varianteId ?? "variante-a"}
-      prix={faits.prix ?? "1 050,00 MAD"}
-      variantNom={faits.variantNom}
-      indisponible={faits.indisponible}
+      faits={{
+        varianteId: faits.varianteId ?? "variante-a",
+        prix: faits.prix ?? "1 050,00 MAD",
+        variantNom: faits.variantNom,
+        indisponible: faits.indisponible,
+      }}
       port={port}
     />
   )
