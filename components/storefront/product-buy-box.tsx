@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react"
 
 import { BarreDAchat } from "@/components/storefront/barre-d-achat"
-import { useAjoutAuPanier } from "@/components/storefront/use-ajout-au-panier"
+import {
+  useMutationsDuPanier,
+  type PortMutationsDuPanier,
+} from "@/components/storefront/use-mutations-du-panier"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -24,26 +27,28 @@ export function ProductBuyBox({
   minPrice,
   variants,
   freeShipping,
+  port,
 }: {
   minPrice: number
   variants: ProductVariantDto[]
   freeShipping: boolean
+  port?: PortMutationsDuPanier
 }) {
-  const {
-    variantId,
-    setVariantId,
-    prix,
-    stock,
-    outOfStock,
-    enAttente,
-    ajoute,
-    messageErreur,
-    desactive,
-    variantNom,
-    ajouter,
-  } = useAjoutAuPanier({ variants })
+  const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
+  const { enAttente, messageRefus, ajoute, ajouter } = useMutationsDuPanier(port)
   const [barVisible, setBarVisible] = useState(false)
   const buyButtonRef = useRef<HTMLButtonElement>(null)
+
+  const selected = variants.find((variant) => variant.id === variantId)
+  const stock = selected?.stock ?? 0
+  const outOfStock = stock === 0
+  const prix = selected ? formatPrice(selected.prix) : ""
+  const variantNom = variants.length > 1 ? selected?.name : undefined
+
+  function lancerAjout() {
+    if (!selected || outOfStock) return
+    ajouter(selected.id, 1)
+  }
 
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return
@@ -164,30 +169,28 @@ export function ProductBuyBox({
       <Button
         ref={buyButtonRef}
         size="xl"
-        onClick={ajouter}
+        onClick={lancerAjout}
         disabled={outOfStock || enAttente}
         className="w-full rounded-full text-[17px] lg:h-9"
       >
         {enAttente ? "Ajout…" : "Ajouter au panier"}
       </Button>
       {ajoute && <p className="text-sm text-emerald-600">Ajouté au panier</p>}
-      {messageErreur && (
+      {messageRefus && (
         <p role="alert" className="text-sm text-destructive">
-          {messageErreur}
+          {messageRefus}
         </p>
       )}
 
       <BarreDAchat
         visible={barVisible}
-        etat={{
+        faits={{
+          varianteId: variantId,
           prix,
-          ajouter,
-          enAttente,
-          ajoute,
-          messageErreur,
-          desactive,
           variantNom,
+          indisponible: outOfStock,
         }}
+        port={port}
       />
     </div>
   )

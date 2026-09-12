@@ -2,31 +2,29 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useState, useTransition } from "react"
 
-import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import type { ProduitLie } from "@/lib/use-cases/blog"
+import {
+  useMutationsDuPanier,
+  type PortMutationsDuPanier,
+} from "./use-mutations-du-panier"
 
-export function ProduitLieCarte({ product }: { product: ProduitLie }) {
-  const [ajoute, setAjoute] = useState(false)
-  const [messageErreur, setMessageErreur] = useState("")
-  const [enAttente, demarrer] = useTransition()
+export function ProduitLieCarte({
+  product,
+  port,
+}: {
+  product: ProduitLie
+  port?: PortMutationsDuPanier
+}) {
+  const { enAttente, messageRefus, ajoute, ajouter } =
+    useMutationsDuPanier(port)
 
-  function ajouter() {
+  function lancerAjout() {
     if (!product.varianteId || enAttente) return
-    setAjoute(false)
-    setMessageErreur("")
-    demarrer(async () => {
-      const resultat = await ajouterArticleAuPanierAction(
-        product.varianteId!,
-        1
-      )
-      if (resultat.ok) setAjoute(true)
-      else setMessageErreur(resultat.message)
-    })
+    ajouter(product.varianteId, 1)
   }
 
   return (
@@ -76,7 +74,7 @@ export function ProduitLieCarte({ product }: { product: ProduitLie }) {
       <Button
         size="sm"
         variant="secondary"
-        onClick={ajouter}
+        onClick={lancerAjout}
         disabled={!product.varianteId || enAttente}
         className="w-full rounded-full"
       >
@@ -85,9 +83,9 @@ export function ProduitLieCarte({ product }: { product: ProduitLie }) {
       {ajoute ? (
         <p className="text-xs text-emerald-600">Ajouté au panier</p>
       ) : null}
-      {messageErreur ? (
+      {messageRefus ? (
         <p role="alert" className="text-xs text-destructive">
-          {messageErreur}
+          {messageRefus}
         </p>
       ) : null}
     </div>

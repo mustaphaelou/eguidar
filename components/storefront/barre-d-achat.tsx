@@ -2,25 +2,36 @@
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import {
+  useMutationsDuPanier,
+  type PortMutationsDuPanier,
+} from "./use-mutations-du-panier"
 
-import type { EtatAjoutAuPanier } from "./use-ajout-au-panier"
+export type FaitsAffichageBarre = {
+  varianteId: string
+  prix: string
+  variantNom?: string
+  indisponible?: boolean
+}
 
 export function BarreDAchat({
   visible,
-  etat,
+  faits,
+  port,
 }: {
   visible: boolean
-  etat: EtatAjoutAuPanier
+  faits: FaitsAffichageBarre
+  port?: PortMutationsDuPanier
 }) {
-  const {
-    prix,
-    ajouter,
-    enAttente = false,
-    ajoute = false,
-    messageErreur,
-    desactive = false,
-    variantNom,
-  } = etat
+  const { enAttente, messageRefus, ajoute, ajouter } =
+    useMutationsDuPanier(port)
+
+  const { varianteId, prix, variantNom, indisponible = false } = faits
+
+  function lancerAjout() {
+    if (!varianteId || indisponible || enAttente) return
+    ajouter(varianteId, 1)
+  }
 
   return (
     <div
@@ -39,8 +50,8 @@ export function BarreDAchat({
         <div className="flex flex-col items-end gap-1">
           <Button
             size="xl"
-            disabled={desactive}
-            onClick={ajouter}
+            disabled={indisponible || enAttente}
+            onClick={lancerAjout}
             aria-label={
               variantNom ? `Ajouter au panier — ${variantNom}` : undefined
             }
@@ -51,9 +62,9 @@ export function BarreDAchat({
           {ajoute && (
             <p className="text-sm text-emerald-600">Ajouté au panier</p>
           )}
-          {messageErreur && (
+          {messageRefus && (
             <p role="alert" className="text-sm text-destructive">
-              {messageErreur}
+              {messageRefus}
             </p>
           )}
         </div>
