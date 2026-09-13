@@ -38,6 +38,7 @@ export const auth = betterAuth({
     facebook: {
       clientId: process.env.FACEBOOK_CLIENT_ID ?? "",
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? "",
+      mapProfileToUser: () => ({ emailVerified: true }),
     },
   },
   plugins: [
