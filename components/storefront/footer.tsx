@@ -13,6 +13,13 @@ const accountLinks = [
   { href: "/profil", label: "Mon profil" },
 ]
 
+const legalLinks = [
+  { href: "/confidentialite", label: "Confidentialité" },
+  { href: "/suppression-donnees", label: "Suppression des données" },
+]
+
+const footerLinks = [...staticPages, ...legalLinks]
+
 function LinkColumn({
   title,
   links,
@@ -88,7 +95,7 @@ export function StorefrontFooter() {
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-x-2">
             <span>© {site.name} — Tous droits réservés.</span>
-            {staticPages.map((link, index) => (
+            {footerLinks.map((link, index) => (
               <span key={link.href} className="flex items-center gap-x-2">
                 {index > 0 ? (
                   <span aria-hidden="true" className="h-2.5 w-px bg-border" />
