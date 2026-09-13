@@ -149,21 +149,28 @@ function SwapHarness() {
   )
 }
 
-function renderWithDialogs(harness: React.ReactElement) {
+function renderDialogs({
+  hasGoogle = false,
+  hasFacebook = false,
+  harness,
+}: {
+  hasGoogle?: boolean
+  hasFacebook?: boolean
+  harness?: React.ReactElement
+} = {}) {
   render(() => (
     <AuthDialogsProvider>
       {harness}
-      <AuthDialog dialog="login" hasGoogle={false} hasApple={false} />
-      <AuthDialog dialog="signup" hasGoogle={false} hasApple={false} />
-    </AuthDialogsProvider>
-  ))
-}
-
-function renderDialogs() {
-  render(() => (
-    <AuthDialogsProvider>
-      <AuthDialog dialog="login" hasGoogle={false} hasApple={false} />
-      <AuthDialog dialog="signup" hasGoogle={false} hasApple={false} />
+      <AuthDialog
+        dialog="login"
+        hasGoogle={hasGoogle}
+        hasFacebook={hasFacebook}
+      />
+      <AuthDialog
+        dialog="signup"
+        hasGoogle={hasGoogle}
+        hasFacebook={hasFacebook}
+      />
     </AuthDialogsProvider>
   ))
 }
@@ -206,6 +213,12 @@ function submitButton(text: string) {
   )
 }
 
+function socialProviderButtons() {
+  return [...document.querySelectorAll<HTMLButtonElement>("button")].filter(
+    (button) => button.textContent?.includes("Continuer avec")
+  )
+}
+
 describe("AuthDialog", () => {
   it("keeps the same title text size on both kinds", async () => {
     window.history.replaceState(null, "", "/?open=login")
@@ -221,7 +234,7 @@ describe("AuthDialog", () => {
 
   describe("Connexion", () => {
     it("opens from the provider, writes ?open=login, and closes on Escape", async () => {
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       expect(dialog()).toBeNull()
       await clickAndSync(openButton())
@@ -245,7 +258,7 @@ describe("AuthDialog", () => {
     })
 
     it("renders the popup with aria-modal", async () => {
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       await clickAndSync(openButton())
 
@@ -269,7 +282,7 @@ describe("AuthDialog", () => {
         "",
         "/?open=login&next=/produit/tableau-atlas"
       )
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       await clickAndSync(openButton())
 
@@ -278,7 +291,7 @@ describe("AuthDialog", () => {
 
     it("shows the continuer title for a non-commerce destination", async () => {
       window.history.replaceState(null, "", "/?open=login&next=/compte")
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       await clickAndSync(openButton())
 
@@ -291,7 +304,7 @@ describe("AuthDialog", () => {
         "",
         "/?open=login&next=/produits-voisins"
       )
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       await clickAndSync(openButton())
 
@@ -299,7 +312,7 @@ describe("AuthDialog", () => {
     })
 
     it("swaps to Inscription with the entered email prefilled", async () => {
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       await clickAndSync(openButton())
       setInputValue(emailInput()!, "swap@example.com")
@@ -320,7 +333,7 @@ describe("AuthDialog", () => {
         data: null,
         error: { code: "EMAIL_NOT_VERIFIED" },
       })
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       await clickAndSync(openButton())
       setInputValue(emailInput()!, "user@example.com")
@@ -341,7 +354,7 @@ describe("AuthDialog", () => {
     })
 
     it("closes on forgot-password", async () => {
-      renderWithDialogs(<Harness />)
+      renderDialogs({ harness: <Harness /> })
 
       await clickAndSync(openButton())
       await clickAndSync(
@@ -374,11 +387,84 @@ describe("AuthDialog", () => {
       expect(dialog()).toBeNull()
       expect(new URL(window.location.href).searchParams.has("open")).toBe(false)
     })
+
+    it("shows Continuer avec Google alone when Google is configured", async () => {
+      window.history.replaceState(null, "", "/?open=login")
+      renderDialogs({ hasGoogle: true })
+      await flush()
+      rerender()
+
+      expect(
+        socialProviderButtons().map((button) => button.textContent?.trim())
+      ).toEqual(["Continuer avec Google"])
+      expect(
+        document.querySelector('[data-slot="field-separator"]')
+      ).not.toBeNull()
+    })
+
+    it("shows Facebook first, then Google, when both providers are configured", async () => {
+      window.history.replaceState(null, "", "/?open=login")
+      renderDialogs({ hasGoogle: true, hasFacebook: true })
+      await flush()
+      rerender()
+
+      expect(
+        socialProviderButtons().map((button) => button.textContent?.trim())
+      ).toEqual(["Continuer avec Facebook", "Continuer avec Google"])
+      expect(
+        document.querySelector('[data-slot="field-separator"]')
+      ).not.toBeNull()
+    })
+
+    it("starts a Facebook Connexion sociale from the Facebook button", async () => {
+      mockedAuthClient.signIn.social.mockResolvedValue({
+        data: {},
+        error: null,
+      })
+      window.history.replaceState(null, "", "/?open=login&query=phone")
+      renderDialogs({ hasGoogle: true, hasFacebook: true })
+      await flush()
+      rerender()
+
+      await clickAndFlush(submitButton("Continuer avec Facebook")!)
+
+      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+        provider: "facebook",
+        callbackURL: "http://localhost:3000/?query=phone",
+      })
+    })
+
+    it("shows no Connexion sociale block when no provider is configured", async () => {
+      window.history.replaceState(null, "", "/?open=login")
+      renderDialogs()
+      await flush()
+      rerender()
+
+      expect(socialProviderButtons()).toEqual([])
+      expect(
+        document.querySelector('[data-slot="field-separator"]')
+      ).toBeNull()
+    })
   })
 
   describe("Inscription", () => {
+    it("gains no Connexion sociale buttons even when providers are configured", async () => {
+      renderDialogs({
+        hasGoogle: true,
+        hasFacebook: true,
+        harness: <SwapHarness />,
+      })
+
+      await clickAndSync(
+        container.querySelector<HTMLButtonElement>("[data-open-signup]")!
+      )
+
+      expect(title()).toBe("Créer un compte")
+      expect(socialProviderButtons()).toEqual([])
+    })
+
     it("opens with the default title and swaps back to Connexion with the e-mail prefilled", async () => {
-      renderWithDialogs(<SwapHarness />)
+      renderDialogs({ harness: <SwapHarness /> })
 
       await clickAndSync(
         container.querySelector<HTMLButtonElement>("[data-open-signup]")!
@@ -404,7 +490,7 @@ describe("AuthDialog", () => {
         "",
         "/?open=signup&next=/produit/tableau-atlas?variante=2"
       )
-      renderWithDialogs(<SwapHarness />)
+      renderDialogs({ harness: <SwapHarness /> })
 
       await clickAndSync(
         container.querySelector<HTMLButtonElement>("[data-open-signup]")!
@@ -415,7 +501,7 @@ describe("AuthDialog", () => {
 
     it("shows the continuer title for a non-commerce destination", async () => {
       window.history.replaceState(null, "", "/?open=signup&next=/compte")
-      renderWithDialogs(<SwapHarness />)
+      renderDialogs({ harness: <SwapHarness /> })
 
       await clickAndSync(
         container.querySelector<HTMLButtonElement>("[data-open-signup]")!
@@ -425,7 +511,7 @@ describe("AuthDialog", () => {
     })
 
     it("completes the otp round-trip and opens Connexion with the verified e-mail", async () => {
-      renderWithDialogs(<SwapHarness />)
+      renderDialogs({ harness: <SwapHarness /> })
 
       await clickAndSync(
         container.querySelector<HTMLButtonElement>("[data-open-signup]")!

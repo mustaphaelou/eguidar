@@ -209,7 +209,7 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
     expect(cookie).toContain(`${NOM_COOKIE_PANIER_VISITEUR}=`)
   })
 
-  it.each(["google", "apple"])(
+  it.each(["google", "facebook"])(
     "lands the same merged Panier through the same helper after a %s social callback",
     async (fournisseur) => {
       await ajouterArticleAuPanier(variantA, 3)

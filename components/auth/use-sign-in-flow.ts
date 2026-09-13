@@ -11,6 +11,7 @@ import {
 } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 import { withoutAuthParams } from "@/lib/lien-de-connexion"
+import type { FournisseurSocial } from "@/lib/oauth-providers"
 
 export type SignInStep = "form" | "otp"
 
@@ -68,7 +69,7 @@ export function useSignInFlow({
     }
   }
 
-  async function handleSocial(provider: "google" | "apple") {
+  async function handleSocial(provider: FournisseurSocial) {
     setError(null)
     setNotice(null)
     const result = await authClient.signIn.social({

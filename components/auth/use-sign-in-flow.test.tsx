@@ -10,6 +10,7 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
+import type { FournisseurSocial } from "@/lib/oauth-providers"
 import { useSignInFlow } from "./use-sign-in-flow"
 
 const captchaStub = vi.hoisted(() => ({
@@ -112,6 +113,13 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
       >
         social google
       </button>
+      <button
+        type="button"
+        data-social-facebook
+        onClick={() => flow.handleSocial("facebook")}
+      >
+        social facebook
+      </button>
       <div data-step={flow.step} />
       {flow.notice && <p data-notice>{flow.notice}</p>}
       {flow.error && <p data-error>{flow.error}</p>}
@@ -149,8 +157,10 @@ function signInButton() {
   return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
 }
 
-function socialButton() {
-  return container.querySelector<HTMLButtonElement>("[data-social-google]")!
+function socialButton(provider: FournisseurSocial = "google") {
+  return container.querySelector<HTMLButtonElement>(
+    `[data-social-${provider}]`
+  )!
 }
 
 function step() {
@@ -312,45 +322,54 @@ describe("useSignInFlow", () => {
     expect(emailInput().value).toBe("prefilled@example.com")
   })
 
-  it("uses the current URL without ?open= as the social callbackURL", async () => {
-    window.history.replaceState(null, "", "/panier?open=login")
-    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
-
-    render(<Harness />)
-
-    await clickAndFlush(socialButton())
-
-    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+  it.each([
+    {
       provider: "google",
-      callbackURL: "http://localhost:3000/panier",
-    })
-  })
-
-  it("keeps other search params in the social callbackURL", async () => {
-    window.history.replaceState(null, "", "/?open=login&query=phone")
-    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
-
-    render(<Harness />)
-
-    await clickAndFlush(socialButton())
-
-    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+      url: "/panier?open=login",
+      expected: "http://localhost:3000/panier",
+    },
+    {
+      provider: "facebook",
+      url: "/panier?open=login",
+      expected: "http://localhost:3000/panier",
+    },
+    {
       provider: "google",
-      callbackURL: "http://localhost:3000/?query=phone",
-    })
-  })
-
-  it("uses the current URL unchanged as the social callbackURL when there is no ?open=", async () => {
-    window.history.replaceState(null, "", "/produits?query=phone")
-    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
-
-    render(<Harness />)
-
-    await clickAndFlush(socialButton())
-
-    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+      url: "/?open=login&query=phone",
+      expected: "http://localhost:3000/?query=phone",
+    },
+    {
+      provider: "facebook",
+      url: "/?open=login&query=phone",
+      expected: "http://localhost:3000/?query=phone",
+    },
+    {
       provider: "google",
-      callbackURL: "http://localhost:3000/produits?query=phone",
-    })
-  })
+      url: "/produits?query=phone",
+      expected: "http://localhost:3000/produits?query=phone",
+    },
+    {
+      provider: "facebook",
+      url: "/produits?query=phone",
+      expected: "http://localhost:3000/produits?query=phone",
+    },
+  ] as const)(
+    "computes the $provider Connexion sociale callbackURL from $url",
+    async ({ provider, url, expected }) => {
+      window.history.replaceState(null, "", url)
+      mockedAuthClient.signIn.social.mockResolvedValue({
+        data: {},
+        error: null,
+      })
+
+      render(<Harness />)
+
+      await clickAndFlush(socialButton(provider))
+
+      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+        provider,
+        callbackURL: expected,
+      })
+    }
+  )
 })

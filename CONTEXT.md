@@ -113,7 +113,7 @@ Le prix affiché pour une Variante (prix de base plus écart de prix) et pour un
 _Avoid_: current price, prix effectif, prix calculé
 
 **Compte client**:
-The registered customer entity (Better Auth user) with credentials, email verification, and optional social logins (Google, Apple). Carries a `role` ("user" or "admin").
+The registered customer entity (Better Auth user) with credentials, email verification, and optional Connexion sociale (Facebook, Google). Carries a `role` ("user" or "admin").
 _Avoid_: account, user, membre
 
 **Visiteur**:
@@ -128,6 +128,10 @@ _Avoid_: shopper, customer, utilisateur
 The act of authenticating an existing customer into their account — a modal over the current page, never a standalone page. The modal is a reusable component available on every storefront page.
 _Avoid_: login page, se connecter (as the screen name)
 
+**Connexion sociale**:
+L'authentification d'un Client via un fournisseur externe (Facebook, Google) plutôt qu'un mot de passe.
+_Avoid_: social login, login social, OAuth
+
 **Inscription**:
 Creating a new customer account, presented in its own modal (distinct from Connexion).
 _Avoid_: sign-up page, register
@@ -137,7 +141,7 @@ Le chemin interne de la boutique où le client reprend son parcours après une a
 _Avoid_: redirect, callback, retour
 
 **Vérification de l'e-mail**:
-L'échange d'un code à usage unique envoyé à l'adresse e-mail contre la validation de cette adresse. Le Compte client est créé dès l'Inscription mais n'est un Client de plein droit qu'une fois son e-mail vérifié ; à la Connexion, un Compte client non vérifié reprend ce même échange avant de pouvoir se connecter.
+L'échange d'un code à usage unique envoyé à l'adresse e-mail contre la validation de cette adresse. Le Compte client est créé dès l'Inscription mais n'est un Client de plein droit qu'une fois son e-mail vérifié ; à la Connexion, un Compte client non vérifié reprend ce même échange avant de pouvoir se connecter. Une adresse fournie par Facebook ou Google lors d'une connexion sociale vaut vérification ; elle ne passe pas par cet échange.
 _Avoid_: OTP, code de vérification, vérification OTP
 
 **Test de sécurité**:
