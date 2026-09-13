@@ -217,6 +217,14 @@ l'edge (301) ; `cdn.`, `ssh.` et `send.` sont traités à la couche Cloudflare, 
 sous-domaine s'arrête sur l'erreur 503 de l'origine.
 _Avoid_: domaine principal, canonical domain
 
+**Logo**:
+Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans l'en-tête et le pied de page.
+_Avoid_: logotype, symbole, marque (réservée aux marques de produits)
+
+**Icône de site**:
+La tuile carrée « e » sur fond presque noir, utilisée comme favicon, icône Apple touch et dans l'Administration.
+_Avoid_: favicon (comme nom du concept), app icon, icône d'application
+
 **Blog**:
 Le journal éditorial d'eguidar.com (`/blog`) : guides et annonces en style Apple Newsroom,
 distinct du Catalogue et de la FAQ.

@@ -1,6 +1,9 @@
+import { existsSync } from "node:fs"
+import path from "node:path"
+
 import { describe, expect, it } from "vitest"
 
-import { logoBrand, site } from "./site"
+import { brand, site } from "./site"
 
 describe("site", () => {
   it("pins the display identity", () => {
@@ -10,13 +13,17 @@ describe("site", () => {
   })
 })
 
-describe("logoBrand", () => {
-  it("splits the display name into the two-tone parts", () => {
-    expect(logoBrand.base).toBe("eguidar")
-    expect(logoBrand.accent).toBe(".com")
+describe("brand", () => {
+  it("pins the lockup contract", () => {
+    expect(brand.lockup.src).toBe("/brand/eguidar-logo.svg")
+    expect(brand.lockup.width).toBe(1352)
+    expect(brand.lockup.height).toBe(442)
+    expect(brand.lockup.alt).toBe("eguidar.com")
   })
 
-  it("recombines into the display name", () => {
-    expect(`${logoBrand.base}${logoBrand.accent}`).toBe(site.name)
+  it("ships the lockup asset", () => {
+    expect(
+      existsSync(path.join(process.cwd(), "public", brand.lockup.src))
+    ).toBe(true)
   })
 })

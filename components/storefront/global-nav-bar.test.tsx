@@ -71,9 +71,11 @@ describe("GlobalNavBar", () => {
 
     const home = container.querySelector<HTMLAnchorElement>("a[href='/']")!
     expect(home.getAttribute("aria-label")).toBe("eguidar.com — Accueil")
-    expect(home.textContent).toBe("eguidar.com")
-    const accent = home.querySelector<HTMLElement>(".text-link")!
-    expect(accent.textContent).toBe(".com")
+    const logo = home.querySelector<HTMLImageElement>("img")!
+    expect(logo.getAttribute("src")).toBe("/brand/eguidar-logo.svg")
+    expect(logo.getAttribute("width")).toBe("1352")
+    expect(logo.getAttribute("height")).toBe("442")
+    expect(logo.getAttribute("alt")).toBe("eguidar.com")
 
     expect(container.textContent).toContain("À propos")
     expect(container.textContent).toContain("Contact")
