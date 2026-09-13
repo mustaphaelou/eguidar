@@ -14,10 +14,17 @@ export const site = {
     "Bonjour Eguidar, j'ai une question concernant votre boutique.",
 } as const
 
-const dotIndex = site.name.indexOf(".")
-export const logoBrand = {
-  base: site.name.slice(0, dotIndex),
-  accent: site.name.slice(dotIndex),
+export const logo = {
+  src: "/brand/eguidar-logo.svg",
+  width: 1352,
+  height: 442.5,
+  alt: site.name,
+} as const
+
+export const siteIcon = {
+  src: "/brand/eguidar-icon-512.png",
+  width: 512,
+  height: 512,
 } as const
 
 export const staticPages = [

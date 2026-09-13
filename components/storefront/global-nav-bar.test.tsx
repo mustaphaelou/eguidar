@@ -64,16 +64,18 @@ const links = [
 ]
 
 describe("GlobalNavBar", () => {
-  it("renders the brand, links and server-rendered actions", () => {
+  it("renders the logo, links and server-rendered actions", () => {
     const errors = renderCapturingErrors(
       <GlobalNavBar links={links} actions={<span>actions</span>} />
     )
 
     const home = container.querySelector<HTMLAnchorElement>("a[href='/']")!
     expect(home.getAttribute("aria-label")).toBe("eguidar.com — Accueil")
-    expect(home.textContent).toBe("eguidar.com")
-    const accent = home.querySelector<HTMLElement>(".text-link")!
-    expect(accent.textContent).toBe(".com")
+    const logo = home.querySelector<HTMLImageElement>("img")!
+    expect(logo.getAttribute("src")).toBe("/brand/eguidar-logo.svg")
+    expect(logo.getAttribute("width")).toBe("1352")
+    expect(logo.getAttribute("height")).toBe("442.5")
+    expect(logo.getAttribute("alt")).toBe("eguidar.com")
 
     expect(container.textContent).toContain("À propos")
     expect(container.textContent).toContain("Contact")

@@ -1,5 +1,5 @@
 import type { FaqEntry } from "@/lib/faq"
-import { site } from "@/lib/site"
+import { site, siteIcon } from "@/lib/site"
 
 export interface SchemaBrand {
   "@type": "Brand"
@@ -67,6 +67,7 @@ export interface SchemaOrganization {
   name: string
   legalName: string
   url: string
+  logo: string
   contactPoint: SchemaContactPoint
 }
 
@@ -229,6 +230,7 @@ export function buildOrganizationDonneesStructurees(): SchemaOrganization {
     name: site.name,
     legalName: site.legalName,
     url: site.url,
+    logo: `${site.url}${siteIcon.src}`,
     contactPoint: {
       "@type": "ContactPoint",
       telephone: site.contactPhone,
