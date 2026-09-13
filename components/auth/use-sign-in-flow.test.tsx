@@ -10,6 +10,7 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
+import type { FournisseurSocial } from "@/lib/oauth-providers"
 import { useSignInFlow } from "./use-sign-in-flow"
 
 const captchaStub = vi.hoisted(() => ({
@@ -156,7 +157,7 @@ function signInButton() {
   return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
 }
 
-function socialButton(provider: "facebook" | "google" = "google") {
+function socialButton(provider: FournisseurSocial = "google") {
   return container.querySelector<HTMLButtonElement>(
     `[data-social-${provider}]`
   )!
@@ -321,10 +322,41 @@ describe("useSignInFlow", () => {
     expect(emailInput().value).toBe("prefilled@example.com")
   })
 
-  it.each(["google", "facebook"] as const)(
-    "uses the current URL without ?open= as the %s social callbackURL",
-    async (provider) => {
-      window.history.replaceState(null, "", "/panier?open=login")
+  it.each([
+    {
+      provider: "google",
+      url: "/panier?open=login",
+      expected: "http://localhost:3000/panier",
+    },
+    {
+      provider: "facebook",
+      url: "/panier?open=login",
+      expected: "http://localhost:3000/panier",
+    },
+    {
+      provider: "google",
+      url: "/?open=login&query=phone",
+      expected: "http://localhost:3000/?query=phone",
+    },
+    {
+      provider: "facebook",
+      url: "/?open=login&query=phone",
+      expected: "http://localhost:3000/?query=phone",
+    },
+    {
+      provider: "google",
+      url: "/produits?query=phone",
+      expected: "http://localhost:3000/produits?query=phone",
+    },
+    {
+      provider: "facebook",
+      url: "/produits?query=phone",
+      expected: "http://localhost:3000/produits?query=phone",
+    },
+  ] as const)(
+    "computes the $provider Connexion sociale callbackURL from $url",
+    async ({ provider, url, expected }) => {
+      window.history.replaceState(null, "", url)
       mockedAuthClient.signIn.social.mockResolvedValue({
         data: {},
         error: null,
@@ -336,47 +368,7 @@ describe("useSignInFlow", () => {
 
       expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
         provider,
-        callbackURL: "http://localhost:3000/panier",
-      })
-    }
-  )
-
-  it.each(["google", "facebook"] as const)(
-    "keeps other search params in the %s social callbackURL",
-    async (provider) => {
-      window.history.replaceState(null, "", "/?open=login&query=phone")
-      mockedAuthClient.signIn.social.mockResolvedValue({
-        data: {},
-        error: null,
-      })
-
-      render(<Harness />)
-
-      await clickAndFlush(socialButton(provider))
-
-      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
-        provider,
-        callbackURL: "http://localhost:3000/?query=phone",
-      })
-    }
-  )
-
-  it.each(["google", "facebook"] as const)(
-    "uses the current URL unchanged as the %s social callbackURL when there is no ?open=",
-    async (provider) => {
-      window.history.replaceState(null, "", "/produits?query=phone")
-      mockedAuthClient.signIn.social.mockResolvedValue({
-        data: {},
-        error: null,
-      })
-
-      render(<Harness />)
-
-      await clickAndFlush(socialButton(provider))
-
-      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
-        provider,
-        callbackURL: "http://localhost:3000/produits?query=phone",
+        callbackURL: expected,
       })
     }
   )

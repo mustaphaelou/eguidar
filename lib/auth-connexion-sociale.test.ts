@@ -1,21 +1,29 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { auth } from "@/lib/auth"
 
-describe("social providers configuration", () => {
+describe("Connexion sociale : configuration serveur", () => {
   it("registers Facebook alongside Google and no longer Apple", () => {
     const providers = auth.options.socialProviders ?? {}
 
     expect(Object.keys(providers).sort()).toEqual(["facebook", "google"])
   })
 
-  it("reads the Facebook credentials from the environment", () => {
-    expect(auth.options.socialProviders?.facebook.clientId).toBe(
-      process.env.FACEBOOK_CLIENT_ID ?? ""
+  it("reads the Facebook credentials from the environment", async () => {
+    vi.stubEnv("FACEBOOK_CLIENT_ID", "facebook-client-id")
+    vi.stubEnv("FACEBOOK_CLIENT_SECRET", "facebook-client-secret")
+    vi.resetModules()
+
+    const { auth: freshAuth } = await import("@/lib/auth")
+
+    expect(freshAuth.options.socialProviders?.facebook.clientId).toBe(
+      "facebook-client-id"
     )
-    expect(auth.options.socialProviders?.facebook.clientSecret).toBe(
-      process.env.FACEBOOK_CLIENT_SECRET ?? ""
+    expect(freshAuth.options.socialProviders?.facebook.clientSecret).toBe(
+      "facebook-client-secret"
     )
+
+    vi.unstubAllEnvs()
   })
 
   it("marks a Facebook profile's e-mail as verified", async () => {
