@@ -9,7 +9,7 @@ import {
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
 import { faqs } from "@/lib/faq"
-import { site } from "@/lib/site"
+import { brand, site } from "@/lib/site"
 
 describe("serializeJsonLd", () => {
   it("serializes an object to JSON", () => {
@@ -353,6 +353,7 @@ describe("buildOrganizationDonneesStructurees", () => {
       name: "eguidar.com",
       legalName: "Eguidar",
       url: "https://eguidar.com",
+      logo: "https://eguidar.com/brand/eguidar-icon-512.png",
       contactPoint: {
         "@type": "ContactPoint",
         telephone: "+212 661 234 567",
@@ -362,14 +363,14 @@ describe("buildOrganizationDonneesStructurees", () => {
     })
   })
 
-  it("verifies deliberate absence of logo and sameAs", () => {
+  it("publishes the canonical logo URL while sameAs stays absent", () => {
     const result = buildOrganizationDonneesStructurees() as unknown as Record<
       string,
       unknown
     >
-    expect(result.logo).toBeUndefined()
+    expect(result.logo).toBe(`${site.url}${brand.siteIcon.src}`)
+    expect("logo" in result).toBe(true)
     expect(result.sameAs).toBeUndefined()
-    expect("logo" in result).toBe(false)
     expect("sameAs" in result).toBe(false)
   })
 })
