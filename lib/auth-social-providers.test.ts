@@ -17,4 +17,40 @@ describe("social providers configuration", () => {
       process.env.FACEBOOK_CLIENT_SECRET ?? ""
     )
   })
+
+  it("marks a Facebook profile's e-mail as verified", async () => {
+    const mapProfileToUser = auth.options.socialProviders?.facebook
+      .mapProfileToUser as
+      | ((profile: Record<string, unknown>) => unknown)
+      | undefined
+
+    expect(mapProfileToUser).toBeTypeOf("function")
+
+    const profile = {
+      id: "1",
+      name: "Client",
+      email: "client@test.ma",
+      email_verified: undefined,
+    }
+
+    expect(await mapProfileToUser?.(profile)).toEqual({ emailVerified: true })
+  })
+
+  it("keeps account-linking options at Better Auth defaults", () => {
+    const accountOptions = (
+      auth.options as unknown as {
+        account?: {
+          accountLinking?: {
+            requireLocalEmailVerified?: boolean
+            trustedProviders?: string[]
+          }
+        }
+      }
+    ).account
+
+    expect(accountOptions?.accountLinking?.requireLocalEmailVerified).not.toBe(
+      false
+    )
+    expect(accountOptions?.accountLinking?.trustedProviders ?? []).toEqual([])
+  })
 })
