@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 
-import { site } from "@/lib/site"
+import { brand, site } from "@/lib/site"
 
 import { NavGroup } from "@/components/layout/admin/nav-group"
 import { UserMenu } from "@/components/layout/admin/user-menu"
@@ -38,9 +38,13 @@ export function AppSidebar({
               tooltip={`${site.legalName} — Administration`}
               render={<Link href="/admin" />}
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary font-heading text-base font-semibold text-primary-foreground">
-                {site.legalName.slice(0, 1)}
-              </span>
+              <img
+                src={brand.siteIcon.src}
+                alt=""
+                width={32}
+                height={32}
+                className="size-8 shrink-0"
+              />
               <span className="flex min-w-0 flex-col leading-tight">
                 <span className="font-semibold">{site.legalName}</span>
                 <span className="truncate text-xs text-muted-foreground">
