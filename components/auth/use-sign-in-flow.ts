@@ -68,7 +68,7 @@ export function useSignInFlow({
     }
   }
 
-  async function handleSocial(provider: "google" | "apple") {
+  async function handleSocial(provider: "google") {
     setError(null)
     setNotice(null)
     const result = await authClient.signIn.social({

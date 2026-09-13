@@ -65,11 +65,9 @@ type AuthDialogConfig = {
 export function AuthDialog({
   dialog,
   hasGoogle = false,
-  hasApple = false,
 }: {
   dialog: AuthDialogName
   hasGoogle?: boolean
-  hasApple?: boolean
 }) {
   const { email: initialEmail, openLogin, openSignUp, close } = useAuthDialogs()
   const open = useAuthDialogOpen(dialog)
@@ -98,7 +96,6 @@ export function AuthDialog({
       form: (
         <SignInForm
           hasGoogle={hasGoogle}
-          hasApple={hasApple}
           initialEmail={initialEmail}
           onStepChange={handleStepChange}
           onForgotPassword={close}
