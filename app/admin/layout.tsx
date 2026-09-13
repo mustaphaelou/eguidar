@@ -9,7 +9,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AuthSessionLayer } from "@/components/auth/auth-session-layer"
 import { getAdminSession } from "@/lib/use-cases/get-admin-session"
 import { loginUrl } from "@/lib/lien-de-connexion"
-import { hasGoogleOAuth } from "@/lib/oauth-providers"
+import { hasFacebookOAuth, hasGoogleOAuth } from "@/lib/oauth-providers"
 import { site } from "@/lib/site"
 
 export const metadata: Metadata = {
@@ -40,7 +40,7 @@ async function AdminShell({ children }: { children: React.ReactNode }) {
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false"
 
   return (
-    <AuthSessionLayer hasGoogle={hasGoogleOAuth}>
+    <AuthSessionLayer hasGoogle={hasGoogleOAuth} hasFacebook={hasFacebookOAuth}>
       <SidebarProvider defaultOpen={defaultOpen}>
         <AppSidebar
           userName={session.user.name ?? ""}

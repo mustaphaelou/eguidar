@@ -112,6 +112,13 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
       >
         social google
       </button>
+      <button
+        type="button"
+        data-social-facebook
+        onClick={() => flow.handleSocial("facebook")}
+      >
+        social facebook
+      </button>
       <div data-step={flow.step} />
       {flow.notice && <p data-notice>{flow.notice}</p>}
       {flow.error && <p data-error>{flow.error}</p>}
@@ -149,8 +156,10 @@ function signInButton() {
   return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
 }
 
-function socialButton() {
-  return container.querySelector<HTMLButtonElement>("[data-social-google]")!
+function socialButton(provider: "facebook" | "google" = "google") {
+  return container.querySelector<HTMLButtonElement>(
+    `[data-social-${provider}]`
+  )!
 }
 
 function step() {
@@ -312,45 +321,63 @@ describe("useSignInFlow", () => {
     expect(emailInput().value).toBe("prefilled@example.com")
   })
 
-  it("uses the current URL without ?open= as the social callbackURL", async () => {
-    window.history.replaceState(null, "", "/panier?open=login")
-    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
+  it.each(["google", "facebook"] as const)(
+    "uses the current URL without ?open= as the %s social callbackURL",
+    async (provider) => {
+      window.history.replaceState(null, "", "/panier?open=login")
+      mockedAuthClient.signIn.social.mockResolvedValue({
+        data: {},
+        error: null,
+      })
 
-    render(<Harness />)
+      render(<Harness />)
 
-    await clickAndFlush(socialButton())
+      await clickAndFlush(socialButton(provider))
 
-    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL: "http://localhost:3000/panier",
-    })
-  })
+      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+        provider,
+        callbackURL: "http://localhost:3000/panier",
+      })
+    }
+  )
 
-  it("keeps other search params in the social callbackURL", async () => {
-    window.history.replaceState(null, "", "/?open=login&query=phone")
-    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
+  it.each(["google", "facebook"] as const)(
+    "keeps other search params in the %s social callbackURL",
+    async (provider) => {
+      window.history.replaceState(null, "", "/?open=login&query=phone")
+      mockedAuthClient.signIn.social.mockResolvedValue({
+        data: {},
+        error: null,
+      })
 
-    render(<Harness />)
+      render(<Harness />)
 
-    await clickAndFlush(socialButton())
+      await clickAndFlush(socialButton(provider))
 
-    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL: "http://localhost:3000/?query=phone",
-    })
-  })
+      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+        provider,
+        callbackURL: "http://localhost:3000/?query=phone",
+      })
+    }
+  )
 
-  it("uses the current URL unchanged as the social callbackURL when there is no ?open=", async () => {
-    window.history.replaceState(null, "", "/produits?query=phone")
-    mockedAuthClient.signIn.social.mockResolvedValue({ data: {}, error: null })
+  it.each(["google", "facebook"] as const)(
+    "uses the current URL unchanged as the %s social callbackURL when there is no ?open=",
+    async (provider) => {
+      window.history.replaceState(null, "", "/produits?query=phone")
+      mockedAuthClient.signIn.social.mockResolvedValue({
+        data: {},
+        error: null,
+      })
 
-    render(<Harness />)
+      render(<Harness />)
 
-    await clickAndFlush(socialButton())
+      await clickAndFlush(socialButton(provider))
 
-    expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL: "http://localhost:3000/produits?query=phone",
-    })
-  })
+      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+        provider,
+        callbackURL: "http://localhost:3000/produits?query=phone",
+      })
+    }
+  )
 })
