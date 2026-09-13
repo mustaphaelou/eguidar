@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 
-import { brand, site } from "@/lib/site"
+import { site, siteIcon } from "@/lib/site"
 
 import { NavGroup } from "@/components/layout/admin/nav-group"
 import { UserMenu } from "@/components/layout/admin/user-menu"
@@ -39,10 +39,10 @@ export function AppSidebar({
               render={<Link href="/admin" />}
             >
               <img
-                src={brand.siteIcon.src}
+                src={siteIcon.src}
                 alt=""
-                width={32}
-                height={32}
+                width={siteIcon.width}
+                height={siteIcon.height}
                 className="size-8 shrink-0"
               />
               <span className="flex min-w-0 flex-col leading-tight">

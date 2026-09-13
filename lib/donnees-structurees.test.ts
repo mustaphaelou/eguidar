@@ -9,7 +9,7 @@ import {
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
 import { faqs } from "@/lib/faq"
-import { brand, site } from "@/lib/site"
+import { site, siteIcon } from "@/lib/site"
 
 describe("serializeJsonLd", () => {
   it("serializes an object to JSON", () => {
@@ -368,7 +368,7 @@ describe("buildOrganizationDonneesStructurees", () => {
       string,
       unknown
     >
-    expect(result.logo).toBe(`${site.url}${brand.siteIcon.src}`)
+    expect(result.logo).toBe(`${site.url}${siteIcon.src}`)
     expect("logo" in result).toBe(true)
     expect(result.sameAs).toBeUndefined()
     expect("sameAs" in result).toBe(false)

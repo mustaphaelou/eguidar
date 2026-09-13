@@ -12,8 +12,9 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
+import { Logo } from "@/components/storefront/logo"
 import { SearchSuggestions } from "@/components/storefront/search-suggestions"
-import { brand, site } from "@/lib/site"
+import { site } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
 export type GlobalNavLink = { href: string; label: string }
@@ -56,13 +57,7 @@ export function GlobalNavBar({
           className="shrink-0"
           aria-label={`${site.name} — Accueil`}
         >
-          <img
-            src={brand.lockup.src}
-            width={brand.lockup.width}
-            height={brand.lockup.height}
-            alt={brand.lockup.alt}
-            className="h-[36px] w-auto"
-          />
+          <Logo />
         </Link>
 
         <nav

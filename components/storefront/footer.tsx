@@ -3,7 +3,8 @@ import Link from "next/link"
 import { DeliveryTruck02Icon, Money01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { brand, site, staticPages } from "@/lib/site"
+import { Logo } from "@/components/storefront/logo"
+import { site, staticPages } from "@/lib/site"
 
 const shopLinks = [{ href: "/", label: "Accueil" }, ...staticPages]
 
@@ -45,13 +46,7 @@ export function StorefrontFooter() {
       <div className="mx-auto max-w-[980px] px-4 py-10 sm:px-[22px]">
         <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-3">
           <div>
-            <img
-              src={brand.lockup.src}
-              width={brand.lockup.width}
-              height={brand.lockup.height}
-              alt={brand.lockup.alt}
-              className="h-[36px] w-auto"
-            />
+            <Logo />
             <p className="mt-2 text-xs text-muted-foreground">{site.tagline}</p>
           </div>
           <LinkColumn title="La boutique" links={shopLinks} />
