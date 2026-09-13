@@ -26,4 +26,20 @@ describe("brand", () => {
       existsSync(path.join(process.cwd(), "public", brand.lockup.src))
     ).toBe(true)
   })
+
+  it("pins the site icon contract", () => {
+    expect(brand.siteIcon.src).toBe("/brand/eguidar-icon-512.png")
+    expect(brand.siteIcon.width).toBe(512)
+    expect(brand.siteIcon.height).toBe(512)
+  })
+
+  it("ships the site icon assets", () => {
+    expect(
+      existsSync(path.join(process.cwd(), "public", brand.siteIcon.src))
+    ).toBe(true)
+    expect(existsSync(path.join(process.cwd(), "app", "apple-icon.png"))).toBe(
+      true
+    )
+    expect(existsSync(path.join(process.cwd(), "app", "icon.svg"))).toBe(true)
+  })
 })

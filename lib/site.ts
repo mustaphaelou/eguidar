@@ -21,6 +21,11 @@ export const brand = {
     height: 442,
     alt: site.name,
   },
+  siteIcon: {
+    src: "/brand/eguidar-icon-512.png",
+    width: 512,
+    height: 512,
+  },
 } as const
 
 export const staticPages = [
