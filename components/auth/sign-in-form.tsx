@@ -5,6 +5,7 @@ import Link from "next/link"
 
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  FacebookIcon,
   GoogleIcon,
   Loading03Icon,
   TruckDeliveryIcon,
@@ -29,12 +30,14 @@ import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 
 export function SignInForm({
   hasGoogle,
+  hasFacebook,
   initialEmail,
   onForgotPassword,
   onStepChange,
   onSuccess,
 }: {
   hasGoogle: boolean
+  hasFacebook: boolean
   initialEmail?: string
   onForgotPassword?: () => void
   onStepChange?: (step: SignInStep, email: string) => void
@@ -85,19 +88,36 @@ export function SignInForm({
     <>
       {step === "form" && (
         <div className="flex flex-col gap-4">
-          {hasGoogle && (
+          {(hasFacebook || hasGoogle) && (
             <>
               <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => handleSocial("google")}
-                  disabled={loading}
-                >
-                  <HugeiconsIcon icon={GoogleIcon} data-icon="inline-start" />
-                  Continuer avec Google
-                </Button>
+                {hasFacebook && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => handleSocial("facebook")}
+                    disabled={loading}
+                  >
+                    <HugeiconsIcon
+                      icon={FacebookIcon}
+                      data-icon="inline-start"
+                    />
+                    Continuer avec Facebook
+                  </Button>
+                )}
+                {hasGoogle && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => handleSocial("google")}
+                    disabled={loading}
+                  >
+                    <HugeiconsIcon icon={GoogleIcon} data-icon="inline-start" />
+                    Continuer avec Google
+                  </Button>
+                )}
               </div>
               <FieldSeparator>ou par e-mail</FieldSeparator>
             </>

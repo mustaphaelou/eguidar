@@ -98,7 +98,7 @@ function fullHarness() {
     <AuthDialogsProvider>
       <RequireAuth />
       <Suspense fallback={null}>
-        <AuthDialog dialog="login" hasGoogle={false} />
+        <AuthDialog dialog="login" hasGoogle={false} hasFacebook={false} />
       </Suspense>
     </AuthDialogsProvider>
   )

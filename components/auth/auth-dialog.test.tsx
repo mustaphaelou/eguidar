@@ -151,22 +151,44 @@ function SwapHarness() {
 
 function renderWithDialogs(
   harness: React.ReactElement,
-  { hasGoogle = false }: { hasGoogle?: boolean } = {}
+  {
+    hasGoogle = false,
+    hasFacebook = false,
+  }: { hasGoogle?: boolean; hasFacebook?: boolean } = {}
 ) {
   render(() => (
     <AuthDialogsProvider>
       {harness}
-      <AuthDialog dialog="login" hasGoogle={hasGoogle} />
-      <AuthDialog dialog="signup" hasGoogle={hasGoogle} />
+      <AuthDialog
+        dialog="login"
+        hasGoogle={hasGoogle}
+        hasFacebook={hasFacebook}
+      />
+      <AuthDialog
+        dialog="signup"
+        hasGoogle={hasGoogle}
+        hasFacebook={hasFacebook}
+      />
     </AuthDialogsProvider>
   ))
 }
 
-function renderDialogs({ hasGoogle = false }: { hasGoogle?: boolean } = {}) {
+function renderDialogs({
+  hasGoogle = false,
+  hasFacebook = false,
+}: { hasGoogle?: boolean; hasFacebook?: boolean } = {}) {
   render(() => (
     <AuthDialogsProvider>
-      <AuthDialog dialog="login" hasGoogle={hasGoogle} />
-      <AuthDialog dialog="signup" hasGoogle={hasGoogle} />
+      <AuthDialog
+        dialog="login"
+        hasGoogle={hasGoogle}
+        hasFacebook={hasFacebook}
+      />
+      <AuthDialog
+        dialog="signup"
+        hasGoogle={hasGoogle}
+        hasFacebook={hasFacebook}
+      />
     </AuthDialogsProvider>
   ))
 }
@@ -396,6 +418,38 @@ describe("AuthDialog", () => {
       expect(
         document.querySelector('[data-slot="field-separator"]')
       ).not.toBeNull()
+    })
+
+    it("shows Facebook first, then Google, when both providers are configured", async () => {
+      window.history.replaceState(null, "", "/?open=login")
+      renderDialogs({ hasGoogle: true, hasFacebook: true })
+      await flush()
+      rerender()
+
+      expect(
+        socialProviderButtons().map((button) => button.textContent?.trim())
+      ).toEqual(["Continuer avec Facebook", "Continuer avec Google"])
+      expect(
+        document.querySelector('[data-slot="field-separator"]')
+      ).not.toBeNull()
+    })
+
+    it("starts a Facebook social sign-in from the Facebook button", async () => {
+      mockedAuthClient.signIn.social.mockResolvedValue({
+        data: {},
+        error: null,
+      })
+      window.history.replaceState(null, "", "/?open=login&query=phone")
+      renderDialogs({ hasGoogle: true, hasFacebook: true })
+      await flush()
+      rerender()
+
+      await clickAndFlush(submitButton("Continuer avec Facebook")!)
+
+      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
+        provider: "facebook",
+        callbackURL: "http://localhost:3000/?query=phone",
+      })
     })
 
     it("shows no social block when no provider is configured", async () => {

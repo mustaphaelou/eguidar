@@ -125,7 +125,7 @@ function controllerWithModalHarness() {
     <AuthDialogsProvider>
       <SessionInactiveController />
       <Suspense fallback={null}>
-        <AuthDialog dialog="login" hasGoogle={false} />
+        <AuthDialog dialog="login" hasGoogle={false} hasFacebook={false} />
       </Suspense>
     </AuthDialogsProvider>
   )
