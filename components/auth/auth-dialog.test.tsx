@@ -149,21 +149,24 @@ function SwapHarness() {
   )
 }
 
-function renderWithDialogs(harness: React.ReactElement) {
+function renderWithDialogs(
+  harness: React.ReactElement,
+  { hasGoogle = false }: { hasGoogle?: boolean } = {}
+) {
   render(() => (
     <AuthDialogsProvider>
       {harness}
-      <AuthDialog dialog="login" hasGoogle={false} hasApple={false} />
-      <AuthDialog dialog="signup" hasGoogle={false} hasApple={false} />
+      <AuthDialog dialog="login" hasGoogle={hasGoogle} />
+      <AuthDialog dialog="signup" hasGoogle={hasGoogle} />
     </AuthDialogsProvider>
   ))
 }
 
-function renderDialogs() {
+function renderDialogs({ hasGoogle = false }: { hasGoogle?: boolean } = {}) {
   render(() => (
     <AuthDialogsProvider>
-      <AuthDialog dialog="login" hasGoogle={false} hasApple={false} />
-      <AuthDialog dialog="signup" hasGoogle={false} hasApple={false} />
+      <AuthDialog dialog="login" hasGoogle={hasGoogle} />
+      <AuthDialog dialog="signup" hasGoogle={hasGoogle} />
     </AuthDialogsProvider>
   ))
 }
@@ -203,6 +206,12 @@ function openButton() {
 function submitButton(text: string) {
   return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
     (button) => button.textContent?.includes(text)
+  )
+}
+
+function socialProviderButtons() {
+  return [...document.querySelectorAll<HTMLButtonElement>("button")].filter(
+    (button) => button.textContent?.includes("Continuer avec")
   )
 }
 
@@ -373,6 +382,32 @@ describe("AuthDialog", () => {
       )
       expect(dialog()).toBeNull()
       expect(new URL(window.location.href).searchParams.has("open")).toBe(false)
+    })
+
+    it("shows Continuer avec Google alone when Google is configured", async () => {
+      window.history.replaceState(null, "", "/?open=login")
+      renderDialogs({ hasGoogle: true })
+      await flush()
+      rerender()
+
+      expect(
+        socialProviderButtons().map((button) => button.textContent?.trim())
+      ).toEqual(["Continuer avec Google"])
+      expect(
+        document.querySelector('[data-slot="field-separator"]')
+      ).not.toBeNull()
+    })
+
+    it("shows no social block when no provider is configured", async () => {
+      window.history.replaceState(null, "", "/?open=login")
+      renderDialogs()
+      await flush()
+      rerender()
+
+      expect(socialProviderButtons()).toEqual([])
+      expect(
+        document.querySelector('[data-slot="field-separator"]')
+      ).toBeNull()
     })
   })
 

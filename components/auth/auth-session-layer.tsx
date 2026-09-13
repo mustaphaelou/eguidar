@@ -8,14 +8,12 @@ import { SessionInactiveController } from "./session-inactive"
 export function AuthSessionLayer({
   children,
   hasGoogle,
-  hasApple,
 }: {
   children: React.ReactNode
   hasGoogle?: boolean
-  hasApple?: boolean
 }) {
   return (
-    <AuthDialogs hasGoogle={hasGoogle} hasApple={hasApple}>
+    <AuthDialogs hasGoogle={hasGoogle}>
       <Suspense fallback={null}>
         <SessionInactiveController />
       </Suspense>

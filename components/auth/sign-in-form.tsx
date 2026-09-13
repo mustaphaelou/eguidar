@@ -5,7 +5,6 @@ import Link from "next/link"
 
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  AppleIcon,
   GoogleIcon,
   Loading03Icon,
   TruckDeliveryIcon,
@@ -30,14 +29,12 @@ import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 
 export function SignInForm({
   hasGoogle,
-  hasApple,
   initialEmail,
   onForgotPassword,
   onStepChange,
   onSuccess,
 }: {
   hasGoogle: boolean
-  hasApple: boolean
   initialEmail?: string
   onForgotPassword?: () => void
   onStepChange?: (step: SignInStep, email: string) => void
@@ -88,33 +85,19 @@ export function SignInForm({
     <>
       {step === "form" && (
         <div className="flex flex-col gap-4">
-          {(hasGoogle || hasApple) && (
+          {hasGoogle && (
             <>
               <div className="flex flex-col gap-2">
-                {hasApple && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={() => handleSocial("apple")}
-                    disabled={loading}
-                  >
-                    <HugeiconsIcon icon={AppleIcon} data-icon="inline-start" />
-                    Continuer avec Apple
-                  </Button>
-                )}
-                {hasGoogle && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={() => handleSocial("google")}
-                    disabled={loading}
-                  >
-                    <HugeiconsIcon icon={GoogleIcon} data-icon="inline-start" />
-                    Continuer avec Google
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => handleSocial("google")}
+                  disabled={loading}
+                >
+                  <HugeiconsIcon icon={GoogleIcon} data-icon="inline-start" />
+                  Continuer avec Google
+                </Button>
               </div>
               <FieldSeparator>ou par e-mail</FieldSeparator>
             </>
