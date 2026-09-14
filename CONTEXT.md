@@ -28,9 +28,14 @@ _Avoid_: quote, estimation de livraison
 **Devis chargé**:
 Les faits du Devis d'un Panier chargés côté serveur : les Villes de livraison avec leurs frais,
 le seuil de livraison offerte, le devis de chaque ville et le sous-total — des données pures qui
-traversent la couture serveur vers le client. L'interface DevisHolder se construit ensuite à
-partir de ces faits derrière la couture.
+traversent la couture serveur vers le client. Le Devis projeté se dérive ensuite de ces faits.
 _Avoid_: quote payload, devis data, devis sérialisé
+
+**Devis projeté**:
+Les faits d'un Devis chargé rapportés à une Ville de livraison : les Villes de livraison, la
+Sélection du Devis et les lignes du Récapitulatif de paiement. Se calcule à partir des seuls
+faits du Devis chargé, sans accès base.
+_Avoid_: vue, view model, devis résolu
 
 **Sélection du Devis**:
 La sélection validée d'une Ville de livraison et de son devis, ou « aucune » tant qu'aucune ville
