@@ -1,3 +1,34 @@
+/**
+ * Entrée serveur du Panier : les sept entrées publiques, les deux
+ * adaptateurs de stockage et la composition — un seul store sur deux
+ * stockages. Réexport du cœur pur pour les consommateurs (`MotifRefusPanier`,
+ * `ResultatPanier`, `ArticleDuPanier`, `DonneesPanier`, noms et formes
+ * inchangés) ; les types internes de la couture et la fabrique du store
+ * (`StockagePanier`, `CataloguePanier`, `creerPanierStore`) vivent dans
+ * `@/lib/panier-coeur` et ne traversent jamais cette entrée.
+ *
+ * Le chemin de commandes — validité, plafond, revalidation de la
+ * Variante, présence de l'Article, sélection des Refus et leurs messages
+ * — existe une seule fois, dans la fabrique du cœur ; cette entrée ne
+ * possède que la mécanique : le jar cookie (analyse, sérialisation,
+ * écritures) pour le Visiteur, les écritures par ligne atomiques et les
+ * lectures jointes pour le Client persisté. Chaque adaptateur déclare
+ * ses faits de Propriétaire au cœur (le plafond de 20 Articles distincts
+ * et le motif de l'identifiant vide pour le Visiteur — ADR-0007 ; rien
+ * pour le Client). Un Refus du panier est relayé verbatim par la couture
+ * cliente (ADR-0018) : sa formulation vit dans le cœur, jamais ici.
+ *
+ * La composition résout le Propriétaire (session → Client, sinon cookie
+ * Visiteur) et construit le store via la même fabrique pour les deux
+ * branches — les entrées à Propriétaire explicite (`lirePanierClient`,
+ * `rejouerPanierVisiteur`) composent la même fabrique ; aucune entrée
+ * n'assemble son propre store ni ne contourne la résolution.
+ *
+ * Import dynamique de `get-session` : un import statique tirerait
+ * `server-only` dans chaque consommateur sans session mockée ; le mock
+ * `vi.mock("@/lib/use-cases/get-session")` intercepte cet import
+ * dynamique.
+ */
 import { cookies } from "next/headers"
 
 import { prisma } from "@/lib/db"
@@ -5,6 +36,7 @@ import {
   calculerTotauxPanier,
   construireArticleDuPanier,
   creerPanierStore,
+  quantiteValide,
   type ArticleDuPanier,
   type ArticleStockePanier,
   type CataloguePanier,
@@ -137,10 +169,10 @@ export async function lirePanierClient(
  * Le rejeu est best-effort : un article mort ne le bloque jamais.
  */
 export async function rejouerPanierVisiteur(compteId: string): Promise<void> {
-  // Couture du rejeu : le stockage Visiteur vient de la même fabrique que la
-  // branche requête (`composerStoreVisiteur`), le store Client de la même
-  // composition explicite que `resoudreStore` — aucun adaptateur construit
-  // à la main dans le chemin du callback.
+  // Rejeu : le stockage Visiteur et le store Client sortent de la même
+  // composition que les entrées requête (`resoudreStore`,
+  // `composerStoreClientExplicite`) — aucun adaptateur construit à la
+  // main dans le chemin du callback.
   const stockageVisiteur = creerStockagePanierVisiteur()
   if (!(await stockageVisiteur.possedePanier())) return
 
@@ -174,10 +206,6 @@ type StockagePanierRejouable = StockagePanier & {
 const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
 const MAX_ARTICLES_PANIER_VISITEUR = 20
 const PANIER_VISITEUR_MAX_AGE = 60 * 60 * 24 * 30
-
-function quantiteValide(quantity: number): boolean {
-  return Number.isInteger(quantity) && quantity >= 1
-}
 
 function estArticleValide(article: unknown): article is ArticleStockePanier {
   if (typeof article !== "object" || article === null) return false
