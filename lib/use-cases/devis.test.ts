@@ -4,6 +4,8 @@ import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
   creerDevisHolder,
   selectionnerDevis,
+  selectionValidee,
+  villeInitiale,
   type DevisChargé,
   type DevisHolder,
   type DevisPrecedenceSources,
@@ -149,6 +151,70 @@ describe("internal seam: selectionnerDevis (core lookup)", () => {
     expect(() => selectionnerDevis([], {}, "c1")).not.toThrow()
     expect(selectionnerDevis([], {}, "c1")).toStrictEqual(aucune)
     expect(selectionnerDevis([], {}, undefined)).toStrictEqual(aucune)
+  })
+})
+
+describe("villeInitiale (précédence lien > profil > aucune)", () => {
+  it("yields null without sources", () => {
+    expect(villeInitiale()).toBeNull()
+  })
+
+  it("precedence: lien wins over profil", () => {
+    expect(villeInitiale({ urlVilleId: "c1", profileVilleId: "c2" })).toBe("c1")
+  })
+
+  it("precedence: absent, empty or whitespace lien falls back to profil", () => {
+    for (const urlVilleId of [undefined, null, "", "   "]) {
+      expect(villeInitiale({ urlVilleId, profileVilleId: "c2" })).toBe("c2")
+    }
+  })
+
+  it("precedence: an explicitly provided lien suppresses the profile fallback", () => {
+    expect(
+      villeInitiale({
+        urlVilleId: "ville-inconnue",
+        urlVilleFournie: true,
+        profileVilleId: "c2",
+      })
+    ).toBe("ville-inconnue")
+
+    expect(
+      villeInitiale({
+        urlVilleId: "   ",
+        urlVilleFournie: true,
+        profileVilleId: "c2",
+      })
+    ).toBeNull()
+  })
+
+  it("precedence: neither source yields null", () => {
+    expect(villeInitiale({ urlVilleId: null, profileVilleId: null })).toBeNull()
+    expect(villeInitiale({ urlVilleId: "", profileVilleId: "   " })).toBeNull()
+    expect(villeInitiale({ urlVilleId: "   " })).toBeNull()
+  })
+
+  it("trims the winning identifier", () => {
+    expect(villeInitiale({ urlVilleId: "  c1  " })).toBe("c1")
+    expect(villeInitiale({ profileVilleId: "  c2  " })).toBe("c2")
+  })
+})
+
+describe("selectionValidee (rétrécissement de prise en commande)", () => {
+  const validée = {
+    cas: "validée",
+    ville: city("c1", "Casablanca", 3500),
+    devis: quote(50000, 3500),
+  } as const
+
+  it("returns the validated selection unchanged", () => {
+    const rétrécie = selectionValidee(validée)
+    expect(rétrécie).toBe(validée)
+    expect(rétrécie).toStrictEqual(validée)
+  })
+
+  it("raises DeliveryCityNotFoundError (a UserFacingError) for aucune", () => {
+    expect(() => selectionValidee(aucune)).toThrow(DeliveryCityNotFoundError)
+    expect(() => selectionValidee(aucune)).toThrow(UserFacingError)
   })
 })
 

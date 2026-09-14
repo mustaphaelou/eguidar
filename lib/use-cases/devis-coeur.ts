@@ -23,6 +23,10 @@
  * une seule entrée de construction, les devis étant toujours fournis par
  * l'appelant (la fabrique ne chiffre jamais).
  *
+ * Deux résolutions pures accompagnent la Sélection : `villeInitiale`
+ * (précédence lien > profil > aucune) et `selectionValidee`
+ * (rétrécissement de prise en commande, refuse « aucune »).
+ *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
  * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
@@ -133,7 +137,22 @@ export function lignesDevis(
 export type ValidatedSelectionDevis = Extract<SelectionDevis, { cas: "validée" }>
 
 /**
- * Sources de précédence pour l'initialisation de la ville dans le DevisHolder.
+ * Rétrécissement de prise en commande : rend la Sélection validée
+ * inchangée, ou refuse le cas « aucune » avec
+ * `DeliveryCityNotFoundError` (erreur utilisateur existante).
+ */
+export function selectionValidee(
+  selection: SelectionDevis
+): ValidatedSelectionDevis {
+  if (selection.cas !== "validée") {
+    throw new DeliveryCityNotFoundError()
+  }
+  return selection
+}
+
+/**
+ * Sources de précédence pour la ville initiale d'une Sélection
+ * (`villeInitiale`).
  *
  * `urlVilleFournie` dit la **présence** d'un `?ville=` non vide dans l'URL :
  * le lien partagé l'emporte alors, et une ville inconnue laisse la sélection
@@ -146,6 +165,28 @@ export interface DevisPrecedenceSources {
   urlVilleId?: string | null
   urlVilleFournie?: boolean
   profileVilleId?: string | null
+}
+
+/**
+ * Ville initiale dérivée des seules sources de précédence : lien >
+ * profil > aucune.
+ *
+ * Sans sources → null. Un lien explicitement fourni l'emporte — rogné,
+ * ou null s'il est vide — sans repli sur le profil, même s'il nomme une
+ * ville inconnue (la Sélection résoudra alors « aucune »). Sinon un
+ * `urlVilleId` rogné non vide gagne, un `profileVilleId` rogné non vide
+ * sert de repli, sinon null.
+ */
+export function villeInitiale(
+  sources?: DevisPrecedenceSources
+): string | null {
+  if (!sources) return null
+  if (sources.urlVilleFournie) return sources.urlVilleId?.trim() || null
+  const url = sources.urlVilleId?.trim()
+  if (url && url.length > 0) return url
+  const profil = sources.profileVilleId?.trim()
+  if (profil && profil.length > 0) return profil
+  return null
 }
 
 /**
@@ -173,24 +214,12 @@ export interface DevisHolder {
  * Devis chargé, et les devis par ville (`quotes`) sont toujours fournis
  * par l'appelant — la fabrique ne chiffre jamais.
  *
- * La précédence (lien > profil > aucune) se résout ici, à la
- * construction. Ville inconnue ou absente → sélection « aucune » ; la
- * fabrique ne lève jamais sur une ville absente ou inconnue.
+ * La précédence (lien > profil > aucune) est résolue par `villeInitiale`
+ * à la construction. Ville inconnue ou absente → sélection « aucune » ;
+ * la fabrique ne lève jamais sur une ville absente ou inconnue.
  */
 export function creerDevisHolder(devisChargé: DevisChargé): DevisHolder {
   const { cities, quotes, sousTotal } = devisChargé
-
-  function resoudrePrecedence(
-    src?: DevisPrecedenceSources
-  ): string | null {
-    if (!src) return null
-    if (src.urlVilleFournie) return src.urlVilleId?.trim() || null
-    const url = src.urlVilleId?.trim()
-    if (url && url.length > 0) return url
-    const profil = src.profileVilleId?.trim()
-    if (profil && profil.length > 0) return profil
-    return null
-  }
 
   function creerInstance(villeChoisie: string | null): DevisHolder {
     const selection = selectionnerDevis(cities, quotes, villeChoisie)
@@ -215,15 +244,12 @@ export function creerDevisHolder(devisChargé: DevisChargé): DevisHolder {
         return creerInstance(trimmed)
       },
       selectionValidee() {
-        if (selection.cas !== "validée") {
-          throw new DeliveryCityNotFoundError()
-        }
-        return selection
+        return selectionValidee(selection)
       },
     }
   }
 
-  const initialCityId = resoudrePrecedence(devisChargé.sources)
+  const initialCityId = villeInitiale(devisChargé.sources)
   return creerInstance(initialCityId)
 }
 
