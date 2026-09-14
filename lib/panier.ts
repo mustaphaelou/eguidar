@@ -47,6 +47,20 @@ async function resoudreStore(): Promise<PanierStore> {
     : creerPanierStore(creerStockagePanierVisiteur(), catalogueProduction())
 }
 
+/**
+ * Couture du Propriétaire explicite : la composition du store Client pour
+ * un Compte connu — la même fabrique (`creerPanierStore`), le même
+ * stockage persisté et le même Catalogue que la résolution du
+ * Propriétaire. Les entrées à Propriétaire explicite la traversent :
+ * aucune n'assemble son propre store ni ne contourne la composition.
+ */
+function storeClientPour(compteId: string): PanierStore {
+  return creerPanierStore(
+    creerStockagePanierClient(compteId),
+    catalogueProduction()
+  )
+}
+
 // ----------------------------------------------------------------------------
 // Entrées publiques
 // ----------------------------------------------------------------------------
@@ -104,10 +118,7 @@ export async function retirerArticleDuPanier(
 export async function lirePanierClient(
   compteId: string
 ): Promise<DonneesPanier> {
-  return creerPanierStore(
-    creerStockagePanierClient(compteId),
-    catalogueProduction()
-  ).lire()
+  return storeClientPour(compteId).lire()
 }
 
 /**
