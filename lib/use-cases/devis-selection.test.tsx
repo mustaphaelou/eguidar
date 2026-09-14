@@ -163,6 +163,32 @@ describe("useDevisSelection", () => {
     })
   })
 
+  it("choisir(\"  c2  \") normalise l'identifiant : Rabat, sélection validée et lignes re-chiffrées", () => {
+    const hook = renderHook(() => useDevisSelection(devisAucune()))
+
+    act(() => {
+      hook.current.choisir("  c2  ")
+    })
+
+    expect(hook.current.villeId).toBe("c2")
+    expect(hook.current.selection).toStrictEqual({
+      cas: "validée",
+      ville: RABAT,
+      devis: QUOTE_RABAT,
+    })
+    expect(hook.current.rows[1]).toMatchObject({
+      label: "Livraison (Rabat)",
+      value: formatPrice(5000),
+      kind: "detail",
+    })
+    expect(
+      hook.current.rows.find((row) => row.kind === "total")
+    ).toMatchObject({
+      label: "Total à payer à la livraison",
+      value: formatPrice(55000),
+    })
+  })
+
   it("choisir(null) exprime « aucune » sans chaîne vide", () => {
     const hook = renderHook(() => useDevisSelection(devisValide()))
 

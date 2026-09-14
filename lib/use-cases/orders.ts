@@ -208,7 +208,8 @@ export async function placeOrder(
   if (cart.lines.length === 0) throw new EmptyCartError()
 
   const chargé = await chargerDevis(cart)
-  const selection = selectionValidee(projeterDevis(chargé, data.cityId).selection)
+  const projet = projeterDevis(chargé, data.cityId)
+  const selection = selectionValidee(projet.selection)
   const city = selection.ville
   const shippingFee = selection.devis.shippingFee
 

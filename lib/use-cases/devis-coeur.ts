@@ -27,9 +27,12 @@
  * (rétrécissement de prise en commande, refuse « aucune »).
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
- * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
- * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
- * serveur comme hook partagent la même couture.
+ * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
+ * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
+ * dérivent par la projection unique `projeterDevis`, qui compose
+ * `lignesDevis` — pages serveur comme hook passent par elle. Les coutures
+ * internes (`selectionnerDevis`, `lignesDevis`) gardent leurs tests
+ * directs.
  */
 import {
   construireLignes,
@@ -211,7 +214,8 @@ export type DevisProjeté = {
  *
  * Compose les coutures internes : `selectionnerDevis` résout la ville,
  * `lignesDevis` dérive les lignes du `sousTotal` porté. Ville inconnue,
- * absente ou vide → « aucune » : jamais à moitié, ne lève jamais.
+ * absente, vide ou entourée d'espaces → « aucune » : jamais à moitié, ne
+ * lève jamais.
  */
 export function projeterDevis(
   devisChargé: DevisChargé,
@@ -220,7 +224,7 @@ export function projeterDevis(
   const selection = selectionnerDevis(
     devisChargé.cities,
     devisChargé.quotes,
-    villeId
+    villeId?.trim() || null
   )
   const rows = lignesDevis(devisChargé.sousTotal, selection)
 

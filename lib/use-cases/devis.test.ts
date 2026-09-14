@@ -7,6 +7,7 @@ import {
   selectionValidee,
   villeInitiale,
   type DevisChargé,
+  type DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
@@ -207,7 +208,6 @@ describe("selectionValidee (rétrécissement de prise en commande)", () => {
 
   it("returns the validated selection unchanged", () => {
     const rétrécie = selectionValidee(validée)
-    expect(rétrécie).toBe(validée)
     expect(rétrécie).toStrictEqual(validée)
   })
 
@@ -410,7 +410,7 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
     ...overrides,
   })
 
-  it("validated city: returns villes, selection (ville + devis), rows and the selected id", () => {
+  it("ville validée : rend les villes, la sélection, les lignes et l'identifiant", () => {
     const projet = projeterDevis(chargé(), "c1")
 
     expect(projet.villes).toStrictEqual(cities)
@@ -431,8 +431,14 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
     expect(projet.rows.some((row) => row.kind === "total")).toBe(true)
   })
 
-  it("aucune case (undefined, null, empty, unknown id): selection aucune, no id, to-choose row, no total", () => {
-    for (const villeId of [undefined, null, "", "ville-inconnue"] as const) {
+  it("cas aucune (undefined, null, vide, inconnu) : sélection aucune, aucun identifiant, ligne à choisir, total omis", () => {
+    for (const villeId of [
+      undefined,
+      null,
+      "",
+      "   ",
+      "ville-inconnue",
+    ] as const) {
       const projet = projeterDevis(chargé(), villeId)
 
       expect(projet.selection).toStrictEqual({ cas: "aucune" })
@@ -444,6 +450,17 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
       })
       expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
     }
+  })
+
+  it("« c1 » entouré d'espaces sélectionne Casablanca (normalisation)", () => {
+    const projet = projeterDevis(chargé(), "  c1  ")
+
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
+    expect(projet.villeId).toBe("c1")
   })
 
   it("rows derive from the carried sousTotal, not from a quote subtotal", () => {
@@ -470,6 +487,73 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
     expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(projet.villeId).toBeNull()
     expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+  })
+})
+
+describe("projeterDevis: précédence, lignes et rétrécissement par une seule surface", () => {
+  const sousTotal = 73000
+
+  const chargéAvec = (sources: DevisPrecedenceSources): DevisChargé => ({
+    cities,
+    threshold: 100000,
+    quotes,
+    sousTotal,
+    sources,
+  })
+
+  it("le lien l'emporte sur le profil, et la projection rend Casablanca", () => {
+    const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(projet.villeId).toBe("c1")
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
+  })
+
+  it("un lien vide ou absent retombe sur le profil, et la projection rend Rabat", () => {
+    for (const urlVilleId of [undefined, null, "", "   "]) {
+      const chargé = chargéAvec({ urlVilleId, profileVilleId: "c2" })
+      const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+      expect(projet.villeId).toBe("c2")
+    }
+  })
+
+  it("sans source, la projection rend « aucune », sans identifiant ni total", () => {
+    const chargé = chargéAvec({ urlVilleId: null, profileVilleId: null })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(projet.selection).toStrictEqual({ cas: "aucune" })
+    expect(projet.villeId).toBeNull()
+    expect(projet.rows[1]).toMatchObject({
+      label: "Livraison",
+      value: "À choisir",
+      tone: "muted",
+    })
+    expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+  })
+
+  it("un lien explicitement inconnu rend « aucune » et le rétrécissement refuse", () => {
+    const chargé = chargéAvec({
+      urlVilleId: "ville-inconnue",
+      urlVilleFournie: true,
+    })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(projet.selection).toStrictEqual({ cas: "aucune" })
+    expect(() => selectionValidee(projet.selection)).toThrow(
+      DeliveryCityNotFoundError
+    )
+  })
+
+  it("une ville valide se rétrécit en sa ville via la projection", () => {
+    const chargé = chargéAvec({ urlVilleId: "c1" })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(selectionValidee(projet.selection).ville.id).toBe("c1")
   })
 })
 

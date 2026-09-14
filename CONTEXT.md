@@ -33,8 +33,8 @@ _Avoid_: quote payload, devis data, devis sérialisé
 
 **Devis projeté**:
 Les faits d'un Devis chargé rapportés à une Ville de livraison : les Villes de livraison, la
-Sélection du Devis et les lignes du Récapitulatif de paiement. Se calcule à partir des seuls
-faits du Devis chargé, sans accès base.
+Sélection du Devis, les lignes du Récapitulatif de paiement et l'identifiant de la Ville de
+livraison sélectionnée. Se calcule à partir des seuls faits du Devis chargé, sans accès base.
 _Avoid_: vue, view model, devis résolu
 
 **Sélection du Devis**:

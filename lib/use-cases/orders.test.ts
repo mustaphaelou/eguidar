@@ -358,7 +358,7 @@ describe("order placement", () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     const cart = await lirePanierClient(userIdA)
-    const chargé = await chargerDevis(cart, cityId)
+    const chargé = await chargerDevis(cart)
     const selection = selectionValidee(projeterDevis(chargé, cityId).selection)
 
     const order = await placeOrder(userIdA, checkoutInput())
