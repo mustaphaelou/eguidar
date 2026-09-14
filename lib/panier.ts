@@ -26,8 +26,7 @@ export type {
 } from "@/lib/panier-coeur"
 
 type ProprietaireDuPanier =
-  | { role: "visiteur" }
-  | { role: "client"; compteId: string }
+  { role: "visiteur" } | { role: "client"; compteId: string }
 
 async function resoudreProprietaire(): Promise<ProprietaireDuPanier> {
   // Import dynamique : un import statique tirerait `server-only` (via
@@ -41,7 +40,10 @@ async function resoudreProprietaire(): Promise<ProprietaireDuPanier> {
 async function resoudreStore(): Promise<PanierStore> {
   const proprietaire = await resoudreProprietaire()
   return proprietaire.role === "client"
-    ? creerStoreClient(proprietaire.compteId)
+    ? creerPanierStore(
+        creerStockagePanierClient(proprietaire.compteId),
+        catalogueProduction()
+      )
     : creerPanierStore(creerStockagePanierVisiteur(), catalogueProduction())
 }
 
@@ -102,7 +104,10 @@ export async function retirerArticleDuPanier(
 export async function lirePanierClient(
   compteId: string
 ): Promise<DonneesPanier> {
-  return creerStoreClient(compteId).lire()
+  return creerPanierStore(
+    creerStockagePanierClient(compteId),
+    catalogueProduction()
+  ).lire()
 }
 
 /**
@@ -115,7 +120,10 @@ export async function rejouerPanierVisiteur(compteId: string): Promise<void> {
   const stockageVisiteur = creerStockagePanierVisiteur()
   if (!(await stockageVisiteur.possedePanier())) return
 
-  const storeClient = creerStoreClient(compteId)
+  const storeClient = creerPanierStore(
+    creerStockagePanierClient(compteId),
+    catalogueProduction()
+  )
   for (const article of await stockageVisiteur.lireArticlesStockes()) {
     try {
       await storeClient.ajouter(article.variantId, article.quantity)
@@ -130,6 +138,17 @@ export async function rejouerPanierVisiteur(compteId: string): Promise<void> {
 // ============================================================================
 // Stockage Visiteur (cookie) — l'adaptateur de la couture `StockagePanier`
 // ============================================================================
+
+/**
+ * L'extension de support du rejeu, exposée sous la même forme par les deux
+ * stockages (Visiteur et Client) : la présence du support (`possedePanier`)
+ * et sa suppression (`supprimerPanier`) — le rejeu à l'authentification les
+ * emprunte telles quelles.
+ */
+type StockagePanierRejouable = StockagePanier & {
+  possedePanier(): Promise<boolean>
+  supprimerPanier(): Promise<void>
+}
 
 const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
 const MAX_ARTICLES_PANIER_VISITEUR = 20
@@ -218,10 +237,7 @@ async function ecrirePanierVisiteur(
  * et sa suppression (`supprimerPanier`) appartiennent aussi au stockage —
  * le rejeu à l'authentification les emprunte telles quelles.
  */
-function creerStockagePanierVisiteur(): StockagePanier & {
-  possedePanier(): Promise<boolean>
-  supprimerPanier(): Promise<void>
-} {
+function creerStockagePanierVisiteur(): StockagePanierRejouable {
   return {
     capArticlesMax: MAX_ARTICLES_PANIER_VISITEUR,
     motifIdentifiantVide: "quantite-invalide",
@@ -247,7 +263,10 @@ function creerStockagePanierVisiteur(): StockagePanier & {
         )
       }
 
-      return { lines: articlesDuPanier, ...calculerTotauxPanier(articlesDuPanier) }
+      return {
+        lines: articlesDuPanier,
+        ...calculerTotauxPanier(articlesDuPanier),
+      }
     },
 
     async compter(): Promise<number> {
@@ -326,23 +345,45 @@ function catalogueProduction(): CataloguePanier {
   return {
     async existe(variantId: string): Promise<boolean> {
       return (
-        (await prisma.productVariant.findUnique({ where: { id: variantId } })) !==
-        null
+        (await prisma.productVariant.findUnique({
+          where: { id: variantId },
+        })) !== null
       )
     },
   }
 }
 
 // ============================================================================
-// Store Client (persistant)
+// Stockage Client (persisté) — l'adaptateur de la couture `StockagePanier`
 // ============================================================================
 
-const MESSAGE_QUANTITE_INVALIDE =
-  "Quantité invalide : la quantité doit être un entier d'au moins 1."
-const MESSAGE_VARIANTE_INCONNUE = "Cet article n'est plus disponible."
-const MESSAGE_ARTICLE_INCONNU = "Cet article est introuvable dans votre panier."
-
-function creerStoreClient(compteId: string): PanierStore {
+/**
+ * Fabrique du stockage Client : la mécanique Prisma seule, derrière la
+ * couture `StockagePanier` — le Compte est fixé à la construction, la
+ * couture ne prend jamais de paramètre Propriétaire. Écritures par ligne,
+ * atomiques : l'ajout incrémente la quantité dans un upsert (`increment` —
+ * deux onglets qui ajoutent en même temps ne perdent jamais de quantité),
+ * la modification fixe la quantité sur la ligne par-compte de la Variante,
+ * le retrait supprime en une seule opération et rapporte si une ligne a
+ * disparu.
+ *
+ * La lecture jointe (`variant.product`) et le comptage agrégé restent des
+ * requêtes propres à l'adaptateur ; la projection vit dans le cœur. Aucune
+ * éviction de Variante morte n'y est nécessaire : la cascade de la clé
+ * étrangère garantit qu'un Article du Panier ne survit pas à sa Variante.
+ *
+ * Aucun plafond, aucun motif d'identifiant vide déclaré (ADR-0007 garde le
+ * plafond Visiteur seul) : un identifiant vide à l'ajout tombe jusqu'au
+ * manqué du Catalogue — « variante inconnue », exactement comme livré. La
+ * validité, les refus et leurs messages vivent dans le cœur
+ * (`creerPanierStore`), jamais ici.
+ *
+ * Les opérations de support du rejeu (`possedePanier`, `supprimerPanier`)
+ * sont des no-op bénins pour le Client : le Panier persisté n'est pas un
+ * support dont le rejeu partirait, et il n'est jamais supprimé comme
+ * support.
+ */
+function creerStockagePanierClient(compteId: string): StockagePanierRejouable {
   return {
     async lire(): Promise<DonneesPanier> {
       const items = await prisma.cartItem.findMany({
@@ -355,7 +396,10 @@ function creerStoreClient(compteId: string): PanierStore {
         construireArticleDuPanier(item.variant, item.quantity)
       )
 
-      return { lines: articlesDuPanier, ...calculerTotauxPanier(articlesDuPanier) }
+      return {
+        lines: articlesDuPanier,
+        ...calculerTotauxPanier(articlesDuPanier),
+      }
     },
 
     async compter(): Promise<number> {
@@ -366,73 +410,49 @@ function creerStoreClient(compteId: string): PanierStore {
       return aggregate._sum.quantity ?? 0
     },
 
-    async ajouter(variantId: string, quantity: number): Promise<ResultatPanier> {
-      if (!quantiteValide(quantity)) {
-        return {
-          ok: false,
-          motif: "quantite-invalide",
-          message: MESSAGE_QUANTITE_INVALIDE,
-        }
-      }
-      const variant = await prisma.productVariant.findUnique({
-        where: { id: variantId },
+    async lireArticlesStockes(): Promise<ArticleStockePanier[]> {
+      return prisma.cartItem.findMany({
+        where: { userId: compteId },
+        select: { variantId: true, quantity: true },
+        orderBy: { createdAt: "asc" },
       })
-      if (!variant) {
-        return {
-          ok: false,
-          motif: "variante-inconnue",
-          message: MESSAGE_VARIANTE_INCONNUE,
-        }
-      }
+    },
 
+    async possedeArticle(variantId: string): Promise<boolean> {
+      const item = await prisma.cartItem.findUnique({
+        where: { userId_variantId: { userId: compteId, variantId } },
+      })
+      return item !== null
+    },
+
+    async ajouterQuantite(variantId: string, quantity: number): Promise<void> {
       await prisma.cartItem.upsert({
         where: { userId_variantId: { userId: compteId, variantId } },
         update: { quantity: { increment: quantity } },
         create: { userId: compteId, variantId, quantity },
       })
-      return { ok: true }
     },
 
-    async modifier(variantId: string, quantity: number): Promise<ResultatPanier> {
-      if (!quantiteValide(quantity)) {
-        return {
-          ok: false,
-          motif: "quantite-invalide",
-          message: MESSAGE_QUANTITE_INVALIDE,
-        }
-      }
-      const existing = await prisma.cartItem.findUnique({
-        where: { userId_variantId: { userId: compteId, variantId } },
-      })
-      if (!existing) {
-        return {
-          ok: false,
-          motif: "article-inconnu",
-          message: MESSAGE_ARTICLE_INCONNU,
-        }
-      }
-
+    async definirQuantite(variantId: string, quantity: number): Promise<void> {
       await prisma.cartItem.update({
-        where: { id: existing.id },
+        where: { userId_variantId: { userId: compteId, variantId } },
         data: { quantity },
       })
-      return { ok: true }
     },
 
-    async retirer(variantId: string): Promise<ResultatPanier> {
-      const existing = await prisma.cartItem.findUnique({
-        where: { userId_variantId: { userId: compteId, variantId } },
+    async retirerArticle(variantId: string): Promise<boolean> {
+      const supprimes = await prisma.cartItem.deleteMany({
+        where: { userId: compteId, variantId },
       })
-      if (!existing) {
-        return {
-          ok: false,
-          motif: "article-inconnu",
-          message: MESSAGE_ARTICLE_INCONNU,
-        }
-      }
+      return supprimes.count > 0
+    },
 
-      await prisma.cartItem.delete({ where: { id: existing.id } })
-      return { ok: true }
+    async possedePanier(): Promise<boolean> {
+      return false
+    },
+
+    async supprimerPanier(): Promise<void> {
+      // Le Panier persisté n'est jamais supprimé comme support.
     },
   }
 }
