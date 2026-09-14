@@ -37,14 +37,32 @@ async function resoudreProprietaire(): Promise<ProprietaireDuPanier> {
   return user ? { role: "client", compteId: user.id } : { role: "visiteur" }
 }
 
+/**
+ * Composition du store derrière la couture : chaque branche (Visiteur,
+ * Client explicite) passe par la même fabrique de stockage et le même
+ * `creerPanierStore` — jamais d'adaptateur construit à la main, ici comme
+ * dans le rejeu (`rejouerPanierVisiteur`).
+ */
+function composerStoreVisiteur(): PanierStore {
+  return creerPanierStore(creerStockagePanierVisiteur(), catalogueProduction())
+}
+
+/**
+ * Couture du Propriétaire explicite : le Compte est fixé à la composition,
+ * la couture ne prend jamais de paramètre Propriétaire.
+ */
+function composerStoreClientExplicite(compteId: string): PanierStore {
+  return creerPanierStore(
+    creerStockagePanierClient(compteId),
+    catalogueProduction()
+  )
+}
+
 async function resoudreStore(): Promise<PanierStore> {
   const proprietaire = await resoudreProprietaire()
   return proprietaire.role === "client"
-    ? creerPanierStore(
-        creerStockagePanierClient(proprietaire.compteId),
-        catalogueProduction()
-      )
-    : creerPanierStore(creerStockagePanierVisiteur(), catalogueProduction())
+    ? composerStoreClientExplicite(proprietaire.compteId)
+    : composerStoreVisiteur()
 }
 
 // ----------------------------------------------------------------------------
@@ -117,13 +135,14 @@ export async function lirePanierClient(
  * Le rejeu est best-effort : un article mort ne le bloque jamais.
  */
 export async function rejouerPanierVisiteur(compteId: string): Promise<void> {
+  // Couture du rejeu : le stockage Visiteur vient de la même fabrique que la
+  // branche requête (`composerStoreVisiteur`), le store Client de la même
+  // composition explicite que `resoudreStore` — aucun adaptateur construit
+  // à la main dans le chemin du callback.
   const stockageVisiteur = creerStockagePanierVisiteur()
   if (!(await stockageVisiteur.possedePanier())) return
 
-  const storeClient = creerPanierStore(
-    creerStockagePanierClient(compteId),
-    catalogueProduction()
-  )
+  const storeClient = composerStoreClientExplicite(compteId)
   for (const article of await stockageVisiteur.lireArticlesStockes()) {
     try {
       await storeClient.ajouter(article.variantId, article.quantity)
