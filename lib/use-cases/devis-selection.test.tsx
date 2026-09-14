@@ -244,6 +244,45 @@ describe("useDevisSelection", () => {
     })
   })
 
+  it("ignore un changement ultérieur du Devis chargé : faits et choix initiaux figés", () => {
+    const premier = devisValide()
+    const second: DevisChargé = {
+      cities: VILLES,
+      threshold: 100000,
+      quotes: QUOTES,
+      sousTotal: 99900,
+      sources: { urlVilleId: "c2" },
+    }
+
+    let current!: ReturnType<typeof useDevisSelection>
+    function Probe({ devis }: { devis: DevisChargé }) {
+      current = useDevisSelection(devis)
+      return null
+    }
+
+    const root = createRoot(container)
+    roots.push(root)
+    act(() => root.render(<Probe devis={premier} />))
+
+    expect(current.villeId).toBe("c1")
+
+    act(() => root.render(<Probe devis={second} />))
+
+    expect(current.villes).toEqual(VILLES)
+    expect(current.villeId).toBe("c1")
+    expect(current.selection).toStrictEqual({
+      cas: "validée",
+      ville: CASA,
+      devis: QUOTE_CASA,
+    })
+    expect(
+      current.rows.find((row) => row.kind === "total")
+    ).toMatchObject({
+      label: "Total à payer à la livraison",
+      value: formatPrice(53500),
+    })
+  })
+
   it("choosing at Checkout never writes back to the link or window.history", () => {
     const originalHref = window.location.href
     const replaceSpy = vi.spyOn(window.history, "replaceState")
