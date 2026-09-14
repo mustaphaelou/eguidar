@@ -17,11 +17,10 @@
  * Deux formes cohabitent : le Devis chargé (`DevisChargé`) est la donnée
  * pure qui traverse la couture serveur → client — Villes de livraison,
  * seuil, devis par ville, sous-total, sources de précédence, aucune
- * fonction — ; l'interface `DevisHolder` (getters, `choisir`,
- * `selectionValidee`) n'est pas une donnée : elle se construit derrière
- * la couture à partir de ces faits via `creerDevisHolder(devisChargé)` —
- * une seule entrée de construction, les devis étant toujours fournis par
- * l'appelant (la fabrique ne chiffre jamais).
+ * fonction — ; le Devis projeté (`DevisProjeté`) est la surface dérivée
+ * qui se projette derrière la couture via `projeterDevis(devisChargé,
+ * villeId)` — les devis restent toujours fournis par l'appelant (le
+ * projecteur ne chiffre jamais).
  *
  * Deux résolutions pures accompagnent la Sélection : `villeInitiale`
  * (précédence lien > profil > aucune) et `selectionValidee`
@@ -87,9 +86,8 @@ export function selectionnerDevis(
  * (cents) et sources de précédence (`urlVilleId` gagne sur
  * `profileVilleId`). Strictement des données : aucune fonction, aucun
  * getter, aucune instance de classe — c'est ce qui traverse la couture
- * serveur → client. L'interface `DevisHolder` (getters, `choisir`,
- * `selectionValidee`) se construit derrière la couture à partir de ces
- * faits via `creerDevisHolder`.
+ * serveur → client. Le Devis projeté (`projeterDevis`) se dérive derrière
+ * la couture à partir de ces faits et d'une Ville de livraison explicite.
  */
 export type DevisChargé = {
   cities: DeliveryCityOption[]
@@ -187,70 +185,6 @@ export function villeInitiale(
   const profil = sources.profileVilleId?.trim()
   if (profil && profil.length > 0) return profil
   return null
-}
-
-/**
- * Interface profonde du DevisHolder : possède les villes, la sélection
- * courante, les lignes du Récapitulatif projetées depuis le sous-total
- * du Devis chargé qui l'a construit, le changement de ville (`choisir`),
- * l'identifiant sélectionné (`villeId`) et le rétrécissement de prise en
- * commande (`selectionValidee`).
- *
- * Les devis bruts (`quotes`) et le seuil (`threshold`) restent cachés
- * dans l'implémentation — le holder n'expose que la projection.
- */
-export interface DevisHolder {
-  readonly villes: DeliveryCityOption[]
-  readonly selection: SelectionDevis
-  readonly rows: RécapitulatifRow[]
-  readonly villeId: string | null
-  choisir(nouvelleVilleId?: string | null): DevisHolder
-  selectionValidee(): ValidatedSelectionDevis
-}
-
-/**
- * Construit le DevisHolder depuis le Devis chargé — l'unique entrée de
- * construction de l'interface : les faits entrants sont exactement le
- * Devis chargé, et les devis par ville (`quotes`) sont toujours fournis
- * par l'appelant — la fabrique ne chiffre jamais.
- *
- * La précédence (lien > profil > aucune) est résolue par `villeInitiale`
- * à la construction. Ville inconnue ou absente → sélection « aucune » ;
- * la fabrique ne lève jamais sur une ville absente ou inconnue.
- */
-export function creerDevisHolder(devisChargé: DevisChargé): DevisHolder {
-  const { cities, quotes, sousTotal } = devisChargé
-
-  function creerInstance(villeChoisie: string | null): DevisHolder {
-    const selection = selectionnerDevis(cities, quotes, villeChoisie)
-    const rows = lignesDevis(sousTotal, selection)
-    const villeId = selection.cas === "validée" ? selection.ville.id : null
-
-    return {
-      get villes() {
-        return cities
-      },
-      get selection() {
-        return selection
-      },
-      get rows() {
-        return rows
-      },
-      get villeId() {
-        return villeId
-      },
-      choisir(nouvelleVilleId?: string | null) {
-        const trimmed = nouvelleVilleId?.trim() || null
-        return creerInstance(trimmed)
-      },
-      selectionValidee() {
-        return selectionValidee(selection)
-      },
-    }
-  }
-
-  const initialCityId = villeInitiale(devisChargé.sources)
-  return creerInstance(initialCityId)
 }
 
 /**
