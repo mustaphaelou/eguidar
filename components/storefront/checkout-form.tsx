@@ -49,9 +49,8 @@ export function CheckoutForm({
   // Le récapitulatif re-chiffre instantanément au changement de ville via
   // la porte d'entrée cliente du Devis — champs du formulaire + soumission
   // ici, jamais les ingrédients bruts.
-  const { villes, selection, rows, choisir, villeId } = useDevisSelection(devis)
-  const selectedCityId =
-    villeId ?? (selection.cas === "validée" ? selection.ville.id : "")
+  const { villes, rows, choisir, villeId } = useDevisSelection(devis)
+  const selectedCityId = villeId ?? ""
 
   useUnauthenticatedRefusal(state)
 
@@ -72,7 +71,7 @@ export function CheckoutForm({
           name="cityId"
           value={selectedCityId}
           items={cityOptions(villes)}
-          onValueChange={(cityId) => choisir(cityId ?? "")}
+          onValueChange={(cityId) => choisir(cityId ?? null)}
           required
         >
           <SelectTrigger id="checkout-city" className="w-full">

@@ -68,15 +68,16 @@ export type {
  * `{ villes, selection, rows, choisir(villeId), villeId }`. Chaque
  * `choisir` re-projette les lignes instantanément.
  *
- * `choisir("")` retombe sur le cas « aucune » ; un identifiant inconnu
- * retombe aussi sur « aucune » — jamais à moitié, ne lève jamais.
+ * `choisir(null)` dit explicitement « aucune » — l'absence est typée,
+ * plus besoin de chaîne vide ; une chaîne vide ou un identifiant inconnu
+ * retombent aussi sur « aucune » — jamais à moitié, ne lève jamais.
  * État local volontairement non synchronisé avec l'URL.
  */
 export function useDevisSelection(devisChargé: DevisChargé): {
   villes: DeliveryCityOption[]
   selection: SelectionDevis
   rows: RécapitulatifRow[]
-  choisir(villeId: string): void
+  choisir(villeId: string | null): void
   villeId: string | null
 } {
   const [chargé] = useState(devisChargé)
@@ -91,7 +92,7 @@ export function useDevisSelection(devisChargé: DevisChargé): {
     selection: projet.selection,
     rows: projet.rows,
     villeId: projet.villeId,
-    choisir: (villeId: string) => {
+    choisir: (villeId: string | null) => {
       setVilleChoisie(villeId)
     },
   }

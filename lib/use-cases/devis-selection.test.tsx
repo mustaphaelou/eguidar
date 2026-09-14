@@ -163,7 +163,27 @@ describe("useDevisSelection", () => {
     })
   })
 
-  it("choisir(\"\") retombe sur « aucune »", () => {
+  it("choisir(null) exprime « aucune » sans chaîne vide", () => {
+    const hook = renderHook(() => useDevisSelection(devisValide()))
+
+    expect(hook.current.selection.cas).toBe("validée")
+
+    act(() => {
+      hook.current.choisir(null)
+    })
+
+    expect(hook.current.villeId).toBeNull()
+    expect(hook.current.selection).toStrictEqual({ cas: "aucune" })
+    expect(hook.current.rows[1]).toEqual({
+      label: "Livraison",
+      value: "À choisir",
+      kind: "detail",
+      tone: "muted",
+    })
+    expect(hook.current.rows.some((row) => row.kind === "total")).toBe(false)
+  })
+
+  it("choisir(\"\") retombe aussi sur « aucune » — cas vide encore supporté", () => {
     const hook = renderHook(() => useDevisSelection(devisValide()))
 
     expect(hook.current.selection.cas).toBe("validée")
@@ -173,13 +193,6 @@ describe("useDevisSelection", () => {
     })
 
     expect(hook.current.selection).toStrictEqual({ cas: "aucune" })
-    expect(hook.current.rows[1]).toEqual({
-      label: "Livraison",
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
-    })
-    expect(hook.current.rows.some((row) => row.kind === "total")).toBe(false)
   })
 
   it("un identifiant inconnu retombe sur « aucune » — jamais à moitié, ne lève jamais", () => {
