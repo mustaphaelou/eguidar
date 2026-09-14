@@ -193,10 +193,11 @@ export async function rejouerPanierVisiteur(compteId: string): Promise<void> {
 // ============================================================================
 
 /**
- * L'extension de support du rejeu, exposée sous la même forme par les deux
- * stockages (Visiteur et Client) : la présence du support (`possedePanier`)
- * et sa suppression (`supprimerPanier`) — le rejeu à l'authentification les
- * emprunte telles quelles.
+ * L'extension de support du rejeu : la présence du support
+ * (`possedePanier`) et sa suppression (`supprimerPanier`). Exposée par le
+ * stockage Visiteur (cookie) seul — le rejeu à l'authentification les
+ * emprunte telles quelles ; le stockage Client est un `StockagePanier`
+ * simple, sans cette extension.
  */
 type StockagePanierRejouable = StockagePanier & {
   possedePanier(): Promise<boolean>
@@ -216,6 +217,13 @@ function estArticleValide(article: unknown): article is ArticleStockePanier {
     typeof quantity === "number" &&
     quantiteValide(quantity)
   )
+}
+
+function contient(
+  articles: readonly ArticleStockePanier[],
+  variantId: string
+): boolean {
+  return articles.some((article) => article.variantId === variantId)
 }
 
 function normaliser(
@@ -251,7 +259,7 @@ function parsePanierVisiteur(raw?: string | null): ArticleStockePanier[] {
     return []
   }
   if (!Array.isArray(parsed)) return []
-  return normaliser(parsed.filter(estArticleValide))
+  return normaliser(parsed)
 }
 
 async function lireArticlesStockesVisiteur(): Promise<ArticleStockePanier[]> {
@@ -341,13 +349,13 @@ function creerStockagePanierVisiteur(): StockagePanierRejouable {
 
     async possedeArticle(variantId: string): Promise<boolean> {
       const articles = await lireArticlesStockesVisiteur()
-      return articles.some((article) => article.variantId === variantId)
+      return contient(articles, variantId)
     },
 
     async ajouterQuantite(variantId: string, quantity: number): Promise<void> {
       const articles = await lireArticlesStockesVisiteur()
       await ecrirePanierVisiteur(
-        articles.some((article) => article.variantId === variantId)
+        contient(articles, variantId)
           ? articles.map((article) =>
               article.variantId === variantId
                 ? { ...article, quantity: article.quantity + quantity }
@@ -427,12 +435,12 @@ function catalogueProduction(): CataloguePanier {
  * validité, les refus et leurs messages vivent dans le cœur
  * (`creerPanierStore`), jamais ici.
  *
- * Les opérations de support du rejeu (`possedePanier`, `supprimerPanier`)
- * sont des no-op bénins pour le Client : le Panier persisté n'est pas un
- * support dont le rejeu partirait, et il n'est jamais supprimé comme
- * support.
+ * Le stockage Client reste un `StockagePanier` simple : l'extension de
+ * support du rejeu (`possedePanier`, `supprimerPanier`) appartient au
+ * stockage Visiteur seul — le Panier persisté n'est pas un support dont
+ * le rejeu partirait, et il n'est jamais supprimé comme support.
  */
-function creerStockagePanierClient(compteId: string): StockagePanierRejouable {
+function creerStockagePanierClient(compteId: string): StockagePanier {
   return {
     async lire(): Promise<DonneesPanier> {
       const items = await prisma.cartItem.findMany({
@@ -494,14 +502,6 @@ function creerStockagePanierClient(compteId: string): StockagePanierRejouable {
         where: { userId: compteId, variantId },
       })
       return supprimes.count > 0
-    },
-
-    async possedePanier(): Promise<boolean> {
-      return false
-    },
-
-    async supprimerPanier(): Promise<void> {
-      // Le Panier persisté n'est jamais supprimé comme support.
     },
   }
 }

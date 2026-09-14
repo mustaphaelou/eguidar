@@ -16,10 +16,9 @@ import {
  * `definirQuantite` fixe, `retirerArticle` retire et rapporte. Les
  * lectures projetées composent les projections pures du cœur.
  */
-function stockageEnMemoire(faits: {
-  capArticlesMax?: number
-  motifIdentifiantVide?: StockagePanier["motifIdentifiantVide"]
-}): StockagePanier & { articles: ArticleStockePanier[] } {
+function stockageEnMemoire(
+  faits: Pick<StockagePanier, "capArticlesMax" | "motifIdentifiantVide">
+): StockagePanier & { articles: ArticleStockePanier[] } {
   const articles: ArticleStockePanier[] = []
   return {
     articles,
