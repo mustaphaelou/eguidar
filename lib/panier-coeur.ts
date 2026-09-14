@@ -155,7 +155,13 @@ function refusDuPanier(motif: MotifRefusPanier, cap?: number): ResultatPanier {
   return { ok: false, motif, message: messageDuRefus(motif, cap) }
 }
 
-function quantiteValide(quantity: number): boolean {
+/**
+ * Validité d'une quantité de Panier : un entier d'au moins 1. La règle du
+ * chemin de commandes (refus « quantité invalide ») et la garde de
+ * relecture du cookie Visiteur la partagent — une seule définition, dans
+ * le cœur qui possède la règle.
+ */
+export function quantiteValide(quantity: number): boolean {
   return Number.isInteger(quantity) && quantity >= 1
 }
 
