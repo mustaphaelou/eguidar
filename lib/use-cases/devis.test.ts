@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
   creerDevisHolder,
+  projeterDevis,
   selectionnerDevis,
   selectionValidee,
   villeInitiale,
@@ -10,6 +11,7 @@ import {
   type DevisHolder,
   type DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
+import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {
   DeliveryCityOption,
@@ -557,6 +559,80 @@ describe("DevisHolder", () => {
     expect(h1.villeId).toBe("c1")
     expect(h2.villeId).toBe("c2")
     expect(h1).not.toBe(h2)
+  })
+})
+
+describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
+  const sousTotal = 73000
+
+  const chargé = (overrides: Partial<DevisChargé> = {}): DevisChargé => ({
+    cities,
+    threshold: 100000,
+    quotes,
+    sousTotal,
+    ...overrides,
+  })
+
+  it("validated city: returns villes, selection (ville + devis), rows and the selected id", () => {
+    const projet = projeterDevis(chargé(), "c1")
+
+    expect(projet.villes).toStrictEqual(cities)
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
+    expect(projet.villeId).toBe("c1")
+    expect(projet.rows[0]).toMatchObject({
+      label: "Sous-total (TVA incluse)",
+      kind: "detail",
+    })
+    expect(projet.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      kind: "detail",
+    })
+    expect(projet.rows.some((row) => row.kind === "total")).toBe(true)
+  })
+
+  it("aucune case (undefined, null, empty, unknown id): selection aucune, no id, to-choose row, no total", () => {
+    for (const villeId of [undefined, null, "", "ville-inconnue"] as const) {
+      const projet = projeterDevis(chargé(), villeId)
+
+      expect(projet.selection).toStrictEqual({ cas: "aucune" })
+      expect(projet.villeId).toBeNull()
+      expect(projet.rows[1]).toMatchObject({
+        label: "Livraison",
+        value: "À choisir",
+        tone: "muted",
+      })
+      expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+    }
+  })
+
+  it("rows derive from the carried sousTotal, not from a quote subtotal", () => {
+    const projet = projeterDevis(chargé({ sousTotal: 123456 }), "c1")
+
+    expect(projet.rows[0]).toMatchObject({
+      label: "Sous-total (TVA incluse)",
+      value: formatPrice(123456),
+    })
+    expect(projet.rows[1]?.value).toBe(formatPrice(3500))
+  })
+
+  it("never throws on empty cities and quotes", () => {
+    const vide: DevisChargé = {
+      cities: [],
+      threshold: 100000,
+      quotes: {},
+      sousTotal: 0,
+    }
+
+    expect(() => projeterDevis(vide, "c1")).not.toThrow()
+    const projet = projeterDevis(vide)
+    expect(projet.villes).toStrictEqual([])
+    expect(projet.selection).toStrictEqual({ cas: "aucune" })
+    expect(projet.villeId).toBeNull()
+    expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
   })
 })
 
