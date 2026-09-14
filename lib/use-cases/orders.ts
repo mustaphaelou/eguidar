@@ -13,7 +13,10 @@ import {
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
 import { chargerDevis } from "@/lib/use-cases/devis"
-import { creerDevisHolder } from "@/lib/use-cases/devis-coeur"
+import {
+  projeterDevis,
+  selectionValidee,
+} from "@/lib/use-cases/devis-coeur"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = {
@@ -204,8 +207,8 @@ export async function placeOrder(
   const cart = await lirePanierClient(userId)
   if (cart.lines.length === 0) throw new EmptyCartError()
 
-  const devis = creerDevisHolder(await chargerDevis(cart, data.cityId))
-  const selection = devis.selectionValidee()
+  const chargé = await chargerDevis(cart)
+  const selection = selectionValidee(projeterDevis(chargé, data.cityId).selection)
   const city = selection.ville
   const shippingFee = selection.devis.shippingFee
 
