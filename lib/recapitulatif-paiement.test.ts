@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { formatPrice } from "./money"
 import { type RécapitulatifRow, récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
-import { creerDevisHolder } from "./use-cases/devis-coeur"
+import { projeterDevis } from "./use-cases/devis-coeur"
 
 describe("récapitulatifRowsFromCommande", () => {
   it("renders the city, fee and the Commande totalPayable", () => {
@@ -93,27 +93,33 @@ describe("récapitulatifRowsFromCommande", () => {
     const casa = { id: "casa", slug: "casablanca", name: "Casablanca", fee: 2000 }
     const fes = { id: "fes", slug: "fes", name: "Fès", fee: 2000 }
     const rowsList = [
-      creerDevisHolder({
-        cities: [casa],
-        threshold: 100000,
-        quotes: { casa: { subtotal: 10000, shippingFee: 0, total: 10000 } },
-        sousTotal: 10000,
-        sources: { urlVilleId: "casa" },
-      }).rows,
-      creerDevisHolder({
-        cities: [fes],
-        threshold: 100000,
-        quotes: { fes: { subtotal: 10000, shippingFee: 2000, total: 12000 } },
-        sousTotal: 10000,
-        sources: { urlVilleId: "fes" },
-      }).rows,
-      creerDevisHolder({
-        cities: [casa],
-        threshold: 100000,
-        quotes: {},
-        sousTotal: 10000,
-        sources: { urlVilleId: null },
-      }).rows,
+      projeterDevis(
+        {
+          cities: [casa],
+          threshold: 100000,
+          quotes: { casa: { subtotal: 10000, shippingFee: 0, total: 10000 } },
+          sousTotal: 10000,
+        },
+        "casa"
+      ).rows,
+      projeterDevis(
+        {
+          cities: [fes],
+          threshold: 100000,
+          quotes: { fes: { subtotal: 10000, shippingFee: 2000, total: 12000 } },
+          sousTotal: 10000,
+        },
+        "fes"
+      ).rows,
+      projeterDevis(
+        {
+          cities: [casa],
+          threshold: 100000,
+          quotes: {},
+          sousTotal: 10000,
+        },
+        null
+      ).rows,
       récapitulatifRowsFromCommande({
         total: 10000,
         shippingFee: 2000,

@@ -1,9 +1,10 @@
 /**
  * Entrée serveur du Devis : `chargerDevis` retourne le Devis chargé — la
  * donnée pure d'un Panier chiffré (accès base via l'administration
- * Livraison). Construire l'interface profonde est l'affaire de
- * l'appelant : `creerDevisHolder(await chargerDevis(...))` — la fabrique
- * (`@/lib/use-cases/devis-coeur`) prend exactement le Devis chargé.
+ * Livraison). Dériver le Devis projeté est l'affaire de l'appelant :
+ * `projeterDevis(await chargerDevis(...), villeId)` — le projecteur
+ * (`@/lib/use-cases/devis-coeur`) prend exactement le Devis chargé et la
+ * Ville de livraison choisie.
  * Réexport du cœur pur pour les appelants serveur (`panier/page.tsx`,
  * `checkout/page.tsx`, `placeOrder`).
  *
@@ -12,16 +13,16 @@
  * module, qui tire `prisma` (`pg`) via `@/lib/use-cases/livraison`.
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
- * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
- * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
- * serveur comme hook partagent la même couture.
+ * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
+ * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
+ * dérivent par la projection unique `projeterDevis`, qui compose
+ * `lignesDevis` — pages serveur comme hook passent par elle. Les coutures
+ * internes gardent leurs tests directs.
  *
  * Le Devis chargé (`DevisChargé`) est la donnée pure qui peut traverser
  * la couture serveur → client — aucune fonction, aucun getter, aucune
- * instance de classe. L'interface `DevisHolder` (getters, `choisir`,
- * `selectionValidee`) n'est pas une donnée : elle se construit derrière
- * la couture à partir de ces faits via `creerDevisHolder`, jamais
- * l'inverse.
+ * instance de classe. Le Devis projeté se dérive derrière la couture à
+ * partir de ces faits via `projeterDevis`, jamais l'inverse.
  *
  * Non-buts : pas de re-sélection synchronisée avec l'URL sur checkout
  * (état local `useDevisSelection`) ; pas d'entrée de sélection allégée à
@@ -62,8 +63,8 @@ export { DeliveryCityNotFoundError } from "@/lib/use-cases/devis-coeur"
  *
  * Strictement des données : aucune fonction, aucun getter, aucune
  * instance de classe — le Devis chargé traverse la couture serveur →
- * client. L'interface `DevisHolder` se construit derrière la couture à
- * partir de ces faits via `creerDevisHolder`.
+ * client. Le Devis projeté se dérive derrière la couture à partir de ces
+ * faits via `projeterDevis`.
  *
  * Ville inconnue ou absente → la sélection se résoudra « aucune » à la
  * construction ; charger ne lève jamais sur une ville inconnue ou absente.

@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
-  creerDevisHolder,
+  projeterDevis,
   selectionnerDevis,
+  selectionValidee,
+  villeInitiale,
   type DevisChargé,
-  type DevisHolder,
   type DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
+import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {
   DeliveryCityOption,
@@ -149,6 +151,69 @@ describe("internal seam: selectionnerDevis (core lookup)", () => {
     expect(() => selectionnerDevis([], {}, "c1")).not.toThrow()
     expect(selectionnerDevis([], {}, "c1")).toStrictEqual(aucune)
     expect(selectionnerDevis([], {}, undefined)).toStrictEqual(aucune)
+  })
+})
+
+describe("villeInitiale (précédence lien > profil > aucune)", () => {
+  it("yields null without sources", () => {
+    expect(villeInitiale()).toBeNull()
+  })
+
+  it("precedence: lien wins over profil", () => {
+    expect(villeInitiale({ urlVilleId: "c1", profileVilleId: "c2" })).toBe("c1")
+  })
+
+  it("precedence: absent, empty or whitespace lien falls back to profil", () => {
+    for (const urlVilleId of [undefined, null, "", "   "]) {
+      expect(villeInitiale({ urlVilleId, profileVilleId: "c2" })).toBe("c2")
+    }
+  })
+
+  it("precedence: an explicitly provided lien suppresses the profile fallback", () => {
+    expect(
+      villeInitiale({
+        urlVilleId: "ville-inconnue",
+        urlVilleFournie: true,
+        profileVilleId: "c2",
+      })
+    ).toBe("ville-inconnue")
+
+    expect(
+      villeInitiale({
+        urlVilleId: "   ",
+        urlVilleFournie: true,
+        profileVilleId: "c2",
+      })
+    ).toBeNull()
+  })
+
+  it("precedence: neither source yields null", () => {
+    expect(villeInitiale({ urlVilleId: null, profileVilleId: null })).toBeNull()
+    expect(villeInitiale({ urlVilleId: "", profileVilleId: "   " })).toBeNull()
+    expect(villeInitiale({ urlVilleId: "   " })).toBeNull()
+  })
+
+  it("trims the winning identifier", () => {
+    expect(villeInitiale({ urlVilleId: "  c1  " })).toBe("c1")
+    expect(villeInitiale({ profileVilleId: "  c2  " })).toBe("c2")
+  })
+})
+
+describe("selectionValidee (rétrécissement de prise en commande)", () => {
+  const validée = {
+    cas: "validée",
+    ville: city("c1", "Casablanca", 3500),
+    devis: quote(50000, 3500),
+  } as const
+
+  it("returns the validated selection unchanged", () => {
+    const rétrécie = selectionValidee(validée)
+    expect(rétrécie).toStrictEqual(validée)
+  })
+
+  it("raises DeliveryCityNotFoundError (a UserFacingError) for aucune", () => {
+    expect(() => selectionValidee(aucune)).toThrow(DeliveryCityNotFoundError)
+    expect(() => selectionValidee(aucune)).toThrow(UserFacingError)
   })
 })
 
@@ -334,163 +399,161 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
   })
 })
 
-describe("DevisHolder", () => {
-  const sousTotal = 50000
+describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
+  const sousTotal = 73000
 
-  const chargé = (sources?: DevisPrecedenceSources): DevisChargé => ({
+  const chargé = (overrides: Partial<DevisChargé> = {}): DevisChargé => ({
     cities,
     threshold: 100000,
     quotes,
     sousTotal,
-    ...(sources === undefined ? {} : { sources }),
+    ...overrides,
   })
 
-  it("precedence: url ville wins over profile fallback on initial creation", () => {
-    const holder = creerDevisHolder(
-      chargé({ urlVilleId: "c1", profileVilleId: "c2" })
-    )
-    expect(holder.villeId).toBe("c1")
-    expect(holder.selection.cas).toBe("validée")
-    if (holder.selection.cas === "validée") {
-      expect(holder.selection.ville.id).toBe("c1")
-    }
-  })
+  it("ville validée : rend les villes, la sélection, les lignes et l'identifiant", () => {
+    const projet = projeterDevis(chargé(), "c1")
 
-  it("precedence: saved profile fallback is chosen when url ville is absent, empty, or whitespace", () => {
-    for (const urlVilleId of [undefined, null, "", "   "]) {
-      const holder = creerDevisHolder(chargé({ urlVilleId, profileVilleId: "c2" }))
-      expect(holder.villeId).toBe("c2")
-      expect(holder.selection.cas).toBe("validée")
-      if (holder.selection.cas === "validée") {
-        expect(holder.selection.ville.id).toBe("c2")
-      }
-    }
-  })
-
-  it("precedence: an explicit url presence suppresses the profile fallback for an unknown ville", () => {
-    const inconnue = creerDevisHolder(
-      chargé({
-        urlVilleId: "ville-inconnue",
-        urlVilleFournie: true,
-        profileVilleId: "c2",
-      })
-    )
-    expect(inconnue.villeId).toBeNull()
-    expect(inconnue.selection.cas).toBe("aucune")
-
-    const vide = creerDevisHolder(
-      chargé({
-        urlVilleId: "   ",
-        urlVilleFournie: true,
-        profileVilleId: "c2",
-      })
-    )
-    expect(vide.villeId).toBeNull()
-    expect(vide.selection.cas).toBe("aucune")
-  })
-
-  it("precedence: resolves to aucune when both url and profile are absent or empty", () => {
-    const holder = creerDevisHolder(
-      chargé({ urlVilleId: null, profileVilleId: null })
-    )
-    expect(holder.villeId).toBeNull()
-    expect(holder.selection.cas).toBe("aucune")
-  })
-
-  it("precedence: local choice wins over both url and profile after choisir", () => {
-    const holder = creerDevisHolder(
-      chargé({ urlVilleId: "c1", profileVilleId: "c2" })
-    )
-    expect(holder.villeId).toBe("c1")
-
-    const chosenC2 = holder.choisir("c2")
-    expect(chosenC2.villeId).toBe("c2")
-
-    const chosenC1 = chosenC2.choisir("c1")
-    expect(chosenC1.villeId).toBe("c1")
-
-    const chosenAucune = chosenC1.choisir(null)
-    expect(chosenAucune.villeId).toBeNull()
-    expect(chosenAucune.selection.cas).toBe("aucune")
-  })
-
-  it("quotes are always supplied by the caller — the factory never prices", () => {
-    const sansDevis = creerDevisHolder({
-      cities,
-      threshold: 100000,
-      quotes: {},
-      sousTotal,
-      sources: { urlVilleId: "c1" },
+    expect(projet.villes).toStrictEqual(cities)
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
     })
-    expect(sansDevis.selection.cas).toBe("aucune")
-    expect(sansDevis.villeId).toBeNull()
-    expect(sansDevis.rows[1]).toMatchObject({
-      label: "Livraison",
-      value: "À choisir",
-      tone: "muted",
-    })
-    expect(sansDevis.rows.some((r) => r.kind === "total")).toBe(false)
-  })
-
-  it("fallback: unknown ville silently resolves to aucune without throwing", () => {
-    let holderFromUnknown: DevisHolder | null = null
-    expect(() => {
-      holderFromUnknown = creerDevisHolder(
-        chargé({ urlVilleId: "ville-inconnue" })
-      )
-    }).not.toThrow()
-    expect(holderFromUnknown!.villeId).toBeNull()
-    expect(holderFromUnknown!.selection.cas).toBe("aucune")
-
-    const validHolder = creerDevisHolder(chargé({ urlVilleId: "c1" }))
-    const choseUnknown = validHolder.choisir("ville-inconnue")
-    expect(choseUnknown.villeId).toBeNull()
-    expect(choseUnknown.selection.cas).toBe("aucune")
-  })
-
-  it("intake narrowing: selectionValidee returns validated selection when valid", () => {
-    const holder = creerDevisHolder(chargé({ urlVilleId: "c1" }))
-    const validated1 = holder.selectionValidee()
-    expect(validated1).toStrictEqual(holder.selection)
-    expect(validated1.cas).toBe("validée")
-    expect(validated1.ville.id).toBe("c1")
-  })
-
-  it("intake narrowing: refuses aucune with DeliveryCityNotFoundError (UserFacingError)", () => {
-    const holder = creerDevisHolder(chargé({ urlVilleId: null }))
-    expect(() => holder.selectionValidee()).toThrow(DeliveryCityNotFoundError)
-    expect(() => holder.selectionValidee()).toThrow(UserFacingError)
-  })
-
-  it("rows derivation: derives rows from carried sousTotal for validated selection", () => {
-    const holder = creerDevisHolder(chargé({ urlVilleId: "c1" }))
-    expect(holder.rows[0]).toMatchObject({
+    expect(projet.villeId).toBe("c1")
+    expect(projet.rows[0]).toMatchObject({
       label: "Sous-total (TVA incluse)",
       kind: "detail",
     })
-    expect(holder.rows[1]).toMatchObject({
+    expect(projet.rows[1]).toMatchObject({
       label: "Livraison (Casablanca)",
       kind: "detail",
     })
-    expect(holder.rows.find((r) => r.kind === "total")).toBeDefined()
+    expect(projet.rows.some((row) => row.kind === "total")).toBe(true)
   })
 
-  it("rows derivation: derives rows from carried sousTotal for aucune selection (total omitted)", () => {
-    const holder = creerDevisHolder(chargé({ urlVilleId: null }))
-    expect(holder.rows[1]).toMatchObject({
+  it("cas aucune (undefined, null, vide, inconnu) : sélection aucune, aucun identifiant, ligne à choisir, total omis", () => {
+    for (const villeId of [
+      undefined,
+      null,
+      "",
+      "   ",
+      "ville-inconnue",
+    ] as const) {
+      const projet = projeterDevis(chargé(), villeId)
+
+      expect(projet.selection).toStrictEqual({ cas: "aucune" })
+      expect(projet.villeId).toBeNull()
+      expect(projet.rows[1]).toMatchObject({
+        label: "Livraison",
+        value: "À choisir",
+        tone: "muted",
+      })
+      expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+    }
+  })
+
+  it("« c1 » entouré d'espaces sélectionne Casablanca (normalisation)", () => {
+    const projet = projeterDevis(chargé(), "  c1  ")
+
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
+    expect(projet.villeId).toBe("c1")
+  })
+
+  it("rows derive from the carried sousTotal, not from a quote subtotal", () => {
+    const projet = projeterDevis(chargé({ sousTotal: 123456 }), "c1")
+
+    expect(projet.rows[0]).toMatchObject({
+      label: "Sous-total (TVA incluse)",
+      value: formatPrice(123456),
+    })
+    expect(projet.rows[1]?.value).toBe(formatPrice(3500))
+  })
+
+  it("never throws on empty cities and quotes", () => {
+    const vide: DevisChargé = {
+      cities: [],
+      threshold: 100000,
+      quotes: {},
+      sousTotal: 0,
+    }
+
+    expect(() => projeterDevis(vide, "c1")).not.toThrow()
+    const projet = projeterDevis(vide)
+    expect(projet.villes).toStrictEqual([])
+    expect(projet.selection).toStrictEqual({ cas: "aucune" })
+    expect(projet.villeId).toBeNull()
+    expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+  })
+})
+
+describe("projeterDevis: précédence, lignes et rétrécissement par une seule surface", () => {
+  const sousTotal = 73000
+
+  const chargéAvec = (sources: DevisPrecedenceSources): DevisChargé => ({
+    cities,
+    threshold: 100000,
+    quotes,
+    sousTotal,
+    sources,
+  })
+
+  it("le lien l'emporte sur le profil, et la projection rend Casablanca", () => {
+    const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(projet.villeId).toBe("c1")
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
+  })
+
+  it("un lien vide ou absent retombe sur le profil, et la projection rend Rabat", () => {
+    for (const urlVilleId of [undefined, null, "", "   "]) {
+      const chargé = chargéAvec({ urlVilleId, profileVilleId: "c2" })
+      const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+      expect(projet.villeId).toBe("c2")
+    }
+  })
+
+  it("sans source, la projection rend « aucune », sans identifiant ni total", () => {
+    const chargé = chargéAvec({ urlVilleId: null, profileVilleId: null })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(projet.selection).toStrictEqual({ cas: "aucune" })
+    expect(projet.villeId).toBeNull()
+    expect(projet.rows[1]).toMatchObject({
       label: "Livraison",
       value: "À choisir",
       tone: "muted",
     })
-    expect(holder.rows.some((r) => r.kind === "total")).toBe(false)
+    expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
   })
 
-  it("immutability: choisir returns a new holder without mutating original", () => {
-    const h1 = creerDevisHolder(chargé({ urlVilleId: "c1" }))
-    const h2 = h1.choisir("c2")
-    expect(h1.villeId).toBe("c1")
-    expect(h2.villeId).toBe("c2")
-    expect(h1).not.toBe(h2)
+  it("un lien explicitement inconnu rend « aucune » et le rétrécissement refuse", () => {
+    const chargé = chargéAvec({
+      urlVilleId: "ville-inconnue",
+      urlVilleFournie: true,
+    })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(projet.selection).toStrictEqual({ cas: "aucune" })
+    expect(() => selectionValidee(projet.selection)).toThrow(
+      DeliveryCityNotFoundError
+    )
+  })
+
+  it("une ville valide se rétrécit en sa ville via la projection", () => {
+    const chargé = chargéAvec({ urlVilleId: "c1" })
+    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+
+    expect(selectionValidee(projet.selection).ville.id).toBe("c1")
   })
 })
 

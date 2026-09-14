@@ -10,7 +10,7 @@ import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-pai
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { chargerDevis } from "@/lib/use-cases/devis"
-import { creerDevisHolder } from "@/lib/use-cases/devis-coeur"
+import { projeterDevis, villeInitiale } from "@/lib/use-cases/devis-coeur"
 import { resoudreVilleId } from "@/lib/use-cases/livraison"
 import { lirePanier } from "@/lib/panier"
 
@@ -42,9 +42,10 @@ async function CartContent({
   const { ville } = await searchParams
   const villeId = await resoudreVilleId(ville)
   const panier = await lirePanier()
-  const devis = creerDevisHolder(await chargerDevis(panier, villeId))
+  const chargé = await chargerDevis(panier, villeId)
+  const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
   const villeSelectionnee =
-    devis.selection.cas === "validée" ? devis.selection.ville : null
+    projet.selection.cas === "validée" ? projet.selection.ville : null
 
   if (panier.lines.length === 0) {
     return (
@@ -78,12 +79,12 @@ async function CartContent({
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
-          <RecapitulatifPaiement rows={devis.rows} />
+          <RecapitulatifPaiement rows={projet.rows} />
 
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker
-              cities={devis.villes}
-              selectedId={devis.villeId}
+              cities={projet.villes}
+              selectedId={projet.villeId}
               path="/panier"
             />
             <Button

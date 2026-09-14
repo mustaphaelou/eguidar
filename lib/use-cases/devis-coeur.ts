@@ -17,16 +17,22 @@
  * Deux formes cohabitent : le Devis chargé (`DevisChargé`) est la donnée
  * pure qui traverse la couture serveur → client — Villes de livraison,
  * seuil, devis par ville, sous-total, sources de précédence, aucune
- * fonction — ; l'interface `DevisHolder` (getters, `choisir`,
- * `selectionValidee`) n'est pas une donnée : elle se construit derrière
- * la couture à partir de ces faits via `creerDevisHolder(devisChargé)` —
- * une seule entrée de construction, les devis étant toujours fournis par
- * l'appelant (la fabrique ne chiffre jamais).
+ * fonction — ; le Devis projeté (`DevisProjeté`) est la surface dérivée
+ * qui se projette derrière la couture via `projeterDevis(devisChargé,
+ * villeId)` — les devis restent toujours fournis par l'appelant (le
+ * projecteur ne chiffre jamais).
+ *
+ * Deux résolutions pures accompagnent la Sélection : `villeInitiale`
+ * (précédence lien > profil > aucune) et `selectionValidee`
+ * (rétrécissement de prise en commande, refuse « aucune »).
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
- * il a été chargé ; les lignes du Récapitulatif se dérivent toujours via
- * le projecteur unique `lignesDevis(devis.sousTotal, devis)` — pages
- * serveur comme hook partagent la même couture.
+ * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
+ * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
+ * dérivent par la projection unique `projeterDevis`, qui compose
+ * `lignesDevis` — pages serveur comme hook passent par elle. Les coutures
+ * internes (`selectionnerDevis`, `lignesDevis`) gardent leurs tests
+ * directs.
  */
 import {
   construireLignes,
@@ -83,9 +89,8 @@ export function selectionnerDevis(
  * (cents) et sources de précédence (`urlVilleId` gagne sur
  * `profileVilleId`). Strictement des données : aucune fonction, aucun
  * getter, aucune instance de classe — c'est ce qui traverse la couture
- * serveur → client. L'interface `DevisHolder` (getters, `choisir`,
- * `selectionValidee`) se construit derrière la couture à partir de ces
- * faits via `creerDevisHolder`.
+ * serveur → client. Le Devis projeté (`projeterDevis`) se dérive derrière
+ * la couture à partir de ces faits et d'une Ville de livraison explicite.
  */
 export type DevisChargé = {
   cities: DeliveryCityOption[]
@@ -133,7 +138,22 @@ export function lignesDevis(
 export type ValidatedSelectionDevis = Extract<SelectionDevis, { cas: "validée" }>
 
 /**
- * Sources de précédence pour l'initialisation de la ville dans le DevisHolder.
+ * Rétrécissement de prise en commande : rend la Sélection validée
+ * inchangée, ou refuse le cas « aucune » avec
+ * `DeliveryCityNotFoundError` (erreur utilisateur existante).
+ */
+export function selectionValidee(
+  selection: SelectionDevis
+): ValidatedSelectionDevis {
+  if (selection.cas !== "validée") {
+    throw new DeliveryCityNotFoundError()
+  }
+  return selection
+}
+
+/**
+ * Sources de précédence pour la ville initiale d'une Sélection
+ * (`villeInitiale`).
  *
  * `urlVilleFournie` dit la **présence** d'un `?ville=` non vide dans l'URL :
  * le lien partagé l'emporte alors, et une ville inconnue laisse la sélection
@@ -149,81 +169,70 @@ export interface DevisPrecedenceSources {
 }
 
 /**
- * Interface profonde du DevisHolder : possède les villes, la sélection
- * courante, les lignes du Récapitulatif projetées depuis le sous-total
- * du Devis chargé qui l'a construit, le changement de ville (`choisir`),
- * l'identifiant sélectionné (`villeId`) et le rétrécissement de prise en
- * commande (`selectionValidee`).
+ * Ville initiale dérivée des seules sources de précédence : lien >
+ * profil > aucune.
  *
- * Les devis bruts (`quotes`) et le seuil (`threshold`) restent cachés
- * dans l'implémentation — le holder n'expose que la projection.
+ * Sans sources → null. Un lien explicitement fourni l'emporte — rogné,
+ * ou null s'il est vide — sans repli sur le profil, même s'il nomme une
+ * ville inconnue (la Sélection résoudra alors « aucune »). Sinon un
+ * `urlVilleId` rogné non vide gagne, un `profileVilleId` rogné non vide
+ * sert de repli, sinon null.
  */
-export interface DevisHolder {
-  readonly villes: DeliveryCityOption[]
-  readonly selection: SelectionDevis
-  readonly rows: RécapitulatifRow[]
-  readonly villeId: string | null
-  choisir(nouvelleVilleId?: string | null): DevisHolder
-  selectionValidee(): ValidatedSelectionDevis
+export function villeInitiale(
+  sources?: DevisPrecedenceSources
+): string | null {
+  if (!sources) return null
+  if (sources.urlVilleFournie) return sources.urlVilleId?.trim() || null
+  const url = sources.urlVilleId?.trim()
+  if (url && url.length > 0) return url
+  const profil = sources.profileVilleId?.trim()
+  if (profil && profil.length > 0) return profil
+  return null
 }
 
 /**
- * Construit le DevisHolder depuis le Devis chargé — l'unique entrée de
- * construction de l'interface : les faits entrants sont exactement le
- * Devis chargé, et les devis par ville (`quotes`) sont toujours fournis
- * par l'appelant — la fabrique ne chiffre jamais.
+ * Le Devis projeté — surface externe du cœur pur.
  *
- * La précédence (lien > profil > aucune) se résout ici, à la
- * construction. Ville inconnue ou absente → sélection « aucune » ; la
- * fabrique ne lève jamais sur une ville absente ou inconnue.
+ * Seul endroit où les consommateurs dérivent les Villes de livraison, la
+ * Sélection du Devis, les lignes du Récapitulatif et l'identifiant de la
+ * ville sélectionnée : une projection pure depuis le Devis chargé et une
+ * Ville de livraison explicite (ou aucune). Les devis bruts (`quotes`) et
+ * le seuil (`threshold`) restent cachés derrière la projection ; les
+ * coutures internes (`selectionnerDevis`, `lignesDevis`) gardent leurs
+ * tests directs.
  */
-export function creerDevisHolder(devisChargé: DevisChargé): DevisHolder {
-  const { cities, quotes, sousTotal } = devisChargé
+export type DevisProjeté = {
+  villes: DeliveryCityOption[]
+  selection: SelectionDevis
+  rows: RécapitulatifRow[]
+  villeId: string | null
+}
 
-  function resoudrePrecedence(
-    src?: DevisPrecedenceSources
-  ): string | null {
-    if (!src) return null
-    if (src.urlVilleFournie) return src.urlVilleId?.trim() || null
-    const url = src.urlVilleId?.trim()
-    if (url && url.length > 0) return url
-    const profil = src.profileVilleId?.trim()
-    if (profil && profil.length > 0) return profil
-    return null
+/**
+ * Projette le Devis projeté depuis un Devis chargé et la Ville de
+ * livraison choisie (ou aucune).
+ *
+ * Compose les coutures internes : `selectionnerDevis` résout la ville,
+ * `lignesDevis` dérive les lignes du `sousTotal` porté. Ville inconnue,
+ * absente, vide ou entourée d'espaces → « aucune » : jamais à moitié, ne
+ * lève jamais.
+ */
+export function projeterDevis(
+  devisChargé: DevisChargé,
+  villeId?: string | null
+): DevisProjeté {
+  const selection = selectionnerDevis(
+    devisChargé.cities,
+    devisChargé.quotes,
+    villeId?.trim() || null
+  )
+  const rows = lignesDevis(devisChargé.sousTotal, selection)
+
+  return {
+    villes: devisChargé.cities,
+    selection,
+    rows,
+    villeId: selection.cas === "validée" ? selection.ville.id : null,
   }
-
-  function creerInstance(villeChoisie: string | null): DevisHolder {
-    const selection = selectionnerDevis(cities, quotes, villeChoisie)
-    const rows = lignesDevis(sousTotal, selection)
-    const villeId = selection.cas === "validée" ? selection.ville.id : null
-
-    return {
-      get villes() {
-        return cities
-      },
-      get selection() {
-        return selection
-      },
-      get rows() {
-        return rows
-      },
-      get villeId() {
-        return villeId
-      },
-      choisir(nouvelleVilleId?: string | null) {
-        const trimmed = nouvelleVilleId?.trim() || null
-        return creerInstance(trimmed)
-      },
-      selectionValidee() {
-        if (selection.cas !== "validée") {
-          throw new DeliveryCityNotFoundError()
-        }
-        return selection
-      },
-    }
-  }
-
-  const initialCityId = resoudrePrecedence(devisChargé.sources)
-  return creerInstance(initialCityId)
 }
 

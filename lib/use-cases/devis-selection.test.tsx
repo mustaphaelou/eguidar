@@ -163,7 +163,53 @@ describe("useDevisSelection", () => {
     })
   })
 
-  it("choisir(\"\") retombe sur « aucune »", () => {
+  it("choisir(\"  c2  \") normalise l'identifiant : Rabat, sélection validée et lignes re-chiffrées", () => {
+    const hook = renderHook(() => useDevisSelection(devisAucune()))
+
+    act(() => {
+      hook.current.choisir("  c2  ")
+    })
+
+    expect(hook.current.villeId).toBe("c2")
+    expect(hook.current.selection).toStrictEqual({
+      cas: "validée",
+      ville: RABAT,
+      devis: QUOTE_RABAT,
+    })
+    expect(hook.current.rows[1]).toMatchObject({
+      label: "Livraison (Rabat)",
+      value: formatPrice(5000),
+      kind: "detail",
+    })
+    expect(
+      hook.current.rows.find((row) => row.kind === "total")
+    ).toMatchObject({
+      label: "Total à payer à la livraison",
+      value: formatPrice(55000),
+    })
+  })
+
+  it("choisir(null) exprime « aucune » sans chaîne vide", () => {
+    const hook = renderHook(() => useDevisSelection(devisValide()))
+
+    expect(hook.current.selection.cas).toBe("validée")
+
+    act(() => {
+      hook.current.choisir(null)
+    })
+
+    expect(hook.current.villeId).toBeNull()
+    expect(hook.current.selection).toStrictEqual({ cas: "aucune" })
+    expect(hook.current.rows[1]).toEqual({
+      label: "Livraison",
+      value: "À choisir",
+      kind: "detail",
+      tone: "muted",
+    })
+    expect(hook.current.rows.some((row) => row.kind === "total")).toBe(false)
+  })
+
+  it("choisir(\"\") retombe aussi sur « aucune » — cas vide encore supporté", () => {
     const hook = renderHook(() => useDevisSelection(devisValide()))
 
     expect(hook.current.selection.cas).toBe("validée")
@@ -173,13 +219,6 @@ describe("useDevisSelection", () => {
     })
 
     expect(hook.current.selection).toStrictEqual({ cas: "aucune" })
-    expect(hook.current.rows[1]).toEqual({
-      label: "Livraison",
-      value: "À choisir",
-      kind: "detail",
-      tone: "muted",
-    })
-    expect(hook.current.rows.some((row) => row.kind === "total")).toBe(false)
   })
 
   it("un identifiant inconnu retombe sur « aucune » — jamais à moitié, ne lève jamais", () => {
@@ -241,6 +280,45 @@ describe("useDevisSelection", () => {
       cas: "validée",
       ville: RABAT,
       devis: QUOTE_RABAT,
+    })
+  })
+
+  it("ignore un changement ultérieur du Devis chargé : faits et choix initiaux figés", () => {
+    const premier = devisValide()
+    const second: DevisChargé = {
+      cities: VILLES,
+      threshold: 100000,
+      quotes: QUOTES,
+      sousTotal: 99900,
+      sources: { urlVilleId: "c2" },
+    }
+
+    let current!: ReturnType<typeof useDevisSelection>
+    function Probe({ devis }: { devis: DevisChargé }) {
+      current = useDevisSelection(devis)
+      return null
+    }
+
+    const root = createRoot(container)
+    roots.push(root)
+    act(() => root.render(<Probe devis={premier} />))
+
+    expect(current.villeId).toBe("c1")
+
+    act(() => root.render(<Probe devis={second} />))
+
+    expect(current.villes).toEqual(VILLES)
+    expect(current.villeId).toBe("c1")
+    expect(current.selection).toStrictEqual({
+      cas: "validée",
+      ville: CASA,
+      devis: QUOTE_CASA,
+    })
+    expect(
+      current.rows.find((row) => row.kind === "total")
+    ).toMatchObject({
+      label: "Total à payer à la livraison",
+      value: formatPrice(53500),
     })
   })
 
