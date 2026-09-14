@@ -1,41 +1,24 @@
 import { cookies } from "next/headers"
 
 import { prisma } from "@/lib/db"
-import { prixVariante } from "@/lib/product-metrics"
+import {
+  calculerTotauxPanier,
+  construireArticleDuPanier,
+  type ArticleDuPanier,
+  type DonneesPanier,
+  type ResultatPanier,
+} from "@/lib/panier-coeur"
 
 // ============================================================================
 // Types et interface publique
 // ============================================================================
 
-export type MotifRefusPanier =
-  | "cap-atteinte"
-  | "quantite-invalide"
-  | "variante-inconnue"
-  | "article-inconnu"
-
-export type ResultatPanier =
-  | { ok: true }
-  | { ok: false; motif: MotifRefusPanier; message: string }
-
-export interface ArticleDuPanier {
-  variantId: string
-  variantName: string
-  productId: string
-  productName: string
-  productSlug: string
-  image: string | null
-  unitPrice: number
-  quantity: number
-  lineTotal: number
-  stock: number
-  freeShipping: boolean
-}
-
-export interface DonneesPanier {
-  lines: ArticleDuPanier[]
-  subtotal: number
-  itemCount: number
-}
+export type {
+  MotifRefusPanier,
+  ResultatPanier,
+  ArticleDuPanier,
+  DonneesPanier,
+} from "@/lib/panier-coeur"
 
 type ProprietaireDuPanier =
   | { role: "visiteur" }
@@ -496,51 +479,5 @@ function creerStoreClient(compteId: string): PanierStore {
 }
 
 // ============================================================================
-// Projection et calculs partagés
+// Projection et calculs partagés (voir le cœur pur `@/lib/panier-coeur`)
 // ============================================================================
-
-interface VarianteAvecProduit {
-  id: string
-  name: string
-  productId: string
-  priceDelta: number
-  stock: number
-  product: {
-    price: number
-    name: string
-    slug: string
-    images: unknown
-    freeShipping: boolean
-  }
-}
-
-function construireArticleDuPanier(
-  variant: VarianteAvecProduit,
-  quantity: number
-): ArticleDuPanier {
-  const unitPrice = prixVariante(variant.product.price, variant.priceDelta)
-  return {
-    variantId: variant.id,
-    variantName: variant.name,
-    productId: variant.productId,
-    productName: variant.product.name,
-    productSlug: variant.product.slug,
-    image: Array.isArray(variant.product.images)
-      ? ((variant.product.images[0] as string | undefined) ?? null)
-      : null,
-    unitPrice,
-    quantity,
-    lineTotal: unitPrice * quantity,
-    stock: variant.stock,
-    freeShipping: variant.product.freeShipping,
-  }
-}
-
-function calculerTotauxPanier(
-  articles: readonly ArticleDuPanier[]
-): Pick<DonneesPanier, "subtotal" | "itemCount"> {
-  return {
-    subtotal: articles.reduce((somme, article) => somme + article.lineTotal, 0),
-    itemCount: articles.reduce((somme, article) => somme + article.quantity, 0),
-  }
-}
