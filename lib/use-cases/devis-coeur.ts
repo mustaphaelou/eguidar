@@ -227,3 +227,48 @@ export function creerDevisHolder(devisChargé: DevisChargé): DevisHolder {
   return creerInstance(initialCityId)
 }
 
+/**
+ * Le Devis projeté — surface externe du cœur pur.
+ *
+ * Seul endroit où les consommateurs dérivent les Villes de livraison, la
+ * Sélection du Devis, les lignes du Récapitulatif et l'identifiant de la
+ * ville sélectionnée : une projection pure depuis le Devis chargé et une
+ * Ville de livraison explicite (ou aucune). Les devis bruts (`quotes`) et
+ * le seuil (`threshold`) restent cachés derrière la projection ; les
+ * coutures internes (`selectionnerDevis`, `lignesDevis`) gardent leurs
+ * tests directs.
+ */
+export type DevisProjeté = {
+  villes: DeliveryCityOption[]
+  selection: SelectionDevis
+  rows: RécapitulatifRow[]
+  villeId: string | null
+}
+
+/**
+ * Projette le Devis projeté depuis un Devis chargé et la Ville de
+ * livraison choisie (ou aucune).
+ *
+ * Compose les coutures internes : `selectionnerDevis` résout la ville,
+ * `lignesDevis` dérive les lignes du `sousTotal` porté. Ville inconnue,
+ * absente ou vide → « aucune » : jamais à moitié, ne lève jamais.
+ */
+export function projeterDevis(
+  devisChargé: DevisChargé,
+  villeId?: string | null
+): DevisProjeté {
+  const selection = selectionnerDevis(
+    devisChargé.cities,
+    devisChargé.quotes,
+    villeId
+  )
+  const rows = lignesDevis(devisChargé.sousTotal, selection)
+
+  return {
+    villes: devisChargé.cities,
+    selection,
+    rows,
+    villeId: selection.cas === "validée" ? selection.ville.id : null,
+  }
+}
+
