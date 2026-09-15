@@ -490,7 +490,7 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
   })
 })
 
-describe("projeterDevis: précédence, lignes et rétrécissement par une seule surface", () => {
+describe("projeterDevis: la précédence absorbée, lignes et rétrécissement par une seule surface", () => {
   const sousTotal = 73000
 
   const chargéAvec = (sources: DevisPrecedenceSources): DevisChargé => ({
@@ -501,9 +501,9 @@ describe("projeterDevis: précédence, lignes et rétrécissement par une seule 
     sources,
   })
 
-  it("le lien l'emporte sur le profil, et la projection rend Casablanca", () => {
+  it("sans ville explicite, la précédence portée se dérive : le lien l'emporte, la projection rend Casablanca", () => {
     const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
-    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+    const projet = projeterDevis(chargé)
 
     expect(projet.villeId).toBe("c1")
     expect(projet.selection).toStrictEqual({
@@ -513,18 +513,18 @@ describe("projeterDevis: précédence, lignes et rétrécissement par une seule 
     })
   })
 
-  it("un lien vide ou absent retombe sur le profil, et la projection rend Rabat", () => {
+  it("sans ville explicite, un lien vide ou absent retombe sur le profil, et la projection rend Rabat", () => {
     for (const urlVilleId of [undefined, null, "", "   "]) {
       const chargé = chargéAvec({ urlVilleId, profileVilleId: "c2" })
-      const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+      const projet = projeterDevis(chargé)
 
       expect(projet.villeId).toBe("c2")
     }
   })
 
-  it("sans source, la projection rend « aucune », sans identifiant ni total", () => {
+  it("sans ville explicite ni source, la projection rend « aucune », sans identifiant ni total", () => {
     const chargé = chargéAvec({ urlVilleId: null, profileVilleId: null })
-    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+    const projet = projeterDevis(chargé)
 
     expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(projet.villeId).toBeNull()
@@ -536,12 +536,12 @@ describe("projeterDevis: précédence, lignes et rétrécissement par une seule 
     expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
   })
 
-  it("un lien explicitement inconnu rend « aucune » et le rétrécissement refuse", () => {
+  it("sans ville explicite, un lien explicitement inconnu rend « aucune » et le rétrécissement refuse", () => {
     const chargé = chargéAvec({
       urlVilleId: "ville-inconnue",
       urlVilleFournie: true,
     })
-    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+    const projet = projeterDevis(chargé)
 
     expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(() => selectionValidee(projet.selection)).toThrow(
@@ -551,9 +551,33 @@ describe("projeterDevis: précédence, lignes et rétrécissement par une seule 
 
   it("une ville valide se rétrécit en sa ville via la projection", () => {
     const chargé = chargéAvec({ urlVilleId: "c1" })
-    const projet = projeterDevis(chargé, villeInitiale(chargé.sources))
+    const projet = projeterDevis(chargé)
 
     expect(selectionValidee(projet.selection).ville.id).toBe("c1")
+  })
+
+  it("une ville explicite l'emporte sur les sources portées (ville soumise)", () => {
+    const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
+    const projet = projeterDevis(chargé, "c2")
+
+    expect(projet.villeId).toBe("c2")
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c2", "Rabat", 5000),
+      devis: quote(50000, 5000),
+    })
+  })
+
+  it("« aucune » typée et chaîne vide explicites restent « aucune » même avec des sources", () => {
+    const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
+
+    const typée = projeterDevis(chargé, null)
+    expect(typée.selection).toStrictEqual({ cas: "aucune" })
+    expect(typée.villeId).toBeNull()
+
+    const vide = projeterDevis(chargé, "")
+    expect(vide.selection).toStrictEqual({ cas: "aucune" })
+    expect(vide.villeId).toBeNull()
   })
 })
 

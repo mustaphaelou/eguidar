@@ -39,9 +39,16 @@ _Avoid_: vue, view model, devis résolu
 
 **Sélection du Devis**:
 La sélection validée d'une Ville de livraison et de son devis, ou « aucune » tant qu'aucune ville
-n'est choisie ; jamais à moitié. Une sélection validée porte exactement deux faits : la Ville
-de livraison et son devis.
+n'est choisie ; jamais à moitié. Une sélection validée porte exactement deux faits : la Ville de
+livraison et son devis.
 _Avoid_: selected city, city selection, sélection de ville
+
+**Précédence du Devis**:
+L'ordre dans lequel la Ville de livraison initiale d'un Devis est choisie : la Ville nommée dans
+l'URL (lien partagé) l'emporte ; à défaut la Ville sauvegardée dans le profil du Client ; sinon
+« aucune ». Un lien explicitement fourni gagne même s'il nomme une Ville de livraison inconnue —
+jamais de repli sur le profil.
+_Avoid_: priorité de ville, repli de ville, initial city
 
 **Récapitulatif de paiement**:
 Le bloc présentant le Sous-total (TVA incluse), la Livraison et le Total à payer à la livraison sur le Panier, la commande, la confirmation, l'Administration et l'e-mail de commande.

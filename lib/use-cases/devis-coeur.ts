@@ -210,12 +210,15 @@ export type DevisProjeté = {
 
 /**
  * Projette le Devis projeté depuis un Devis chargé et la Ville de
- * livraison choisie (ou aucune).
+ * livraison choisie.
  *
  * Compose les coutures internes : `selectionnerDevis` résout la ville,
- * `lignesDevis` dérive les lignes du `sousTotal` porté. Ville inconnue,
- * absente, vide ou entourée d'espaces → « aucune » : jamais à moitié, ne
- * lève jamais.
+ * `lignesDevis` dérive les lignes du `sousTotal` porté. Sans ville
+ * explicite (absente), la Précédence du Devis se dérive des sources
+ * portées (`villeInitiale` : lien > profil > aucune) — l'appelant n'a
+ * jamais à la recalculer ; `null` reste l'« aucune » typée, une chaîne
+ * vide la rejoint après rognage. Ville inconnue, absente, vide ou
+ * entourée d'espaces → « aucune » : jamais à moitié, ne lève jamais.
  */
 export function projeterDevis(
   devisChargé: DevisChargé,
@@ -224,7 +227,9 @@ export function projeterDevis(
   const selection = selectionnerDevis(
     devisChargé.cities,
     devisChargé.quotes,
-    villeId?.trim() || null
+    villeId === undefined
+      ? villeInitiale(devisChargé.sources)
+      : villeId?.trim() || null
   )
   const rows = lignesDevis(devisChargé.sousTotal, selection)
 
