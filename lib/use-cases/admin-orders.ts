@@ -2,7 +2,6 @@ import type { CommandeListingParams } from "@/lib/commande-listing"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { prisma } from "@/lib/db"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import { totalPayable } from "@/lib/money"
 import { OrderNotFoundError } from "@/lib/use-cases/orders"
 
 export interface AdminOrderSummary {
@@ -69,9 +68,8 @@ async function runListAdminOrders(
 ): Promise<AdminOrdersPage> {
   const where = buildOrdersWhere(params)
   const sens = params?.sens ?? "desc"
-  // 'total' proxies Total à payer (= total + shippingFee); Prisma sorts a single field only.
   const orderBy: Prisma.OrderOrderByWithRelationInput =
-    params?.tri === "total" ? { total: sens } : { createdAt: sens }
+    params?.tri === "total" ? { totalPayable: sens } : { createdAt: sens }
   const page = params?.page ?? 1
   const pageSize = params?.pageSize ?? PAGE_SIZES[0]
 
@@ -95,7 +93,7 @@ async function runListAdminOrders(
       status: order.status,
       total: order.total,
       shippingFee: order.shippingFee,
-      totalPayable: totalPayable(order),
+      totalPayable: order.totalPayable,
       createdAt: order.createdAt,
       itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
       customerName: order.user.name,
@@ -137,7 +135,7 @@ export async function getAdminOrder(
     phone: order.phone,
     total: order.total,
     shippingFee: order.shippingFee,
-    totalPayable: totalPayable(order),
+    totalPayable: order.totalPayable,
     createdAt: order.createdAt,
     customerName: order.user.name,
     customerEmail: order.user.email,

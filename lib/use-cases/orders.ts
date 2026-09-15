@@ -13,10 +13,7 @@ import {
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
 import { chargerDevis } from "@/lib/use-cases/devis"
-import {
-  projeterDevis,
-  selectionValidee,
-} from "@/lib/use-cases/devis-coeur"
+import { projeterDevis, selectionValidee } from "@/lib/use-cases/devis-coeur"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = {
@@ -253,6 +250,7 @@ export async function placeOrder(
         phone: data.phone,
         total: cart.subtotal,
         shippingFee,
+        totalPayable: totalPayable({ total: cart.subtotal, shippingFee }),
         items: {
           create: cart.lines.map((line) => ({
             variantId: line.variantId,
