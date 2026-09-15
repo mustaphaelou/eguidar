@@ -44,9 +44,7 @@ export function parseCommandeListingParams(
 ): CommandeListingParams {
   const statusTokens = (firstValue(raw, "statut") ?? "").split(",")
   const statuses = [
-    ...new Set(
-      statusTokens.map((token) => token.trim()).filter(estStatut)
-    ),
+    ...new Set(statusTokens.map((token) => token.trim()).filter(estStatut)),
   ]
 
   const pageRaw = Number(firstValue(raw, "page"))
@@ -94,107 +92,4 @@ export function buildCommandeListingUrl(view: CommandeListingParams): string {
   if (sens !== COMMANDE_LISTING_SENS_DEFAULT) searchParams.set("sens", sens)
   const query = searchParams.toString()
   return query ? `${COMMANDE_LISTING_PATH}?${query}` : COMMANDE_LISTING_PATH
-}
-
-export type CommandeListingView = {
-  pageIndex: number
-  pageSize: (typeof PAGE_SIZES)[number]
-  q: string
-  statuses: OrderStatus[]
-  tri: "date" | "total"
-  sens: "asc" | "desc"
-}
-
-export function viewFromParams(
-  params: CommandeListingParams,
-  pageCount: number
-): CommandeListingView {
-  return {
-    pageIndex: Math.min((params.page ?? 1) - 1, Math.max(0, pageCount - 1)),
-    pageSize: params.pageSize ?? COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
-    q: params.q ?? "",
-    statuses: params.statuses ? [...params.statuses] : [],
-    tri: params.tri ?? COMMANDE_LISTING_TRI_DEFAULT,
-    sens: params.sens ?? COMMANDE_LISTING_SENS_DEFAULT,
-  }
-}
-
-export function signatureOf(view: CommandeListingView): string {
-  return JSON.stringify({
-    p: view.pageIndex,
-    s: view.pageSize,
-    q: view.q.trim(),
-    f: [...view.statuses],
-    t: view.tri,
-    d: view.sens,
-  })
-}
-
-export function hrefOf(view: CommandeListingView): string {
-  return buildCommandeListingUrl({
-    page: view.pageIndex + 1,
-    pageSize: view.pageSize,
-    q: view.q,
-    statuses: view.statuses,
-    tri: view.tri,
-    sens: view.sens,
-  })
-}
-
-export function reconcile(
-  params: CommandeListingParams,
-  pageCount: number,
-  lastPushedSignature: string
-): { echo: boolean; view: CommandeListingView; correctedHref?: string } {
-  const view = viewFromParams(params, pageCount)
-  if (signatureOf(view) === lastPushedSignature) {
-    return { echo: true, view }
-  }
-  const requestedPageIndex = (params.page ?? 1) - 1
-  const correctedHref =
-    view.pageIndex !== requestedPageIndex ? hrefOf(view) : undefined
-  return { echo: false, view, correctedHref }
-}
-
-export function resolveUpdater<T>(updater: T | ((old: T) => T), current: T): T {
-  return typeof updater === "function"
-    ? (updater as (old: T) => T)(current)
-    : updater
-}
-
-export function partialViewFromSorting(
-  sorting: readonly { id: string; desc: boolean }[] | undefined
-): Partial<CommandeListingView> {
-  const first = sorting?.[0]
-  return {
-    tri: first?.id === TOTAL_COLUMN_ID ? "total" : "date",
-    sens: first?.desc ? "desc" : "asc",
-    pageIndex: 0,
-  }
-}
-
-export function partialViewFromFilters(
-  filters: readonly { id: string; value: unknown }[]
-): Partial<CommandeListingView> {
-  const entry = filters.find((filter) => filter.id === STATUT_COLUMN_ID)
-  const statuses = Array.isArray(entry?.value)
-    ? entry.value.filter(
-        (value): value is OrderStatus =>
-          typeof value === "string" && estStatut(value)
-      )
-    : []
-  return { statuses, pageIndex: 0 }
-}
-
-export function partialViewFromPagination(
-  next: { pageIndex: number; pageSize: number },
-  current: CommandeListingView
-): Partial<CommandeListingView> {
-  if (next.pageSize !== current.pageSize) {
-    return {
-      pageSize: next.pageSize as CommandeListingView["pageSize"],
-      pageIndex: 0,
-    }
-  }
-  return { pageIndex: next.pageIndex }
 }

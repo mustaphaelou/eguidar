@@ -131,10 +131,10 @@ describe("useCommandeListing", () => {
     expect(latest!.queryDraft).toBe("")
   })
 
-  it("keeps uncommitted search text when updating during the debounce window", () => {
+  it("keeps uncommitted search text when paginating during the debounce window", () => {
     render({})
     act(() => latest!.onQueryChange("alix"))
-    act(() => latest!.update({ pageIndex: 2 }))
+    act(() => latest!.onPaginationChange({ pageIndex: 2, pageSize: 10 }))
     expect(pushedHrefs).toHaveLength(1)
     expect(pushedHrefs).toEqual(["/admin/commandes?page=3&q=alix"])
     expect(latest!.view.q).toBe("alix")
@@ -147,7 +147,7 @@ describe("useCommandeListing", () => {
 
   it("treats a URL change matching the last pushed signature as an echo", () => {
     render({ q: "alix" })
-    act(() => latest!.update({ pageIndex: 2 }))
+    act(() => latest!.onPaginationChange({ pageIndex: 2, pageSize: 10 }))
     expect(pushedHrefs).toHaveLength(1)
     const pushedHref = pushedHrefs[0]!
     render(parseCommandeListingParams(rawFromUrl(pushedHref)))
@@ -184,9 +184,9 @@ describe("useCommandeListing", () => {
     expect(latest!.queryDraft).toBe("alix")
   })
 
-  it("resets to the first page when the page size changes through update", () => {
+  it("resets to the first page when the page size changes", () => {
     render({ page: 3 })
-    act(() => latest!.update({ pageSize: 50, pageIndex: 0 }))
+    act(() => latest!.onPaginationChange((old) => ({ ...old, pageSize: 50 })))
     expect(pushedHrefs).toHaveLength(1)
     expect(pushedHrefs).toEqual(["/admin/commandes?pageSize=50"])
     expect(latest!.view.pageSize).toBe(50)
@@ -195,27 +195,96 @@ describe("useCommandeListing", () => {
 
   it("keeps the requested page when the page size is unchanged", () => {
     render({ page: 3 })
-    act(() => latest!.update({ pageIndex: 3 }))
+    act(() => latest!.onPaginationChange({ pageIndex: 3, pageSize: 10 }))
     expect(pushedHrefs).toHaveLength(1)
     expect(pushedHrefs).toEqual(["/admin/commandes?page=4"])
+    expect(latest!.view.pageIndex).toBe(3)
   })
 
   it("commits a sorting change back to the first page, preserving the query", () => {
     render({ page: 3, q: "alix", pageSize: 20 })
-    act(() => latest!.update({ tri: "total", sens: "asc", pageIndex: 0 }))
+    act(() => latest!.onSortingChange([{ id: "total", desc: false }]))
     expect(pushedHrefs).toHaveLength(1)
     expect(pushedHrefs).toEqual([
       "/admin/commandes?pageSize=20&q=alix&tri=total&sens=asc",
     ])
+    expect(latest!.view.tri).toBe("total")
+    expect(latest!.view.sens).toBe("asc")
+    expect(latest!.view.pageIndex).toBe(0)
+  })
+
+  it("resolves a function sorting updater against the current sorting", () => {
+    render({ tri: "total", sens: "asc", page: 2 })
+    act(() =>
+      latest!.onSortingChange((old) => [
+        { id: old[0]!.id, desc: !old[0]!.desc },
+      ])
+    )
+    expect(latest!.view.tri).toBe("total")
+    expect(latest!.view.sens).toBe("desc")
+    expect(latest!.view.pageIndex).toBe(0)
+    expect(pushedHrefs).toEqual(["/admin/commandes?tri=total"])
+  })
+
+  it("falls back to date on an unknown sort id, keeping the requested direction", () => {
+    render({ page: 3, tri: "total", sens: "desc" })
+    act(() => latest!.onSortingChange([{ id: "bogus", desc: false }]))
+    expect(pushedHrefs).toHaveLength(1)
+    expect(latest!.view.tri).toBe("date")
+    expect(latest!.view.sens).toBe("asc")
+    expect(latest!.view.pageIndex).toBe(0)
+  })
+
+  it("treats undefined sorting as empty and returns to the first page", () => {
+    render({ page: 3, tri: "total", sens: "desc" })
+    act(() => latest!.onSortingChange(undefined))
+    expect(pushedHrefs).toHaveLength(1)
+    expect(latest!.view.tri).toBe("date")
+    expect(latest!.view.sens).toBe("asc")
+    expect(latest!.view.pageIndex).toBe(0)
   })
 
   it("commits a filter change back to the first page, preserving the query", () => {
     render({ page: 3, q: "alix", pageSize: 20 })
-    act(() => latest!.update({ statuses: ["returned"], pageIndex: 0 }))
+    act(() =>
+      latest!.onColumnFiltersChange([{ id: "statut", value: ["returned"] }])
+    )
     expect(pushedHrefs).toHaveLength(1)
     expect(pushedHrefs).toEqual([
       "/admin/commandes?pageSize=20&statut=returned&q=alix",
     ])
+    expect(latest!.view.statuses).toEqual(["returned"])
+    expect(latest!.view.pageIndex).toBe(0)
+  })
+
+  it("resolves a function filter updater against the current filters", () => {
+    render({ statuses: ["pending"], page: 2 })
+    act(() =>
+      latest!.onColumnFiltersChange((old) =>
+        old.map((filter) => ({ ...filter, value: ["returned"] }))
+      )
+    )
+    expect(latest!.view.statuses).toEqual(["returned"])
+    expect(latest!.view.pageIndex).toBe(0)
+  })
+
+  it("returns no statuses when the statut filter value is not an array", () => {
+    render({ page: 2, statuses: ["pending"] })
+    act(() =>
+      latest!.onColumnFiltersChange([{ id: "statut", value: "pending" }])
+    )
+    expect(latest!.view.statuses).toEqual([])
+    expect(latest!.view.pageIndex).toBe(0)
+    expect(pushedHrefs).toEqual(["/admin/commandes"])
+  })
+
+  it("ignores filter entries for columns other than statut", () => {
+    render({ page: 2, statuses: ["pending"] })
+    act(() =>
+      latest!.onColumnFiltersChange([{ id: "client", value: ["returned"] }])
+    )
+    expect(latest!.view.statuses).toEqual([])
+    expect(latest!.view.pageIndex).toBe(0)
   })
 
   it("blanks search, filters and sort back to the date/desc default on reset", () => {
