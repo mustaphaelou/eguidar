@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
   projeterDevis,
-  resoudreVilleUrl,
   selectionnerDevis,
   selectionValidee,
   villeInitiale,
@@ -253,63 +252,6 @@ function panierPourDevis(
     itemCount: freeShippingFlags.length,
   }
 }
-
-
-
-describe("resoudreVilleUrl (langage d'URL de la Ville : slug puis alias)", () => {
-  it("resolves the slug first", () => {
-    expect(resoudreVilleUrl(cities, "slug-c1")).toStrictEqual({
-      urlVilleId: "c1",
-      urlVilleFournie: true,
-    })
-  })
-
-  it("resolves the legacy internal identifier as a read-only alias", () => {
-    expect(resoudreVilleUrl(cities, "c2")).toStrictEqual({
-      urlVilleId: "c2",
-      urlVilleFournie: true,
-    })
-  })
-
-  it("prefers a slug over another city's id alias", () => {
-    const collision = [
-      city("c1", "Casablanca", 3500, "c2"),
-      city("c2", "Rabat", 5000),
-    ]
-
-    expect(resoudreVilleUrl(collision, "c2")).toStrictEqual({
-      urlVilleId: "c1",
-      urlVilleFournie: true,
-    })
-  })
-
-  it("yields no lien for absent or blank values", () => {
-    for (const villeParam of [undefined, null, "", "   "] as const) {
-      expect(resoudreVilleUrl(cities, villeParam)).toStrictEqual({
-        urlVilleId: null,
-        urlVilleFournie: false,
-      })
-    }
-  })
-
-  it("keeps an unknown lien explicit: fourni true, aucune ville", () => {
-    expect(resoudreVilleUrl(cities, "ville-inconnue")).toStrictEqual({
-      urlVilleId: null,
-      urlVilleFournie: true,
-    })
-  })
-
-  it("trims the requested value", () => {
-    expect(resoudreVilleUrl(cities, "  slug-c1  ")).toStrictEqual({
-      urlVilleId: "c1",
-      urlVilleFournie: true,
-    })
-    expect(resoudreVilleUrl(cities, "  c2  ")).toStrictEqual({
-      urlVilleId: "c2",
-      urlVilleFournie: true,
-    })
-  })
-})
 
 describe("chargerDevis (faits bruts et sources construites au module)", () => {
   const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]

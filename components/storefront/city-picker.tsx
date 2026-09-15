@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select"
 import { formatShippingFee } from "@/lib/money"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
+import { villeVersParam } from "@/lib/use-cases/ville-url"
 
 export function CityPicker({
   cities,
@@ -30,7 +31,7 @@ export function CityPicker({
     if (!cityId) return
     const city = cities.find((candidate) => candidate.id === cityId)
     if (!city) return
-    router.push(`${path}?ville=${encodeURIComponent(city.slug)}`)
+    router.push(`${path}${villeVersParam(city)}`)
   }
 
   return (
