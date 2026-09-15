@@ -13,6 +13,7 @@ import { getProfile } from "@/lib/use-cases/account"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { projeterDevis } from "@/lib/use-cases/devis-coeur"
 import { getSessionUser } from "@/lib/use-cases/get-session"
+import { villeVersParam } from "@/lib/use-cases/ville-url"
 import { lirePanier } from "@/lib/panier"
 
 export const metadata = pageMetadata({
@@ -94,7 +95,7 @@ async function CartContent({
             <Button
               render={
                 <Link
-                  href={`/checkout${villeSelectionnee ? `?ville=${encodeURIComponent(villeSelectionnee.slug)}` : ""}`}
+                  href={`/checkout${villeSelectionnee ? villeVersParam(villeSelectionnee) : ""}`}
                 />
               }
               className="w-full"

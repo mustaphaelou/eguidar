@@ -22,12 +22,11 @@
  * villeId)` — les devis restent toujours fournis par l'appelant (le
  * projecteur ne chiffre jamais).
  *
- * Trois résolutions pures accompagnent la Sélection : `resoudreVilleUrl`
- * (langage d'URL de la Ville, slug puis alias d'identifiant — ADR-0017 —
- * qui répond d'un seul appel les faits `urlVilleId` et
- * `urlVilleFournie`), `villeInitiale` (précédence lien > profil >
- * aucune) et `selectionValidee` (rétrécissement de prise en commande,
- * refuse « aucune »).
+ * Deux résolutions pures accompagnent la Sélection : `villeInitiale`
+ * (précédence lien > profil > aucune) et `selectionValidee`
+ * (rétrécissement de prise en commande, refuse « aucune »). Le langage
+ * d'URL de la Ville — écriture `villeVersParam`, lecture
+ * `resoudreVilleUrl` — vit dans `@/lib/use-cases/ville-url`.
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
@@ -156,36 +155,6 @@ export function selectionValidee(
 }
 
 /**
- * Résolution pure de la Ville de livraison nommée dans une URL : le
- * **slug** d'abord (langage public, ADR-0017), puis l'identifiant interne
- * comme **alias en lecture seule** (liens émis avant le passage au slug),
- * contre les Villes déjà chargées — aucune requête, aucune double
- * vérification d'existence. Jamais de redirect.
- *
- * Répond d'un seul appel les deux faits de la Précédence : `urlVilleId`
- * (la ville résolue, `null` si absente ou inconnue) et `urlVilleFournie`
- * (la **présence** d'un `?ville=` non blanc). Absente / nulle / blanche →
- * `{ urlVilleId: null, urlVilleFournie: false }` ; slug ou alias →
- * `{ urlVilleId: <id>, urlVilleFournie: true }` ; valeur inconnue →
- * `{ urlVilleId: null, urlVilleFournie: true }` — la Sélection restera
- * « aucune », sans repli sur le profil. La valeur est rognée avant
- * correspondance.
- */
-export function resoudreVilleUrl(
-  cities: DeliveryCityOption[],
-  villeParam?: string | null
-): { urlVilleId: string | null; urlVilleFournie: boolean } {
-  const demandee = villeParam?.trim()
-  if (!demandee) return { urlVilleId: null, urlVilleFournie: false }
-
-  const parSlug = cities.find((ville) => ville.slug === demandee)
-  if (parSlug) return { urlVilleId: parSlug.id, urlVilleFournie: true }
-
-  const parId = cities.find((ville) => ville.id === demandee)
-  return { urlVilleId: parId?.id ?? null, urlVilleFournie: true }
-}
-
-/**
  * Sources de précédence pour la ville initiale d'une Sélection
  * (`villeInitiale`), construites par le chargeur seul à partir des faits
  * bruts (`?ville=` et Ville du profil).
@@ -193,7 +162,8 @@ export function resoudreVilleUrl(
  * `urlVilleFournie` dit la **présence** d'un `?ville=` non vide dans l'URL :
  * le lien partagé l'emporte alors, et une ville inconnue laisse la sélection
  * « aucune » (pas de repli sur le profil). `urlVilleId` porte la ville du
- * lien déjà résolue (`resoudreVilleUrl`), le profil sauvegardé
+ * lien déjà résolue (`resoudreVilleUrl` dans
+ * `@/lib/use-cases/ville-url`), le profil sauvegardé
  * (`profileVilleId`) sert de repli si le lien est absent ou vide.
  */
 export interface DevisPrecedenceSources {

@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs"
-
 import { describe, expect, it } from "vitest"
+
+import { importeDe, lire } from "@/lib/use-cases/outils-frontiere"
 
 /**
  * Frontière client/serveur du Devis.
@@ -18,16 +18,6 @@ import { describe, expect, it } from "vitest"
  * directive), consommé des deux côtés ; `devis-selection.ts` ne porte que
  * le crochet client ; aucun module serveur n'importe `devis-selection`.
  */
-function lire(relatif: string): string {
-  return readFileSync(new URL(relatif, import.meta.url), "utf8")
-}
-
-function importeDe(source: string, module: string): boolean {
-  return new RegExp(
-    `(?:import|export)[^;]*from\\s*["'][^"']*${module}["']`
-  ).test(source)
-}
-
 const SERVEUR_SANS_CLIENT = [
   "./devis.ts",
   "./orders.ts",
@@ -38,19 +28,22 @@ const SERVEUR_SANS_CLIENT = [
 describe("Devis — frontière client/serveur", () => {
   it("aucun module serveur n'importe le module client devis-selection", () => {
     for (const fichier of SERVEUR_SANS_CLIENT) {
-      expect(importeDe(lire(fichier), "devis-selection"), fichier).toBe(false)
+      expect(
+        importeDe(lire(import.meta.url, fichier), "devis-selection"),
+        fichier
+      ).toBe(false)
     }
   })
 
   it("le cœur pur est neutre : ni use client, ni crochet, ni accès base", () => {
-    const coeur = lire("./devis-coeur.ts")
+    const coeur = lire(import.meta.url, "./devis-coeur.ts")
     expect(coeur).not.toMatch(/^"use client"/m)
     expect(coeur).not.toMatch(/useState/)
     expect(importeDe(coeur, "lib/db")).toBe(false)
   })
 
   it("l'entrée cliente garde use client et réexporte le pur depuis le cœur", () => {
-    const selection = lire("./devis-selection.ts")
+    const selection = lire(import.meta.url, "./devis-selection.ts")
     expect(selection).toMatch(/^"use client"/m)
     expect(importeDe(selection, "devis-coeur")).toBe(true)
     expect(importeDe(selection, "lib/db")).toBe(false)
