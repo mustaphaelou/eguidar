@@ -28,6 +28,8 @@ WITH parsed AS (
     ) AS host
   FROM "Product" AS p
   CROSS JOIN LATERAL jsonb_array_elements(
+    -- Une valeur non-tableau ne produit aucune ligne d'élément : son Produit
+    -- n'est donc pas sélectionné par la purge et reste intact.
     CASE WHEN jsonb_typeof(p."images") = 'array' THEN p."images" ELSE '[]'::jsonb END
   ) WITH ORDINALITY AS elements(entry, ord)
 ),

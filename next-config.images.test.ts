@@ -67,7 +67,7 @@ beforeAll(async () => {
   remotePatterns = (nextConfig.images?.remotePatterns ?? []) as RemotePattern[]
 })
 
-const seedSrcs = ["https://cdn.eguidar.com/products/iphone-15-pro.jpg"]
+const allowedSrcs = ["https://cdn.eguidar.com/products/iphone-15-pro.jpg"]
 
 const hostileSrcs = [
   "https://evil.example.com/steal.png",
@@ -79,14 +79,14 @@ const hostileSrcs = [
   "https://cdn.eguidar.com/x.jpg?v=1",
 ]
 
-describe("images.remotePatterns couvre les src du seed", () => {
-  it("accepte chaque image référencée par prisma/seed.ts", () => {
-    for (const src of seedSrcs) {
+describe("images.remotePatterns : cdn.eguidar.com est le seul hôte distant accepté", () => {
+  it("accepte une image servie par cdn.eguidar.com", () => {
+    for (const src of allowedSrcs) {
       expect(isAllowed(src), src).toBe(true)
     }
   })
 
-  it("rejette les hôtes, ports, chemins et query strings non configurés", () => {
+  it("rejette tout autre hôte, port, chemin ou query string", () => {
     for (const src of hostileSrcs) {
       expect(isAllowed(src), src).toBe(false)
     }
@@ -97,6 +97,6 @@ describe("images.remotePatterns couvre les src du seed", () => {
       path.join(process.cwd(), "prisma/seed.ts"),
       "utf8"
     )
-    expect(seedSource).not.toContain("placehold.co")
+    expect(seedSource.toLowerCase()).not.toContain("placehold.co")
   })
 })
