@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/select"
 import { cityOptions } from "@/components/storefront/city-options"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
-import { formatShippingFee } from "@/lib/money"
 import {
   useDevisSelection,
   type DevisChargé,
@@ -51,6 +50,7 @@ export function CheckoutForm({
   // ici, jamais les ingrédients bruts.
   const { villes, rows, choisir, villeId } = useDevisSelection(devis)
   const selectedCityId = villeId ?? ""
+  const optionsVilles = cityOptions(villes)
 
   useUnauthenticatedRefusal(state)
 
@@ -70,7 +70,7 @@ export function CheckoutForm({
         <Select
           name="cityId"
           value={selectedCityId}
-          items={cityOptions(villes)}
+          items={optionsVilles}
           onValueChange={(cityId) => choisir(cityId ?? null)}
           required
         >
@@ -79,9 +79,9 @@ export function CheckoutForm({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {villes.map((city) => (
-                <SelectItem key={city.id} value={city.id}>
-                  {city.name} — {formatShippingFee(city.fee)}
+              {optionsVilles.map((row) => (
+                <SelectItem key={row.value} value={row.value}>
+                  {row.optionLabel}
                 </SelectItem>
               ))}
             </SelectGroup>
