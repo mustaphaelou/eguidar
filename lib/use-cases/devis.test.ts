@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
   projeterDevis,
+  resoudreVilleUrl,
   selectionnerDevis,
   selectionValidee,
   villeInitiale,
@@ -255,7 +256,43 @@ function panierPourDevis(
 
 
 
-describe("chargerDevis", () => {
+describe("resoudreVilleUrl (langage d'URL de la Ville : slug puis alias)", () => {
+  it("resolves the slug first", () => {
+    expect(resoudreVilleUrl(cities, "slug-c1")).toBe("c1")
+  })
+
+  it("resolves the legacy internal identifier as a read-only alias", () => {
+    expect(resoudreVilleUrl(cities, "c2")).toBe("c2")
+  })
+
+  it("prefers a slug over another city's id alias", () => {
+    const collision = [
+      city("c1", "Casablanca", 3500, "c2"),
+      city("c2", "Rabat", 5000),
+    ]
+
+    expect(resoudreVilleUrl(collision, "c2")).toBe("c1")
+  })
+
+  it("yields null for absent, blank or unknown values", () => {
+    for (const villeParam of [
+      undefined,
+      null,
+      "",
+      "   ",
+      "ville-inconnue",
+    ] as const) {
+      expect(resoudreVilleUrl(cities, villeParam)).toBeNull()
+    }
+  })
+
+  it("trims the requested value", () => {
+    expect(resoudreVilleUrl(cities, "  slug-c1  ")).toBe("c1")
+    expect(resoudreVilleUrl(cities, "  c2  ")).toBe("c2")
+  })
+})
+
+describe("chargerDevis (faits bruts et sources construites au module)", () => {
   const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
 
   beforeEach(() => {
@@ -266,7 +303,10 @@ describe("chargerDevis", () => {
   })
 
   it("returns plain facts: villes, seuil, devis par ville, sous-total", async () => {
-    const chargé = await chargerDevis(panierPourDevis(50000), "c1")
+    const chargé = await chargerDevis(panierPourDevis(50000), {
+      villeParam: "slug-c1",
+      profileVilleId: null,
+    })
 
     expect(chargé.cities).toEqual(villes)
     expect(chargé.threshold).toBe(100000)
@@ -275,39 +315,86 @@ describe("chargerDevis", () => {
       c1: quote(50000, 3500),
       c2: quote(50000, 5000),
     })
-    expect(chargé.sources).toEqual({ urlVilleId: "c1" })
-  })
-
-  it("carries the precedence sources (url ville winning over profile fallback)", async () => {
-    const avecLesDeux = await chargerDevis(panierPourDevis(50000), {
+    expect(chargé.sources).toEqual({
       urlVilleId: "c1",
-      profileVilleId: "c2",
+      urlVilleFournie: true,
+      profileVilleId: null,
     })
-    expect(avecLesDeux.sources).toEqual({ urlVilleId: "c1", profileVilleId: "c2" })
-
-    const repliProfil = await chargerDevis(panierPourDevis(50000), {
-      urlVilleId: null,
-      profileVilleId: "c2",
-    })
-    expect(repliProfil.sources).toEqual({ urlVilleId: null, profileVilleId: "c2" })
   })
 
-  it("omits sources when none are given and never throws on an unknown ville", async () => {
-    const sansSource = await chargerDevis(panierPourDevis(50000))
-    expect("sources" in sansSource).toBe(false)
+  it("resolves the URL's ville internally: slug wins, then the legacy id alias", async () => {
+    const parSlug = await chargerDevis(panierPourDevis(50000), {
+      villeParam: "slug-c2",
+    })
+    expect(parSlug.sources).toEqual({
+      urlVilleId: "c2",
+      urlVilleFournie: true,
+      profileVilleId: null,
+    })
 
-    const villeInconnue = await chargerDevis(panierPourDevis(50000), "ville-inconnue")
-    expect(villeInconnue.sources).toEqual({ urlVilleId: "ville-inconnue" })
-    expect(villeInconnue.quotes.c1).toEqual(quote(50000, 3500))
+    const parAlias = await chargerDevis(panierPourDevis(50000), {
+      villeParam: "c1",
+    })
+    expect(parAlias.sources).toEqual({
+      urlVilleId: "c1",
+      urlVilleFournie: true,
+      profileVilleId: null,
+    })
+  })
+
+  it("carries the profile fact without resolving it, only when the lien names none", async () => {
+    const auProfil = await chargerDevis(panierPourDevis(50000), {
+      profileVilleId: "c2",
+    })
+    expect(auProfil.sources).toEqual({
+      urlVilleId: null,
+      urlVilleFournie: false,
+      profileVilleId: "c2",
+    })
+    expect(projeterDevis(auProfil).villeId).toBe("c2")
+
+    for (const villeParam of ["", "   "] as const) {
+      const lienBlanc = await chargerDevis(panierPourDevis(50000), {
+        villeParam,
+        profileVilleId: "c2",
+      })
+      expect(lienBlanc.sources).toEqual({
+        urlVilleId: null,
+        urlVilleFournie: false,
+        profileVilleId: "c2",
+      })
+    }
+  })
+
+  it("keeps an unknown lien explicit: fourni stays true and the profile never stands in", async () => {
+    const chargé = await chargerDevis(panierPourDevis(50000), {
+      villeParam: "ville-inconnue",
+      profileVilleId: "c2",
+    })
+
+    expect(chargé.sources).toEqual({
+      urlVilleId: null,
+      urlVilleFournie: true,
+      profileVilleId: "c2",
+    })
+    expect(projeterDevis(chargé).selection).toStrictEqual(aucune)
+    expect(chargé.quotes.c1).toEqual(quote(50000, 3500))
+  })
+
+  it("omits sources when no facts are handed over", async () => {
+    const chargé = await chargerDevis(panierPourDevis(50000))
+    expect("sources" in chargé).toBe(false)
   })
 
   it("prices free delivery when the seuil is reached or a free-shipping article is present", async () => {
-    const auSeuil = await chargerDevis(panierPourDevis(150000), "c1")
+    const auSeuil = await chargerDevis(panierPourDevis(150000), {
+      villeParam: "slug-c1",
+    })
     expect(auSeuil.quotes.c1).toEqual(quote(150000, 0))
 
     const articleOffert = await chargerDevis(
       panierPourDevis(50000, [false, true]),
-      "c2"
+      { villeParam: "slug-c2" }
     )
     expect(articleOffert.quotes.c2).toEqual(quote(50000, 0))
   })
@@ -365,7 +452,7 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
 
   it("chargerDevis output is strictly plain data", async () => {
     const chargé = await chargerDevis(panierPourDevis(50000), {
-      urlVilleId: "c1",
+      villeParam: "slug-c1",
       profileVilleId: null,
     })
     expect(() => assertDonnéePure(chargé)).not.toThrow()

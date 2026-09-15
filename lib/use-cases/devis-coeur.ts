@@ -22,9 +22,11 @@
  * villeId)` — les devis restent toujours fournis par l'appelant (le
  * projecteur ne chiffre jamais).
  *
- * Deux résolutions pures accompagnent la Sélection : `villeInitiale`
- * (précédence lien > profil > aucune) et `selectionValidee`
- * (rétrécissement de prise en commande, refuse « aucune »).
+ * Trois résolutions pures accompagnent la Sélection : `resoudreVilleUrl`
+ * (langage d'URL de la Ville, slug puis alias d'identifiant — ADR-0017),
+ * `villeInitiale` (précédence lien > profil > aucune) et
+ * `selectionValidee` (rétrécissement de prise en commande, refuse
+ * « aucune »).
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
@@ -87,10 +89,11 @@ export function selectionnerDevis(
  * Le Devis chargé : les faits purs d'un Panier chiffré — Villes de
  * livraison, seuil de livraison offerte, devis par ville, sous-total
  * (cents) et sources de précédence (`urlVilleId` gagne sur
- * `profileVilleId`). Strictement des données : aucune fonction, aucun
- * getter, aucune instance de classe — c'est ce qui traverse la couture
- * serveur → client. Le Devis projeté (`projeterDevis`) se dérive derrière
- * la couture à partir de ces faits et d'une Ville de livraison explicite.
+ * `profileVilleId`), construites par le chargeur seul à partir des faits
+ * bruts. Strictement des données : aucune fonction, aucun getter, aucune
+ * instance de classe — c'est ce qui traverse la couture serveur → client.
+ * Le Devis projeté (`projeterDevis`) se dérive derrière la couture à
+ * partir de ces faits et d'une Ville de livraison explicite.
  */
 export type DevisChargé = {
   cities: DeliveryCityOption[]
@@ -152,15 +155,37 @@ export function selectionValidee(
 }
 
 /**
+ * Résolution pure de la Ville de livraison nommée dans une URL : le
+ * **slug** d'abord (langage public, ADR-0017), puis l'identifiant interne
+ * comme **alias en lecture seule** (liens émis avant le passage au slug),
+ * contre les Villes déjà chargées — aucune requête, aucune double
+ * vérification d'existence. Jamais de redirect : absente, vide ou
+ * inconnue → `null` — la Sélection restera « aucune » (placeholder).
+ */
+export function resoudreVilleUrl(
+  cities: DeliveryCityOption[],
+  villeParam?: string | null
+): string | null {
+  const demandee = villeParam?.trim()
+  if (!demandee) return null
+
+  const parSlug = cities.find((ville) => ville.slug === demandee)
+  if (parSlug) return parSlug.id
+
+  const parId = cities.find((ville) => ville.id === demandee)
+  return parId?.id ?? null
+}
+
+/**
  * Sources de précédence pour la ville initiale d'une Sélection
- * (`villeInitiale`).
+ * (`villeInitiale`), construites par le chargeur seul à partir des faits
+ * bruts (`?ville=` et Ville du profil).
  *
  * `urlVilleFournie` dit la **présence** d'un `?ville=` non vide dans l'URL :
  * le lien partagé l'emporte alors, et une ville inconnue laisse la sélection
- * « aucune » (pas de repli sur le profil). Sans ce fait — appelants
- * existants, chaîne simple de `chargerDevis` — `urlVilleId` l'emporte
- * quand il est renseigné, le profil sauvegardé (`profileVilleId`) sert de
- * repli si le lien est absent ou vide.
+ * « aucune » (pas de repli sur le profil). `urlVilleId` porte la ville du
+ * lien déjà résolue (`resoudreVilleUrl`), le profil sauvegardé
+ * (`profileVilleId`) sert de repli si le lien est absent ou vide.
  */
 export interface DevisPrecedenceSources {
   urlVilleId?: string | null
