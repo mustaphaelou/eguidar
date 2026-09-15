@@ -1,6 +1,12 @@
 import { formatShippingFee } from "@/lib/money"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 
+export type CityOption = {
+  value: string
+  label: string
+  optionLabel: string
+}
+
 /**
  * Projection unique des Villes de livraison vers les items de Select des
  * trois pickers (Panier, Commander, Profil). Chaque ligne porte ses deux
@@ -9,11 +15,7 @@ import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
  * ouverte (« Livraison offerte » quand les frais sont nuls). `value` reste
  * l'identifiant interne, la seule valeur soumise par les formulaires.
  */
-export function cityOptions(cities: DeliveryCityOption[]): {
-  value: string
-  label: string
-  optionLabel: string
-}[] {
+export function cityOptions(cities: DeliveryCityOption[]): CityOption[] {
   return cities.map((city) => ({
     value: city.id,
     label: city.name,

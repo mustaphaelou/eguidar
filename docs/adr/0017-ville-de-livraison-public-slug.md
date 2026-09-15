@@ -32,3 +32,13 @@ repli sur la Ville du profil. Tout le reste d'ADR-0017 tient :
 l'identifiant interne circule partout ailleurs (actions serveur, profil,
 Administration), l'alias d'identifiant reste en lecture seule, et seuls
 les slugs sont émis dans les nouvelles URL.
+
+## Amendement — Le langage d'URL gagne son propre module (#350)
+
+`resoudreVilleUrl`, inchangée, quitte le module Devis pour
+`lib/use-cases/ville-url.ts` — le module « Langage d'URL de la Ville » —
+où elle vit désormais aux côtés de `villeVersParam`, son pendant en
+écriture et unique émetteur du fragment `?ville=<slug>`. `chargerDevis`
+l'y consomme pour résoudre le langage d'URL (slug d'abord, puis alias
+d'identifiant en lecture seule) contre les Villes déjà chargées. La règle
+d'ADR-0017 ne change pas : seule la propriété du module se déplace.

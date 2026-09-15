@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
+import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import { villeVersParam } from "@/lib/use-cases/ville-url"
 
 export function CityPicker({

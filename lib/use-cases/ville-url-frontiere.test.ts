@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs"
-
 import { describe, expect, it } from "vitest"
+
+import { importeDe, lire } from "@/lib/use-cases/outils-frontiere"
 
 /**
  * Frontière client/serveur du langage d'URL de la Ville.
@@ -15,26 +15,16 @@ import { describe, expect, it } from "vitest"
  * ne pas confondre `@/lib/use-cases/livraison-prix` — le module pur qui
  * porte le type — avec `@/lib/use-cases/livraison`, qui tire la base.
  */
-function lire(relatif: string): string {
-  return readFileSync(new URL(relatif, import.meta.url), "utf8")
-}
-
-function importeDe(source: string, module: string): boolean {
-  return new RegExp(
-    `(?:import|export)[^;]*from\\s*["'][^"']*${module}["']`
-  ).test(source)
-}
-
 describe("Langage d'URL de la Ville — frontière client/serveur", () => {
   it("le module est neutre : ni use client, ni crochet, ni accès base", () => {
-    const source = lire("./ville-url.ts")
+    const source = lire(import.meta.url, "./ville-url.ts")
     expect(source).not.toMatch(/^"use client"/m)
     expect(source).not.toMatch(/useState/)
     expect(importeDe(source, "lib/db")).toBe(false)
   })
 
   it("le type de Ville vient du module pur, jamais de l'entrée base", () => {
-    const source = lire("./ville-url.ts")
+    const source = lire(import.meta.url, "./ville-url.ts")
     expect(importeDe(source, "livraison-prix")).toBe(true)
     expect(source).not.toMatch(/from\s*["'][^"']*\/livraison["']/)
   })
