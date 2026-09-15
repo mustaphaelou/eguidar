@@ -11,6 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { totalPayable } from "@/lib/money"
 import { ajouterArticleAuPanier } from "@/lib/panier"
 import { sessionUserMock } from "@/test/navigation-mocks"
 import { getAdminOrder, listAdminOrders } from "@/lib/use-cases/admin-orders"
@@ -176,7 +177,7 @@ async function createOrder(
       phone: PHONE,
       total,
       shippingFee,
-      totalPayable: total + shippingFee,
+      totalPayable: totalPayable({ total, shippingFee }),
       ...(opts?.createdAt ? { createdAt: opts.createdAt } : {}),
       items: {
         create: items.map((item) => ({
