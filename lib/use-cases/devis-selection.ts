@@ -8,13 +8,13 @@
  * livraison offerte, devis par ville, sous-total, sources de précédence —
  * sans fonction, sans getter, sans instance de classe. Le crochet fige ces
  * faits une seule fois et possède la seule machine à états de la Sélection :
- * il initialise la Ville de livraison depuis la précédence
- * (`villeInitiale`, lien > profil > aucune) et projette le Devis projeté à
- * chaque rendu (`projeterDevis`). La projection est la surface externe ;
- * les coutures internes (`selectionnerDevis`, `lignesDevis`) gardent leurs
- * tests directs dans le cœur pur.
+ * il démarre sans ville choisie et projette le Devis projeté à chaque
+ * rendu (`projeterDevis`) — la Précédence du Devis (lien > profil >
+ * aucune) se dérive derrière la projection, jamais ici. La projection est
+ * la surface externe ; les coutures internes (`selectionnerDevis`,
+ * `lignesDevis`) gardent leurs tests directs dans le cœur pur.
  *
- * Le pur partagé (`villeInitiale`, `projeterDevis`, `selectionnerDevis`,
+ * Le pur partagé (`projeterDevis`, `selectionnerDevis`,
  * `lignesDevis`) vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
  * (sans directive), consommé aussi côté serveur (`chargerDevis`, pages
  * Panier/Checkout, `placeOrder`). Définir ce pur ici — module « use
@@ -48,7 +48,6 @@ import type { RécapitulatifRow } from "@/lib/recapitulatif-paiement"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import {
   projeterDevis,
-  villeInitiale,
   type DevisChargé,
   type SelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
@@ -62,9 +61,10 @@ export type {
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.
  *
  * Fige les faits chargés une seule fois (les changements ultérieurs du
- * Devis chargé sont ignorés), initialise la Ville de livraison une seule
- * fois depuis la précédence (`villeInitiale` : lien > profil > aucune),
- * puis projette le Devis projeté à chaque rendu (`projeterDevis`) ; expose
+ * Devis chargé sont ignorés), démarre sans ville choisie — la projection
+ * dérive alors la Ville de livraison de la Précédence du Devis (lien >
+ * profil > aucune) — puis projette le Devis projeté à chaque rendu
+ * (`projeterDevis`) ; expose
  * `{ villes, selection, rows, choisir(villeId), villeId }`. Chaque
  * `choisir` re-projette les lignes instantanément.
  *
@@ -81,8 +81,8 @@ export function useDevisSelection(devisChargé: DevisChargé): {
   villeId: string | null
 } {
   const [chargé] = useState(devisChargé)
-  const [villeChoisie, setVilleChoisie] = useState<string | null>(() =>
-    villeInitiale(chargé.sources)
+  const [villeChoisie, setVilleChoisie] = useState<string | null | undefined>(
+    undefined
   )
 
   const projet = projeterDevis(chargé, villeChoisie)
