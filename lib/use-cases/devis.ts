@@ -2,7 +2,7 @@
  * Entrée serveur du Devis : `chargerDevis` retourne le Devis chargé — la
  * donnée pure d'un Panier chiffré (accès base via l'administration
  * Livraison) — à partir de faits bruts (`{villeParam?, profileVilleId?}`,
- * voir `DevisPrecedenceFacts`). Dériver le Devis projeté est l'affaire de
+ * voir `DevisPrecedenceFaitsBruts`). Dériver le Devis projeté est l'affaire de
  * l'appelant : `projeterDevis(await chargerDevis(panier, faits), villeId)`
  * — le projecteur (`@/lib/use-cases/devis-coeur`) prend exactement le
  * Devis chargé et la Ville de livraison choisie.
@@ -59,7 +59,7 @@ export { DeliveryCityNotFoundError } from "@/lib/use-cases/devis-coeur"
  * le fait de présence d'un lien — aucun appelant ne dérive
  * `urlVilleFournie` ni ne résout un slug par lui-même.
  */
-export interface DevisPrecedenceFacts {
+export interface DevisPrecedenceFaitsBruts {
   villeParam?: string | null
   profileVilleId?: string | null
 }
@@ -69,7 +69,7 @@ export interface DevisPrecedenceFacts {
  *
  * Prend les faits bruts de la Précédence du Devis : la valeur brute du
  * `?ville=` (`villeParam`) et la Ville de livraison sauvegardée du Client
- * (`profileVilleId`). La langue d'URL (slug puis alias d'identifiant,
+ * (`profileVilleId`). Le langage d'URL (slug puis alias d'identifiant,
  * ADR-0017) et le fait de présence `urlVilleFournie` se résolvent ici,
  * contre les Villes déjà chargées (`listDeliveryCities`) — aucune requête
  * supplémentaire, aucune double vérification d'existence.
@@ -92,7 +92,7 @@ export interface DevisPrecedenceFacts {
  */
 export async function chargerDevis(
   panier: DonneesPanier,
-  faits?: DevisPrecedenceFacts
+  faits?: DevisPrecedenceFaitsBruts
 ): Promise<DevisChargé> {
   const sousTotal = panier.subtotal
   const [cities, threshold] = await Promise.all([
@@ -116,8 +116,7 @@ export async function chargerDevis(
       ? {}
       : {
           sources: {
-            urlVilleId: resoudreVilleUrl(cities, faits.villeParam),
-            urlVilleFournie: (faits.villeParam ?? "").trim() !== "",
+            ...resoudreVilleUrl(cities, faits.villeParam),
             profileVilleId: faits.profileVilleId ?? null,
           },
         }),

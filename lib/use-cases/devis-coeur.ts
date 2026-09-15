@@ -23,10 +23,11 @@
  * projecteur ne chiffre jamais).
  *
  * Trois résolutions pures accompagnent la Sélection : `resoudreVilleUrl`
- * (langage d'URL de la Ville, slug puis alias d'identifiant — ADR-0017),
- * `villeInitiale` (précédence lien > profil > aucune) et
- * `selectionValidee` (rétrécissement de prise en commande, refuse
- * « aucune »).
+ * (langage d'URL de la Ville, slug puis alias d'identifiant — ADR-0017 —
+ * qui répond d'un seul appel les faits `urlVilleId` et
+ * `urlVilleFournie`), `villeInitiale` (précédence lien > profil >
+ * aucune) et `selectionValidee` (rétrécissement de prise en commande,
+ * refuse « aucune »).
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
@@ -159,21 +160,29 @@ export function selectionValidee(
  * **slug** d'abord (langage public, ADR-0017), puis l'identifiant interne
  * comme **alias en lecture seule** (liens émis avant le passage au slug),
  * contre les Villes déjà chargées — aucune requête, aucune double
- * vérification d'existence. Jamais de redirect : absente, vide ou
- * inconnue → `null` — la Sélection restera « aucune » (placeholder).
+ * vérification d'existence. Jamais de redirect.
+ *
+ * Répond d'un seul appel les deux faits de la Précédence : `urlVilleId`
+ * (la ville résolue, `null` si absente ou inconnue) et `urlVilleFournie`
+ * (la **présence** d'un `?ville=` non blanc). Absente / nulle / blanche →
+ * `{ urlVilleId: null, urlVilleFournie: false }` ; slug ou alias →
+ * `{ urlVilleId: <id>, urlVilleFournie: true }` ; valeur inconnue →
+ * `{ urlVilleId: null, urlVilleFournie: true }` — la Sélection restera
+ * « aucune », sans repli sur le profil. La valeur est rognée avant
+ * correspondance.
  */
 export function resoudreVilleUrl(
   cities: DeliveryCityOption[],
   villeParam?: string | null
-): string | null {
+): { urlVilleId: string | null; urlVilleFournie: boolean } {
   const demandee = villeParam?.trim()
-  if (!demandee) return null
+  if (!demandee) return { urlVilleId: null, urlVilleFournie: false }
 
   const parSlug = cities.find((ville) => ville.slug === demandee)
-  if (parSlug) return parSlug.id
+  if (parSlug) return { urlVilleId: parSlug.id, urlVilleFournie: true }
 
   const parId = cities.find((ville) => ville.id === demandee)
-  return parId?.id ?? null
+  return { urlVilleId: parId?.id ?? null, urlVilleFournie: true }
 }
 
 /**

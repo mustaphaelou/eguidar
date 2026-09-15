@@ -258,11 +258,17 @@ function panierPourDevis(
 
 describe("resoudreVilleUrl (langage d'URL de la Ville : slug puis alias)", () => {
   it("resolves the slug first", () => {
-    expect(resoudreVilleUrl(cities, "slug-c1")).toBe("c1")
+    expect(resoudreVilleUrl(cities, "slug-c1")).toStrictEqual({
+      urlVilleId: "c1",
+      urlVilleFournie: true,
+    })
   })
 
   it("resolves the legacy internal identifier as a read-only alias", () => {
-    expect(resoudreVilleUrl(cities, "c2")).toBe("c2")
+    expect(resoudreVilleUrl(cities, "c2")).toStrictEqual({
+      urlVilleId: "c2",
+      urlVilleFournie: true,
+    })
   })
 
   it("prefers a slug over another city's id alias", () => {
@@ -271,24 +277,37 @@ describe("resoudreVilleUrl (langage d'URL de la Ville : slug puis alias)", () =>
       city("c2", "Rabat", 5000),
     ]
 
-    expect(resoudreVilleUrl(collision, "c2")).toBe("c1")
+    expect(resoudreVilleUrl(collision, "c2")).toStrictEqual({
+      urlVilleId: "c1",
+      urlVilleFournie: true,
+    })
   })
 
-  it("yields null for absent, blank or unknown values", () => {
-    for (const villeParam of [
-      undefined,
-      null,
-      "",
-      "   ",
-      "ville-inconnue",
-    ] as const) {
-      expect(resoudreVilleUrl(cities, villeParam)).toBeNull()
+  it("yields no lien for absent or blank values", () => {
+    for (const villeParam of [undefined, null, "", "   "] as const) {
+      expect(resoudreVilleUrl(cities, villeParam)).toStrictEqual({
+        urlVilleId: null,
+        urlVilleFournie: false,
+      })
     }
   })
 
+  it("keeps an unknown lien explicit: fourni true, aucune ville", () => {
+    expect(resoudreVilleUrl(cities, "ville-inconnue")).toStrictEqual({
+      urlVilleId: null,
+      urlVilleFournie: true,
+    })
+  })
+
   it("trims the requested value", () => {
-    expect(resoudreVilleUrl(cities, "  slug-c1  ")).toBe("c1")
-    expect(resoudreVilleUrl(cities, "  c2  ")).toBe("c2")
+    expect(resoudreVilleUrl(cities, "  slug-c1  ")).toStrictEqual({
+      urlVilleId: "c1",
+      urlVilleFournie: true,
+    })
+    expect(resoudreVilleUrl(cities, "  c2  ")).toStrictEqual({
+      urlVilleId: "c2",
+      urlVilleFournie: true,
+    })
   })
 })
 

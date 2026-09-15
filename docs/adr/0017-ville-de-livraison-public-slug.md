@@ -14,3 +14,21 @@ The checkout trigger displayed the DeliveryCity database id and `?ville=` carrie
 - Old `?ville=<cuid>` links resolve forever but are never produced again — the alias is read-only and invisible.
 - The checkout URL remains the arrival-state record: re-picking a city in the checkout form updates the form and the Récapitulatif, not the URL. `?ville` = la ville demandée à l'arrivée.
 - The closed picker trigger displays the name (explicit label mapping — Base UI `SelectValue` does not read item children); dropdown options keep « name — fee ».
+
+## Amendement — La résolution du langage d'URL gagne propriétaire (#347)
+
+La traduction du slug vers l'identifiant ne court plus à la couture des
+pages Panier/Checkout : celles-ci remettent le fait brut `?ville=` et la
+Ville de livraison du profil à `chargerDevis`. Le module Devis résout
+lui-même le langage d'URL — slug d'abord, puis alias d'identifiant —
+contre les Villes déjà chargées par `listDeliveryCities()` (aucun appel
+supplémentaire, aucune double vérification d'existence) et dérive au même
+endroit le fait de présence du lien (`urlVilleFournie`). `resoudreVilleId`
+est supprimé ; `resoudreVilleUrl` répond désormais ces deux faits d'un
+seul appel.
+
+Un lien inconnu reste explicite : la Sélection résout « aucune », sans
+repli sur la Ville du profil. Tout le reste d'ADR-0017 tient :
+l'identifiant interne circule partout ailleurs (actions serveur, profil,
+Administration), l'alias d'identifiant reste en lecture seule, et seuls
+les slugs sont émis dans les nouvelles URL.
