@@ -9,9 +9,10 @@ import { CityPicker } from "@/components/storefront/city-picker"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
+import { getProfile } from "@/lib/use-cases/account"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { projeterDevis } from "@/lib/use-cases/devis-coeur"
-import { resoudreVilleId } from "@/lib/use-cases/livraison"
+import { getSessionUser } from "@/lib/use-cases/get-session"
 import { lirePanier } from "@/lib/panier"
 
 export const metadata = pageMetadata({
@@ -40,10 +41,13 @@ async function CartContent({
   searchParams: Promise<{ ville?: string }>
 }) {
   const { ville } = await searchParams
-  const villeId = await resoudreVilleId(ville)
-  const panier = await lirePanier()
-  const chargé = await chargerDevis(panier, villeId)
-  const projet = projeterDevis(chargé, villeId)
+  const [panier, user] = await Promise.all([lirePanier(), getSessionUser()])
+  const profile = user ? await getProfile(user.id) : null
+  const chargé = await chargerDevis(panier, {
+    villeParam: ville,
+    profileVilleId: profile?.cityId,
+  })
+  const projet = projeterDevis(chargé)
   const villeSelectionnee =
     projet.selection.cas === "validée" ? projet.selection.ville : null
 

@@ -1,10 +1,11 @@
 /**
  * Entrée serveur du Devis : `chargerDevis` retourne le Devis chargé — la
  * donnée pure d'un Panier chiffré (accès base via l'administration
- * Livraison). Dériver le Devis projeté est l'affaire de l'appelant :
- * `projeterDevis(await chargerDevis(...), villeId)` — le projecteur
- * (`@/lib/use-cases/devis-coeur`) prend exactement le Devis chargé et la
- * Ville de livraison choisie.
+ * Livraison) — à partir de faits bruts (`{villeParam?, profileVilleId?}`,
+ * voir `DevisPrecedenceFaitsBruts`). Dériver le Devis projeté est l'affaire de
+ * l'appelant : `projeterDevis(await chargerDevis(panier, faits), villeId)`
+ * — le projecteur (`@/lib/use-cases/devis-coeur`) prend exactement le
+ * Devis chargé et la Ville de livraison choisie.
  * Réexport du cœur pur pour les appelants serveur (`panier/page.tsx`,
  * `checkout/page.tsx`, `placeOrder`).
  *
@@ -27,7 +28,7 @@
  * Non-buts : pas de re-sélection synchronisée avec l'URL sur checkout
  * (état local `useDevisSelection`) ; pas d'entrée de sélection allégée à
  * côté de `chargerDevis` — `placeOrder` garde `chargerDevis` et rétrécit
- * l'union.
+ * la Sélection par `selectionValidee`.
  *
  * Volontairement sans `import "server-only"` : ce garde-fou lève sous
  * vitest (condition d'export `default`) et casserait `devis.test.ts` /
@@ -40,10 +41,8 @@
  * dès qu'on les appelle depuis le serveur.
  */
 import type { DonneesPanier } from "@/lib/panier"
-import type {
-  DevisChargé,
-  DevisPrecedenceSources,
-} from "@/lib/use-cases/devis-coeur"
+import type { DevisChargé } from "@/lib/use-cases/devis-coeur"
+import { resoudreVilleUrl } from "@/lib/use-cases/devis-coeur"
 import { computeCityQuotes } from "@/lib/use-cases/livraison-prix"
 import {
   getFreeShippingThreshold,
@@ -53,13 +52,33 @@ import {
 export { DeliveryCityNotFoundError } from "@/lib/use-cases/devis-coeur"
 
 /**
+ * Faits bruts de la Précédence du Devis, tels que `chargerDevis` les
+ * reçoit : la valeur brute du `?ville=` (`villeParam`) et la Ville de
+ * livraison sauvegardée du Client (`profileVilleId`). Le module résout
+ * lui-même le langage d'URL (slug puis alias d'identifiant, ADR-0017) et
+ * le fait de présence d'un lien — aucun appelant ne dérive
+ * `urlVilleFournie` ni ne résout un slug par lui-même.
+ */
+export interface DevisPrecedenceFaitsBruts {
+  villeParam?: string | null
+  profileVilleId?: string | null
+}
+
+/**
  * Charge le Devis chargé — les faits purs d'un Panier chiffré.
+ *
+ * Prend les faits bruts de la Précédence du Devis : la valeur brute du
+ * `?ville=` (`villeParam`) et la Ville de livraison sauvegardée du Client
+ * (`profileVilleId`). Le langage d'URL (slug puis alias d'identifiant,
+ * ADR-0017) et le fait de présence `urlVilleFournie` se résolvent ici,
+ * contre les Villes déjà chargées (`listDeliveryCities`) — aucune requête
+ * supplémentaire, aucune double vérification d'existence.
  *
  * Récupère Villes de livraison + seuil (administration Livraison) une
  * seule fois, chiffre chaque ville via `computeCityQuotes`
  * (`panier.subtotal` + `lines.some(freeShipping)`) une seule fois, et
- * reporte les sources de précédence (`urlVilleId` gagne sur
- * `profileVilleId`).
+ * construit les sources de précédence (`urlVilleId` résolue gagne sur
+ * `profileVilleId`) au titre du module seul.
  *
  * Strictement des données : aucune fonction, aucun getter, aucune
  * instance de classe — le Devis chargé traverse la couture serveur →
@@ -68,10 +87,12 @@ export { DeliveryCityNotFoundError } from "@/lib/use-cases/devis-coeur"
  *
  * Ville inconnue ou absente → la sélection se résoudra « aucune » à la
  * construction ; charger ne lève jamais sur une ville inconnue ou absente.
+ * Sans faits bruts — appelant qui projette une ville explicite
+ * (`placeOrder`) — `sources` est omise.
  */
 export async function chargerDevis(
   panier: DonneesPanier,
-  sources?: string | null | DevisPrecedenceSources
+  faits?: DevisPrecedenceFaitsBruts
 ): Promise<DevisChargé> {
   const sousTotal = panier.subtotal
   const [cities, threshold] = await Promise.all([
@@ -91,13 +112,13 @@ export async function chargerDevis(
     threshold,
     quotes,
     sousTotal,
-    ...(sources === undefined
+    ...(faits === undefined
       ? {}
       : {
-          sources:
-            typeof sources === "string" || sources === null
-              ? { urlVilleId: sources }
-              : sources,
+          sources: {
+            ...resoudreVilleUrl(cities, faits.villeParam),
+            profileVilleId: faits.profileVilleId ?? null,
+          },
         }),
   }
 }

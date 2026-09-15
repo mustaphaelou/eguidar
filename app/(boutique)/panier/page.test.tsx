@@ -23,6 +23,12 @@ vi.mock("@/lib/use-cases/get-session", async () => {
   return { getSessionUser: h.sessionUserMock }
 })
 
+const { profileMock } = vi.hoisted(() => ({ profileMock: vi.fn() }))
+
+vi.mock("@/lib/use-cases/account", () => ({
+  getProfile: profileMock,
+}))
+
 vi.mock("next/link", () => ({
   default: ({
     href,
@@ -153,6 +159,13 @@ beforeAll(async () => {
 beforeEach(async () => {
   resetCookieStoreMock()
   sessionUserMock.mockReset()
+  profileMock.mockReset()
+  profileMock.mockResolvedValue({
+    phone: null,
+    address: null,
+    cityId: null,
+    cityName: null,
+  })
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `panier-page-${runId}-` } } },
   })
@@ -393,5 +406,46 @@ describe("CartPage — Compte client (persisted Panier)", () => {
     const html = await renderPage()
 
     expect(html).toContain("Votre panier est vide")
+  })
+
+  it("falls back to the profile's saved Ville when the URL names none", async () => {
+    commeClient(userIdA)
+    profileMock.mockResolvedValue({
+      phone: null,
+      address: null,
+      cityId,
+      cityName: `Ville ${runId}`,
+    })
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 2 },
+    })
+
+    const html = await renderPage()
+
+    expect(html).toContain(`Livraison (Ville ${runId})`)
+    expect(html).toContain(formatPrice(3000))
+    expect(html).toContain(formatPrice(203000))
+    expect(html).toContain(`data-selected="${cityId}"`)
+    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
+  })
+
+  it("never falls back to the profile behind an explicitly shared unknown Ville", async () => {
+    commeClient(userIdA)
+    profileMock.mockResolvedValue({
+      phone: null,
+      address: null,
+      cityId,
+      cityName: `Ville ${runId}`,
+    })
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
+    })
+
+    const html = await renderPage({ ville: `ville-inconnue-${runId}` })
+
+    expect(html).toContain("À choisir")
+    expect(html).not.toContain("Livraison (")
+    expect(html).toContain('data-selected=""')
+    expect(html).not.toContain("?ville=")
   })
 })
