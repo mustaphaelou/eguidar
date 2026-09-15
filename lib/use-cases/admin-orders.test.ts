@@ -11,6 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { totalPayable } from "@/lib/money"
 import { ajouterArticleAuPanier } from "@/lib/panier"
 import { sessionUserMock } from "@/test/navigation-mocks"
 import { getAdminOrder, listAdminOrders } from "@/lib/use-cases/admin-orders"
@@ -158,22 +159,25 @@ afterAll(async () => {
 async function createOrder(
   userId: string,
   items: { variantId: string; quantity: number }[],
-  opts?: { createdAt?: Date }
+  opts?: { createdAt?: Date; shippingFee?: number }
 ): Promise<string> {
+  const total = items.reduce(
+    (sum, item) =>
+      sum +
+      50000 * item.quantity +
+      (item.variantId === variantP2 ? 10000 * item.quantity : 0),
+    0
+  )
+  const shippingFee = opts?.shippingFee ?? 3500
   const order = await prisma.order.create({
     data: {
       userId,
       cityName,
       address: ADDRESS,
       phone: PHONE,
-      total: items.reduce(
-        (sum, item) =>
-          sum +
-          50000 * item.quantity +
-          (item.variantId === variantP2 ? 10000 * item.quantity : 0),
-        0
-      ),
-      shippingFee: 3500,
+      total,
+      shippingFee,
+      totalPayable: totalPayable({ total, shippingFee }),
       ...(opts?.createdAt ? { createdAt: opts.createdAt } : {}),
       items: {
         create: items.map((item) => ({
@@ -479,7 +483,7 @@ describe("admin orders listing sort", () => {
     ])
   })
 
-  it("sorts by total ascending and descending via the Total à payer proxy field", async () => {
+  it("sorts by Total à payer ascending and descending", async () => {
     const smallId = await createOrder(userIdA, [
       { variantId: variantP1, quantity: 1 },
     ])
@@ -507,6 +511,37 @@ describe("admin orders listing sort", () => {
       largeId,
       mediumId,
       smallId,
+    ])
+  })
+
+  it("orders by Total à payer when Sous-totaux tie and Frais de livraison differ", async () => {
+    const cheapDeliveryId = await createOrder(
+      userIdA,
+      [{ variantId: variantP1, quantity: 1 }],
+      { shippingFee: 3500 }
+    )
+    const priceyDeliveryId = await createOrder(
+      userIdA,
+      [{ variantId: variantP1, quantity: 1 }],
+      { shippingFee: 5000 }
+    )
+
+    const cheap = await getAdminOrder(cheapDeliveryId)
+    const pricey = await getAdminOrder(priceyDeliveryId)
+    expect(cheap.total).toBe(pricey.total)
+    expect(cheap.totalPayable).toBe(cheap.total + 3500)
+    expect(pricey.totalPayable).toBe(pricey.total + 5000)
+
+    const asc = await listAdminOrders({ tri: "total", sens: "asc" })
+    expect(asc.orders.map((order) => order.id)).toEqual([
+      cheapDeliveryId,
+      priceyDeliveryId,
+    ])
+
+    const desc = await listAdminOrders({ tri: "total", sens: "desc" })
+    expect(desc.orders.map((order) => order.id)).toEqual([
+      priceyDeliveryId,
+      cheapDeliveryId,
     ])
   })
 })

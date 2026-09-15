@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { totalPayable } from "@/lib/money"
 import {
   getDashboardStats,
   localMonthKey,
@@ -42,6 +43,7 @@ async function createSeedOrder(
       phone: "+212600000000",
       total,
       shippingFee,
+      totalPayable: totalPayable({ total, shippingFee }),
       status,
       createdAt: new Date(Date.now() - ageDays * DAY_MS),
     },
@@ -63,6 +65,7 @@ async function createSeedOrderAt(
       phone: "+212600000000",
       total,
       shippingFee,
+      totalPayable: totalPayable({ total, shippingFee }),
       status,
       createdAt,
     },

@@ -8,10 +8,6 @@ import {
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
-  type ColumnFiltersState,
-  type PaginationState,
-  type SortingState,
-  type Updater,
 } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Search01Icon } from "@hugeicons/core-free-icons"
@@ -36,10 +32,6 @@ import {
   DATE_COLUMN_ID,
   STATUT_COLUMN_ID,
   TOTAL_COLUMN_ID,
-  partialViewFromFilters,
-  partialViewFromPagination,
-  partialViewFromSorting,
-  resolveUpdater,
   type CommandeListingParams,
 } from "@/lib/commande-listing"
 import { formatPrice } from "@/lib/money"
@@ -151,48 +143,38 @@ export function CommandesTable({
   page: AdminOrdersPage
 }) {
   const router = useRouter()
-  const { view, queryDraft, onQueryChange, update, reset } = useCommandeListing(
-    {
-      params,
-      pageCount: page.pageCount,
-      navigation: {
-        replace: (href: string) => router.replace(href, { scroll: false }),
-      },
-    }
-  )
-
-  const pagination: PaginationState = {
-    pageIndex: view.pageIndex,
-    pageSize: view.pageSize,
-  }
-
-  const sorting: SortingState = [{ id: view.tri, desc: view.sens === "desc" }]
-
-  const columnFilters: ColumnFiltersState =
-    view.statuses.length > 0
-      ? [{ id: STATUT_COLUMN_ID, value: [...view.statuses] }]
-      : []
-
-  const handlePaginationChange = (updater: Updater<PaginationState>) => {
-    update(partialViewFromPagination(resolveUpdater(updater, pagination), view))
-  }
-
-  const handleSortingChange = (updater: Updater<SortingState>) => {
-    update(partialViewFromSorting(resolveUpdater(updater, sorting)))
-  }
-
-  const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
-    update(partialViewFromFilters(resolveUpdater(updater, columnFilters)))
-  }
+  const {
+    view,
+    queryDraft,
+    onQueryChange,
+    onSortingChange,
+    onColumnFiltersChange,
+    onPaginationChange,
+    reset,
+  } = useCommandeListing({
+    params,
+    pageCount: page.pageCount,
+    navigation: {
+      replace: (href: string) => router.replace(href, { scroll: false }),
+    },
+  })
 
   const table = useReactTable({
     data: page.orders,
     columns,
     pageCount: page.pageCount,
-    state: { sorting, pagination, columnFilters, globalFilter: queryDraft },
-    onSortingChange: handleSortingChange,
-    onPaginationChange: handlePaginationChange,
-    onColumnFiltersChange: handleColumnFiltersChange,
+    state: {
+      sorting: [{ id: view.tri, desc: view.sens === "desc" }],
+      pagination: { pageIndex: view.pageIndex, pageSize: view.pageSize },
+      columnFilters:
+        view.statuses.length > 0
+          ? [{ id: STATUT_COLUMN_ID, value: [...view.statuses] }]
+          : [],
+      globalFilter: queryDraft,
+    },
+    onSortingChange,
+    onPaginationChange,
+    onColumnFiltersChange,
     onGlobalFilterChange: onQueryChange,
     manualPagination: true,
     manualSorting: true,

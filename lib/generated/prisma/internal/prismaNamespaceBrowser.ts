@@ -216,6 +216,7 @@ export const OrderScalarFieldEnum = {
   phone: "phone",
   total: "total",
   shippingFee: "shippingFee",
+  totalPayable: "totalPayable",
   status: "status",
   createdAt: "createdAt",
   updatedAt: "updatedAt",
