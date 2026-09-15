@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
 
@@ -66,25 +67,7 @@ beforeAll(async () => {
   remotePatterns = (nextConfig.images?.remotePatterns ?? []) as RemotePattern[]
 })
 
-const seedSrcs = [
-  "https://placehold.co/800x800?text=Smartphones",
-  "https://placehold.co/800x800?text=Ordinateurs",
-  "https://placehold.co/800x800?text=Audio",
-  "https://placehold.co/800x800?text=TV",
-  "https://placehold.co/800x800?text=Gaming",
-  "https://placehold.co/800x800?text=Accessoires",
-  "https://placehold.co/800x800?text=iPhone+15+Pro",
-  "https://placehold.co/800x800?text=Galaxy+S24+Ultra",
-  "https://placehold.co/800x800?text=MacBook+Air+M3",
-  "https://placehold.co/800x800?text=Dell+XPS+13",
-  "https://placehold.co/800x800?text=WH-1000XM5",
-  "https://placehold.co/800x800?text=JBL+Charge+5",
-  "https://placehold.co/800x800?text=TV+Samsung+55",
-  "https://placehold.co/800x800?text=TV+LG+OLED",
-  "https://placehold.co/800x800?text=PS5+Slim",
-  "https://placehold.co/800x800?text=Anker+65W",
-  "https://cdn.eguidar.com/products/iphone-15-pro.jpg",
-]
+const seedSrcs = ["https://cdn.eguidar.com/products/iphone-15-pro.jpg"]
 
 const hostileSrcs = [
   "https://evil.example.com/steal.png",
@@ -104,5 +87,13 @@ describe("images.remotePatterns couvre les src du seed", () => {
     for (const src of hostileSrcs) {
       expect(isAllowed(src), src).toBe(false)
     }
+  })
+
+  it("garde prisma/seed.ts exempt de placehold.co", () => {
+    const seedSource = readFileSync(
+      path.join(process.cwd(), "prisma/seed.ts"),
+      "utf8"
+    )
+    expect(seedSource).not.toContain("placehold.co")
   })
 })
