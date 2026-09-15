@@ -285,6 +285,9 @@ async function main() {
     const category = await prisma.category.findUniqueOrThrow({
       where: { slug: product.category },
     })
+    // Le seed crée les Produits sans image ; son update ne réécrit jamais la
+    // liste d'images : l'Administration possède chaque photo dès le premier
+    // envoi. Ne pas remettre `...productData` dans l'update.
     const { variants, category: _category, images, ...productData } = product
     await prisma.product.upsert({
       where: { slug: product.slug },
