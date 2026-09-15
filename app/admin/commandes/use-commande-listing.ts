@@ -110,7 +110,7 @@ function resolveUpdater<T>(updater: T | ((old: T) => T), current: T): T {
 }
 
 function partialViewFromSorting(
-  sorting: readonly { id: string; desc: boolean }[] | undefined
+  sorting: SortingState | undefined
 ): Partial<CommandeListingView> {
   const first = sorting?.[0]
   return {
@@ -121,7 +121,7 @@ function partialViewFromSorting(
 }
 
 function partialViewFromFilters(
-  filters: readonly { id: string; value: unknown }[]
+  filters: ColumnFiltersState
 ): Partial<CommandeListingView> {
   const entry = filters.find((filter) => filter.id === STATUT_COLUMN_ID)
   const statuses = Array.isArray(entry?.value)
@@ -134,14 +134,12 @@ function partialViewFromFilters(
 }
 
 function partialViewFromPagination(
-  next: { pageIndex: number; pageSize: number },
+  next: PaginationState,
   current: CommandeListingView
 ): Partial<CommandeListingView> {
-  if (next.pageSize !== current.pageSize) {
-    return {
-      pageSize: next.pageSize as CommandeListingView["pageSize"],
-      pageIndex: 0,
-    }
+  const pageSize = PAGE_SIZES.find((size) => size === next.pageSize)
+  if (pageSize !== undefined && pageSize !== current.pageSize) {
+    return { pageSize, pageIndex: 0 }
   }
   return { pageIndex: next.pageIndex }
 }

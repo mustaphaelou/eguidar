@@ -18,9 +18,10 @@ creation and read where a persisted key is required.
 - **The admin listing and detail DTOs read the persisted fact** and the `tri === "total"`
   sort orders by `order.totalPayable` — the column sorts by exactly what it displays. The
   DTO shapes are unchanged.
-- **Only the admin sort key is persisted.** Order history (`getOrder`, `listUserOrders`),
-  the order e-mails and the Tableau du bord revenue keep today's derived reads: they need
-  the number, not a stored key.
+- **The persisted fact is written once and read where a stored key is required** (the admin
+  listing and detail). Order history (`getOrder`, `listUserOrders`), the order e-mails and
+  the Tableau de bord revenue keep today's derived reads: they need the number, not a
+  stored key.
 - **The fact is immutable by construction.** `total` and `shippingFee` are written once at
   checkout and never updated; after checkout only Statut transitions touch a Commande. The
   persisted Total à payer can therefore never drift from the Sous-total + Frais de livraison
@@ -46,3 +47,17 @@ creation and read where a persisted key is required.
 - The « Total à payer » sort orders by the exact value the column displays.
 - `Order.total` keeps ADR-0009's meaning: the articles Sous-total without the delivery fee.
 - No write path updates `totalPayable` after Commande creation.
+
+## Amendement — ADR-0009 (#341)
+
+This decision amends ADR-0009's mechanism only. ADR-0009 had the order DTOs
+expose the sum derived via `money.totalPayable`; the admin DTOs
+(`AdminOrderSummary`, `AdminOrderDetail`) now read the persisted
+`Order.totalPayable` fact instead. The write site remains the canonical pure
+arithmetic `money.totalPayable({ total, shippingFee })`.
+
+ADR-0009's rules stay standing, untouched:
+
+- the counting rule — Chiffre d'affaires counts only Commandes Livrées;
+- « display sites never re-derive » — display sites still show the DTO's
+  amount and never re-derive `total + shippingFee`.
