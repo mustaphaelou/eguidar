@@ -71,8 +71,11 @@ const seedSrcs = ["https://cdn.eguidar.com/products/iphone-15-pro.jpg"]
 
 const hostileSrcs = [
   "https://evil.example.com/steal.png",
+  "https://placehold.co/800x800?text=X",
   "https://placehold.co:8443/800x800?text=X",
   "https://placehold.co/900x900?text=X",
+  "https://images.placehold.co/800x800?text=X",
+  "https://placehold.co.evil.example.com/800x800?text=X",
   "https://cdn.eguidar.com/x.jpg?v=1",
 ]
 
