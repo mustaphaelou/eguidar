@@ -1,11 +1,9 @@
-import type { Meilisearch } from "meilisearch"
-
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
-import { getMeiliSearch, PRODUCTS_INDEX } from "@/lib/meili"
+import { moteurMeili } from "@/lib/meili"
+import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
 import { getPriceBucket } from "@/lib/price-buckets"
 import {
-  buildSearchFilter,
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
   type SearchFacet,
@@ -32,12 +30,10 @@ export {
   type SearchView,
 } from "@/lib/search-params"
 
-const SORT_TO_MEILI: Record<SearchSort, string[] | undefined> = {
-  pertinence: undefined,
-  "prix-asc": ["minPrice:asc"],
-  "prix-desc": ["minPrice:desc"],
-  nouveautes: ["updatedAt:desc"],
-}
+// `retirerFacette` reste la propriété publique de la Recherche (ADR-0016) :
+// le retrait se fait ici, une seule fois, avant que les filtres ne descendent
+// vers un moteur — un moteur applique exactement les filtres qu'il reçoit.
+export { retirerFacette }
 
 /**
  * Carte produit d'un résultat de Recherche : les résultats demandent les huit
@@ -107,49 +103,11 @@ async function fetchCategoryNames(
   return new Map(categories.map((category) => [category.slug, category.name]))
 }
 
-async function meiliSearch(
-  meili: Meilisearch,
-  query: string,
-  filters: SearchFilters,
-  sort: SearchSort,
-  offset: number,
-  limit: number
-) {
-  return meili.index<IndexableProduct>(PRODUCTS_INDEX).search(query, {
-    filter: buildSearchFilter(filters),
-    limit,
-    offset,
-    sort: SORT_TO_MEILI[sort],
-    attributesToRetrieve: [
-      "id",
-      "name",
-      "slug",
-      "brand",
-      "images",
-      "minPrice",
-      "totalStock",
-      "freeShipping",
-    ],
-  })
-}
-
-async function meiliFacetSearch(
-  meili: Meilisearch,
-  query: string,
-  filters: SearchFilters,
-  facet: SearchFacet
-) {
-  return meili.index<IndexableProduct>(PRODUCTS_INDEX).search(query, {
-    filter: buildSearchFilter(filters, facet),
-    facets: [facet],
-    limit: 0,
-  })
-}
-
 export async function searchProducts(
   query: string,
   filters: SearchFilters = {},
-  options: SearchOptions = {}
+  options: SearchOptions = {},
+  moteur: MoteurRecherche = moteurMeili()
 ): Promise<SearchPageData> {
   const sort = options.sort ?? SEARCH_SORT_DEFAULT
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
@@ -166,43 +124,64 @@ export async function searchProducts(
     pageSize,
   }
 
-  const meili = getMeiliSearch()
-  if (!meili) return emptyResult
+  // La requête de décompte d'une facette (ADR-0016) : `taille: 0`, les
+  // filtres reçus moins la clause de la facette comptée, et rien d'autre à
+  // retirer en chemin — chaque moteur applique exactement ce qu'il reçoit.
+  const requeteDeFacette = (facette: SearchFacet) =>
+    moteur.chercher({
+      query,
+      filtres: retirerFacette(filters, facette),
+      tri: sort,
+      taille: 0,
+      facettes: [facette],
+    })
 
   const [initialResult, brandFacets, categoryFacets, priceFacets] =
     await Promise.all([
-      meiliSearch(
-        meili,
+      moteur.chercher({
         query,
-        filters,
-        sort,
-        (requestedPage - 1) * pageSize,
-        pageSize
-      ),
-      meiliFacetSearch(meili, query, filters, "brand"),
-      meiliFacetSearch(meili, query, filters, "categorySlug"),
-      meiliFacetSearch(meili, query, filters, "priceBucket"),
+        filtres: filters,
+        tri: sort,
+        page: requestedPage,
+        taille: pageSize,
+      }),
+      requeteDeFacette("brand"),
+      requeteDeFacette("categorySlug"),
+      requeteDeFacette("priceBucket"),
     ])
-  let result = initialResult
 
-  const totalHits = result.estimatedTotalHits
-  const totalPages = Math.max(1, Math.ceil(totalHits / pageSize))
-  const currentPage = Math.min(requestedPage, totalPages)
-  if (currentPage !== requestedPage) {
-    result = await meiliSearch(
-      meili,
-      query,
-      filters,
-      sort,
-      (currentPage - 1) * pageSize,
-      pageSize
-    )
+  // Un moteur absent ou injoignable rend l'écran d'aujourd'hui : le Catalogue
+  // vide, sans bornage de page — il n'y a aucun total à border, et aucune
+  // requête de plus à lui demander.
+  if (
+    initialResult.statut === "indisponible" ||
+    brandFacets.statut === "indisponible" ||
+    categoryFacets.statut === "indisponible" ||
+    priceFacets.statut === "indisponible"
+  ) {
+    return emptyResult
   }
 
-  const brandDistribution = brandFacets.facetDistribution?.brand ?? {}
-  const categoryDistribution =
-    categoryFacets.facetDistribution?.categorySlug ?? {}
-  const priceDistribution = priceFacets.facetDistribution?.priceBucket ?? {}
+  const totalHits = initialResult.total
+  const totalPages = Math.max(1, Math.ceil(totalHits / pageSize))
+  const currentPage = Math.min(requestedPage, totalPages)
+  let documents = initialResult.documents
+  if (currentPage !== requestedPage) {
+    const clampedResult = await moteur.chercher({
+      query,
+      filtres: filters,
+      tri: sort,
+      page: currentPage,
+      taille: pageSize,
+    })
+    // Le moteur s'est tu entre les deux vagues : même Catalogue vide.
+    if (clampedResult.statut === "indisponible") return emptyResult
+    documents = clampedResult.documents
+  }
+
+  const brandDistribution = brandFacets.repartitions.brand ?? {}
+  const categoryDistribution = categoryFacets.repartitions.categorySlug ?? {}
+  const priceDistribution = priceFacets.repartitions.priceBucket ?? {}
 
   const brands: SearchFacetValue[] = Object.entries(brandDistribution)
     .map(([value, count]) => ({ value, count }))
@@ -237,7 +216,7 @@ export async function searchProducts(
   return {
     query,
     totalHits,
-    products: result.hits.map(carteDuHit),
+    products: documents.map(carteDuHit),
     facets: { brands, categories, priceBuckets },
     sort,
     currentPage,
@@ -312,37 +291,29 @@ const SEARCH_SUGGESTION_LIMIT = 6
 const SEARCH_SUGGESTION_CATEGORY_LIMIT = 5
 
 export async function searchSuggestions(
-  query: string
+  query: string,
+  moteur: MoteurRecherche = moteurMeili()
 ): Promise<SearchSuggestionsData> {
   const emptyResult: SearchSuggestionsData = { products: [], categories: [] }
 
-  const meili = getMeiliSearch()
-  if (!meili) return emptyResult
+  const reponse = await moteur.chercher({
+    query,
+    taille: SEARCH_SUGGESTION_LIMIT,
+    facettes: ["categorySlug"],
+  })
 
-  const result = await meili
-    .index<IndexableProduct>(PRODUCTS_INDEX)
-    .search(query, {
-      limit: SEARCH_SUGGESTION_LIMIT,
-      facets: ["categorySlug"],
-      attributesToRetrieve: [
-        "id",
-        "name",
-        "slug",
-        "brand",
-        "images",
-        "minPrice",
-      ],
-    })
+  // Un moteur absent ou injoignable : les deux listes vides d'aujourd'hui.
+  if (reponse.statut === "indisponible") return emptyResult
 
   const categorySlugCounts = Object.entries(
-    result.facetDistribution?.categorySlug ?? {}
+    reponse.repartitions.categorySlug ?? {}
   ).slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
   const categoryNames = await fetchCategoryNames(
     categorySlugCounts.map(([slug]) => slug)
   )
 
   return {
-    products: result.hits.flatMap(suggestionsDuHit),
+    products: reponse.documents.flatMap(suggestionsDuHit),
     categories: categorySlugCounts.map(([slug]) => ({
       slug,
       name: categoryNames.get(slug) ?? slug,

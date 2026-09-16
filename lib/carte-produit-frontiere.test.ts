@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 
+import type { Meilisearch } from "meilisearch"
+
+import type { RequeteMoteur } from "@/lib/moteur-recherche"
 import {
   importeDe,
   lire,
@@ -14,15 +17,25 @@ const { requetesDeSuggestion } = vi.hoisted(() => ({
 
 vi.mock("@/lib/meili", async (importOriginal) => {
   const meili = await importOriginal<typeof import("@/lib/meili")>()
+  const client = {
+    index: () => ({
+      search: async (_query: string, options: OptionsDeSuggestion) => {
+        requetesDeSuggestion.push(options)
+        return { hits: [], facetDistribution: undefined }
+      },
+    }),
+  }
   return {
     ...meili,
-    getMeiliSearch: () => ({
-      index: () => ({
-        search: async (_query: string, options: OptionsDeSuggestion) => {
-          requetesDeSuggestion.push(options)
-          return { hits: [], facetDistribution: undefined }
-        },
-      }),
+    getMeiliSearch: () => client,
+    // #364 : la Recherche atteint Meili par la couture — `searchSuggestions`
+    // passe par `moteurMeili()`, jamais par `getMeiliSearch()` directement.
+    // Le moteur de substitution est donc bâti sur le client enregistreur,
+    // sans quoi l'adaptateur réel serait court-circuité et la garde
+    // n'observerait plus la requête que Meili reçoit vraiment.
+    moteurMeili: () => ({
+      chercher: (requete: RequeteMoteur) =>
+        meili.chercherAvecMeili(client as unknown as Meilisearch, requete),
     }),
   }
 })
@@ -169,8 +182,14 @@ describe("Suggestion de produit — la requête garde ses six faits", () => {
 
     await searchSuggestions("theiere")
 
-    expect(requetesDeSuggestion).toHaveLength(1)
-    const attributs = requetesDeSuggestion[0]?.attributesToRetrieve ?? []
+    // La couture interroge le moteur en deux temps pour une suggestion : la
+    // page demandée — les six faits — puis le décompte de `categorySlug`
+    // (`limit: 0`, sans projection). Seule la page porte la projection.
+    const pages = requetesDeSuggestion.filter(
+      (options) => options.attributesToRetrieve !== undefined
+    )
+    expect(pages).toHaveLength(1)
+    const attributs = pages[0]?.attributesToRetrieve ?? []
     expect(attributs).toHaveLength(6)
     expect(attributs).toEqual(
       expect.arrayContaining([
