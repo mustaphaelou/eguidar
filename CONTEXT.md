@@ -114,6 +114,11 @@ texte des spécifications (clés et valeurs), noms de variantes et SKU (recherch
 minimal et son bucket de prix, stock total, images et date de mise à jour.
 _Avoid_: produit indexé, indexable product
 
+**Produit**:
+L'entité vendue du Catalogue, présentée à `/produit/[slug]` avec sa marque, sa description,
+ses spécifications, ses Images produit et ses Variantes.
+_Avoid_: article (seul), item
+
 **Image produit**:
 A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X.
 _Avoid_: photo, visuel, media

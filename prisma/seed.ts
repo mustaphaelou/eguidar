@@ -27,36 +27,12 @@ const cities = [
 ]
 
 const categories = [
-  {
-    name: "Smartphones",
-    slug: "smartphones",
-    image: "https://placehold.co/800x800?text=Smartphones",
-  },
-  {
-    name: "Ordinateurs & Tablettes",
-    slug: "ordinateurs-tablettes",
-    image: "https://placehold.co/800x800?text=Ordinateurs",
-  },
-  {
-    name: "Audio & Hi-Fi",
-    slug: "audio-hifi",
-    image: "https://placehold.co/800x800?text=Audio",
-  },
-  {
-    name: "TV & Home Cinema",
-    slug: "tv-home-cinema",
-    image: "https://placehold.co/800x800?text=TV",
-  },
-  {
-    name: "Gaming",
-    slug: "gaming",
-    image: "https://placehold.co/800x800?text=Gaming",
-  },
-  {
-    name: "Accessoires",
-    slug: "accessoires",
-    image: "https://placehold.co/800x800?text=Accessoires",
-  },
+  { name: "Smartphones", slug: "smartphones" },
+  { name: "Ordinateurs & Tablettes", slug: "ordinateurs-tablettes" },
+  { name: "Audio & Hi-Fi", slug: "audio-hifi" },
+  { name: "TV & Home Cinema", slug: "tv-home-cinema" },
+  { name: "Gaming", slug: "gaming" },
+  { name: "Accessoires", slug: "accessoires" },
 ]
 
 const products = [
@@ -76,7 +52,7 @@ const products = [
       Caméra: "48 MP",
       Batterie: "3274 mAh",
     },
-    images: ["https://placehold.co/800x800?text=iPhone+15+Pro"],
+    images: [],
     variants: [
       { name: "128 Go", sku: "IP15P-128", priceDelta: 0, stock: 12 },
       { name: "256 Go", sku: "IP15P-256", priceDelta: 150000, stock: 8 },
@@ -99,7 +75,7 @@ const products = [
       Caméra: "200 MP",
       Batterie: "5000 mAh",
     },
-    images: ["https://placehold.co/800x800?text=Galaxy+S24+Ultra"],
+    images: [],
     variants: [
       { name: "256 Go", sku: "S24U-256", priceDelta: 0, stock: 10 },
       { name: "512 Go", sku: "S24U-512", priceDelta: 150000, stock: 6 },
@@ -122,7 +98,7 @@ const products = [
       RAM: "8 Go",
       Stockage: "256 Go SSD",
     },
-    images: ["https://placehold.co/800x800?text=MacBook+Air+M3"],
+    images: [],
     variants: [
       { name: "8 Go / 256 Go", sku: "MBA13M3-8-256", priceDelta: 0, stock: 7 },
       {
@@ -153,7 +129,7 @@ const products = [
       RAM: "16 Go",
       Stockage: "512 Go SSD",
     },
-    images: ["https://placehold.co/800x800?text=Dell+XPS+13"],
+    images: [],
     variants: [
       {
         name: "Modèle standard",
@@ -179,7 +155,7 @@ const products = [
       Autonomie: "30 h",
       Réduction: "ANC adaptative",
     },
-    images: ["https://placehold.co/800x800?text=WH-1000XM5"],
+    images: [],
     variants: [
       { name: "Noir", sku: "WH1000XM5-NOIR", priceDelta: 0, stock: 15 },
       { name: "Argent", sku: "WH1000XM5-ARG", priceDelta: 0, stock: 9 },
@@ -199,7 +175,7 @@ const products = [
       Autonomie: "20 h",
       Étanchéité: "IP67",
     },
-    images: ["https://placehold.co/800x800?text=JBL+Charge+5"],
+    images: [],
     variants: [
       { name: "Noir", sku: "JBLCH5-NOIR", priceDelta: 0, stock: 20 },
       { name: "Bleu", sku: "JBLCH5-BLEU", priceDelta: 0, stock: 12 },
@@ -219,7 +195,7 @@ const products = [
       Technologie: "QLED",
       HDR: "HDR10+",
     },
-    images: ["https://placehold.co/800x800?text=TV+Samsung+55"],
+    images: [],
     variants: [{ name: "55 pouces", sku: "TV55Q60D", priceDelta: 0, stock: 6 }],
   },
   {
@@ -239,7 +215,7 @@ const products = [
       Technologie: "OLED evo",
       HDR: "Dolby Vision",
     },
-    images: ["https://placehold.co/800x800?text=TV+LG+OLED"],
+    images: [],
     variants: [
       { name: "65 pouces", sku: "LGOLED65C4", priceDelta: 0, stock: 3 },
     ],
@@ -259,7 +235,7 @@ const products = [
       Résolution: "4K 120 Hz",
       Lecteur: "Blu-ray 4K",
     },
-    images: ["https://placehold.co/800x800?text=PS5+Slim"],
+    images: [],
     variants: [
       { name: "Avec lecteur", sku: "PS5SLIM-BD", priceDelta: 0, stock: 8 },
       { name: "Digital", sku: "PS5SLIM-DIG", priceDelta: -60000, stock: 5 },
@@ -274,7 +250,7 @@ const products = [
     category: "accessoires",
     price: 39900,
     specs: { Puissance: "65 W", Ports: "2x USB-C", Technologie: "GaN II" },
-    images: ["https://placehold.co/800x800?text=Anker+65W"],
+    images: [],
     variants: [
       { name: "Blanc", sku: "ANKER65W-BLANC", priceDelta: 0, stock: 30 },
       { name: "Noir", sku: "ANKER65W-NOIR", priceDelta: 0, stock: 25 },
@@ -300,7 +276,7 @@ async function main() {
   for (const category of categories) {
     await prisma.category.upsert({
       where: { slug: category.slug },
-      update: { name: category.name, image: category.image },
+      update: { name: category.name },
       create: category,
     })
   }
@@ -309,11 +285,14 @@ async function main() {
     const category = await prisma.category.findUniqueOrThrow({
       where: { slug: product.category },
     })
-    const { variants, category: _category, ...productData } = product
+    // Le seed crée les Produits sans image ; son update ne réécrit jamais la
+    // liste d'images : l'Administration possède chaque photo dès le premier
+    // envoi. Ne pas remettre `...productData` dans l'update.
+    const { variants, category: _category, images, ...productData } = product
     await prisma.product.upsert({
       where: { slug: product.slug },
       update: { ...productData, categoryId: category.id },
-      create: { ...productData, categoryId: category.id },
+      create: { ...productData, images, categoryId: category.id },
     })
     for (const variant of variants) {
       await prisma.productVariant.upsert({
