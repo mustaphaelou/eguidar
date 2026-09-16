@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
+import { urlProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import type { ProduitLie } from "@/lib/use-cases/blog"
@@ -30,7 +31,7 @@ export function ProduitLieCarte({
   return (
     <div className="flex flex-col gap-2">
       <Link
-        href={`/produit/${product.slug}`}
+        href={urlProduit(product.slug)}
         className="group flex flex-col gap-2"
       >
         <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
