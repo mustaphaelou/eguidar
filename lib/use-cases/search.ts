@@ -1,5 +1,10 @@
 import type { Meilisearch } from "meilisearch"
 
+import {
+  projeterCarteProduit,
+  type CarteProduit,
+  type FaitsCarteProduit,
+} from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import { getMeiliSearch, PRODUCTS_INDEX } from "@/lib/meili"
 import { getPriceBucket } from "@/lib/price-buckets"
@@ -38,15 +43,24 @@ const SORT_TO_MEILI: Record<SearchSort, string[] | undefined> = {
   nouveautes: ["updatedAt:desc"],
 }
 
-export interface SearchProductCard {
-  id: string
-  name: string
-  slug: string
-  brand: string
-  image: string | null
-  minPrice: number
-  totalStock: number
-  freeShipping: boolean
+/**
+ * Faits d'une Carte produit depuis un résultat de Recherche. Les résultats
+ * demandent les huit attributs du Document d'index ; les suggestions n'en
+ * demandent que six — une Suggestion de produit ne porte ni le stock total
+ * ni la Livraison offerte (CONTEXT.md) — et « montrer » ne consulte jamais
+ * ces deux faits : leurs valeurs de repli ne sont pas lues.
+ */
+function faitsDuHit(hit: IndexableProduct): FaitsCarteProduit {
+  return {
+    id: hit.id,
+    name: hit.name,
+    slug: hit.slug,
+    brand: hit.brand,
+    images: hit.images,
+    minPrice: hit.minPrice,
+    totalStock: hit.totalStock ?? 0,
+    freeShipping: hit.freeShipping ?? false,
+  }
 }
 
 export interface SearchFacetValue {
@@ -67,7 +81,7 @@ export interface SearchPriceBucketFacet {
 export interface SearchPageData {
   query: string
   totalHits: number
-  products: SearchProductCard[]
+  products: CarteProduit[]
   facets: {
     brands: SearchFacetValue[]
     categories: SearchCategoryFacet[]
@@ -226,16 +240,9 @@ export async function searchProducts(
   return {
     query,
     totalHits,
-    products: result.hits.map((hit) => ({
-      id: hit.id,
-      name: hit.name,
-      slug: hit.slug,
-      brand: hit.brand,
-      image: hit.images[0] ?? null,
-      minPrice: hit.minPrice,
-      totalStock: hit.totalStock,
-      freeShipping: hit.freeShipping,
-    })),
+    products: result.hits.map((hit) =>
+      projeterCarteProduit(faitsDuHit(hit), { rupture: "montrer" })
+    ),
     facets: { brands, categories, priceBuckets },
     sort,
     currentPage,
@@ -244,7 +251,13 @@ export async function searchProducts(
   }
 }
 
-export interface SearchSuggestionProduct {
+/**
+ * Suggestion de produit : la ligne compacte que la Recherche propose dans
+ * le header (CONTEXT.md) — les six faits de sa rangée, projetés depuis la
+ * Carte produit. Déclarée ici, une seule fois : le composant client
+ * l'importe (`import type`).
+ */
+export interface SuggestionProduit {
   id: string
   name: string
   slug: string
@@ -253,13 +266,28 @@ export interface SearchSuggestionProduct {
   minPrice: number
 }
 
+/**
+ * Réduit une Carte produit aux six faits de la rangée de suggestion : ni
+ * le stock total ni la Livraison offerte n'y figurent.
+ */
+function versSuggestion(carte: CarteProduit): SuggestionProduit {
+  return {
+    id: carte.id,
+    name: carte.name,
+    slug: carte.slug,
+    brand: carte.brand,
+    image: carte.image,
+    minPrice: carte.minPrice,
+  }
+}
+
 export interface SearchSuggestionCategory {
   slug: string
   name: string
 }
 
 export interface SearchSuggestionsData {
-  products: SearchSuggestionProduct[]
+  products: SuggestionProduit[]
   categories: SearchSuggestionCategory[]
 }
 
@@ -297,14 +325,11 @@ export async function searchSuggestions(
   )
 
   return {
-    products: result.hits.map((hit) => ({
-      id: hit.id,
-      name: hit.name,
-      slug: hit.slug,
-      brand: hit.brand,
-      image: hit.images[0] ?? null,
-      minPrice: hit.minPrice,
-    })),
+    products: result.hits.map((hit) =>
+      versSuggestion(
+        projeterCarteProduit(faitsDuHit(hit), { rupture: "montrer" })
+      )
+    ),
     categories: categorySlugCounts.map(([slug]) => ({
       slug,
       name: categoryNames.get(slug) ?? slug,
