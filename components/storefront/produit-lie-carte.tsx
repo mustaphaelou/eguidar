@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import type { ProduitLie } from "@/lib/use-cases/blog"
 
-import { HomeProductCard } from "./home-product-card"
+import { CarteProduit } from "./carte-produit"
 import {
   useMutationsDuPanier,
   type PortMutationsDuPanier,
@@ -12,7 +12,7 @@ import {
 /**
  * Le Produit lié d'un Article de blog : la Carte produit partagée, plus
  * l'ajout au panier que cette seule surface porte — son bouton, son accusé et
- * son Refus passent à `HomeProductCard` par la place d'action.
+ * son Refus passent à `CarteProduit` par la place d'action.
  */
 export function ProduitLieCarte({
   product,
@@ -30,7 +30,7 @@ export function ProduitLieCarte({
   }
 
   return (
-    <HomeProductCard
+    <CarteProduit
       product={product}
       action={
         <>

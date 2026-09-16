@@ -3,7 +3,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { connection } from "next/server"
 
-import { HomeProductCard } from "@/components/storefront/home-product-card"
+import { CarteProduit } from "@/components/storefront/carte-produit"
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { cn } from "@/lib/utils"
@@ -122,7 +122,7 @@ async function HomeContent() {
             </h2>
             <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
               {data.featured.slice(0, 5).map((product) => (
-                <HomeProductCard key={product.id} product={product} />
+                <CarteProduit key={product.id} product={product} />
               ))}
             </div>
           </div>

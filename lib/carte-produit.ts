@@ -12,9 +12,10 @@
  * Produit.
  *
  * La règle de rupture appartient à la projection, pas à l'appelant :
- * l'option de masquage est typée — « montrer » répond une `CarteProduit`
- * totale, « masquer » répond `CarteProduit | null` (`null` quand le stock
- * total est nul, #164). Une seule implémentation derrière les deux.
+ * l'option de masquage est typée — « montrer » exige les deux métriques et
+ * répond une `CarteProduit` totale, « masquer » accepte des faits sans elles
+ * et répond `CarteProduit | null` (`null` quand le stock total connu est nul,
+ * #164). Une seule implémentation derrière les deux.
  *
  * NE JAMAIS ajouter `"use client"` ici : le module est destiné aux deux
  * côtés de la couture — les composants clients qui rendent une Carte
@@ -57,6 +58,13 @@ export interface CarteProduit {
  * **déjà calculées** par `@/lib/product-metrics` — `minPrice` (le Prix
  * courant) et `totalStock` — plus la Livraison offerte. Le projecteur ne
  * chiffre jamais.
+ *
+ * Les deux dernières sont optionnelles parce que tous les lecteurs ne les
+ * connaissent pas : le chemin de lecture d'un Produit les fournit toujours
+ * (« montrer » les exige), tandis que la rangée de Suggestion de produit —
+ * six faits — ne demande ni le stock total ni la Livraison offerte. Sous
+ * « masquer », un stock total absent veut dire « inconnu » et ne masque
+ * jamais.
  */
 export interface FaitsCarteProduit {
   id: string
@@ -65,37 +73,39 @@ export interface FaitsCarteProduit {
   brand: string
   images: unknown
   minPrice: number
-  totalStock: number
-  freeShipping: boolean
+  totalStock?: number
+  freeShipping?: boolean
 }
 
 /**
- * Politique de rupture demandée au projecteur : « montrer » garde la Carte
- * produit même sans stock, « masquer » la retire (#164).
- */
-export type MasquageRupture = "montrer" | "masquer"
-
-/**
  * Projette la Carte produit d'un Produit : l'image est la première des
- * `images`, sinon `null` ; les métriques cuites sont recopiées telles
- * quelles. Le masquage de la rupture est demandé explicitement et son type
- * rétrécit le retour — « montrer » ne répond jamais `null`, « masquer »
- * répond `null` si et seulement si le stock total est nul.
+ * `images` qui soit une chaîne, sinon `null` ; les métriques cuites sont
+ * recopiées telles quelles. Le masquage de la rupture est demandé
+ * explicitement et son type rétrécit le retour — « montrer » exige les deux
+ * métriques et ne répond jamais `null` ; « masquer » accepte des faits sans
+ * elles et répond `null` si et seulement si le stock total **connu** est nul
+ * (#164).
+ *
+ * Sous « masquer », les deux métriques absentes sont projetées à `0` et
+ * `false` : le seul appelant qui les omet — la Suggestion de produit — réduit
+ * aussitôt la carte à ses six faits et ne les rend jamais.
  */
+export function projeterCarteProduit(
+  faits: FaitsCarteProduit & { totalStock: number; freeShipping: boolean },
+  options: { rupture: "montrer" }
+): CarteProduit
 export function projeterCarteProduit(
   faits: FaitsCarteProduit,
   options: { rupture: "masquer" }
 ): CarteProduit | null
 export function projeterCarteProduit(
   faits: FaitsCarteProduit,
-  options: { rupture: "montrer" }
-): CarteProduit
-export function projeterCarteProduit(
-  faits: FaitsCarteProduit,
-  options: { rupture: MasquageRupture }
+  options: { rupture: "montrer" | "masquer" }
 ): CarteProduit | null {
   if (options.rupture === "masquer" && faits.totalStock === 0) return null
-  const images = Array.isArray(faits.images) ? (faits.images as string[]) : []
+  const images = Array.isArray(faits.images)
+    ? faits.images.filter((i): i is string => typeof i === "string")
+    : []
   return {
     id: faits.id,
     name: faits.name,
@@ -103,8 +113,8 @@ export function projeterCarteProduit(
     brand: faits.brand,
     image: images[0] ?? null,
     minPrice: faits.minPrice,
-    totalStock: faits.totalStock,
-    freeShipping: faits.freeShipping,
+    totalStock: faits.totalStock ?? 0,
+    freeShipping: faits.freeShipping ?? false,
   }
 }
 
