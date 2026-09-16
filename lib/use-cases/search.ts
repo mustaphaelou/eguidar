@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/db"
 import { moteurMeili } from "@/lib/meili"
-import type { MoteurRecherche } from "@/lib/moteur-recherche"
+import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
 import { getPriceBucket } from "@/lib/price-buckets"
 import {
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
+  type SearchFacet,
   type SearchFilters,
   type SearchSort,
 } from "@/lib/search-params"
@@ -27,9 +28,10 @@ export {
   type SearchView,
 } from "@/lib/search-params"
 
-// `retirerFacette` reste la propriété publique de la Recherche (ADR-0016) ;
-// les moteurs l'appliquent au point d'usage, les filtres partent complets.
-export { retirerFacette } from "@/lib/moteur-recherche"
+// `retirerFacette` reste la propriété publique de la Recherche (ADR-0016) :
+// le retrait se fait ici, une seule fois, avant que les filtres ne descendent
+// vers un moteur — un moteur applique exactement les filtres qu'il reçoit.
+export { retirerFacette }
 
 export interface SearchProductCard {
   id: string
@@ -110,6 +112,18 @@ export async function searchProducts(
     pageSize,
   }
 
+  // La requête de décompte d'une facette (ADR-0016) : `taille: 0`, les
+  // filtres reçus moins la clause de la facette comptée, et rien d'autre à
+  // retirer en chemin — chaque moteur applique exactement ce qu'il reçoit.
+  const requeteDeFacette = (facette: SearchFacet) =>
+    moteur.chercher({
+      query,
+      filtres: retirerFacette(filters, facette),
+      tri: sort,
+      taille: 0,
+      facettes: [facette],
+    })
+
   const [initialResult, brandFacets, categoryFacets, priceFacets] =
     await Promise.all([
       moteur.chercher({
@@ -119,27 +133,9 @@ export async function searchProducts(
         page: requestedPage,
         taille: pageSize,
       }),
-      moteur.chercher({
-        query,
-        filtres: filters,
-        tri: sort,
-        taille: 0,
-        facettes: ["brand"],
-      }),
-      moteur.chercher({
-        query,
-        filtres: filters,
-        tri: sort,
-        taille: 0,
-        facettes: ["categorySlug"],
-      }),
-      moteur.chercher({
-        query,
-        filtres: filters,
-        tri: sort,
-        taille: 0,
-        facettes: ["priceBucket"],
-      }),
+      requeteDeFacette("brand"),
+      requeteDeFacette("categorySlug"),
+      requeteDeFacette("priceBucket"),
     ])
 
   // Un moteur absent ou injoignable rend l'écran d'aujourd'hui : le Catalogue
