@@ -14,6 +14,11 @@ import {
 } from "@/lib/use-cases/contact"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { projeterDevis, selectionValidee } from "@/lib/use-cases/devis-coeur"
+import {
+  avecSurcharges,
+  messageDeValidation,
+  runEffect,
+} from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = {
@@ -29,14 +34,6 @@ const defaultOrderEffects: OrderEffects = {
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
   invalidateCommande,
-}
-
-async function runEffect(message: string, fn: () => void): Promise<void> {
-  try {
-    await fn()
-  } catch (error) {
-    console.warn(message, error)
-  }
 }
 
 export interface CheckoutInput {
@@ -85,7 +82,7 @@ export interface OrderSummary {
 
 export class CheckoutValidationError extends UserFacingError {
   constructor(issues: string[]) {
-    super(`Données invalides : ${issues.join(" ; ")}`)
+    super(messageDeValidation(issues))
     this.name = "CheckoutValidationError"
   }
 }
@@ -192,7 +189,7 @@ export async function placeOrder(
   input: CheckoutInput,
   overrides?: Partial<OrderEffects>
 ) {
-  const effects = { ...defaultOrderEffects, ...overrides }
+  const effects = avecSurcharges(defaultOrderEffects, overrides)
   const data = parseCheckoutInput(input)
 
   const user = await prisma.user.findUnique({
@@ -340,7 +337,7 @@ export async function updateOrderStatus(
   nextStatus: OrderStatus,
   overrides?: Partial<OrderEffects>
 ) {
-  const effects = { ...defaultOrderEffects, ...overrides }
+  const effects = avecSurcharges(defaultOrderEffects, overrides)
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
