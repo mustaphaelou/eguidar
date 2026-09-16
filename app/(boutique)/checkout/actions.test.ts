@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { redirectMock, sessionUserMock } from "@/test/navigation-mocks"
+import type { Client } from "@/lib/use-cases/session-courante"
+import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
 const { placeOrderMock, updateProfileMock } = vi.hoisted(() => ({
   placeOrderMock: vi.fn(),
@@ -13,7 +14,7 @@ vi.mock("next/navigation", async () => {
 })
 vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { lireSession: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 vi.mock("@/lib/use-cases/orders", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/use-cases/orders")>()),
@@ -31,7 +32,12 @@ import {
   OutOfStockError,
 } from "@/lib/use-cases/orders"
 
-const SESSION_USER = { id: "1", email: "client@example.ma", role: "user" }
+const SESSION_USER: Client = {
+  id: "1",
+  name: "Client Test",
+  email: "client@example.ma",
+  role: "user",
+}
 const INPUT = {
   cityId: "42",
   address: "12 rue des Orangers",
@@ -48,14 +54,14 @@ function formData(): FormData {
 
 describe("placeOrderAction", () => {
   beforeEach(() => {
-    sessionUserMock.mockReset()
+    sessionCouranteMock.mockReset()
     placeOrderMock.mockReset()
     updateProfileMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("refuses an anonymous Compte client with a typed result instead of a redirect, without placing an order", async () => {
-    sessionUserMock.mockResolvedValue(null)
+    sessionCouranteMock.mockResolvedValue(null)
 
     await expect(placeOrderAction({}, formData())).resolves.toEqual({
       unauthenticated: true,
@@ -92,7 +98,7 @@ describe("placeOrderAction", () => {
   ])(
     "turns %s into { error } with its French message",
     async (_name, create, message) => {
-      sessionUserMock.mockResolvedValue(SESSION_USER)
+      sessionCouranteMock.mockResolvedValue(SESSION_USER)
       placeOrderMock.mockRejectedValue(create())
 
       await expect(placeOrderAction({}, formData())).resolves.toEqual({
@@ -102,7 +108,7 @@ describe("placeOrderAction", () => {
   )
 
   it("places the order, prefills the profile, and sends the Compte client to the confirmation destination", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     placeOrderMock.mockResolvedValue({ id: "cmd-1" })
     updateProfileMock.mockResolvedValue({})
 
@@ -119,7 +125,7 @@ describe("placeOrderAction", () => {
   })
 
   it("swallows a failed profile prefill and still sends the Compte client to the confirmation destination", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     placeOrderMock.mockResolvedValue({ id: "cmd-2" })
     updateProfileMock.mockRejectedValue(new Error("boom"))
 
@@ -130,7 +136,7 @@ describe("placeOrderAction", () => {
   })
 
   it("rethrows a plain error verbatim", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const boom = new Error("boom")
     placeOrderMock.mockRejectedValue(boom)
 

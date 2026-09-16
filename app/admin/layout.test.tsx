@@ -1,7 +1,7 @@
 import { renderToReadableStream } from "react-dom/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { sessionUserMock, redirectMock } from "@/test/navigation-mocks"
+import { sessionCouranteMock, redirectMock } from "@/test/navigation-mocks"
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -20,7 +20,7 @@ vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
     ...(await importOriginal<
       typeof import("@/lib/use-cases/session-courante")
     >()),
-    lireSession: h.sessionUserMock,
+    lireSession: h.sessionCouranteMock,
   }
 })
 
@@ -68,12 +68,13 @@ function renderAdminLayout() {
 describe("AdminLayout", () => {
   beforeEach(() => {
     resetCookieStoreMock()
-    sessionUserMock.mockReset()
+    sessionCouranteMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("mounts the Session inactive controller and the AuthDialogs around the authenticated admin shell", async () => {
-    sessionUserMock.mockResolvedValue({
+    sessionCouranteMock.mockResolvedValue({
+      id: "admin-1",
       name: "Ada Lovelace",
       email: "ada@example.com",
       role: "admin",
@@ -89,7 +90,7 @@ describe("AdminLayout", () => {
   })
 
   it("redirects an unauthenticated visitor to the Connexion modal with /admin as Destination post-connexion", async () => {
-    sessionUserMock.mockResolvedValue(null)
+    sessionCouranteMock.mockResolvedValue(null)
 
     try {
       await renderAdminLayout()

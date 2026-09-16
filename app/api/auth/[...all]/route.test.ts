@@ -18,7 +18,7 @@ import {
   resetCookieStoreMock,
   setCookie,
 } from "@/test/cookie-store"
-import { sessionUserMock } from "@/test/navigation-mocks"
+import { sessionCouranteMock } from "@/test/navigation-mocks"
 
 const { handlerMock, getSessionMock } = vi.hoisted(() => ({
   handlerMock: vi.fn(),
@@ -39,7 +39,7 @@ vi.mock("next/headers", async () => {
 
 vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { lireSession: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 
 import { GET, POST } from "./route"
@@ -167,8 +167,13 @@ beforeEach(async () => {
   handlerMock.mockReset()
   getSessionMock.mockReset()
   getSessionMock.mockResolvedValue({ user: { id: userId } })
-  sessionUserMock.mockReset()
-  sessionUserMock.mockResolvedValue({ id: userId })
+  sessionCouranteMock.mockReset()
+  sessionCouranteMock.mockResolvedValue({
+    id: userId,
+    name: "Client Test",
+    email: "client@example.ma",
+    role: "user",
+  })
 })
 
 afterAll(async () => {

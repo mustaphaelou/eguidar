@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
-import { redirectMock, sessionUserMock } from "@/test/navigation-mocks"
+import type { Client } from "@/lib/use-cases/session-courante"
+import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
 vi.mock("next/navigation", async () => {
   const h = await import("@/test/navigation-mocks")
@@ -14,7 +15,7 @@ vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
     ...(await importOriginal<
       typeof import("@/lib/use-cases/session-courante")
     >()),
-    lireSession: h.sessionUserMock,
+    lireSession: h.sessionCouranteMock,
   }
 })
 
@@ -30,8 +31,19 @@ import {
 import { loginUrl } from "@/lib/lien-de-connexion"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-const SESSION_USER = { id: "1", email: "client@example.ma", role: "user" }
-const ADMIN_SESSION = { user: { id: "2", role: "admin" } }
+const SESSION_USER: Client = {
+  id: "1",
+  name: "Client Test",
+  email: "client@example.ma",
+  role: "user",
+}
+const ADMIN_USER: Client = {
+  id: "2",
+  name: "Admin Test",
+  email: "admin@example.ma",
+  role: "admin",
+}
+const ADMIN_SESSION = { user: ADMIN_USER }
 
 class StubUserFacingError extends UserFacingError {}
 
@@ -78,12 +90,12 @@ describe("parseRequiredId", () => {
 
 describe("formAction", () => {
   beforeEach(() => {
-    sessionUserMock.mockReset()
+    sessionCouranteMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("refuses an anonymous Compte client with a typed result instead of a redirect", async () => {
-    sessionUserMock.mockResolvedValue(null)
+    sessionCouranteMock.mockResolvedValue(null)
     const action = formAction({
       run: async () => ({}),
     })
@@ -95,7 +107,7 @@ describe("formAction", () => {
   })
 
   it("passes the parsed input and the authenticated user to run", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async (_input: { phone: string }, _user: unknown) => ({}))
     const action = formAction<{ phone: string }>({
       parse: (fd) => ({ phone: String(fd.get("phone") ?? "") }),
@@ -109,7 +121,7 @@ describe("formAction", () => {
   })
 
   it("turns a parser throw into { error: message } without running", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async () => ({}))
     const action = formAction<{ phone: string }>({
       parse: () => {
@@ -125,7 +137,7 @@ describe("formAction", () => {
   })
 
   it("turns a UserFacingError from run into { error: error.message }", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const action = formAction({
       run: async () => {
         throw new StubUserFacingError("Ville de livraison introuvable")
@@ -138,7 +150,7 @@ describe("formAction", () => {
   })
 
   it("rethrows a plain error verbatim", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const boom = new Error("boom")
     const action = formAction({
       run: async () => {
@@ -150,7 +162,7 @@ describe("formAction", () => {
   })
 
   it("rethrows the redirect control flow thrown by run untouched", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const action = formAction({
       run: async () => {
         redirectMock("/commande/confirmation/1")
@@ -167,12 +179,12 @@ describe("formAction", () => {
 
 describe("taskAction", () => {
   beforeEach(() => {
-    sessionUserMock.mockReset()
+    sessionCouranteMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("refuses an anonymous Compte client with a typed result instead of a redirect", async () => {
-    sessionUserMock.mockResolvedValue(null)
+    sessionCouranteMock.mockResolvedValue(null)
     const action = taskAction({
       run: async () => {},
     })
@@ -184,7 +196,7 @@ describe("taskAction", () => {
   })
 
   it("passes the parsed input and the authenticated user to run", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async (input: { variantId: string }, _user: unknown) => {
       expect(input).toEqual({ variantId: "42" })
     })
@@ -203,7 +215,7 @@ describe("taskAction", () => {
   })
 
   it("swallows a parser throw silently without running", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const run = vi.fn(async () => {})
     const action = taskAction<{ variantId: string }>({
       parse: () => {
@@ -217,7 +229,7 @@ describe("taskAction", () => {
   })
 
   it("swallows a UserFacingError from run as a silent no-op", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const action = taskAction<{ variantId: string }>({
       parse: (fd) => ({ variantId: String(fd.get("variantId") ?? "") }),
       run: async () => {
@@ -229,7 +241,7 @@ describe("taskAction", () => {
   })
 
   it("rethrows a plain error verbatim", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const boom = new Error("boom")
     const action = taskAction({
       run: async () => {
@@ -241,7 +253,7 @@ describe("taskAction", () => {
   })
 
   it("rethrows the redirect control flow thrown by run untouched", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const action = taskAction({
       run: async () => {
         redirectMock("/commande/confirmation/1")
@@ -257,12 +269,12 @@ describe("taskAction", () => {
 
 describe("adminFormAction", () => {
   beforeEach(() => {
-    sessionUserMock.mockReset()
+    sessionCouranteMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("sends an anonymous Compte client to the Lien de connexion carrying /admin/villes as its Destination post-connexion", async () => {
-    sessionUserMock.mockResolvedValue(null)
+    sessionCouranteMock.mockResolvedValue(null)
     const action = adminFormAction({
       next: "/admin/villes",
       run: async () => ({}),
@@ -275,7 +287,7 @@ describe("adminFormAction", () => {
   })
 
   it("passes the parsed input to run when the session is authenticated", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const run = vi.fn(
       async (_input: { name: string; fee: number }, _user: unknown) => ({})
     )
@@ -299,7 +311,7 @@ describe("adminFormAction", () => {
   })
 
   it("turns a parser throw into { error: message } without running", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const run = vi.fn(async () => ({}))
     const action = adminFormAction<{ fee: number }>({
       next: "/admin/villes",
@@ -316,7 +328,7 @@ describe("adminFormAction", () => {
   })
 
   it("turns a UserFacingError from run into { error: error.message }", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const action = adminFormAction({
       next: "/admin/villes",
       run: async () => {
@@ -330,7 +342,7 @@ describe("adminFormAction", () => {
   })
 
   it("rethrows a plain error verbatim", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const boom = new Error("boom")
     const action = adminFormAction({
       next: "/admin/villes",
@@ -343,7 +355,7 @@ describe("adminFormAction", () => {
   })
 
   it("rethrows the redirect control flow thrown by run untouched", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const action = adminFormAction({
       next: "/admin/villes",
       run: async () => {
@@ -361,12 +373,12 @@ describe("adminFormAction", () => {
 
 describe("adminTaskAction", () => {
   beforeEach(() => {
-    sessionUserMock.mockReset()
+    sessionCouranteMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("sends an anonymous Compte client to the Lien de connexion carrying /admin/villes as its Destination post-connexion", async () => {
-    sessionUserMock.mockResolvedValue(null)
+    sessionCouranteMock.mockResolvedValue(null)
     const action = adminTaskAction({
       next: "/admin/villes",
       run: async () => {},
@@ -378,7 +390,7 @@ describe("adminTaskAction", () => {
   })
 
   it("passes the parsed input to run and resolves void when authenticated", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const run = vi.fn(async (input: { cityId: string }, _user: unknown) => {
       expect(input).toEqual({ cityId: "42" })
     })
@@ -398,7 +410,7 @@ describe("adminTaskAction", () => {
   })
 
   it("swallows a parser throw silently without running", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const run = vi.fn(async () => {})
     const action = adminTaskAction<{ cityId: string }>({
       next: "/admin/villes",
@@ -413,7 +425,7 @@ describe("adminTaskAction", () => {
   })
 
   it("swallows a UserFacingError from run as a silent no-op when no refusalUrl is given", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const action = adminTaskAction<{ cityId: string }>({
       next: "/admin/villes",
       parse: (fd) => ({ cityId: String(fd.get("cityId") ?? "") }),
@@ -427,7 +439,7 @@ describe("adminTaskAction", () => {
   })
 
   it("redirects a UserFacingError from run to the refusalUrl derived from the parsed input", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const action = adminTaskAction<{ orderId: string }>({
       next: "/admin/commandes",
       parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),
@@ -452,7 +464,7 @@ describe("adminTaskAction", () => {
   })
 
   it("keeps parse failures silent even when refusalUrl is set", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const run = vi.fn(async () => {})
     const action = adminTaskAction<{ orderId: string }>({
       next: "/admin/commandes",
@@ -470,7 +482,7 @@ describe("adminTaskAction", () => {
   })
 
   it("rethrows a plain error verbatim even when refusalUrl is set", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const boom = new Error("boom")
     const action = adminTaskAction<{ orderId: string }>({
       next: "/admin/commandes",
@@ -486,7 +498,7 @@ describe("adminTaskAction", () => {
   })
 
   it("rethrows the redirect control flow thrown by run untouched even when refusalUrl is set", async () => {
-    sessionUserMock.mockResolvedValue(ADMIN_SESSION.user)
+    sessionCouranteMock.mockResolvedValue(ADMIN_SESSION.user)
     const action = adminTaskAction<{ orderId: string }>({
       next: "/admin/commandes",
       parse: (fd) => ({ orderId: String(fd.get("orderId") ?? "") }),

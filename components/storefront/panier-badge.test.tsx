@@ -11,7 +11,7 @@ import {
   vi,
 } from "vitest"
 
-import { sessionUserMock } from "@/test/navigation-mocks"
+import { sessionCouranteMock } from "@/test/navigation-mocks"
 
 vi.mock("next/headers", async () => {
   const h = await import("@/test/cookie-store")
@@ -20,7 +20,7 @@ vi.mock("next/headers", async () => {
 
 vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { lireSession: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 
 const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
@@ -45,11 +45,16 @@ let variantA: string
 let variantB: string
 
 function commeClient(userId: string) {
-  sessionUserMock.mockResolvedValue({ id: userId })
+  sessionCouranteMock.mockResolvedValue({
+    id: userId,
+    name: "Client Test",
+    email: "client@example.ma",
+    role: "user",
+  })
 }
 
 function commeVisiteur() {
-  sessionUserMock.mockResolvedValue(null)
+  sessionCouranteMock.mockResolvedValue(null)
 }
 
 async function renderBadge() {
@@ -101,7 +106,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   resetCookieStoreMock()
-  sessionUserMock.mockReset()
+  sessionCouranteMock.mockReset()
   refreshMock.mockClear()
   await prisma.cartItem.deleteMany({
     where: { user: { email: { startsWith: `panier-badge-${runId}-` } } },

@@ -12,7 +12,7 @@ import {
 
 import { prisma } from "@/lib/db"
 import { ajouterArticleAuPanier, lirePanierClient } from "@/lib/panier"
-import { sessionUserMock } from "@/test/navigation-mocks"
+import { sessionCouranteMock } from "@/test/navigation-mocks"
 import {
   verifierFrontiereBestEffort,
   verifierRefusValidation,
@@ -37,7 +37,7 @@ import {
 
 vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { lireSession: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 
 const runId = randomUUID().slice(0, 8)
@@ -67,7 +67,12 @@ async function createUser(suffix: string): Promise<string> {
 }
 
 function commeClient(userId: string) {
-  sessionUserMock.mockResolvedValue({ id: userId })
+  sessionCouranteMock.mockResolvedValue({
+    id: userId,
+    name: "Client Test",
+    email: "client@example.ma",
+    role: "user",
+  })
 }
 
 beforeAll(async () => {
@@ -170,7 +175,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  sessionUserMock.mockReset()
+  sessionCouranteMock.mockReset()
   await prisma.orderItem.deleteMany({
     where: { order: { user: { email: { startsWith: `orders-${runId}-` } } } },
   })

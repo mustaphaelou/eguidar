@@ -22,7 +22,7 @@ import {
   vi,
 } from "vitest"
 
-import { redirectMock, sessionUserMock } from "@/test/navigation-mocks"
+import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
 vi.mock("next/navigation", async () => {
   const h = await import("@/test/navigation-mocks")
@@ -36,7 +36,7 @@ vi.mock("next/headers", async () => {
 
 vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { lireSession: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 
 const { profileMock } = vi.hoisted(() => ({ profileMock: vi.fn() }))
@@ -107,7 +107,12 @@ let variantUnique: string
 let cityId: string
 
 function commeClient(userId: string) {
-  sessionUserMock.mockResolvedValue({ id: userId })
+  sessionCouranteMock.mockResolvedValue({
+    id: userId,
+    name: "Client Test",
+    email: "client@example.ma",
+    role: "user",
+  })
 }
 
 function profilClient() {
@@ -199,7 +204,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   resetCookieStoreMock()
-  sessionUserMock.mockReset()
+  sessionCouranteMock.mockReset()
   profileMock.mockReset()
   profileMock.mockResolvedValue(profilClient())
   redirectMock.mockClear()
