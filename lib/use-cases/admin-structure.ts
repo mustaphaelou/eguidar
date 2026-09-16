@@ -6,6 +6,12 @@ import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
 import { deleteR2Object } from "@/lib/r2"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
+import {
+  avecSurcharges,
+  leverConflitUnique,
+  messageDeValidation,
+  runEffect,
+} from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -44,20 +50,9 @@ const defaultStructureEffects: StructureEffects = {
   },
 }
 
-async function runEffect(
-  message: string,
-  fn: () => Promise<unknown> | unknown
-): Promise<void> {
-  try {
-    await fn()
-  } catch (error) {
-    console.warn(message, error)
-  }
-}
-
 export class CategoryValidationError extends UserFacingError {
   constructor(issues: string[]) {
-    super(`Données invalides : ${issues.join(" ; ")}`)
+    super(messageDeValidation(issues))
     this.name = "CategoryValidationError"
   }
 }
@@ -118,8 +113,11 @@ function parseCategoryInput(input: CategoryInput): CategoryInput {
 }
 
 function mapCategoryUniqueViolation(error: unknown): never {
-  if (hasUniqueViolation(error, ["slug"])) throw new CategorySlugConflictError()
-  throw error
+  return leverConflitUnique(
+    error,
+    [{ champs: ["slug"], erreur: new CategorySlugConflictError() }],
+    hasUniqueViolation
+  )
 }
 
 async function assertUniqueCategorySlug(
@@ -184,7 +182,7 @@ export async function createCategory(
   input: CategoryInput,
   overrides?: Partial<StructureEffects>
 ) {
-  const effects = { ...defaultStructureEffects, ...overrides }
+  const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
   await assertUniqueCategorySlug(data.slug)
   await assertCategoryParent(data.parentId)
@@ -215,7 +213,7 @@ export async function updateCategory(
   input: CategoryInput,
   overrides?: Partial<StructureEffects>
 ) {
-  const effects = { ...defaultStructureEffects, ...overrides }
+  const effects = avecSurcharges(defaultStructureEffects, overrides)
   const existing = await prisma.category.findUnique({ where: { id } })
   if (!existing) throw new CategoryNotFoundError()
 
@@ -264,7 +262,7 @@ export async function deleteCategory(
   overrides?: Partial<StructureEffects>,
   options: { reassignToCategoryId?: string } = {}
 ): Promise<void> {
-  const effects = { ...defaultStructureEffects, ...overrides }
+  const effects = avecSurcharges(defaultStructureEffects, overrides)
   const category = await prisma.category.findUnique({
     where: { id },
     include: {

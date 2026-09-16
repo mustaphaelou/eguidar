@@ -13,11 +13,16 @@ import {
 import { prisma } from "@/lib/db"
 import { ajouterArticleAuPanier, lirePanierClient } from "@/lib/panier"
 import { sessionUserMock } from "@/test/navigation-mocks"
+import {
+  verifierFrontiereBestEffort,
+  verifierRefusValidation,
+} from "@/test/mutation-squelette-recette"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { projeterDevis, selectionValidee } from "@/lib/use-cases/devis-coeur"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import {
+  CheckoutValidationError,
   EmptyCartError,
   getOrder,
   InvalidOrderTransitionError,
@@ -309,42 +314,36 @@ describe("order placement", () => {
   })
 
   it("still places the order when email dispatch fails", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      commeClient(userIdA)
-      await ajouterArticleAuPanier(variantP4, 1)
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
 
-      const order = await placeOrder(userIdA, checkoutInput(), {
-        sendOrderPlacedEmail: vi.fn(async () => {
-          throw new Error("resend down")
-        }),
-      })
+    const order = await verifierFrontiereBestEffort(
+      "e-mail de confirmation",
+      (effetQuiEchoue) =>
+        placeOrder(userIdA, checkoutInput(), {
+          sendOrderPlacedEmail: effetQuiEchoue,
+        })
+    )
 
-      expect(order.id).toBeTruthy()
-      expect(order.total).toBe(30000)
-      const cart = await lirePanierClient(userIdA)
-      expect(cart.lines).toHaveLength(0)
-    } finally {
-      warnSpy.mockRestore()
-    }
+    expect(order.id).toBeTruthy()
+    expect(order.total).toBe(30000)
+    const cart = await lirePanierClient(userIdA)
+    expect(cart.lines).toHaveLength(0)
   })
 
   it("still places the order when cache invalidation fails", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      commeClient(userIdA)
-      await ajouterArticleAuPanier(variantP4, 1)
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
 
-      const order = await placeOrder(userIdA, checkoutInput(), {
-        invalidateCommande: vi.fn(() => {
-          throw new Error("cache down")
-        }),
-      })
+    const order = await verifierFrontiereBestEffort(
+      "invalidation du cache",
+      (effetQuiEchoue) =>
+        placeOrder(userIdA, checkoutInput(), {
+          invalidateCommande: effetQuiEchoue,
+        })
+    )
 
-      expect(order.id).toBeTruthy()
-    } finally {
-      warnSpy.mockRestore()
-    }
+    expect(order.id).toBeTruthy()
   })
 
   it("charges the city fee below the free-shipping threshold", async () => {
@@ -494,15 +493,15 @@ describe("order placement", () => {
   it("rejects invalid address, phone and missing city", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    await expect(
+    await verifierRefusValidation(CheckoutValidationError, () =>
       placeOrder(userIdA, checkoutInput({ address: "X" }))
-    ).rejects.toThrow(/invalides/)
-    await expect(
+    )
+    await verifierRefusValidation(CheckoutValidationError, () =>
       placeOrder(userIdA, checkoutInput({ phone: "123" }))
-    ).rejects.toThrow(/invalides/)
-    await expect(
+    )
+    await verifierRefusValidation(CheckoutValidationError, () =>
       placeOrder(userIdA, checkoutInput({ cityId: "" }))
-    ).rejects.toThrow(/invalides/)
+    )
   })
 })
 
@@ -626,39 +625,33 @@ describe("order status transitions", () => {
   })
 
   it("still updates the status when email dispatch fails", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      const orderId = await placeSmallOrder(userIdA)
+    const orderId = await placeSmallOrder(userIdA)
 
-      const updated = await updateOrderStatus(orderId, "confirmed", {
-        sendOrderStatusEmail: vi.fn(async () => {
-          throw new Error("resend down")
-        }),
-      })
+    const updated = await verifierFrontiereBestEffort(
+      "e-mail de statut",
+      (effetQuiEchoue) =>
+        updateOrderStatus(orderId, "confirmed", {
+          sendOrderStatusEmail: effetQuiEchoue,
+        })
+    )
 
-      expect(updated.status).toBe("confirmed")
-      const fetched = await getOrder(userIdA, orderId)
-      expect(fetched!.status).toBe("confirmed")
-    } finally {
-      warnSpy.mockRestore()
-    }
+    expect(updated.status).toBe("confirmed")
+    const fetched = await getOrder(userIdA, orderId)
+    expect(fetched!.status).toBe("confirmed")
   })
 
   it("still updates the status when cache invalidation fails", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      const orderId = await placeSmallOrder(userIdA)
+    const orderId = await placeSmallOrder(userIdA)
 
-      const updated = await updateOrderStatus(orderId, "confirmed", {
-        invalidateCommande: vi.fn(() => {
-          throw new Error("cache down")
-        }),
-      })
+    const updated = await verifierFrontiereBestEffort(
+      "invalidation du cache",
+      (effetQuiEchoue) =>
+        updateOrderStatus(orderId, "confirmed", {
+          invalidateCommande: effetQuiEchoue,
+        })
+    )
 
-      expect(updated.status).toBe("confirmed")
-    } finally {
-      warnSpy.mockRestore()
-    }
+    expect(updated.status).toBe("confirmed")
   })
 
   it("returns a delivered order and restocks the variants", async () => {

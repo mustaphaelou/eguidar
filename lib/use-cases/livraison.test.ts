@@ -31,6 +31,10 @@ import {
   type DeliveryCityOption,
   type PricingInput,
 } from "@/lib/use-cases/livraison"
+import {
+  verifierFrontiereBestEffort,
+  verifierRefusValidation,
+} from "@/test/mutation-squelette-recette"
 
 const runId = randomUUID().slice(0, 8)
 const cityName = (suffix: string) => `Ville Livraison ${runId} ${suffix}`
@@ -363,9 +367,9 @@ describe("admin city writes", () => {
   })
 
   it("rejects a negative city fee", async () => {
-    await expect(
+    await verifierRefusValidation(CityValidationError, () =>
       createCity({ name: cityName("negatif"), fee: -100 })
-    ).rejects.toThrow(CityValidationError)
+    )
   })
 
   it("accepts a zero fee city", async () => {
@@ -387,8 +391,8 @@ describe("admin city writes", () => {
   })
 
   it("rejects an empty city name", async () => {
-    await expect(createCity({ name: " ", fee: 3000 })).rejects.toThrow(
-      CityValidationError
+    await verifierRefusValidation(CityValidationError, () =>
+      createCity({ name: " ", fee: 3000 })
     )
   })
 
@@ -435,24 +439,16 @@ describe("admin city writes", () => {
   })
 
   it("still persists the mutation when revalidation throws", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      const city = await createCity(
-        { name: cityName("fail-cache"), fee: 2000 },
-        {
-          revalidateShipping: vi.fn(() => {
-            throw new Error("cache down")
-          }),
-        }
-      )
-      expect(city.name).toBe(cityName("fail-cache"))
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("invalidation"),
-        expect.any(Error)
-      )
-    } finally {
-      warnSpy.mockRestore()
-    }
+    const city = await verifierFrontiereBestEffort(
+      "invalidation",
+      (effetQuiEchoue) =>
+        createCity(
+          { name: cityName("fail-cache"), fee: 2000 },
+          { revalidateShipping: effetQuiEchoue }
+        )
+    )
+
+    expect(city.name).toBe(cityName("fail-cache"))
   })
 
   it("throws CityNotFoundError for unknown cities", async () => {
@@ -516,18 +512,18 @@ describe("admin shipping settings writes", () => {
   })
 
   it("rejects a zero or negative threshold", async () => {
-    await expect(
+    await verifierRefusValidation(ShippingValidationError, () =>
       updateShippingSettings({ freeShippingThreshold: 0 })
-    ).rejects.toThrow(ShippingValidationError)
-    await expect(
+    )
+    await verifierRefusValidation(ShippingValidationError, () =>
       updateShippingSettings({ freeShippingThreshold: -100 })
-    ).rejects.toThrow(ShippingValidationError)
+    )
   })
 
   it("rejects a non-integer threshold", async () => {
-    await expect(
+    await verifierRefusValidation(ShippingValidationError, () =>
       updateShippingSettings({ freeShippingThreshold: 100.5 })
-    ).rejects.toThrow(ShippingValidationError)
+    )
   })
 
   it("returns the current shipping settings", async () => {

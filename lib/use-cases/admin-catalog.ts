@@ -7,19 +7,14 @@ import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
 import { deleteR2Object } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
+import {
+  avecSurcharges,
+  leverConflitUnique,
+  messageDeValidation,
+  runEffect,
+} from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
-
-async function runEffect(
-  message: string,
-  fn: () => Promise<unknown> | unknown
-): Promise<void> {
-  try {
-    await fn()
-  } catch (error) {
-    console.warn(message, error)
-  }
-}
 
 export interface ProductVariantInput {
   id?: string
@@ -80,7 +75,7 @@ const defaultCatalogEffects: CatalogEffects = {
 
 export class CatalogValidationError extends UserFacingError {
   constructor(issues: string[]) {
-    super(`Données invalides : ${issues.join(" ; ")}`)
+    super(messageDeValidation(issues))
     this.name = "CatalogValidationError"
   }
 }
@@ -197,16 +192,21 @@ function imageUrls(value: unknown): string[] {
 }
 
 function mapUniqueViolation(error: unknown): never {
-  if (hasUniqueViolation(error, ["slug"])) throw new SlugConflictError()
-  if (hasUniqueViolation(error, ["sku"])) throw new DuplicateSkuError()
-  throw error
+  return leverConflitUnique(
+    error,
+    [
+      { champs: ["slug"], erreur: new SlugConflictError() },
+      { champs: ["sku"], erreur: new DuplicateSkuError() },
+    ],
+    hasUniqueViolation
+  )
 }
 
 export async function createProduct(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>
 ) {
-  const effects = { ...defaultCatalogEffects, ...overrides }
+  const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const data = parseProductInput(input)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -259,7 +259,7 @@ export async function updateProduct(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>
 ) {
-  const effects = { ...defaultCatalogEffects, ...overrides }
+  const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -378,7 +378,7 @@ export async function deleteProduct(
   id: string,
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
-  const effects = { ...defaultCatalogEffects, ...overrides }
+  const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -402,7 +402,7 @@ export async function updateVariantStock(
   stock: number,
   overrides?: Partial<CatalogEffects>
 ) {
-  const effects = { ...defaultCatalogEffects, ...overrides }
+  const effects = avecSurcharges(defaultCatalogEffects, overrides)
   if (!Number.isInteger(stock) || stock < 0) {
     throw new CatalogValidationError(["le stock doit être positif ou nul"])
   }
