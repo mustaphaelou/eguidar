@@ -36,3 +36,6 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 /notes
+
+# implementer worktrees (spec workflow)
+/.worktrees
