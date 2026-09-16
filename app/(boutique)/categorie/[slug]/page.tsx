@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
-import { HomeProductCard } from "@/components/storefront/home-product-card"
+import { CarteProduit } from "@/components/storefront/carte-produit"
 import { Button } from "@/components/ui/button"
 import {
   buildBreadcrumbListDonneesStructurees,
@@ -104,7 +104,7 @@ async function CategoryContent({
       {data.products.length > 0 ? (
         <div className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-x-4 gap-y-8 px-4 py-10 sm:grid-cols-3 sm:px-6 lg:grid-cols-4">
           {data.products.map((product) => (
-            <HomeProductCard key={product.id} product={product} />
+            <CarteProduit key={product.id} product={product} />
           ))}
         </div>
       ) : (

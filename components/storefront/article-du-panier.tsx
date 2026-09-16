@@ -11,6 +11,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
+import { urlProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier as ArticleDuPanierDonnees } from "@/lib/panier"
 import {
@@ -40,7 +41,7 @@ export function ArticleDuPanier({
   return (
     <li className="border-b py-4 last:border-b-0">
       <div className="flex items-center gap-4">
-        <Link href={`/produit/${article.productSlug}`} className="shrink-0">
+        <Link href={urlProduit(article.productSlug)} className="shrink-0">
           <div className="relative h-20 w-20 overflow-hidden rounded-xl bg-muted">
             {article.image ? (
               <Image
@@ -60,7 +61,7 @@ export function ArticleDuPanier({
 
         <div className="min-w-0 flex-1">
           <Link
-            href={`/produit/${article.productSlug}`}
+            href={urlProduit(article.productSlug)}
             className="line-clamp-2 text-sm font-medium transition-colors hover:text-primary"
           >
             {article.productName}
