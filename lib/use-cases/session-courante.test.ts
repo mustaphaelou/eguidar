@@ -1,0 +1,90 @@
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }))
+
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession } },
+}))
+
+vi.mock("next/headers", () => ({
+  headers: () => Promise.resolve(new Headers()),
+}))
+
+import {
+  estAdmin,
+  lireSession,
+  type Client,
+  type Role,
+} from "@/lib/use-cases/session-courante"
+
+const COMPTE = {
+  id: "compte-1",
+  name: "Ada Lovelace",
+  email: "ada@example.com",
+  role: "admin",
+}
+
+function client(role: Role): Client {
+  return { ...COMPTE, role }
+}
+
+function sessionDe(role: string) {
+  return { user: { ...COMPTE, role }, session: {} }
+}
+
+/**
+ * La Session courante, prouvée à sa propre interface.
+ *
+ * Toutes les autres suites stubs la lecture (le module) ; celle-ci stube la
+ * couche d'authentification *sous* elle et vérifie ce qu'une réponse de
+ * Better Auth devient : un Client avec ses faits d'identité et son rôle
+ * typé, ou `null`.
+ */
+describe("lireSession", () => {
+  beforeEach(() => {
+    getSession.mockReset()
+  })
+
+  it("répond les faits d'identité du Client quand une session existe", async () => {
+    getSession.mockResolvedValue(sessionDe("admin"))
+
+    await expect(lireSession()).resolves.toEqual({
+      id: "compte-1",
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+      role: "admin",
+    })
+    // Une seule lecture, sur les en-têtes de la requête.
+    expect(getSession).toHaveBeenCalledTimes(1)
+    expect(getSession).toHaveBeenCalledWith({ headers: expect.any(Headers) })
+  })
+
+  it("répond null quand il n'y a pas de session", async () => {
+    getSession.mockResolvedValue(null)
+
+    await expect(lireSession()).resolves.toBeNull()
+  })
+
+  it("ramène le rôle dans l'union typée", async () => {
+    getSession.mockResolvedValue(sessionDe("customer"))
+
+    const client = await lireSession()
+    const role: Role = client!.role
+
+    expect(role).toBe("user")
+  })
+})
+
+describe("estAdmin", () => {
+  it("reconnaît un administrateur", () => {
+    expect(estAdmin(client("admin"))).toBe(true)
+  })
+
+  it("refuse un Client qui n'est pas administrateur", () => {
+    expect(estAdmin(client("user"))).toBe(false)
+  })
+
+  it("refuse l'absence de Client", () => {
+    expect(estAdmin(null)).toBe(false)
+  })
+})

@@ -1,18 +1,17 @@
-import { headers } from "next/headers"
 import Link from "next/link"
 
 import { UserIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { auth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
+import { lireSession } from "@/lib/use-cases/session-courante"
 import { SignInButton } from "./sign-in-button"
 import { SignOutButton } from "./sign-out-button"
 
 export async function SignInStatus() {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const client = await lireSession()
 
-  if (!session) {
+  if (!client) {
     return <SignInButton />
   }
 
@@ -23,7 +22,7 @@ export async function SignInStatus() {
         variant="ghost"
         size="icon"
         aria-label="Mon profil"
-        title={session.user.name}
+        title={client.name}
       >
         <HugeiconsIcon icon={UserIcon} strokeWidth={2} />
       </Button>

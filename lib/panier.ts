@@ -24,9 +24,9 @@
  * `rejouerPanierVisiteur`) composent la même fabrique ; aucune entrée
  * n'assemble son propre store ni ne contourne la résolution.
  *
- * Import dynamique de `get-session` : un import statique tirerait
+ * Import dynamique de `session-courante` : un import statique tirerait
  * `server-only` dans chaque consommateur sans session mockée ; le mock
- * `vi.mock("@/lib/use-cases/get-session")` intercepte cet import
+ * `vi.mock("@/lib/use-cases/session-courante")` intercepte cet import
  * dynamique.
  */
 import { cookies } from "next/headers"
@@ -62,11 +62,11 @@ type ProprietaireDuPanier =
 
 async function resoudreProprietaire(): Promise<ProprietaireDuPanier> {
   // Import dynamique : un import statique tirerait `server-only` (via
-  // get-session) dans chaque consommateur sans session mockée. Le mock
-  // `vi.mock("@/lib/use-cases/get-session")` intercepte cet import dynamique.
-  const { getSessionUser } = await import("@/lib/use-cases/get-session")
-  const user = await getSessionUser()
-  return user ? { role: "client", compteId: user.id } : { role: "visiteur" }
+  // session-courante) dans chaque consommateur sans session mockée. Le mock
+  // `vi.mock("@/lib/use-cases/session-courante")` intercepte cet import dynamique.
+  const { lireSession } = await import("@/lib/use-cases/session-courante")
+  const client = await lireSession()
+  return client ? { role: "client", compteId: client.id } : { role: "visiteur" }
 }
 
 /**

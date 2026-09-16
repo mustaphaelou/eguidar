@@ -116,6 +116,13 @@ _Avoid_: bucket de prix, intervalle de prix
 Une contrainte choisie sur la Recherche : une ou plusieurs marques, une catégorie ou une tranche de prix.
 _Avoid_: facette, critère
 
+**Option de filtre**:
+Une entrée du panneau de la Recherche — une marque, une catégorie ou une Tranche de prix — avec son
+libellé d'affichage, le nombre de résultats qu'elle donnerait et si elle est retenue par les Filtres
+actifs. La Recherche les assemble une fois (`lib/options-de-filtre.ts`) et la barre latérale ne fait
+que les rendre : une option retenue reste visible même à zéro.
+_Avoid_: facette d'option, choix de filtre, filter option
+
 **Filtres actifs**:
 L'ensemble des Filtres de recherche en vigueur pour la Recherche courante, présentés au-dessus des résultats et retirables individuellement.
 _Avoid_: chips, tags
@@ -197,6 +204,13 @@ _Avoid_: logout, se déconnecter (as the screen name), déconnexion automatique 
 **Session inactive**:
 A Client session ended automatically after 30 minutes without any activity on their part (click, scroll, keypress or navigation). The Client is shown a brief notice, then the Connexion modal with the Destination post-connexion set to the page they were on; their Panier survives and is reattached on reconnection. Distinct from Déconnexion, which is voluntary.
 _Avoid_: logout automatique, timeout, session expirée, expiration de session
+
+**Session courante**:
+La lecture de la session de la requête en cours : elle répond le Client — ses faits d'identité et son
+rôle — ou rien. Un seul module en est propriétaire, pour les rendus comme pour les actions serveur ; la
+lecture ne refuse jamais, le refus reste composé par la surface qui l'exige (le contrôle de cookie du
+proxy, lui, n'est pas une Session courante).
+_Avoid_: session, utilisateur courant, getSession
 
 **Lien de connexion**:
 Un lien ou une redirection qui ouvre la modale de Connexion ou d'Inscription sur la page courante

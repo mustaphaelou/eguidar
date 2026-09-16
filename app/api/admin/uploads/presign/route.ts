@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { createPresignedUploadUrl } from "@/lib/r2"
-import { getAdminSession } from "@/lib/use-cases/get-admin-session"
+import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
 
 const presignSchema = z.object({
   contentType: z.enum([
@@ -15,8 +15,9 @@ const presignSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const session = await getAdminSession()
-  if (!session) return Response.json({ error: "Non autorisé" }, { status: 401 })
+  const client = await lireSession()
+  if (!estAdmin(client))
+    return Response.json({ error: "Non autorisé" }, { status: 401 })
 
   let body: unknown
   try {

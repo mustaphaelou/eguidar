@@ -11,16 +11,16 @@ import {
   vi,
 } from "vitest"
 
-import { sessionUserMock } from "@/test/navigation-mocks"
+import { sessionCouranteMock } from "@/test/navigation-mocks"
 
 vi.mock("next/headers", async () => {
   const h = await import("@/test/cookie-store")
   return { cookies: async () => h.cookieStoreMock }
 })
 
-vi.mock("@/lib/use-cases/get-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { getSessionUser: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 
 const { profileMock } = vi.hoisted(() => ({ profileMock: vi.fn() }))
@@ -70,11 +70,16 @@ let cityId: string
 let citySlug: string
 
 function commeClient(userId: string) {
-  sessionUserMock.mockResolvedValue({ id: userId })
+  sessionCouranteMock.mockResolvedValue({
+    id: userId,
+    name: "Client Test",
+    email: "client@example.ma",
+    role: "user",
+  })
 }
 
 function commeVisiteur() {
-  sessionUserMock.mockResolvedValue(null)
+  sessionCouranteMock.mockResolvedValue(null)
 }
 
 async function renderPage(searchParams: { ville?: string } = {}) {
@@ -158,7 +163,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   resetCookieStoreMock()
-  sessionUserMock.mockReset()
+  sessionCouranteMock.mockReset()
   profileMock.mockReset()
   profileMock.mockResolvedValue({
     phone: null,

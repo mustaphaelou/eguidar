@@ -44,20 +44,19 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { getPriceBucket, PRICE_BUCKETS } from "@/lib/price-buckets"
+import type { OptionsDeFiltre } from "@/lib/options-de-filtre"
 import {
   buildSearchHref,
   toggleBrand,
   type SearchFilters,
   type SearchSort,
 } from "@/lib/search-params"
-import type { SearchPageData } from "@/lib/use-cases/search"
 
 const BRAND_VISIBLE_COUNT = 8
 
 const FILTER_GROUP_DEFAULT_OPEN = ["brand", "category", "price"]
 
-type SearchFacets = SearchPageData["facets"]
+type SearchFacets = OptionsDeFiltre
 
 interface SearchNavigationValue {
   filters: SearchFilters
@@ -211,10 +210,15 @@ export function MobileFilterDrawer({
 export function ActiveFilters({ facets }: { facets: SearchFacets }) {
   const { filters, navigate } = useSearchNavigation()
   const activeBrands = filters.brand ?? []
+  // Les libellés viennent de la liste d'options reçue — la catégorie comme
+  // la Tranche de prix —, jamais d'une seconde lecture de `price-buckets` :
+  // ce que le panneau affiche et ce que la puce affiche sont le même fait.
   const categoryName = facets.categories.find(
     (category) => category.value === filters.categorySlug
-  )?.name
-  const priceBucket = getPriceBucket(filters.priceBucketId)
+  )?.label
+  const priceBucket = facets.priceBuckets.find(
+    (bucket) => bucket.value === filters.priceBucketId
+  )
 
   if (countActiveFilters(filters) === 0) return null
 
@@ -293,61 +297,30 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
   const [showAllBrands, setShowAllBrands] = useState(false)
   const idPrefix = useId()
 
-  const activeBrands = useMemo(() => filters.brand ?? [], [filters.brand])
+  const activeBrands = filters.brand ?? []
 
-  const brandOptions = useMemo(() => {
-    const counts = new Map(
-      facets.brands.map((facet) => [facet.value, facet.count])
-    )
-    for (const brand of activeBrands) {
-      if (!counts.has(brand)) counts.set(brand, 0)
-    }
-    return [...counts.entries()]
-      .map(([value, count]) => ({ value, count }))
-      .filter(
-        (option) => option.count > 0 || activeBrands.includes(option.value)
-      )
-      .sort((a, b) => a.value.localeCompare(b.value, "fr"))
-  }, [facets.brands, activeBrands])
-
+  // La barre latérale ne calcule plus rien : les options arrivent comptées,
+  // triées et retenues par `lib/options-de-filtre.ts`, dans l'ordre où elles
+  // se lisent. Il ne lui reste que des décisions d'affichage — masquer une
+  // option à zéro qui n'est pas retenue, et replier les marques derrière
+  // « voir tout » sans jamais replier une marque retenue.
+  const brandOptions = facets.brands.filter(
+    (option) => option.count > 0 || option.selected
+  )
   const visibleBrands = showAllBrands
     ? brandOptions
     : brandOptions.filter(
-        (option, index) =>
-          index < BRAND_VISIBLE_COUNT || activeBrands.includes(option.value)
+        (option, index) => index < BRAND_VISIBLE_COUNT || option.selected
       )
   const hiddenBrandCount = brandOptions.length - visibleBrands.length
 
-  const categoryOptions = useMemo(() => {
-    const categories = new Map(
-      facets.categories.map((facet) => [facet.value, facet])
-    )
-    if (filters.categorySlug && !categories.has(filters.categorySlug)) {
-      categories.set(filters.categorySlug, {
-        value: filters.categorySlug,
-        name: filters.categorySlug,
-        count: 0,
-      })
-    }
-    return [...categories.values()]
-      .filter(
-        (option) => option.count > 0 || option.value === filters.categorySlug
-      )
-      .sort((a, b) => a.name.localeCompare(b.name, "fr"))
-  }, [facets.categories, filters.categorySlug])
+  const categoryOptions = facets.categories.filter(
+    (option) => option.count > 0 || option.selected
+  )
 
-  const priceOptions = useMemo(() => {
-    const counts = new Map(
-      facets.priceBuckets.map((facet) => [facet.id, facet.count])
-    )
-    return PRICE_BUCKETS.map((bucket) => ({
-      id: bucket.id,
-      label: bucket.label,
-      count: counts.get(bucket.id) ?? 0,
-    })).filter(
-      (option) => option.count > 0 || option.id === filters.priceBucketId
-    )
-  }, [facets.priceBuckets, filters.priceBucketId])
+  const priceOptions = facets.priceBuckets.filter(
+    (option) => option.count > 0 || option.selected
+  )
 
   return (
     <Accordion
@@ -379,7 +352,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
                     htmlFor={`${idPrefix}-marque-${index}`}
                     className="min-w-0 font-normal"
                   >
-                    <span className="truncate">{option.value}</span>
+                    <span className="truncate">{option.label}</span>
                     <span className="ms-auto ps-2 text-xs text-muted-foreground tabular-nums">
                       {option.count}
                     </span>
@@ -427,7 +400,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
                     htmlFor={`${idPrefix}-categorie-${index}`}
                     className="min-w-0 font-normal"
                   >
-                    <span className="truncate">{option.name}</span>
+                    <span className="truncate">{option.label}</span>
                     <span className="ms-auto ps-2 text-xs text-muted-foreground tabular-nums">
                       {option.count}
                     </span>
@@ -456,9 +429,9 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
               }
             >
               {priceOptions.map((option, index) => (
-                <Field key={option.id} orientation="horizontal">
+                <Field key={option.value} orientation="horizontal">
                   <RadioGroupItem
-                    value={option.id}
+                    value={option.value}
                     id={`${idPrefix}-prix-${index}`}
                   />
                   <FieldLabel

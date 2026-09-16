@@ -13,7 +13,7 @@ import {
 import { prisma } from "@/lib/db"
 import { totalPayable } from "@/lib/money"
 import { ajouterArticleAuPanier } from "@/lib/panier"
-import { sessionUserMock } from "@/test/navigation-mocks"
+import { sessionCouranteMock } from "@/test/navigation-mocks"
 import { getAdminOrder, listAdminOrders } from "@/lib/use-cases/admin-orders"
 import {
   OrderNotFoundError,
@@ -22,9 +22,9 @@ import {
   type OrderEffects,
 } from "@/lib/use-cases/orders"
 
-vi.mock("@/lib/use-cases/get-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { getSessionUser: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 
@@ -52,7 +52,12 @@ async function createUser(suffix: string): Promise<string> {
 }
 
 function commeClient(userId: string) {
-  sessionUserMock.mockResolvedValue({ id: userId })
+  sessionCouranteMock.mockResolvedValue({
+    id: userId,
+    name: "Client Test",
+    email: "client@example.ma",
+    role: "user",
+  })
 }
 
 beforeAll(async () => {
@@ -105,7 +110,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  sessionUserMock.mockReset()
+  sessionCouranteMock.mockReset()
   await prisma.orderItem.deleteMany({
     where: {
       order: { user: { email: { startsWith: `admin-orders-${runId}-` } } },

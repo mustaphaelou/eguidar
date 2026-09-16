@@ -13,16 +13,16 @@ import {
 import { prisma } from "@/lib/db"
 import { prixVariante } from "@/lib/product-metrics"
 import { resetCookieStoreMock } from "@/test/cookie-store"
-import { sessionUserMock } from "@/test/navigation-mocks"
+import { sessionCouranteMock } from "@/test/navigation-mocks"
 
 vi.mock("next/headers", async () => {
   const h = await import("@/test/cookie-store")
   return { cookies: async () => h.cookieStoreMock }
 })
 
-vi.mock("@/lib/use-cases/get-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { getSessionUser: h.sessionUserMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 
 import {
@@ -48,11 +48,16 @@ let variantesCap: string[]
 let cityId: string
 
 function commeClient(id: string) {
-  sessionUserMock.mockResolvedValue({ id })
+  sessionCouranteMock.mockResolvedValue({
+    id,
+    name: "Client Test",
+    email: "client@example.ma",
+    role: "user",
+  })
 }
 
 function commeVisiteur() {
-  sessionUserMock.mockResolvedValue(null)
+  sessionCouranteMock.mockResolvedValue(null)
 }
 
 /** Vide le Panier courant via l'interface publique uniquement. */
@@ -156,7 +161,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   resetCookieStoreMock()
-  sessionUserMock.mockReset()
+  sessionCouranteMock.mockReset()
   // Isolation via l'interface : aucun accès direct aux tables du Panier.
   // Le reset vide le Panier du Visiteur ; les Paniers persistés sont vidés
   // via l'interface.
@@ -164,7 +169,7 @@ beforeEach(async () => {
   await viderPanierCourant()
   commeClient(userIdB)
   await viderPanierCourant()
-  sessionUserMock.mockReset()
+  sessionCouranteMock.mockReset()
   // Teardown des Commandes de l'intake (pas une assertion).
   await prisma.orderItem.deleteMany({
     where: { order: { user: { email: { startsWith: emailPrefix } } } },

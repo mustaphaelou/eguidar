@@ -14,6 +14,10 @@ import {
   updateCategory,
   type CategoryInput,
 } from "@/lib/use-cases/admin-structure"
+import {
+  verifierFrontiereBestEffort,
+  verifierRefusValidation,
+} from "@/test/mutation-squelette-recette"
 
 const runId = randomUUID().slice(0, 8)
 const categorySlug = (suffix: string) => `cat-${runId}-${suffix}`
@@ -103,21 +107,21 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("rejects an invalid slug format", async () => {
-    await expect(
+    await verifierRefusValidation(CategoryValidationError, () =>
       createCategory(makeCategoryInput({ slug: "Slug Invalide!" }))
-    ).rejects.toThrow(CategoryValidationError)
+    )
   })
 
   it("rejects an empty name", async () => {
-    await expect(
+    await verifierRefusValidation(CategoryValidationError, () =>
       createCategory(makeCategoryInput({ name: " " }))
-    ).rejects.toThrow(CategoryValidationError)
+    )
   })
 
   it("rejects an unknown parent", async () => {
-    await expect(
+    await verifierRefusValidation(CategoryValidationError, () =>
       createCategory(makeCategoryInput({ parentId: "unknown-parent" }))
-    ).rejects.toThrow(CategoryValidationError)
+    )
   })
 
   it("updates a category and revalidates; an empty category is not re-indexed", async () => {
@@ -283,7 +287,7 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("cycle-self") })
     )
 
-    await expect(
+    await verifierRefusValidation(CategoryValidationError, () =>
       updateCategory(
         category.id,
         makeCategoryInput({
@@ -291,7 +295,7 @@ describe("admin structure mutations — categories", () => {
           parentId: category.id,
         })
       )
-    ).rejects.toThrow(CategoryValidationError)
+    )
   })
 
   it("rejects moving a category under one of its own descendants", async () => {
@@ -305,7 +309,7 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("cyc-c"), parentId: child.id })
     )
 
-    await expect(
+    await verifierRefusValidation(CategoryValidationError, () =>
       updateCategory(
         parent.id,
         makeCategoryInput({
@@ -313,7 +317,7 @@ describe("admin structure mutations — categories", () => {
           parentId: grandchild.id,
         })
       )
-    ).rejects.toThrow(CategoryValidationError)
+    )
   })
 
   it("throws CategoryNotFoundError when updating an unknown category", async () => {
@@ -456,24 +460,18 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("still persists the mutation when revalidation throws", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      const category = await createCategory(
-        makeCategoryInput({ slug: categorySlug("fail-cache") }),
-        {
-          revalidateCategories: vi.fn(() => {
-            throw new Error("cache down")
-          }),
-        }
-      )
-      expect(category.name).toBe("Catégorie Test T3")
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("invalidation"),
-        expect.any(Error)
-      )
-    } finally {
-      warnSpy.mockRestore()
-    }
+    const category = await verifierFrontiereBestEffort(
+      "invalidation",
+      (effetQuiEchoue) =>
+        createCategory(
+          makeCategoryInput({ slug: categorySlug("fail-cache") }),
+          {
+            revalidateCategories: effetQuiEchoue,
+          }
+        )
+    )
+
+    expect(category.name).toBe("Catégorie Test T3")
   })
 
   it("rejects reassigning products to an unknown target", async () => {
@@ -481,11 +479,11 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("del-bad-target") })
     )
 
-    await expect(
+    await verifierRefusValidation(CategoryValidationError, () =>
       deleteCategory(category.id, undefined, {
         reassignToCategoryId: "unknown",
       })
-    ).rejects.toThrow(CategoryValidationError)
+    )
   })
 
   it("throws CategoryNotFoundError when deleting an unknown category", async () => {

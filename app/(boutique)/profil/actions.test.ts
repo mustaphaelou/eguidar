@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
-import { redirectMock, sessionUserMock } from "@/test/navigation-mocks"
+import type { Client } from "@/lib/use-cases/session-courante"
+import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
 const { updateProfileMock } = vi.hoisted(() => ({
   updateProfileMock: vi.fn(),
@@ -10,13 +11,9 @@ vi.mock("next/navigation", async () => {
   const h = await import("@/test/navigation-mocks")
   return { redirect: h.redirectMock }
 })
-vi.mock("@/lib/use-cases/get-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { getSessionUser: h.sessionUserMock }
-})
-vi.mock("@/lib/use-cases/get-admin-session", async () => {
-  const h = await import("@/test/navigation-mocks")
-  return { getAdminSession: h.adminSessionMock }
+  return { lireSession: h.sessionCouranteMock }
 })
 vi.mock("@/lib/use-cases/account", async (importOriginal) => {
   const actual =
@@ -28,7 +25,12 @@ import { updateProfileAction } from "@/app/(boutique)/profil/actions"
 import { ProfileValidationError } from "@/lib/use-cases/account"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
 
-const SESSION_USER = { id: "user-1", email: "client@example.ma", role: "user" }
+const SESSION_USER: Client = {
+  id: "user-1",
+  name: "Client Test",
+  email: "client@example.ma",
+  role: "user",
+}
 
 function formData(): FormData {
   return new FormData()
@@ -36,13 +38,13 @@ function formData(): FormData {
 
 describe("updateProfileAction", () => {
   beforeEach(() => {
-    sessionUserMock.mockReset()
+    sessionCouranteMock.mockReset()
     updateProfileMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("refuses an anonymous Compte client with a typed result instead of a redirect, without saving", async () => {
-    sessionUserMock.mockResolvedValue(null)
+    sessionCouranteMock.mockResolvedValue(null)
 
     await expect(updateProfileAction({}, formData())).resolves.toEqual({
       unauthenticated: true,
@@ -52,7 +54,7 @@ describe("updateProfileAction", () => {
   })
 
   it("turns a profile-validation refusal into { error } without saving", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     updateProfileMock.mockRejectedValue(
       new ProfileValidationError(["le téléphone doit être valide"])
     )
@@ -64,7 +66,7 @@ describe("updateProfileAction", () => {
   })
 
   it("turns a delivery-city-not-found refusal into { error }", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     updateProfileMock.mockRejectedValue(new DeliveryCityNotFoundError())
 
     await expect(updateProfileAction({}, formData())).resolves.toEqual({
@@ -73,7 +75,7 @@ describe("updateProfileAction", () => {
   })
 
   it("rethrows an unexpected error verbatim", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     const boom = new Error("boom")
     updateProfileMock.mockRejectedValue(boom)
 
@@ -81,7 +83,7 @@ describe("updateProfileAction", () => {
   })
 
   it("updates the authenticated user's profile and returns exactly { success: true }", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     updateProfileMock.mockResolvedValue({})
     const fd = formData()
     fd.append("phone", "+212600000000")
@@ -99,7 +101,7 @@ describe("updateProfileAction", () => {
   })
 
   it("maps an empty city to null when updating the profile", async () => {
-    sessionUserMock.mockResolvedValue(SESSION_USER)
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
     updateProfileMock.mockResolvedValue({})
     const fd = formData()
     fd.append("phone", "+212600000000")

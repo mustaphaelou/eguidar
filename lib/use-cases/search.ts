@@ -2,7 +2,11 @@ import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import { moteurMeili } from "@/lib/meili"
 import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
-import { getPriceBucket } from "@/lib/price-buckets"
+import {
+  assemblerOptionsDeFiltre,
+  type OptionsDeFiltre,
+  type RepartitionsDeFacettes,
+} from "@/lib/options-de-filtre"
 import {
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
@@ -56,30 +60,11 @@ function carteDuHit(hit: IndexableProduct): CarteProduit {
   )
 }
 
-export interface SearchFacetValue {
-  value: string
-  count: number
-}
-
-export interface SearchCategoryFacet extends SearchFacetValue {
-  name: string
-}
-
-export interface SearchPriceBucketFacet {
-  id: string
-  label: string
-  count: number
-}
-
 export interface SearchPageData {
   query: string
   totalHits: number
   products: CarteProduit[]
-  facets: {
-    brands: SearchFacetValue[]
-    categories: SearchCategoryFacet[]
-    priceBuckets: SearchPriceBucketFacet[]
-  }
+  facets: OptionsDeFiltre
   sort: SearchSort
   currentPage: number
   totalPages: number
@@ -113,11 +98,22 @@ export async function searchProducts(
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
+  // Une panne rend l'écran d'aujourd'hui — le Catalogue vide, sans bornage de
+  // page — mais pas des options vides : l'assemblage tourne sur des
+  // répartitions vides, donc l'univers des Tranches de prix sort à zéro et
+  // chaque valeur retenue reste émise, visible et retirable dans la barre
+  // latérale comme dans les puces. La carte de libellés est vide : une
+  // catégorie retenue garde son slug, et aucune nomenclature n'est lue en
+  // base sur ce chemin.
   const emptyResult: SearchPageData = {
     query,
     totalHits: 0,
     products: [],
-    facets: { brands: [], categories: [], priceBuckets: [] },
+    facets: assemblerOptionsDeFiltre(
+      { brands: {}, categories: {}, priceBuckets: {} },
+      filters,
+      new Map<string, string>()
+    ),
     sort,
     currentPage: 1,
     totalPages: 1,
@@ -179,45 +175,31 @@ export async function searchProducts(
     documents = clampedResult.documents
   }
 
-  const brandDistribution = brandFacets.repartitions.brand ?? {}
-  const categoryDistribution = categoryFacets.repartitions.categorySlug ?? {}
-  const priceDistribution = priceFacets.repartitions.priceBucket ?? {}
-
-  const brands: SearchFacetValue[] = Object.entries(brandDistribution)
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => a.value.localeCompare(b.value, "fr"))
-
-  const categoryCounts = new Map(Object.entries(categoryDistribution))
-  if (filters.categorySlug && !categoryCounts.has(filters.categorySlug)) {
-    categoryCounts.set(filters.categorySlug, 0)
+  const repartitions: RepartitionsDeFacettes = {
+    brands: brandFacets.repartitions.brand ?? {},
+    categories: categoryFacets.repartitions.categorySlug ?? {},
+    priceBuckets: priceFacets.repartitions.priceBucket ?? {},
   }
-  const categoryNames = await fetchCategoryNames([...categoryCounts.keys()])
-  const categories: SearchCategoryFacet[] = [...categoryCounts.entries()]
-    .map(([value, count]) => ({
-      value,
-      name: categoryNames.get(value) ?? value,
-      count,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, "fr"))
 
-  const priceBuckets: SearchPriceBucketFacet[] = Object.entries(
-    priceDistribution
-  )
-    .flatMap(([id, count]) => {
-      const bucket = getPriceBucket(id)
-      return bucket ? [{ id, label: bucket.label, count }] : []
-    })
-    .sort(
-      (a, b) =>
-        (getPriceBucket(a.id)?.minCents ?? 0) -
-        (getPriceBucket(b.id)?.minCents ?? 0)
-    )
+  // Les noms de catégorie se lisent ici, une fois, et arrivent résolus dans
+  // l'assemblage : le module d'options ne reçoit que des faits et
+  // n'interroge rien. La catégorie retenue est résolue elle aussi, même
+  // absente de sa répartition — c'est la règle d'ADR-0016, dont l'option
+  // porte la conséquence d'affichage.
+  const slugs = new Set(Object.keys(repartitions.categories))
+  if (filters.categorySlug) slugs.add(filters.categorySlug)
+  const categoryNames = await fetchCategoryNames([...slugs])
+
+  // L'assemblage unique du panneau : les trois listes d'options naissent
+  // ici, à côté des requêtes de facettes qui les comptent, et la barre
+  // latérale ne fait plus que les rendre.
+  const facets = assemblerOptionsDeFiltre(repartitions, filters, categoryNames)
 
   return {
     query,
     totalHits,
     products: documents.map(carteDuHit),
-    facets: { brands, categories, priceBuckets },
+    facets,
     sort,
     currentPage,
     totalPages,

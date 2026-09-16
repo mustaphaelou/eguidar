@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
 import { listDeliveryCities } from "@/lib/use-cases/livraison"
-import { getSessionUser } from "@/lib/use-cases/get-session"
+import { lireSession } from "@/lib/use-cases/session-courante"
 
 export const metadata = pageMetadata({
   title: "Mon profil",
@@ -26,7 +26,7 @@ export default function ProfilePage() {
 }
 
 async function ProfileContent() {
-  const user = await getSessionUser()
+  const user = await lireSession()
   if (!user) return <RequireAuth />
 
   const [profile, cities] = await Promise.all([

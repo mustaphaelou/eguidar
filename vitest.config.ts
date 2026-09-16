@@ -6,6 +6,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "."),
+      // Le marqueur `server-only` lève à l'import : Next l'applique au bundle
+      // client, pas vitest. Voir `test/server-only.ts` et la garde de
+      // frontière de la Session courante.
+      "server-only": path.resolve(import.meta.dirname, "test/server-only.ts"),
     },
   },
   test: {

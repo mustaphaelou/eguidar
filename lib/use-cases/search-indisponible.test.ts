@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { chercherAvecMeili } from "@/lib/meili"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
+import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import {
   searchProducts,
   searchSuggestions,
@@ -51,11 +52,31 @@ function moteurCatalogueVide(): MoteurRecette {
   })
 }
 
+/**
+ * L'univers des Tranches de prix sans résultat : l'assemblage les émet
+ * toutes, à zéro, et c'est la barre latérale qui masque celles qu'elle doit
+ * masquer. L'univers comme l'ordre viennent de `PRICE_BUCKETS` : une
+ * sixième bande ne peut pas désynchroniser cette attente sans que le module
+ * la porte aussi.
+ */
+const BANDES_A_ZERO = PRICE_BUCKETS.map(({ id, label }) => ({
+  value: id,
+  label,
+  count: 0,
+  selected: false,
+}))
+
+/**
+ * Le DTO de l'écran vide : le Catalogue vide et les options d'une réponse
+ * sans résultat — aucune marque, aucune catégorie, les cinq bandes à zéro.
+ * Une panne comme un Catalogue vide l'assemblent de la même façon, sans
+ * nomenclature lue.
+ */
 const DTO_PAGE_VIDE = {
   query: "casque",
   totalHits: 0,
   products: [],
-  facets: { brands: [], categories: [], priceBuckets: [] },
+  facets: { brands: [], categories: [], priceBuckets: BANDES_A_ZERO },
   sort: "pertinence",
   currentPage: 1,
   totalPages: 1,
@@ -135,20 +156,43 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
     ).toEqual([3, 1])
   })
 
-  it("une catégorie active ne réapparaît pas à zéro : aucune nomenclature n'est lue", async () => {
+  it("une catégorie active reste émise à zéro, sans nomenclature lue", async () => {
     const indisponible = creerMoteurIndisponible()
 
-    // Parité avec le retour précoce `!meili` d'aujourd'hui : le Catalogue vide
-    // est la réponse entière, l'assemblage ne tourne pas, la catégorie active
-    // n'est pas ajoutée à zéro et aucune nomenclature n'est cherchée en base.
-    await expect(
-      searchProducts(
-        "casque",
-        { categorySlug: "audio-hifi" },
-        { page: 1 },
-        indisponible
-      )
-    ).resolves.toEqual({ ...DTO_PAGE_VIDE, pageSize: SEARCH_PAGE_SIZE })
+    const resultat = await searchProducts(
+      "casque",
+      {
+        brand: ["Sony"],
+        categorySlug: "audio-hifi",
+        priceBucketId: "1000-2500",
+      },
+      { page: 1 },
+      indisponible
+    )
+
+    // Le Catalogue vide est la réponse entière, mais l'assemblage tourne sur
+    // une carte de libellés vide : chaque valeur retenue sort à zéro, et la
+    // catégorie garde son slug pour libellé — la preuve qu'aucune
+    // nomenclature n'est lue en base sur ce chemin. La barre latérale les
+    // garde donc visibles, et les puces restent retirables.
+    expect(resultat.facets.brands).toEqual([
+      { value: "Sony", label: "Sony", count: 0, selected: true },
+    ])
+    expect(resultat.facets.categories).toEqual([
+      { value: "audio-hifi", label: "audio-hifi", count: 0, selected: true },
+    ])
+    expect(
+      resultat.facets.priceBuckets.filter((option) => option.selected)
+    ).toEqual([
+      {
+        value: "1000-2500",
+        label: "1 000 – 2 500 MAD",
+        count: 0,
+        selected: true,
+      },
+    ])
+    expect(resultat.totalHits).toBe(0)
+    expect(resultat.pageSize).toBe(SEARCH_PAGE_SIZE)
 
     // une seule page demandée : la panne ne provoque aucun bornage
     expect(requetesPage(indisponible)).toHaveLength(1)

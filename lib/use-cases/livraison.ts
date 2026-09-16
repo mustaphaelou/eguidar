@@ -7,6 +7,12 @@ import {
   DEFAULT_FREE_SHIPPING_THRESHOLD,
   type DeliveryCityOption,
 } from "@/lib/use-cases/livraison-prix"
+import {
+  avecSurcharges,
+  leverConflitUnique,
+  messageDeValidation,
+  runEffect,
+} from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -39,19 +45,9 @@ const defaultLivraisonEffects: LivraisonEffects = {
   },
 }
 
-async function runEffect(
-  message: string,
-  fn: () => Promise<unknown> | unknown
-): Promise<void> {
-  try {
-    await fn()
-  } catch (error) {
-    console.warn(message, error)
-  }
-}
 export class CityValidationError extends UserFacingError {
   constructor(issues: string[]) {
-    super(`Données invalides : ${issues.join(" ; ")}`)
+    super(messageDeValidation(issues))
     this.name = "CityValidationError"
   }
 }
@@ -79,7 +75,7 @@ export class CityNotFoundError extends UserFacingError {
 
 export class ShippingValidationError extends UserFacingError {
   constructor(issues: string[]) {
-    super(`Données invalides : ${issues.join(" ; ")}`)
+    super(messageDeValidation(issues))
     this.name = "ShippingValidationError"
   }
 }
@@ -124,9 +120,14 @@ function parseCityInput(input: CityInput): CityInput {
 }
 
 function mapCityUniqueViolation(error: unknown): never {
-  if (hasUniqueViolation(error, ["name"])) throw new CityNameConflictError()
-  if (hasUniqueViolation(error, ["slug"])) throw new CitySlugConflictError()
-  throw error
+  return leverConflitUnique(
+    error,
+    [
+      { champs: ["name"], erreur: new CityNameConflictError() },
+      { champs: ["slug"], erreur: new CitySlugConflictError() },
+    ],
+    hasUniqueViolation
+  )
 }
 
 async function assertUniqueCityName(
@@ -147,7 +148,7 @@ export async function createCity(
   input: CityInput,
   overrides?: Partial<LivraisonEffects>
 ) {
-  const effects = { ...defaultLivraisonEffects, ...overrides }
+  const effects = avecSurcharges(defaultLivraisonEffects, overrides)
   const data = parseCityInput(input)
   const slug = slugify(data.name)
   await assertUniqueCityName(data.name)
@@ -172,7 +173,7 @@ export async function updateCity(
   input: CityInput,
   overrides?: Partial<LivraisonEffects>
 ) {
-  const effects = { ...defaultLivraisonEffects, ...overrides }
+  const effects = avecSurcharges(defaultLivraisonEffects, overrides)
   const existing = await prisma.deliveryCity.findUnique({ where: { id } })
   if (!existing) throw new CityNotFoundError()
 
@@ -197,7 +198,7 @@ export async function deleteCity(
   id: string,
   overrides?: Partial<LivraisonEffects>
 ): Promise<void> {
-  const effects = { ...defaultLivraisonEffects, ...overrides }
+  const effects = avecSurcharges(defaultLivraisonEffects, overrides)
   const existing = await prisma.deliveryCity.findUnique({ where: { id } })
   if (!existing) throw new CityNotFoundError()
 
@@ -220,7 +221,7 @@ export async function updateShippingSettings(
   input: { freeShippingThreshold: number },
   overrides?: Partial<LivraisonEffects>
 ) {
-  const effects = { ...defaultLivraisonEffects, ...overrides }
+  const effects = avecSurcharges(defaultLivraisonEffects, overrides)
   const result = shippingInputSchema.safeParse(input)
   if (!result.success) {
     throw new ShippingValidationError(

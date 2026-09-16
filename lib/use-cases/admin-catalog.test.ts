@@ -23,6 +23,10 @@ import {
   VariantNotFoundError,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
+import {
+  verifierFrontiereBestEffort,
+  verifierRefusValidation,
+} from "@/test/mutation-squelette-recette"
 
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
@@ -171,13 +175,13 @@ describe("admin catalog mutations", () => {
   })
 
   it("rejects a negative product price", async () => {
-    await expect(createProduct(makeInput({ price: -100 }))).rejects.toThrow(
-      CatalogValidationError
+    await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(makeInput({ price: -100 }))
     )
   })
 
   it("rejects negative stock on a variant", async () => {
-    await expect(
+    await verifierRefusValidation(CatalogValidationError, () =>
       createProduct(
         makeInput({
           variants: [
@@ -185,11 +189,11 @@ describe("admin catalog mutations", () => {
           ],
         })
       )
-    ).rejects.toThrow(CatalogValidationError)
+    )
   })
 
   it("rejects a variant whose final price (price + delta) is negative", async () => {
-    await expect(
+    await verifierRefusValidation(CatalogValidationError, () =>
       createProduct(
         makeInput({
           variants: [
@@ -202,7 +206,7 @@ describe("admin catalog mutations", () => {
           ],
         })
       )
-    ).rejects.toThrow(CatalogValidationError)
+    )
   })
 
   it("updates product fields and reconciles variants (update, create, delete)", async () => {
@@ -435,9 +439,9 @@ describe("admin catalog mutations", () => {
       stock: 1,
     })
 
-    await expect(
+    await verifierRefusValidation(CatalogValidationError, () =>
       updateProduct(first.id, makeInput({ slug: slug("own-a"), variants }))
-    ).rejects.toThrow(CatalogValidationError)
+    )
 
     const untouched = await prisma.productVariant.findUniqueOrThrow({
       where: { id: foreignVariant.id },
@@ -524,9 +528,9 @@ describe("admin catalog mutations", () => {
   it("rejects negative stock on inline update", async () => {
     const product = await createProduct(makeInput({ slug: slug("stock-neg") }))
 
-    await expect(
+    await verifierRefusValidation(CatalogValidationError, () =>
       updateVariantStock(product.variants[0].id, -1)
-    ).rejects.toThrow(CatalogValidationError)
+    )
   })
 
   it("throws VariantNotFoundError for an unknown variant", async () => {
@@ -546,26 +550,18 @@ describe("admin catalog mutations", () => {
       priceDelta: v.priceDelta,
       stock: v.stock,
     }))
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      const updated = await updateProduct(
-        product.id,
-        makeInput({ slug: slug("fail-reindex"), name: "Renommé", variants }),
-        {
-          reindexProducts: vi.fn(async () => {
-            throw new Error("meili down")
-          }),
-        }
-      )
 
-      expect(updated.name).toBe("Renommé")
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("réindexation"),
-        expect.any(Error)
-      )
-    } finally {
-      warnSpy.mockRestore()
-    }
+    const updated = await verifierFrontiereBestEffort(
+      "réindexation",
+      (effetQuiEchoue) =>
+        updateProduct(
+          product.id,
+          makeInput({ slug: slug("fail-reindex"), name: "Renommé", variants }),
+          { reindexProducts: effetQuiEchoue }
+        )
+    )
+
+    expect(updated.name).toBe("Renommé")
   })
 
   it("still persists an update when R2 image deletion fails", async () => {
@@ -577,56 +573,38 @@ describe("admin catalog mutations", () => {
       priceDelta: v.priceDelta,
       stock: v.stock,
     }))
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      const updated = await updateProduct(
-        product.id,
-        makeInput({
-          slug: slug("fail-r2"),
-          name: "Renommé",
-          images: [],
-          variants,
-        }),
-        {
-          deleteImages: vi.fn(async () => {
-            throw new Error("r2 down")
-          }),
-        }
-      )
 
-      expect(updated.name).toBe("Renommé")
-      const persisted = await prisma.product.findUniqueOrThrow({
-        where: { id: product.id },
-      })
-      expect(persisted.name).toBe("Renommé")
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("suppression"),
-        expect.any(Error)
-      )
-    } finally {
-      warnSpy.mockRestore()
-    }
+    const updated = await verifierFrontiereBestEffort(
+      "suppression",
+      (effetQuiEchoue) =>
+        updateProduct(
+          product.id,
+          makeInput({
+            slug: slug("fail-r2"),
+            name: "Renommé",
+            images: [],
+            variants,
+          }),
+          { deleteImages: effetQuiEchoue }
+        )
+    )
+
+    expect(updated.name).toBe("Renommé")
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    })
+    expect(persisted.name).toBe("Renommé")
   })
 
   it("still deletes the product when index removal fails", async () => {
     const product = await createProduct(makeInput({ slug: slug("fail-index") }))
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    try {
-      await deleteProduct(product.id, {
-        removeProductFromIndex: vi.fn(async () => {
-          throw new Error("meili down")
-        }),
-      })
 
-      await expect(
-        prisma.product.findUnique({ where: { id: product.id } })
-      ).resolves.toBeNull()
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("index"),
-        expect.any(Error)
-      )
-    } finally {
-      warnSpy.mockRestore()
-    }
+    await verifierFrontiereBestEffort("index", (effetQuiEchoue) =>
+      deleteProduct(product.id, { removeProductFromIndex: effetQuiEchoue })
+    )
+
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toBeNull()
   })
 })
