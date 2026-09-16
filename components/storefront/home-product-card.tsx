@@ -1,12 +1,29 @@
 import Image from "next/image"
 import Link from "next/link"
+import type { ReactNode } from "react"
 
 import { urlProduit, type CarteProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
-export function HomeProductCard({ product }: { product: CarteProduit }) {
-  return (
+/**
+ * La Carte produit rendue — le bloc que partagent l'accueil, la catégorie et
+ * les Produits liés (page Produit et Article de blog). Aucune directive : le
+ * composant sert les pages serveur comme le Produit lié, qui est client.
+ *
+ * `action` est la place de la chrome propre à une surface, rendue après le
+ * lien dans l'enveloppe `flex flex-col gap-2`. Sans action, le lien reste la
+ * racine du rendu : les trois surfaces sans ajout au panier gardent donc leur
+ * balisage d'origine, et le lien demeure l'élément de la grille.
+ */
+export function HomeProductCard({
+  product,
+  action,
+}: {
+  product: CarteProduit
+  action?: ReactNode
+}) {
+  const carte = (
     <Link href={urlProduit(product.slug)} className="group flex flex-col gap-2">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
         {product.image ? (
@@ -44,5 +61,14 @@ export function HomeProductCard({ product }: { product: CarteProduit }) {
         </p>
       </div>
     </Link>
+  )
+
+  if (!action) return carte
+
+  return (
+    <div className="flex flex-col gap-2">
+      {carte}
+      {action}
+    </div>
   )
 }
