@@ -10,13 +10,9 @@ vi.mock("next/navigation", async () => {
   const h = await import("@/test/navigation-mocks")
   return { redirect: h.redirectMock }
 })
-vi.mock("@/lib/use-cases/get-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { getSessionUser: h.sessionUserMock }
-})
-vi.mock("@/lib/use-cases/get-admin-session", async () => {
-  const h = await import("@/test/navigation-mocks")
-  return { getAdminSession: h.adminSessionMock }
+  return { lireSession: h.sessionUserMock }
 })
 vi.mock("@/lib/use-cases/account", async (importOriginal) => {
   const actual =

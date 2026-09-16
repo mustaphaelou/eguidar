@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
 import { chargerDevis } from "@/lib/use-cases/devis"
 import { lirePanier } from "@/lib/panier"
-import { getSessionUser } from "@/lib/use-cases/get-session"
+import { lireSession } from "@/lib/use-cases/session-courante"
 import { formatPrice } from "@/lib/money"
 
 export const metadata = pageMetadata({
@@ -35,7 +35,7 @@ async function CheckoutContent({
 }: {
   searchParams: Promise<{ ville?: string }>
 }) {
-  const user = await getSessionUser()
+  const user = await lireSession()
   if (!user) return <RequireAuth />
 
   const { ville } = await searchParams

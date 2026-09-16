@@ -20,9 +20,9 @@ vi.mock("next/headers", async () => {
   return { cookies: async () => h.cookieStoreMock }
 })
 
-vi.mock("@/lib/use-cases/get-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { getSessionUser: h.sessionUserMock }
+  return { lireSession: h.sessionUserMock }
 })
 
 import {

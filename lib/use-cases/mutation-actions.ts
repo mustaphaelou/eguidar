@@ -2,8 +2,11 @@ import { redirect } from "next/navigation"
 
 import { loginUrl } from "@/lib/lien-de-connexion"
 import { parseMadToCents } from "@/lib/money"
-import { getAdminSession } from "@/lib/use-cases/get-admin-session"
-import { getSessionUser } from "@/lib/use-cases/get-session"
+import {
+  estAdmin,
+  lireSession,
+  type Client,
+} from "@/lib/use-cases/session-courante"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export const INVALID_FORM_MESSAGE = "Formulaire invalide"
@@ -27,10 +30,6 @@ export interface MutationActionState {
 export interface UnauthenticatedRefusal {
   unauthenticated: true
 }
-
-export type SessionUser = NonNullable<
-  Awaited<ReturnType<typeof getSessionUser>>
->
 
 export interface MutationActionOptions<Input, Caller> {
   gate: () => Promise<Caller | null>
@@ -120,19 +119,19 @@ export function formAction<
   State extends MutationActionState = MutationActionState,
 >(
   options: Omit<
-    MutationFormActionOptions<Input, SessionUser, State>,
+    MutationFormActionOptions<Input, Client, State>,
     "gate" | "next"
   >
 ): BoutiqueFormAction<State> {
   return async (_prevState, formData) =>
     executeMutationAction<
       Input,
-      SessionUser,
+      Client,
       State | { error: string } | UnauthenticatedRefusal
     >(
       {
         ...options,
-        gate: getSessionUser,
+        gate: lireSession,
         refuse: () => ({ unauthenticated: true }),
       },
       formData,
@@ -142,17 +141,13 @@ export function formAction<
 }
 
 export function taskAction<Input = FormData>(
-  options: Omit<MutationTaskActionOptions<Input, SessionUser>, "gate" | "next">
+  options: Omit<MutationTaskActionOptions<Input, Client>, "gate" | "next">
 ): BoutiqueTaskAction {
   return async (formData) => {
-    return executeMutationAction<
-      Input,
-      SessionUser,
-      void | UnauthenticatedRefusal
-    >(
+    return executeMutationAction<Input, Client, void | UnauthenticatedRefusal>(
       {
         ...options,
-        gate: getSessionUser,
+        gate: lireSession,
         refuse: () => ({ unauthenticated: true }),
       },
       formData,
@@ -162,19 +157,20 @@ export function taskAction<Input = FormData>(
   }
 }
 
-async function adminGate(): Promise<SessionUser | null> {
-  const session = await getAdminSession()
-  return session?.user ?? null
+/** Le refus de l'Administration composé sur la lecture : hors administrateur, pas de Client. */
+async function adminGate(): Promise<Client | null> {
+  const client = await lireSession()
+  return estAdmin(client) ? client : null
 }
 
 export function adminFormAction<
   Input = FormData,
   State extends MutationActionState = MutationActionState,
 >(
-  options: Omit<MutationFormActionOptions<Input, SessionUser, State>, "gate">
+  options: Omit<MutationFormActionOptions<Input, Client, State>, "gate">
 ): MutationFormAction<State> {
   return async (_prevState, formData) =>
-    executeMutationAction<Input, SessionUser, State | { error: string }>(
+    executeMutationAction<Input, Client, State | { error: string }>(
       {
         ...options,
         gate: adminGate,
@@ -187,11 +183,11 @@ export function adminFormAction<
 }
 
 export function adminTaskAction<Input = FormData>(
-  options: Omit<AdminTaskActionOptions<Input, SessionUser>, "gate">
+  options: Omit<AdminTaskActionOptions<Input, Client>, "gate">
 ): MutationTaskAction {
   return async (formData) => {
     const { refusalUrl } = options
-    await executeMutationAction<Input, SessionUser, void>(
+    await executeMutationAction<Input, Client, void>(
       {
         ...options,
         gate: adminGate,

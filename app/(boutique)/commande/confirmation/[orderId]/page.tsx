@@ -15,7 +15,7 @@ import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-pai
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
 import { pageMetadata } from "@/lib/metadata"
-import { getSessionUser } from "@/lib/use-cases/get-session"
+import { lireSession } from "@/lib/use-cases/session-courante"
 import { getOrder } from "@/lib/use-cases/orders"
 import { shortOrderId } from "@/lib/utils"
 
@@ -51,7 +51,7 @@ async function OrderConfirmationContent({
 }: {
   params: Promise<{ orderId: string }>
 }) {
-  const user = await getSessionUser()
+  const user = await lireSession()
   if (!user) return <RequireAuth />
 
   const { orderId } = await params

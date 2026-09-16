@@ -1,7 +1,7 @@
 import { renderToReadableStream } from "react-dom/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { adminSessionMock, redirectMock } from "@/test/navigation-mocks"
+import { sessionUserMock, redirectMock } from "@/test/navigation-mocks"
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -12,9 +12,16 @@ vi.mock("next/headers", async () => {
   return { cookies: async () => h.cookieStoreMock }
 })
 
-vi.mock("@/lib/use-cases/get-admin-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
   const h = await import("@/test/navigation-mocks")
-  return { getAdminSession: h.adminSessionMock }
+  // Seule la lecture est stubée : `estAdmin` reste la vraie règle du module,
+  // sans quoi la suite ne prouverait plus le refus de l'Administration.
+  return {
+    ...(await importOriginal<
+      typeof import("@/lib/use-cases/session-courante")
+    >()),
+    lireSession: h.sessionUserMock,
+  }
 })
 
 vi.mock("@/components/layout/admin/app-sidebar", () => ({
@@ -61,13 +68,15 @@ function renderAdminLayout() {
 describe("AdminLayout", () => {
   beforeEach(() => {
     resetCookieStoreMock()
-    adminSessionMock.mockReset()
+    sessionUserMock.mockReset()
     redirectMock.mockClear()
   })
 
   it("mounts the Session inactive controller and the AuthDialogs around the authenticated admin shell", async () => {
-    adminSessionMock.mockResolvedValue({
-      user: { name: "Ada Lovelace", email: "ada@example.com" },
+    sessionUserMock.mockResolvedValue({
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+      role: "admin",
     })
 
     const html = await renderAdminLayout()
@@ -80,7 +89,7 @@ describe("AdminLayout", () => {
   })
 
   it("redirects an unauthenticated visitor to the Connexion modal with /admin as Destination post-connexion", async () => {
-    adminSessionMock.mockResolvedValue(null)
+    sessionUserMock.mockResolvedValue(null)
 
     try {
       await renderAdminLayout()
