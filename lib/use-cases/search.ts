@@ -98,11 +98,22 @@ export async function searchProducts(
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
+  // Une panne rend l'écran d'aujourd'hui — le Catalogue vide, sans bornage de
+  // page — mais pas des options vides : l'assemblage tourne sur des
+  // répartitions vides, donc l'univers des Tranches de prix sort à zéro et
+  // chaque valeur retenue reste émise, visible et retirable dans la barre
+  // latérale comme dans les puces. La carte de libellés est vide : une
+  // catégorie retenue garde son slug, et aucune nomenclature n'est lue en
+  // base sur ce chemin.
   const emptyResult: SearchPageData = {
     query,
     totalHits: 0,
     products: [],
-    facets: { brands: [], categories: [], priceBuckets: [] },
+    facets: assemblerOptionsDeFiltre(
+      { brands: {}, categories: {}, priceBuckets: {} },
+      filters,
+      new Map<string, string>()
+    ),
     sort,
     currentPage: 1,
     totalPages: 1,
