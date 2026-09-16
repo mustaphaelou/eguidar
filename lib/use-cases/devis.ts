@@ -42,12 +42,12 @@
  */
 import type { DonneesPanier } from "@/lib/panier"
 import type { DevisChargé } from "@/lib/use-cases/devis-coeur"
-import { resoudreVilleUrl } from "@/lib/use-cases/devis-coeur"
 import { computeCityQuotes } from "@/lib/use-cases/livraison-prix"
 import {
   getFreeShippingThreshold,
   listDeliveryCities,
 } from "@/lib/use-cases/livraison"
+import { resoudreVilleUrl } from "@/lib/use-cases/ville-url"
 
 export { DeliveryCityNotFoundError } from "@/lib/use-cases/devis-coeur"
 

@@ -12,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { formatShippingFee } from "@/lib/money"
-import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
+import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
+import { villeVersParam } from "@/lib/use-cases/ville-url"
 
 export function CityPicker({
   cities,
@@ -25,12 +25,13 @@ export function CityPicker({
   path: string
 }) {
   const router = useRouter()
+  const optionsVilles = cityOptions(cities)
 
   function handleChange(cityId: string | null) {
     if (!cityId) return
     const city = cities.find((candidate) => candidate.id === cityId)
     if (!city) return
-    router.push(`${path}?ville=${encodeURIComponent(city.slug)}`)
+    router.push(`${path}${villeVersParam(city)}`)
   }
 
   return (
@@ -38,7 +39,7 @@ export function CityPicker({
       <Label htmlFor="city">Ville de livraison</Label>
       <Select
         value={selectedId ?? ""}
-        items={cityOptions(cities)}
+        items={optionsVilles}
         onValueChange={handleChange}
       >
         <SelectTrigger id="city" className="w-full sm:w-72">
@@ -46,9 +47,9 @@ export function CityPicker({
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            {cities.map((city) => (
-              <SelectItem key={city.id} value={city.id}>
-                {city.name} — {formatShippingFee(city.fee)}
+            {optionsVilles.map((row) => (
+              <SelectItem key={row.value} value={row.value}>
+                {row.optionLabel}
               </SelectItem>
             ))}
           </SelectGroup>

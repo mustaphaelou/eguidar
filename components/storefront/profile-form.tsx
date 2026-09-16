@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cityOptions } from "@/components/storefront/city-options"
-import { formatShippingFee } from "@/lib/money"
 import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
 
 export interface ProfileFormProps {
@@ -41,6 +40,7 @@ export function ProfileForm({
     updateProfileAction,
     initialState
   )
+  const optionsVilles = cityOptions(cities)
 
   useUnauthenticatedRefusal(state)
 
@@ -92,16 +92,16 @@ export function ProfileForm({
         <Select
           name="cityId"
           defaultValue={initialCityId ?? ""}
-          items={cityOptions(cities)}
+          items={optionsVilles}
         >
           <SelectTrigger id="profile-city" className="w-full">
             <SelectValue placeholder="Choisir une ville" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {cities.map((city) => (
-                <SelectItem key={city.id} value={city.id}>
-                  {city.name} — {formatShippingFee(city.fee)}
+              {optionsVilles.map((row) => (
+                <SelectItem key={row.value} value={row.value}>
+                  {row.optionLabel}
                 </SelectItem>
               ))}
             </SelectGroup>

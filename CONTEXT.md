@@ -12,6 +12,13 @@ _Avoid_: shipping, frais de port
 A city to which orders can be delivered, each with a fixed delivery fee. Its public identity in a URL is its slug — the normalized form of its name; the internal identifier never appears in a URL and survives there only as a read-only alias (ADR-0017).
 _Avoid_: ville desservie, identifiant de ville dans l'URL
 
+**Langage d'URL de la Ville**:
+La règle bidirectionnelle d'écriture et de lecture de la Ville de livraison dans l'URL : à
+l'écriture, le slug seul, percent-encodé, sous la forme `?ville=<slug>` ; à la lecture, le slug
+d'abord, puis l'identifiant interne en alias en lecture seule (ADR-0017). Un seul module en est
+propriétaire, partagé par les pages serveur et les composants clients.
+_Avoid_: format d'URL de ville, ville query param
+
 **Frais de livraison**:
 The fee charged per order for delivery to a given city. Free when the cart subtotal reaches the free-shipping threshold, or when the cart contains a free-shipping item.
 _Avoid_: coût de livraison
