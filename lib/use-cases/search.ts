@@ -98,6 +98,17 @@ export async function searchProducts(
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
+  const emptyResult: SearchPageData = {
+    query,
+    totalHits: 0,
+    products: [],
+    facets: { brands: [], categories: [], priceBuckets: [] },
+    sort,
+    currentPage: 1,
+    totalPages: 1,
+    pageSize,
+  }
+
   const [initialResult, brandFacets, categoryFacets, priceFacets] =
     await Promise.all([
       moteur.chercher({
@@ -130,6 +141,18 @@ export async function searchProducts(
       }),
     ])
 
+  // Un moteur absent ou injoignable rend l'écran d'aujourd'hui : le Catalogue
+  // vide, sans bornage de page — il n'y a aucun total à border, et aucune
+  // requête de plus à lui demander.
+  if (
+    initialResult.statut === "indisponible" ||
+    brandFacets.statut === "indisponible" ||
+    categoryFacets.statut === "indisponible" ||
+    priceFacets.statut === "indisponible"
+  ) {
+    return emptyResult
+  }
+
   const totalHits = initialResult.total
   const totalPages = Math.max(1, Math.ceil(totalHits / pageSize))
   const currentPage = Math.min(requestedPage, totalPages)
@@ -142,6 +165,8 @@ export async function searchProducts(
       page: currentPage,
       taille: pageSize,
     })
+    // Le moteur s'est tu entre les deux vagues : même Catalogue vide.
+    if (clampedResult.statut === "indisponible") return emptyResult
     documents = clampedResult.documents
   }
 
@@ -226,11 +251,16 @@ export async function searchSuggestions(
   query: string,
   moteur: MoteurRecherche = moteurMeili()
 ): Promise<SearchSuggestionsData> {
+  const emptyResult: SearchSuggestionsData = { products: [], categories: [] }
+
   const reponse = await moteur.chercher({
     query,
     taille: SEARCH_SUGGESTION_LIMIT,
     facettes: ["categorySlug"],
   })
+
+  // Un moteur absent ou injoignable : les deux listes vides d'aujourd'hui.
+  if (reponse.statut === "indisponible") return emptyResult
 
   const categorySlugCounts = Object.entries(
     reponse.repartitions.categorySlug ?? {}

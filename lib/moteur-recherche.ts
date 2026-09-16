@@ -10,8 +10,10 @@ import type { SearchFacet, SearchFilters, SearchSort } from "@/lib/search-params
  * `lib/moteur-recherche-frontiere.test.ts` verrouille cette neutralité.
  * Son vocabulaire est celui de la Recherche — Requête (texte, Filtres,
  * tri, page et taille, facettes à compter), Réponse (Documents d'index,
- * total du moteur, répartitions par facette) — et il ne réutilise que des
- * types purs (`@/lib/search-params`, `@/lib/index-projection`).
+ * total du moteur, répartitions par facette), ou Indisponibilité (un
+ * moteur absent ou injoignable, qui n'est pas un Catalogue vide) — et il
+ * ne réutilise que des types purs (`@/lib/search-params`,
+ * `@/lib/index-projection`).
  *
  * Les Documents d'index traversent la couture déjà cuisinés (ADR-0013,
  * ADR-0022) : `minPrice` et `totalStock` sont calculés au réindexage,
@@ -41,12 +43,20 @@ export interface RepartitionsMoteur {
   priceBucket?: Record<string, number>
 }
 
-export interface ReponseMoteur {
+export interface ReponseDocuments {
+  statut: "ok"
   documents: IndexableProduct[]
   /** the engine's estimate (`estimatedTotalHits` in Meili), never an exact count */
   total: number
   repartitions: RepartitionsMoteur
 }
+
+/** Un moteur absent ou injoignable — jamais un Catalogue vide. */
+export interface ReponseIndisponible {
+  statut: "indisponible"
+}
+
+export type ReponseMoteur = ReponseDocuments | ReponseIndisponible
 
 export interface MoteurRecherche {
   chercher(requete: RequeteMoteur): Promise<ReponseMoteur>
