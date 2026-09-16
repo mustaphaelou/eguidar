@@ -1,13 +1,12 @@
 import { Meilisearch } from "meilisearch"
 
 import type { IndexableProduct } from "@/lib/index-projection"
-import {
-  retirerFacette,
-  type MoteurRecherche,
-  type RepartitionsMoteur,
-  type ReponseDocuments,
-  type ReponseMoteur,
-  type RequeteMoteur,
+import type {
+  MoteurRecherche,
+  RepartitionsMoteur,
+  ReponseDocuments,
+  ReponseMoteur,
+  RequeteMoteur,
 } from "@/lib/moteur-recherche"
 import { buildSearchFilter, type SearchSort } from "@/lib/search-params"
 
@@ -102,13 +101,13 @@ const SUGGESTION_ATTRIBUTES_TO_RETRIEVE = [
  * La projection d'exécution de la page demandée — un simple
  * `attributesToRetrieve`, jamais un second type de Document d'index.
  *
- * Les deux moitiés de ce couplage, en toutes lettres : `searchSuggestions`
- * (`lib/use-cases/search.ts`) est la seule page qui envoie `{ query,
- * taille: 6, facettes: ["categorySlug"] }` sans filtres ni tri, et la seule
- * dont les cartes peuvent se passer de `totalStock` et `freeShipping`.
- * Toute autre page — celle de `searchProducts`, filtres et tri compris —
- * reçoit la projection complète des cartes produit. Les deux moitiés vont
- * ensemble : `lib/meili-chercher.test.ts` épingle l'une et l'autre.
+ * Le couplage, en une phrase : seule la requête de `searchSuggestions`
+ * (`lib/use-cases/search.ts`) part sans `filtres` ni `tri` avec des facettes
+ * à compter, et seule cette page peut se passer de `totalStock` et de
+ * `freeShipping` ; dès que `filtres` ou `tri` est renseigné — la page de
+ * `searchProducts`, même vides — la projection est complète, si bien qu'une
+ * requête filtrée ne peut jamais recevoir la version légère.
+ * `lib/meili-chercher.test.ts` épingle les deux moitiés.
  */
 function pageAttributes(requete: RequeteMoteur): string[] {
   const requeteDeSuggestions =
@@ -123,10 +122,11 @@ function pageAttributes(requete: RequeteMoteur): string[] {
 /**
  * La page demandée (quand `taille > 0`) puis une requête « facette seule »
  * par facette à compter, toutes en parallèle — le travail Meili lui-même.
- * La clause de la facette comptée est retirée au point d'usage (ADR-0016) ;
- * `total` reste l'estimation du moteur et `repartitions` ne porte que les
- * facettes demandées. Un rejet du SDK remonte à l'appelant : c'est
- * `chercherAvecMeili` qui le convertit.
+ * L'adaptateur applique exactement les filtres qu'il reçoit : le retrait de
+ * la clause d'une facette (ADR-0016) est le fait de l'orchestration.
+ * `total` est l'estimation de la page demandée, `0` quand il n'y en a pas,
+ * et `repartitions` ne porte que les facettes demandées. Un rejet du SDK
+ * remonte à l'appelant : c'est `chercherAvecMeili` qui le convertit.
  */
 async function interrogerMeili(
   meili: Meilisearch,
@@ -151,7 +151,7 @@ async function interrogerMeili(
       : []),
     ...facettes.map((facette) =>
       index.search(requete.query, {
-        filter: buildSearchFilter(retirerFacette(filtres, facette)),
+        filter: buildSearchFilter(filtres),
         facets: [facette],
         limit: 0,
       })

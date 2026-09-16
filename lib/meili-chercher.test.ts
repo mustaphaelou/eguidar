@@ -90,8 +90,8 @@ describe("chercherAvecMeili — projection de page", () => {
   })
 })
 
-describe("chercherAvecMeili — clause de facette retirée", () => {
-  it("retire la clause de la facette comptée au point d'usage", async () => {
+describe("chercherAvecMeili — les filtres reçus, tels quels", () => {
+  it("applique exactement les filtres reçus, sans retirer de clause", async () => {
     const { client, appels } = clientDeSubstitution()
 
     await chercherAvecMeili(client, {
@@ -101,8 +101,13 @@ describe("chercherAvecMeili — clause de facette retirée", () => {
       facettes: ["brand"],
     })
 
+    // ADR-0016 se règle au-dessus de la couture : la requête de décompte
+    // arrive déjà sans la clause de sa facette, et l'adaptateur n'en retire
+    // aucune — il applique la requête telle qu'il la reçoit.
     expect(appels).toHaveLength(1)
-    expect(appels[0].options.filter).toBe('categorySlug = "audio-hifi"')
+    expect(appels[0].options.filter).toBe(
+      'brand IN ["Sony"] AND categorySlug = "audio-hifi"'
+    )
     expect(appels[0].options.facets).toEqual(["brand"])
     expect(appels[0].options.limit).toBe(0)
   })

@@ -446,15 +446,16 @@ describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
     expect(result.totalHits).toBe(2)
     expect(result.facets.brands).toEqual(CINQ_MARQUES)
 
-    // La même règle, affirmée sur la fonction publique que l'orchestration
-    // laisse passer intacte : un adaptateur applique exactement les filtres
-    // qu'il reçoit.
+    // La même règle, affirmée directement sur le moteur : c'est
+    // l'orchestration qui retire la clause avant l'appel, et le moteur
+    // applique exactement les filtres qu'il reçoit.
     const sansMarque = await moteur.chercher({
       query: token,
       filtres: retirerFacette({ brand }, "brand"),
       taille: 0,
       facettes: ["brand"],
     })
+    if (sansMarque.statut !== "ok") throw new Error("moteur indisponible")
     expect(sansMarque.repartitions.brand).toEqual({
       Apple: 1,
       LG: 1,

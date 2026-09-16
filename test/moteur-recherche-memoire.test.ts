@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import type { IndexableProduct } from "@/lib/index-projection"
 import { retirerFacette } from "@/lib/moteur-recherche"
-import type { ReponseMoteur, RequeteMoteur } from "@/lib/moteur-recherche"
+import type {
+  ReponseDocuments,
+  ReponseMoteur,
+  RequeteMoteur,
+} from "@/lib/moteur-recherche"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
 
@@ -14,7 +18,8 @@ import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
  * Recherche à travers cette couture ; ici on fige ce que le moteur promet :
  * l'appartenance au texte par jetons repliés, les trois Filtres de
  * recherche, les quatre tris, la pagination et les répartitions calculées
- * sous `retirerFacette` (ADR-0016). Ce qui reste à Meili — tolérance aux
+ * sous les filtres reçus — la règle d'ADR-0016 est retirée au-dessus de la
+ * couture, par `searchProducts`. Ce qui reste à Meili — tolérance aux
  * fautes, classement par pertinence, localisation — n'est pas éprouvé ici.
  *
  * Les documents sont construits à la main (la forme est
@@ -107,16 +112,30 @@ const DOCUMENTS = [iphone, samsung, casque, ecran, clavier]
 const moteur = creerMoteurEnMemoire(DOCUMENTS)
 
 /**
+ * Le moteur en mémoire ne répond jamais l'indisponible : ce rétrécissement
+ * est l'assertion que chaque cas fait de toute façon avant de lire la
+ * réponse (`statut` est le discriminant de la couture, #367).
+ */
+function reponseOk(reponse: ReponseMoteur): ReponseDocuments {
+  if (reponse.statut !== "ok") {
+    throw new Error("le moteur en mémoire ne répond jamais l'indisponible")
+  }
+  return reponse
+}
+
+/**
  * `taille` par défaut à la taille du Catalogue : au-dessus de la couture,
  * l'orchestration en envoie toujours une (`SEARCH_PAGE_SIZE`), tandis que
  * `taille: 0` est la requête de décompte — sans quoi le moteur ne rend
  * aucun document.
  */
-async function chercher(requete: RequeteMoteur): Promise<ReponseMoteur> {
-  return moteur.chercher({ taille: DOCUMENTS.length, ...requete })
+async function chercher(requete: RequeteMoteur): Promise<ReponseDocuments> {
+  return reponseOk(
+    await moteur.chercher({ taille: DOCUMENTS.length, ...requete })
+  )
 }
 
-function ids(reponse: ReponseMoteur): string[] {
+function ids(reponse: ReponseDocuments): string[] {
   return reponse.documents.map((document) => document.id)
 }
 
@@ -309,15 +328,17 @@ describe("creerMoteurEnMemoire — pagination et taille", () => {
     expect(ids(page)).toEqual(["casque", "samsung"])
   })
 
-  it("taille 0 ne rend aucun document mais compte tout et répartit", async () => {
+  it("taille 0 ne mesure rien : aucun document, total zéro, répartitions complètes", async () => {
     const resultat = await chercher({
       query: "",
       taille: 0,
       facettes: ["brand"],
     })
 
+    // Le total est la mesure de la requête de page : une requête de décompte
+    // ne mesure rien et répond zéro, comme l'adaptateur Meili.
     expect(resultat.documents).toEqual([])
-    expect(resultat.total).toBe(5)
+    expect(resultat.total).toBe(0)
     expect(resultat.repartitions.brand).toEqual({
       Apple: 1,
       LG: 1,
@@ -361,45 +382,56 @@ describe("creerMoteurEnMemoire — pagination et taille", () => {
   })
 })
 
-describe("creerMoteurEnMemoire — répartitions sous retirerFacette", () => {
+describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () => {
+  // ADR-0016 vit au-dessus de la couture : c'est `searchProducts` qui retire
+  // la clause de la facette comptée avant d'appeler un moteur, et un moteur
+  // applique exactement les filtres qu'il reçoit. Cette suite passe donc les
+  // filtres déjà retirés ; `lib/use-cases/search-memoire.test.ts` éprouve la
+  // règle entière, sous l'orchestration.
   it("une facette subit la marque et ignore sa propre clause", async () => {
     // Deux filtres seulement, l'un sur la marque et l'autre sur la catégorie :
-    // chaque décompte retire sa propre clause et subit celle de l'autre.
+    // chaque décompte est demandé sous les filtres dont sa propre clause a été
+    // retirée, et subit donc celle de l'autre.
     const filtres = { brand: ["Sony"], categorySlug: SMARTPHONES }
-
-    const resultat = await chercher({
-      query: "",
-      filtres,
-      taille: 0,
-      facettes: ["brand", "categorySlug"],
-    })
 
     // La marque ignore son propre filtre (les cinq marques restent
     // comptables) et subit la catégorie : les trois produits Smartphones.
-    expect(resultat.repartitions.brand).toEqual({
+    const marques = await chercher({
+      query: "",
+      filtres: retirerFacette(filtres, "brand"),
+      taille: 0,
+      facettes: ["brand"],
+    })
+    expect(marques.repartitions.brand).toEqual({
       Apple: 1,
       Logitech: 1,
       Samsung: 1,
     })
+
     // La catégorie ignore son propre filtre (les deux catégories restent
     // comptables) et subit la marque : le seul produit Sony.
-    expect(resultat.repartitions.categorySlug).toEqual({ [AUDIO]: 1 })
+    const categories = await chercher({
+      query: "",
+      filtres: retirerFacette(filtres, "categorySlug"),
+      taille: 0,
+      facettes: ["categorySlug"],
+    })
+    expect(categories.repartitions.categorySlug).toEqual({ [AUDIO]: 1 })
   })
 
   it("une facette subit aussi les deux autres filtres", async () => {
     const filtres = { categorySlug: AUDIO, priceBucketId: "2500-5000" }
 
-    const resultat = await chercher({
-      query: "",
-      filtres,
-      taille: 0,
-      facettes: ["priceBucket"],
-    })
-
     // La Tranche de prix ignore sa propre clause : sous la catégorie Audio
     // sans filtre de tranche, les deux tranches des produits Audio restent
     // comptables — et non la seule tranche choisie.
-    expect(resultat.repartitions.priceBucket).toEqual({
+    const tranches = await chercher({
+      query: "",
+      filtres: retirerFacette(filtres, "priceBucket"),
+      taille: 0,
+      facettes: ["priceBucket"],
+    })
+    expect(tranches.repartitions.priceBucket).toEqual({
       "1000-2500": 1,
       "2500-5000": 1,
     })
@@ -446,11 +478,11 @@ describe("creerMoteurEnMemoire — répartitions sous retirerFacette", () => {
     })
   })
 
-  it("une facette répète la règle : compter sous retirerFacette(filtres, facette)", async () => {
+  it("applique exactement les filtres reçus, sans retirer de clause", async () => {
     const filtres = { brand: ["Sony"] }
 
-    // Le moteur applique exactement les filtres qu'il reçoit (ADR-0016) :
-    // retirer la clause soi-même, avant l'appel, ne change pas son décompte.
+    // Le retrait est le fait de l'orchestration, jamais du moteur : la même
+    // requête sans retrait ne compte que la marque filtrée.
     const compteSousFiltreRetire = await chercher({
       query: "",
       filtres: retirerFacette(filtres, "brand"),
@@ -464,9 +496,6 @@ describe("creerMoteurEnMemoire — répartitions sous retirerFacette", () => {
       facettes: ["brand"],
     })
 
-    expect(compteAvecFiltre.repartitions.brand).toEqual(
-      compteSousFiltreRetire.repartitions.brand
-    )
     expect(compteSousFiltreRetire.repartitions.brand).toEqual({
       Apple: 1,
       LG: 1,
@@ -474,5 +503,6 @@ describe("creerMoteurEnMemoire — répartitions sous retirerFacette", () => {
       Samsung: 1,
       Sony: 1,
     })
+    expect(compteAvecFiltre.repartitions.brand).toEqual({ Sony: 1 })
   })
 })

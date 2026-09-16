@@ -504,13 +504,14 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
 
   it("répond par l'interface MoteurRecherche — fumée d'adaptateur", async () => {
     // Le seul fait que ce bloc doit à la couture : `moteurMeili()` satisfait
-    // `MoteurRecherche`. Sous #367 cette réponse gagne un `statut: "ok"`.
+    // `MoteurRecherche` et répond `ok`, le discriminant que #367 a ajouté.
     const reponse = await moteurMeili().chercher({
       query: token,
       filtres: { categorySlug: smartphonesSlug },
       taille: 24,
     })
 
+    if (reponse.statut !== "ok") throw new Error("moteur Meili indisponible")
     expect(Array.isArray(reponse.documents)).toBe(true)
     expect(reponse.documents.length).toBeGreaterThan(0)
     expect(reponse.total).toBeGreaterThanOrEqual(reponse.documents.length)

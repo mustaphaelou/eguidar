@@ -1,17 +1,12 @@
 import type { IndexableProduct } from "@/lib/index-projection"
-import {
-  retirerFacette,
-  type MoteurRecherche,
-  type RepartitionsMoteur,
-  type ReponseMoteur,
-  type RequeteMoteur,
+import type {
+  MoteurRecherche,
+  RepartitionsMoteur,
+  ReponseMoteur,
+  RequeteMoteur,
 } from "@/lib/moteur-recherche"
 import { getPriceBucket } from "@/lib/price-buckets"
-import type {
-  SearchFacet,
-  SearchFilters,
-  SearchSort,
-} from "@/lib/search-params"
+import type { SearchFacet, SearchFilters, SearchSort } from "@/lib/search-params"
 
 /**
  * Moteur de recherche en mémoire — approximation documentée de Meilisearch,
@@ -21,7 +16,9 @@ import type {
  * accents, chaque token de la requête préfixe d'un token du document), les
  * Filtres de recherche appliqués tels quels (marques en union, catégorie,
  * Tranche de prix sur le `minPrice` déjà cuit), les quatre tris, la
- * pagination et les répartitions sous `retirerFacette` (ADR-0016).
+ * pagination et les répartitions sous les filtres reçus. Le total est la
+ * mesure de la requête de page : une requête de décompte (`taille: 0`, ou
+ * absente) ne mesure rien et répond `total: 0`.
  *
  * Ce qui reste à Meili : la tolérance aux fautes de frappe, le classement
  * par pertinence (`pertinence` garde ici l'ordre d'entrée) et la
@@ -116,7 +113,7 @@ function repartir(
 ): RepartitionsMoteur {
   const repartitions: RepartitionsMoteur = {}
   for (const facette of requete.facettes ?? []) {
-    const filtres = retirerFacette(requete.filtres ?? {}, facette)
+    const filtres = requete.filtres ?? {}
     const comptes: Record<string, number> = {}
     for (const document of documents) {
       if (!correspondAuTexte(document, requete.query)) continue
@@ -151,7 +148,9 @@ export function creerMoteurEnMemoire(
           taille > 0
             ? correspondants.slice((page - 1) * taille, page * taille)
             : [],
-        total: correspondants.length,
+        // Le total est la mesure de la page : la requête de décompte
+        // (`taille: 0`) ne mesure rien, comme celle de l'adaptateur Meili.
+        total: taille > 0 ? correspondants.length : 0,
         repartitions: repartir(documents, requete),
       }
     },

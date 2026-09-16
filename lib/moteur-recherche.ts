@@ -22,8 +22,8 @@ import type { SearchFacet, SearchFilters, SearchSort } from "@/lib/search-params
  *
  * `retirerFacette` porte la règle d'ADR-0016, seule et pure : le décompte
  * d'une facette ignore sa propre clause. Elle est retirée au-dessus de la
- * couture comme au point d'usage de chaque moteur, jamais réimplémentée
- * par un moteur.
+ * couture, une seule fois, avant que les filtres ne descendent vers un
+ * moteur — un moteur applique exactement les filtres qu'il reçoit.
  */
 
 export interface RequeteMoteur {

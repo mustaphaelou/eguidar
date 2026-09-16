@@ -96,6 +96,12 @@ filtrable par une ou plusieurs marques, une catégorie et une tranche de prix, t
 Le header propose des suggestions instantanées de produits et de catégories.
 _Avoid_: search, recherche produit, recherche fuzz
 
+**Moteur de recherche**:
+Le moteur derrière la surface d'interrogation de la Recherche, atteint à travers la couture neutre
+`lib/moteur-recherche.ts` : Meilisearch en production, un moteur en mémoire dans les tests. À ne pas
+confondre avec le Catalogue, qu'il interroge, ni avec l'écriture de l'index, qui reste hors de la couture.
+_Avoid_: search engine, backend de recherche, Meilisearch (comme nom du concept)
+
 **Tranche de prix**:
 L'une des cinq fourchettes de prix fixes (par exemple « Moins de 1 000 MAD ») par lesquelles la Recherche peut être filtrée.
 _Avoid_: bucket de prix, intervalle de prix
