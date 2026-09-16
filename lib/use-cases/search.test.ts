@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db"
 import {
   ensureProductsIndex,
   getMeiliSearch,
+  moteurMeili,
   PRODUCTS_INDEX,
 } from "@/lib/meili"
 import type { IndexableProduct } from "@/lib/index-projection"
@@ -18,7 +19,6 @@ import {
   parseSort,
   retirerFacette,
   searchProducts,
-  searchSuggestions,
   toggleBrand,
 } from "@/lib/use-cases/search"
 
@@ -26,6 +26,17 @@ const meili = getMeiliSearch()
 
 // large timeout: parallel mutation suites with default effects queue many Meili tasks
 const TASK_WAIT_TIMEOUT = 60_000
+
+/**
+ * Le filtre de nettoyage du bloc Meili, construit comme `buildSearchFilter`
+ * le construit — valeur citée — et jamais vide : le nettoyage ne peut pas
+ * silencieusement devenir un `deleteDocuments({ filter: undefined })`.
+ */
+function filtreDeNettoyage(categorySlug: string): string {
+  const filtre = buildSearchFilter({ categorySlug })
+  if (!filtre) throw new Error("filtre de nettoyage vide")
+  return filtre
+}
 
 describe("search filter building", () => {
   it("returns undefined when no filters are applied", () => {
@@ -316,6 +327,15 @@ describe("toggleBrand", () => {
   })
 })
 
+/**
+ * Ce que seul Meilisearch peut prouver : la tolérance aux fautes de frappe,
+ * l'insensibilité à la casse et aux accents, et le classement par pertinence.
+ * Le moteur en mémoire les laisse délibérément à Meili (ADR-0023) et ne les
+ * imite pas ; les faits de la Recherche qui, eux, ne dépendent pas du moteur
+ * — facettes, filtres, tris, pagination, suggestions — vivent désormais dans
+ * `lib/use-cases/search-memoire.test.ts` et tournent sur la CI, sans
+ * `MEILI_URL` ni Docker.
+ */
 describe.runIf(!!meili)("search products against Meilisearch", () => {
   const client = meili!
   const runId = randomUUID().slice(0, 8)
@@ -421,14 +441,25 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
   }, TASK_WAIT_TIMEOUT)
 
   afterAll(async () => {
-    await client.index(PRODUCTS_INDEX).deleteDocuments({
-      filter: `categorySlug = ${smartphonesSlug} OR categorySlug = ${audioSlug}`,
+    // Les valeurs du filtre sont citées, exactement comme `buildSearchFilter`
+    // les cite : sans guillemets Meili rejette le filtre et le nettoyage
+    // laissait silencieusement les documents derrière lui.
+    const smartphonesTask = await client.index(PRODUCTS_INDEX).deleteDocuments({
+      filter: filtreDeNettoyage(smartphonesSlug),
     })
+    const audioTask = await client.index(PRODUCTS_INDEX).deleteDocuments({
+      filter: filtreDeNettoyage(audioSlug),
+    })
+    await Promise.all(
+      [smartphonesTask, audioTask].map((task) =>
+        client.tasks.waitForTask(task.taskUid, { timeout: TASK_WAIT_TIMEOUT })
+      )
+    )
     await prisma.category.deleteMany({
       where: { slug: { in: [smartphonesSlug, audioSlug] } },
     })
     await prisma.$disconnect()
-  })
+  }, TASK_WAIT_TIMEOUT)
 
   it("matches a French product name with a typo", async () => {
     const iphone = await searchProducts("ipone", {
@@ -461,246 +492,28 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
     ])
   })
 
-  it("returns facets with counts matching the result set", async () => {
-    const result = await searchProducts(token)
+  it("ranks all-terms matches first", async () => {
+    const result = await searchProducts(`${token} sony`)
 
-    expect(result.totalHits).toBe(5)
-    expect(result.facets.brands).toEqual([
-      { value: "Apple", count: 1 },
-      { value: "LG", count: 1 },
-      { value: "Logitech", count: 1 },
-      { value: "Samsung", count: 1 },
-      { value: "Sony", count: 1 },
-    ])
-    expect(result.facets.categories).toEqual([
-      { value: audioSlug, name: "Audio & Hi-Fi", count: 2 },
-      { value: smartphonesSlug, name: "Smartphones", count: 3 },
-    ])
-    expect(result.facets.priceBuckets).toEqual([
-      { id: "0-1000", label: "Moins de 1 000 MAD", count: 1 },
-      { id: "1000-2500", label: "1 000 – 2 500 MAD", count: 1 },
-      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
-      { id: "5000-10000", label: "5 000 – 10 000 MAD", count: 1 },
-      { id: "10000-plus", label: "Plus de 10 000 MAD", count: 1 },
-    ])
-  })
-
-  it("filters by brand and keeps every brand option countable", async () => {
-    const result = await searchProducts(token, { brand: ["Sony"] })
-
-    expect(result.products.map((p) => p.name)).toEqual([
-      name("Casque Sony WH-1000XM5"),
-    ])
-    expect(result.totalHits).toBe(1)
-    expect(result.facets.brands).toEqual([
-      { value: "Apple", count: 1 },
-      { value: "LG", count: 1 },
-      { value: "Logitech", count: 1 },
-      { value: "Samsung", count: 1 },
-      { value: "Sony", count: 1 },
-    ])
-    expect(result.facets.categories).toEqual([
-      { value: audioSlug, name: "Audio & Hi-Fi", count: 1 },
-    ])
-    expect(result.facets.priceBuckets).toEqual([
-      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
-    ])
-  })
-
-  it("selects several brands as a union", async () => {
-    const result = await searchProducts(token, { brand: ["Sony", "LG"] })
-
-    expect(result.totalHits).toBe(2)
-    expect(result.products.map((p) => p.brand).sort()).toEqual(["LG", "Sony"])
-    expect(result.facets.brands).toHaveLength(5)
-    expect(result.facets.categories).toEqual([
-      { value: audioSlug, name: "Audio & Hi-Fi", count: 2 },
-    ])
-    expect(result.facets.priceBuckets).toEqual([
-      { id: "1000-2500", label: "1 000 – 2 500 MAD", count: 1 },
-      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
-    ])
-  })
-
-  it("filters by category while counting every category option", async () => {
-    const result = await searchProducts(token, {
-      categorySlug: smartphonesSlug,
-    })
-
-    expect(result.products.map((p) => p.name).sort()).toEqual(
-      [
-        name("Clavier mécanique"),
-        name("Samsung Galaxy S24"),
-        name("iPhone 15 Pro"),
-      ].sort()
-    )
-    expect(result.facets.brands).toEqual([
-      { value: "Apple", count: 1 },
-      { value: "Logitech", count: 1 },
-      { value: "Samsung", count: 1 },
-    ])
-    expect(result.facets.categories).toEqual([
-      { value: audioSlug, name: "Audio & Hi-Fi", count: 2 },
-      { value: smartphonesSlug, name: "Smartphones", count: 3 },
-    ])
-  })
-
-  it("keeps the active category visible with its name at zero", async () => {
-    const result = await searchProducts(token, {
-      brand: ["Apple"],
-      categorySlug: audioSlug,
-    })
-
-    expect(result.totalHits).toBe(0)
-    expect(result.facets.categories).toEqual([
-      { value: audioSlug, name: "Audio & Hi-Fi", count: 0 },
-      { value: smartphonesSlug, name: "Smartphones", count: 1 },
-    ])
-  })
-
-  it("filters by price bucket while counting every bucket", async () => {
-    const result = await searchProducts(token, { priceBucketId: "0-1000" })
-
-    expect(result.products.map((p) => p.name)).toEqual([
-      name("Clavier mécanique"),
-    ])
-    expect(result.totalHits).toBe(1)
-    expect(result.facets.priceBuckets).toEqual([
-      { id: "0-1000", label: "Moins de 1 000 MAD", count: 1 },
-      { id: "1000-2500", label: "1 000 – 2 500 MAD", count: 1 },
-      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
-      { id: "5000-10000", label: "5 000 – 10 000 MAD", count: 1 },
-      { id: "10000-plus", label: "Plus de 10 000 MAD", count: 1 },
-    ])
-    expect(result.facets.brands).toEqual([{ value: "Logitech", count: 1 }])
-    expect(result.facets.categories).toEqual([
-      { value: smartphonesSlug, name: "Smartphones", count: 1 },
-    ])
-  })
-
-  it("combines text query with facets", async () => {
-    const result = await searchProducts(`${token} sony`, {
-      priceBucketId: "2500-5000",
-    })
-
-    expect(result.products.map((p) => p.name)).toEqual([
-      name("Casque Sony WH-1000XM5"),
-    ])
-  })
-
-  it("returns an empty state when nothing matches", async () => {
-    const result = await searchProducts("zzzqqqq")
-    expect(result.totalHits).toBe(0)
-    expect(result.products).toEqual([])
-    expect(result.facets.brands).toEqual([])
-  })
-
-  it("maps hits to search result cards", async () => {
-    const result = await searchProducts(`${token} casque`)
     expect(result.products[0]).toMatchObject({
       slug: `srch-${runId}-casque`,
       name: name("Casque Sony WH-1000XM5"),
-      brand: "Sony",
-      minPrice: 349900,
-      totalStock: 5,
-      freeShipping: true,
-    })
-  })
-
-  it("matches skus, variant names and specs text", async () => {
-    const bySku = await searchProducts("ip15p", {
-      categorySlug: smartphonesSlug,
-    })
-    expect(bySku.products.map((p) => p.name)).toEqual([name("iPhone 15 Pro")])
-
-    const byVariant = await searchProducts("128 go", {
-      categorySlug: smartphonesSlug,
-    })
-    expect(byVariant.products.map((p) => p.name)).toEqual([
-      name("iPhone 15 Pro"),
-    ])
-
-    const bySpecs = await searchProducts("a17 pro", {
-      categorySlug: smartphonesSlug,
-    })
-    expect(bySpecs.products.map((p) => p.name)).toEqual([name("iPhone 15 Pro")])
-  })
-
-  it("sorts by price ascending and descending", async () => {
-    const asc = await searchProducts(token, {}, { sort: "prix-asc" })
-    expect(asc.products.map((p) => p.name)).toEqual([
-      name("Clavier mécanique"),
-      name("Écran 27 pouces 4K"),
-      name("Casque Sony WH-1000XM5"),
-      name("Samsung Galaxy S24"),
-      name("iPhone 15 Pro"),
-    ])
-
-    const desc = await searchProducts(token, {}, { sort: "prix-desc" })
-    expect(desc.products[0].name).toBe(name("iPhone 15 Pro"))
-    expect(desc.products.at(-1)?.name).toBe(name("Clavier mécanique"))
-  })
-
-  it("sorts nouveautes by updatedAt descending", async () => {
-    const result = await searchProducts(token, {}, { sort: "nouveautes" })
-
-    expect(result.products.map((p) => p.name)).toEqual([
-      name("Clavier mécanique"),
-      name("Écran 27 pouces 4K"),
-      name("Casque Sony WH-1000XM5"),
-      name("Samsung Galaxy S24"),
-      name("iPhone 15 Pro"),
-    ])
-  })
-
-  it("paginates with offset and reports page metadata", async () => {
-    const page = await searchProducts(token, {}, { page: 2, pageSize: 2 })
-
-    expect(page.currentPage).toBe(2)
-    expect(page.totalPages).toBe(3)
-    expect(page.pageSize).toBe(2)
-    expect(page.products.length).toBe(2)
-    expect(page.products.map((p) => p.id)).toEqual(["casque", "ecran"])
-  })
-
-  it("clamps an out-of-range page to the last page", async () => {
-    const page = await searchProducts(token, {}, { page: 99, pageSize: 2 })
-
-    expect(page.currentPage).toBe(3)
-    expect(page.products.length).toBe(1)
-    expect(page.products[0].id).toBe("clavier")
-  })
-
-  it("reports a single page and page 1 for the default page size", async () => {
-    const page = await searchProducts(token)
-
-    expect(page.currentPage).toBe(1)
-    expect(page.totalPages).toBe(1)
-    expect(page.pageSize).toBe(24)
-  })
-
-  it("ranks all-terms matches first and keeps categories", async () => {
-    const suggestions = await searchSuggestions(`${token} sony`)
-
-    expect(suggestions.products[0]).toMatchObject({
-      slug: `srch-${runId}-casque`,
-      name: name("Casque Sony WH-1000XM5"),
       minPrice: 349900,
     })
-    expect(suggestions.categories).toContainEqual({
-      slug: audioSlug,
-      name: "Audio & Hi-Fi",
-    })
   })
 
-  it("caps suggestions at six products", async () => {
-    const suggestions = await searchSuggestions(token)
+  it("répond par l'interface MoteurRecherche — fumée d'adaptateur", async () => {
+    // Le seul fait que ce bloc doit à la couture : `moteurMeili()` satisfait
+    // `MoteurRecherche`. Sous #367 cette réponse gagne un `statut: "ok"`.
+    const reponse = await moteurMeili().chercher({
+      query: token,
+      filtres: { categorySlug: smartphonesSlug },
+      taille: 24,
+    })
 
-    expect(suggestions.products.length).toBeGreaterThanOrEqual(5)
-    expect(suggestions.products.length).toBeLessThanOrEqual(6)
-    expect(suggestions.categories.map((c) => c.name).sort()).toEqual([
-      "Audio & Hi-Fi",
-      "Smartphones",
-    ])
+    expect(Array.isArray(reponse.documents)).toBe(true)
+    expect(reponse.documents.length).toBeGreaterThan(0)
+    expect(reponse.total).toBeGreaterThanOrEqual(reponse.documents.length)
+    expect(typeof reponse.repartitions).toBe("object")
   })
 })
