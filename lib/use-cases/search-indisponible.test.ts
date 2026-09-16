@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { chercherAvecMeili } from "@/lib/meili"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
+import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import {
   searchProducts,
   searchSuggestions,
@@ -54,25 +55,16 @@ function moteurCatalogueVide(): MoteurRecette {
 /**
  * L'univers des Tranches de prix sans résultat : l'assemblage les émet
  * toutes, à zéro, et c'est la barre latérale qui masque celles qu'elle doit
- * masquer.
+ * masquer. L'univers comme l'ordre viennent de `PRICE_BUCKETS` : une
+ * sixième bande ne peut pas désynchroniser cette attente sans que le module
+ * la porte aussi.
  */
-const BANDES_A_ZERO = [
-  { value: "0-1000", label: "Moins de 1 000 MAD", count: 0, selected: false },
-  { value: "1000-2500", label: "1 000 – 2 500 MAD", count: 0, selected: false },
-  { value: "2500-5000", label: "2 500 – 5 000 MAD", count: 0, selected: false },
-  {
-    value: "5000-10000",
-    label: "5 000 – 10 000 MAD",
-    count: 0,
-    selected: false,
-  },
-  {
-    value: "10000-plus",
-    label: "Plus de 10 000 MAD",
-    count: 0,
-    selected: false,
-  },
-]
+const BANDES_A_ZERO = PRICE_BUCKETS.map(({ id, label }) => ({
+  value: id,
+  label,
+  count: 0,
+  selected: false,
+}))
 
 /**
  * Le DTO de l'écran vide : le Catalogue vide et les options d'une réponse

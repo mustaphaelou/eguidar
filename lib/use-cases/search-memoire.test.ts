@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { prisma } from "@/lib/db"
 import type { IndexableProduct } from "@/lib/index-projection"
 import type { OptionDeFiltre } from "@/lib/options-de-filtre"
+import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import {
   retirerFacette,
   searchProducts,
@@ -145,14 +146,15 @@ const CINQ_MARQUES = [
   { value: "Sony", label: "Sony", count: 1 },
 ]
 
-/** Les cinq Tranches de prix, dans l'ordre fixe de leurs bandes. */
-const CINQ_TRANCHES = [
-  { value: "0-1000", label: "Moins de 1 000 MAD" },
-  { value: "1000-2500", label: "1 000 – 2 500 MAD" },
-  { value: "2500-5000", label: "2 500 – 5 000 MAD" },
-  { value: "5000-10000", label: "5 000 – 10 000 MAD" },
-  { value: "10000-plus", label: "Plus de 10 000 MAD" },
-]
+/**
+ * Les cinq Tranches de prix, dans l'ordre fixe de leurs bandes : leur
+ * univers est `PRICE_BUCKETS`, donc une sixième bande ne peut pas
+ * désynchroniser cette attente sans que le module la porte aussi.
+ */
+const CINQ_TRANCHES = PRICE_BUCKETS.map(({ id, label }) => ({
+  value: id,
+  label,
+}))
 
 /** Le jeu principal compte un produit par bande de prix. */
 const UNE_PAR_BANDE: Record<string, number> = {
