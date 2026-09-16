@@ -1,11 +1,11 @@
 import Image from "next/image"
 import Link from "next/link"
 
+import type { CarteProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
-import type { ProductCard } from "@/lib/use-cases/storefront"
 
-export function HomeProductCard({ product }: { product: ProductCard }) {
+export function HomeProductCard({ product }: { product: CarteProduit }) {
   return (
     <Link
       href={`/produit/${product.slug}`}
