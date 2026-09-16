@@ -25,8 +25,8 @@ import type {
  *
  * Ce qui reste à Meili : la tolérance aux fautes de frappe, le classement
  * par pertinence (`pertinence` garde ici l'ordre d'entrée) et la
- * localisation française. Ce moteur répond toujours : il ne connaît pas
- * l'indisponible.
+ * localisation française. C'est un double de test : il est toujours
+ * disponible et ne répond jamais l'indisponible.
  */
 
 /** La même liste que `SEARCHABLE_PRODUCT_ATTRIBUTES` de `lib/meili.ts`. */
