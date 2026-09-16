@@ -55,11 +55,58 @@ const DTO_PAGE_VIDE = {
   query: "casque",
   totalHits: 0,
   products: [],
+  // Une panne n'assemble rien : les trois listes d'options restent vides.
   facets: { brands: [], categories: [], priceBuckets: [] },
   sort: "pertinence",
   currentPage: 1,
   totalPages: 1,
   pageSize: 2,
+}
+
+/**
+ * Le même écran quand le moteur répond, mais pas le même DTO : un Catalogue
+ * vide a assemblé ses options, et l'univers des Tranches de prix est connu
+ * (`lib/options-de-filtre.ts`), donc les cinq bandes sortent à zéro. Le
+ * rendu, lui, ne bouge pas : la barre latérale masque toute option à zéro
+ * qui n'est pas retenue.
+ */
+const DTO_CATALOGUE_VIDE = {
+  ...DTO_PAGE_VIDE,
+  facets: {
+    ...DTO_PAGE_VIDE.facets,
+    priceBuckets: [
+      {
+        value: "0-1000",
+        label: "Moins de 1 000 MAD",
+        count: 0,
+        selected: false,
+      },
+      {
+        value: "1000-2500",
+        label: "1 000 – 2 500 MAD",
+        count: 0,
+        selected: false,
+      },
+      {
+        value: "2500-5000",
+        label: "2 500 – 5 000 MAD",
+        count: 0,
+        selected: false,
+      },
+      {
+        value: "5000-10000",
+        label: "5 000 – 10 000 MAD",
+        count: 0,
+        selected: false,
+      },
+      {
+        value: "10000-plus",
+        label: "Plus de 10 000 MAD",
+        count: 0,
+        selected: false,
+      },
+    ],
+  },
 }
 
 describe("l'adaptateur Meili — les deux visages de l'indisponibilité", () => {
@@ -107,7 +154,7 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
     ).resolves.toEqual({ products: [], categories: [] })
   })
 
-  it("un Catalogue vide n'est pas une panne : la réponse ok rend le même DTO", async () => {
+  it("un Catalogue vide n'est pas une panne : la réponse ok rend le même écran", async () => {
     await expect(
       searchProducts(
         "casque",
@@ -115,7 +162,7 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
         { page: 3, pageSize: 2 },
         moteurCatalogueVide()
       )
-    ).resolves.toEqual(DTO_PAGE_VIDE)
+    ).resolves.toEqual(DTO_CATALOGUE_VIDE)
   })
 
   it("la panne n'ajoute aucune requête que le moteur ne peut pas servir", async () => {
