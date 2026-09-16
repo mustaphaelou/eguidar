@@ -25,10 +25,13 @@ vi.mock("next/image", () => ({
   ),
 }))
 
-import { urlProduit, type CarteProduit } from "@/lib/carte-produit"
+import {
+  urlProduit,
+  type CarteProduit as CarteProduitDonnees,
+} from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 
-import { HomeProductCard } from "./home-product-card"
+import { CarteProduit } from "./carte-produit"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -46,7 +49,9 @@ afterEach(() => {
   container.remove()
 })
 
-function carte(overrides: Partial<CarteProduit> = {}): CarteProduit {
+function carte(
+  overrides: Partial<CarteProduitDonnees> = {}
+): CarteProduitDonnees {
   return {
     id: "carte-produit",
     name: "Théière traditionnelle",
@@ -74,9 +79,9 @@ function imageProduit() {
   return container.querySelector("[data-testid='image-produit']")
 }
 
-describe("HomeProductCard", () => {
+describe("CarteProduit", () => {
   it("affiche la marque, le nom, la première image et le Prix courant", () => {
-    render(<HomeProductCard product={carte()} />)
+    render(<CarteProduit product={carte()} />)
 
     expect(container.textContent).toContain("Atelier")
     expect(container.textContent).toContain("Théière traditionnelle")
@@ -88,7 +93,7 @@ describe("HomeProductCard", () => {
   })
 
   it("montre le nom du Produit à la place de l'image absente", () => {
-    render(<HomeProductCard product={carte({ image: null })} />)
+    render(<CarteProduit product={carte({ image: null })} />)
 
     expect(imageProduit()).toBeNull()
     expect(container.querySelector("img")).toBeNull()
@@ -96,7 +101,7 @@ describe("HomeProductCard", () => {
   })
 
   it("écrit l'URL du Produit par urlProduit", () => {
-    render(<HomeProductCard product={carte()} />)
+    render(<CarteProduit product={carte()} />)
 
     expect(lien().getAttribute("href")).toBe(
       urlProduit("theiere-traditionnelle")
@@ -105,7 +110,7 @@ describe("HomeProductCard", () => {
 
   it("annonce « En stock » suivi de la Livraison offerte accordée", () => {
     render(
-      <HomeProductCard product={carte({ totalStock: 4, freeShipping: true })} />
+      <CarteProduit product={carte({ totalStock: 4, freeShipping: true })} />
     )
 
     expect(container.textContent).toContain("En stock · Livraison offerte")
@@ -113,9 +118,7 @@ describe("HomeProductCard", () => {
 
   it("n'annonce pas la Livraison offerte quand elle n'est pas accordée", () => {
     render(
-      <HomeProductCard
-        product={carte({ totalStock: 4, freeShipping: false })}
-      />
+      <CarteProduit product={carte({ totalStock: 4, freeShipping: false })} />
     )
 
     expect(container.textContent).toContain("En stock")
@@ -124,7 +127,7 @@ describe("HomeProductCard", () => {
 
   it("annonce la rupture même quand la Livraison est offerte", () => {
     render(
-      <HomeProductCard product={carte({ totalStock: 0, freeShipping: true })} />
+      <CarteProduit product={carte({ totalStock: 0, freeShipping: true })} />
     )
 
     expect(container.textContent).toContain("Rupture de stock")
@@ -132,7 +135,7 @@ describe("HomeProductCard", () => {
   })
 
   it("laisse le lien en racine quand aucune action n'est fournie", () => {
-    render(<HomeProductCard product={carte()} />)
+    render(<CarteProduit product={carte()} />)
 
     expect(container.children.length).toBe(1)
     expect(container.firstElementChild?.tagName).toBe("A")
@@ -140,7 +143,7 @@ describe("HomeProductCard", () => {
 
   it("rend l'action reçue après le lien, dans l'enveloppe du Produit lié", () => {
     render(
-      <HomeProductCard
+      <CarteProduit
         product={carte()}
         action={<button>Ajouter au panier</button>}
       />

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { importeDe, lire } from "@/lib/use-cases/outils-frontiere"
+import {
+  importeDe,
+  lire,
+  sourcesDeProduction,
+} from "@/lib/use-cases/outils-frontiere"
 
 type OptionsDeSuggestion = { attributesToRetrieve?: string[] }
 
@@ -36,16 +40,27 @@ vi.mock("@/lib/meili", async (importOriginal) => {
  * La directive `"use client"`, un crochet, `next/headers` ou `server-only` le
  * rendraient de même inutilisable d'un des deux côtés.
  *
- * Second verrou : le module reste le propriétaire unique de la projection —
+ * Premier verrou : le module n'importe **rien du tout** — son graphe
+ * transitif est vide, donc sa neutralité ne dépend d'aucun voisin et
+ * « un import imprudent ne peut jamais tirer la base dans le bundle
+ * navigateur » est inconditionnel.
+ *
+ * Deuxième verrou : le module reste le propriétaire unique de la projection —
  * la lecture serveur du Produit lié passe par lui au lieu de réassembler les
  * huit faits (première image comprise) sur place.
  *
  * Troisième verrou : chaque surface cliente atteint la Carte produit par le
  * module neutre — directement, ou par la Carte produit partagée pour le
- * Produit lié, qui lui délègue son lien — et la Carte produit rendue reste
- * sans directive.
+ * Produit lié, qui lui délègue son lien.
  *
- * Quatrième verrou : la requête de suggestion garde les six faits de la
+ * Quatrième verrou : aucun composant qui importe la Carte produit n'importe
+ * la base — parcours de tout `components/`, pas une liste de quatre noms.
+ *
+ * Cinquième verrou : `/produit/<slug>` n'est écrit que par `urlProduit`
+ * (ADR-0022) — parcours de `app/`, `components/` et `lib/`, donc une surface
+ * neuve ne peut pas se remettre à écrire le chemin à la main.
+ *
+ * Sixième verrou : la requête de suggestion garde les six faits de la
  * Suggestion de produit ; `search.test.ts` ne vérifie que le slug, le nom et
  * le Prix courant, donc une liste d'attributs amputée y passerait inaperçue.
  */
@@ -56,10 +71,10 @@ describe("Carte produit — frontière client/serveur", () => {
    * vers la page Produit ; les autres par le module neutre directement.
    */
   const SURFACES_CLIENTES: Record<string, string> = {
-    "produit-lie-carte.tsx": "home-product-card",
-    "home-product-card.tsx": "carte-produit",
-    "product-card.tsx": "carte-produit",
-    "search-suggestions.tsx": "carte-produit",
+    "produit-lie-carte.tsx": "./carte-produit",
+    "carte-produit.tsx": "@/lib/carte-produit",
+    "product-card.tsx": "@/lib/carte-produit",
+    "search-suggestions.tsx": "@/lib/carte-produit",
   }
 
   it("le module est neutre : ni use client, ni crochet, ni base", () => {
@@ -69,8 +84,10 @@ describe("Carte produit — frontière client/serveur", () => {
     expect(importeDe(source, "lib/db")).toBe(false)
   })
 
-  it("le module n'importe ni next/headers ni server-only", () => {
+  it("le module n'importe rien : sa neutralité est inconditionnelle", () => {
     const source = lire(import.meta.url, "./carte-produit.ts")
+    expect(source).not.toMatch(/^\s*import\b/m)
+    expect(source).not.toMatch(/\bfrom\s*["']/)
     expect(importeDe(source, "next/headers")).toBe(false)
     expect(importeDe(source, "server-only")).toBe(false)
   })
@@ -78,7 +95,8 @@ describe("Carte produit — frontière client/serveur", () => {
   it("la lecture serveur du Produit lié projette par le module neutre", () => {
     const blog = lire(import.meta.url, "./use-cases/blog.ts")
     expect(importeDe(blog, "carte-produit")).toBe(true)
-    expect(blog).not.toMatch(/image:\s*images\[0\]/)
+    expect(blog).toContain("projeterCarteProduit")
+    expect(blog).not.toMatch(/images\[0\]/)
   })
 
   it("chaque surface cliente atteint la Carte produit par le module neutre", () => {
@@ -92,12 +110,50 @@ describe("Carte produit — frontière client/serveur", () => {
     }
   })
 
-  it("la Carte produit rendue reste sans directive", () => {
-    const source = lire(
-      import.meta.url,
-      "../components/storefront/home-product-card.tsx"
+  it("aucun composant qui importe la Carte produit n'importe la base", () => {
+    const sources = sourcesDeProduction(import.meta.url, "../components")
+    // Parcours non vacuant : chaque source de `components/` est visitée.
+    expect(sources.length).toBeGreaterThan(50)
+
+    const importateurs = sources.filter(({ source }) =>
+      importeDe(source, "carte-produit")
     )
-    expect(source).not.toMatch(/^"use client"/m)
+    expect(importateurs.map(({ chemin }) => chemin)).toEqual(
+      expect.arrayContaining([
+        "components/storefront/carte-produit.tsx",
+        "components/storefront/product-card.tsx",
+        "components/storefront/produit-lie-carte.tsx",
+        "components/storefront/search-suggestions.tsx",
+      ])
+    )
+    for (const { chemin, source } of importateurs) {
+      expect(importeDe(source, "lib/db"), chemin).toBe(false)
+    }
+  })
+
+  it("`/produit/` n'est écrit que par `urlProduit`", () => {
+    const sources = sourcesDeProduction(
+      import.meta.url,
+      "../app",
+      "../components",
+      "../lib"
+    )
+    // Parcours non vacuant : les trois arborescences sont visitées, `app/`
+    // compris, donc une page neuve ne peut pas échapper au verrou.
+    expect(sources.length).toBeGreaterThan(100)
+    expect(sources.map(({ chemin }) => chemin)).toContain(
+      "app/(boutique)/page.tsx"
+    )
+
+    const ecrivains = sources
+      .filter(({ source }) => source.includes("/produit/"))
+      .map(({ chemin }) => chemin)
+    expect(ecrivains).toEqual(["lib/carte-produit.ts"])
+
+    const proprietaire = sources.find(
+      ({ chemin }) => chemin === "lib/carte-produit.ts"
+    )
+    expect(proprietaire?.source.match(/\/produit\//g)).toHaveLength(2)
   })
 })
 

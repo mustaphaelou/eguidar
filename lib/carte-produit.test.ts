@@ -13,9 +13,12 @@ import {
  * Prisma. Les métriques arrivent cuites : `product-metrics.ts` les calcule,
  * la projection les recopie.
  */
-function makeFaits(
-  overrides: Partial<FaitsCarteProduit> = {}
-): FaitsCarteProduit {
+type FaitsComplets = FaitsCarteProduit & {
+  totalStock: number
+  freeShipping: boolean
+}
+
+function makeFaits(overrides: Partial<FaitsComplets> = {}): FaitsComplets {
   return {
     id: "p-1",
     name: "Chaise Test",
@@ -26,6 +29,21 @@ function makeFaits(
     totalStock: 10,
     freeShipping: true,
     ...overrides,
+  }
+}
+
+/**
+ * Les six faits d'une Suggestion de produit : ni le stock total ni la
+ * Livraison offerte ne sont connus de ce chemin de lecture.
+ */
+function makeFaitsSansMetriques(): FaitsCarteProduit {
+  return {
+    id: "p-1",
+    name: "Chaise Test",
+    slug: "chaise-test",
+    brand: "Marque Test",
+    images: ["https://example.com/une.jpg"],
+    minPrice: 80000,
   }
 }
 
@@ -84,6 +102,36 @@ describe("projeterCarteProduit", () => {
 
     expect(carte?.slug).toBe("chaise-test")
     expect(carte?.totalStock).toBe(10)
+  })
+
+  it("« masquer » ne masque jamais un stock total inconnu", () => {
+    const carte = projeterCarteProduit(makeFaitsSansMetriques(), {
+      rupture: "masquer",
+    })
+
+    expect(carte).not.toBeNull()
+    expect(carte?.slug).toBe("chaise-test")
+  })
+
+  it("« montrer » exige les deux métriques", () => {
+    const faits = makeFaitsSansMetriques()
+
+    // Verrou de compilation : la ligne suivante ne compile que si l'overload
+    // « montrer » exige `totalStock` et `freeShipping`. Si l'exigence tombe,
+    // la directive devient inutile et `tsc --noEmit` échoue.
+    // @ts-expect-error — « montrer » exige les deux métriques
+    const carte = projeterCarteProduit(faits, { rupture: "montrer" })
+
+    expect(carte?.slug).toBe("chaise-test")
+  })
+
+  it("ignore une image qui n'est pas une chaîne", () => {
+    const carte = projeterCarteProduit(
+      makeFaits({ images: [42, "https://example.com/valide.jpg"] }),
+      { rupture: "montrer" }
+    )
+
+    expect(carte.image).toBe("https://example.com/valide.jpg")
   })
 
   it("« montrer » ne répond jamais null, même en rupture de stock", () => {

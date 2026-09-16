@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
-import { HomeProductCard } from "@/components/storefront/home-product-card"
+import { CarteProduit } from "@/components/storefront/carte-produit"
 import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
 import { urlProduit } from "@/lib/carte-produit"
@@ -147,7 +147,7 @@ async function ProductContent({
             </h2>
             <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
               {data.related.map((product) => (
-                <HomeProductCard key={product.id} product={product} />
+                <CarteProduit key={product.id} product={product} />
               ))}
             </div>
           </div>
