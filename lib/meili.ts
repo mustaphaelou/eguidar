@@ -5,6 +5,7 @@ import {
   retirerFacette,
   type MoteurRecherche,
   type RepartitionsMoteur,
+  type ReponseDocuments,
   type ReponseMoteur,
   type RequeteMoteur,
 } from "@/lib/moteur-recherche"
@@ -120,22 +121,17 @@ function pageAttributes(requete: RequeteMoteur): string[] {
 }
 
 /**
- * Le MoteurRecherche de production : la page demandée (quand `taille > 0`)
- * puis une requête « facette seule » par facette à compter, toutes en
- * parallèle. La clause de la facette comptée est retirée au point d'usage
- * (ADR-0016) ; `total` reste l'estimation du moteur et `repartitions` ne
- * porte que les facettes demandées.
- *
- * Déclaré ici pour que l'absence de moteur reste testable avec un client
- * de substitution : #367 remplacera cette réponse vide par un
- * `statut: "indisponible"` typé.
+ * La page demandée (quand `taille > 0`) puis une requête « facette seule »
+ * par facette à compter, toutes en parallèle — le travail Meili lui-même.
+ * La clause de la facette comptée est retirée au point d'usage (ADR-0016) ;
+ * `total` reste l'estimation du moteur et `repartitions` ne porte que les
+ * facettes demandées. Un rejet du SDK remonte à l'appelant : c'est
+ * `chercherAvecMeili` qui le convertit.
  */
-export async function chercherAvecMeili(
-  meili: Meilisearch | null,
+async function interrogerMeili(
+  meili: Meilisearch,
   requete: RequeteMoteur
-): Promise<ReponseMoteur> {
-  if (!meili) return { documents: [], total: 0, repartitions: {} }
-
+): Promise<ReponseDocuments> {
   const index = meili.index<IndexableProduct>(PRODUCTS_INDEX)
   const filtres = requete.filtres ?? {}
   const facettes = requete.facettes ?? []
@@ -174,9 +170,30 @@ export async function chercherAvecMeili(
   })
 
   return {
+    statut: "ok",
     documents: reponsePage?.hits ?? [],
     total: reponsePage?.estimatedTotalHits ?? 0,
     repartitions,
+  }
+}
+
+/**
+ * Le MoteurRecherche de production. Ses deux visages d'indisponibilité — le
+ * client nul (`MEILI_URL` absent) et le moteur configuré mais injoignable —
+ * répondent le même fait typé : le rejet du SDK est converti ici et ne
+ * franchit jamais la couture. Déclaré ici pour que l'absence de moteur reste
+ * testable avec un client de substitution.
+ */
+export async function chercherAvecMeili(
+  meili: Meilisearch | null,
+  requete: RequeteMoteur
+): Promise<ReponseMoteur> {
+  if (!meili) return { statut: "indisponible" }
+
+  try {
+    return await interrogerMeili(meili, requete)
+  } catch {
+    return { statut: "indisponible" }
   }
 }
 

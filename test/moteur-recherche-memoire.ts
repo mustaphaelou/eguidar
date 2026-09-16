@@ -146,6 +146,7 @@ export function creerMoteurEnMemoire(
       const page = requete.page ?? 1
 
       return {
+        statut: "ok",
         documents:
           taille > 0
             ? correspondants.slice((page - 1) * taille, page * taille)
