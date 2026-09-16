@@ -10,7 +10,9 @@ import { fileURLToPath } from "node:url"
  * propre dossier ; `importeDe` détecte un import ou un réexport statique
  * d'un module nommé dans une source ; `sourcesDeProduction` parcourt des
  * arborescences entières pour qu'un fichier neuf ne puisse pas échapper à
- * une garde écrite sur une liste de noms.
+ * une garde écrite sur une liste de noms ; `atteignables` suit les imports
+ * de valeur de module en module, pour verrouiller ce qu'une surface cliente
+ * atteint vraiment et non ce qu'elle importe en un seul saut.
  */
 export function lire(depuis: string, relatif: string): string {
   return readFileSync(new URL(relatif, depuis), "utf8")
@@ -63,4 +65,79 @@ export function sourcesDeProduction(
       source: readFileSync(absolu, "utf8"),
     }))
   )
+}
+
+/** Les extensions qu'un spécifieur sans extension peut désigner. */
+const EXTENSIONS = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"]
+
+function estServeur(source: string): boolean {
+  return /^["']use server["']/m.test(source)
+}
+
+/** Les spécifieurs importés pour leur valeur — imports de type exclus. */
+function importations(source: string): string[] {
+  const specifieurs = [
+    ...source.matchAll(
+      /(?:^|\n)[ \t]*(?:import|export)[ \t]+(?!type[ \t])([^"']*?)from[ \t]*["']([^"']+)["']/g
+    ),
+  ].map((correspondance) => correspondance[2])
+  for (const correspondance of source.matchAll(
+    /(?:^|\n)[ \t]*import[ \t]+["']([^"']+)["']/g
+  )) {
+    specifieurs.push(correspondance[1])
+  }
+  for (const correspondance of source.matchAll(
+    /import[ \t]*\([ \t]*["']([^"']+)["']/g
+  )) {
+    specifieurs.push(correspondance[1])
+  }
+  return specifieurs
+}
+
+/** Le chemin de dépôt qu'un spécifieur désigne, ou `null` s'il vient d'un paquet. */
+function cible(depuis: string, specifieur: string): string | null {
+  if (specifieur.startsWith("@/")) return specifieur.slice(2)
+  if (!specifieur.startsWith(".")) return null
+  return path.posix.normalize(
+    path.posix.join(path.posix.dirname(depuis), specifieur)
+  )
+}
+
+/** Les voisins de valeur d'un module, résolus et présents dans le dépôt. */
+function voisins(
+  chemin: string,
+  parChemin: ReadonlyMap<string, SourceProduction>
+): string[] {
+  const source = parChemin.get(chemin)
+  if (!source || estServeur(source.source)) return []
+  return importations(source.source).flatMap((specifieur) => {
+    const base = cible(chemin, specifieur)
+    if (base === null) return []
+    return EXTENSIONS.map((extension) => `${base}${extension}`).filter(
+      (candidat) => parChemin.has(candidat)
+    )
+  })
+}
+
+/**
+ * Tous les chemins de dépôt atteints depuis un module par ses imports de
+ * valeur, lui compris. Deux arrêts, qui sont ceux du bundler : un import de
+ * type est effacé à la compilation, et un module `"use server"` est remplacé
+ * côté client par une référence d'action — son graphe reste serveur. Un
+ * spécifieur de paquet est ignoré, faute de source dans le dépôt ; `@/` et
+ * les chemins relatifs sont résolus de la même façon.
+ */
+export function atteignables(
+  depart: string,
+  parChemin: ReadonlyMap<string, SourceProduction>
+): Set<string> {
+  const atteints = new Set<string>()
+  const aVoir = [depart]
+  while (aVoir.length > 0) {
+    const chemin = aVoir.pop()
+    if (chemin === undefined || atteints.has(chemin)) continue
+    atteints.add(chemin)
+    aVoir.push(...voisins(chemin, parChemin))
+  }
+  return atteints
 }

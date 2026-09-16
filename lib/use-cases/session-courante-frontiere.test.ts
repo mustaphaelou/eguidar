@@ -1,12 +1,10 @@
-import path from "node:path"
-
 import { describe, expect, it } from "vitest"
 
 import {
+  atteignables,
   importeDe,
   lire,
   sourcesDeProduction,
-  type SourceProduction,
 } from "@/lib/use-cases/outils-frontiere"
 
 /**
@@ -19,83 +17,14 @@ import {
  * `devis-frontiere.test.ts` verrouille la panne inverse.
  *
  * Le parcours part de chaque source `"use client"` de `app/`, `components/`
- * et `lib/` et suit les imports de valeur, module par module — pas une liste
- * de quatre noms : une surface cliente neuve ne peut pas échapper au verrou.
- * Deux arrêts, qui sont ceux du bundler : un import de type est effacé à la
- * compilation, et un module `"use server"` est remplacé côté client par une
- * référence d'action — son graphe reste serveur.
+ * et `lib/` et suit les imports de valeur, module par module
+ * (`atteignables`) — pas une liste de quatre noms : une surface cliente
+ * neuve ne peut pas échapper au verrou.
  */
 const MODULE = "lib/use-cases/session-courante.ts"
 
-const EXTENSIONS = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"]
-
 function estClient(source: string): boolean {
   return /^["']use client["']/m.test(source)
-}
-
-function estServeur(source: string): boolean {
-  return /^["']use server["']/m.test(source)
-}
-
-/** Les spécifieurs importés pour leur valeur — imports de type exclus. */
-function importations(source: string): string[] {
-  const specifieurs = [
-    ...source.matchAll(
-      /(?:^|\n)[ \t]*(?:import|export)[ \t]+(?!type[ \t])([^"']*?)from[ \t]*["']([^"']+)["']/g
-    ),
-  ].map((correspondance) => correspondance[2])
-  for (const correspondance of source.matchAll(
-    /(?:^|\n)[ \t]*import[ \t]+["']([^"']+)["']/g
-  )) {
-    specifieurs.push(correspondance[1])
-  }
-  for (const correspondance of source.matchAll(
-    /import[ \t]*\([ \t]*["']([^"']+)["']/g
-  )) {
-    specifieurs.push(correspondance[1])
-  }
-  return specifieurs
-}
-
-/** Le chemin de dépôt qu'un spécifieur désigne, ou `null` s'il vient d'un paquet. */
-function cible(depuis: string, specifieur: string): string | null {
-  if (specifieur.startsWith("@/")) return specifieur.slice(2)
-  if (!specifieur.startsWith(".")) return null
-  return path.posix.normalize(
-    path.posix.join(path.posix.dirname(depuis), specifieur)
-  )
-}
-
-/** Les voisins de valeur d'un module, résolus et présents dans le dépôt. */
-function voisins(
-  chemin: string,
-  parChemin: Map<string, SourceProduction>
-): string[] {
-  const source = parChemin.get(chemin)
-  if (!source || estServeur(source.source)) return []
-  return importations(source.source).flatMap((specifieur) => {
-    const base = cible(chemin, specifieur)
-    if (base === null) return []
-    return EXTENSIONS.map((extension) => `${base}${extension}`).filter(
-      (candidat) => parChemin.has(candidat)
-    )
-  })
-}
-
-/** Le graphe de valeur atteint depuis un module, lui compris. */
-function graphe(
-  depart: string,
-  parChemin: Map<string, SourceProduction>
-): Set<string> {
-  const atteints = new Set<string>()
-  const aVoir = [depart]
-  while (aVoir.length > 0) {
-    const chemin = aVoir.pop()
-    if (chemin === undefined || atteints.has(chemin)) continue
-    atteints.add(chemin)
-    aVoir.push(...voisins(chemin, parChemin))
-  }
-  return atteints
 }
 
 describe("Session courante — frontière client/serveur", () => {
@@ -135,7 +64,9 @@ describe("Session courante — frontière client/serveur", () => {
 
     const atteints = new Set<string>()
     for (const { chemin } of composantsClients) {
-      for (const atteint of graphe(chemin, parChemin)) atteints.add(atteint)
+      for (const atteint of atteignables(chemin, parChemin)) {
+        atteints.add(atteint)
+      }
     }
 
     expect(atteints.has(MODULE)).toBe(false)
