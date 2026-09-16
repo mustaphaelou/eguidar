@@ -1,17 +1,13 @@
-import type { Meilisearch } from "meilisearch"
-
 import { prisma } from "@/lib/db"
-import { getMeiliSearch, PRODUCTS_INDEX } from "@/lib/meili"
+import { moteurMeili } from "@/lib/meili"
+import type { MoteurRecherche } from "@/lib/moteur-recherche"
 import { getPriceBucket } from "@/lib/price-buckets"
 import {
-  buildSearchFilter,
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
-  type SearchFacet,
   type SearchFilters,
   type SearchSort,
 } from "@/lib/search-params"
-import type { IndexableProduct } from "@/lib/index-projection"
 
 export {
   buildSearchFilter,
@@ -31,12 +27,9 @@ export {
   type SearchView,
 } from "@/lib/search-params"
 
-const SORT_TO_MEILI: Record<SearchSort, string[] | undefined> = {
-  pertinence: undefined,
-  "prix-asc": ["minPrice:asc"],
-  "prix-desc": ["minPrice:desc"],
-  nouveautes: ["updatedAt:desc"],
-}
+// `retirerFacette` reste la propriété publique de la Recherche (ADR-0016) ;
+// les moteurs l'appliquent au point d'usage, les filtres partent complets.
+export { retirerFacette } from "@/lib/moteur-recherche"
 
 export interface SearchProductCard {
   id: string
@@ -96,102 +89,66 @@ async function fetchCategoryNames(
   return new Map(categories.map((category) => [category.slug, category.name]))
 }
 
-async function meiliSearch(
-  meili: Meilisearch,
-  query: string,
-  filters: SearchFilters,
-  sort: SearchSort,
-  offset: number,
-  limit: number
-) {
-  return meili.index<IndexableProduct>(PRODUCTS_INDEX).search(query, {
-    filter: buildSearchFilter(filters),
-    limit,
-    offset,
-    sort: SORT_TO_MEILI[sort],
-    attributesToRetrieve: [
-      "id",
-      "name",
-      "slug",
-      "brand",
-      "images",
-      "minPrice",
-      "totalStock",
-      "freeShipping",
-    ],
-  })
-}
-
-async function meiliFacetSearch(
-  meili: Meilisearch,
-  query: string,
-  filters: SearchFilters,
-  facet: SearchFacet
-) {
-  return meili.index<IndexableProduct>(PRODUCTS_INDEX).search(query, {
-    filter: buildSearchFilter(filters, facet),
-    facets: [facet],
-    limit: 0,
-  })
-}
-
 export async function searchProducts(
   query: string,
   filters: SearchFilters = {},
-  options: SearchOptions = {}
+  options: SearchOptions = {},
+  moteur: MoteurRecherche = moteurMeili()
 ): Promise<SearchPageData> {
   const sort = options.sort ?? SEARCH_SORT_DEFAULT
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
-  const emptyResult: SearchPageData = {
-    query,
-    totalHits: 0,
-    products: [],
-    facets: { brands: [], categories: [], priceBuckets: [] },
-    sort,
-    currentPage: 1,
-    totalPages: 1,
-    pageSize,
-  }
-
-  const meili = getMeiliSearch()
-  if (!meili) return emptyResult
-
   const [initialResult, brandFacets, categoryFacets, priceFacets] =
     await Promise.all([
-      meiliSearch(
-        meili,
+      moteur.chercher({
         query,
-        filters,
-        sort,
-        (requestedPage - 1) * pageSize,
-        pageSize
-      ),
-      meiliFacetSearch(meili, query, filters, "brand"),
-      meiliFacetSearch(meili, query, filters, "categorySlug"),
-      meiliFacetSearch(meili, query, filters, "priceBucket"),
+        filtres: filters,
+        tri: sort,
+        page: requestedPage,
+        taille: pageSize,
+      }),
+      moteur.chercher({
+        query,
+        filtres: filters,
+        tri: sort,
+        taille: 0,
+        facettes: ["brand"],
+      }),
+      moteur.chercher({
+        query,
+        filtres: filters,
+        tri: sort,
+        taille: 0,
+        facettes: ["categorySlug"],
+      }),
+      moteur.chercher({
+        query,
+        filtres: filters,
+        tri: sort,
+        taille: 0,
+        facettes: ["priceBucket"],
+      }),
     ])
-  let result = initialResult
 
-  const totalHits = result.estimatedTotalHits
+  const totalHits = initialResult.total
   const totalPages = Math.max(1, Math.ceil(totalHits / pageSize))
   const currentPage = Math.min(requestedPage, totalPages)
+  let documents = initialResult.documents
   if (currentPage !== requestedPage) {
-    result = await meiliSearch(
-      meili,
+    const clampedResult = await moteur.chercher({
       query,
-      filters,
-      sort,
-      (currentPage - 1) * pageSize,
-      pageSize
-    )
+      filtres: filters,
+      tri: sort,
+      page: currentPage,
+      taille: pageSize,
+    })
+    documents = clampedResult.documents
   }
 
-  const brandDistribution = brandFacets.facetDistribution?.brand ?? {}
-  const categoryDistribution =
-    categoryFacets.facetDistribution?.categorySlug ?? {}
-  const priceDistribution = priceFacets.facetDistribution?.priceBucket ?? {}
+  const brandDistribution = brandFacets.repartitions.brand ?? {}
+  const categoryDistribution = categoryFacets.repartitions.categorySlug ?? {}
+  const priceDistribution = priceFacets.repartitions.priceBucket ?? {}
 
   const brands: SearchFacetValue[] = Object.entries(brandDistribution)
     .map(([value, count]) => ({ value, count }))
@@ -226,7 +183,7 @@ export async function searchProducts(
   return {
     query,
     totalHits,
-    products: result.hits.map((hit) => ({
+    products: documents.map((hit) => ({
       id: hit.id,
       name: hit.name,
       slug: hit.slug,
@@ -267,37 +224,24 @@ const SEARCH_SUGGESTION_LIMIT = 6
 const SEARCH_SUGGESTION_CATEGORY_LIMIT = 5
 
 export async function searchSuggestions(
-  query: string
+  query: string,
+  moteur: MoteurRecherche = moteurMeili()
 ): Promise<SearchSuggestionsData> {
-  const emptyResult: SearchSuggestionsData = { products: [], categories: [] }
-
-  const meili = getMeiliSearch()
-  if (!meili) return emptyResult
-
-  const result = await meili
-    .index<IndexableProduct>(PRODUCTS_INDEX)
-    .search(query, {
-      limit: SEARCH_SUGGESTION_LIMIT,
-      facets: ["categorySlug"],
-      attributesToRetrieve: [
-        "id",
-        "name",
-        "slug",
-        "brand",
-        "images",
-        "minPrice",
-      ],
-    })
+  const reponse = await moteur.chercher({
+    query,
+    taille: SEARCH_SUGGESTION_LIMIT,
+    facettes: ["categorySlug"],
+  })
 
   const categorySlugCounts = Object.entries(
-    result.facetDistribution?.categorySlug ?? {}
+    reponse.repartitions.categorySlug ?? {}
   ).slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
   const categoryNames = await fetchCategoryNames(
     categorySlugCounts.map(([slug]) => slug)
   )
 
   return {
-    products: result.hits.map((hit) => ({
+    products: reponse.documents.map((hit) => ({
       id: hit.id,
       name: hit.name,
       slug: hit.slug,
