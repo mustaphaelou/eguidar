@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
 import type { IndexableProduct } from "@/lib/index-projection"
+import type { OptionDeFiltre } from "@/lib/options-de-filtre"
 import {
   retirerFacette,
   searchProducts,
@@ -126,8 +127,8 @@ const docs: IndexableProduct[] = [
 
 const moteur = creerMoteurEnMemoire(docs)
 
-const AUDIO_ATTENDU = { value: audioSlug, name: "Audio & Hi-Fi" }
-const SMARTPHONES_ATTENDU = { value: smartphonesSlug, name: "Smartphones" }
+const AUDIO_ATTENDU = { value: audioSlug, label: "Audio & Hi-Fi" }
+const SMARTPHONES_ATTENDU = { value: smartphonesSlug, label: "Smartphones" }
 
 /** Sept catégories pour la suggestion : le plafond de cinq doit mordre. */
 const CATEGORIES_SUGGESTION = Array.from({ length: 7 }, (_, index) => ({
@@ -135,21 +136,56 @@ const CATEGORIES_SUGGESTION = Array.from({ length: 7 }, (_, index) => ({
   name: `SuggestionCat${index}`,
 }))
 
+/** Les cinq marques du jeu, dans l'ordre `fr` que l'assemblage rend. */
 const CINQ_MARQUES = [
-  { value: "Apple", count: 1 },
-  { value: "LG", count: 1 },
-  { value: "Logitech", count: 1 },
-  { value: "Samsung", count: 1 },
-  { value: "Sony", count: 1 },
+  { value: "Apple", label: "Apple", count: 1 },
+  { value: "LG", label: "LG", count: 1 },
+  { value: "Logitech", label: "Logitech", count: 1 },
+  { value: "Samsung", label: "Samsung", count: 1 },
+  { value: "Sony", label: "Sony", count: 1 },
 ]
 
+/** Les cinq Tranches de prix, dans l'ordre fixe de leurs bandes. */
 const CINQ_TRANCHES = [
-  { id: "0-1000", label: "Moins de 1 000 MAD", count: 1 },
-  { id: "1000-2500", label: "1 000 – 2 500 MAD", count: 1 },
-  { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
-  { id: "5000-10000", label: "5 000 – 10 000 MAD", count: 1 },
-  { id: "10000-plus", label: "Plus de 10 000 MAD", count: 1 },
+  { value: "0-1000", label: "Moins de 1 000 MAD" },
+  { value: "1000-2500", label: "1 000 – 2 500 MAD" },
+  { value: "2500-5000", label: "2 500 – 5 000 MAD" },
+  { value: "5000-10000", label: "5 000 – 10 000 MAD" },
+  { value: "10000-plus", label: "Plus de 10 000 MAD" },
 ]
+
+/** Le jeu principal compte un produit par bande de prix. */
+const UNE_PAR_BANDE: Record<string, number> = {
+  "0-1000": 1,
+  "1000-2500": 1,
+  "2500-5000": 1,
+  "5000-10000": 1,
+  "10000-plus": 1,
+}
+
+/** Les cinq marques attendues, `selected` compris selon les filtres actifs. */
+function marquesAttendues(retenues: string[] = []): OptionDeFiltre[] {
+  return CINQ_MARQUES.map((marque) => ({
+    ...marque,
+    selected: retenues.includes(marque.value),
+  }))
+}
+
+/**
+ * Les Tranches de prix attendues pour un jeu de décomptes. Depuis #371 la
+ * liste est complète : une bande sans résultat sort à zéro, et c'est la
+ * barre latérale qui masque celles qu'elle doit masquer.
+ */
+function tranchesAttendues(
+  comptes: Record<string, number> = {},
+  retenue?: string
+): OptionDeFiltre[] {
+  return CINQ_TRANCHES.map((tranche) => ({
+    ...tranche,
+    count: comptes[tranche.value] ?? 0,
+    selected: tranche.value === retenue,
+  }))
+}
 
 beforeAll(async () => {
   // `test/global-setup.ts` tronque la base entre invocations, pas entre
@@ -184,13 +220,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
     const result = await searchProducts(token, {}, {}, moteur)
 
     expect(result.totalHits).toBe(5)
-    expect(result.facets.brands).toEqual(CINQ_MARQUES)
+    expect(result.facets.brands).toEqual(marquesAttendues())
     // Le nom vient de Postgres ; un slug inconnu de la base retombe sur lui-même.
     expect(result.facets.categories).toEqual([
-      { ...AUDIO_ATTENDU, count: 2 },
-      { ...SMARTPHONES_ATTENDU, count: 3 },
+      { ...AUDIO_ATTENDU, count: 2, selected: false },
+      { ...SMARTPHONES_ATTENDU, count: 3, selected: false },
     ])
-    expect(result.facets.priceBuckets).toEqual(CINQ_TRANCHES)
+    expect(result.facets.priceBuckets).toEqual(tranchesAttendues(UNE_PAR_BANDE))
   })
 
   it("filtre par marque et garde chaque marque comptable", async () => {
@@ -201,11 +237,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
     ])
     expect(result.totalHits).toBe(1)
     // ADR-0016 : le décompte des marques ignore le filtre de marque.
-    expect(result.facets.brands).toEqual(CINQ_MARQUES)
-    expect(result.facets.categories).toEqual([{ ...AUDIO_ATTENDU, count: 1 }])
-    expect(result.facets.priceBuckets).toEqual([
-      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
+    expect(result.facets.brands).toEqual(marquesAttendues(["Sony"]))
+    expect(result.facets.categories).toEqual([
+      { ...AUDIO_ATTENDU, count: 1, selected: false },
     ])
+    expect(result.facets.priceBuckets).toEqual(
+      tranchesAttendues({ "2500-5000": 1 })
+    )
   })
 
   it("sélectionne plusieurs marques en union", async () => {
@@ -218,12 +256,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
 
     expect(result.totalHits).toBe(2)
     expect(result.products.map((p) => p.brand).sort()).toEqual(["LG", "Sony"])
-    expect(result.facets.brands).toEqual(CINQ_MARQUES)
-    expect(result.facets.categories).toEqual([{ ...AUDIO_ATTENDU, count: 2 }])
-    expect(result.facets.priceBuckets).toEqual([
-      { id: "1000-2500", label: "1 000 – 2 500 MAD", count: 1 },
-      { id: "2500-5000", label: "2 500 – 5 000 MAD", count: 1 },
+    expect(result.facets.brands).toEqual(marquesAttendues(["Sony", "LG"]))
+    expect(result.facets.categories).toEqual([
+      { ...AUDIO_ATTENDU, count: 2, selected: false },
     ])
+    expect(result.facets.priceBuckets).toEqual(
+      tranchesAttendues({ "1000-2500": 1, "2500-5000": 1 })
+    )
   })
 
   it("filtre par catégorie tout en comptant chaque catégorie", async () => {
@@ -244,13 +283,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
       ].sort()
     )
     expect(result.facets.brands).toEqual([
-      { value: "Apple", count: 1 },
-      { value: "Logitech", count: 1 },
-      { value: "Samsung", count: 1 },
+      { value: "Apple", label: "Apple", count: 1, selected: false },
+      { value: "Logitech", label: "Logitech", count: 1, selected: false },
+      { value: "Samsung", label: "Samsung", count: 1, selected: false },
     ])
     expect(result.facets.categories).toEqual([
-      { ...AUDIO_ATTENDU, count: 2 },
-      { ...SMARTPHONES_ATTENDU, count: 3 },
+      { ...AUDIO_ATTENDU, count: 2, selected: false },
+      { ...SMARTPHONES_ATTENDU, count: 3, selected: true },
     ])
   })
 
@@ -267,10 +306,12 @@ describe("searchProducts sur le moteur en mémoire", () => {
     expect(result.facets.categories).toContainEqual({
       ...AUDIO_ATTENDU,
       count: 0,
+      selected: true,
     })
     expect(result.facets.categories).toContainEqual({
       ...SMARTPHONES_ATTENDU,
       count: 1,
+      selected: false,
     })
   })
 
@@ -286,10 +327,14 @@ describe("searchProducts sur le moteur en mémoire", () => {
       name("Clavier mécanique"),
     ])
     expect(result.totalHits).toBe(1)
-    expect(result.facets.priceBuckets).toEqual(CINQ_TRANCHES)
-    expect(result.facets.brands).toEqual([{ value: "Logitech", count: 1 }])
+    expect(result.facets.priceBuckets).toEqual(
+      tranchesAttendues(UNE_PAR_BANDE, "0-1000")
+    )
+    expect(result.facets.brands).toEqual([
+      { value: "Logitech", label: "Logitech", count: 1, selected: false },
+    ])
     expect(result.facets.categories).toEqual([
-      { ...SMARTPHONES_ATTENDU, count: 1 },
+      { ...SMARTPHONES_ATTENDU, count: 1, selected: false },
     ])
   })
 
@@ -313,7 +358,9 @@ describe("searchProducts sur le moteur en mémoire", () => {
     expect(result.products).toEqual([])
     expect(result.facets.brands).toEqual([])
     expect(result.facets.categories).toEqual([])
-    expect(result.facets.priceBuckets).toEqual([])
+    // L'univers des bandes est connu : la liste sort complète, à zéro, et
+    // c'est la barre latérale qui masque les bandes sans résultat.
+    expect(result.facets.priceBuckets).toEqual(tranchesAttendues())
   })
 
   it("projette les Documents d'index en cartes de résultat", async () => {
@@ -444,7 +491,7 @@ describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
     // le décompte des marques la retire — il est calculé sous
     // `retirerFacette({ brand }, "brand")` et compte les cinq marques.
     expect(result.totalHits).toBe(2)
-    expect(result.facets.brands).toEqual(CINQ_MARQUES)
+    expect(result.facets.brands).toEqual(marquesAttendues(["Sony", "LG"]))
 
     // La même règle, affirmée directement sur le moteur : c'est
     // l'orchestration qui retire la clause avant l'appel, et le moteur

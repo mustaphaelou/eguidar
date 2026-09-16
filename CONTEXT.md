@@ -116,6 +116,13 @@ _Avoid_: bucket de prix, intervalle de prix
 Une contrainte choisie sur la Recherche : une ou plusieurs marques, une catégorie ou une tranche de prix.
 _Avoid_: facette, critère
 
+**Option de filtre**:
+Une entrée du panneau de la Recherche — une marque, une catégorie ou une Tranche de prix — avec son
+libellé d'affichage, le nombre de résultats qu'elle donnerait et si elle est retenue par les Filtres
+actifs. La Recherche les assemble une fois (`lib/options-de-filtre.ts`) et la barre latérale ne fait
+que les rendre : une option retenue reste visible même à zéro.
+_Avoid_: facette d'option, choix de filtre, filter option
+
 **Filtres actifs**:
 L'ensemble des Filtres de recherche en vigueur pour la Recherche courante, présentés au-dessus des résultats et retirables individuellement.
 _Avoid_: chips, tags
