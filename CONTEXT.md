@@ -96,6 +96,12 @@ filtrable par une ou plusieurs marques, une catégorie et une tranche de prix, t
 Le header propose des suggestions instantanées de produits et de catégories.
 _Avoid_: search, recherche produit, recherche fuzz
 
+**Suggestion de produit**:
+La ligne compacte qu'une Recherche propose dans le header : la première image, le nom, la marque et le
+Prix courant d'un Produit, vers sa page Produit. Ce n'est pas une Carte produit : elle ne porte ni le
+stock total ni la Livraison offerte.
+_Avoid_: suggestion de recherche, autocomplete, item de suggestion
+
 **Tranche de prix**:
 L'une des cinq fourchettes de prix fixes (par exemple « Moins de 1 000 MAD ») par lesquelles la Recherche peut être filtrée.
 _Avoid_: bucket de prix, intervalle de prix
@@ -135,6 +141,12 @@ _Avoid_: sticky bar, buy bar, barre collante
 **Prix courant**:
 Le prix affiché pour une Variante (prix de base plus écart de prix) et pour un Produit (son prix minimal).
 _Avoid_: current price, prix effectif, prix calculé
+
+**Carte produit**:
+Un Produit présenté dans une liste — page d'accueil, catégorie, Produits liés, résultats de Recherche —
+sous la forme d'un bloc portant sa première image, son Prix courant, son stock total et son lien vers sa
+page Produit. C'est la seule forme sous laquelle ces faits s'affichent en liste.
+_Avoid_: product card, vignette produit, tuile
 
 **Compte client**:
 The registered customer entity (Better Auth user) with credentials, email verification, and optional Connexion sociale (Facebook, Google). Carries a `role` ("user" or "admin").
@@ -269,6 +281,7 @@ Le cycle de vie d'un Article de blog : Brouillon, Publié, Archivé.
 _Avoid_: état, status
 
 **Produit lié**:
-Un Produit du Catalogue attaché à un Article de blog, affiché en carte avec Prix courant
-vers la page Produit.
+Un Produit du Catalogue attaché à un Article de blog, affiché en Carte produit avec son Prix courant
+vers sa page Produit. Un Produit lié indisponible (stock total nul) est masqué à la lecture : l'Article
+de blog reste publié, sa Carte produit disparaît.
 _Avoid_: produit associé, related product

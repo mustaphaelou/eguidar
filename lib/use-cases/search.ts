@@ -1,5 +1,6 @@
 import type { Meilisearch } from "meilisearch"
 
+import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import { getMeiliSearch, PRODUCTS_INDEX } from "@/lib/meili"
 import { getPriceBucket } from "@/lib/price-buckets"
@@ -38,15 +39,25 @@ const SORT_TO_MEILI: Record<SearchSort, string[] | undefined> = {
   nouveautes: ["updatedAt:desc"],
 }
 
-export interface SearchProductCard {
-  id: string
-  name: string
-  slug: string
-  brand: string
-  image: string | null
-  minPrice: number
-  totalStock: number
-  freeShipping: boolean
+/**
+ * Carte produit d'un résultat de Recherche : les résultats demandent les huit
+ * attributs du Document d'index, donc les deux métriques arrivent cuites et
+ * sont passées telles quelles — la projection sous « montrer » les exige.
+ */
+function carteDuHit(hit: IndexableProduct): CarteProduit {
+  return projeterCarteProduit(
+    {
+      id: hit.id,
+      name: hit.name,
+      slug: hit.slug,
+      brand: hit.brand,
+      images: hit.images,
+      minPrice: hit.minPrice,
+      totalStock: hit.totalStock,
+      freeShipping: hit.freeShipping,
+    },
+    { rupture: "montrer" }
+  )
 }
 
 export interface SearchFacetValue {
@@ -67,7 +78,7 @@ export interface SearchPriceBucketFacet {
 export interface SearchPageData {
   query: string
   totalHits: number
-  products: SearchProductCard[]
+  products: CarteProduit[]
   facets: {
     brands: SearchFacetValue[]
     categories: SearchCategoryFacet[]
@@ -226,16 +237,7 @@ export async function searchProducts(
   return {
     query,
     totalHits,
-    products: result.hits.map((hit) => ({
-      id: hit.id,
-      name: hit.name,
-      slug: hit.slug,
-      brand: hit.brand,
-      image: hit.images[0] ?? null,
-      minPrice: hit.minPrice,
-      totalStock: hit.totalStock,
-      freeShipping: hit.freeShipping,
-    })),
+    products: result.hits.map(carteDuHit),
     facets: { brands, categories, priceBuckets },
     sort,
     currentPage,
@@ -244,7 +246,13 @@ export async function searchProducts(
   }
 }
 
-export interface SearchSuggestionProduct {
+/**
+ * Suggestion de produit : la ligne compacte que la Recherche propose dans
+ * le header (CONTEXT.md) — les six faits de sa rangée, projetés depuis la
+ * Carte produit. Déclarée ici, une seule fois : le composant client
+ * l'importe (`import type`).
+ */
+export interface SuggestionProduit {
   id: string
   name: string
   slug: string
@@ -253,13 +261,50 @@ export interface SearchSuggestionProduct {
   minPrice: number
 }
 
+/**
+ * Réduit une Carte produit aux six faits de la rangée de suggestion : ni
+ * le stock total ni la Livraison offerte n'y figurent.
+ */
+function versSuggestion(carte: CarteProduit): SuggestionProduit {
+  return {
+    id: carte.id,
+    name: carte.name,
+    slug: carte.slug,
+    brand: carte.brand,
+    image: carte.image,
+    minPrice: carte.minPrice,
+  }
+}
+
+/**
+ * Suggestion de produit depuis un résultat de Recherche : la requête ne
+ * demande que les six attributs de la rangée, donc six faits sont projetés —
+ * aucune valeur de repli n'est inventée. La projection est appelée sous
+ * « masquer » avec un stock total absent, c'est-à-dire inconnu : elle ne
+ * retire alors jamais la ligne.
+ */
+function suggestionsDuHit(hit: IndexableProduct): SuggestionProduit[] {
+  const carte = projeterCarteProduit(
+    {
+      id: hit.id,
+      name: hit.name,
+      slug: hit.slug,
+      brand: hit.brand,
+      images: hit.images,
+      minPrice: hit.minPrice,
+    },
+    { rupture: "masquer" }
+  )
+  return carte ? [versSuggestion(carte)] : []
+}
+
 export interface SearchSuggestionCategory {
   slug: string
   name: string
 }
 
 export interface SearchSuggestionsData {
-  products: SearchSuggestionProduct[]
+  products: SuggestionProduit[]
   categories: SearchSuggestionCategory[]
 }
 
@@ -297,14 +342,7 @@ export async function searchSuggestions(
   )
 
   return {
-    products: result.hits.map((hit) => ({
-      id: hit.id,
-      name: hit.name,
-      slug: hit.slug,
-      brand: hit.brand,
-      image: hit.images[0] ?? null,
-      minPrice: hit.minPrice,
-    })),
+    products: result.hits.flatMap(suggestionsDuHit),
     categories: categorySlugCounts.map(([slug]) => ({
       slug,
       name: categoryNames.get(slug) ?? slug,

@@ -5,13 +5,13 @@ import { DeliveryTruck02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Badge } from "@/components/ui/badge"
+import { urlProduit, type CarteProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
-import type { ProductCard } from "@/lib/use-cases/storefront"
 
-export function ProductCardItem({ product }: { product: ProductCard }) {
+export function ProductCardItem({ product }: { product: CarteProduit }) {
   return (
     <Link
-      href={`/produit/${product.slug}`}
+      href={urlProduit(product.slug)}
       className="group flex flex-col gap-2 rounded-2xl border p-3 transition-colors hover:border-ring"
     >
       <div className="relative aspect-square overflow-hidden rounded-xl bg-muted">

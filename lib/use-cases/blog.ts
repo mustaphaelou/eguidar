@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache"
 import { z } from "zod"
 
+import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import {
@@ -9,7 +10,6 @@ import {
   type BlogEventArticle,
 } from "@/lib/use-cases/cache-invalidation"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
-import type { ProductCard } from "@/lib/use-cases/storefront"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type StatutPublication = "brouillon" | "publie" | "archive"
@@ -296,8 +296,7 @@ export async function mettreAJour(
     // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
   }
 
-  const previousSlug =
-    updated.slug !== article.slug ? article.slug : undefined
+  const previousSlug = updated.slug !== article.slug ? article.slug : undefined
   effects.revalidateBlog?.({
     id: updated.id,
     slug: updated.slug,
@@ -338,7 +337,7 @@ export async function archiver(id: string, effects: BlogEffects) {
   return updated
 }
 
-export interface ProduitLie extends ProductCard {
+export interface ProduitLie extends CarteProduit {
   /** Première variante disponible (stock > 0), pour l'ajout au panier. */
   varianteId: string | null
 }
@@ -362,6 +361,12 @@ export interface ArticleBlogPublic {
   produits: ProduitLie[]
 }
 
+/**
+ * Carte produit d'un Produit lié : la projection (`@/lib/carte-produit`)
+ * sur les métriques cuites par `@/lib/product-metrics`, enrichie de la
+ * première variante disponible. Masque la rupture (#164) : la Carte
+ * produit disparaît, l'Article de blog reste publié.
+ */
 function toProduitLieCard(product: {
   id: string
   name: string
@@ -372,23 +377,22 @@ function toProduitLieCard(product: {
   freeShipping: boolean
   variants: { id: string; priceDelta: number; stock: number }[]
 }): ProduitLie | null {
-  const totalStock = totalVariantStock(product.variants)
-  if (totalStock === 0) return null
-  const images = Array.isArray(product.images)
-    ? (product.images as string[])
-    : []
+  const carte = projeterCarteProduit(
+    {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      brand: product.brand,
+      images: product.images,
+      minPrice: minVariantPrice(product.price, product.variants),
+      totalStock: totalVariantStock(product.variants),
+      freeShipping: product.freeShipping,
+    },
+    { rupture: "masquer" }
+  )
+  if (!carte) return null
   const disponible = product.variants.find((v) => v.stock > 0)
-  return {
-    id: product.id,
-    name: product.name,
-    slug: product.slug,
-    brand: product.brand,
-    image: images[0] ?? null,
-    minPrice: minVariantPrice(product.price, product.variants),
-    totalStock,
-    freeShipping: product.freeShipping,
-    varianteId: disponible?.id ?? null,
-  }
+  return { ...carte, varianteId: disponible?.id ?? null }
 }
 
 /**

@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache"
 
+import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import {
   minVariantPrice,
@@ -22,17 +23,6 @@ export interface CategoryNode {
   children: CategoryNode[]
 }
 
-export interface ProductCard {
-  id: string
-  name: string
-  slug: string
-  brand: string
-  image: string | null
-  minPrice: number
-  totalStock: number
-  freeShipping: boolean
-}
-
 export interface CategoryChainEntry {
   name: string
   slug: string
@@ -40,7 +30,7 @@ export interface CategoryChainEntry {
 
 export interface HomeData {
   categories: CategoryNode[]
-  featured: ProductCard[]
+  featured: CarteProduit[]
 }
 
 export interface CategoryPageData {
@@ -52,7 +42,7 @@ export interface CategoryPageData {
   }
   categoryChain: CategoryChainEntry[]
   children: { id: string; name: string; slug: string; image: string | null }[]
-  products: ProductCard[]
+  products: CarteProduit[]
 }
 
 export interface ProductVariantDto {
@@ -76,7 +66,7 @@ export interface ProductDetailData {
   category: { id: string; name: string; slug: string }
   categoryChain: CategoryChainEntry[]
   variants: ProductVariantDto[]
-  related: ProductCard[]
+  related: CarteProduit[]
 }
 
 type CategoryWithCount = {
@@ -114,7 +104,13 @@ export function buildCategoryTree(
 
 type VariantSummary = { priceDelta: number; stock: number }
 
-function toProductCard(product: {
+/**
+ * Carte produit d'un Produit du catalogue : la projection
+ * (`@/lib/carte-produit`) sur les métriques cuites par
+ * `@/lib/product-metrics`. Un Produit en rupture reste affiché
+ * (« montrer ») — seul le Produit lié masque (#164).
+ */
+function versCarteProduit(product: {
   id: string
   name: string
   slug: string
@@ -123,22 +119,20 @@ function toProductCard(product: {
   price: number
   freeShipping: boolean
   variants: VariantSummary[]
-}): ProductCard {
-  const images = Array.isArray(product.images)
-    ? (product.images as string[])
-    : []
-  const minPrice = minVariantPrice(product.price, product.variants)
-  const totalStock = totalVariantStock(product.variants)
-  return {
-    id: product.id,
-    name: product.name,
-    slug: product.slug,
-    brand: product.brand,
-    image: images[0] ?? null,
-    minPrice,
-    totalStock,
-    freeShipping: product.freeShipping,
-  }
+}): CarteProduit {
+  return projeterCarteProduit(
+    {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      brand: product.brand,
+      images: product.images,
+      minPrice: minVariantPrice(product.price, product.variants),
+      totalStock: totalVariantStock(product.variants),
+      freeShipping: product.freeShipping,
+    },
+    { rupture: "montrer" }
+  )
 }
 
 export async function fetchHomeData(): Promise<HomeData> {
@@ -157,7 +151,7 @@ export async function fetchHomeData(): Promise<HomeData> {
   accumulateProductCounts(tree)
   return {
     categories: tree,
-    featured: featured.map((product) => toProductCard(product)),
+    featured: featured.map((product) => versCarteProduit(product)),
   }
 }
 
@@ -237,7 +231,7 @@ export async function fetchCategoryPageData(
     },
     categoryChain,
     children,
-    products: products.map((product) => toProductCard(product)),
+    products: products.map((product) => versCarteProduit(product)),
   }
 }
 
@@ -298,7 +292,7 @@ export async function fetchProductPageData(
       prix: prixVariante(product.price, variant.priceDelta),
       stock: variant.stock,
     })),
-    related: related.map((item) => toProductCard(item)),
+    related: related.map((item) => versCarteProduit(item)),
   }
 }
 
