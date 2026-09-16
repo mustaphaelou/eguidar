@@ -33,7 +33,7 @@
  * Volontairement sans `import "server-only"` : ce garde-fou lève sous
  * vitest (condition d'export `default`) et casserait `devis.test.ts` /
  * `orders.test.ts` (précédent : `lib/panier.ts` évite l'import statique
- * de `get-session` pour la même raison). La barrière client/serveur est
+ * de `session-courante` pour la même raison). La barrière client/serveur est
  * assurée par le cœur pur `devis-coeur` (sans directive) : ce module
  * serveur et l'entrée cliente `devis-selection` (« use client », le
  * crochet seul) y puisent sans jamais se croiser — un serveur ne doit

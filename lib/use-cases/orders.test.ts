@@ -35,9 +35,9 @@ import {
   type OrderEffects,
 } from "@/lib/use-cases/orders"
 
-vi.mock("@/lib/use-cases/get-session", async () => {
+vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
-  return { getSessionUser: h.sessionUserMock }
+  return { lireSession: h.sessionUserMock }
 })
 
 const runId = randomUUID().slice(0, 8)

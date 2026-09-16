@@ -15,5 +15,3 @@ export const redirectMock = vi.fn((url: string) => {
 })
 
 export const sessionUserMock = vi.fn()
-
-export const adminSessionMock = vi.fn()

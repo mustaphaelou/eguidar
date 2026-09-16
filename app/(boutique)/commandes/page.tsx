@@ -9,7 +9,7 @@ import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/money"
 import { pageMetadata } from "@/lib/metadata"
-import { getSessionUser } from "@/lib/use-cases/get-session"
+import { lireSession } from "@/lib/use-cases/session-courante"
 import { listUserOrders } from "@/lib/use-cases/orders"
 import { shortOrderId } from "@/lib/utils"
 
@@ -30,7 +30,7 @@ export default function OrderHistoryPage() {
 }
 
 async function OrderHistoryContent() {
-  const user = await getSessionUser()
+  const user = await lireSession()
   if (!user) return <RequireAuth />
 
   const orders = await listUserOrders(user.id)
