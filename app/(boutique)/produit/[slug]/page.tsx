@@ -5,6 +5,7 @@ import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
 import { HomeProductCard } from "@/components/storefront/home-product-card"
 import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
+import { urlProduit } from "@/lib/carte-produit"
 import {
   buildBreadcrumbListDonneesStructurees,
   buildProductDonneesStructurees,
@@ -25,7 +26,7 @@ export async function generateMetadata({
   return pageMetadata({
     title: data.name,
     description: `${data.brand} ${data.name}. Prix ${formatPrice(data.minPrice)} (TVA 20% incluse), paiement à la livraison.`,
-    path: `/produit/${data.slug}`,
+    path: urlProduit(data.slug),
     images: data.images[0] ? [data.images[0]] : undefined,
   })
 }

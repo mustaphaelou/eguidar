@@ -5,16 +5,9 @@ import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
 import { Input } from "@/components/ui/input"
+import { urlProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
-
-interface SuggestionProduct {
-  id: string
-  name: string
-  slug: string
-  brand: string
-  image: string | null
-  minPrice: number
-}
+import type { SuggestionProduit } from "@/lib/use-cases/search"
 
 interface SuggestionCategory {
   slug: string
@@ -35,7 +28,7 @@ export function SearchSuggestions({
 }) {
   const [query, setQuery] = useState("")
   const [result, setResult] = useState<{
-    products: SuggestionProduct[]
+    products: SuggestionProduit[]
     categories: SuggestionCategory[]
   }>({ products: [], categories: [] })
   const [resultQuery, setResultQuery] = useState("")
@@ -54,7 +47,7 @@ export function SearchSuggestions({
         )
         if (!response.ok || controller.signal.aborted) return
         const data = (await response.json()) as {
-          products: SuggestionProduct[]
+          products: SuggestionProduit[]
           categories: SuggestionCategory[]
         }
         setResult(data)
@@ -129,7 +122,7 @@ export function SearchSuggestions({
               {result.products.map((product) => (
                 <Link
                   key={product.id}
-                  href={`/produit/${product.slug}`}
+                  href={urlProduit(product.slug)}
                   onClick={onNavigate}
                   className="flex items-center gap-3 rounded-lg p-1.5 transition-colors hover:bg-muted"
                 >

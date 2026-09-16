@@ -1,16 +1,13 @@
 import Image from "next/image"
 import Link from "next/link"
 
+import { urlProduit, type CarteProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
-import type { ProductCard } from "@/lib/use-cases/storefront"
 
-export function HomeProductCard({ product }: { product: ProductCard }) {
+export function HomeProductCard({ product }: { product: CarteProduit }) {
   return (
-    <Link
-      href={`/produit/${product.slug}`}
-      className="group flex flex-col gap-2"
-    >
+    <Link href={urlProduit(product.slug)} className="group flex flex-col gap-2">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
         {product.image ? (
           <Image
