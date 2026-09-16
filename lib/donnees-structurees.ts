@@ -1,3 +1,4 @@
+import { urlProduit } from "@/lib/carte-produit"
 import type { FaqEntry } from "@/lib/faq"
 import { site, siteIcon } from "@/lib/site"
 
@@ -122,7 +123,7 @@ export function serializeJsonLd(data: unknown): string {
 export function buildProductDonneesStructurees(
   product: ProductDonneesStructureesInput
 ): SchemaProduct {
-  const url = `${site.url}/produit/${product.slug}`
+  const url = `${site.url}${urlProduit(product.slug)}`
   const offers: SchemaOffer[] =
     product.variants && product.variants.length > 0
       ? product.variants.map((v) => ({
