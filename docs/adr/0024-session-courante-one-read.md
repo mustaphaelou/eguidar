@@ -19,7 +19,7 @@ The same session read was written four times. `sign-in-status.tsx:13` called `au
 
 ## Invariants
 
-- Exactly one module reads the session; no surface calls `auth.api.getSession` itself.
+- Exactly one module reads the session for a server render or action; no surface calls `auth.api.getSession` itself. The one exception is the Better Auth handler's own endpoint (`app/api/auth/[...all]/route.ts:46`), which re-reads the session it has just issued to replay the Panier Visiteur after sign-in: it is not a render or an action, no surface consumes the Client it would answer, and it belongs to the authentication mechanism this ADR leaves alone.
 - `proxy.ts` never performs a session read at the edge.
 - A surface that demands a Client composes the refusal from `loginUrl`; the read itself never redirects.
 - A missing session and a non-admin session stay distinguishable: an absent Client is `null`, a present one carries its `Role`.
