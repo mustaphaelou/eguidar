@@ -99,19 +99,23 @@ const SUGGESTION_ATTRIBUTES_TO_RETRIEVE = [
 ]
 
 /**
- * Projection d'exécution de la page demandée : les suggestions sont la
- * seule page sans filtres ni tri, et la seule qui demande ses répartitions
- * dans la même requête — leur projection reste légère, toute autre page
- * reçoit la projection complète des cartes produit. Le Document d'index
- * n'est jamais projeté en entier : `attributesToRetrieve` est une
- * projection d'exécution, jamais un second type.
+ * La projection d'exécution de la page demandée — un simple
+ * `attributesToRetrieve`, jamais un second type de Document d'index.
+ *
+ * Les deux moitiés de ce couplage, en toutes lettres : `searchSuggestions`
+ * (`lib/use-cases/search.ts`) est la seule page qui envoie `{ query,
+ * taille: 6, facettes: ["categorySlug"] }` sans filtres ni tri, et la seule
+ * dont les cartes peuvent se passer de `totalStock` et `freeShipping`.
+ * Toute autre page — celle de `searchProducts`, filtres et tri compris —
+ * reçoit la projection complète des cartes produit. Les deux moitiés vont
+ * ensemble : `lib/meili-chercher.test.ts` épingle l'une et l'autre.
  */
 function pageAttributes(requete: RequeteMoteur): string[] {
-  const suggestions =
+  const requeteDeSuggestions =
     requete.filtres === undefined &&
     requete.tri === undefined &&
     (requete.facettes?.length ?? 0) > 0
-  return suggestions
+  return requeteDeSuggestions
     ? SUGGESTION_ATTRIBUTES_TO_RETRIEVE
     : PRODUCT_ATTRIBUTES_TO_RETRIEVE
 }

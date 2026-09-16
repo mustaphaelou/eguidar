@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db"
 import { moteurMeili } from "@/lib/meili"
-import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
+import type { MoteurRecherche } from "@/lib/moteur-recherche"
 import { getPriceBucket } from "@/lib/price-buckets"
 import {
   SEARCH_PAGE_SIZE,
@@ -27,8 +27,9 @@ export {
   type SearchView,
 } from "@/lib/search-params"
 
-// `retirerFacette` reste la propriété publique de la Recherche (ADR-0016).
-export { retirerFacette }
+// `retirerFacette` reste la propriété publique de la Recherche (ADR-0016) ;
+// les moteurs l'appliquent au point d'usage, les filtres partent complets.
+export { retirerFacette } from "@/lib/moteur-recherche"
 
 export interface SearchProductCard {
   id: string
@@ -120,21 +121,21 @@ export async function searchProducts(
       }),
       moteur.chercher({
         query,
-        filtres: retirerFacette(filters, "brand"),
+        filtres: filters,
         tri: sort,
         taille: 0,
         facettes: ["brand"],
       }),
       moteur.chercher({
         query,
-        filtres: retirerFacette(filters, "categorySlug"),
+        filtres: filters,
         tri: sort,
         taille: 0,
         facettes: ["categorySlug"],
       }),
       moteur.chercher({
         query,
-        filtres: retirerFacette(filters, "priceBucket"),
+        filtres: filters,
         tri: sort,
         taille: 0,
         facettes: ["priceBucket"],
