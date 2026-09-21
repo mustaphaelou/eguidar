@@ -1,11 +1,13 @@
 import { z } from "zod"
 
+import type { CommandeListingParams } from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
-import { OrderStatus } from "@/lib/generated/prisma/client"
+import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import { totalPayable } from "@/lib/money"
 import { peutTransitionner, réapprovisionne } from "@/lib/statut-de-commande"
+import { PAGE_SIZES } from "@/lib/table-config"
 import { lirePanierClient } from "@/lib/panier"
 import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 import {
@@ -57,6 +59,8 @@ export interface OrderItemDetail {
   quantity: number
 }
 
+export type AdminOrderItem = OrderItemDetail
+
 export interface OrderDetail {
   id: string
   status: OrderStatus
@@ -70,6 +74,11 @@ export interface OrderDetail {
   items: OrderItemDetail[]
 }
 
+export type AdminOrderDetail = OrderDetail & {
+  customerName: string
+  customerEmail: string
+}
+
 export interface OrderSummary {
   id: string
   status: OrderStatus
@@ -78,6 +87,17 @@ export interface OrderSummary {
   totalPayable: number
   createdAt: Date
   itemCount: number
+}
+
+export type AdminOrderSummary = OrderSummary & {
+  customerName: string
+  customerEmail: string
+}
+
+export interface AdminOrdersPage {
+  orders: AdminOrderSummary[]
+  totalCount: number
+  pageCount: number
 }
 
 export class CheckoutValidationError extends UserFacingError {
@@ -184,6 +204,51 @@ function toOrderEmailSnapshot(
   }
 }
 
+async function reserverStock(
+  tx: Prisma.TransactionClient,
+  lines: {
+    variantId: string
+    quantity: number
+    productName: string
+    variantName: string
+    stock: number
+  }[]
+): Promise<void> {
+  for (const line of lines) {
+    const updated = await tx.productVariant.updateMany({
+      where: { id: line.variantId, stock: { gte: line.quantity } },
+      data: { stock: { decrement: line.quantity } },
+    })
+    if (updated.count === 0) {
+      const current = await tx.productVariant.findUnique({
+        where: { id: line.variantId },
+        select: { stock: true },
+      })
+      throw new OutOfStockError([
+        {
+          productName: line.productName,
+          variantName: line.variantName,
+          requested: line.quantity,
+          available: current?.stock ?? line.stock,
+        },
+      ])
+    }
+  }
+}
+
+async function restockerArticles(
+  tx: Prisma.TransactionClient,
+  items: { variantId: string | null; quantity: number }[]
+): Promise<void> {
+  for (const item of items) {
+    if (!item.variantId) continue
+    await tx.productVariant.updateMany({
+      where: { id: item.variantId },
+      data: { stock: { increment: item.quantity } },
+    })
+  }
+}
+
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
@@ -218,26 +283,7 @@ export async function placeOrder(
   if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
 
   const order = await prisma.$transaction(async (tx) => {
-    for (const line of cart.lines) {
-      const updated = await tx.productVariant.updateMany({
-        where: { id: line.variantId, stock: { gte: line.quantity } },
-        data: { stock: { decrement: line.quantity } },
-      })
-      if (updated.count === 0) {
-        const current = await tx.productVariant.findUnique({
-          where: { id: line.variantId },
-          select: { stock: true },
-        })
-        throw new OutOfStockError([
-          {
-            productName: line.productName,
-            variantName: line.variantName,
-            requested: line.quantity,
-            available: current?.stock ?? line.stock,
-          },
-        ])
-      }
-    }
+    await reserverStock(tx, cart.lines)
 
     const created = await tx.order.create({
       data: {
@@ -303,7 +349,7 @@ export async function getOrder(
     phone: order.phone,
     total: order.total,
     shippingFee: order.shippingFee,
-    totalPayable: totalPayable(order),
+    totalPayable: order.totalPayable,
     createdAt: order.createdAt,
     items: order.items.map((item) => ({
       id: item.id,
@@ -326,7 +372,7 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
     status: order.status,
     total: order.total,
     shippingFee: order.shippingFee,
-    totalPayable: totalPayable(order),
+    totalPayable: order.totalPayable,
     createdAt: order.createdAt,
     itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
   }))
@@ -367,13 +413,7 @@ export async function updateOrderStatus(
     }
 
     if (réapprovisionne(nextStatus)) {
-      for (const item of fresh.items) {
-        if (!item.variantId) continue
-        await tx.productVariant.updateMany({
-          where: { id: item.variantId },
-          data: { stock: { increment: item.quantity } },
-        })
-      }
+      await restockerArticles(tx, fresh.items)
     }
 
     return tx.order.findUniqueOrThrow({
@@ -395,4 +435,108 @@ export async function updateOrderStatus(
     () => effects.invalidateCommande(orderId)
   )
   return updated
+}
+
+export async function getAdminOrder(
+  orderId: string
+): Promise<AdminOrderDetail> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      user: { select: { name: true, email: true } },
+      items: true,
+    },
+  })
+  if (!order) throw new OrderNotFoundError()
+
+  return {
+    id: order.id,
+    status: order.status,
+    cityName: order.cityName,
+    address: order.address,
+    phone: order.phone,
+    total: order.total,
+    shippingFee: order.shippingFee,
+    totalPayable: order.totalPayable,
+    createdAt: order.createdAt,
+    customerName: order.user.name,
+    customerEmail: order.user.email,
+    items: order.items.map((item) => ({
+      id: item.id,
+      productName: item.productName,
+      variantName: item.variantName,
+      price: item.price,
+      quantity: item.quantity,
+    })),
+  }
+}
+
+function buildOrdersWhere(
+  params?: CommandeListingParams
+): Prisma.OrderWhereInput {
+  const where: Prisma.OrderWhereInput = {}
+  if (params?.statuses && params.statuses.length > 0) {
+    where.status = { in: params.statuses }
+  }
+  if (params?.q) {
+    where.user = {
+      OR: [
+        { name: { contains: params.q, mode: "insensitive" } },
+        { email: { contains: params.q, mode: "insensitive" } },
+      ],
+    }
+  }
+  return where
+}
+
+async function runListAdminOrders(
+  params?: CommandeListingParams
+): Promise<AdminOrdersPage> {
+  const where = buildOrdersWhere(params)
+  const sens = params?.sens ?? "desc"
+  const orderBy: Prisma.OrderOrderByWithRelationInput =
+    params?.tri === "total" ? { totalPayable: sens } : { createdAt: sens }
+  const page = params?.page ?? 1
+  const pageSize = params?.pageSize ?? PAGE_SIZES[0]
+
+  const [orders, totalCount] = await prisma.$transaction([
+    prisma.order.findMany({
+      where,
+      orderBy,
+      take: pageSize,
+      skip: (page - 1) * pageSize,
+      include: {
+        user: { select: { name: true, email: true } },
+        items: { select: { quantity: true } },
+      },
+    }),
+    prisma.order.count({ where }),
+  ])
+
+  return {
+    orders: orders.map((order) => ({
+      id: order.id,
+      status: order.status,
+      total: order.total,
+      shippingFee: order.shippingFee,
+      totalPayable: order.totalPayable,
+      createdAt: order.createdAt,
+      itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      customerName: order.user.name,
+      customerEmail: order.user.email,
+    })),
+    totalCount,
+    pageCount: Math.ceil(totalCount / pageSize),
+  }
+}
+
+export async function listAdminOrders(): Promise<AdminOrderSummary[]>
+export async function listAdminOrders(
+  params: CommandeListingParams
+): Promise<AdminOrdersPage>
+export async function listAdminOrders(
+  params?: CommandeListingParams
+): Promise<AdminOrdersPage | AdminOrderSummary[]> {
+  const result = await runListAdminOrders(params)
+  return params ? result : result.orders
 }

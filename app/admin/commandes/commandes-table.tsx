@@ -40,7 +40,7 @@ import { shortOrderId } from "@/lib/utils"
 import type {
   AdminOrdersPage,
   AdminOrderSummary,
-} from "@/lib/use-cases/admin-orders"
+} from "@/lib/use-cases/orders"
 
 import { useCommandeListing } from "./use-commande-listing"
 
