@@ -39,3 +39,6 @@ next-env.d.ts
 
 # implementer worktrees (spec workflow)
 /.worktrees
+
+# security audit run artifacts and agent scratch
+/.scratch/

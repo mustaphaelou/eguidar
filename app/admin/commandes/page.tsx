@@ -6,7 +6,7 @@ import {
   CommandesTable,
 } from "@/app/admin/commandes/commandes-table"
 import { parseCommandeListingParams } from "@/lib/commande-listing"
-import { listAdminOrders } from "@/lib/use-cases/admin-orders"
+import { listAdminOrders } from "@/lib/use-cases/orders"
 
 export const metadata: Metadata = {
   title: "Commandes",

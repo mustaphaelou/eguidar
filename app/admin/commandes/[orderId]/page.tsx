@@ -20,8 +20,7 @@ import {
 } from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
 import { transitionsDisponibles } from "@/lib/statut-de-commande"
-import { getAdminOrder } from "@/lib/use-cases/admin-orders"
-import { OrderNotFoundError } from "@/lib/use-cases/orders"
+import { getAdminOrder, OrderNotFoundError } from "@/lib/use-cases/orders"
 import { shortOrderId } from "@/lib/utils"
 import { updateOrderStatusAction } from "@/app/admin/commandes/actions"
 
