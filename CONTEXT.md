@@ -54,7 +54,8 @@ _Avoid_: selected city, city selection, sélection de ville
 L'ordre dans lequel la Ville de livraison initiale d'un Devis est choisie : la Ville nommée dans
 l'URL (lien partagé) l'emporte ; à défaut la Ville sauvegardée dans le profil du Client ; sinon
 « aucune ». Un lien explicitement fourni gagne même s'il nomme une Ville de livraison inconnue —
-jamais de repli sur le profil.
+jamais de repli sur le profil. Le Devis chargé porte le résultat : sa Ville initiale, résolue une
+seule fois lors du chargement du Devis, « aucune » comprise.
 _Avoid_: priorité de ville, repli de ville, initial city
 
 **Récapitulatif de paiement**:
