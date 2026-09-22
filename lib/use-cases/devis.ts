@@ -42,7 +42,10 @@
  */
 import type { DonneesPanier } from "@/lib/panier"
 import type { DevisChargé } from "@/lib/use-cases/devis-coeur"
-import { computeCityQuotes } from "@/lib/use-cases/livraison-prix"
+import {
+  computeCityQuotes,
+  type DeliveryCityOption,
+} from "@/lib/use-cases/livraison-prix"
 import {
   getFreeShippingThreshold,
   listDeliveryCities,
@@ -60,8 +63,10 @@ export {
  * reçoit : la valeur brute du `?ville=` (`villeParam`) et la Ville de
  * livraison sauvegardée du Client (`profileVilleId`). Le module résout
  * lui-même le langage d'URL (slug puis alias d'identifiant, ADR-0017) et
- * le fait de présence d'un lien — aucun appelant ne dérive
- * `urlVilleFournie` ni ne résout un slug par lui-même.
+ * le fait de présence d'un lien, applique la Précédence (lien > profil >
+ * aucune) et porte le résultat comme la Ville initiale du Devis chargé —
+ * aucun appelant ne dérive `urlVilleFournie`, ne résout un slug par
+ * lui-même, ni ne recalcule la Ville initiale.
  */
 export interface DevisPrecedenceFaitsBruts {
   villeParam?: string | null
@@ -73,26 +78,28 @@ export interface DevisPrecedenceFaitsBruts {
  *
  * Prend les faits bruts de la Précédence du Devis : la valeur brute du
  * `?ville=` (`villeParam`) et la Ville de livraison sauvegardée du Client
- * (`profileVilleId`). Le langage d'URL (slug puis alias d'identifiant,
- * ADR-0017) et le fait de présence `urlVilleFournie` se résolvent ici,
- * contre les Villes déjà chargées (`listDeliveryCities`) — aucune requête
- * supplémentaire, aucune double vérification d'existence.
+ * (`profileVilleId`). Ce module est le seul propriétaire de la Précédence
+ * (lien > profil > aucune) : il résout le langage d'URL (slug puis alias
+ * d'identifiant, ADR-0017) contre les Villes déjà chargées
+ * (`listDeliveryCities`), en déduit la présence d'un lien, rogne la Ville
+ * du profil une seule fois — le rognage du chemin URL vit dans le module
+ * d'URL, ici aucune double rognure — et porte le résultat comme
+ * `villeInitiale` sur le Devis chargé. Aucune requête supplémentaire,
+ * aucune double vérification d'existence.
  *
  * Récupère Villes de livraison + seuil (administration Livraison) une
- * seule fois, chiffre chaque ville via `computeCityQuotes`
- * (`panier.subtotal` + `lines.some(freeShipping)`) une seule fois, et
- * construit les sources de précédence (`urlVilleId` résolue gagne sur
- * `profileVilleId`) au titre du module seul.
+ * seule fois et chiffre chaque ville via `computeCityQuotes`
+ * (`panier.subtotal` + `lines.some(freeShipping)`) une seule fois.
  *
  * Strictement des données : aucune fonction, aucun getter, aucune
  * instance de classe — le Devis chargé traverse la couture serveur →
  * client. Le Devis projeté se dérive derrière la couture à partir de ces
  * faits via `projeterDevis`.
  *
- * Ville inconnue ou absente → la sélection se résoudra « aucune » à la
- * construction ; charger ne lève jamais sur une ville inconnue ou absente.
- * Sans faits bruts — appelant qui projette une ville explicite
- * (`placeOrder`) — `sources` est omise.
+ * Ville inconnue ou absente → `villeInitiale` est `null` et la Sélection
+ * se résoudra « aucune » à la projection ; charger ne lève jamais sur une
+ * ville inconnue ou absente. Sans faits bruts — appelant qui projette une
+ * ville explicite (`placeOrder`) — `villeInitiale` est `null`.
  */
 export async function chargerDevis(
   panier: DonneesPanier,
@@ -116,13 +123,27 @@ export async function chargerDevis(
     threshold,
     quotes,
     sousTotal,
-    ...(faits === undefined
-      ? {}
-      : {
-          sources: {
-            ...resoudreVilleUrl(cities, faits.villeParam),
-            profileVilleId: faits.profileVilleId ?? null,
-          },
-        }),
+    villeInitiale: resoudreVilleInitiale(cities, faits),
   }
+}
+
+/**
+ * Précédence du Devis — lien > profil > aucune — résolue une seule fois,
+ * au chargement.
+ *
+ * Un lien fourni l'emporte : `resoudreVilleUrl` répond déjà propre (slug
+ * rogné avant correspondance, identifiant pris dans les Villes chargées,
+ * `null` si inconnu), sans repli sur le profil même pour une ville
+ * inconnue (la Sélection résoudra « aucune »). Sinon la Ville du profil,
+ * rognée ici une seule fois, sert de repli si non blanche ; sinon `null`.
+ * Sans faits bruts → `null`.
+ */
+function resoudreVilleInitiale(
+  cities: DeliveryCityOption[],
+  faits?: DevisPrecedenceFaitsBruts
+): string | null {
+  if (faits === undefined) return null
+  const lien = resoudreVilleUrl(cities, faits.villeParam)
+  if (lien.urlVilleFournie) return lien.urlVilleId
+  return faits.profileVilleId?.trim() || null
 }

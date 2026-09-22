@@ -47,7 +47,7 @@ async function CartContent({
     villeParam: ville,
     profileVilleId: profile?.cityId,
   })
-  const projet = projeterDevis(chargé)
+  const projet = projeterDevis(chargé, chargé.villeInitiale)
   const villeSelectionnee =
     projet.selection.cas === "validée" ? projet.selection.ville : null
 

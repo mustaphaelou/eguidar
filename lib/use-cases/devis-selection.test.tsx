@@ -86,7 +86,7 @@ function devisValide(): DevisChargé {
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    sources: { urlVilleId: "c1" },
+    villeInitiale: "c1",
   }
 }
 
@@ -96,7 +96,7 @@ function devisAucune(): DevisChargé {
     threshold: 100000,
     quotes: QUOTES,
     sousTotal: 50000,
-    sources: { urlVilleId: null },
+    villeInitiale: null,
   }
 }
 
@@ -104,6 +104,7 @@ describe("useDevisSelection", () => {
   it("expose la Sélection initiale du Devis chargé, avec ses lignes chiffrées", () => {
     const hook = renderHook(() => useDevisSelection(devisValide()))
 
+    expect(hook.current.villeId).toBe("c1")
     expect(hook.current.villes).toEqual(VILLES)
     expect(hook.current.selection).toStrictEqual({
       cas: "validée",
@@ -240,14 +241,14 @@ describe("useDevisSelection", () => {
     expect(hook.current.rows.some((row) => row.kind === "total")).toBe(false)
   })
 
-  it("pre-selects the saved profile ville when the link carries none", () => {
+  it("sème l'état initial à la Ville initiale portée (profil résolu au chargement)", () => {
     const hook = renderHook(() =>
       useDevisSelection({
         cities: VILLES,
         threshold: 100000,
         quotes: QUOTES,
         sousTotal: 50000,
-        sources: { urlVilleId: null, profileVilleId: "c2" },
+        villeInitiale: "c2",
       })
     )
 
@@ -259,14 +260,14 @@ describe("useDevisSelection", () => {
     })
   })
 
-  it("local choice wins over link and profile after first choisir", () => {
+  it("local choice wins over the seeded Ville initiale after first choisir", () => {
     const hook = renderHook(() =>
       useDevisSelection({
         cities: VILLES,
         threshold: 100000,
         quotes: QUOTES,
         sousTotal: 50000,
-        sources: { urlVilleId: "c1", profileVilleId: "c2" },
+        villeInitiale: "c1",
       })
     )
     expect(hook.current.villeId).toBe("c1")
@@ -290,7 +291,7 @@ describe("useDevisSelection", () => {
       threshold: 100000,
       quotes: QUOTES,
       sousTotal: 99900,
-      sources: { urlVilleId: "c2" },
+      villeInitiale: "c2",
     }
 
     let current!: ReturnType<typeof useDevisSelection>
