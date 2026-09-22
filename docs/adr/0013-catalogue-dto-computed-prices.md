@@ -31,3 +31,22 @@ est le projecteur unique — la page Panier dérive son Récapitulatif via
 Pas de re-sélection synchronisée avec l'URL sur checkout, pas d'entrée de
 sélection allégée à côté de `chargerDevis` (`placeOrder` garde
 `chargerDevis` et rétrécit l'union).
+
+## Amendement — `projeterDevis` est le seul projecteur (#383)
+
+L'amendement « Devis contracté » (#195) est périmé sur un point : il
+enseignait que `lignesDevis` est le projecteur unique et que la page
+Panier dérive son Récapitulatif via `lignesDevis(devis.sousTotal, devis)`.
+Ce n'est plus vrai — et ne l'était déjà plus côté pages : elles passent
+par `projeterDevis(devisChargé, villeId)`, le projecteur unique, qui
+compose la Sélection puis les lignes du Récapitulatif derrière sa
+couture. `lignesDevis` est une couture interne du cœur : privée, sans
+importateur externe, atteinte uniquement via `projeterDevis` — et les
+suites du cœur passent par le projecteur, jamais par la couture.
+
+Le reste de #195 tient : le type `Devis` ne porte toujours pas `rows`,
+`chargerDevis` ne construit plus de lignes, le hook re-chiffre depuis le
+`sousTotal` propre du Devis, et il n'y a toujours pas de re-sélection
+synchronisée avec l'URL sur checkout ni d'entrée de sélection allégée à
+côté de `chargerDevis` (`placeOrder` garde `chargerDevis` et rétrécit
+l'union).

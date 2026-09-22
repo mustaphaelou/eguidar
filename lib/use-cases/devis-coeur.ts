@@ -1,12 +1,13 @@
 /**
  * Cœur pur du Devis — module neutre, sans directive.
  *
- * NE JAMAIS ajouter `"use client"` ici : `selectionnerDevis` et
- * `lignesDevis` sont appelés côté serveur (`chargerDevis` dans
- * `@/lib/use-cases/devis`, pages Panier/Checkout, `placeOrder`). Importer
- * ces fonctions depuis le module client `devis-selection` faisait lever la
- * production (« Attempted to call selectionnerDevis() from the server… »)
- * et affichait « This page couldn't load » sur /panier.
+ * NE JAMAIS ajouter `"use client"` ici : `projeterDevis` et
+ * `selectionValidee` sont appelés côté serveur (page Panier,
+ * `placeOrder`) — ce cœur est aussi consommé côté client via
+ * `@/lib/use-cases/devis-selection`. Définir ce pur dans le module client
+ * `devis-selection` faisait lever la production (« Attempted to call
+ * selectionnerDevis() from the server… ») et affichait « This page
+ * couldn't load » sur /panier.
  *
  * NE JAMAIS importer `@/lib/db` (ni aucun module qui l'importe) ici : ce
  * cœur est aussi consommé côté client (via `@/lib/use-cases/devis-selection`
@@ -16,25 +17,27 @@
  *
  * Deux formes cohabitent : le Devis chargé (`DevisChargé`) est la donnée
  * pure qui traverse la couture serveur → client — Villes de livraison,
- * seuil, devis par ville, sous-total, sources de précédence, aucune
- * fonction — ; le Devis projeté (`DevisProjeté`) est la surface dérivée
- * qui se projette derrière la couture via `projeterDevis(devisChargé,
- * villeId)` — les devis restent toujours fournis par l'appelant (le
- * projecteur ne chiffre jamais).
+ * seuil, devis par ville, sous-total, Ville initiale, aucune fonction — ;
+ * le Devis projeté (`DevisProjeté`) est la surface dérivée qui se
+ * projette derrière la couture via `projeterDevis(devisChargé, villeId)`
+ * — la Ville y est toujours explicite et les devis restent toujours
+ * fournis par l'appelant (le projecteur ne chiffre jamais).
  *
- * Deux résolutions pures accompagnent la Sélection : `villeInitiale`
- * (précédence lien > profil > aucune) et `selectionValidee`
- * (rétrécissement de prise en commande, refuse « aucune »). Le langage
- * d'URL de la Ville — écriture `villeVersParam`, lecture
+ * La Précédence du Devis (lien > profil > aucune) appartient au chargeur
+ * `chargerDevis` (`@/lib/use-cases/devis`) : il en porte le résultat comme
+ * la Ville initiale du Devis chargé. `selectionValidee` accompagne la
+ * Sélection (rétrécissement de prise en commande, refuse « aucune »). Le
+ * langage d'URL de la Ville — écriture `villeVersParam`, lecture
  * `resoudreVilleUrl` — vit dans `@/lib/use-cases/ville-url`.
  *
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
  * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
- * dérivent par la projection unique `projeterDevis`, qui compose
- * `lignesDevis` — pages serveur comme hook passent par elle. Les coutures
- * internes (`selectionnerDevis`, `lignesDevis`) gardent leurs tests
- * directs.
+ * dérivent par la projection unique `projeterDevis` — pages serveur comme
+ * hook passent par elle. Le projecteur est la surface d'entrée du cœur
+ * et sa surface de test : les suites passent par `projeterDevis`, jamais
+ * par une couture interne (`selectionnerDevis`, `lignesDevis`),
+ * devenue privée.
  */
 import {
   construireLignes,
@@ -71,7 +74,7 @@ export type SelectionDevis =
  * Résolution pure uniquement — indépendante du calcul des prix
  * (seuil, livraison offerte).
  */
-export function selectionnerDevis(
+function selectionnerDevis(
   cities: DeliveryCityOption[],
   quotes: Record<string, ShippingQuote>,
   requestedCityId?: string | null
@@ -88,24 +91,25 @@ export function selectionnerDevis(
 /**
  * Le Devis chargé : les faits purs d'un Panier chiffré — Villes de
  * livraison, seuil de livraison offerte, devis par ville, sous-total
- * (cents) et sources de précédence (`urlVilleId` gagne sur
- * `profileVilleId`), construites par le chargeur seul à partir des faits
- * bruts. Strictement des données : aucune fonction, aucun getter, aucune
- * instance de classe — c'est ce qui traverse la couture serveur → client.
- * Le Devis projeté (`projeterDevis`) se dérive derrière la couture à
- * partir de ces faits et d'une Ville de livraison explicite.
+ * (cents) et Ville initiale (`villeInitiale : string | null`, « aucune »
+ * comprise) — la Précédence du Devis (lien > profil > aucune) résolue une
+ * seule fois par le chargeur seul à partir des faits bruts. Strictement
+ * des données : aucune fonction, aucun getter, aucune instance de classe —
+ * c'est ce qui traverse la couture serveur → client. Le Devis projeté
+ * (`projeterDevis`) se dérive derrière la couture à partir de ces faits et
+ * d'une Ville de livraison explicite.
  */
 export type DevisChargé = {
   cities: DeliveryCityOption[]
   threshold: number
   quotes: Record<string, ShippingQuote>
   sousTotal: number
-  sources?: DevisPrecedenceSources
+  villeInitiale: string | null
 }
 
 /**
  * Lignes du Récapitulatif de paiement pour une Sélection du Devis —
- * projecteur unique pour les pages serveur comme pour le hook.
+ * couture interne du cœur, atteinte uniquement via `projeterDevis`.
  *
  * Détail interne du Devis (l'ancienne entrée Devis du Récapitulatif est
  * retirée) : cas « aucune » → « Livraison » + « À choisir » + Total omis ;
@@ -113,7 +117,7 @@ export type DevisChargé = {
  * vit dans `construireLignes`, ici on ne fait que projeter la sélection.
  * Ne lève jamais.
  */
-export function lignesDevis(
+function lignesDevis(
   sousTotal: number,
   selection: SelectionDevis
 ): RécapitulatifRow[] {
@@ -155,55 +159,16 @@ export function selectionValidee(
 }
 
 /**
- * Sources de précédence pour la ville initiale d'une Sélection
- * (`villeInitiale`), construites par le chargeur seul à partir des faits
- * bruts (`?ville=` et Ville du profil).
- *
- * `urlVilleFournie` dit la **présence** d'un `?ville=` non vide dans l'URL :
- * le lien partagé l'emporte alors, et une ville inconnue laisse la sélection
- * « aucune » (pas de repli sur le profil). `urlVilleId` porte la ville du
- * lien déjà résolue (`resoudreVilleUrl` dans
- * `@/lib/use-cases/ville-url`), le profil sauvegardé
- * (`profileVilleId`) sert de repli si le lien est absent ou vide.
- */
-export interface DevisPrecedenceSources {
-  urlVilleId?: string | null
-  urlVilleFournie?: boolean
-  profileVilleId?: string | null
-}
-
-/**
- * Ville initiale dérivée des seules sources de précédence : lien >
- * profil > aucune.
- *
- * Sans sources → null. Un lien explicitement fourni l'emporte — rogné,
- * ou null s'il est vide — sans repli sur le profil, même s'il nomme une
- * ville inconnue (la Sélection résoudra alors « aucune »). Sinon un
- * `urlVilleId` rogné non vide gagne, un `profileVilleId` rogné non vide
- * sert de repli, sinon null.
- */
-export function villeInitiale(
-  sources?: DevisPrecedenceSources
-): string | null {
-  if (!sources) return null
-  if (sources.urlVilleFournie) return sources.urlVilleId?.trim() || null
-  const url = sources.urlVilleId?.trim()
-  if (url && url.length > 0) return url
-  const profil = sources.profileVilleId?.trim()
-  if (profil && profil.length > 0) return profil
-  return null
-}
-
-/**
  * Le Devis projeté — surface externe du cœur pur.
  *
  * Seul endroit où les consommateurs dérivent les Villes de livraison, la
  * Sélection du Devis, les lignes du Récapitulatif et l'identifiant de la
  * ville sélectionnée : une projection pure depuis le Devis chargé et une
- * Ville de livraison explicite (ou aucune). Les devis bruts (`quotes`) et
- * le seuil (`threshold`) restent cachés derrière la projection ; les
- * coutures internes (`selectionnerDevis`, `lignesDevis`) gardent leurs
- * tests directs.
+ * Ville de livraison explicite (`string | null`, « aucune » comprise).
+ * Les devis bruts (`quotes`) et le seuil (`threshold`) restent cachés
+ * derrière la projection ; les coutures internes (`selectionnerDevis`,
+ * `lignesDevis`) sont privées : le projecteur est la surface de test du
+ * cœur.
  */
 export type DevisProjeté = {
   villes: DeliveryCityOption[]
@@ -216,24 +181,24 @@ export type DevisProjeté = {
  * Projette le Devis projeté depuis un Devis chargé et la Ville de
  * livraison choisie.
  *
- * Compose les coutures internes : `selectionnerDevis` résout la ville,
- * `lignesDevis` dérive les lignes du `sousTotal` porté. Sans ville
- * explicite (absente), la Précédence du Devis se dérive des sources
- * portées (`villeInitiale` : lien > profil > aucune) — l'appelant n'a
- * jamais à la recalculer ; `null` reste l'« aucune » typée, une chaîne
- * vide la rejoint après rognage. Ville inconnue, absente, vide ou
- * entourée d'espaces → « aucune » : jamais à moitié, ne lève jamais.
+ * La Ville est **requise** : une chaîne est un choix explicite, `null` est
+ * l'« aucune » typée — aucun mode « dérive-la-moi ». Compose les coutures
+ * internes : `selectionnerDevis` résout la ville sur l'identifiant déjà
+ * rogné (le rognage du caller vit ici, une seule fois ; le lookup lui fait
+ * confiance), `lignesDevis` dérive les lignes du `sousTotal` porté. Ville
+ * inconnue, vide ou entourée d'espaces → « aucune » : jamais à moitié, ne
+ * lève jamais. La Précédence du Devis ne se dérive jamais ici — elle est
+ * déjà portée par le Devis chargé (`villeInitiale`), résolue par le
+ * chargeur.
  */
 export function projeterDevis(
   devisChargé: DevisChargé,
-  villeId?: string | null
+  villeId: string | null
 ): DevisProjeté {
   const selection = selectionnerDevis(
     devisChargé.cities,
     devisChargé.quotes,
-    villeId === undefined
-      ? villeInitiale(devisChargé.sources)
-      : villeId?.trim() || null
+    villeId?.trim() || null
   )
   const rows = lignesDevis(devisChargé.sousTotal, selection)
 

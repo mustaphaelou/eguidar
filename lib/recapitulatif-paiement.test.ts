@@ -99,6 +99,7 @@ describe("récapitulatifRowsFromCommande", () => {
           threshold: 100000,
           quotes: { casa: { subtotal: 10000, shippingFee: 0, total: 10000 } },
           sousTotal: 10000,
+          villeInitiale: null,
         },
         "casa"
       ).rows,
@@ -108,6 +109,7 @@ describe("récapitulatifRowsFromCommande", () => {
           threshold: 100000,
           quotes: { fes: { subtotal: 10000, shippingFee: 2000, total: 12000 } },
           sousTotal: 10000,
+          villeInitiale: null,
         },
         "fes"
       ).rows,
@@ -117,6 +119,7 @@ describe("récapitulatifRowsFromCommande", () => {
           threshold: 100000,
           quotes: {},
           sousTotal: 10000,
+          villeInitiale: null,
         },
         null
       ).rows,

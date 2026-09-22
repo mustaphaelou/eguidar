@@ -34,8 +34,9 @@ _Avoid_: quote, estimation de livraison
 
 **Devis chargé**:
 Les faits du Devis d'un Panier chargés côté serveur : les Villes de livraison avec leurs frais,
-le seuil de livraison offerte, le devis de chaque ville et le sous-total — des données pures qui
-traversent la couture serveur vers le client. Le Devis projeté se dérive ensuite de ces faits.
+le seuil de livraison offerte, le devis de chaque ville, le sous-total et sa Ville initiale
+(« aucune » comprise) — des données pures qui traversent la couture serveur vers le client.
+Le Devis projeté se dérive ensuite de ces faits.
 _Avoid_: quote payload, devis data, devis sérialisé
 
 **Devis projeté**:
@@ -54,7 +55,8 @@ _Avoid_: selected city, city selection, sélection de ville
 L'ordre dans lequel la Ville de livraison initiale d'un Devis est choisie : la Ville nommée dans
 l'URL (lien partagé) l'emporte ; à défaut la Ville sauvegardée dans le profil du Client ; sinon
 « aucune ». Un lien explicitement fourni gagne même s'il nomme une Ville de livraison inconnue —
-jamais de repli sur le profil.
+jamais de repli sur le profil. Le Devis chargé porte le résultat : sa Ville initiale, résolue une
+seule fois lors du chargement du Devis, « aucune » comprise.
 _Avoid_: priorité de ville, repli de ville, initial city
 
 **Récapitulatif de paiement**:

@@ -5,17 +5,19 @@
  *
  * La donnée qui traverse la couture serveur → client est le Devis chargé
  * (`DevisChargé`) : des faits purs — Villes de livraison, seuil de
- * livraison offerte, devis par ville, sous-total, sources de précédence —
- * sans fonction, sans getter, sans instance de classe. Le crochet fige ces
- * faits une seule fois et possède la seule machine à états de la Sélection :
- * il démarre sans ville choisie et projette le Devis projeté à chaque
- * rendu (`projeterDevis`) — la Précédence du Devis (lien > profil >
- * aucune) se dérive derrière la projection, jamais ici. La projection est
- * la surface externe ; les coutures internes (`selectionnerDevis`,
- * `lignesDevis`) gardent leurs tests directs dans le cœur pur.
+ * livraison offerte, devis par ville, sous-total, Ville initiale — sans
+ * fonction, sans getter, sans instance de classe. Le crochet fige ces
+ * faits une seule fois et possède la seule machine à états de la
+ * Sélection : il sème son état à la Ville initiale portée (la Précédence
+ * du Devis — lien > profil > aucune — est déjà résolue par le chargeur,
+ * jamais ré-ici) et projette le Devis projeté à chaque rendu
+ * (`projeterDevis`) avec la Ville choisie, explicite. La projection est la
+ * surface externe et la surface de test du cœur : les coutures internes
+ * (`selectionnerDevis`, `lignesDevis`) sont privées, leurs anciens cas
+ * se projettent par `projeterDevis`.
  *
- * Le pur partagé (`projeterDevis`, `selectionnerDevis`,
- * `lignesDevis`) vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
+ * Le pur partagé (`projeterDevis`, `selectionValidee`, les types) vit
+ * dans le cœur neutre `@/lib/use-cases/devis-coeur`
  * (sans directive), consommé aussi côté serveur (`chargerDevis`, pages
  * Panier/Checkout, `placeOrder`). Définir ce pur ici — module « use
  * client » — faisait lever la production dès qu'un serveur l'appelait
@@ -61,10 +63,10 @@ export type {
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.
  *
  * Fige les faits chargés une seule fois (les changements ultérieurs du
- * Devis chargé sont ignorés), démarre sans ville choisie — la projection
- * dérive alors la Ville de livraison de la Précédence du Devis (lien >
- * profil > aucune) — puis projette le Devis projeté à chaque rendu
- * (`projeterDevis`) ; expose
+ * Devis chargé sont ignorés), démarre à la Ville initiale portée par ce
+ * Devis chargé — `string | null`, « aucune » comprise, Précédence déjà
+ * résolue par le chargeur — puis projette le Devis projeté à chaque
+ * rendu (`projeterDevis`) avec la Ville choisie ; expose
  * `{ villes, selection, rows, choisir(villeId), villeId }`. Chaque
  * `choisir` re-projette les lignes instantanément.
  *
@@ -81,8 +83,8 @@ export function useDevisSelection(devisChargé: DevisChargé): {
   villeId: string | null
 } {
   const [chargé] = useState(devisChargé)
-  const [villeChoisie, setVilleChoisie] = useState<string | null | undefined>(
-    undefined
+  const [villeChoisie, setVilleChoisie] = useState<string | null>(
+    chargé.villeInitiale
   )
 
   const projet = projeterDevis(chargé, villeChoisie)

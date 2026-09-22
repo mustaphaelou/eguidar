@@ -3,11 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
   projeterDevis,
-  selectionnerDevis,
   selectionValidee,
-  villeInitiale,
   type DevisChargé,
-  type DevisPrecedenceSources,
 } from "@/lib/use-cases/devis-coeur"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
@@ -64,139 +61,13 @@ const quotes: Record<string, ShippingQuote> = {
 
 const aucune = { cas: "aucune" } as const
 
-describe("internal seam: selectionnerDevis (core lookup)", () => {
-  it("resolves a known city id to that city and its quote", () => {
-    expect(selectionnerDevis(cities, quotes, "c1")).toStrictEqual({
-      cas: "validée",
-      ville: city("c1", "Casablanca", 3500),
-      devis: quote(50000, 3500),
-    })
-  })
-
-  it("resolves the other known city id to its own city and quote", () => {
-    expect(selectionnerDevis(cities, quotes, "c2")).toStrictEqual({
-      cas: "validée",
-      ville: city("c2", "Rabat", 5000),
-      devis: quote(50000, 5000),
-    })
-  })
-
-  it("resolves an absent requested id to aucune", () => {
-    expect(selectionnerDevis(cities, quotes)).toStrictEqual(aucune)
-  })
-
-  it("resolves a null requested id to aucune", () => {
-    expect(selectionnerDevis(cities, quotes, null)).toStrictEqual(aucune)
-  })
-
-  it("resolves an unknown requested id to aucune", () => {
-    expect(selectionnerDevis(cities, quotes, "ville-inconnue")).toStrictEqual(
-      aucune
-    )
-  })
-
-  it("resolves a known city without a quote to aucune (never half-selects)", () => {
-    const withoutQuote: Record<string, ShippingQuote> = {
-      c1: quote(50000, 3500),
-    }
-
-    expect(selectionnerDevis(cities, withoutQuote, "c2")).toStrictEqual(aucune)
-  })
-
-  it("resolves a quote without its city object to aucune (never half-selects)", () => {
-    expect(
-      selectionnerDevis([city("c1", "Casablanca", 3500)], quotes, "c2")
-    ).toStrictEqual(aucune)
-  })
-
-  it("is independent of pricing (zero-fee and full-fee quotes select the same way)", () => {
-    const freeQuotes: Record<string, ShippingQuote> = {
-      c1: quote(50000, 0),
-      c2: quote(50000, 0),
-    }
-
-    const selectionC1 = (cityQuote: ShippingQuote) => ({
-      cas: "validée",
-      ville: city("c1", "Casablanca", 3500),
-      devis: cityQuote,
-    })
-
-    expect(selectionnerDevis(cities, freeQuotes, "c1")).toStrictEqual(
-      selectionC1(quote(50000, 0))
-    )
-    expect(selectionnerDevis(cities, quotes, "c1")).toStrictEqual(
-      selectionC1(quote(50000, 3500))
-    )
-  })
-
-  it("is idempotent (same inputs twice → same case)", () => {
-    const first = selectionnerDevis(cities, quotes, "c1")
-    const second = selectionnerDevis(cities, quotes, "c1")
-
-    expect(first).toStrictEqual({
-      cas: "validée",
-      ville: city("c1", "Casablanca", 3500),
-      devis: quote(50000, 3500),
-    })
-    expect(second).toStrictEqual(first)
-
-    const unknownFirst = selectionnerDevis(cities, quotes, "ville-inconnue")
-    const unknownSecond = selectionnerDevis(cities, quotes, "ville-inconnue")
-
-    expect(unknownFirst).toStrictEqual(aucune)
-    expect(unknownSecond).toStrictEqual(unknownFirst)
-  })
-
-  it("never throws on empty inputs", () => {
-    expect(() => selectionnerDevis([], {}, "c1")).not.toThrow()
-    expect(selectionnerDevis([], {}, "c1")).toStrictEqual(aucune)
-    expect(selectionnerDevis([], {}, undefined)).toStrictEqual(aucune)
-  })
-})
-
-describe("villeInitiale (précédence lien > profil > aucune)", () => {
-  it("yields null without sources", () => {
-    expect(villeInitiale()).toBeNull()
-  })
-
-  it("precedence: lien wins over profil", () => {
-    expect(villeInitiale({ urlVilleId: "c1", profileVilleId: "c2" })).toBe("c1")
-  })
-
-  it("precedence: absent, empty or whitespace lien falls back to profil", () => {
-    for (const urlVilleId of [undefined, null, "", "   "]) {
-      expect(villeInitiale({ urlVilleId, profileVilleId: "c2" })).toBe("c2")
-    }
-  })
-
-  it("precedence: an explicitly provided lien suppresses the profile fallback", () => {
-    expect(
-      villeInitiale({
-        urlVilleId: "ville-inconnue",
-        urlVilleFournie: true,
-        profileVilleId: "c2",
-      })
-    ).toBe("ville-inconnue")
-
-    expect(
-      villeInitiale({
-        urlVilleId: "   ",
-        urlVilleFournie: true,
-        profileVilleId: "c2",
-      })
-    ).toBeNull()
-  })
-
-  it("precedence: neither source yields null", () => {
-    expect(villeInitiale({ urlVilleId: null, profileVilleId: null })).toBeNull()
-    expect(villeInitiale({ urlVilleId: "", profileVilleId: "   " })).toBeNull()
-    expect(villeInitiale({ urlVilleId: "   " })).toBeNull()
-  })
-
-  it("trims the winning identifier", () => {
-    expect(villeInitiale({ urlVilleId: "  c1  " })).toBe("c1")
-    expect(villeInitiale({ profileVilleId: "  c2  " })).toBe("c2")
-  })
+const chargé = (overrides: Partial<DevisChargé> = {}): DevisChargé => ({
+  cities,
+  threshold: 100000,
+  quotes,
+  sousTotal: 73000,
+  villeInitiale: null,
+  ...overrides,
 })
 
 describe("selectionValidee (rétrécissement de prise en commande)", () => {
@@ -253,7 +124,7 @@ function panierPourDevis(
   }
 }
 
-describe("chargerDevis (faits bruts et sources construites au module)", () => {
+describe("chargerDevis (porte la Précédence : Ville initiale résolue une seule fois)", () => {
   const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
 
   beforeEach(() => {
@@ -263,7 +134,7 @@ describe("chargerDevis (faits bruts et sources construites au module)", () => {
     getFreeShippingThresholdMock.mockResolvedValue(100000)
   })
 
-  it("returns plain facts: villes, seuil, devis par ville, sous-total", async () => {
+  it("returns plain facts: villes, seuil, devis par ville, sous-total, Ville initiale", async () => {
     const chargé = await chargerDevis(panierPourDevis(50000), {
       villeParam: "slug-c1",
       profileVilleId: null,
@@ -276,75 +147,86 @@ describe("chargerDevis (faits bruts et sources construites au module)", () => {
       c1: quote(50000, 3500),
       c2: quote(50000, 5000),
     })
-    expect(chargé.sources).toEqual({
-      urlVilleId: "c1",
-      urlVilleFournie: true,
-      profileVilleId: null,
-    })
+    expect(chargé.villeInitiale).toBe("c1")
   })
 
   it("resolves the URL's ville internally: slug wins, then the legacy id alias", async () => {
     const parSlug = await chargerDevis(panierPourDevis(50000), {
       villeParam: "slug-c2",
     })
-    expect(parSlug.sources).toEqual({
-      urlVilleId: "c2",
-      urlVilleFournie: true,
-      profileVilleId: null,
-    })
+    expect(parSlug.villeInitiale).toBe("c2")
 
     const parAlias = await chargerDevis(panierPourDevis(50000), {
       villeParam: "c1",
     })
-    expect(parAlias.sources).toEqual({
-      urlVilleId: "c1",
-      urlVilleFournie: true,
-      profileVilleId: null,
-    })
+    expect(parAlias.villeInitiale).toBe("c1")
   })
 
-  it("carries the profile fact without resolving it, only when the lien names none", async () => {
-    const auProfil = await chargerDevis(panierPourDevis(50000), {
+  it("precedence: the link beats the profile", async () => {
+    const chargé = await chargerDevis(panierPourDevis(50000), {
+      villeParam: "slug-c1",
       profileVilleId: "c2",
     })
-    expect(auProfil.sources).toEqual({
-      urlVilleId: null,
-      urlVilleFournie: false,
-      profileVilleId: "c2",
-    })
-    expect(projeterDevis(auProfil).villeId).toBe("c2")
 
-    for (const villeParam of ["", "   "] as const) {
-      const lienBlanc = await chargerDevis(panierPourDevis(50000), {
+    expect(chargé.villeInitiale).toBe("c1")
+    expect(projeterDevis(chargé, chargé.villeInitiale).villeId).toBe("c1")
+  })
+
+  it("precedence: an absent or blank link falls back to the profile, whose id is trimmed once here", async () => {
+    for (const villeParam of [undefined, null, "", "   "] as const) {
+      const chargé = await chargerDevis(panierPourDevis(50000), {
         villeParam,
         profileVilleId: "c2",
       })
-      expect(lienBlanc.sources).toEqual({
-        urlVilleId: null,
-        urlVilleFournie: false,
-        profileVilleId: "c2",
-      })
+      expect(chargé.villeInitiale).toBe("c2")
     }
+
+    const auProfil = await chargerDevis(panierPourDevis(50000), {
+      profileVilleId: "c2",
+    })
+    expect(auProfil.villeInitiale).toBe("c2")
+    expect(projeterDevis(auProfil, auProfil.villeInitiale).villeId).toBe("c2")
+
+    const espaces = await chargerDevis(panierPourDevis(50000), {
+      profileVilleId: "  c2  ",
+    })
+    expect(espaces.villeInitiale).toBe("c2")
+    expect(projeterDevis(espaces, espaces.villeInitiale).villeId).toBe("c2")
   })
 
-  it("keeps an unknown lien explicit: fourni stays true and the profile never stands in", async () => {
+  it("precedence: an unknown link suppresses the profile fallback — Ville initiale null, sélection « aucune »", async () => {
     const chargé = await chargerDevis(panierPourDevis(50000), {
       villeParam: "ville-inconnue",
       profileVilleId: "c2",
     })
 
-    expect(chargé.sources).toEqual({
-      urlVilleId: null,
-      urlVilleFournie: true,
-      profileVilleId: "c2",
-    })
-    expect(projeterDevis(chargé).selection).toStrictEqual(aucune)
+    expect(chargé.villeInitiale).toBeNull()
+    expect(
+      projeterDevis(chargé, chargé.villeInitiale).selection
+    ).toStrictEqual(aucune)
     expect(chargé.quotes.c1).toEqual(quote(50000, 3500))
   })
 
-  it("omits sources when no facts are handed over", async () => {
+  it("precedence: neither a link nor a usable profile yields null", async () => {
+    const sansLien = await chargerDevis(panierPourDevis(50000), {
+      villeParam: undefined,
+      profileVilleId: null,
+    })
+    expect(sansLien.villeInitiale).toBeNull()
+
+    const profilBlanc = await chargerDevis(panierPourDevis(50000), {
+      villeParam: null,
+      profileVilleId: "   ",
+    })
+    expect(profilBlanc.villeInitiale).toBeNull()
+
+    const faitsVides = await chargerDevis(panierPourDevis(50000), {})
+    expect(faitsVides.villeInitiale).toBeNull()
+  })
+
+  it("yields villeInitiale null when no facts are handed over", async () => {
     const chargé = await chargerDevis(panierPourDevis(50000))
-    expect("sources" in chargé).toBe(false)
+    expect(chargé.villeInitiale).toBeNull()
   })
 
   it("prices free delivery when the seuil is reached or a free-shipping article is present", async () => {
@@ -411,16 +293,18 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
     throw new Error(`donnée impure à ${chemin} (${typeof valeur})`)
   }
 
-  it("chargerDevis output is strictly plain data", async () => {
+  it("chargerDevis output is strictly plain data, Ville initiale fact included", async () => {
     const chargé = await chargerDevis(panierPourDevis(50000), {
       villeParam: "slug-c1",
       profileVilleId: null,
     })
+    expect(chargé.villeInitiale).toBe("c1")
     expect(() => assertDonnéePure(chargé)).not.toThrow()
   })
 
   it("a function member fails the walk", async () => {
     const chargé = await chargerDevis(panierPourDevis(50000))
+    expect(chargé.villeInitiale).toBeNull()
     expect(() => assertDonnéePure({ ...chargé, choisir: () => chargé })).toThrow(
       /fonction/
     )
@@ -448,16 +332,6 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
 })
 
 describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
-  const sousTotal = 73000
-
-  const chargé = (overrides: Partial<DevisChargé> = {}): DevisChargé => ({
-    cities,
-    threshold: 100000,
-    quotes,
-    sousTotal,
-    ...overrides,
-  })
-
   it("ville validée : rend les villes, la sélection, les lignes et l'identifiant", () => {
     const projet = projeterDevis(chargé(), "c1")
 
@@ -479,14 +353,8 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
     expect(projet.rows.some((row) => row.kind === "total")).toBe(true)
   })
 
-  it("cas aucune (undefined, null, vide, inconnu) : sélection aucune, aucun identifiant, ligne à choisir, total omis", () => {
-    for (const villeId of [
-      undefined,
-      null,
-      "",
-      "   ",
-      "ville-inconnue",
-    ] as const) {
+  it("cas aucune (null, vide, espaces, inconnu) : sélection aucune, aucun identifiant, ligne à choisir, total omis", () => {
+    for (const villeId of [null, "", "   ", "ville-inconnue"] as const) {
       const projet = projeterDevis(chargé(), villeId)
 
       expect(projet.selection).toStrictEqual({ cas: "aucune" })
@@ -527,31 +395,102 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
       threshold: 100000,
       quotes: {},
       sousTotal: 0,
+      villeInitiale: null,
     }
 
     expect(() => projeterDevis(vide, "c1")).not.toThrow()
-    const projet = projeterDevis(vide)
+    const projet = projeterDevis(vide, null)
     expect(projet.villes).toStrictEqual([])
     expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(projet.villeId).toBeNull()
     expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
   })
+
+  describe("coutures internes privées : leurs anciens cas passent par le projecteur", () => {
+    it("identifiant absent de l'appelant → « aucune » typée `null` (paramètre requis)", () => {
+      const projet = projeterDevis(chargé(), null)
+
+      expect(projet.selection).toStrictEqual(aucune)
+      expect(projet.villeId).toBeNull()
+      expect(projet.rows[1]).toMatchObject({
+        label: "Livraison",
+        value: "À choisir",
+        tone: "muted",
+      })
+      expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+    })
+
+    it("ville connue sans devis → « aucune », jamais à moitié", () => {
+      const sansDevis = chargé({ quotes: { c1: quote(50000, 3500) } })
+      const projet = projeterDevis(sansDevis, "c2")
+
+      expect(projet.selection).toStrictEqual(aucune)
+      expect(projet.villeId).toBeNull()
+      expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+    })
+
+    it("devis sans son objet ville → « aucune », jamais à moitié", () => {
+      const sansVille = chargé({ cities: [city("c1", "Casablanca", 3500)] })
+      const projet = projeterDevis(sansVille, "c2")
+
+      expect(projet.selection).toStrictEqual(aucune)
+      expect(projet.villeId).toBeNull()
+    })
+
+    it("indépendant du prix : devis offert et facturé sélectionnent la même ville, la ligne Livraison suit", () => {
+      const offert = chargé({
+        quotes: { c1: quote(50000, 0), c2: quote(50000, 0) },
+      })
+
+      const projetOffert = projeterDevis(offert, "c1")
+      expect(projetOffert.selection).toStrictEqual({
+        cas: "validée",
+        ville: city("c1", "Casablanca", 3500),
+        devis: quote(50000, 0),
+      })
+      expect(projetOffert.rows[1]).toStrictEqual({
+        label: "Livraison (Casablanca)",
+        value: "Livraison offerte",
+        kind: "detail",
+        tone: "offered",
+      })
+
+      const projetFacturé = projeterDevis(chargé(), "c1")
+      expect(projetFacturé.selection).toStrictEqual({
+        cas: "validée",
+        ville: city("c1", "Casablanca", 3500),
+        devis: quote(50000, 3500),
+      })
+      expect(projetFacturé.rows[1]).toStrictEqual({
+        label: "Livraison (Casablanca)",
+        value: formatPrice(3500),
+        kind: "detail",
+      })
+    })
+
+    it("idempotent : projeter deux fois les mêmes entrées rend la même chose, refus compris", () => {
+      const valide1 = projeterDevis(chargé(), "c1")
+      const valide2 = projeterDevis(chargé(), "c1")
+      expect(valide1.selection).toStrictEqual({
+        cas: "validée",
+        ville: city("c1", "Casablanca", 3500),
+        devis: quote(50000, 3500),
+      })
+      expect(valide2.selection).toStrictEqual(valide1.selection)
+      expect(valide2.rows).toStrictEqual(valide1.rows)
+
+      const refus1 = projeterDevis(chargé(), "ville-inconnue")
+      const refus2 = projeterDevis(chargé(), "ville-inconnue")
+      expect(refus1.selection).toStrictEqual(aucune)
+      expect(refus2.selection).toStrictEqual(refus1.selection)
+      expect(refus2.rows).toStrictEqual(refus1.rows)
+    })
+  })
 })
 
-describe("projeterDevis: la précédence absorbée, lignes et rétrécissement par une seule surface", () => {
-  const sousTotal = 73000
-
-  const chargéAvec = (sources: DevisPrecedenceSources): DevisChargé => ({
-    cities,
-    threshold: 100000,
-    quotes,
-    sousTotal,
-    sources,
-  })
-
-  it("sans ville explicite, la précédence portée se dérive : le lien l'emporte, la projection rend Casablanca", () => {
-    const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
-    const projet = projeterDevis(chargé)
+describe("projeterDevis: la Ville explicite est la seule entrée — la Ville initiale portée ne se dérive pas", () => {
+  it("une ville valide projetée rend sélection, lignes et rétrécissement validé", () => {
+    const projet = projeterDevis(chargé(), "c1")
 
     expect(projet.villeId).toBe("c1")
     expect(projet.selection).toStrictEqual({
@@ -559,54 +498,28 @@ describe("projeterDevis: la précédence absorbée, lignes et rétrécissement p
       ville: city("c1", "Casablanca", 3500),
       devis: quote(50000, 3500),
     })
+    expect(selectionValidee(projet.selection).ville.id).toBe("c1")
+    expect(projet.rows[1]).toMatchObject({
+      label: "Livraison (Casablanca)",
+      kind: "detail",
+    })
   })
 
-  it("sans ville explicite, un lien vide ou absent retombe sur le profil, et la projection rend Rabat", () => {
-    for (const urlVilleId of [undefined, null, "", "   "]) {
-      const chargé = chargéAvec({ urlVilleId, profileVilleId: "c2" })
-      const projet = projeterDevis(chargé)
-
-      expect(projet.villeId).toBe("c2")
-    }
-  })
-
-  it("sans ville explicite ni source, la projection rend « aucune », sans identifiant ni total", () => {
-    const chargé = chargéAvec({ urlVilleId: null, profileVilleId: null })
-    const projet = projeterDevis(chargé)
+  it("une ville inconnue projetée rend « aucune » et le rétrécissement refuse", () => {
+    const projet = projeterDevis(
+      chargé({ villeInitiale: "c1" }),
+      "ville-inconnue"
+    )
 
     expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(projet.villeId).toBeNull()
-    expect(projet.rows[1]).toMatchObject({
-      label: "Livraison",
-      value: "À choisir",
-      tone: "muted",
-    })
-    expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
-  })
-
-  it("sans ville explicite, un lien explicitement inconnu rend « aucune » et le rétrécissement refuse", () => {
-    const chargé = chargéAvec({
-      urlVilleId: "ville-inconnue",
-      urlVilleFournie: true,
-    })
-    const projet = projeterDevis(chargé)
-
-    expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(() => selectionValidee(projet.selection)).toThrow(
       DeliveryCityNotFoundError
     )
   })
 
-  it("une ville valide se rétrécit en sa ville via la projection", () => {
-    const chargé = chargéAvec({ urlVilleId: "c1" })
-    const projet = projeterDevis(chargé)
-
-    expect(selectionValidee(projet.selection).ville.id).toBe("c1")
-  })
-
-  it("une ville explicite l'emporte sur les sources portées (ville soumise)", () => {
-    const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
-    const projet = projeterDevis(chargé, "c2")
+  it("une ville explicite l'emporte sur la Ville initiale portée (ville soumise)", () => {
+    const projet = projeterDevis(chargé({ villeInitiale: "c1" }), "c2")
 
     expect(projet.villeId).toBe("c2")
     expect(projet.selection).toStrictEqual({
@@ -616,16 +529,28 @@ describe("projeterDevis: la précédence absorbée, lignes et rétrécissement p
     })
   })
 
-  it("« aucune » typée et chaîne vide explicites restent « aucune » même avec des sources", () => {
-    const chargé = chargéAvec({ urlVilleId: "c1", profileVilleId: "c2" })
+  it("« aucune » typée et chaîne vide explicites restent « aucune » même avec une Ville initiale portée", () => {
+    const devisChargé = chargé({ villeInitiale: "c1" })
 
-    const typée = projeterDevis(chargé, null)
+    const typée = projeterDevis(devisChargé, null)
     expect(typée.selection).toStrictEqual({ cas: "aucune" })
     expect(typée.villeId).toBeNull()
 
-    const vide = projeterDevis(chargé, "")
+    const vide = projeterDevis(devisChargé, "")
     expect(vide.selection).toStrictEqual({ cas: "aucune" })
     expect(vide.villeId).toBeNull()
+  })
+
+  it("projeter la Ville initiale portée elle-même rend la ville du lien (recette du Panier)", () => {
+    const devisChargé = chargé({ villeInitiale: "c1" })
+    const projet = projeterDevis(devisChargé, devisChargé.villeInitiale)
+
+    expect(projet.villeId).toBe("c1")
+    expect(projet.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
   })
 })
 

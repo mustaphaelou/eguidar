@@ -10,8 +10,7 @@ import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-pai
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
-import { chargerDevis } from "@/lib/use-cases/devis"
-import { projeterDevis } from "@/lib/use-cases/devis-coeur"
+import { chargerDevis, projeterDevis } from "@/lib/use-cases/devis"
 import { lireSession } from "@/lib/use-cases/session-courante"
 import { villeVersParam } from "@/lib/use-cases/ville-url"
 import { lirePanier } from "@/lib/panier"
@@ -48,7 +47,7 @@ async function CartContent({
     villeParam: ville,
     profileVilleId: profile?.cityId,
   })
-  const projet = projeterDevis(chargé)
+  const projet = projeterDevis(chargé, chargé.villeInitiale)
   const villeSelectionnee =
     projet.selection.cas === "validée" ? projet.selection.ville : null
 
