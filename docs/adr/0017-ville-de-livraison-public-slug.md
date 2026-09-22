@@ -42,3 +42,26 @@ où elle vit désormais aux côtés de `villeVersParam`, son pendant en
 l'y consomme pour résoudre le langage d'URL (slug d'abord, puis alias
 d'identifiant en lecture seule) contre les Villes déjà chargées. La règle
 d'ADR-0017 ne change pas : seule la propriété du module se déplace.
+
+## Amendement — Le chargeur résout la Précédence du Devis (#383)
+
+La résolution du langage d'URL n'était qu'une première moitié : le
+chargeur `chargerDevis` est désormais le seul propriétaire de la
+Précédence du Devis (lien > profil > aucune). À partir des faits bruts
+(`villeParam`, `profileVilleId`), il résout le langage d'URL via
+`resoudreVilleUrl` (slug d'abord, puis alias d'identifiant), en déduit
+la présence d'un lien, rogne la Ville du profil une seule fois, et porte
+le résultat comme un fait du Devis chargé : `villeInitiale : string |
+null`, « aucune » (`null`) comprise. Le sac `sources`, son type et la
+fonction de Précédence détachée sont supprimés — leur logique vit dans
+le chargeur.
+
+La projection n'a plus de sentinelle à trois valeurs (`undefined` ≠
+`null` ≠ `""`) : `projeterDevis(devisChargé, villeId)` exige une Ville
+explicite — une chaîne est un choix, `null` est l'« aucune » typée, et
+aucun argument ne signifie « dérive-la-moi ». Le hook client se sème de
+`villeInitiale` porté par le Devis chargé, la page Panier le lui transmet
+explicitement, `placeOrder` continue de passer le `cityId` du formulaire.
+Aucune règle d'ADR-0017 ne change : un lien fourni l'emporte même
+inconnu, un lien vierge retombe sur le profil, sans lien la Sélection
+résout « aucune ».
