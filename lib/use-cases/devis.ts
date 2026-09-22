@@ -13,13 +13,10 @@
  * directement (porte d'entrée cliente : `useDevisSelection`) — jamais ce
  * module, qui tire `prisma` (`pg`) via `@/lib/use-cases/livraison`.
  *
- * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
- * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
- * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
- * dérivent par la projection unique `projeterDevis` — pages serveur comme
- * hook passent par elle. Le projecteur est la surface de test du cœur :
- * les suites passent par `projeterDevis`, jamais par une couture interne
- * (`selectionnerDevis`, `lignesDevis`), devenue privée.
+ * Le Devis est auto-porteur et se projette par la projection unique
+ * `projeterDevis` — pages serveur comme hook passent par elle : les faits
+ * portés et la surface de test du cœur sont détaillés au cœur pur
+ * (`devis-coeur`).
  *
  * Le Devis chargé (`DevisChargé`) est la donnée pure qui peut traverser
  * la couture serveur → client — aucune fonction, aucun getter, aucune
