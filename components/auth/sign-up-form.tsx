@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Loading03Icon } from "@hugeicons/core-free-icons"
@@ -10,29 +10,28 @@ import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import type { AuthFlowStep } from "@/components/auth/auth-dialog"
+import type { AuthFlow } from "@/components/auth/auth-dialog"
 import { PasswordInput } from "@/components/auth/password-input"
 import { useSignUpFlow } from "@/components/auth/use-sign-up-flow"
 import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 export function SignUpForm({
-  initialEmail,
-  step: stepProp,
-  email: emailProp,
-  onStepChange,
+  flow: flowProp,
   onVerified,
 }: {
-  initialEmail?: string
-  step?: AuthFlowStep
-  email?: string
-  onStepChange?: (step: AuthFlowStep, email: string) => void
+  flow?: AuthFlow
   onVerified?: (email: string) => void
 }) {
   const [issues, setIssues] = useState<Record<string, string>>({})
-  const [fallbackStep, setFallbackStep] = useState<AuthFlowStep>("form")
-  const [fallbackEmail, setFallbackEmail] = useState(initialEmail ?? "")
-  const step = stepProp ?? fallbackStep
-  const email = emailProp ?? fallbackEmail
+  const [localFlow, setLocalFlow] = useState<Omit<AuthFlow, "onStepChange">>({
+    step: "form",
+    email: "",
+  })
+  const flow: AuthFlow = flowProp ?? {
+    ...localFlow,
+    onStepChange: (step, email) => setLocalFlow({ step, email }),
+  }
+  const { step, email } = flow
   const {
     name,
     setName,
@@ -44,20 +43,7 @@ export function SignUpForm({
     loading,
     captcha,
     handleSignUp,
-  } = useSignUpFlow({
-    step,
-    email,
-    onStepChange: (nextStep, nextEmail) => {
-      setFallbackStep(nextStep)
-      setFallbackEmail(nextEmail)
-      onStepChange?.(nextStep, nextEmail)
-    },
-    onVerified,
-  })
-
-  useEffect(() => {
-    onStepChange?.(step, email)
-  }, [onStepChange, step, email])
+  } = useSignUpFlow({ ...flow, onVerified })
 
   function updateIssue(key: string) {
     setIssues((prev) => {

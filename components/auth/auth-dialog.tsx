@@ -22,6 +22,12 @@ import { SignUpForm } from "./sign-up-form"
 
 export type AuthFlowStep = "form" | "otp"
 
+export type AuthFlow = {
+  step: AuthFlowStep
+  email: string
+  onStepChange: (step: AuthFlowStep, email: string) => void
+}
+
 const COMMERCE_PREFIXES = ["/produit", "/panier", "/checkout"]
 
 function leadsToOrder(destination: string): boolean {
@@ -49,8 +55,6 @@ function headingForDestination(
     : "Créez votre compte pour continuer"
 }
 
-type AuthDialogHeader = { step: AuthFlowStep; email: string }
-
 const OTP_TITLE = "Vérifiez votre e-mail"
 
 type AuthDialogConfig = {
@@ -71,26 +75,53 @@ export function AuthDialog({
   hasGoogle?: boolean
   hasFacebook?: boolean
 }) {
-  const { email: initialEmail, openLogin, openSignUp, close } = useAuthDialogs()
+  const { close } = useAuthDialogs()
   const open = useAuthDialogOpen(dialog)
 
-  const [header, setHeader] = useState<AuthDialogHeader>({
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close()
+      }}
+    >
+      <DialogContent>
+        {open && (
+          <AuthDialogPanel
+            dialog={dialog}
+            hasGoogle={hasGoogle}
+            hasFacebook={hasFacebook}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AuthDialogPanel({
+  dialog,
+  hasGoogle,
+  hasFacebook,
+}: {
+  dialog: AuthDialogName
+  hasGoogle: boolean
+  hasFacebook: boolean
+}) {
+  const { email: seedEmail, openLogin, openSignUp, close } = useAuthDialogs()
+  const [flowState, setFlowState] = useState<{
+    step: AuthFlowStep
+    email: string
+  }>({
     step: "form",
-    email: initialEmail,
+    email: seedEmail,
   })
-  const [wasOpen, setWasOpen] = useState(open)
-  if (wasOpen !== open) {
-    setWasOpen(open)
-    if (open) {
-      setHeader({ step: "form", email: initialEmail })
-    }
-  }
   const handleStepChange = useCallback(
     (step: AuthFlowStep, email: string) => {
-      setHeader({ step, email })
+      setFlowState({ step, email })
     },
     []
   )
+  const flow: AuthFlow = { ...flowState, onStepChange: handleStepChange }
   const destination = useAuthDialogDestination()
   const contextualTitle = headingForDestination(dialog, destination)
 
@@ -106,10 +137,7 @@ export function AuthDialog({
         <SignInForm
           hasGoogle={hasGoogle}
           hasFacebook={hasFacebook}
-          initialEmail={initialEmail}
-          step={header.step}
-          email={header.email}
-          onStepChange={handleStepChange}
+          flow={flow}
           onForgotPassword={close}
           onSuccess={close}
         />
@@ -124,10 +152,7 @@ export function AuthDialog({
       swapOpen: openLogin,
       form: (
         <SignUpForm
-          initialEmail={initialEmail}
-          step={header.step}
-          email={header.email}
-          onStepChange={handleStepChange}
+          flow={flow}
           onVerified={(verifiedEmail) => openLogin({ email: verifiedEmail })}
         />
       ),
@@ -135,39 +160,32 @@ export function AuthDialog({
   }
 
   const kind = config[dialog]
-  const isOtp = header.step === "otp"
+  const isOtp = flow.step === "otp"
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) close()
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="text-lg">
-            {isOtp ? OTP_TITLE : (contextualTitle ?? kind.defaultTitle)}
-          </DialogTitle>
-          <DialogDescription>
-            {isOtp ? (
-              kind.otpDescription(header.email)
-            ) : (
-              <>
-                {kind.swapPrefix}{" "}
-                <button
-                  type="button"
-                  onClick={() => kind.swapOpen({ email: header.email })}
-                  className="underline underline-offset-4 hover:text-primary"
-                >
-                  {kind.swapLabel}
-                </button>
-              </>
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        {kind.form}
-      </DialogContent>
-    </Dialog>
+    <>
+      <DialogHeader>
+        <DialogTitle className="text-lg">
+          {isOtp ? OTP_TITLE : (contextualTitle ?? kind.defaultTitle)}
+        </DialogTitle>
+        <DialogDescription>
+          {isOtp ? (
+            kind.otpDescription(flow.email)
+          ) : (
+            <>
+              {kind.swapPrefix}{" "}
+              <button
+                type="button"
+                onClick={() => kind.swapOpen({ email: flow.email })}
+                className="underline underline-offset-4 hover:text-primary"
+              >
+                {kind.swapLabel}
+              </button>
+            </>
+          )}
+        </DialogDescription>
+      </DialogHeader>
+      {kind.form}
+    </>
   )
 }

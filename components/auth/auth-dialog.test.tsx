@@ -20,6 +20,39 @@ vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("next/link", () => mockNextLink())
 
+type FlowSetter = (step: "form" | "otp", email: string) => void
+
+const flowSetters = vi.hoisted(() => ({
+  login: null as FlowSetter | null,
+  signup: null as FlowSetter | null,
+}))
+
+vi.mock("@/components/auth/use-sign-in-flow", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/components/auth/use-sign-in-flow")
+  >()
+  return {
+    ...actual,
+    useSignInFlow: (options: Parameters<typeof actual.useSignInFlow>[0]) => {
+      flowSetters.login = options.onStepChange
+      return actual.useSignInFlow(options)
+    },
+  }
+})
+
+vi.mock("@/components/auth/use-sign-up-flow", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/components/auth/use-sign-up-flow")
+  >()
+  return {
+    ...actual,
+    useSignUpFlow: (options: Parameters<typeof actual.useSignUpFlow>[0]) => {
+      flowSetters.signup = options.onStepChange
+      return actual.useSignUpFlow(options)
+    },
+  }
+})
+
 vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@/components/auth/test-de-securite")
@@ -76,6 +109,8 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   resetNavigation("/")
+  flowSetters.login = null
+  flowSetters.signup = null
   mockedAuthClient.signUp.email.mockResolvedValue({ data: {}, error: null })
   mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
     data: {},
@@ -145,6 +180,19 @@ function SwapHarness() {
   return (
     <button type="button" data-open-signup onClick={() => openSignUp()}>
       open signup
+    </button>
+  )
+}
+
+function SeedHarness() {
+  const { openLogin } = useAuthDialogs()
+  return (
+    <button
+      type="button"
+      data-open-login-seed
+      onClick={() => openLogin({ email: "seed@example.com" })}
+    >
+      open login seeded
     </button>
   )
 }
@@ -353,6 +401,46 @@ describe("AuthDialog", () => {
       )
     })
 
+    it("seeds the flow from the controller e-mail when opened with an e-mail seed", async () => {
+      renderDialogs({ harness: <SeedHarness /> })
+
+      await clickAndSync(
+        container.querySelector<HTMLButtonElement>("[data-open-login-seed]")!
+      )
+
+      expect(emailInput()?.value).toBe("seed@example.com")
+    })
+
+    it("derives title, description, and swap from the flow step without form submission", async () => {
+      window.history.replaceState(null, "", "/?open=login")
+      renderDialogs()
+      await flush()
+      rerender()
+
+      expect(flowSetters.login).not.toBeNull()
+      expect(title()).toBe("Connexion à Eguidar")
+      expect(swapButton()?.textContent).toBe("Inscrivez-vous")
+
+      act(() => flowSetters.login!("otp", "direct@example.com"))
+      expect(title()).toBe("Vérifiez votre e-mail")
+      expect(description()).toBe(
+        "Saisissez le code de vérification envoyé à direct@example.com."
+      )
+      expect(swapButton()).toBeNull()
+
+      act(() => flowSetters.login!("form", "edited@example.com"))
+      expect(title()).toBe("Connexion à Eguidar")
+      expect(swapButton()?.textContent).toBe("Inscrivez-vous")
+
+      await clickAndSync(swapButton()!)
+
+      expect(title()).toBe("Créer un compte")
+      expect(emailInput()?.value).toBe("edited@example.com")
+      expect(new URL(window.location.href).searchParams.get("open")).toBe(
+        "signup"
+      )
+    })
+
     it("closes on forgot-password", async () => {
       renderDialogs({ harness: <Harness /> })
 
@@ -497,6 +585,40 @@ describe("AuthDialog", () => {
       )
 
       expect(title()).toBe("Créez votre compte pour finaliser votre commande")
+    })
+
+    it("derives title, description, and swap from the flow step without form submission", async () => {
+      window.history.replaceState(
+        null,
+        "",
+        "/?open=signup&next=/produit/tableau-atlas"
+      )
+      renderDialogs()
+      await flush()
+      rerender()
+
+      expect(flowSetters.signup).not.toBeNull()
+      expect(title()).toBe("Créez votre compte pour finaliser votre commande")
+      expect(swapButton()?.textContent).toBe("Se connecter")
+
+      act(() => flowSetters.signup!("otp", "direct@example.com"))
+      expect(title()).toBe("Vérifiez votre e-mail")
+      expect(description()).toBe(
+        "Vérifiez votre adresse e-mail pour finaliser votre inscription (direct@example.com)."
+      )
+      expect(swapButton()).toBeNull()
+
+      act(() => flowSetters.signup!("form", "edited@example.com"))
+      expect(title()).toBe("Créez votre compte pour finaliser votre commande")
+      expect(swapButton()?.textContent).toBe("Se connecter")
+
+      await clickAndSync(swapButton()!)
+
+      expect(title()).toBe("Connectez-vous pour finaliser votre commande")
+      expect(emailInput()?.value).toBe("edited@example.com")
+      expect(new URL(window.location.href).searchParams.get("open")).toBe(
+        "login"
+      )
     })
 
     it("shows the continuer title for a non-commerce destination", async () => {
