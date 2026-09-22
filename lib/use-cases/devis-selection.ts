@@ -12,11 +12,12 @@
  * du Devis — lien > profil > aucune — est déjà résolue par le chargeur,
  * jamais ré-ici) et projette le Devis projeté à chaque rendu
  * (`projeterDevis`) avec la Ville choisie, explicite. La projection est la
- * surface externe ; les coutures internes (`selectionnerDevis`,
- * `lignesDevis`) gardent leurs tests directs dans le cœur pur.
+ * surface externe et la surface de test du cœur : les coutures internes
+ * (`selectionnerDevis`, `lignesDevis`) sont privées, leurs anciens cas
+ * se projettent par `projeterDevis`.
  *
- * Le pur partagé (`projeterDevis`, `selectionnerDevis`,
- * `lignesDevis`) vit dans le cœur neutre `@/lib/use-cases/devis-coeur`
+ * Le pur partagé (`projeterDevis`, `selectionValidee`, les types) vit
+ * dans le cœur neutre `@/lib/use-cases/devis-coeur`
  * (sans directive), consommé aussi côté serveur (`chargerDevis`, pages
  * Panier/Checkout, `placeOrder`). Définir ce pur ici — module « use
  * client » — faisait lever la production dès qu'un serveur l'appelait

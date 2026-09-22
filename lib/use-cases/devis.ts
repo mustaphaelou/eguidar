@@ -16,9 +16,10 @@
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
  * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
- * dérivent par la projection unique `projeterDevis`, qui compose
- * `lignesDevis` — pages serveur comme hook passent par elle. Les coutures
- * internes gardent leurs tests directs.
+ * dérivent par la projection unique `projeterDevis` — pages serveur comme
+ * hook passent par elle. Le projecteur est la surface de test du cœur :
+ * les suites passent par `projeterDevis`, jamais par une couture interne
+ * (`selectionnerDevis`, `lignesDevis`), devenue privée.
  *
  * Le Devis chargé (`DevisChargé`) est la donnée pure qui peut traverser
  * la couture serveur → client — aucune fonction, aucun getter, aucune
