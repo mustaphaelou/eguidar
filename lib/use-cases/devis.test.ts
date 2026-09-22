@@ -61,6 +61,15 @@ const quotes: Record<string, ShippingQuote> = {
 
 const aucune = { cas: "aucune" } as const
 
+const chargé = (overrides: Partial<DevisChargé> = {}): DevisChargé => ({
+  cities,
+  threshold: 100000,
+  quotes,
+  sousTotal: 73000,
+  villeInitiale: null,
+  ...overrides,
+})
+
 describe("selectionValidee (rétrécissement de prise en commande)", () => {
   const validée = {
     cas: "validée",
@@ -323,17 +332,6 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
 })
 
 describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
-  const sousTotal = 73000
-
-  const chargé = (overrides: Partial<DevisChargé> = {}): DevisChargé => ({
-    cities,
-    threshold: 100000,
-    quotes,
-    sousTotal,
-    villeInitiale: null,
-    ...overrides,
-  })
-
   it("ville validée : rend les villes, la sélection, les lignes et l'identifiant", () => {
     const projet = projeterDevis(chargé(), "c1")
 
@@ -491,18 +489,8 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
 })
 
 describe("projeterDevis: la Ville explicite est la seule entrée — la Ville initiale portée ne se dérive pas", () => {
-  const sousTotal = 73000
-
-  const chargéAvec = (villeInitiale: string | null): DevisChargé => ({
-    cities,
-    threshold: 100000,
-    quotes,
-    sousTotal,
-    villeInitiale,
-  })
-
   it("une ville valide projetée rend sélection, lignes et rétrécissement validé", () => {
-    const projet = projeterDevis(chargéAvec(null), "c1")
+    const projet = projeterDevis(chargé(), "c1")
 
     expect(projet.villeId).toBe("c1")
     expect(projet.selection).toStrictEqual({
@@ -518,7 +506,10 @@ describe("projeterDevis: la Ville explicite est la seule entrée — la Ville in
   })
 
   it("une ville inconnue projetée rend « aucune » et le rétrécissement refuse", () => {
-    const projet = projeterDevis(chargéAvec("c1"), "ville-inconnue")
+    const projet = projeterDevis(
+      chargé({ villeInitiale: "c1" }),
+      "ville-inconnue"
+    )
 
     expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(projet.villeId).toBeNull()
@@ -528,7 +519,7 @@ describe("projeterDevis: la Ville explicite est la seule entrée — la Ville in
   })
 
   it("une ville explicite l'emporte sur la Ville initiale portée (ville soumise)", () => {
-    const projet = projeterDevis(chargéAvec("c1"), "c2")
+    const projet = projeterDevis(chargé({ villeInitiale: "c1" }), "c2")
 
     expect(projet.villeId).toBe("c2")
     expect(projet.selection).toStrictEqual({
@@ -539,20 +530,20 @@ describe("projeterDevis: la Ville explicite est la seule entrée — la Ville in
   })
 
   it("« aucune » typée et chaîne vide explicites restent « aucune » même avec une Ville initiale portée", () => {
-    const chargé = chargéAvec("c1")
+    const devisChargé = chargé({ villeInitiale: "c1" })
 
-    const typée = projeterDevis(chargé, null)
+    const typée = projeterDevis(devisChargé, null)
     expect(typée.selection).toStrictEqual({ cas: "aucune" })
     expect(typée.villeId).toBeNull()
 
-    const vide = projeterDevis(chargé, "")
+    const vide = projeterDevis(devisChargé, "")
     expect(vide.selection).toStrictEqual({ cas: "aucune" })
     expect(vide.villeId).toBeNull()
   })
 
   it("projeter la Ville initiale portée elle-même rend la ville du lien (recette du Panier)", () => {
-    const chargé = chargéAvec("c1")
-    const projet = projeterDevis(chargé, chargé.villeInitiale)
+    const devisChargé = chargé({ villeInitiale: "c1" })
+    const projet = projeterDevis(devisChargé, devisChargé.villeInitiale)
 
     expect(projet.villeId).toBe("c1")
     expect(projet.selection).toStrictEqual({

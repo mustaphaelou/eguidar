@@ -34,8 +34,9 @@ _Avoid_: quote, estimation de livraison
 
 **Devis chargé**:
 Les faits du Devis d'un Panier chargés côté serveur : les Villes de livraison avec leurs frais,
-le seuil de livraison offerte, le devis de chaque ville et le sous-total — des données pures qui
-traversent la couture serveur vers le client. Le Devis projeté se dérive ensuite de ces faits.
+le seuil de livraison offerte, le devis de chaque ville, le sous-total et sa Ville initiale
+(« aucune » comprise) — des données pures qui traversent la couture serveur vers le client.
+Le Devis projeté se dérive ensuite de ces faits.
 _Avoid_: quote payload, devis data, devis sérialisé
 
 **Devis projeté**:
