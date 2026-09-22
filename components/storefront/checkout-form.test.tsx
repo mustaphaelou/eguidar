@@ -99,9 +99,8 @@ function devisPourTest({
     threshold: 100000,
     quotes,
     sousTotal: 100000,
-    sources: {
-      urlVilleId: selection.cas === "validée" ? selection.ville.id : null,
-    },
+    villeInitiale:
+      selection.cas === "validée" ? selection.ville.id : null,
   }
 }
 
