@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 
+import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
 import { translateAuthError } from "@/components/auth/auth-form-glue"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
@@ -12,8 +13,6 @@ import {
 import { authClient } from "@/lib/client"
 import { withoutAuthParams } from "@/lib/lien-de-connexion"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
-
-export type SignInStep = "form" | "otp"
 
 export type SignInFlow = ReturnType<typeof useSignInFlow>
 
@@ -27,7 +26,7 @@ export function useSignInFlow({
   const next = useAuthDialogDestination()
   const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
-  const [step, setStep] = useState<SignInStep>("form")
+  const [step, setStep] = useState<AuthFlowStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)

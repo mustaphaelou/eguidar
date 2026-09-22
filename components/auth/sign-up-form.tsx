@@ -10,11 +10,9 @@ import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { PasswordInput } from "@/components/auth/password-input"
-import {
-  useSignUpFlow,
-  type SignUpStep,
-} from "@/components/auth/use-sign-up-flow"
+import { useSignUpFlow } from "@/components/auth/use-sign-up-flow"
 import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 export function SignUpForm({
@@ -23,7 +21,7 @@ export function SignUpForm({
   onVerified,
 }: {
   initialEmail?: string
-  onStepChange?: (step: SignUpStep, email: string) => void
+  onStepChange?: (step: AuthFlowStep, email: string) => void
   onVerified?: (email: string) => void
 }) {
   const [issues, setIssues] = useState<Record<string, string>>({})

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 
+import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { translateAuthError } from "@/components/auth/auth-form-glue"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import {
@@ -9,8 +10,6 @@ import {
   useTestDeSecurite,
 } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
-
-export type SignUpStep = "form" | "otp"
 
 export function useSignUpFlow({
   initialEmail,
@@ -22,7 +21,7 @@ export function useSignUpFlow({
   const [name, setName] = useState("")
   const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
-  const [step, setStep] = useState<SignUpStep>("form")
+  const [step, setStep] = useState<AuthFlowStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const captcha = useTestDeSecurite()

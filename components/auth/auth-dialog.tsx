@@ -19,8 +19,8 @@ import {
 } from "./auth-dialogs"
 import { SignInForm } from "./sign-in-form"
 import { SignUpForm } from "./sign-up-form"
-import type { SignInStep } from "./use-sign-in-flow"
-import type { SignUpStep } from "./use-sign-up-flow"
+
+export type AuthFlowStep = "form" | "otp"
 
 const COMMERCE_PREFIXES = ["/produit", "/panier", "/checkout"]
 
@@ -49,7 +49,7 @@ function headingForDestination(
     : "Créez votre compte pour continuer"
 }
 
-type AuthDialogHeader = { step: SignInStep | SignUpStep; email: string }
+type AuthDialogHeader = { step: AuthFlowStep; email: string }
 
 const OTP_TITLE = "Vérifiez votre e-mail"
 
@@ -79,7 +79,7 @@ export function AuthDialog({
     email: initialEmail,
   })
   const handleStepChange = useCallback(
-    (step: SignInStep | SignUpStep, email: string) => {
+    (step: AuthFlowStep, email: string) => {
       setHeader({ step, email })
     },
     []

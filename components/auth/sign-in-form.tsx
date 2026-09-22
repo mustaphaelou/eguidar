@@ -21,11 +21,9 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { PasswordInput } from "@/components/auth/password-input"
-import {
-  useSignInFlow,
-  type SignInStep,
-} from "@/components/auth/use-sign-in-flow"
+import { useSignInFlow } from "@/components/auth/use-sign-in-flow"
 import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 
 export function SignInForm({
@@ -40,7 +38,7 @@ export function SignInForm({
   hasFacebook: boolean
   initialEmail?: string
   onForgotPassword?: () => void
-  onStepChange?: (step: SignInStep, email: string) => void
+  onStepChange?: (step: AuthFlowStep, email: string) => void
   onSuccess?: () => void
 }) {
   const {
