@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import { resetNavigation, setInputValue } from "./test-utils"
-import { act } from "react"
+import { act, useState } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { authClient } from "@/lib/client"
 import { useSignUpFlow } from "./use-sign-up-flow"
 
@@ -65,13 +66,28 @@ function render(element: ReactElement) {
 }
 
 function Harness({
-  initialEmail,
+  step: stepProp = "form",
+  email: emailProp = "",
+  onStepChange,
   onVerified,
 }: {
-  initialEmail?: string
+  step?: AuthFlowStep
+  email?: string
+  onStepChange?: (step: AuthFlowStep, email: string) => void
   onVerified?: (email: string) => void
 }) {
-  const flow = useSignUpFlow({ initialEmail, onVerified })
+  const [step, setStep] = useState<AuthFlowStep>(stepProp)
+  const [email, setEmail] = useState(emailProp)
+  const flow = useSignUpFlow({
+    step,
+    email,
+    onStepChange: (nextStep, nextEmail) => {
+      setStep(nextStep)
+      setEmail(nextEmail)
+      onStepChange?.(nextStep, nextEmail)
+    },
+    onVerified,
+  })
   return (
     <div>
       <input
@@ -96,17 +112,6 @@ function Harness({
       {flow.error && <p data-error>{flow.error}</p>}
       {flow.loading && <p data-loading>loading</p>}
     </div>
-  )
-}
-
-function PrefillHarness() {
-  const flow = useSignUpFlow({ initialEmail: "prefilled@example.com" })
-  return (
-    <input
-      aria-label="email"
-      value={flow.email}
-      onChange={(e) => flow.setEmail(e.target.value)}
-    />
   )
 }
 
@@ -146,8 +151,9 @@ async function clickAndFlush(target: HTMLElement) {
 describe("useSignUpFlow", () => {
   it("submits a valid sign-up and moves to the otp step", async () => {
     mockedAuthClient.signUp.email.mockResolvedValue({ data: {}, error: null })
+    const onStepChange = vi.fn()
 
-    render(<Harness />)
+    render(<Harness onStepChange={onStepChange} />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
     setInputValue(passwordInput(), "password123")
@@ -160,6 +166,7 @@ describe("useSignUpFlow", () => {
       password: "password123",
       fetchOptions: { headers: undefined },
     })
+    expect(onStepChange).toHaveBeenCalledWith("otp", "jane@example.com")
     expect(step()).toBe("otp")
     expect(container.querySelector("[data-loading]")).toBeNull()
     expect(error()).toBeNull()
@@ -170,8 +177,9 @@ describe("useSignUpFlow", () => {
       data: null,
       error: { code: "USER_ALREADY_EXISTS", message: "already exists" },
     })
+    const onStepChange = vi.fn()
 
-    render(<Harness />)
+    render(<Harness onStepChange={onStepChange} />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
     setInputValue(passwordInput(), "password123")
@@ -180,6 +188,7 @@ describe("useSignUpFlow", () => {
 
     expect(error()).toBe("Un compte existe déjà avec cette adresse e-mail.")
     expect(step()).toBe("form")
+    expect(onStepChange).not.toHaveBeenCalledWith("otp", expect.any(String))
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
@@ -191,8 +200,9 @@ describe("useSignUpFlow", () => {
           resolveSignUp = resolve
         })
     )
+    const onStepChange = vi.fn()
 
-    render(<Harness />)
+    render(<Harness onStepChange={onStepChange} />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
     setInputValue(passwordInput(), "password123")
@@ -209,6 +219,7 @@ describe("useSignUpFlow", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     expect(container.querySelector("[data-loading]")).toBeNull()
+    expect(onStepChange).toHaveBeenCalledWith("otp", "jane@example.com")
     expect(step()).toBe("otp")
   })
 
@@ -246,12 +257,8 @@ describe("useSignUpFlow", () => {
     expect(captchaStub.reset).not.toHaveBeenCalled()
   })
 
-  it("initializes the email from initialEmail", () => {
-    render(
-      <div>
-        <PrefillHarness />
-      </div>
-    )
+  it("renders the controlled email prop", () => {
+    render(<Harness email="prefilled@example.com" />)
 
     expect(emailInput().value).toBe("prefilled@example.com")
   })

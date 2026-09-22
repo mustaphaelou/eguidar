@@ -30,6 +30,8 @@ export function SignInForm({
   hasGoogle,
   hasFacebook,
   initialEmail,
+  step: stepProp,
+  email: emailProp,
   onForgotPassword,
   onStepChange,
   onSuccess,
@@ -37,17 +39,21 @@ export function SignInForm({
   hasGoogle: boolean
   hasFacebook: boolean
   initialEmail?: string
+  step?: AuthFlowStep
+  email?: string
   onForgotPassword?: () => void
   onStepChange?: (step: AuthFlowStep, email: string) => void
   onSuccess?: () => void
 }) {
+  const [fallbackStep, setFallbackStep] = useState<AuthFlowStep>("form")
+  const [fallbackEmail, setFallbackEmail] = useState(initialEmail ?? "")
+  const step = stepProp ?? fallbackStep
+  const email = emailProp ?? fallbackEmail
   const {
-    email,
     setEmail,
     password,
     setPassword,
     otp,
-    step,
     error,
     notice,
     loading,
@@ -55,7 +61,16 @@ export function SignInForm({
     handleSignIn,
     handleSocial,
     backToForm,
-  } = useSignInFlow({ initialEmail, onSuccess })
+  } = useSignInFlow({
+    step,
+    email,
+    onStepChange: (nextStep, nextEmail) => {
+      setFallbackStep(nextStep)
+      setFallbackEmail(nextEmail)
+      onStepChange?.(nextStep, nextEmail)
+    },
+    onSuccess,
+  })
   const [issues, setIssues] = useState<Record<string, string>>({})
 
   useEffect(() => {

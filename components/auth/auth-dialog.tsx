@@ -78,6 +78,13 @@ export function AuthDialog({
     step: "form",
     email: initialEmail,
   })
+  const [wasOpen, setWasOpen] = useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    if (open) {
+      setHeader({ step: "form", email: initialEmail })
+    }
+  }
   const handleStepChange = useCallback(
     (step: AuthFlowStep, email: string) => {
       setHeader({ step, email })
@@ -100,6 +107,8 @@ export function AuthDialog({
           hasGoogle={hasGoogle}
           hasFacebook={hasFacebook}
           initialEmail={initialEmail}
+          step={header.step}
+          email={header.email}
           onStepChange={handleStepChange}
           onForgotPassword={close}
           onSuccess={close}
@@ -116,6 +125,8 @@ export function AuthDialog({
       form: (
         <SignUpForm
           initialEmail={initialEmail}
+          step={header.step}
+          email={header.email}
           onStepChange={handleStepChange}
           onVerified={(verifiedEmail) => openLogin({ email: verifiedEmail })}
         />

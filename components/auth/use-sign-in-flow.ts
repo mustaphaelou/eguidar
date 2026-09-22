@@ -17,16 +17,18 @@ import type { FournisseurSocial } from "@/lib/oauth-providers"
 export type SignInFlow = ReturnType<typeof useSignInFlow>
 
 export function useSignInFlow({
-  initialEmail,
+  step,
+  email,
+  onStepChange,
   onSuccess,
 }: {
-  initialEmail?: string
+  step: AuthFlowStep
+  email: string
+  onStepChange: (step: AuthFlowStep, email: string) => void
   onSuccess?: () => void
-} = {}) {
+}) {
   const next = useAuthDialogDestination()
-  const [email, setEmail] = useState(initialEmail ?? "")
   const [password, setPassword] = useState("")
-  const [step, setStep] = useState<AuthFlowStep>("form")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -53,7 +55,7 @@ export function useSignInFlow({
       })
       if (result.error) {
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
-          setStep("otp")
+          onStepChange("otp", email)
           return
         }
         if (isCaptchaRejection(result.error)) {
@@ -86,8 +88,12 @@ export function useSignInFlow({
     onSuccess?.()
   }
 
+  function setEmail(value: string) {
+    onStepChange(step, value)
+  }
+
   function backToForm() {
-    setStep("form")
+    onStepChange("form", email)
     setError(null)
   }
 
