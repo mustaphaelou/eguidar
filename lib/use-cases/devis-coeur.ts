@@ -1,12 +1,13 @@
 /**
  * Cœur pur du Devis — module neutre, sans directive.
  *
- * NE JAMAIS ajouter `"use client"` ici : `selectionnerDevis` et
- * `lignesDevis` sont appelés côté serveur (`chargerDevis` dans
- * `@/lib/use-cases/devis`, pages Panier/Checkout, `placeOrder`). Importer
- * ces fonctions depuis le module client `devis-selection` faisait lever la
- * production (« Attempted to call selectionnerDevis() from the server… »)
- * et affichait « This page couldn't load » sur /panier.
+ * NE JAMAIS ajouter `"use client"` ici : `projeterDevis` et
+ * `selectionValidee` sont appelés côté serveur (page Panier,
+ * `placeOrder`) — ce cœur est aussi consommé côté client via
+ * `@/lib/use-cases/devis-selection`. Définir ce pur dans le module client
+ * `devis-selection` faisait lever la production (« Attempted to call
+ * selectionnerDevis() from the server… ») et affichait « This page
+ * couldn't load » sur /panier.
  *
  * NE JAMAIS importer `@/lib/db` (ni aucun module qui l'importe) ici : ce
  * cœur est aussi consommé côté client (via `@/lib/use-cases/devis-selection`
@@ -32,10 +33,11 @@
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
  * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
- * dérivent par la projection unique `projeterDevis`, qui compose
- * `lignesDevis` — pages serveur comme hook passent par elle. Les coutures
- * internes (`selectionnerDevis`, `lignesDevis`) gardent leurs tests
- * directs.
+ * dérivent par la projection unique `projeterDevis` — pages serveur comme
+ * hook passent par elle. Le projecteur est la surface d'entrée du cœur
+ * et sa surface de test : les suites passent par `projeterDevis`, jamais
+ * par une couture interne (`selectionnerDevis`, `lignesDevis`),
+ * devenue privée.
  */
 import {
   construireLignes,
@@ -72,7 +74,7 @@ export type SelectionDevis =
  * Résolution pure uniquement — indépendante du calcul des prix
  * (seuil, livraison offerte).
  */
-export function selectionnerDevis(
+function selectionnerDevis(
   cities: DeliveryCityOption[],
   quotes: Record<string, ShippingQuote>,
   requestedCityId?: string | null
@@ -107,7 +109,7 @@ export type DevisChargé = {
 
 /**
  * Lignes du Récapitulatif de paiement pour une Sélection du Devis —
- * projecteur unique pour les pages serveur comme pour le hook.
+ * couture interne du cœur, atteinte uniquement via `projeterDevis`.
  *
  * Détail interne du Devis (l'ancienne entrée Devis du Récapitulatif est
  * retirée) : cas « aucune » → « Livraison » + « À choisir » + Total omis ;
@@ -115,7 +117,7 @@ export type DevisChargé = {
  * vit dans `construireLignes`, ici on ne fait que projeter la sélection.
  * Ne lève jamais.
  */
-export function lignesDevis(
+function lignesDevis(
   sousTotal: number,
   selection: SelectionDevis
 ): RécapitulatifRow[] {
@@ -165,7 +167,8 @@ export function selectionValidee(
  * Ville de livraison explicite (`string | null`, « aucune » comprise).
  * Les devis bruts (`quotes`) et le seuil (`threshold`) restent cachés
  * derrière la projection ; les coutures internes (`selectionnerDevis`,
- * `lignesDevis`) gardent leurs tests directs.
+ * `lignesDevis`) sont privées : le projecteur est la surface de test du
+ * cœur.
  */
 export type DevisProjeté = {
   villes: DeliveryCityOption[]

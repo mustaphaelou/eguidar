@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
   projeterDevis,
-  selectionnerDevis,
   selectionValidee,
   type DevisChargé,
 } from "@/lib/use-cases/devis-coeur"
@@ -61,96 +60,6 @@ const quotes: Record<string, ShippingQuote> = {
 }
 
 const aucune = { cas: "aucune" } as const
-
-describe("internal seam: selectionnerDevis (core lookup)", () => {
-  it("resolves a known city id to that city and its quote", () => {
-    expect(selectionnerDevis(cities, quotes, "c1")).toStrictEqual({
-      cas: "validée",
-      ville: city("c1", "Casablanca", 3500),
-      devis: quote(50000, 3500),
-    })
-  })
-
-  it("resolves the other known city id to its own city and quote", () => {
-    expect(selectionnerDevis(cities, quotes, "c2")).toStrictEqual({
-      cas: "validée",
-      ville: city("c2", "Rabat", 5000),
-      devis: quote(50000, 5000),
-    })
-  })
-
-  it("resolves an absent requested id to aucune", () => {
-    expect(selectionnerDevis(cities, quotes)).toStrictEqual(aucune)
-  })
-
-  it("resolves a null requested id to aucune", () => {
-    expect(selectionnerDevis(cities, quotes, null)).toStrictEqual(aucune)
-  })
-
-  it("resolves an unknown requested id to aucune", () => {
-    expect(selectionnerDevis(cities, quotes, "ville-inconnue")).toStrictEqual(
-      aucune
-    )
-  })
-
-  it("resolves a known city without a quote to aucune (never half-selects)", () => {
-    const withoutQuote: Record<string, ShippingQuote> = {
-      c1: quote(50000, 3500),
-    }
-
-    expect(selectionnerDevis(cities, withoutQuote, "c2")).toStrictEqual(aucune)
-  })
-
-  it("resolves a quote without its city object to aucune (never half-selects)", () => {
-    expect(
-      selectionnerDevis([city("c1", "Casablanca", 3500)], quotes, "c2")
-    ).toStrictEqual(aucune)
-  })
-
-  it("is independent of pricing (zero-fee and full-fee quotes select the same way)", () => {
-    const freeQuotes: Record<string, ShippingQuote> = {
-      c1: quote(50000, 0),
-      c2: quote(50000, 0),
-    }
-
-    const selectionC1 = (cityQuote: ShippingQuote) => ({
-      cas: "validée",
-      ville: city("c1", "Casablanca", 3500),
-      devis: cityQuote,
-    })
-
-    expect(selectionnerDevis(cities, freeQuotes, "c1")).toStrictEqual(
-      selectionC1(quote(50000, 0))
-    )
-    expect(selectionnerDevis(cities, quotes, "c1")).toStrictEqual(
-      selectionC1(quote(50000, 3500))
-    )
-  })
-
-  it("is idempotent (same inputs twice → same case)", () => {
-    const first = selectionnerDevis(cities, quotes, "c1")
-    const second = selectionnerDevis(cities, quotes, "c1")
-
-    expect(first).toStrictEqual({
-      cas: "validée",
-      ville: city("c1", "Casablanca", 3500),
-      devis: quote(50000, 3500),
-    })
-    expect(second).toStrictEqual(first)
-
-    const unknownFirst = selectionnerDevis(cities, quotes, "ville-inconnue")
-    const unknownSecond = selectionnerDevis(cities, quotes, "ville-inconnue")
-
-    expect(unknownFirst).toStrictEqual(aucune)
-    expect(unknownSecond).toStrictEqual(unknownFirst)
-  })
-
-  it("never throws on empty inputs", () => {
-    expect(() => selectionnerDevis([], {}, "c1")).not.toThrow()
-    expect(selectionnerDevis([], {}, "c1")).toStrictEqual(aucune)
-    expect(selectionnerDevis([], {}, undefined)).toStrictEqual(aucune)
-  })
-})
 
 describe("selectionValidee (rétrécissement de prise en commande)", () => {
   const validée = {
@@ -497,6 +406,87 @@ describe("projeterDevis: le Devis projeté, surface externe du cœur", () => {
     expect(projet.selection).toStrictEqual({ cas: "aucune" })
     expect(projet.villeId).toBeNull()
     expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+  })
+
+  describe("coutures internes privées : leurs anciens cas passent par le projecteur", () => {
+    it("identifiant absent de l'appelant → « aucune » typée `null` (paramètre requis)", () => {
+      const projet = projeterDevis(chargé(), null)
+
+      expect(projet.selection).toStrictEqual(aucune)
+      expect(projet.villeId).toBeNull()
+      expect(projet.rows[1]).toMatchObject({
+        label: "Livraison",
+        value: "À choisir",
+        tone: "muted",
+      })
+      expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+    })
+
+    it("ville connue sans devis → « aucune », jamais à moitié", () => {
+      const sansDevis = chargé({ quotes: { c1: quote(50000, 3500) } })
+      const projet = projeterDevis(sansDevis, "c2")
+
+      expect(projet.selection).toStrictEqual(aucune)
+      expect(projet.villeId).toBeNull()
+      expect(projet.rows.some((row) => row.kind === "total")).toBe(false)
+    })
+
+    it("devis sans son objet ville → « aucune », jamais à moitié", () => {
+      const sansVille = chargé({ cities: [city("c1", "Casablanca", 3500)] })
+      const projet = projeterDevis(sansVille, "c2")
+
+      expect(projet.selection).toStrictEqual(aucune)
+      expect(projet.villeId).toBeNull()
+    })
+
+    it("indépendant du prix : devis offert et facturé sélectionnent la même ville, la ligne Livraison suit", () => {
+      const offert = chargé({
+        quotes: { c1: quote(50000, 0), c2: quote(50000, 0) },
+      })
+
+      const projetOffert = projeterDevis(offert, "c1")
+      expect(projetOffert.selection).toStrictEqual({
+        cas: "validée",
+        ville: city("c1", "Casablanca", 3500),
+        devis: quote(50000, 0),
+      })
+      expect(projetOffert.rows[1]).toStrictEqual({
+        label: "Livraison (Casablanca)",
+        value: "Livraison offerte",
+        kind: "detail",
+        tone: "offered",
+      })
+
+      const projetFacturé = projeterDevis(chargé(), "c1")
+      expect(projetFacturé.selection).toStrictEqual({
+        cas: "validée",
+        ville: city("c1", "Casablanca", 3500),
+        devis: quote(50000, 3500),
+      })
+      expect(projetFacturé.rows[1]).toStrictEqual({
+        label: "Livraison (Casablanca)",
+        value: formatPrice(3500),
+        kind: "detail",
+      })
+    })
+
+    it("idempotent : projeter deux fois les mêmes entrées rend la même chose, refus compris", () => {
+      const valide1 = projeterDevis(chargé(), "c1")
+      const valide2 = projeterDevis(chargé(), "c1")
+      expect(valide1.selection).toStrictEqual({
+        cas: "validée",
+        ville: city("c1", "Casablanca", 3500),
+        devis: quote(50000, 3500),
+      })
+      expect(valide2.selection).toStrictEqual(valide1.selection)
+      expect(valide2.rows).toStrictEqual(valide1.rows)
+
+      const refus1 = projeterDevis(chargé(), "ville-inconnue")
+      const refus2 = projeterDevis(chargé(), "ville-inconnue")
+      expect(refus1.selection).toStrictEqual(aucune)
+      expect(refus2.selection).toStrictEqual(refus1.selection)
+      expect(refus2.rows).toStrictEqual(refus1.rows)
+    })
   })
 })
 
