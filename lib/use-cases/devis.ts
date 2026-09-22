@@ -4,10 +4,10 @@
  * Livraison) — à partir de faits bruts (`{villeParam?, profileVilleId?}`,
  * voir `DevisPrecedenceFaitsBruts`). Dériver le Devis projeté est l'affaire de
  * l'appelant : `projeterDevis(await chargerDevis(panier, faits), villeId)`
- * — le projecteur (`@/lib/use-cases/devis-coeur`) prend exactement le
- * Devis chargé et la Ville de livraison choisie.
- * Réexport du cœur pur pour les appelants serveur (`panier/page.tsx`,
- * `checkout/page.tsx`, `placeOrder`).
+ * — le projecteur prend exactement le Devis chargé et la Ville de
+ * livraison choisie. Ce module réexporte le cœur pur pour les appelants
+ * serveur : `projeterDevis`, `selectionValidee` et
+ * `DeliveryCityNotFoundError` (`panier/page.tsx`, `placeOrder`).
  *
  * Les composants clients doivent importer `@/lib/use-cases/devis-selection`
  * directement (porte d'entrée cliente : `useDevisSelection`) — jamais ce
@@ -49,7 +49,11 @@ import {
 } from "@/lib/use-cases/livraison"
 import { resoudreVilleUrl } from "@/lib/use-cases/ville-url"
 
-export { DeliveryCityNotFoundError } from "@/lib/use-cases/devis-coeur"
+export {
+  DeliveryCityNotFoundError,
+  projeterDevis,
+  selectionValidee,
+} from "@/lib/use-cases/devis-coeur"
 
 /**
  * Faits bruts de la Précédence du Devis, tels que `chargerDevis` les

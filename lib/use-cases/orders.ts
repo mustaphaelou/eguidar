@@ -14,8 +14,11 @@ import {
   deliveryAddressField,
   deliveryPhoneField,
 } from "@/lib/use-cases/contact"
-import { chargerDevis } from "@/lib/use-cases/devis"
-import { projeterDevis, selectionValidee } from "@/lib/use-cases/devis-coeur"
+import {
+  chargerDevis,
+  projeterDevis,
+  selectionValidee,
+} from "@/lib/use-cases/devis"
 import {
   avecSurcharges,
   messageDeValidation,
