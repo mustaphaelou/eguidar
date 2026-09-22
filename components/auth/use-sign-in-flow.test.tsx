@@ -3,8 +3,9 @@ import {
   mockNextNavigation,
   resetNavigation,
   setInputValue,
+  useControlledFlow,
 } from "./test-utils"
-import { act, useState } from "react"
+import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -93,18 +94,12 @@ function Harness({
   onStepChange?: (step: AuthFlowStep, email: string) => void
   onSuccess?: () => void
 }) {
-  const [step, setStep] = useState<AuthFlowStep>(stepProp)
-  const [email, setEmail] = useState(emailProp)
-  const flow = useSignInFlow({
-    step,
-    email,
-    onStepChange: (nextStep, nextEmail) => {
-      setStep(nextStep)
-      setEmail(nextEmail)
-      onStepChange?.(nextStep, nextEmail)
-    },
-    onSuccess,
+  const controlled = useControlledFlow({
+    step: stepProp,
+    email: emailProp,
+    onStepChange,
   })
+  const flow = useSignInFlow({ ...controlled, onSuccess })
   return (
     <div>
       <input

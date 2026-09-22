@@ -29,24 +29,16 @@ import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 export function SignInForm({
   hasGoogle,
   hasFacebook,
-  flow: flowProp,
+  flow,
   onForgotPassword,
   onSuccess,
 }: {
   hasGoogle: boolean
   hasFacebook: boolean
-  flow?: AuthFlow
+  flow: AuthFlow
   onForgotPassword?: () => void
   onSuccess?: () => void
 }) {
-  const [localFlow, setLocalFlow] = useState<Omit<AuthFlow, "onStepChange">>({
-    step: "form",
-    email: "",
-  })
-  const flow: AuthFlow = flowProp ?? {
-    ...localFlow,
-    onStepChange: (step, email) => setLocalFlow({ step, email }),
-  }
   const { step, email } = flow
   const {
     setEmail,
