@@ -4,11 +4,12 @@ import {
   resetNavigation,
   setInputValue,
 } from "./test-utils"
-import { act } from "react"
+import { act, useState } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { authClient } from "@/lib/client"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 import { useSignInFlow } from "./use-sign-in-flow"
@@ -81,8 +82,29 @@ function render(element: ReactElement) {
   act(() => root.render(element))
 }
 
-function Harness({ onSuccess }: { onSuccess?: () => void }) {
-  const flow = useSignInFlow({ onSuccess })
+function Harness({
+  step: stepProp = "form",
+  email: emailProp = "",
+  onStepChange,
+  onSuccess,
+}: {
+  step?: AuthFlowStep
+  email?: string
+  onStepChange?: (step: AuthFlowStep, email: string) => void
+  onSuccess?: () => void
+}) {
+  const [step, setStep] = useState<AuthFlowStep>(stepProp)
+  const [email, setEmail] = useState(emailProp)
+  const flow = useSignInFlow({
+    step,
+    email,
+    onStepChange: (nextStep, nextEmail) => {
+      setStep(nextStep)
+      setEmail(nextEmail)
+      onStepChange?.(nextStep, nextEmail)
+    },
+    onSuccess,
+  })
   return (
     <div>
       <input
@@ -125,17 +147,6 @@ function Harness({ onSuccess }: { onSuccess?: () => void }) {
       {flow.error && <p data-error>{flow.error}</p>}
       {flow.loading && <p data-loading>loading</p>}
     </div>
-  )
-}
-
-function PrefillHarness() {
-  const flow = useSignInFlow({ initialEmail: "prefilled@example.com" })
-  return (
-    <input
-      aria-label="email"
-      value={flow.email}
-      onChange={(e) => flow.setEmail(e.target.value)}
-    />
   )
 }
 
@@ -225,13 +236,15 @@ describe("useSignInFlow", () => {
       error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
     })
     const onSuccess = vi.fn()
+    const onStepChange = vi.fn()
 
-    render(<Harness onSuccess={onSuccess} />)
+    render(<Harness onSuccess={onSuccess} onStepChange={onStepChange} />)
     setInputValue(emailInput(), "test@example.com")
     setInputValue(passwordInput(), "secret123")
 
     await clickAndFlush(signInButton())
 
+    expect(onStepChange).toHaveBeenCalledWith("otp", "test@example.com")
     expect(step()).toBe("otp")
     expect(onSuccess).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
@@ -244,8 +257,9 @@ describe("useSignInFlow", () => {
       data: null,
       error: { code: "INVALID_EMAIL_OR_PASSWORD", message: "bad credentials" },
     })
+    const onStepChange = vi.fn()
 
-    render(<Harness />)
+    render(<Harness onStepChange={onStepChange} />)
     setInputValue(emailInput(), "test@example.com")
     setInputValue(passwordInput(), "secret123")
 
@@ -253,6 +267,10 @@ describe("useSignInFlow", () => {
 
     expect(error()).toBe("E-mail ou mot de passe invalide.")
     expect(step()).toBe("form")
+    expect(onStepChange).not.toHaveBeenCalledWith(
+      "otp",
+      expect.any(String)
+    )
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
@@ -286,13 +304,15 @@ describe("useSignInFlow", () => {
       error: null,
     })
     const onSuccess = vi.fn()
+    const onStepChange = vi.fn()
 
-    render(<Harness onSuccess={onSuccess} />)
+    render(<Harness onSuccess={onSuccess} onStepChange={onStepChange} />)
     setInputValue(emailInput(), "test@example.com")
     setInputValue(passwordInput(), "secret123")
 
     await clickAndFlush(signInButton())
 
+    expect(onStepChange).toHaveBeenCalledWith("otp", "test@example.com")
     expect(step()).toBe("otp")
     expect(onSuccess).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
@@ -300,6 +320,7 @@ describe("useSignInFlow", () => {
     setInputValue(otpInput(), "123456")
     await clickAndFlush(container.querySelector("[data-verify-otp]")!)
 
+    expect(onStepChange).toHaveBeenCalledWith("form", "test@example.com")
     expect(step()).toBe("form")
     expect(notice()).toContain("Votre e-mail est vérifié")
 
@@ -312,12 +333,8 @@ describe("useSignInFlow", () => {
     expect(window.location.pathname).toBe("/profil")
   })
 
-  it("initializes the email from initialEmail", () => {
-    render(
-      <div>
-        <PrefillHarness />
-      </div>
-    )
+  it("renders the controlled email prop", () => {
+    render(<Harness email="prefilled@example.com" />)
 
     expect(emailInput().value).toBe("prefilled@example.com")
   })

@@ -17,28 +17,43 @@ import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 export function SignUpForm({
   initialEmail,
+  step: stepProp,
+  email: emailProp,
   onStepChange,
   onVerified,
 }: {
   initialEmail?: string
+  step?: AuthFlowStep
+  email?: string
   onStepChange?: (step: AuthFlowStep, email: string) => void
   onVerified?: (email: string) => void
 }) {
   const [issues, setIssues] = useState<Record<string, string>>({})
+  const [fallbackStep, setFallbackStep] = useState<AuthFlowStep>("form")
+  const [fallbackEmail, setFallbackEmail] = useState(initialEmail ?? "")
+  const step = stepProp ?? fallbackStep
+  const email = emailProp ?? fallbackEmail
   const {
     name,
     setName,
-    email,
     setEmail,
     password,
     setPassword,
     otp,
-    step,
     error,
     loading,
     captcha,
     handleSignUp,
-  } = useSignUpFlow({ initialEmail, onVerified })
+  } = useSignUpFlow({
+    step,
+    email,
+    onStepChange: (nextStep, nextEmail) => {
+      setFallbackStep(nextStep)
+      setFallbackEmail(nextEmail)
+      onStepChange?.(nextStep, nextEmail)
+    },
+    onVerified,
+  })
 
   useEffect(() => {
     onStepChange?.(step, email)
