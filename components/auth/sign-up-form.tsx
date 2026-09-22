@@ -16,21 +16,13 @@ import { useSignUpFlow } from "@/components/auth/use-sign-up-flow"
 import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 export function SignUpForm({
-  flow: flowProp,
+  flow,
   onVerified,
 }: {
-  flow?: AuthFlow
+  flow: AuthFlow
   onVerified?: (email: string) => void
 }) {
   const [issues, setIssues] = useState<Record<string, string>>({})
-  const [localFlow, setLocalFlow] = useState<Omit<AuthFlow, "onStepChange">>({
-    step: "form",
-    email: "",
-  })
-  const flow: AuthFlow = flowProp ?? {
-    ...localFlow,
-    onStepChange: (step, email) => setLocalFlow({ step, email }),
-  }
   const { step, email } = flow
   const {
     name,

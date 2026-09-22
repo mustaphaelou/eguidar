@@ -1,6 +1,10 @@
 // @vitest-environment happy-dom
-import { resetNavigation, setInputValue } from "./test-utils"
-import { act, useState } from "react"
+import {
+  resetNavigation,
+  setInputValue,
+  useControlledFlow,
+} from "./test-utils"
+import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -76,18 +80,12 @@ function Harness({
   onStepChange?: (step: AuthFlowStep, email: string) => void
   onVerified?: (email: string) => void
 }) {
-  const [step, setStep] = useState<AuthFlowStep>(stepProp)
-  const [email, setEmail] = useState(emailProp)
-  const flow = useSignUpFlow({
-    step,
-    email,
-    onStepChange: (nextStep, nextEmail) => {
-      setStep(nextStep)
-      setEmail(nextEmail)
-      onStepChange?.(nextStep, nextEmail)
-    },
-    onVerified,
+  const controlled = useControlledFlow({
+    step: stepProp,
+    email: emailProp,
+    onStepChange,
   })
+  const flow = useSignUpFlow({ ...controlled, onVerified })
   return (
     <div>
       <input

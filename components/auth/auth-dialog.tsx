@@ -86,13 +86,11 @@ export function AuthDialog({
       }}
     >
       <DialogContent>
-        {open && (
-          <AuthDialogPanel
-            dialog={dialog}
-            hasGoogle={hasGoogle}
-            hasFacebook={hasFacebook}
-          />
-        )}
+        <AuthDialogPanel
+          dialog={dialog}
+          hasGoogle={hasGoogle}
+          hasFacebook={hasFacebook}
+        />
       </DialogContent>
     </Dialog>
   )

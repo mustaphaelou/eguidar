@@ -1,6 +1,8 @@
-import { act, createElement } from "react"
+import { act, createElement, useState } from "react"
 import type { ReactNode } from "react"
 import { vi } from "vitest"
+
+import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 
 export const navigationSpies = {
   push: vi.fn(),
@@ -69,4 +71,26 @@ export function setInputValue(input: HTMLInputElement, value: string) {
     setter.call(input, value)
     input.dispatchEvent(new Event("input", { bubbles: true }))
   })
+}
+
+export function useControlledFlow({
+  step: defaultStep = "form",
+  email: defaultEmail = "",
+  onStepChange,
+}: {
+  step?: AuthFlowStep
+  email?: string
+  onStepChange?: (step: AuthFlowStep, email: string) => void
+} = {}) {
+  const [step, setStep] = useState<AuthFlowStep>(defaultStep)
+  const [email, setEmail] = useState(defaultEmail)
+  return {
+    step,
+    email,
+    onStepChange: (nextStep: AuthFlowStep, nextEmail: string) => {
+      setStep(nextStep)
+      setEmail(nextEmail)
+      onStepChange?.(nextStep, nextEmail)
+    },
+  }
 }

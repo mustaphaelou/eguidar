@@ -5,12 +5,13 @@ import {
   resetNavigation,
   setInputValue,
 } from "./test-utils"
-import { act } from "react"
+import { act, useState } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
+import type { AuthFlow, AuthFlowStep } from "./auth-dialog"
 import { SignUpForm } from "./sign-up-form"
 
 vi.mock("next/navigation", () => mockNextNavigation())
@@ -92,9 +93,23 @@ async function clickAndFlush(target: HTMLElement) {
   })
 }
 
+function Harness() {
+  const [step, setStep] = useState<AuthFlowStep>("form")
+  const [email, setEmail] = useState("")
+  const flow: AuthFlow = {
+    step,
+    email,
+    onStepChange: (nextStep, nextEmail) => {
+      setStep(nextStep)
+      setEmail(nextEmail)
+    },
+  }
+  return <SignUpForm flow={flow} />
+}
+
 describe("SignUpForm", () => {
   it("reports field issues and does not submit an invalid payload", async () => {
-    render(<SignUpForm />)
+    render(<Harness />)
 
     await clickAndFlush(submitButton())
 
@@ -109,7 +124,7 @@ describe("SignUpForm", () => {
   it("submits a valid payload through the flow and clears the field issues", async () => {
     mockedAuthClient.signUp.email.mockResolvedValue({ data: {}, error: null })
 
-    render(<SignUpForm />)
+    render(<Harness />)
     setInputValue(input("name"), "Jane Doe")
     setInputValue(input("email"), "jane@example.com")
     setInputValue(input("password"), "password123")
@@ -128,7 +143,7 @@ describe("SignUpForm", () => {
   it("keeps the submit button disabled while the captcha is not ready", async () => {
     captchaStub.ready = false
 
-    render(<SignUpForm />)
+    render(<Harness />)
     setInputValue(input("name"), "Jane Doe")
     setInputValue(input("email"), "jane@example.com")
     setInputValue(input("password"), "password123")
