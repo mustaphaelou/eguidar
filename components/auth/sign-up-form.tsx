@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Loading03Icon } from "@hugeicons/core-free-icons"
@@ -10,41 +10,32 @@ import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import type { AuthFlow } from "@/components/auth/auth-dialog"
 import { PasswordInput } from "@/components/auth/password-input"
-import {
-  useSignUpFlow,
-  type SignUpStep,
-} from "@/components/auth/use-sign-up-flow"
+import { useSignUpFlow } from "@/components/auth/use-sign-up-flow"
 import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 
 export function SignUpForm({
-  initialEmail,
-  onStepChange,
+  flow,
   onVerified,
 }: {
-  initialEmail?: string
-  onStepChange?: (step: SignUpStep, email: string) => void
+  flow: AuthFlow
   onVerified?: (email: string) => void
 }) {
   const [issues, setIssues] = useState<Record<string, string>>({})
+  const { step, email } = flow
   const {
     name,
     setName,
-    email,
     setEmail,
     password,
     setPassword,
     otp,
-    step,
     error,
     loading,
     captcha,
     handleSignUp,
-  } = useSignUpFlow({ initialEmail, onVerified })
-
-  useEffect(() => {
-    onStepChange?.(step, email)
-  }, [onStepChange, step, email])
+  } = useSignUpFlow({ ...flow, onVerified })
 
   function updateIssue(key: string) {
     setIssues((prev) => {

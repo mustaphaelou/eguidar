@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -21,35 +21,30 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import type { AuthFlow } from "@/components/auth/auth-dialog"
 import { PasswordInput } from "@/components/auth/password-input"
-import {
-  useSignInFlow,
-  type SignInStep,
-} from "@/components/auth/use-sign-in-flow"
+import { useSignInFlow } from "@/components/auth/use-sign-in-flow"
 import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 
 export function SignInForm({
   hasGoogle,
   hasFacebook,
-  initialEmail,
+  flow,
   onForgotPassword,
-  onStepChange,
   onSuccess,
 }: {
   hasGoogle: boolean
   hasFacebook: boolean
-  initialEmail?: string
+  flow: AuthFlow
   onForgotPassword?: () => void
-  onStepChange?: (step: SignInStep, email: string) => void
   onSuccess?: () => void
 }) {
+  const { step, email } = flow
   const {
-    email,
     setEmail,
     password,
     setPassword,
     otp,
-    step,
     error,
     notice,
     loading,
@@ -57,12 +52,8 @@ export function SignInForm({
     handleSignIn,
     handleSocial,
     backToForm,
-  } = useSignInFlow({ initialEmail, onSuccess })
+  } = useSignInFlow({ ...flow, onSuccess })
   const [issues, setIssues] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    onStepChange?.(step, email)
-  }, [onStepChange, step, email])
 
   function updateIssue(key: string) {
     setIssues((prev) => {
