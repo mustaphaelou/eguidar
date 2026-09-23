@@ -49,7 +49,7 @@ describe("parseSearchParams", () => {
     ).toEqual({ brand: ["Sony", "LG"] })
   })
 
-  it("rejects unknown price buckets and keeps valid filters", () => {
+  it("rejects unknown Tranche de prix values and keeps valid filters", () => {
     expect(
       parseSearchParams({ q: "sony", marque: "Sony", prix: "bogus" })
     ).toEqual({
