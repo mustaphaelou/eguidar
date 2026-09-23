@@ -14,7 +14,7 @@ interface AppelMeili {
   options: Record<string, unknown>
 }
 
-function clientDeSubstitution(): {
+function clientDeSubstitution(totalEstime = 0): {
   client: Meilisearch
   appels: AppelMeili[]
 } {
@@ -25,7 +25,7 @@ function clientDeSubstitution(): {
         appels.push({ query, options })
         return Promise.resolve({
           hits: [],
-          estimatedTotalHits: 0,
+          estimatedTotalHits: totalEstime,
           facetDistribution: {},
         })
       },
@@ -77,6 +77,20 @@ describe("chercherAvecMeili — traduction de la page", () => {
     expect(
       requetesDePage.map(({ options }) => options.attributesToRetrieve)
     ).toEqual([ATTRIBUTS_PRODUIT, ATTRIBUTS_PRODUIT])
+  })
+
+  it("propage l'estimation du moteur comme total de la page", async () => {
+    const { client } = clientDeSubstitution(37)
+
+    const reponse = await chercherAvecMeili(client, {
+      query: "casque",
+      taille: 24,
+    })
+
+    if (reponse.statut !== "ok") {
+      throw new Error("le moteur de substitution doit répondre ok")
+    }
+    expect(reponse.total).toBe(37)
   })
 
   it("construit les clauses de marque, de catégorie et de prix", async () => {
