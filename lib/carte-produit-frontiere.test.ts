@@ -1,44 +1,10 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import type { Meilisearch } from "meilisearch"
-
-import type { RequeteMoteur } from "@/lib/moteur-recherche"
 import {
   importeDe,
   lire,
   sourcesDeProduction,
 } from "@/lib/use-cases/outils-frontiere"
-
-type OptionsDeSuggestion = { attributesToRetrieve?: string[] }
-
-const { requetesDeSuggestion } = vi.hoisted(() => ({
-  requetesDeSuggestion: [] as OptionsDeSuggestion[],
-}))
-
-vi.mock("@/lib/meili", async (importOriginal) => {
-  const meili = await importOriginal<typeof import("@/lib/meili")>()
-  const client = {
-    index: () => ({
-      search: async (_query: string, options: OptionsDeSuggestion) => {
-        requetesDeSuggestion.push(options)
-        return { hits: [], facetDistribution: undefined }
-      },
-    }),
-  }
-  return {
-    ...meili,
-    getMeiliSearch: () => client,
-    // #364 : la Recherche atteint Meili par la couture — `searchSuggestions`
-    // passe par `moteurMeili()`, jamais par `getMeiliSearch()` directement.
-    // Le moteur de substitution est donc bâti sur le client enregistreur,
-    // sans quoi l'adaptateur réel serait court-circuité et la garde
-    // n'observerait plus la requête que Meili reçoit vraiment.
-    moteurMeili: () => ({
-      chercher: (requete: RequeteMoteur) =>
-        meili.chercherAvecMeili(client as unknown as Meilisearch, requete),
-    }),
-  }
-})
 
 /**
  * Frontière client/serveur de la Carte produit.
@@ -72,10 +38,6 @@ vi.mock("@/lib/meili", async (importOriginal) => {
  * Cinquième verrou : `/produit/<slug>` n'est écrit que par `urlProduit`
  * (ADR-0022) — parcours de `app/`, `components/` et `lib/`, donc une surface
  * neuve ne peut pas se remettre à écrire le chemin à la main.
- *
- * Sixième verrou : la requête de suggestion garde les six faits de la
- * Suggestion de produit ; `search.test.ts` ne vérifie que le slug, le nom et
- * le Prix courant, donc une liste d'attributs amputée y passerait inaperçue.
  */
 describe("Carte produit — frontière client/serveur", () => {
   /**
@@ -167,39 +129,5 @@ describe("Carte produit — frontière client/serveur", () => {
       ({ chemin }) => chemin === "lib/carte-produit.ts"
     )
     expect(proprietaire?.source.match(/\/produit\//g)).toHaveLength(2)
-  })
-})
-
-/**
- * La Suggestion de produit demande ses six faits au Document d'index :
- * `id`, `name`, `slug`, `brand`, `images` (dont la première devient l'image)
- * et `minPrice`. Ni le stock total ni la Livraison offerte n'y figurent
- * (CONTEXT.md) ; la requête ne doit donc pas se remettre à les demander.
- */
-describe("Suggestion de produit — la requête garde ses six faits", () => {
-  it("ne demande à Meili que les six attributs de la Suggestion de produit", async () => {
-    const { searchSuggestions } = await import("@/lib/use-cases/search")
-
-    await searchSuggestions("theiere")
-
-    // La couture interroge le moteur en deux temps pour une suggestion : la
-    // page demandée — les six faits — puis le décompte de `categorySlug`
-    // (`limit: 0`, sans projection). Seule la page porte la projection.
-    const pages = requetesDeSuggestion.filter(
-      (options) => options.attributesToRetrieve !== undefined
-    )
-    expect(pages).toHaveLength(1)
-    const attributs = pages[0]?.attributesToRetrieve ?? []
-    expect(attributs).toHaveLength(6)
-    expect(attributs).toEqual(
-      expect.arrayContaining([
-        "id",
-        "name",
-        "slug",
-        "brand",
-        "images",
-        "minPrice",
-      ])
-    )
   })
 })

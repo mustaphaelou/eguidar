@@ -47,8 +47,3 @@ export function priceBucketIdFor(priceCents: number): string {
   )
   return bucket ? bucket.id : PRICE_BUCKETS[PRICE_BUCKETS.length - 1].id
 }
-
-export function priceBucketFilter(bucket: PriceBucket): string {
-  if (bucket.maxCents === null) return `minPrice >= ${bucket.minCents}`
-  return `minPrice >= ${bucket.minCents} AND minPrice < ${bucket.maxCents}`
-}

@@ -30,4 +30,16 @@ describe("Moteur de recherche — frontière", () => {
     expect(importeDe(orchestration, "meilisearch")).toBe(false)
     expect(importeDe(orchestration, "lib/meili")).toBe(true)
   })
+
+  it("le langage d'URL reste neutre et ne réexporte pas la langue Meili", () => {
+    const langageUrl = lire(import.meta.url, "./search-params.ts")
+    const orchestration = lire(import.meta.url, "./use-cases/search.ts")
+
+    expect(importeDe(langageUrl, "meilisearch")).toBe(false)
+    expect(importeDe(langageUrl, "lib/meili")).toBe(false)
+    expect(langageUrl).not.toMatch(
+      /buildSearchFilter|escapeFilterValue|priceBucketFilter/
+    )
+    expect(orchestration).not.toMatch(/buildSearchFilter|escapeFilterValue/)
+  })
 })

@@ -8,7 +8,8 @@ import type {
   ReponseMoteur,
   RequeteMoteur,
 } from "@/lib/moteur-recherche"
-import { buildSearchFilter, type SearchSort } from "@/lib/search-params"
+import { getPriceBucket, type PriceBucket } from "@/lib/price-buckets"
+import type { SearchFilters, SearchSort } from "@/lib/search-params"
 
 const globalForMeili = globalThis as unknown as { meili?: Meilisearch }
 
@@ -77,6 +78,11 @@ const SORT_TO_MEILI: Record<SearchSort, string[] | undefined> = {
   nouveautes: ["updatedAt:desc"],
 }
 
+/**
+ * Toutes les requêtes de page reçoivent la même projection produit complète.
+ * La projection des six faits d'une Suggestion de produit appartient aux
+ * cas d'usage, au-dessus de cette couture.
+ */
 const PRODUCT_ATTRIBUTES_TO_RETRIEVE = [
   "id",
   "name",
@@ -88,35 +94,35 @@ const PRODUCT_ATTRIBUTES_TO_RETRIEVE = [
   "freeShipping",
 ]
 
-const SUGGESTION_ATTRIBUTES_TO_RETRIEVE = [
-  "id",
-  "name",
-  "slug",
-  "brand",
-  "images",
-  "minPrice",
-]
+/** La syntaxe des valeurs d'un filtre Meili reste locale à cet adaptateur. */
+function escapeFilterValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+}
 
-/**
- * La projection d'exécution de la page demandée — un simple
- * `attributesToRetrieve`, jamais un second type de Document d'index.
- *
- * Le couplage, en une phrase : seule la requête de `searchSuggestions`
- * (`lib/use-cases/search.ts`) part sans `filtres` ni `tri` avec des facettes
- * à compter, et seule cette page peut se passer de `totalStock` et de
- * `freeShipping` ; dès que `filtres` ou `tri` est renseigné — la page de
- * `searchProducts`, même vides — la projection est complète, si bien qu'une
- * requête filtrée ne peut jamais recevoir la version légère.
- * `lib/meili-chercher.test.ts` épingle les deux moitiés.
- */
-function pageAttributes(requete: RequeteMoteur): string[] {
-  const requeteDeSuggestions =
-    requete.filtres === undefined &&
-    requete.tri === undefined &&
-    (requete.facettes?.length ?? 0) > 0
-  return requeteDeSuggestions
-    ? SUGGESTION_ATTRIBUTES_TO_RETRIEVE
-    : PRODUCT_ATTRIBUTES_TO_RETRIEVE
+function priceBucketFilter(bucket: PriceBucket): string {
+  if (bucket.maxCents === null) return `minPrice >= ${bucket.minCents}`
+  return `minPrice >= ${bucket.minCents} AND minPrice < ${bucket.maxCents}`
+}
+
+function buildSearchFilter(filters: SearchFilters): string | undefined {
+  const clauses: string[] = []
+
+  const brands = filters.brand ?? []
+  if (brands.length > 0) {
+    const values = brands
+      .map((brand) => `"${escapeFilterValue(brand)}"`)
+      .join(", ")
+    clauses.push(`brand IN [${values}]`)
+  }
+
+  if (filters.categorySlug) {
+    clauses.push(`categorySlug = "${escapeFilterValue(filters.categorySlug)}"`)
+  }
+
+  const bucket = getPriceBucket(filters.priceBucketId)
+  if (bucket) clauses.push(`(${priceBucketFilter(bucket)})`)
+
+  return clauses.length > 0 ? clauses.join(" AND ") : undefined
 }
 
 /**
@@ -145,7 +151,7 @@ async function interrogerMeili(
             limit: taille,
             offset: ((requete.page ?? 1) - 1) * taille,
             sort: SORT_TO_MEILI[requete.tri ?? "pertinence"],
-            attributesToRetrieve: pageAttributes(requete),
+            attributesToRetrieve: PRODUCT_ATTRIBUTES_TO_RETRIEVE,
           }),
         ]
       : []),

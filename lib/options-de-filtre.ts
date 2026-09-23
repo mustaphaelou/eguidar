@@ -100,8 +100,8 @@ function assemblerCategories(
  * les bandes sont émises, à zéro comprises, dans l'ordre fixe des bandes —
  * jamais par décompte. C'est à la barre latérale de masquer celles qu'elle
  * doit masquer. Une valeur hors univers ne devient pas une option : la
- * répartition peut en porter d'obsolètes, `parseSearchParams` et
- * `buildSearchFilter` les ignorent déjà.
+ * répartition peut en porter d'obsolètes, `parseSearchParams` et les
+ * moteurs les ignorent déjà.
  */
 function assemblerTranches(
   repartition: Record<string, number>,

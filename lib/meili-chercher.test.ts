@@ -1,8 +1,8 @@
+import type { Meilisearch } from "meilisearch"
 import { describe, expect, it } from "vitest"
 
-import type { Meilisearch } from "meilisearch"
-
 import { chercherAvecMeili } from "@/lib/meili"
+import { PRICE_BUCKETS } from "@/lib/price-buckets"
 
 /**
  * Les faits de l'adaptateur Meili qui ne demandent ni moteur ni base : un
@@ -34,7 +34,15 @@ function clientDeSubstitution(): {
   return { client: client as unknown as Meilisearch, appels }
 }
 
-const CARTES_PRODUIT = [
+function clientQuiRejette(): Meilisearch {
+  return {
+    index: () => ({
+      search: () => Promise.reject(new Error("moteur injoignable")),
+    }),
+  } as unknown as Meilisearch
+}
+
+const ATTRIBUTS_PRODUIT = [
   "id",
   "name",
   "slug",
@@ -45,17 +53,8 @@ const CARTES_PRODUIT = [
   "freeShipping",
 ]
 
-const CARTES_SUGGESTION = [
-  "id",
-  "name",
-  "slug",
-  "brand",
-  "images",
-  "minPrice",
-]
-
-describe("chercherAvecMeili — projection de page", () => {
-  it("projette la requête de searchSuggestions en version légère", async () => {
+describe("chercherAvecMeili — traduction de la page", () => {
+  it("demande la projection produit complète pour chaque requête de page", async () => {
     const { client, appels } = clientDeSubstitution()
 
     await chercherAvecMeili(client, {
@@ -63,21 +62,6 @@ describe("chercherAvecMeili — projection de page", () => {
       taille: 6,
       facettes: ["categorySlug"],
     })
-
-    expect(appels[0].options.attributesToRetrieve).toEqual(CARTES_SUGGESTION)
-  })
-
-  it("projette en entier toute autre page", async () => {
-    const { client, appels } = clientDeSubstitution()
-
-    await chercherAvecMeili(client, { query: "casque", taille: 24 })
-
-    expect(appels[0].options.attributesToRetrieve).toEqual(CARTES_PRODUIT)
-  })
-
-  it("projette en entier la page du catalogue, filtres et tri compris", async () => {
-    const { client, appels } = clientDeSubstitution()
-
     await chercherAvecMeili(client, {
       query: "",
       filtres: {},
@@ -86,29 +70,140 @@ describe("chercherAvecMeili — projection de page", () => {
       taille: 24,
     })
 
-    expect(appels[0].options.attributesToRetrieve).toEqual(CARTES_PRODUIT)
+    const requetesDePage = appels.filter(
+      ({ options }) => typeof options.limit === "number" && options.limit > 0
+    )
+    expect(requetesDePage).toHaveLength(2)
+    expect(
+      requetesDePage.map(({ options }) => options.attributesToRetrieve)
+    ).toEqual([ATTRIBUTS_PRODUIT, ATTRIBUTS_PRODUIT])
   })
-})
 
-describe("chercherAvecMeili — les filtres reçus, tels quels", () => {
-  it("applique exactement les filtres reçus, sans retirer de clause", async () => {
+  it("construit les clauses de marque, de catégorie et de prix", async () => {
+    const { client, appels } = clientDeSubstitution()
+
+    await chercherAvecMeili(client, { query: "casque", taille: 24 })
+    await chercherAvecMeili(client, {
+      query: "casque",
+      filtres: {
+        brand: ["Sony", "LG"],
+        categorySlug: "audio-hifi",
+        priceBucketId: "2500-5000",
+      },
+      taille: 24,
+    })
+
+    expect(appels[0].options.filter).toBeUndefined()
+    expect(appels[1].options.filter).toBe(
+      'brand IN ["Sony", "LG"] AND categorySlug = "audio-hifi" AND (minPrice >= 250000 AND minPrice < 500000)'
+    )
+  })
+
+  it("échappe les guillemets et les antislashs des valeurs", async () => {
     const { client, appels } = clientDeSubstitution()
 
     await chercherAvecMeili(client, {
       query: "casque",
-      filtres: { brand: ["Sony"], categorySlug: "audio-hifi" },
-      taille: 0,
-      facettes: ["brand"],
+      filtres: {
+        brand: ['Sony "Ultra"', "A\\B"],
+        categorySlug: 'audio "hifi"',
+      },
+      taille: 24,
     })
 
-    // ADR-0016 se règle au-dessus de la couture : la requête de décompte
-    // arrive déjà sans la clause de sa facette, et l'adaptateur n'en retire
-    // aucune — il applique la requête telle qu'il la reçoit.
-    expect(appels).toHaveLength(1)
     expect(appels[0].options.filter).toBe(
-      'brand IN ["Sony"] AND categorySlug = "audio-hifi"'
+      'brand IN ["Sony \\"Ultra\\"", "A\\\\B"] AND categorySlug = "audio \\"hifi\\""'
     )
-    expect(appels[0].options.facets).toEqual(["brand"])
-    expect(appels[0].options.limit).toBe(0)
+  })
+
+  it("ignore une Tranche de prix inconnue sans perdre les autres filtres", async () => {
+    const { client, appels } = clientDeSubstitution()
+
+    await chercherAvecMeili(client, {
+      query: "casque",
+      filtres: { brand: ["Sony"], priceBucketId: "inconnu" },
+      taille: 24,
+    })
+
+    expect(appels[0].options.filter).toBe('brand IN ["Sony"]')
+  })
+
+  it.each(PRICE_BUCKETS)(
+    "traduit la Tranche de prix $id en syntaxe Meili",
+    async (bucket) => {
+      const { client, appels } = clientDeSubstitution()
+
+      await chercherAvecMeili(client, {
+        query: "casque",
+        filtres: { priceBucketId: bucket.id },
+        taille: 24,
+      })
+
+      const attendu =
+        bucket.maxCents === null
+          ? `minPrice >= ${bucket.minCents}`
+          : `minPrice >= ${bucket.minCents} AND minPrice < ${bucket.maxCents}`
+      expect(appels[0].options.filter).toBe(`(${attendu})`)
+    }
+  )
+})
+
+describe("chercherAvecMeili — tri et requêtes de facette", () => {
+  it.each([
+    ["pertinence", undefined],
+    ["prix-asc", ["minPrice:asc"]],
+    ["prix-desc", ["minPrice:desc"]],
+    ["nouveautes", ["updatedAt:desc"]],
+  ] as const)(
+    "mappe le tri %s vers les options Meili",
+    async (tri, attendu) => {
+      const { client, appels } = clientDeSubstitution()
+
+      await chercherAvecMeili(client, { query: "casque", tri, taille: 24 })
+
+      expect(appels[0].options.sort).toEqual(attendu)
+    }
+  )
+
+  it("demande les répartitions de chaque facette avec une requête sans page", async () => {
+    const { client, appels } = clientDeSubstitution()
+
+    await chercherAvecMeili(client, {
+      query: "casque",
+      filtres: {
+        brand: ["Sony"],
+        categorySlug: "audio-hifi",
+        priceBucketId: "2500-5000",
+      },
+      taille: 0,
+      facettes: ["brand", "priceBucket"],
+    })
+
+    expect(appels).toHaveLength(2)
+    expect(appels.map(({ options }) => options.facets)).toEqual([
+      ["brand"],
+      ["priceBucket"],
+    ])
+    expect(appels.map(({ options }) => options.limit)).toEqual([0, 0])
+    expect(appels[0].options.filter).toBe(
+      'brand IN ["Sony"] AND categorySlug = "audio-hifi" AND (minPrice >= 250000 AND minPrice < 500000)'
+    )
+    expect(appels[1].options.filter).toBe(
+      'brand IN ["Sony"] AND categorySlug = "audio-hifi" AND (minPrice >= 250000 AND minPrice < 500000)'
+    )
+  })
+})
+
+describe("chercherAvecMeili — indisponibilité", () => {
+  it("répond indisponible quand le client est absent", async () => {
+    await expect(
+      chercherAvecMeili(null, { query: "casque", taille: 24 })
+    ).resolves.toEqual({ statut: "indisponible" })
+  })
+
+  it("convertit le rejet du moteur en réponse indisponible", async () => {
+    await expect(
+      chercherAvecMeili(clientQuiRejette(), { query: "casque", taille: 24 })
+    ).resolves.toEqual({ statut: "indisponible" })
   })
 })

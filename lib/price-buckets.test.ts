@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import {
   getPriceBucket,
   PRICE_BUCKETS,
-  priceBucketFilter,
   priceBucketIdFor,
 } from "@/lib/price-buckets"
 
@@ -48,15 +47,5 @@ describe("price buckets", () => {
     expect(getPriceBucket("2500-5000")?.label).toBe("2 500 – 5 000 MAD")
     expect(getPriceBucket("inconnu")).toBeUndefined()
     expect(getPriceBucket(undefined)).toBeUndefined()
-  })
-
-  it("builds Meilisearch filters for each bucket", () => {
-    expect(priceBucketFilter(PRICE_BUCKETS[0])).toBe(
-      "minPrice >= 0 AND minPrice < 100000"
-    )
-    expect(priceBucketFilter(PRICE_BUCKETS[2])).toBe(
-      "minPrice >= 250000 AND minPrice < 500000"
-    )
-    expect(priceBucketFilter(PRICE_BUCKETS[4])).toBe("minPrice >= 1000000")
   })
 })
