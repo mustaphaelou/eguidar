@@ -15,21 +15,6 @@ const MODULES_INTERDITS = [
 ] as const
 
 /**
- * `importeDe` couvre les imports et réexports qui nomment leur module avec
- * `from`. Cette petite variante ajoute les imports nus (`import "x"`), afin
- * qu'une dépendance interdite ne puisse pas se cacher derrière une forme
- * d'import sans clause `from`.
- */
-function importeOuReexporte(source: string, module: string): boolean {
-  if (importeDe(source, module)) return true
-  const moduleEchappe = module.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  return new RegExp(
-    `(?:import|export)\\s+(?:type\\s+)?["'][^"']*${moduleEchappe}["']`,
-    "m"
-  ).test(source)
-}
-
-/**
  * Frontière du Moteur de recherche — couture neutre, sans moteur.
  *
  * `lib/moteur-recherche.ts` nomme la couture de la Recherche sans nommer un
@@ -47,16 +32,15 @@ describe("Moteur de recherche — frontière", () => {
     expect(couture).not.toMatch(/^"use client"/m)
     expect(couture).not.toMatch(/["'](?:server-only|next\/headers)["']/)
     for (const interdit of MODULES_INTERDITS) {
-      expect(importeOuReexporte(couture, interdit), interdit).toBe(false)
+      expect(importeDe(couture, interdit), interdit).toBe(false)
     }
   })
 
-  it("la garde reconnaît les imports nus et les réexports de l'adaptateur", () => {
-    expect(importeOuReexporte('import "meilisearch"', "meilisearch")).toBe(true)
-    expect(importeOuReexporte('export * from "@/lib/meili"', "lib/meili")).toBe(
-      true
-    )
-    expect(importeOuReexporte('import "react"', "react")).toBe(true)
+  it("la garde reconnaît imports nus, réexports et imports dynamiques", () => {
+    expect(importeDe('import "meilisearch"', "meilisearch")).toBe(true)
+    expect(importeDe('export * from "@/lib/meili"', "lib/meili")).toBe(true)
+    expect(importeDe('import "react"', "react")).toBe(true)
+    expect(importeDe('import("react")', "react")).toBe(true)
   })
 
   it("l'orchestration ne parle pas au SDK Meili", () => {

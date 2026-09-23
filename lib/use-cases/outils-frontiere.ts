@@ -8,19 +8,22 @@ import { fileURLToPath } from "node:url"
  * `lire` résout un chemin relatif contre l'`import.meta.url` du fichier
  * de test appelant — chaque suite garde ainsi ses chemins relatifs à son
  * propre dossier ; `importeDe` détecte un import ou un réexport statique
- * d'un module nommé dans une source ; `sourcesDeProduction` parcourt des
- * arborescences entières pour qu'un fichier neuf ne puisse pas échapper à
- * une garde écrite sur une liste de noms ; `atteignables` suit les imports
- * de valeur de module en module, pour verrouiller ce qu'une surface cliente
- * atteint vraiment et non ce qu'elle importe en un seul saut.
+ * ou dynamique d'un module nommé dans une source ; `sourcesDeProduction`
+ * parcourt des arborescences entières pour qu'un fichier neuf ne puisse pas
+ * échapper à une garde écrite sur une liste de noms ; `atteignables` suit
+ * les imports de valeur de module en module, pour verrouiller ce qu'une
+ * surface cliente atteint vraiment et non ce qu'elle importe en un seul saut.
  */
 export function lire(depuis: string, relatif: string): string {
   return readFileSync(new URL(relatif, depuis), "utf8")
 }
 
 export function importeDe(source: string, module: string): boolean {
+  const moduleEchappe = module.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
   return new RegExp(
-    `(?:import|export)[^;]*from\\s*["'][^"']*${module}["']`
+    `(?:import|export)[^;]*from\\s*["'][^"']*${moduleEchappe}["']|` +
+      `(?:import|export)\\s+(?:type\\s+)?["'][^"']*${moduleEchappe}["']|` +
+      `import\\s*\\(\\s*["'][^"']*${moduleEchappe}["']\\s*\\)`
   ).test(source)
 }
 
