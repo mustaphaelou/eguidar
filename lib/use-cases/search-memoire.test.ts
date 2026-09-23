@@ -547,6 +547,33 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
     ])
   })
 
+  it("projette les six faits depuis un Document d'index complet", async () => {
+    const document = makeDoc("projection", {
+      name: name("Suggestion projection"),
+      description: token,
+      images: ["/images/suggestion.webp"],
+      minPrice: 123456,
+      totalStock: 0,
+      freeShipping: true,
+    })
+    const moteurDocument = creerMoteurEnMemoire([document])
+
+    const suggestions = await searchSuggestions(token, moteurDocument)
+
+    // Le Document complet porte aussi le stock et la livraison ; la suggestion
+    // expose seulement les six faits, et une absence de stock ne la masque pas.
+    expect(suggestions.products).toEqual([
+      {
+        id: "projection",
+        name: name("Suggestion projection"),
+        slug: `srchm-${moteurId}-projection`,
+        brand: "Marque",
+        image: "/images/suggestion.webp",
+        minPrice: 123456,
+      },
+    ])
+  })
+
   it("plafonne la distribution des catégories à cinq, noms compris", async () => {
     const suggestions = await searchSuggestions(token, moteurSuggestions)
 

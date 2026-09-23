@@ -17,9 +17,7 @@ import {
 import type { IndexableProduct } from "@/lib/index-projection"
 
 export {
-  buildSearchFilter,
   buildSearchHref,
-  escapeFilterValue,
   parsePage,
   parseSearchParams,
   parseSort,
@@ -238,11 +236,11 @@ function versSuggestion(carte: CarteProduit): SuggestionProduit {
 }
 
 /**
- * Suggestion de produit depuis un résultat de Recherche : la requête ne
- * demande que les six attributs de la rangée, donc six faits sont projetés —
- * aucune valeur de repli n'est inventée. La projection est appelée sous
- * « masquer » avec un stock total absent, c'est-à-dire inconnu : elle ne
- * retire alors jamais la ligne.
+ * Suggestion de produit depuis un Document d'index complet : la Recherche
+ * projette ici les six faits de la rangée, au-dessus de la couture. Le stock
+ * total et la Livraison offerte restent volontairement absents des faits
+ * passés à « masquer » : leur absence signifie « inconnu » et ne retire donc
+ * jamais la ligne, comme auparavant.
  */
 function suggestionsDuHit(hit: IndexableProduct): SuggestionProduit[] {
   const carte = projeterCarteProduit(
