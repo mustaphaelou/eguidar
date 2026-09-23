@@ -1,7 +1,5 @@
-import type { Meilisearch } from "meilisearch"
 import { describe, expect, it } from "vitest"
 
-import { chercherAvecMeili } from "@/lib/meili"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import {
@@ -15,28 +13,13 @@ import {
 } from "@/test/moteur-recherche-recette"
 
 /**
- * L'indisponibilité du Moteur de recherche a deux visages — `MEILI_URL` absent,
- * et un moteur configuré mais injoignable — et un seul fait typé au-dessus de
- * la couture. Ce fichier tourne sans `MEILI_URL` et sans Docker : il remet à
- * `chercherAvecMeili` un client nul ou un client de façade, et aux cas d'usage
- * un moteur de recette, pour figer le rendu d'aujourd'hui : un Catalogue vide.
+ * L'indisponibilité du Moteur de recherche reste un seul fait typé au-dessus
+ * de la couture. Ce fichier tourne sans `MEILI_URL` et sans Docker : il remet
+ * aux cas d'usage un moteur de recette, pour figer le rendu d'aujourd'hui :
+ * un Catalogue vide.
  */
 
 type MoteurRecette = MoteurRecherche & { requetes: RequeteMoteur[] }
-
-/** Un client Meili de façade : la couture ne lui parle que par `index().search()`. */
-function clientQuiRejette(): { client: Meilisearch; appels: string[] } {
-  const appels: string[] = []
-  const client = {
-    index: (uid: string) => ({
-      search: (query: string) => {
-        appels.push(`${uid}:${query}`)
-        return Promise.reject(new Error("boom"))
-      },
-    }),
-  } as unknown as Meilisearch
-  return { client, appels }
-}
 
 /** Les requêtes qui demandent des documents, par opposition aux comptages `taille: 0`. */
 function requetesPage(moteur: MoteurRecette): RequeteMoteur[] {
@@ -82,33 +65,6 @@ const DTO_PAGE_VIDE = {
   totalPages: 1,
   pageSize: 2,
 }
-
-describe("l'adaptateur Meili — les deux visages de l'indisponibilité", () => {
-  it("sans MEILI_URL, le client nul répond indisponible", async () => {
-    await expect(
-      chercherAvecMeili(null, {
-        query: "casque",
-        taille: 24,
-        facettes: ["brand", "categorySlug", "priceBucket"],
-      })
-    ).resolves.toEqual({ statut: "indisponible" })
-  })
-
-  it("un moteur injoignable : le rejet est converti à la couture", async () => {
-    const { client, appels } = clientQuiRejette()
-
-    await expect(
-      chercherAvecMeili(client, {
-        query: "casque",
-        taille: 24,
-        facettes: ["brand", "categorySlug", "priceBucket"],
-      })
-    ).resolves.toEqual({ statut: "indisponible" })
-
-    // le rejet vient bien d'un appel tenté, pas d'un court-circuit
-    expect(appels.length).toBeGreaterThan(0)
-  })
-})
 
 describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui", () => {
   it("searchProducts répond le DTO vide, à la taille de page demandée", async () => {

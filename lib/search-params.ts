@@ -1,4 +1,4 @@
-import { getPriceBucket, priceBucketFilter } from "@/lib/price-buckets"
+import { getPriceBucket } from "@/lib/price-buckets"
 
 export type SearchFacet = "brand" | "categorySlug" | "priceBucket"
 
@@ -32,10 +32,6 @@ export function parsePage(value: string | undefined): number {
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1
 }
 
-export function escapeFilterValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
-}
-
 function parseBrands(value: string | string[] | undefined): string[] {
   const values =
     value === undefined ? [] : Array.isArray(value) ? value : [value]
@@ -55,32 +51,6 @@ export function toggleBrand(
   return brands.includes(brand)
     ? brands.filter((candidate) => candidate !== brand)
     : [...brands, brand]
-}
-
-export function buildSearchFilter(
-  filters: SearchFilters,
-  omit?: SearchFacet
-): string | undefined {
-  const clauses: string[] = []
-
-  const brands = filters.brand ?? []
-  if (omit !== "brand" && brands.length > 0) {
-    const values = brands
-      .map((brand) => `"${escapeFilterValue(brand)}"`)
-      .join(", ")
-    clauses.push(`brand IN [${values}]`)
-  }
-
-  if (omit !== "categorySlug" && filters.categorySlug) {
-    clauses.push(`categorySlug = "${escapeFilterValue(filters.categorySlug)}"`)
-  }
-
-  if (omit !== "priceBucket") {
-    const bucket = getPriceBucket(filters.priceBucketId)
-    if (bucket) clauses.push(`(${priceBucketFilter(bucket)})`)
-  }
-
-  return clauses.length > 0 ? clauses.join(" AND ") : undefined
 }
 
 export interface ParsedSearchParams {
