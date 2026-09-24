@@ -540,7 +540,7 @@ describe("order placement", () => {
     ).rejects.toThrow(DeliveryCityNotFoundError)
   })
 
-  it("rejects invalid address, phone and missing city before post-commit effects", async () => {
+  it("rejects invalid address, phone and missing Ville de livraison before post-commit effects", async () => {
     const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
       async () => {}
     )
@@ -624,7 +624,7 @@ describe("order status transitions", () => {
     return order.id
   }
 
-  it("sends the status e-mail before cache invalidation for each transition", async () => {
+  it("sends the status e-mail before cache invalidation for each Transition de statut", async () => {
     const effets: string[] = []
     const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
       async () => {}
@@ -641,21 +641,14 @@ describe("order status transitions", () => {
     await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput())
 
-    await updateOrderStatus(order.id, "confirmed", {
+    const effects: OrderEffects = {
       sendOrderPlacedEmail,
       sendOrderStatusEmail,
       invalidateCommande,
-    })
-    await updateOrderStatus(order.id, "shipped", {
-      sendOrderPlacedEmail,
-      sendOrderStatusEmail,
-      invalidateCommande,
-    })
-    await updateOrderStatus(order.id, "delivered", {
-      sendOrderPlacedEmail,
-      sendOrderStatusEmail,
-      invalidateCommande,
-    })
+    }
+    await updateOrderStatus(order.id, "confirmed", effects)
+    await updateOrderStatus(order.id, "shipped", effects)
+    await updateOrderStatus(order.id, "delivered", effects)
 
     expect(effets).toEqual([
       "e-mail:confirmed",
@@ -778,7 +771,7 @@ describe("order status transitions", () => {
     ).toBe(2)
   })
 
-  it("rejects invalid transitions without post-commit effects", async () => {
+  it("rejects invalid Transition de statut without post-commit effects", async () => {
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "confirmed")
     await updateOrderStatus(orderId, "shipped")
