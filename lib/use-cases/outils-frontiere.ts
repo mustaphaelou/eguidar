@@ -8,20 +8,88 @@ import { fileURLToPath } from "node:url"
  * `lire` résout un chemin relatif contre l'`import.meta.url` du fichier
  * de test appelant — chaque suite garde ainsi ses chemins relatifs à son
  * propre dossier ; `importeDe` détecte un import ou un réexport statique
- * d'un module nommé dans une source ; `sourcesDeProduction` parcourt des
- * arborescences entières pour qu'un fichier neuf ne puisse pas échapper à
- * une garde écrite sur une liste de noms ; `atteignables` suit les imports
- * de valeur de module en module, pour verrouiller ce qu'une surface cliente
- * atteint vraiment et non ce qu'elle importe en un seul saut.
+ * ou dynamique d'un module nommé dans une source ; `sourcesDeProduction`
+ * parcourt des arborescences entières pour qu'un fichier neuf ne puisse pas
+ * échapper à une garde écrite sur une liste de noms ; `atteignables` suit
+ * les imports de valeur de module en module, pour verrouiller ce qu'une
+ * surface cliente atteint vraiment et non ce qu'elle importe en un seul saut.
  */
 export function lire(depuis: string, relatif: string): string {
   return readFileSync(new URL(relatif, depuis), "utf8")
 }
 
+interface ReferenceImport {
+  specifier: string
+  typeOnly: boolean
+}
+
+/** Les références d'import et de réexport vues par les gardes de frontière. */
+function referencesDeSource(source: string): ReferenceImport[] {
+  const references: ReferenceImport[] = []
+
+  // Import ou réexport avec une clause `from`, y compris multiligne.
+  for (const match of source.matchAll(
+    /\b(?:import|export)\b[^;]*?\bfrom\s*(["'`])([^"'`]+)\1/g
+  )) {
+    const clause = match[0].slice(0, match[0].toLowerCase().lastIndexOf("from"))
+    references.push({
+      specifier: match[2],
+      typeOnly: /\b(?:import|export)\s+type\b/.test(clause),
+    })
+  }
+
+  // Import effet de bord, avec un commentaire éventuel avant le module.
+  for (const match of source.matchAll(
+    /\bimport\s+(?:\/\*[\s\S]*?\*\/\s*)*(?:type\s+)?(["'`])([^"'`]+)\1/g
+  )) {
+    references.push({ specifier: match[2], typeOnly: false })
+  }
+
+  // Import dynamique : le premier littéral après `import(` est son module.
+  // On ne ferme pas volontairement la parenthèse pour accepter les options et
+  // les commentaires Webpack/Vite entre le module et la fin de l'appel.
+  for (const match of source.matchAll(/\bimport[ \t]*\(/g)) {
+    const suite = source.slice((match.index ?? 0) + match[0].length)
+    const specifier = suite.match(
+      /^(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*?(["'`])([^"'`]+)\1/
+    )
+    if (specifier) {
+      references.push({ specifier: specifier[2], typeOnly: false })
+    }
+  }
+
+  return references
+}
+
+function sansExtension(specifier: string): string {
+  return specifier.replace(/\.[cm]?[jt]sx?$/, "")
+}
+
+function correspondAuModule(specifier: string, module: string): boolean {
+  const specifierNormalise = sansExtension(specifier).replace(/^@\//, "")
+  const moduleNormalise = sansExtension(module).replace(/^@\//, "")
+  if (
+    specifierNormalise === moduleNormalise ||
+    specifierNormalise.startsWith(`${moduleNormalise}/`) ||
+    (moduleNormalise.split("/").length === 1 &&
+      specifierNormalise.split("/").pop() === moduleNormalise)
+  ) {
+    return true
+  }
+
+  // Sans le chemin de la source, un spécifier relatif ne peut être résolu
+  // qu'à son dernier segment : `./meili` et `../meili` gardent ainsi le même
+  // verrou que `@/lib/meili` pour la couture.
+  return (
+    specifierNormalise.startsWith(".") &&
+    specifierNormalise.split("/").pop() === moduleNormalise.split("/").pop()
+  )
+}
+
 export function importeDe(source: string, module: string): boolean {
-  return new RegExp(
-    `(?:import|export)[^;]*from\\s*["'][^"']*${module}["']`
-  ).test(source)
+  return referencesDeSource(source).some(({ specifier }) =>
+    correspondAuModule(specifier, module)
+  )
 }
 
 export interface SourceProduction {
@@ -76,22 +144,9 @@ function estServeur(source: string): boolean {
 
 /** Les spécifieurs importés pour leur valeur — imports de type exclus. */
 function importations(source: string): string[] {
-  const specifieurs = [
-    ...source.matchAll(
-      /(?:^|\n)[ \t]*(?:import|export)[ \t]+(?!type[ \t])([^"']*?)from[ \t]*["']([^"']+)["']/g
-    ),
-  ].map((correspondance) => correspondance[2])
-  for (const correspondance of source.matchAll(
-    /(?:^|\n)[ \t]*import[ \t]+["']([^"']+)["']/g
-  )) {
-    specifieurs.push(correspondance[1])
-  }
-  for (const correspondance of source.matchAll(
-    /import[ \t]*\([ \t]*["']([^"']+)["']/g
-  )) {
-    specifieurs.push(correspondance[1])
-  }
-  return specifieurs
+  return referencesDeSource(source)
+    .filter(({ typeOnly }) => !typeOnly)
+    .map(({ specifier }) => specifier)
 }
 
 /** Le chemin de dépôt qu'un spécifieur désigne, ou `null` s'il vient d'un paquet. */
