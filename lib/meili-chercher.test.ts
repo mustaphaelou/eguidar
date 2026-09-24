@@ -93,6 +93,38 @@ describe("chercherAvecMeili — traduction de la page", () => {
     expect(reponse.total).toBe(37)
   })
 
+  it("exclut les descriptions pour une requête courte", async () => {
+    const { client, appels } = clientDeSubstitution()
+
+    await chercherAvecMeili(client, {
+      query: "TV",
+      taille: 24,
+      facettes: ["categorySlug"],
+    })
+
+    const expected = [
+      "name",
+      "brand",
+      "categoryName",
+      "specsText",
+      "variantNames",
+      "skus",
+    ]
+    expect(appels).toHaveLength(2)
+    expect(appels.map(({ options }) => options.attributesToSearchOn)).toEqual([
+      expected,
+      expected,
+    ])
+  })
+
+  it("conserve tous les champs pour une requête longue", async () => {
+    const { client, appels } = clientDeSubstitution()
+
+    await chercherAvecMeili(client, { query: "téléviseur", taille: 24 })
+
+    expect(appels[0].options.attributesToSearchOn).toBeUndefined()
+  })
+
   it("construit les clauses de marque, de catégorie et de prix", async () => {
     const { client, appels } = clientDeSubstitution()
 

@@ -35,6 +35,24 @@ const SEARCHABLE_PRODUCT_ATTRIBUTES = [
   "skus",
 ]
 
+/**
+ * Les requêtes d'un ou deux caractères sont trop ambiguës pour chercher dans
+ * les descriptions : `TV` y préfixe par exemple le texte juridique « TVA »
+ * présent sur chaque Produit. Les champs de nom, de catégorie et de
+ * caractéristiques restent assez larges pour trouver « TV », « 4K » ou un SKU,
+ * sans faire remonter tout le Catalogue à cause d'un préfixe accidentel.
+ */
+const SEARCHABLE_PRODUCT_ATTRIBUTES_WITHOUT_DESCRIPTION =
+  SEARCHABLE_PRODUCT_ATTRIBUTES.filter(
+    (attribute) => attribute !== "description"
+  )
+
+function attributesToSearchOn(query: string): string[] | undefined {
+  const trimmedQuery = query.trim()
+  if (trimmedQuery.length === 0 || trimmedQuery.length > 2) return undefined
+  return SEARCHABLE_PRODUCT_ATTRIBUTES_WITHOUT_DESCRIPTION
+}
+
 export async function ensureProductsIndex(meili: Meilisearch) {
   const settings = {
     searchableAttributes: SEARCHABLE_PRODUCT_ATTRIBUTES,
@@ -142,24 +160,30 @@ async function interrogerMeili(
   const filtres = requete.filtres ?? {}
   const facettes = requete.facettes ?? []
   const taille = requete.taille ?? 0
+  const searchAttributes = attributesToSearchOn(requete.query)
+  const filter = buildSearchFilter(filtres)
 
   const requetes = [
     ...(taille > 0
       ? [
           index.search(requete.query, {
-            filter: buildSearchFilter(filtres),
+            filter,
             limit: taille,
             offset: ((requete.page ?? 1) - 1) * taille,
             sort: SORT_TO_MEILI[requete.tri ?? "pertinence"],
             attributesToRetrieve: PRODUCT_ATTRIBUTES_TO_RETRIEVE,
+            ...(searchAttributes
+              ? { attributesToSearchOn: searchAttributes }
+              : {}),
           }),
         ]
       : []),
     ...facettes.map((facette) =>
       index.search(requete.query, {
-        filter: buildSearchFilter(filtres),
+        filter,
         facets: [facette],
         limit: 0,
+        ...(searchAttributes ? { attributesToSearchOn: searchAttributes } : {}),
       })
     ),
   ]
