@@ -1,8 +1,8 @@
 /**
  * Le squelette des mutations : le mécanisme que Commande, Catalogue,
  * Structure et Livraison transcrivaient chacun — la frontière best-effort, la
- * construction du refus de validation, la surcharge des effets et l'échelle
- * des violations d'unicité (ADR-0025).
+ * séquence d'effets post-commit, la construction du refus de validation, la
+ * surcharge des effets et l'échelle des violations d'unicité (ADR-0025).
  *
  * Il ne connaît ni entité ni base de données : les types d'effets, leurs
  * défauts de production, les classes d'erreur, les listes de champs et le
@@ -26,6 +26,27 @@ export async function runEffect(
     await fn()
   } catch (error) {
     console.warn(message, error)
+  }
+}
+
+/** Un effet post-commit : son message complet et son appel. */
+export interface EffetPostCommit {
+  message: string
+  fn: () => Promise<unknown> | unknown
+}
+
+/**
+ * Exécute une liste ordonnée d'effets post-commit, un à un.
+ *
+ * Chaque effet passe par la frontière best-effort : un échec est journalisé
+ * avec le message fourni, puis les effets suivants continuent. La fonction
+ * n'attend que leur Achèvement et ne propage pas leurs échecs.
+ */
+export async function runOrderedEffects(
+  effets: readonly EffetPostCommit[]
+): Promise<void> {
+  for (const effet of effets) {
+    await runEffect(effet.message, effet.fn)
   }
 }
 
