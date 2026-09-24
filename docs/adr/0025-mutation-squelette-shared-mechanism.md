@@ -11,6 +11,26 @@ Four entity modules own real domain invariants — Commande's transitions and R�
 - **Four contract suites stay four.** The genuinely identical assertions — the best-effort boundary, the validation refusal — move into a helper the four call. They are not merged into one parameterised suite.
 - **The merge helper lands where a merge already happens.** `orders.ts` merges at two of its four entry points; the helper does not force `overrides` onto the other two, and no signature changes to accommodate it.
 
+## Amendment: ordered post-commit sequence
+
+The skeletal module now also owns `runOrderedEffects`, an entity-agnostic ordered
+sequence of labelled post-commit effects. It runs one effect at a time, awaits each
+one, delegates each failure to the existing best-effort boundary, and continues with
+the later effects. The mechanism has no knowledge of an entity, a database, an e-mail,
+or a cache.
+
+Commande supplies the policy at its interface: `placeOrder` and `updateOrderStatus`
+invoke the sequence only after their transaction resolves successfully, and each
+passes its relevant e-mail effect followed by one `invalidateCommande` effect. The
+`OrderEffects` type, production adapters, error classes, transaction implementation,
+status-transition and Réapprovisionnement rules, and checkout profile prefill remain
+owned by their existing sites. Catalogue, Structure, and Livraison keep their current
+effect sequences.
+
+This amendment does not merge the four entity suites: each suite remains separate and
+continues to assert its own invariants. Only the shared sequencing mechanism and its
+identical best-effort behaviour are centralized.
+
 ## Considered Options
 
 - **One parameterised contract suite over the four modules** — the review that prompted this asked for it; rejected on ADR-0023's reasoning, six days older. The four modules' invariants are genuinely different, so a shared contract would be their intersection — weaker than four suites with distinct jobs, exactly as ADR-0023:58-60 argued for the two search engines.

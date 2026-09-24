@@ -283,18 +283,35 @@ describe("order placement", () => {
     expect(itemB.quantity).toBe(1)
   })
 
-  it("sends the order placed email with the snapshot", async () => {
+  it("sends the confirmation e-mail before cache invalidation after committing", async () => {
+    const effets: string[] = []
     const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
+      async () => {
+        effets.push("e-mail de confirmation")
+      }
     )
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {
+        effets.push("e-mail de statut")
+      }
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>((orderId) => {
+      effets.push(`invalidation:${orderId}`)
+    })
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
     const order = await placeOrder(userIdA, checkoutInput(), {
       sendOrderPlacedEmail,
+      sendOrderStatusEmail,
+      invalidateCommande,
     })
 
-    expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
+    expect(effets).toEqual([
+      "e-mail de confirmation",
+      `invalidation:${order.id}`,
+    ])
+    expect(sendOrderStatusEmail).not.toHaveBeenCalled()
     const snapshot = sendOrderPlacedEmail.mock.calls[0][0] as OrderEmailSnapshot
     expect(snapshot.userEmail).toBe(email("a"))
     expect(snapshot.orderId).toBe(order.id)
@@ -326,6 +343,7 @@ describe("order placement", () => {
   })
 
   it("still places the order when email dispatch fails", async () => {
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
@@ -334,16 +352,22 @@ describe("order placement", () => {
       (effetQuiEchoue) =>
         placeOrder(userIdA, checkoutInput(), {
           sendOrderPlacedEmail: effetQuiEchoue,
+          invalidateCommande,
         })
     )
 
     expect(order.id).toBeTruthy()
     expect(order.total).toBe(30000)
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
     const cart = await lirePanierClient(userIdA)
     expect(cart.lines).toHaveLength(0)
   })
 
   it("still places the order when cache invalidation fails", async () => {
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
@@ -351,11 +375,13 @@ describe("order placement", () => {
       "invalidation du cache",
       (effetQuiEchoue) =>
         placeOrder(userIdA, checkoutInput(), {
+          sendOrderPlacedEmail,
           invalidateCommande: effetQuiEchoue,
         })
     )
 
     expect(order.id).toBeTruthy()
+    expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
   })
 
   it("charges the city fee below the free-shipping threshold", async () => {
@@ -460,14 +486,24 @@ describe("order placement", () => {
   })
 
   it("allows only one order to take the last unit under concurrency", async () => {
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdB)
     await ajouterArticleAuPanier(variantP2, 1)
     commeClient(userIdC)
     await ajouterArticleAuPanier(variantP2, 1)
 
     const [first, second] = await Promise.allSettled([
-      placeOrder(userIdB, checkoutInput()),
-      placeOrder(userIdC, checkoutInput()),
+      placeOrder(userIdB, checkoutInput(), {
+        sendOrderPlacedEmail,
+        invalidateCommande,
+      }),
+      placeOrder(userIdC, checkoutInput(), {
+        sendOrderPlacedEmail,
+        invalidateCommande,
+      }),
     ])
 
     expect([first.status, second.status].sort()).toEqual([
@@ -478,6 +514,8 @@ describe("order placement", () => {
       (result): result is PromiseRejectedResult => result.status === "rejected"
     )
     expect(rejected!.reason).toBeInstanceOf(OutOfStockError)
+    expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledOnce()
     const stock = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantP2 },
     })
@@ -502,18 +540,34 @@ describe("order placement", () => {
     ).rejects.toThrow(DeliveryCityNotFoundError)
   })
 
-  it("rejects invalid address, phone and missing city", async () => {
+  it("rejects invalid address, phone and missing city before post-commit effects", async () => {
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    const effects: Partial<OrderEffects> = {
+      sendOrderPlacedEmail,
+      sendOrderStatusEmail,
+      invalidateCommande,
+    }
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     await verifierRefusValidation(CheckoutValidationError, () =>
-      placeOrder(userIdA, checkoutInput({ address: "X" }))
+      placeOrder(userIdA, checkoutInput({ address: "X" }), effects)
     )
     await verifierRefusValidation(CheckoutValidationError, () =>
-      placeOrder(userIdA, checkoutInput({ phone: "123" }))
+      placeOrder(userIdA, checkoutInput({ phone: "123" }), effects)
     )
     await verifierRefusValidation(CheckoutValidationError, () =>
-      placeOrder(userIdA, checkoutInput({ cityId: "" }))
+      placeOrder(userIdA, checkoutInput({ cityId: "" }), effects)
     )
+
+    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
+    expect(sendOrderStatusEmail).not.toHaveBeenCalled()
+    expect(invalidateCommande).not.toHaveBeenCalled()
   })
 })
 
@@ -570,18 +624,48 @@ describe("order status transitions", () => {
     return order.id
   }
 
-  it("walks pending → confirmed → shipped → delivered, emailing each change", async () => {
+  it("sends the status e-mail before cache invalidation for each transition", async () => {
+    const effets: string[] = []
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async (_snapshot, status) => {
+        effets.push(`e-mail:${status}`)
+      }
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>((orderId) => {
+      effets.push(`invalidation:${orderId}`)
+    })
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, checkoutInput())
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
 
-    await updateOrderStatus(order.id, "confirmed", { sendOrderStatusEmail })
-    await updateOrderStatus(order.id, "shipped", { sendOrderStatusEmail })
-    await updateOrderStatus(order.id, "delivered", { sendOrderStatusEmail })
+    await updateOrderStatus(order.id, "confirmed", {
+      sendOrderPlacedEmail,
+      sendOrderStatusEmail,
+      invalidateCommande,
+    })
+    await updateOrderStatus(order.id, "shipped", {
+      sendOrderPlacedEmail,
+      sendOrderStatusEmail,
+      invalidateCommande,
+    })
+    await updateOrderStatus(order.id, "delivered", {
+      sendOrderPlacedEmail,
+      sendOrderStatusEmail,
+      invalidateCommande,
+    })
 
+    expect(effets).toEqual([
+      "e-mail:confirmed",
+      `invalidation:${order.id}`,
+      "e-mail:shipped",
+      `invalidation:${order.id}`,
+      "e-mail:delivered",
+      `invalidation:${order.id}`,
+    ])
+    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
     const final = await getOrder(userIdA, order.id)
     expect(final!.status).toBe("delivered")
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
@@ -637,6 +721,7 @@ describe("order status transitions", () => {
   })
 
   it("still updates the status when email dispatch fails", async () => {
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
     const orderId = await placeSmallOrder(userIdA)
 
     const updated = await verifierFrontiereBestEffort(
@@ -644,26 +729,34 @@ describe("order status transitions", () => {
       (effetQuiEchoue) =>
         updateOrderStatus(orderId, "confirmed", {
           sendOrderStatusEmail: effetQuiEchoue,
+          invalidateCommande,
         })
     )
 
     expect(updated.status).toBe("confirmed")
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(orderId)
     const fetched = await getOrder(userIdA, orderId)
     expect(fetched!.status).toBe("confirmed")
   })
 
   it("still updates the status when cache invalidation fails", async () => {
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
     const orderId = await placeSmallOrder(userIdA)
 
     const updated = await verifierFrontiereBestEffort(
       "invalidation du cache",
       (effetQuiEchoue) =>
         updateOrderStatus(orderId, "confirmed", {
+          sendOrderStatusEmail,
           invalidateCommande: effetQuiEchoue,
         })
     )
 
     expect(updated.status).toBe("confirmed")
+    expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
   })
 
   it("returns a delivered order and restocks the variants", async () => {
@@ -685,17 +778,30 @@ describe("order status transitions", () => {
     ).toBe(2)
   })
 
-  it("rejects invalid transitions", async () => {
+  it("rejects invalid transitions without post-commit effects", async () => {
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "confirmed")
     await updateOrderStatus(orderId, "shipped")
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
 
-    await expect(updateOrderStatus(orderId, "cancelled")).rejects.toThrow(
-      InvalidOrderTransitionError
-    )
-    await expect(updateOrderStatus(orderId, "confirmed")).rejects.toThrow(
-      InvalidOrderTransitionError
-    )
+    await expect(
+      updateOrderStatus(orderId, "cancelled", {
+        sendOrderStatusEmail,
+        invalidateCommande,
+      })
+    ).rejects.toThrow(InvalidOrderTransitionError)
+    await expect(
+      updateOrderStatus(orderId, "confirmed", {
+        sendOrderStatusEmail,
+        invalidateCommande,
+      })
+    ).rejects.toThrow(InvalidOrderTransitionError)
+
+    expect(sendOrderStatusEmail).not.toHaveBeenCalled()
+    expect(invalidateCommande).not.toHaveBeenCalled()
   })
 
   it("rejects skipping a step", async () => {
@@ -727,11 +833,21 @@ describe("order status transitions", () => {
   })
 
   it("restocks exactly once when two cancels race", async () => {
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
     const orderId = await placeSmallOrder(userIdA)
 
     const [first, second] = await Promise.allSettled([
-      updateOrderStatus(orderId, "cancelled"),
-      updateOrderStatus(orderId, "cancelled"),
+      updateOrderStatus(orderId, "cancelled", {
+        sendOrderStatusEmail,
+        invalidateCommande,
+      }),
+      updateOrderStatus(orderId, "cancelled", {
+        sendOrderStatusEmail,
+        invalidateCommande,
+      }),
     ])
 
     expect([first.status, second.status].sort()).toEqual([
@@ -743,6 +859,8 @@ describe("order status transitions", () => {
     if (second.status === "rejected") {
       expect(second.reason).toBeInstanceOf(InvalidOrderTransitionError)
     }
+    expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledOnce()
     expect(
       (
         await prisma.productVariant.findUniqueOrThrow({

@@ -22,7 +22,7 @@ import {
 import {
   avecSurcharges,
   messageDeValidation,
-  runEffect,
+  runOrderedEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -319,18 +319,17 @@ export async function placeOrder(
     return created
   })
 
-  try {
-    await effects.sendOrderPlacedEmail(toOrderEmailSnapshot(order, user.email))
-  } catch (error) {
-    console.warn(
-      `[order] e-mail de confirmation non envoyé pour ${order.id}`,
-      error
-    )
-  }
-  await runEffect(
-    `[order] invalidation du cache non effectuée pour ${order.id}`,
-    () => effects.invalidateCommande(order.id)
-  )
+  await runOrderedEffects([
+    {
+      message: `[order] e-mail de confirmation non envoyé pour ${order.id}`,
+      fn: () =>
+        effects.sendOrderPlacedEmail(toOrderEmailSnapshot(order, user.email)),
+    },
+    {
+      message: `[order] invalidation du cache non effectuée pour ${order.id}`,
+      fn: () => effects.invalidateCommande(order.id),
+    },
+  ])
   return order
 }
 
@@ -425,18 +424,20 @@ export async function updateOrderStatus(
     })
   })
 
-  try {
-    await effects.sendOrderStatusEmail(
-      toOrderEmailSnapshot(updated, existing.user.email),
-      updated.status
-    )
-  } catch (error) {
-    console.warn(`[order] e-mail de statut non envoyé pour ${orderId}`, error)
-  }
-  await runEffect(
-    `[order] invalidation du cache non effectuée pour ${orderId}`,
-    () => effects.invalidateCommande(orderId)
-  )
+  await runOrderedEffects([
+    {
+      message: `[order] e-mail de statut non envoyé pour ${orderId}`,
+      fn: () =>
+        effects.sendOrderStatusEmail(
+          toOrderEmailSnapshot(updated, existing.user.email),
+          updated.status
+        ),
+    },
+    {
+      message: `[order] invalidation du cache non effectuée pour ${orderId}`,
+      fn: () => effects.invalidateCommande(orderId),
+    },
+  ])
   return updated
 }
 
