@@ -35,6 +35,15 @@ function unmount(root: ReturnType<typeof createRoot>) {
   if (index >= 0) roots.splice(index, 1)
 }
 
+/** Le seul déclencheur d'envoi : le test passe par lui, jamais par l'input caché. */
+function boutonAjouter(): HTMLButtonElement {
+  const bouton = Array.from(
+    container.querySelectorAll<HTMLButtonElement>("button")
+  ).find((button) => button.textContent?.includes("Ajouter des images"))
+  if (!bouton) throw new Error("bouton d'ajout d'images absent du rendu")
+  return bouton
+}
+
 function GalerieTest({
   initialImages,
   onChange,
@@ -117,7 +126,7 @@ describe("ImageGalleryUpload", () => {
     ).toBe(false)
   })
 
-  it("libère la place d'une Image persistée dont la suppression est en attente", async () => {
+  it("garde le bouton d'ajout actif à pleine capacité tant qu'une suppression est en attente", async () => {
     const onChange = vi.fn()
     const gallery: EntreeImageProduitFormulaire[] = Array.from(
       { length: 8 },
@@ -145,10 +154,21 @@ describe("ImageGalleryUpload", () => {
     const root = render(
       <GalerieTest initialImages={gallery} onChange={onChange} />
     )
+
+    // Huit entrées actives : la limite est atteinte, aucun envoi possible.
+    expect(boutonAjouter().disabled).toBe(true)
+    expect(container.textContent).toContain("8/8 images")
+
     const remove = container.querySelector<HTMLButtonElement>(
       '[aria-label="Supprimer l\'image"]'
     )!
     act(() => remove.dispatchEvent(new Event("click", { bubbles: true })))
+
+    // Une suppression en attente libère sa place : c'est le bouton, et lui
+    // seul, qui doit redevenir actif pour déclencher le remplacement.
+    expect(boutonAjouter().disabled).toBe(false)
+    expect(container.textContent).toContain("7/8 images")
+    act(() => boutonAjouter().click())
 
     const input =
       container.querySelector<HTMLInputElement>('input[type="file"]')!
@@ -160,8 +180,19 @@ describe("ImageGalleryUpload", () => {
     })
 
     // Huit entrées, dont une en suppression en attente : la limite porte sur
-    // la galerie soumise, donc l'image retirée libère sa place.
+    // la galerie soumise, donc l'image retirée libère une place.
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/admin/uploads/presign")
+    expect(onChange).toHaveBeenLastCalledWith([
+      ...gallery.map((image, index) =>
+        index === 0 ? { ...image, suppressionEnAttente: true } : image
+      ),
+      {
+        kind: "brouillon",
+        draftId: "draft-remplacement",
+        previewUrl:
+          "https://cdn.example.test/products/brouillons/draft-remplacement.png",
+      },
+    ])
     unmount(root)
   })
 

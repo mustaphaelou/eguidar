@@ -349,12 +349,18 @@ export function ImageGalleryUpload({
         className="hidden"
         onChange={(event) => handleFiles(event.target.files)}
       />
+      {/* La limite porte sur la galerie soumise, donc sur les entrées
+          actives : une suppression en attente libère une place, et c'est le
+          bouton qui doit la rendre utilisable (`placesRestants` reste la borne
+          dure à l'envoi). */}
       <Button
         type="button"
         variant="outline"
         size="sm"
         disabled={
-          uploading || releasingDraftId !== null || images.length >= MAX_FILES
+          uploading ||
+          releasingDraftId !== null ||
+          entreesActives.length >= MAX_FILES
         }
         onClick={() => inputRef.current?.click()}
         className="w-fit"
@@ -362,8 +368,8 @@ export function ImageGalleryUpload({
         {uploading ? "Envoi en cours…" : "Ajouter des images"}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Envoyées vers Cloudflare R2, {images.length}/{MAX_FILES} images (10 Mo
-        max par image).
+        Envoyées vers Cloudflare R2, {entreesActives.length}/{MAX_FILES} images
+        (10 Mo max par image).
       </p>
       {error ? (
         <p className={cn("text-sm", "text-destructive")}>{error}</p>
