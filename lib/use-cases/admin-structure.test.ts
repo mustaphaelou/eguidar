@@ -43,6 +43,18 @@ const runId = randomUUID().slice(0, 8)
 const categorySlug = (suffix: string) => `cat-${runId}-${suffix}`
 const productSlug = (suffix: string) => `struc-${runId}-${suffix}`
 
+/**
+ * Ce qu'un effet observe de la base au moment précis où il s'exécute : relevé
+ * à l'intérieur du callback, asserté à l'extérieur, car `runEffect` avale les
+ * erreurs d'un effet — un `expect` jeté dans le callback ne ferait pas
+ * échouer le test.
+ */
+interface ReleveEffet {
+  effet: string
+  structureSourcePresente: boolean
+  categorieDuProduit: string | null
+}
+
 function makeCategoryInput(
   overrides: Partial<CategoryInput> = {}
 ): CategoryInput {
@@ -524,6 +536,94 @@ describe("admin structure mutations — categories", () => {
     expect(revalidateCategories).toHaveBeenCalled()
   })
 
+  it("ne déclenche les effets de la suppression qu'après le commit, dans leur ordre", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-post-commit") })
+    )
+    const target = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-post-commit-cible") })
+    )
+    const product = await prisma.product.create({
+      data: {
+        name: "Produit engagé",
+        slug: productSlug("post-commit"),
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        categoryId: category.id,
+      },
+    })
+
+    // Chaque effet relève l'état de la base par une connexion distincte de la
+    // transaction : elle ne voit que des faits committés. Si un effet tournait
+    // avant le commit, la Structure source existerait encore et le relevé le
+    // dirait. L'assertion vit donc dans le callback — c'est lui qui prouve
+    // l'ordre — mais son résultat est aussi relevé puis asserté à l'extérieur,
+    // car `runEffect` avale les erreurs d'un effet.
+    const releves: ReleveEffet[] = []
+    const relever = async (effet: string) => {
+      const source = await prisma.category.findUnique({
+        where: { id: category.id },
+      })
+      const deplace = await prisma.product.findUnique({
+        where: { id: product.id },
+      })
+      expect(source).toBeNull()
+      expect(deplace).toMatchObject({ categoryId: target.id })
+      releves.push({
+        effet,
+        structureSourcePresente: source !== null,
+        categorieDuProduit: deplace?.categoryId ?? null,
+      })
+    }
+    const reindexProducts = vi.fn(async () => {
+      await relever("réindexation")
+    })
+    const deleteImage = vi.fn(async () => {
+      await relever("image")
+    })
+    const revalidateCategories = vi.fn(async () => {
+      await relever("invalidation")
+    })
+
+    await deleteCategory(
+      category.id,
+      { reassignToCategoryId: target.id },
+      { reindexProducts, deleteImage, revalidateCategories }
+    )
+
+    // Trois relevés identiques et dans l'ordre de la séquence : la Structure
+    // source est déjà supprimée et le Produit déjà réaffecté quand le premier
+    // effet part (ADR-0014).
+    expect(releves).toEqual([
+      {
+        effet: "réindexation",
+        structureSourcePresente: false,
+        categorieDuProduit: target.id,
+      },
+      {
+        effet: "image",
+        structureSourcePresente: false,
+        categorieDuProduit: target.id,
+      },
+      {
+        effet: "invalidation",
+        structureSourcePresente: false,
+        categorieDuProduit: target.id,
+      },
+    ])
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: product.id,
+        categorySlug: target.slug,
+        categoryName: target.name,
+      }),
+    ])
+    expect(deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
+  })
+
   it("annule toute la réaffectation quand la suppression finale tombe sur la contrainte réelle", async () => {
     const reindexProducts = vi.fn()
     const revalidateCategories = vi.fn()
@@ -612,6 +712,75 @@ describe("admin structure mutations — categories", () => {
     expect(reindexProducts).not.toHaveBeenCalled()
     expect(revalidateCategories).not.toHaveBeenCalled()
     expect(deleteImage).not.toHaveBeenCalled()
+  })
+
+  it("journalise une panne de réindexation sans rejeter la suppression committée", async () => {
+    const deleteImage = vi.fn()
+    const revalidateCategories = vi.fn()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-reindex-panne") })
+    )
+    const target = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-reindex-panne-cible") })
+    )
+    const product = await prisma.product.create({
+      data: {
+        name: "Produit indexé ailleurs",
+        slug: productSlug("reindex-panne"),
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        categoryId: category.id,
+      },
+    })
+
+    await verifierFrontiereBestEffort("réindexation", (effetQuiEchoue) =>
+      deleteCategory(
+        category.id,
+        { reassignToCategoryId: target.id },
+        { reindexProducts: effetQuiEchoue, deleteImage, revalidateCategories }
+      )
+    )
+
+    // La mutation committée fait foi : elle survit à la panne de l'effet, et
+    // les effets suivants de la séquence sont malgré tout partis.
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: target.id })
+    expect(revalidateCategories).toHaveBeenCalledOnce()
+  })
+
+  it("journalise une panne de suppression d'image sans rejeter la suppression committée", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-img-panne") })
+    )
+
+    await verifierFrontiereBestEffort("suppression d'image", (effetQuiEchoue) =>
+      deleteCategory(category.id, {}, { deleteImage: effetQuiEchoue })
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+  })
+
+  it("journalise une panne d'invalidation de cache sans rejeter la suppression committée", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-cache-panne"), image: null })
+    )
+
+    await verifierFrontiereBestEffort("invalidation", (effetQuiEchoue) =>
+      deleteCategory(category.id, {}, { revalidateCategories: effetQuiEchoue })
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
   })
 
   it("refuse la réaffectation vers la Structure supprimée elle-même, sans écriture ni effet", async () => {
