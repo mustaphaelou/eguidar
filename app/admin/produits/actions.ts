@@ -98,23 +98,31 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
         redirect(`/admin/produits/${product.id}`)
       }
 
-      const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
-        tentativeId,
-        ownerId: client.id,
-        draftIds,
-        resultatDejaPersiste,
-        enregistrer: async (promues, lier) => {
-          const product = await createProduct(
-            { ...champs, images: promues.map((image) => image.publicUrl) },
-            undefined,
-            {
-              lier,
-              promues: promues.map((image) => image.publicUrl),
-            }
-          )
-          return { productId: product.id, result: product }
-        },
-      })
+      // `unknown` : les deux callbacks ne rendent pas la même chose, et le
+      // cycle de vie ne lit ni l'un ni l'autre. La relecture rend les faits
+      // du formulaire (ADR-0026) ; l'enregistrement rend la rangée qu'il
+      // vient d'écrire. Avant ADR-0026 les deux répondaient une rangée de
+      // base — par accident, parce que les deux lectures renvoyaient la même
+      // chose. Unifier leur type autrement qu'en `unknown` prétendrait
+      // qu'elles rendent le même fait, ce qu'elles ne font pas.
+      const resultat =
+        await cycleVieImageProduit.revendiquerEtEnregistrer<unknown>({
+          tentativeId,
+          ownerId: client.id,
+          draftIds,
+          resultatDejaPersiste,
+          enregistrer: async (promues, lier) => {
+            const product = await createProduct(
+              { ...champs, images: promues.map((image) => image.publicUrl) },
+              undefined,
+              {
+                lier,
+                promues: promues.map((image) => image.publicUrl),
+              }
+            )
+            return { productId: product.id, result: product }
+          },
+        })
       if (!resultat.ok) throw new UserFacingError(resultat.message)
 
       redirect(`/admin/produits/${resultat.productId}`)
@@ -154,31 +162,36 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
       redirect("/admin/produits")
     }
 
-    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
-      tentativeId,
-      ownerId: client.id,
-      draftIds,
-      resultatDejaPersiste: async (productId) => {
-        const product = await getAdminProduct(productId)
-        if (!product) throw new Error("Produit enregistré introuvable")
-        return product
-      },
-      enregistrer: async (promues, lier) => {
-        const product = await updateProduct(
-          productId,
-          {
-            ...champs,
-            images: urlsGalerieMiseAJour(images, promues),
-          },
-          undefined,
-          {
-            lier,
-            promues: promues.map((image) => image.publicUrl),
-          }
-        )
-        return { productId: product.id, result: product }
-      },
-    })
+    // `unknown` : même raison que dans l'action de création, et le même
+    // `resultatDejaPersiste` — la relecture rend les faits du formulaire,
+    // l'enregistrement la rangée qu'il vient d'écrire, et le cycle de vie ne
+    // lit ni l'un ni l'autre.
+    const resultat =
+      await cycleVieImageProduit.revendiquerEtEnregistrer<unknown>({
+        tentativeId,
+        ownerId: client.id,
+        draftIds,
+        resultatDejaPersiste: async (productId) => {
+          const product = await getAdminProduct(productId)
+          if (!product) throw new Error("Produit enregistré introuvable")
+          return product
+        },
+        enregistrer: async (promues, lier) => {
+          const product = await updateProduct(
+            productId,
+            {
+              ...champs,
+              images: urlsGalerieMiseAJour(images, promues),
+            },
+            undefined,
+            {
+              lier,
+              promues: promues.map((image) => image.publicUrl),
+            }
+          )
+          return { productId: product.id, result: product }
+        },
+      })
     if (!resultat.ok) throw new UserFacingError(resultat.message)
 
     redirect("/admin/produits")
