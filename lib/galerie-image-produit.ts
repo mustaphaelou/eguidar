@@ -23,12 +23,3 @@ export const galerieImageProduitSchema = z.array(
 export type EntreeImageProduit = z.infer<typeof entreeGalerieImageProduitSchema>
 export type EntreeImagePersistee = z.infer<typeof entreeImagePersisteeSchema>
 export type EntreeBrouillonImage = z.infer<typeof entreeBrouillonImageSchema>
-
-export function entreesPersisteesDepuisUrls(
-  value: unknown
-): EntreeImagePersistee[] {
-  const urls = Array.isArray(value)
-    ? value.filter((url): url is string => typeof url === "string")
-    : []
-  return urls.map((url) => ({ kind: "persistee", url }))
-}
