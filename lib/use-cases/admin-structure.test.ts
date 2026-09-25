@@ -498,6 +498,135 @@ describe("admin structure mutations — categories", () => {
     expect(revalidateCategories).toHaveBeenCalled()
   })
 
+  it("annule toute la réaffectation quand la suppression finale tombe sur la contrainte réelle", async () => {
+    const reindexProducts = vi.fn()
+    const revalidateCategories = vi.fn()
+    const deleteImage = vi.fn()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-rollback") })
+    )
+    const target = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-rollback-cible") })
+    )
+    const product = await prisma.product.create({
+      data: {
+        name: "Produit réaffecté",
+        slug: productSlug("rollback"),
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        categoryId: category.id,
+      },
+    })
+
+    // Une transaction tierce insère un Produit fantôme sur la Structure
+    // source et retient son commit : cette insertion non committée tient un
+    // verrou `FOR KEY SHARE` sur la Structure source, que la suppression
+    // finale devra attendre.
+    let liberer = () => {}
+    const retention = new Promise<void>((resolve) => {
+      liberer = resolve
+    })
+    const insertion = prisma.$transaction(
+      async (tx) => {
+        await tx.product.create({
+          data: {
+            name: "Produit fantôme",
+            slug: productSlug("fantome"),
+            description: "desc",
+            brand: "Marque",
+            price: 10000,
+            specs: {},
+            images: [],
+            categoryId: category.id,
+          },
+        })
+        await retention
+      },
+      { timeout: 30_000 }
+    )
+    insertion.catch(() => {})
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    // Lancée sans l'attendre : la réaffectation part, puis la suppression
+    // finale se bloque sur le verrou de clé étrangère de la transaction tierce.
+    const suppression = deleteCategory(
+      category.id,
+      { reindexProducts, revalidateCategories, deleteImage },
+      { reassignToCategoryId: target.id }
+    )
+    suppression.catch(() => {})
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    // La transaction tierce commit : le Produit fantôme rend la suppression
+    // finale invalide pour `ON DELETE RESTRICT`, qui rétracte la mutation
+    // entière — réaffectation comprise.
+    liberer()
+
+    const refus: unknown = await suppression.then(
+      () => undefined,
+      (error: unknown) => error
+    )
+    expect(refus).toBeInstanceOf(Error)
+    expect((refus as Error).message).toMatch(
+      /violates RESTRICT setting of foreign key constraint/
+    )
+    await insertion
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
+    await expect(
+      prisma.product.findUnique({ where: { slug: productSlug("fantome") } })
+    ).resolves.not.toBeNull()
+    expect(reindexProducts).not.toHaveBeenCalled()
+    expect(revalidateCategories).not.toHaveBeenCalled()
+    expect(deleteImage).not.toHaveBeenCalled()
+  })
+
+  it("refuse la réaffectation vers la Structure supprimée elle-même, sans écriture ni effet", async () => {
+    const reindexProducts = vi.fn()
+    const revalidateCategories = vi.fn()
+    const deleteImage = vi.fn()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-self-target") })
+    )
+    const product = await prisma.product.create({
+      data: {
+        name: "Produit non déplacé",
+        slug: productSlug("self-target"),
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        categoryId: category.id,
+      },
+    })
+
+    await verifierRefusValidation(CategoryValidationError, () =>
+      deleteCategory(
+        category.id,
+        { reindexProducts, revalidateCategories, deleteImage },
+        { reassignToCategoryId: category.id }
+      )
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
+    expect(reindexProducts).not.toHaveBeenCalled()
+    expect(revalidateCategories).not.toHaveBeenCalled()
+    expect(deleteImage).not.toHaveBeenCalled()
+  })
+
   it("still persists the mutation when revalidation throws", async () => {
     const category = await verifierFrontiereBestEffort(
       "invalidation",
@@ -514,15 +643,42 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("rejects reassigning products to an unknown target", async () => {
+    const reindexProducts = vi.fn()
+    const revalidateCategories = vi.fn()
+    const deleteImage = vi.fn()
     const category = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-bad-target") })
     )
+    const product = await prisma.product.create({
+      data: {
+        name: "Produit non déplacé",
+        slug: productSlug("bad-target"),
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        categoryId: category.id,
+      },
+    })
 
     await verifierRefusValidation(CategoryValidationError, () =>
-      deleteCategory(category.id, undefined, {
-        reassignToCategoryId: "unknown",
-      })
+      deleteCategory(
+        category.id,
+        { reindexProducts, revalidateCategories, deleteImage },
+        { reassignToCategoryId: "unknown" }
+      )
     )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
+    expect(reindexProducts).not.toHaveBeenCalled()
+    expect(revalidateCategories).not.toHaveBeenCalled()
+    expect(deleteImage).not.toHaveBeenCalled()
   })
 
   it("throws CategoryNotFoundError when deleting an unknown category", async () => {
