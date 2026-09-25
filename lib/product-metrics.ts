@@ -18,7 +18,20 @@ export function minVariantPrice(
   )
 }
 
-export function totalVariantStock(variants: VariantPriceAndStock[]): number {
+/**
+ * Le stock total d'un Produit : la somme des stocks de ses Variantes.
+ *
+ * Le paramètre est le plus petit type structurel que la somme lit — un tableau
+ * de `{ stock }` — et non `VariantPriceAndStock[]`, que cette fonction ne ferait
+ * qu'exiger par accident. L'écart de prix appartient à `prixVariante` et
+ * `minVariantPrice`, qui, eux, ont besoin des deux colonnes. Un appelant dont
+ * la requête ne remplit que le stock n'a donc plus à en sélectionner un de trop
+ * pour satisfaire cette règle : c'est ce qui permet à une lecture de ne payer
+ * que la colonne qu'elle compose.
+ */
+export function totalVariantStock(
+  variants: readonly { stock: number }[]
+): number {
   return variants.reduce((sum, variant) => sum + variant.stock, 0)
 }
 

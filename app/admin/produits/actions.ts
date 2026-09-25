@@ -89,12 +89,12 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
   {
     next: "/admin/produits",
     parse: soumissionDepuisFormData,
-    run: async ({ champs, images, tentativeId }, client) => {
+    run: async ({ champsCatalogue, images, tentativeId }, client) => {
       refuserImagesPersisteesEnCreation(images)
       const draftIds = identifiantsBrouillons(images)
 
       if (draftIds.length === 0) {
-        const product = await createProduct({ ...champs, images: [] })
+        const product = await createProduct({ ...champsCatalogue, images: [] })
         redirect(`/admin/produits/${product.id}`)
       }
 
@@ -113,7 +113,10 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
           resultatDejaPersiste,
           enregistrer: async (promues, lier) => {
             const product = await createProduct(
-              { ...champs, images: promues.map((image) => image.publicUrl) },
+              {
+                ...champsCatalogue,
+                images: promues.map((image) => image.publicUrl),
+              },
               undefined,
               {
                 lier,
@@ -146,7 +149,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
       productId: parseRequiredId(formData, "productId"),
     }
   },
-  run: async ({ productId, champs, images, tentativeId }, client) => {
+  run: async ({ productId, champsCatalogue, images, tentativeId }, client) => {
     // Aucune lecture ni vérification d'image ici : la propriété d'une Image
     // produit persistée est l'invariant du Catalogue, appliqué une seule fois
     // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
@@ -156,16 +159,15 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
 
     if (draftIds.length === 0) {
       await updateProduct(productId, {
-        ...champs,
+        ...champsCatalogue,
         images: persistedImages,
       })
       redirect("/admin/produits")
     }
 
-    // `unknown` : même raison que dans l'action de création, et le même
-    // `resultatDejaPersiste` — la relecture rend les faits du formulaire,
-    // l'enregistrement la rangée qu'il vient d'écrire, et le cycle de vie ne
-    // lit ni l'un ni l'autre.
+    // `unknown` : même raison, même commentaire, que dans l'action de
+    // création — la relecture rend les faits du formulaire, l'enregistrement la
+    // rangée qu'il vient d'écrire, et le cycle de vie ne lit ni l'un ni l'autre.
     const resultat =
       await cycleVieImageProduit.revendiquerEtEnregistrer<unknown>({
         tentativeId,
@@ -180,7 +182,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
           const product = await updateProduct(
             productId,
             {
-              ...champs,
+              ...champsCatalogue,
               images: urlsGalerieMiseAJour(images, promues),
             },
             undefined,

@@ -16,19 +16,30 @@ import type {
   ProductInput,
   ProductVariantInput,
 } from "@/lib/use-cases/admin-catalog"
+import { lire } from "@/lib/use-cases/outils-frontiere"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 /**
  * Le langage du formulaire Produit, traversé par son interface.
  *
- * Suite pure : elle n'importe ni `@/lib/db`, ni Prisma, ni session — les faits
- * qu'un éditeur entre, le refus qu'il reçoit et la valeur que l'appelant
- * obtient sont la seule chose affirmée ici. Les deux moitiés du langage des
- * Spécifications sont éprouvées l'une par l'autre (aller-retour), la paire de
- * l'écart de prix avec sa chute à zéro, et **le transport** avec la soumission
- * que le module de rendu produit réellement. L'import de
- * `@/lib/use-cases/admin-catalog` est **de type seul** : il ne subsiste rien à
- * la compilation, et cette suite reste exécutable en Node sans base.
+ * Suite pure : elle n'écrit **aucune requête** et n'atteint **aucune base** —
+ * les faits qu'un éditeur entre, le refus qu'il reçoit et la valeur que
+ * l'appelant obtient sont la seule chose affirmée ici. Les deux moitiés du
+ * langage des Spécifications sont éprouvées l'une par l'autre (aller-retour), la
+ * paire de l'écart de prix avec sa chute à zéro, et **le transport** avec la
+ * soumission que le module de rendu produit réellement.
+ *
+ * Deux imports ne portent pas sur le module sous test, et les deux sont
+ * justifiés :
+ *
+ * - `@/lib/use-cases/admin-catalog` est **de type seul** — rien n'en subsiste à
+ *   la compilation, et c'est ce qui rend l'épinglage de compilation possible
+ *   sans base ;
+ * - `@/lib/use-cases/mutation-actions` n'est **pas** importé : le refus qu'il
+ *   déclare est comparé en **lisant sa source** (voir « garde le même mot, au
+ *   caractère près »). L'importer tirerait `next/navigation` puis la session
+ *   serveur — donc la base — dans une suite que la spécification veut
+ *   exécutable en Node sans base.
  */
 
 /** Un record de spécifications dont aucune clé ni valeur ne contient de saut de ligne. */
@@ -317,7 +328,7 @@ describe("soumissionDepuisFormData", () => {
     })
 
     expect(soumission).toEqual({
-      champs: {
+      champsCatalogue: {
         name: "Téléphone",
         slug: "telephone",
         brand: "Marque",
@@ -360,9 +371,11 @@ describe("soumissionDepuisFormData", () => {
       variantes: [{ name: "Pro", sku: "SKU-2", priceDelta: -1500, stock: 0 }],
     })
 
-    expect(soumission.champs.price).toBe(125075)
-    expect(soumission.champs.variants[0]?.priceDelta).toBe(-1500)
-    expect(typeof soumission.champs.variants[0]?.priceDelta).toBe("number")
+    expect(soumission.champsCatalogue.price).toBe(125075)
+    expect(soumission.champsCatalogue.variants[0]?.priceDelta).toBe(-1500)
+    expect(typeof soumission.champsCatalogue.variants[0]?.priceDelta).toBe(
+      "number"
+    )
   })
 
   it("reconnaît les deux cases à cocher par la seule convention « on »", () => {
@@ -372,27 +385,29 @@ describe("soumissionDepuisFormData", () => {
     const cochees = soumissionLue({ misEnAvant: "on", livraisonOfferte: "on" })
     const decochees = soumissionLue()
 
-    expect(cochees.champs.isFeatured).toBe(true)
-    expect(cochees.champs.freeShipping).toBe(true)
-    expect(decochees.champs.isFeatured).toBe(false)
-    expect(decochees.champs.freeShipping).toBe(false)
-    expect(soumissionLue({ misEnAvant: "true" }).champs.isFeatured).toBe(false)
-    expect(soumissionLue({ livraisonOfferte: "1" }).champs.freeShipping).toBe(
-      false
-    )
+    expect(cochees.champsCatalogue.isFeatured).toBe(true)
+    expect(cochees.champsCatalogue.freeShipping).toBe(true)
+    expect(decochees.champsCatalogue.isFeatured).toBe(false)
+    expect(decochees.champsCatalogue.freeShipping).toBe(false)
+    expect(
+      soumissionLue({ misEnAvant: "true" }).champsCatalogue.isFeatured
+    ).toBe(false)
+    expect(
+      soumissionLue({ livraisonOfferte: "1" }).champsCatalogue.freeShipping
+    ).toBe(false)
 
     const sansCases = formulaireSoumis()
     sansCases.delete("isFeatured")
     sansCases.delete("freeShipping")
     const sansCase = soumissionDepuisFormData(sansCases)
-    expect(sansCase.champs.isFeatured).toBe(false)
-    expect(sansCase.champs.freeShipping).toBe(false)
+    expect(sansCase.champsCatalogue.isFeatured).toBe(false)
+    expect(sansCase.champsCatalogue.freeShipping).toBe(false)
   })
 
   it("relit le champ Spécifications par son langage, sans le réécrire", () => {
     const soumission = soumissionLue({ specsText: texteSpecifications(SPECS) })
 
-    expect(soumission.champs.specs).toEqual(SPECS)
+    expect(soumission.champsCatalogue.specs).toEqual(SPECS)
   })
 
   it("valide la galerie soumise par le schéma de la galerie", () => {
@@ -411,7 +426,7 @@ describe("soumissionDepuisFormData", () => {
     // message ; le valider ici changerait le refus qu'un éditeur reçoit.
     const soumission = soumissionLue({ variantes: [{ priceDelta: 1500 }] })
 
-    expect(soumission.champs.variants).toEqual([{ priceDelta: 1500 }])
+    expect(soumission.champsCatalogue.variants).toEqual([{ priceDelta: 1500 }])
   })
 
   it("accepte un Produit sans Variante, comme le veut ADR-0026", () => {
@@ -419,8 +434,8 @@ describe("soumissionDepuisFormData", () => {
     // Variante minimale n'apparaît par le transport.
     const soumission = soumissionLue({ variantes: [], prix: "99,99" })
 
-    expect(soumission.champs.variants).toEqual([])
-    expect(soumission.champs.price).toBe(9999)
+    expect(soumission.champsCatalogue.variants).toEqual([])
+    expect(soumission.champsCatalogue.price).toBe(9999)
   })
 
   it("retombe à zéro sur un ordre illisible et laisse le Catalogue refuser le reste", () => {
@@ -428,10 +443,16 @@ describe("soumissionDepuisFormData", () => {
     // entier négatif ou fractionnaire traverse donc entier, et c'est le
     // `productInputSchema` du Catalogue — `featuredOrder` y est un entier
     // positif ou nul — qui le refuse.
-    expect(soumissionLue({ ordre: "abc" }).champs.featuredOrder).toBe(0)
-    expect(soumissionLue({ ordre: "" }).champs.featuredOrder).toBe(0)
-    expect(soumissionLue({ ordre: "-3" }).champs.featuredOrder).toBe(-3)
-    expect(soumissionLue({ ordre: "1.5" }).champs.featuredOrder).toBe(1.5)
+    expect(soumissionLue({ ordre: "abc" }).champsCatalogue.featuredOrder).toBe(
+      0
+    )
+    expect(soumissionLue({ ordre: "" }).champsCatalogue.featuredOrder).toBe(0)
+    expect(soumissionLue({ ordre: "-3" }).champsCatalogue.featuredOrder).toBe(
+      -3
+    )
+    expect(soumissionLue({ ordre: "1.5" }).champsCatalogue.featuredOrder).toBe(
+      1.5
+    )
   })
 
   it("lit l'identifiant de tentative, rogné comme aujourd'hui", () => {
@@ -454,17 +475,21 @@ describe("soumissionDepuisFormData", () => {
     // qu'elle édite un Produit existant.
     const soumission = soumissionLue({ produitId: "produit-1" })
 
-    expect(Object.keys(soumission)).toEqual(["champs", "images", "tentativeId"])
-    expect(soumission.champs).not.toHaveProperty("productId")
+    expect(Object.keys(soumission)).toEqual([
+      "champsCatalogue",
+      "images",
+      "tentativeId",
+    ])
+    expect(soumission.champsCatalogue).not.toHaveProperty("productId")
   })
 
   it("donne à la mutation son entrée, à la galerie près", () => {
-    // La forme de `champs` est l'entrée du Catalogue elle-même, sans
+    // La forme de `champsCatalogue` est l'entrée du Catalogue elle-même, sans
     // adaptateur : le module atteint son type par un import de type seul, et
     // la galerie en reste écartée parce que la mutation range des URL.
     const soumission = soumissionLue()
 
-    expectTypeOf(soumission.champs).toEqualTypeOf<
+    expectTypeOf(soumission.champsCatalogue).toEqualTypeOf<
       Omit<ProductInput, "images">
     >()
     expectTypeOf(soumission).toEqualTypeOf<SoumissionFormulaireProduit>()
@@ -512,7 +537,7 @@ describe("les refus de la soumission", () => {
     // Le champ porte `required` dans le navigateur ; côté serveur, une chaîne
     // vide est un zéro pour l'aide d'argent partagée. Le transport n'ajoute
     // donc aucun refus que le formulaire ne fasse déjà.
-    expect(soumissionLue({ prix: "" }).champs.price).toBe(0)
+    expect(soumissionLue({ prix: "" }).champsCatalogue.price).toBe(0)
   })
 
   it("refuse par une Error simple, jamais par une UserFacingError", () => {
@@ -559,6 +584,31 @@ describe("les messages de refus du module", () => {
     // deux chaînes sont le même mot : l'épingler ici rend une dérive — dans un
     // sens ou dans l'autre — impossible à laisser passer.
     expect(MESSAGE_FORMULAIRE_INVALIDE).toBe("Formulaire invalide")
+  })
+
+  it("garde le même mot, au caractère près, que le refus du mécanisme partagé", () => {
+    // L'énoncé précédent compare chaque chaîne à son propre littéral, ce qui
+    // laisse les deux dériver **ensemble** sans que rien ne s'en aperçoive. Ce
+    // test les compare l'une à l'autre : si l'une bouge, l'autre doit suivre.
+    //
+    // La comparaison se fait **sur la source** du mécanisme, jamais par un
+    // import de sa valeur : l'importer tirerait `next/navigation` puis la
+    // session serveur, donc la base, dans une suite que la spécification veut
+    // exécutable en Node sans base. Or la duplication est un fait de source
+    // avant d'être une valeur : lire la ligne qui déclare le littéral est
+    // l'instrument honnête, et c'est celui qu'emploient déjà les gardes de
+    // frontière du dépôt.
+    //
+    // La déclaration est épinglée avec sa valeur, volontairement : renommer la
+    // constante du mécanisme doit casser cet énoncé, pour qu'une telle décision
+    // passe par ici plutôt que par un glissement.
+    const mecanisme = lire(import.meta.url, "./use-cases/mutation-actions.ts")
+
+    expect(mecanisme).toContain(
+      `export const INVALID_FORM_MESSAGE = ${JSON.stringify(
+        MESSAGE_FORMULAIRE_INVALIDE
+      )}`
+    )
   })
 
   it("épingle le message d'une ligne de Spécifications invalide", () => {

@@ -105,6 +105,15 @@ import type { ProductInput } from "@/lib/use-cases/admin-catalog"
  * elle existe, son nom, son SKU, son écart de prix **en centimes** et son
  * stock. Forme unique — elle remplace la déclaration seconde que le module de
  * rendu faisait de l'entrée de la mutation.
+ *
+ * **Le nom se lit « les faits d'une Variante *dans le* formulaire ».** L'entité
+ * décrite est la **Variante** ; la forme que prennent ces faits est celle
+ * d'une ligne du formulaire Produit. C'est une tournure de dépendant — « la
+ * Variante du formulaire » —, à l'inverse de `FaitsFormulaireProduit`, où
+ * l'ordre est celui du complément de tête (comme dans « carte produit »). Les
+ * deux noms sont exacts dans leur construction, et l'ordre n'est pas
+ * interchangeable ; c'est pourquoi chacun énonce ici, en toutes lettres, de
+ * quelle entité il parle et sous quelle forme.
  */
 export interface FaitsVarianteFormulaire {
   id?: string
@@ -120,6 +129,16 @@ export interface FaitsVarianteFormulaire {
  * présentation, ses spécifications, sa galerie et ses Variantes. Forme unique
  * — c'est elle que la page d'édition déclare, et non plus les props d'un
  * module de rendu client.
+ *
+ * **Le nom se lit « les faits *du formulaire* du Produit ».** L'entité décrite
+ * est le **Produit** ; la forme que prennent ces faits est la projection du
+ * formulaire d'édition. « Formulaire Produit » est un complément de tête, dans
+ * l'ordre du précedent `FaitsCarteProduit` (« carte produit ») — d'où l'ordre
+ * des mots. Son complément symétrique, `FaitsVarianteFormulaire`, se lit à
+ * l'inverse, « les faits de la Variante *dans le* formulaire » : c'est une
+ * tournure de dépendant, le même couple entité/forme dans l'autre sens. Aucun
+ * des deux noms n'est donc un doublon de l'autre : chacun dit de quoi il parle,
+ * et c'est aussi ce que son commentaire dit.
  */
 export interface FaitsFormulaireProduit {
   id?: string
@@ -174,8 +193,8 @@ export const MESSAGE_SPECIFICATIONS_INVALIDE =
  * atteint le type d'entrée de la mutation par un import de type seul, et
  * n'atteint pas `@/lib/use-cases/mutation-actions`, qui tirerait
  * `next/navigation` puis la session serveur dans le bundle navigateur. Les
- * deux chaînes sont égales au caractère près, ce que la suite énonce ; si l'une
- * bouge, l'autre doit suivre.
+ * deux chaînes sont égales au caractère près, ce que la suite énonce en les
+ * comparant l'une à l'autre ; si l'une bouge, l'autre doit suivre.
  */
 export const MESSAGE_FORMULAIRE_INVALIDE = "Formulaire invalide"
 
@@ -184,17 +203,18 @@ export const MESSAGE_FORMULAIRE_INVALIDE = "Formulaire invalide"
  * le formulaire l'a soumise, et l'identifiant de tentative.
  *
  * Les trois parties se séparent parce que les trois ont des propriétaires
- * différents. Les champs `champs` sont l'entrée du Catalogue, à la galerie
- * près : la mutation range des URL, le formulaire soumet des entrées
- * (persistées ou Brouillons) que le cycle de vie des Images produit promeut
- * avant qu'elles n'arrivent à elle — et cette conversion n'appartient ni au
- * transport ni à la mutation. `images` reste donc à part, et `tentativeId`
- * avec elle : l'identifiant d'une tentative de revendication n'est pas un fait
- * du Produit, et `ProductInput` n'a aucun champ où le loger.
+ * différents. `champsCatalogue` — le nom le dit, ce sont les **champs du
+ * Catalogue**, tels que sa mutation les reçoit, à la galerie près : la mutation
+ * range des URL, le formulaire soumet des entrées (persistées ou Brouillons)
+ * que le cycle de vie des Images produit promeut avant qu'elles n'arrivent à
+ * elle — et cette conversion n'appartient ni au transport ni à la mutation.
+ * `images` reste donc à part, et `tentativeId` avec elle : l'identifiant
+ * d'une tentative de revendication n'est pas un fait du Produit, et
+ * `ProductInput` n'a aucun champ où le loger.
  */
 export interface SoumissionFormulaireProduit {
-  /** Ce que la mutation reçoit, hors galerie : sa galerie est faite d'URL, pas d'entrées. */
-  champs: Omit<ProductInput, "images">
+  /** Les champs du Catalogue — son entrée, hors galerie : faite d'URL, pas d'entrées. */
+  champsCatalogue: Omit<ProductInput, "images">
   /** La galerie telle que le formulaire l'a soumise. */
   images: EntreeImageProduit[]
   /** L'identifiant de tentative des Brouillons d'Image produit. */
@@ -333,7 +353,7 @@ export function soumissionDepuisFormData(
   if (prix === null) throw new Error(MESSAGE_FORMULAIRE_INVALIDE)
 
   return {
-    champs: {
+    champsCatalogue: {
       name: String(formData.get("name") ?? ""),
       slug: String(formData.get("slug") ?? ""),
       brand: String(formData.get("brand") ?? ""),

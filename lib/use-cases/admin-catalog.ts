@@ -603,8 +603,9 @@ export interface FaitsProduitListe {
  * Les Produits de l'Administration, du plus récemment modifié au plus
  * ancien, sous la forme des seuls faits que la liste rend. La requête ne
  * remplit que les colonnes qu'elle compose : la galerie y entre brute, pour
- * en tirer la première Image produit, et les Variantes par les deux seules
- * colonnes que la règle canonique du stock total déclare.
+ * en tirer la première Image produit, et les Variantes par la **seule** colonne
+ * que la règle canonique du stock total déclare — `totalVariantStock` ne lit que
+ * le stock, donc l'écart de prix n'a pas à voyager.
  */
 export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
   const produits = await prisma.product.findMany({
@@ -618,7 +619,7 @@ export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
       isFeatured: true,
       freeShipping: true,
       category: { select: { name: true } },
-      variants: { select: { priceDelta: true, stock: true } },
+      variants: { select: { stock: true } },
     },
   })
 
