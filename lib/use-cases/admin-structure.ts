@@ -139,8 +139,7 @@ async function assertUniqueCategorySlug(
 /**
  * La catégorie cible existe-t-elle ? Le client partagé avec le chemin de
  * suppression y fait lire cette validation dans la même transaction que les
- * écritures : validation et écritures s'appuient sur un seul engagement
- * (ADR-0014).
+ * écritures : validation et écritures s'appuient sur un seul engagement.
  */
 async function assertCategoryParent(
   parentId: string | null | undefined,

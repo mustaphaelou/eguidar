@@ -10,18 +10,18 @@ const { reindexProductsMock } = vi.hoisted(() => ({
 }))
 
 vi.mock("next/navigation", async () => {
-  const h = await import("@/test/navigation-mocks")
-  return { redirect: h.redirectMock }
+  const mocks = await import("@/test/navigation-mocks")
+  return { redirect: mocks.redirectMock }
 })
 vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
-  const h = await import("@/test/navigation-mocks")
+  const mocks = await import("@/test/navigation-mocks")
   // Seule la lecture est stubée : `estAdmin` reste la vraie règle du module,
   // sans quoi la suite ne prouverait plus le refus de l'Administration.
   return {
     ...(await importOriginal<
       typeof import("@/lib/use-cases/session-courante")
     >()),
-    lireSession: h.sessionCouranteMock,
+    lireSession: mocks.sessionCouranteMock,
   }
 })
 // La réindexation de l'action ne doit pas partir vers Meilisearch : seul le
@@ -57,14 +57,12 @@ function deleteFormData(
   return data
 }
 
-async function makeCategoryWithProduct(slugSuffix: string) {
-  const category = await prisma.category.create({
-    data: { name: "Structure à supprimer", slug: categorySlug(slugSuffix) },
-  })
-  const product = await prisma.product.create({
+/** Le Produit de test rattaché à la Structure donnée, sous son propre slug. */
+async function makeProductIn(category: { id: string }, suffix: string) {
+  return prisma.product.create({
     data: {
       name: "Produit de l'action",
-      slug: productSlug(slugSuffix),
+      slug: productSlug(suffix),
       description: "desc",
       brand: "Marque",
       price: 10000,
@@ -73,10 +71,22 @@ async function makeCategoryWithProduct(slugSuffix: string) {
       categoryId: category.id,
     },
   })
+}
+
+async function makeCategoryWithProduct(slugSuffix: string) {
+  const category = await prisma.category.create({
+    data: { name: "Structure à supprimer", slug: categorySlug(slugSuffix) },
+  })
+  const product = await makeProductIn(category, slugSuffix)
   return { category, product }
 }
 
 describe("deleteCategoryAction", () => {
+  // Même forme de nettoyage que dans `admin-structure.test.ts`, mais sous les
+  // préfixes propres à cette suite (`cat-act-`/`prod-act-` et son runId) :
+  // chaque suite balise ses lignes pour que son nettoyage ne touche jamais
+  // celles d'une autre suite qui tourne sur la même base. La forme est donc
+  // copiée à dessein : un préfixe partagé couplerait les deux espaces de noms.
   beforeEach(async () => {
     sessionCouranteMock.mockReset()
     sessionCouranteMock.mockResolvedValue(ADMIN)
@@ -129,7 +139,8 @@ describe("deleteCategoryAction", () => {
     )
 
     expect(resultat).toEqual({
-      error: "Données invalides : une catégorie ne peut pas être réassignée vers elle-même",
+      error:
+        "Données invalides : une catégorie ne peut pas être réassignée vers elle-même",
     })
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })

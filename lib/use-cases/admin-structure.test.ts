@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { Prisma } from "@/lib/generated/prisma/client"
 
 // L'image d'une catégorie est une URL libre, hors du préfixe `products/` : elle
 // ne passe que par l'opération de stockage réservée aux catégories. Ce mock
@@ -64,6 +65,42 @@ function makeCategoryInput(
     image: "https://example.com/cat.jpg",
     ...overrides,
   }
+}
+
+/** Le Produit de test rattaché à la Structure donnée, sous son propre slug. */
+async function makeProductIn(
+  category: { id: string },
+  suffix: string,
+  name: string
+) {
+  return prisma.product.create({
+    data: {
+      name,
+      slug: productSlug(suffix),
+      description: "desc",
+      brand: "Marque",
+      price: 10000,
+      specs: {},
+      images: [],
+      categoryId: category.id,
+    },
+  })
+}
+
+/** Les trois effets de la Structure sous spy, pour prouver leur absence. */
+function effectSpies() {
+  return {
+    reindexProducts: vi.fn(),
+    revalidateCategories: vi.fn(),
+    deleteImage: vi.fn(),
+  }
+}
+
+/** Un refus ne publie rien : ni réindexation, ni suppression d'image, ni invalidation. */
+function expectNoEffects(effets: ReturnType<typeof effectSpies>) {
+  expect(effets.reindexProducts).not.toHaveBeenCalled()
+  expect(effets.revalidateCategories).not.toHaveBeenCalled()
+  expect(effets.deleteImage).not.toHaveBeenCalled()
 }
 
 describe("admin structure mutations — categories", () => {
@@ -441,54 +478,56 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
-    // L'effet d'image par défaut part par l'adaptateur R2 réel…
+    // L'effet d'image par défaut part par la couture R2 — ici le mock de ce
+    // fichier ; l'adaptateur réel est éprouvé, lui, dans
+    // `admin-structure-image-stockage.test.ts`…
     expect(sendMock).toHaveBeenCalledOnce()
-    // …et l'invalidation de cache par défaut aussi.
+    // …et l'effet d'invalidation par défaut part aussi par sa couture.
     expect(revalidatePath).toHaveBeenCalledWith("/admin/categories")
   })
 
   it("blocks deletion of a category that still has children", async () => {
+    const effets = effectSpies()
     const parent = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-parent") })
     )
-    await createCategory(
+    const child = await createCategory(
       makeCategoryInput({
         slug: categorySlug("del-child"),
         parentId: parent.id,
       })
     )
 
-    await expect(deleteCategory(parent.id)).rejects.toThrow(
+    await expect(deleteCategory(parent.id, {}, effets)).rejects.toThrow(
       CategoryHasChildrenError
     )
 
     await expect(
       prisma.category.findUnique({ where: { id: parent.id } })
     ).resolves.not.toBeNull()
+    await expect(
+      prisma.category.findUnique({ where: { id: child.id } })
+    ).resolves.not.toBeNull()
+    expectNoEffects(effets)
   })
 
   it("blocks deletion of a category that still has products", async () => {
+    const effets = effectSpies()
     const category = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-prods") })
     )
-    await prisma.product.create({
-      data: {
-        name: "Produit bloqué",
-        slug: productSlug("blocked"),
-        description: "desc",
-        brand: "Marque",
-        price: 10000,
-        specs: {},
-        images: [],
-        categoryId: category.id,
-      },
-    })
+    const product = await makeProductIn(category, "blocked", "Produit bloqué")
 
-    const promise = deleteCategory(category.id)
-    await expect(promise).rejects.toThrow(CategoryHasProductsError)
+    await expect(deleteCategory(category.id, {}, effets)).rejects.toThrow(
+      CategoryHasProductsError
+    )
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
+    expectNoEffects(effets)
   })
 
   it("reassigns products to a target category when deleting", async () => {
@@ -500,18 +539,7 @@ describe("admin structure mutations — categories", () => {
     const target = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-target") })
     )
-    const product = await prisma.product.create({
-      data: {
-        name: "Produit déplacé",
-        slug: productSlug("moved"),
-        description: "desc",
-        brand: "Marque",
-        price: 10000,
-        specs: {},
-        images: [],
-        categoryId: category.id,
-      },
-    })
+    const product = await makeProductIn(category, "moved", "Produit déplacé")
 
     await deleteCategory(
       category.id,
@@ -543,18 +571,11 @@ describe("admin structure mutations — categories", () => {
     const target = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-post-commit-cible") })
     )
-    const product = await prisma.product.create({
-      data: {
-        name: "Produit engagé",
-        slug: productSlug("post-commit"),
-        description: "desc",
-        brand: "Marque",
-        price: 10000,
-        specs: {},
-        images: [],
-        categoryId: category.id,
-      },
-    })
+    const product = await makeProductIn(
+      category,
+      "post-commit",
+      "Produit engagé"
+    )
 
     // Chaque effet relève l'état de la base par une connexion distincte de la
     // transaction : elle ne voit que des faits committés. Si un effet tournait
@@ -625,27 +646,18 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("annule toute la réaffectation quand la suppression finale tombe sur la contrainte réelle", async () => {
-    const reindexProducts = vi.fn()
-    const revalidateCategories = vi.fn()
-    const deleteImage = vi.fn()
+    const effets = effectSpies()
     const category = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-rollback") })
     )
     const target = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-rollback-cible") })
     )
-    const product = await prisma.product.create({
-      data: {
-        name: "Produit réaffecté",
-        slug: productSlug("rollback"),
-        description: "desc",
-        brand: "Marque",
-        price: 10000,
-        specs: {},
-        images: [],
-        categoryId: category.id,
-      },
-    })
+    const product = await makeProductIn(
+      category,
+      "rollback",
+      "Produit réaffecté"
+    )
 
     // Une transaction tierce insère un Produit fantôme sur la Structure
     // source et retient son commit : cette insertion non committée tient un
@@ -681,7 +693,7 @@ describe("admin structure mutations — categories", () => {
     const suppression = deleteCategory(
       category.id,
       { reassignToCategoryId: target.id },
-      { reindexProducts, revalidateCategories, deleteImage }
+      effets
     )
     suppression.catch(() => {})
     await new Promise((resolve) => setTimeout(resolve, 400))
@@ -694,12 +706,24 @@ describe("admin structure mutations — categories", () => {
       () => undefined,
       (error: unknown) => error
     )
-    expect(refus).toBeInstanceOf(Error)
-    expect((refus as Error).message).toMatch(
-      /violates RESTRICT setting of foreign key constraint/
-    )
+    // Contrat stable : la suppression rejette, et le rejet vient de la base —
+    // une erreur Prisma connue (code P2039, erreur base non mappée) dont la
+    // cause porte un SQLSTATE de classe 23, violation de contrainte
+    // d'intégrité. Ni la prose du serveur ni sa langue ne participent au
+    // contrat.
+    expect(refus).toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    expect((refus as Prisma.PrismaClientKnownRequestError).code).toBe("P2039")
+    const cause = (
+      refus as {
+        meta?: { driverAdapterError?: { cause?: { originalCode?: string } } }
+      }
+    ).meta?.driverAdapterError?.cause
+    expect(cause?.originalCode).toMatch(/^23/)
     await insertion
 
+    // Atomicité : la Structure source existe toujours, les Produits y sont
+    // toujours rattachés (réaffectation annulée), le fantôme aussi, et
+    // aucun effet n'a parti.
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.not.toBeNull()
@@ -709,9 +733,7 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.product.findUnique({ where: { slug: productSlug("fantome") } })
     ).resolves.not.toBeNull()
-    expect(reindexProducts).not.toHaveBeenCalled()
-    expect(revalidateCategories).not.toHaveBeenCalled()
-    expect(deleteImage).not.toHaveBeenCalled()
+    expectNoEffects(effets)
   })
 
   it("journalise une panne de réindexation sans rejeter la suppression committée", async () => {
@@ -723,18 +745,11 @@ describe("admin structure mutations — categories", () => {
     const target = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-reindex-panne-cible") })
     )
-    const product = await prisma.product.create({
-      data: {
-        name: "Produit indexé ailleurs",
-        slug: productSlug("reindex-panne"),
-        description: "desc",
-        brand: "Marque",
-        price: 10000,
-        specs: {},
-        images: [],
-        categoryId: category.id,
-      },
-    })
+    const product = await makeProductIn(
+      category,
+      "reindex-panne",
+      "Produit indexé ailleurs"
+    )
 
     await verifierFrontiereBestEffort("réindexation", (effetQuiEchoue) =>
       deleteCategory(
@@ -784,31 +799,18 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("refuse la réaffectation vers la Structure supprimée elle-même, sans écriture ni effet", async () => {
-    const reindexProducts = vi.fn()
-    const revalidateCategories = vi.fn()
-    const deleteImage = vi.fn()
+    const effets = effectSpies()
     const category = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-self-target") })
     )
-    const product = await prisma.product.create({
-      data: {
-        name: "Produit non déplacé",
-        slug: productSlug("self-target"),
-        description: "desc",
-        brand: "Marque",
-        price: 10000,
-        specs: {},
-        images: [],
-        categoryId: category.id,
-      },
-    })
+    const product = await makeProductIn(
+      category,
+      "self-target",
+      "Produit non déplacé"
+    )
 
     await verifierRefusValidation(CategoryValidationError, () =>
-      deleteCategory(
-        category.id,
-        { reassignToCategoryId: category.id },
-        { reindexProducts, revalidateCategories, deleteImage }
-      )
+      deleteCategory(category.id, { reassignToCategoryId: category.id }, effets)
     )
 
     await expect(
@@ -817,9 +819,7 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toMatchObject({ categoryId: category.id })
-    expect(reindexProducts).not.toHaveBeenCalled()
-    expect(revalidateCategories).not.toHaveBeenCalled()
-    expect(deleteImage).not.toHaveBeenCalled()
+    expectNoEffects(effets)
   })
 
   it("still persists the mutation when revalidation throws", async () => {
@@ -838,31 +838,18 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("rejects reassigning products to an unknown target", async () => {
-    const reindexProducts = vi.fn()
-    const revalidateCategories = vi.fn()
-    const deleteImage = vi.fn()
+    const effets = effectSpies()
     const category = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-bad-target") })
     )
-    const product = await prisma.product.create({
-      data: {
-        name: "Produit non déplacé",
-        slug: productSlug("bad-target"),
-        description: "desc",
-        brand: "Marque",
-        price: 10000,
-        specs: {},
-        images: [],
-        categoryId: category.id,
-      },
-    })
+    const product = await makeProductIn(
+      category,
+      "bad-target",
+      "Produit non déplacé"
+    )
 
     await verifierRefusValidation(CategoryValidationError, () =>
-      deleteCategory(
-        category.id,
-        { reassignToCategoryId: "unknown" },
-        { reindexProducts, revalidateCategories, deleteImage }
-      )
+      deleteCategory(category.id, { reassignToCategoryId: "unknown" }, effets)
     )
 
     await expect(
@@ -871,14 +858,16 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toMatchObject({ categoryId: category.id })
-    expect(reindexProducts).not.toHaveBeenCalled()
-    expect(revalidateCategories).not.toHaveBeenCalled()
-    expect(deleteImage).not.toHaveBeenCalled()
+    expectNoEffects(effets)
   })
 
   it("throws CategoryNotFoundError when deleting an unknown category", async () => {
-    await expect(deleteCategory("unknown-id")).rejects.toThrow(
+    const effets = effectSpies()
+
+    await expect(deleteCategory("unknown-id", {}, effets)).rejects.toThrow(
       CategoryNotFoundError
     )
+
+    expectNoEffects(effets)
   })
 })
