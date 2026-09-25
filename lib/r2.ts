@@ -224,14 +224,16 @@ function storageError(): {
 }
 
 /**
- * Deux opérations de suppression par URL, deux espaces de noms disjoints.
+ * Deux opérations de suppression par URL, un seul invariant partagé : ni
+ * l'une ni l'autre ne peut viser `products/brouillons/`.
  *
- * Une Image produit persistée n'existe que sous `products/`, et jamais sous le
- * préfixe réservé aux Brouillons. Une image de Structure est le champ `image`
- * d'une catégorie, antérieur à ce cycle de vie : elle est n'importe où sous la
- * base publique, sauf dans cet espace réservé — une suppression de catégorie ne
- * doit jamais pouvoir supprimer un Brouillon abandonné, dont l'expiration est
- * le fait de la règle de cycle de vie R2 (ADR-0004).
+ * Une Image produit persistée n'existe que sous `products/`, hors du préfixe
+ * réservé aux Brouillons. Une image de Structure est le champ `image` d'une
+ * catégorie, antérieure à ce cycle de vie : elle est n'importe où sous la base
+ * publique — y compris sous `products/`, comportement conservé pour les
+ * catégories — mais jamais dans l'espace réservé. Une suppression de catégorie
+ * ne doit jamais pouvoir supprimer un Brouillon abandonné, dont l'expiration
+ * est le fait de la règle de cycle de vie R2 (ADR-0004).
  */
 function estCleImageProduitPersistee(key: string): boolean {
   return (

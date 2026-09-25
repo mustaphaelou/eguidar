@@ -273,7 +273,7 @@ describe("adaptateur R2 des Images produit", () => {
     expect(MAX_UPLOAD_SIZE).toBe(10 * 1024 * 1024)
   })
 
-  it("partage la suppression par URL en deux espaces de noms disjoints", async () => {
+  it("garde les deux suppressions par URL hors de l'espace réservé des Brouillons", async () => {
     // Une Image produit persistée vit sous `products/`, une image de Structure
     // n'importe où sous la base publique : deux opérations, deux gardes. Ni
     // l'une ni l'autre ne doit pouvoir viser l'espace réservé des Brouillons.
