@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto"
 
 import { redirect } from "next/navigation"
 
-import cycleVieImageProduit from "@/lib/cycle-vie-image-produit"
+import cycleVieImageProduit, {
+  type ImageProduitPromue,
+} from "@/lib/cycle-vie-image-produit"
 import {
   galerieImageProduitSchema,
   type EntreeImageProduit,
@@ -18,9 +20,11 @@ import {
 } from "@/lib/use-cases/mutation-actions"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
+  assertPersistedImagesAreOwned,
   createProduct,
   deleteProduct,
   getAdminProduct,
+  ProductNotFoundError,
   updateProduct,
   updateVariantStock,
   type ProductInput,
@@ -99,6 +103,29 @@ function refuserImagesPersisteesEnCreation(
   }
 }
 
+function urlsPersistees(images: readonly EntreeImageProduit[]): string[] {
+  return images.flatMap((image) =>
+    image.kind === "persistee" ? [image.url] : []
+  )
+}
+
+function urlsGalerieMiseAJour(
+  images: readonly EntreeImageProduit[],
+  promoted: readonly ImageProduitPromue[]
+): string[] {
+  const promotedParDraftId = new Map(
+    promoted.map((image) => [image.draftId, image.publicUrl])
+  )
+  return images.map((image) => {
+    if (image.kind === "persistee") return image.url
+    const publicUrl = promotedParDraftId.get(image.draftId)
+    if (publicUrl === undefined) {
+      throw new Error("URL d'Image produit promue indisponible")
+    }
+    return publicUrl
+  })
+}
+
 interface ProductUpdateInput extends ProductFormInput {
   productId: string
 }
@@ -150,18 +177,48 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
       productId: parseRequiredId(formData, "productId"),
     }
   },
-  run: async ({ productId, images, tentativeId: _tentativeId, ...input }) => {
-    if (images.some((image) => image.kind === "brouillon")) {
-      throw new UserFacingError(
-        "Les nouveaux Brouillons d'Image produit ne sont pas encore pris en charge"
-      )
+  run: async ({ productId, images, tentativeId, ...input }, client) => {
+    const existing = await getAdminProduct(productId)
+    if (!existing) throw new ProductNotFoundError()
+
+    const persistedImages = urlsPersistees(images)
+    assertPersistedImagesAreOwned(existing.images, persistedImages)
+    const draftIds = images.flatMap((image) =>
+      image.kind === "brouillon" ? [image.draftId] : []
+    )
+
+    if (draftIds.length === 0) {
+      await updateProduct(productId, {
+        ...input,
+        images: persistedImages,
+      })
+      redirect("/admin/produits")
     }
-    await updateProduct(productId, {
-      ...input,
-      images: images.flatMap((image) =>
-        image.kind === "persistee" ? [image.url] : []
-      ),
+
+    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+      tentativeId,
+      ownerId: client.id,
+      draftIds,
+      resultatDejaPersiste: async (productId) => {
+        const product = await getAdminProduct(productId)
+        if (!product) throw new Error("Produit enregistré introuvable")
+        return product
+      },
+      enregistrer: async (promoted, lier) => {
+        const product = await updateProduct(
+          productId,
+          {
+            ...input,
+            images: urlsGalerieMiseAJour(images, promoted),
+          },
+          undefined,
+          lier
+        )
+        return { productId: product.id, result: product }
+      },
     })
+    if (!resultat.ok) throw new UserFacingError(resultat.message)
+
     redirect("/admin/produits")
   },
 })

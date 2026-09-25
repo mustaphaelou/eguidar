@@ -195,6 +195,18 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
+export function assertPersistedImagesAreOwned(
+  storedImages: unknown,
+  submittedImages: readonly string[]
+): void {
+  const stored = new Set(imageUrls(storedImages))
+  if (submittedImages.some((url) => !stored.has(url))) {
+    throw new CatalogValidationError([
+      "une Image produit persistée n'appartient pas à ce Produit",
+    ])
+  }
+}
+
 function mapUniqueViolation(error: unknown): never {
   return leverConflitUnique(
     error,
@@ -268,13 +280,15 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>
+  overrides?: Partial<CatalogEffects>,
+  lier?: LierBrouillonsImageProduit
 ) {
   const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
   const data = parseProductInput(input)
+  if (!lier) assertPersistedImagesAreOwned(existing.images, data.images)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug, id)
@@ -352,6 +366,10 @@ export async function updateProduct(
         .filter((variantId) => !keptVariantIds.includes(variantId))
       if (toDelete.length > 0) {
         await tx.productVariant.deleteMany({ where: { id: { in: toDelete } } })
+      }
+
+      if (lier) {
+        await lier(id, portTransactionRegistreBrouillonImageProduit(tx))
       }
 
       return tx.product.findUniqueOrThrow({
