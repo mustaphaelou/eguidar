@@ -12,7 +12,7 @@
  * Cloudflare reçoit) ; `infra/regle-cycle-vie-r2.test.ts` échoue si le fichier
  * ne correspond plus exactement à ce que ce module décrit.
  */
-import { RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT } from "@/lib/cycle-vie-image-produit"
+import { retentionBrouillonImageProduitHeures } from "@/lib/cycle-vie-image-produit"
 import { DRAFT_PRODUCTS_PREFIX } from "@/lib/r2"
 
 const HEURES_PAR_JOUR = 24
@@ -59,9 +59,7 @@ export function artefactRegleCycleVieR2(): ArtefactRegleCycleVieR2 {
         enabled: true,
         prefix: DRAFT_PRODUCTS_PREFIX,
         expire: {
-          days: joursPourExpiration(
-            RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT
-          ),
+          days: joursPourExpiration(retentionBrouillonImageProduitHeures()),
         },
       },
     ],

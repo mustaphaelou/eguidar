@@ -20,11 +20,9 @@ import {
 } from "@/lib/use-cases/mutation-actions"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
-  assertPersistedImagesAreOwned,
   createProduct,
   deleteProduct,
   getAdminProduct,
-  ProductNotFoundError,
   updateProduct,
   updateVariantStock,
   type ProductInput,
@@ -181,11 +179,11 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     }
   },
   run: async ({ productId, images, tentativeId, ...input }, client) => {
-    const existing = await getAdminProduct(productId)
-    if (!existing) throw new ProductNotFoundError()
-
+    // Aucune lecture ni vérification d'image ici : la propriété d'une Image
+    // produit persistée est l'invariant du Catalogue, appliqué une seule fois
+    // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
+    // revendication valide.
     const persistedImages = urlsPersistees(images)
-    assertPersistedImagesAreOwned(existing.images, persistedImages)
     const draftIds = images.flatMap((image) =>
       image.kind === "brouillon" ? [image.draftId] : []
     )

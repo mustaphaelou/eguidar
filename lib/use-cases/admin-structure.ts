@@ -40,7 +40,13 @@ const defaultStructureEffects: StructureEffects = {
   },
   async deleteImage(url) {
     try {
-      await stockageImageProduitR2.supprimerImagePersistee(url)
+      const resultat = await stockageImageProduitR2.supprimerImageCategorie(url)
+      if (!resultat.ok) {
+        console.warn(
+          `[structure] suppression d'image R2 non effectuée pour ${url}`,
+          resultat.erreur
+        )
+      }
     } catch (error) {
       console.warn(
         `[structure] suppression d'image R2 non effectuée pour ${url}`,

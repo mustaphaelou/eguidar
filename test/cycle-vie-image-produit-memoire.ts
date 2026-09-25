@@ -22,6 +22,7 @@ export interface StockageImageProduitMemoire extends PortStockageImageProduit {
   readonly deletedDrafts: string[]
   readonly deletedPromoted: string[]
   readonly deletedPersisted: string[]
+  readonly deletedCategories: string[]
   failPresign: boolean
   failPromotion: boolean
   failDelete: boolean
@@ -40,6 +41,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
   const deletedDrafts: string[] = []
   const deletedPromoted: string[] = []
   const deletedPersisted: string[] = []
+  const deletedCategories: string[] = []
 
   const stockage: StockageImageProduitMemoire = {
     presigns,
@@ -47,6 +49,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
     deletedDrafts,
     deletedPromoted,
     deletedPersisted,
+    deletedCategories,
     failPresign: false,
     failPromotion: false,
     failDelete: false,
@@ -96,6 +99,14 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
       deletedPersisted.push(publicUrl)
       return { ok: true, valeur: null }
     },
+
+    async supprimerImageCategorie(publicUrl) {
+      if (stockage.failDelete) {
+        return echec("erreur-stockage", "échec mémoire de la suppression")
+      }
+      deletedCategories.push(publicUrl)
+      return { ok: true, valeur: null }
+    },
   }
 
   return stockage
@@ -120,6 +131,23 @@ function refusRegistre(
   message: string
 ): Extract<ResultatRevendicationRegistre, { ok: false }> {
   return { ok: false, code, message }
+}
+
+/**
+ * Même règle que le registre durable : la rétention dépassée résout en `expiré`
+ * un Brouillon non lié à un Produit, quel que soit son état de revendication.
+ * `libéré` reste terminal, un Brouillon lié à un Produit n'est jamais
+ * réétiqueté.
+ */
+function resolubleEnExpire(
+  brouillon: BrouillonImageProduit,
+  now: Date
+): boolean {
+  return (
+    brouillon.productId === null &&
+    brouillon.expiresAt <= now &&
+    (brouillon.state === "vivant" || brouillon.state === "revendiqué")
+  )
 }
 
 export function creerRegistreImageProduitMemoire(
@@ -149,7 +177,11 @@ export function creerRegistreImageProduitMemoire(
 
     async lire(id) {
       const brouillon = records.get(id)
-      return brouillon ? copieBrouillon(brouillon) : null
+      if (!brouillon) return null
+      if (resolubleEnExpire(brouillon, maintenant())) {
+        brouillon.state = "expiré"
+      }
+      return copieBrouillon(brouillon)
     },
 
     async revendiquer(input) {
@@ -169,6 +201,9 @@ export function creerRegistreImageProduitMemoire(
         return { ok: true, value: copieBrouillon(brouillon) }
       }
       if (brouillon.expiresAt <= input.now) {
+        if (resolubleEnExpire(brouillon, input.now)) {
+          brouillon.state = "expiré"
+        }
         return refusRegistre("expire", "Ce brouillon a expiré")
       }
       if (brouillon.state !== "vivant" || brouillon.tentativeId !== null) {

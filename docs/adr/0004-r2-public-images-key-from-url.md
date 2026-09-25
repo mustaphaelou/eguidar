@@ -73,3 +73,27 @@ Le formulaire, les routes d'envoi et de liberation, et la mutation du **Catalogu
 
 La retention est une **configuration** : une variable d'environnement unique, lue en un seul endroit, avec 24 heures comme valeur initiale. La regle de cycle de vie R2 doit porter la meme valeur, et une verification automatisee doit prouver qu'elle ne peut pas matcher une cle d'image persistee.
 
+## Amendement : la couture transactionnelle, une operation et non un etat
+
+La forme ci-dessus dit « une couture par stockage et une par horloge », et dit qu'aucun appelant ne connait « un etat du registre ». Le second point reste vrai ; le premier a une exception, et il faut la nommer plutot que la contourner.
+
+« La revendication d'un brouillon et la persistance du **Produit** forment une seule operation logique commitee » ne peut pas etre une simple convention temporelle : si la liaison du brouillon au **Produit** s'ecrivait apres la transaction du **Catalogue**, un commit reussi suivi d'une liaison echouee laisserait un **Produit** enregistre dont une **Image produit** n'a ni proprietaire ni fait correspondant — et inversement, l'ecriture inverse laisserait un brouillon revendicable par une tentative qui a echoue. Aucune compensation ne rend cela atomique.
+
+Le module expose donc, en plus des quatre operations, une **liaison dotee de la transaction** : la revendication passe au **Catalogue** une fonction a executer, et le **Catalogue** l'execute dans sa propre transaction en lui passant un port de registre restreint a cette transaction. Concretement :
+
+- le **Catalogue** recoit une **operation** a executer dans son commit, pas un etat du registre a reproduire apres coup ;
+- le port passe a cette operation n'expose qu'une confirmation de promotion, il ne donne pas acces au registre ni a l'horloge, et ne survit pas a la transaction ;
+- l'interface du cycle de vie, elle, reste a **quatre operations** : cette couture est interne au module et a son composeur, elle n'est pas une operation de plus ;
+- la garde de frontiere l'autorise explicitement, et verifie au passage que le **Catalogue** n'atteint toujours pas le port de stockage.
+
+Ce que le **Catalogue** ne recoit pas change : ni cle R2, ni namespace, ni duree de pre-signature, ni etat du registre, ni identifiant de Brouillon en dehors de la liaison qu'il execute. Le vocabulaire de refus, lui, reste entierement compose dans le module proprietaire — y compris sa traduction HTTP, qui est totale et exhaustive pour que l'ajout d'un code soit une erreur de type plutot qu'un 500 silencieux.
+
+## Amendement : une edition abandonnee n'a pas de nettoyage a la demande
+
+L'histoire « annuler une edition pour liberer ses Brouillons non revendiques » (issue #406, histoire 5) n'ajoute aucun mecanisme. Elle est satisfaite par ce qui existe deja : un **Brouillon d'Image produit** abandonne expire seul au bout de la retention, et la regle de cycle de vie R2 sur le prefixe `products/brouillons/` supprime l'objet correspondant. Un nettoyage au moment de la requete est une **optimisation**, pas une source de verite, et l'amendement « La retention » le dit deja.
+
+Aucun gestionnaire de dechargement n'est donc ajoute. Un tel gestionnaire appellerait le reseau pendant une navigation, donc ajouterait un mecanisme d'expiration hors bande de plus — celui-la precisement que l'amendement « L'expiration hors bande » exclut, et dont l'echec serait plus difficile a voir qu'une absence d'objet. Une regle cote fournisseur ne peut ni expirer un objet trop tot, ni disparaitre en silence entre deux deploiement.
+
+Le cout de ce choix est explicite : un **Brouillon d'Image produit** abandonne occupe son prefixe reserve jusqu'a la retention, et pas une seconde de plus. La reclamation est donc au pire d'une retention, ce que la fenetre de reessai du formulaire rend supportable.
+
+

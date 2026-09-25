@@ -66,8 +66,16 @@ function journaliserEchecSuppressionImage(
   )
 }
 
-function defaultCatalogEffects(productId?: string): CatalogEffects {
-  const produit = productId ?? "inconnu"
+/**
+ * Les effets de production d'une mutation, pour le Produit qu'elle concerne.
+ *
+ * L'identifiant est exigé, pas facultatif : il ne sert qu'au journal d'échec
+ * de suppression d'image, et une fonction qui ignore de quel Produit elle
+ * parle afficherait « inconnu » dans la seule ligne qui doit aider le support.
+ * Les mutations dont l'effet ne porte sur aucune image d'un Produit connu
+ * construisent leurs effets une fois le Produit résolu.
+ */
+function defaultCatalogEffects(productId: string): CatalogEffects {
   return {
     reindexProducts: indexProductDocuments,
     async removeProductFromIndex(id) {
@@ -82,10 +90,10 @@ function defaultCatalogEffects(productId?: string): CatalogEffects {
           const resultat =
             await stockageImageProduitR2.supprimerImagePersistee(url)
           if (!resultat.ok) {
-            journaliserEchecSuppressionImage(produit, url, resultat.erreur)
+            journaliserEchecSuppressionImage(productId, url, resultat.erreur)
           }
         } catch (error) {
-          journaliserEchecSuppressionImage(produit, url, error)
+          journaliserEchecSuppressionImage(productId, url, error)
         }
       }
     },
@@ -256,7 +264,6 @@ export async function createProduct(
   overrides?: Partial<CatalogEffects>,
   revendication?: LiaisonRevendicationImagesProduit
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects(), overrides)
   const data = parseProductInput(input)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -302,6 +309,7 @@ export async function createProduct(
     mapUniqueViolation(error)
   }
 
+  const effects = avecSurcharges(defaultCatalogEffects(product.id), overrides)
   await runEffect(
     `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
     () => effects.reindexProducts([toIndexableProduct(product)])
@@ -476,7 +484,6 @@ export async function updateVariantStock(
   stock: number,
   overrides?: Partial<CatalogEffects>
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects(), overrides)
   if (!Number.isInteger(stock) || stock < 0) {
     throw new CatalogValidationError(["le stock doit être positif ou nul"])
   }
@@ -487,6 +494,10 @@ export async function updateVariantStock(
   })
   if (!variant) throw new VariantNotFoundError()
 
+  const effects = avecSurcharges(
+    defaultCatalogEffects(variant.product.id),
+    overrides
+  )
   await prisma.productVariant.update({
     where: { id: variantId },
     data: { stock },

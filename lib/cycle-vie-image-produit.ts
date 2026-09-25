@@ -69,6 +69,37 @@ export interface RefusCycleVieImageProduit {
   message: string
 }
 
+/**
+ * La traduction HTTP du vocabulaire de refus, au même endroit que ce
+ * vocabulaire. Le type de la table est l'union des codes : un code ajouté sans
+ * statut est une erreur de compilation, jamais un 500 silencieux que rien ne
+ * signale — et aucune route n'a plus sa propre copie, partielle donc fausse
+ * dès qu'un code bouge.
+ *
+ * Un refus de l'éditeur se lit par lui : 400 pour ce qu'il a mal soumis, 403
+ * pour ce qui n'est pas à lui, 404 pour ce qui n'existe plus, 409 et 410 pour
+ * un état qui ne se reprendra pas, 502 et 503 pour une dépendance en panne.
+ */
+export const STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT: Record<
+  CodeRefusCycleVieImageProduit,
+  number
+> = {
+  "identifiant-proprietaire-invalide": 400,
+  "metadata-invalide": 400,
+  "mime-non-autorise": 400,
+  "taille-invalide": 400,
+  "trop-volumineux": 400,
+  "stockage-indisponible": 503,
+  "stockage-refuse": 502,
+  "registre-indisponible": 500,
+  "brouillon-introuvable": 404,
+  "proprietaire-incorrect": 403,
+  "brouillon-non-vivant": 409,
+  "brouillon-expire": 410,
+  "revendication-refusee": 409,
+  "catalogue-refuse": 409,
+}
+
 export interface BrouillonImageProduitDemande {
   draftId: string
   uploadUrl: string
@@ -195,13 +226,19 @@ export interface CycleVieImageProduit {
 }
 
 /**
- * Rétention initiale d'un Brouillon d'Image produit abandonné, en heures.
- * Exportée parce que la règle de cycle de vie R2 doit porter la même valeur
- * (ADR-0004) : `infra/regle-cycle-vie-r2.ts` en dérive ses jours.
+ * Rétention initiale d'un Brouillon d'Image produit abandonné, en heures. C'est
+ * la valeur de repli : la rétention effective est lue dans l'environnement,
+ * voir `retentionBrouillonImageProduitHeures`.
  */
 export const RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT = 24
 
-function retentionBrouillonImageProduitHeures(): number {
+/**
+ * La rétention effective, en heures, lue dans l'unique variable
+ * d'environnement qui la porte (ADR-0004). C'est la seule lecture : la règle de
+ * cycle de vie R2 en dérive ses jours, donc l'application et la règle
+ * d'expiration ne peuvent pas diverger.
+ */
+export function retentionBrouillonImageProduitHeures(): number {
   const valeur = process.env.RETENTION_BROUILLON_IMAGE_PRODUIT_H
   if (!valeur) return RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT
   const heures = Number(valeur)
@@ -230,6 +267,13 @@ const MESSAGE_BROUILLON_DEJA_LIBERE =
 
 const MESSAGE_CONFLIT_REVENDICATION =
   "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie."
+
+/**
+ * Un registre indisponible n'est pas un refus métier : la rétention du
+ * Brouillon n'est pas en jeu, seul l'enregistrement durable est momentanément
+ * hors service. Le message est donc unique, et ne promet aucune reprise.
+ */
+const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
 
 /**
  * « n'est pas vivant » ne dit rien à l'éditeur : un Brouillon déjà libéré
@@ -305,7 +349,8 @@ function resultatRegistreRefus(
   }
 }
 
-function versBrouillon(row: {
+/** La ligne du registre, telle que Prisma la rend : `state` n'y est pas typé. */
+type LigneBrouillonImageProduit = {
   id: string
   mimeType: string
   byteSize: number
@@ -316,7 +361,9 @@ function versBrouillon(row: {
   state: string
   promotedPublicUrl: string | null
   productId: string | null
-}): BrouillonImageProduit {
+}
+
+function versBrouillon(row: LigneBrouillonImageProduit): BrouillonImageProduit {
   return {
     id: row.id,
     mimeType: row.mimeType,
@@ -401,6 +448,58 @@ export function portTransactionRegistreBrouillonImageProduit(
 }
 
 /**
+ * Un Brouillon d'Image produit dont la rétention est dépassée et qui n'est lié à
+ * aucun Produit se résout en `expiré`, dans l'état de revendication qu'il ait.
+ *
+ * La compensation d'une revendication échouée est best-effort : un Brouillon
+ * peut rester `revendiqué` avec un `tentativeId` et aucun `productId`. Il
+ * refuse alors toute autre tentative — à juste titre, aucune double
+ * revendication — mais resterait invisible comme expiré, alors que la
+ * rétention est écoulée (histoire 25 de l'issue #406).
+ *
+ * `libéré` reste terminal : l'éditeur a été prévenu et l'objet supprimé.
+ * `expiré` l'est déjà. Un Brouillon lié à un Produit est une Image produit
+ * persistée : il n'est jamais réétiqueté.
+ */
+function estResolubleEnExpire(
+  row: { state: string; expiresAt: Date; productId: string | null },
+  now: Date
+): boolean {
+  return (
+    row.productId === null &&
+    row.expiresAt <= now &&
+    (row.state === "vivant" || row.state === "revendiqué")
+  )
+}
+
+function refusNonVivant(state: string): {
+  ok: false
+  code: CodeRefusRegistreBrouillon
+  message: string
+} {
+  return {
+    ok: false,
+    code:
+      state === "revendiqué"
+        ? "deja-revendique"
+        : state === "libéré"
+          ? "deja-libere"
+          : "non-vivant",
+    message: "Ce brouillon n'est pas vivant",
+  }
+}
+
+/**
+ * Ce qu'une lecture de la ligne décide de la revendication : soit la ligne
+ * tranche, soit elle laisse la comparaison-and-échange écrire. L'état d'une
+ * ligne qui laisse écrire est renvoyé avec elle, parce qu'il décide du refus
+ * que l'appelant rendra si l'écriture échoue.
+ */
+type VerdictRevendication =
+  | { kind: "tranche"; resultat: ResultatRevendicationRegistre }
+  | { kind: "a_ecrire"; row: LigneBrouillonImageProduit }
+
+/**
  * Registre durable. L'état `expiré` est écrit à la demande, à partir de
  * l'horloge injectée : aucun balayeur, aucune file, aucun planificateur. Une
  * lecture, une tentative de revendication ou de libération d'un Brouillon dont
@@ -413,7 +512,12 @@ export function creerRegistreBrouillonImageProduitPrisma(
   async function marquerExpire(id: string, now: Date): Promise<void> {
     try {
       await prisma.brouillonImageProduit.updateMany({
-        where: { id, state: "vivant", expiresAt: { lte: now } },
+        where: {
+          id,
+          productId: null,
+          state: { in: ["vivant", "revendiqué"] },
+          expiresAt: { lte: now },
+        },
         data: { state: "expiré" },
       })
     } catch (error) {
@@ -422,6 +526,61 @@ export function creerRegistreBrouillonImageProduitPrisma(
         error
       )
     }
+  }
+
+  /**
+   * L'échelle de refus de la revendication, dans un seul ordre. La
+   * comparaison-and-échange se lit deux fois — avant d'écrire, puis après, pour
+   * savoir qui a gagné — et les deux lectures doivent appliquer exactement les
+   * mêmes refus : une évolution de la propriété ou de l'expiration ne peut
+   * atterrir que dans l'une des deux. `a_ecrire` est le seul cas que la
+   * première lecture laisse passer à l'écriture ; l'état de la ligne y décide
+   * encore, c'est donc à l'appelant d'en tirer le refus après l'écriture.
+   */
+  async function classer(
+    row: LigneBrouillonImageProduit | null,
+    input: { id: string; ownerId: string; tentativeId: string; now: Date }
+  ): Promise<VerdictRevendication> {
+    if (!row) {
+      return {
+        kind: "tranche",
+        resultat: {
+          ok: false,
+          code: "introuvable",
+          message: "Brouillon introuvable",
+        },
+      }
+    }
+    if (row.ownerId !== input.ownerId) {
+      return {
+        kind: "tranche",
+        resultat: {
+          ok: false,
+          code: "proprietaire-incorrect",
+          message: "Ce brouillon ne vous appartient pas",
+        },
+      }
+    }
+    // La rétention limite une nouvelle revendication, pas la résolution
+    // d'une tentative déjà gagnée.
+    if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
+      return {
+        kind: "tranche",
+        resultat: { ok: true, value: versBrouillon(row) },
+      }
+    }
+    if (row.expiresAt <= input.now) {
+      await marquerExpire(input.id, input.now)
+      return {
+        kind: "tranche",
+        resultat: {
+          ok: false,
+          code: "expire",
+          message: "Brouillon expiré",
+        },
+      }
+    }
+    return { kind: "a_ecrire", row }
   }
 
   return {
@@ -451,7 +610,7 @@ export function creerRegistreBrouillonImageProduitPrisma(
         select: selectionBrouillon,
       })
       if (!row) return null
-      if (row.state === "vivant" && row.expiresAt <= now) {
+      if (estResolubleEnExpire(row, now)) {
         await marquerExpire(id, now)
         return { ...versBrouillon(row), state: "expiré" }
       }
@@ -465,34 +624,8 @@ export function creerRegistreBrouillonImageProduitPrisma(
           select: selectionBrouillon,
         })
 
-      let row = await lire()
-      if (!row) {
-        return {
-          ok: false,
-          code: "introuvable",
-          message: "Brouillon introuvable",
-        }
-      }
-      if (row.ownerId !== input.ownerId) {
-        return {
-          ok: false,
-          code: "proprietaire-incorrect",
-          message: "Ce brouillon ne vous appartient pas",
-        }
-      }
-      // La rétention limite une nouvelle revendication, pas la résolution
-      // d'une tentative déjà gagnée.
-      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
-        return { ok: true, value: versBrouillon(row) }
-      }
-      if (row.expiresAt <= input.now) {
-        await marquerExpire(input.id, input.now)
-        return {
-          ok: false,
-          code: "expire",
-          message: "Brouillon expiré",
-        }
-      }
+      const avant = await classer(await lire(), input)
+      if (avant.kind === "tranche") return avant.resultat
 
       const updated = await prisma.brouillonImageProduit.updateMany({
         where: {
@@ -505,46 +638,17 @@ export function creerRegistreBrouillonImageProduitPrisma(
         data: { state: "revendiqué", tentativeId: input.tentativeId },
       })
       if (updated.count === 1) {
-        row = await lire()
-        if (row) return { ok: true, value: versBrouillon(row) }
+        const gagne = await lire()
+        if (gagne) return { ok: true, value: versBrouillon(gagne) }
       }
 
-      row = await lire()
-      if (!row) {
-        return {
-          ok: false,
-          code: "introuvable",
-          message: "Brouillon introuvable",
-        }
-      }
-      if (row.ownerId !== input.ownerId) {
-        return {
-          ok: false,
-          code: "proprietaire-incorrect",
-          message: "Ce brouillon ne vous appartient pas",
-        }
-      }
-      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
-        return { ok: true, value: versBrouillon(row) }
-      }
-      if (row.expiresAt <= input.now) {
-        await marquerExpire(input.id, input.now)
-        return {
-          ok: false,
-          code: "expire",
-          message: "Brouillon expiré",
-        }
-      }
-      return {
-        ok: false,
-        code:
-          row.state === "revendiqué"
-            ? "deja-revendique"
-            : row.state === "libéré"
-              ? "deja-libere"
-              : "non-vivant",
-        message: "Ce brouillon n'est pas vivant",
-      }
+      // L'écriture a échoué : la ligne a bougé entre-temps, on relit pour
+      // savoir qui a gagné. Aucun des refus précédents ne s'appliquant, c'est
+      // que la ligne n'a pas bougé — une relecture n'y changerait rien.
+      const apres = await classer(await lire(), input)
+      return apres.kind === "tranche"
+        ? apres.resultat
+        : refusNonVivant(apres.row.state)
     },
 
     async confirmerPromotion(input) {
@@ -633,10 +737,7 @@ export function creerCycleVieImageProduit(
         expiresAt,
       })
     } catch {
-      return refus(
-        "registre-indisponible",
-        "Registre des Brouillons indisponible"
-      )
+      return refus("registre-indisponible", MESSAGE_REGISTRE_INDISPONIBLE)
     }
 
     return {
@@ -658,10 +759,7 @@ export function creerCycleVieImageProduit(
     try {
       draft = await registre.lire(input.draftId)
     } catch {
-      return refus(
-        "registre-indisponible",
-        "Registre des Brouillons indisponible"
-      )
+      return refus("registre-indisponible", MESSAGE_REGISTRE_INDISPONIBLE)
     }
     if (!draft) {
       return refus(
@@ -704,10 +802,7 @@ export function creerCycleVieImageProduit(
         )
       }
     } catch {
-      return refus(
-        "registre-indisponible",
-        "Registre des Brouillons indisponible"
-      )
+      return refus("registre-indisponible", MESSAGE_REGISTRE_INDISPONIBLE)
     }
 
     let suppression: ResultatStockageImageProduit<null>
@@ -779,10 +874,7 @@ export function creerCycleVieImageProduit(
         })
       } catch {
         await restaurerRevendications()
-        return refus(
-          "registre-indisponible",
-          "Registre des Brouillons indisponible"
-        )
+        return refus("registre-indisponible", MESSAGE_REGISTRE_INDISPONIBLE)
       }
       if (!result.ok) {
         await restaurerRevendications()
@@ -902,9 +994,9 @@ export function creerCycleVieImageProduit(
       }
     }
 
-    let persisted: ResultatEnregistrementCatalogue<TResult>
+    let enregistre: ResultatEnregistrementCatalogue<TResult>
     try {
-      persisted = await input.enregistrer(promoted, lier)
+      enregistre = await input.enregistrer(promoted, lier)
     } catch {
       await supprimerPromotions(nouvellesPromotions)
       await restaurerRevendications()
@@ -913,8 +1005,8 @@ export function creerCycleVieImageProduit(
 
     return {
       ok: true,
-      productId: persisted.productId,
-      result: persisted.result,
+      productId: enregistre.productId,
+      result: enregistre.result,
       images: promoted,
     }
   }

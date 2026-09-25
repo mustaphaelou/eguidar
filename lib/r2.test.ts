@@ -59,6 +59,7 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
 
 import {
   DRAFT_PRODUCTS_PREFIX,
+  DUREE_VIE_URL_ENVOI_PRESIGNEE_S,
   MAX_UPLOAD_SIZE,
   PRODUCTS_PREFIX,
   draftObjectKey,
@@ -162,6 +163,24 @@ describe("adaptateur R2 des Images produit", () => {
     expect(resultat.ok).toBe(true)
   })
 
+  it("pré-signe pour la durée de vie exportée, seule durée que la rétention doit surpasser", async () => {
+    // La constante n'est utile que si elle est celle que l'appelant reçoit
+    // réellement : la comparaison avec la rétention, vérifiée dans
+    // `lib/cycle-vie-image-produit-retention.test.ts`, ne vaudrait rien si
+    // l'adaptateur pouvait en garder une autre.
+    await stockageImageProduitR2.presignerBrouillon({
+      draftId: "draft-1",
+      contentType: "image/jpeg",
+      size: 42,
+    })
+
+    expect(signedUrlMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { expiresIn: DUREE_VIE_URL_ENVOI_PRESIGNEE_S }
+    )
+  })
+
   it("promouvoit un Brouillon vers une clé persistante dérivée du même identifiant", async () => {
     const resultat = await stockageImageProduitR2.promouvoirBrouillon({
       draftId: "draft-1",
@@ -252,5 +271,49 @@ describe("adaptateur R2 des Images produit", () => {
 
   it("conserve la limite de taille existante", () => {
     expect(MAX_UPLOAD_SIZE).toBe(10 * 1024 * 1024)
+  })
+
+  it("partage la suppression par URL en deux espaces de noms disjoints", async () => {
+    // Une Image produit persistée vit sous `products/`, une image de Structure
+    // n'importe où sous la base publique : deux opérations, deux gardes. Ni
+    // l'une ni l'autre ne doit pouvoir viser l'espace réservé des Brouillons.
+    const imagesDeCategorie = [
+      "https://cdn.example.test/categories/2026/vintage.jpg",
+      "https://cdn.example.test/banners/accueil.png",
+      "https://cdn.example.test/products/brouillons/interdits.jpg",
+    ]
+
+    for (const url of imagesDeCategorie) {
+      const resultat = await stockageImageProduitR2.supprimerImageCategorie(url)
+      expect(resultat, url).toMatchObject(
+        url.includes("products/brouillons/")
+          ? { ok: false, erreur: { code: "parametre-invalide" } }
+          : { ok: true, valeur: null }
+      )
+      expect(
+        await stockageImageProduitR2.supprimerImagePersistee(url),
+        url
+      ).toMatchObject({
+        ok: false,
+        erreur: { code: "parametre-invalide" },
+      })
+    }
+
+    expect(
+      deleteCommandInputs.map((input) => (input as { Key: string }).Key)
+    ).toEqual(["categories/2026/vintage.jpg", "banners/accueil.png"])
+  })
+
+  it("laisse remonter une panne R2 sur la suppression d'une image de catégorie", async () => {
+    // Même contrat best-effort que l'Image produit persistée : la Structure
+    // n'attrape que les exceptions, une traduction silencieuse la laisserait
+    // croire que l'objet n'a jamais existé.
+    sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
+
+    await expect(
+      stockageImageProduitR2.supprimerImageCategorie(
+        "https://cdn.example.test/categories/panne.jpg"
+      )
+    ).rejects.toThrow("secret AWS failure")
   })
 })

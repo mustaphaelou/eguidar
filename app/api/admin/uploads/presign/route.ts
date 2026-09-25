@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import cycleVieImageProduit, {
-  type CodeRefusCycleVieImageProduit,
+  STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
 } from "@/lib/cycle-vie-image-produit"
 import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
 
@@ -15,25 +15,6 @@ const presignSchema = z.object({
   ]),
   size: z.number().int().positive(),
 })
-
-function statusPourRefus(code: CodeRefusCycleVieImageProduit): number {
-  switch (code) {
-    case "identifiant-proprietaire-invalide":
-    case "metadata-invalide":
-    case "mime-non-autorise":
-    case "taille-invalide":
-    case "trop-volumineux":
-      return 400
-    case "stockage-indisponible":
-      return 503
-    case "stockage-refuse":
-      return 502
-    case "registre-indisponible":
-      return 500
-    default:
-      return 500
-  }
-}
 
 export async function POST(request: Request) {
   const client = await lireSession()
@@ -63,7 +44,9 @@ export async function POST(request: Request) {
     if (!resultat.ok) {
       return Response.json(
         { error: resultat.message },
-        { status: statusPourRefus(resultat.code) }
+        {
+          status: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT[resultat.code],
+        }
       )
     }
 

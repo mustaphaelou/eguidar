@@ -10,7 +10,10 @@ vi.mock("@/lib/use-cases/session-courante", () => ({
   estAdmin: (client: { role?: string } | null) => client?.role === "admin",
 }))
 
-vi.mock("@/lib/cycle-vie-image-produit", () => ({
+// Seul le cycle de vie est doublée : la traduction HTTP reste celle du module
+// propriétaire, sinon la route=testerait sa propre copie du vocabulaire.
+vi.mock("@/lib/cycle-vie-image-produit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/cycle-vie-image-produit")>()),
   default: { relacherBrouillon: relacherBrouillonMock },
 }))
 
