@@ -224,7 +224,7 @@ function imageUrls(value: unknown): string[] {
  * `promues` porte les URL publiques produites par la revendication en cours :
  * sans elles, une URL nouvelle est une URL glissée par un client, donc refusée.
  */
-export function assertPersistedImagesAreOwned(
+function assertPersistedImagesAreOwned(
   storedImages: unknown,
   submittedImages: readonly string[],
   promues: readonly string[] = []
