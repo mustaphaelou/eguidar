@@ -144,6 +144,10 @@ _Avoid_: article (seul), item
 A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X.
 _Avoid_: photo, visuel, media
 
+**Brouillon d'Image produit**:
+Une Image produit téléchargée pendant l'édition d'un Produit, mais pas encore enregistrée comme fait de ce Produit. Il n'appartient pas au Catalogue persisté et disparaît si l'édition est abandonnée.
+_Avoid_: upload temporaire, image en attente, brouillon d'upload
+
 **Variante**:
 Une déclinaison achetable d'un Produit, identifiée par son SKU, avec son propre écart de prix et son propre stock.
 _Avoid_: product variant, version, option
