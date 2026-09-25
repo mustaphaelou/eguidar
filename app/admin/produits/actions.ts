@@ -1,22 +1,18 @@
 "use server"
 
-import { randomUUID } from "node:crypto"
-
 import { redirect } from "next/navigation"
 
 import cycleVieImageProduit, {
   type ImageProduitPromue,
 } from "@/lib/cycle-vie-image-produit"
-import { specificationsDepuisTexte } from "@/lib/formulaire-produit"
 import {
-  galerieImageProduitSchema,
-  type EntreeImageProduit,
-} from "@/lib/galerie-image-produit"
+  soumissionDepuisFormData,
+  type SoumissionFormulaireProduit,
+} from "@/lib/formulaire-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   adminFormAction,
   adminTaskAction,
-  INVALID_FORM_MESSAGE,
-  parseMoneyField,
   parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -26,62 +22,7 @@ import {
   getAdminProduct,
   updateProduct,
   updateVariantStock,
-  type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
-
-interface ProductFormInput extends Omit<ProductInput, "images"> {
-  images: EntreeImageProduit[]
-  tentativeId: string
-}
-
-/**
- * Le `FormData` soumis devient l'entrée de la mutation. Le langage du champ
- * Spécifications — sa lecture ligne à ligne — appartient à
- * `@/lib/formulaire-produit`, seul propriétaire du format ; il est appelé
- * ici, jamais recopié.
- */
-function parseProductFormData(formData: FormData): ProductFormInput {
-  const imagesRaw = formData.get("images")
-  const variantsRaw = formData.get("variants")
-  const tentativeRaw = formData.get("tentativeId")
-
-  let images: EntreeImageProduit[]
-  let variants: ProductInput["variants"]
-  try {
-    images = galerieImageProduitSchema.parse(
-      JSON.parse(String(imagesRaw ?? "[]"))
-    )
-    variants = JSON.parse(String(variantsRaw ?? "[]"))
-  } catch {
-    throw new Error(INVALID_FORM_MESSAGE)
-  }
-
-  return {
-    name: String(formData.get("name") ?? ""),
-    slug: String(formData.get("slug") ?? ""),
-    brand: String(formData.get("brand") ?? ""),
-    categoryId: String(formData.get("categoryId") ?? ""),
-    description: String(formData.get("description") ?? ""),
-    price: parseMoneyField(formData, "price"),
-    isFeatured: formData.get("isFeatured") === "on",
-    featuredOrder: Number(formData.get("featuredOrder") ?? 0) || 0,
-    freeShipping: formData.get("freeShipping") === "on",
-    specs: specificationsDepuisTexte(String(formData.get("specsText") ?? "")),
-    images,
-    variants,
-    tentativeId:
-      typeof tentativeRaw === "string" && tentativeRaw.trim()
-        ? tentativeRaw.trim()
-        : randomUUID(),
-  }
-}
-
-function champsCatalogue(
-  input: ProductFormInput
-): Omit<ProductInput, "images"> {
-  const { images: _images, tentativeId: _tentativeId, ...champs } = input
-  return champs
-}
 
 function refuserImagesPersisteesEnCreation(
   images: readonly EntreeImageProduit[]
@@ -124,7 +65,7 @@ function urlsGalerieMiseAJour(
   })
 }
 
-interface ProductUpdateInput extends ProductFormInput {
+interface ProductUpdateInput extends SoumissionFormulaireProduit {
   productId: string
 }
 
@@ -139,51 +80,65 @@ const resultatDejaPersiste = async (productId: string) => {
   return product
 }
 
-export const createProductAction = adminFormAction<ProductFormInput>({
-  next: "/admin/produits",
-  parse: parseProductFormData,
-  run: async (input, client) => {
-    refuserImagesPersisteesEnCreation(input.images)
-    const champs = champsCatalogue(input)
-    const draftIds = identifiantsBrouillons(input.images)
+/**
+ * Créer un Produit. La lecture de la soumission est celle du module neutre du
+ * formulaire, seul propriétaire du format : cette action ne tient aucun
+ * mapping de champ, elle passe le `FormData` et transmet ce qu'il rend.
+ */
+export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
+  {
+    next: "/admin/produits",
+    parse: soumissionDepuisFormData,
+    run: async ({ champs, images, tentativeId }, client) => {
+      refuserImagesPersisteesEnCreation(images)
+      const draftIds = identifiantsBrouillons(images)
 
-    if (draftIds.length === 0) {
-      const product = await createProduct({ ...champs, images: [] })
-      redirect(`/admin/produits/${product.id}`)
-    }
+      if (draftIds.length === 0) {
+        const product = await createProduct({ ...champs, images: [] })
+        redirect(`/admin/produits/${product.id}`)
+      }
 
-    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
-      tentativeId: input.tentativeId,
-      ownerId: client.id,
-      draftIds,
-      resultatDejaPersiste,
-      enregistrer: async (images, lier) => {
-        const product = await createProduct(
-          { ...champs, images: images.map((image) => image.publicUrl) },
-          undefined,
-          {
-            lier,
-            promues: images.map((image) => image.publicUrl),
-          }
-        )
-        return { productId: product.id, result: product }
-      },
-    })
-    if (!resultat.ok) throw new UserFacingError(resultat.message)
+      const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+        tentativeId,
+        ownerId: client.id,
+        draftIds,
+        resultatDejaPersiste,
+        enregistrer: async (promues, lier) => {
+          const product = await createProduct(
+            { ...champs, images: promues.map((image) => image.publicUrl) },
+            undefined,
+            {
+              lier,
+              promues: promues.map((image) => image.publicUrl),
+            }
+          )
+          return { productId: product.id, result: product }
+        },
+      })
+      if (!resultat.ok) throw new UserFacingError(resultat.message)
 
-    redirect(`/admin/produits/${resultat.productId}`)
-  },
-})
+      redirect(`/admin/produits/${resultat.productId}`)
+    },
+  }
+)
 
+/**
+ * Mettre à jour un Produit. Même lecture de la soumission, plus
+ * l'identification : le `productId` caché est résolu ici, par l'aide
+ * d'identifiant requis du mécanisme partagé de mutation, parce que c'est
+ * cette action — et elle seule — qui sait qu'elle édite un Produit existant.
+ * Le module neutre du formulaire n'apprend donc pas quelles actions ont
+ * besoin d'un identifiant.
+ */
 export const updateProductAction = adminFormAction<ProductUpdateInput>({
   next: "/admin/produits",
   parse: (formData) => {
     return {
-      ...parseProductFormData(formData),
+      ...soumissionDepuisFormData(formData),
       productId: parseRequiredId(formData, "productId"),
     }
   },
-  run: async ({ productId, images, tentativeId, ...input }, client) => {
+  run: async ({ productId, champs, images, tentativeId }, client) => {
     // Aucune lecture ni vérification d'image ici : la propriété d'une Image
     // produit persistée est l'invariant du Catalogue, appliqué une seule fois
     // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
@@ -193,7 +148,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
 
     if (draftIds.length === 0) {
       await updateProduct(productId, {
-        ...input,
+        ...champs,
         images: persistedImages,
       })
       redirect("/admin/produits")
@@ -212,7 +167,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
         const product = await updateProduct(
           productId,
           {
-            ...input,
+            ...champs,
             images: urlsGalerieMiseAJour(images, promues),
           },
           undefined,
