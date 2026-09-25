@@ -5,7 +5,7 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { artefactRegleCycleVieR2 } from "@/infra/regle-cycle-vie-r2"
-import { RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT } from "@/lib/cycle-vie-image-produit"
+import { retentionBrouillonImageProduitHeures } from "@/lib/cycle-vie-image-produit"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
   DRAFT_PRODUCTS_PREFIX,
@@ -43,8 +43,12 @@ describe("règle de cycle de vie R2 des Brouillons d'Image produit", () => {
     expect(regle.enabled).toBe(true)
     expect(regle.id).toBe("brouillons-image-produit")
     expect(regle.prefix).toBe(DRAFT_PRODUCTS_PREFIX)
-    expect(regle.expire.days * 24).toBe(
-      RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT
+    // La rétention configurée n'est pas la valeur initiale : l'invariant qui
+    // compte — la règle n'expire jamais un Brouillon encore revendicable — est
+    // vérifié sur un éventail de valeurs dans
+    // `lib/cycle-vie-image-produit-retention.test.ts`.
+    expect(regle.expire.days).toBe(
+      Math.ceil(retentionBrouillonImageProduitHeures() / 24)
     )
   })
 

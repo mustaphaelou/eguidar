@@ -478,4 +478,40 @@ describe("CycleVieImageProduit", () => {
     expect(appels).toBe(1)
     expect(stockage.promotions).toHaveLength(1)
   })
+
+  it("résout en expiré une revendication dont la compensation n'a pas été écrite", async () => {
+    const { cycleVie, horloge, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/webp",
+      size: 2048,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    // Revendication écrite, compensation non : c'est l'état qu'un échec de
+    // restauration laisse, et le registre doit le résoudre en expiré à la
+    // rétention dépassée plutôt que de le laisser en revendication.
+    expect(
+      await registre.revendiquer({
+        id: demande.draftId,
+        ownerId: "editeur-1",
+        tentativeId: "tentative-1",
+        now: horloge.horloge.maintenant(),
+      })
+    ).toMatchObject({ ok: true })
+
+    horloge.avancer(25 * 60 * 60)
+    expect((await cycleVie.lireBrouillon(demande.draftId))?.state).toBe(
+      "expiré"
+    )
+    expect(
+      await cycleVie.revendiquerEtEnregistrer({
+        tentativeId: "tentative-2",
+        ownerId: "editeur-1",
+        draftIds: [demande.draftId],
+        enregistrer: async () => ({ productId: "produit-1", result: null }),
+      })
+    ).toMatchObject({ ok: false, code: "brouillon-expire" })
+    expect(registre.records.get(demande.draftId)?.state).toBe("expiré")
+  })
 })

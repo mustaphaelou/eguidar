@@ -8,6 +8,15 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
+/**
+ * Durée de vie d'une URL d'envoi pré-signée, en secondes. Exportée parce que
+ * la rétention d'un Brouillon d'Image produit est délibérément plus longue :
+ * c'est ce qui permet de réessayer un enregistrement échoué sans téléverser
+ * l'image à nouveau (ADR-0004). Les deux durées sont liées par une propriété
+ * vérifiée, pas par une convention.
+ */
+export const DUREE_VIE_URL_ENVOI_PRESIGNEE_S = 300
+
 export const CONTENT_TYPES_IMAGE_PRODUIT = [
   "image/jpeg",
   "image/png",
@@ -69,6 +78,15 @@ export interface PortStockageImageProduit {
     contentType: string
   }): Promise<ResultatStockageImageProduit<null>>
   supprimerImagePersistee(
+    publicUrl: string
+  ): Promise<ResultatStockageImageProduit<null>>
+  /**
+   * Image de Structure : champ URL libre, antérieur au cycle de vie des
+   * Brouillons, qui vit hors du préfixe `products/`. Même frontière
+   * best-effort que `supprimerImagePersistee` : une panne R2 remonte, l'appelant
+   * journalise. Les espaces de noms sont disjoints, voir les gardes ci-dessous.
+   */
+  supprimerImageCategorie(
     publicUrl: string
   ): Promise<ResultatStockageImageProduit<null>>
 }
@@ -205,6 +223,55 @@ function storageError(): {
   )
 }
 
+/**
+ * Deux opérations de suppression par URL, deux espaces de noms disjoints.
+ *
+ * Une Image produit persistée n'existe que sous `products/`, et jamais sous le
+ * préfixe réservé aux Brouillons. Une image de Structure est le champ `image`
+ * d'une catégorie, antérieur à ce cycle de vie : elle est n'importe où sous la
+ * base publique, sauf dans cet espace réservé — une suppression de catégorie ne
+ * doit jamais pouvoir supprimer un Brouillon abandonné, dont l'expiration est
+ * le fait de la règle de cycle de vie R2 (ADR-0004).
+ */
+function estCleImageProduitPersistee(key: string): boolean {
+  return (
+    key.startsWith(PRODUCTS_PREFIX) && !key.startsWith(DRAFT_PRODUCTS_PREFIX)
+  )
+}
+
+function estCleImageCategorie(key: string): boolean {
+  return !key.startsWith(DRAFT_PRODUCTS_PREFIX)
+}
+
+/**
+ * Suppression par URL publique, bornée par un espace de noms. Volontairement
+ * non enveloppé : la suppression d'une image déjà persistée est un effet
+ * post-commit et best-effort, et ses appelants attrapent pour journaliser.
+ * Traduire l'échec en résultat ferait croire au Catalogue que l'objet n'a
+ * jamais existé, et le laisser silencieusement échouer à la Structure. Une
+ * panne R2 doit être visible dans les deux cas.
+ */
+async function supprimerImageParUrl(
+  publicUrl: string,
+  dansEspaceDeNoms: (key: string) => boolean
+): Promise<ResultatStockageImageProduit<null>> {
+  const configuration = configurationR2()
+  if (!configuration || !configuration.publicBase) return nonConfigure()
+
+  const key = objectKeyFromPublicUrl(publicUrl, configuration.publicBase)
+  if (!key || !dansEspaceDeNoms(key)) {
+    return invalidParameter("URL non gérée par le stockage R2")
+  }
+
+  await configuration.client.send(
+    new DeleteObjectCommand({
+      Bucket: configuration.bucket,
+      Key: key,
+    })
+  )
+  return { ok: true, valeur: null }
+}
+
 export const stockageImageProduitR2: PortStockageImageProduit = {
   async presignerBrouillon(input) {
     const configuration = configurationR2()
@@ -240,7 +307,7 @@ export const stockageImageProduitR2: PortStockageImageProduit = {
         ContentLength: input.size,
       })
       const uploadUrl = await getSignedUrl(configuration.client, command, {
-        expiresIn: 300,
+        expiresIn: DUREE_VIE_URL_ENVOI_PRESIGNEE_S,
       })
       const previewUrl = publicUrlFromKey(key, configuration.publicBase)
       if (!previewUrl) return nonConfigure()
@@ -345,29 +412,10 @@ export const stockageImageProduitR2: PortStockageImageProduit = {
   },
 
   async supprimerImagePersistee(publicUrl) {
-    const configuration = configurationR2()
-    if (!configuration || !configuration.publicBase) return nonConfigure()
+    return supprimerImageParUrl(publicUrl, estCleImageProduitPersistee)
+  },
 
-    const key = objectKeyFromPublicUrl(publicUrl, configuration.publicBase)
-    if (
-      !key ||
-      !key.startsWith(PRODUCTS_PREFIX) ||
-      key.startsWith(DRAFT_PRODUCTS_PREFIX)
-    ) {
-      return invalidParameter("URL non gérée par le stockage R2")
-    }
-
-    // Volontairement non enveloppé : la suppression d'une Image produit
-    // persistée est un effet post-commit et best-effort, et ses appelants
-    // attrapent pour journaliser. Traduire l'échec en résultat ferait croire au
-    // Catalogue que l'objet n'a jamais existé, et le laisser silencieusement
-    // échouer à la Structure. Une panne R2 doit être visible dans les deux cas.
-    await configuration.client.send(
-      new DeleteObjectCommand({
-        Bucket: configuration.bucket,
-        Key: key,
-      })
-    )
-    return { ok: true, valeur: null }
+  async supprimerImageCategorie(publicUrl) {
+    return supprimerImageParUrl(publicUrl, estCleImageCategorie)
   },
 }

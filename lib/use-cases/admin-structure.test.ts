@@ -5,9 +5,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { prisma } from "@/lib/db"
 
 // L'image d'une catégorie est une URL libre, hors du préfixe `products/` : elle
-// est rejetée par la garde d'espace de noms du stockage image produit. Ce mock
-// court-circuite donc l'adaptateur pour éprouver l'effet best-effort de la
+// ne passe que par l'opération de stockage réservée aux catégories. Ce mock
+// court-circuite l'adaptateur pour éprouver l'effet best-effort de la
 // Structure, qui doit journaliser une panne sans faire échouer la mutation.
+// L'effet par défaut est éprouvé sans court-circuit dans
+// `admin-structure-image-stockage.test.ts`.
 const sendMock = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/r2", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/r2")>()
@@ -15,7 +17,7 @@ vi.mock("@/lib/r2", async (importOriginal) => {
     ...original,
     stockageImageProduitR2: {
       ...original.stockageImageProduitR2,
-      supprimerImagePersistee: () => sendMock(),
+      supprimerImageCategorie: () => sendMock(),
     },
   }
 })

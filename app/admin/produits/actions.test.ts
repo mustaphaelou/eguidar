@@ -44,6 +44,7 @@ import {
   createProductAction,
   updateProductAction,
 } from "@/app/admin/produits/actions"
+import { CatalogValidationError } from "@/lib/use-cases/admin-catalog"
 
 const ADMIN: Client = {
   id: "editeur-1",
@@ -259,11 +260,15 @@ describe("updateProductAction", () => {
     )
   })
 
-  it("refuse une Image produit persistée absente du stock réel", async () => {
-    getAdminProductMock.mockResolvedValue({
-      id: "produit-1",
-      images: ["https://cdn.test/p/existing.webp"],
-    })
+  it("laisse le Catalogue refuser une Image produit persistée absente du stock réel", async () => {
+    // Un seul point d'application de la propriété d'une Image produit
+    // persistée, dans la mutation du Catalogue. L'action lui transmet la
+    // galerie telle quelle et ne pré-empêche rien.
+    updateProductMock.mockRejectedValue(
+      new CatalogValidationError([
+        "une Image produit persistée n'appartient pas à ce Produit",
+      ])
+    )
 
     const resultat = await updateProductAction(
       {},
@@ -279,8 +284,23 @@ describe("updateProductAction", () => {
       error:
         "Données invalides : une Image produit persistée n'appartient pas à ce Produit",
     })
+    expect(updateProductMock).toHaveBeenCalledWith("produit-1", {
+      name: "Produit",
+      slug: "produit-de-test",
+      brand: "Marque",
+      categoryId: "categorie-1",
+      description: "Description",
+      price: 10000,
+      specs: {},
+      isFeatured: false,
+      featuredOrder: 0,
+      freeShipping: false,
+      variants: [{ name: "Standard", sku: "SKU-1", priceDelta: 0, stock: 2 }],
+      images: ["https://cdn.test/p/arbitraire.webp"],
+    })
+    // Une seule lecture du Produit : celle de la mutation du Catalogue.
+    expect(getAdminProductMock).not.toHaveBeenCalled()
     expect(revendiquerEtEnregistrerMock).not.toHaveBeenCalled()
-    expect(updateProductMock).not.toHaveBeenCalled()
   })
 
   it("utilise le résultat déjà persisté lors d'un retry de la même tentative", async () => {

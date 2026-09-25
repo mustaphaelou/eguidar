@@ -134,7 +134,7 @@ describe("Cycle de vie des Images produit — frontière", () => {
     expect(importeDe(structure, MODULE_R2)).toBe(true)
     expect(importeDe(structure, MODULE_CYCLE_VIE)).toBe(false)
     expect(structure).toContain(
-      "stockageImageProduitR2.supprimerImagePersistee(url)"
+      "stockageImageProduitR2.supprimerImageCategorie(url)"
     )
   })
 
@@ -147,14 +147,23 @@ describe("Cycle de vie des Images produit — frontière", () => {
     expect(source(GALERIE_PRODUIT)).toContain("JSON.stringify({ draftId })")
   })
 
-  it("réserve la suppression d'URL persistée aux effets Catalogue et Structure", () => {
-    const appels = SOURCES.filter(({ source: contenu }) =>
+  it("partage les deux suppressions par URL entre le Catalogue et la Structure, sans les confondre", () => {
+    // Les espaces de noms sont disjoints : le Catalogue ne supprime que des
+    // Images produit persistées, la Structure que des images de catégorie. Un
+    // appel de chaque côté, et jamais le même des deux.
+    const persistees = SOURCES.filter(({ source: contenu }) =>
       contenu.includes("stockageImageProduitR2.supprimerImagePersistee(url)")
     )
       .map(({ chemin }) => chemin)
       .sort()
+    const categories = SOURCES.filter(({ source: contenu }) =>
+      contenu.includes("stockageImageProduitR2.supprimerImageCategorie(url)")
+    )
+      .map(({ chemin }) => chemin)
+      .sort()
 
-    expect(appels).toEqual([MODULE_CATALOGUE, MODULE_STRUCTURE])
+    expect(persistees).toEqual([MODULE_CATALOGUE])
+    expect(categories).toEqual([MODULE_STRUCTURE])
   })
 
   it("retire l'ancien alias générique de suppression par URL", () => {

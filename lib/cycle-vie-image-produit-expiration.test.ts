@@ -14,6 +14,27 @@ import {
 
 const ownerId = randomUUID()
 const DATE_INITIALE = new Date("2026-02-01T12:00:00.000Z")
+const categorieSlug = `cat-expiration-${ownerId.slice(0, 8)}`
+let productId: string
+
+/** Un Produit réel : confirmer une promotion écrit une clé étrangère. */
+async function creerProduit(): Promise<string> {
+  return prisma.product
+    .create({
+      data: {
+        name: "Produit lié",
+        slug: `produit-lie-${ownerId.slice(0, 8)}`,
+        description: "description",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        category: { connect: { slug: categorieSlug } },
+      },
+      select: { id: true },
+    })
+    .then((produit) => produit.id)
+}
 
 function creerExpirationDurable() {
   const horloge = creerHorlogeControllable(DATE_INITIALE)
@@ -45,6 +66,26 @@ function lireEtatPersiste(draftId: string) {
     .then((row) => row.state)
 }
 
+/**
+ * Reproduit l'état qu'une compensation de revendication échouée laisse
+ * derrière elle : le Brouillon est revendiqué par une tentative et n'est lié à
+ * aucun Produit, mais la libération n'a pas été écrite. On passe par
+ * l'opération de revendication elle-même, sans la compensation.
+ */
+async function revendreSansCompenser(
+  registre: ExpirationDurable["registre"],
+  draftId: string,
+  tentativeId: string,
+  now: Date
+) {
+  return registre.revendiquer({
+    id: draftId,
+    ownerId,
+    tentativeId,
+    now,
+  })
+}
+
 describe("expiration des Brouillons d'Image produit dans le registre durable", () => {
   beforeAll(async () => {
     await prisma.user.create({
@@ -55,6 +96,10 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
         role: "admin",
       },
     })
+    await prisma.category.create({
+      data: { name: "Catégorie expiration", slug: categorieSlug },
+    })
+    productId = await creerProduit()
   })
 
   beforeEach(async () => {
@@ -63,6 +108,8 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
 
   afterAll(async () => {
     await prisma.brouillonImageProduit.deleteMany({ where: { ownerId } })
+    await prisma.product.deleteMany({ where: { id: productId } })
+    await prisma.category.deleteMany({ where: { slug: categorieSlug } })
     await prisma.user.deleteMany({ where: { id: ownerId } })
     await prisma.$disconnect()
   })
@@ -176,5 +223,98 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
     expect(stockage.deletedDrafts).toEqual([])
     expect(stockage.deletedPromoted).toEqual([])
     expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
+  })
+
+  it("résout en expiré une revendication échouée, dont la compensation n'a pas été écrite", async () => {
+    const { cycleVie, horloge, registre } = creerExpirationDurable()
+    const demande = await demanderBrouillon(cycleVie)
+    expect(
+      await revendreSansCompenser(
+        registre,
+        demande.draftId,
+        "tentative-1",
+        horloge.horloge.maintenant()
+      )
+    ).toMatchObject({ ok: true })
+    expect(await lireEtatPersiste(demande.draftId)).toBe("revendiqué")
+
+    horloge.fixer(demande.expiresAt)
+
+    // L'expiration est un fait du registre, pas une conséquence de la
+    // compensation : elle doit se voir, et se dire, même quand la compensation
+    // a échoué et qu'aucun balayeur ne repassera.
+    expect((await cycleVie.lireBrouillon(demande.draftId))?.state).toBe(
+      "expiré"
+    )
+    expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
+
+    // Une tentative rivale est toujours refusée — aucune double revendication —
+    // mais le refus est désormais celui d'un Brouillon expiré.
+    expect(
+      await registre.revendiquer({
+        id: demande.draftId,
+        ownerId,
+        tentativeId: "tentative-2",
+        now: horloge.horloge.maintenant(),
+      })
+    ).toMatchObject({ ok: false, code: "expire" })
+    expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
+  })
+
+  it("ne réétiquette jamais un Brouillon déjà lié à un Produit, même après la rétention", async () => {
+    const { cycleVie, horloge, registre } = creerExpirationDurable()
+    const demande = await demanderBrouillon(cycleVie)
+    const tentativeId = "tentative-gagnante"
+    const publicUrl = `https://cdn.example.test/products/${demande.draftId}.webp`
+    expect(
+      await registre.revendiquer({
+        id: demande.draftId,
+        ownerId,
+        tentativeId,
+        now: horloge.horloge.maintenant(),
+      })
+    ).toMatchObject({ ok: true })
+    expect(
+      await registre.confirmerPromotion({
+        id: demande.draftId,
+        tentativeId,
+        productId,
+        publicUrl,
+      })
+    ).toBe(true)
+
+    horloge.fixer(new Date(demande.expiresAt.getTime() + 1))
+
+    // Une Image produit persistée n'appartient plus au cycle de vie des
+    // Brouillons : la rétention ne la réétiquette pas.
+    expect((await cycleVie.lireBrouillon(demande.draftId))?.state).toBe(
+      "revendiqué"
+    )
+    expect(await lireEtatPersiste(demande.draftId)).toBe("revendiqué")
+    expect(
+      await registre.revendiquer({
+        id: demande.draftId,
+        ownerId,
+        tentativeId: "tentative-rivale",
+        now: horloge.horloge.maintenant(),
+      })
+    ).toMatchObject({ ok: false, code: "expire" })
+    expect(await lireEtatPersiste(demande.draftId)).toBe("revendiqué")
+
+    // La rétention limite une nouvelle revendication, pas la résolution d'une
+    // tentative déjà gagnée : le retry de la même tentative résout toujours vers
+    // le même Produit et la même URL publique.
+    expect(
+      await registre.revendiquer({
+        id: demande.draftId,
+        ownerId,
+        tentativeId,
+        now: horloge.horloge.maintenant(),
+      })
+    ).toMatchObject({
+      ok: true,
+      value: { productId, promotedPublicUrl: publicUrl },
+    })
+    expect(await lireEtatPersiste(demande.draftId)).toBe("revendiqué")
   })
 })

@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import cycleVieImageProduit, {
-  type CodeRefusCycleVieImageProduit,
+  STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
 } from "@/lib/cycle-vie-image-produit"
 import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
 
@@ -10,23 +10,6 @@ const relacherSchema = z
     draftId: z.string().min(1),
   })
   .strict()
-
-const STATUTS_REFUS: Record<CodeRefusCycleVieImageProduit, number> = {
-  "identifiant-proprietaire-invalide": 400,
-  "metadata-invalide": 400,
-  "mime-non-autorise": 400,
-  "taille-invalide": 400,
-  "trop-volumineux": 400,
-  "stockage-indisponible": 503,
-  "stockage-refuse": 502,
-  "registre-indisponible": 500,
-  "brouillon-introuvable": 404,
-  "proprietaire-incorrect": 403,
-  "brouillon-non-vivant": 409,
-  "brouillon-expire": 410,
-  "revendication-refusee": 409,
-  "catalogue-refuse": 409,
-}
 
 export async function DELETE(request: Request) {
   const client = await lireSession()
@@ -55,7 +38,7 @@ export async function DELETE(request: Request) {
     if (!resultat.ok) {
       return Response.json(
         { error: resultat.message },
-        { status: STATUTS_REFUS[resultat.code] }
+        { status: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT[resultat.code] }
       )
     }
 
