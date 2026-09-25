@@ -371,9 +371,3 @@ export const stockageImageProduitR2: PortStockageImageProduit = {
     return { ok: true, valeur: null }
   },
 }
-
-export async function deleteR2Object(
-  publicUrl: string
-): Promise<ResultatStockageImageProduit<null>> {
-  return stockageImageProduitR2.supprimerImagePersistee(publicUrl)
-}

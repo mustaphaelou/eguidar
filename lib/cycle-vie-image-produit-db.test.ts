@@ -184,6 +184,47 @@ describe("registre durable des Brouillons d'Image produit", () => {
     ).toMatchObject({ state: "vivant", tentativeId: null, productId: null })
   })
 
+  it("libère un Brouillon vivant et le rend alors revendiquable par personne", async () => {
+    const { cycleVie, stockage } = creerCycleVie()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId,
+      contentType: "image/gif",
+      size: 1234,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    expect(
+      await cycleVie.relacherBrouillon({
+        draftId: demande.draftId,
+        ownerId,
+      })
+    ).toEqual({ ok: true, draftId: demande.draftId })
+    expect(stockage.deletedDrafts).toEqual([demande.draftId])
+    expect(
+      await prisma.brouillonImageProduit.findUniqueOrThrow({
+        where: { id: demande.draftId },
+      })
+    ).toMatchObject({ state: "libéré", tentativeId: null, productId: null })
+
+    const revendication = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-apres-liberation",
+      ownerId,
+      draftIds: [demande.draftId],
+      enregistrer: async () => {
+        throw new Error("Le Catalogue ne doit pas être appelé")
+      },
+    })
+    expect(revendication).toMatchObject({
+      ok: false,
+      code: "brouillon-non-vivant",
+    })
+    expect(
+      await prisma.brouillonImageProduit.findUniqueOrThrow({
+        where: { id: demande.draftId },
+      })
+    ).toMatchObject({ state: "libéré", promotedPublicUrl: null })
+  })
+
   it("laisse une seule revendication concurrente gagner et refuse explicitement l'autre", async () => {
     const { cycleVie, stockage } = creerCycleVie()
     const demande = await cycleVie.demanderBrouillon({
