@@ -2,8 +2,6 @@ import { notFound } from "next/navigation"
 
 import { ProductForm } from "@/components/admin/product-form"
 import { Button } from "@/components/ui/button"
-import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
-import { entreesPersisteesDepuisUrls } from "@/lib/galerie-image-produit"
 import {
   Card,
   CardContent,
@@ -40,28 +38,6 @@ export default async function EditProductPage({
     listAdminCategories(),
   ])
   if (!product) notFound()
-
-  const initial: FaitsFormulaireProduit = {
-    id: product.id,
-    name: product.name,
-    slug: product.slug,
-    brand: product.brand,
-    categoryId: product.categoryId,
-    description: product.description,
-    price: product.price,
-    isFeatured: product.isFeatured,
-    featuredOrder: product.featuredOrder,
-    freeShipping: product.freeShipping,
-    specs: product.specs as Record<string, string>,
-    images: entreesPersisteesDepuisUrls(product.images),
-    variants: product.variants.map((variant) => ({
-      id: variant.id,
-      name: variant.name,
-      sku: variant.sku,
-      priceDelta: variant.priceDelta,
-      stock: variant.stock,
-    })),
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -121,7 +97,7 @@ export default async function EditProductPage({
       </Card>
 
       <ProductForm
-        product={initial}
+        product={product}
         categories={categories}
         action={updateProductAction}
       />
