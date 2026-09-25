@@ -349,6 +349,42 @@ describe("admin catalog mutations", () => {
     })
   })
 
+  it("supprime une seule Image produit après le commit de la mise à jour", async () => {
+    const keptImage = "https://cdn.example.com/keep.jpg"
+    const removedImage = "https://cdn.example.com/remove.jpg"
+    const product = await createProduct(
+      makeInput({ slug: slug("img-one"), images: [keptImage, removedImage] })
+    )
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const deleteImages = vi.fn(async () => {
+      const committed = await prisma.product.findUniqueOrThrow({
+        where: { id: product.id },
+        select: { images: true },
+      })
+      expect(committed.images).toEqual([keptImage])
+    })
+
+    const updated = await updateProduct(
+      product.id,
+      makeInput({
+        slug: slug("img-one"),
+        images: [keptImage],
+        variants,
+      }),
+      { deleteImages }
+    )
+
+    expect(updated.images).toEqual([keptImage])
+    expect(deleteImages).toHaveBeenCalledOnce()
+    expect(deleteImages).toHaveBeenCalledWith([removedImage])
+  })
+
   it("passes exactly the removed images to deleteImages on update", async () => {
     const images = [
       "https://cdn.example.com/keep-1.jpg",
@@ -365,7 +401,13 @@ describe("admin catalog mutations", () => {
       priceDelta: v.priceDelta,
       stock: v.stock,
     }))
-    const deleteImages = vi.fn(async () => {})
+    const deleteImages = vi.fn(async () => {
+      const committed = await prisma.product.findUniqueOrThrow({
+        where: { id: product.id },
+        select: { images: true },
+      })
+      expect(committed.images).toEqual(["https://cdn.example.com/keep-1.jpg"])
+    })
 
     await updateProduct(
       product.id,
@@ -384,6 +426,41 @@ describe("admin catalog mutations", () => {
     ])
   })
 
+  it("n'appelle aucune suppression d'image lorsque la transaction échoue", async () => {
+    const persistedImage = "https://cdn.example.com/transaction.jpg"
+    const product = await createProduct(
+      makeInput({ slug: slug("img-transaction"), images: [persistedImage] })
+    )
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const deleteImages = vi.fn(async () => {})
+
+    await expect(
+      updateProduct(
+        product.id,
+        makeInput({
+          slug: slug("img-transaction"),
+          categoryId: randomUUID(),
+          images: [],
+          variants,
+        }),
+        { deleteImages }
+      )
+    ).rejects.toThrow()
+
+    expect(deleteImages).not.toHaveBeenCalled()
+    const unchanged = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(unchanged.images).toEqual([persistedImage])
+  })
+
   it("refuse une Image produit persistée qui n'appartient pas au Produit", async () => {
     const product = await createProduct(
       makeInput({
@@ -398,6 +475,7 @@ describe("admin catalog mutations", () => {
       priceDelta: v.priceDelta,
       stock: v.stock,
     }))
+    const deleteImages = vi.fn(async () => {})
 
     await verifierRefusValidation(CatalogValidationError, () =>
       updateProduct(
@@ -409,13 +487,47 @@ describe("admin catalog mutations", () => {
             "https://cdn.example.com/arbitrary.jpg",
           ],
           variants,
-        })
+        }),
+        { deleteImages }
       )
     )
+    expect(deleteImages).not.toHaveBeenCalled()
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })
     expect(persisted.images).toEqual(["https://cdn.example.com/owned.jpg"])
+  })
+
+  it("ne traite pas une URL promue comme une Image produit supprimée", async () => {
+    const product = await createProduct(
+      makeInput({ slug: slug("img-promoted"), images: [] })
+    )
+    const promotedImage = "https://cdn.example.com/promoted.jpg"
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const deleteImages = vi.fn(async () => {})
+
+    await updateProduct(
+      product.id,
+      makeInput({
+        slug: slug("img-promoted"),
+        images: [promotedImage],
+        variants,
+      }),
+      { deleteImages },
+      {
+        lier: async () => undefined,
+        promues: [promotedImage],
+      }
+    )
+
+    expect(deleteImages).toHaveBeenCalledOnce()
+    expect(deleteImages).toHaveBeenCalledWith([])
   })
 
   it("refuse une URL glissée même quand une revendication est fournie", async () => {
@@ -527,9 +639,11 @@ describe("admin catalog mutations", () => {
   it("deletes the product with its variants and clears the search index", async () => {
     const removeProductFromIndex = vi.fn(async () => {})
     const revalidateCatalog = vi.fn()
+    const deleteImages = vi.fn(async () => {})
     const product = await createProduct(makeInput({ slug: slug("delete") }))
 
     await deleteProduct(product.id, {
+      deleteImages,
       removeProductFromIndex,
       revalidateCatalog,
     })

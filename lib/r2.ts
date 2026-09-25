@@ -357,17 +357,18 @@ export const stockageImageProduitR2: PortStockageImageProduit = {
       return invalidParameter("URL non gérée par le stockage R2")
     }
 
-    try {
-      await configuration.client.send(
-        new DeleteObjectCommand({
-          Bucket: configuration.bucket,
-          Key: key,
-        })
-      )
-      return { ok: true, valeur: null }
-    } catch {
-      return storageError()
-    }
+    // Volontairement non enveloppé : la suppression d'une Image produit
+    // persistée est un effet post-commit et best-effort, et ses appelants
+    // attrapent pour journaliser. Traduire l'échec en résultat ferait croire au
+    // Catalogue que l'objet n'a jamais existé, et le laisser silencieusement
+    // échouer à la Structure. Une panne R2 doit être visible dans les deux cas.
+    await configuration.client.send(
+      new DeleteObjectCommand({
+        Bucket: configuration.bucket,
+        Key: key,
+      })
+    )
+    return { ok: true, valeur: null }
   },
 }
 
