@@ -25,7 +25,10 @@ export type EntreeImagePersistee = z.infer<typeof entreeImagePersisteeSchema>
 export type EntreeBrouillonImage = z.infer<typeof entreeBrouillonImageSchema>
 
 export function entreesPersisteesDepuisUrls(
-  urls: readonly string[]
+  value: unknown
 ): EntreeImagePersistee[] {
+  const urls = Array.isArray(value)
+    ? value.filter((url): url is string => typeof url === "string")
+    : []
   return urls.map((url) => ({ kind: "persistee", url }))
 }

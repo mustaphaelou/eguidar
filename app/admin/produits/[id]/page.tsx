@@ -55,13 +55,7 @@ export default async function EditProductPage({
     featuredOrder: product.featuredOrder,
     freeShipping: product.freeShipping,
     specs: product.specs as Record<string, string>,
-    images: entreesPersisteesDepuisUrls(
-      Array.isArray(product.images)
-        ? product.images.filter(
-            (image): image is string => typeof image === "string"
-          )
-        : []
-    ),
+    images: entreesPersisteesDepuisUrls(product.images),
     variants: product.variants.map((variant) => ({
       id: variant.id,
       name: variant.name,

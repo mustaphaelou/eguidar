@@ -107,16 +107,24 @@ function urlsPersistees(images: readonly EntreeImageProduit[]): string[] {
   )
 }
 
+function identifiantsBrouillons(
+  images: readonly EntreeImageProduit[]
+): string[] {
+  return images.flatMap((image) =>
+    image.kind === "brouillon" ? [image.draftId] : []
+  )
+}
+
 function urlsGalerieMiseAJour(
   images: readonly EntreeImageProduit[],
-  promoted: readonly ImageProduitPromue[]
+  promues: readonly ImageProduitPromue[]
 ): string[] {
-  const promotedParDraftId = new Map(
-    promoted.map((image) => [image.draftId, image.publicUrl])
+  const promuesParDraftId = new Map(
+    promues.map((image) => [image.draftId, image.publicUrl])
   )
   return images.map((image) => {
     if (image.kind === "persistee") return image.url
-    const publicUrl = promotedParDraftId.get(image.draftId)
+    const publicUrl = promuesParDraftId.get(image.draftId)
     if (publicUrl === undefined) {
       throw new Error("URL d'Image produit promue indisponible")
     }
@@ -128,15 +136,24 @@ interface ProductUpdateInput extends ProductFormInput {
   productId: string
 }
 
+/**
+ * Le résultat d'une opération déjà écrite : les Brouillons sont liés au
+ * Produit, donc le commit Catalogue existe — on relit le Produit au lieu de
+ * le créer ou le modifier une seconde fois.
+ */
+const resultatDejaPersiste = async (productId: string) => {
+  const product = await getAdminProduct(productId)
+  if (!product) throw new Error("Produit enregistré introuvable")
+  return product
+}
+
 export const createProductAction = adminFormAction<ProductFormInput>({
   next: "/admin/produits",
   parse: parseProductFormData,
   run: async (input, client) => {
     refuserImagesPersisteesEnCreation(input.images)
     const champs = champsCatalogue(input)
-    const draftIds = input.images.flatMap((image) =>
-      image.kind === "brouillon" ? [image.draftId] : []
-    )
+    const draftIds = identifiantsBrouillons(input.images)
 
     if (draftIds.length === 0) {
       const product = await createProduct({ ...champs, images: [] })
@@ -147,11 +164,7 @@ export const createProductAction = adminFormAction<ProductFormInput>({
       tentativeId: input.tentativeId,
       ownerId: client.id,
       draftIds,
-      resultatDejaPersiste: async (productId) => {
-        const product = await getAdminProduct(productId)
-        if (!product) throw new Error("Produit enregistré introuvable")
-        return product
-      },
+      resultatDejaPersiste,
       enregistrer: async (images, lier) => {
         const product = await createProduct(
           { ...champs, images: images.map((image) => image.publicUrl) },
@@ -184,9 +197,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
     // revendication valide.
     const persistedImages = urlsPersistees(images)
-    const draftIds = images.flatMap((image) =>
-      image.kind === "brouillon" ? [image.draftId] : []
-    )
+    const draftIds = identifiantsBrouillons(images)
 
     if (draftIds.length === 0) {
       await updateProduct(productId, {
@@ -205,17 +216,17 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
         if (!product) throw new Error("Produit enregistré introuvable")
         return product
       },
-      enregistrer: async (promoted, lier) => {
+      enregistrer: async (promues, lier) => {
         const product = await updateProduct(
           productId,
           {
             ...input,
-            images: urlsGalerieMiseAJour(images, promoted),
+            images: urlsGalerieMiseAJour(images, promues),
           },
           undefined,
           {
             lier,
-            promues: promoted.map((image) => image.publicUrl),
+            promues: promues.map((image) => image.publicUrl),
           }
         )
         return { productId: product.id, result: product }
