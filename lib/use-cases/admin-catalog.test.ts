@@ -371,10 +371,7 @@ describe("admin catalog mutations", () => {
       product.id,
       makeInput({
         slug: slug("img-update"),
-        images: [
-          "https://cdn.example.com/keep-1.jpg",
-          "https://cdn.example.com/new.jpg",
-        ],
+        images: ["https://cdn.example.com/keep-1.jpg"],
         variants,
       }),
       { deleteImages }
@@ -385,6 +382,78 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/remove-1.jpg",
       "https://cdn.example.com/remove-2.jpg",
     ])
+  })
+
+  it("refuse une Image produit persistée qui n'appartient pas au Produit", async () => {
+    const product = await createProduct(
+      makeInput({
+        slug: slug("img-owned"),
+        images: ["https://cdn.example.com/owned.jpg"],
+      })
+    )
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+
+    await verifierRefusValidation(CatalogValidationError, () =>
+      updateProduct(
+        product.id,
+        makeInput({
+          slug: slug("img-owned"),
+          images: [
+            "https://cdn.example.com/owned.jpg",
+            "https://cdn.example.com/arbitrary.jpg",
+          ],
+          variants,
+        })
+      )
+    )
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    })
+    expect(persisted.images).toEqual(["https://cdn.example.com/owned.jpg"])
+  })
+
+  it("refuse une URL glissée même quand une revendication est fournie", async () => {
+    const product = await createProduct(
+      makeInput({
+        slug: slug("img-claim"),
+        images: ["https://cdn.example.com/owned.jpg"],
+      })
+    )
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+
+    // La revendication n'autorise que les URL qu'elle a promues : une URL
+    // étrangère, même accompanied d'une liaison valide, reste une URL
+    // glissée par le client.
+    await verifierRefusValidation(CatalogValidationError, () =>
+      updateProduct(
+        product.id,
+        makeInput({
+          slug: slug("img-claim"),
+          images: [
+            "https://cdn.example.com/owned.jpg",
+            "https://cdn.example.com/smuggled.jpg",
+          ],
+          variants,
+        }),
+        undefined,
+        {
+          lier: async () => undefined,
+          promues: ["https://cdn.example.com/promoted.jpg"],
+        }
+      )
+    )
   })
 
   it("passes an empty diff to deleteImages when no image was removed on update", async () => {

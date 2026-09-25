@@ -135,7 +135,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
             reindexProducts: async () => {},
             revalidateCatalog: () => {},
           },
-          lier
+          { lier, promues: images.map((image) => image.publicUrl) }
         )
         return { productId: product.id, result: product }
       },
@@ -196,8 +196,11 @@ describe("registre durable des Brouillons d'Image produit", () => {
             reindexProducts: async () => {},
             revalidateCatalog: () => {},
           },
-          async () => {
-            throw new Error("échec de commit simulé")
+          {
+            lier: async () => {
+              throw new Error("échec de commit simulé")
+            },
+            promues: images.map((image) => image.publicUrl),
           }
         )
         return { productId: "inutilisé", result: null }

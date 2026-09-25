@@ -3,8 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Client } from "@/lib/use-cases/session-courante"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
-const { createProductMock, revendiquerEtEnregistrerMock } = vi.hoisted(() => ({
+const {
+  createProductMock,
+  getAdminProductMock,
+  updateProductMock,
+  revendiquerEtEnregistrerMock,
+} = vi.hoisted(() => ({
   createProductMock: vi.fn(),
+  getAdminProductMock: vi.fn(),
+  updateProductMock: vi.fn(),
   revendiquerEtEnregistrerMock: vi.fn(),
 }))
 
@@ -23,6 +30,8 @@ vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => ({
 vi.mock("@/lib/use-cases/admin-catalog", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/use-cases/admin-catalog")>()),
   createProduct: createProductMock,
+  getAdminProduct: getAdminProductMock,
+  updateProduct: updateProductMock,
 }))
 
 vi.mock("@/lib/cycle-vie-image-produit", () => ({
@@ -31,7 +40,10 @@ vi.mock("@/lib/cycle-vie-image-produit", () => ({
   },
 }))
 
-import { createProductAction } from "@/app/admin/produits/actions"
+import {
+  createProductAction,
+  updateProductAction,
+} from "@/app/admin/produits/actions"
 
 const ADMIN: Client = {
   id: "editeur-1",
@@ -59,9 +71,20 @@ function formData(gallery: unknown[], tentativeId = "tentative-1"): FormData {
   return data
 }
 
+function updateFormData(
+  gallery: unknown[],
+  tentativeId = "tentative-update-1"
+): FormData {
+  const data = formData(gallery, tentativeId)
+  data.append("productId", "produit-1")
+  return data
+}
+
 beforeEach(() => {
   sessionCouranteMock.mockResolvedValue(ADMIN)
   createProductMock.mockReset()
+  getAdminProductMock.mockReset()
+  updateProductMock.mockReset()
   revendiquerEtEnregistrerMock.mockReset()
   redirectMock.mockClear()
 })
@@ -111,7 +134,10 @@ describe("createProductAction", () => {
         images: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
       }),
       undefined,
-      expect.any(Function)
+      {
+        lier: expect.any(Function),
+        promues: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
+      }
     )
   })
 
@@ -156,5 +182,166 @@ describe("createProductAction", () => {
       error: "Ce brouillon ne vous appartient pas",
     })
     expect(createProductMock).not.toHaveBeenCalled()
+  })
+})
+
+describe("updateProductAction", () => {
+  it("revendique les nouveaux Brouillons et conserve l'ordre de la galerie", async () => {
+    getAdminProductMock.mockResolvedValue({
+      id: "produit-1",
+      images: ["https://cdn.test/p/existing.webp"],
+    })
+    updateProductMock.mockResolvedValue({ id: "produit-1" })
+    revendiquerEtEnregistrerMock.mockImplementation(
+      async ({ enregistrer, draftIds, ownerId, tentativeId }) => {
+        expect(draftIds).toEqual(["draft-1", "draft-2"])
+        expect(ownerId).toBe("editeur-1")
+        expect(tentativeId).toBe("tentative-update-1")
+        const resultat = await enregistrer(
+          [
+            {
+              draftId: "draft-1",
+              publicUrl: "https://cdn.test/p/draft-1.webp",
+            },
+            {
+              draftId: "draft-2",
+              publicUrl: "https://cdn.test/p/draft-2.webp",
+            },
+          ],
+          async () => {}
+        )
+        return { ok: true, ...resultat, images: [] }
+      }
+    )
+
+    await expect(
+      updateProductAction(
+        {},
+        updateFormData([
+          {
+            kind: "brouillon",
+            draftId: "draft-1",
+            previewUrl: "https://cdn.test/brouillons/draft-1.webp",
+          },
+          {
+            kind: "persistee",
+            url: "https://cdn.test/p/existing.webp",
+          },
+          {
+            kind: "brouillon",
+            draftId: "draft-2",
+            previewUrl: "https://cdn.test/brouillons/draft-2.webp",
+          },
+        ])
+      )
+    ).rejects.toMatchObject({
+      name: "NEXT_REDIRECT",
+      url: "/admin/produits",
+    })
+
+    expect(updateProductMock).toHaveBeenCalledWith(
+      "produit-1",
+      expect.objectContaining({
+        images: [
+          "https://cdn.test/p/draft-1.webp",
+          "https://cdn.test/p/existing.webp",
+          "https://cdn.test/p/draft-2.webp",
+        ],
+      }),
+      undefined,
+      {
+        lier: expect.any(Function),
+        promues: [
+          "https://cdn.test/p/draft-1.webp",
+          "https://cdn.test/p/draft-2.webp",
+        ],
+      }
+    )
+  })
+
+  it("refuse une Image produit persistée absente du stock réel", async () => {
+    getAdminProductMock.mockResolvedValue({
+      id: "produit-1",
+      images: ["https://cdn.test/p/existing.webp"],
+    })
+
+    const resultat = await updateProductAction(
+      {},
+      updateFormData([
+        {
+          kind: "persistee",
+          url: "https://cdn.test/p/arbitraire.webp",
+        },
+      ])
+    )
+
+    expect(resultat).toEqual({
+      error:
+        "Données invalides : une Image produit persistée n'appartient pas à ce Produit",
+    })
+    expect(revendiquerEtEnregistrerMock).not.toHaveBeenCalled()
+    expect(updateProductMock).not.toHaveBeenCalled()
+  })
+
+  it("utilise le résultat déjà persisté lors d'un retry de la même tentative", async () => {
+    const product = {
+      id: "produit-1",
+      images: ["https://cdn.test/p/draft-1.webp"],
+    }
+    getAdminProductMock.mockResolvedValue(product)
+    revendiquerEtEnregistrerMock.mockImplementation(
+      async ({ resultatDejaPersiste }) => {
+        if (!resultatDejaPersiste) throw new Error("callback absent")
+        return {
+          ok: true,
+          productId: "produit-1",
+          result: await resultatDejaPersiste("produit-1"),
+          images: [],
+        }
+      }
+    )
+
+    await expect(
+      updateProductAction(
+        {},
+        updateFormData([
+          {
+            kind: "brouillon",
+            draftId: "draft-1",
+            previewUrl: "https://cdn.test/brouillons/draft-1.webp",
+          },
+        ])
+      )
+    ).rejects.toMatchObject({
+      name: "NEXT_REDIRECT",
+      url: "/admin/produits",
+    })
+
+    expect(updateProductMock).not.toHaveBeenCalled()
+  })
+
+  it("remet un refus du cycle de vie au formulaire de mise à jour", async () => {
+    getAdminProductMock.mockResolvedValue({ id: "produit-1", images: [] })
+    revendiquerEtEnregistrerMock.mockResolvedValue({
+      ok: false,
+      code: "catalogue-refuse",
+      message: "L'enregistrement du Catalogue a échoué",
+    })
+
+    const resultat = await updateProductAction(
+      {},
+      updateFormData([
+        {
+          kind: "brouillon",
+          draftId: "draft-1",
+          previewUrl: "https://cdn.test/brouillons/draft-1.webp",
+        },
+      ])
+    )
+
+    expect(resultat).toEqual({
+      error: "L'enregistrement du Catalogue a échoué",
+    })
+    expect(updateProductMock).not.toHaveBeenCalled()
   })
 })

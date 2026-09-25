@@ -195,6 +195,36 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
+/**
+ * Une Image produit persistée ne peut être écrite sur un Produit que si elle
+ * lui appartient déjà, ou si elle vient d'être promue par la même opération.
+ * `promues` porte les URL publiques produites par la revendication en cours :
+ * sans elles, une URL nouvelle est une URL glissée par un client, donc refusée.
+ */
+export function assertPersistedImagesAreOwned(
+  storedImages: unknown,
+  submittedImages: readonly string[],
+  promues: readonly string[] = []
+): void {
+  const autorisees = new Set([...imageUrls(storedImages), ...promues])
+  if (submittedImages.some((url) => !autorisees.has(url))) {
+    throw new CatalogValidationError([
+      "une Image produit persistée n'appartient pas à ce Produit",
+    ])
+  }
+}
+
+/**
+ * La revendication d'une opération : la liaison à exécuter dans la transaction
+ * du Catalogue, et les URL publiques que cette même opération a promues. Les
+ * deux vont ensemble — les URL promues sont ce qui autorise une image nouvelle
+ * à être écrite, donc passer `lier` sans `promues` refuserait la galerie.
+ */
+export interface LiaisonRevendicationImagesProduit {
+  lier: LierBrouillonsImageProduit
+  promues: readonly string[]
+}
+
 function mapUniqueViolation(error: unknown): never {
   return leverConflitUnique(
     error,
@@ -209,7 +239,7 @@ function mapUniqueViolation(error: unknown): never {
 export async function createProduct(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>,
-  lier?: LierBrouillonsImageProduit
+  revendication?: LiaisonRevendicationImagesProduit
 ) {
   const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const data = parseProductInput(input)
@@ -245,8 +275,11 @@ export async function createProduct(
         },
         include: { variants: true, category: true },
       })
-      if (lier) {
-        await lier(created.id, portTransactionRegistreBrouillonImageProduit(tx))
+      if (revendication) {
+        await revendication.lier(
+          created.id,
+          portTransactionRegistreBrouillonImageProduit(tx)
+        )
       }
       return created
     })
@@ -268,13 +301,21 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>
+  overrides?: Partial<CatalogEffects>,
+  revendication?: LiaisonRevendicationImagesProduit
 ) {
   const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
   const data = parseProductInput(input)
+  // Toujours exécutée : la galerie écrite ne peut contenir que des Images
+  // déjà portées par ce Produit, ou promues par cette même revendication.
+  assertPersistedImagesAreOwned(
+    existing.images,
+    data.images,
+    revendication?.promues
+  )
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug, id)
@@ -352,6 +393,13 @@ export async function updateProduct(
         .filter((variantId) => !keptVariantIds.includes(variantId))
       if (toDelete.length > 0) {
         await tx.productVariant.deleteMany({ where: { id: { in: toDelete } } })
+      }
+
+      if (revendication) {
+        await revendication.lier(
+          id,
+          portTransactionRegistreBrouillonImageProduit(tx)
+        )
       }
 
       return tx.product.findUniqueOrThrow({
