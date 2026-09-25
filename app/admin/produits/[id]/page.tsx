@@ -5,6 +5,7 @@ import {
   type ProductFormInitial,
 } from "@/components/admin/product-form"
 import { Button } from "@/components/ui/button"
+import { entreesPersisteesDepuisUrls } from "@/lib/galerie-image-produit"
 import {
   Card,
   CardContent,
@@ -54,7 +55,7 @@ export default async function EditProductPage({
     featuredOrder: product.featuredOrder,
     freeShipping: product.freeShipping,
     specs: product.specs as Record<string, string>,
-    images: product.images as string[],
+    images: entreesPersisteesDepuisUrls(product.images),
     variants: product.variants.map((variant) => ({
       id: variant.id,
       name: variant.name,

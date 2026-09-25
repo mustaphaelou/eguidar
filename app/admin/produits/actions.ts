@@ -1,7 +1,16 @@
 "use server"
 
+import { randomUUID } from "node:crypto"
+
 import { redirect } from "next/navigation"
 
+import cycleVieImageProduit, {
+  type ImageProduitPromue,
+} from "@/lib/cycle-vie-image-produit"
+import {
+  galerieImageProduitSchema,
+  type EntreeImageProduit,
+} from "@/lib/galerie-image-produit"
 import {
   adminFormAction,
   adminTaskAction,
@@ -9,9 +18,11 @@ import {
   parseMoneyField,
   parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   createProduct,
   deleteProduct,
+  getAdminProduct,
   updateProduct,
   updateVariantStock,
   type ProductInput,
@@ -32,14 +43,22 @@ function parseSpecsText(text: string): Record<string, string> {
   return specs
 }
 
-function parseProductFormData(formData: FormData): ProductInput {
+interface ProductFormInput extends Omit<ProductInput, "images"> {
+  images: EntreeImageProduit[]
+  tentativeId: string
+}
+
+function parseProductFormData(formData: FormData): ProductFormInput {
   const imagesRaw = formData.get("images")
   const variantsRaw = formData.get("variants")
+  const tentativeRaw = formData.get("tentativeId")
 
-  let images: string[] = []
-  let variants: ProductInput["variants"] = []
+  let images: EntreeImageProduit[]
+  let variants: ProductInput["variants"]
   try {
-    images = JSON.parse(String(imagesRaw ?? "[]"))
+    images = galerieImageProduitSchema.parse(
+      JSON.parse(String(imagesRaw ?? "[]"))
+    )
     variants = JSON.parse(String(variantsRaw ?? "[]"))
   } catch {
     throw new Error(INVALID_FORM_MESSAGE)
@@ -58,19 +77,109 @@ function parseProductFormData(formData: FormData): ProductInput {
     specs: parseSpecsText(String(formData.get("specsText") ?? "")),
     images,
     variants,
+    tentativeId:
+      typeof tentativeRaw === "string" && tentativeRaw.trim()
+        ? tentativeRaw.trim()
+        : randomUUID(),
   }
 }
 
-interface ProductUpdateInput extends ProductInput {
+function champsCatalogue(
+  input: ProductFormInput
+): Omit<ProductInput, "images"> {
+  const { images: _images, tentativeId: _tentativeId, ...champs } = input
+  return champs
+}
+
+function refuserImagesPersisteesEnCreation(
+  images: readonly EntreeImageProduit[]
+): void {
+  if (images.some((image) => image.kind === "persistee")) {
+    throw new UserFacingError(
+      "Une création de Produit ne peut contenir que des Brouillons d'Image produit"
+    )
+  }
+}
+
+function urlsPersistees(images: readonly EntreeImageProduit[]): string[] {
+  return images.flatMap((image) =>
+    image.kind === "persistee" ? [image.url] : []
+  )
+}
+
+function identifiantsBrouillons(
+  images: readonly EntreeImageProduit[]
+): string[] {
+  return images.flatMap((image) =>
+    image.kind === "brouillon" ? [image.draftId] : []
+  )
+}
+
+function urlsGalerieMiseAJour(
+  images: readonly EntreeImageProduit[],
+  promues: readonly ImageProduitPromue[]
+): string[] {
+  const promuesParDraftId = new Map(
+    promues.map((image) => [image.draftId, image.publicUrl])
+  )
+  return images.map((image) => {
+    if (image.kind === "persistee") return image.url
+    const publicUrl = promuesParDraftId.get(image.draftId)
+    if (publicUrl === undefined) {
+      throw new Error("URL d'Image produit promue indisponible")
+    }
+    return publicUrl
+  })
+}
+
+interface ProductUpdateInput extends ProductFormInput {
   productId: string
 }
 
-export const createProductAction = adminFormAction<ProductInput>({
+/**
+ * Le résultat d'une opération déjà écrite : les Brouillons sont liés au
+ * Produit, donc le commit Catalogue existe — on relit le Produit au lieu de
+ * le créer ou le modifier une seconde fois.
+ */
+const resultatDejaPersiste = async (productId: string) => {
+  const product = await getAdminProduct(productId)
+  if (!product) throw new Error("Produit enregistré introuvable")
+  return product
+}
+
+export const createProductAction = adminFormAction<ProductFormInput>({
   next: "/admin/produits",
   parse: parseProductFormData,
-  run: async (input) => {
-    const product = await createProduct(input)
-    redirect(`/admin/produits/${product.id}`)
+  run: async (input, client) => {
+    refuserImagesPersisteesEnCreation(input.images)
+    const champs = champsCatalogue(input)
+    const draftIds = identifiantsBrouillons(input.images)
+
+    if (draftIds.length === 0) {
+      const product = await createProduct({ ...champs, images: [] })
+      redirect(`/admin/produits/${product.id}`)
+    }
+
+    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+      tentativeId: input.tentativeId,
+      ownerId: client.id,
+      draftIds,
+      resultatDejaPersiste,
+      enregistrer: async (images, lier) => {
+        const product = await createProduct(
+          { ...champs, images: images.map((image) => image.publicUrl) },
+          undefined,
+          {
+            lier,
+            promues: images.map((image) => image.publicUrl),
+          }
+        )
+        return { productId: product.id, result: product }
+      },
+    })
+    if (!resultat.ok) throw new UserFacingError(resultat.message)
+
+    redirect(`/admin/produits/${resultat.productId}`)
   },
 })
 
@@ -82,8 +191,49 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
       productId: parseRequiredId(formData, "productId"),
     }
   },
-  run: async ({ productId, ...input }) => {
-    await updateProduct(productId, input)
+  run: async ({ productId, images, tentativeId, ...input }, client) => {
+    // Aucune lecture ni vérification d'image ici : la propriété d'une Image
+    // produit persistée est l'invariant du Catalogue, appliqué une seule fois
+    // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
+    // revendication valide.
+    const persistedImages = urlsPersistees(images)
+    const draftIds = identifiantsBrouillons(images)
+
+    if (draftIds.length === 0) {
+      await updateProduct(productId, {
+        ...input,
+        images: persistedImages,
+      })
+      redirect("/admin/produits")
+    }
+
+    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+      tentativeId,
+      ownerId: client.id,
+      draftIds,
+      resultatDejaPersiste: async (productId) => {
+        const product = await getAdminProduct(productId)
+        if (!product) throw new Error("Produit enregistré introuvable")
+        return product
+      },
+      enregistrer: async (promues, lier) => {
+        const product = await updateProduct(
+          productId,
+          {
+            ...input,
+            images: urlsGalerieMiseAJour(images, promues),
+          },
+          undefined,
+          {
+            lier,
+            promues: promues.map((image) => image.publicUrl),
+          }
+        )
+        return { productId: product.id, result: product }
+      },
+    })
+    if (!resultat.ok) throw new UserFacingError(resultat.message)
+
     redirect("/admin/produits")
   },
 })

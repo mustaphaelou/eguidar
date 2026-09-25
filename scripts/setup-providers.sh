@@ -184,7 +184,7 @@ finish() {
 # Set TOTAL_STAGES to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=2
+TOTAL_STAGES=3
 
 banner "Eguidar provider setup"
 
@@ -243,6 +243,193 @@ note ""
 note "NEXT_PUBLIC_TURNSTILE_SITE_KEY is baked at build time — restart the dev"
 note "server, or rebuild the Docker image (it's a build arg in docker-compose.yml)."
 note "lib/auth.ts enables captcha automatically once TURNSTILE_SECRET_KEY exists."
+
+# ── Stage 3: R2 lifecycle — expiration des Brouillons d'Image produit ─────
+stage "R2 lifecycle (Brouillons d'Image produit)"
+say "Abandoned drafts expire through a Cloudflare R2 lifecycle rule. There is"
+say "no worker and no scheduler: this rule is the only out-of-band expiry, and"
+say "the registry is the only source of truth for a draft's state."
+
+RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+R2_RULES_FILE="$RACINE/infra/regle-cycle-vie-r2.json"
+
+# _r2_value chemin — lit une valeur de l'artefact de cycle de vie versionné.
+_r2_value() {
+  node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    const valeur = process.argv[2].split(".").reduce((noeud, cle) => noeud[cle], artefact)
+    process.stdout.write(String(valeur))
+  ' "$R2_RULES_FILE" "$1"
+}
+
+if [[ ! -f "$R2_RULES_FILE" ]] || ! command -v node >/dev/null 2>&1; then
+  warn "can't read the checked-in lifecycle artifact ($R2_RULES_FILE)"
+  SKIPPED+=("R2 lifecycle rule — apply infra/regle-cycle-vie-r2.json by hand")
+else
+  R2_BUCKET_NAME="$(_r2_value bucket)"
+  R2_RULE_PREFIX="$(_r2_value rules.0.prefix)"
+  R2_RULE_DAYS="$(_r2_value rules.0.expire.days)"
+
+  note ""
+  note "Artifact: infra/regle-cycle-vie-r2.json"
+  note "  bucket : $R2_BUCKET_NAME"
+  note "  prefix : $R2_RULE_PREFIX"
+  note "  expire : delete after $R2_RULE_DAYS day(s)"
+  warn "Exactly one rule, and never an empty prefix: a global rule would"
+  warn "expire the persisted Images produit of the Catalogue."
+  R2_ENV_BUCKET="$(_existing R2_BUCKET || true)"
+  R2_BUCKET_DIVERGE=0
+  if [[ -n "$R2_ENV_BUCKET" && "$R2_ENV_BUCKET" != "$R2_BUCKET_NAME" ]]; then
+    R2_BUCKET_DIVERGE=1
+    warn "R2_BUCKET in $ENV_FILE is '$R2_ENV_BUCKET' while the artifact targets"
+    warn "'$R2_BUCKET_NAME'. Applying would configure the wrong bucket — the"
+    warn "application reads R2_BUCKET, the artifact is versioned. Edit"
+    warn "infra/regle-cycle-vie-r2.json, or fix R2_BUCKET in $ENV_FILE."
+  fi
+  note ""
+  note "Prefer the dashboard? The same rule is one form there:"
+  open_url "https://dash.cloudflare.com/?to=/:account/r2/buckets/$R2_BUCKET_NAME/settings"
+  step "Settings → Object lifecycle → Add rule, with the prefix and delay above."
+
+  step "Create a Cloudflare API token with 'Workers R2 Storage: Edit' for this"
+  step "account (My Profile → API Tokens → Create Token). It is stored only in"
+  step "$ENV_FILE and never leaves this machine."
+  ask_secret CLOUDFLARE_API_TOKEN "Paste the API token:"
+  _save CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
+  ask R2_ACCOUNT_ID "Cloudflare account ID:"
+  _save R2_ACCOUNT_ID "$R2_ACCOUNT_ID"
+
+  R2_LIFECYCLE_URL="https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buckets/$R2_BUCKET_NAME/lifecycle"
+
+  # _r2_apply — the PUT replaces the whole rule set, so re-running converges to
+  # the artifact instead of stacking rules. That is what makes the stage idempotent.
+  _r2_apply() {
+    local corps
+    corps="$(node -e '
+      const fs = require("node:fs")
+      const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+      process.stdout.write(JSON.stringify({ rules: artefact.rules }))
+    ' "$R2_RULES_FILE")"
+    curl -sS -X PUT "$R2_LIFECYCLE_URL" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary "$corps"
+  }
+
+  # _r2_regles_etrangeres — number of live rules the artifact does not describe.
+  # The PUT above is a replacement, not a merge, so anything counted here is
+  # about to be deleted. This repo owns one rule on one prefix; every other rule
+  # on that bucket belongs to whoever put it there.
+  #
+  # Sortie : les règles étrangères, une par ligne indentée, puis le compte en
+  # toute dernière ligne — c'est ce compte que l'appelant tranche. Un réseau en
+  # panne, un corps illisible ou une enveloppe d'erreur font échouer la
+  # fonction : qui n'a pas pu compter n'a pas le droit d'écrire.
+  _r2_regles_etrangeres() {
+    local vivant
+    vivant="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      "$R2_LIFECYCLE_URL")" || return 1
+    printf '%s' "$vivant" | node -e '
+      const fs = require("node:fs")
+      const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+      const lu = JSON.parse(fs.readFileSync(0, "utf8"))
+      const regles = (lu.result ?? lu).rules
+      if (lu.success === false || !Array.isArray(regles)) {
+        console.error("lecture impossible : " + JSON.stringify(lu.errors ?? lu).slice(0, 200))
+        process.exitCode = 1
+      } else {
+        const connues = artefact.rules.map((r) => JSON.stringify(r)).join("\n")
+        const etrangeres = regles.filter(
+          (r) => !connues.includes(JSON.stringify(r))
+        )
+        for (const r of etrangeres) console.log("    " + JSON.stringify(r))
+        process.stdout.write(String(etrangeres.length))
+      }
+    ' "$R2_RULES_FILE"
+  }
+
+  # _r2_verify — compare the live rules with the artifact. The rule is
+  # provider-side configuration, so it gets verified rather than assumed.
+  _r2_verify() {
+    local vivant
+    vivant="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      "$R2_LIFECYCLE_URL")" || {
+      warn "could not read the live lifecycle — check the token and R2_ACCOUNT_ID"
+      return 1
+    }
+    printf '%s' "$vivant" | node -e '
+      const fs = require("node:fs")
+      const attendu = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).rules
+      const lu = JSON.parse(fs.readFileSync(0, "utf8"))
+      const observe = (lu.result ?? lu).rules ?? null
+      if (JSON.stringify(attendu) === JSON.stringify(observe)) {
+        console.log("  live rules match the artifact")
+      } else {
+        console.log("  live rules differ from the artifact")
+        console.log("  expected: " + JSON.stringify(attendu))
+        console.log("  observed: " + JSON.stringify(observe))
+        process.exitCode = 1
+      }
+    ' "$R2_RULES_FILE"
+  }
+
+  if [[ -z "$R2_ACCOUNT_ID" || -z "$CLOUDFLARE_API_TOKEN" ]]; then
+    warn "no R2_ACCOUNT_ID or CLOUDFLARE_API_TOKEN — the rule cannot be applied"
+    warn "or verified here; add the rule from the dashboard instead"
+    SKIPPED+=("R2 lifecycle rule (needs R2_ACCOUNT_ID and CLOUDFLARE_API_TOKEN)")
+  elif ! command -v curl >/dev/null 2>&1; then
+    warn "curl is missing — apply the rule from the dashboard instead"
+    SKIPPED+=("R2 lifecycle rule verification (no curl)")
+  elif [[ "$R2_BUCKET_DIVERGE" -eq 1 ]]; then
+    warn "bucket mismatch — nothing was applied, so the wrong bucket is never"
+    warn "configured. Reconcile R2_BUCKET and the artifact, then re-run."
+    SKIPPED+=("R2 lifecycle rule (bucket mismatch)")
+  elif confirm "Apply the rule to bucket $R2_BUCKET_NAME now?"; then
+    # Les règles étrangères viennent en tête, le compte en dernière ligne. Le
+    # PUT remplace l'ensemble des règles : il n'a lieu qu'après une lecture
+    # réussie dont le compte est numérique. Une lecture qui échoue n'est jamais
+    # un feu vert — appliquer sans avoir pu compter, c'est supprimer des règles
+    # que personne n'a vues.
+    R2_ETRANGERES="$(_r2_regles_etrangeres 2>/dev/null || true)"
+    R2_NOMBRE="${R2_ETRANGERES##*$'\n'}"
+    if ! [[ "$R2_NOMBRE" =~ ^[0-9]+$ ]]; then
+      warn "could not read the live rules — nothing was applied. Check the token"
+      warn "and R2_ACCOUNT_ID, or add the rule from the dashboard instead."
+      SKIPPED+=("R2 lifecycle rule (live rules unreadable)")
+    elif [[ "$R2_NOMBRE" -gt 0 ]]; then
+      # The Cloudflare API replaces the whole rule set; there is no per-rule
+      # create. Anything the artifact does not describe is therefore destroyed
+      # by the PUT, and it belongs to whoever put it there.
+      warn "This bucket already has $R2_NOMBRE rule(s) the artifact does not"
+      warn "describe. The API replaces the whole set, so applying DELETES them:"
+      printf '%s\n' "${R2_ETRANGERES%$'\n'*}"
+      if ! confirm "Delete those rules and leave only the artifact's rule?"; then
+        warn "nothing was applied. Add the rule from the dashboard instead, so"
+        warn "the other rules survive."
+        SKIPPED+=("R2 lifecycle rule (would delete existing bucket rules)")
+      else
+        _r2_apply || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+      fi
+    else
+      _r2_apply || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+    fi
+    pause "Press Enter to verify the live rules against the artifact."
+    if _r2_verify; then
+      printf '  %s✓ R2 lifecycle rule applied and verified%s\n' "$GREEN" "$RESET"
+    else
+      warn "live configuration still differs from the artifact"
+      SKIPPED+=("R2 lifecycle rule verification")
+    fi
+  else
+    SKIPPED+=("R2 lifecycle rule not applied — re-run this stage")
+  fi
+  note ""
+  note "The rule must carry the same retention as RETENTION_BROUILLON_IMAGE_PRODUIT_H"
+  note "(24 h by default). A shorter rule deletes the file of a draft the"
+  note "application still considers claimable; a longer one only leaves orphan"
+  note "bytes behind, because the registry refuses the claim either way."
+fi
 # ──────────────────────────────────────────────────────────────────────────
 
 finish

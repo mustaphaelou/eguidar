@@ -4,7 +4,10 @@ import { Delete01Icon, PlusSignIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useActionState, useRef, useState } from "react"
 
-import { ImageGalleryUpload } from "@/components/admin/image-gallery-upload"
+import {
+  ImageGalleryUpload,
+  type EntreeImageProduitFormulaire,
+} from "@/components/admin/image-gallery-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { centsToInputValue, parseMadToCents } from "@/lib/money"
 import { slugify } from "@/lib/slug"
 
@@ -42,7 +46,7 @@ export interface ProductFormInitial {
   featuredOrder: number
   freeShipping: boolean
   specs: Record<string, string>
-  images: string[]
+  images: EntreeImageProduitFormulaire[]
   variants: ProductFormVariant[]
 }
 
@@ -66,6 +70,25 @@ const emptyVariant = (): ProductFormVariant => ({
   stock: 0,
 })
 
+function imagesSoumises(
+  images: readonly EntreeImageProduitFormulaire[]
+): EntreeImageProduit[] {
+  const soumises: EntreeImageProduit[] = []
+  for (const image of images) {
+    if (image.kind === "persistee") {
+      if (image.suppressionEnAttente) continue
+      soumises.push({ kind: "persistee", url: image.url })
+      continue
+    }
+    soumises.push({
+      kind: "brouillon",
+      draftId: image.draftId,
+      previewUrl: image.previewUrl,
+    })
+  }
+  return soumises
+}
+
 export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const slugRef = useRef<HTMLInputElement>(null)
@@ -74,7 +97,10 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [freeShipping, setFreeShipping] = useState(
     product?.freeShipping ?? false
   )
-  const [images, setImages] = useState<string[]>(product?.images ?? [])
+  const [tentativeId] = useState(() => globalThis.crypto.randomUUID())
+  const [images, setImages] = useState<EntreeImageProduitFormulaire[]>(
+    product?.images ?? []
+  )
   const [variants, setVariants] = useState<ProductFormVariant[]>(
     product?.variants ?? [emptyVariant()]
   )
@@ -99,7 +125,12 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
         name="freeShipping"
         value={freeShipping ? "on" : ""}
       />
-      <input type="hidden" name="images" value={JSON.stringify(images)} />
+      <input type="hidden" name="tentativeId" value={tentativeId} />
+      <input
+        type="hidden"
+        name="images"
+        value={JSON.stringify(imagesSoumises(images))}
+      />
       <input type="hidden" name="variants" value={JSON.stringify(variants)} />
 
       {state.error ? (

@@ -1,6 +1,8 @@
 import { z } from "zod"
 
-import { createPresignedUploadUrl } from "@/lib/r2"
+import cycleVieImageProduit, {
+  STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
+} from "@/lib/cycle-vie-image-produit"
 import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
 
 const presignSchema = z.object({
@@ -34,14 +36,29 @@ export async function POST(request: Request) {
     return Response.json({ error: "Requête invalide" }, { status: 400 })
 
   try {
-    const { uploadUrl, publicUrl } = await createPresignedUploadUrl(parsed.data)
-    return Response.json({ uploadUrl, publicUrl })
-  } catch (error) {
+    const resultat = await cycleVieImageProduit.demanderBrouillon({
+      ownerId: client.id,
+      contentType: parsed.data.contentType,
+      size: parsed.data.size,
+    })
+    if (!resultat.ok) {
+      return Response.json(
+        { error: resultat.message },
+        {
+          status: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT[resultat.code],
+        }
+      )
+    }
+
+    return Response.json({
+      draftId: resultat.draftId,
+      uploadUrl: resultat.uploadUrl,
+      previewUrl: resultat.previewUrl,
+      expiresAt: resultat.expiresAt,
+    })
+  } catch {
     return Response.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Échec de la pré-signature",
-      },
+      { error: "Échec de la préparation du téléversement" },
       { status: 500 }
     )
   }

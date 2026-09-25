@@ -3,6 +3,25 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
+
+// L'image d'une catégorie est une URL libre, hors du préfixe `products/` : elle
+// ne passe que par l'opération de stockage réservée aux catégories. Ce mock
+// court-circuite l'adaptateur pour éprouver l'effet best-effort de la
+// Structure, qui doit journaliser une panne sans faire échouer la mutation.
+// L'effet par défaut est éprouvé sans court-circuit dans
+// `admin-structure-image-stockage.test.ts`.
+const sendMock = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/r2", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/r2")>()
+  return {
+    ...original,
+    stockageImageProduitR2: {
+      ...original.stockageImageProduitR2,
+      supprimerImageCategorie: () => sendMock(),
+    },
+  }
+})
+
 import {
   CategoryHasChildrenError,
   CategoryHasProductsError,
@@ -171,9 +190,7 @@ describe("admin structure mutations — categories", () => {
     )
 
     expect(deleteImage).toHaveBeenCalledOnce()
-    expect(deleteImage).toHaveBeenCalledWith(
-      "https://example.com/old-cat.jpg"
-    )
+    expect(deleteImage).toHaveBeenCalledWith("https://example.com/old-cat.jpg")
   })
 
   it("does not delete any image when it is unchanged on update", async () => {
@@ -204,9 +221,35 @@ describe("admin structure mutations — categories", () => {
     )
 
     expect(deleteImage).toHaveBeenCalledOnce()
-    expect(deleteImage).toHaveBeenCalledWith(
-      "https://example.com/cat.jpg"
+    expect(deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
+  })
+
+  it("journalise une panne R2 sur l'image de catégorie sans faire échouer l'update", async () => {
+    // L'effet par défaut doit rester visible : une panne R2 ne doit ni faire
+    // échouer une mutation Structure engagée, ni disparaître en silence.
+    sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("img-panne") })
     )
+
+    try {
+      const updated = await updateCategory(
+        category.id,
+        makeCategoryInput({
+          slug: categorySlug("img-panne"),
+          image: "https://example.com/remplacement.jpg",
+        })
+      )
+
+      expect(updated.image).toBe("https://example.com/remplacement.jpg")
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("https://example.com/cat.jpg"),
+        expect.anything()
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it("updates a category name and re-indexes the documents of its products", async () => {
@@ -270,9 +313,7 @@ describe("admin structure mutations — categories", () => {
     const first = await createCategory(
       makeCategoryInput({ slug: categorySlug("slug-a") })
     )
-    await createCategory(
-      makeCategoryInput({ slug: categorySlug("slug-b") })
-    )
+    await createCategory(makeCategoryInput({ slug: categorySlug("slug-b") }))
 
     await expect(
       updateCategory(
@@ -354,9 +395,7 @@ describe("admin structure mutations — categories", () => {
     await deleteCategory(category.id, { deleteImage })
 
     expect(deleteImage).toHaveBeenCalledOnce()
-    expect(deleteImage).toHaveBeenCalledWith(
-      "https://example.com/cat.jpg"
-    )
+    expect(deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
   })
 
   it("does not delete any image when the deleted category has none", async () => {

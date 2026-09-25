@@ -1,10 +1,14 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import {
+  portTransactionRegistreBrouillonImageProduit,
+  type LierBrouillonsImageProduit,
+} from "@/lib/cycle-vie-image-produit"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
-import { deleteR2Object } from "@/lib/r2"
+import { stockageImageProduitR2 } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
 import {
@@ -51,26 +55,49 @@ export interface CatalogEffects {
   deleteImages(urls: string[]): Promise<void>
 }
 
-const defaultCatalogEffects: CatalogEffects = {
-  reindexProducts: indexProductDocuments,
-  async removeProductFromIndex(productId) {
-    await deleteProductDocument(productId)
-  },
-  revalidateCatalog(product) {
-    invalidateCatalogue(product)
-  },
-  async deleteImages(urls) {
-    for (const url of urls) {
-      try {
-        await deleteR2Object(url)
-      } catch (error) {
-        console.warn(
-          `[catalog] suppression d'image R2 non effectuée pour ${url}`,
-          error
-        )
+function journaliserEchecSuppressionImage(
+  productId: string,
+  url: string,
+  erreur: unknown
+): void {
+  console.warn(
+    `[catalog] suppression d'image R2 non effectuée pour le produit ${productId}, image ${url}`,
+    erreur
+  )
+}
+
+/**
+ * Les effets de production d'une mutation, pour le Produit qu'elle concerne.
+ *
+ * L'identifiant est exigé, pas facultatif : il ne sert qu'au journal d'échec
+ * de suppression d'image, et une fonction qui ignore de quel Produit elle
+ * parle afficherait « inconnu » dans la seule ligne qui doit aider le support.
+ * Les mutations dont l'effet ne porte sur aucune image d'un Produit connu
+ * construisent leurs effets une fois le Produit résolu.
+ */
+function defaultCatalogEffects(productId: string): CatalogEffects {
+  return {
+    reindexProducts: indexProductDocuments,
+    async removeProductFromIndex(id) {
+      await deleteProductDocument(id)
+    },
+    revalidateCatalog(product) {
+      invalidateCatalogue(product)
+    },
+    async deleteImages(urls) {
+      for (const url of urls) {
+        try {
+          const resultat =
+            await stockageImageProduitR2.supprimerImagePersistee(url)
+          if (!resultat.ok) {
+            journaliserEchecSuppressionImage(productId, url, resultat.erreur)
+          }
+        } catch (error) {
+          journaliserEchecSuppressionImage(productId, url, error)
+        }
       }
-    }
-  },
+    },
+  }
 }
 
 export class CatalogValidationError extends UserFacingError {
@@ -191,6 +218,36 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
+/**
+ * Une Image produit persistée ne peut être écrite sur un Produit que si elle
+ * lui appartient déjà, ou si elle vient d'être promue par la même opération.
+ * `promues` porte les URL publiques produites par la revendication en cours :
+ * sans elles, une URL nouvelle est une URL glissée par un client, donc refusée.
+ */
+function assertPersistedImagesAreOwned(
+  storedImages: unknown,
+  submittedImages: readonly string[],
+  promues: readonly string[] = []
+): void {
+  const autorisees = new Set([...imageUrls(storedImages), ...promues])
+  if (submittedImages.some((url) => !autorisees.has(url))) {
+    throw new CatalogValidationError([
+      "une Image produit persistée n'appartient pas à ce Produit",
+    ])
+  }
+}
+
+/**
+ * La revendication d'une opération : la liaison à exécuter dans la transaction
+ * du Catalogue, et les URL publiques que cette même opération a promues. Les
+ * deux vont ensemble — les URL promues sont ce qui autorise une image nouvelle
+ * à être écrite, donc passer `lier` sans `promues` refuserait la galerie.
+ */
+export interface LiaisonRevendicationImagesProduit {
+  lier: LierBrouillonsImageProduit
+  promues: readonly string[]
+}
+
 function mapUniqueViolation(error: unknown): never {
   return leverConflitUnique(
     error,
@@ -204,9 +261,9 @@ function mapUniqueViolation(error: unknown): never {
 
 export async function createProduct(
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>
+  overrides?: Partial<CatalogEffects>,
+  revendication?: LiaisonRevendicationImagesProduit
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const data = parseProductInput(input)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -215,34 +272,44 @@ export async function createProduct(
 
   let product
   try {
-    product = await prisma.product.create({
-      data: {
-        name: data.name,
-        slug: data.slug,
-        description: data.description,
-        brand: data.brand,
-        price: data.price,
-        specs: data.specs,
-        images: data.images,
-        isFeatured: data.isFeatured,
-        featuredOrder: data.featuredOrder,
-        freeShipping: data.freeShipping,
-        categoryId: data.categoryId,
-        variants: {
-          create: data.variants.map((variant) => ({
-            name: variant.name,
-            sku: variant.sku,
-            priceDelta: variant.priceDelta,
-            stock: variant.stock,
-          })),
+    product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          name: data.name,
+          slug: data.slug,
+          description: data.description,
+          brand: data.brand,
+          price: data.price,
+          specs: data.specs,
+          images: data.images,
+          isFeatured: data.isFeatured,
+          featuredOrder: data.featuredOrder,
+          freeShipping: data.freeShipping,
+          categoryId: data.categoryId,
+          variants: {
+            create: data.variants.map((variant) => ({
+              name: variant.name,
+              sku: variant.sku,
+              priceDelta: variant.priceDelta,
+              stock: variant.stock,
+            })),
+          },
         },
-      },
-      include: { variants: true, category: true },
+        include: { variants: true, category: true },
+      })
+      if (revendication) {
+        await revendication.lier(
+          created.id,
+          portTransactionRegistreBrouillonImageProduit(tx)
+        )
+      }
+      return created
     })
   } catch (error) {
     mapUniqueViolation(error)
   }
 
+  const effects = avecSurcharges(defaultCatalogEffects(product.id), overrides)
   await runEffect(
     `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
     () => effects.reindexProducts([toIndexableProduct(product)])
@@ -257,13 +324,21 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>
+  overrides?: Partial<CatalogEffects>,
+  revendication?: LiaisonRevendicationImagesProduit
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
+  const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
   const data = parseProductInput(input)
+  // Toujours exécutée : la galerie écrite ne peut contenir que des Images
+  // déjà portées par ce Produit, ou promues par cette même revendication.
+  assertPersistedImagesAreOwned(
+    existing.images,
+    data.images,
+    revendication?.promues
+  )
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug, id)
@@ -343,6 +418,13 @@ export async function updateProduct(
         await tx.productVariant.deleteMany({ where: { id: { in: toDelete } } })
       }
 
+      if (revendication) {
+        await revendication.lier(
+          id,
+          portTransactionRegistreBrouillonImageProduit(tx)
+        )
+      }
+
       return tx.product.findUniqueOrThrow({
         where: { id },
         include: { variants: true, category: true },
@@ -378,7 +460,7 @@ export async function deleteProduct(
   id: string,
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
+  const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -402,7 +484,6 @@ export async function updateVariantStock(
   stock: number,
   overrides?: Partial<CatalogEffects>
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
   if (!Number.isInteger(stock) || stock < 0) {
     throw new CatalogValidationError(["le stock doit être positif ou nul"])
   }
@@ -413,6 +494,10 @@ export async function updateVariantStock(
   })
   if (!variant) throw new VariantNotFoundError()
 
+  const effects = avecSurcharges(
+    defaultCatalogEffects(variant.product.id),
+    overrides
+  )
   await prisma.productVariant.update({
     where: { id: variantId },
     data: { stock },

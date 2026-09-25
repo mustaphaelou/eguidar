@@ -27,6 +27,7 @@ model user {
   sessions     session[]
   cartItems    CartItem[]
   orders       Order[]
+  brouillonsImageProduit BrouillonImageProduit[]
 }
 
 model session {
@@ -106,6 +107,7 @@ model Product {
   category      Category         @relation(fields: [categoryId], references: [id])
   variants      ProductVariant[]
   articlesBlog  ArticleBlogProduit[]
+  brouillonsImageProduit BrouillonImageProduit[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -125,6 +127,28 @@ model ProductVariant {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([productId])
+}
+
+model BrouillonImageProduit {
+  id                String    @id
+  storageKey        String    @unique
+  mimeType          String
+  byteSize          Int
+  ownerId           String
+  tentativeId       String?
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime
+  state             String    @default("vivant")
+  promotedPublicUrl String?
+  productId         String?
+
+  owner   user    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([tentativeId])
+  @@index([state, expiresAt])
   @@index([productId])
 }
 

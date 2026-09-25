@@ -10,6 +10,7 @@ const TEST_TABLES = [
   "Category",
   "Product",
   "ProductVariant",
+  "BrouillonImageProduit",
   "CartItem",
   "Order",
   "OrderItem",
