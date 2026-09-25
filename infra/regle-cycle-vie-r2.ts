@@ -20,7 +20,11 @@ const HEURES_PAR_JOUR = 24
 /** R2 n'exprime une expiration qu'en jours entiers, un jour étant le minimum. */
 const JOURS_MIN_R2 = 1
 
-export const BUCKET_R2_PAR_DEFAUT = "eguidar"
+/**
+ * Le bucket vient de la même variable que l'application (`R2_BUCKET`), sinon
+ * l'artefact versionné pourrait viser un bucket que l'application n'utilise pas.
+ */
+export const BUCKET_R2_PAR_DEFAUT = process.env.R2_BUCKET || "eguidar"
 
 export interface ExpirationCycleVieR2 {
   days: number

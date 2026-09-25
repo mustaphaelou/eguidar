@@ -33,10 +33,12 @@ Une image téléversée pendant l'édition d'un Produit devient un **Brouillon d
 
 L'expiration hors bande, elle, est une configuration du fournisseur, versionnée dans [`infra/regle-cycle-vie-r2.json`](infra/regle-cycle-vie-r2.json) : une seule règle, sur le seul préfixe `products/brouillons/`, expire les objets après 1 jour. Aucun worker, aucune file, aucun planificateur. Cette règle n'est retypée nulle part : `infra/regle-cycle-vie-r2.ts` dérive le préfixe de `lib/r2.ts` et la rétention du module de cycle de vie, et `infra/regle-cycle-vie-r2.test.ts` échoue si le fichier JSON ne correspond plus, ou si une règle à préfixe vide venait s'y glisser — une telle règle expirerait les Images produit persistées du Catalogue.
 
-Pour la déployer, l'étape « R2 lifecycle » de `bash scripts/setup-providers.sh` fait un `PUT` du corps `rules` de l'artefact sur l'API Cloudflare, puis relit la configuration vivante et la compare au fichier. Le `PUT` remplace l'ensemble des règles : relancer l'étape converge vers l'artefact au lieu d'empiler des règles. Le même appel, à la main :
+Pour la déployer, l'étape « R2 lifecycle » de `bash scripts/setup-providers.sh` fait un `PUT` du corps `rules` de l'artefact sur l'API Cloudflare, puis relit la configuration vivante et la compare au fichier.
+
+**L'API Cloudflare remplace l'ensemble des règles du bucket** : il n'y a pas de création par règle. Relancer l'étape converge donc vers l'artefact au lieu d'empiler des règles, mais un `PUT` supprimerait aussi toute règle déjà présente que l'artefact ne décrit pas. L'étape relit les règles vivantes avant d'écrire, affiche celles qu'elle s'apprête à supprimer et demande une seconde confirmation explicite ; elle refuse aussi d'agir si `R2_BUCKET` dans `.env` ne désigne pas le bucket de l'artefact. Sur un bucket partagé, préférez le formulaire du tableau de bord, qui ajoute la règle sans toucher aux autres. Le même appel, à la main :
 
 ```bash
-curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buckets/eguidar/lifecycle" \
+curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buckets/$R2_BUCKET/lifecycle" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
   -H "Content-Type: application/json" \
   --data-binary '{"rules":[{"id":"brouillons-image-produit","enabled":true,"prefix":"products/brouillons/","expire":{"days":1}}]}'

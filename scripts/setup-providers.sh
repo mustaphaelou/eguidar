@@ -279,9 +279,13 @@ else
   warn "Exactly one rule, and never an empty prefix: a global rule would"
   warn "expire the persisted Images produit of the Catalogue."
   R2_ENV_BUCKET="$(_existing R2_BUCKET || true)"
+  R2_BUCKET_DIVERGE=0
   if [[ -n "$R2_ENV_BUCKET" && "$R2_ENV_BUCKET" != "$R2_BUCKET_NAME" ]]; then
+    R2_BUCKET_DIVERGE=1
     warn "R2_BUCKET in $ENV_FILE is '$R2_ENV_BUCKET' while the artifact targets"
-    warn "'$R2_BUCKET_NAME' — reconcile the two before applying."
+    warn "'$R2_BUCKET_NAME'. Applying would configure the wrong bucket — the"
+    warn "application reads R2_BUCKET, the artifact is versioned. Edit"
+    warn "infra/regle-cycle-vie-r2.json, or fix R2_BUCKET in $ENV_FILE."
   fi
   note ""
   note "Prefer the dashboard? The same rule is one form there:"
@@ -311,6 +315,27 @@ else
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
       -H "Content-Type: application/json" \
       --data-binary "$corps"
+  }
+
+  # _r2_regles_etrangeres — number of live rules the artifact does not describe.
+  # The PUT above is a replacement, not a merge, so anything counted here is
+  # about to be deleted. This repo owns one rule on one prefix; every other rule
+  # on that bucket belongs to whoever put it there.
+  _r2_regles_etrangeres() {
+    local vivant
+    vivant="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      "$R2_LIFECYCLE_URL")" || return 1
+    printf '%s' "$vivant" | node -e '
+      const fs = require("node:fs")
+      const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+      const lu = JSON.parse(fs.readFileSync(0, "utf8"))
+      const connues = artefact.rules.map((r) => JSON.stringify(r)).join("\n")
+      const etrangeres = ((lu.result ?? lu).rules ?? []).filter(
+        (r) => !connues.includes(JSON.stringify(r))
+      )
+      for (const r of etrangeres) console.log("    " + JSON.stringify(r))
+      process.stdout.write(String(etrangeres.length))
+    ' "$R2_RULES_FILE"
   }
 
   # _r2_verify — compare the live rules with the artifact. The rule is
@@ -345,8 +370,30 @@ else
   elif ! command -v curl >/dev/null 2>&1; then
     warn "curl is missing — apply the rule from the dashboard instead"
     SKIPPED+=("R2 lifecycle rule verification (no curl)")
+  elif [[ "$R2_BUCKET_DIVERGE" -eq 1 ]]; then
+    warn "bucket mismatch — nothing was applied, so the wrong bucket is never"
+    warn "configured. Reconcile R2_BUCKET and the artifact, then re-run."
+    SKIPPED+=("R2 lifecycle rule (bucket mismatch)")
   elif confirm "Apply the rule to bucket $R2_BUCKET_NAME now?"; then
-    _r2_apply || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+    R2_ETRANGERES=""
+    R2_ETRANGERES="$(_r2_regles_etrangeres 2>/dev/null)" || R2_ETRANGERES=""
+    if [[ "$R2_ETRANGERES" =~ ^[0-9]+$ ]] && [[ "$R2_ETRANGERES" -gt 0 ]]; then
+      # The Cloudflare API replaces the whole rule set; there is no per-rule
+      # create. Anything the artifact does not describe is therefore destroyed
+      # by the PUT, and it belongs to whoever put it there.
+      warn "This bucket already has $R2_ETRANGERES rule(s) the artifact does not"
+      warn "describe. The API replaces the whole set, so applying DELETES them:"
+      printf '%s\n' "$R2_ETRANGERES"
+      if ! confirm "Delete those rules and leave only the artifact's rule?"; then
+        warn "nothing was applied. Add the rule from the dashboard instead, so"
+        warn "the other rules survive."
+        SKIPPED+=("R2 lifecycle rule (would delete existing bucket rules)")
+      else
+        _r2_apply || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+      fi
+    else
+      _r2_apply || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+    fi
     pause "Press Enter to verify the live rules against the artifact."
     if _r2_verify; then
       printf '  %s✓ R2 lifecycle rule applied and verified%s\n' "$GREEN" "$RESET"
