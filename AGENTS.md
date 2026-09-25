@@ -5,6 +5,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 ---
+## Lint
+
+After making changes to UI code, run `npm run lint` and fix all errors. Warnings from `shadcn/*` report design system violations: prefer a component variant or size over restyling with `className`, and prefer theme tokens over arbitrary values. Rules and contracts live in `eslint.config.mjs`.
+
+---
 ## Agent skills
 
 ### Issue tracker
