@@ -50,73 +50,64 @@ export default async function AdminProductsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.map((product) => {
-              const totalStock = product.variants.reduce(
-                (sum, variant) => sum + variant.stock,
-                0
-              )
-              const images = Array.isArray(product.images)
-                ? (product.images as string[])
-                : []
-              return (
-                <TableRow key={product.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      {images[0] ? (
-                        <Image
-                          src={images[0]}
-                          alt=""
-                          width={40}
-                          height={40}
-                          className="size-10 rounded-lg border object-cover"
-                        />
-                      ) : null}
-                      <div className="flex flex-col">
-                        <span className="font-medium">{product.name}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {product.brand}
-                        </span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{product.category.name}</TableCell>
-                  <TableCell>{formatPrice(product.price)}</TableCell>
-                  <TableCell>
-                    <span
-                      className={
-                        totalStock === 0 ? "text-destructive" : undefined
-                      }
-                    >
-                      {totalStock}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {product.isFeatured ? <Badge>Mis en avant</Badge> : null}
-                      {product.freeShipping ? (
-                        <Badge variant="secondary">Livraison offerte</Badge>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        render={<Link href={`/admin/produits/${product.id}`} />}
-                        variant="outline"
-                        size="sm"
-                      >
-                        Modifier
-                      </Button>
-                      <DeleteProductButton
-                        productId={product.id}
-                        productName={product.name}
-                        action={deleteProductAction}
+            {products.map((product) => (
+              <TableRow key={product.id}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    {product.image ? (
+                      <Image
+                        src={product.image}
+                        alt=""
+                        width={40}
+                        height={40}
+                        className="size-10 rounded-lg border object-cover"
                       />
+                    ) : null}
+                    <div className="flex flex-col">
+                      <span className="font-medium">{product.name}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {product.brand}
+                      </span>
                     </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+                  </div>
+                </TableCell>
+                <TableCell>{product.categoryName}</TableCell>
+                <TableCell>{formatPrice(product.price)}</TableCell>
+                <TableCell>
+                  <span
+                    className={
+                      product.totalStock === 0 ? "text-destructive" : undefined
+                    }
+                  >
+                    {product.totalStock}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {product.isFeatured ? <Badge>Mis en avant</Badge> : null}
+                    {product.freeShipping ? (
+                      <Badge variant="secondary">Livraison offerte</Badge>
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      render={<Link href={`/admin/produits/${product.id}`} />}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Modifier
+                    </Button>
+                    <DeleteProductButton
+                      productId={product.id}
+                      productName={product.name}
+                      action={deleteProductAction}
+                    />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       )}

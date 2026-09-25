@@ -8,6 +8,7 @@ import {
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
+import { totalVariantStock, urlsImagesProduit } from "@/lib/product-metrics"
 import { stockageImageProduitR2 } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
@@ -519,11 +520,63 @@ export async function updateVariantStock(
   return product
 }
 
-export function listAdminProducts() {
-  return prisma.product.findMany({
+/**
+ * Les faits d'un Produit dans la liste de l'Administration : exactement ce
+ * que la liste rend, et rien de plus — son identité, sa marque, le nom de
+ * sa catégorie, son prix, ses deux drapeaux (Mis en avant, Livraison
+ * offerte), une seule Image produit et son stock total.
+ *
+ * La liste ne rend ni la galerie ni les Variantes : elle ne les reçoit donc
+ * pas. Le stock total est cuit ici par `totalVariantStock` et l'Image produit
+ * par `urlsImagesProduit`, les faits canoniques du Produit — aucun module de
+ * rendu ne refait l'addition ni ne juge la forme d'une colonne stockée.
+ */
+export interface FaitsProduitListe {
+  id: string
+  name: string
+  brand: string
+  categoryName: string
+  price: number
+  isFeatured: boolean
+  freeShipping: boolean
+  image: string | null
+  totalStock: number
+}
+
+/**
+ * Les Produits de l'Administration, du plus récemment modifié au plus
+ * ancien, sous la forme des seuls faits que la liste rend. La requête ne
+ * remplit que les colonnes qu'elle compose : la galerie y entre brute, pour
+ * en tirer la première Image produit, et les Variantes par les deux seules
+ * colonnes que la règle canonique du stock total déclare.
+ */
+export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
+  const produits = await prisma.product.findMany({
     orderBy: { updatedAt: "desc" },
-    include: { category: true, variants: true },
+    select: {
+      id: true,
+      name: true,
+      brand: true,
+      price: true,
+      images: true,
+      isFeatured: true,
+      freeShipping: true,
+      category: { select: { name: true } },
+      variants: { select: { priceDelta: true, stock: true } },
+    },
   })
+
+  return produits.map((produit) => ({
+    id: produit.id,
+    name: produit.name,
+    brand: produit.brand,
+    categoryName: produit.category.name,
+    price: produit.price,
+    isFeatured: produit.isFeatured,
+    freeShipping: produit.freeShipping,
+    image: urlsImagesProduit(produit.images)[0] ?? null,
+    totalStock: totalVariantStock(produit.variants),
+  }))
 }
 
 export function getAdminProduct(id: string) {
