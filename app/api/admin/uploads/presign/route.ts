@@ -1,6 +1,8 @@
 import { z } from "zod"
 
-import { createPresignedUploadUrl } from "@/lib/r2"
+import cycleVieImageProduit, {
+  type CodeRefusCycleVieImageProduit,
+} from "@/lib/cycle-vie-image-produit"
 import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
 
 const presignSchema = z.object({
@@ -13,6 +15,25 @@ const presignSchema = z.object({
   ]),
   size: z.number().int().positive(),
 })
+
+function statusPourRefus(code: CodeRefusCycleVieImageProduit): number {
+  switch (code) {
+    case "identifiant-proprietaire-invalide":
+    case "metadata-invalide":
+    case "mime-non-autorise":
+    case "taille-invalide":
+    case "trop-volumineux":
+      return 400
+    case "stockage-indisponible":
+      return 503
+    case "stockage-refuse":
+      return 502
+    case "registre-indisponible":
+      return 500
+    default:
+      return 500
+  }
+}
 
 export async function POST(request: Request) {
   const client = await lireSession()
@@ -34,14 +55,27 @@ export async function POST(request: Request) {
     return Response.json({ error: "Requête invalide" }, { status: 400 })
 
   try {
-    const { uploadUrl, publicUrl } = await createPresignedUploadUrl(parsed.data)
-    return Response.json({ uploadUrl, publicUrl })
-  } catch (error) {
+    const resultat = await cycleVieImageProduit.demanderBrouillon({
+      ownerId: client.id,
+      contentType: parsed.data.contentType,
+      size: parsed.data.size,
+    })
+    if (!resultat.ok) {
+      return Response.json(
+        { error: resultat.message },
+        { status: statusPourRefus(resultat.code) }
+      )
+    }
+
+    return Response.json({
+      draftId: resultat.draftId,
+      uploadUrl: resultat.uploadUrl,
+      previewUrl: resultat.previewUrl,
+      expiresAt: resultat.expiresAt,
+    })
+  } catch {
     return Response.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Échec de la pré-signature",
-      },
+      { error: "Échec de la préparation du téléversement" },
       { status: 500 }
     )
   }

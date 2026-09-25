@@ -61,6 +61,7 @@ export const ModelName = {
   Category: "Category",
   Product: "Product",
   ProductVariant: "ProductVariant",
+  BrouillonImageProduit: "BrouillonImageProduit",
   CartItem: "CartItem",
   Order: "Order",
   OrderItem: "OrderItem",
@@ -195,6 +196,23 @@ export const ProductVariantScalarFieldEnum = {
 
 export type ProductVariantScalarFieldEnum =
   (typeof ProductVariantScalarFieldEnum)[keyof typeof ProductVariantScalarFieldEnum]
+
+export const BrouillonImageProduitScalarFieldEnum = {
+  id: "id",
+  storageKey: "storageKey",
+  mimeType: "mimeType",
+  byteSize: "byteSize",
+  ownerId: "ownerId",
+  tentativeId: "tentativeId",
+  createdAt: "createdAt",
+  expiresAt: "expiresAt",
+  state: "state",
+  promotedPublicUrl: "promotedPublicUrl",
+  productId: "productId",
+} as const
+
+export type BrouillonImageProduitScalarFieldEnum =
+  (typeof BrouillonImageProduitScalarFieldEnum)[keyof typeof BrouillonImageProduitScalarFieldEnum]
 
 export const CartItemScalarFieldEnum = {
   id: "id",

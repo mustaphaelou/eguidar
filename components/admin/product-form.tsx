@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { centsToInputValue, parseMadToCents } from "@/lib/money"
 import { slugify } from "@/lib/slug"
 
@@ -42,7 +43,7 @@ export interface ProductFormInitial {
   featuredOrder: number
   freeShipping: boolean
   specs: Record<string, string>
-  images: string[]
+  images: EntreeImageProduit[]
   variants: ProductFormVariant[]
 }
 
@@ -74,7 +75,9 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [freeShipping, setFreeShipping] = useState(
     product?.freeShipping ?? false
   )
-  const [images, setImages] = useState<string[]>(product?.images ?? [])
+  const [images, setImages] = useState<EntreeImageProduit[]>(
+    product?.images ?? []
+  )
   const [variants, setVariants] = useState<ProductFormVariant[]>(
     product?.variants ?? [emptyVariant()]
   )

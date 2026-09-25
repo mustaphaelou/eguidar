@@ -82,6 +82,11 @@ export type Product = Prisma.ProductModel
  */
 export type ProductVariant = Prisma.ProductVariantModel
 /**
+ * Model BrouillonImageProduit
+ *
+ */
+export type BrouillonImageProduit = Prisma.BrouillonImageProduitModel
+/**
  * Model CartItem
  *
  */

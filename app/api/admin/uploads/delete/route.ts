@@ -26,22 +26,23 @@ export async function DELETE(request: Request) {
   if (!parsed.success)
     return Response.json({ error: "Requête invalide" }, { status: 400 })
 
+  let resultat: Awaited<ReturnType<typeof deleteR2Object>>
   try {
-    const deleted = await deleteR2Object(parsed.data.url)
-    if (!deleted) {
-      return Response.json(
-        { error: "URL non gérée par le stockage R2" },
-        { status: 400 }
-      )
-    }
-    return Response.json({ deleted: true })
-  } catch (error) {
+    resultat = await deleteR2Object(parsed.data.url)
+  } catch {
     return Response.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Échec de la suppression",
-      },
+      { error: "Échec de la suppression de l'image" },
       { status: 500 }
     )
   }
+  if (!resultat.ok) {
+    const status =
+      resultat.erreur.code === "non-configure"
+        ? 503
+        : resultat.erreur.code === "parametre-invalide"
+          ? 400
+          : 500
+    return Response.json({ error: resultat.erreur.message }, { status })
+  }
+  return Response.json({ deleted: true })
 }

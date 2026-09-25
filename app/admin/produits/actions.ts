@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation"
 
+import { galerieImageProduitSchema } from "@/lib/galerie-image-produit"
 import {
   adminFormAction,
   adminTaskAction,
@@ -9,6 +10,7 @@ import {
   parseMoneyField,
   parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   createProduct,
   deleteProduct,
@@ -39,9 +41,20 @@ function parseProductFormData(formData: FormData): ProductInput {
   let images: string[] = []
   let variants: ProductInput["variants"] = []
   try {
-    images = JSON.parse(String(imagesRaw ?? "[]"))
+    const gallery = galerieImageProduitSchema.parse(
+      JSON.parse(String(imagesRaw ?? "[]"))
+    )
+    if (gallery.some((image) => image.kind === "draft")) {
+      throw new UserFacingError(
+        "Les Brouillons d'Image produit seront revendiqués lors de l'enregistrement"
+      )
+    }
+    images = gallery.flatMap((image) =>
+      image.kind === "persisted" ? [image.url] : []
+    )
     variants = JSON.parse(String(variantsRaw ?? "[]"))
-  } catch {
+  } catch (error) {
+    if (error instanceof UserFacingError) throw error
     throw new Error(INVALID_FORM_MESSAGE)
   }
 

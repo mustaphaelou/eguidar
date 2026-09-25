@@ -10,14 +10,31 @@ import Image from "next/image"
 import { useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { cn } from "@/lib/utils"
 
 interface ImageGalleryUploadProps {
-  images: string[]
-  onChange(images: string[]): void
+  images: EntreeImageProduit[]
+  onChange(images: EntreeImageProduit[]): void
 }
 
 const MAX_FILES = 8
+
+type ReponsePresign = {
+  draftId?: unknown
+  uploadUrl?: unknown
+  previewUrl?: unknown
+}
+
+function entryKey(image: EntreeImageProduit): string {
+  return image.kind === "persisted"
+    ? `persisted:${image.url}`
+    : `draft:${image.draftId}`
+}
+
+function imageSource(image: EntreeImageProduit): string {
+  return image.kind === "persisted" ? image.url : image.previewUrl
+}
 
 export function ImageGalleryUpload({
   images,
@@ -32,34 +49,56 @@ export function ImageGalleryUpload({
     setError(null)
     setUploading(true)
     try {
-      const uploaded: string[] = []
+      const uploaded: EntreeImageProduit[] = []
+      const placesRestants = Math.max(0, MAX_FILES - images.length)
       for (const file of Array.from(files)) {
+        if (uploaded.length >= placesRestants) break
         if (!file.type.startsWith("image/")) {
           setError("Seuls les fichiers image sont acceptés")
           continue
         }
+
         const response = await fetch("/api/admin/uploads/presign", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contentType: file.type, size: file.size }),
         })
         if (!response.ok) {
-          const body = (await response.json()) as { error?: string }
-          setError(body.error ?? "Échec de la pré-signature")
+          const body = (await response.json().catch(() => null)) as {
+            error?: string
+          } | null
+          setError(body?.error ?? "Échec de la pré-signature")
           continue
         }
-        const { uploadUrl, publicUrl } = (await response.json()) as {
-          uploadUrl: string
-          publicUrl: string
+
+        const body = (await response
+          .json()
+          .catch(() => null)) as ReponsePresign | null
+        if (
+          !body ||
+          typeof body.draftId !== "string" ||
+          typeof body.uploadUrl !== "string" ||
+          typeof body.previewUrl !== "string"
+        ) {
+          setError("Réponse de téléversement invalide")
+          continue
         }
-        const upload = await fetch(uploadUrl, { method: "PUT", body: file })
+
+        const upload = await fetch(body.uploadUrl, {
+          method: "PUT",
+          body: file,
+        })
         if (!upload.ok) {
           setError("Échec de l'envoi vers le stockage")
           continue
         }
-        uploaded.push(publicUrl)
+        uploaded.push({
+          kind: "draft",
+          draftId: body.draftId,
+          previewUrl: body.previewUrl,
+        })
       }
-      onChange([...images, ...uploaded].slice(0, MAX_FILES))
+      if (uploaded.length > 0) onChange([...images, ...uploaded])
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ""
@@ -74,19 +113,8 @@ export function ImageGalleryUpload({
     onChange(next)
   }
 
-  async function removeImage(index: number) {
-    const image = images[index]
-    if (!image) return
-    const response = await fetch("/api/admin/uploads/delete", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: image }),
-    })
-    if (!response.ok) {
-      const body = (await response.json()) as { error?: string }
-      setError(body.error ?? "Échec de la suppression de l'image")
-      return
-    }
+  function removeImage(index: number) {
+    if (!images[index]) return
     onChange(images.filter((_, i) => i !== index))
   }
 
@@ -94,9 +122,9 @@ export function ImageGalleryUpload({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-3">
         {images.map((image, index) => (
-          <div key={image} className="relative">
+          <div key={entryKey(image)} className="relative">
             <Image
-              src={image}
+              src={imageSource(image)}
               alt=""
               width={96}
               height={96}

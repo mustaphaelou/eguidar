@@ -1,27 +1,151 @@
-import { randomUUID } from "node:crypto"
-
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
-export class R2NotConfiguredError extends Error {
-  constructor() {
-    super("Stockage Cloudflare R2 non configuré")
-    this.name = "R2NotConfiguredError"
-  }
-}
-
 export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
-const EXTENSIONS: Record<string, string> = {
+export const CONTENT_TYPES_IMAGE_PRODUIT = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/gif",
+] as const
+
+export type ContentTypeImageProduit =
+  (typeof CONTENT_TYPES_IMAGE_PRODUIT)[number]
+
+export const PRODUCTS_PREFIX = "products/"
+export const DRAFT_PRODUCTS_PREFIX = `${PRODUCTS_PREFIX}brouillons/`
+
+const EXTENSIONS: Record<ContentTypeImageProduit, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
   "image/avif": ".avif",
   "image/gif": ".gif",
+}
+
+export type CodeEchecStockage =
+  "non-configure" | "parametre-invalide" | "erreur-stockage"
+
+export interface EchecStockageImageProduit {
+  code: CodeEchecStockage
+  message: string
+}
+
+export type ResultatStockageImageProduit<T> =
+  { ok: true; valeur: T } | { ok: false; erreur: EchecStockageImageProduit }
+
+export interface ValeurPresignBrouillon {
+  uploadUrl: string
+  previewUrl: string
+}
+
+export interface ValeurPromotionBrouillon {
+  publicUrl: string
+}
+
+export interface PortStockageImageProduit {
+  presignerBrouillon(input: {
+    draftId: string
+    contentType: string
+    size: number
+  }): Promise<ResultatStockageImageProduit<ValeurPresignBrouillon>>
+  supprimerBrouillon(input: {
+    draftId: string
+    contentType: string
+  }): Promise<ResultatStockageImageProduit<null>>
+  promouvoirBrouillon(input: {
+    draftId: string
+    contentType: string
+  }): Promise<ResultatStockageImageProduit<ValeurPromotionBrouillon>>
+  supprimerImagePromue(input: {
+    draftId: string
+    contentType: string
+  }): Promise<ResultatStockageImageProduit<null>>
+  supprimerImagePersistee(
+    publicUrl: string
+  ): Promise<ResultatStockageImageProduit<null>>
+}
+
+function storageFailure(
+  code: CodeEchecStockage,
+  message: string
+): { ok: false; erreur: EchecStockageImageProduit } {
+  return { ok: false, erreur: { code, message } }
+}
+
+function isContentTypeImageProduit(
+  contentType: string
+): contentType is ContentTypeImageProduit {
+  return CONTENT_TYPES_IMAGE_PRODUIT.includes(
+    contentType as ContentTypeImageProduit
+  )
+}
+
+export function extensionForContentType(contentType: string): string | null {
+  if (!isContentTypeImageProduit(contentType)) return null
+  return EXTENSIONS[contentType]
+}
+
+function isStorageIdentifier(value: string): boolean {
+  return (
+    value.length > 0 && !value.includes("/") && value !== "." && value !== ".."
+  )
+}
+
+function keyForImage(
+  prefix: string,
+  imageId: string,
+  contentType: string
+): string {
+  if (!isStorageIdentifier(imageId)) {
+    throw new Error("Identifiant d'image invalide")
+  }
+  const extension = extensionForContentType(contentType)
+  if (!extension) throw new Error("Type de fichier non pris en charge")
+  return `${prefix}${imageId}${extension}`
+}
+
+export function draftObjectKey(draftId: string, contentType: string): string {
+  return keyForImage(DRAFT_PRODUCTS_PREFIX, draftId, contentType)
+}
+
+export function persistentObjectKey(
+  imageId: string,
+  contentType: string
+): string {
+  return keyForImage(PRODUCTS_PREFIX, imageId, contentType)
+}
+
+export function publicUrlFromKey(
+  key: string,
+  publicBase = process.env.R2_PUBLIC_URL
+): string | null {
+  if (!publicBase) return null
+  const base = publicBase.replace(/\/$/, "")
+  return base ? `${base}/${key}` : null
+}
+
+export function objectKeyFromPublicUrl(
+  publicUrl: string,
+  publicBase = process.env.R2_PUBLIC_URL
+): string | null {
+  if (!publicBase) return null
+  const base = publicBase.replace(/\/$/, "")
+  if (!base || !publicUrl.startsWith(`${base}/`)) return null
+  const encodedKey = publicUrl.slice(base.length + 1)
+  if (!encodedKey) return null
+  try {
+    return decodeURIComponent(encodedKey)
+  } catch {
+    return null
+  }
 }
 
 export function getR2Client() {
@@ -40,55 +164,215 @@ export function getR2Client() {
   return globalForR2.r2
 }
 
-export async function createPresignedUploadUrl(input: {
-  contentType: string
-  size: number
-}): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
-  const client = getR2Client()
-  const bucket = process.env.R2_BUCKET
-  const publicBase = process.env.R2_PUBLIC_URL
-  if (!client || !bucket || !publicBase) throw new R2NotConfiguredError()
+interface ConfigurationR2 {
+  client: S3Client
+  bucket: string
+  publicBase: string | null
+}
 
-  const extension = EXTENSIONS[input.contentType]
-  if (!extension) throw new Error("Type de fichier non pris en charge")
-  if (input.size > MAX_UPLOAD_SIZE)
-    throw new Error("Fichier trop volumineux (10 Mo maximum)")
-
-  const key = `products/${randomUUID()}${extension}`
-  const command = new PutObjectCommand({
-    Bucket: bucket,
-    Key: key,
-    ContentType: input.contentType,
-    ContentLength: input.size,
-  })
-  const uploadUrl = await getSignedUrl(client, command, { expiresIn: 300 })
-
-  return {
-    uploadUrl,
-    publicUrl: `${publicBase.replace(/\/$/, "")}/${key}`,
-    key,
+function configurationR2(): ConfigurationR2 | null {
+  try {
+    const client = getR2Client()
+    const bucket = process.env.R2_BUCKET
+    if (!client || !bucket) return null
+    return { client, bucket, publicBase: process.env.R2_PUBLIC_URL ?? null }
+  } catch {
+    return null
   }
 }
 
-function objectKeyFromPublicUrl(
-  publicUrl: string,
-  publicBase: string
-): string | null {
-  const base = publicBase.replace(/\/$/, "")
-  if (!publicUrl.startsWith(`${base}/`)) return null
-  const key = publicUrl.slice(base.length + 1)
-  return key ? decodeURIComponent(key) : null
+function nonConfigure(): {
+  ok: false
+  erreur: EchecStockageImageProduit
+} {
+  return storageFailure("non-configure", "Stockage Cloudflare R2 non configuré")
 }
 
-export async function deleteR2Object(publicUrl: string): Promise<boolean> {
-  const client = getR2Client()
-  const bucket = process.env.R2_BUCKET
-  const publicBase = process.env.R2_PUBLIC_URL
-  if (!client || !bucket || !publicBase) return false
+function invalidParameter(message: string): {
+  ok: false
+  erreur: EchecStockageImageProduit
+} {
+  return storageFailure("parametre-invalide", message)
+}
 
-  const key = objectKeyFromPublicUrl(publicUrl, publicBase)
-  if (!key) return false
+function storageError(): {
+  ok: false
+  erreur: EchecStockageImageProduit
+} {
+  return storageFailure(
+    "erreur-stockage",
+    "Échec de l'opération de stockage Cloudflare R2"
+  )
+}
 
-  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
-  return true
+export const stockageImageProduitR2: PortStockageImageProduit = {
+  async presignerBrouillon(input) {
+    const configuration = configurationR2()
+    if (!configuration || !configuration.publicBase) return nonConfigure()
+
+    let key: string
+    try {
+      key = draftObjectKey(input.draftId, input.contentType)
+    } catch (error) {
+      return invalidParameter(
+        error instanceof Error
+          ? error.message
+          : "Paramètre de stockage invalide"
+      )
+    }
+    if (
+      !Number.isInteger(input.size) ||
+      input.size <= 0 ||
+      input.size > MAX_UPLOAD_SIZE
+    ) {
+      return invalidParameter(
+        input.size > MAX_UPLOAD_SIZE
+          ? "Fichier trop volumineux (10 Mo maximum)"
+          : "Taille de fichier invalide"
+      )
+    }
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: configuration.bucket,
+        Key: key,
+        ContentType: input.contentType,
+        ContentLength: input.size,
+      })
+      const uploadUrl = await getSignedUrl(configuration.client, command, {
+        expiresIn: 300,
+      })
+      const previewUrl = publicUrlFromKey(key, configuration.publicBase)
+      if (!previewUrl) return nonConfigure()
+      return { ok: true, valeur: { uploadUrl, previewUrl } }
+    } catch {
+      return storageError()
+    }
+  },
+
+  async supprimerBrouillon(input) {
+    const configuration = configurationR2()
+    if (!configuration) return nonConfigure()
+
+    let key: string
+    try {
+      key = draftObjectKey(input.draftId, input.contentType)
+    } catch (error) {
+      return invalidParameter(
+        error instanceof Error
+          ? error.message
+          : "Paramètre de stockage invalide"
+      )
+    }
+
+    try {
+      await configuration.client.send(
+        new DeleteObjectCommand({
+          Bucket: configuration.bucket,
+          Key: key,
+        })
+      )
+      return { ok: true, valeur: null }
+    } catch {
+      return storageError()
+    }
+  },
+
+  async promouvoirBrouillon(input) {
+    const configuration = configurationR2()
+    if (!configuration || !configuration.publicBase) return nonConfigure()
+
+    let sourceKey: string
+    let destinationKey: string
+    try {
+      sourceKey = draftObjectKey(input.draftId, input.contentType)
+      destinationKey = persistentObjectKey(input.draftId, input.contentType)
+    } catch (error) {
+      return invalidParameter(
+        error instanceof Error
+          ? error.message
+          : "Paramètre de stockage invalide"
+      )
+    }
+
+    try {
+      await configuration.client.send(
+        new CopyObjectCommand({
+          Bucket: configuration.bucket,
+          Key: destinationKey,
+          CopySource: encodeURIComponent(
+            `${configuration.bucket}/${sourceKey}`
+          ),
+        })
+      )
+      const publicUrl = publicUrlFromKey(
+        destinationKey,
+        configuration.publicBase
+      )
+      if (!publicUrl) return nonConfigure()
+      return { ok: true, valeur: { publicUrl } }
+    } catch {
+      return storageError()
+    }
+  },
+
+  async supprimerImagePromue(input) {
+    const configuration = configurationR2()
+    if (!configuration) return nonConfigure()
+
+    let key: string
+    try {
+      key = persistentObjectKey(input.draftId, input.contentType)
+    } catch (error) {
+      return invalidParameter(
+        error instanceof Error
+          ? error.message
+          : "Paramètre de stockage invalide"
+      )
+    }
+
+    try {
+      await configuration.client.send(
+        new DeleteObjectCommand({
+          Bucket: configuration.bucket,
+          Key: key,
+        })
+      )
+      return { ok: true, valeur: null }
+    } catch {
+      return storageError()
+    }
+  },
+
+  async supprimerImagePersistee(publicUrl) {
+    const configuration = configurationR2()
+    if (!configuration || !configuration.publicBase) return nonConfigure()
+
+    const key = objectKeyFromPublicUrl(publicUrl, configuration.publicBase)
+    if (
+      !key ||
+      !key.startsWith(PRODUCTS_PREFIX) ||
+      key.startsWith(DRAFT_PRODUCTS_PREFIX)
+    ) {
+      return invalidParameter("URL non gérée par le stockage R2")
+    }
+
+    try {
+      await configuration.client.send(
+        new DeleteObjectCommand({
+          Bucket: configuration.bucket,
+          Key: key,
+        })
+      )
+      return { ok: true, valeur: null }
+    } catch {
+      return storageError()
+    }
+  },
+}
+
+export async function deleteR2Object(
+  publicUrl: string
+): Promise<ResultatStockageImageProduit<null>> {
+  return stockageImageProduitR2.supprimerImagePersistee(publicUrl)
 }
