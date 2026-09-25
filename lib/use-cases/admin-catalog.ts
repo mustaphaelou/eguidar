@@ -55,26 +55,40 @@ export interface CatalogEffects {
   deleteImages(urls: string[]): Promise<void>
 }
 
-const defaultCatalogEffects: CatalogEffects = {
-  reindexProducts: indexProductDocuments,
-  async removeProductFromIndex(productId) {
-    await deleteProductDocument(productId)
-  },
-  revalidateCatalog(product) {
-    invalidateCatalogue(product)
-  },
-  async deleteImages(urls) {
-    for (const url of urls) {
-      try {
-        await deleteR2Object(url)
-      } catch (error) {
-        console.warn(
-          `[catalog] suppression d'image R2 non effectuée pour ${url}`,
-          error
-        )
+function journaliserEchecSuppressionImage(
+  productId: string,
+  url: string,
+  erreur: unknown
+): void {
+  console.warn(
+    `[catalog] suppression d'image R2 non effectuée pour le produit ${productId}, image ${url}`,
+    erreur
+  )
+}
+
+function defaultCatalogEffects(productId?: string): CatalogEffects {
+  const produit = productId ?? "inconnu"
+  return {
+    reindexProducts: indexProductDocuments,
+    async removeProductFromIndex(id) {
+      await deleteProductDocument(id)
+    },
+    revalidateCatalog(product) {
+      invalidateCatalogue(product)
+    },
+    async deleteImages(urls) {
+      for (const url of urls) {
+        try {
+          const resultat = await deleteR2Object(url)
+          if (!resultat.ok) {
+            journaliserEchecSuppressionImage(produit, url, resultat.erreur)
+          }
+        } catch (error) {
+          journaliserEchecSuppressionImage(produit, url, error)
+        }
       }
-    }
-  },
+    },
+  }
 }
 
 export class CatalogValidationError extends UserFacingError {
@@ -241,7 +255,7 @@ export async function createProduct(
   overrides?: Partial<CatalogEffects>,
   revendication?: LiaisonRevendicationImagesProduit
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
+  const effects = avecSurcharges(defaultCatalogEffects(), overrides)
   const data = parseProductInput(input)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -304,7 +318,7 @@ export async function updateProduct(
   overrides?: Partial<CatalogEffects>,
   revendication?: LiaisonRevendicationImagesProduit
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
+  const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -437,7 +451,7 @@ export async function deleteProduct(
   id: string,
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
+  const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
@@ -461,7 +475,7 @@ export async function updateVariantStock(
   stock: number,
   overrides?: Partial<CatalogEffects>
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects, overrides)
+  const effects = avecSurcharges(defaultCatalogEffects(), overrides)
   if (!Number.isInteger(stock) || stock < 0) {
     throw new CatalogValidationError(["le stock doit être positif ou nul"])
   }

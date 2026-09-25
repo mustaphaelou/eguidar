@@ -137,11 +137,13 @@ async function mettreAJour(
   product: Awaited<ReturnType<typeof createProduct>>,
   gallery: readonly GalerieTest[],
   tentativeId: string,
-  categoryIdPourMiseAJour: string = categoryId
+  categoryIdPourMiseAJour: string = categoryId,
+  effects = effetsSilencieux(),
+  ownerPourMiseAJour: string = ownerId
 ) {
   return cycleVie.revendiquerEtEnregistrer({
     tentativeId,
-    ownerId,
+    ownerId: ownerPourMiseAJour,
     draftIds: gallery.flatMap((image) =>
       image.kind === "brouillon" ? [image.draftId] : []
     ),
@@ -152,7 +154,7 @@ async function mettreAJour(
           categoryId: categoryIdPourMiseAJour,
           variants: variantesPersistees(product),
         }),
-        effetsSilencieux(),
+        effects,
         {
           lier: (productId) => lier(productId),
           promues: promoted.map((image) => image.publicUrl),
@@ -248,6 +250,69 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       { draftId: premierDraft.draftId, publicUrl: firstPromotedUrl },
       { draftId: secondDraft.draftId, publicUrl: secondPromotedUrl },
     ])
+  })
+
+  it("ne demande aucune suppression persistée quand un Brouillon d'Image produit échoue avant l'enregistrement", async () => {
+    const product = await createProduct(
+      makeInput([existingImage]),
+      effetsSilencieux()
+    )
+    const environnement = creerCycleVieMemoire()
+    const draft = await demander(environnement.cycleVie)
+    environnement.stockage.failPromotion = true
+    const effects = effetsSilencieux()
+
+    const resultat = await mettreAJour(
+      environnement.cycleVie,
+      product,
+      [
+        { kind: "persistee", url: existingImage },
+        { kind: "brouillon", draftId: draft.draftId },
+      ],
+      "tentative-promotion-échouée",
+      categoryId,
+      effects
+    )
+
+    expect(resultat).toMatchObject({ ok: false, code: "stockage-refuse" })
+    expect(effects.deleteImages).not.toHaveBeenCalled()
+    const unchanged = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    })
+    expect(unchanged.images).toEqual([existingImage])
+  })
+
+  it("ne demande aucune suppression quand un Brouillon d'Image produit n'est jamais revendiqué", async () => {
+    const product = await createProduct(
+      makeInput([existingImage]),
+      effetsSilencieux()
+    )
+    const environnement = creerCycleVieMemoire()
+    const draft = await demander(environnement.cycleVie)
+    const effects = effetsSilencieux()
+
+    const resultat = await mettreAJour(
+      environnement.cycleVie,
+      product,
+      [
+        { kind: "persistee", url: existingImage },
+        { kind: "brouillon", draftId: draft.draftId },
+      ],
+      "tentative-refusée",
+      categoryId,
+      effects,
+      "autre-editeur"
+    )
+
+    expect(resultat).toMatchObject({
+      ok: false,
+      code: "proprietaire-incorrect",
+    })
+    expect(effects.deleteImages).not.toHaveBeenCalled()
+    const unchanged = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    })
+    expect(unchanged.images).toEqual([existingImage])
   })
 
   it("laisse les Brouillons revendicables après un échec et réussit au retry", async () => {
@@ -368,6 +433,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       horloge: { maintenant: () => new Date(dateInitiale) },
     })
     const draft = await demander(cycleVie)
+    const effects = effetsSilencieux()
 
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-rollback",
@@ -382,7 +448,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
               variants: variantesPersistees(product),
             }
           ),
-          effetsSilencieux(),
+          effects,
           {
             lier: async (productId, transaction) => {
               await lier(productId, transaction)
@@ -396,6 +462,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "catalogue-refuse" })
+    expect(effects.deleteImages).not.toHaveBeenCalled()
     const row = await prisma.brouillonImageProduit.findUniqueOrThrow({
       where: { id: draft.draftId },
     })
