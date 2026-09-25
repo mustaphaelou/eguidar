@@ -224,6 +224,9 @@ function refus(
 const MESSAGE_BROUILLON_EXPIRE =
   "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."
 
+const MESSAGE_CONFLIT_REVENDICATION =
+  "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie."
+
 /**
  * « n'est pas vivant » ne dit rien à l'éditeur : un Brouillon déjà libéré
  * n'a qu'à disparaître de la galerie, un Brouillon déjà revendiqué appartient
@@ -289,8 +292,9 @@ function resultatRegistreRefus(
       return refus("proprietaire-incorrect", resultat.message)
     case "expire":
       return refus("brouillon-expire", MESSAGE_BROUILLON_EXPIRE)
-    case "non-vivant":
     case "deja-revendique":
+      return refus("brouillon-non-vivant", MESSAGE_CONFLIT_REVENDICATION)
+    case "non-vivant":
       return refus("brouillon-non-vivant", resultat.message)
   }
 }
@@ -470,6 +474,11 @@ export function creerRegistreBrouillonImageProduitPrisma(
           message: "Ce brouillon ne vous appartient pas",
         }
       }
+      // La rétention limite une nouvelle revendication, pas la résolution
+      // d'une tentative déjà gagnée.
+      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
+        return { ok: true, value: versBrouillon(row) }
+      }
       if (row.expiresAt <= input.now) {
         await marquerExpire(input.id, input.now)
         return {
@@ -477,9 +486,6 @@ export function creerRegistreBrouillonImageProduitPrisma(
           code: "expire",
           message: "Brouillon expiré",
         }
-      }
-      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
-        return { ok: true, value: versBrouillon(row) }
       }
 
       const updated = await prisma.brouillonImageProduit.updateMany({
@@ -512,6 +518,9 @@ export function creerRegistreBrouillonImageProduitPrisma(
           message: "Ce brouillon ne vous appartient pas",
         }
       }
+      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
+        return { ok: true, value: versBrouillon(row) }
+      }
       if (row.expiresAt <= input.now) {
         await marquerExpire(input.id, input.now)
         return {
@@ -519,9 +528,6 @@ export function creerRegistreBrouillonImageProduitPrisma(
           code: "expire",
           message: "Brouillon expiré",
         }
-      }
-      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
-        return { ok: true, value: versBrouillon(row) }
       }
       return {
         ok: false,

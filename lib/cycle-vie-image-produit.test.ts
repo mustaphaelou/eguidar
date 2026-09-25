@@ -403,7 +403,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("rend idempotent un retry de la même tentative", async () => {
-    const { cycleVie, stockage } = creerCycleVieTest()
+    const { cycleVie, stockage, horloge } = creerCycleVieTest()
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/avif",
@@ -451,6 +451,31 @@ describe("CycleVieImageProduit", () => {
       draftIds: [demande.draftId],
       enregistrer,
     })
-    expect(autre).toMatchObject({ ok: false, code: "brouillon-non-vivant" })
+    expect(autre).toEqual({
+      ok: false,
+      code: "brouillon-non-vivant",
+      message:
+        "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie.",
+    })
+
+    horloge.avancer(48 * 60 * 60)
+    const apresExpiration = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      resultatDejaPersiste: async () => "même opération",
+      enregistrer: async () => {
+        appels += 1
+        throw new Error("Le Catalogue ne doit pas créer un second Produit")
+      },
+    })
+    expect(apresExpiration).toMatchObject({
+      ok: true,
+      productId: "produit-1",
+      result: "même opération",
+      images: premier.images,
+    })
+    expect(appels).toBe(1)
+    expect(stockage.promotions).toHaveLength(1)
   })
 })
