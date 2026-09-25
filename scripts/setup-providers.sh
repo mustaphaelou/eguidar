@@ -184,7 +184,7 @@ finish() {
 # Set TOTAL_STAGES to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=2
+TOTAL_STAGES=3
 
 banner "Eguidar provider setup"
 
@@ -243,6 +243,126 @@ note ""
 note "NEXT_PUBLIC_TURNSTILE_SITE_KEY is baked at build time — restart the dev"
 note "server, or rebuild the Docker image (it's a build arg in docker-compose.yml)."
 note "lib/auth.ts enables captcha automatically once TURNSTILE_SECRET_KEY exists."
+
+# ── Stage 3: R2 lifecycle — expiration des Brouillons d'Image produit ─────
+stage "R2 lifecycle (Brouillons d'Image produit)"
+say "Abandoned drafts expire through a Cloudflare R2 lifecycle rule. There is"
+say "no worker and no scheduler: this rule is the only out-of-band expiry, and"
+say "the registry is the only source of truth for a draft's state."
+
+RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+R2_RULES_FILE="$RACINE/infra/regle-cycle-vie-r2.json"
+
+# _r2_value chemin — lit une valeur de l'artefact de cycle de vie versionné.
+_r2_value() {
+  node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    const valeur = process.argv[2].split(".").reduce((noeud, cle) => noeud[cle], artefact)
+    process.stdout.write(String(valeur))
+  ' "$R2_RULES_FILE" "$1"
+}
+
+if [[ ! -f "$R2_RULES_FILE" ]] || ! command -v node >/dev/null 2>&1; then
+  warn "can't read the checked-in lifecycle artifact ($R2_RULES_FILE)"
+  SKIPPED+=("R2 lifecycle rule — apply infra/regle-cycle-vie-r2.json by hand")
+else
+  R2_BUCKET_NAME="$(_r2_value bucket)"
+  R2_RULE_PREFIX="$(_r2_value rules.0.prefix)"
+  R2_RULE_DAYS="$(_r2_value rules.0.expire.days)"
+
+  note ""
+  note "Artifact: infra/regle-cycle-vie-r2.json"
+  note "  bucket : $R2_BUCKET_NAME"
+  note "  prefix : $R2_RULE_PREFIX"
+  note "  expire : delete after $R2_RULE_DAYS day(s)"
+  warn "Exactly one rule, and never an empty prefix: a global rule would"
+  warn "expire the persisted Images produit of the Catalogue."
+  R2_ENV_BUCKET="$(_existing R2_BUCKET || true)"
+  if [[ -n "$R2_ENV_BUCKET" && "$R2_ENV_BUCKET" != "$R2_BUCKET_NAME" ]]; then
+    warn "R2_BUCKET in $ENV_FILE is '$R2_ENV_BUCKET' while the artifact targets"
+    warn "'$R2_BUCKET_NAME' — reconcile the two before applying."
+  fi
+  note ""
+  note "Prefer the dashboard? The same rule is one form there:"
+  open_url "https://dash.cloudflare.com/?to=/:account/r2/buckets/$R2_BUCKET_NAME/settings"
+  step "Settings → Object lifecycle → Add rule, with the prefix and delay above."
+
+  step "Create a Cloudflare API token with 'Workers R2 Storage: Edit' for this"
+  step "account (My Profile → API Tokens → Create Token). It is stored only in"
+  step "$ENV_FILE and never leaves this machine."
+  ask_secret CLOUDFLARE_API_TOKEN "Paste the API token:"
+  _save CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
+  ask R2_ACCOUNT_ID "Cloudflare account ID:"
+  _save R2_ACCOUNT_ID "$R2_ACCOUNT_ID"
+
+  R2_LIFECYCLE_URL="https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buckets/$R2_BUCKET_NAME/lifecycle"
+
+  # _r2_apply — the PUT replaces the whole rule set, so re-running converges to
+  # the artifact instead of stacking rules. That is what makes the stage idempotent.
+  _r2_apply() {
+    local corps
+    corps="$(node -e '
+      const fs = require("node:fs")
+      const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+      process.stdout.write(JSON.stringify({ rules: artefact.rules }))
+    ' "$R2_RULES_FILE")"
+    curl -sS -X PUT "$R2_LIFECYCLE_URL" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary "$corps"
+  }
+
+  # _r2_verify — compare the live rules with the artifact. The rule is
+  # provider-side configuration, so it gets verified rather than assumed.
+  _r2_verify() {
+    local vivant
+    vivant="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      "$R2_LIFECYCLE_URL")" || {
+      warn "could not read the live lifecycle — check the token and R2_ACCOUNT_ID"
+      return 1
+    }
+    printf '%s' "$vivant" | node -e '
+      const fs = require("node:fs")
+      const attendu = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).rules
+      const lu = JSON.parse(fs.readFileSync(0, "utf8"))
+      const observe = (lu.result ?? lu).rules ?? null
+      if (JSON.stringify(attendu) === JSON.stringify(observe)) {
+        console.log("  live rules match the artifact")
+      } else {
+        console.log("  live rules differ from the artifact")
+        console.log("  expected: " + JSON.stringify(attendu))
+        console.log("  observed: " + JSON.stringify(observe))
+        process.exitCode = 1
+      }
+    ' "$R2_RULES_FILE"
+  }
+
+  if [[ -z "$R2_ACCOUNT_ID" || -z "$CLOUDFLARE_API_TOKEN" ]]; then
+    warn "no R2_ACCOUNT_ID or CLOUDFLARE_API_TOKEN — the rule cannot be applied"
+    warn "or verified here; add the rule from the dashboard instead"
+    SKIPPED+=("R2 lifecycle rule (needs R2_ACCOUNT_ID and CLOUDFLARE_API_TOKEN)")
+  elif ! command -v curl >/dev/null 2>&1; then
+    warn "curl is missing — apply the rule from the dashboard instead"
+    SKIPPED+=("R2 lifecycle rule verification (no curl)")
+  elif confirm "Apply the rule to bucket $R2_BUCKET_NAME now?"; then
+    _r2_apply || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+    pause "Press Enter to verify the live rules against the artifact."
+    if _r2_verify; then
+      printf '  %s✓ R2 lifecycle rule applied and verified%s\n' "$GREEN" "$RESET"
+    else
+      warn "live configuration still differs from the artifact"
+      SKIPPED+=("R2 lifecycle rule verification")
+    fi
+  else
+    SKIPPED+=("R2 lifecycle rule not applied — re-run this stage")
+  fi
+  note ""
+  note "The rule must carry the same retention as RETENTION_BROUILLON_IMAGE_PRODUIT_H"
+  note "(24 h by default). A shorter rule deletes the file of a draft the"
+  note "application still considers claimable; a longer one only leaves orphan"
+  note "bytes behind, because the registry refuses the claim either way."
+fi
 # ──────────────────────────────────────────────────────────────────────────
 
 finish

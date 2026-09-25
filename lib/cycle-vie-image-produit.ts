@@ -172,7 +172,12 @@ export interface CycleVieImageProduit {
   lireBrouillon(id: string): Promise<BrouillonImageProduit | null>
 }
 
-const RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT = 24
+/**
+ * Rétention initiale d'un Brouillon d'Image produit abandonné, en heures.
+ * Exportée parce que la règle de cycle de vie R2 doit porter la même valeur
+ * (ADR-0004) : `infra/regle-cycle-vie-r2.ts` en dérive ses jours.
+ */
+export const RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT = 24
 
 function retentionBrouillonImageProduitHeures(): number {
   const valeur = process.env.RETENTION_BROUILLON_IMAGE_PRODUIT_H
@@ -189,6 +194,14 @@ function refus(
 ): RefusCycleVieImageProduit {
   return { ok: false, code, message }
 }
+
+/**
+ * Refus honnête : au-delà de la rétention, l'objet peut déjà avoir été
+ * supprimé par la règle de cycle de vie R2, donc la seule issue est un
+ * nouveau téléversement. Aucun nettoyage n'est tenté ici.
+ */
+const MESSAGE_BROUILLON_EXPIRE =
+  "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."
 
 function refusStockage(
   resultat: Extract<ResultatStockageImageProduit<unknown>, { ok: false }>
@@ -239,7 +252,7 @@ function resultatRegistreRefus(
     case "proprietaire-incorrect":
       return refus("proprietaire-incorrect", resultat.message)
     case "expire":
-      return refus("brouillon-expire", resultat.message)
+      return refus("brouillon-expire", MESSAGE_BROUILLON_EXPIRE)
     case "non-vivant":
     case "deja-revendique":
       return refus("brouillon-non-vivant", resultat.message)
@@ -285,8 +298,35 @@ const selectionBrouillon = {
   productId: true,
 } as const
 
-export const registreBrouillonImageProduitPrisma: PortRegistreBrouillonImageProduit =
-  {
+const horlogeSysteme: Horloge = {
+  maintenant: () => new Date(),
+}
+
+/**
+ * Registre durable. L'état `expiré` est écrit à la demande, à partir de
+ * l'horloge injectée : aucun balayeur, aucune file, aucun planificateur. Une
+ * lecture, une tentative de revendication ou de libération d'un Brouillon dont
+ * `expiresAt` est passé suffit à résoudre puis à persister l'état, pour que le
+ * support puisse l'expliquer sans passer par R2.
+ */
+export function creerRegistreBrouillonImageProduitPrisma(
+  horloge: Horloge
+): PortRegistreBrouillonImageProduit {
+  async function marquerExpire(id: string, now: Date): Promise<void> {
+    try {
+      await prisma.brouillonImageProduit.updateMany({
+        where: { id, state: "vivant", expiresAt: { lte: now } },
+        data: { state: "expiré" },
+      })
+    } catch (error) {
+      console.warn(
+        `[brouillon-image-produit] état expiré non écrit pour ${id}`,
+        error
+      )
+    }
+  }
+
+  return {
     async creer(input) {
       const row = await prisma.brouillonImageProduit.create({
         data: {
@@ -307,11 +347,17 @@ export const registreBrouillonImageProduitPrisma: PortRegistreBrouillonImageProd
     },
 
     async lire(id) {
+      const now = horloge.maintenant()
       const row = await prisma.brouillonImageProduit.findUnique({
         where: { id },
         select: selectionBrouillon,
       })
-      return row ? versBrouillon(row) : null
+      if (!row) return null
+      if (row.state === "vivant" && row.expiresAt <= now) {
+        await marquerExpire(id, now)
+        return { ...versBrouillon(row), state: "expiré" }
+      }
+      return versBrouillon(row)
     },
 
     async revendiquer(input) {
@@ -352,10 +398,11 @@ export const registreBrouillonImageProduitPrisma: PortRegistreBrouillonImageProd
         }
       }
       if (row.expiresAt <= input.now) {
+        await marquerExpire(input.id, input.now)
         return {
           ok: false,
           code: "expire",
-          message: "Ce brouillon a expiré",
+          message: "Brouillon expiré",
         }
       }
       return {
@@ -388,17 +435,25 @@ export const registreBrouillonImageProduitPrisma: PortRegistreBrouillonImageProd
     },
 
     async marquerLibere(input) {
+      const now = horloge.maintenant()
       const updated = await prisma.brouillonImageProduit.updateMany({
-        where: { id: input.id, ownerId: input.ownerId, state: "vivant" },
+        where: {
+          id: input.id,
+          ownerId: input.ownerId,
+          state: "vivant",
+          expiresAt: { gt: now },
+        },
         data: { state: "libéré" },
       })
-      return updated.count === 1
+      if (updated.count === 1) return true
+      await marquerExpire(input.id, now)
+      return false
     },
   }
-
-const horlogeSysteme: Horloge = {
-  maintenant: () => new Date(),
 }
+
+export const registreBrouillonImageProduitPrisma =
+  creerRegistreBrouillonImageProduitPrisma(horlogeSysteme)
 
 export interface DependancesCycleVieImageProduit {
   stockage: PortStockageImageProduit
@@ -476,7 +531,7 @@ export function creerCycleVieImageProduit(
 
     const now = horloge.maintenant()
     if (now >= draft.expiresAt) {
-      return refus("brouillon-expire", "Ce brouillon a expiré")
+      return refus("brouillon-expire", MESSAGE_BROUILLON_EXPIRE)
     }
     if (draft.state !== "vivant") {
       return refus("brouillon-non-vivant", "Ce brouillon n'est pas vivant")

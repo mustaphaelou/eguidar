@@ -1,0 +1,11 @@
+{
+  "bucket": "eguidar",
+  "rules": [
+    {
+      "id": "brouillons-image-produit",
+      "enabled": true,
+      "prefix": "products/brouillons/",
+      "expire": { "days": 1 }
+    }
+  ]
+}
