@@ -11,10 +11,8 @@ vi.mock("next/image", () => ({
   ),
 }))
 
-import {
-  ImageGalleryUpload,
-  type EntreeImageProduitFormulaire,
-} from "@/components/admin/image-gallery-upload"
+import { ImageGalleryUpload } from "@/components/admin/image-gallery-upload"
+import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true

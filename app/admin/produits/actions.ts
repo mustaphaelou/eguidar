@@ -7,6 +7,7 @@ import { redirect } from "next/navigation"
 import cycleVieImageProduit, {
   type ImageProduitPromue,
 } from "@/lib/cycle-vie-image-produit"
+import { specificationsDepuisTexte } from "@/lib/formulaire-produit"
 import {
   galerieImageProduitSchema,
   type EntreeImageProduit,
@@ -28,26 +29,17 @@ import {
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 
-function parseSpecsText(text: string): Record<string, string> {
-  const specs: Record<string, string> = {}
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    const colon = trimmed.indexOf(":")
-    if (colon <= 0)
-      throw new Error(
-        "Format de spécifications invalide (clé : valeur par ligne)"
-      )
-    specs[trimmed.slice(0, colon).trim()] = trimmed.slice(colon + 1).trim()
-  }
-  return specs
-}
-
 interface ProductFormInput extends Omit<ProductInput, "images"> {
   images: EntreeImageProduit[]
   tentativeId: string
 }
 
+/**
+ * Le `FormData` soumis devient l'entrée de la mutation. Le langage du champ
+ * Spécifications — sa lecture ligne à ligne — appartient à
+ * `@/lib/formulaire-produit`, seul propriétaire du format ; il est appelé
+ * ici, jamais recopié.
+ */
 function parseProductFormData(formData: FormData): ProductFormInput {
   const imagesRaw = formData.get("images")
   const variantsRaw = formData.get("variants")
@@ -74,7 +66,7 @@ function parseProductFormData(formData: FormData): ProductFormInput {
     isFeatured: formData.get("isFeatured") === "on",
     featuredOrder: Number(formData.get("featuredOrder") ?? 0) || 0,
     freeShipping: formData.get("freeShipping") === "on",
-    specs: parseSpecsText(String(formData.get("specsText") ?? "")),
+    specs: specificationsDepuisTexte(String(formData.get("specsText") ?? "")),
     images,
     variants,
     tentativeId:

@@ -13,9 +13,9 @@ vi.mock("next/image", () => ({
 
 import {
   ProductForm,
-  type ProductFormInitial,
   type ProductFormState,
 } from "@/components/admin/product-form"
+import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -35,7 +35,7 @@ function unmount(root: ReturnType<typeof createRoot>) {
   if (index >= 0) roots.splice(index, 1)
 }
 
-function initialProduct(): ProductFormInitial {
+function initialProduct(): FaitsFormulaireProduit {
   return {
     id: "produit-1",
     name: "Produit",
