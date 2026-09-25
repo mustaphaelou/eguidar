@@ -1,11 +1,32 @@
 import { z } from "zod"
 
-import { deleteR2Object } from "@/lib/r2"
+import cycleVieImageProduit, {
+  type CodeRefusCycleVieImageProduit,
+} from "@/lib/cycle-vie-image-produit"
 import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
 
-const deleteSchema = z.object({
-  url: z.string().min(1),
-})
+const relacherSchema = z
+  .object({
+    draftId: z.string().min(1),
+  })
+  .strict()
+
+const STATUTS_REFUS: Record<CodeRefusCycleVieImageProduit, number> = {
+  "identifiant-proprietaire-invalide": 400,
+  "metadata-invalide": 400,
+  "mime-non-autorise": 400,
+  "taille-invalide": 400,
+  "trop-volumineux": 400,
+  "stockage-indisponible": 503,
+  "stockage-refuse": 502,
+  "registre-indisponible": 500,
+  "brouillon-introuvable": 404,
+  "proprietaire-incorrect": 403,
+  "brouillon-non-vivant": 409,
+  "brouillon-expire": 410,
+  "revendication-refusee": 409,
+  "catalogue-refuse": 409,
+}
 
 export async function DELETE(request: Request) {
   const client = await lireSession()
@@ -22,27 +43,27 @@ export async function DELETE(request: Request) {
     )
   }
 
-  const parsed = deleteSchema.safeParse(body)
+  const parsed = relacherSchema.safeParse(body)
   if (!parsed.success)
     return Response.json({ error: "Requête invalide" }, { status: 400 })
 
-  let resultat: Awaited<ReturnType<typeof deleteR2Object>>
   try {
-    resultat = await deleteR2Object(parsed.data.url)
+    const resultat = await cycleVieImageProduit.relacherBrouillon({
+      draftId: parsed.data.draftId,
+      ownerId: client.id,
+    })
+    if (!resultat.ok) {
+      return Response.json(
+        { error: resultat.message },
+        { status: STATUTS_REFUS[resultat.code] }
+      )
+    }
+
+    return Response.json({ released: true, draftId: resultat.draftId })
   } catch {
     return Response.json(
-      { error: "Échec de la suppression de l'image" },
+      { error: "Échec de la libération du Brouillon d'Image produit" },
       { status: 500 }
     )
   }
-  if (!resultat.ok) {
-    const status =
-      resultat.erreur.code === "non-configure"
-        ? 503
-        : resultat.erreur.code === "parametre-invalide"
-          ? 400
-          : 500
-    return Response.json({ error: resultat.erreur.message }, { status })
-  }
-  return Response.json({ deleted: true })
 }

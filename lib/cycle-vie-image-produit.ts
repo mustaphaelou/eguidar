@@ -623,12 +623,27 @@ export function creerCycleVieImageProduit(
     draftId: string
     ownerId: string
   }): Promise<ResultatRelacherBrouillonImageProduit> {
-    const draft = await registre.lire(input.draftId)
-    if (!draft) return refus("brouillon-introuvable", "Brouillon introuvable")
+    const messageSuppressionImpossible =
+      "Le Brouillon d'Image produit a été libéré, mais son objet n'a pas pu être supprimé du stockage pour le moment. Il sera récupéré automatiquement par la règle de cycle de vie R2."
+    let draft: BrouillonImageProduit | null
+    try {
+      draft = await registre.lire(input.draftId)
+    } catch {
+      return refus(
+        "registre-indisponible",
+        "Registre des Brouillons indisponible"
+      )
+    }
+    if (!draft) {
+      return refus(
+        "brouillon-introuvable",
+        "Brouillon d'Image produit introuvable"
+      )
+    }
     if (draft.ownerId !== input.ownerId) {
       return refus(
         "proprietaire-incorrect",
-        "Ce brouillon ne vous appartient pas"
+        "Ce Brouillon d'Image produit ne vous appartient pas"
       )
     }
 
@@ -637,7 +652,35 @@ export function creerCycleVieImageProduit(
       return refus("brouillon-expire", MESSAGE_BROUILLON_EXPIRE)
     }
     if (draft.state !== "vivant") {
-      return refus("brouillon-non-vivant", "Ce brouillon n'est pas vivant")
+      return refus(
+        "brouillon-non-vivant",
+        "Ce Brouillon d'Image produit n'est pas vivant"
+      )
+    }
+
+    /**
+     * La libération est terminale : marquer d'abord le Brouillon d'Image
+     * produit empêche de revendiquer un objet absent. Si la suppression échoue
+     * ensuite, l'orphelin reste dans l'espace réservé `products/brouillons/`
+     * et sera récupéré par la règle de cycle de vie R2 ; aucun second nettoyage
+     * n'est ajouté ici.
+     */
+    try {
+      const marked = await registre.marquerLibere({
+        id: draft.id,
+        ownerId: input.ownerId,
+      })
+      if (!marked) {
+        return refus(
+          "brouillon-non-vivant",
+          "Ce Brouillon d'Image produit n'est pas vivant"
+        )
+      }
+    } catch {
+      return refus(
+        "registre-indisponible",
+        "Registre des Brouillons indisponible"
+      )
     }
 
     let suppression: ResultatStockageImageProduit<null>
@@ -647,22 +690,14 @@ export function creerCycleVieImageProduit(
         contentType: draft.mimeType,
       })
     } catch {
-      return refus("stockage-refuse", "Échec de la libération du brouillon")
+      return refus("stockage-refuse", messageSuppressionImpossible)
     }
-    if (!suppression.ok) return refusStockage(suppression)
-
-    try {
-      const marked = await registre.marquerLibere({
-        id: draft.id,
-        ownerId: input.ownerId,
-      })
-      if (!marked) {
-        return refus("brouillon-non-vivant", "Ce brouillon n'est pas vivant")
-      }
-    } catch {
+    if (!suppression.ok) {
       return refus(
-        "registre-indisponible",
-        "Registre des Brouillons indisponible"
+        suppression.erreur.code === "non-configure"
+          ? "stockage-indisponible"
+          : "stockage-refuse",
+        messageSuppressionImpossible
       )
     }
 
