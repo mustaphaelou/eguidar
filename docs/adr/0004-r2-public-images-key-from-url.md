@@ -16,7 +16,7 @@ Ce module ne dicte pas l'identite du domaine : il fixe la **forme** que doit avo
 | Identite posee | un identifiant opaque, jamais une URL | l'URL publique persistee |
 | Espace R2 | `products/brouillons/` (reserve) | `products/` (existant) |
 | Expiration | oui, apres la retention configuree | non |
-| Suppression | avant commit, explicite, signalee a l'editeur | apres commit, en best-effort |
+| Suppression | avant commit, explicite, signalee a l'editeur ; apres commit, l'objet source est libere en best-effort | apres commit, en best-effort |
 
 ### Le registre durable
 
@@ -33,6 +33,8 @@ Aucun file, aucun worker, aucun planificateur generique. Une **regle de cycle de
 ### La promotion, et son idempotence
 
 Un brouillon n'est jamais enregistre tel quel. La **promotion** copie l'objet de `products/brouillons/<id><ext>` vers `products/<id><ext>`, l'identifiant etant conserve. La cle persistante est donc une **fonction pure de l'identifiant du brouillon**, et la promotion est **idempotente** : un nouvel essai resout vers le meme fait persistant, il ne cree jamais une seconde identite publique. Le **Produit** enregistre les URL publiques permanentes issues de la promotion, jamais l'URL du brouillon.
+
+Puisque la promotion est une copie, l'objet source n'a plus besoin que le commit du **Produit** soit ecrit : il est alors libere en best-effort, une seule fois, sur ce chemin de reussite — jamais sur un chemin de compensation, ou le brouillon doit rester revendicable. Un echec de cette liberation ne remet pas l'enregistrement en cause ; la regle de cycle de vie R2 sur le prefixe reserve couvre ce qui reste.
 
 ### La revendication, et la premiere qui gagne
 

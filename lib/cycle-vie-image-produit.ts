@@ -906,6 +906,9 @@ export function creerCycleVieImageProduit(
         const productId = [...productIds][0]
         try {
           const result = await input.resultatDejaPersiste(productId)
+          // Le commit est déjà durable (les Brouillons sont liés) : on
+          // profite du retry pour achever une libération best-effort manquée.
+          await libererSources()
           return {
             ok: true,
             productId,
@@ -936,6 +939,27 @@ export function creerCycleVieImageProduit(
             })
             .catch(() => undefined)
         )
+      )
+    }
+
+    // La promotion est une copie : une fois le commit Catalogue écrit, la
+    // source du Brouillon (`products/brouillons/`) ne sert plus à personne.
+    // On ne la libère qu'après ce commit, en best-effort, et jamais sur un
+    // chemin de compensation — le Brouillon y doit rester revendicable.
+    // Un 404 (déjà nettoyé) ou une panne transitoire ne remet pas pour autant
+    // l'enregistrement en cause ; la règle de cycle de vie R2 couvre le reste.
+    async function libererSources(): Promise<void> {
+      await Promise.all(
+        draftIds.map(async (draftId) => {
+          try {
+            await stockage.supprimerBrouillon({
+              draftId,
+              contentType: mimeParBrouillon.get(draftId) ?? "",
+            })
+          } catch {
+            // Best-effort : déjà nettoyé (404) ou panne transitoire.
+          }
+        })
       )
     }
 
@@ -1012,6 +1036,11 @@ export function creerCycleVieImageProduit(
           : "L'enregistrement du Catalogue a échoué"
       )
     }
+
+    // Le commit Catalogue est écrit : la source du Brouillon est libérée ici,
+    // une seule fois, sur ce chemin de réussite seulement — jamais pendant
+    // une compensation (cf. `libererSources`).
+    await libererSources()
 
     return {
       ok: true,

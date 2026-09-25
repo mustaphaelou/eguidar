@@ -114,7 +114,12 @@ describe("abandon d'une édition d'un Produit", () => {
     expect(produit.images).toEqual(urlsPersistees)
     expect(objetsPersistants).toEqual(new Set(urlsPersistees))
     expect(stockage.deletedPersisted).toEqual([])
-    expect(stockage.deletedDrafts).toEqual([])
+    // Le commit a libéré la source des deux Brouillons enregistrés ; celle du
+    // Brouillon abandonné, jamais commité, reste intacte.
+    expect(stockage.deletedDrafts).toEqual([
+      premiereDemande.draftId,
+      secondeDemande.draftId,
+    ])
     expect(stockage.deletedPromoted).toEqual([])
     for (const [index, demande] of [
       premiereDemande,

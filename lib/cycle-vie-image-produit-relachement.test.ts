@@ -166,7 +166,9 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       ok: false,
       code: "brouillon-non-vivant",
     })
-    expect(stockage.deletedDrafts).toEqual([])
+    // La source a été libérée par le commit réussi, pas par ce refus ; ni la
+    // promotion ni l'Image persistée n'ont été touchées.
+    expect(stockage.deletedDrafts).toEqual([demande.draftId])
     expect(stockage.deletedPromoted).toEqual([])
     expect(stockage.deletedPersisted).toEqual([])
   })

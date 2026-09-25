@@ -291,6 +291,44 @@ describe("CycleVieImageProduit", () => {
     })
   })
 
+  it("à l'enregistrement réussi, ne confie que l'URL publique persistée et libère la source du Brouillon", async () => {
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/webp",
+      size: 2048,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    let galerieEnregistree: string[] = []
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async (images, lier) => {
+        await lier("produit-1")
+        galerieEnregistree = images.map((image) => image.publicUrl)
+        return { productId: "produit-1", result: galerieEnregistree }
+      },
+    })
+
+    expect(resultat.ok).toBe(true)
+    // Le Catalogue ne reçoit que la clé persistée issue de la promotion,
+    // jamais l'URL du Brouillon.
+    expect(galerieEnregistree).toEqual([`memoire://image/${demande.draftId}`])
+    expect(galerieEnregistree).not.toContain(
+      `memoire://preview/${demande.draftId}`
+    )
+    // La source de `products/brouillons/` est libérée après le commit : copiée,
+    // elle n'est plus nécessaire à personne (spec #406, décisions de test).
+    expect(stockage.deletedDrafts).toEqual([demande.draftId])
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      productId: "produit-1",
+      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+    })
+  })
+
   it("refuse un Brouillon absent ou appartenant à un autre éditeur", async () => {
     const { cycleVie, registre } = creerCycleVieTest()
     const demande = await cycleVie.demanderBrouillon({
@@ -383,6 +421,9 @@ describe("CycleVieImageProduit", () => {
       message: "L'enregistrement du Catalogue a échoué",
     })
     expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    // La compensation défait la promotion mais laisse la source du Brouillon :
+    // le retry en a encore besoin.
+    expect(stockage.deletedDrafts).toEqual([])
     expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
 
     const retry = await cycleVie.revendiquerEtEnregistrer({
@@ -405,6 +446,9 @@ describe("CycleVieImageProduit", () => {
       ],
     })
     expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    // Le retry a fini ce que la première tentative n'avait pas le droit de
+    // faire : libérer la source une fois le commit écrit.
+    expect(stockage.deletedDrafts).toEqual([demande.draftId])
   })
 
   it("remonte le message d'une erreur du Catalogue orientée utilisateur, compensation faite", async () => {
