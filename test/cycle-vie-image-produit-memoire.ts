@@ -173,7 +173,11 @@ export function creerRegistreImageProduitMemoire(
       }
       if (brouillon.state !== "vivant" || brouillon.tentativeId !== null) {
         return refusRegistre(
-          brouillon.state === "revendiqué" ? "deja-revendique" : "non-vivant",
+          brouillon.state === "revendiqué"
+            ? "deja-revendique"
+            : brouillon.state === "libéré"
+              ? "deja-libere"
+              : "non-vivant",
           brouillon.state === "revendiqué"
             ? "Ce brouillon a déjà été revendiqué"
             : "Ce brouillon n'est pas vivant"
