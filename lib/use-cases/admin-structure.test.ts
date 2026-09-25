@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 
+import { revalidatePath } from "next/cache"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
@@ -374,10 +375,14 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("delete-empty") })
     )
 
-    await deleteCategory(category.id, {
-      revalidateCategories,
-      reindexProducts,
-    })
+    await deleteCategory(
+      category.id,
+      {},
+      {
+        revalidateCategories,
+        reindexProducts,
+      }
+    )
 
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
@@ -392,7 +397,7 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("del-img") })
     )
 
-    await deleteCategory(category.id, { deleteImage })
+    await deleteCategory(category.id, {}, { deleteImage })
 
     expect(deleteImage).toHaveBeenCalledOnce()
     expect(deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
@@ -404,9 +409,30 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("del-no-img"), image: null })
     )
 
-    await deleteCategory(category.id, { deleteImage })
+    await deleteCategory(category.id, {}, { deleteImage })
 
     expect(deleteImage).not.toHaveBeenCalled()
+  })
+
+  it("supprime avec les effets par défaut quand aucune surcharge n'est fournie", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-default") })
+    )
+    sendMock.mockClear()
+    vi.mocked(revalidatePath).mockClear()
+
+    // Nouvelle forme d'appel : les options métier sont en second rang avec
+    // leur défaut, la couture d'effets reste en dernier — aucun `undefined`
+    // pont n'est nécessaire pour appeler la suppression.
+    await deleteCategory(category.id)
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+    // L'effet d'image par défaut part par l'adaptateur R2 réel…
+    expect(sendMock).toHaveBeenCalledOnce()
+    // …et l'invalidation de cache par défaut aussi.
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/categories")
   })
 
   it("blocks deletion of a category that still has children", async () => {
@@ -477,8 +503,8 @@ describe("admin structure mutations — categories", () => {
 
     await deleteCategory(
       category.id,
-      { reindexProducts, revalidateCategories },
-      { reassignToCategoryId: target.id }
+      { reassignToCategoryId: target.id },
+      { reindexProducts, revalidateCategories }
     )
 
     await expect(
@@ -554,8 +580,8 @@ describe("admin structure mutations — categories", () => {
     // finale se bloque sur le verrou de clé étrangère de la transaction tierce.
     const suppression = deleteCategory(
       category.id,
-      { reindexProducts, revalidateCategories, deleteImage },
-      { reassignToCategoryId: target.id }
+      { reassignToCategoryId: target.id },
+      { reindexProducts, revalidateCategories, deleteImage }
     )
     suppression.catch(() => {})
     await new Promise((resolve) => setTimeout(resolve, 400))
@@ -611,8 +637,8 @@ describe("admin structure mutations — categories", () => {
     await verifierRefusValidation(CategoryValidationError, () =>
       deleteCategory(
         category.id,
-        { reindexProducts, revalidateCategories, deleteImage },
-        { reassignToCategoryId: category.id }
+        { reassignToCategoryId: category.id },
+        { reindexProducts, revalidateCategories, deleteImage }
       )
     )
 
@@ -665,8 +691,8 @@ describe("admin structure mutations — categories", () => {
     await verifierRefusValidation(CategoryValidationError, () =>
       deleteCategory(
         category.id,
-        { reindexProducts, revalidateCategories, deleteImage },
-        { reassignToCategoryId: "unknown" }
+        { reassignToCategoryId: "unknown" },
+        { reindexProducts, revalidateCategories, deleteImage }
       )
     )
 
