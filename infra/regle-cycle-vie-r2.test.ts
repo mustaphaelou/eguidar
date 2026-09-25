@@ -36,7 +36,11 @@ describe("règle de cycle de vie R2 des Brouillons d'Image produit", () => {
   it("porte une seule règle, un seul filtre de préfixe et une action d'expiration", () => {
     const artefact = lireArtefact()
 
-    expect(artefact.bucket).toBe("eguidar")
+    // Pas de pin sur la valeur du bucket : la source de vérité est
+    // `R2_BUCKET` (module `infra/regle-cycle-vie-r2.ts`), et la réconciliation
+    // « artefact versionné == bucket de l'application » est l'arrêt auquel se
+    // broche `scripts/setup-providers.sh` avant d'écrire. Épingler "eguidar"
+    // ici rendait vert impossible dès que le bucket n'était pas le par défaut.
     expect(artefact.rules).toHaveLength(1)
     const [regle, ...autres] = artefact.rules
     expect(autres).toEqual([])
