@@ -50,14 +50,14 @@ module Carte produit, et c'est lui que ce travail étend.
   deux faits. Elle n'est pas confondue avec la lecture à compteurs du module Structure, qui sert les
   écrans de catégories.
 
-- **Un module neutre unique possède la langue du formulaire Produit.** C'est le seul module neuf de ce
-  travail. Il possède le type de fait du formulaire — déclaré une fois, plus jamais par les props d'un
-  module de rendu —, le langage des spécifications **dans les deux directions** (enregistrement vers
-  texte pour la valeur par défaut du champ, texte vers enregistrement pour une soumission), la paire
-  d'affichage et de lecture de l'écart de prix (dirhams à l'écran, centimes stockés, avec le repli sur
-  zéro d'un écart illisible), et **tout le format de transport**, du `FormData` soumis jusqu'à l'entrée
-  de la mutation : le JSON caché, les deux encodages monétaires, la convention de case à cocher, le
-  champ d'ordre et le champ d'identification.
+- **Un module neutre unique possède la langue du formulaire Produit**, `lib/formulaire-produit.ts`. C'est
+  le seul module neuf de ce travail. Il possède le type de fait du formulaire — déclaré une fois, plus
+  jamais par les props d'un module de rendu —, le langage des spécifications **dans les deux
+  directions** (enregistrement vers texte pour la valeur par défaut du champ, texte vers enregistrement
+  pour une soumission), la paire d'affichage et de lecture de l'écart de prix (dirhams à l'écran,
+  centimes stockés, avec le repli sur zéro d'un écart illisible), et **tout le format de transport**, du
+  `FormData` soumis jusqu'à l'entrée de la mutation : le JSON caché, les deux encodages monétaires, la
+  convention de case à cocher, le champ d'ordre et le champ d'identification.
 
 - **Le module neutre n'atteint ni base de données, ni module serveur, ni directive client.** Il est
   importé par un module de rendu client — `components/admin/product-form.tsx` — comme par le code
