@@ -42,6 +42,7 @@ export function ImageGalleryUpload({
 }: ImageGalleryUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [releasingDraftId, setReleasingDraftId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleFiles(files: FileList | null) {
@@ -113,9 +114,47 @@ export function ImageGalleryUpload({
     onChange(next)
   }
 
+  async function relacherBrouillon(draftId: string) {
+    if (releasingDraftId !== null) return
+    setError(null)
+    setReleasingDraftId(draftId)
+    try {
+      const response = await fetch("/api/admin/uploads/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId }),
+      })
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: unknown
+        } | null
+        setError(
+          typeof body?.error === "string"
+            ? body.error
+            : "Échec de la libération du Brouillon d'Image produit"
+        )
+        return
+      }
+      onChange(
+        images.filter(
+          (image) => image.kind !== "brouillon" || image.draftId !== draftId
+        )
+      )
+    } catch {
+      setError("Échec de la libération du Brouillon d'Image produit")
+    } finally {
+      setReleasingDraftId(null)
+    }
+  }
+
   function removeImage(index: number) {
-    if (!images[index]) return
-    onChange(images.filter((_, i) => i !== index))
+    const image = images[index]
+    if (!image) return
+    if (image.kind === "persistee") {
+      onChange(images.filter((_, i) => i !== index))
+      return
+    }
+    void relacherBrouillon(image.draftId)
   }
 
   return (
@@ -138,7 +177,7 @@ export function ImageGalleryUpload({
                 type="button"
                 size="icon-xs"
                 variant="secondary"
-                disabled={index === 0}
+                disabled={index === 0 || releasingDraftId !== null}
                 onClick={() => move(index, -1)}
                 aria-label="Déplacer avant"
               >
@@ -148,7 +187,9 @@ export function ImageGalleryUpload({
                 type="button"
                 size="icon-xs"
                 variant="secondary"
-                disabled={index === images.length - 1}
+                disabled={
+                  index === images.length - 1 || releasingDraftId !== null
+                }
                 onClick={() => move(index, 1)}
                 aria-label="Déplacer après"
               >
@@ -158,8 +199,19 @@ export function ImageGalleryUpload({
                 type="button"
                 size="icon-xs"
                 variant="destructive"
+                disabled={releasingDraftId !== null}
                 onClick={() => removeImage(index)}
-                aria-label="Supprimer l'image"
+                aria-busy={
+                  image.kind === "brouillon" &&
+                  releasingDraftId === image.draftId
+                }
+                aria-label={
+                  image.kind === "persistee"
+                    ? "Supprimer l'image"
+                    : releasingDraftId === image.draftId
+                      ? "Libération du Brouillon d'Image produit en cours…"
+                      : "Libérer le Brouillon d'Image produit"
+                }
               >
                 <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} />
               </Button>
@@ -179,7 +231,9 @@ export function ImageGalleryUpload({
         type="button"
         variant="outline"
         size="sm"
-        disabled={uploading || images.length >= MAX_FILES}
+        disabled={
+          uploading || releasingDraftId !== null || images.length >= MAX_FILES
+        }
         onClick={() => inputRef.current?.click()}
         className="w-fit"
       >
