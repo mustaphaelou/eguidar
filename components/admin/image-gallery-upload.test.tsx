@@ -117,6 +117,54 @@ describe("ImageGalleryUpload", () => {
     ).toBe(false)
   })
 
+  it("libère la place d'une Image persistée dont la suppression est en attente", async () => {
+    const onChange = vi.fn()
+    const gallery: EntreeImageProduitFormulaire[] = Array.from(
+      { length: 8 },
+      (_, index) => ({
+        kind: "persistee" as const,
+        url: `https://cdn.example.test/products/existing-${index}.png`,
+      })
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            draftId: "draft-remplacement",
+            uploadUrl: "https://upload.example.test/signed",
+            previewUrl:
+              "https://cdn.example.test/products/brouillons/draft-remplacement.png",
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const root = render(
+      <GalerieTest initialImages={gallery} onChange={onChange} />
+    )
+    const remove = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Supprimer l\'image"]'
+    )!
+    act(() => remove.dispatchEvent(new Event("click", { bubbles: true })))
+
+    const input =
+      container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(["image"], "photo.png", { type: "image/png" })
+    Object.defineProperty(input, "files", { value: [file] })
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Huit entrées, dont une en suppression en attente : la limite porte sur
+    // la galerie soumise, donc l'image retirée libère sa place.
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/admin/uploads/presign")
+    unmount(root)
+  })
+
   it("marque une Image persistée pour suppression sans appeler la route de suppression R2", () => {
     const onChange = vi.fn()
     const persisted: EntreeImageProduit = {

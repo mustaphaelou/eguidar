@@ -67,7 +67,13 @@ export function ImageGalleryUpload({
     setUploading(true)
     try {
       const uploaded: EntreeImageProduitFormulaire[] = []
-      const placesRestants = Math.max(0, MAX_FILES - images.length)
+      // La limite porte sur la galerie *soumise*, donc une Image produit dont
+      // la suppression est en attente libère sa place : l'éditeur peut
+      // remplacer une image qu'il vient de retirer.
+      const placesRestants = Math.max(
+        0,
+        MAX_FILES - images.filter(imageEstActive).length
+      )
       for (const file of Array.from(files)) {
         if (uploaded.length >= placesRestants) break
         if (!file.type.startsWith("image/")) {
