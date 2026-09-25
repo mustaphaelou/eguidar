@@ -48,7 +48,7 @@ describe("CycleVieImageProduit", () => {
     expect(resultat.expiresAt).toEqual(
       new Date(DATE_INITIALE.getTime() + 24 * 60 * 60 * 1000)
     )
-    expect(stockage.presigns).toEqual([
+    expect(stockage.presignatures).toEqual([
       {
         draftId: resultat.draftId,
         contentType: "image/webp",
@@ -83,7 +83,7 @@ describe("CycleVieImageProduit", () => {
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "mime-non-autorise" })
-    expect(stockage.presigns).toHaveLength(0)
+    expect(stockage.presignatures).toHaveLength(0)
     expect(registre.records.size).toBe(0)
   })
 
@@ -97,7 +97,7 @@ describe("CycleVieImageProduit", () => {
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "trop-volumineux" })
-    expect(stockage.presigns).toHaveLength(0)
+    expect(stockage.presignatures).toHaveLength(0)
     expect(registre.records.size).toBe(0)
   })
 
@@ -119,7 +119,7 @@ describe("CycleVieImageProduit", () => {
       ok: false,
       code: "proprietaire-incorrect",
     })
-    expect(stockage.deletedDrafts).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
   })
 
   it("conserve la date d'expiration et refuse une libération à la frontière", async () => {
@@ -161,7 +161,7 @@ describe("CycleVieImageProduit", () => {
         ownerId: "editeur-1",
       })
     ).toEqual({ ok: true, draftId: demande.draftId })
-    expect(stockage.deletedDrafts).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
   })
 
   it("laisse l'objet d'un Brouillon expiré à la seule règle de cycle de vie R2", async () => {
@@ -184,8 +184,8 @@ describe("CycleVieImageProduit", () => {
     expect(resultat).toMatchObject({
       message: expect.stringContaining("Téléversez à nouveau"),
     })
-    expect(stockage.deletedDrafts).toEqual([])
-    expect(stockage.deletedPersisted).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
+    expect(stockage.suppressionsImagesPersistees).toEqual([])
   })
 
   it("revendique un Brouillon jusqu'à la frontière et refuse à l'instant exact de l'expiration", async () => {
@@ -321,7 +321,7 @@ describe("CycleVieImageProduit", () => {
     )
     // La source de `products/brouillons/` est libérée après le commit : copiée,
     // elle n'est plus nécessaire à personne (spec #406, décisions de test).
-    expect(stockage.deletedDrafts).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "revendiqué",
       productId: "produit-1",
@@ -420,10 +420,10 @@ describe("CycleVieImageProduit", () => {
       code: "catalogue-refuse",
       message: "L'enregistrement du Catalogue a échoué",
     })
-    expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
     // La compensation défait la promotion mais laisse la source du Brouillon :
     // le retry en a encore besoin.
-    expect(stockage.deletedDrafts).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
     expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
 
     const retry = await cycleVie.revendiquerEtEnregistrer({
@@ -445,10 +445,10 @@ describe("CycleVieImageProduit", () => {
         },
       ],
     })
-    expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
     // Le retry a fini ce que la première tentative n'avait pas le droit de
     // faire : libérer la source une fois le commit écrit.
-    expect(stockage.deletedDrafts).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
   })
 
   it("remonte le message d'une erreur du Catalogue orientée utilisateur, compensation faite", async () => {
@@ -482,7 +482,7 @@ describe("CycleVieImageProduit", () => {
     })
     // La compensation n'a pas bougé pour autant : la promotion est défaite et
     // le Brouillon redevient revendicable pour un nouvel essai.
-    expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "vivant",
       tentativeId: null,

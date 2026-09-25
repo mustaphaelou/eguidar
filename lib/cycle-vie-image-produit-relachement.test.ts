@@ -48,9 +48,9 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     ).toEqual({ ok: true, draftId: demande.draftId })
 
     expect(registre.records.get(demande.draftId)?.state).toBe("libéré")
-    expect(stockage.deletedDrafts).toEqual([demande.draftId])
-    expect(stockage.deletedPromoted).toEqual([])
-    expect(stockage.deletedPersisted).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([])
+    expect(stockage.suppressionsImagesPersistees).toEqual([])
   })
 
   it("refuse explicitement une seconde libération du même Brouillon d'Image produit", async () => {
@@ -71,7 +71,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       code: "brouillon-non-vivant",
       message: "Ce Brouillon d'Image produit a déjà été libéré",
     })
-    expect(stockage.deletedDrafts).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
   })
 
   it("refuse une revendication d'un Brouillon déjà libéré avec la même raison", async () => {
@@ -140,7 +140,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       message: "Ce Brouillon d'Image produit ne vous appartient pas",
     })
     expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
-    expect(stockage.deletedDrafts).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
   })
 
   it("ne supprime aucune Image produit déjà persistée", async () => {
@@ -168,9 +168,9 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     })
     // La source a été libérée par le commit réussi, pas par ce refus ; ni la
     // promotion ni l'Image persistée n'ont été touchées.
-    expect(stockage.deletedDrafts).toEqual([demande.draftId])
-    expect(stockage.deletedPromoted).toEqual([])
-    expect(stockage.deletedPersisted).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([])
+    expect(stockage.suppressionsImagesPersistees).toEqual([])
   })
 
   it("garde la libération acquise quand la suppression de l'objet échoue", async () => {

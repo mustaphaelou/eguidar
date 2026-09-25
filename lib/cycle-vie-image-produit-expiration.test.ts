@@ -199,7 +199,7 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
       message: expect.stringContaining("Téléversez à nouveau"),
     })
     expect(stockage.promotions).toEqual([])
-    expect(stockage.deletedDrafts).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
     expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
     expect(
       await prisma.brouillonImageProduit.findUniqueOrThrow({
@@ -220,8 +220,8 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "brouillon-expire" })
-    expect(stockage.deletedDrafts).toEqual([])
-    expect(stockage.deletedPromoted).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
+    expect(stockage.suppressionsImagesPromues).toEqual([])
     expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
   })
 

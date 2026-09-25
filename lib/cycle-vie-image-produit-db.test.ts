@@ -176,7 +176,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
       message: "Ce Brouillon d'Image produit ne vous appartient pas",
     })
     expect(stockage.promotions).toEqual([])
-    expect(stockage.deletedDrafts).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
     expect(
       await prisma.brouillonImageProduit.findUniqueOrThrow({
         where: { id: demande.draftId },
@@ -199,7 +199,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
         ownerId,
       })
     ).toEqual({ ok: true, draftId: demande.draftId })
-    expect(stockage.deletedDrafts).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
     expect(
       await prisma.brouillonImageProduit.findUniqueOrThrow({
         where: { id: demande.draftId },
@@ -420,7 +420,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
         }),
       ])
     )
-    expect(stockage.deletedPromoted).toEqual([])
+    expect(stockage.suppressionsImagesPromues).toEqual([])
   })
 
   it("annule la revendication et nettoie la copie quand la transaction Catalogue échoue", async () => {
@@ -455,7 +455,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "catalogue-refuse" })
-    expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
     expect(await prisma.product.count({ where: { slug: productSlug } })).toBe(0)
     expect(
       await prisma.brouillonImageProduit.findUniqueOrThrow({

@@ -847,13 +847,13 @@ export function creerCycleVieImageProduit(
       return refus("revendication-refusee", "Aucun Brouillon à revendiquer")
     }
 
-    const claimed: BrouillonImageProduit[] = []
+    const revendiques: BrouillonImageProduit[] = []
     const mimeParBrouillon = new Map<string, string>()
     const now = horloge.maintenant()
 
     async function restaurerRevendications(): Promise<void> {
       await Promise.all(
-        claimed.map((draft) =>
+        revendiques.map((draft) =>
           registre
             .annulerRevendication({
               id: draft.id,
@@ -881,11 +881,11 @@ export function creerCycleVieImageProduit(
         await restaurerRevendications()
         return resultatRegistreRefus(result)
       }
-      claimed.push(result.value)
+      revendiques.push(result.value)
       mimeParBrouillon.set(result.value.id, result.value.mimeType)
     }
 
-    const brouillonsLies = claimed.filter(
+    const brouillonsLies = revendiques.filter(
       (
         draft
       ): draft is BrouillonImageProduit & {
@@ -895,7 +895,7 @@ export function creerCycleVieImageProduit(
     )
     if (brouillonsLies.length > 0) {
       const productIds = new Set(brouillonsLies.map((draft) => draft.productId))
-      if (brouillonsLies.length !== claimed.length || productIds.size !== 1) {
+      if (brouillonsLies.length !== revendiques.length || productIds.size !== 1) {
         await restaurerRevendications()
         return refus(
           "revendication-refusee",
@@ -963,15 +963,15 @@ export function creerCycleVieImageProduit(
       )
     }
 
-    const promoted: ImageProduitPromue[] = []
+    const promues: ImageProduitPromue[] = []
     const nouvellesPromotions: ImageProduitPromue[] = []
-    for (const draft of claimed) {
+    for (const draft of revendiques) {
       if (draft.promotedPublicUrl) {
         const image = {
           draftId: draft.id,
           publicUrl: draft.promotedPublicUrl,
         }
-        promoted.push(image)
+        promues.push(image)
         if (draft.productId === null) nouvellesPromotions.push(image)
         continue
       }
@@ -998,12 +998,12 @@ export function creerCycleVieImageProduit(
       }
 
       const image = { draftId: draft.id, publicUrl: result.valeur.publicUrl }
-      promoted.push(image)
+      promues.push(image)
       nouvellesPromotions.push(image)
     }
 
     const lier: LierBrouillonsImageProduit = async (productId, transaction) => {
-      for (const image of promoted) {
+      for (const image of promues) {
         const confirmation = {
           id: image.draftId,
           tentativeId,
@@ -1021,7 +1021,7 @@ export function creerCycleVieImageProduit(
 
     let enregistre: ResultatEnregistrementCatalogue<TResult>
     try {
-      enregistre = await input.enregistrer(promoted, lier)
+      enregistre = await input.enregistrer(promues, lier)
     } catch (error) {
       // La compensation est obligatoire, le message l'est aussi : une erreur
       // du Catalogue destinée à l'éditeur (slug en conflit, SKU dupliqué,
@@ -1046,7 +1046,7 @@ export function creerCycleVieImageProduit(
       ok: true,
       productId: enregistre.productId,
       result: enregistre.result,
-      images: promoted,
+      images: promues,
     }
   }
 

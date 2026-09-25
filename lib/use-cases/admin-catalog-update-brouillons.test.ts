@@ -336,7 +336,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     )
 
     expect(echec).toMatchObject({ ok: false, code: "catalogue-refuse" })
-    expect(environnement.stockage.deletedPromoted).toEqual([draft.draftId])
+    expect(environnement.stockage.suppressionsImagesPromues).toEqual([draft.draftId])
     expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
       state: "vivant",
       tentativeId: null,
@@ -472,7 +472,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       productId: null,
       promotedPublicUrl: null,
     })
-    expect(stockage.deletedPromoted).toEqual([draft.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([draft.draftId])
     const unchanged = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })

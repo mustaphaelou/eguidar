@@ -13,16 +13,16 @@ import type {
 } from "@/lib/r2"
 
 export interface StockageImageProduitMemoire extends PortStockageImageProduit {
-  readonly presigns: Array<{
+  readonly presignatures: Array<{
     draftId: string
     contentType: string
     size: number
   }>
   readonly promotions: Array<{ draftId: string; publicUrl: string }>
-  readonly deletedDrafts: string[]
-  readonly deletedPromoted: string[]
-  readonly deletedPersisted: string[]
-  readonly deletedCategories: string[]
+  readonly suppressionsBrouillons: string[]
+  readonly suppressionsImagesPromues: string[]
+  readonly suppressionsImagesPersistees: string[]
+  readonly suppressionsImagesCategorie: string[]
   failPresign: boolean
   failPromotion: boolean
   failDelete: boolean
@@ -36,26 +36,26 @@ function echec(
 }
 
 export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire {
-  const presigns: StockageImageProduitMemoire["presigns"] = []
+  const presignatures: StockageImageProduitMemoire["presignatures"] = []
   const promotions: Array<{ draftId: string; publicUrl: string }> = []
-  const deletedDrafts: string[] = []
-  const deletedPromoted: string[] = []
-  const deletedPersisted: string[] = []
-  const deletedCategories: string[] = []
+  const suppressionsBrouillons: string[] = []
+  const suppressionsImagesPromues: string[] = []
+  const suppressionsImagesPersistees: string[] = []
+  const suppressionsImagesCategorie: string[] = []
 
   const stockage: StockageImageProduitMemoire = {
-    presigns,
+    presignatures,
     promotions,
-    deletedDrafts,
-    deletedPromoted,
-    deletedPersisted,
-    deletedCategories,
+    suppressionsBrouillons,
+    suppressionsImagesPromues,
+    suppressionsImagesPersistees,
+    suppressionsImagesCategorie,
     failPresign: false,
     failPromotion: false,
     failDelete: false,
 
     async presignerBrouillon(input) {
-      presigns.push(input)
+      presignatures.push(input)
       if (stockage.failPresign) {
         return echec("erreur-stockage", "échec mémoire de la pré-signature")
       }
@@ -70,7 +70,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
       if (stockage.failDelete) {
         return echec("erreur-stockage", "échec mémoire de la suppression")
       }
-      deletedDrafts.push(input.draftId)
+      suppressionsBrouillons.push(input.draftId)
       return { ok: true, valeur: null }
     },
 
@@ -88,7 +88,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
       if (stockage.failDelete) {
         return echec("erreur-stockage", "échec mémoire de la suppression")
       }
-      deletedPromoted.push(input.draftId)
+      suppressionsImagesPromues.push(input.draftId)
       return { ok: true, valeur: null }
     },
 
@@ -96,7 +96,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
       if (stockage.failDelete) {
         return echec("erreur-stockage", "échec mémoire de la suppression")
       }
-      deletedPersisted.push(publicUrl)
+      suppressionsImagesPersistees.push(publicUrl)
       return { ok: true, valeur: null }
     },
 
@@ -104,7 +104,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
       if (stockage.failDelete) {
         return echec("erreur-stockage", "échec mémoire de la suppression")
       }
-      deletedCategories.push(publicUrl)
+      suppressionsImagesCategorie.push(publicUrl)
       return { ok: true, valeur: null }
     },
   }
