@@ -75,7 +75,6 @@ export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
   run: async ({ categoryId, reassignToCategoryId }) => {
     await deleteCategory(
       categoryId,
-      undefined,
       reassignToCategoryId ? { reassignToCategoryId } : {}
     )
     return {}

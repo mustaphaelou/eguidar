@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
@@ -135,11 +136,17 @@ async function assertUniqueCategorySlug(
     throw new CategorySlugConflictError()
 }
 
+/**
+ * La catégorie cible existe-t-elle ? Le client partagé avec le chemin de
+ * suppression y fait lire cette validation dans la même transaction que les
+ * écritures : validation et écritures s'appuient sur un seul engagement.
+ */
 async function assertCategoryParent(
-  parentId: string | null | undefined
+  parentId: string | null | undefined,
+  client: Prisma.TransactionClient = prisma
 ): Promise<void> {
   if (!parentId) return
-  const parent = await prisma.category.findUnique({
+  const parent = await client.category.findUnique({
     where: { id: parentId },
     select: { id: true },
   })
@@ -263,54 +270,75 @@ export async function updateCategory(
   return category
 }
 
+/**
+ * Les options métier précèdent la surcharge d'effets : l'appelant de
+ * production exprime sa réaffectation sans `undefined` pont, et la couture
+ * d'effets reste le paramètre optionnel de dernier rang (ADR-0014).
+ */
 export async function deleteCategory(
   id: string,
-  overrides?: Partial<StructureEffects>,
-  options: { reassignToCategoryId?: string } = {}
+  options: { reassignToCategoryId?: string } = {},
+  overrides?: Partial<StructureEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultStructureEffects, overrides)
-  const category = await prisma.category.findUnique({
-    where: { id },
-    include: {
-      children: { select: { id: true } },
-      products: { select: { id: true } },
-    },
-  })
-  if (!category) throw new CategoryNotFoundError()
-
-  if (category.children.length > 0) throw new CategoryHasChildrenError()
-
   const reassignToCategoryId = options.reassignToCategoryId
-  if (reassignToCategoryId) {
-    if (reassignToCategoryId === id) {
-      throw new CategoryValidationError([
-        "une catégorie ne peut pas être réassignée vers elle-même",
-      ])
-    }
-    await assertCategoryParent(reassignToCategoryId)
-    if (category.products.length > 0) {
-      await prisma.product.updateMany({
-        where: { categoryId: id },
-        data: { categoryId: reassignToCategoryId },
-      })
-      const movedProducts = await prisma.product.findMany({
-        where: { id: { in: category.products.map((product) => product.id) } },
-        include: { variants: true, category: true },
-      })
-      await runEffect(
-        `[structure] réindexation meilisearch non effectuée pour ${id}`,
-        () => effects.reindexProducts(movedProducts.map(toIndexableProduct))
-      )
-    }
-  } else if (category.products.length > 0) {
-    throw new CategoryHasProductsError(category.products.length)
-  }
 
-  await prisma.category.delete({ where: { id } })
-  if (category.image) {
+  // Une seule mutation atomique : la lecture propre à la suppression, les
+  // validations de réaffectation, le déplacement des Produits, leur projeté
+  // indexable et la suppression de la Structure source partagent une même
+  // transaction. Un échec de la suppression finale annule donc la
+  // réaffectation — la base fait foi (ADR-0014).
+  const { image, movedProducts } = await prisma.$transaction(async (tx) => {
+    const category = await tx.category.findUnique({
+      where: { id },
+      include: {
+        children: { select: { id: true } },
+        products: { select: { id: true } },
+      },
+    })
+    if (!category) throw new CategoryNotFoundError()
+
+    if (category.children.length > 0) throw new CategoryHasChildrenError()
+
+    let moved: IndexableProduct[] = []
+    if (reassignToCategoryId) {
+      if (reassignToCategoryId === id) {
+        throw new CategoryValidationError([
+          "une catégorie ne peut pas être réassignée vers elle-même",
+        ])
+      }
+      await assertCategoryParent(reassignToCategoryId, tx)
+      if (category.products.length > 0) {
+        await tx.product.updateMany({
+          where: { categoryId: id },
+          data: { categoryId: reassignToCategoryId },
+        })
+        const movedRows = await tx.product.findMany({
+          where: { id: { in: category.products.map((product) => product.id) } },
+          include: { variants: true, category: true },
+        })
+        moved = movedRows.map(toIndexableProduct)
+      }
+    } else if (category.products.length > 0) {
+      throw new CategoryHasProductsError(category.products.length)
+    }
+
+    await tx.category.delete({ where: { id } })
+    return { image: category.image, movedProducts: moved }
+  })
+
+  // Les effets auxiliaires n'attendent que le commit : les faits qu'ils
+  // reçoivent sont committés et leur échec reste best-effort (ADR-0014).
+  if (movedProducts.length > 0) {
     await runEffect(
-      `[structure] suppression d'image R2 non effectuée pour ${category.image}`,
-      () => effects.deleteImage(category.image!)
+      `[structure] réindexation meilisearch non effectuée pour ${id}`,
+      () => effects.reindexProducts(movedProducts)
+    )
+  }
+  if (image) {
+    await runEffect(
+      `[structure] suppression d'image R2 non effectuée pour ${image}`,
+      () => effects.deleteImage(image!)
     )
   }
   await runEffect(

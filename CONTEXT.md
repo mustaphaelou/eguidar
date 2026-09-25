@@ -92,6 +92,12 @@ _Avoid_: erreur panier, échec d'ajout, rejection
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
 
+**Structure**:
+L'arborescence de catégories du Catalogue telle que l'Administration la gère : la table `Category`
+en base et le module `lib/use-cases/admin-structure.ts` qui la lit et la mute. Une Structure est
+une catégorie de cet arbre, à laquelle les Produits se rattachent.
+_Avoid_: category tree, arborescence de catégories, catégorie d'administration
+
 **Recherche**:
 The act of finding products across the Catalogue by free-text query (with typo tolerance),
 filtrable par une ou plusieurs marques, une catégorie et une tranche de prix, triable (pertinence, prix, nouveautés) et paginée.
