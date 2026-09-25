@@ -271,10 +271,15 @@ export async function updateCategory(
   return category
 }
 
+/**
+ * Les options métier précèdent la surcharge d'effets : l'appelant de
+ * production exprime sa réaffectation sans `undefined` pont, et la couture
+ * d'effets reste le paramètre optionnel de dernier rang (ADR-0014).
+ */
 export async function deleteCategory(
   id: string,
-  overrides?: Partial<StructureEffects>,
-  options: { reassignToCategoryId?: string } = {}
+  options: { reassignToCategoryId?: string } = {},
+  overrides?: Partial<StructureEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const reassignToCategoryId = options.reassignToCategoryId
