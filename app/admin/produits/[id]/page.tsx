@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation"
 
-import {
-  ProductForm,
-  type ProductFormInitial,
-} from "@/components/admin/product-form"
+import { ProductForm } from "@/components/admin/product-form"
 import { Button } from "@/components/ui/button"
+import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import { entreesPersisteesDepuisUrls } from "@/lib/galerie-image-produit"
 import {
   Card,
@@ -43,7 +41,7 @@ export default async function EditProductPage({
   ])
   if (!product) notFound()
 
-  const initial: ProductFormInitial = {
+  const initial: FaitsFormulaireProduit = {
     id: product.id,
     name: product.name,
     slug: product.slug,

@@ -11,15 +11,8 @@ import Image from "next/image"
 import { useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import type {
-  EntreeBrouillonImage,
-  EntreeImagePersistee,
-} from "@/lib/galerie-image-produit"
+import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
 import { cn } from "@/lib/utils"
-
-export type EntreeImageProduitFormulaire =
-  | (EntreeImagePersistee & { suppressionEnAttente?: boolean })
-  | EntreeBrouillonImage
 
 interface ImageGalleryUploadProps {
   images: EntreeImageProduitFormulaire[]
