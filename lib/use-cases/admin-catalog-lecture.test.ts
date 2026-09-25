@@ -4,11 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
-import {
-  specificationsProduit,
-  totalVariantStock,
-  urlsImagesProduit,
-} from "@/lib/product-metrics"
+import { totalVariantStock } from "@/lib/product-metrics"
 import {
   getAdminProduct,
   listAdminCategories,
@@ -27,6 +23,15 @@ const slug = (suffix: string) => `p-${runId}-${suffix}`
  */
 const GALERIE_HORS_FORME = { url: "https://cdn.example.com/pas-un-tableau.jpg" }
 const SPECS_HORS_FORME = "Écran : 6 pouces"
+
+/**
+ * Des spécifications **à moitié crédibles** : une vraie série d'entrées dont
+ * une seule valeur n'est pas une chaîne. Ce n'est pas une colonne hors de sa
+ * forme — c'est une forme que le Catalogue n'écrit pas —, donc une rangée
+ * latente. Elle est partagée avec la suite de la Boutique, où la même fixture
+ * épingle le même verdict de l'autre côté de la couture.
+ */
+const SPECS_A_MOITIE_CREDIBLES = { Écran: "6", Poids: 200 }
 
 interface RecetteProduit {
   name?: string
@@ -209,11 +214,10 @@ describe("liste des Produits de l'Administration", () => {
       specs: SPECS_HORS_FORME,
     })
 
+    // La lecture de liste ne répond qu'une vignette ; le même verdict sur les
+    // deux colonnes est éprouvé par l'interface de la lecture d'édition, plus
+    // bas, sur les mêmes fixtures.
     expect(await faitProduit(produit.id)).toMatchObject({ image: null })
-    // Les deux faits canoniques que compose toute lecture de ces colonnes, et
-    // que la lecture d'édition compose des mêmes fixtures.
-    expect(urlsImagesProduit(GALERIE_HORS_FORME)).toEqual([])
-    expect(specificationsProduit(SPECS_HORS_FORME)).toEqual({})
   })
 })
 
@@ -225,7 +229,7 @@ describe("édition d'un Produit de l'Administration", () => {
       price: 249900,
       isFeatured: true,
       freeShipping: true,
-      specs: { Écran: '6,1 pouces', Connectique: "USB-C, mini Jack" },
+      specs: { Écran: "6,1 pouces", Connectique: "USB-C, mini Jack" },
       images: [
         "https://cdn.example.com/premiere.jpg",
         "https://cdn.example.com/seconde.jpg",
@@ -306,6 +310,30 @@ describe("édition d'un Produit de l'Administration", () => {
     })
   })
 
+  it("ouvre un Produit dont les spécifications stockées ne sont qu'à moitié crédibles avec un champ vide", async () => {
+    // Le même verdict que pour une colonne entièrement hors de forme, et pour
+    // la même raison : une seule valeur illisible disqualifie tout
+    // l'enregistrement (ADR-0026). Le champ s'ouvre donc **vide**, pas à moitié
+    // rempli — un filtre par entrée donnerait ici un champ à moitié rempli, et
+    // l'éditeur enregistrerait une fiche amputée. La même fixture, prise de
+    // l'autre côté de la couture, épingle le verdict côté Boutique.
+    const produit = await creerProduit("edition-specs-a-moitie", {
+      specs: SPECS_A_MOITIE_CREDIBLES,
+    })
+
+    const faits = await getAdminProduct(produit.id)
+
+    expect(faits?.specs).toEqual({})
+    // Le reste du formulaire est complet : une spécification illisible n'a pas
+    // ôté le Produit à l'éditeur, seulement une ligne à la fiche.
+    expect(faits).toMatchObject({
+      name: "Produit de recette",
+      slug: slug("edition-specs-a-moitie"),
+      specs: {},
+      images: [{ kind: "persistee", url: "https://cdn.example.com/une.jpg" }],
+    })
+  })
+
   it("répond un Produit sans Variante, la règle du minimum de Variante n'appartient pas à la lecture", async () => {
     const produit = await creerProduit("edition-sans-variante", {
       variants: [],
@@ -323,9 +351,9 @@ describe("catégories du formulaire Produit", () => {
   it("répond exactement l'identifiant et le nom, rien d'autre", async () => {
     const categories = await listAdminCategories()
 
-    expect(
-      categories.find((categorie) => categorie.id === categoryId)
-    ).toEqual({ id: categoryId, name: "Catégorie Test lecture" })
+    expect(categories.find((categorie) => categorie.id === categoryId)).toEqual(
+      { id: categoryId, name: "Catégorie Test lecture" }
+    )
     // Le sélecteur ne reçoit rien d'autre : un fait de plus ferait échouer
     // cette épinglage, catégorie par catégorie.
     for (const categorie of categories) {

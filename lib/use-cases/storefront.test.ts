@@ -23,6 +23,17 @@ const cSlug = (suffix: string) => `sf-${runId}-${suffix}`
 const GALERIE_HORS_FORME = { url: "https://example.com/pas-un-tableau.jpg" }
 const SPECS_HORS_FORME = "Écran : 6 pouces"
 
+/**
+ * Des spécifications **à moitié crédibles** : une vraie série d'entrées dont
+ * une seule valeur n'est pas une chaîne. Ce n'est pas une colonne hors de sa
+ * forme — c'est une forme que le Catalogue n'écrit pas (`z.record(z.string(),
+ * z.string())` refuse un nombre), donc une rangée latente. Le verdict est
+ * néanmoins épinglé de bout en bout, parce que c'est la seule forme dont
+ * le tri des deux règles diverge : la galerie garde ses membres lisibles, les
+ * spécifications non.
+ */
+const SPECS_A_MOITIE_CREDIBLES = { Écran: "6", Poids: 200 }
+
 interface SeedProduct {
   name: string
   slug: string
@@ -443,6 +454,53 @@ describe("storefront browse", () => {
     ])
     expect(detail!.variants[0]).toMatchObject({ prix: 80000, stock: 4 })
     expect(detail!.variants[1]).toMatchObject({ prix: 70000, stock: 6 })
+    expect(detail!.category.slug).toBe(cSlug("grand"))
+    expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
+      cSlug("root"),
+      cSlug("child"),
+      cSlug("grand"),
+    ])
+  })
+
+  it("product detail: des spécifications à moitié crédibles répondent le record vide, le reste intact", async () => {
+    // Le verdict que la règle des spécifications porte **en entier**, et que
+    // ADR-0026 consigne : une seule valeur illisible disqualifie tout
+    // l'enregistrement. Le filtre par entrée, lui, aurait laissé passer
+    // `Écran : 6` — et la page Produit fait `Object.entries(data.specs)`, donc
+    // une ligne de plus à l'écran. C'est le seul endroit où normaliser une
+    // valeur malformée latente change ce qui rend ; aucune rangée de ce genre
+    // n'existe en production, le Catalogue étant le seul écrivain de la
+    // colonne et la validant.
+    await createProduct(cSlug("grand"), {
+      name: "Produit aux spécifications à moitié crédibles",
+      slug: pSlug("detail-specs-a-moitie"),
+      brand: "Marque Test",
+      price: 90000,
+      images: ["https://example.com/moitie.jpg"],
+      specs: SPECS_A_MOITIE_CREDIBLES,
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-mc1`, priceDelta: 0, stock: 3 },
+        { name: "XL", sku: `SKU-${runId}-mc2`, priceDelta: 5000, stock: 0 },
+      ],
+    })
+
+    const detail = await fetchProductPageData(pSlug("detail-specs-a-moitie"))
+
+    expect(detail).not.toBeNull()
+    expect(detail!.specs).toEqual({})
+    // Le reste des faits ne dépend pas de la colonne : une spécification
+    // illisible n'efface pas le Produit.
+    expect(detail!.id).toBeTruthy()
+    expect(detail!.name).toBe("Produit aux spécifications à moitié crédibles")
+    expect(detail!.slug).toBe(pSlug("detail-specs-a-moitie"))
+    expect(detail!.minPrice).toBe(90000)
+    expect(detail!.images).toEqual(["https://example.com/moitie.jpg"])
+    expect(detail!.variants.map((v) => v.sku)).toEqual([
+      `SKU-${runId}-mc1`,
+      `SKU-${runId}-mc2`,
+    ])
+    expect(detail!.variants[0]).toMatchObject({ prix: 90000, stock: 3 })
+    expect(detail!.variants[1]).toMatchObject({ prix: 95000, stock: 0 })
     expect(detail!.category.slug).toBe(cSlug("grand"))
     expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
       cSlug("root"),

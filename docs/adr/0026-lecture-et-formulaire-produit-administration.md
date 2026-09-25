@@ -57,7 +57,11 @@ module Carte produit, et c'est lui que ce travail étend.
   pour une soumission), la paire d'affichage et de lecture de l'écart de prix (dirhams à l'écran,
   centimes stockés, avec le repli sur zéro d'un écart illisible), et **tout le format de transport**, du
   `FormData` soumis jusqu'à l'entrée de la mutation : le JSON caché, les deux encodages monétaires, la
-  convention de case à cocher, le champ d'ordre et le champ d'identification.
+  convention de case à cocher, le champ d'ordre, et le nom du champ d'identification que le formulaire
+  rend. Le **câblage** du champ d'identification appartient donc au transport ; sa **résolution** non :
+  le champ caché `productId` est nommé ici, mais le transport ne le lit ni ne le juge — quelle action a
+  besoin d'un identifiant, et le refus d'un identifiant absent, restent au mécanisme partagé de
+  mutation (voir « L'identification du Produit édité » plus bas).
 
 - **Le module neutre n'atteint ni base de données, ni module serveur, ni directive client.** Il est
   importé par un module de rendu client — `components/admin/product-form.tsx` — comme par le code
@@ -70,13 +74,37 @@ module Carte produit, et c'est lui que ce travail étend.
   module est donc inconditionnelle, et non maintenue par convention.
 
 - **L'identification du Produit édité reste au mécanisme partagé de mutation**, via son aide
-  d'identifiant requis. Le module neutre n'apprend pas quelles actions ont besoin d'un identifiant.
+  d'identifiant requis. Le module neutre n'apprend pas quelles actions ont besoin d'un identifiant —
+  et le transport ne fait que nommer le champ, jamais le lire.
 
 - **Un Produit sans Variante est légal, et la règle est écrite.** Aucun contrôle d'un module de rendu —
   un bouton désactivé en particulier — n'en est le propriétaire. La règle est écrite au lieu où elle se
   décide : le schéma d'entrée du Catalogue accepte un tableau de Variantes vide, et le prix minimal
   retombe alors sur le prix de base (`minVariantPrice` est amorcé sur le prix de base). Aucune validation
   de Variante minimale n'apparaît par le transport.
+
+- **Une spécification stockée à moitié lisible répond l'enregistrement vide, en entier.** La colonne
+  `specs` est un `Json` sans forme garantie : seule une série d'entrées dont **toutes** les valeurs
+  sont des chaînes en est une, la forme que le Catalogue écrit et valide
+  (`z.record(z.string(), z.string())`). Une seule valeur illisible disqualifie le tout, et la règle est
+  **délibérément asymétrique** avec la galerie, dont les membres lisibles survivent. C'est le seul
+  verdict qui serve ses deux consommateurs d'un même geste : le champ Spécifications de l'Administration
+  doit s'ouvrir **vide** — un champ à moitié rempli inviterait l'éditeur à enregistrer une fiche
+  amputée — donc un filtre par entrée y produirait exactement ce qu'on veut éviter ; et la fiche produit
+  de la Boutique rend `Object.entries(specs)`, donc un lot à moitié crédible y afficherait des lignes que
+  le Catalogue n'a jamais certifiées.
+  **La conséquence est assumée et c'est le seul point de ce travail où normaliser une valeur malformée
+  latente change ce qui s'affiche :** un enregistrement stocké à moitié lisible ne rend **aucune** ligne
+  de spécification côté Boutique, là où le code d'avant en affichait les entrées lisibles. Aucune
+  rangée de ce genre n'existe en production — le Catalogue est le seul écrivain de la colonne et il la
+  valide — et la suite des deux côtés épingle le verdict.
+
+- **Une copie de moins : `entreesPersisteesDepuisUrls` est supprimée.** Cette aide de
+  `lib/galerie-image-produit.ts` — « une colonne `images` devient une galerie » — n'avait plus qu'un
+  appelant, la page d'édition, que ce travail remplace par la normalisation partagée ; elle est donc
+  supprimée avec la page qui la forçait. Elle n'appartient pas au cycle de vie des Images produit, qui
+  est hors de portée ici et garde son propre propriétaire (ADR-0004) : ce n'est pas un oubli, c'est
+  l'une des copies que cette décision unifie.
 
 - **Le Document d'index et le module Carte produit gardent leur propre normalisation.** ADR-0013 et
   ADR-0022 les ont sanctionnés : leurs invariants ne sont pas rouverts ici — y compris l'invariant
@@ -144,6 +172,9 @@ contestation. Elles sont consignées ici pour être retournées, pas pour être 
 
 ## Invariants
 
+- Une colonne `images` ou `specs` mal formée répond des faits vides, jamais un écran cassé — et, pour
+  les spécifications, le rejet est **total** : une seule valeur illisible vide tout l'enregistrement,
+  des deux côtés de la couture.
 - L'interface de lecture du Catalogue répond en faits. Aucun module de rendu d'Administration ne
   calcule, ne projette, ni ne force une colonne JSON stockée.
 - Le stock total est cuit par les faits canoniques du Produit et composé par la lecture ; aucun module
