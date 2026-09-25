@@ -321,6 +321,11 @@ else
   # The PUT above is a replacement, not a merge, so anything counted here is
   # about to be deleted. This repo owns one rule on one prefix; every other rule
   # on that bucket belongs to whoever put it there.
+  #
+  # Sortie : les règles étrangères, une par ligne indentée, puis le compte en
+  # toute dernière ligne — c'est ce compte que l'appelant tranche. Un réseau en
+  # panne, un corps illisible ou une enveloppe d'erreur font échouer la
+  # fonction : qui n'a pas pu compter n'a pas le droit d'écrire.
   _r2_regles_etrangeres() {
     local vivant
     vivant="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -329,12 +334,18 @@ else
       const fs = require("node:fs")
       const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
       const lu = JSON.parse(fs.readFileSync(0, "utf8"))
-      const connues = artefact.rules.map((r) => JSON.stringify(r)).join("\n")
-      const etrangeres = ((lu.result ?? lu).rules ?? []).filter(
-        (r) => !connues.includes(JSON.stringify(r))
-      )
-      for (const r of etrangeres) console.log("    " + JSON.stringify(r))
-      process.stdout.write(String(etrangeres.length))
+      const regles = (lu.result ?? lu).rules
+      if (lu.success === false || !Array.isArray(regles)) {
+        console.error("lecture impossible : " + JSON.stringify(lu.errors ?? lu).slice(0, 200))
+        process.exitCode = 1
+      } else {
+        const connues = artefact.rules.map((r) => JSON.stringify(r)).join("\n")
+        const etrangeres = regles.filter(
+          (r) => !connues.includes(JSON.stringify(r))
+        )
+        for (const r of etrangeres) console.log("    " + JSON.stringify(r))
+        process.stdout.write(String(etrangeres.length))
+      }
     ' "$R2_RULES_FILE"
   }
 
@@ -375,15 +386,24 @@ else
     warn "configured. Reconcile R2_BUCKET and the artifact, then re-run."
     SKIPPED+=("R2 lifecycle rule (bucket mismatch)")
   elif confirm "Apply the rule to bucket $R2_BUCKET_NAME now?"; then
-    R2_ETRANGERES=""
-    R2_ETRANGERES="$(_r2_regles_etrangeres 2>/dev/null)" || R2_ETRANGERES=""
-    if [[ "$R2_ETRANGERES" =~ ^[0-9]+$ ]] && [[ "$R2_ETRANGERES" -gt 0 ]]; then
+    # Les règles étrangères viennent en tête, le compte en dernière ligne. Le
+    # PUT remplace l'ensemble des règles : il n'a lieu qu'après une lecture
+    # réussie dont le compte est numérique. Une lecture qui échoue n'est jamais
+    # un feu vert — appliquer sans avoir pu compter, c'est supprimer des règles
+    # que personne n'a vues.
+    R2_ETRANGERES="$(_r2_regles_etrangeres 2>/dev/null || true)"
+    R2_NOMBRE="${R2_ETRANGERES##*$'\n'}"
+    if ! [[ "$R2_NOMBRE" =~ ^[0-9]+$ ]]; then
+      warn "could not read the live rules — nothing was applied. Check the token"
+      warn "and R2_ACCOUNT_ID, or add the rule from the dashboard instead."
+      SKIPPED+=("R2 lifecycle rule (live rules unreadable)")
+    elif [[ "$R2_NOMBRE" -gt 0 ]]; then
       # The Cloudflare API replaces the whole rule set; there is no per-rule
       # create. Anything the artifact does not describe is therefore destroyed
       # by the PUT, and it belongs to whoever put it there.
-      warn "This bucket already has $R2_ETRANGERES rule(s) the artifact does not"
+      warn "This bucket already has $R2_NOMBRE rule(s) the artifact does not"
       warn "describe. The API replaces the whole set, so applying DELETES them:"
-      printf '%s\n' "$R2_ETRANGERES"
+      printf '%s\n' "${R2_ETRANGERES%$'\n'*}"
       if ! confirm "Delete those rules and leave only the artifact's rule?"; then
         warn "nothing was applied. Add the rule from the dashboard instead, so"
         warn "the other rules survive."
