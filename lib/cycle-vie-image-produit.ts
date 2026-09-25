@@ -224,6 +224,21 @@ function refus(
 const MESSAGE_BROUILLON_EXPIRE =
   "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."
 
+/**
+ * « n'est pas vivant » ne dit rien à l'éditeur : un Brouillon déjà libéré
+ * n'a qu'à disparaître de la galerie, un Brouillon déjà revendiqué appartient
+ * désormais à un Produit et ne peut plus être retiré.
+ */
+function raisonNonVivant(draft: BrouillonImageProduit): string {
+  if (draft.state === "libéré") {
+    return "Ce Brouillon d'Image produit a déjà été libéré"
+  }
+  if (draft.state === "revendiqué") {
+    return "Ce Brouillon d'Image produit a déjà été revendiqué : il appartient maintenant à un Produit et ne peut plus être libéré"
+  }
+  return "Ce Brouillon d'Image produit n'est pas vivant"
+}
+
 function refusStockage(
   resultat: Extract<ResultatStockageImageProduit<unknown>, { ok: false }>
 ): RefusCycleVieImageProduit {
@@ -652,10 +667,7 @@ export function creerCycleVieImageProduit(
       return refus("brouillon-expire", MESSAGE_BROUILLON_EXPIRE)
     }
     if (draft.state !== "vivant") {
-      return refus(
-        "brouillon-non-vivant",
-        "Ce Brouillon d'Image produit n'est pas vivant"
-      )
+      return refus("brouillon-non-vivant", raisonNonVivant(draft))
     }
 
     /**
@@ -671,9 +683,10 @@ export function creerCycleVieImageProduit(
         ownerId: input.ownerId,
       })
       if (!marked) {
+        const relu = await registre.lire(input.draftId).catch(() => null)
         return refus(
           "brouillon-non-vivant",
-          "Ce Brouillon d'Image produit n'est pas vivant"
+          relu ? raisonNonVivant(relu) : raisonNonVivant(draft)
         )
       }
     } catch {

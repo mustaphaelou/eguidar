@@ -69,9 +69,35 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     expect(resultat).toEqual({
       ok: false,
       code: "brouillon-non-vivant",
-      message: "Ce Brouillon d'Image produit n'est pas vivant",
+      message: "Ce Brouillon d'Image produit a déjà été libéré",
     })
     expect(stockage.deletedDrafts).toEqual([demande.draftId])
+  })
+
+  it("distingue un Brouillon déjà revendiqué d'un Brouillon déjà libéré", async () => {
+    const { cycleVie } = creerCycleVieRelachement()
+    const demande = await demanderBrouillon(cycleVie)
+    await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async () => ({
+        productId: "produit-1",
+        result: null,
+      }),
+    })
+
+    const resultat = await cycleVie.relacherBrouillon({
+      draftId: demande.draftId,
+      ownerId: "editeur-1",
+    })
+
+    expect(resultat).toEqual({
+      ok: false,
+      code: "brouillon-non-vivant",
+      message:
+        "Ce Brouillon d'Image produit a déjà été revendiqué : il appartient maintenant à un Produit et ne peut plus être libéré",
+    })
   })
 
   it("refuse un éditeur qui ne possède pas le Brouillon", async () => {
