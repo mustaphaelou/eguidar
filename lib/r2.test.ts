@@ -239,6 +239,20 @@ describe("adaptateur R2 des Images produit", () => {
     })
   })
 
+  it("laisse remonter une panne R2 sur la suppression d'une Image persistée", async () => {
+    // La suppression d'une Image produit persistée est un effet post-commit et
+    // best-effort : ses appelants attrapent pour journaliser. Une traduction
+    // silencieuse ferait croire au Catalogue que l'objet n'a jamais existé, et
+    // laisserait une panne invisible pour la Structure.
+    sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
+
+    await expect(
+      stockageImageProduitR2.supprimerImagePersistee(
+        "https://cdn.example.test/products/image-panne.gif"
+      )
+    ).rejects.toThrow("secret AWS failure")
+  })
+
   it("conserve la limite de taille existante", () => {
     expect(MAX_UPLOAD_SIZE).toBe(10 * 1024 * 1024)
   })
