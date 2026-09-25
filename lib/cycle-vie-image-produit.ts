@@ -12,6 +12,7 @@ import {
   type PortStockageImageProduit,
   type ResultatStockageImageProduit,
 } from "@/lib/r2"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type {
   PortStockageImageProduit,
@@ -997,10 +998,19 @@ export function creerCycleVieImageProduit(
     let enregistre: ResultatEnregistrementCatalogue<TResult>
     try {
       enregistre = await input.enregistrer(promoted, lier)
-    } catch {
+    } catch (error) {
+      // La compensation est obligatoire, le message l'est aussi : une erreur
+      // du Catalogue destinée à l'éditeur (slug en conflit, SKU dupliqué,
+      // galerie invalide) garde son message sur ce chemin comme sur celui qui
+      // n'a pas de Brouillon. Une erreur ordinaire reste générique.
       await supprimerPromotions(nouvellesPromotions)
       await restaurerRevendications()
-      return refus("catalogue-refuse", "L'enregistrement du Catalogue a échoué")
+      return refus(
+        "catalogue-refuse",
+        error instanceof UserFacingError
+          ? error.message
+          : "L'enregistrement du Catalogue a échoué"
+      )
     }
 
     return {

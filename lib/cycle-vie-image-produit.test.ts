@@ -5,6 +5,7 @@ import {
   type EnregistrerCatalogue,
   type ImageProduitPromue,
 } from "@/lib/cycle-vie-image-produit"
+import { SlugConflictError } from "@/lib/use-cases/admin-catalog"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
@@ -376,7 +377,11 @@ describe("CycleVieImageProduit", () => {
         throw new Error("échec transactionnel")
       },
     })
-    expect(echec).toMatchObject({ ok: false, code: "catalogue-refuse" })
+    expect(echec).toMatchObject({
+      ok: false,
+      code: "catalogue-refuse",
+      message: "L'enregistrement du Catalogue a échoué",
+    })
     expect(stockage.deletedPromoted).toEqual([demande.draftId])
     expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
 
@@ -400,6 +405,44 @@ describe("CycleVieImageProduit", () => {
       ],
     })
     expect(stockage.deletedPromoted).toEqual([demande.draftId])
+  })
+
+  it("remonte le message d'une erreur du Catalogue orientée utilisateur, compensation faite", async () => {
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/png",
+      size: 100,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    // Slug en conflit, SKU dupliqué, galerie invalide : ces erreurs portent
+    // leur message jusqu'à l'éditeur sur le chemin sans Brouillon
+    // (`app/admin/produits/actions.test.ts`). Levées ici, avec des
+    // Brouillons, elles doivent faire de même : `SlugConflictError`
+    // représente les trois, toutes `UserFacingError`
+    // (`lib/use-cases/catalog-user-facing.test.ts`).
+    const echec = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async () => {
+        throw new SlugConflictError()
+      },
+    })
+
+    expect(echec).toMatchObject({
+      ok: false,
+      code: "catalogue-refuse",
+      message: "Un produit avec ce slug existe déjà",
+    })
+    // La compensation n'a pas bougé pour autant : la promotion est défaite et
+    // le Brouillon redevient revendicable pour un nouvel essai.
+    expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "vivant",
+      tentativeId: null,
+    })
   })
 
   it("rend idempotent un retry de la même tentative", async () => {
