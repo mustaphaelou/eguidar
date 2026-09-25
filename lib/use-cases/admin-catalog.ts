@@ -1,3 +1,49 @@
+/**
+ * Le Catalogue — lectures et mutations Produit de l'Administration.
+ *
+ * Propriétaire unique d'ADR-0026. Le module tient les deux directions
+ * du même chemin Produit : la mutation et la lecture. L'interface de
+ * mutation est celle d'aujourd'hui — `ProductInput`, les validations,
+ * les classes d'erreur, la transaction engagée — et n'est pas
+ * redocumentée ici : la couture d'effets reste celle d'ADR-0014
+ * (`CatalogEffects`, ses adaptateurs de production, la frontière
+ * best-effort après commit) et le mécanisme partagé reste celui
+ * d'ADR-0025, qui n'apprend aucun concept de produit, de base ni de
+ * transport.
+ *
+ * **L'interface de lecture répond en faits, jamais en rangées de base
+ * de données.** Trois lectures, trois réponses :
+ *
+ * - `listAdminProducts()` — la liste : identité, marque, nom de
+ *   catégorie, prix, mis en avant, livraison offerte, **une seule
+ *   vignette** et le **stock total** cuit par `@/lib/product-metrics`
+ *   puis composé ici, comme le fait déjà le chemin de lecture de la
+ *   Boutique. Ni la galerie ni les Variantes : la liste ne les rend
+ *   pas.
+ * - `getAdminProduct(id)` — l'édition : les faits complets du
+ *   formulaire — galerie et spécifications normalisées, Variantes
+ *   projetées —, ou `null` pour que l'appelant garde sa décision
+ *   d'introuvable.
+ * - `listAdminCategories()` — le sélecteur de catégorie : exactement
+ *   l'identifiant et le nom, rien d'autre. À ne pas confondre avec la
+ *   lecture à compteurs du module Structure, qui sert les écrans de
+ *   catégories.
+ *
+ * Après ADR-0026, aucun module de rendu d'Administration ne calcule,
+ * ne projette, ni ne sait que ces colonnes sont du JSON : la couture
+ * est ici, d'un seul côté, comme elle l'est côté Boutique.
+ *
+ * Deux règles que ce module tient et qu'aucun appelant ne doit
+ * redécider : un Produit **sans Variante est légal** — le prix minimal
+ * retombe alors sur le prix de base, et le tableau de Variantes peut
+ * être vide — ; l'écart de prix reste un fait de stockage et
+ * d'Administration, jamais une entrée d'affichage de la Boutique
+ * (ADR-0013). Le Document d'index garde ses propres faits de
+ * recherche (ADR-0013) et le module Carte produit garde sa propre
+ * normalisation et son invariant sans import (ADR-0022) : cette
+ * interface ne les rouvre pas.
+ */
+
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
