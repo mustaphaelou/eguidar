@@ -202,22 +202,14 @@ describe("liste des Produits de l'Administration", () => {
 
     const fait = await faitProduit(produit.id)
 
+    // Le Produit reste listé : une colonne abimée ne fait pas tomber l'écran.
     expect(fait).toBeDefined()
     expect(fait?.image).toBeNull()
     expect(fait?.name).toBe("Produit aux colonnes abimées")
     expect(fait?.totalStock).toBe(5)
-  })
-
-  it("répond une galerie et un enregistrement vides pour des colonnes hors de leur forme", async () => {
-    const produit = await creerProduit("colonnes-hors-forme", {
-      images: GALERIE_HORS_FORME,
-      specs: SPECS_HORS_FORME,
-    })
-
-    // La lecture de liste ne répond qu'une vignette ; le même verdict sur les
-    // deux colonnes est éprouvé par l'interface de la lecture d'édition, plus
-    // bas, sur les mêmes fixtures.
-    expect(await faitProduit(produit.id)).toMatchObject({ image: null })
+    // La lecture de liste ne répond qu'une vignette, et ne porte donc pas les
+    // spécifications : le même verdict sur les deux colonnes est éprouvé par
+    // l'interface de la lecture d'édition, plus bas, sur ces mêmes fixtures.
   })
 })
 

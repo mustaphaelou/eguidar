@@ -16,18 +16,18 @@ import type {
   ProductInput,
   ProductVariantInput,
 } from "@/lib/use-cases/admin-catalog"
-import { INVALID_FORM_MESSAGE } from "@/lib/use-cases/mutation-actions"
+import { lire } from "@/lib/use-cases/outils-frontiere"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 /**
  * Le langage du formulaire Produit, traversé par son interface.
  *
- * Suite pure : **aucune requête n'est écrite ici** — les faits qu'un éditeur
- * entre, le refus qu'il reçoit et la valeur que l'appelant obtient sont la seule
- * chose affirmée. Les deux moitiés du langage des Spécifications sont éprouvées
- * l'une par l'autre (aller-retour), la paire de l'écart de prix avec sa chute à
- * zéro, et **le transport** avec la soumission que le module de rendu produit
- * réellement.
+ * Suite pure : elle n'écrit **aucune requête** et n'atteint **aucune base** —
+ * les faits qu'un éditeur entre, le refus qu'il reçoit et la valeur que
+ * l'appelant obtient sont la seule chose affirmée ici. Les deux moitiés du
+ * langage des Spécifications sont éprouvées l'une par l'autre (aller-retour), la
+ * paire de l'écart de prix avec sa chute à zéro, et **le transport** avec la
+ * soumission que le module de rendu produit réellement.
  *
  * Deux imports ne portent pas sur le module sous test, et les deux sont
  * justifiés :
@@ -35,12 +35,11 @@ import { UserFacingError } from "@/lib/use-cases/user-facing-error"
  * - `@/lib/use-cases/admin-catalog` est **de type seul** — rien n'en subsiste à
  *   la compilation, et c'est ce qui rend l'épinglage de compilation possible
  *   sans base ;
- * - `@/lib/use-cases/mutation-actions` n'apporte qu'un littéral,
- *   `INVALID_FORM_MESSAGE`, et il sert à comparer les deux copies du refus
- *   (voir « les messages de refus du module »). C'est un import **de suite**,
- *   jamais une arête de production : le module neutre continue de ne pas
- *   atteindre le mécanisme partagé, et `formulaire-produit-frontiere.test.ts`
- *   le vérifie en lisant les sources, pas les suites.
+ * - `@/lib/use-cases/mutation-actions` n'est **pas** importé : le refus qu'il
+ *   déclare est comparé en **lisant sa source** (voir « garde le même mot, au
+ *   caractère près »). L'importer tirerait `next/navigation` puis la session
+ *   serveur — donc la base — dans une suite que la spécification veut
+ *   exécutable en Node sans base.
  */
 
 /** Un record de spécifications dont aucune clé ni valeur ne contient de saut de ligne. */
@@ -591,10 +590,25 @@ describe("les messages de refus du module", () => {
     // L'énoncé précédent compare chaque chaîne à son propre littéral, ce qui
     // laisse les deux dériver **ensemble** sans que rien ne s'en aperçoive. Ce
     // test les compare l'une à l'autre : si l'une bouge, l'autre doit suivre.
-    // Il traverse donc le module partagé de mutation — un import de suite, sans
-    // effet sur le graphe de valeur du module neutre, que sa propre garde de
-    // frontière énonce module par module.
-    expect(MESSAGE_FORMULAIRE_INVALIDE).toBe(INVALID_FORM_MESSAGE)
+    //
+    // La comparaison se fait **sur la source** du mécanisme, jamais par un
+    // import de sa valeur : l'importer tirerait `next/navigation` puis la
+    // session serveur, donc la base, dans une suite que la spécification veut
+    // exécutable en Node sans base. Or la duplication est un fait de source
+    // avant d'être une valeur : lire la ligne qui déclare le littéral est
+    // l'instrument honnête, et c'est celui qu'emploient déjà les gardes de
+    // frontière du dépôt.
+    //
+    // La déclaration est épinglée avec sa valeur, volontairement : renommer la
+    // constante du mécanisme doit casser cet énoncé, pour qu'une telle décision
+    // passe par ici plutôt que par un glissement.
+    const mecanisme = lire(import.meta.url, "./use-cases/mutation-actions.ts")
+
+    expect(mecanisme).toContain(
+      `export const INVALID_FORM_MESSAGE = ${JSON.stringify(
+        MESSAGE_FORMULAIRE_INVALIDE
+      )}`
+    )
   })
 
   it("épingle le message d'une ligne de Spécifications invalide", () => {
