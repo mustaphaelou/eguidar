@@ -11,7 +11,10 @@ vi.mock("next/image", () => ({
   ),
 }))
 
-import { ImageGalleryUpload } from "@/components/admin/image-gallery-upload"
+import {
+  ImageGalleryUpload,
+  type EntreeImageProduitFormulaire,
+} from "@/components/admin/image-gallery-upload"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -23,14 +26,21 @@ function render(element: ReactElement) {
   const root = createRoot(container)
   roots.push(root)
   act(() => root.render(element))
+  return root
+}
+
+function unmount(root: ReturnType<typeof createRoot>) {
+  act(() => root.unmount())
+  const index = roots.indexOf(root)
+  if (index >= 0) roots.splice(index, 1)
 }
 
 function GalerieTest({
   initialImages,
   onChange,
 }: {
-  initialImages: EntreeImageProduit[]
-  onChange(images: EntreeImageProduit[]): void
+  initialImages: EntreeImageProduitFormulaire[]
+  onChange(images: EntreeImageProduitFormulaire[]): void
 }) {
   const [images, setImages] = useState(initialImages)
   return (
@@ -107,7 +117,55 @@ describe("ImageGalleryUpload", () => {
     ).toBe(false)
   })
 
-  it("retire une entrée persistée sans appeler la route de suppression R2", () => {
+  it("libère la place d'une Image persistée dont la suppression est en attente", async () => {
+    const onChange = vi.fn()
+    const gallery: EntreeImageProduitFormulaire[] = Array.from(
+      { length: 8 },
+      (_, index) => ({
+        kind: "persistee" as const,
+        url: `https://cdn.example.test/products/existing-${index}.png`,
+      })
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            draftId: "draft-remplacement",
+            uploadUrl: "https://upload.example.test/signed",
+            previewUrl:
+              "https://cdn.example.test/products/brouillons/draft-remplacement.png",
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const root = render(
+      <GalerieTest initialImages={gallery} onChange={onChange} />
+    )
+    const remove = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Supprimer l\'image"]'
+    )!
+    act(() => remove.dispatchEvent(new Event("click", { bubbles: true })))
+
+    const input =
+      container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(["image"], "photo.png", { type: "image/png" })
+    Object.defineProperty(input, "files", { value: [file] })
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Huit entrées, dont une en suppression en attente : la limite porte sur
+    // la galerie soumise, donc l'image retirée libère sa place.
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/admin/uploads/presign")
+    unmount(root)
+  })
+
+  it("marque une Image persistée pour suppression sans appeler la route de suppression R2", () => {
     const onChange = vi.fn()
     const persisted: EntreeImageProduit = {
       kind: "persistee",
@@ -116,14 +174,79 @@ describe("ImageGalleryUpload", () => {
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
 
-    render(<ImageGalleryUpload images={[persisted]} onChange={onChange} />)
+    render(<GalerieTest initialImages={[persisted]} onChange={onChange} />)
     const remove = container.querySelector<HTMLButtonElement>(
       '[aria-label="Supprimer l\'image"]'
     )!
     act(() => remove.click())
 
-    expect(onChange).toHaveBeenCalledWith([])
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...persisted, suppressionEnAttente: true },
+    ])
     expect(fetchMock).not.toHaveBeenCalled()
+    expect(
+      container.querySelector('[data-image-state="suppression-en-attente"]')
+    ).not.toBeNull()
+    expect(container.textContent).toContain(
+      "Suppressions en attente d'enregistrement"
+    )
+
+    const restore = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Annuler la suppression de l\'image"]'
+    )!
+    act(() => restore.click())
+
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...persisted, suppressionEnAttente: false },
+    ])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("conserve l'ordre soumis et rend la suppression persistée distincte d'une libération", () => {
+    const onChange = vi.fn()
+    const premiere: EntreeImageProduit = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/first.png",
+    }
+    const brouillon: EntreeImageProduit = {
+      kind: "brouillon",
+      draftId: "draft-1",
+      previewUrl: "https://cdn.example.test/products/brouillons/draft-1.png",
+    }
+    const derniere: EntreeImageProduit = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/last.png",
+    }
+
+    render(
+      <GalerieTest
+        initialImages={[premiere, brouillon, derniere]}
+        onChange={onChange}
+      />
+    )
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Supprimer l\'image"]')!
+        .click()
+    )
+
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...premiere, suppressionEnAttente: true },
+      brouillon,
+      derniere,
+    ])
+    expect(
+      Array.from(
+        container.querySelectorAll(
+          '[data-image-kind][data-image-state="active"], [data-image-kind][data-image-state="brouillon"]'
+        )
+      ).map((image) =>
+        image.querySelector("[data-image-src]")?.getAttribute("data-image-src")
+      )
+    ).toEqual([brouillon.previewUrl, derniere.url])
+    expect(
+      container.querySelector('[data-image-state="suppression-en-attente"]')
+    ).not.toBeNull()
   })
 
   it("libère un Brouillon d'Image produit par son identifiant puis conserve l'ordre des autres entrées", async () => {
@@ -203,6 +326,28 @@ describe("ImageGalleryUpload", () => {
         '[data-image-src="https://cdn.example.test/products/brouillons/draft-1.png"]'
       )
     ).not.toBeNull()
+  })
+
+  it("n'appelle aucune suppression lorsque le formulaire est abandonné", () => {
+    const onChange = vi.fn()
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    const persisted: EntreeImageProduit = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/existing.png",
+    }
+
+    const root = render(
+      <GalerieTest initialImages={[persisted]} onChange={onChange} />
+    )
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Supprimer l\'image"]')!
+        .click()
+    )
+    unmount(root)
+
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it("désactive la libération du Brouillon d'Image produit pendant son premier appel", async () => {

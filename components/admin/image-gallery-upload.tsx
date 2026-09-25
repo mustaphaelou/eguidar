@@ -4,18 +4,26 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Delete01Icon,
+  UndoIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import Image from "next/image"
 import { useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import type {
+  EntreeBrouillonImage,
+  EntreeImagePersistee,
+} from "@/lib/galerie-image-produit"
 import { cn } from "@/lib/utils"
 
+export type EntreeImageProduitFormulaire =
+  | (EntreeImagePersistee & { suppressionEnAttente?: boolean })
+  | EntreeBrouillonImage
+
 interface ImageGalleryUploadProps {
-  images: EntreeImageProduit[]
-  onChange(images: EntreeImageProduit[]): void
+  images: EntreeImageProduitFormulaire[]
+  onChange(images: EntreeImageProduitFormulaire[]): void
 }
 
 const MAX_FILES = 8
@@ -26,14 +34,22 @@ type ReponsePresign = {
   previewUrl?: unknown
 }
 
-function entryKey(image: EntreeImageProduit): string {
+function entryKey(image: EntreeImageProduitFormulaire): string {
   return image.kind === "persistee"
     ? `persisted:${image.url}`
     : `draft:${image.draftId}`
 }
 
-function imageSource(image: EntreeImageProduit): string {
+function imageSource(image: EntreeImageProduitFormulaire): string {
   return image.kind === "persistee" ? image.url : image.previewUrl
+}
+
+function suppressionEnAttente(image: EntreeImageProduitFormulaire): boolean {
+  return image.kind === "persistee" && image.suppressionEnAttente === true
+}
+
+function imageEstActive(image: EntreeImageProduitFormulaire): boolean {
+  return !suppressionEnAttente(image)
 }
 
 export function ImageGalleryUpload({
@@ -50,8 +66,14 @@ export function ImageGalleryUpload({
     setError(null)
     setUploading(true)
     try {
-      const uploaded: EntreeImageProduit[] = []
-      const placesRestants = Math.max(0, MAX_FILES - images.length)
+      const uploaded: EntreeImageProduitFormulaire[] = []
+      // La limite porte sur la galerie *soumise*, donc une Image produit dont
+      // la suppression est en attente libère sa place : l'éditeur peut
+      // remplacer une image qu'il vient de retirer.
+      const placesRestants = Math.max(
+        0,
+        MAX_FILES - images.filter(imageEstActive).length
+      )
       for (const file of Array.from(files)) {
         if (uploaded.length >= placesRestants) break
         if (!file.type.startsWith("image/")) {
@@ -107,9 +129,15 @@ export function ImageGalleryUpload({
   }
 
   function move(index: number, direction: -1 | 1) {
+    const indexesActifs = images.flatMap((image, currentIndex) =>
+      imageEstActive(image) ? [currentIndex] : []
+    )
+    const position = indexesActifs.indexOf(index)
+    const targetPosition = position + direction
+    if (position < 0 || targetPosition < 0) return
+    const target = indexesActifs[targetPosition]
+    if (target === undefined) return
     const next = [...images]
-    const target = index + direction
-    if (target < 0 || target >= next.length) return
     ;[next[index], next[target]] = [next[target], next[index]]
     onChange(next)
   }
@@ -151,17 +179,57 @@ export function ImageGalleryUpload({
     const image = images[index]
     if (!image) return
     if (image.kind === "persistee") {
-      onChange(images.filter((_, i) => i !== index))
+      onChange(
+        images.map((candidate, currentIndex) =>
+          currentIndex === index
+            ? { ...candidate, suppressionEnAttente: true }
+            : candidate
+        )
+      )
       return
     }
     void relacherBrouillon(image.draftId)
   }
 
+  function annulerSuppression(index: number) {
+    onChange(
+      images.map((candidate, currentIndex) =>
+        currentIndex === index
+          ? { ...candidate, suppressionEnAttente: false }
+          : candidate
+      )
+    )
+  }
+
+  const entreesActives = images.flatMap((image, index) =>
+    imageEstActive(image) ? [{ image, index }] : []
+  )
+  const suppressionsEnAttente = images.flatMap((image, index) =>
+    suppressionEnAttente(image) ? [{ image, index }] : []
+  )
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-3">
-        {images.map((image, index) => (
-          <div key={entryKey(image)} className="relative">
+      <div
+        className="flex flex-wrap gap-3"
+        role="group"
+        aria-label="Images de la galerie"
+      >
+        {entreesActives.map(({ image, index }, position) => (
+          <div
+            key={entryKey(image)}
+            className="relative"
+            data-image-kind={image.kind}
+            data-image-state={
+              image.kind === "persistee" ? "active" : "brouillon"
+            }
+            role="group"
+            aria-label={
+              image.kind === "persistee"
+                ? "Image produit"
+                : "Brouillon d'Image produit"
+            }
+          >
             <Image
               src={imageSource(image)}
               alt=""
@@ -170,14 +238,19 @@ export function ImageGalleryUpload({
               className="size-24 rounded-xl border object-cover"
             />
             <span className="absolute start-1 top-1 rounded-full bg-background/80 px-1.5 text-xs">
-              {index + 1}
+              {position + 1}
+            </span>
+            <span className="absolute start-1 top-7 rounded-full bg-background/80 px-1.5 text-[10px]">
+              {image.kind === "persistee"
+                ? "Image produit"
+                : "Brouillon d'Image produit"}
             </span>
             <div className="absolute inset-x-1 bottom-1 flex justify-between gap-1">
               <Button
                 type="button"
                 size="icon-xs"
                 variant="secondary"
-                disabled={index === 0 || releasingDraftId !== null}
+                disabled={position === 0 || releasingDraftId !== null}
                 onClick={() => move(index, -1)}
                 aria-label="Déplacer avant"
               >
@@ -188,7 +261,8 @@ export function ImageGalleryUpload({
                 size="icon-xs"
                 variant="secondary"
                 disabled={
-                  index === images.length - 1 || releasingDraftId !== null
+                  position === entreesActives.length - 1 ||
+                  releasingDraftId !== null
                 }
                 onClick={() => move(index, 1)}
                 aria-label="Déplacer après"
@@ -219,6 +293,54 @@ export function ImageGalleryUpload({
           </div>
         ))}
       </div>
+      {suppressionsEnAttente.length > 0 ? (
+        <div
+          className="flex flex-col gap-2 rounded-xl border border-dashed p-3"
+          data-image-state="suppressions-en-attente"
+        >
+          <p className="text-sm font-medium">
+            Suppressions en attente d&apos;enregistrement
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Ces Images produit restent dans le Catalogue et dans le stockage
+            jusqu&apos;à un enregistrement réussi.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {suppressionsEnAttente.map(({ image, index }) => (
+              <div
+                key={entryKey(image)}
+                className="relative"
+                data-image-kind={image.kind}
+                data-image-state="suppression-en-attente"
+                role="group"
+                aria-label="Image produit, suppression en attente"
+              >
+                <Image
+                  src={imageSource(image)}
+                  alt=""
+                  width={96}
+                  height={96}
+                  className="size-24 rounded-xl border object-cover opacity-50"
+                />
+                <span className="absolute inset-x-1 top-1 rounded-full bg-background/90 px-1.5 text-center text-[10px]">
+                  Suppression en attente
+                </span>
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="outline"
+                  disabled={releasingDraftId !== null}
+                  onClick={() => annulerSuppression(index)}
+                  aria-label="Annuler la suppression de l'image"
+                  className="absolute inset-x-1 bottom-1"
+                >
+                  <HugeiconsIcon icon={UndoIcon} strokeWidth={2} />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <input
         ref={inputRef}
         type="file"

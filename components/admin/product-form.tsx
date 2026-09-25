@@ -4,7 +4,10 @@ import { Delete01Icon, PlusSignIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useActionState, useRef, useState } from "react"
 
-import { ImageGalleryUpload } from "@/components/admin/image-gallery-upload"
+import {
+  ImageGalleryUpload,
+  type EntreeImageProduitFormulaire,
+} from "@/components/admin/image-gallery-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -43,7 +46,7 @@ export interface ProductFormInitial {
   featuredOrder: number
   freeShipping: boolean
   specs: Record<string, string>
-  images: EntreeImageProduit[]
+  images: EntreeImageProduitFormulaire[]
   variants: ProductFormVariant[]
 }
 
@@ -67,6 +70,25 @@ const emptyVariant = (): ProductFormVariant => ({
   stock: 0,
 })
 
+function imagesSoumises(
+  images: readonly EntreeImageProduitFormulaire[]
+): EntreeImageProduit[] {
+  const soumises: EntreeImageProduit[] = []
+  for (const image of images) {
+    if (image.kind === "persistee") {
+      if (image.suppressionEnAttente) continue
+      soumises.push({ kind: "persistee", url: image.url })
+      continue
+    }
+    soumises.push({
+      kind: "brouillon",
+      draftId: image.draftId,
+      previewUrl: image.previewUrl,
+    })
+  }
+  return soumises
+}
+
 export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const slugRef = useRef<HTMLInputElement>(null)
@@ -76,7 +98,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
     product?.freeShipping ?? false
   )
   const [tentativeId] = useState(() => globalThis.crypto.randomUUID())
-  const [images, setImages] = useState<EntreeImageProduit[]>(
+  const [images, setImages] = useState<EntreeImageProduitFormulaire[]>(
     product?.images ?? []
   )
   const [variants, setVariants] = useState<ProductFormVariant[]>(
@@ -104,7 +126,11 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
         value={freeShipping ? "on" : ""}
       />
       <input type="hidden" name="tentativeId" value={tentativeId} />
-      <input type="hidden" name="images" value={JSON.stringify(images)} />
+      <input
+        type="hidden"
+        name="images"
+        value={JSON.stringify(imagesSoumises(images))}
+      />
       <input type="hidden" name="variants" value={JSON.stringify(variants)} />
 
       {state.error ? (
