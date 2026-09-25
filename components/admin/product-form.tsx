@@ -75,6 +75,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [freeShipping, setFreeShipping] = useState(
     product?.freeShipping ?? false
   )
+  const [tentativeId] = useState(() => globalThis.crypto.randomUUID())
   const [images, setImages] = useState<EntreeImageProduit[]>(
     product?.images ?? []
   )
@@ -102,6 +103,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
         name="freeShipping"
         value={freeShipping ? "on" : ""}
       />
+      <input type="hidden" name="tentativeId" value={tentativeId} />
       <input type="hidden" name="images" value={JSON.stringify(images)} />
       <input type="hidden" name="variants" value={JSON.stringify(variants)} />
 

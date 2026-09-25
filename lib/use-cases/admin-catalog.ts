@@ -1,6 +1,10 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import {
+  portTransactionRegistreBrouillonImageProduit,
+  type LierBrouillonsImageProduit,
+} from "@/lib/cycle-vie-image-produit"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
@@ -204,7 +208,8 @@ function mapUniqueViolation(error: unknown): never {
 
 export async function createProduct(
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>
+  overrides?: Partial<CatalogEffects>,
+  lier?: LierBrouillonsImageProduit
 ) {
   const effects = avecSurcharges(defaultCatalogEffects, overrides)
   const data = parseProductInput(input)
@@ -215,29 +220,35 @@ export async function createProduct(
 
   let product
   try {
-    product = await prisma.product.create({
-      data: {
-        name: data.name,
-        slug: data.slug,
-        description: data.description,
-        brand: data.brand,
-        price: data.price,
-        specs: data.specs,
-        images: data.images,
-        isFeatured: data.isFeatured,
-        featuredOrder: data.featuredOrder,
-        freeShipping: data.freeShipping,
-        categoryId: data.categoryId,
-        variants: {
-          create: data.variants.map((variant) => ({
-            name: variant.name,
-            sku: variant.sku,
-            priceDelta: variant.priceDelta,
-            stock: variant.stock,
-          })),
+    product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          name: data.name,
+          slug: data.slug,
+          description: data.description,
+          brand: data.brand,
+          price: data.price,
+          specs: data.specs,
+          images: data.images,
+          isFeatured: data.isFeatured,
+          featuredOrder: data.featuredOrder,
+          freeShipping: data.freeShipping,
+          categoryId: data.categoryId,
+          variants: {
+            create: data.variants.map((variant) => ({
+              name: variant.name,
+              sku: variant.sku,
+              priceDelta: variant.priceDelta,
+              stock: variant.stock,
+            })),
+          },
         },
-      },
-      include: { variants: true, category: true },
+        include: { variants: true, category: true },
+      })
+      if (lier) {
+        await lier(created.id, portTransactionRegistreBrouillonImageProduit(tx))
+      }
+      return created
     })
   } catch (error) {
     mapUniqueViolation(error)

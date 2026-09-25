@@ -165,8 +165,19 @@ export function creerRegistreImageProduitMemoire(
       if (brouillon.expiresAt <= input.now) {
         return refusRegistre("expire", "Ce brouillon a expiré")
       }
+      if (
+        brouillon.state === "revendiqué" &&
+        brouillon.tentativeId === input.tentativeId
+      ) {
+        return { ok: true, value: copieBrouillon(brouillon) }
+      }
       if (brouillon.state !== "vivant" || brouillon.tentativeId !== null) {
-        return refusRegistre("non-vivant", "Ce brouillon n'est pas vivant")
+        return refusRegistre(
+          brouillon.state === "revendiqué" ? "deja-revendique" : "non-vivant",
+          brouillon.state === "revendiqué"
+            ? "Ce brouillon a déjà été revendiqué"
+            : "Ce brouillon n'est pas vivant"
+        )
       }
       brouillon.state = "revendiqué"
       brouillon.tentativeId = input.tentativeId
@@ -182,6 +193,14 @@ export function creerRegistreImageProduitMemoire(
       ) {
         return false
       }
+      if (
+        (brouillon.productId !== null &&
+          brouillon.productId !== input.productId) ||
+        (brouillon.promotedPublicUrl !== null &&
+          brouillon.promotedPublicUrl !== input.publicUrl)
+      ) {
+        return false
+      }
       brouillon.productId = input.productId
       brouillon.promotedPublicUrl = input.publicUrl
       return true
@@ -191,10 +210,12 @@ export function creerRegistreImageProduitMemoire(
       const brouillon = records.get(input.id)
       if (
         brouillon?.state === "revendiqué" &&
-        brouillon.tentativeId === input.tentativeId
+        brouillon.tentativeId === input.tentativeId &&
+        brouillon.productId === null
       ) {
         brouillon.state = "vivant"
         brouillon.tentativeId = null
+        brouillon.promotedPublicUrl = null
       }
     },
 
