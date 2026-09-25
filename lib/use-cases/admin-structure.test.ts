@@ -707,18 +707,24 @@ describe("admin structure mutations — categories", () => {
       (error: unknown) => error
     )
     // Contrat stable : la suppression rejette, et le rejet vient de la base —
-    // une erreur Prisma connue (code P2039, erreur base non mappée) dont la
-    // cause porte un SQLSTATE de classe 23, violation de contrainte
-    // d'intégrité. Ni la prose du serveur ni sa langue ne participent au
-    // contrat.
+    // une erreur Prisma connue dont la cause est notre contrainte
+    // d'intégrité. Trois signaux suffisent, et seuls eux : le nom de la
+    // contrainte, que ce dépôt écrit lui-même dans sa migration ; un
+    // SQLSTATE de classe 23 lu dans la cause du lecteur d'adaptateur ; ou
+    // le code P2003 que Prisma réserve aux violations de clé étrangère.
+    // Ni la prose du serveur, ni sa langue, ni le code que Prisma choisit de
+    // revêtir (P2039 localement, P2003 en CI) ne participent au contrat.
     expect(refus).toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
-    expect((refus as Prisma.PrismaClientKnownRequestError).code).toBe("P2039")
-    const cause = (
-      refus as {
-        meta?: { driverAdapterError?: { cause?: { originalCode?: string } } }
-      }
-    ).meta?.driverAdapterError?.cause
-    expect(cause?.originalCode).toMatch(/^23/)
+    const erreur = refus as Prisma.PrismaClientKnownRequestError
+    const meta = erreur.meta as Record<string, unknown> | undefined
+    const driverError = meta?.driverAdapterError as
+      { cause?: { originalCode?: string } } | undefined
+    const sqlstate = driverError?.cause?.originalCode
+    expect(
+      erreur.message.includes("Product_categoryId_fkey") ||
+        (typeof sqlstate === "string" && /^23\d{3}$/.test(sqlstate)) ||
+        erreur.code === "P2003"
+    ).toBe(true)
     await insertion
 
     // Atomicité : la Structure source existe toujours, les Produits y sont
