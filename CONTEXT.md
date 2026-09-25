@@ -145,7 +145,7 @@ A visual asset belonging to a product in the catalogue, displayed in the product
 _Avoid_: photo, visuel, media
 
 **Brouillon d'Image produit**:
-Une Image produit téléchargée pendant l'édition d'un Produit, mais pas encore enregistrée comme fait de ce Produit. Il n'appartient pas au Catalogue persisté et disparaît si l'édition est abandonnée.
+Une Image produit téléchargée pendant l'édition d'un Produit, mais pas encore enregistrée comme fait de ce Produit. Son propriétaire est l'éditeur d'Administration qui l'a téléchargée, jamais le Produit : elle porte un identifiant opaque plutôt qu'une URL, expire seule au bout de la rétention configurée, et disparaît si l'édition est abandonnée. Il se distingue d'une Image produit persistée, qui appartient à son Produit et dont la suppression n'intervient qu'après un enregistrement réussi.
 _Avoid_: upload temporaire, image en attente, brouillon d'upload
 
 **Variante**:
