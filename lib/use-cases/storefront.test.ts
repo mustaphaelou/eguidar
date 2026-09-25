@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   fetchCategoryPageData,
   fetchHomeData,
@@ -13,12 +14,24 @@ const runId = randomUUID().slice(0, 8)
 const pSlug = (suffix: string) => `p-${runId}-${suffix}`
 const cSlug = (suffix: string) => `sf-${runId}-${suffix}`
 
+/**
+ * Colonnes `images` et `specs` stockées hors de leur forme : une galerie
+ * qui n'est pas un tableau, des spécifications qui ne sont pas une série
+ * d'entrées. La boutique lit ce que le Catalogue a laissé écrire et rend
+ * la page quand même.
+ */
+const GALERIE_HORS_FORME = { url: "https://example.com/pas-un-tableau.jpg" }
+const SPECS_HORS_FORME = "Écran : 6 pouces"
+
 interface SeedProduct {
   name: string
   slug: string
   brand: string
   price: number
-  images: string[]
+  /** Les colonnes JSON telles qu'elles sont stockées : cette suite écrit
+   * volontairement des valeurs hors de leur forme, que la mutation refuse. */
+  images: Prisma.InputJsonValue
+  specs?: Prisma.InputJsonValue
   isFeatured?: boolean
   featuredOrder?: number
   freeShipping?: boolean
@@ -38,7 +51,7 @@ async function createProduct(categorySlug: string, product: SeedProduct) {
       brand: product.brand,
       categoryId: category.id,
       price: product.price,
-      specs: { Écran: '6.1"' },
+      specs: product.specs ?? { Écran: '6.1"' },
       images: product.images,
       isFeatured: product.isFeatured ?? false,
       featuredOrder: product.featuredOrder ?? 0,
@@ -383,6 +396,85 @@ describe("storefront browse", () => {
     expect(detail).not.toBeNull()
     expect(detail!.minPrice).toBe(50000)
     expect(detail!.variants).toEqual([])
+  })
+
+  it("product detail: des colonnes JSON hors de leur forme répondent des faits vides, le reste intact", async () => {
+    // La lecture normalise les deux colonnes avec la règle partagée
+    // (`urlsImagesProduit`, `specificationsProduit`). Avant, elle les
+    // transtinguait à l'aveugle : un membre de galerie qui n'est pas une
+    // chaîne atteignait le composant de galerie, et une valeur de `specs`
+    // qui n'est pas un objet atteignait le `Object.entries` de la page
+    // Produit. Une colonne abimée ne doit rendre que des faits vides —
+    // jamais une page cassée, jamais une valeur à moitié crédible.
+    await createProduct(cSlug("grand"), {
+      name: "Produit aux colonnes abimées",
+      slug: pSlug("detail-colonnes-hors-forme"),
+      brand: "Marque Test",
+      price: 80000,
+      images: GALERIE_HORS_FORME,
+      specs: SPECS_HORS_FORME,
+      variants: [
+        { name: "128 Go", sku: `SKU-${runId}-hc1`, priceDelta: 0, stock: 4 },
+        {
+          name: "256 Go",
+          sku: `SKU-${runId}-hc2`,
+          priceDelta: -10000,
+          stock: 6,
+        },
+      ],
+    })
+
+    const detail = await fetchProductPageData(
+      pSlug("detail-colonnes-hors-forme")
+    )
+
+    expect(detail).not.toBeNull()
+    expect(detail!.images).toEqual([])
+    expect(detail!.specs).toEqual({})
+    // Le reste des faits ne dépend pas des deux colonnes : une colonne
+    // abimée n'efface pas le Produit.
+    expect(detail!.id).toBeTruthy()
+    expect(detail!.name).toBe("Produit aux colonnes abimées")
+    expect(detail!.slug).toBe(pSlug("detail-colonnes-hors-forme"))
+    expect(detail!.minPrice).toBe(70000)
+    expect(detail!.variants.map((v) => v.sku)).toEqual([
+      `SKU-${runId}-hc1`,
+      `SKU-${runId}-hc2`,
+    ])
+    expect(detail!.variants[0]).toMatchObject({ prix: 80000, stock: 4 })
+    expect(detail!.variants[1]).toMatchObject({ prix: 70000, stock: 6 })
+    expect(detail!.category.slug).toBe(cSlug("grand"))
+    expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
+      cSlug("root"),
+      cSlug("child"),
+      cSlug("grand"),
+    ])
+  })
+
+  it("product detail: une galerie à moitié écrite ne livre que ses URL lisibles", async () => {
+    // La galerie est un tableau dont certains membres ne sont pas des
+    // chaînes : la règle partagée abandonne les membres illisibles au lieu
+    // de les laisser filer jusqu'au composant de galerie, qui les aurait
+    // rendus comme des URL.
+    await createProduct(cSlug("grand"), {
+      name: "Produit à la galerie abimée",
+      slug: pSlug("detail-galerie-partielle"),
+      brand: "Marque Test",
+      price: 60000,
+      images: [
+        42,
+        "https://example.com/premiere.jpg",
+        null,
+        { url: "https://example.com/ni-une-url.jpg" },
+      ],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-gp1`, priceDelta: 0, stock: 2 },
+      ],
+    })
+
+    const detail = await fetchProductPageData(pSlug("detail-galerie-partielle"))
+
+    expect(detail!.images).toEqual(["https://example.com/premiere.jpg"])
   })
 
   it("product cards expose the first image, the lowest price and the total stock", async () => {

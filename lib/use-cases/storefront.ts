@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db"
 import {
   minVariantPrice,
   prixVariante,
+  specificationsProduit,
   totalVariantStock,
+  urlsImagesProduit,
 } from "@/lib/product-metrics"
 import {
   CATEGORY_TAG,
@@ -275,8 +277,8 @@ export async function fetchProductPageData(
     slug: product.slug,
     brand: product.brand,
     description: product.description,
-    specs: (product.specs as Record<string, string>) ?? {},
-    images: Array.isArray(product.images) ? (product.images as string[]) : [],
+    specs: specificationsProduit(product.specs),
+    images: urlsImagesProduit(product.images),
     minPrice: minVariantPrice(product.price, product.variants),
     freeShipping: product.freeShipping,
     category: {
