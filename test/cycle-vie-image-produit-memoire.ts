@@ -162,14 +162,14 @@ export function creerRegistreImageProduitMemoire(
           "Ce brouillon ne vous appartient pas"
         )
       }
-      if (brouillon.expiresAt <= input.now) {
-        return refusRegistre("expire", "Ce brouillon a expiré")
-      }
       if (
         brouillon.state === "revendiqué" &&
         brouillon.tentativeId === input.tentativeId
       ) {
         return { ok: true, value: copieBrouillon(brouillon) }
+      }
+      if (brouillon.expiresAt <= input.now) {
+        return refusRegistre("expire", "Ce brouillon a expiré")
       }
       if (brouillon.state !== "vivant" || brouillon.tentativeId !== null) {
         return refusRegistre(
