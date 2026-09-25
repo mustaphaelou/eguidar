@@ -1,12 +1,12 @@
 import { z } from "zod"
 
 export const entreeImagePersisteeSchema = z.object({
-  kind: z.literal("persisted"),
+  kind: z.literal("persistee"),
   url: z.string().url(),
 })
 
 export const entreeBrouillonImageSchema = z.object({
-  kind: z.literal("draft"),
+  kind: z.literal("brouillon"),
   draftId: z.string().min(1),
   previewUrl: z.string().url(),
 })
@@ -27,5 +27,5 @@ export type EntreeBrouillonImage = z.infer<typeof entreeBrouillonImageSchema>
 export function entreesPersisteesDepuisUrls(
   urls: readonly string[]
 ): EntreeImagePersistee[] {
-  return urls.map((url) => ({ kind: "persisted", url }))
+  return urls.map((url) => ({ kind: "persistee", url }))
 }

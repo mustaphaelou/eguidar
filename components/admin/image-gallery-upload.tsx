@@ -27,13 +27,13 @@ type ReponsePresign = {
 }
 
 function entryKey(image: EntreeImageProduit): string {
-  return image.kind === "persisted"
+  return image.kind === "persistee"
     ? `persisted:${image.url}`
     : `draft:${image.draftId}`
 }
 
 function imageSource(image: EntreeImageProduit): string {
-  return image.kind === "persisted" ? image.url : image.previewUrl
+  return image.kind === "persistee" ? image.url : image.previewUrl
 }
 
 export function ImageGalleryUpload({
@@ -93,7 +93,7 @@ export function ImageGalleryUpload({
           continue
         }
         uploaded.push({
-          kind: "draft",
+          kind: "brouillon",
           draftId: body.draftId,
           previewUrl: body.previewUrl,
         })

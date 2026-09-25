@@ -44,13 +44,13 @@ function parseProductFormData(formData: FormData): ProductInput {
     const gallery = galerieImageProduitSchema.parse(
       JSON.parse(String(imagesRaw ?? "[]"))
     )
-    if (gallery.some((image) => image.kind === "draft")) {
+    if (gallery.some((image) => image.kind === "brouillon")) {
       throw new UserFacingError(
         "Les Brouillons d'Image produit seront revendiqués lors de l'enregistrement"
       )
     }
     images = gallery.flatMap((image) =>
-      image.kind === "persisted" ? [image.url] : []
+      image.kind === "persistee" ? [image.url] : []
     )
     variants = JSON.parse(String(variantsRaw ?? "[]"))
   } catch (error) {

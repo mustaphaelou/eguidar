@@ -42,7 +42,7 @@ describe("ImageGalleryUpload", () => {
   it("transforme un envoi en entrée Brouillon et ne supprime pas une Image persistée", async () => {
     const onChange = vi.fn()
     const persisted: EntreeImageProduit = {
-      kind: "persisted",
+      kind: "persistee",
       url: "https://cdn.example.test/products/existing.png",
     }
     const fetchMock = vi
@@ -75,7 +75,7 @@ describe("ImageGalleryUpload", () => {
     expect(onChange).toHaveBeenCalledWith([
       persisted,
       {
-        kind: "draft",
+        kind: "brouillon",
         draftId: "draft-1",
         previewUrl: "https://cdn.example.test/products/brouillons/draft-1.png",
       },
@@ -89,7 +89,7 @@ describe("ImageGalleryUpload", () => {
   it("retire une entrée persistée sans appeler la route de suppression R2", () => {
     const onChange = vi.fn()
     const persisted: EntreeImageProduit = {
-      kind: "persisted",
+      kind: "persistee",
       url: "https://cdn.example.test/products/existing.png",
     }
     const fetchMock = vi.fn()
