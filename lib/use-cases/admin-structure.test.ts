@@ -11,7 +11,13 @@ import { prisma } from "@/lib/db"
 const sendMock = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/r2", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/r2")>()
-  return { ...original, deleteR2Object: () => sendMock() }
+  return {
+    ...original,
+    stockageImageProduitR2: {
+      ...original.stockageImageProduitR2,
+      supprimerImagePersistee: () => sendMock(),
+    },
+  }
 })
 
 import {

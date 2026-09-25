@@ -8,7 +8,7 @@ import {
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
-import { deleteR2Object } from "@/lib/r2"
+import { stockageImageProduitR2 } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
 import {
@@ -79,7 +79,8 @@ function defaultCatalogEffects(productId?: string): CatalogEffects {
     async deleteImages(urls) {
       for (const url of urls) {
         try {
-          const resultat = await deleteR2Object(url)
+          const resultat =
+            await stockageImageProduitR2.supprimerImagePersistee(url)
           if (!resultat.ok) {
             journaliserEchecSuppressionImage(produit, url, resultat.erreur)
           }

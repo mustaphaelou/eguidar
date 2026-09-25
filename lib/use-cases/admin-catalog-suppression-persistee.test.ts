@@ -10,14 +10,20 @@ import {
   vi,
 } from "vitest"
 
-const { deleteR2ObjectMock } = vi.hoisted(() => ({
-  deleteR2ObjectMock: vi.fn(),
+const { supprimerImagePersisteeMock } = vi.hoisted(() => ({
+  supprimerImagePersisteeMock: vi.fn(),
 }))
 
-vi.mock("@/lib/r2", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/r2")>()),
-  deleteR2Object: deleteR2ObjectMock,
-}))
+vi.mock("@/lib/r2", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/r2")>()
+  return {
+    ...original,
+    stockageImageProduitR2: {
+      ...original.stockageImageProduitR2,
+      supprimerImagePersistee: supprimerImagePersisteeMock,
+    },
+  }
+})
 
 import { prisma } from "@/lib/db"
 import {
@@ -72,8 +78,8 @@ describe("suppression post-commit des Images produit persistées", () => {
   })
 
   beforeEach(async () => {
-    deleteR2ObjectMock.mockReset()
-    deleteR2ObjectMock.mockResolvedValue({ ok: true, valeur: null })
+    supprimerImagePersisteeMock.mockReset()
+    supprimerImagePersisteeMock.mockResolvedValue({ ok: true, valeur: null })
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `produit-suppression-${runId}-` } },
     })
@@ -97,7 +103,7 @@ describe("suppression post-commit des Images produit persistées", () => {
       }),
       effetsSilencieux()
     )
-    deleteR2ObjectMock
+    supprimerImagePersisteeMock
       .mockResolvedValueOnce({
         ok: false,
         erreur: { code: "erreur-stockage", message: "R2 indisponible" },
@@ -120,7 +126,7 @@ describe("suppression post-commit des Images produit persistées", () => {
       )
 
       expect(updated.images).toEqual([])
-      expect(deleteR2ObjectMock.mock.calls).toEqual([
+      expect(supprimerImagePersisteeMock.mock.calls).toEqual([
         [firstImage],
         [secondImage],
       ])

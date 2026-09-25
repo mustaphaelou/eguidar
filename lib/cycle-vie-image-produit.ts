@@ -142,6 +142,7 @@ export type CodeRefusRegistreBrouillon =
   | "non-vivant"
   | "expire"
   | "deja-revendique"
+  | "deja-libere"
 
 export type ResultatRevendicationRegistre =
   | { ok: true; value: BrouillonImageProduit }
@@ -224,6 +225,9 @@ function refus(
 const MESSAGE_BROUILLON_EXPIRE =
   "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."
 
+const MESSAGE_BROUILLON_DEJA_LIBERE =
+  "Ce Brouillon d'Image produit a déjà été libéré : il n'existe plus et ne peut plus être revendiqué."
+
 const MESSAGE_CONFLIT_REVENDICATION =
   "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie."
 
@@ -294,6 +298,8 @@ function resultatRegistreRefus(
       return refus("brouillon-expire", MESSAGE_BROUILLON_EXPIRE)
     case "deja-revendique":
       return refus("brouillon-non-vivant", MESSAGE_CONFLIT_REVENDICATION)
+    case "deja-libere":
+      return refus("brouillon-non-vivant", MESSAGE_BROUILLON_DEJA_LIBERE)
     case "non-vivant":
       return refus("brouillon-non-vivant", resultat.message)
   }
@@ -531,11 +537,13 @@ export function creerRegistreBrouillonImageProduitPrisma(
       }
       return {
         ok: false,
-        code: row.state === "revendiqué" ? "deja-revendique" : "non-vivant",
-        message:
+        code:
           row.state === "revendiqué"
-            ? "Ce brouillon a déjà été revendiqué"
-            : "Ce brouillon n'est pas vivant",
+            ? "deja-revendique"
+            : row.state === "libéré"
+              ? "deja-libere"
+              : "non-vivant",
+        message: "Ce brouillon n'est pas vivant",
       }
     },
 

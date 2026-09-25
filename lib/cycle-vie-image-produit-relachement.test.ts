@@ -74,6 +74,31 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     expect(stockage.deletedDrafts).toEqual([demande.draftId])
   })
 
+  it("refuse une revendication d'un Brouillon déjà libéré avec la même raison", async () => {
+    const { cycleVie } = creerCycleVieRelachement()
+    const demande = await demanderBrouillon(cycleVie)
+    await cycleVie.relacherBrouillon({
+      draftId: demande.draftId,
+      ownerId: "editeur-1",
+    })
+
+    // Libérer puis prétendre revendiquer est le même état non vivant que
+    // libérer deux fois : l'éditeur doit lire la même raison explicite.
+    expect(
+      await cycleVie.revendiquerEtEnregistrer({
+        tentativeId: "tentative-1",
+        ownerId: "editeur-1",
+        draftIds: [demande.draftId],
+        enregistrer: async () => ({ productId: "produit-1", result: null }),
+      })
+    ).toEqual({
+      ok: false,
+      code: "brouillon-non-vivant",
+      message:
+        "Ce Brouillon d'Image produit a déjà été libéré : il n'existe plus et ne peut plus être revendiqué.",
+    })
+  })
+
   it("distingue un Brouillon déjà revendiqué d'un Brouillon déjà libéré", async () => {
     const { cycleVie } = creerCycleVieRelachement()
     const demande = await demanderBrouillon(cycleVie)

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
-import { deleteR2Object } from "@/lib/r2"
+import { stockageImageProduitR2 } from "@/lib/r2"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
 import {
   avecSurcharges,
@@ -40,7 +40,7 @@ const defaultStructureEffects: StructureEffects = {
   },
   async deleteImage(url) {
     try {
-      await deleteR2Object(url)
+      await stockageImageProduitR2.supprimerImagePersistee(url)
     } catch (error) {
       console.warn(
         `[structure] suppression d'image R2 non effectuée pour ${url}`,

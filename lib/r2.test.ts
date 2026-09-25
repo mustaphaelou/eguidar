@@ -61,7 +61,6 @@ import {
   DRAFT_PRODUCTS_PREFIX,
   MAX_UPLOAD_SIZE,
   PRODUCTS_PREFIX,
-  deleteR2Object,
   draftObjectKey,
   objectKeyFromPublicUrl,
   persistentObjectKey,
@@ -207,9 +206,7 @@ describe("adaptateur R2 des Images produit", () => {
       ok: false,
       erreur: { code: "parametre-invalide" },
     })
-    expect(
-      await deleteR2Object("https://cdn.example.test/products/image-2.gif")
-    ).toEqual({ ok: true, valeur: null })
+    expect(deleteCommandInputs).toHaveLength(2)
   })
 
   it("traduit une panne R2 et une configuration absente en résultats explicites", async () => {
