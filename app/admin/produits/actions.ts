@@ -1,8 +1,14 @@
 "use server"
 
+import { randomUUID } from "node:crypto"
+
 import { redirect } from "next/navigation"
 
-import { galerieImageProduitSchema } from "@/lib/galerie-image-produit"
+import cycleVieImageProduit from "@/lib/cycle-vie-image-produit"
+import {
+  galerieImageProduitSchema,
+  type EntreeImageProduit,
+} from "@/lib/galerie-image-produit"
 import {
   adminFormAction,
   adminTaskAction,
@@ -14,6 +20,7 @@ import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   createProduct,
   deleteProduct,
+  getAdminProduct,
   updateProduct,
   updateVariantStock,
   type ProductInput,
@@ -34,27 +41,24 @@ function parseSpecsText(text: string): Record<string, string> {
   return specs
 }
 
-function parseProductFormData(formData: FormData): ProductInput {
+interface ProductFormInput extends Omit<ProductInput, "images"> {
+  images: EntreeImageProduit[]
+  tentativeId: string
+}
+
+function parseProductFormData(formData: FormData): ProductFormInput {
   const imagesRaw = formData.get("images")
   const variantsRaw = formData.get("variants")
+  const tentativeRaw = formData.get("tentativeId")
 
-  let images: string[] = []
-  let variants: ProductInput["variants"] = []
+  let images: EntreeImageProduit[]
+  let variants: ProductInput["variants"]
   try {
-    const gallery = galerieImageProduitSchema.parse(
+    images = galerieImageProduitSchema.parse(
       JSON.parse(String(imagesRaw ?? "[]"))
     )
-    if (gallery.some((image) => image.kind === "brouillon")) {
-      throw new UserFacingError(
-        "Les Brouillons d'Image produit seront revendiqués lors de l'enregistrement"
-      )
-    }
-    images = gallery.flatMap((image) =>
-      image.kind === "persistee" ? [image.url] : []
-    )
     variants = JSON.parse(String(variantsRaw ?? "[]"))
-  } catch (error) {
-    if (error instanceof UserFacingError) throw error
+  } catch {
     throw new Error(INVALID_FORM_MESSAGE)
   }
 
@@ -71,19 +75,70 @@ function parseProductFormData(formData: FormData): ProductInput {
     specs: parseSpecsText(String(formData.get("specsText") ?? "")),
     images,
     variants,
+    tentativeId:
+      typeof tentativeRaw === "string" && tentativeRaw.trim()
+        ? tentativeRaw.trim()
+        : randomUUID(),
   }
 }
 
-interface ProductUpdateInput extends ProductInput {
+function champsCatalogue(
+  input: ProductFormInput
+): Omit<ProductInput, "images"> {
+  const { images: _images, tentativeId: _tentativeId, ...champs } = input
+  return champs
+}
+
+function refuserImagesPersisteesEnCreation(
+  images: readonly EntreeImageProduit[]
+): void {
+  if (images.some((image) => image.kind === "persistee")) {
+    throw new UserFacingError(
+      "Une création de Produit ne peut contenir que des Brouillons d'Image produit"
+    )
+  }
+}
+
+interface ProductUpdateInput extends ProductFormInput {
   productId: string
 }
 
-export const createProductAction = adminFormAction<ProductInput>({
+export const createProductAction = adminFormAction<ProductFormInput>({
   next: "/admin/produits",
   parse: parseProductFormData,
-  run: async (input) => {
-    const product = await createProduct(input)
-    redirect(`/admin/produits/${product.id}`)
+  run: async (input, client) => {
+    refuserImagesPersisteesEnCreation(input.images)
+    const champs = champsCatalogue(input)
+    const draftIds = input.images.flatMap((image) =>
+      image.kind === "brouillon" ? [image.draftId] : []
+    )
+
+    if (draftIds.length === 0) {
+      const product = await createProduct({ ...champs, images: [] })
+      redirect(`/admin/produits/${product.id}`)
+    }
+
+    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+      tentativeId: input.tentativeId,
+      ownerId: client.id,
+      draftIds,
+      resultatDejaPersiste: async (productId) => {
+        const product = await getAdminProduct(productId)
+        if (!product) throw new Error("Produit enregistré introuvable")
+        return product
+      },
+      enregistrer: async (images, lier) => {
+        const product = await createProduct(
+          { ...champs, images: images.map((image) => image.publicUrl) },
+          undefined,
+          lier
+        )
+        return { productId: product.id, result: product }
+      },
+    })
+    if (!resultat.ok) throw new UserFacingError(resultat.message)
+
+    redirect(`/admin/produits/${resultat.productId}`)
   },
 })
 
@@ -95,8 +150,18 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
       productId: parseRequiredId(formData, "productId"),
     }
   },
-  run: async ({ productId, ...input }) => {
-    await updateProduct(productId, input)
+  run: async ({ productId, images, tentativeId: _tentativeId, ...input }) => {
+    if (images.some((image) => image.kind === "brouillon")) {
+      throw new UserFacingError(
+        "Les nouveaux Brouillons d'Image produit ne sont pas encore pris en charge"
+      )
+    }
+    await updateProduct(productId, {
+      ...input,
+      images: images.flatMap((image) =>
+        image.kind === "persistee" ? [image.url] : []
+      ),
+    })
     redirect("/admin/produits")
   },
 })

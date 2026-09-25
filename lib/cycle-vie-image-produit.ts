@@ -3,6 +3,7 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
   MAX_UPLOAD_SIZE,
@@ -86,13 +87,32 @@ export interface ImageProduitPromue {
   publicUrl: string
 }
 
+export interface ConfirmationPromotionBrouillonImageProduit {
+  id: string
+  tentativeId: string
+  productId: string
+  publicUrl: string
+}
+
+export interface PortTransactionRegistreBrouillonImageProduit {
+  confirmerPromotion(
+    input: ConfirmationPromotionBrouillonImageProduit
+  ): Promise<boolean>
+}
+
+export type LierBrouillonsImageProduit = (
+  productId: string,
+  transaction?: PortTransactionRegistreBrouillonImageProduit
+) => Promise<void>
+
 export interface ResultatEnregistrementCatalogue<TResult> {
   productId: string
   result: TResult
 }
 
 export type EnregistrerCatalogue<TResult> = (
-  images: readonly ImageProduitPromue[]
+  images: readonly ImageProduitPromue[],
+  lier: LierBrouillonsImageProduit
 ) => Promise<ResultatEnregistrementCatalogue<TResult>>
 
 export type ResultatRevendiquerEtEnregistrer<TResult> =
@@ -168,6 +188,7 @@ export interface CycleVieImageProduit {
     ownerId: string
     draftIds: readonly string[]
     enregistrer: EnregistrerCatalogue<TResult>
+    resultatDejaPersiste?: (productId: string) => Promise<TResult>
   }): Promise<ResultatRevendiquerEtEnregistrer<TResult>>
   lireBrouillon(id: string): Promise<BrouillonImageProduit | null>
 }
@@ -285,6 +306,58 @@ const selectionBrouillon = {
   productId: true,
 } as const
 
+type TransactionBrouillonImageProduit = Pick<
+  Prisma.TransactionClient,
+  "brouillonImageProduit"
+>
+
+async function confirmerPromotionAvecTransaction(
+  transaction: TransactionBrouillonImageProduit,
+  input: ConfirmationPromotionBrouillonImageProduit
+): Promise<boolean> {
+  const updated = await transaction.brouillonImageProduit.updateMany({
+    where: {
+      id: input.id,
+      tentativeId: input.tentativeId,
+      state: "revendiqué",
+      OR: [
+        { productId: null, promotedPublicUrl: null },
+        { productId: null, promotedPublicUrl: input.publicUrl },
+        {
+          productId: input.productId,
+          promotedPublicUrl: input.publicUrl,
+        },
+      ],
+    },
+    data: {
+      productId: input.productId,
+      promotedPublicUrl: input.publicUrl,
+    },
+  })
+  if (updated.count === 1) return true
+
+  const row = await transaction.brouillonImageProduit.findUnique({
+    where: { id: input.id },
+    select: selectionBrouillon,
+  })
+  return Boolean(
+    row &&
+    row.state === "revendiqué" &&
+    row.tentativeId === input.tentativeId &&
+    row.productId === input.productId &&
+    row.promotedPublicUrl === input.publicUrl
+  )
+}
+
+export function portTransactionRegistreBrouillonImageProduit(
+  transaction: TransactionBrouillonImageProduit
+): PortTransactionRegistreBrouillonImageProduit {
+  return {
+    confirmerPromotion: (input) =>
+      confirmerPromotionAvecTransaction(transaction, input),
+  }
+}
+
 export const registreBrouillonImageProduitPrisma: PortRegistreBrouillonImageProduit =
   {
     async creer(input) {
@@ -315,28 +388,13 @@ export const registreBrouillonImageProduitPrisma: PortRegistreBrouillonImageProd
     },
 
     async revendiquer(input) {
-      const updated = await prisma.brouillonImageProduit.updateMany({
-        where: {
-          id: input.id,
-          ownerId: input.ownerId,
-          state: "vivant",
-          tentativeId: null,
-          expiresAt: { gt: input.now },
-        },
-        data: { state: "revendiqué", tentativeId: input.tentativeId },
-      })
-      if (updated.count === 1) {
-        const row = await prisma.brouillonImageProduit.findUnique({
+      const lire = () =>
+        prisma.brouillonImageProduit.findUnique({
           where: { id: input.id },
           select: selectionBrouillon,
         })
-        if (row) return { ok: true, value: versBrouillon(row) }
-      }
 
-      const row = await prisma.brouillonImageProduit.findUnique({
-        where: { id: input.id },
-        select: selectionBrouillon,
-      })
+      let row = await lire()
       if (!row) {
         return {
           ok: false,
@@ -358,32 +416,76 @@ export const registreBrouillonImageProduitPrisma: PortRegistreBrouillonImageProd
           message: "Ce brouillon a expiré",
         }
       }
+      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
+        return { ok: true, value: versBrouillon(row) }
+      }
+
+      const updated = await prisma.brouillonImageProduit.updateMany({
+        where: {
+          id: input.id,
+          ownerId: input.ownerId,
+          state: "vivant",
+          tentativeId: null,
+          expiresAt: { gt: input.now },
+        },
+        data: { state: "revendiqué", tentativeId: input.tentativeId },
+      })
+      if (updated.count === 1) {
+        row = await lire()
+        if (row) return { ok: true, value: versBrouillon(row) }
+      }
+
+      row = await lire()
+      if (!row) {
+        return {
+          ok: false,
+          code: "introuvable",
+          message: "Brouillon introuvable",
+        }
+      }
+      if (row.ownerId !== input.ownerId) {
+        return {
+          ok: false,
+          code: "proprietaire-incorrect",
+          message: "Ce brouillon ne vous appartient pas",
+        }
+      }
+      if (row.expiresAt <= input.now) {
+        return {
+          ok: false,
+          code: "expire",
+          message: "Ce brouillon a expiré",
+        }
+      }
+      if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
+        return { ok: true, value: versBrouillon(row) }
+      }
       return {
         ok: false,
         code: row.state === "revendiqué" ? "deja-revendique" : "non-vivant",
-        message: "Ce brouillon n'est pas vivant",
+        message:
+          row.state === "revendiqué"
+            ? "Ce brouillon a déjà été revendiqué"
+            : "Ce brouillon n'est pas vivant",
       }
     },
 
     async confirmerPromotion(input) {
-      const updated = await prisma.brouillonImageProduit.updateMany({
-        where: {
-          id: input.id,
-          tentativeId: input.tentativeId,
-          state: "revendiqué",
-        },
-        data: {
-          productId: input.productId,
-          promotedPublicUrl: input.publicUrl,
-        },
-      })
-      return updated.count === 1
+      return confirmerPromotionAvecTransaction(prisma, input)
     },
 
     async annulerRevendication(input) {
       await prisma.brouillonImageProduit.updateMany({
-        where: { id: input.id, tentativeId: input.tentativeId },
-        data: { state: "vivant", tentativeId: null },
+        where: {
+          id: input.id,
+          tentativeId: input.tentativeId,
+          productId: null,
+        },
+        data: {
+          state: "vivant",
+          tentativeId: null,
+          promotedPublicUrl: null,
+        },
       })
     },
 
@@ -516,8 +618,11 @@ export function creerCycleVieImageProduit(
     ownerId: string
     draftIds: readonly string[]
     enregistrer: EnregistrerCatalogue<TResult>
+    resultatDejaPersiste?: (productId: string) => Promise<TResult>
   }): Promise<ResultatRevendiquerEtEnregistrer<TResult>> {
-    if (!input.tentativeId.trim() || !input.ownerId.trim()) {
+    const tentativeId = input.tentativeId.trim()
+    const ownerId = input.ownerId.trim()
+    if (!tentativeId || !ownerId) {
       return refus(
         "identifiant-proprietaire-invalide",
         "Tentative d'édition ou propriétaire invalide"
@@ -529,39 +634,113 @@ export function creerCycleVieImageProduit(
     }
 
     const claimed: BrouillonImageProduit[] = []
+    const mimeParBrouillon = new Map<string, string>()
+    const now = horloge.maintenant()
+
+    async function restaurerRevendications(): Promise<void> {
+      await Promise.all(
+        claimed.map((draft) =>
+          registre
+            .annulerRevendication({
+              id: draft.id,
+              tentativeId,
+            })
+            .catch(() => undefined)
+        )
+      )
+    }
+
     for (const id of draftIds) {
       let result: ResultatRevendicationRegistre
       try {
         result = await registre.revendiquer({
           id,
-          ownerId: input.ownerId,
-          tentativeId: input.tentativeId,
-          now: horloge.maintenant(),
+          ownerId,
+          tentativeId,
+          now,
         })
       } catch {
+        await restaurerRevendications()
         return refus(
           "registre-indisponible",
           "Registre des Brouillons indisponible"
         )
       }
       if (!result.ok) {
-        await Promise.all(
-          claimed.map((draft) =>
-            registre
-              .annulerRevendication({
-                id: draft.id,
-                tentativeId: input.tentativeId,
-              })
-              .catch(() => undefined)
-          )
-        )
+        await restaurerRevendications()
         return resultatRegistreRefus(result)
       }
       claimed.push(result.value)
+      mimeParBrouillon.set(result.value.id, result.value.mimeType)
+    }
+
+    const brouillonsLies = claimed.filter(
+      (
+        draft
+      ): draft is BrouillonImageProduit & {
+        productId: string
+        promotedPublicUrl: string
+      } => draft.productId !== null && draft.promotedPublicUrl !== null
+    )
+    if (brouillonsLies.length > 0) {
+      const productIds = new Set(brouillonsLies.map((draft) => draft.productId))
+      if (brouillonsLies.length !== claimed.length || productIds.size !== 1) {
+        await restaurerRevendications()
+        return refus(
+          "revendication-refusee",
+          "Les Brouillons ne sont pas tous liés à la même tentative"
+        )
+      }
+      if (input.resultatDejaPersiste) {
+        const productId = [...productIds][0]
+        try {
+          const result = await input.resultatDejaPersiste(productId)
+          return {
+            ok: true,
+            productId,
+            result,
+            images: brouillonsLies.map((draft) => ({
+              draftId: draft.id,
+              publicUrl: draft.promotedPublicUrl,
+            })),
+          }
+        } catch {
+          return refus(
+            "catalogue-refuse",
+            "L'enregistrement du Catalogue a échoué"
+          )
+        }
+      }
+    }
+
+    async function supprimerPromotions(
+      images: readonly ImageProduitPromue[]
+    ): Promise<void> {
+      await Promise.all(
+        images.map((image) =>
+          stockage
+            .supprimerImagePromue({
+              draftId: image.draftId,
+              contentType: mimeParBrouillon.get(image.draftId) ?? "",
+            })
+            .catch(() => undefined)
+        )
+      )
     }
 
     const promoted: ImageProduitPromue[] = []
+    const nouvellesPromotions: ImageProduitPromue[] = []
     for (const draft of claimed) {
+      if (draft.promotedPublicUrl) {
+        const image = {
+          draftId: draft.id,
+          publicUrl: draft.promotedPublicUrl,
+        }
+        promoted.push(image)
+        if (draft.productId === null) nouvellesPromotions.push(image)
+        continue
+      }
+
       let result: ResultatStockageImageProduit<{ publicUrl: string }>
       try {
         result = await stockage.promouvoirBrouillon({
@@ -578,84 +757,40 @@ export function creerCycleVieImageProduit(
         }
       }
       if (!result.ok) {
-        await Promise.all(
-          promoted.map((image) =>
-            stockage
-              .supprimerImagePromue({
-                draftId: image.draftId,
-                contentType:
-                  claimed.find((draft) => draft.id === image.draftId)
-                    ?.mimeType ?? "",
-              })
-              .catch(() => undefined)
-          )
-        )
-        await Promise.all(
-          claimed.map((draft) =>
-            registre
-              .annulerRevendication({
-                id: draft.id,
-                tentativeId: input.tentativeId,
-              })
-              .catch(() => undefined)
-          )
-        )
+        await supprimerPromotions(nouvellesPromotions)
+        await restaurerRevendications()
         return refusStockage(result)
       }
-      promoted.push({ draftId: draft.id, publicUrl: result.valeur.publicUrl })
+
+      const image = { draftId: draft.id, publicUrl: result.valeur.publicUrl }
+      promoted.push(image)
+      nouvellesPromotions.push(image)
+    }
+
+    const lier: LierBrouillonsImageProduit = async (productId, transaction) => {
+      for (const image of promoted) {
+        const confirmation = {
+          id: image.draftId,
+          tentativeId,
+          productId,
+          publicUrl: image.publicUrl,
+        }
+        const confirmed = transaction
+          ? await transaction.confirmerPromotion(confirmation)
+          : await registre.confirmerPromotion(confirmation)
+        if (!confirmed) {
+          throw new Error("Le Brouillon n'a pas pu être associé au Produit")
+        }
+      }
     }
 
     let persisted: ResultatEnregistrementCatalogue<TResult>
     try {
-      persisted = await input.enregistrer(promoted)
+      persisted = await input.enregistrer(promoted, lier)
     } catch {
-      await Promise.all(
-        promoted.map((image) =>
-          stockage
-            .supprimerImagePromue({
-              draftId: image.draftId,
-              contentType:
-                claimed.find((draft) => draft.id === image.draftId)?.mimeType ??
-                "",
-            })
-            .catch(() => undefined)
-        )
-      )
-      await Promise.all(
-        claimed.map((draft) =>
-          registre
-            .annulerRevendication({
-              id: draft.id,
-              tentativeId: input.tentativeId,
-            })
-            .catch(() => undefined)
-        )
-      )
+      await supprimerPromotions(nouvellesPromotions)
+      await restaurerRevendications()
       return refus("catalogue-refuse", "L'enregistrement du Catalogue a échoué")
-    }
-
-    for (const draft of claimed) {
-      const image = promoted.find((candidate) => candidate.draftId === draft.id)
-      if (!image) continue
-      try {
-        const confirmed = await registre.confirmerPromotion({
-          id: draft.id,
-          tentativeId: input.tentativeId,
-          productId: persisted.productId,
-          publicUrl: image.publicUrl,
-        })
-        if (!confirmed) {
-          return refus(
-            "revendication-refusee",
-            "Le Brouillon n'a pas pu être associé au Produit"
-          )
-        }
-      } catch {
-        return refus(
-          "registre-indisponible",
-          "Registre des Brouillons indisponible"
-        )
-      }
     }
 
     return {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import {
+  creerCycleVieImageProduit,
+  type EnregistrerCatalogue,
+} from "@/lib/cycle-vie-image-produit"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
@@ -137,5 +140,213 @@ describe("CycleVieImageProduit", () => {
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "brouillon-expire" })
+  })
+
+  it("revendique, promeut et lie un Brouillon dans l'enregistrement Catalogue", async () => {
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/webp",
+      size: 1024,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async (_images, lier) => {
+        await lier("produit-1")
+        return { productId: "produit-1", result: "enregistré" }
+      },
+    })
+
+    expect(resultat).toMatchObject({
+      ok: true,
+      productId: "produit-1",
+      result: "enregistré",
+      images: [
+        {
+          draftId: demande.draftId,
+          publicUrl: `memoire://image/${demande.draftId}`,
+        },
+      ],
+    })
+    expect(stockage.promotions).toEqual([
+      {
+        draftId: demande.draftId,
+        publicUrl: `memoire://image/${demande.draftId}`,
+      },
+    ])
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-1",
+      productId: "produit-1",
+      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+    })
+  })
+
+  it("refuse un Brouillon absent ou appartenant à un autre éditeur", async () => {
+    const { cycleVie, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/jpeg",
+      size: 100,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-2",
+      draftIds: [demande.draftId, "brouillon-inconnu"],
+      enregistrer: async () => {
+        throw new Error("Le Catalogue ne doit pas être appelé")
+      },
+    })
+
+    expect(resultat).toMatchObject({
+      ok: false,
+      code: "proprietaire-incorrect",
+    })
+    expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
+  })
+
+  it("refuse un identifiant de Brouillon inconnu", async () => {
+    const { cycleVie } = creerCycleVieTest()
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: ["brouillon-inconnu"],
+      enregistrer: async () => {
+        throw new Error("Le Catalogue ne doit pas être appelé")
+      },
+    })
+
+    expect(resultat).toMatchObject({
+      ok: false,
+      code: "brouillon-introuvable",
+    })
+  })
+
+  it("laisse le Brouillon revendicable après un échec de promotion", async () => {
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/png",
+      size: 100,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+    stockage.failPromotion = true
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async () => {
+        throw new Error("Le Catalogue ne doit pas être appelé")
+      },
+    })
+
+    expect(resultat).toMatchObject({ ok: false, code: "stockage-refuse" })
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "vivant",
+      tentativeId: null,
+    })
+  })
+
+  it("compense un échec Catalogue et permet le retry avec la même URL", async () => {
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/gif",
+      size: 100,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    const echec = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async () => {
+        throw new Error("échec transactionnel")
+      },
+    })
+    expect(echec).toMatchObject({ ok: false, code: "catalogue-refuse" })
+    expect(stockage.deletedPromoted).toEqual([demande.draftId])
+    expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
+
+    const retry = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async (_images, lier) => {
+        await lier("produit-1")
+        return { productId: "produit-1", result: "retry" }
+      },
+    })
+    expect(retry).toMatchObject({
+      ok: true,
+      productId: "produit-1",
+      images: [
+        {
+          draftId: demande.draftId,
+          publicUrl: `memoire://image/${demande.draftId}`,
+        },
+      ],
+    })
+    expect(stockage.deletedPromoted).toEqual([demande.draftId])
+  })
+
+  it("rend idempotent un retry de la même tentative", async () => {
+    const { cycleVie, stockage } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/avif",
+      size: 100,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    let appels = 0
+    const enregistrer: EnregistrerCatalogue<string> = async (_images, lier) => {
+      appels += 1
+      await lier("produit-1")
+      return { productId: "produit-1", result: "même opération" }
+    }
+    const premier = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer,
+    })
+    if (!premier.ok) throw new Error("La première tentative devait réussir")
+
+    const second = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      resultatDejaPersiste: async () => "même opération",
+      enregistrer: async () => {
+        appels += 1
+        throw new Error("Le Catalogue ne doit pas créer un second Produit")
+      },
+    })
+
+    expect(second).toMatchObject({
+      ok: true,
+      productId: "produit-1",
+      result: "même opération",
+      images: premier.images,
+    })
+    expect(appels).toBe(1)
+    expect(stockage.promotions).toHaveLength(1)
+
+    const autre = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-2",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer,
+    })
+    expect(autre).toMatchObject({ ok: false, code: "brouillon-non-vivant" })
   })
 })
