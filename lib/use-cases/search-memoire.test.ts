@@ -156,7 +156,6 @@ const CINQ_TRANCHES = PRICE_BUCKETS.map(({ id, label }) => ({
   label,
 }))
 
-/** Le jeu principal compte un produit par bande de prix. */
 const UNE_PAR_BANDE: Record<string, number> = {
   "0-1000": 1,
   "1000-2500": 1,

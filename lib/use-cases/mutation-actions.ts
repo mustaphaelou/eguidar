@@ -157,7 +157,6 @@ export function taskAction<Input = FormData>(
   }
 }
 
-/** Le refus de l'Administration composé sur la lecture : hors administrateur, pas de Client. */
 async function adminGate(): Promise<Client | null> {
   const client = await lireSession()
   return estAdmin(client) ? client : null

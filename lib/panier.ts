@@ -46,10 +46,6 @@ import {
   type StockagePanier,
 } from "@/lib/panier-coeur"
 
-// ============================================================================
-// Types et interface publique
-// ============================================================================
-
 export type {
   MotifRefusPanier,
   ResultatPanier,
@@ -120,7 +116,6 @@ export async function compterArticlesDuPanier(): Promise<number> {
   return (await resoudreStore()).compter()
 }
 
-/** Ajoute une Variante (identifiant de Variante + quantité) au Panier courant. */
 export async function ajouterArticleAuPanier(
   variantId: string,
   quantity: number

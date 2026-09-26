@@ -73,7 +73,6 @@ function makeCategoryInput(
   }
 }
 
-/** Les clés R2 effectivement visées par une suppression. */
 function clesSupprimees(): string[] {
   return deleteCommandInputs.map((input) => (input as { Key: string }).Key)
 }
