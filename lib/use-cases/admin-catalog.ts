@@ -1,3 +1,54 @@
+/**
+ * Le Catalogue — lectures et mutations Produit de l'Administration.
+ *
+ * Propriétaire unique d'ADR-0026. Le module tient les deux directions
+ * du même chemin Produit : la mutation et la lecture. L'interface de
+ * mutation est celle d'aujourd'hui — `ProductInput`, les validations,
+ * les classes d'erreur, la transaction engagée — et n'est pas
+ * redocumentée ici : la couture d'effets reste celle d'ADR-0014
+ * (`CatalogEffects`, ses adaptateurs de production, la frontière
+ * best-effort après commit) et le mécanisme partagé reste celui
+ * d'ADR-0025, qui n'apprend aucun concept de produit, de base ni de
+ * transport.
+ *
+ * **L'interface de lecture répond en faits, jamais en rangées de base
+ * de données.** Trois lectures, trois réponses :
+ *
+ * - `listAdminProducts()` — la liste : identité, marque, nom de
+ *   catégorie, prix, mis en avant, livraison offerte, **une seule
+ *   vignette** et le **stock total** cuit par `@/lib/product-metrics`
+ *   puis composé ici, comme le fait déjà le chemin de lecture de la
+ *   Boutique. Ni la galerie ni les Variantes : la liste ne les rend
+ *   pas.
+ * - `getAdminProduct(id)` — l'édition : les faits complets du
+ *   formulaire — galerie et spécifications normalisées par les mêmes
+ *   faits canoniques, Variantes projetées —, ou `null` pour que
+ *   l'appelant garde sa décision d'introuvable. La forme de ces faits
+ *   appartient à `@/lib/formulaire-produit`, atteinte **par type
+ *   seulement** : ce module n'y gagne aucun fait de valeur. Cette
+ *   lecture est aussi la relecture d'un commit déjà durable que fait
+ *   l'action d'enregistrement ; `null` y signifie « introuvable », et
+ *   son fait suffit à l'appelant, qui n'en lit rien d'autre.
+ * - `listAdminCategories()` — le sélecteur de catégorie : exactement
+ *   l'identifiant et le nom, rien d'autre. À ne pas confondre avec la
+ *   lecture à compteurs du module Structure, qui sert les écrans de
+ *   catégories.
+ *
+ * Après ADR-0026, aucun module de rendu d'Administration ne calcule,
+ * ne projette, ni ne sait que ces colonnes sont du JSON : la couture
+ * est ici, d'un seul côté, comme elle l'est côté Boutique.
+ *
+ * Deux règles que ce module tient et qu'aucun appelant ne doit
+ * redécider : un Produit **sans Variante est légal** — le prix minimal
+ * retombe alors sur le prix de base, et le tableau de Variantes peut
+ * être vide — ; l'écart de prix reste un fait de stockage et
+ * d'Administration, jamais une entrée d'affichage de la Boutique
+ * (ADR-0013). Le Document d'index garde ses propres faits de
+ * recherche (ADR-0013) et le module Carte produit garde sa propre
+ * normalisation et son invariant sans import (ADR-0022) : cette
+ * interface ne les rouvre pas.
+ */
+
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
@@ -5,9 +56,15 @@ import {
   portTransactionRegistreBrouillonImageProduit,
   type LierBrouillonsImageProduit,
 } from "@/lib/cycle-vie-image-produit"
+import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
+import {
+  specificationsProduit,
+  totalVariantStock,
+  urlsImagesProduit,
+} from "@/lib/product-metrics"
 import { stockageImageProduitR2 } from "@/lib/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
@@ -519,20 +576,156 @@ export async function updateVariantStock(
   return product
 }
 
-export function listAdminProducts() {
-  return prisma.product.findMany({
+/**
+ * Les faits d'un Produit dans la liste de l'Administration : exactement ce
+ * que la liste rend, et rien de plus — son identité, sa marque, le nom de
+ * sa catégorie, son prix, ses deux drapeaux (Mis en avant, Livraison
+ * offerte), une seule Image produit et son stock total.
+ *
+ * La liste ne rend ni la galerie ni les Variantes : elle ne les reçoit donc
+ * pas. Le stock total est cuit ici par `totalVariantStock` et l'Image produit
+ * par `urlsImagesProduit`, les faits canoniques du Produit — aucun module de
+ * rendu ne refait l'addition ni ne juge la forme d'une colonne stockée.
+ */
+export interface FaitsProduitListe {
+  id: string
+  name: string
+  brand: string
+  categoryName: string
+  price: number
+  isFeatured: boolean
+  freeShipping: boolean
+  image: string | null
+  totalStock: number
+}
+
+/**
+ * Les Produits de l'Administration, du plus récemment modifié au plus
+ * ancien, sous la forme des seuls faits que la liste rend. La requête ne
+ * remplit que les colonnes qu'elle compose : la galerie y entre brute, pour
+ * en tirer la première Image produit, et les Variantes par la **seule** colonne
+ * que la règle canonique du stock total déclare — `totalVariantStock` ne lit que
+ * le stock, donc l'écart de prix n'a pas à voyager.
+ */
+export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
+  const produits = await prisma.product.findMany({
     orderBy: { updatedAt: "desc" },
-    include: { category: true, variants: true },
+    select: {
+      id: true,
+      name: true,
+      brand: true,
+      price: true,
+      images: true,
+      isFeatured: true,
+      freeShipping: true,
+      category: { select: { name: true } },
+      variants: { select: { stock: true } },
+    },
   })
+
+  return produits.map((produit) => ({
+    id: produit.id,
+    name: produit.name,
+    brand: produit.brand,
+    categoryName: produit.category.name,
+    price: produit.price,
+    isFeatured: produit.isFeatured,
+    freeShipping: produit.freeShipping,
+    image: urlsImagesProduit(produit.images)[0] ?? null,
+    totalStock: totalVariantStock(produit.variants),
+  }))
 }
 
-export function getAdminProduct(id: string) {
-  return prisma.product.findUnique({
+/**
+ * Le Produit à éditer, sous la forme des faits complets du formulaire — ou
+ * `null`, qui reste la réponse du Produit introuvable pour que l'appelant garde
+ * sa décision (`notFound()` sur l'écran d'édition, « Produit enregistré
+ * introuvable » dans l'action qui relit un commit déjà durable).
+ *
+ * La requête ne remplit que ce qu'elle projette, et les deux colonnes JSON y
+ * entrent brutes pour être normalisées ici par les faits canoniques :
+ * `urlsImagesProduit` pour la galerie, dont les URL deviennent les entrées
+ * persistées que le formulaire manipule, et `specificationsProduit` pour les
+ * spécifications. Une colonne mal formée répond donc un champ vide, jamais un
+ * éditeur cassé — le même verdict que porte la lecture de liste, composée du
+ * même fait canonique.
+ *
+ * Chaque Variante est projetée sur les cinq faits que le formulaire saisit, et
+ * l'ordre de création est conservé : c'est l'ordre dans lequel l'éditeur les
+ * trouve. Le type du formulaire est atteint **par type seulement** — le module
+ * Catalogue ne gagne aucun fait de valeur du langage du formulaire, et son
+ * graphe de valeur ne change pas.
+ */
+export async function getAdminProduct(
+  id: string
+): Promise<FaitsFormulaireProduit | null> {
+  const produit = await prisma.product.findUnique({
     where: { id },
-    include: { variants: { orderBy: { createdAt: "asc" } }, category: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      brand: true,
+      categoryId: true,
+      description: true,
+      price: true,
+      isFeatured: true,
+      featuredOrder: true,
+      freeShipping: true,
+      specs: true,
+      images: true,
+      variants: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          priceDelta: true,
+          stock: true,
+        },
+      },
+    },
   })
+  if (!produit) return null
+
+  return {
+    id: produit.id,
+    name: produit.name,
+    slug: produit.slug,
+    brand: produit.brand,
+    categoryId: produit.categoryId,
+    description: produit.description,
+    price: produit.price,
+    isFeatured: produit.isFeatured,
+    featuredOrder: produit.featuredOrder,
+    freeShipping: produit.freeShipping,
+    specs: specificationsProduit(produit.specs),
+    images: urlsImagesProduit(produit.images).map((url) => ({
+      kind: "persistee",
+      url,
+    })),
+    variants: produit.variants.map((variante) => ({
+      id: variante.id,
+      name: variante.name,
+      sku: variante.sku,
+      priceDelta: variante.priceDelta,
+      stock: variante.stock,
+    })),
+  }
 }
 
-export function listAdminCategories() {
-  return prisma.category.findMany({ orderBy: { name: "asc" } })
+/**
+ * Les catégories du sélecteur du formulaire Produit, dans l'ordre alphabétique
+ * : exactement l'identifiant et le nom, les deux seuls faits que le sélecteur
+ * affiche. Elle reste ici, dans le module Catalogue, avec ses deux appelants
+ * produit — et n'est pas la lecture à compteurs du module Structure, qui sert
+ * les écrans de catégories.
+ */
+export async function listAdminCategories(): Promise<
+  { id: string; name: string }[]
+> {
+  return prisma.category.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  })
 }
