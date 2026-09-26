@@ -24,7 +24,6 @@ export function creerMoteurRecette(
   }
 }
 
-/** Le même moteur, répondant toujours l'indisponibilité. */
 export function creerMoteurIndisponible(): MoteurRecherche & {
   requetes: RequeteMoteur[]
 } {

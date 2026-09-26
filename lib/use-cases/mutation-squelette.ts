@@ -29,7 +29,6 @@ export async function runEffect(
   }
 }
 
-/** Un effet post-commit : son message complet et son appel. */
 export interface EffetPostCommit {
   message: string
   fn: () => Promise<unknown> | unknown
@@ -72,7 +71,6 @@ export function avecSurcharges<T extends object>(
   return { ...defaults, ...overrides }
 }
 
-/** Un conflit d'unicité : les champs en jeu et le refus du module. */
 export interface ConflitUnique {
   champs: string[]
   erreur: Error

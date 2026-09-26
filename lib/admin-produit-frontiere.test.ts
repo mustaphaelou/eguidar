@@ -61,7 +61,6 @@ const GARDE_IS_ARRAY =
  */
 const GARDE_CAST = /[\w$]+\s*\??\.\s*(?:images|specs)\b(?:\s|\n\s*)*?\bas\s+/g
 
-/** Les réinterprétations d'une colonne stockée trouvées dans une source. */
 function reinterpretations(source: string): string[] {
   return [...source.matchAll(GARDE_IS_ARRAY), ...source.matchAll(GARDE_CAST)]
     .map((match) => match[0].replace(/\n/g, " "))

@@ -54,7 +54,6 @@ describe("lireSession", () => {
       email: "ada@example.com",
       role: "admin",
     })
-    // Une seule lecture, sur les en-têtes de la requête.
     expect(getSession).toHaveBeenCalledTimes(1)
     expect(getSession).toHaveBeenCalledWith({ headers: expect.any(Headers) })
   })

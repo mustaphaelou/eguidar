@@ -51,7 +51,6 @@ export interface ReponseDocuments {
   repartitions: RepartitionsMoteur
 }
 
-/** Un moteur absent ou injoignable — jamais un Catalogue vide. */
 export interface ReponseIndisponible {
   statut: "indisponible"
 }
