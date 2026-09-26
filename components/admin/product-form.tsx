@@ -4,10 +4,7 @@ import { Delete01Icon, PlusSignIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useActionState, useRef, useState } from "react"
 
-import {
-  ImageGalleryUpload,
-  type EntreeImageProduitFormulaire,
-} from "@/components/admin/image-gallery-upload"
+import { ImageGalleryUpload } from "@/components/admin/image-gallery-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -23,39 +20,23 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import { centsToInputValue, parseMadToCents } from "@/lib/money"
+import {
+  ecartPrixDepuisTexte,
+  texteEcartPrix,
+  texteSpecifications,
+  type EntreeImageProduitFormulaire,
+  type FaitsFormulaireProduit,
+  type FaitsVarianteFormulaire,
+} from "@/lib/formulaire-produit"
+import { centsToInputValue } from "@/lib/money"
 import { slugify } from "@/lib/slug"
-
-export interface ProductFormVariant {
-  id?: string
-  name: string
-  sku: string
-  priceDelta: number
-  stock: number
-}
-
-export interface ProductFormInitial {
-  id?: string
-  name: string
-  slug: string
-  brand: string
-  categoryId: string
-  description: string
-  price: number
-  isFeatured: boolean
-  featuredOrder: number
-  freeShipping: boolean
-  specs: Record<string, string>
-  images: EntreeImageProduitFormulaire[]
-  variants: ProductFormVariant[]
-}
 
 export interface ProductFormState {
   error?: string
 }
 
 interface ProductFormProps {
-  product?: ProductFormInitial
+  product?: FaitsFormulaireProduit
   categories: { id: string; name: string }[]
   action: (
     prevState: ProductFormState,
@@ -63,7 +44,7 @@ interface ProductFormProps {
   ) => Promise<ProductFormState>
 }
 
-const emptyVariant = (): ProductFormVariant => ({
+const emptyVariant = (): FaitsVarianteFormulaire => ({
   name: "",
   sku: "",
   priceDelta: 0,
@@ -101,11 +82,11 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [images, setImages] = useState<EntreeImageProduitFormulaire[]>(
     product?.images ?? []
   )
-  const [variants, setVariants] = useState<ProductFormVariant[]>(
+  const [variants, setVariants] = useState<FaitsVarianteFormulaire[]>(
     product?.variants ?? [emptyVariant()]
   )
 
-  function setVariant(index: number, patch: Partial<ProductFormVariant>) {
+  function setVariant(index: number, patch: Partial<FaitsVarianteFormulaire>) {
     setVariants((current) =>
       current.map((variant, i) =>
         i === index ? { ...variant, ...patch } : variant
@@ -241,13 +222,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
               id="specsText"
               name="specsText"
               placeholder={"Écran : 6,1 pouces\nPuce : A17 Pro"}
-              defaultValue={
-                product
-                  ? Object.entries(product.specs)
-                      .map(([k, v]) => `${k} : ${v}`)
-                      .join("\n")
-                  : ""
-              }
+              defaultValue={product ? texteSpecifications(product.specs) : ""}
             />
           </div>
         </CardContent>
@@ -342,10 +317,10 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
                     id={`variant-delta-${index}`}
                     type="number"
                     step="0.01"
-                    value={centsToInputValue(variant.priceDelta)}
+                    value={texteEcartPrix(variant.priceDelta)}
                     onChange={(event) =>
                       setVariant(index, {
-                        priceDelta: parseMadToCents(event.target.value) ?? 0,
+                        priceDelta: ecartPrixDepuisTexte(event.target.value),
                       })
                     }
                   />
