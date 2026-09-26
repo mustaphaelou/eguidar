@@ -59,6 +59,14 @@ jamais de repli sur le profil. Le Devis chargé porte le résultat : sa Ville in
 seule fois lors du chargement du Devis, « aucune » comprise.
 _Avoid_: priorité de ville, repli de ville, initial city
 
+**Lecture du Devis**:
+La lecture serveur du Devis pour une page : un seul module charge le Devis à partir de faits bruts
+(le Panier, la Ville de l'URL, la Ville du profil) et répond à la fois du Devis chargé et du Devis
+projeté. Les pages en font un seul appel ; aucune page ne dérive la Précédence du Devis ni ne
+lance la projection elle-même. Le cœur pur n'est atteignable que par ce module côté serveur, ou
+par le crochet de sélection côté client.
+_Avoid_: chargerDevis (comme nom du concept), devis loader, lecture du quote
+
 **Récapitulatif de paiement**:
 Le bloc présentant le Sous-total (TVA incluse), la Livraison et le Total à payer à la livraison sur le Panier, la commande, la confirmation, l'Administration et l'e-mail de commande.
 _Avoid_: order summary, résumé de commande, récapitulatif de commande, récap
