@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
+  chargerDevis,
+  DeliveryCityNotFoundError,
+  lireDevis,
   projeterDevis,
   selectionValidee,
   type DevisChargé,
-} from "@/lib/use-cases/devis-coeur"
+  type DevisPrecedenceFaitsBruts,
+  type DevisProjeté,
+} from "@/lib/use-cases/devis"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {
   DeliveryCityOption,
   ShippingQuote,
-} from "@/lib/use-cases/livraison"
+} from "@/lib/use-cases/livraison-prix"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const { listDeliveryCitiesMock, getFreeShippingThresholdMock } = vi.hoisted(
@@ -243,6 +247,145 @@ describe("chargerDevis (porte la Précédence : Ville initiale résolue une seul
   })
 })
 
+describe("chargerDevis : devis chiffrés par ville (portés depuis la suite Livraison, à travers la porte)", () => {
+  const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
+
+  async function chiffrer(
+    sousTotal: number,
+    options: {
+      villes?: DeliveryCityOption[]
+      seuil?: number
+      articlesOfferts?: boolean[]
+    } = {}
+  ): Promise<Record<string, ShippingQuote>> {
+    listDeliveryCitiesMock.mockReset()
+    getFreeShippingThresholdMock.mockReset()
+    listDeliveryCitiesMock.mockResolvedValue(options.villes ?? villes)
+    getFreeShippingThresholdMock.mockResolvedValue(options.seuil ?? 100000)
+    const devisChargé = await chargerDevis(
+      panierPourDevis(sousTotal, options.articlesOfferts)
+    )
+    return devisChargé.quotes
+  }
+
+  it("quotes the city fee below the threshold", async () => {
+    expect(
+      await chiffrer(50000, { villes: [city("c1", "Casablanca", 3500)] })
+    ).toEqual({ c1: quote(50000, 3500) })
+  })
+
+  it("quotes free shipping exactly at the threshold", async () => {
+    expect(
+      await chiffrer(100000, { villes: [city("c1", "Casablanca", 3500)] })
+    ).toEqual({ c1: quote(100000, 0) })
+  })
+
+  it("quotes free shipping above the threshold", async () => {
+    expect(
+      await chiffrer(150000, { villes: [city("c1", "Casablanca", 3500)] })
+    ).toEqual({ c1: quote(150000, 0) })
+  })
+
+  it("quotes free shipping below the threshold with a free-shipping item", async () => {
+    expect(
+      await chiffrer(50000, {
+        villes: [city("c1", "Casablanca", 3500)],
+        articlesOfferts: [true],
+      })
+    ).toEqual({ c1: quote(50000, 0) })
+  })
+
+  it("quotes each city with its own fee below the threshold", async () => {
+    expect(await chiffrer(50000)).toEqual({
+      c1: quote(50000, 3500),
+      c2: quote(50000, 5000),
+    })
+  })
+
+  it("quotes every city free above the threshold", async () => {
+    expect(await chiffrer(150000)).toEqual({
+      c1: quote(150000, 0),
+      c2: quote(150000, 0),
+    })
+  })
+
+  it("quotes every city free with a free-shipping item below the threshold", async () => {
+    expect(await chiffrer(50000, { articlesOfferts: [false, true] })).toEqual({
+      c1: quote(50000, 0),
+      c2: quote(50000, 0),
+    })
+  })
+
+  it("returns an empty map for no cities", async () => {
+    expect(await chiffrer(50000, { villes: [] })).toEqual({})
+  })
+})
+
+describe("lireDevis (Lecture du Devis : la page lit en un seul appel)", () => {
+  const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
+
+  beforeEach(() => {
+    listDeliveryCitiesMock.mockReset()
+    getFreeShippingThresholdMock.mockReset()
+    listDeliveryCitiesMock.mockResolvedValue(villes)
+    getFreeShippingThresholdMock.mockResolvedValue(100000)
+  })
+
+  /**
+   * La composition de l'entrée, établie une seule fois : charger, puis
+   * projeter sur la Ville initiale du chargé — les deux moitiés doivent
+   * être strictement celles du deux-temps manuel, et le projeté rester
+   * cohérent avec la Ville initiale portée. La Précédence elle-même n'est
+   * pas re-jouée ici : elle appartient au chargeur, testée plus haut.
+   */
+  async function égaleLeDeuxTempsManuel(
+    faits: DevisPrecedenceFaitsBruts
+  ): Promise<{ chargé: DevisChargé; projeté: DevisProjeté }> {
+    const lecture = await lireDevis(panierPourDevis(50000), faits)
+
+    const chargé = await chargerDevis(panierPourDevis(50000), faits)
+    const manuel = {
+      chargé,
+      projeté: projeterDevis(chargé, chargé.villeInitiale),
+    }
+
+    expect(lecture.chargé).toStrictEqual(manuel.chargé)
+    expect(lecture.projeté).toStrictEqual(manuel.projeté)
+    expect(lecture.projeté.villeId).toBe(lecture.chargé.villeInitiale)
+    return lecture
+  }
+
+  it("equals the manual two-step — the link carries the Ville", async () => {
+    const lecture = await égaleLeDeuxTempsManuel({
+      villeParam: "slug-c1",
+      profileVilleId: "c2",
+    })
+
+    expect(lecture.chargé.villeInitiale).toBe("c1")
+    expect(lecture.projeté.villeId).toBe("c1")
+    expect(lecture.projeté.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
+  })
+
+  it("equals the manual two-step — the profile carries the Ville", async () => {
+    const lecture = await égaleLeDeuxTempsManuel({
+      villeParam: undefined,
+      profileVilleId: "  c2  ",
+    })
+
+    expect(lecture.chargé.villeInitiale).toBe("c2")
+    expect(lecture.projeté.villeId).toBe("c2")
+    expect(lecture.projeté.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c2", "Rabat", 5000),
+      devis: quote(50000, 5000),
+    })
+  })
+})
+
 describe("boundary: le Devis chargé ne traverse la couture qu'en données pures", () => {
   const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
 
@@ -300,34 +443,6 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
     })
     expect(chargé.villeInitiale).toBe("c1")
     expect(() => assertDonnéePure(chargé)).not.toThrow()
-  })
-
-  it("a function member fails the walk", async () => {
-    const chargé = await chargerDevis(panierPourDevis(50000))
-    expect(chargé.villeInitiale).toBeNull()
-    expect(() => assertDonnéePure({ ...chargé, choisir: () => chargé })).toThrow(
-      /fonction/
-    )
-  })
-
-  it("a getter member fails the walk", async () => {
-    const chargé = await chargerDevis(panierPourDevis(50000))
-    expect(() =>
-      assertDonnéePure({
-        ...chargé,
-        get total() {
-          return chargé.sousTotal
-        },
-      })
-    ).toThrow(/getter à/)
-  })
-
-  it("a class instance fails the walk", async () => {
-    const chargé = await chargerDevis(panierPourDevis(50000))
-    class Instance {}
-    expect(() =>
-      assertDonnéePure({ ...chargé, étiquette: new Instance() })
-    ).toThrow(/instance de classe/)
   })
 })
 

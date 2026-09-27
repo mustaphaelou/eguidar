@@ -22,7 +22,7 @@ import {
   projeterDevis,
   selectionValidee,
 } from "@/lib/use-cases/devis"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import { totalPayable } from "@/lib/money"
 import type { OrderStatus } from "@/lib/generated/prisma/client"

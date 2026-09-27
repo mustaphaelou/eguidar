@@ -5,9 +5,9 @@ import {
   CityNotFoundError,
   CitySlugConflictError,
   CityValidationError,
-  DeliveryCityNotFoundError,
   ShippingValidationError,
 } from "@/lib/use-cases/livraison"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const errorFactory: [string, () => unknown][] = [

@@ -3,6 +3,10 @@
  * page Panier : fixtures réelles en base, session et profil moqués, rendu
  * via `renderToReadableStream`, assertions sur le HTML.
  *
+ * La matrice de la Précédence du Devis vit à la porte (`chargerDevis`,
+ * `lib/use-cases/devis.test.ts`) : cette suite n'en garde qu'un seul cas —
+ * le lien de l'URL l'emporte sur la Ville du profil.
+ *
  * Limite honnête : vitest ignore « use client » — ce test prouve le rendu
  * de la page, pas la sérialisation RSC ; le verrou de sérialisation est le
  * test de frontière données pures sur `chargerDevis`
@@ -105,6 +109,7 @@ let userIdA: string
 let variantStandard: string
 let variantUnique: string
 let cityId: string
+let profilCityId: string
 
 function commeClient(userId: string) {
   sessionCouranteMock.mockResolvedValue({
@@ -200,6 +205,14 @@ beforeAll(async () => {
     data: { name: `Ville ${runId}`, slug: `ville-${runId}`, fee: 3000 },
   })
   cityId = city.id
+  const profilCity = await prisma.deliveryCity.create({
+    data: {
+      name: `Ville profil ${runId}`,
+      slug: `ville-profil-${runId}`,
+      fee: 5000,
+    },
+  })
+  profilCityId = profilCity.id
 })
 
 beforeEach(async () => {
@@ -227,7 +240,9 @@ afterAll(async () => {
   await prisma.category.deleteMany({
     where: { slug: `checkout-page-cat-${runId}` },
   })
-  await prisma.deliveryCity.deleteMany({ where: { name: `Ville ${runId}` } })
+  await prisma.deliveryCity.deleteMany({
+    where: { name: { in: [`Ville ${runId}`, `Ville profil ${runId}`] } },
+  })
   await prisma.$disconnect()
 })
 
@@ -257,8 +272,13 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
     expect(html).toContain("Confirmer la commande")
   })
 
-  it("selects the Ville de livraison from its slug in the URL", async () => {
+  it("selects the Ville de livraison from its slug in the URL, ahead of the profile's Ville", async () => {
     commeClient(userIdA)
+    profileMock.mockResolvedValue({
+      ...profilClient(),
+      cityId: profilCityId,
+      cityName: `Ville profil ${runId}`,
+    })
     await prisma.cartItem.create({
       data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
     })
@@ -269,32 +289,6 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
     expect(html).toContain(`Livraison (Ville ${runId})`)
     expect(html).toContain(formatPrice(3000))
     expect(html).toContain(formatPrice(103000))
-  })
-
-  it("still resolves a legacy internal identifier as a read-only alias", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
-    })
-
-    const html = await renderPage({ ville: cityId })
-
-    expect(html).toContain(`data-value="${cityId}"`)
-    expect(html).toContain(`Livraison (Ville ${runId})`)
-  })
-
-  it("leaves no selection for an unknown identifier, even with a profile city", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
-    })
-
-    const html = await renderPage({ ville: `ville-inconnue-${runId}` })
-
-    expect(html).toContain("À choisir")
-    expect(html).toContain('data-value=""')
-    expect(html).not.toContain("Livraison (")
-    expect(html).not.toContain(formatPrice(103000))
   })
 
   it("falls back to « À choisir » without total on a stale ville param", async () => {
@@ -319,8 +313,13 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
     expect(html).not.toContain(formatPrice(103000))
   })
 
-  it("preselects the profile's Ville and prefills address and phone when no ville param is present", async () => {
+  it("prefills the address and the phone from the profile", async () => {
     commeClient(userIdA)
+    profileMock.mockResolvedValue({
+      ...profilClient(),
+      cityId: null,
+      cityName: null,
+    })
     await prisma.cartItem.create({
       data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
     })
@@ -328,11 +327,6 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
     const html = await renderPage()
 
     expect(html).toContain("Commander")
-    expect(html).toContain(`data-value="${cityId}"`)
-    expect(html).toContain(`Livraison (Ville ${runId})`)
-    expect(html).toContain(formatPrice(100000))
-    expect(html).toContain(formatPrice(3000))
-    expect(html).toContain(formatPrice(103000))
     expect(html).toContain("12 rue des Orangers")
     expect(html).toContain("+212600000000")
   })
@@ -347,5 +341,17 @@ describe("CheckoutPage — Compte client (persisted Panier)", () => {
     }
 
     expect(redirectMock).toHaveBeenCalledWith("/panier")
+  })
+})
+
+describe("CheckoutPage — sans session", () => {
+  it("renders the Connexion gate instead of the Commander page, without redirecting", async () => {
+    sessionCouranteMock.mockResolvedValue(null)
+
+    const html = await renderPage()
+
+    expect(html).toContain('data-testid="require-auth-stub"')
+    expect(html).not.toContain("Confirmer la commande")
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 })

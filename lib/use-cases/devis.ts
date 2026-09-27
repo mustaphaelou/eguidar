@@ -1,22 +1,29 @@
 /**
- * Entrée serveur du Devis : `chargerDevis` retourne le Devis chargé — la
- * donnée pure d'un Panier chiffré (accès base via l'administration
- * Livraison) — à partir de faits bruts (`{villeParam?, profileVilleId?}`,
- * voir `DevisPrecedenceFaitsBruts`). Dériver le Devis projeté est l'affaire de
- * l'appelant : `projeterDevis(await chargerDevis(panier, faits), villeId)`
- * — le projecteur prend exactement le Devis chargé et la Ville de
- * livraison choisie. Ce module réexporte le cœur pur pour les appelants
- * serveur : `projeterDevis`, `selectionValidee` et
- * `DeliveryCityNotFoundError` (`panier/page.tsx`, `placeOrder`).
+ * Entrée serveur du Devis — la Lecture du Devis : `lireDevis` prend le
+ * Panier et les faits bruts de la Précédence (`DevisPrecedenceFaitsBruts`
+ * — requis, pas de mode optionnel) et répond des deux moitiés — le Devis
+ * chargé et le Devis projeté — en composant `chargerDevis` puis
+ * `projeterDevis(chargé, chargé.villeInitiale)`. Une page fait un seul
+ * appel : ni la résolution de la Précédence ni la projection ne sont
+ * l'affaire de l'appelant. L'entrée possède la projection côté page — le
+ * Panier lit le projeté, checkout remonte le chargé à la couture
+ * serveur → client.
+ *
+ * Les verbes voisins restent en place pour la prise de commande :
+ * `chargerDevis` (la charge nue, que `placeOrder` compose avec la Ville
+ * soumise), le projecteur `projeterDevis` à Ville explicite et le
+ * rétrécissement `selectionValidee`. Ce module réexporte le cœur pur pour
+ * les appelants serveur : `projeterDevis`, `selectionValidee` et
+ * `DeliveryCityNotFoundError`.
  *
  * Les composants clients doivent importer `@/lib/use-cases/devis-selection`
  * directement (porte d'entrée cliente : `useDevisSelection`) — jamais ce
  * module, qui tire `prisma` (`pg`) via `@/lib/use-cases/livraison`.
  *
  * Le Devis est auto-porteur et se projette par la projection unique
- * `projeterDevis` — pages serveur comme hook passent par elle : les faits
- * portés et la surface de test du cœur sont détaillés au cœur pur
- * (`devis-coeur`).
+ * `projeterDevis` — la Lecture du Devis y passe pour les pages, le hook
+ * pour le client : les faits portés et la surface de test du cœur sont
+ * détaillés au cœur pur (`devis-coeur`).
  *
  * Le Devis chargé (`DevisChargé`) est la donnée pure qui peut traverser
  * la couture serveur → client — aucune fonction, aucun getter, aucune
@@ -39,10 +46,15 @@
  * dès qu'on les appelle depuis le serveur.
  */
 import type { DonneesPanier } from "@/lib/panier"
-import type { DevisChargé } from "@/lib/use-cases/devis-coeur"
 import {
-  computeCityQuotes,
+  projeterDevis,
+  type DevisChargé,
+  type DevisProjeté,
+} from "@/lib/use-cases/devis-coeur"
+import {
+  computeShippingFee,
   type DeliveryCityOption,
+  type ShippingQuote,
 } from "@/lib/use-cases/livraison-prix"
 import {
   getFreeShippingThreshold,
@@ -55,6 +67,7 @@ export {
   projeterDevis,
   selectionValidee,
 } from "@/lib/use-cases/devis-coeur"
+export type { DevisChargé, DevisProjeté } from "@/lib/use-cases/devis-coeur"
 
 /**
  * Faits bruts de la Précédence du Devis, tels que `chargerDevis` les
@@ -72,6 +85,27 @@ export interface DevisPrecedenceFaitsBruts {
 }
 
 /**
+ * Lecture du Devis — l'entrée de lecture d'une page : un seul appel
+ * répond des deux moitiés, le Devis chargé et le Devis projeté.
+ *
+ * Prend le Panier et les faits bruts de la Précédence
+ * (`DevisPrecedenceFaitsBruts` — requis, pas de mode optionnel), charge
+ * le Devis puis projette sur sa propre Ville initiale
+ * (`projeterDevis(chargé, chargé.villeInitiale)`) — exactement la
+ * séquence que chaque page composait à la main. Aucune page ne dérive la
+ * Précédence ni ne lance la projection : l'appelant reçoit les deux
+ * moitiés et n'en consomme qu'une (le Panier lit le projeté, checkout
+ * remonte le chargé à la couture serveur → client).
+ */
+export async function lireDevis(
+  panier: DonneesPanier,
+  faits: DevisPrecedenceFaitsBruts
+): Promise<{ chargé: DevisChargé; projeté: DevisProjeté }> {
+  const chargé = await chargerDevis(panier, faits)
+  return { chargé, projeté: projeterDevis(chargé, chargé.villeInitiale) }
+}
+
+/**
  * Charge le Devis chargé — les faits purs d'un Panier chiffré.
  *
  * Prend les faits bruts de la Précédence du Devis : la valeur brute du
@@ -86,7 +120,7 @@ export interface DevisPrecedenceFaitsBruts {
  * aucune double vérification d'existence.
  *
  * Récupère Villes de livraison + seuil (administration Livraison) une
- * seule fois et chiffre chaque ville via `computeCityQuotes`
+ * seule fois et chiffre chaque ville par la règle `computeShippingFee`
  * (`panier.subtotal` + `lines.some(freeShipping)`) une seule fois.
  *
  * Strictement des données : aucune fonction, aucun getter, aucune
@@ -108,14 +142,21 @@ export async function chargerDevis(
     listDeliveryCities(),
     getFreeShippingThreshold(),
   ])
-  const quotes = computeCityQuotes(
-    cities,
-    {
+  const anyFreeShippingItem = panier.lines.some((line) => line.freeShipping)
+  const quotes: Record<string, ShippingQuote> = {}
+  for (const city of cities) {
+    const shippingFee = computeShippingFee({
       subtotal: sousTotal,
-      anyFreeShippingItem: panier.lines.some((line) => line.freeShipping),
-    },
-    threshold
-  )
+      cityFee: city.fee,
+      freeShippingThreshold: threshold,
+      anyFreeShippingItem,
+    })
+    quotes[city.id] = {
+      subtotal: sousTotal,
+      shippingFee,
+      total: sousTotal + shippingFee,
+    }
+  }
   return {
     cities,
     threshold,

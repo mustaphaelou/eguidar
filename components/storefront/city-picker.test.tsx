@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("next/navigation", () => mockNextNavigation())
 
 import { formatShippingFee } from "@/lib/money"
-import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
+import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 import { CityPicker } from "./city-picker"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true

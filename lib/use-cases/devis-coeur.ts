@@ -2,11 +2,13 @@
  * Cœur pur du Devis — module neutre, sans directive.
  *
  * NE JAMAIS ajouter `"use client"` ici : `projeterDevis` et
- * `selectionValidee` sont appelés côté serveur (page Panier,
- * `placeOrder`) — ce cœur est aussi consommé côté client via
- * `@/lib/use-cases/devis-selection`. Définir ce pur dans le module client
- * `devis-selection` faisait lever la production (« Attempted to call
- * selectionnerDevis() from the server… ») et affichait « This page
+ * `selectionValidee` sont appelés côté serveur — les pages lisent à travers
+ * la porte `@/lib/use-cases/devis` (`lireDevis` compose la charge puis la
+ * projection) et `placeOrder` compose `projeterDevis` avec une Ville
+ * explicite puis `selectionValidee` — ce cœur est aussi consommé côté
+ * client via `@/lib/use-cases/devis-selection`. Définir ce pur dans le
+ * module client `devis-selection` faisait lever la production (« Attempted
+ * to call selectionnerDevis() from the server… ») et affichait « This page
  * couldn't load » sur /panier.
  *
  * NE JAMAIS importer `@/lib/db` (ni aucun module qui l'importe) ici : ce
@@ -33,11 +35,12 @@
  * Le Devis est auto-porteur : il porte le `sousTotal` issu du Panier dont
  * il a été chargé ; les Villes de livraison, la Sélection du Devis, les
  * lignes du Récapitulatif et l'identifiant de la ville sélectionnée se
- * dérivent par la projection unique `projeterDevis` — pages serveur comme
- * hook passent par elle. Le projecteur est la surface d'entrée du cœur
- * et sa surface de test : les suites passent par `projeterDevis`, jamais
- * par une couture interne (`selectionnerDevis`, `lignesDevis`),
- * devenue privée.
+ * dérivent par la projection unique `projeterDevis` — les pages lisent le
+ * projeté à travers la Lecture du Devis (`lireDevis`, qui compose la
+ * charge puis cette projection) et le hook la relance côté client. Le
+ * projecteur est la surface d'entrée du cœur et sa surface de test : les
+ * suites passent par `projeterDevis`, jamais par une couture interne
+ * (`selectionnerDevis`, `lignesDevis`), devenue privée.
  */
 import {
   construireLignes,

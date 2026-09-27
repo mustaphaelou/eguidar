@@ -10,7 +10,9 @@ import { fileURLToPath } from "node:url"
  * propre dossier ; `importeDe` détecte un import ou un réexport statique
  * ou dynamique d'un module nommé dans une source ; `sourcesDeProduction`
  * parcourt des arborescences entières pour qu'un fichier neuf ne puisse pas
- * échapper à une garde écrite sur une liste de noms ; `atteignables` suit
+ * échapper à une garde écrite sur une liste de noms, et `sourcesToutes`
+ * fait le même parcours en y prenant aussi les suites de test, quand la
+ * règle vaut pour la recette comme pour la production ; `atteignables` suit
  * les imports de valeur de module en module, pour verrouiller ce qu'une
  * surface cliente atteint vraiment et non ce qu'elle importe en un seul saut.
  */
@@ -101,15 +103,32 @@ export interface SourceProduction {
 /** Racine du dépôt, vue depuis `lib/use-cases/`. */
 const RACINE_DEPOT = new URL("../../", import.meta.url)
 
-function sourcesSous(dossier: string): string[] {
+function sourcesSous(dossier: string, avecSuites: boolean): string[] {
   return readdirSync(dossier, { withFileTypes: true }).flatMap((entree) => {
     const enfant = path.join(dossier, entree.name)
-    if (entree.isDirectory()) return sourcesSous(enfant)
-    if (!/\.tsx?$/.test(entree.name) || /\.test\.tsx?$/.test(entree.name)) {
-      return []
-    }
+    if (entree.isDirectory()) return sourcesSous(enfant, avecSuites)
+    if (!/\.tsx?$/.test(entree.name)) return []
+    if (!avecSuites && /\.test\.tsx?$/.test(entree.name)) return []
     return [enfant]
   })
+}
+
+function collection(
+  depuis: string,
+  racines: string[],
+  avecSuites: boolean
+): SourceProduction[] {
+  return racines.flatMap((racine) =>
+    sourcesSous(fileURLToPath(new URL(racine, depuis)), avecSuites).map(
+      (absolu) => ({
+        chemin: path
+          .relative(fileURLToPath(RACINE_DEPOT), absolu)
+          .split(path.sep)
+          .join("/"),
+        source: readFileSync(absolu, "utf8"),
+      })
+    )
+  )
 }
 
 /**
@@ -124,15 +143,22 @@ export function sourcesDeProduction(
   depuis: string,
   ...racines: string[]
 ): SourceProduction[] {
-  return racines.flatMap((racine) =>
-    sourcesSous(fileURLToPath(new URL(racine, depuis))).map((absolu) => ({
-      chemin: path
-        .relative(fileURLToPath(RACINE_DEPOT), absolu)
-        .split(path.sep)
-        .join("/"),
-      source: readFileSync(absolu, "utf8"),
-    }))
-  )
+  return collection(depuis, racines, false)
+}
+
+/**
+ * Les mêmes sources que `sourcesDeProduction`, suites de test comprises —
+ * pour une couture dont la règle vaut aussi en recette : le cœur pur du
+ * Devis n'a pas d'auteur-test, et une garde qui ne verrait que la
+ * production laisserait les tests franchir la porte en saut. Même parcours,
+ * mêmes chemins relatifs à la racine du dépôt ; seule l'exclusion des
+ * `*.test.*` diffère.
+ */
+export function sourcesToutes(
+  depuis: string,
+  ...racines: string[]
+): SourceProduction[] {
+  return collection(depuis, racines, true)
 }
 
 /** Les extensions qu'un spécifieur sans extension peut désigner. */

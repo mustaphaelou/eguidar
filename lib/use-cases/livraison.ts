@@ -16,20 +16,6 @@ import {
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-export type {
-  DeliveryCityOption,
-  PricingInput,
-  ShippingFeeInput,
-  ShippingQuote,
-} from "@/lib/use-cases/livraison-prix"
-export {
-  computeCityQuote,
-  computeCityQuotes,
-  computeShippingFee,
-  DEFAULT_FREE_SHIPPING_THRESHOLD,
-  DeliveryCityNotFoundError,
-} from "@/lib/use-cases/livraison-prix"
-
 export interface CityInput {
   name: string
   fee: number

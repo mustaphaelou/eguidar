@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { formatPrice } from "./money"
 import { type RécapitulatifRow, récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
-import { projeterDevis } from "./use-cases/devis-coeur"
+import { projeterDevis } from "./use-cases/devis"
 
 describe("récapitulatifRowsFromCommande", () => {
   it("renders the city, fee and the Commande totalPayable", () => {
