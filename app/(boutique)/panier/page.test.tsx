@@ -1,3 +1,13 @@
+/**
+ * Page Panier — test de rendu : fixtures réelles en base, session et
+ * profil moqués, rendu via `renderToReadableStream`, assertions sur le
+ * HTML.
+ *
+ * La matrice de la Précédence du Devis vit à la porte (`chargerDevis`,
+ * `lib/use-cases/devis.test.ts`) : cette suite n'en garde qu'un seul cas —
+ * le lien de l'URL l'emporte sur la Ville du profil. Le reste est rendu :
+ * Panier vide, refus « À choisir », tarifs.
+ */
 import { randomUUID } from "node:crypto"
 
 import { renderToReadableStream } from "react-dom/server"
@@ -68,6 +78,8 @@ let variantStandard: string
 let variantUnique: string
 let cityId: string
 let citySlug: string
+let profilCityId: string
+let profilCitySlug: string
 
 function commeClient(userId: string) {
   sessionCouranteMock.mockResolvedValue({
@@ -159,6 +171,15 @@ beforeAll(async () => {
   })
   cityId = city.id
   citySlug = city.slug
+  const profilCity = await prisma.deliveryCity.create({
+    data: {
+      name: `Ville profil ${runId}`,
+      slug: `ville-profil-${runId}`,
+      fee: 5000,
+    },
+  })
+  profilCityId = profilCity.id
+  profilCitySlug = profilCity.slug
 })
 
 beforeEach(async () => {
@@ -190,7 +211,9 @@ afterAll(async () => {
   await prisma.category.deleteMany({
     where: { slug: `panier-page-cat-${runId}` },
   })
-  await prisma.deliveryCity.deleteMany({ where: { name: `Ville ${runId}` } })
+  await prisma.deliveryCity.deleteMany({
+    where: { name: { in: [`Ville ${runId}`, `Ville profil ${runId}`] } },
+  })
   await prisma.$disconnect()
 })
 
@@ -226,7 +249,7 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
       ])
     )
 
-    const html = await renderPage({ ville: cityId })
+    const html = await renderPage({ ville: citySlug })
 
     expect(html).toContain(formatPrice(100000))
     expect(html).toContain(formatPrice(50000))
@@ -269,7 +292,7 @@ describe("CartPage — Visiteur (cookie Panier)", () => {
       serializePanierVisiteur([{ variantId: variantStandard, quantity: 1 }])
     )
 
-    const html = await renderPage({ ville: cityId })
+    const html = await renderPage({ ville: citySlug })
 
     expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
     expect(html).not.toContain(`href="/checkout?ville=${cityId}"`)
@@ -288,7 +311,7 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
       ])
     )
 
-    const html = await renderPage({ ville: cityId })
+    const html = await renderPage({ ville: citySlug })
 
     expect(html).toContain(`Livraison (Ville ${runId})`)
     expect(html).toContain(formatPrice(3000))
@@ -297,23 +320,30 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
   })
 
-  it("selects the Ville de livraison from its slug in the URL", async () => {
-    commeVisiteur()
-    setCookie(
-      NOM_COOKIE_PANIER_VISITEUR,
-      serializePanierVisiteur([
-        { variantId: variantStandard, quantity: 2 },
-        { variantId: variantUnique, quantity: 1 },
-      ])
-    )
+  it("selects the Ville de livraison from its slug in the URL, ahead of the profile's Ville", async () => {
+    commeClient(userIdA)
+    profileMock.mockResolvedValue({
+      phone: null,
+      address: null,
+      cityId: profilCityId,
+      cityName: `Ville profil ${runId}`,
+    })
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 2 },
+    })
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantUnique, quantity: 1 },
+    })
 
-    const html = await renderPage({ ville: `ville-${runId}` })
+    const html = await renderPage({ ville: citySlug })
 
     expect(html).toContain(`Livraison (Ville ${runId})`)
     expect(html).toContain(formatPrice(3000))
     expect(html).toContain(formatPrice(253000))
     expect(html).toContain(`data-selected="${cityId}"`)
     expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
+    expect(html).not.toContain(`href="/checkout?ville=${profilCitySlug}"`)
+    expect(html).not.toContain(`href="/checkout?ville=${cityId}"`)
   })
 
   it("shows « À choisir » without total when no ville is chosen", async () => {
@@ -366,7 +396,7 @@ describe("CartPage — Compte client (persisted Panier)", () => {
       data: { userId: userIdA, variantId: variantUnique, quantity: 1 },
     })
 
-    const html = await renderPage({ ville: cityId })
+    const html = await renderPage({ ville: citySlug })
 
     expect(html).toContain("Mon panier")
     expect(html).toContain("Théière traditionnelle")
