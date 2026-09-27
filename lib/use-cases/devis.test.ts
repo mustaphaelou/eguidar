@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { chargerDevis, DeliveryCityNotFoundError } from "@/lib/use-cases/devis"
 import {
+  chargerDevis,
+  DeliveryCityNotFoundError,
   projeterDevis,
   selectionValidee,
   type DevisChargé,
-} from "@/lib/use-cases/devis-coeur"
+} from "@/lib/use-cases/devis"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {

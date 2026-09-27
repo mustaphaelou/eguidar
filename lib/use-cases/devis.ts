@@ -55,6 +55,7 @@ export {
   projeterDevis,
   selectionValidee,
 } from "@/lib/use-cases/devis-coeur"
+export type { DevisChargé } from "@/lib/use-cases/devis-coeur"
 
 /**
  * Faits bruts de la Précédence du Devis, tels que `chargerDevis` les
