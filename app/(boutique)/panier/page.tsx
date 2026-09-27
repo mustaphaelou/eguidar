@@ -10,7 +10,7 @@ import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-pai
 import { Button } from "@/components/ui/button"
 import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
-import { chargerDevis, projeterDevis } from "@/lib/use-cases/devis"
+import { lireDevis } from "@/lib/use-cases/devis"
 import { lireSession } from "@/lib/use-cases/session-courante"
 import { villeVersParam } from "@/lib/use-cases/ville-url"
 import { lirePanier } from "@/lib/panier"
@@ -43,13 +43,10 @@ async function CartContent({
   const { ville } = await searchParams
   const [panier, user] = await Promise.all([lirePanier(), lireSession()])
   const profile = user ? await getProfile(user.id) : null
-  const chargé = await chargerDevis(panier, {
+  const { projeté } = await lireDevis(panier, {
     villeParam: ville,
     profileVilleId: profile?.cityId,
   })
-  const projet = projeterDevis(chargé, chargé.villeInitiale)
-  const villeSelectionnee =
-    projet.selection.cas === "validée" ? projet.selection.ville : null
 
   if (panier.lines.length === 0) {
     return (
@@ -70,6 +67,10 @@ async function CartContent({
     )
   }
 
+  const villeChoisie = projeté.villes.find(
+    (villeDeLivraison) => villeDeLivraison.id === projeté.villeId
+  )
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
       <h1 className="mb-4 text-2xl font-bold">Mon panier</h1>
@@ -83,18 +84,18 @@ async function CartContent({
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
-          <RecapitulatifPaiement rows={projet.rows} />
+          <RecapitulatifPaiement rows={projeté.rows} />
 
           <div className="mt-5 flex flex-col gap-4">
             <CityPicker
-              cities={projet.villes}
-              selectedId={projet.villeId}
+              cities={projeté.villes}
+              selectedId={projeté.villeId}
               path="/panier"
             />
             <Button
               render={
                 <Link
-                  href={`/checkout${villeSelectionnee ? villeVersParam(villeSelectionnee) : ""}`}
+                  href={`/checkout${villeChoisie ? villeVersParam(villeChoisie) : ""}`}
                 />
               }
               className="w-full"

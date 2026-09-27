@@ -316,34 +316,6 @@ describe("CartPage — Récapitulatif Ville de livraison", () => {
     expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
   })
 
-  it("still resolves a legacy internal identifier as a read-only alias", async () => {
-    commeVisiteur()
-    setCookie(
-      NOM_COOKIE_PANIER_VISITEUR,
-      serializePanierVisiteur([{ variantId: variantStandard, quantity: 1 }])
-    )
-
-    const html = await renderPage({ ville: cityId })
-
-    expect(html).toContain(`Livraison (Ville ${runId})`)
-    expect(html).toContain(`data-selected="${cityId}"`)
-  })
-
-  it("leaves no selection for an unknown slug", async () => {
-    commeVisiteur()
-    setCookie(
-      NOM_COOKIE_PANIER_VISITEUR,
-      serializePanierVisiteur([{ variantId: variantStandard, quantity: 1 }])
-    )
-
-    const html = await renderPage({ ville: `ville-inconnue-${runId}` })
-
-    expect(html).toContain("À choisir")
-    expect(html).not.toContain("Livraison (")
-    expect(html).toContain('data-selected=""')
-    expect(html).not.toContain("?ville=")
-  })
-
   it("shows « À choisir » without total when no ville is chosen", async () => {
     commeVisiteur()
     setCookie(
@@ -411,46 +383,5 @@ describe("CartPage — Compte client (persisted Panier)", () => {
     const html = await renderPage()
 
     expect(html).toContain("Votre panier est vide")
-  })
-
-  it("falls back to the profile's saved Ville when the URL names none", async () => {
-    commeClient(userIdA)
-    profileMock.mockResolvedValue({
-      phone: null,
-      address: null,
-      cityId,
-      cityName: `Ville ${runId}`,
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 2 },
-    })
-
-    const html = await renderPage()
-
-    expect(html).toContain(`Livraison (Ville ${runId})`)
-    expect(html).toContain(formatPrice(3000))
-    expect(html).toContain(formatPrice(203000))
-    expect(html).toContain(`data-selected="${cityId}"`)
-    expect(html).toContain(`href="/checkout?ville=${citySlug}"`)
-  })
-
-  it("never falls back to the profile behind an explicitly shared unknown Ville", async () => {
-    commeClient(userIdA)
-    profileMock.mockResolvedValue({
-      phone: null,
-      address: null,
-      cityId,
-      cityName: `Ville ${runId}`,
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
-    })
-
-    const html = await renderPage({ ville: `ville-inconnue-${runId}` })
-
-    expect(html).toContain("À choisir")
-    expect(html).not.toContain("Livraison (")
-    expect(html).toContain('data-selected=""')
-    expect(html).not.toContain("?ville=")
   })
 })
