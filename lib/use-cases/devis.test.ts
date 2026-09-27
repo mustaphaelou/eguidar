@@ -246,6 +246,80 @@ describe("chargerDevis (porte la Précédence : Ville initiale résolue une seul
   })
 })
 
+describe("chargerDevis : devis chiffrés par ville (portés depuis la suite Livraison, à travers la porte)", () => {
+  const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
+
+  async function chiffrer(
+    sousTotal: number,
+    options: {
+      villes?: DeliveryCityOption[]
+      seuil?: number
+      articlesOfferts?: boolean[]
+    } = {}
+  ): Promise<Record<string, ShippingQuote>> {
+    listDeliveryCitiesMock.mockReset()
+    getFreeShippingThresholdMock.mockReset()
+    listDeliveryCitiesMock.mockResolvedValue(options.villes ?? villes)
+    getFreeShippingThresholdMock.mockResolvedValue(options.seuil ?? 100000)
+    const devisChargé = await chargerDevis(
+      panierPourDevis(sousTotal, options.articlesOfferts)
+    )
+    return devisChargé.quotes
+  }
+
+  it("quotes the city fee below the threshold", async () => {
+    expect(
+      await chiffrer(50000, { villes: [city("c1", "Casablanca", 3500)] })
+    ).toEqual({ c1: quote(50000, 3500) })
+  })
+
+  it("quotes free shipping exactly at the threshold", async () => {
+    expect(
+      await chiffrer(100000, { villes: [city("c1", "Casablanca", 3500)] })
+    ).toEqual({ c1: quote(100000, 0) })
+  })
+
+  it("quotes free shipping above the threshold", async () => {
+    expect(
+      await chiffrer(150000, { villes: [city("c1", "Casablanca", 3500)] })
+    ).toEqual({ c1: quote(150000, 0) })
+  })
+
+  it("quotes free shipping below the threshold with a free-shipping item", async () => {
+    expect(
+      await chiffrer(50000, {
+        villes: [city("c1", "Casablanca", 3500)],
+        articlesOfferts: [true],
+      })
+    ).toEqual({ c1: quote(50000, 0) })
+  })
+
+  it("quotes each city with its own fee below the threshold", async () => {
+    expect(await chiffrer(50000)).toEqual({
+      c1: quote(50000, 3500),
+      c2: quote(50000, 5000),
+    })
+  })
+
+  it("quotes every city free above the threshold", async () => {
+    expect(await chiffrer(150000)).toEqual({
+      c1: quote(150000, 0),
+      c2: quote(150000, 0),
+    })
+  })
+
+  it("quotes every city free with a free-shipping item below the threshold", async () => {
+    expect(await chiffrer(50000, { articlesOfferts: [false, true] })).toEqual({
+      c1: quote(50000, 0),
+      c2: quote(50000, 0),
+    })
+  })
+
+  it("returns an empty map for no cities", async () => {
+    expect(await chiffrer(50000, { villes: [] })).toEqual({})
+  })
+})
+
 describe("lireDevis (Lecture du Devis : la page lit en un seul appel)", () => {
   const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
 

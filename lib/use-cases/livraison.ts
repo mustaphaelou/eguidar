@@ -23,8 +23,6 @@ export type {
   ShippingQuote,
 } from "@/lib/use-cases/livraison-prix"
 export {
-  computeCityQuote,
-  computeCityQuotes,
   computeShippingFee,
   DEFAULT_FREE_SHIPPING_THRESHOLD,
   DeliveryCityNotFoundError,
