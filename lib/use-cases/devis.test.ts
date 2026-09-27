@@ -14,7 +14,7 @@ import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
 import type {
   DeliveryCityOption,
   ShippingQuote,
-} from "@/lib/use-cases/livraison"
+} from "@/lib/use-cases/livraison-prix"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const { listDeliveryCitiesMock, getFreeShippingThresholdMock } = vi.hoisted(

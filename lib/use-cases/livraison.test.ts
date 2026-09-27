@@ -15,9 +15,7 @@ import {
   CityNotFoundError,
   CitySlugConflictError,
   CityValidationError,
-  computeShippingFee,
   createCity,
-  DEFAULT_FREE_SHIPPING_THRESHOLD,
   deleteCity,
   getFreeShippingThreshold,
   getShippingSettings,
@@ -27,6 +25,10 @@ import {
   updateCity,
   updateShippingSettings,
 } from "@/lib/use-cases/livraison"
+import {
+  computeShippingFee,
+  DEFAULT_FREE_SHIPPING_THRESHOLD,
+} from "@/lib/use-cases/livraison-prix"
 import {
   verifierFrontiereBestEffort,
   verifierRefusValidation,

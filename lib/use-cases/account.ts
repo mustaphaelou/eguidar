@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import {
   deliveryAddressField,
   deliveryPhoneField,

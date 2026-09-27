@@ -12,8 +12,7 @@
  * import serveur ici réintroduirait `pg` (`require('dns')`) dans le bundle
  * navigateur et casserait `next build` (Turbopack) — c'est cette garde qui
  * rend le module client-safe. La partie accès base reste dans
- * `@/lib/use-cases/livraison`, qui réexporte ce module pour
- * compatibilité ascendante.
+ * `@/lib/use-cases/livraison`.
  */
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 

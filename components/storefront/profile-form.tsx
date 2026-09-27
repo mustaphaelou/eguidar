@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cityOptions } from "@/components/storefront/city-options"
-import type { DeliveryCityOption } from "@/lib/use-cases/livraison"
+import type { DeliveryCityOption } from "@/lib/use-cases/livraison-prix"
 
 export interface ProfileFormProps {
   cities: DeliveryCityOption[]

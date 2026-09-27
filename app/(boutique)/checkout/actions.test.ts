@@ -25,7 +25,7 @@ vi.mock("@/lib/use-cases/account", () => ({
 }))
 
 import { placeOrderAction } from "@/app/(boutique)/checkout/actions"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import {
   CheckoutValidationError,
   EmptyCartError,

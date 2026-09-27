@@ -23,7 +23,7 @@ vi.mock("@/lib/use-cases/account", async (importOriginal) => {
 
 import { updateProfileAction } from "@/app/(boutique)/profil/actions"
 import { ProfileValidationError } from "@/lib/use-cases/account"
-import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison"
+import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 
 const SESSION_USER: Client = {
   id: "user-1",
