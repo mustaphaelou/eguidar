@@ -5,7 +5,7 @@ import { RequireAuth } from "@/components/auth/require-auth"
 import { CheckoutForm } from "@/components/storefront/checkout-form"
 import { pageMetadata } from "@/lib/metadata"
 import { getProfile } from "@/lib/use-cases/account"
-import { chargerDevis } from "@/lib/use-cases/devis"
+import { lireDevis } from "@/lib/use-cases/devis"
 import { lirePanier } from "@/lib/panier"
 import { lireSession } from "@/lib/use-cases/session-courante"
 import { formatPrice } from "@/lib/money"
@@ -45,7 +45,7 @@ async function CheckoutContent({
   ])
   if (panier.lines.length === 0) redirect("/panier")
 
-  const devis = await chargerDevis(panier, {
+  const { chargé } = await lireDevis(panier, {
     villeParam: ville,
     profileVilleId: profile.cityId,
   })
@@ -58,7 +58,7 @@ async function CheckoutContent({
         <section>
           <h2 className="mb-4 text-lg font-semibold">Adresse de livraison</h2>
           <CheckoutForm
-            devis={devis}
+            devis={chargé}
             initialAddress={profile.address ?? ""}
             initialPhone={profile.phone ?? ""}
           />
