@@ -52,8 +52,9 @@ import {
   type DevisProjeté,
 } from "@/lib/use-cases/devis-coeur"
 import {
-  computeCityQuotes,
+  computeShippingFee,
   type DeliveryCityOption,
+  type ShippingQuote,
 } from "@/lib/use-cases/livraison-prix"
 import {
   getFreeShippingThreshold,
@@ -119,7 +120,7 @@ export async function lireDevis(
  * aucune double vérification d'existence.
  *
  * Récupère Villes de livraison + seuil (administration Livraison) une
- * seule fois et chiffre chaque ville via `computeCityQuotes`
+ * seule fois et chiffre chaque ville par la règle `computeShippingFee`
  * (`panier.subtotal` + `lines.some(freeShipping)`) une seule fois.
  *
  * Strictement des données : aucune fonction, aucun getter, aucune
@@ -141,14 +142,21 @@ export async function chargerDevis(
     listDeliveryCities(),
     getFreeShippingThreshold(),
   ])
-  const quotes = computeCityQuotes(
-    cities,
-    {
+  const anyFreeShippingItem = panier.lines.some((line) => line.freeShipping)
+  const quotes: Record<string, ShippingQuote> = {}
+  for (const city of cities) {
+    const shippingFee = computeShippingFee({
       subtotal: sousTotal,
-      anyFreeShippingItem: panier.lines.some((line) => line.freeShipping),
-    },
-    threshold
-  )
+      cityFee: city.fee,
+      freeShippingThreshold: threshold,
+      anyFreeShippingItem,
+    })
+    quotes[city.id] = {
+      subtotal: sousTotal,
+      shippingFee,
+      total: sousTotal + shippingFee,
+    }
+  }
   return {
     cities,
     threshold,

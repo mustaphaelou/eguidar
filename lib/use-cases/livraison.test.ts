@@ -15,8 +15,6 @@ import {
   CityNotFoundError,
   CitySlugConflictError,
   CityValidationError,
-  computeCityQuote,
-  computeCityQuotes,
   computeShippingFee,
   createCity,
   DEFAULT_FREE_SHIPPING_THRESHOLD,
@@ -28,8 +26,6 @@ import {
   ShippingValidationError,
   updateCity,
   updateShippingSettings,
-  type DeliveryCityOption,
-  type PricingInput,
 } from "@/lib/use-cases/livraison"
 import {
   verifierFrontiereBestEffort,
@@ -38,27 +34,6 @@ import {
 
 const runId = randomUUID().slice(0, 8)
 const cityName = (suffix: string) => `Ville Livraison ${runId} ${suffix}`
-
-const city = (
-  id: string,
-  name: string,
-  fee: number,
-  slug = `slug-${id}`
-): DeliveryCityOption => ({
-  id,
-  slug,
-  name,
-  fee,
-})
-
-const pricing = (
-  subtotal: number,
-  anyFreeShippingItem = false
-): PricingInput => ({
-  subtotal,
-  anyFreeShippingItem,
-})
-
 
 describe("frais de livraison rule", () => {
   it("charges the city fee below the threshold when nothing is free-shipping", () => {
@@ -125,91 +100,6 @@ describe("frais de livraison rule", () => {
         anyFreeShippingItem: true,
       })
     ).toBe(0)
-  })
-})
-
-describe("pure quote operations", () => {
-  describe("computeCityQuote", () => {
-    it("quotes the city fee below the threshold", () => {
-      expect(
-        computeCityQuote(city("c1", "Casablanca", 3500), pricing(50000), 100000)
-      ).toEqual({
-        subtotal: 50000,
-        shippingFee: 3500,
-        total: 53500,
-      })
-    })
-
-    it("quotes free shipping exactly at the threshold", () => {
-      expect(
-        computeCityQuote(
-          city("c1", "Casablanca", 3500),
-          pricing(100000),
-          100000
-        )
-      ).toEqual({
-        subtotal: 100000,
-        shippingFee: 0,
-        total: 100000,
-      })
-    })
-
-    it("quotes free shipping above the threshold", () => {
-      expect(
-        computeCityQuote(
-          city("c1", "Casablanca", 3500),
-          pricing(150000),
-          100000
-        )
-      ).toEqual({
-        subtotal: 150000,
-        shippingFee: 0,
-        total: 150000,
-      })
-    })
-
-    it("quotes free shipping below the threshold with a free-shipping item", () => {
-      expect(
-        computeCityQuote(
-          city("c1", "Casablanca", 3500),
-          pricing(50000, true),
-          100000
-        )
-      ).toEqual({ subtotal: 50000, shippingFee: 0, total: 50000 })
-    })
-  })
-
-  describe("computeCityQuotes", () => {
-    it("quotes each city with its own fee below the threshold", () => {
-      const cities = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
-
-      expect(computeCityQuotes(cities, pricing(50000), 100000)).toEqual({
-        c1: { subtotal: 50000, shippingFee: 3500, total: 53500 },
-        c2: { subtotal: 50000, shippingFee: 5000, total: 55000 },
-      })
-    })
-
-    it("quotes every city free above the threshold", () => {
-      const cities = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
-
-      expect(computeCityQuotes(cities, pricing(150000), 100000)).toEqual({
-        c1: { subtotal: 150000, shippingFee: 0, total: 150000 },
-        c2: { subtotal: 150000, shippingFee: 0, total: 150000 },
-      })
-    })
-
-    it("quotes every city free with a free-shipping item below the threshold", () => {
-      const cities = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
-
-      expect(computeCityQuotes(cities, pricing(50000, true), 100000)).toEqual({
-        c1: { subtotal: 50000, shippingFee: 0, total: 50000 },
-        c2: { subtotal: 50000, shippingFee: 0, total: 50000 },
-      })
-    })
-
-    it("returns an empty map for no cities", () => {
-      expect(computeCityQuotes([], pricing(50000), 100000)).toEqual({})
-    })
   })
 })
 
