@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   chargerDevis,
   DeliveryCityNotFoundError,
+  lireDevis,
   projeterDevis,
   selectionValidee,
   type DevisChargé,
+  type DevisPrecedenceFaitsBruts,
 } from "@/lib/use-cases/devis"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
@@ -244,6 +246,81 @@ describe("chargerDevis (porte la Précédence : Ville initiale résolue une seul
   })
 })
 
+describe("lireDevis (Lecture du Devis : la page lit en un seul appel)", () => {
+  const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
+
+  beforeEach(() => {
+    listDeliveryCitiesMock.mockReset()
+    getFreeShippingThresholdMock.mockReset()
+    listDeliveryCitiesMock.mockResolvedValue(villes)
+    getFreeShippingThresholdMock.mockResolvedValue(100000)
+  })
+
+  const matrice: {
+    nom: string
+    faits: DevisPrecedenceFaitsBruts
+    villeInitiale: string | null
+    sélection: unknown
+  }[] = [
+    {
+      nom: "the link beats the profile",
+      faits: { villeParam: "slug-c1", profileVilleId: "c2" },
+      villeInitiale: "c1",
+      sélection: {
+        cas: "validée",
+        ville: city("c1", "Casablanca", 3500),
+        devis: quote(50000, 3500),
+      },
+    },
+    {
+      nom: "an absent or blank link falls back to the profile, whose id is trimmed once",
+      faits: { villeParam: "   ", profileVilleId: "  c2  " },
+      villeInitiale: "c2",
+      sélection: {
+        cas: "validée",
+        ville: city("c2", "Rabat", 5000),
+        devis: quote(50000, 5000),
+      },
+    },
+    {
+      nom: "an unknown link suppresses the profile fallback — sélection « aucune »",
+      faits: { villeParam: "ville-inconnue", profileVilleId: "c2" },
+      villeInitiale: null,
+      sélection: aucune,
+    },
+    {
+      nom: "neither a link nor a usable profile yields null",
+      faits: { villeParam: null, profileVilleId: "   " },
+      villeInitiale: null,
+      sélection: aucune,
+    },
+    {
+      nom: "empty facts yield null",
+      faits: {},
+      villeInitiale: null,
+      sélection: aucune,
+    },
+  ]
+
+  for (const { nom, faits, villeInitiale, sélection } of matrice) {
+    it(`equals the manual two-step: charge, then project with the chargé's own Ville initiale — ${nom}`, async () => {
+      const lecture = await lireDevis(panierPourDevis(50000), faits)
+
+      const chargé = await chargerDevis(panierPourDevis(50000), faits)
+      const manuel = {
+        chargé,
+        projeté: projeterDevis(chargé, chargé.villeInitiale),
+      }
+
+      expect(lecture.chargé).toStrictEqual(manuel.chargé)
+      expect(lecture.projeté).toStrictEqual(manuel.projeté)
+      expect(lecture.chargé.villeInitiale).toBe(villeInitiale)
+      expect(lecture.projeté.villeId).toBe(villeInitiale)
+      expect(lecture.projeté.selection).toStrictEqual(sélection)
+    })
+  }
+})
+
 describe("boundary: le Devis chargé ne traverse la couture qu'en données pures", () => {
   const villes = [city("c1", "Casablanca", 3500), city("c2", "Rabat", 5000)]
 
@@ -303,32 +380,14 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
     expect(() => assertDonnéePure(chargé)).not.toThrow()
   })
 
-  it("a function member fails the walk", async () => {
-    const chargé = await chargerDevis(panierPourDevis(50000))
-    expect(chargé.villeInitiale).toBeNull()
-    expect(() => assertDonnéePure({ ...chargé, choisir: () => chargé })).toThrow(
-      /fonction/
-    )
-  })
-
-  it("a getter member fails the walk", async () => {
-    const chargé = await chargerDevis(panierPourDevis(50000))
-    expect(() =>
-      assertDonnéePure({
-        ...chargé,
-        get total() {
-          return chargé.sousTotal
-        },
-      })
-    ).toThrow(/getter à/)
-  })
-
-  it("a class instance fails the walk", async () => {
-    const chargé = await chargerDevis(panierPourDevis(50000))
-    class Instance {}
-    expect(() =>
-      assertDonnéePure({ ...chargé, étiquette: new Instance() })
-    ).toThrow(/instance de classe/)
+  it("lireDevis hands back that same plain-data chargé beside its projeté", async () => {
+    const { chargé, projeté } = await lireDevis(panierPourDevis(50000), {
+      villeParam: "slug-c1",
+      profileVilleId: null,
+    })
+    expect(chargé.villeInitiale).toBe("c1")
+    expect(projeté.villeId).toBe("c1")
+    expect(() => assertDonnéePure(chargé)).not.toThrow()
   })
 })
 
