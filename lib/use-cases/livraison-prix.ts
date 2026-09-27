@@ -2,9 +2,9 @@
  * Tarification pure de la Livraison — module client-safe.
  *
  * Tient la règle de frais de livraison nommée (`computeShippingFee`), ses
- * types (`ShippingQuote`, `DeliveryCityOption`, `PricingInput`,
- * `ShippingFeeInput`, `DEFAULT_FREE_SHIPPING_THRESHOLD`) et sa classe
- * d'erreur (`DeliveryCityNotFoundError`) — rien d'autre : le chiffrage du
+ * types (`ShippingQuote`, `DeliveryCityOption`, `ShippingFeeInput`,
+ * `DEFAULT_FREE_SHIPPING_THRESHOLD`) et sa classe d'erreur
+ * (`DeliveryCityNotFoundError`) — rien d'autre : le chiffrage du
  * Panier ville par ville vit dans la porte serveur du Devis
  * (`chargerDevis`).
  *
@@ -34,11 +34,6 @@ export interface DeliveryCityOption {
   slug: string
   name: string
   fee: number
-}
-
-export interface PricingInput {
-  subtotal: number
-  anyFreeShippingItem: boolean
 }
 
 export interface ShippingFeeInput {
