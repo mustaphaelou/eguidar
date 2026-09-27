@@ -67,10 +67,6 @@ async function CartContent({
     )
   }
 
-  const villeChoisie = projeté.villes.find(
-    (villeDeLivraison) => villeDeLivraison.id === projeté.villeId
-  )
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
       <h1 className="mb-4 text-2xl font-bold">Mon panier</h1>
@@ -95,7 +91,11 @@ async function CartContent({
             <Button
               render={
                 <Link
-                  href={`/checkout${villeChoisie ? villeVersParam(villeChoisie) : ""}`}
+                  href={
+                    projeté.selection.cas === "validée"
+                      ? `/checkout${villeVersParam(projeté.selection.ville)}`
+                      : "/checkout"
+                  }
                 />
               }
               className="w-full"
