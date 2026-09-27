@@ -28,11 +28,11 @@ import {
  * (le crochet client). Un troisième import, production comme recette,
  * échoue la suite : c'est ce qui fait du cœur une couture interne et non
  * une troisième porte d'entrée, car rien n'empêche sinon un test ou une
- * page de puiser dedans en direct. Le parcours prend les trois arbres qui
- * contiennent le code du Devis, suites de test comprises
- * (`sourcesToutes`) — la recette ne doit pas passer autour de la porte —
- * moins cette suite elle-même, dont les fixtures énoncent mot pour mot
- * l'import qu'elles cherchent.
+ * page de puiser dedans en direct. Le parcours prend les quatre arbres où
+ * une source du Devis peut naître — `app/`, `components/`, `lib/` et
+ * `test/`, suites de test comprises (`sourcesToutes`) — la recette ne
+ * doit pas passer autour de la porte — moins cette suite elle-même, dont
+ * les fixtures énoncent mot pour mot l'import qu'elles cherchent.
  */
 const SERVEUR_SANS_CLIENT = [
   "./devis.ts",
@@ -59,7 +59,8 @@ const SOURCES = sourcesToutes(
   import.meta.url,
   "../../app",
   "../../components",
-  "../../lib"
+  "../../lib",
+  "../../test"
 )
 
 /** Les sources qui importent le cœur pur — cette suite exclue —, triées. */
@@ -101,7 +102,7 @@ describe("Devis — couture interne du cœur pur", () => {
     expect(auteursDuCoeur(SOURCES)).toEqual([...AUTEURS_DU_COEUR])
   })
 
-  it("le parcours est non vacuant : les trois arbres sont visités, tests compris", () => {
+  it("le parcours est non vacuant : les quatre arbres sont visités, tests compris", () => {
     expect(SOURCES.length).toBeGreaterThan(200)
     expect(SOURCES.map(({ chemin }) => chemin)).toEqual(
       expect.arrayContaining([
@@ -112,6 +113,8 @@ describe("Devis — couture interne du cœur pur", () => {
         // Les suites de test sont dans le parcours : c'est ce qui bloquait
         // la garde tant que `devis.test.ts` puisait dans le cœur en direct.
         "lib/use-cases/devis.test.ts",
+        // `test/` aussi : une fixture y puiserait dans le cœur en direct.
+        "test/navigation-mocks.ts",
       ])
     )
     // Témoin positif : l'instrument voit bien les deux auteurs autorisés.
