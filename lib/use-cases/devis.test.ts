@@ -8,6 +8,7 @@ import {
   selectionValidee,
   type DevisChargé,
   type DevisPrecedenceFaitsBruts,
+  type DevisProjeté,
 } from "@/lib/use-cases/devis"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier, DonneesPanier } from "@/lib/panier"
@@ -330,69 +331,59 @@ describe("lireDevis (Lecture du Devis : la page lit en un seul appel)", () => {
     getFreeShippingThresholdMock.mockResolvedValue(100000)
   })
 
-  const matrice: {
-    nom: string
+  /**
+   * La composition de l'entrée, établie une seule fois : charger, puis
+   * projeter sur la Ville initiale du chargé — les deux moitiés doivent
+   * être strictement celles du deux-temps manuel, et le projeté rester
+   * cohérent avec la Ville initiale portée. La Précédence elle-même n'est
+   * pas re-jouée ici : elle appartient au chargeur, testée plus haut.
+   */
+  async function égaleLeDeuxTempsManuel(
     faits: DevisPrecedenceFaitsBruts
-    villeInitiale: string | null
-    sélection: unknown
-  }[] = [
-    {
-      nom: "the link beats the profile",
-      faits: { villeParam: "slug-c1", profileVilleId: "c2" },
-      villeInitiale: "c1",
-      sélection: {
-        cas: "validée",
-        ville: city("c1", "Casablanca", 3500),
-        devis: quote(50000, 3500),
-      },
-    },
-    {
-      nom: "an absent or blank link falls back to the profile, whose id is trimmed once",
-      faits: { villeParam: "   ", profileVilleId: "  c2  " },
-      villeInitiale: "c2",
-      sélection: {
-        cas: "validée",
-        ville: city("c2", "Rabat", 5000),
-        devis: quote(50000, 5000),
-      },
-    },
-    {
-      nom: "an unknown link suppresses the profile fallback — sélection « aucune »",
-      faits: { villeParam: "ville-inconnue", profileVilleId: "c2" },
-      villeInitiale: null,
-      sélection: aucune,
-    },
-    {
-      nom: "neither a link nor a usable profile yields null",
-      faits: { villeParam: null, profileVilleId: "   " },
-      villeInitiale: null,
-      sélection: aucune,
-    },
-    {
-      nom: "empty facts yield null",
-      faits: {},
-      villeInitiale: null,
-      sélection: aucune,
-    },
-  ]
+  ): Promise<{ chargé: DevisChargé; projeté: DevisProjeté }> {
+    const lecture = await lireDevis(panierPourDevis(50000), faits)
 
-  for (const { nom, faits, villeInitiale, sélection } of matrice) {
-    it(`equals the manual two-step: charge, then project with the chargé's own Ville initiale — ${nom}`, async () => {
-      const lecture = await lireDevis(panierPourDevis(50000), faits)
+    const chargé = await chargerDevis(panierPourDevis(50000), faits)
+    const manuel = {
+      chargé,
+      projeté: projeterDevis(chargé, chargé.villeInitiale),
+    }
 
-      const chargé = await chargerDevis(panierPourDevis(50000), faits)
-      const manuel = {
-        chargé,
-        projeté: projeterDevis(chargé, chargé.villeInitiale),
-      }
-
-      expect(lecture.chargé).toStrictEqual(manuel.chargé)
-      expect(lecture.projeté).toStrictEqual(manuel.projeté)
-      expect(lecture.chargé.villeInitiale).toBe(villeInitiale)
-      expect(lecture.projeté.villeId).toBe(villeInitiale)
-      expect(lecture.projeté.selection).toStrictEqual(sélection)
-    })
+    expect(lecture.chargé).toStrictEqual(manuel.chargé)
+    expect(lecture.projeté).toStrictEqual(manuel.projeté)
+    expect(lecture.projeté.villeId).toBe(lecture.chargé.villeInitiale)
+    return lecture
   }
+
+  it("equals the manual two-step — the link carries the Ville", async () => {
+    const lecture = await égaleLeDeuxTempsManuel({
+      villeParam: "slug-c1",
+      profileVilleId: "c2",
+    })
+
+    expect(lecture.chargé.villeInitiale).toBe("c1")
+    expect(lecture.projeté.villeId).toBe("c1")
+    expect(lecture.projeté.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c1", "Casablanca", 3500),
+      devis: quote(50000, 3500),
+    })
+  })
+
+  it("equals the manual two-step — the profile carries the Ville", async () => {
+    const lecture = await égaleLeDeuxTempsManuel({
+      villeParam: undefined,
+      profileVilleId: "  c2  ",
+    })
+
+    expect(lecture.chargé.villeInitiale).toBe("c2")
+    expect(lecture.projeté.villeId).toBe("c2")
+    expect(lecture.projeté.selection).toStrictEqual({
+      cas: "validée",
+      ville: city("c2", "Rabat", 5000),
+      devis: quote(50000, 5000),
+    })
+  })
 })
 
 describe("boundary: le Devis chargé ne traverse la couture qu'en données pures", () => {
@@ -451,16 +442,6 @@ describe("boundary: le Devis chargé ne traverse la couture qu'en données pures
       profileVilleId: null,
     })
     expect(chargé.villeInitiale).toBe("c1")
-    expect(() => assertDonnéePure(chargé)).not.toThrow()
-  })
-
-  it("lireDevis hands back that same plain-data chargé beside its projeté", async () => {
-    const { chargé, projeté } = await lireDevis(panierPourDevis(50000), {
-      villeParam: "slug-c1",
-      profileVilleId: null,
-    })
-    expect(chargé.villeInitiale).toBe("c1")
-    expect(projeté.villeId).toBe("c1")
     expect(() => assertDonnéePure(chargé)).not.toThrow()
   })
 })
