@@ -38,6 +38,11 @@ vi.mock("@/lib/cycle-vie-image-produit", () => ({
   default: {
     revendiquerEtEnregistrer: revendiquerEtEnregistrerMock,
   },
+  // La porte scelle les trois faits en une valeur. Ce qui intéresse cette suite,
+  // c'est ce que l'action **empaquette**, pas la façon dont la valeur est
+  // scellée : la porte est donc l'identité, et les assertions portent sur les
+  // trois faits qu'elle reçoit.
+  creerRevendicationImagesProduit: (input: unknown) => input,
 }))
 
 import {
@@ -136,6 +141,7 @@ describe("createProductAction", () => {
       }),
       undefined,
       {
+        galerie: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
         lier: expect.any(Function),
         promues: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
       }
@@ -251,6 +257,11 @@ describe("updateProductAction", () => {
       }),
       undefined,
       {
+        galerie: [
+          "https://cdn.test/p/draft-1.webp",
+          "https://cdn.test/p/existing.webp",
+          "https://cdn.test/p/draft-2.webp",
+        ],
         lier: expect.any(Function),
         promues: [
           "https://cdn.test/p/draft-1.webp",

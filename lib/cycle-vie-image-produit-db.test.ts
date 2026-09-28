@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import {
   creerCycleVieImageProduit,
   creerRegistreBrouillonImageProduitPrisma,
+  creerRevendicationImagesProduit,
   type Horloge,
   type ImageProduitPromue,
   type LierBrouillonsImageProduit,
@@ -103,13 +104,18 @@ describe("registre durable des Brouillons d'Image produit", () => {
     images: readonly ImageProduitPromue[],
     lier: LierBrouillonsImageProduit
   ) {
+    const galerie = images.map((image) => image.publicUrl)
     const product = await createProduct(
-      makeInput(images.map((image) => image.publicUrl)),
+      makeInput(galerie),
       {
         reindexProducts: async () => {},
         revalidateCatalog: () => {},
       },
-      { lier, promues: images.map((image) => image.publicUrl) }
+      creerRevendicationImagesProduit({
+        galerie,
+        promues: galerie,
+        lier,
+      })
     )
     return { productId: product.id, result: product }
   }
@@ -437,18 +443,20 @@ describe("registre durable des Brouillons d'Image produit", () => {
       ownerId,
       draftIds: [demande.draftId],
       enregistrer: async (images, _lier) => {
+        const galerie = images.map((image) => image.publicUrl)
         await createProduct(
-          makeInput(images.map((image) => image.publicUrl)),
+          makeInput(galerie),
           {
             reindexProducts: async () => {},
             revalidateCatalog: () => {},
           },
-          {
+          creerRevendicationImagesProduit({
+            galerie,
+            promues: galerie,
             lier: async () => {
               throw new Error("échec de commit simulé")
             },
-            promues: images.map((image) => image.publicUrl),
-          }
+          })
         )
         return { productId: "inutilisé", result: null }
       },

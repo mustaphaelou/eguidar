@@ -137,6 +137,75 @@ export type LierBrouillonsImageProduit = (
   transaction?: PortTransactionRegistreBrouillonImageProduit
 ) => Promise<void>
 
+/**
+ * Les trois faits qu'une revendication tient prête à forward ensemble : la
+ * Galerie produit qu'elle a composée, dans l'ordre de l'Administration, le
+ * sous-ensemble qu'elle a promu, et la liaison à exécuter dans la transaction
+ * du Catalogue. Aucun ne se passe sans les deux autres.
+ */
+export interface FaitsRevendicationImagesProduit {
+  readonly galerie: readonly string[]
+  readonly promues: readonly string[]
+  readonly lier: LierBrouillonsImageProduit
+}
+
+/**
+ * La valeur qu'une revendication tient prête à forward, et que le Catalogue
+ * reçoit en un seul morceau.
+ *
+ * **Les trois faits vont ensemble.** Les URL promues sont ce qui autorise une
+ * Image produit nouvelle à être écrite : une liaison sans elles se ferait
+ * refuser la galerie, et une galerie sans promotion ne lierait rien. Cette
+ * valeur n'a donc pas de constructeur public et porte une marque : la seule
+ * façon de l'obtenir est la porte, qui exige les trois faits. Un appelant ne
+ * peut plus passer la liaison et le sous-ensemble promu séparément, ni les
+ * fabriquer de son côté.
+ */
+export class RevendicationImagesProduit {
+  /** La Galerie produit dans l'ordre de l'Administration. */
+  readonly galerie: readonly string[]
+  /** Le sous-ensemble que cette même opération a promu. */
+  readonly promues: readonly string[]
+  /** La liaison à exécuter dans la transaction du Catalogue. */
+  readonly lier: LierBrouillonsImageProduit
+  /**
+   * La marque de la porte : elle rend la valeur non reproductible ailleurs,
+   * donc impossible à fabriquer à la main au lieu de passer par
+   * `creerRevendicationImagesProduit`. Le constructeur est privé, et cette
+   * propriété n'est attribuable qu'à cette classe — un objet écrit à la main,
+   * même complet, n'est donc pas une `RevendicationImagesProduit`.
+   */
+  private readonly porte: true
+
+  private constructor(faits: FaitsRevendicationImagesProduit) {
+    this.galerie = [...faits.galerie]
+    this.promues = [...faits.promues]
+    this.lier = faits.lier
+    this.porte = true
+  }
+
+  /**
+   * La seule porte de construction : elle exige les trois faits ensemble — la
+   * Galerie ordonnée, le sous-ensemble promu et la liaison. Un objet
+   * `{ lier, promues }` écrit à la main n'est donc pas une revendication, et le
+   * compilateur le dit à la construction.
+   *
+   * Elle est statique parce que le constructeur est privé : c'est cette porte,
+   * et elle seule, qui peut l'appeler.
+   */
+  static creer(
+    faits: FaitsRevendicationImagesProduit
+  ): RevendicationImagesProduit {
+    return new RevendicationImagesProduit(faits)
+  }
+}
+
+/**
+ * La porte, nommée comme la valeur qu'elle rend : c'est la seule façon d'obtenir
+ * une `RevendicationImagesProduit`.
+ */
+export const creerRevendicationImagesProduit = RevendicationImagesProduit.creer
+
 export interface ResultatEnregistrementCatalogue<TResult> {
   productId: string
   result: TResult
@@ -895,7 +964,10 @@ export function creerCycleVieImageProduit(
     )
     if (brouillonsLies.length > 0) {
       const productIds = new Set(brouillonsLies.map((draft) => draft.productId))
-      if (brouillonsLies.length !== revendiques.length || productIds.size !== 1) {
+      if (
+        brouillonsLies.length !== revendiques.length ||
+        productIds.size !== 1
+      ) {
         await restaurerRevendications()
         return refus(
           "revendication-refusee",
