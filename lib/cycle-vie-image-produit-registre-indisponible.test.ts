@@ -1,23 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import type { CycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
 import {
-  creerHorlogeControllable,
-  creerRegistreImageProduitMemoire,
-  creerStockageImageProduitMemoire,
+  brouillon,
+  creerCycleVieTest,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-05-02T10:00:00.000Z")
-
-/** Une entrée de Galerie produit, telle que le formulaire la soumet. */
-function brouillon(draftId: string): EntreeImageProduit {
-  return {
-    kind: "brouillon",
-    draftId,
-    previewUrl: `https://preview.test/${draftId}`,
-  }
-}
 
 /**
  * Les quatre chemins par lesquels le module propriétaire rend le refus
@@ -29,23 +18,7 @@ function brouillon(draftId: string): EntreeImageProduit {
  * côté éditeur et aucun octet n'est écrit dans le stockage. Chaque cas vérifie
  * donc que l'échec du registre ne laisse aucune trace de suppression.
  */
-function creerCycleVie() {
-  const horloge = creerHorlogeControllable(DATE_INITIALE)
-  const stockage = creerStockageImageProduitMemoire()
-  const registre = creerRegistreImageProduitMemoire(() =>
-    horloge.horloge.maintenant()
-  )
-  const cycleVie = creerCycleVieImageProduit({
-    stockage,
-    registre,
-    horloge: horloge.horloge,
-  })
-  return { cycleVie, stockage, registre }
-}
-
-async function demanderBrouillon(
-  cycleVie: ReturnType<typeof creerCycleVie>["cycleVie"]
-) {
+async function demanderBrouillon(cycleVie: CycleVieImageProduit) {
   const resultat = await cycleVie.demanderBrouillon({
     ownerId: "editeur-1",
     contentType: "image/png",
@@ -60,7 +33,7 @@ const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
 
 describe("refus « registre indisponible »", () => {
   it("refuse une demande de Brouillon quand la création du registre échoue", async () => {
-    const { cycleVie, registre, stockage } = creerCycleVie()
+    const { cycleVie, registre, stockage } = creerCycleVieTest(DATE_INITIALE)
     registre.pannes.add("creer")
 
     const resultat = await cycleVie.demanderBrouillon({
@@ -81,7 +54,7 @@ describe("refus « registre indisponible »", () => {
   })
 
   it("refuse un relâchement quand la lecture du registre échoue", async () => {
-    const { cycleVie, registre, stockage } = creerCycleVie()
+    const { cycleVie, registre, stockage } = creerCycleVieTest(DATE_INITIALE)
     const demande = await demanderBrouillon(cycleVie)
     registre.pannes.add("lire")
 
@@ -101,7 +74,7 @@ describe("refus « registre indisponible »", () => {
   })
 
   it("refuse un relâchement quand le marquage de libération échoue", async () => {
-    const { cycleVie, registre, stockage } = creerCycleVie()
+    const { cycleVie, registre, stockage } = creerCycleVieTest(DATE_INITIALE)
     const demande = await demanderBrouillon(cycleVie)
     registre.pannes.add("marquerLibere")
 
@@ -122,7 +95,7 @@ describe("refus « registre indisponible »", () => {
   })
 
   it("refuse une revendication quand le registre échoue, et restaure ce qu'il avait pris", async () => {
-    const { cycleVie, registre, stockage } = creerCycleVie()
+    const { cycleVie, registre, stockage } = creerCycleVieTest(DATE_INITIALE)
     const premier = await demanderBrouillon(cycleVie)
     const second = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
@@ -166,7 +139,7 @@ describe("refus « registre indisponible »", () => {
   })
 
   it("laisse le Brouillon revendicable après un registre revenu", async () => {
-    const { cycleVie, registre, stockage } = creerCycleVie()
+    const { cycleVie, registre, stockage } = creerCycleVieTest(DATE_INITIALE)
     const demande = await demanderBrouillon(cycleVie)
     registre.pannes.add("revendiquer")
 

@@ -4,6 +4,7 @@ import { expect } from "vitest"
 
 import type {
   BrouillonImageProduit,
+  CodeRefusRegistreBrouillon,
   PortRegistreBrouillonImageProduit,
 } from "@/lib/cycle-vie-image-produit"
 import {
@@ -543,15 +544,22 @@ export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
  * Les codes de refus que le contrat doit atteindre. Une suite qui les énumère
  * prouve que le contrat n'est pas vide : un accord obtenu parce que les deux
  * adaptateurs ne refusent plus rien n'est pas un accord.
+ *
+ * C'est un `Record` du code au marqueur, pas un tableau de codes : le type est
+ * la clé, donc TypeScript exige **toutes** les clés de
+ * `CodeRefusRegistreBrouillon`. Un code ajouté au port sans scénario ici est
+ * une erreur de compilation, jamais un refus que la garde de non-vacuité laisse
+ * passer en silence — un tableau typé `readonly string[]` ne lierait la liste à
+ * rien et pourrait devenir vide sans que `tsc` ni la suite ne le remarquent.
  */
-export const CODES_REFUS_CONTRAT: readonly string[] = [
-  "introuvable",
-  "proprietaire-incorrect",
-  "non-vivant",
-  "expire",
-  "deja-revendique",
-  "deja-libere",
-]
+export const CODES_REFUS_CONTRAT: Record<CodeRefusRegistreBrouillon, true> = {
+  introuvable: true,
+  "proprietaire-incorrect": true,
+  "non-vivant": true,
+  expire: true,
+  "deja-revendique": true,
+  "deja-libere": true,
+}
 
 async function rejouer(
   scenario: ScenarioRegistre,

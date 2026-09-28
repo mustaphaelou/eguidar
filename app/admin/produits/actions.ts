@@ -47,11 +47,6 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
     next: "/admin/produits",
     parse: soumissionDepuisFormData,
     run: async ({ champsCatalogue, images, tentativeId }, client) => {
-      // Cette galerie, ce propriétaire, cette tentative, et voici comment le
-      // Catalogue s'écrit. Le cycle de vie a découpé, promu et réassemblé dans
-      // l'ordre de l'éditeur ; la valeur qu'il tend est celle que la mutation
-      // reçoit, et cette action n'y ajoute rien.
-      //
       // Une galerie sans Brouillon passe ici aussi : c'est le même chemin, et
       // rien ici n'a à savoir s'il y en a un. Le sous-ensemble promu est alors
       // vide, et c'est la règle du Catalogue, appliquée une seule fois dans
@@ -105,10 +100,9 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     // revendication valide. Une galerie sans Brouillon n'a rien de spécial,
     // donc elle ne court-circuite plus.
     //
-    // Cette galerie, ce propriétaire, cette tentative, et voici comment le
-    // Catalogue s'écrit — ici une mise à jour, là une création : le cycle de
-    // vie n'en sait rien et n'a pas à le savoir. La relecture d'un commit déjà
-    // durable est celle de l'action de création, écrite une seule fois.
+    // Ici une mise à jour, là une création : le cycle de vie n'en sait rien et
+    // n'a pas à le savoir. La relecture d'un commit déjà durable est celle de
+    // l'action de création, écrite une seule fois.
     const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
       tentativeId,
       ownerId: client.id,

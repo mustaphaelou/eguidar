@@ -35,6 +35,7 @@ import type {
   ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 import type { Client } from "@/lib/use-cases/session-courante"
+import { brouillon, persistee } from "@/test/cycle-vie-image-produit-memoire"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
 /**
@@ -223,19 +224,6 @@ beforeEach(() => {
   stockage.failDelete = false
   horloge.fixer(instant)
 })
-
-/** Les deux formes d'une entrée de la Galerie produit, comme le formulaire les écrit. */
-function persistee(url: string): EntreeImageProduit {
-  return { kind: "persistee", url }
-}
-
-function brouillon(draftId: string): EntreeImageProduit {
-  return {
-    kind: "brouillon",
-    draftId,
-    previewUrl: `https://preview.test/${draftId}`,
-  }
-}
 
 /** L'URL publique que la promotion d'un Brouillon produit, et que l Catalogue écrit. */
 function urlPromue(draftId: string): string {
