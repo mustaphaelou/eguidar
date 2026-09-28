@@ -55,6 +55,27 @@ npm test          # exécution unique (migrations appliquées automatiquement)
 npm run test:watch
 ```
 
+## Crochet pre-commit
+
+Le dépôt embarque un crochet qui refuse un commit dont **les fichiers indexés** ne respectent pas la configuration Prettier — et rien d'autre. Ni lint, ni types, ni tests, ni build. Il porte sur le format seul, et son refus ne réécrit rien : ni `git add`, ni fichier touché dans votre dos.
+
+**Il ne protège que le clone où il est installé.** `core.hooksPath` est un réglage local, jamais committable, donc un clone neuf n'a pas de crochet — et c'est précisément pour cela que **la CI reste la porte qui fait autorité** : elle rejoue la même vérification sur chaque demande de fusion, crochet installé ou pas. Un commit refusé par le crochet reste donc poussable ; il ne s'agit que d'un écho, pas d'un verrou.
+
+L'activation se fait une fois par clone :
+
+```bash
+git config core.hooksPath hooks
+```
+
+Pour revenir en arrière : `git config --unset core.hooksPath`. Sans cette ligne, `hooks/pre-commit` n'est jamais exécuté — et git ne dit rien. Un crochet privé de son bit d'exécution est ignoré tout aussi silencieusement.
+
+Quand le crochet refuse, il nomme le fichier fautif et s'arrête là. Le correctif reste le vôtre :
+
+```bash
+npm run format   # corrige l'arbre
+git add -u       # on réindexe
+```
+
 ## Scripts
 
 | Commande | Description |
@@ -64,4 +85,6 @@ npm run test:watch
 | `npm run typecheck` | Vérification TypeScript |
 | `npm run lint` | ESLint |
 | `npm test` | Tests vitest (unitaires + intégration) |
+| `npm run format` | Met le code TypeScript et TSX en forme (écriture) |
+| `npm run format:check` | Signale les fichiers mal formés, sans les toucher (lecture) |
 | `npx prisma db seed` | Données de démo (idempotent) |
