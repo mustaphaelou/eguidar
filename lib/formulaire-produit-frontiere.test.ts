@@ -183,9 +183,9 @@ describe("Formulaire Produit — frontière client/serveur", () => {
     // L'invariant est l'interdiction, pas l'appel : **aucun** `node:` ne se
     // résout dans un bundle navigateur, donc `node:crypto`, `node:fs` et
     // `node:path` sont dans la liste interdite ci-dessus et c'est elle qui
-    // l'applique. Comment le `randomUUID` est obtenu ensuite — `globalThis`,
-    // `crypto`, une bibliothèque — n'est pas une question de frontière ;
-    // épingler l'expression d'aujourd'hui la confondrait avec elle.
+    // l'applique. Elle vaut pour tout ce que le module contiendrait, aujourd'hui
+    // comme demain : épingler l'expression d'aujourd'hui la confondrait avec
+    // elle.
     expect(source).not.toMatch(/from\s*["']node:/)
     aucuneDependance(source, MODULE_NEUTRE)
   })

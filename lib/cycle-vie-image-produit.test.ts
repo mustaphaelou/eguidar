@@ -329,6 +329,119 @@ describe("CycleVieImageProduit", () => {
     })
   })
 
+  it("refuse une soumission sans identité de tentative, sans rien revendiquer", async () => {
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/webp",
+      size: 1024,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+    const enregistrer = vi.fn(async () => ({
+      productId: "produit-1",
+      result: "enregistré",
+    }))
+
+    // Ce que le transport rend désormais d'un champ `tentativeId` absent ou
+    // seulement blanc : une chaîne vide, plutôt qu'une identité fabriquée. Le
+    // refus est celui que le cycle de vie définit déjà pour une identité de
+    // tentative ou de propriétaire vide — aucun code, aucun message ajouté — et
+    // il tombe avant le registre, donc avant qu'un Brouillon soit revendiqué.
+    const refus = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "   ",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer,
+    })
+
+    expect(refus).toEqual({
+      ok: false,
+      code: "identifiant-proprietaire-invalide",
+      message: "Tentative d'édition ou propriétaire invalide",
+    })
+    expect(enregistrer).not.toHaveBeenCalled()
+    expect(stockage.promotions).toEqual([])
+    // Le Brouillon reste vivant et sans tentative : l'éditeur n'a rien perdu de
+    // ce qu'il a téléversé, il n'a qu'à corriger le formulaire et réessayer.
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "vivant",
+      tentativeId: null,
+      productId: null,
+    })
+
+    // La même soumission, porteuse de l'identité que le formulaire transporte,
+    // s'enregistre exactement comme aujourd'hui.
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer: async (images, lier) => {
+        await lier("produit-1")
+        return {
+          productId: "produit-1",
+          result: images.map((i) => i.publicUrl),
+        }
+      },
+    })
+
+    expect(resultat).toMatchObject({ ok: true, productId: "produit-1" })
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-1",
+      productId: "produit-1",
+      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+    })
+  })
+
+  it("une soumission rejouée sans identité ne prend pas un Brouillon qu'une tentative tient", async () => {
+    const { cycleVie, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/avif",
+      size: 100,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    let appels = 0
+    const enregistrer: EnregistrerCatalogue<string> = async (_images, lier) => {
+      appels += 1
+      await lier("produit-1")
+      return { productId: "produit-1", result: "enregistré" }
+    }
+    const premier = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer,
+    })
+    expect(premier).toMatchObject({ ok: true, productId: "produit-1" })
+
+    // La soumission rejouée — celle d'un client qui ne rend pas le champ, ou
+    // d'une requête forgée à la main — arrive sans identité. Elle est refusée
+    // avant le registre : elle ne peut donc pas même tenter de reprendre le
+    // Brouillon que la première tentative tient déjà. Le transport, qui
+    // fabricait autrefois une identité neuve, laissait cette soumission
+    // concourir sous un nom qu'elle s'était donné.
+    const rejete = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "",
+      ownerId: "editeur-1",
+      draftIds: [demande.draftId],
+      enregistrer,
+    })
+
+    expect(rejete).toEqual({
+      ok: false,
+      code: "identifiant-proprietaire-invalide",
+      message: "Tentative d'édition ou propriétaire invalide",
+    })
+    expect(appels).toBe(1)
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-1",
+      productId: "produit-1",
+    })
+  })
+
   it("refuse un Brouillon absent ou appartenant à un autre éditeur", async () => {
     const { cycleVie, registre } = creerCycleVieTest()
     const demande = await cycleVie.demanderBrouillon({
