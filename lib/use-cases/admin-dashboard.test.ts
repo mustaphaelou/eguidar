@@ -342,7 +342,7 @@ describe("admin dashboard stats", () => {
       ).toBe(false)
     })
 
-    it("répond avec le Total à payer persisté, jamais avec la somme recalculée du Sous-total et des Frais de livraison", async () => {
+    it("answers with the persisted Total à payer, never with a sum recomputed from the Sous-total and the Frais de livraison", async () => {
       // Fixture de garde : le Total à payer stocké (380,00 MAD) ne vaut pas le
       // Sous-total plus les Frais de livraison (500,00 MAD). Aucune Commande
       // de production ne peut être dans cet état — la création écrit la somme,
