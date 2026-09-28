@@ -6,6 +6,10 @@ import { captcha, emailOTP } from "better-auth/plugins"
 import { prisma } from "@/lib/db"
 import { sendOtpEmail } from "@/lib/emails"
 import {
+  accesCompteClientPrisma,
+  revoquerAccesNonProuve,
+} from "@/lib/revocation-acces-non-prouve"
+import {
   SESSION_INACTIVE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "@/lib/session-constants"
@@ -32,6 +36,29 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: true,
     minPasswordLength: 8,
+  },
+  /**
+   * Un Compte client dont l'e-mail n'est pas vérifié ne prouve pas que le mot
+   * de passe posé dessus appartient au propriétaire de la boîte. La bibliothèque
+   * promeut la ligne *sans* rien révoquer — `/email-otp/verify-email` ne pose
+   * `emailVerified: true` que sur la ligne trouvée par e-mail — donc c'est ici,
+   * avant la promotion, que l'accès non prouvé disparaît.
+   *
+   * La couture est `beforeEmailVerification` et non `databaseHooks` : le hook de
+   * mise à jour reçoit la charge utile mais jamais l'identifiant de la ligne
+   * visée (`with-hooks.mjs` transmet le `where` à l'adaptateur, pas au hook), et
+   * la règle porte sur un Compte client précis. Ce hook est appelé par les trois
+   * routes de promotion de la bibliothèque, toutes avant leur mise à jour.
+   *
+   * `{ emailVerified: true }` décrit la promotion que ce point d'entrée annonce,
+   * pas une copie de la charge utile : la route ne la passe pas.
+   */
+  emailVerification: {
+    beforeEmailVerification: async (compteClient) => {
+      await revoquerAccesNonProuve(accesCompteClientPrisma, compteClient.id, {
+        emailVerified: true,
+      })
+    },
   },
   socialProviders: {
     google: {
