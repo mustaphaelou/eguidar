@@ -24,7 +24,6 @@ import {
 } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import type { OrderEmailSnapshot } from "@/lib/emails"
-import { totalPayable } from "@/lib/money"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import {
   CheckoutValidationError,
@@ -913,7 +912,7 @@ async function createAdminOrderRecord(
       phone: PHONE,
       total,
       shippingFee,
-      totalPayable: opts?.totalPayable ?? totalPayable({ total, shippingFee }),
+      totalPayable: opts?.totalPayable ?? total + shippingFee,
       ...(opts?.createdAt ? { createdAt: opts.createdAt } : {}),
       items: {
         create: items.map((item) => ({
