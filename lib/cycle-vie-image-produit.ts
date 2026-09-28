@@ -656,11 +656,19 @@ export function creerRegistreBrouillonImageProduitPrisma(
       return confirmerPromotionAvecTransaction(prisma, input)
     },
 
+    /**
+     * La compensation ne rend `vivant` que ce qui est encore `revendiqué` : un
+     * Brouillon dont la rétention est échue a été résolu en `expiré`, et le
+     * rendre à `vivant` le rendrait revendicable alors que son objet a pu être
+     * supprimé par la règle de cycle de vie R2. Le port en mémoire applique la
+     * même précondition, et le contrat exige que les deux s'accordent.
+     */
     async annulerRevendication(input) {
       await prisma.brouillonImageProduit.updateMany({
         where: {
           id: input.id,
           tentativeId: input.tentativeId,
+          state: "revendiqué",
           productId: null,
         },
         data: {
