@@ -486,6 +486,79 @@ describe("CycleVieImageProduit", () => {
     }
   })
 
+  it("une galerie sans Brouillon prend le même chemin qu'une galerie qui en contient", async () => {
+    // Une galerie sans Brouillon n'est plus un cas que l'appelant doit traiter
+    // à part : elle entre par la même opération. Il n'y a rien à revendiquer,
+    // donc rien à promouvoir et rien à lier — la galerie part telle quelle, le
+    // sous-ensemble promu est vide, et ce que le Catalogue en fait reste sa
+    // décision. Le refus d'une liste de Brouillons vide a disparu : il n'était
+    // atteignable que parce qu'un appelant court-circuitait avant d'appeler.
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const urls = [
+      "https://cdn.test/produits/une.webp",
+      "https://cdn.test/produits/deux.webp",
+    ]
+    const vues: RevendicationImagesProduit[] = []
+    let appels = 0
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      galerie: urls.map(persistee),
+      enregistrer: async (revendication) => {
+        appels += 1
+        vues.push(revendication)
+        // La liaison est appelée par le Catalogue dans sa transaction, même
+        // sans Brouillon : elle ne lie rien, et ne refuse pas non plus.
+        await revendication.lier("produit-1")
+        return { productId: "produit-1", result: revendication.galerie }
+      },
+    })
+
+    expect(resultat).toMatchObject({ ok: true, productId: "produit-1" })
+    // Le Catalogue est écrit, et il ne l'est qu'une fois.
+    expect(appels).toBe(1)
+    expect(vues).toHaveLength(1)
+    // La galerie est celle de l'éditeur, dans son ordre ; le sous-ensemble promu
+    // ne porte que ce que cette opération a promu, donc rien.
+    expect(vues[0].galerie).toEqual(urls)
+    expect(vues[0].promues).toEqual([])
+    // Ni promotion, ni suppression, ni ligne de registre : il n'y avait rien à
+    // prendre, et donc rien à rendre ni à nettoyer.
+    expect(stockage.promotions).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
+    expect(registre.records.size).toBe(0)
+  })
+
+  it("traite une galerie vide comme une galerie sans Brouillon", async () => {
+    // Le cas dégénéré du précédent : un Produit que l'Administration crée avant
+    // de lui téléverser la moindre image. Rien à revendiquer, rien à promouvoir,
+    // et l'opération écrit quand même le Catalogue — ce qui rend possible de créer
+    // un Produit maintenant et de lui donner des images par une mise à jour.
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const vues: RevendicationImagesProduit[] = []
+    let appels = 0
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      galerie: [],
+      enregistrer: async (revendication) => {
+        appels += 1
+        vues.push(revendication)
+        await revendication.lier("produit-1")
+        return { productId: "produit-1", result: null }
+      },
+    })
+
+    expect(resultat).toMatchObject({ ok: true, productId: "produit-1" })
+    expect(appels).toBe(1)
+    expect(vues[0].galerie).toEqual([])
+    expect(vues[0].promues).toEqual([])
+    expect(stockage.promotions).toEqual([])
+    expect(registre.records.size).toBe(0)
+  })
+
   it("une soumission rejouée sans identité ne prend pas un Brouillon qu'une tentative tient", async () => {
     const { cycleVie, registre } = creerCycleVieTest()
     const demande = await cycleVie.demanderBrouillon({

@@ -11,7 +11,11 @@ import {
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import { createProduct, type ProductInput } from "@/lib/use-cases/admin-catalog"
+import {
+  createProduct,
+  updateProduct,
+  type ProductInput,
+} from "@/lib/use-cases/admin-catalog"
 import {
   creerHorlogeControllable,
   creerStockageImageProduitMemoire,
@@ -127,6 +131,16 @@ describe("registre durable des Brouillons d'Image produit", () => {
       draftId: entree.draftId,
       previewUrl: entree.previewUrl,
     }))
+  }
+
+  /**
+   * La même galerie, sans un seul Brouillon : une ou plusieurs Images produit
+   * déjà persistées, telles que le formulaire les soumet. Une galerie de cette
+   * forme prend le même chemin que la précédente — c'est ce que prouve la suite
+   * à sa création, et ce que l'action ne court-circuite plus.
+   */
+  function galerieDePersistees(...urls: string[]): EntreeImageProduit[] {
+    return urls.map((url) => ({ kind: "persistee", url }))
   }
 
   it("conserve l'identité, le propriétaire, la retention et l'état vivant", async () => {
@@ -435,6 +449,104 @@ describe("registre durable des Brouillons d'Image produit", () => {
         }),
       ])
     )
+    expect(stockage.suppressionsImagesPromues).toEqual([])
+  })
+
+  it("crée un Produit sans image, puis lui donne des images par une mise à jour", async () => {
+    // Le cas dégénéré d'une création : rien à revendiquer, donc rien à promouvoir,
+    // et le Catalogue écrit un Produit sans image. C'est ce qui permet de créer
+    // un Produit maintenant et de compléter sa galerie ensuite — la même
+    // opération, à deux moments.
+    const { cycleVie, stockage } = creerCycleVie()
+
+    const creation = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-sans-image",
+      ownerId,
+      galerie: [],
+      enregistrer: enregistrerProduit,
+    })
+    if (!creation.ok) throw new Error("La création devait réussir")
+
+    const cree = await prisma.product.findUniqueOrThrow({
+      where: { id: creation.productId },
+      include: { variants: true },
+    })
+    expect(cree.images).toEqual([])
+    expect(stockage.promotions).toEqual([])
+
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId,
+      contentType: "image/webp",
+      size: 2048,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    const misAJour = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-avec-image",
+      ownerId,
+      galerie: galerie(demande),
+      enregistrer: async (revendication) => {
+        const product = await updateProduct(
+          cree.id,
+          {
+            ...makeInput([...revendication.galerie]),
+            // Une mise à jour reprend les Variantes existantes : c'est leur
+            // identifiant qui dit au Catalogue qu'il complète le Produit au lieu
+            // d'en créer une seconde fois.
+            variants: cree.variants.map((variant) => ({
+              id: variant.id,
+              name: variant.name,
+              sku: variant.sku,
+              priceDelta: variant.priceDelta,
+              stock: variant.stock,
+            })),
+          },
+          {
+            deleteImages: async () => {},
+            reindexProducts: async () => {},
+            revalidateCatalog: () => {},
+          },
+          revendication
+        )
+        return { productId: product.id, result: product }
+      },
+    })
+
+    expect(misAJour).toMatchObject({ ok: true, productId: cree.id })
+    const avecImage = await prisma.product.findUniqueOrThrow({
+      where: { id: cree.id },
+    })
+    expect(avecImage.images).toEqual([`memoire://image/${demande.draftId}`])
+  })
+
+  it("refuse une création dont la galerie ne porte que des Images produit persistées", async () => {
+    // Le chemin que la suppression des court-circuits a ouvert : cette galerie
+    // entre dans l'opération, qui n'a rien à revendiquer et donc rien à promouvoir,
+    // puis atteint `createProduct` avec un sous-ensemble promu vide. La règle de
+    // création — une création n'écrit que des Images produit que la même
+    // opération a promues — tranche alors, et c'est elle qui dit non. Ce n'est
+    // plus un message d'action, et un appelant qui assemblerait les arguments
+    // autrement n'y échapperait pas.
+    const { cycleVie, stockage } = creerCycleVie()
+    const arbitraire = "https://cdn.test/produits/arbitraire.webp"
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-glissee",
+      ownerId,
+      galerie: galerieDePersistees(arbitraire),
+      enregistrer: enregistrerProduit,
+    })
+
+    expect(resultat).toEqual({
+      ok: false,
+      code: "catalogue-refuse",
+      message:
+        "Données invalides : une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit",
+    })
+    // Rien n'a été écrit, et rien n'a été promu ni nettoyé : le refus vient de la
+    // règle du Catalogue, avant toute écriture.
+    expect(await prisma.product.count({ where: { slug: productSlug } })).toBe(0)
+    expect(stockage.promotions).toEqual([])
     expect(stockage.suppressionsImagesPromues).toEqual([])
   })
 
