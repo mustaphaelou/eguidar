@@ -94,7 +94,7 @@ describe("orderDetailsHtml", () => {
     expect(html).toContain(formatPrice(28000))
     expect(html).toContain("<table")
     expect(html).toContain(
-      '<td style="padding: 8px 0; font-weight: bold;">Total à payer à la livraison</td>',
+      '<td style="padding: 8px 0; font-weight: bold;">Total à payer à la livraison</td>'
     )
   })
 })

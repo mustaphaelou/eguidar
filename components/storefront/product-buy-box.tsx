@@ -35,7 +35,8 @@ export function ProductBuyBox({
   port?: PortMutationsDuPanier
 }) {
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
-  const { enAttente, messageRefus, ajoute, ajouter } = useMutationsDuPanier(port)
+  const { enAttente, messageRefus, ajoute, ajouter } =
+    useMutationsDuPanier(port)
   const [barVisible, setBarVisible] = useState(false)
   const buyButtonRef = useRef<HTMLButtonElement>(null)
 

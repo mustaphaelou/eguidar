@@ -99,8 +99,7 @@ function devisPourTest({
     threshold: 100000,
     quotes,
     sousTotal: 100000,
-    villeInitiale:
-      selection.cas === "validée" ? selection.ville.id : null,
+    villeInitiale: selection.cas === "validée" ? selection.ville.id : null,
   }
 }
 
@@ -116,7 +115,7 @@ async function choisirDansLeSelect(index = 0) {
       .click()
   })
   const item = document.querySelectorAll<HTMLElement>(
-    '[data-slot="select-item"]',
+    '[data-slot="select-item"]'
   )[index]!
   await act(async () => {
     item.click()
@@ -175,14 +174,12 @@ describe("CheckoutForm", () => {
     )!
     expect(city.required).toBe(true)
 
-    const address = container.querySelector<HTMLInputElement>(
-      "#checkout-address"
-    )!
+    const address =
+      container.querySelector<HTMLInputElement>("#checkout-address")!
     expect(address.required).toBe(true)
     expect(address.getAttribute("minlength")).toBe("5")
 
-    const phone =
-      container.querySelector<HTMLInputElement>("#checkout-phone")!
+    const phone = container.querySelector<HTMLInputElement>("#checkout-phone")!
     expect(phone.required).toBe(true)
     expect(phone.getAttribute("minlength")).toBe("8")
   })

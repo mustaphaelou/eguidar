@@ -47,10 +47,7 @@ const city = (
   fee,
 })
 
-const quote = (
-  subtotal: number,
-  shippingFee: number
-): ShippingQuote => ({
+const quote = (subtotal: number, shippingFee: number): ShippingQuote => ({
   subtotal,
   shippingFee,
   total: subtotal + shippingFee,
@@ -92,9 +89,7 @@ describe("selectionValidee (rétrécissement de prise en commande)", () => {
   })
 })
 
-function lignePanier(
-  overrides?: Partial<ArticleDuPanier>
-): ArticleDuPanier {
+function lignePanier(overrides?: Partial<ArticleDuPanier>): ArticleDuPanier {
   return {
     variantId: "v1",
     variantName: "Standard",
@@ -205,9 +200,9 @@ describe("chargerDevis (porte la Précédence : Ville initiale résolue une seul
     })
 
     expect(chargé.villeInitiale).toBeNull()
-    expect(
-      projeterDevis(chargé, chargé.villeInitiale).selection
-    ).toStrictEqual(aucune)
+    expect(projeterDevis(chargé, chargé.villeInitiale).selection).toStrictEqual(
+      aucune
+    )
     expect(chargé.quotes.c1).toEqual(quote(50000, 3500))
   })
 
@@ -668,5 +663,3 @@ describe("projeterDevis: la Ville explicite est la seule entrée — la Ville in
     })
   })
 })
-
-

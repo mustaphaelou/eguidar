@@ -83,10 +83,7 @@ describe("modifierQuantiteArticlePanierAction — couture cadre", () => {
     )
 
     expect(resultat).toEqual({ ok: false, motif: "article-inconnu" })
-    expect(modifierQuantiteMock).toHaveBeenCalledWith(
-      "variante-inconnue",
-      3
-    )
+    expect(modifierQuantiteMock).toHaveBeenCalledWith("variante-inconnue", 3)
     expect(refreshMock).not.toHaveBeenCalled()
   })
 })

@@ -6,7 +6,11 @@ import type {
   RequeteMoteur,
 } from "@/lib/moteur-recherche"
 import { getPriceBucket } from "@/lib/price-buckets"
-import type { SearchFacet, SearchFilters, SearchSort } from "@/lib/search-params"
+import type {
+  SearchFacet,
+  SearchFilters,
+  SearchSort,
+} from "@/lib/search-params"
 
 /**
  * Moteur de recherche en mémoire — approximation documentée de Meilisearch,
@@ -38,7 +42,10 @@ const ATTRIBUTS_RECHERCHABLES = [
 ] as const
 
 function replier(texte: string): string {
-  return texte.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
+  return texte
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
 }
 
 function jetons(texte: string): string[] {
@@ -54,10 +61,7 @@ function texteRecherchable(document: IndexableProduct): string {
   }).join(" ")
 }
 
-function correspondAuTexte(
-  document: IndexableProduct,
-  query: string
-): boolean {
+function correspondAuTexte(document: IndexableProduct, query: string): boolean {
   const jetonsRequete = jetons(query)
   if (jetonsRequete.length === 0) return true
   const jetonsDocument = jetons(texteRecherchable(document))

@@ -29,8 +29,7 @@ describe("Connexion sociale : configuration serveur", () => {
   it("marks a Facebook profile's e-mail as verified", async () => {
     const mapProfileToUser = auth.options.socialProviders?.facebook
       .mapProfileToUser as
-      | ((profile: Record<string, unknown>) => unknown)
-      | undefined
+      ((profile: Record<string, unknown>) => unknown) | undefined
 
     expect(mapProfileToUser).toBeTypeOf("function")
 

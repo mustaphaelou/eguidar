@@ -42,7 +42,8 @@ export function mockNextLink() {
     }: {
       href: string
       children?: ReactNode
-    } & Record<string, unknown>) => createElement("a", { href, ...props }, children),
+    } & Record<string, unknown>) =>
+      createElement("a", { href, ...props }, children),
   }
 }
 

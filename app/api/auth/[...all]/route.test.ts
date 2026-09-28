@@ -48,9 +48,8 @@ const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
 
 type ArticlePanierVisiteur = { variantId: string; quantity: number }
 
-const serializePanierVisiteur = (
-  articles: readonly ArticlePanierVisiteur[]
-) => JSON.stringify(articles)
+const serializePanierVisiteur = (articles: readonly ArticlePanierVisiteur[]) =>
+  JSON.stringify(articles)
 
 const runId = randomUUID().slice(0, 8)
 const email = (suffix: string) => `replay-${runId}-${suffix}@test.ma`

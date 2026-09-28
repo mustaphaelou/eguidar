@@ -38,7 +38,9 @@ const MESSAGE_VARIANTE_INCONNUE = "Cet article n'est plus disponible."
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 
-function article(overrides: Partial<ArticleDuPanierDonnees> = {}): ArticleDuPanierDonnees {
+function article(
+  overrides: Partial<ArticleDuPanierDonnees> = {}
+): ArticleDuPanierDonnees {
   return {
     variantId: "variante-x",
     variantName: "Standard",
@@ -73,9 +75,9 @@ function render(element: ReactElement) {
 }
 
 function bouton(label: string) {
-  return [
-    ...container.querySelectorAll<HTMLButtonElement>("button"),
-  ].find((button) => button.getAttribute("aria-label") === label)!
+  return [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.getAttribute("aria-label") === label
+  )!
 }
 
 async function rejouerTransition() {
@@ -85,7 +87,9 @@ async function rejouerTransition() {
 
 function cliquer(button: HTMLButtonElement) {
   act(() => {
-    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
+    button.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true })
+    )
   })
 }
 

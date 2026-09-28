@@ -113,12 +113,9 @@ function AuthDialogPanel({
     step: "form",
     email: seedEmail,
   })
-  const handleStepChange = useCallback(
-    (step: AuthFlowStep, email: string) => {
-      setFlowState({ step, email })
-    },
-    []
-  )
+  const handleStepChange = useCallback((step: AuthFlowStep, email: string) => {
+    setFlowState({ step, email })
+  }, [])
   const flow: AuthFlow = { ...flowState, onStepChange: handleStepChange }
   const destination = useAuthDialogDestination()
   const contextualTitle = headingForDestination(dialog, destination)

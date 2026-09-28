@@ -18,9 +18,7 @@ export async function ajouterArticleAuPanierAction(
   variantId: string,
   quantity: number
 ): Promise<ResultatPanier> {
-  return avecRafraichissement(
-    await ajouterArticleAuPanier(variantId, quantity)
-  )
+  return avecRafraichissement(await ajouterArticleAuPanier(variantId, quantity))
 }
 
 export async function modifierQuantiteArticlePanierAction(
@@ -35,7 +33,5 @@ export async function modifierQuantiteArticlePanierAction(
 export async function retirerArticleDuPanierAction(
   variantId: string
 ): Promise<ResultatPanier> {
-  return avecRafraichissement(
-    await retirerArticleDuPanier(variantId)
-  )
+  return avecRafraichissement(await retirerArticleDuPanier(variantId))
 }

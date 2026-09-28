@@ -116,12 +116,12 @@ describe("useDevisSelection", () => {
       value: formatPrice(3500),
       kind: "detail",
     })
-    expect(
-      hook.current.rows.find((row) => row.kind === "total")
-    ).toMatchObject({
-      label: "Total à payer à la livraison",
-      value: formatPrice(53500),
-    })
+    expect(hook.current.rows.find((row) => row.kind === "total")).toMatchObject(
+      {
+        label: "Total à payer à la livraison",
+        value: formatPrice(53500),
+      }
+    )
   })
 
   it("démarre à « aucune » quand le Devis chargé ne porte aucune ville", () => {
@@ -156,15 +156,15 @@ describe("useDevisSelection", () => {
       value: formatPrice(5000),
       kind: "detail",
     })
-    expect(
-      hook.current.rows.find((row) => row.kind === "total")
-    ).toMatchObject({
-      label: "Total à payer à la livraison",
-      value: formatPrice(55000),
-    })
+    expect(hook.current.rows.find((row) => row.kind === "total")).toMatchObject(
+      {
+        label: "Total à payer à la livraison",
+        value: formatPrice(55000),
+      }
+    )
   })
 
-  it("choisir(\"  c2  \") normalise l'identifiant : Rabat, sélection validée et lignes re-chiffrées", () => {
+  it('choisir("  c2  ") normalise l\'identifiant : Rabat, sélection validée et lignes re-chiffrées', () => {
     const hook = renderHook(() => useDevisSelection(devisAucune()))
 
     act(() => {
@@ -182,12 +182,12 @@ describe("useDevisSelection", () => {
       value: formatPrice(5000),
       kind: "detail",
     })
-    expect(
-      hook.current.rows.find((row) => row.kind === "total")
-    ).toMatchObject({
-      label: "Total à payer à la livraison",
-      value: formatPrice(55000),
-    })
+    expect(hook.current.rows.find((row) => row.kind === "total")).toMatchObject(
+      {
+        label: "Total à payer à la livraison",
+        value: formatPrice(55000),
+      }
+    )
   })
 
   it("choisir(null) exprime « aucune » sans chaîne vide", () => {
@@ -210,7 +210,7 @@ describe("useDevisSelection", () => {
     expect(hook.current.rows.some((row) => row.kind === "total")).toBe(false)
   })
 
-  it("choisir(\"\") retombe aussi sur « aucune » — cas vide encore supporté", () => {
+  it('choisir("") retombe aussi sur « aucune » — cas vide encore supporté', () => {
     const hook = renderHook(() => useDevisSelection(devisValide()))
 
     expect(hook.current.selection.cas).toBe("validée")
@@ -315,9 +315,7 @@ describe("useDevisSelection", () => {
       ville: CASA,
       devis: QUOTE_CASA,
     })
-    expect(
-      current.rows.find((row) => row.kind === "total")
-    ).toMatchObject({
+    expect(current.rows.find((row) => row.kind === "total")).toMatchObject({
       label: "Total à payer à la livraison",
       value: formatPrice(53500),
     })
@@ -340,4 +338,3 @@ describe("useDevisSelection", () => {
     pushSpy.mockRestore()
   })
 })
-

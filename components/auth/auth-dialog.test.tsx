@@ -28,9 +28,8 @@ const flowSetters = vi.hoisted(() => ({
 }))
 
 vi.mock("@/components/auth/use-sign-in-flow", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@/components/auth/use-sign-in-flow")
-  >()
+  const actual =
+    await importOriginal<typeof import("@/components/auth/use-sign-in-flow")>()
   return {
     ...actual,
     useSignInFlow: (options: Parameters<typeof actual.useSignInFlow>[0]) => {
@@ -41,9 +40,8 @@ vi.mock("@/components/auth/use-sign-in-flow", async (importOriginal) => {
 })
 
 vi.mock("@/components/auth/use-sign-up-flow", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@/components/auth/use-sign-up-flow")
-  >()
+  const actual =
+    await importOriginal<typeof import("@/components/auth/use-sign-up-flow")>()
   return {
     ...actual,
     useSignUpFlow: (options: Parameters<typeof actual.useSignUpFlow>[0]) => {
@@ -529,9 +527,7 @@ describe("AuthDialog", () => {
       rerender()
 
       expect(socialProviderButtons()).toEqual([])
-      expect(
-        document.querySelector('[data-slot="field-separator"]')
-      ).toBeNull()
+      expect(document.querySelector('[data-slot="field-separator"]')).toBeNull()
     })
   })
 

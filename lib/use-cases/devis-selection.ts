@@ -54,10 +54,7 @@ import {
   type SelectionDevis,
 } from "@/lib/use-cases/devis-coeur"
 
-export type {
-  DevisChargé,
-  SelectionDevis,
-} from "@/lib/use-cases/devis-coeur"
+export type { DevisChargé, SelectionDevis } from "@/lib/use-cases/devis-coeur"
 
 /**
  * Re-sélection du Devis côté client — porte d'entrée cliente du module.

@@ -1,5 +1,9 @@
 import type { IndexableProduct } from "@/lib/index-projection"
-import type { SearchFacet, SearchFilters, SearchSort } from "@/lib/search-params"
+import type {
+  SearchFacet,
+  SearchFilters,
+  SearchSort,
+} from "@/lib/search-params"
 
 /**
  * Moteur de recherche — couture neutre, sans directive.

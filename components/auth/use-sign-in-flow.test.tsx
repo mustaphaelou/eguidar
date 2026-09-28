@@ -262,10 +262,7 @@ describe("useSignInFlow", () => {
 
     expect(error()).toBe("E-mail ou mot de passe invalide.")
     expect(step()).toBe("form")
-    expect(onStepChange).not.toHaveBeenCalledWith(
-      "otp",
-      expect.any(String)
-    )
+    expect(onStepChange).not.toHaveBeenCalledWith("otp", expect.any(String))
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
