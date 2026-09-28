@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation"
 
 import cycleVieImageProduit, {
+  creerRevendicationImagesProduit,
   type ImageProduitPromue,
 } from "@/lib/cycle-vie-image-produit"
 import {
@@ -112,16 +113,15 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
           draftIds,
           resultatDejaPersiste,
           enregistrer: async (promues, lier) => {
+            const galerie = promues.map((image) => image.publicUrl)
             const product = await createProduct(
-              {
-                ...champsCatalogue,
-                images: promues.map((image) => image.publicUrl),
-              },
+              { ...champsCatalogue, images: galerie },
               undefined,
-              {
-                lier,
+              creerRevendicationImagesProduit({
+                galerie,
                 promues: promues.map((image) => image.publicUrl),
-              }
+                lier,
+              })
             )
             return { productId: product.id, result: product }
           },
@@ -179,17 +179,16 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
           return product
         },
         enregistrer: async (promues, lier) => {
+          const galerie = urlsGalerieMiseAJour(images, promues)
           const product = await updateProduct(
             productId,
-            {
-              ...champsCatalogue,
-              images: urlsGalerieMiseAJour(images, promues),
-            },
+            { ...champsCatalogue, images: galerie },
             undefined,
-            {
-              lier,
+            creerRevendicationImagesProduit({
+              galerie,
               promues: promues.map((image) => image.publicUrl),
-            }
+              lier,
+            })
           )
           return { productId: product.id, result: product }
         },

@@ -13,6 +13,7 @@ import {
 import {
   creerCycleVieImageProduit,
   creerRegistreBrouillonImageProduitPrisma,
+  creerRevendicationImagesProduit,
   type CycleVieImageProduit,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
@@ -148,17 +149,19 @@ async function mettreAJour(
       image.kind === "brouillon" ? [image.draftId] : []
     ),
     enregistrer: async (promoted, lier) => {
+      const galerie = urlsDepuisGalerie(gallery, promoted)
       const updated = await updateProduct(
         product.id,
-        makeInput(urlsDepuisGalerie(gallery, promoted), {
+        makeInput(galerie, {
           categoryId: categoryIdPourMiseAJour,
           variants: variantesPersistees(product),
         }),
         effects,
-        {
-          lier: (productId) => lier(productId),
+        creerRevendicationImagesProduit({
+          galerie,
           promues: promoted.map((image) => image.publicUrl),
-        }
+          lier: (productId) => lier(productId),
+        })
       )
       return { productId: updated.id, result: updated }
     },
@@ -336,7 +339,9 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     )
 
     expect(echec).toMatchObject({ ok: false, code: "catalogue-refuse" })
-    expect(environnement.stockage.suppressionsImagesPromues).toEqual([draft.draftId])
+    expect(environnement.stockage.suppressionsImagesPromues).toEqual([
+      draft.draftId,
+    ])
     expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
       state: "vivant",
       tentativeId: null,
@@ -389,19 +394,21 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       ownerId,
       draftIds: [draft.draftId],
       enregistrer: async (promoted, lier) => {
+        const galerie = [
+          existingImage,
+          ...promoted.map((image) => image.publicUrl),
+        ]
         const updated = await updateProduct(
           product.id,
-          makeInput(
-            [existingImage, ...promoted.map((image) => image.publicUrl)],
-            {
-              variants: variantesPersistees(product),
-            }
-          ),
+          makeInput(galerie, {
+            variants: variantesPersistees(product),
+          }),
           effetsSilencieux(),
-          {
-            lier,
+          creerRevendicationImagesProduit({
+            galerie,
             promues: promoted.map((image) => image.publicUrl),
-          }
+            lier,
+          })
         )
         return { productId: updated.id, result: updated }
       },
@@ -440,22 +447,24 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       ownerId,
       draftIds: [draft.draftId],
       enregistrer: async (promoted, lier) => {
+        const galerie = [
+          existingImage,
+          ...promoted.map((image) => image.publicUrl),
+        ]
         await updateProduct(
           product.id,
-          makeInput(
-            [existingImage, ...promoted.map((image) => image.publicUrl)],
-            {
-              variants: variantesPersistees(product),
-            }
-          ),
+          makeInput(galerie, {
+            variants: variantesPersistees(product),
+          }),
           effects,
-          {
+          creerRevendicationImagesProduit({
+            galerie,
+            promues: promoted.map((image) => image.publicUrl),
             lier: async (productId, transaction) => {
               await lier(productId, transaction)
               throw new Error("échec après liaison")
             },
-            promues: promoted.map((image) => image.publicUrl),
-          }
+          })
         )
         return { productId: product.id, result: product }
       },

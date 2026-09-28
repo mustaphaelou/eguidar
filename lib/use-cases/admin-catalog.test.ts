@@ -10,6 +10,8 @@ import {
   vi,
 } from "vitest"
 
+import type { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
+import { creerRevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
   CatalogValidationError,
@@ -498,6 +500,44 @@ describe("admin catalog mutations", () => {
     expect(persisted.images).toEqual(["https://cdn.example.com/owned.jpg"])
   })
 
+  it("reçoit la liaison et les URL promues dans une seule valeur, jamais séparément", () => {
+    const galerie = ["https://cdn.example.com/promoted.jpg"]
+    const revendication = creerRevendicationImagesProduit({
+      galerie,
+      promues: galerie,
+      lier: async () => undefined,
+    })
+    expect(revendication.galerie).toEqual(galerie)
+    expect(revendication.promues).toEqual(galerie)
+
+    // Verrous de compilation. Chacun se lit sur la porte, jamais sur la valeur :
+    // c'est là que les trois faits sont exigés, et c'est là qu'une exigence qui
+    // tombe se voit. Si l'une disparaît — `promues` ou `lier` rendu facultatif,
+    // la liaison et les URL promues rendues à deux paramètres séparés — la
+    // directive devient inutile et `tsc --noEmit` échoue.
+    //
+    // @ts-expect-error — la porte exige les URL promues
+    creerRevendicationImagesProduit({ galerie, lier: async () => undefined })
+    // @ts-expect-error — la porte exige la liaison
+    creerRevendicationImagesProduit({ galerie, promues: galerie })
+    // @ts-expect-error — la porte exige la galerie ordonnée
+    creerRevendicationImagesProduit({
+      promues: galerie,
+      lier: async () => undefined,
+    })
+
+    // Et la valeur elle-même ne se fabrique pas à la main, même complète : sa
+    // marque est privée, donc attribuable à la seule classe.
+    // @ts-expect-error — une valeur complète ne se construit pas hors de la porte
+    const horsPorte: RevendicationImagesProduit = {
+      galerie,
+      promues: galerie,
+      lier: async () => undefined,
+    }
+
+    expect(horsPorte).toBeDefined()
+  })
+
   it("ne traite pas une URL promue comme une Image produit supprimée", async () => {
     const product = await createProduct(
       makeInput({ slug: slug("img-promoted"), images: [] })
@@ -520,10 +560,11 @@ describe("admin catalog mutations", () => {
         variants,
       }),
       { deleteImages },
-      {
-        lier: async () => undefined,
+      creerRevendicationImagesProduit({
+        galerie: [promotedImage],
         promues: [promotedImage],
-      }
+        lier: async () => undefined,
+      })
     )
 
     expect(deleteImages).toHaveBeenCalledOnce()
@@ -560,10 +601,11 @@ describe("admin catalog mutations", () => {
           variants,
         }),
         undefined,
-        {
-          lier: async () => undefined,
+        creerRevendicationImagesProduit({
+          galerie: ["https://cdn.example.com/owned.jpg"],
           promues: ["https://cdn.example.com/promoted.jpg"],
-        }
+          lier: async () => undefined,
+        })
       )
     )
   })

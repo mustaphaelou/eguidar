@@ -54,7 +54,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import {
   portTransactionRegistreBrouillonImageProduit,
-  type LierBrouillonsImageProduit,
+  type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import { toIndexableProduct } from "@/lib/index-projection"
@@ -294,17 +294,6 @@ function assertPersistedImagesAreOwned(
   }
 }
 
-/**
- * La revendication d'une opération : la liaison à exécuter dans la transaction
- * du Catalogue, et les URL publiques que cette même opération a promues. Les
- * deux vont ensemble — les URL promues sont ce qui autorise une image nouvelle
- * à être écrite, donc passer `lier` sans `promues` refuserait la galerie.
- */
-export interface LiaisonRevendicationImagesProduit {
-  lier: LierBrouillonsImageProduit
-  promues: readonly string[]
-}
-
 function mapUniqueViolation(error: unknown): never {
   return leverConflitUnique(
     error,
@@ -319,7 +308,7 @@ function mapUniqueViolation(error: unknown): never {
 export async function createProduct(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>,
-  revendication?: LiaisonRevendicationImagesProduit
+  revendication?: RevendicationImagesProduit
 ) {
   const data = parseProductInput(input)
   assertNonNegativeVariantPrices(data)
@@ -382,7 +371,7 @@ export async function updateProduct(
   id: string,
   input: ProductInput,
   overrides?: Partial<CatalogEffects>,
-  revendication?: LiaisonRevendicationImagesProduit
+  revendication?: RevendicationImagesProduit
 ) {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
