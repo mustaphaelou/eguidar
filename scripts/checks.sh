@@ -6,17 +6,20 @@
 # `.github/workflows/ci.yml` invoque, et s'arrête au premier qui échoue en
 # nommant celui-là.
 #
-# Pourquoi un script shell et non une entrée de `package.json` : le dépôt vit
-# dans un environnement Linux et le shell de l'agent non. Une entrée de
-# manifeste rouvre le problème de guillemets un cran plus haut ; un script
-# shell, invoqué une seule fois, ne le traverse qu'une fois, à son propre nom.
-#
 # Pourquoi la liste des checks est lue et non écrite : une seconde liste
 # maintenue à la main dérive, et une liste qui a dérivé est une porte qui
-# vérifie autre chose que ce que la CI vérifie. La CI fait autorité sur ce
-# qu'est un check — le manifeste, lui, déclare aussi `dev`, `start`,
-# `test:watch`, `format` et `build:check`, qu'aucune vérification automatique
-# ne doit jamais lancer. Le flux est donc relu ici, à chaque exécution.
+# vérifie autre chose que ce que la CI vérifie. `scripts/ci-liste.ts` en est le
+# seul propriétaire, et lui répond aussi à la seule question qui décide de tout
+# — qu'est-ce qu'un check. La CI tranche ; le manifeste, lui, déclare aussi
+# `dev`, `start`, `test:watch`, `format` et `build:check`, qu'aucune
+# vérification automatique ne doit jamais lancer.
+#
+# Une réserve, franche : chaque check est lancé tel quel, dans l'environnement
+# de ce shell. Le `build` de la CI, lui, l'est après `npx prisma generate` et
+# avec trois variables d'environnement que ce script ne recopie pas — les
+# recopier serait exactement la seconde liste maintenue à la main que ce script
+# existe pour supprimer. Un build rouge ici peut donc l'être pour une raison que
+# la CI ne rencontrera pas ; la porte de format, elle, se laisse prédire.
 
 set -euo pipefail
 
@@ -24,115 +27,21 @@ set -euo pipefail
 # script reste alors juste depuis n'importe où, et la lecture du flux vise
 # toujours le dépôt qui contient ce script, jamais un autre.
 RACINE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-FLUX="${RACINE}/.github/workflows/ci.yml"
 
-# ---------------------------------------------------------------------------
-# L'extracteur
-#
-# Il est écrit en JavaScript et appelé par `node` pour une seule raison : la
-# lecture du flux doit être exacte. Le même `js-yaml`, déjà dépendance du dépôt,
-# lit le même fichier que `scripts/ci.test.ts`, avec les mêmes règles — donc les
-# deux endroits ne peuvent pas diverger sur ce qu'est un check. Une lecture par
-# `grep` serait plus courte, mais approximative : elle casse sur le bloc plié
-# (`options: >-`) du job `test`, et sur toute commande `npm` écrite d'une
-# manière nouvelle. Une approximation, ici, produirait une liste fausse en
-# silence — exactement la dérive que ce script existe pour empêcher.
-# ---------------------------------------------------------------------------
-LECTEUR=$(cat <<'LECTEUR_JS'
-const { readFileSync } = require("node:fs")
-const { createRequire } = require("node:module")
-const path = require("node:path")
-
-// Les deux chemins arrivent par l'environnement et non par `argv` : avec
-// `node -e`, aucun chemin de script ne vient s'intercaler dans `process.argv`,
-// et le décalage qui en découle est le genre de subtilité qui ne se remarque
-// qu'après avoir vérifié à la main. L'environnement ne bouge pas.
-const racine = process.env.EGUIDAR_RACINE
-const cheminFlux = process.env.EGUIDAR_FLUX
-
-// `js-yaml` est résolu depuis la racine du dépôt plutôt que depuis le dossier
-// courant : c'est le module que le manifeste installe, et non celui que la
-// machine aurait par hasard.
-const charger = createRequire(path.join(racine, "package.json"))
-const { load } = charger("js-yaml")
-
-/**
- * Les commandes `npm` qui installent au lieu de vérifier. `npm ci` est dans
- * les cinq jobs : le confondre avec un check mettrait « ci » dans la liste et
- * ferait échouer le point d'entrée sur une installation — un check qui n'en est
- * pas un.
- */
-const COMMANDES_NPM_DINSTALLATION = new Set(["ci", "install", "i"])
-
-/**
- * `npm run <nom>`, et la forme implicite `npm <nom>` que le job `test` emploie :
- * `npm test` est un raccourci de `npm run test`, pas un script distinct. Les
- * deux formes se ramènent au même nom. `npx` ne passe pas ici : `npx prisma
- * generate` prépare, il ne vérifie rien.
- */
-const FORME_NPM = /\bnpm\s+(?:run\s+)?([a-z][\w:.-]*)/g
-
-function estObjet(valeur) {
-  return typeof valeur === "object" && valeur !== null && !Array.isArray(valeur)
-}
-
-// Un flux illisible est une raison de s'arrêter, pas un flux sans check : une
-// liste vide ferait verdir le point d'entrée pour la mauvaise raison. Les
-// erreurs sont donc converties en un message, sans la pile d'appels — un
-// appelant veut savoir ce qu'il doit corriger, pas relire Node.
-try {
-  const flux = load(readFileSync(cheminFlux, "utf8"))
-  const jobs = estObjet(flux) ? flux.jobs : null
-  if (!estObjet(jobs)) {
-    throw new Error(`${cheminFlux} : clé \`jobs\` absente ou illisible`)
-  }
-
-  const vus = new Set()
-  const checks = []
-
-  // `Object.entries` rend les clés dans leur ordre d'insertion, et `js-yaml`
-  // construit l'objet dans l'ordre du fichier : l'ordre des jobs, donc l'ordre
-  // d'invocation de la CI, est l'ordre d'exécution ici. Aucun ordre n'est
-  // inventé.
-  for (const [nomJob, job] of Object.entries(jobs)) {
-    const etapes = estObjet(job) ? job.steps : null
-    if (!Array.isArray(etapes)) {
-      throw new Error(`${cheminFlux} : le job \`${nomJob}\` n'a pas d'étapes`)
-    }
-    for (const etape of etapes) {
-      if (!estObjet(etape) || typeof etape.run !== "string") continue
-      for (const trouve of etape.run.matchAll(FORME_NPM)) {
-        const nom = trouve[1]
-        if (COMMANDES_NPM_DINSTALLATION.has(nom)) continue
-        // Un check déjà lancé ne se relance pas : si deux jobs l'invoquent, une
-        // seule exécution suffit à prédire le vert de la CI, et la liste
-        // affichée reste la liste des jobs, pas celle des commandes.
-        if (vus.has(nom)) continue
-        vus.add(nom)
-        checks.push(nom)
-      }
-    }
-  }
-
-  if (checks.length === 0) {
-    // Même raison qu'au-dessus : un flux dont aucun check n'est reconnu doit
-    // arrêter le point d'entrée, pas le laisser conclure « tout est au vert ».
-    throw new Error(`${cheminFlux} : aucun check n'est invoqué`)
-  }
-
-  process.stdout.write(`${checks.join("\n")}\n`)
-} catch (erreur) {
-  process.stderr.write(`${erreur.message}\n`)
-  process.exit(1)
-}
-LECTEUR_JS
-)
-
+# `node --import tsx` : `tsx` est déjà la dépendance qui lance la porte de
+# format, et le module qui lit le flux est du TypeScript. Aucune lecture de YAML
+# ne reste donc dans ce script, qui ne fait qu'invoquer et rendre la liste.
 if ! CHECKS_LUS="$(
-  cd -- "$RACINE" &&
-    EGUIDAR_RACINE="$RACINE" EGUIDAR_FLUX="$FLUX" node -e "$LECTEUR"
+  cd -- "$RACINE" && node --import tsx scripts/ci-liste.ts
 )"; then
   printf 'Le point d’entrée ne peut pas savoir ce qu’il doit lancer : rien n’a été lancé.\n' >&2
+  exit 1
+fi
+
+# Une liste vide ne se prend pas pour un flux sans check : ne rien avoir à
+# lancer n'est pas avoir tout au vert, et le run s'arrête sur le doute.
+if [ -z "$CHECKS_LUS" ]; then
+  printf 'Le flux n’invoque aucun check : rien à lancer, rien n’a été lancé.\n' >&2
   exit 1
 fi
 

@@ -2,69 +2,50 @@
 #
 # Crochet pre-commit — l'écho rapide de la porte de format.
 #
-# Ce que fait ce crochet, et seulement cela : lire la liste des fichiers
-# indexés, ne garder que ceux en TypeScript ou TSX, et les soumettre à la porte
-# que le manifeste déclare (`npm run format:check`). Si l'un d'eux ne respecte
-# pas la configuration Prettier du dépôt, le commit est refusé.
+# Ce que fait ce crochet, et seulement cela : demander à la porte de format
+# quels fichiers indexés elle couvre, puis les soumettre à `npm run
+# format:check`. Si l'un d'eux ne respecte pas la configuration Prettier du
+# dépôt, le commit est refusé. Le jeu de fichiers n'est écrit nulle part ici :
+# `scripts/format.ts` en est le seul propriétaire, et le crochet n'en garde
+# aucune copie.
 #
-# Ce que ce crochet ne fait pas, délibérément : ni lint, ni types, ni tests, ni
-# build, ni correction. Il lit, il décide, il sort. Il n'écrit jamais dans
-# l'index (`git add`) et ne réécrit aucun fichier derrière le dos de l'auteur —
-# un refus laisse l'arbre de travail et l'index exactement où ils étaient.
+# Ce qu'il ne fait pas, délibérément : ni lint, ni types, ni tests, ni build, ni
+# correction. Il lit, il décide, il sort. Il n'écrit jamais dans l'index
+# (`git add`) et ne réécrit aucun fichier derrière le dos de l'auteur — un refus
+# laisse l'arbre de travail et l'index exactement où ils étaient.
 #
-# Pourquoi si étroit : un crochet est un réglage *local par clone*
-# (`core.hooksPath`), jamais committable, donc simplement absent d'un clone
-# neuf. Ce n'est donc pas une porte, c'est un écho : il prévient au moment où
-# l'on écrit la ligne, avant l'aller-retour. La porte qui fait autorité est la
-# CI, qui rejoue la même vérification sur chaque demande de fusion, crochet
-# installé ou pas. C'est exactement pour cela qu'un commit refusé ici reste
-# poussable, et qu'il n'a pas à l'être bloqué.
+# Pourquoi un écho et non une porte, et pourquoi la CI fait autorité :
+# `README.md`, section « Crochet pre-commit ». En une phrase : un crochet est un
+# réglage local par clone, donc simplement absent d'un clone neuf.
+#
+# Un compromis assumé : la porte juge la copie de l'arbre de travail à chaque
+# chemin indexé, et non la copie que l'index contient. Un fichier indexé propre
+# puis sali se fait donc refuser à tort, et l'inverse passe — jusqu'à la CI.
+# Refuser en trop se répare en un `git add` ; laisser passer ne se répare
+# qu'en CI.
 #
 # Installation, une fois par clone :
 #
 #     git config core.hooksPath hooks
 #
-# Sans cette ligne, ce fichier n'est jamais exécuté — et git ne dit rien. Un
-# crochet privé de son bit d'exécution est ignoré tout aussi silencieusement.
-# Pour revenir en arrière : `git config --unset core.hooksPath`.
+# Sans cette ligne, ce fichier n'est jamais exécuté — et git ne dit rien. Pour
+# revenir en arrière : `git config --unset core.hooksPath`.
 #
 # `git commit` passe trois paramètres puis le message ; ce crochet ignore les
-# quatre. Il n'a rien à dire d'un message, et le message n'a rien à dire de lui.
+# quatre.
 
 # Pas de `set -e` : le code de sortie non nul de la porte est ici une décision
 # à prendre, pas un accident à propager.
 set -uo pipefail
 
 # Git lance le crochet depuis la racine de l'arbre de travail. On s'y recale
-# quand même : les chemins tirés de l'index doivent se résoudre exactement comme
-# ceux que la porte applique, et elle travaille elle aussi depuis la racine.
-cd "$(git rev-parse --show-toplevel)" || exit 1
+# quand même : git qualifie toujours ses chemins par cette racine, et la porte
+# applique son jeu de fichiers depuis elle. Les deux étapes sont gardées, parce
+# qu'un crochet dont la propre plomberie échoue doit refuser, jamais laisser
+# passer.
+RACINE="$(git rev-parse --show-toplevel)" || exit 1
+cd -- "$RACINE" || exit 1
 
-# Le jeu de fichiers, reduit à ce que la porte sait lire : la même paire
-# d'extensions que celle que `scripts/format.ts` déclare par défaut. Les deux
-# listes doivent rester identiques — celle-ci est la seule place où le crochet
-# se变态, et elle se lit à côté de la constante du script.
-#
-# `-z` sépare par octets nuls : un chemin contenant un espace ou un accent
-# passe alors aussi bien qu'un autre. `-diff-filter=ACMR` écarte les
-# suppressions : un fichier qui n'existe plus ne peut pas violer le format.
-fichiers=()
-while IFS= read -r -d '' chemin; do
-  case "$chemin" in
-    *.ts | *.tsx) fichiers+=("$chemin") ;;
-  esac
-done < <(git diff --cached --name-only --diff-filter=ACMR -z)
-
-# Rien d'indexé que la porte ne regarde : rien à dire, on laisse passer sans un
-# mot. C'est le cas d'un commit sans fichier indexé, d'un commit de fusion sans
-# apport, et d'un commit qui ne contient ni TypeScript ni TSX.
-if [ "${#fichiers[@]}" -eq 0 ]; then
-  exit 0
-fi
-
-# La porte n'a pas pu démarrer : ce n'est pas une violation de format, c'est un
-# environnement local incapable de faire tourner le projet. Le dire est le seul
-# moyen de ne pas faire lire « refus de format » là où il n'y en a pas.
 if ! command -v npm >/dev/null 2>&1; then
   cat >&2 <<'REFUS'
 Commit refusé : la porte de format n'a pas pu démarrer — `npm` est introuvable
@@ -75,6 +56,39 @@ Pour lever le doute sans le crochet : `npm run format:check`.
 Pour passer outre : commit une fois avec `--no-verify`.
 REFUS
   exit 1
+fi
+
+# La seule question que le crochet pose à la porte, et il la pose par l'entrée
+# que le manifeste déclare : quels fichiers indexés cette porte couvre-t-elle ?
+# Elle répond par une liste, un chemin par ligne. Son jeu de fichiers reste le
+# sien, donc rien ici ne peut dériver de ce qu'il couvre.
+#
+# Un code de sortie non nul à cet endroit n'est pas un « rien à dire » : c'est la
+# lecture de l'index qui a échoué, et `git` en a nommé la cause juste au-dessus.
+# Un crochet dont la propre plomberie échoue ne passe pas — il refuse, en
+# distinguant le silence d'une panne.
+if ! INDEX="$(npm run --silent format:check -- --indexes)"; then
+  cat >&2 <<'REFUS'
+Commit refusé : l'index n'a pas pu être lu, donc aucun fichier n'a pu être
+vérifié — et l'absence de violation n'en est pas une. La cause est celle que
+git vient de signaler.
+
+Pour lever le doute sans le crochet : `git status`.
+Pour passer outre : commit une fois avec `--no-verify`.
+REFUS
+  exit 1
+fi
+
+# Un chemin par ligne : un espace ou un accent passe aussi bien qu'un autre.
+# Seul un retour à la ligne dans un nom de fichier passerait inaperçu, ce
+# qu'aucun autre outil du dépôt ne gère non plus.
+mapfile -t fichiers < <(printf '%s' "$INDEX")
+
+# Rien d'indexé que la porte ne couvre : rien à dire, on laisse passer sans un
+# mot. C'est le cas d'un commit sans fichier indexé, d'un commit de fusion sans
+# apport, et d'un commit qui ne contient ni TypeScript ni TSX.
+if [ "${#fichiers[@]}" -eq 0 ]; then
+  exit 0
 fi
 
 # La porte elle-même : le même appel que celui du manifeste, et donc que celui
@@ -98,10 +112,10 @@ puis réindexez ce que le correctif vient de réécrire, et recommencez :
 
     git add -u
 
-Rien n'a été modifié en douce : ni votre index, ni vos fichiers. La CI reste la
-porte qui fait autorité — elle rejouera cette même vérification sur la demande
-de fusion, que ce crochet soit installé ou non. Un commit refusé ici reste donc
-poussable ; c'est voulu.
+Rien n'a été modifié en douce : ni votre index, ni vos fichiers. Et rien ne
+vous enferme non plus — la CI reste la porte qui fait autorité, et elle
+rejouera cette même vérification sur la demande de fusion, crochet installé ou
+non. Un commit refusé ici reste donc poussable ; c'est voulu. Voir `README.md`.
 REFUS
 
 exit 1
