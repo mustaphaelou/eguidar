@@ -112,8 +112,29 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
   return stockage
 }
 
+/**
+ * Les opérations du port de registre qu'un adaptateur en mémoire peut faire
+ * échouer. Le module propriétaire les entoure toutes de `try/catch` et en tire
+ * le refus « registre indisponible » — sauf `confirmerPromotion`, qui est
+ * appelée dans la transaction du Catalogue et devient un refus de celui-ci.
+ */
+export type OperationRegistre =
+  | "creer"
+  | "lire"
+  | "revendiquer"
+  | "confirmerPromotion"
+  | "annulerRevendication"
+  | "marquerLibere"
+
 export interface RegistreImageProduitMemoire extends PortRegistreBrouillonImageProduit {
   readonly records: Map<string, BrouillonImageProduit>
+  /**
+   * Les opérations qui lèvent au lieu de répondre, comme le ferait un registre
+   * hors service. Sans elles les quatre refus « registre indisponible » du
+   * module propriétaire n'ont aucun cas : un port qui ne peut pas échouer ne
+   * prouve pas le chemin qui le rattrape.
+   */
+  readonly pannes: Set<OperationRegistre>
 }
 
 function copieBrouillon(
@@ -154,11 +175,21 @@ export function creerRegistreImageProduitMemoire(
   maintenant: () => Date
 ): RegistreImageProduitMemoire {
   const records = new Map<string, BrouillonImageProduit>()
+  const pannes = new Set<OperationRegistre>()
+
+  /** Une panne lève comme le ferait une connexion perdue, jamais un refus. */
+  function panne(operation: OperationRegistre): void {
+    if (pannes.has(operation)) {
+      throw new Error(`Registre en mémoire indisponible : ${operation}`)
+    }
+  }
 
   return {
     records,
+    pannes,
 
     async creer(input: EntreeCreationBrouillonImageProduit) {
+      panne("creer")
       const brouillon: BrouillonImageProduit = {
         id: input.id,
         mimeType: input.contentType,
@@ -176,6 +207,7 @@ export function creerRegistreImageProduitMemoire(
     },
 
     async lire(id) {
+      panne("lire")
       const brouillon = records.get(id)
       if (!brouillon) return null
       if (resolubleEnExpire(brouillon, maintenant())) {
@@ -185,6 +217,7 @@ export function creerRegistreImageProduitMemoire(
     },
 
     async revendiquer(input) {
+      panne("revendiquer")
       const brouillon = records.get(input.id)
       if (!brouillon)
         return refusRegistre("introuvable", "Brouillon introuvable")
@@ -224,6 +257,7 @@ export function creerRegistreImageProduitMemoire(
     },
 
     async confirmerPromotion(input) {
+      panne("confirmerPromotion")
       const brouillon = records.get(input.id)
       if (
         !brouillon ||
@@ -245,7 +279,15 @@ export function creerRegistreImageProduitMemoire(
       return true
     },
 
+    /**
+     * La compensation ne rend `vivant` que ce qui est encore `revendiqué` : un
+     * Brouillon résolu en `expiré` garde son expiration, exactement comme le
+     * registre durable, où la rétention décide de l'état indépendamment de la
+     * compensation. Rendre un Brouillon expiré à `vivant` le laisserait
+     * revendicable par une tentative alors que son objet a pu être supprimé.
+     */
     async annulerRevendication(input) {
+      panne("annulerRevendication")
       const brouillon = records.get(input.id)
       if (
         brouillon?.state === "revendiqué" &&
@@ -258,17 +300,29 @@ export function creerRegistreImageProduitMemoire(
       }
     },
 
+    /**
+     * Comme le registre durable : la libération exige un Brouillon `vivant` et
+     * une rétention non dépassée, et une rétention dépassée se résout en
+     * `expiré` même ici. Une libération refusée pour rétention laisse donc le
+     * Brouillon expiré des deux côtés.
+     */
     async marquerLibere(input) {
+      panne("marquerLibere")
       const brouillon = records.get(input.id)
+      const now = maintenant()
       if (
-        !brouillon ||
-        brouillon.ownerId !== input.ownerId ||
-        brouillon.state !== "vivant"
+        brouillon &&
+        brouillon.ownerId === input.ownerId &&
+        brouillon.state === "vivant" &&
+        brouillon.expiresAt > now
       ) {
-        return false
+        brouillon.state = "libéré"
+        return true
       }
-      brouillon.state = "libéré"
-      return true
+      if (brouillon && resolubleEnExpire(brouillon, now)) {
+        brouillon.state = "expiré"
+      }
+      return false
     },
   }
 }
