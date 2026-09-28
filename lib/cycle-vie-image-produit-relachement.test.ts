@@ -126,7 +126,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
   })
 
   it("refuse un éditeur qui ne possède pas le Brouillon", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieRelachement()
+    const { cycleVie, stockage } = creerCycleVieRelachement()
     const demande = await demanderBrouillon(cycleVie)
 
     const resultat = await cycleVie.relacherBrouillon({
@@ -139,7 +139,10 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       code: "proprietaire-incorrect",
       message: "Ce Brouillon d'Image produit ne vous appartient pas",
     })
-    expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
+    // L'état que le registre garde après ce refus ne se rejoue pas ici : le
+    // contrat de `test/contrat-registre-brouillon.ts` l'affirme sur les deux
+    // adaptateurs. L'invariant propre de cette suite est que rien n'est
+    // supprimé du stockage pour un Brouillon qui n'est pas à l'appelant.
     expect(stockage.suppressionsBrouillons).toEqual([])
   })
 

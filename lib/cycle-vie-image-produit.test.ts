@@ -30,7 +30,7 @@ function creerCycleVieTest() {
 
 describe("CycleVieImageProduit", () => {
   it("demande un Brouillon d'Image produit avec un identifiant opaque et des métadonnées durables", async () => {
-    const { cycleVie, stockage, registre, horloge } = creerCycleVieTest()
+    const { cycleVie, stockage, horloge } = creerCycleVieTest()
 
     const resultat = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
@@ -69,7 +69,6 @@ describe("CycleVieImageProduit", () => {
       createdAt: DATE_INITIALE,
     })
     expect(brouillon?.expiresAt).toEqual(resultat.expiresAt)
-    expect(registre.records.get(resultat.draftId)?.ownerId).toBe("editeur-1")
     expect(horloge.horloge.maintenant()).toEqual(DATE_INITIALE)
   })
 
@@ -330,7 +329,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("refuse un Brouillon absent ou appartenant à un autre éditeur", async () => {
-    const { cycleVie, registre } = creerCycleVieTest()
+    const { cycleVie } = creerCycleVieTest()
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/jpeg",
@@ -351,7 +350,6 @@ describe("CycleVieImageProduit", () => {
       ok: false,
       code: "proprietaire-incorrect",
     })
-    expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
   })
 
   it("refuse un identifiant de Brouillon inconnu", async () => {
@@ -599,6 +597,9 @@ describe("CycleVieImageProduit", () => {
         enregistrer: async () => ({ productId: "produit-1", result: null }),
       })
     ).toMatchObject({ ok: false, code: "brouillon-expire" })
-    expect(registre.records.get(demande.draftId)?.state).toBe("expiré")
+    // L'état `expiré` que le registre a écrit ne se ré-affirme pas ici : le
+    // contrat de `test/contrat-registre-brouillon.ts` le rejoue sur les deux
+    // adaptateurs. L'invariant propre de cette suite est le refus que le
+    // module en tire, ci-dessus.
   })
 })

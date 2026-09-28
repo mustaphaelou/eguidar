@@ -903,7 +903,10 @@ export function creerCycleVieImageProduit(
     )
     if (brouillonsLies.length > 0) {
       const productIds = new Set(brouillonsLies.map((draft) => draft.productId))
-      if (brouillonsLies.length !== revendiques.length || productIds.size !== 1) {
+      if (
+        brouillonsLies.length !== revendiques.length ||
+        productIds.size !== 1
+      ) {
         await restaurerRevendications()
         return refus(
           "revendication-refusee",
