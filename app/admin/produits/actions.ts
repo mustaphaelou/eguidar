@@ -2,14 +2,11 @@
 
 import { redirect } from "next/navigation"
 
-import cycleVieImageProduit, {
-  type ImageProduitPromue,
-} from "@/lib/cycle-vie-image-produit"
+import cycleVieImageProduit from "@/lib/cycle-vie-image-produit"
 import {
   soumissionDepuisFormData,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   adminFormAction,
   adminTaskAction,
@@ -24,47 +21,6 @@ import {
   updateVariantStock,
 } from "@/lib/use-cases/admin-catalog"
 
-function refuserImagesPersisteesEnCreation(
-  images: readonly EntreeImageProduit[]
-): void {
-  if (images.some((image) => image.kind === "persistee")) {
-    throw new UserFacingError(
-      "Une création de Produit ne peut contenir que des Brouillons d'Image produit"
-    )
-  }
-}
-
-function urlsPersistees(images: readonly EntreeImageProduit[]): string[] {
-  return images.flatMap((image) =>
-    image.kind === "persistee" ? [image.url] : []
-  )
-}
-
-function identifiantsBrouillons(
-  images: readonly EntreeImageProduit[]
-): string[] {
-  return images.flatMap((image) =>
-    image.kind === "brouillon" ? [image.draftId] : []
-  )
-}
-
-function urlsGalerieMiseAJour(
-  images: readonly EntreeImageProduit[],
-  promues: readonly ImageProduitPromue[]
-): string[] {
-  const promuesParDraftId = new Map(
-    promues.map((image) => [image.draftId, image.publicUrl])
-  )
-  return images.map((image) => {
-    if (image.kind === "persistee") return image.url
-    const publicUrl = promuesParDraftId.get(image.draftId)
-    if (publicUrl === undefined) {
-      throw new Error("URL d'Image produit promue indisponible")
-    }
-    return publicUrl
-  })
-}
-
 interface ProductUpdateInput extends SoumissionFormulaireProduit {
   productId: string
 }
@@ -72,12 +28,13 @@ interface ProductUpdateInput extends SoumissionFormulaireProduit {
 /**
  * Le résultat d'une opération déjà écrite : les Brouillons sont liés au
  * Produit, donc le commit Catalogue existe — on relit le Produit au lieu de
- * le créer ou le modifier une seconde fois.
+ * le créer ou le modifier une seconde fois. La relecture ne rend rien : elle
+ * échoue si le commit est introuvable, et c'est de là que vient le refus que
+ * l'éditeur voit alors.
  */
 const resultatDejaPersiste = async (productId: string) => {
   const product = await getAdminProduct(productId)
   if (!product) throw new Error("Produit enregistré introuvable")
-  return product
 }
 
 /**
@@ -90,42 +47,29 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
     next: "/admin/produits",
     parse: soumissionDepuisFormData,
     run: async ({ champsCatalogue, images, tentativeId }, client) => {
-      refuserImagesPersisteesEnCreation(images)
-      const draftIds = identifiantsBrouillons(images)
-
-      if (draftIds.length === 0) {
-        const product = await createProduct({ ...champsCatalogue, images: [] })
-        redirect(`/admin/produits/${product.id}`)
-      }
-
-      // `unknown` : les deux callbacks ne rendent pas la même chose, et le
-      // cycle de vie ne lit ni l'un ni l'autre. La relecture rend les faits
-      // du formulaire (ADR-0026) ; l'enregistrement rend la rangée qu'il
-      // vient d'écrire. Avant ADR-0026 les deux répondaient une rangée de
-      // base — par accident, parce que les deux lectures renvoyaient la même
-      // chose. Unifier leur type autrement qu'en `unknown` prétendrait
-      // qu'elles rendent le même fait, ce qu'elles ne font pas.
-      const resultat =
-        await cycleVieImageProduit.revendiquerEtEnregistrer<unknown>({
-          tentativeId,
-          ownerId: client.id,
-          draftIds,
-          resultatDejaPersiste,
-          enregistrer: async (promues, lier) => {
-            const product = await createProduct(
-              {
-                ...champsCatalogue,
-                images: promues.map((image) => image.publicUrl),
-              },
-              undefined,
-              {
-                lier,
-                promues: promues.map((image) => image.publicUrl),
-              }
-            )
-            return { productId: product.id, result: product }
-          },
-        })
+      // Une galerie sans Brouillon passe ici aussi : c'est le même chemin, et
+      // rien ici n'a à savoir s'il y en a un. Le sous-ensemble promu est alors
+      // vide, et c'est la règle du Catalogue, appliquée une seule fois dans
+      // `createProduct`, qui décide si ces URL peuvent être écrites ; l'éditeur
+      // reçoit son refus s'il y a lieu.
+      //
+      // L'enregistrement ne rend que l'identifiant du Produit qu'il vient
+      // d'écrire : le cycle de vie ne lit rien d'autre, donc il n'a rien
+      // d'autre à recevoir. La rangée reste à la mutation qui l'a lue.
+      const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+        tentativeId,
+        ownerId: client.id,
+        galerie: images,
+        resultatDejaPersiste,
+        enregistrer: async (revendication) => {
+          const product = await createProduct(
+            { ...champsCatalogue, images: [...revendication.galerie] },
+            undefined,
+            revendication
+          )
+          return { productId: product.id }
+        },
+      })
       if (!resultat.ok) throw new UserFacingError(resultat.message)
 
       redirect(`/admin/produits/${resultat.productId}`)
@@ -153,47 +97,27 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     // Aucune lecture ni vérification d'image ici : la propriété d'une Image
     // produit persistée est l'invariant du Catalogue, appliqué une seule fois
     // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
-    // revendication valide.
-    const persistedImages = urlsPersistees(images)
-    const draftIds = identifiantsBrouillons(images)
-
-    if (draftIds.length === 0) {
-      await updateProduct(productId, {
-        ...champsCatalogue,
-        images: persistedImages,
-      })
-      redirect("/admin/produits")
-    }
-
-    // `unknown` : même raison, même commentaire, que dans l'action de
-    // création — la relecture rend les faits du formulaire, l'enregistrement la
-    // rangée qu'il vient d'écrire, et le cycle de vie ne lit ni l'un ni l'autre.
-    const resultat =
-      await cycleVieImageProduit.revendiquerEtEnregistrer<unknown>({
-        tentativeId,
-        ownerId: client.id,
-        draftIds,
-        resultatDejaPersiste: async (productId) => {
-          const product = await getAdminProduct(productId)
-          if (!product) throw new Error("Produit enregistré introuvable")
-          return product
-        },
-        enregistrer: async (promues, lier) => {
-          const product = await updateProduct(
-            productId,
-            {
-              ...champsCatalogue,
-              images: urlsGalerieMiseAJour(images, promues),
-            },
-            undefined,
-            {
-              lier,
-              promues: promues.map((image) => image.publicUrl),
-            }
-          )
-          return { productId: product.id, result: product }
-        },
-      })
+    // revendication valide. Une galerie sans Brouillon n'a rien de spécial,
+    // donc elle ne court-circuite plus.
+    //
+    // Ici une mise à jour, là une création : le cycle de vie n'en sait rien et
+    // n'a pas à le savoir. La relecture d'un commit déjà durable est celle de
+    // l'action de création, écrite une seule fois.
+    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+      tentativeId,
+      ownerId: client.id,
+      galerie: images,
+      resultatDejaPersiste,
+      enregistrer: async (revendication) => {
+        const product = await updateProduct(
+          productId,
+          { ...champsCatalogue, images: [...revendication.galerie] },
+          undefined,
+          revendication
+        )
+        return { productId: product.id }
+      },
+    })
     if (!resultat.ok) throw new UserFacingError(resultat.message)
 
     redirect("/admin/produits")

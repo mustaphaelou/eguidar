@@ -1,10 +1,13 @@
-import type {
-  BrouillonImageProduit,
-  CodeRefusRegistreBrouillon,
-  EntreeCreationBrouillonImageProduit,
-  PortRegistreBrouillonImageProduit,
-  ResultatRevendicationRegistre,
+import {
+  creerCycleVieImageProduit,
+  RevendicationImagesProduit,
+  type BrouillonImageProduit,
+  type CodeRefusRegistreBrouillon,
+  type EntreeCreationBrouillonImageProduit,
+  type PortRegistreBrouillonImageProduit,
+  type ResultatRevendicationRegistre,
 } from "@/lib/cycle-vie-image-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type {
   CodeEchecStockage,
   PortStockageImageProduit,
@@ -112,8 +115,29 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
   return stockage
 }
 
+/**
+ * Les opérations du port de registre qu'un adaptateur en mémoire peut faire
+ * échouer. Le module propriétaire les entoure toutes de `try/catch` et en tire
+ * le refus « registre indisponible » — sauf `confirmerPromotion`, qui est
+ * appelée dans la transaction du Catalogue et devient un refus de celui-ci.
+ */
+export type OperationRegistre =
+  | "creer"
+  | "lire"
+  | "revendiquer"
+  | "confirmerPromotion"
+  | "annulerRevendication"
+  | "marquerLibere"
+
 export interface RegistreImageProduitMemoire extends PortRegistreBrouillonImageProduit {
   readonly records: Map<string, BrouillonImageProduit>
+  /**
+   * Les opérations qui lèvent au lieu de répondre, comme le ferait un registre
+   * hors service. Sans elles les quatre refus « registre indisponible » du
+   * module propriétaire n'ont aucun cas : un port qui ne peut pas échouer ne
+   * prouve pas le chemin qui le rattrape.
+   */
+  readonly pannes: Set<OperationRegistre>
 }
 
 function copieBrouillon(
@@ -154,11 +178,21 @@ export function creerRegistreImageProduitMemoire(
   maintenant: () => Date
 ): RegistreImageProduitMemoire {
   const records = new Map<string, BrouillonImageProduit>()
+  const pannes = new Set<OperationRegistre>()
+
+  /** Une panne lève comme le ferait une connexion perdue, jamais un refus. */
+  function panne(operation: OperationRegistre): void {
+    if (pannes.has(operation)) {
+      throw new Error(`Registre en mémoire indisponible : ${operation}`)
+    }
+  }
 
   return {
     records,
+    pannes,
 
     async creer(input: EntreeCreationBrouillonImageProduit) {
+      panne("creer")
       const brouillon: BrouillonImageProduit = {
         id: input.id,
         mimeType: input.contentType,
@@ -176,6 +210,7 @@ export function creerRegistreImageProduitMemoire(
     },
 
     async lire(id) {
+      panne("lire")
       const brouillon = records.get(id)
       if (!brouillon) return null
       if (resolubleEnExpire(brouillon, maintenant())) {
@@ -185,6 +220,7 @@ export function creerRegistreImageProduitMemoire(
     },
 
     async revendiquer(input) {
+      panne("revendiquer")
       const brouillon = records.get(input.id)
       if (!brouillon)
         return refusRegistre("introuvable", "Brouillon introuvable")
@@ -224,6 +260,7 @@ export function creerRegistreImageProduitMemoire(
     },
 
     async confirmerPromotion(input) {
+      panne("confirmerPromotion")
       const brouillon = records.get(input.id)
       if (
         !brouillon ||
@@ -245,7 +282,15 @@ export function creerRegistreImageProduitMemoire(
       return true
     },
 
+    /**
+     * La compensation ne rend `vivant` que ce qui est encore `revendiqué` : un
+     * Brouillon résolu en `expiré` garde son expiration, exactement comme le
+     * registre durable, où la rétention décide de l'état indépendamment de la
+     * compensation. Rendre un Brouillon expiré à `vivant` le laisserait
+     * revendicable par une tentative alors que son objet a pu être supprimé.
+     */
     async annulerRevendication(input) {
+      panne("annulerRevendication")
       const brouillon = records.get(input.id)
       if (
         brouillon?.state === "revendiqué" &&
@@ -258,17 +303,29 @@ export function creerRegistreImageProduitMemoire(
       }
     },
 
+    /**
+     * Comme le registre durable : la libération exige un Brouillon `vivant` et
+     * une rétention non dépassée, et une rétention dépassée se résout en
+     * `expiré` même ici. Une libération refusée pour rétention laisse donc le
+     * Brouillon expiré des deux côtés.
+     */
     async marquerLibere(input) {
+      panne("marquerLibere")
       const brouillon = records.get(input.id)
+      const now = maintenant()
       if (
-        !brouillon ||
-        brouillon.ownerId !== input.ownerId ||
-        brouillon.state !== "vivant"
+        brouillon &&
+        brouillon.ownerId === input.ownerId &&
+        brouillon.state === "vivant" &&
+        brouillon.expiresAt > now
       ) {
-        return false
+        brouillon.state = "libéré"
+        return true
       }
-      brouillon.state = "libéré"
-      return true
+      if (brouillon && resolubleEnExpire(brouillon, now)) {
+        brouillon.state = "expiré"
+      }
+      return false
     },
   }
 }
@@ -294,4 +351,70 @@ export function creerHorlogeControllable(
       maintenant = new Date(date)
     },
   }
+}
+
+/**
+ * Les deux formes d'une entrée de la Galerie produit, telles que le formulaire
+ * les soumet. Ce sont des objets du module neutre, pas une déclaration seconde :
+ * l'opération prend ce que l'éditeur a soumis, et ces deux aides ne font que
+ * l'écrire plus lisiblement. Une suite qui a besoin d'autre chose — la
+ * pré-signature d'une demande réelle, par exemple — garde la sienne.
+ */
+export function persistee(url: string): EntreeImageProduit {
+  return { kind: "persistee", url }
+}
+
+export function brouillon(draftId: string): EntreeImageProduit {
+  return {
+    kind: "brouillon",
+    draftId,
+    previewUrl: `https://preview.test/${draftId}`,
+  }
+}
+
+/**
+ * La même revendication, dont la liaison confirme sans le port de transaction
+ * du Catalogue.
+ *
+ * Le Catalogue passe toujours à la liaison le port de sa transaction, et ce
+ * port écrit la rangée du Brouillon. Un registre en mémoire n'a pas de
+ * transaction : reçu à sa place, le port confirme une rangée qui n'a jamais
+ * été écrite, la liaison échoue, et le Catalogue refuse une galerie dont le
+ * Brouillon est pourtant revendiqué — la sauvegarde échoue pour un Brouillon
+ * correctement pris. Une suite qui conduit une vraie écriture du Catalogue à
+ * travers un registre en mémoire reconstruit donc sa valeur ici, où le fait
+ * s'écrit une fois au lieu de se répéter aux deux sites d'appel.
+ *
+ * La suite durable n'en a pas l'usage, et c'est le registre durable que le
+ * port de transaction écrit : le lui remettre y est exactement juste.
+ */
+export function sansTransaction(
+  revendication: RevendicationImagesProduit
+): RevendicationImagesProduit {
+  return RevendicationImagesProduit.creer({
+    galerie: revendication.galerie,
+    promues: revendication.promues,
+    lier: (productId) => revendication.lier(productId),
+  })
+}
+
+/**
+ * Le cycle de vie complet, monté sur les trois adaptateurs en mémoire de ce
+ * module : le stockage, le registre et l'horloge. L'instant initial reste un
+ * fait de la suite — deux suites n'observent pas la même rétention depuis la
+ * même date — donc il se passe ici ; les pannes et les traces qu'une suite
+ * observe restent ensuite les siennes.
+ */
+export function creerCycleVieTest(dateInitiale: Date) {
+  const horloge = creerHorlogeControllable(dateInitiale)
+  const stockage = creerStockageImageProduitMemoire()
+  const registre = creerRegistreImageProduitMemoire(() =>
+    horloge.horloge.maintenant()
+  )
+  const cycleVie = creerCycleVieImageProduit({
+    stockage,
+    registre,
+    horloge: horloge.horloge,
+  })
+  return { cycleVie, horloge, stockage, registre }
 }

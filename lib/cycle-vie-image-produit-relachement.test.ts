@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
@@ -33,6 +34,19 @@ async function demanderBrouillon(
   })
   if (!resultat.ok) throw new Error("La demande devait réussir")
   return resultat
+}
+
+/** La galerie que l'éditeur soumet pour ce seul Brouillon. */
+function galerieDuBrouillon(demande: {
+  draftId: string
+}): EntreeImageProduit[] {
+  return [
+    {
+      kind: "brouillon",
+      draftId: demande.draftId,
+      previewUrl: `memoire://preview/${demande.draftId}`,
+    },
+  ]
 }
 
 describe("relâchement d'un Brouillon d'Image produit", () => {
@@ -88,8 +102,8 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       await cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-1",
         ownerId: "editeur-1",
-        draftIds: [demande.draftId],
-        enregistrer: async () => ({ productId: "produit-1", result: null }),
+        galerie: galerieDuBrouillon(demande),
+        enregistrer: async () => ({ productId: "produit-1" }),
       })
     ).toEqual({
       ok: false,
@@ -105,11 +119,8 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async () => ({
-        productId: "produit-1",
-        result: null,
-      }),
+      galerie: galerieDuBrouillon(demande),
+      enregistrer: async () => ({ productId: "produit-1" }),
     })
 
     const resultat = await cycleVie.relacherBrouillon({
@@ -126,7 +137,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
   })
 
   it("refuse un éditeur qui ne possède pas le Brouillon", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieRelachement()
+    const { cycleVie, stockage } = creerCycleVieRelachement()
     const demande = await demanderBrouillon(cycleVie)
 
     const resultat = await cycleVie.relacherBrouillon({
@@ -139,7 +150,10 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       code: "proprietaire-incorrect",
       message: "Ce Brouillon d'Image produit ne vous appartient pas",
     })
-    expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
+    // L'état que le registre garde après ce refus ne se rejoue pas ici : le
+    // contrat de `test/contrat-registre-brouillon.ts` l'affirme sur les deux
+    // adaptateurs. L'invariant propre de cette suite est que rien n'est
+    // supprimé du stockage pour un Brouillon qui n'est pas à l'appelant.
     expect(stockage.suppressionsBrouillons).toEqual([])
   })
 
@@ -149,10 +163,10 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     const revendication = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async (_images, lier) => {
-        await lier("produit-1")
-        return { productId: "produit-1", result: null }
+      galerie: galerieDuBrouillon(demande),
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
+        return { productId: "produit-1" }
       },
     })
     expect(revendication.ok).toBe(true)

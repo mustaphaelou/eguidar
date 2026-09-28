@@ -162,6 +162,14 @@ _Avoid_: photo, visuel, media
 Une Image produit téléchargée pendant l'édition d'un Produit, mais pas encore enregistrée comme fait de ce Produit. Son propriétaire est l'éditeur d'Administration qui l'a téléchargée, jamais le Produit : elle porte un identifiant opaque plutôt qu'une URL, expire seule au bout de la rétention configurée, et disparaît si l'édition est abandonnée. Il se distingue d'une Image produit persistée, qui appartient à son Produit et dont la suppression n'intervient qu'après un enregistrement réussi.
 _Avoid_: upload temporaire, image en attente, brouillon d'upload
 
+**Galerie produit**:
+L'ensemble ordonné des Images produit d'un Produit. L'ordre est celui que l'Administration a donné, et il est
+significatif : un Brouillon d'Image produit intercalé entre deux Images produit déjà enregistrées s'insère entre
+elles à l'enregistrement. Une galerie peut mêler des Images produit déjà enregistrées et des Brouillons d'Image
+produit côte à côte — c'est le registre des Brouillons qui distingue les deux, pas la place qu'ils occupent. Un
+Produit sans Image produit reste légal, et rend alors le nom du Produit à la place de l'image absente.
+_Avoid_: gallery, collection d'images, liste d'images, galerie d'images produit
+
 **Variante**:
 Une déclinaison achetable d'un Produit, identifiée par son SKU, avec son propre écart de prix et son propre stock.
 _Avoid_: product variant, version, option

@@ -166,4 +166,57 @@ describe("ProductForm", () => {
     expect(action).toHaveBeenCalledTimes(2)
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it("porte la même identité de tentative d'une soumission à l'autre", async () => {
+    // Le transport ne fabrique plus d'identité : une soumission sans elle est
+    // refusée par le refus que le cycle de vie des Images produit définit
+    // déjà. Le formulaire de l'Administration est donc tenu de la rendre, et de
+    // la garder d'un essai à l'autre — c'est ce qui fait d'un second essai la
+    // même tentative, et d'un Brouillon téléversé un Brouillon revendicable.
+    const soumissions: { tentativeId: string; images: unknown }[] = []
+    const action = vi.fn(
+      async (
+        _previous: ProductFormState,
+        formData: FormData
+      ): Promise<ProductFormState> => {
+        soumissions.push({
+          tentativeId: String(formData.get("tentativeId")),
+          images: JSON.parse(String(formData.get("images"))),
+        })
+        return { error: "Refus de validation" }
+      }
+    )
+    render(
+      <ProductForm product={initialProduct()} categories={[]} action={action} />
+    )
+
+    const champ = container.querySelector<HTMLInputElement>(
+      'input[name="tentativeId"]'
+    )!
+    const identite = champ.value
+    expect(identite).not.toBe("")
+
+    const form = container.querySelector<HTMLFormElement>("form")!
+    for (let essai = 0; essai < 2; essai += 1) {
+      await act(async () => {
+        form.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        )
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    // Un refus suivi d'un nouvel essai : c'est le cas où l'identité pourrait
+    // être refabriquée si elle était tirée à chaque rendu.
+    expect(action).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain("Refus de validation")
+    expect(soumissions).toEqual([
+      { tentativeId: identite, images: initialProduct().images },
+      { tentativeId: identite, images: initialProduct().images },
+    ])
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="tentativeId"]')!
+        .value
+    ).toBe(identite)
+  })
 })

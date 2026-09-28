@@ -86,9 +86,8 @@ import type { ProductInput } from "@/lib/use-cases/admin-catalog"
  * aujourd'hui. `@/lib/use-cases/admin-catalog` n'est atteint que **par type**,
  * pour `ProductInput` : un import de type est effacé à la compilation, donc
  * l'entrée de la mutation est typée sans qu'aucune base ne soit atteinte à
- * l'exécution. Pour la même raison, le transport tire son `randomUUID` de
- * `globalThis.crypto` et **jamais** de `node:crypto`, qu'un bundle navigateur
- * ne pourrait pas résoudre. La garde
+ * l'exécution. Pour la même raison, le module n'importe **aucune** arête
+ * `node:`, qu'un bundle navigateur ne pourrait pas résoudre. La garde
  * `formulaire-produit-frontiere.test.ts` verrouille cette neutralité.
  *
  * Non-buts : les validations et les refus du Catalogue, qui restent derrière
@@ -314,10 +313,12 @@ export function ecartPrixDepuisTexte(texte: string): number {
  *   chaque Variante en aval, et le valider ici changerait le comportement
  *   observable d'une soumission ;
  * - `tentativeId`, l'identifiant de tentative des Brouillons d'Image produit :
- *   la chaîne rognée, ou un `randomUUID()` neuf si le champ est absent ou
- *   seulement blanches. Le champ caché `productId` **n'est pas** lu ici :
- *   l'identification du Produit édité reste l'affaire de `parseRequiredId`,
- *   dans l'action.
+ *   la chaîne rognée, telle quelle. Un champ absent ou seulement blanc donne
+ *   une chaîne vide — le transport ne fabrique pas d'identité à la place de
+ *   celle qu'il ne trouve pas, et c'est le refus que le cycle de vie des Images
+ *   produit définit déjà qui juge ensuite une identité vide. Le champ caché
+ *   `productId` **n'est pas** lu ici : l'identification du Produit édité
+ *   reste l'affaire de `parseRequiredId`, dans l'action.
  *
  * Un champ caché absent est lu comme une liste vide (`[]`) : c'est le
  * comportement d'aujourd'hui, et le formulaire envoie toujours les deux.
@@ -367,9 +368,6 @@ export function soumissionDepuisFormData(
       variants: variantes,
     },
     images,
-    tentativeId:
-      typeof tentativeBrut === "string" && tentativeBrut.trim()
-        ? tentativeBrut.trim()
-        : globalThis.crypto.randomUUID(),
+    tentativeId: typeof tentativeBrut === "string" ? tentativeBrut.trim() : "",
   }
 }
