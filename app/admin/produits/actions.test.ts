@@ -148,7 +148,20 @@ describe("createProductAction", () => {
     )
   })
 
-  it("refuse une URL persistée dans un formulaire de création", async () => {
+  it("laisse le Catalogue refuser une Image produit persistée glissée dans une création", async () => {
+    // La règle de création appartient au Catalogue, appliquée une seule fois dans
+    // `createProduct`. L'action ne la connaît plus : elle transmet la galerie
+    // telle quelle — ici l'URL persistée qu'un client a glissée, et sans aucune
+    // revendication — et l'éditeur reçoit le refus du Catalogue, rendu comme
+    // n'importe quel refus de validation d'un champ. Que ce refus laisse le
+    // Produit intact est prouvé dans `lib/use-cases/admin-catalog.test.ts`, où la
+    // règle est écrite une fois.
+    const messageRegle =
+      "une création n'écrit que des Images produit promues par cette opération ; téléversez l'image dans la galerie du Produit"
+    createProductMock.mockRejectedValue(
+      new CatalogValidationError([messageRegle])
+    )
+
     const resultat = await createProductAction(
       {},
       formData([
@@ -159,12 +172,14 @@ describe("createProductAction", () => {
       ])
     )
 
+    expect(createProductMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        images: ["https://cdn.test/produits/arbitraire.webp"],
+      })
+    )
     expect(resultat).toEqual({
-      error:
-        "Une création de Produit ne peut contenir que des Brouillons d'Image produit",
+      error: `Données invalides : ${messageRegle}`,
     })
-    expect(revendiquerEtEnregistrerMock).not.toHaveBeenCalled()
-    expect(createProductMock).not.toHaveBeenCalled()
   })
 
   it("remet un refus du cycle de vie au formulaire", async () => {

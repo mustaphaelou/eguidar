@@ -38,14 +38,18 @@
  * ne projette, ni ne sait que ces colonnes sont du JSON : la couture
  * est ici, d'un seul côté, comme elle l'est côté Boutique.
  *
- * Trois règles que ce module tient et qu'aucun appelant ne doit
+ * Quatre règles que ce module tient et qu'aucun appelant ne doit
  * redécider : un Produit **sans Variante est légal** — le prix minimal
  * retombe alors sur le prix de base, et le tableau de Variantes peut
  * être vide — ; l'écart de prix reste un fait de stockage et
  * d'Administration, jamais une entrée d'affichage de la Boutique
  * (ADR-0013) ; un Produit porte **au plus huit Images produit**, et
  * cette borne est appliquée ici, dans la validation d'entrée, donc
- * opposable à toute soumission (ADR-0004). Le Document d'index garde
+ * opposable à toute soumission (ADR-0004) ; une **création n'écrit que
+ * des Images produit que la même opération a promues** — un Produit
+ * qui n'existe pas encore ne possède aucune Image produit, donc la
+ * seule voie pour y écrire une image est la promotion que cette
+ * création vient de faire (ADR-0004). Le Document d'index garde
  * ses propres faits de recherche (ADR-0013) et le module Carte produit
  * garde sa propre normalisation et son invariant sans import
  * (ADR-0022) : cette interface ne les rouvre pas.
@@ -319,6 +323,33 @@ function assertPersistedImagesAreOwned(
   }
 }
 
+/**
+ * Une création n'écrit que des Images produit que la même opération a promues.
+ *
+ * C'est la règle d'appartenance ci-dessus appliquée à une galerie propre vide :
+ * un Produit qui n'existe pas encore ne possède aucune Image produit, donc son
+ * ensemble de départ est vide et la seule manière d'y écrire une image est la
+ * promotion que cette création vient de faire. Il n'y a donc plus qu'une seule
+ * façon d'écrire une Image produit nouvelle — celle que connaît le module de
+ * cycle de vie, qu'un client n'atteint pas en glissant une URL.
+ *
+ * Ce qui est comparé est la galerie **écrite** (`data.images`), la seule que le
+ * Catalogue va persister, et non la galerie qu'une revendication déclare : un
+ * appelant qui assemblerait les arguments autrement — en annonçant une galerie
+ * puis en écrivant une autre — n'échapperait pas à la règle pour autant.
+ */
+function assertCreationImagesArePromoted(
+  imagesEcrites: readonly string[],
+  revendication?: RevendicationImagesProduit
+): void {
+  const promues = new Set(revendication?.promues ?? [])
+  if (imagesEcrites.some((url) => !promues.has(url))) {
+    throw new CatalogValidationError([
+      "une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit",
+    ])
+  }
+}
+
 function mapUniqueViolation(error: unknown): never {
   return leverConflitUnique(
     error,
@@ -336,6 +367,10 @@ export async function createProduct(
   revendication?: RevendicationImagesProduit
 ) {
   const data = parseProductInput(input)
+  // La validation d'entrée tranche d'abord — une galerie au-delà de la borne
+  // reste un refus de champ — puis la règle de création, avant toute lecture de
+  // base et donc avant toute écriture.
+  assertCreationImagesArePromoted(data.images, revendication)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug)
