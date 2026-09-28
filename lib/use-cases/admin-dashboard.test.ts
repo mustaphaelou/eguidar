@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { totalPayable } from "@/lib/money"
 import {
   getDashboardStats,
   localMonthKey,
@@ -43,7 +42,7 @@ async function createSeedOrder(
       phone: "+212600000000",
       total,
       shippingFee,
-      totalPayable: totalPayable({ total, shippingFee }),
+      totalPayable: total + shippingFee,
       status,
       createdAt: new Date(Date.now() - ageDays * DAY_MS),
     },
@@ -55,9 +54,15 @@ async function createSeedOrderAt(
   status: SeedStatus,
   createdAt: Date,
   total: number,
-  shippingFee: number
-): Promise<void> {
-  await prisma.order.create({
+  shippingFee: number,
+  // Le Total à payer stocké. Il vaut la somme par défaut : toutes les
+  // fixtures ordinaires sont auto-cohérentes, comme l'est toute Commande
+  // qu'un chemin de production peut écrire. Une fixture qui passe autre
+  // chose est une Commande qu'aucun chemin de production ne peut produire,
+  // et c'est pour cela qu'elle distingue une lecture d'un recalcul.
+  totalPayableStocké: number = total + shippingFee
+): Promise<string> {
+  const order = await prisma.order.create({
     data: {
       userId: userIdA,
       cityName: "Casablanca",
@@ -65,11 +70,12 @@ async function createSeedOrderAt(
       phone: "+212600000000",
       total,
       shippingFee,
-      totalPayable: totalPayable({ total, shippingFee }),
+      totalPayable: totalPayableStocké,
       status,
       createdAt,
     },
   })
+  return order.id
 }
 
 describe("admin dashboard stats", () => {
@@ -334,6 +340,42 @@ describe("admin dashboard stats", () => {
           (bucket) => bucket.month === expectedKeyFor(13)
         )
       ).toBe(false)
+    })
+
+    it("répond avec le Total à payer persisté, jamais avec la somme recalculée du Sous-total et des Frais de livraison", async () => {
+      // Fixture de garde : le Total à payer stocké (380,00 MAD) ne vaut pas le
+      // Sous-total plus les Frais de livraison (500,00 MAD). Aucune Commande
+      // de production ne peut être dans cet état — la création écrit la somme,
+      // et rien ne la réécrit ensuite — et c'est précisément pour cela que
+      // cette fixture est la seule qui distingue la lecture de la colonne
+      // d'un recalcul. Toutes les autres fixtures sont auto-cohérentes :
+      // elles passent identiquement dans les deux cas.
+      const totalÀPayerStocké = 38000
+      const createdAt = new Date(Date.now() - 3 * DAY_MS)
+      const id = await createSeedOrderAt(
+        "delivered",
+        createdAt,
+        45000,
+        5000,
+        totalÀPayerStocké
+      )
+
+      const stats = await getDashboardStats()
+
+      // Le Chiffre d'affaires encaissé des 30 derniers jours.
+      expect(stats.caEncaisse30j).toBe(totalÀPayerStocké)
+      // Le seau du mois dans lequel la Commande tombe.
+      expect(
+        stats.revenueByMonth.find(
+          (bucket) => bucket.month === localMonthKey(createdAt)
+        )?.revenue
+      ).toBe(totalÀPayerStocké)
+      // La Commande récente : le Total à payer stocké, le Sous-total intact.
+      const recente = stats.recentOrders.find((order) => order.id === id)
+      expect(recente).toMatchObject({
+        total: 45000,
+        totalPayable: totalÀPayerStocké,
+      })
     })
   })
 })
