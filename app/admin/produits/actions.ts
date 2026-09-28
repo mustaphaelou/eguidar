@@ -7,7 +7,6 @@ import {
   soumissionDepuisFormData,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   adminFormAction,
   adminTaskAction,
@@ -21,27 +20,6 @@ import {
   updateProduct,
   updateVariantStock,
 } from "@/lib/use-cases/admin-catalog"
-
-/**
- * Les deux questions que ces deux aides — et elles seules — posent encore.
- *
- * Elles ne servent qu'aux deux court-circuits qui restent ici : tant qu'une
- * galerie sans Brouillon court-circuite avant d'atteindre le cycle de vie,
- * l'action doit encore savoir s'il y a un Brouillon à revendiquer, et quelles
- * URL une galerie entièrement persistée porte déjà. **Le découpage de la
- * galerie pour la revendication, lui, a disparu** : c'est le module du cycle de
- * vie qui le fait, sur la galerie entière, et il rend la valeur ordonnée. Les
- * court-circuits et ces deux questions partent donc ensemble (ticket #457).
- */
-function porteUnBrouillon(images: readonly EntreeImageProduit[]): boolean {
-  return images.some((image) => image.kind === "brouillon")
-}
-
-function urlsPersistees(images: readonly EntreeImageProduit[]): string[] {
-  return images.flatMap((image) =>
-    image.kind === "persistee" ? [image.url] : []
-  )
-}
 
 interface ProductUpdateInput extends SoumissionFormulaireProduit {
   productId: string
@@ -68,28 +46,16 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
     next: "/admin/produits",
     parse: soumissionDepuisFormData,
     run: async ({ champsCatalogue, images, tentativeId }, client) => {
-      // Court-circuit d'une galerie sans Brouillon : il reste ici jusqu'à ce
-      // que cette galerie prenne le même chemin que les autres (ticket #457).
-      // Il n'a rien à voir avec la revendication, qui reçoit la galerie
-      // entière, quel qu'en soit le contenu.
-      //
-      // Une galerie sans Brouillon reste une création légale, et ses URL sont
-      // transmises telles quelles : ce qui décide si une création peut les
-      // écrire est la règle du Catalogue, appliquée une seule fois dans
-      // `createProduct`, et l'éditeur reçoit le refus de cette règle s'il y a
-      // lieu.
-      if (!porteUnBrouillon(images)) {
-        const product = await createProduct({
-          ...champsCatalogue,
-          images: urlsPersistees(images),
-        })
-        redirect(`/admin/produits/${product.id}`)
-      }
-
       // Cette galerie, ce propriétaire, cette tentative, et voici comment le
       // Catalogue s'écrit. Le cycle de vie a découpé, promu et réassemblé dans
       // l'ordre de l'éditeur ; la valeur qu'il tend est celle que la mutation
       // reçoit, et cette action n'y ajoute rien.
+      //
+      // Une galerie sans Brouillon passe ici aussi : c'est le même chemin, et
+      // rien ici n'a à savoir s'il y en a un. Le sous-ensemble promu est alors
+      // vide, et c'est la règle du Catalogue, appliquée une seule fois dans
+      // `createProduct`, qui décide si ces URL peuvent être écrites ; l'éditeur
+      // reçoit son refus s'il y a lieu.
       //
       // `unknown` : les deux callbacks ne rendent pas la même chose, et le
       // cycle de vie ne lit ni l'un ni l'autre. La relecture rend les faits
@@ -140,18 +106,9 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     // Aucune lecture ni vérification d'image ici : la propriété d'une Image
     // produit persistée est l'invariant du Catalogue, appliqué une seule fois
     // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
-    // revendication valide.
+    // revendication valide. Une galerie sans Brouillon n'a rien de spécial,
+    // donc elle ne court-circuite plus.
     //
-    // Court-circuit d'une galerie sans Brouillon, comme dans l'action de
-    // création, et pour la même raison (ticket #457).
-    if (!porteUnBrouillon(images)) {
-      await updateProduct(productId, {
-        ...champsCatalogue,
-        images: urlsPersistees(images),
-      })
-      redirect("/admin/produits")
-    }
-
     // Cette galerie, ce propriétaire, cette tentative, et voici comment le
     // Catalogue s'écrit — ici une mise à jour, là une création : le cycle de
     // vie n'en sait rien et n'a pas à le savoir. La relecture d'un commit déjà

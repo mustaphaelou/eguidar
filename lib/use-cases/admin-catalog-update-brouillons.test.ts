@@ -271,6 +271,73 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     ])
   })
 
+  it("écrit le Catalogue une fois par soumission d'une galerie sans Brouillon", async () => {
+    // Le cas le plus ordinaire de l'Administration : un Produit déjà porteur de
+    // ses Images produit, dont l'éditeur réordonne la galerie ou renomme le
+    // Produit. Cette galerie ne prend plus de chemin particulier — l'opération
+    // l'écrit comme une autre, sans rien promouvoir et sans rien lier. La
+    // liaison reçoit une liste vide : elle ne doit ni échouer, ni écrire quoi que
+    // ce soit, et c'est le cas.
+    const product = await createProduct(
+      makeInput([existingImage, existingSecondImage]),
+      effetsSilencieux(),
+      revendicationPromue(existingImage, existingSecondImage)
+    )
+    const environnement = creerCycleVieMemoire()
+    const galerie = [persistee(existingImage), persistee(existingSecondImage)]
+    const effects = effetsSilencieux()
+    let ecritures = 0
+    const enregistrer = async (revendication: RevendicationImagesProduit) => {
+      ecritures += 1
+      const updated = await updateProduct(
+        product.id,
+        makeInput([...revendication.galerie], {
+          variants: variantesPersistees(product),
+        }),
+        effects,
+        revendication
+      )
+      return { productId: updated.id, result: updated }
+    }
+    const soumettre = (tentativeId: string) =>
+      environnement.cycleVie.revendiquerEtEnregistrer({
+        tentativeId,
+        ownerId,
+        galerie,
+        enregistrer,
+      })
+
+    const premier = await soumettre("tentative-sans-brouillon-1")
+
+    expect(premier).toMatchObject({ ok: true, productId: product.id })
+    // Une soumission, une écriture du Catalogue.
+    expect(ecritures).toBe(1)
+    // Ni promotion, ni liaison, ni suppression : il n'y avait rien à prendre.
+    expect(environnement.stockage.promotions).toEqual([])
+    expect(environnement.stockage.suppressionsBrouillons).toEqual([])
+    expect(environnement.registre.records.size).toBe(0)
+    expect(effects.deleteImages).not.toHaveBeenCalled()
+    const apres = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    })
+    expect(apres.images).toEqual([existingImage, existingSecondImage])
+
+    // Soumettre deux fois ne crée rien et ne retire rien : la seconde
+    // soumission écrit le même Produit, avec la même galerie. Sans Brouillon,
+    // l'identité de la tentative n'a rien où s'accrocher — la relecture d'un
+    // commit déjà durable ne peut donc pas court-circuiter, et elle n'a pas à le
+    // faire : la galerie soumise est celle du Produit, donc la réécrire change
+    // la même rangée.
+    const second = await soumettre("tentative-sans-brouillon-1")
+
+    expect(second).toMatchObject({ ok: true, productId: product.id })
+    expect(ecritures).toBe(2)
+    const relu = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    })
+    expect(relu.images).toEqual([existingImage, existingSecondImage])
+  })
+
   it("ne demande aucune suppression persistée quand un Brouillon d'Image produit échoue avant l'enregistrement", async () => {
     const product = await createProduct(
       makeInput([existingImage]),

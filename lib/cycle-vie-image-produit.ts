@@ -315,6 +315,13 @@ export interface CycleVieImageProduit {
    * laquelle écrire, en fournissant `enregistrer`. La liaison y reste une
    * fonction qu'il fournit, parce que le Catalogue atteint déjà ce module —
    * l'appeler ici serait un cycle d'import.
+   *
+   * **Une galerie sans Brouillon prend ce chemin-là aussi.** Il n'y a rien à
+   * revendiquer, donc rien à promouvoir et rien à lier : la galerie part telle
+   * quelle, le sous-ensemble promu est vide, et c'est le Catalogue qui décide de
+   * ce qu'il accepte d'en écrire. Une telle galerie est un cas légal, jamais un
+   * refus — et une opération de plus qui mériterait son propre chemin n'existe
+   * plus, donc plus rien à se souvenir d'appeler d'abord.
    */
   revendiquerEtEnregistrer<TResult>(input: {
     tentativeId: string
@@ -437,6 +444,9 @@ function dateDExpiration(now: Date): Date {
  * l'ordre de l'éditeur, sans doublon. Les Images produit déjà persistées n'en
  * font pas partie : elles ne sont ni à revendiquer ni à promouvoir, et ce que
  * le Catalogue accepte d'en écrire reste sa propre décision.
+ *
+ * Une liste vide n'est donc pas un refus, c'est une galerie dont cette opération
+ * n'a rien à faire avant d'écrire le Catalogue.
  */
 function brouillonsDeLaGalerie(
   galerie: readonly EntreeImageProduit[]
@@ -997,10 +1007,10 @@ export function creerCycleVieImageProduit(
     }
     // Le découpage est ici, et l'ordre de l'éditeur est conservé : la galerie
     // reste la référence, cette liste n'en est qu'une lecture pour le registre.
+    // Elle peut être vide — une galerie déjà entièrement persistée n'a rien à
+    // revendiquer — et cela ne refuse rien : il n'y a simplement aucun Brouillon
+    // à prendre avant d'écrire le Catalogue.
     const draftIds = brouillonsDeLaGalerie(input.galerie)
-    if (draftIds.length === 0) {
-      return refus("revendication-refusee", "Aucun Brouillon à revendiquer")
-    }
 
     const revendiques: BrouillonImageProduit[] = []
     const mimeParBrouillon = new Map<string, string>()
@@ -1055,6 +1065,10 @@ export function creerCycleVieImageProduit(
         productIds.size !== 1
       ) {
         await restaurerRevendications()
+        // Le seul refus qui porte encore ce code : la galerie mêle des
+        // Brouillons qu'une tentative a déjà liés à un Produit et d'autres qui
+        // ne le sont pas. Rien à voir avec « aucun Brouillon à revendiquer »,
+        // qui a disparu : une galerie sans Brouillon n'est pas un refus.
         return refus(
           "revendication-refusee",
           "Les Brouillons ne sont pas tous liés à la même tentative"
@@ -1196,8 +1210,9 @@ export function creerCycleVieImageProduit(
     } catch (error) {
       // La compensation est obligatoire, le message l'est aussi : une erreur
       // du Catalogue destinée à l'éditeur (slug en conflit, SKU dupliqué,
-      // galerie invalide) garde son message sur ce chemin comme sur celui qui
-      // n'a pas de Brouillon. Une erreur ordinaire reste générique.
+      // galerie invalide, règle de création) garde son message sur ce chemin
+      // comme sur celui d'une galerie sans Brouillon, où il n'y a rien à
+      // compenser. Une erreur ordinaire reste générique.
       await supprimerPromotions(nouvellesPromotions)
       await restaurerRevendications()
       return refus(
