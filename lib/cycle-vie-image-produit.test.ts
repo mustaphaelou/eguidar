@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest"
 import {
   creerCycleVieImageProduit,
   type EnregistrerCatalogue,
-  type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { SlugConflictError } from "@/lib/use-cases/admin-catalog"
@@ -222,12 +221,7 @@ describe("CycleVieImageProduit", () => {
       throw new Error("La demande devait réussir")
     }
     expect(second.expiresAt).toEqual(premier.expiresAt)
-    const enregistrer = vi.fn(
-      async (revendication: RevendicationImagesProduit) => ({
-        productId: "produit-1",
-        result: revendication.promues.length,
-      })
-    )
+    const enregistrer = vi.fn(async () => ({ productId: "produit-1" }))
 
     horloge.fixer(new Date(premier.expiresAt.getTime() - 1))
     expect(
@@ -280,21 +274,11 @@ describe("CycleVieImageProduit", () => {
       galerie: [brouillon(demande.draftId)],
       enregistrer: async (revendication) => {
         await revendication.lier("produit-1")
-        return { productId: "produit-1", result: "enregistré" }
+        return { productId: "produit-1" }
       },
     })
 
-    expect(resultat).toMatchObject({
-      ok: true,
-      productId: "produit-1",
-      result: "enregistré",
-      images: [
-        {
-          draftId: demande.draftId,
-          publicUrl: `memoire://image/${demande.draftId}`,
-        },
-      ],
-    })
+    expect(resultat).toEqual({ ok: true, productId: "produit-1" })
     expect(stockage.promotions).toEqual([
       {
         draftId: demande.draftId,
@@ -326,7 +310,7 @@ describe("CycleVieImageProduit", () => {
       enregistrer: async (revendication) => {
         await revendication.lier("produit-1")
         galerieEnregistree = revendication.galerie
-        return { productId: "produit-1", result: galerieEnregistree }
+        return { productId: "produit-1" }
       },
     })
 
@@ -355,10 +339,7 @@ describe("CycleVieImageProduit", () => {
       size: 1024,
     })
     if (!demande.ok) throw new Error("La demande devait réussir")
-    const enregistrer = vi.fn(async () => ({
-      productId: "produit-1",
-      result: "enregistré",
-    }))
+    const enregistrer = vi.fn(async () => ({ productId: "produit-1" }))
 
     // Ce que le transport rend désormais d'un champ `tentativeId` absent ou
     // seulement blanc : une chaîne vide, plutôt qu'une identité fabriquée. Le
@@ -395,7 +376,7 @@ describe("CycleVieImageProduit", () => {
       galerie: [brouillon(demande.draftId)],
       enregistrer: async (revendication) => {
         await revendication.lier("produit-1")
-        return { productId: "produit-1", result: revendication.galerie }
+        return { productId: "produit-1" }
       },
     })
 
@@ -451,7 +432,7 @@ describe("CycleVieImageProduit", () => {
         await revendication.lier("produit-1")
         galerieEcrits.push(...revendication.galerie)
         sousEnsemblePromu = revendication.promues
-        return { productId: "produit-1", result: revendication.galerie }
+        return { productId: "produit-1" }
       },
     })
 
@@ -496,10 +477,10 @@ describe("CycleVieImageProduit", () => {
     if (!demande.ok) throw new Error("La demande devait réussir")
 
     let appels = 0
-    const enregistrer: EnregistrerCatalogue<string> = async (revendication) => {
+    const enregistrer: EnregistrerCatalogue = async (revendication) => {
       appels += 1
       await revendication.lier("produit-1")
-      return { productId: "produit-1", result: "enregistré" }
+      return { productId: "produit-1" }
     }
     const premier = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
@@ -637,18 +618,17 @@ describe("CycleVieImageProduit", () => {
       galerie: [brouillon(demande.draftId)],
       enregistrer: async (revendication) => {
         await revendication.lier("produit-1")
-        return { productId: "produit-1", result: "retry" }
+        return { productId: "produit-1" }
       },
     })
-    expect(retry).toMatchObject({
-      ok: true,
+    expect(retry).toEqual({ ok: true, productId: "produit-1" })
+    // Le retry promeut de nouveau et lie le Brouillon au même Produit : l'état
+    // du registre est la preuve, l'URL rendue par le résultat ne l'est plus.
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-1",
       productId: "produit-1",
-      images: [
-        {
-          draftId: demande.draftId,
-          publicUrl: `memoire://image/${demande.draftId}`,
-        },
-      ],
+      promotedPublicUrl: `memoire://image/${demande.draftId}`,
     })
     expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
     // Le retry a fini ce que la première tentative n'avait pas le droit de
@@ -695,7 +675,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("rend idempotent un retry de la même tentative", async () => {
-    const { cycleVie, stockage, horloge } = creerCycleVieTest()
+    const { cycleVie, stockage, horloge, registre } = creerCycleVieTest()
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/avif",
@@ -704,10 +684,10 @@ describe("CycleVieImageProduit", () => {
     if (!demande.ok) throw new Error("La demande devait réussir")
 
     let appels = 0
-    const enregistrer: EnregistrerCatalogue<string> = async (revendication) => {
+    const enregistrer: EnregistrerCatalogue = async (revendication) => {
       appels += 1
       await revendication.lier("produit-1")
-      return { productId: "produit-1", result: "même opération" }
+      return { productId: "produit-1" }
     }
     const premier = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
@@ -721,18 +701,22 @@ describe("CycleVieImageProduit", () => {
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
       galerie: [brouillon(demande.draftId)],
-      resultatDejaPersiste: async () => "même opération",
+      resultatDejaPersiste: async () => undefined,
       enregistrer: async () => {
         appels += 1
         throw new Error("Le Catalogue ne doit pas créer un second Produit")
       },
     })
 
-    expect(second).toMatchObject({
-      ok: true,
-      productId: "produit-1",
-      result: "même opération",
-      images: premier.images,
+    expect(second).toEqual({ ok: true, productId: premier.productId })
+    // Le retry ne promeut rien et ne lie rien : le Brouillon reste celui de la
+    // première tentative, et c'est l'état du registre qui le dit — le résultat
+    // rendu ne porte que l'identifiant du Produit.
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-1",
+      productId: premier.productId,
+      promotedPublicUrl: `memoire://image/${demande.draftId}`,
     })
     expect(appels).toBe(1)
     expect(stockage.promotions).toHaveLength(1)
@@ -755,17 +739,18 @@ describe("CycleVieImageProduit", () => {
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
       galerie: [brouillon(demande.draftId)],
-      resultatDejaPersiste: async () => "même opération",
+      resultatDejaPersiste: async () => undefined,
       enregistrer: async () => {
         appels += 1
         throw new Error("Le Catalogue ne doit pas créer un second Produit")
       },
     })
-    expect(apresExpiration).toMatchObject({
-      ok: true,
-      productId: "produit-1",
-      result: "même opération",
-      images: premier.images,
+    expect(apresExpiration).toEqual({ ok: true, productId: premier.productId })
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-1",
+      productId: premier.productId,
+      promotedPublicUrl: `memoire://image/${demande.draftId}`,
     })
     expect(appels).toBe(1)
     expect(stockage.promotions).toHaveLength(1)
@@ -801,12 +786,54 @@ describe("CycleVieImageProduit", () => {
         tentativeId: "tentative-2",
         ownerId: "editeur-1",
         galerie: [brouillon(demande.draftId)],
-        enregistrer: async () => ({ productId: "produit-1", result: null }),
+        enregistrer: async () => ({ productId: "produit-1" }),
       })
     ).toMatchObject({ ok: false, code: "brouillon-expire" })
     // L'état `expiré` que le registre a écrit ne se ré-affirme pas ici : le
     // contrat de `test/contrat-registre-brouillon.ts` le rejoue sur les deux
     // adaptateurs. L'invariant propre de cette suite est le refus que le
     // module en tire, ci-dessus.
+  })
+
+  it("ne rend qu'un identifiant de Produit, et le verrou de compilation le dit", async () => {
+    // Le résultat de l'opération est un fait et un refus. Ni la valeur que le
+    // Catalogue a écrite, ni la liste des Images produit promues n'y figurent :
+    // elles se lisent à leur source, la rangée et le registre. Les deux
+    // directives ci-dessous sont le verrou : si l'interface réannonçait un
+    // `result` ou une liste `images`, ces lectures compileraient, les
+    // directives deviendraient inutiles et `tsc --noEmit` échouerait.
+    const { cycleVie, registre } = creerCycleVieTest()
+    const demande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/webp",
+      size: 1024,
+    })
+    if (!demande.ok) throw new Error("La demande devait réussir")
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      galerie: [brouillon(demande.draftId)],
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
+        return { productId: "produit-1" }
+      },
+    })
+
+    if (!resultat.ok) throw new Error("L'enregistrement devait réussir")
+    expect(Object.keys(resultat)).toEqual(["ok", "productId"])
+    // Verrou de compilation : aucune valeur du Catalogue n'est rendue.
+    // @ts-expect-error — le résultat ne porte pas la valeur du Catalogue
+    expect(resultat.result).toBeUndefined()
+    // Verrou de compilation : aucune liste d'Images promues n'est rendue.
+    // @ts-expect-error — le résultat ne porte pas la liste des Images promues
+    expect(resultat.images).toBeUndefined()
+    // Ce que l'appelant ne lit pas, l'opération ne le rend pas — mais ce qu'elle
+    // a fait, le registre le sait : le Brouillon est lié à ce Produit.
+    expect(registre.records.get(demande.draftId)).toMatchObject({
+      state: "revendiqué",
+      productId: "produit-1",
+      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+    })
   })
 })

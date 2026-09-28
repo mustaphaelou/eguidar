@@ -50,12 +50,13 @@ interface ProductUpdateInput extends SoumissionFormulaireProduit {
 /**
  * Le résultat d'une opération déjà écrite : les Brouillons sont liés au
  * Produit, donc le commit Catalogue existe — on relit le Produit au lieu de
- * le créer ou le modifier une seconde fois.
+ * le créer ou le modifier une seconde fois. La relecture ne rend rien : elle
+ * échoue si le commit est introuvable, et c'est de là que vient le refus que
+ * l'éditeur voit alors.
  */
 const resultatDejaPersiste = async (productId: string) => {
   const product = await getAdminProduct(productId)
   if (!product) throw new Error("Produit enregistré introuvable")
-  return product
 }
 
 /**
@@ -91,28 +92,23 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
       // l'ordre de l'éditeur ; la valeur qu'il tend est celle que la mutation
       // reçoit, et cette action n'y ajoute rien.
       //
-      // `unknown` : les deux callbacks ne rendent pas la même chose, et le
-      // cycle de vie ne lit ni l'un ni l'autre. La relecture rend les faits
-      // du formulaire (ADR-0026) ; l'enregistrement rend la rangée qu'il
-      // vient d'écrire. Avant ADR-0026 les deux répondaient une rangée de
-      // base — par accident, parce que les deux lectures renvoyaient la même
-      // chose. Unifier leur type autrement qu'en `unknown` prétendrait
-      // qu'elles rendent le même fait, ce qu'elles ne font pas.
-      const resultat =
-        await cycleVieImageProduit.revendiquerEtEnregistrer<unknown>({
-          tentativeId,
-          ownerId: client.id,
-          galerie: images,
-          resultatDejaPersiste,
-          enregistrer: async (revendication) => {
-            const product = await createProduct(
-              { ...champsCatalogue, images: [...revendication.galerie] },
-              undefined,
-              revendication
-            )
-            return { productId: product.id, result: product }
-          },
-        })
+      // L'enregistrement ne rend que l'identifiant du Produit qu'il vient
+      // d'écrire : le cycle de vie ne lit rien d'autre, donc il n'a rien
+      // d'autre à recevoir. La rangée reste à la mutation qui l'a lue.
+      const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+        tentativeId,
+        ownerId: client.id,
+        galerie: images,
+        resultatDejaPersiste,
+        enregistrer: async (revendication) => {
+          const product = await createProduct(
+            { ...champsCatalogue, images: [...revendication.galerie] },
+            undefined,
+            revendication
+          )
+          return { productId: product.id }
+        },
+      })
       if (!resultat.ok) throw new UserFacingError(resultat.message)
 
       redirect(`/admin/produits/${resultat.productId}`)
@@ -156,22 +152,21 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     // Catalogue s'écrit — ici une mise à jour, là une création : le cycle de
     // vie n'en sait rien et n'a pas à le savoir. La relecture d'un commit déjà
     // durable est celle de l'action de création, écrite une seule fois.
-    const resultat =
-      await cycleVieImageProduit.revendiquerEtEnregistrer<unknown>({
-        tentativeId,
-        ownerId: client.id,
-        galerie: images,
-        resultatDejaPersiste,
-        enregistrer: async (revendication) => {
-          const product = await updateProduct(
-            productId,
-            { ...champsCatalogue, images: [...revendication.galerie] },
-            undefined,
-            revendication
-          )
-          return { productId: product.id, result: product }
-        },
-      })
+    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+      tentativeId,
+      ownerId: client.id,
+      galerie: images,
+      resultatDejaPersiste,
+      enregistrer: async (revendication) => {
+        const product = await updateProduct(
+          productId,
+          { ...champsCatalogue, images: [...revendication.galerie] },
+          undefined,
+          revendication
+        )
+        return { productId: product.id }
+      },
+    })
     if (!resultat.ok) throw new UserFacingError(resultat.message)
 
     redirect("/admin/produits")

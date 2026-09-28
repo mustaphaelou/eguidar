@@ -189,7 +189,7 @@ describe("refus « registre indisponible »", () => {
       galerie: [brouillon(demande.draftId)],
       enregistrer: async (revendication) => {
         await revendication.lier("produit-1")
-        return { productId: "produit-1", result: null }
+        return { productId: "produit-1" }
       },
     })
     expect(retry).toMatchObject({ ok: true, productId: "produit-1" })

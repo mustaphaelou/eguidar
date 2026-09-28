@@ -173,7 +173,7 @@ async function mettreAJour(
         effects,
         revendication
       )
-      return { productId: updated.id, result: updated }
+      return { productId: updated.id }
     },
   })
 }
@@ -416,7 +416,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
           effetsSilencieux(),
           revendication
         )
-        return { productId: updated.id, result: updated }
+        return { productId: updated.id }
       },
     })
 
@@ -474,7 +474,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
             },
           })
         )
-        return { productId: product.id, result: product }
+        return { productId: product.id }
       },
     })
 

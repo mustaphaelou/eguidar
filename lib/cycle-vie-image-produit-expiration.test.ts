@@ -194,10 +194,7 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
           previewUrl: demande.previewUrl,
         },
       ],
-      enregistrer: async () => ({
-        productId: "produit-inexistant",
-        result: null,
-      }),
+      enregistrer: async () => ({ productId: "produit-inexistant" }),
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "brouillon-expire" })

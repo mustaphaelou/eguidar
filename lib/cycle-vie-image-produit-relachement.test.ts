@@ -103,7 +103,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
         tentativeId: "tentative-1",
         ownerId: "editeur-1",
         galerie: galerieDuBrouillon(demande),
-        enregistrer: async () => ({ productId: "produit-1", result: null }),
+        enregistrer: async () => ({ productId: "produit-1" }),
       })
     ).toEqual({
       ok: false,
@@ -120,10 +120,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
       galerie: galerieDuBrouillon(demande),
-      enregistrer: async () => ({
-        productId: "produit-1",
-        result: null,
-      }),
+      enregistrer: async () => ({ productId: "produit-1" }),
     })
 
     const resultat = await cycleVie.relacherBrouillon({
@@ -169,7 +166,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       galerie: galerieDuBrouillon(demande),
       enregistrer: async (revendication) => {
         await revendication.lier("produit-1")
-        return { productId: "produit-1", result: null }
+        return { productId: "produit-1" }
       },
     })
     expect(revendication.ok).toBe(true)

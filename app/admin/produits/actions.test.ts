@@ -325,15 +325,13 @@ describe("updateProductAction", () => {
       images: ["https://cdn.test/p/draft-1.webp"],
     }
     getAdminProductMock.mockResolvedValue(product)
+    // Le résultat déjà persisté ne rend rien : ce qu'il apporte est d'avoir
+    // relu le Produit, et l'opération rend à son tour l'identifiant seul.
     revendiquerEtEnregistrerMock.mockImplementation(
       async ({ resultatDejaPersiste }) => {
         if (!resultatDejaPersiste) throw new Error("callback absent")
-        return {
-          ok: true,
-          productId: "produit-1",
-          result: await resultatDejaPersiste("produit-1"),
-          images: [],
-        }
+        await resultatDejaPersiste("produit-1")
+        return { ok: true, productId: "produit-1" }
       }
     )
 
@@ -353,6 +351,7 @@ describe("updateProductAction", () => {
       url: "/admin/produits",
     })
 
+    expect(getAdminProductMock).toHaveBeenCalledWith("produit-1")
     expect(updateProductMock).not.toHaveBeenCalled()
   })
 
