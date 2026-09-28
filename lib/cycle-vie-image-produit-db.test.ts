@@ -7,10 +7,10 @@ import {
   creerRegistreBrouillonImageProduitPrisma,
   creerRevendicationImagesProduit,
   type Horloge,
-  type ImageProduitPromue,
-  type LierBrouillonsImageProduit,
+  type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { createProduct, type ProductInput } from "@/lib/use-cases/admin-catalog"
 import {
   creerHorlogeControllable,
@@ -100,24 +100,33 @@ describe("registre durable des Brouillons d'Image produit", () => {
     }
   }
 
-  async function enregistrerProduit(
-    images: readonly ImageProduitPromue[],
-    lier: LierBrouillonsImageProduit
-  ) {
-    const galerie = images.map((image) => image.publicUrl)
+  /**
+   * L'enregistrement du Catalogue tel que l'appelant l'écrit désormais : la
+   * revendication est reçue, forwarded telle quelle, et la galerie portée est
+   * celle qu'elle a rendue. L'URL de promotion, elle, n'est plus connue de
+   * l'appelant — il ne l'a pas demandée.
+   */
+  async function enregistrerProduit(revendication: RevendicationImagesProduit) {
     const product = await createProduct(
-      makeInput(galerie),
+      makeInput([...revendication.galerie]),
       {
         reindexProducts: async () => {},
         revalidateCatalog: () => {},
       },
-      creerRevendicationImagesProduit({
-        galerie,
-        promues: galerie,
-        lier,
-      })
+      revendication
     )
     return { productId: product.id, result: product }
+  }
+
+  /** La galerie d'un seul Brouillon, telle que le formulaire la soumet. */
+  function galerie(
+    ...entrees: { draftId: string; previewUrl: string }[]
+  ): EntreeImageProduit[] {
+    return entrees.map((entree) => ({
+      kind: "brouillon",
+      draftId: entree.draftId,
+      previewUrl: entree.previewUrl,
+    }))
   }
 
   it("conserve l'identité, le propriétaire, la retention et l'état vivant", async () => {
@@ -161,7 +170,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const revendication = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-autre-editeur",
       ownerId: autreOwnerId,
-      draftIds: [demande.draftId],
+      galerie: galerie(demande),
       enregistrer: async () => {
         throw new Error("Le Catalogue ne doit pas être appelé")
       },
@@ -215,7 +224,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const revendication = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-apres-liberation",
       ownerId,
-      draftIds: [demande.draftId],
+      galerie: galerie(demande),
       enregistrer: async () => {
         throw new Error("Le Catalogue ne doit pas être appelé")
       },
@@ -244,7 +253,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
       cycleVie.revendiquerEtEnregistrer({
         tentativeId,
         ownerId,
-        draftIds: [demande.draftId],
+        galerie: galerie(demande),
         enregistrer: enregistrerProduit,
       })
     const [premier, second] = await Promise.all([
@@ -301,7 +310,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const premier = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-produit-a",
       ownerId,
-      draftIds: [demande.draftId],
+      galerie: galerie(demande),
       enregistrer: enregistrerProduit,
     })
     if (!premier.ok) throw new Error("La première revendication devait réussir")
@@ -309,7 +318,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const retry = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-produit-a",
       ownerId,
-      draftIds: [demande.draftId],
+      galerie: galerie(demande),
       resultatDejaPersiste: (productId) =>
         prisma.product.findUniqueOrThrow({ where: { id: productId } }),
       enregistrer: async () => {
@@ -326,7 +335,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const second = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-produit-b",
       ownerId,
-      draftIds: [demande.draftId],
+      galerie: galerie(demande),
       enregistrer: async () => {
         produitBAppele = true
         throw new Error("Le Produit B ne doit pas être enregistré")
@@ -352,7 +361,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const apresExpiration = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-produit-a",
       ownerId,
-      draftIds: [demande.draftId],
+      galerie: galerie(demande),
       resultatDejaPersiste: (productId) =>
         prisma.product.findUniqueOrThrow({ where: { id: productId } }),
       enregistrer: async () => {
@@ -390,7 +399,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-create",
       ownerId,
-      draftIds: [premiereDemande.draftId, secondeDemande.draftId],
+      galerie: galerie(premiereDemande, secondeDemande),
       enregistrer: enregistrerProduit,
     })
     if (!resultat.ok) throw new Error("La création devait réussir")
@@ -441,18 +450,19 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-échec",
       ownerId,
-      draftIds: [demande.draftId],
-      enregistrer: async (images, _lier) => {
-        const galerie = images.map((image) => image.publicUrl)
+      galerie: galerie(demande),
+      enregistrer: async (revendication) => {
         await createProduct(
-          makeInput(galerie),
+          makeInput([...revendication.galerie]),
           {
             reindexProducts: async () => {},
             revalidateCatalog: () => {},
           },
+          // La liaison échoue : la transaction Catalogue s'ouvre et se referme
+          // sans que le Brouillon soit lié.
           creerRevendicationImagesProduit({
-            galerie,
-            promues: galerie,
+            galerie: revendication.galerie,
+            promues: revendication.promues,
             lier: async () => {
               throw new Error("échec de commit simulé")
             },

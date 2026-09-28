@@ -3,6 +3,7 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 
 import { prisma } from "@/lib/db"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
@@ -211,9 +212,18 @@ export interface ResultatEnregistrementCatalogue<TResult> {
   result: TResult
 }
 
+/**
+ * La façon dont l'appelant écrit le Catalogue, une fois la revendication
+ * décidée.
+ *
+ * **Elle reçoit la valeur, pas des faits à recomposer.** Le découpage de la
+ * galerie, le réassemblage de l'ordre de l'éditeur et le sous-ensemble promu
+ * sont faits ici, une fois pour toutes ; l'appelant n'a donc plus qu'une chose à
+ * dire : voici comment le Catalogue s'écrit. Il forward la valeur telle quelle,
+ * sans la relire, la compléter ni la refaire.
+ */
 export type EnregistrerCatalogue<TResult> = (
-  images: readonly ImageProduitPromue[],
-  lier: LierBrouillonsImageProduit
+  revendication: RevendicationImagesProduit
 ) => Promise<ResultatEnregistrementCatalogue<TResult>>
 
 export type ResultatRevendiquerEtEnregistrer<TResult> =
@@ -285,10 +295,32 @@ export interface CycleVieImageProduit {
     draftId: string
     ownerId: string
   }): Promise<ResultatRelacherBrouillonImageProduit>
+  /**
+   * Enregistrer un Produit, en代人ant la Galerie produit qu'il porte.
+   *
+   * **L'opération prend la galerie entière, dans l'ordre de l'éditeur, et
+   * possède cet ordre.** Elle rend la main à l'appelant sur un fait simple :
+   * l'ordre dans lequel l'éditeur a arrangé sa galerie est l'ordre dans lequel
+   * elle sera enregistrée, un Brouillon intercalé entre deux Images produit
+   * persistées atterrissant entre elles. Le découpage de la galerie en Images
+   * produit déjà persistées et Brouillons à revendiquer, le réassemblage de la
+   * liste ordonnée d'URL une fois les Brouillons promus, et le sous-ensemble
+   * promu qui autorise leur écriture sont écrits ici, dans ce module, et nulle
+   * part ailleurs : changer la façon dont une galerie s'enregistre est une
+   * seule édition.
+   *
+   * **Une seule opération, pas deux.** Le cycle de vie n'apprend rien du
+   * Catalogue : il ne le connaît pas, et il n'a pas à savoir si la mutation
+   * qui écrit est une création ou une mise à jour. C'est l'appelant qui choisit
+   * laquelle écrire, en fournissant `enregistrer`. La liaison y reste une
+   * fonction qu'il fournit, parce que le Catalogue atteint déjà ce module —
+   * l'appeler ici serait un cycle d'import.
+   */
   revendiquerEtEnregistrer<TResult>(input: {
     tentativeId: string
     ownerId: string
-    draftIds: readonly string[]
+    /** La Galerie produit soumise, entière, dans l'ordre de l'éditeur. */
+    galerie: readonly EntreeImageProduit[]
     enregistrer: EnregistrerCatalogue<TResult>
     resultatDejaPersiste?: (productId: string) => Promise<TResult>
   }): Promise<ResultatRevendiquerEtEnregistrer<TResult>>
@@ -398,6 +430,50 @@ function dateDExpiration(now: Date): Date {
   return new Date(
     now.getTime() + retentionBrouillonImageProduitHeures() * 60 * 60 * 1000
   )
+}
+
+/**
+ * **Le découpage de la Galerie produit.** Les Brouillons à revendiquer, dans
+ * l'ordre de l'éditeur, sans doublon. Les Images produit déjà persistées n'en
+ * font pas partie : elles ne sont ni à revendiquer ni à promouvoir, et ce que
+ * le Catalogue accepte d'en écrire reste sa propre décision.
+ */
+function brouillonsDeLaGalerie(
+  galerie: readonly EntreeImageProduit[]
+): string[] {
+  return [
+    ...new Set(
+      galerie.flatMap((entree) =>
+        entree.kind === "brouillon" ? [entree.draftId] : []
+      )
+    ),
+  ]
+}
+
+/**
+ * **Le réassemblage de l'ordre.** La liste d'URL que le Catalogue va écrire,
+ * dans l'ordre exact des entrées soumises, chaque Brouillon prenant la place de
+ * l'URL publique que sa promotion vient de produire. C'est ici qu'un Brouillon
+ * intercalé entre deux Images produit persistées atterrit entre elles.
+ *
+ * Une URL absente ne peut pas survenir : chaque Brouillon de la galerie a été
+ * revendiqué et promu avant que cette liste soit demandée, et chaque promotion
+ * répond une URL. Son absence est donc une invariante rompue, pas une donnée
+ * d'entrée — et le dire ici, plutôt que de rendre une galerie plus courte que
+ * celle que l'éditeur a arrangée, vaut mieux qu'un silence.
+ */
+function galerieOrdonnee(
+  galerie: readonly EntreeImageProduit[],
+  urlParBrouillon: ReadonlyMap<string, string>
+): string[] {
+  return galerie.map((entree) => {
+    if (entree.kind === "persistee") return entree.url
+    const publicUrl = urlParBrouillon.get(entree.draftId)
+    if (publicUrl === undefined) {
+      throw new Error("URL d'Image produit promue indisponible")
+    }
+    return publicUrl
+  })
 }
 
 function resultatRegistreRefus(
@@ -907,7 +983,7 @@ export function creerCycleVieImageProduit(
   async function revendiquerEtEnregistrer<TResult>(input: {
     tentativeId: string
     ownerId: string
-    draftIds: readonly string[]
+    galerie: readonly EntreeImageProduit[]
     enregistrer: EnregistrerCatalogue<TResult>
     resultatDejaPersiste?: (productId: string) => Promise<TResult>
   }): Promise<ResultatRevendiquerEtEnregistrer<TResult>> {
@@ -919,7 +995,9 @@ export function creerCycleVieImageProduit(
         "Tentative d'édition ou propriétaire invalide"
       )
     }
-    const draftIds = [...new Set(input.draftIds)]
+    // Le découpage est ici, et l'ordre de l'éditeur est conservé : la galerie
+    // reste la référence, cette liste n'en est qu'une lecture pour le registre.
+    const draftIds = brouillonsDeLaGalerie(input.galerie)
     if (draftIds.length === 0) {
       return refus("revendication-refusee", "Aucun Brouillon à revendiquer")
     }
@@ -1101,7 +1179,20 @@ export function creerCycleVieImageProduit(
 
     let enregistre: ResultatEnregistrementCatalogue<TResult>
     try {
-      enregistre = await input.enregistrer(promues, lier)
+      // La valeur est tendue, pas expliquée : l'appelant forward la galerie
+      // qu'elle porte et la liaison qu'elle contient, sans rien recomposer. Le
+      // réassemblage est dans le même `try` que l'appel au Catalogue, pour que
+      // son hypothèse — une URL pour chaque Brouillon — reste couverte par la
+      // compensation comme le reste de ce chemin.
+      const revendication = creerRevendicationImagesProduit({
+        galerie: galerieOrdonnee(
+          input.galerie,
+          new Map(promues.map((image) => [image.draftId, image.publicUrl]))
+        ),
+        promues: promues.map((image) => image.publicUrl),
+        lier,
+      })
+      enregistre = await input.enregistrer(revendication)
     } catch (error) {
       // La compensation est obligatoire, le message l'est aussi : une erreur
       // du Catalogue destinée à l'éditeur (slug en conflit, SKU dupliqué,

@@ -14,10 +14,12 @@ import {
   creerCycleVieImageProduit,
   creerRegistreBrouillonImageProduitPrisma,
   creerRevendicationImagesProduit,
+  type BrouillonImageProduitDemande,
   type CycleVieImageProduit,
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   createProduct,
   updateProduct,
@@ -36,9 +38,6 @@ const productSlug = `produit-update-brouillons-${categoryId.slice(0, 8)}`
 const existingImage = "https://cdn.test/produits/persistee-1.webp"
 const existingSecondImage = "https://cdn.test/produits/persistee-2.webp"
 const dateInitiale = new Date("2026-03-01T10:00:00.000Z")
-
-type GalerieTest =
-  { kind: "persistee"; url: string } | { kind: "brouillon"; draftId: string }
 
 function makeInput(
   images: string[],
@@ -102,19 +101,22 @@ function variantesPersistees(
   }))
 }
 
-function urlsDepuisGalerie(
-  gallery: readonly GalerieTest[],
-  promoted: readonly { draftId: string; publicUrl: string }[]
-): string[] {
-  const promotedByDraftId = new Map(
-    promoted.map((image) => [image.draftId, image.publicUrl])
-  )
-  return gallery.map((image) => {
-    if (image.kind === "persistee") return image.url
-    const publicUrl = promotedByDraftId.get(image.draftId)
-    if (publicUrl === undefined) throw new Error("promotion absente")
-    return publicUrl
-  })
+/**
+ * La Galerie produit telle que le formulaire la soumet : une Image produit déjà
+ * persistée, ou un Brouillon en cours d'envoi. Ce sont les objets du module
+ * neutre — la suite n'en déclare pas une forme de secours, elle n'a plus à
+ * recomposer l'ordre qu'ils portent.
+ */
+function persistee(url: string): EntreeImageProduit {
+  return { kind: "persistee", url }
+}
+
+function brouillon(demande: BrouillonImageProduitDemande): EntreeImageProduit {
+  return {
+    kind: "brouillon",
+    draftId: demande.draftId,
+    previewUrl: demande.previewUrl,
+  }
 }
 
 async function demander(
@@ -151,7 +153,7 @@ function creerCycleVieMemoire() {
 async function mettreAJour(
   cycleVie: CycleVieImageProduit,
   product: Awaited<ReturnType<typeof createProduct>>,
-  gallery: readonly GalerieTest[],
+  gallery: readonly EntreeImageProduit[],
   tentativeId: string,
   categoryIdPourMiseAJour: string = categoryId,
   effects = effetsSilencieux(),
@@ -160,23 +162,16 @@ async function mettreAJour(
   return cycleVie.revendiquerEtEnregistrer({
     tentativeId,
     ownerId: ownerPourMiseAJour,
-    draftIds: gallery.flatMap((image) =>
-      image.kind === "brouillon" ? [image.draftId] : []
-    ),
-    enregistrer: async (promoted, lier) => {
-      const galerie = urlsDepuisGalerie(gallery, promoted)
+    galerie: gallery,
+    enregistrer: async (revendication) => {
       const updated = await updateProduct(
         product.id,
-        makeInput(galerie, {
+        makeInput([...revendication.galerie], {
           categoryId: categoryIdPourMiseAJour,
           variants: variantesPersistees(product),
         }),
         effects,
-        creerRevendicationImagesProduit({
-          galerie,
-          promues: promoted.map((image) => image.publicUrl),
-          lier: (productId) => lier(productId),
-        })
+        revendication
       )
       return { productId: updated.id, result: updated }
     },
@@ -216,6 +211,11 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   })
 
   it("promet les nouveaux Brouillons et conserve l'ordre soumis", async () => {
+    // La preuve de bout en bout que l'ordre de l'éditeur atteint la base : la
+    // galerie est soumise entière, dans l'ordre de l'éditeur, et l'appelant
+    // ne fait que forward ce que le cycle de vie lui rend. Les deux Brouillons
+    // sont intercalés entre deux Images produit déjà persistées, donc un
+    // réassemblage par l'appelant — ou un ordre de promotion — les trahirait.
     const product = await createProduct(
       makeInput([existingImage, existingSecondImage]),
       effetsSilencieux(),
@@ -229,10 +229,10 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       environnement.cycleVie,
       product,
       [
-        { kind: "brouillon", draftId: premierDraft.draftId },
-        { kind: "persistee", url: existingImage },
-        { kind: "brouillon", draftId: secondDraft.draftId },
-        { kind: "persistee", url: existingSecondImage },
+        brouillon(premierDraft),
+        persistee(existingImage),
+        brouillon(secondDraft),
+        persistee(existingSecondImage),
       ],
       "tentative-mixte"
     )
@@ -285,10 +285,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const resultat = await mettreAJour(
       environnement.cycleVie,
       product,
-      [
-        { kind: "persistee", url: existingImage },
-        { kind: "brouillon", draftId: draft.draftId },
-      ],
+      [persistee(existingImage), brouillon(draft)],
       "tentative-promotion-échouée",
       categoryId,
       effects
@@ -315,10 +312,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const resultat = await mettreAJour(
       environnement.cycleVie,
       product,
-      [
-        { kind: "persistee", url: existingImage },
-        { kind: "brouillon", draftId: draft.draftId },
-      ],
+      [persistee(existingImage), brouillon(draft)],
       "tentative-refusée",
       categoryId,
       effects,
@@ -344,9 +338,9 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     )
     const environnement = creerCycleVieMemoire()
     const draft = await demander(environnement.cycleVie)
-    const gallery: GalerieTest[] = [
-      { kind: "persistee", url: existingImage },
-      { kind: "brouillon", draftId: draft.draftId },
+    const gallery: EntreeImageProduit[] = [
+      persistee(existingImage),
+      brouillon(draft),
     ]
 
     const echec = await mettreAJour(
@@ -412,23 +406,15 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-durable",
       ownerId,
-      draftIds: [draft.draftId],
-      enregistrer: async (promoted, lier) => {
-        const galerie = [
-          existingImage,
-          ...promoted.map((image) => image.publicUrl),
-        ]
+      galerie: [persistee(existingImage), brouillon(draft)],
+      enregistrer: async (revendication) => {
         const updated = await updateProduct(
           product.id,
-          makeInput(galerie, {
+          makeInput([...revendication.galerie], {
             variants: variantesPersistees(product),
           }),
           effetsSilencieux(),
-          creerRevendicationImagesProduit({
-            galerie,
-            promues: promoted.map((image) => image.publicUrl),
-            lier,
-          })
+          revendication
         )
         return { productId: updated.id, result: updated }
       },
@@ -466,23 +452,24 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-rollback",
       ownerId,
-      draftIds: [draft.draftId],
-      enregistrer: async (promoted, lier) => {
-        const galerie = [
-          existingImage,
-          ...promoted.map((image) => image.publicUrl),
-        ]
+      galerie: [persistee(existingImage), brouillon(draft)],
+      enregistrer: async (revendication) => {
+        // La liaison d'abord, l'échec ensuite : la transaction du Catalogue
+        // s'ouvre, lie le Brouillon, puis se referme sur une erreur. La
+        // revocation est donc à prouver par la suite : une valeur ne se
+        // refabrique pas à la main, et c'est bien la porte qui rend la seconde
+        // — même galerie, même sous-ensemble promu, une liaison qui échoue.
         await updateProduct(
           product.id,
-          makeInput(galerie, {
+          makeInput([...revendication.galerie], {
             variants: variantesPersistees(product),
           }),
           effects,
           creerRevendicationImagesProduit({
-            galerie,
-            promues: promoted.map((image) => image.publicUrl),
+            galerie: revendication.galerie,
+            promues: revendication.promues,
             lier: async (productId, transaction) => {
-              await lier(productId, transaction)
+              await revendication.lier(productId, transaction)
               throw new Error("échec après liaison")
             },
           })

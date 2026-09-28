@@ -187,7 +187,13 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: randomUUID(),
       ownerId,
-      draftIds: [demande.draftId],
+      galerie: [
+        {
+          kind: "brouillon",
+          draftId: demande.draftId,
+          previewUrl: demande.previewUrl,
+        },
+      ],
       enregistrer: async () => ({
         productId: "produit-inexistant",
         result: null,

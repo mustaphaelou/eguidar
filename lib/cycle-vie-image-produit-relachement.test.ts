@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
@@ -33,6 +34,19 @@ async function demanderBrouillon(
   })
   if (!resultat.ok) throw new Error("La demande devait réussir")
   return resultat
+}
+
+/** La galerie que l'éditeur soumet pour ce seul Brouillon. */
+function galerieDuBrouillon(demande: {
+  draftId: string
+}): EntreeImageProduit[] {
+  return [
+    {
+      kind: "brouillon",
+      draftId: demande.draftId,
+      previewUrl: `memoire://preview/${demande.draftId}`,
+    },
+  ]
 }
 
 describe("relâchement d'un Brouillon d'Image produit", () => {
@@ -88,7 +102,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       await cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-1",
         ownerId: "editeur-1",
-        draftIds: [demande.draftId],
+        galerie: galerieDuBrouillon(demande),
         enregistrer: async () => ({ productId: "produit-1", result: null }),
       })
     ).toEqual({
@@ -105,7 +119,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: galerieDuBrouillon(demande),
       enregistrer: async () => ({
         productId: "produit-1",
         result: null,
@@ -152,9 +166,9 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     const revendication = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async (_images, lier) => {
-        await lier("produit-1")
+      galerie: galerieDuBrouillon(demande),
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
         return { productId: "produit-1", result: null }
       },
     })

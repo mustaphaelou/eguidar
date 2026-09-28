@@ -39,9 +39,9 @@ vi.mock("@/lib/cycle-vie-image-produit", () => ({
     revendiquerEtEnregistrer: revendiquerEtEnregistrerMock,
   },
   // La porte scelle les trois faits en une valeur. Ce qui intéresse cette suite,
-  // c'est ce que l'action **empaquette**, pas la façon dont la valeur est
-  // scellée : la porte est donc l'identité, et les assertions portent sur les
-  // trois faits qu'elle reçoit.
+  // c'est ce que l'action **transmet**, pas la façon dont la valeur est scellée :
+  // la porte est donc l'identité, et les assertions portent sur le fait que
+  // l'action forward la valeur qu'elle reçoit, telle quelle.
   creerRevendicationImagesProduit: (input: unknown) => input,
 }))
 
@@ -96,56 +96,59 @@ beforeEach(() => {
 })
 
 describe("createProductAction", () => {
-  it("revendique les identifiants et transmet les URLs promues dans l'ordre", async () => {
+  it("transmet la galerie entière et forward la valeur qu'il reçoit", async () => {
+    // Ce qui est affirme ici n'est plus la composition : c'est le contrat de
+    // l'action. Elle reçoit la galerie du formulaire telle quelle, et elle
+    // donne au Catalogue la valeur qu'elle a reçue — sans la relire, la
+    // compléter ni la refaire. L'ordre intercalé est un fait du cycle de vie,
+    // et il est prouvé à son interface (`lib/cycle-vie-image-produit.test.ts`).
+    const galerieSoumise = [
+      {
+        kind: "brouillon" as const,
+        draftId: "draft-1",
+        previewUrl: "https://cdn.test/brouillons/1.webp",
+      },
+      {
+        kind: "brouillon" as const,
+        draftId: "draft-2",
+        previewUrl: "https://cdn.test/brouillons/2.webp",
+      },
+    ]
+    const revendication = {
+      galerie: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
+      promues: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
+      lier: vi.fn(async () => {}),
+    }
     createProductMock.mockResolvedValue({ id: "produit-1" })
     revendiquerEtEnregistrerMock.mockImplementation(
-      async ({ enregistrer, draftIds, ownerId, tentativeId }) => {
-        expect(draftIds).toEqual(["draft-1", "draft-2"])
+      async ({ enregistrer, galerie, ownerId, tentativeId }) => {
+        // La galerie atteint l'opération entière, dans l'ordre de l'éditeur.
+        expect(galerie).toEqual(galerieSoumise)
         expect(ownerId).toBe("editeur-1")
         expect(tentativeId).toBe("tentative-1")
-        const resultat = await enregistrer(
-          [
-            { draftId: "draft-1", publicUrl: "https://cdn.test/p/1.webp" },
-            { draftId: "draft-2", publicUrl: "https://cdn.test/p/2.webp" },
-          ],
-          async () => {}
-        )
-        return { ok: true, ...resultat, images: [] }
+        return { ok: true, ...(await enregistrer(revendication)) }
       }
     )
 
     await expect(
-      createProductAction(
-        {},
-        formData([
-          {
-            kind: "brouillon",
-            draftId: "draft-1",
-            previewUrl: "https://cdn.test/brouillons/1.webp",
-          },
-          {
-            kind: "brouillon",
-            draftId: "draft-2",
-            previewUrl: "https://cdn.test/brouillons/2.webp",
-          },
-        ])
-      )
+      createProductAction({}, formData(galerieSoumise))
     ).rejects.toMatchObject({
       name: "NEXT_REDIRECT",
       url: "/admin/produits/produit-1",
     })
 
+    // La galerie écrite est celle que la valeur porte, et la valeur est
+    // transmise comme le Catalogue la reçoit : la même, pas une copie. Et la
+    // liaison n'est pas exécutée ici : elle appartient à la transaction du
+    // Catalogue, qui l'appelle lui-même.
     expect(createProductMock).toHaveBeenCalledWith(
       expect.objectContaining({
         images: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
       }),
       undefined,
-      {
-        galerie: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
-        lier: expect.any(Function),
-        promues: ["https://cdn.test/p/1.webp", "https://cdn.test/p/2.webp"],
-      }
+      revendication
     )
+    expect(revendication.lier).not.toHaveBeenCalled()
   })
 
   it("laisse le Catalogue refuser une Image produit persistée glissée dans une création", async () => {
@@ -208,54 +211,52 @@ describe("createProductAction", () => {
 })
 
 describe("updateProductAction", () => {
-  it("revendique les nouveaux Brouillons et conserve l'ordre de la galerie", async () => {
-    getAdminProductMock.mockResolvedValue({
-      id: "produit-1",
-      images: ["https://cdn.test/p/existing.webp"],
-    })
+  it("transmet la galerie entière et forward la valeur qu'il reçoit", async () => {
+    // Même contrat que dans l'action de création, sur le chemin d'une mise à
+    // jour : l'action choisit la mutation à écrire, elle n'assemble rien. Un
+    // Brouillon intercalé entre deux Images produit persistées est ici sans
+    // aucune incidence sur ce que l'action fait — l'ordre est déjà dans la
+    // valeur qu'elle reçoit.
+    const galerieSoumise = [
+      {
+        kind: "brouillon" as const,
+        draftId: "draft-1",
+        previewUrl: "https://cdn.test/brouillons/draft-1.webp",
+      },
+      {
+        kind: "persistee" as const,
+        url: "https://cdn.test/p/existing.webp",
+      },
+      {
+        kind: "brouillon" as const,
+        draftId: "draft-2",
+        previewUrl: "https://cdn.test/brouillons/draft-2.webp",
+      },
+    ]
+    const revendication = {
+      galerie: [
+        "https://cdn.test/p/draft-1.webp",
+        "https://cdn.test/p/existing.webp",
+        "https://cdn.test/p/draft-2.webp",
+      ],
+      promues: [
+        "https://cdn.test/p/draft-1.webp",
+        "https://cdn.test/p/draft-2.webp",
+      ],
+      lier: vi.fn(async () => {}),
+    }
     updateProductMock.mockResolvedValue({ id: "produit-1" })
     revendiquerEtEnregistrerMock.mockImplementation(
-      async ({ enregistrer, draftIds, ownerId, tentativeId }) => {
-        expect(draftIds).toEqual(["draft-1", "draft-2"])
+      async ({ enregistrer, galerie, ownerId, tentativeId }) => {
+        expect(galerie).toEqual(galerieSoumise)
         expect(ownerId).toBe("editeur-1")
         expect(tentativeId).toBe("tentative-update-1")
-        const resultat = await enregistrer(
-          [
-            {
-              draftId: "draft-1",
-              publicUrl: "https://cdn.test/p/draft-1.webp",
-            },
-            {
-              draftId: "draft-2",
-              publicUrl: "https://cdn.test/p/draft-2.webp",
-            },
-          ],
-          async () => {}
-        )
-        return { ok: true, ...resultat, images: [] }
+        return { ok: true, ...(await enregistrer(revendication)) }
       }
     )
 
     await expect(
-      updateProductAction(
-        {},
-        updateFormData([
-          {
-            kind: "brouillon",
-            draftId: "draft-1",
-            previewUrl: "https://cdn.test/brouillons/draft-1.webp",
-          },
-          {
-            kind: "persistee",
-            url: "https://cdn.test/p/existing.webp",
-          },
-          {
-            kind: "brouillon",
-            draftId: "draft-2",
-            previewUrl: "https://cdn.test/brouillons/draft-2.webp",
-          },
-        ])
-      )
+      updateProductAction({}, updateFormData(galerieSoumise))
     ).rejects.toMatchObject({
       name: "NEXT_REDIRECT",
       url: "/admin/produits",
@@ -271,18 +272,7 @@ describe("updateProductAction", () => {
         ],
       }),
       undefined,
-      {
-        galerie: [
-          "https://cdn.test/p/draft-1.webp",
-          "https://cdn.test/p/existing.webp",
-          "https://cdn.test/p/draft-2.webp",
-        ],
-        lier: expect.any(Function),
-        promues: [
-          "https://cdn.test/p/draft-1.webp",
-          "https://cdn.test/p/draft-2.webp",
-        ],
-      }
+      revendication
     )
   })
 

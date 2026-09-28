@@ -73,10 +73,21 @@ describe("abandon d'une édition d'un Produit", () => {
     const enregistrement = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [premiereDemande.draftId, secondeDemande.draftId],
-      enregistrer: async (images, lier) => {
-        await lier(produit.id)
-        produit.images = images.map((image) => image.publicUrl)
+      galerie: [
+        {
+          kind: "brouillon",
+          draftId: premiereDemande.draftId,
+          previewUrl: premiereDemande.previewUrl,
+        },
+        {
+          kind: "brouillon",
+          draftId: secondeDemande.draftId,
+          previewUrl: secondeDemande.previewUrl,
+        },
+      ],
+      enregistrer: async (revendication) => {
+        await revendication.lier(produit.id)
+        produit.images = [...revendication.galerie]
         return { productId: produit.id, result: null }
       },
     })
@@ -101,7 +112,10 @@ describe("abandon d'une édition d'un Produit", () => {
     const faitsSoumis = galerieAvecSuppressionEnAttente.filter(
       (image) => image.kind === "brouillon" || !image.suppressionEnAttente
     )
-    const urlsPersistees = enregistrement.images.map((image) => image.publicUrl)
+    // La galerie que l'opération a rendue ordonnée est la référence de tout ce
+    // qui suit : c'est elle que la soumission reconstitute, puis que le refus
+    // doit laisser intacte.
+    const urlsPersistees = [...produit.images]
 
     expect(faitsSoumis).toEqual([
       { kind: "persistee", url: urlsPersistees[1] },

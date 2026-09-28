@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
@@ -8,6 +9,15 @@ import {
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-05-02T10:00:00.000Z")
+
+/** Une entrée de Galerie produit, telle que le formulaire la soumet. */
+function brouillon(draftId: string): EntreeImageProduit {
+  return {
+    kind: "brouillon",
+    draftId,
+    previewUrl: `https://preview.test/${draftId}`,
+  }
+}
 
 /**
  * Les quatre chemins par lesquels le module propriétaire rend le refus
@@ -132,7 +142,7 @@ describe("refus « registre indisponible »", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [premier.draftId, second.draftId],
+      galerie: [brouillon(premier.draftId), brouillon(second.draftId)],
       enregistrer: async () => {
         throw new Error("Le Catalogue ne doit pas être appelé")
       },
@@ -163,7 +173,7 @@ describe("refus « registre indisponible »", () => {
     const echec = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer: async () => {
         throw new Error("Le Catalogue ne doit pas être appelé")
       },
@@ -176,9 +186,9 @@ describe("refus « registre indisponible »", () => {
     const retry = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async (images, lier) => {
-        await lier("produit-1")
+      galerie: [brouillon(demande.draftId)],
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
         return { productId: "produit-1", result: null }
       },
     })

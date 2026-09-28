@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from "vitest"
 import {
   creerCycleVieImageProduit,
   type EnregistrerCatalogue,
-  type ImageProduitPromue,
+  type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { SlugConflictError } from "@/lib/use-cases/admin-catalog"
 import {
   creerHorlogeControllable,
@@ -13,6 +14,24 @@ import {
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-01-15T10:00:00.000Z")
+
+/**
+ * Les deux formes d'une entrée de la Galerie produit, telles que le formulaire
+ * les soumet. Ce sont des objets du module neutre, pas une déclaration seconde :
+ * l'opération prend ce que l'éditeur a Submité, et ces deux aides ne font que
+ * l'écrire plus lisiblement.
+ */
+function persistee(url: string): EntreeImageProduit {
+  return { kind: "persistee", url }
+}
+
+function brouillon(draftId: string): EntreeImageProduit {
+  return {
+    kind: "brouillon",
+    draftId,
+    previewUrl: `https://preview.test/${draftId}`,
+  }
+}
 
 function creerCycleVieTest() {
   const horloge = creerHorlogeControllable(DATE_INITIALE)
@@ -204,9 +223,9 @@ describe("CycleVieImageProduit", () => {
     }
     expect(second.expiresAt).toEqual(premier.expiresAt)
     const enregistrer = vi.fn(
-      async (images: readonly ImageProduitPromue[]) => ({
+      async (revendication: RevendicationImagesProduit) => ({
         productId: "produit-1",
-        result: images.length,
+        result: revendication.promues.length,
       })
     )
 
@@ -215,7 +234,7 @@ describe("CycleVieImageProduit", () => {
       await cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-1",
         ownerId: "editeur-1",
-        draftIds: [premier.draftId],
+        galerie: [brouillon(premier.draftId)],
         enregistrer,
       })
     ).toMatchObject({ ok: true, productId: "produit-1" })
@@ -225,7 +244,7 @@ describe("CycleVieImageProduit", () => {
       await cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-2",
         ownerId: "editeur-1",
-        draftIds: [second.draftId],
+        galerie: [brouillon(second.draftId)],
         enregistrer,
       })
     ).toMatchObject({ ok: false, code: "brouillon-expire" })
@@ -235,7 +254,7 @@ describe("CycleVieImageProduit", () => {
       await cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-3",
         ownerId: "editeur-1",
-        draftIds: [second.draftId],
+        galerie: [brouillon(second.draftId)],
         enregistrer,
       })
     ).toMatchObject({ ok: false, code: "brouillon-expire" })
@@ -258,9 +277,9 @@ describe("CycleVieImageProduit", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async (_images, lier) => {
-        await lier("produit-1")
+      galerie: [brouillon(demande.draftId)],
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
         return { productId: "produit-1", result: "enregistré" }
       },
     })
@@ -299,14 +318,14 @@ describe("CycleVieImageProduit", () => {
     })
     if (!demande.ok) throw new Error("La demande devait réussir")
 
-    let galerieEnregistree: string[] = []
+    let galerieEnregistree: readonly string[] = []
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async (images, lier) => {
-        await lier("produit-1")
-        galerieEnregistree = images.map((image) => image.publicUrl)
+      galerie: [brouillon(demande.draftId)],
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
+        galerieEnregistree = revendication.galerie
         return { productId: "produit-1", result: galerieEnregistree }
       },
     })
@@ -349,7 +368,7 @@ describe("CycleVieImageProduit", () => {
     const refus = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "   ",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer,
     })
 
@@ -373,13 +392,10 @@ describe("CycleVieImageProduit", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async (images, lier) => {
-        await lier("produit-1")
-        return {
-          productId: "produit-1",
-          result: images.map((i) => i.publicUrl),
-        }
+      galerie: [brouillon(demande.draftId)],
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
+        return { productId: "produit-1", result: revendication.galerie }
       },
     })
 
@@ -392,6 +408,84 @@ describe("CycleVieImageProduit", () => {
     })
   })
 
+  it("garde l'ordre de l'éditeur : un Brouillon intercalé atterrit entre les Images produit persistées", async () => {
+    // Le fait est énoncé à l'interface du cycle de vie, parce que c'est là
+    // qu'il vit désormais : la Galerie produit est un fait ordonné de
+    // l'Administration, et l'opération en possède l'ordre. Il n'est plus
+    // énoncé dans une action serveur, qui n'a plus rien à composer.
+    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const premiereDemande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/jpeg",
+      size: 2048,
+    })
+    const secondeDemande = await cycleVie.demanderBrouillon({
+      ownerId: "editeur-1",
+      contentType: "image/png",
+      size: 2048,
+    })
+    if (!premiereDemande.ok || !secondeDemande.ok) {
+      throw new Error("Les demandes devaient réussir")
+    }
+    const premierePersistee = "https://cdn.test/produits/persistee-1.webp"
+    const secondePersistee = "https://cdn.test/produits/persistee-2.webp"
+    const urlPremiere = `memoire://image/${premiereDemande.draftId}`
+    const urlSeconde = `memoire://image/${secondeDemande.draftId}`
+
+    // La galerie est soumise telle que l'éditeur l'a arrangée : persistée,
+    // Brouillon, persistée, Brouillon.
+    const galerieSoumise: EntreeImageProduit[] = [
+      persistee(premierePersistee),
+      brouillon(premiereDemande.draftId),
+      persistee(secondePersistee),
+      brouillon(secondeDemande.draftId),
+    ]
+    const galerieEcrits: string[] = []
+    let sousEnsemblePromu: readonly string[] = []
+
+    const resultat = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      galerie: galerieSoumise,
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
+        galerieEcrits.push(...revendication.galerie)
+        sousEnsemblePromu = revendication.promues
+        return { productId: "produit-1", result: revendication.galerie }
+      },
+    })
+
+    expect(resultat).toMatchObject({ ok: true, productId: "produit-1" })
+
+    // Le fait : l'ordre soumis est l'ordre écrit, et un Brouillon intercalé
+    // n'est ni repoussé à la fin de la galerie, ni écrit dans l'ordre des
+    // seuls Brouillons.
+    expect(galerieEcrits).toEqual([
+      premierePersistee,
+      urlPremiere,
+      secondePersistee,
+      urlSeconde,
+    ])
+    // Le sous-ensemble promu, lui, ne porte que ce que cette opération a
+    // promu — jamais une Image produit déjà persistée.
+    expect(sousEnsemblePromu).toEqual([urlPremiere, urlSeconde])
+    expect(stockage.promotions).toEqual([
+      { draftId: premiereDemande.draftId, publicUrl: urlPremiere },
+      { draftId: secondeDemande.draftId, publicUrl: urlSeconde },
+    ])
+    for (const [index, demande] of [
+      premiereDemande,
+      secondeDemande,
+    ].entries()) {
+      expect(registre.records.get(demande.draftId)).toMatchObject({
+        state: "revendiqué",
+        tentativeId: "tentative-1",
+        productId: "produit-1",
+        promotedPublicUrl: [urlPremiere, urlSeconde][index],
+      })
+    }
+  })
+
   it("une soumission rejouée sans identité ne prend pas un Brouillon qu'une tentative tient", async () => {
     const { cycleVie, registre } = creerCycleVieTest()
     const demande = await cycleVie.demanderBrouillon({
@@ -402,15 +496,15 @@ describe("CycleVieImageProduit", () => {
     if (!demande.ok) throw new Error("La demande devait réussir")
 
     let appels = 0
-    const enregistrer: EnregistrerCatalogue<string> = async (_images, lier) => {
+    const enregistrer: EnregistrerCatalogue<string> = async (revendication) => {
       appels += 1
-      await lier("produit-1")
+      await revendication.lier("produit-1")
       return { productId: "produit-1", result: "enregistré" }
     }
     const premier = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer,
     })
     expect(premier).toMatchObject({ ok: true, productId: "produit-1" })
@@ -424,7 +518,7 @@ describe("CycleVieImageProduit", () => {
     const rejete = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer,
     })
 
@@ -453,7 +547,7 @@ describe("CycleVieImageProduit", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-2",
-      draftIds: [demande.draftId, "brouillon-inconnu"],
+      galerie: [brouillon(demande.draftId), brouillon("brouillon-inconnu")],
       enregistrer: async () => {
         throw new Error("Le Catalogue ne doit pas être appelé")
       },
@@ -471,7 +565,7 @@ describe("CycleVieImageProduit", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: ["brouillon-inconnu"],
+      galerie: [brouillon("brouillon-inconnu")],
       enregistrer: async () => {
         throw new Error("Le Catalogue ne doit pas être appelé")
       },
@@ -496,7 +590,7 @@ describe("CycleVieImageProduit", () => {
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer: async () => {
         throw new Error("Le Catalogue ne doit pas être appelé")
       },
@@ -521,7 +615,7 @@ describe("CycleVieImageProduit", () => {
     const echec = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer: async () => {
         throw new Error("échec transactionnel")
       },
@@ -540,9 +634,9 @@ describe("CycleVieImageProduit", () => {
     const retry = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
-      enregistrer: async (_images, lier) => {
-        await lier("produit-1")
+      galerie: [brouillon(demande.draftId)],
+      enregistrer: async (revendication) => {
+        await revendication.lier("produit-1")
         return { productId: "produit-1", result: "retry" }
       },
     })
@@ -580,7 +674,7 @@ describe("CycleVieImageProduit", () => {
     const echec = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer: async () => {
         throw new SlugConflictError()
       },
@@ -610,15 +704,15 @@ describe("CycleVieImageProduit", () => {
     if (!demande.ok) throw new Error("La demande devait réussir")
 
     let appels = 0
-    const enregistrer: EnregistrerCatalogue<string> = async (_images, lier) => {
+    const enregistrer: EnregistrerCatalogue<string> = async (revendication) => {
       appels += 1
-      await lier("produit-1")
+      await revendication.lier("produit-1")
       return { productId: "produit-1", result: "même opération" }
     }
     const premier = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer,
     })
     if (!premier.ok) throw new Error("La première tentative devait réussir")
@@ -626,7 +720,7 @@ describe("CycleVieImageProduit", () => {
     const second = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       resultatDejaPersiste: async () => "même opération",
       enregistrer: async () => {
         appels += 1
@@ -646,7 +740,7 @@ describe("CycleVieImageProduit", () => {
     const autre = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-2",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       enregistrer,
     })
     expect(autre).toEqual({
@@ -660,7 +754,7 @@ describe("CycleVieImageProduit", () => {
     const apresExpiration = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
-      draftIds: [demande.draftId],
+      galerie: [brouillon(demande.draftId)],
       resultatDejaPersiste: async () => "même opération",
       enregistrer: async () => {
         appels += 1
@@ -706,7 +800,7 @@ describe("CycleVieImageProduit", () => {
       await cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-2",
         ownerId: "editeur-1",
-        draftIds: [demande.draftId],
+        galerie: [brouillon(demande.draftId)],
         enregistrer: async () => ({ productId: "produit-1", result: null }),
       })
     ).toMatchObject({ ok: false, code: "brouillon-expire" })
