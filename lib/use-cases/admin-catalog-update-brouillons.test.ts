@@ -29,6 +29,7 @@ import {
   creerRegistreImageProduitMemoire,
   creerStockageImageProduitMemoire,
   persistee,
+  sansTransaction,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const ownerId = randomUUID()
@@ -167,7 +168,7 @@ async function mettreAJour(
           variants: variantesPersistees(product),
         }),
         effects,
-        revendication
+        sansTransaction(revendication)
       )
       return { productId: updated.id }
     },
@@ -212,6 +213,12 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     // ne fait que forward ce que le cycle de vie lui rend. Les deux Brouillons
     // sont intercalés entre deux Images produit déjà persistées, donc un
     // réassemblage par l'appelant — ou un ordre de promotion — les trahirait.
+    //
+    // De bout en bout pour l'ordre, qui se relit dans la rangée. Pas pour la
+    // liaison : le registre est ici en mémoire, donc la confirmation se lit
+    // hors de la transaction du Catalogue et cette suite ne prouverait pas
+    // qu'une confirmation perdue empêche la rangée d'être écrite. C'est la
+    // suite durable, plus bas, qui la prouve.
     const product = await createProduct(
       makeInput([existingImage, existingSecondImage]),
       effetsSilencieux(),
@@ -291,7 +298,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
           variants: variantesPersistees(product),
         }),
         effects,
-        revendication
+        sansTransaction(revendication)
       )
       return { productId: updated.id, result: updated }
     }
@@ -308,11 +315,16 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     expect(premier).toMatchObject({ ok: true, productId: product.id })
     // Une soumission, une écriture du Catalogue.
     expect(ecritures).toBe(1)
-    // Ni promotion, ni liaison, ni suppression : il n'y avait rien à prendre.
+    // Ni promotion, ni liaison, ni retrait de source : il n'y avait rien à
+    // prendre.
     expect(environnement.stockage.promotions).toEqual([])
     expect(environnement.stockage.suppressionsBrouillons).toEqual([])
     expect(environnement.registre.records.size).toBe(0)
-    expect(effects.deleteImages).not.toHaveBeenCalled()
+    // Le Catalogue nomme toujours à son effet la liste des Images produit
+    // persistées qu'il retire, et elle est vide : la galerie soumise est celle
+    // du Produit, donc rien n'est retiré. L'effet est appelé une fois, il n'a
+    // rien à supprimer.
+    expect(effects.deleteImages).toHaveBeenCalledExactlyOnceWith([])
     const apres = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })

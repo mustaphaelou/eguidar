@@ -540,21 +540,38 @@ describe("admin catalog mutations", () => {
     expect(revendication.galerie).toEqual(galerie)
     expect(revendication.promues).toEqual(galerie)
 
-    // Verrous de compilation. Chacun se lit sur la porte, jamais sur la valeur :
-    // c'est là que les trois faits sont exigés, et c'est là qu'une exigence qui
-    // tombe se voit. Si l'une disparaît — `promues` ou `lier` rendu facultatif,
-    // la liaison et les URL promues rendues à deux paramètres séparés — la
-    // directive devient inutile et `tsc --noEmit` échoue.
+    // Verrous de compilation. Chacun se lit sur le type que la porte exige,
+    // jamais sur un appel : c'est là que les trois faits sont exigés, et c'est
+    // là qu'une exigence qui tombe se voit. Si l'une disparaît — `promues` ou
+    // `lier` rendu facultatif, la liaison et les URL promues rendues à deux
+    // paramètres séparés — la directive devient inutile et `tsc --noEmit`
+    // échoue.
     //
+    // Un appel ne ferait pas l'affaire : la porte *copie* la galerie et les URL
+    // promues, donc l'appeler sans l'une des deux lève à l'exécution. Elle ne
+    // copie que la *référence* de la liaison — celle-ci échoue plus tard, dans
+    // le Catalogue, pas à la porte. Un verrou de compilation n'a pas à faire
+    // tomber la suite qui le porte, alors que deux des trois sondes le
+    // feraient.
+    type FaitsExigesParLaPorte = Parameters<
+      typeof RevendicationImagesProduit.creer
+    >[0]
     // @ts-expect-error — la porte exige les URL promues
-    RevendicationImagesProduit.creer({ galerie, lier: async () => undefined })
+    const sansPromues: FaitsExigesParLaPorte = {
+      galerie,
+      lier: async () => undefined,
+    }
     // @ts-expect-error — la porte exige la liaison
-    RevendicationImagesProduit.creer({ galerie, promues: galerie })
+    const sansLier: FaitsExigesParLaPorte = { galerie, promues: galerie }
     // @ts-expect-error — la porte exige la galerie ordonnée
-    RevendicationImagesProduit.creer({
+    const sansGalerie: FaitsExigesParLaPorte = {
       promues: galerie,
       lier: async () => undefined,
-    })
+    }
+    // Ces trois formes ne se lisent pas à l'exécution : ce sont des formes
+    // incomplètes, précisément pour cela. Elles sont rendues pour qu'aucune
+    // règle ne les déclare inutilisées.
+    expect([sansPromues, sansLier, sansGalerie]).toHaveLength(3)
 
     // Et la valeur elle-même ne se fabrique pas à la main, même complète : sa
     // marque est privée, donc attribuable à la seule classe.

@@ -1,5 +1,6 @@
 import {
   creerCycleVieImageProduit,
+  RevendicationImagesProduit,
   type BrouillonImageProduit,
   type CodeRefusRegistreBrouillon,
   type EntreeCreationBrouillonImageProduit,
@@ -369,6 +370,32 @@ export function brouillon(draftId: string): EntreeImageProduit {
     draftId,
     previewUrl: `https://preview.test/${draftId}`,
   }
+}
+
+/**
+ * La même revendication, dont la liaison confirme sans le port de transaction
+ * du Catalogue.
+ *
+ * Le Catalogue passe toujours à la liaison le port de sa transaction, et ce
+ * port écrit la rangée du Brouillon. Un registre en mémoire n'a pas de
+ * transaction : reçu à sa place, le port confirme une rangée qui n'a jamais
+ * été écrite, la liaison échoue, et le Catalogue refuse une galerie dont le
+ * Brouillon est pourtant revendiqué — la sauvegarde échoue pour un Brouillon
+ * correctement pris. Une suite qui conduit une vraie écriture du Catalogue à
+ * travers un registre en mémoire reconstruit donc sa valeur ici, où le fait
+ * s'écrit une fois au lieu de se répéter aux deux sites d'appel.
+ *
+ * La suite durable n'en a pas l'usage, et c'est le registre durable que le
+ * port de transaction écrit : le lui remettre y est exactement juste.
+ */
+export function sansTransaction(
+  revendication: RevendicationImagesProduit
+): RevendicationImagesProduit {
+  return RevendicationImagesProduit.creer({
+    galerie: revendication.galerie,
+    promues: revendication.promues,
+    lier: (productId) => revendication.lier(productId),
+  })
 }
 
 /**
