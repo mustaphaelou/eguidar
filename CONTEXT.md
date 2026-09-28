@@ -279,7 +279,8 @@ _Avoid_: restock, remise en stock, réintégration de stock
 
 **Total à payer**:
 Le montant collecté auprès du Client lors de la livraison d'une Commande : le sous-total des
-Articles du panier plus les Frais de livraison.
+Articles du panier plus les Frais de livraison. C'est un fait de la Commande, pas une vue dérivée :
+écrit une seule fois à sa création, lu partout ensuite.
 _Avoid_: montant total, grand total
 
 **Chiffre d'affaires encaissé**:
