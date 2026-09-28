@@ -5,6 +5,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 ---
+## Checks
+
+Run every check CI runs, in order, stopping at the first failure: `bash scripts/checks.sh`
+
 ## Agent skills
 
 ### Issue tracker
