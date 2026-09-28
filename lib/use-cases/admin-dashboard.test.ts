@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { totalPayable } from "@/lib/money"
 import {
   getDashboardStats,
   localMonthKey,
@@ -43,7 +42,7 @@ async function createSeedOrder(
       phone: "+212600000000",
       total,
       shippingFee,
-      totalPayable: totalPayable({ total, shippingFee }),
+      totalPayable: total + shippingFee,
       status,
       createdAt: new Date(Date.now() - ageDays * DAY_MS),
     },
@@ -55,9 +54,12 @@ async function createSeedOrderAt(
   status: SeedStatus,
   createdAt: Date,
   total: number,
-  shippingFee: number
-): Promise<void> {
-  await prisma.order.create({
+  shippingFee: number,
+  // Le Total à payer réellement stocké, énoncé par chaque fixture et jamais
+  // redérivé ici. Voir ADR-0009 et ADR-0021.
+  totalPayableStocké: number
+): Promise<string> {
+  const order = await prisma.order.create({
     data: {
       userId: userIdA,
       cityName: "Casablanca",
@@ -65,11 +67,12 @@ async function createSeedOrderAt(
       phone: "+212600000000",
       total,
       shippingFee,
-      totalPayable: totalPayable({ total, shippingFee }),
+      totalPayable: totalPayableStocké,
       status,
       createdAt,
     },
   })
+  return order.id
 }
 
 describe("admin dashboard stats", () => {
@@ -294,20 +297,39 @@ describe("admin dashboard stats", () => {
           12
         )
 
-      await createSeedOrderAt("delivered", localMidMonth(7, 15), 12000, 800)
-      await createSeedOrderAt("delivered", localMidMonth(3, 15), 5000, 250)
+      await createSeedOrderAt(
+        "delivered",
+        localMidMonth(7, 15),
+        12000,
+        800,
+        12800
+      )
+      await createSeedOrderAt(
+        "delivered",
+        localMidMonth(3, 15),
+        5000,
+        250,
+        5250
+      )
       await createSeedOrderAt(
         "delivered",
         new Date(
           Math.min(currentMonthStart.getTime() + 5 * 60_000, Date.now() - 1_000)
         ),
         9999,
-        1
+        1,
+        10000
       )
-      await createSeedOrderAt("shipped", localMidMonth(6, 15), 7000, 300)
-      await createSeedOrderAt("cancelled", localMidMonth(6, 16), 4444, 44)
-      await createSeedOrderAt("returned", localMidMonth(2, 15), 3600, 400)
-      await createSeedOrderAt("delivered", localMidMonth(13, 15), 8888, 888)
+      await createSeedOrderAt("shipped", localMidMonth(6, 15), 7000, 300, 7300)
+      await createSeedOrderAt("cancelled", localMidMonth(6, 16), 4444, 44, 4488)
+      await createSeedOrderAt("returned", localMidMonth(2, 15), 3600, 400, 4000)
+      await createSeedOrderAt(
+        "delivered",
+        localMidMonth(13, 15),
+        8888,
+        888,
+        9776
+      )
 
       const stats = await getDashboardStats()
 
@@ -334,6 +356,42 @@ describe("admin dashboard stats", () => {
           (bucket) => bucket.month === expectedKeyFor(13)
         )
       ).toBe(false)
+    })
+
+    it("answers with the persisted Total à payer, never with a sum recomputed from the Sous-total and the Frais de livraison", async () => {
+      // Fixture de garde : le Total à payer stocké (380,00 MAD) ne vaut pas le
+      // Sous-total plus les Frais de livraison (500,00 MAD). Aucune Commande
+      // de production ne peut être dans cet état — la création écrit la somme,
+      // et rien ne la réécrit ensuite — et c'est précisément pour cela que
+      // cette fixture est la seule qui distingue la lecture de la colonne
+      // d'un recalcul. Toutes les autres fixtures sont auto-cohérentes :
+      // elles passent identiquement dans les deux cas.
+      const totalÀPayerStocké = 38000
+      const createdAt = new Date(Date.now() - 3 * DAY_MS)
+      const id = await createSeedOrderAt(
+        "delivered",
+        createdAt,
+        45000,
+        5000,
+        totalÀPayerStocké
+      )
+
+      const stats = await getDashboardStats()
+
+      // Le Chiffre d'affaires encaissé des 30 derniers jours.
+      expect(stats.caEncaisse30j).toBe(totalÀPayerStocké)
+      // Le seau du mois dans lequel la Commande tombe.
+      expect(
+        stats.revenueByMonth.find(
+          (bucket) => bucket.month === localMonthKey(createdAt)
+        )?.revenue
+      ).toBe(totalÀPayerStocké)
+      // La Commande récente : le Total à payer stocké, le Sous-total intact.
+      const recente = stats.recentOrders.find((order) => order.id === id)
+      expect(recente).toMatchObject({
+        total: 45000,
+        totalPayable: totalÀPayerStocké,
+      })
     })
   })
 })

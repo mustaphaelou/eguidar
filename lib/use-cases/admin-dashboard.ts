@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
-import { totalPayable } from "@/lib/money"
 import { FRAGMENT_WHERE_ENCAISSÉS } from "@/lib/statut-de-commande"
 
 export const LOW_STOCK_THRESHOLD = 5
@@ -128,20 +127,20 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         id: true,
         status: true,
         total: true,
-        shippingFee: true,
+        totalPayable: true,
         createdAt: true,
         items: { select: { quantity: true } },
       },
     }),
     prisma.order.aggregate({
-      _sum: { total: true, shippingFee: true },
+      _sum: { totalPayable: true },
       where: {
         ...FRAGMENT_WHERE_ENCAISSÉS,
         createdAt: { gte: currentWindowStart, lte: now },
       },
     }),
     prisma.order.aggregate({
-      _sum: { total: true, shippingFee: true },
+      _sum: { totalPayable: true },
       where: {
         ...FRAGMENT_WHERE_ENCAISSÉS,
         createdAt: { gte: previousWindowStart, lt: currentWindowStart },
@@ -155,18 +154,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         ...FRAGMENT_WHERE_ENCAISSÉS,
         createdAt: { gte: oldestBucketStart, lte: now },
       },
-      select: { id: true, total: true, shippingFee: true, createdAt: true },
+      select: { id: true, totalPayable: true, createdAt: true },
     }),
   ])
 
-  const caEncaisse30j = totalPayable({
-    total: currentWindowSums._sum.total ?? 0,
-    shippingFee: currentWindowSums._sum.shippingFee ?? 0,
-  })
-  const priorCaEncaisse = totalPayable({
-    total: previousWindowSums._sum.total ?? 0,
-    shippingFee: previousWindowSums._sum.shippingFee ?? 0,
-  })
+  // Le Total à payer est un fait de la Commande, écrit une fois à la création
+  // (ADR-0021) : les deux fenêtres le somment tel quel, sans le re-dériver du
+  // Sous-total et des Frais de livraison. Le type de sortie de `aggregate` est
+  // fixe et ne se rétrécit pas selon l'entrée, d'où le repli à zéro inchangé.
+  const caEncaisse30j = currentWindowSums._sum.totalPayable ?? 0
+  const priorCaEncaisse = previousWindowSums._sum.totalPayable ?? 0
   const caDelta =
     priorCaEncaisse === 0
       ? undefined
@@ -177,7 +174,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const revenueByKey = new Map<string, number>()
   for (const row of twelveMonthRows) {
     const key = localMonthKey(row.createdAt)
-    revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + totalPayable(row))
+    revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + row.totalPayable)
   }
 
   return {
@@ -208,7 +205,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       total: order.total,
       createdAt: order.createdAt,
       itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-      totalPayable: totalPayable(order),
+      totalPayable: order.totalPayable,
     })),
   }
 }

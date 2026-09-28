@@ -61,3 +61,54 @@ ADR-0009's rules stay standing, untouched:
 - the counting rule — Chiffre d'affaires counts only Commandes Livrées;
 - « display sites never re-derive » — display sites still show the DTO's
   amount and never re-derive `total + shippingFee`.
+
+## Amendement — L'exemption est levée, l'arithmétique devient inatteignable (#463)
+
+Le quatrième point du corps de la décision est levé : « Order history
+(`getOrder`, `listUserOrders`), the order e-mails and the Tableau de bord
+revenue keep today's derived reads: they need the number, not a stored key ».
+L'amendement #341, plus bas dans ce même fichier, dit l'inverse : « display
+sites still show the DTO's amount and never re-derive `total + shippingFee` ».
+Le même fichier accorde et retire la même règle dans la même page ; il n'en
+accorde aucune.
+
+Le motif de l'exemption ne tenait pas non plus. La clé était là dès la
+migration : `Order.totalPayable` est une colonne requise, rétro-alimentée puis
+non-null. Aucun des sites nommés n'avait « le nombre plutôt que la clé » — il
+avait la clé. Les trois surfaces que l'exemption énumère lisent aujourd'hui le
+fait persisté ; aucune lecture dérivée ne leur reste à conserver.
+
+Le reste de la décision tient :
+
+- la colonne, sa migration et son remplissage ;
+- les DTO d'Administration lisent le fait persisté, et le tri `tri === "total"`
+  ordonne par `order.totalPayable` — la colonne trie exactement ce qu'elle
+  affiche ;
+- `Order.total` garde le sens d'ADR-0009 : le sous-total des Articles, sans
+  les Frais de livraison ;
+- aucune écriture ne touche `totalPayable` après la création d'une Commande.
+
+Les deux mentions de `money.totalPayable({ total, shippingFee })` — celle du
+corps de la décision et celle de l'amendement #341 — sont périmées sur le nom
+**et** sur le cadrage ; ADR-0009 traite le même symbole mort en le déclarant
+périmé sans réserve. Le corps ne se contente pas de nommer une règle qui
+n'existe plus : il affirme « the shipped money rule keeps its single
+arithmetic site », et `lib/money.ts` ne tient plus aucune arithmétique —
+seulement le formatage d'affichage et l'encodage de transport. Il n'y a plus
+de règle d'argent livrée, donc plus de site unique à tenir. Ce qui survit,
+c'est le site d'écriture, la seule création de Commande ; il passe désormais
+par `totalAPayerDeLaCommande`, **non exportée**, dans
+`lib/use-cases/orders.ts` : l'arithmétique vit à côté du site qui l'écrit, et
+l'absence d'export est ce qui l'assure — aucun site d'affichage, aucun module
+et aucun test ne peut l'atteindre par `import`.
+
+La règle est vérifiable, pas seulement affirmée. Deux gardes la portent,
+chacune sur une Commande dont le Total à payer stocké ne vaut pas son
+Sous-total plus ses Frais de livraison — la seule fixture qui distingue la
+lecture de la colonne d'un recalcul :
+
+- `lib/use-cases/admin-dashboard.test.ts` : le Chiffre d'affaires encaissé des
+  30 derniers jours, le seau du mois et la Commande récente rapportent la
+  valeur stockée ;
+- `lib/use-cases/orders.test.ts` : le snapshot d'e-mail de la commande, à la
+  couture des effets injectés.

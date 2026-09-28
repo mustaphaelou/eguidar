@@ -24,7 +24,6 @@ import {
 } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import type { OrderEmailSnapshot } from "@/lib/emails"
-import { totalPayable } from "@/lib/money"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import {
   CheckoutValidationError,
@@ -673,6 +672,28 @@ describe("order status transitions", () => {
     expect(lastSnapshot.userEmail).toBe(email("a"))
   })
 
+  it("hands the e-mail the Total à payer stored on the Commande, never the sum of its parts", async () => {
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    // Volontairement distinct de total + shippingFee (53500) : aucun chemin de
+    // production n'écrit une telle Commande — c'est ce qui distingue la lecture
+    // de la colonne d'un re-dérivé de `total + shippingFee`.
+    const orderId = await createAdminOrderRecord(
+      userIdA,
+      [{ variantId: variantP1, quantity: 1 }],
+      { totalPayable: 60000 }
+    )
+
+    await updateOrderStatus(orderId, "confirmed", { sendOrderStatusEmail })
+
+    expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
+    const snapshot = sendOrderStatusEmail.mock.calls[0][0] as OrderEmailSnapshot
+    expect(snapshot.total).toBe(50000)
+    expect(snapshot.shippingFee).toBe(3500)
+    expect(snapshot.totalPayable).toBe(60000)
+  })
+
   it("cancels a pending order and restocks the variants", async () => {
     const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
       async () => {}
@@ -873,7 +894,7 @@ describe("order status transitions", () => {
 async function createAdminOrderRecord(
   userId: string,
   items: { variantId: string; quantity: number }[],
-  opts?: { createdAt?: Date; shippingFee?: number }
+  opts?: { createdAt?: Date; shippingFee?: number; totalPayable?: number }
 ): Promise<string> {
   const total = items.reduce(
     (sum, item) =>
@@ -891,7 +912,7 @@ async function createAdminOrderRecord(
       phone: PHONE,
       total,
       shippingFee,
-      totalPayable: totalPayable({ total, shippingFee }),
+      totalPayable: opts?.totalPayable ?? total + shippingFee,
       ...(opts?.createdAt ? { createdAt: opts.createdAt } : {}),
       items: {
         create: items.map((item) => ({
