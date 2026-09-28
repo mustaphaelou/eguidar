@@ -262,11 +262,11 @@ async function restockerArticles(
  * site d'affichage pouvait importer — c'est par là que quatre lectures
  * re-dérivaient `total + shippingFee` au lieu de lire le fait persisté.
  */
-function totalAPayerDeLaCommande(pick: {
+function totalAPayerDeLaCommande(montants: {
   total: number
   shippingFee: number
 }): number {
-  return pick.total + pick.shippingFee
+  return montants.total + montants.shippingFee
 }
 
 export async function placeOrder(
