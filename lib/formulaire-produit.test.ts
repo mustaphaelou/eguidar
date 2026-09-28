@@ -155,8 +155,6 @@ function refusDeSoumission(donnees: FormData): unknown {
   throw new Error("La soumission n'a pas été refusée")
 }
 
-const UN_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-
 describe("texteSpecifications", () => {
   it("écrit une ligne « Clé : valeur » par entrée, dans l'ordre du record", () => {
     expect(texteSpecifications(SPECS)).toBe(
@@ -461,12 +459,29 @@ describe("soumissionDepuisFormData", () => {
     )
   })
 
-  it("invente un identifiant de tentative quand le champ est absent ou blanc", () => {
+  it("ne fabrique pas d'identifiant de tentative quand le champ est absent ou blanc", () => {
+    // Le transport lit le câble, il ne décide pas d'une identité : un champ
+    // absent ou seulement blanc donne une chaîne vide, et c'est le refus que le
+    // cycle de vie des Images produit définit déjà qui la reçoit. Le transport
+    // tirait ici un `randomUUID()` neuf, ce qui rendait ce refus inatteignable
+    // et laissait une soumission rejouée — un client qui ne rend pas le champ —
+    // se présenter comme une tentative neuve.
     const absente = formulaireSoumis()
     absente.delete("tentativeId")
 
-    expect(soumissionDepuisFormData(absente).tentativeId).toMatch(UN_UUID)
-    expect(soumissionLue({ tentativeId: "   " }).tentativeId).toMatch(UN_UUID)
+    expect(soumissionDepuisFormData(absente).tentativeId).toBe("")
+    expect(soumissionLue({ tentativeId: "   " }).tentativeId).toBe("")
+  })
+
+  it("ne tire aucune identité d'une valeur qui n'est pas une chaîne", () => {
+    // Un client qui poste un fichier sous ce nom de champ n'obtient pas pour
+    // autant une identité : `String(uneFile)` donnerait `"[object File]"`, un
+    // identifiant non vide et donc forgé. Le garde `typeof` est ce qui l'en
+    // empêche — il n'est pas redondant.
+    const donnees = formulaireSoumis()
+    donnees.set("tentativeId", new File(["tentative-1"], "tentativeId"))
+
+    expect(soumissionDepuisFormData(donnees).tentativeId).toBe("")
   })
 
   it("ignore le productId caché : l'identification reste à l'action", () => {
