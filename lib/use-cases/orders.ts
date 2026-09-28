@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import { totalPayable } from "@/lib/money"
 import { peutTransitionner, réapprovisionne } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { lirePanierClient } from "@/lib/panier"
@@ -255,6 +254,21 @@ async function restockerArticles(
   }
 }
 
+/**
+ * Le Total à payer de la Commande, tel qu'il naît à sa création.
+ *
+ * Non exportée : l'arithmétique du Total à payer appartient à l'acte de naissance
+ * de la Commande et à rien d'autre. Partagée, elle redevenait une règle que tout
+ * site d'affichage pouvait importer — c'est par là que quatre lectures
+ * re-dérivaient `total + shippingFee` au lieu de lire le fait persisté.
+ */
+function totalAPayerDeLaCommande(pick: {
+  total: number
+  shippingFee: number
+}): number {
+  return pick.total + pick.shippingFee
+}
+
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
@@ -299,7 +313,10 @@ export async function placeOrder(
         phone: data.phone,
         total: cart.subtotal,
         shippingFee,
-        totalPayable: totalPayable({ total: cart.subtotal, shippingFee }),
+        totalPayable: totalAPayerDeLaCommande({
+          total: cart.subtotal,
+          shippingFee,
+        }),
         items: {
           create: cart.lines.map((line) => ({
             variantId: line.variantId,
