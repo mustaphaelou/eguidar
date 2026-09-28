@@ -42,7 +42,7 @@ function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
     categoryId,
     price: 100000,
     specs: { Écran: "6 pouces" },
-    images: ["https://example.com/img.jpg"],
+    images: [],
     isFeatured: false,
     featuredOrder: 0,
     freeShipping: false,
@@ -51,6 +51,21 @@ function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
     ],
     ...overrides,
   }
+}
+
+/**
+ * Une revendication qui a promu exactement les URL données. La règle de
+ * création appartient au Catalogue : un Produit qui porte des Images produit
+ * doit donc les avoir promues, et une suite qui veut une galerie passe par la
+ * porte, comme un appelant réel. La liaison est neutre — elle n'est observée
+ * qu'ailleurs.
+ */
+function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
+  return creerRevendicationImagesProduit({
+    galerie: urls,
+    promues: urls,
+    lier: async () => undefined,
+  })
 }
 
 let categoryId: string
@@ -368,7 +383,9 @@ describe("admin catalog mutations", () => {
     const keptImage = "https://cdn.example.com/keep.jpg"
     const removedImage = "https://cdn.example.com/remove.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-one"), images: [keptImage, removedImage] })
+      makeInput({ slug: slug("img-one"), images: [keptImage, removedImage] }),
+      undefined,
+      revendicationPromue(keptImage, removedImage)
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -407,7 +424,9 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/remove-2.jpg",
     ]
     const product = await createProduct(
-      makeInput({ slug: slug("img-update"), images })
+      makeInput({ slug: slug("img-update"), images }),
+      undefined,
+      revendicationPromue(...images)
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -444,7 +463,9 @@ describe("admin catalog mutations", () => {
   it("n'appelle aucune suppression d'image lorsque la transaction échoue", async () => {
     const persistedImage = "https://cdn.example.com/transaction.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-transaction"), images: [persistedImage] })
+      makeInput({ slug: slug("img-transaction"), images: [persistedImage] }),
+      undefined,
+      revendicationPromue(persistedImage)
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -477,11 +498,11 @@ describe("admin catalog mutations", () => {
   })
 
   it("refuse une Image produit persistée qui n'appartient pas au Produit", async () => {
+    const proprietaire = "https://cdn.example.com/owned.jpg"
     const product = await createProduct(
-      makeInput({
-        slug: slug("img-owned"),
-        images: ["https://cdn.example.com/owned.jpg"],
-      })
+      makeInput({ slug: slug("img-owned"), images: [proprietaire] }),
+      undefined,
+      revendicationPromue(proprietaire)
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -497,10 +518,7 @@ describe("admin catalog mutations", () => {
         product.id,
         makeInput({
           slug: slug("img-owned"),
-          images: [
-            "https://cdn.example.com/owned.jpg",
-            "https://cdn.example.com/arbitrary.jpg",
-          ],
+          images: [proprietaire, "https://cdn.example.com/arbitrary.jpg"],
           variants,
         }),
         { deleteImages }
@@ -510,7 +528,7 @@ describe("admin catalog mutations", () => {
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })
-    expect(persisted.images).toEqual(["https://cdn.example.com/owned.jpg"])
+    expect(persisted.images).toEqual([proprietaire])
   })
 
   it("reçoit la liaison et les URL promues dans une seule valeur, jamais séparément", () => {
@@ -551,11 +569,95 @@ describe("admin catalog mutations", () => {
     expect(horsPorte).toBeDefined()
   })
 
+  it("refuse une création dont la galerie porte une URL que l'opération n'a pas promue", async () => {
+    // La règle est celle du Catalogue, écrite comme une appartenance à l'ensemble
+    // des URL que la même opération a promues. Ce qui est comparé est la galerie
+    // **écrite** : la revendication annonce ici les deux URL, mais n'a promu que
+    // la première. Une règle écrite sur la galerie annoncée passerait, et
+    // l'URL glissée serait persistée — donc c'est bien le fait du Catalogue qui
+    // tranche.
+    const promotee = "https://cdn.example.com/promue.jpg"
+    const glissee = "https://cdn.example.com/glissee.jpg"
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(
+        makeInput({ slug: slug("img-glissee"), images: [promotee, glissee] }),
+        undefined,
+        creerRevendicationImagesProduit({
+          galerie: [promotee, glissee],
+          promues: [promotee],
+          lier: async () => undefined,
+        })
+      )
+    )
+    expect(refus.message).toBe(
+      "Données invalides : une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit"
+    )
+    const ecrits = await prisma.product.count({
+      where: { slug: slug("img-glissee") },
+    })
+    expect(ecrits).toBe(0)
+  })
+
+  it("refuse une création qui porte des images sans aucune revendication", async () => {
+    // Il n'y a plus qu'une seule façon d'écrire une Image produit nouvelle : la
+    // promotion que la même opération vient de faire. Une galerie écrite sans
+    // revendication est donc une galerie d'URL que personne n'a promues — la
+    // forme qu'aucun appelant de production ne peut prendre, et que le
+    // Catalogue refuse pour cette raison-là, pas pour une raison de galerie.
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(
+        makeInput({
+          slug: slug("img-sans-revendication"),
+          images: ["https://cdn.example.com/arbitraire.jpg"],
+        })
+      )
+    )
+    expect(refus.message).toBe(
+      "Données invalides : une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit"
+    )
+    const ecrits = await prisma.product.count({
+      where: { slug: slug("img-sans-revendication") },
+    })
+    expect(ecrits).toBe(0)
+  })
+
+  it("accepte une création dont la galerie est faite des URL promues par la même opération", async () => {
+    const images = [
+      "https://cdn.example.com/promue-1.jpg",
+      "https://cdn.example.com/promue-2.jpg",
+    ]
+    const product = await createProduct(
+      makeInput({ slug: slug("img-revendiquee"), images }),
+      undefined,
+      revendicationPromue(...images)
+    )
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(persisted.images).toEqual(images)
+  })
+
+  it("crée un Produit sans aucune image", async () => {
+    // La règle refuse une image écrite sans promotion, pas l'absence d'image :
+    // l'éditeur crée son Produit et y ajoute des images ensuite, par une mise
+    // à jour. Une création sans image n'a rien à revendiquer, et réussit donc.
+    const product = await createProduct(makeInput({ slug: slug("img-aucune") }))
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(persisted.images).toEqual([])
+  })
+
   it("refuse une galerie au-delà de la limite d'Images produit", async () => {
     // La limite est un fait du Catalogue : il la refuse à l'entrée, donc une
     // soumission qui la dépasse est refusée avant qu'un Produit n'existe, et
     // avec le message de validation du Catalogue — la même forme qu'un autre
-    // champ invalide.
+    // champ invalide. Ces neuf URL ne sont promues par rien non plus, et c'est
+    // bien le message de la limite qui doit être rendu : la validation d'entrée
+    // tranche avant la règle de création, comme elle tranche avant la
+    // comparaison des images d'une mise à jour.
     const refus = await verifierRefusValidation(CatalogValidationError, () =>
       createProduct(makeInput({ slug: slug("img-limite"), images: galerie(9) }))
     )
@@ -571,7 +673,9 @@ describe("admin catalog mutations", () => {
   it("accepte une galerie à la limite d'Images produit", async () => {
     const images = galerie(8)
     const product = await createProduct(
-      makeInput({ slug: slug("img-limite-pile"), images })
+      makeInput({ slug: slug("img-limite-pile"), images }),
+      undefined,
+      revendicationPromue(...images)
     )
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
@@ -583,7 +687,9 @@ describe("admin catalog mutations", () => {
   it("refuse une galerie au-delà de la limite et laisse la galerie enregistrée", async () => {
     const enregistree = "https://cdn.example.com/deja-enregistree.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-limite-maj"), images: [enregistree] })
+      makeInput({ slug: slug("img-limite-maj"), images: [enregistree] }),
+      undefined,
+      revendicationPromue(enregistree)
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -655,11 +761,11 @@ describe("admin catalog mutations", () => {
   })
 
   it("refuse une URL glissée même quand une revendication est fournie", async () => {
+    const proprietaire = "https://cdn.example.com/owned.jpg"
     const product = await createProduct(
-      makeInput({
-        slug: slug("img-claim"),
-        images: ["https://cdn.example.com/owned.jpg"],
-      })
+      makeInput({ slug: slug("img-claim"), images: [proprietaire] }),
+      undefined,
+      revendicationPromue(proprietaire)
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -670,27 +776,34 @@ describe("admin catalog mutations", () => {
     }))
 
     // La revendication n'autorise que les URL qu'elle a promues : une URL
-    // étrangère, même accompanied d'une liaison valide, reste une URL
-    // glissée par le client.
-    await verifierRefusValidation(CatalogValidationError, () =>
+    // étrangère, même accompagnée d'une liaison valide, reste une URL glissée
+    // par le client. C'est le refus de propriété du Catalogue qui le dit, et il
+    // ne le dit qu'une fois : la mise à jour ne pré-contrôle rien et ne relit
+    // pas la galerie, elle transmet ce qu'elle a reçu.
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
       updateProduct(
         product.id,
         makeInput({
           slug: slug("img-claim"),
-          images: [
-            "https://cdn.example.com/owned.jpg",
-            "https://cdn.example.com/smuggled.jpg",
-          ],
+          images: [proprietaire, "https://cdn.example.com/smuggled.jpg"],
           variants,
         }),
         undefined,
         creerRevendicationImagesProduit({
-          galerie: ["https://cdn.example.com/owned.jpg"],
+          galerie: [proprietaire],
           promues: ["https://cdn.example.com/promoted.jpg"],
           lier: async () => undefined,
         })
       )
     )
+    expect(refus.message).toBe(
+      "Données invalides : une Image produit persistée n'appartient pas à ce Produit"
+    )
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(persisted.images).toEqual([proprietaire])
   })
 
   it("passes an empty diff to deleteImages when no image was removed on update", async () => {
@@ -794,7 +907,9 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/gallery-2.jpg",
     ]
     const product = await createProduct(
-      makeInput({ slug: slug("img-delete"), images })
+      makeInput({ slug: slug("img-delete"), images }),
+      undefined,
+      revendicationPromue(...images)
     )
 
     await deleteProduct(product.id, { deleteImages })

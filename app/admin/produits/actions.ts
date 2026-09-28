@@ -25,16 +25,6 @@ import {
   updateVariantStock,
 } from "@/lib/use-cases/admin-catalog"
 
-function refuserImagesPersisteesEnCreation(
-  images: readonly EntreeImageProduit[]
-): void {
-  if (images.some((image) => image.kind === "persistee")) {
-    throw new UserFacingError(
-      "Une création de Produit ne peut contenir que des Brouillons d'Image produit"
-    )
-  }
-}
-
 function urlsPersistees(images: readonly EntreeImageProduit[]): string[] {
   return images.flatMap((image) =>
     image.kind === "persistee" ? [image.url] : []
@@ -91,11 +81,18 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
     next: "/admin/produits",
     parse: soumissionDepuisFormData,
     run: async ({ champsCatalogue, images, tentativeId }, client) => {
-      refuserImagesPersisteesEnCreation(images)
       const draftIds = identifiantsBrouillons(images)
 
       if (draftIds.length === 0) {
-        const product = await createProduct({ ...champsCatalogue, images: [] })
+        // Une galerie sans Brouillon reste une création légale. Les URL qu'elle
+        // porte sont transmises telles quelles : ce qui décide si une création
+        // peut les écrire est la règle du Catalogue, appliquée une seule fois
+        // dans `createProduct`, et l'éditeur reçoit le refus de cette règle
+        // s'il y a lieu.
+        const product = await createProduct({
+          ...champsCatalogue,
+          images: urlsPersistees(images),
+        })
         redirect(`/admin/produits/${product.id}`)
       }
 
