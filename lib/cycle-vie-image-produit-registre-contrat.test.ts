@@ -114,7 +114,9 @@ describe("registre des Brouillons d'Image produit — contrat des deux adaptateu
     // Témoin de non-vacuité : un contrat où les deux adaptateurs refuseraient
     // la même chose, ou ne refuseraient jamais, passerait aussi facilement
     // qu'un contrat juste. Le port déclare `CodeRefusRegistreBrouillon` ; on
-    // vérifie que le contrat le couvre entier.
+    // vérifie que le contrat le couvre entier, et la liste attendue est un
+    // `Record` de ce code — `tsc` refuse donc déjà qu'un code y manque, avant
+    // même que cette suite le cherche dans les observations.
     const atteints: string[] = []
     for (const scenario of SCENARIOS_REGISTRE) {
       const [observation] = await exigerEnteteRegistre(
@@ -126,7 +128,7 @@ describe("registre des Brouillons d'Image produit — contrat des deux adaptateu
     }
 
     expect([...new Set(atteints)].sort()).toEqual(
-      [...CODES_REFUS_CONTRAT].sort()
+      Object.keys(CODES_REFUS_CONTRAT).sort()
     )
   })
 

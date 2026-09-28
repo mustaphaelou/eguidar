@@ -10,8 +10,7 @@ import {
   vi,
 } from "vitest"
 
-import type { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
-import { creerRevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
+import { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
   CatalogValidationError,
@@ -61,7 +60,7 @@ function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
  * qu'ailleurs.
  */
 function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
-  return creerRevendicationImagesProduit({
+  return RevendicationImagesProduit.creer({
     galerie: urls,
     promues: urls,
     lier: async () => undefined,
@@ -533,7 +532,7 @@ describe("admin catalog mutations", () => {
 
   it("reçoit la liaison et les URL promues dans une seule valeur, jamais séparément", () => {
     const galerie = ["https://cdn.example.com/promoted.jpg"]
-    const revendication = creerRevendicationImagesProduit({
+    const revendication = RevendicationImagesProduit.creer({
       galerie,
       promues: galerie,
       lier: async () => undefined,
@@ -548,11 +547,11 @@ describe("admin catalog mutations", () => {
     // directive devient inutile et `tsc --noEmit` échoue.
     //
     // @ts-expect-error — la porte exige les URL promues
-    creerRevendicationImagesProduit({ galerie, lier: async () => undefined })
+    RevendicationImagesProduit.creer({ galerie, lier: async () => undefined })
     // @ts-expect-error — la porte exige la liaison
-    creerRevendicationImagesProduit({ galerie, promues: galerie })
+    RevendicationImagesProduit.creer({ galerie, promues: galerie })
     // @ts-expect-error — la porte exige la galerie ordonnée
-    creerRevendicationImagesProduit({
+    RevendicationImagesProduit.creer({
       promues: galerie,
       lier: async () => undefined,
     })
@@ -582,7 +581,7 @@ describe("admin catalog mutations", () => {
       createProduct(
         makeInput({ slug: slug("img-glissee"), images: [promotee, glissee] }),
         undefined,
-        creerRevendicationImagesProduit({
+        RevendicationImagesProduit.creer({
           galerie: [promotee, glissee],
           promues: [promotee],
           lier: async () => undefined,
@@ -749,7 +748,7 @@ describe("admin catalog mutations", () => {
         variants,
       }),
       { deleteImages },
-      creerRevendicationImagesProduit({
+      RevendicationImagesProduit.creer({
         galerie: [promotedImage],
         promues: [promotedImage],
         lier: async () => undefined,
@@ -789,7 +788,7 @@ describe("admin catalog mutations", () => {
           variants,
         }),
         undefined,
-        creerRevendicationImagesProduit({
+        RevendicationImagesProduit.creer({
           galerie: [proprietaire],
           promues: ["https://cdn.example.com/promoted.jpg"],
           lier: async () => undefined,

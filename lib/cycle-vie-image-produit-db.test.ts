@@ -5,9 +5,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import {
   creerCycleVieImageProduit,
   creerRegistreBrouillonImageProduitPrisma,
-  creerRevendicationImagesProduit,
   type Horloge,
-  type RevendicationImagesProduit,
+  RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
@@ -577,7 +576,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
           },
           // La liaison échoue : la transaction Catalogue s'ouvre et se referme
           // sans que le Brouillon soit lié.
-          creerRevendicationImagesProduit({
+          RevendicationImagesProduit.creer({
             galerie: revendication.galerie,
             promues: revendication.promues,
             lier: async () => {

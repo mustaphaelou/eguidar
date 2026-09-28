@@ -145,10 +145,11 @@ export type LierBrouillonsImageProduit = (
 ) => Promise<void>
 
 /**
- * Les trois faits qu'une revendication tient prête à forward ensemble : la
- * Galerie produit qu'elle a composée, dans l'ordre de l'Administration, le
- * sous-ensemble qu'elle a promu, et la liaison à exécuter dans la transaction
- * du Catalogue. Aucun ne se passe sans les deux autres.
+ * Les trois faits qu'une revendication tient prête à forward : la Galerie
+ * produit qu'elle a composée, dans l'ordre de l'Administration, le sous-ensemble
+ * qu'elle a promu, et la liaison à exécuter dans la transaction du Catalogue.
+ * Pourquoi ils ne se passent pas séparément est écrit une seule fois, sur la
+ * valeur qu'ils composent.
  */
 export interface FaitsRevendicationImagesProduit {
   readonly galerie: readonly string[]
@@ -160,13 +161,20 @@ export interface FaitsRevendicationImagesProduit {
  * La valeur qu'une revendication tient prête à forward, et que le Catalogue
  * reçoit en un seul morceau.
  *
- * **Les trois faits vont ensemble.** Les URL promues sont ce qui autorise une
- * Image produit nouvelle à être écrite : une liaison sans elles se ferait
- * refuser la galerie, et une galerie sans promotion ne lierait rien. Cette
- * valeur n'a donc pas de constructeur public et porte une marque : la seule
- * façon de l'obtenir est la porte, qui exige les trois faits. Un appelant ne
- * peut plus passer la liaison et le sous-ensemble promu séparément, ni les
- * fabriquer de son côté.
+ * **Les trois faits vont ensemble, et c'est la seule raison de cette porte.**
+ * Les URL promues sont ce qui autorise une Image produit nouvelle à être
+ * écrite : une liaison sans elles se ferait refuser la galerie, et une galerie
+ * sans promotion ne lierait rien. Cette valeur n'a donc pas de constructeur
+ * public et porte une marque : la seule façon de l'obtenir est la porte, qui
+ * exige les trois faits, donc un appelant ne peut plus passer la liaison et le
+ * sous-ensemble promu séparément.
+ *
+ * **Ce que la porte garantit : les trois faits voyagent ensemble.** Qui peut
+ * construire une valeur est une autre garantie, celle de la garde de frontière
+ * de ce module : aucune surface cliente n'atteint ni ce module ni son port de
+ * stockage, et le port de transaction passé au Catalogue n'expose qu'une
+ * confirmation de promotion (ADR-0004). Le Catalogue ne peut donc pas vérifier
+ * qu'une URL a été promue, et la valeur ne le prétend pas.
  */
 export class RevendicationImagesProduit {
   /** La Galerie produit dans l'ordre de l'Administration. */
@@ -177,10 +185,7 @@ export class RevendicationImagesProduit {
   readonly lier: LierBrouillonsImageProduit
   /**
    * La marque de la porte : elle rend la valeur non reproductible ailleurs,
-   * donc impossible à fabriquer à la main au lieu de passer par
-   * `creerRevendicationImagesProduit`. Le constructeur est privé, et cette
-   * propriété n'est attribuable qu'à cette classe — un objet écrit à la main,
-   * même complet, n'est donc pas une `RevendicationImagesProduit`.
+   * donc non reproductible sans passer par la porte.
    */
   private readonly porte: true
 
@@ -192,13 +197,13 @@ export class RevendicationImagesProduit {
   }
 
   /**
-   * La seule porte de construction : elle exige les trois faits ensemble — la
-   * Galerie ordonnée, le sous-ensemble promu et la liaison. Un objet
-   * `{ lier, promues }` écrit à la main n'est donc pas une revendication, et le
-   * compilateur le dit à la construction.
+   * La seule porte de construction : elle exige les trois faits, et la valeur
+   * qu'elle rend dit pourquoi.
    *
    * Elle est statique parce que le constructeur est privé : c'est cette porte,
-   * et elle seule, qui peut l'appeler.
+   * et elle seule, qui peut l'appeler. C'est aussi pour cela qu'elle reste dans
+   * la classe et n'a pas d'alias hors de lui — un second nom pour la même porte
+   * serait une seconde façon de l'annoncer, donc de la contourner.
    */
   static creer(
     faits: FaitsRevendicationImagesProduit
@@ -208,20 +213,12 @@ export class RevendicationImagesProduit {
 }
 
 /**
- * La porte, nommée comme la valeur qu'elle rend : c'est la seule façon d'obtenir
- * une `RevendicationImagesProduit`.
- */
-export const creerRevendicationImagesProduit = RevendicationImagesProduit.creer
-
-/**
  * La façon dont l'appelant écrit le Catalogue, une fois la revendication
  * décidée.
  *
- * **Elle reçoit la valeur, pas des faits à recomposer.** Le découpage de la
- * galerie, le réassemblage de l'ordre de l'éditeur et le sous-ensemble promu
- * sont faits ici, une fois pour toutes ; l'appelant n'a donc plus qu'une chose à
- * dire : voici comment le Catalogue s'écrit. Il forward la valeur telle quelle,
- * sans la relire, la compléter ni la refaire.
+ * **Elle reçoit la valeur, pas des faits à recomposer.** L'appelant n'a donc
+ * plus qu'une chose à dire : voici comment le Catalogue s'écrit. Il forward la
+ * valeur telle quelle, sans la relire, la compléter ni la refaire.
  *
  * **Elle rend le seul fait dont l'opération a besoin : l'identifiant du Produit
  * écrit.** Elle ne rend pas la valeur que sa mutation rend — la rangée, la
@@ -318,12 +315,7 @@ export interface CycleVieImageProduit {
    * possède cet ordre.** Elle rend la main à l'appelant sur un fait simple :
    * l'ordre dans lequel l'éditeur a arrangé sa galerie est l'ordre dans lequel
    * elle sera enregistrée, un Brouillon intercalé entre deux Images produit
-   * persistées atterrissant entre elles. Le découpage de la galerie en Images
-   * produit déjà persistées et Brouillons à revendiquer, le réassemblage de la
-   * liste ordonnée d'URL une fois les Brouillons promus, et le sous-ensemble
-   * promu qui autorise leur écriture sont écrits ici, dans ce module, et nulle
-   * part ailleurs : changer la façon dont une galerie s'enregistre est une
-   * seule édition.
+   * persistées atterrissant entre elles.
    *
    * **Une seule opération, pas deux.** Le cycle de vie n'apprend rien du
    * Catalogue : il ne le connaît pas, et il n'a pas à savoir si la mutation
@@ -1216,12 +1208,10 @@ export function creerCycleVieImageProduit(
 
     let enregistre: Awaited<ReturnType<EnregistrerCatalogue>>
     try {
-      // La valeur est tendue, pas expliquée : l'appelant forward la galerie
-      // qu'elle porte et la liaison qu'elle contient, sans rien recomposer. Le
-      // réassemblage est dans le même `try` que l'appel au Catalogue, pour que
-      // son hypothèse — une URL pour chaque Brouillon — reste couverte par la
-      // compensation comme le reste de ce chemin.
-      const revendication = creerRevendicationImagesProduit({
+      // Le réassemblage est dans le même `try` que l'appel au Catalogue, pour
+      // que son hypothèse — une URL pour chaque Brouillon — reste couverte par
+      // la compensation comme le reste de ce chemin.
+      const revendication = RevendicationImagesProduit.creer({
         galerie: galerieOrdonnee(
           input.galerie,
           new Map(promues.map((image) => [image.draftId, image.publicUrl]))

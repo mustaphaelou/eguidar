@@ -1,10 +1,12 @@
-import type {
-  BrouillonImageProduit,
-  CodeRefusRegistreBrouillon,
-  EntreeCreationBrouillonImageProduit,
-  PortRegistreBrouillonImageProduit,
-  ResultatRevendicationRegistre,
+import {
+  creerCycleVieImageProduit,
+  type BrouillonImageProduit,
+  type CodeRefusRegistreBrouillon,
+  type EntreeCreationBrouillonImageProduit,
+  type PortRegistreBrouillonImageProduit,
+  type ResultatRevendicationRegistre,
 } from "@/lib/cycle-vie-image-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type {
   CodeEchecStockage,
   PortStockageImageProduit,
@@ -348,4 +350,44 @@ export function creerHorlogeControllable(
       maintenant = new Date(date)
     },
   }
+}
+
+/**
+ * Les deux formes d'une entrée de la Galerie produit, telles que le formulaire
+ * les soumet. Ce sont des objets du module neutre, pas une déclaration seconde :
+ * l'opération prend ce que l'éditeur a soumis, et ces deux aides ne font que
+ * l'écrire plus lisiblement. Une suite qui a besoin d'autre chose — la
+ * pré-signature d'une demande réelle, par exemple — garde la sienne.
+ */
+export function persistee(url: string): EntreeImageProduit {
+  return { kind: "persistee", url }
+}
+
+export function brouillon(draftId: string): EntreeImageProduit {
+  return {
+    kind: "brouillon",
+    draftId,
+    previewUrl: `https://preview.test/${draftId}`,
+  }
+}
+
+/**
+ * Le cycle de vie complet, monté sur les trois adaptateurs en mémoire de ce
+ * module : le stockage, le registre et l'horloge. L'instant initial reste un
+ * fait de la suite — deux suites n'observent pas la même rétention depuis la
+ * même date — donc il se passe ici ; les pannes et les traces qu'une suite
+ * observe restent ensuite les siennes.
+ */
+export function creerCycleVieTest(dateInitiale: Date) {
+  const horloge = creerHorlogeControllable(dateInitiale)
+  const stockage = creerStockageImageProduitMemoire()
+  const registre = creerRegistreImageProduitMemoire(() =>
+    horloge.horloge.maintenant()
+  )
+  const cycleVie = creerCycleVieImageProduit({
+    stockage,
+    registre,
+    horloge: horloge.horloge,
+  })
+  return { cycleVie, horloge, stockage, registre }
 }

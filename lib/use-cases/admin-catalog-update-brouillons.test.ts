@@ -13,10 +13,9 @@ import {
 import {
   creerCycleVieImageProduit,
   creerRegistreBrouillonImageProduitPrisma,
-  creerRevendicationImagesProduit,
   type BrouillonImageProduitDemande,
   type CycleVieImageProduit,
-  type RevendicationImagesProduit,
+  RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
@@ -29,6 +28,7 @@ import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
   creerStockageImageProduitMemoire,
+  persistee,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const ownerId = randomUUID()
@@ -82,7 +82,7 @@ function effetsSilencieux() {
  * c'est la mise à jour, ci-dessous, qui observe la sienne.
  */
 function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
-  return creerRevendicationImagesProduit({
+  return RevendicationImagesProduit.creer({
     galerie: urls,
     promues: urls,
     lier: async () => undefined,
@@ -102,15 +102,11 @@ function variantesPersistees(
 }
 
 /**
- * La Galerie produit telle que le formulaire la soumet : une Image produit déjà
- * persistée, ou un Brouillon en cours d'envoi. Ce sont les objets du module
- * neutre — la suite n'en déclare pas une forme de secours, elle n'a plus à
- * recomposer l'ordre qu'ils portent.
+ * Un Brouillon en cours d'envoi, écrit depuis la demande réelle : cette suite
+ * mesure la promotion, donc sa pré-signature n'est pas une URL lisible mais la
+ * réponse du stockage. C'est ce qui distingue son aide de celle que partagent
+ * les autres suites.
  */
-function persistee(url: string): EntreeImageProduit {
-  return { kind: "persistee", url }
-}
-
 function brouillon(demande: BrouillonImageProduitDemande): EntreeImageProduit {
   return {
     kind: "brouillon",
@@ -532,7 +528,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
             variants: variantesPersistees(product),
           }),
           effects,
-          creerRevendicationImagesProduit({
+          RevendicationImagesProduit.creer({
             galerie: revendication.galerie,
             promues: revendication.promues,
             lier: async (productId, transaction) => {

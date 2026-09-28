@@ -1,55 +1,22 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
-  creerCycleVieImageProduit,
   type EnregistrerCatalogue,
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { SlugConflictError } from "@/lib/use-cases/admin-catalog"
 import {
-  creerHorlogeControllable,
-  creerRegistreImageProduitMemoire,
-  creerStockageImageProduitMemoire,
+  brouillon,
+  creerCycleVieTest,
+  persistee,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-01-15T10:00:00.000Z")
 
-/**
- * Les deux formes d'une entrée de la Galerie produit, telles que le formulaire
- * les soumet. Ce sont des objets du module neutre, pas une déclaration seconde :
- * l'opération prend ce que l'éditeur a Submité, et ces deux aides ne font que
- * l'écrire plus lisiblement.
- */
-function persistee(url: string): EntreeImageProduit {
-  return { kind: "persistee", url }
-}
-
-function brouillon(draftId: string): EntreeImageProduit {
-  return {
-    kind: "brouillon",
-    draftId,
-    previewUrl: `https://preview.test/${draftId}`,
-  }
-}
-
-function creerCycleVieTest() {
-  const horloge = creerHorlogeControllable(DATE_INITIALE)
-  const stockage = creerStockageImageProduitMemoire()
-  const registre = creerRegistreImageProduitMemoire(() =>
-    horloge.horloge.maintenant()
-  )
-  const cycleVie = creerCycleVieImageProduit({
-    stockage,
-    registre,
-    horloge: horloge.horloge,
-  })
-  return { cycleVie, horloge, stockage, registre }
-}
-
 describe("CycleVieImageProduit", () => {
   it("demande un Brouillon d'Image produit avec un identifiant opaque et des métadonnées durables", async () => {
-    const { cycleVie, stockage, horloge } = creerCycleVieTest()
+    const { cycleVie, stockage, horloge } = creerCycleVieTest(DATE_INITIALE)
 
     const resultat = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
@@ -92,7 +59,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("refuse un MIME non autorisé sans créer d'enregistrement", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
 
     const resultat = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
@@ -106,7 +73,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("refuse un fichier trop volumineux avant toute interaction R2", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
 
     const resultat = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
@@ -120,7 +87,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("enregistre le propriétaire et refuse une libération par un autre éditeur", async () => {
-    const { cycleVie, stockage } = creerCycleVieTest()
+    const { cycleVie, stockage } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/jpeg",
@@ -141,7 +108,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("conserve la date d'expiration et refuse une libération à la frontière", async () => {
-    const { cycleVie, horloge } = creerCycleVieTest()
+    const { cycleVie, horloge } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/avif",
@@ -163,7 +130,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("libère un Brouillon tant qu'il est vivant, jusqu'à la dernière milliseconde", async () => {
-    const { cycleVie, horloge, stockage } = creerCycleVieTest()
+    const { cycleVie, horloge, stockage } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/avif",
@@ -183,7 +150,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("laisse l'objet d'un Brouillon expiré à la seule règle de cycle de vie R2", async () => {
-    const { cycleVie, horloge, stockage } = creerCycleVieTest()
+    const { cycleVie, horloge, stockage } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/avif",
@@ -207,7 +174,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("revendique un Brouillon jusqu'à la frontière et refuse à l'instant exact de l'expiration", async () => {
-    const { cycleVie, horloge, stockage } = creerCycleVieTest()
+    const { cycleVie, horloge, stockage } = creerCycleVieTest(DATE_INITIALE)
     const premier = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/webp",
@@ -261,7 +228,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("revendique, promeut et lie un Brouillon dans l'enregistrement Catalogue", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/webp",
@@ -295,7 +262,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("à l'enregistrement réussi, ne confie que l'URL publique persistée et libère la source du Brouillon", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/webp",
@@ -333,7 +300,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("refuse une soumission sans identité de tentative, sans rien revendiquer", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/webp",
@@ -395,7 +362,7 @@ describe("CycleVieImageProduit", () => {
     // qu'il vit désormais : la Galerie produit est un fait ordonné de
     // l'Administration, et l'opération en possède l'ordre. Il n'est plus
     // énoncé dans une action serveur, qui n'a plus rien à composer.
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const premiereDemande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/jpeg",
@@ -475,7 +442,7 @@ describe("CycleVieImageProduit", () => {
     // sous-ensemble promu est vide, et ce que le Catalogue en fait reste sa
     // décision. Le refus d'une liste de Brouillons vide a disparu : il n'était
     // atteignable que parce qu'un appelant court-circuitait avant d'appeler.
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const urls = [
       "https://cdn.test/produits/une.webp",
       "https://cdn.test/produits/deux.webp",
@@ -517,7 +484,7 @@ describe("CycleVieImageProduit", () => {
     // de lui téléverser la moindre image. Rien à revendiquer, rien à promouvoir,
     // et l'opération écrit quand même le Catalogue — ce qui rend possible de créer
     // un Produit maintenant et de lui donner des images par une mise à jour.
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const vues: RevendicationImagesProduit[] = []
     let appels = 0
 
@@ -542,7 +509,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("une soumission rejouée sans identité ne prend pas un Brouillon qu'une tentative tient", async () => {
-    const { cycleVie, registre } = creerCycleVieTest()
+    const { cycleVie, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/avif",
@@ -591,7 +558,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("refuse un Brouillon absent ou appartenant à un autre éditeur", async () => {
-    const { cycleVie } = creerCycleVieTest()
+    const { cycleVie } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/jpeg",
@@ -615,7 +582,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("refuse un identifiant de Brouillon inconnu", async () => {
-    const { cycleVie } = creerCycleVieTest()
+    const { cycleVie } = creerCycleVieTest(DATE_INITIALE)
 
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
@@ -633,7 +600,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("laisse le Brouillon revendicable après un échec de promotion", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/png",
@@ -659,7 +626,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("compense un échec Catalogue et permet le retry avec la même URL", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/gif",
@@ -711,7 +678,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("remonte le message d'une erreur du Catalogue orientée utilisateur, compensation faite", async () => {
-    const { cycleVie, stockage, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/png",
@@ -749,7 +716,8 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("rend idempotent un retry de la même tentative", async () => {
-    const { cycleVie, stockage, horloge, registre } = creerCycleVieTest()
+    const { cycleVie, stockage, horloge, registre } =
+      creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/avif",
@@ -831,7 +799,7 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("résout en expiré une revendication dont la compensation n'a pas été écrite", async () => {
-    const { cycleVie, horloge, registre } = creerCycleVieTest()
+    const { cycleVie, horloge, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/webp",
@@ -876,7 +844,7 @@ describe("CycleVieImageProduit", () => {
     // directives ci-dessous sont le verrou : si l'interface réannonçait un
     // `result` ou une liste `images`, ces lectures compileraient, les
     // directives deviendraient inutiles et `tsc --noEmit` échouerait.
-    const { cycleVie, registre } = creerCycleVieTest()
+    const { cycleVie, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
       contentType: "image/webp",
