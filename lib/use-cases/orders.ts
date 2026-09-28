@@ -170,6 +170,8 @@ function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
   return result.data
 }
 
+// Ligne telle qu'elle est stockée : le Total à payer est un fait de la
+// Commande, jamais re-dérivé de `total + shippingFee` au moment de la lire.
 type OrderWithItems = {
   id: string
   cityName: string
@@ -177,6 +179,7 @@ type OrderWithItems = {
   phone: string
   total: number
   shippingFee: number
+  totalPayable: number
   items: {
     productName: string
     variantName: string
@@ -200,7 +203,7 @@ function toOrderEmailSnapshot(
     })),
     total: order.total,
     shippingFee: order.shippingFee,
-    totalPayable: totalPayable(order),
+    totalPayable: order.totalPayable,
     cityName: order.cityName,
     address: order.address,
     phone: order.phone,
