@@ -108,7 +108,8 @@ describe("registre durable des Brouillons d'Image produit", () => {
    * L'enregistrement du Catalogue tel que l'appelant l'écrit désormais : la
    * revendication est reçue, forwarded telle quelle, et la galerie portée est
    * celle qu'elle a rendue. L'URL de promotion, elle, n'est plus connue de
-   * l'appelant — il ne l'a pas demandée.
+   * l'appelant — il ne l'a pas demandée. Il ne rend que l'identifiant du
+   * Produit écrit : la rangée se relit dans la base, comme partout ailleurs.
    */
   async function enregistrerProduit(revendication: RevendicationImagesProduit) {
     const product = await createProduct(
@@ -119,7 +120,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
       },
       revendication
     )
-    return { productId: product.id, result: product }
+    return { productId: product.id }
   }
 
   /** La galerie d'un seul Brouillon, telle que le formulaire la soumet. */
@@ -333,17 +334,24 @@ describe("registre durable des Brouillons d'Image produit", () => {
       tentativeId: "tentative-produit-a",
       ownerId,
       galerie: galerie(demande),
-      resultatDejaPersiste: (productId) =>
-        prisma.product.findUniqueOrThrow({ where: { id: productId } }),
+      // La relecture ne rend rien : elle échoue si le commit est introuvable,
+      // et c'est tout ce qu'elle a à prouver.
+      resultatDejaPersiste: async (productId) => {
+        await prisma.product.findUniqueOrThrow({ where: { id: productId } })
+      },
       enregistrer: async () => {
         throw new Error("Le retry ne doit pas créer un second Produit")
       },
     })
-    expect(retry).toMatchObject({
-      ok: true,
-      productId: premier.productId,
-      images: premier.images,
-    })
+    expect(retry).toEqual({ ok: true, productId: premier.productId })
+    // La galerie enregistrée se lit dans la rangée, comme partout ailleurs
+    // dans cette suite : c'est la preuve que le retry a résolu le même Produit,
+    // et non un rendu de plus à côté.
+    expect(
+      await prisma.product.findUniqueOrThrow({
+        where: { id: premier.productId },
+      })
+    ).toMatchObject({ images: [`memoire://image/${demande.draftId}`] })
 
     let produitBAppele = false
     const second = await cycleVie.revendiquerEtEnregistrer({
@@ -376,17 +384,14 @@ describe("registre durable des Brouillons d'Image produit", () => {
       tentativeId: "tentative-produit-a",
       ownerId,
       galerie: galerie(demande),
-      resultatDejaPersiste: (productId) =>
-        prisma.product.findUniqueOrThrow({ where: { id: productId } }),
+      resultatDejaPersiste: async (productId) => {
+        await prisma.product.findUniqueOrThrow({ where: { id: productId } })
+      },
       enregistrer: async () => {
         throw new Error("Le retry expiré ne doit pas créer un second Produit")
       },
     })
-    expect(apresExpiration).toMatchObject({
-      ok: true,
-      productId: premier.productId,
-      images: premier.images,
-    })
+    expect(apresExpiration).toEqual({ ok: true, productId: premier.productId })
     expect(
       await prisma.product.findUniqueOrThrow({
         where: { id: premier.productId },
@@ -580,7 +585,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
             },
           })
         )
-        return { productId: "inutilisé", result: null }
+        return { productId: "inutilisé" }
       },
     })
 

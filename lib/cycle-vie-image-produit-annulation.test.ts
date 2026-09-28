@@ -88,7 +88,7 @@ describe("abandon d'une édition d'un Produit", () => {
       enregistrer: async (revendication) => {
         await revendication.lier(produit.id)
         produit.images = [...revendication.galerie]
-        return { productId: produit.id, result: null }
+        return { productId: produit.id }
       },
     })
     if (!enregistrement.ok) {

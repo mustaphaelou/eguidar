@@ -115,7 +115,13 @@ export type ResultatDemandeBrouillonImageProduit =
 export type ResultatRelacherBrouillonImageProduit =
   { ok: true; draftId: string } | RefusCycleVieImageProduit
 
-export interface ImageProduitPromue {
+/**
+ * L'URL publique qu'une promotion a produite, et le Brouillon dont elle
+ * vient. Elle ne sort plus de ce module : le résultat de l'opération ne rend
+ * plus la liste des Images produit promues (ticket #458), et aucun appelant de
+ * production ne l'a jamais lue.
+ */
+interface ImageProduitPromue {
   draftId: string
   publicUrl: string
 }
@@ -207,11 +213,6 @@ export class RevendicationImagesProduit {
  */
 export const creerRevendicationImagesProduit = RevendicationImagesProduit.creer
 
-export interface ResultatEnregistrementCatalogue<TResult> {
-  productId: string
-  result: TResult
-}
-
 /**
  * La façon dont l'appelant écrit le Catalogue, une fois la revendication
  * décidée.
@@ -221,19 +222,34 @@ export interface ResultatEnregistrementCatalogue<TResult> {
  * sont faits ici, une fois pour toutes ; l'appelant n'a donc plus qu'une chose à
  * dire : voici comment le Catalogue s'écrit. Il forward la valeur telle quelle,
  * sans la relire, la compléter ni la refaire.
+ *
+ * **Elle rend le seul fait dont l'opération a besoin : l'identifiant du Produit
+ * écrit.** Elle ne rend pas la valeur que sa mutation rend — la rangée, la
+ * projection, ce que l'appelant voudra — parce que le cycle de vie n'en lit
+ * aucune. Un résultat générique instancié `unknown` aux deux sites d'appel et
+ * jeté aux deux n'annonçait qu'une lecture qui n'avait lieu nulle part. Une
+ * valeur nommée plutôt qu'une chaîne nue, parce que le fait rendu est un
+ * *Produit enregistré* et non un identifiant : si l'écriture demande un jour le
+ * nom de l'URL de sa page, la forme s'y prêtera sans que l'interface change
+ * encore.
  */
-export type EnregistrerCatalogue<TResult> = (
+export type EnregistrerCatalogue = (
   revendication: RevendicationImagesProduit
-) => Promise<ResultatEnregistrementCatalogue<TResult>>
+) => Promise<{ productId: string }>
 
-export type ResultatRevendiquerEtEnregistrer<TResult> =
-  | {
-      ok: true
-      productId: string
-      result: TResult
-      images: readonly ImageProduitPromue[]
-    }
-  | RefusCycleVieImageProduit
+/**
+ * Ce que l'appelant reçoit de l'opération : un fait — le Produit écrit, par
+ * son identifiant — ou un refus. Rien d'autre.
+ *
+ * **La Galerie produit enregistrée ne se rend pas ici.** Elle est écrite, et se
+ * lit dans la rangée du Catalogue ; l'état d'un Brouillon se lit dans le
+ * registre. Les rendre dans le résultat les ferait annoncer par l'opération
+ * une vérité qu'elle ne connaît qu'après l'écriture, à quelqu'un qui la lit
+ * déjà à sa source — et ferait de ce rendu une deuxième déclaration de ce qui
+ * est déjà durable.
+ */
+export type ResultatRevendiquerEtEnregistrer =
+  { ok: true; productId: string } | RefusCycleVieImageProduit
 
 export interface Horloge {
   maintenant(): Date
@@ -322,15 +338,28 @@ export interface CycleVieImageProduit {
    * ce qu'il accepte d'en écrire. Une telle galerie est un cas légal, jamais un
    * refus — et une opération de plus qui mériterait son propre chemin n'existe
    * plus, donc plus rien à se souvenir d'appeler d'abord.
+   *
+   * **Elle rend un fait et un refus, rien de plus.** L'appelant a besoin de
+   * savoir quel Produit a été écrit, pour le rediriger vers lui ; il n'a besoin
+   * de rien d'autre, et l'opération n'a rien d'autre à dire. Un résultat qu'il
+   * jetterait, une liste d'Images promues qu'il ne lirait pas, seraient une
+   * interface qui annonce des lectures à venir — et une obligation de les
+   * garder justes.
    */
-  revendiquerEtEnregistrer<TResult>(input: {
+  revendiquerEtEnregistrer(input: {
     tentativeId: string
     ownerId: string
     /** La Galerie produit soumise, entière, dans l'ordre de l'éditeur. */
     galerie: readonly EntreeImageProduit[]
-    enregistrer: EnregistrerCatalogue<TResult>
-    resultatDejaPersiste?: (productId: string) => Promise<TResult>
-  }): Promise<ResultatRevendiquerEtEnregistrer<TResult>>
+    enregistrer: EnregistrerCatalogue
+    /**
+     * La relecture du commit déjà durable, qu'un retry de la même tentative
+     * fournit. Elle ne rend rien : elle échoue si le commit n'existe pas, et
+     * c'est de là que vient le refus « catalogue-refuse » de ce chemin. Elle
+     * n'est jamais lue, donc elle ne rend pas davantage.
+     */
+    resultatDejaPersiste?: (productId: string) => Promise<void>
+  }): Promise<ResultatRevendiquerEtEnregistrer>
   lireBrouillon(id: string): Promise<BrouillonImageProduit | null>
 }
 
@@ -990,13 +1019,13 @@ export function creerCycleVieImageProduit(
     return { ok: true, draftId: draft.id }
   }
 
-  async function revendiquerEtEnregistrer<TResult>(input: {
+  async function revendiquerEtEnregistrer(input: {
     tentativeId: string
     ownerId: string
     galerie: readonly EntreeImageProduit[]
-    enregistrer: EnregistrerCatalogue<TResult>
-    resultatDejaPersiste?: (productId: string) => Promise<TResult>
-  }): Promise<ResultatRevendiquerEtEnregistrer<TResult>> {
+    enregistrer: EnregistrerCatalogue
+    resultatDejaPersiste?: (productId: string) => Promise<void>
+  }): Promise<ResultatRevendiquerEtEnregistrer> {
     const tentativeId = input.tentativeId.trim()
     const ownerId = input.ownerId.trim()
     if (!tentativeId || !ownerId) {
@@ -1077,19 +1106,13 @@ export function creerCycleVieImageProduit(
       if (input.resultatDejaPersiste) {
         const productId = [...productIds][0]
         try {
-          const result = await input.resultatDejaPersiste(productId)
+          // La relecture ne rend rien : ce qu'elle prouve, c'est que le commit
+          // existe, et son échec est le refus d'après.
+          await input.resultatDejaPersiste(productId)
           // Le commit est déjà durable (les Brouillons sont liés) : on
           // profite du retry pour achever une libération best-effort manquée.
           await libererSources()
-          return {
-            ok: true,
-            productId,
-            result,
-            images: brouillonsLies.map((draft) => ({
-              draftId: draft.id,
-              publicUrl: draft.promotedPublicUrl,
-            })),
-          }
+          return { ok: true, productId }
         } catch {
           return refus(
             "catalogue-refuse",
@@ -1191,7 +1214,7 @@ export function creerCycleVieImageProduit(
       }
     }
 
-    let enregistre: ResultatEnregistrementCatalogue<TResult>
+    let enregistre: Awaited<ReturnType<EnregistrerCatalogue>>
     try {
       // La valeur est tendue, pas expliquée : l'appelant forward la galerie
       // qu'elle porte et la liaison qu'elle contient, sans rien recomposer. Le
@@ -1228,12 +1251,11 @@ export function creerCycleVieImageProduit(
     // une compensation (cf. `libererSources`).
     await libererSources()
 
-    return {
-      ok: true,
-      productId: enregistre.productId,
-      result: enregistre.result,
-      images: promues,
-    }
+    // Le seul fait rendu est le Produit écrit. La galerie enregistrée se lit
+    // dans la rangée du Catalogue et l'état des Brouillons dans le registre :
+    // les rendre ici ferait dire deux fois la même chose, par une opération qui
+    // ne les a pas lues à leur source.
+    return { ok: true, productId: enregistre.productId }
   }
 
   return {
