@@ -98,4 +98,12 @@ Aucun gestionnaire de dechargement n'est donc ajoute. Un tel gestionnaire appell
 
 Le cout de ce choix est explicite : un **Brouillon d'Image produit** abandonne occupe son prefixe reserve jusqu'a la retention, et pas une seconde de plus. La reclamation est donc au pire d'une retention, ce que la fenetre de reessai du formulaire rend supportable.
 
+## Amendement : la limite d'Images produit appartient au Catalogue
+
+La liste « Ce qui ne change pas » disait « la limite de huit images par **Produit** », sans dire qui l'applique. Pendant l'edition, personne ne l'appliquait : la limite existait comme une borne d'affichage — la constante du composant qui rend la galerie, un compteur, un bouton desactive quand elle etait atteinte. Une soumission qui la depassait, rejouee ou portee par un client qui ignore cette borne, etait donc ecrite sans discussion.
+
+La limite est un fait du domaine : **un Produit porte au plus huit Images produit**. Elle est appliquee par la validation d'entree du **Catalogue**, donc comme les autres regles de son entree. Le refus est celui du Catalogue, avec la meme forme de message qu'un autre champ invalide, et l'editeur le recoit par le formulaire comme n'importe quel refus de validation d'un champ. Une galerie a la limite reste acceptee : la regle refuse un depassement, elle n'impose aucune image. Aucun schema ne change, aucune migration n'est necessaire — la regle porte sur une valeur que le **Catalogue** ecrit deja.
+
+Ce qui decide de l'acceptation ou du refus reste donc le serveur, seul. Le composant qui rend la galerie garde sa propre constante pour son compteur, inchangee : ce n'est pas un doublon mais deux faits differents — une borne de saisie d'un cote, une regle de domaine de l'autre — lus par deux modules qui ne se partagent aucun graphe d'import. Aucun nom n'est partage entre un module serveur et un module de rendu client, et il n'en faut pas : la regle ne peut pas vivre dans le module neutre du langage du formulaire sans en affaiblir la neutralite, et le **Catalogue** ne peut pas etre atteint par un module client. L'autorite du serveur est la part qui corrige quelque chose ; le nom commun serait une decision de nomenclature. Si les deux bornes finissent par diverger, le renommage est un travail a part, et la divergence est deja sans consequence : le serveur tranche, et l'editeur voit le refus.
+
 

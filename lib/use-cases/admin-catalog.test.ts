@@ -53,6 +53,19 @@ function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
 
 let categoryId: string
 
+/**
+ * Une galerie de `nombre` URL d'Images produit, dans l'ordre de soumission.
+ * Le nombre est écrit en clair et non lu dans la borne du Catalogue : une
+ * suite qui construit la limite avec la limite ne peut pas prouver que la
+ * limite est la bonne.
+ */
+function galerie(nombre: number): string[] {
+  return Array.from(
+    { length: nombre },
+    (_inutilise, index) => `https://cdn.example.com/limite-${index + 1}.jpg`
+  )
+}
+
 describe("admin catalog mutations", () => {
   beforeAll(async () => {
     const category = await prisma.category.create({
@@ -496,6 +509,76 @@ describe("admin catalog mutations", () => {
       where: { id: product.id },
     })
     expect(persisted.images).toEqual(["https://cdn.example.com/owned.jpg"])
+  })
+
+  it("refuse une galerie au-delà de la limite d'Images produit", async () => {
+    // La limite est un fait du Catalogue : il la refuse à l'entrée, donc une
+    // soumission qui la dépasse est refusée avant qu'un Produit n'existe, et
+    // avec le message de validation du Catalogue — la même forme qu'un autre
+    // champ invalide.
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(makeInput({ slug: slug("img-limite"), images: galerie(9) }))
+    )
+    expect(refus.message).toBe(
+      "Données invalides : au maximum 8 images par produit"
+    )
+    const ecrits = await prisma.product.count({
+      where: { slug: slug("img-limite") },
+    })
+    expect(ecrits).toBe(0)
+  })
+
+  it("accepte une galerie à la limite d'Images produit", async () => {
+    const images = galerie(8)
+    const product = await createProduct(
+      makeInput({ slug: slug("img-limite-pile"), images })
+    )
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(persisted.images).toEqual(images)
+  })
+
+  it("refuse une galerie au-delà de la limite et laisse la galerie enregistrée", async () => {
+    const enregistree = "https://cdn.example.com/deja-enregistree.jpg"
+    const product = await createProduct(
+      makeInput({ slug: slug("img-limite-maj"), images: [enregistree] })
+    )
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const deleteImages = vi.fn(async () => {})
+
+    // Les neuf URL soumises sont aussi des URL étrangères au Produit : c'est
+    // donc le message de la limite, et non celui de la propriété d'une Image
+    // produit, qui doit être rendu — la validation d'entrée tranche avant la
+    // comparaison des images. Et l'Image produit déjà enregistrée reste la
+    // sienne : un enregistrement refusé n'a rien supprimé.
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      updateProduct(
+        product.id,
+        makeInput({
+          slug: slug("img-limite-maj"),
+          images: galerie(9),
+          variants,
+        }),
+        { deleteImages }
+      )
+    )
+    expect(refus.message).toBe(
+      "Données invalides : au maximum 8 images par produit"
+    )
+    expect(deleteImages).not.toHaveBeenCalled()
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(persisted.images).toEqual([enregistree])
   })
 
   it("ne traite pas une URL promue comme une Image produit supprimée", async () => {

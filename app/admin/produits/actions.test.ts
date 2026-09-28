@@ -364,4 +364,42 @@ describe("updateProductAction", () => {
     })
     expect(updateProductMock).not.toHaveBeenCalled()
   })
+
+  it("remonte le refus de la limite d'Images produit comme un refus de champ", async () => {
+    // La lecture de la soumission ne refuse pas une galerie trop grande : elle
+    // rend une galerie valide, et la limite est une règle du Catalogue. Donc
+    // l'action atteint la mutation, qui refuse — et ce refus est rendu à
+    // l'éditeur comme n'importe quel refus de validation d'un champ.
+    const galerieAuDelaDeLaLimite = Array.from({ length: 9 }, (_vide, i) => ({
+      kind: "persistee" as const,
+      url: `https://cdn.test/p/${i + 1}.webp`,
+    }))
+    updateProductMock.mockRejectedValue(
+      new CatalogValidationError(["au maximum 8 images par produit"])
+    )
+
+    const resultat = await updateProductAction(
+      {},
+      updateFormData(galerieAuDelaDeLaLimite)
+    )
+
+    expect(updateProductMock).toHaveBeenCalledWith(
+      "produit-1",
+      expect.objectContaining({
+        images: galerieAuDelaDeLaLimite.map((image) => image.url),
+      })
+    )
+    expect(resultat).toEqual({
+      error: "Données invalides : au maximum 8 images par produit",
+    })
+
+    // Comparaison, pas littéral : un refus de lecture de soumission et un refus
+    // du Catalogue rendent le même état de formulaire, et c'est ce chemin-là
+    // que l'éditeur voit dans les deux cas.
+    const soumissionIllisible = updateFormData([])
+    soumissionIllisible.set("price", "abc")
+    const refusDeChamp = await updateProductAction({}, soumissionIllisible)
+    expect(Object.keys(refusDeChamp)).toEqual(Object.keys(resultat))
+    expect(refusDeChamp).toEqual({ error: "Formulaire invalide" })
+  })
 })
