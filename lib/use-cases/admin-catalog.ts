@@ -38,15 +38,17 @@
  * ne projette, ni ne sait que ces colonnes sont du JSON : la couture
  * est ici, d'un seul côté, comme elle l'est côté Boutique.
  *
- * Deux règles que ce module tient et qu'aucun appelant ne doit
+ * Trois règles que ce module tient et qu'aucun appelant ne doit
  * redécider : un Produit **sans Variante est légal** — le prix minimal
  * retombe alors sur le prix de base, et le tableau de Variantes peut
  * être vide — ; l'écart de prix reste un fait de stockage et
  * d'Administration, jamais une entrée d'affichage de la Boutique
- * (ADR-0013). Le Document d'index garde ses propres faits de
- * recherche (ADR-0013) et le module Carte produit garde sa propre
- * normalisation et son invariant sans import (ADR-0022) : cette
- * interface ne les rouvre pas.
+ * (ADR-0013) ; un Produit porte **au plus huit Images produit**, et
+ * cette borne est appliquée ici, dans la validation d'entrée, donc
+ * opposable à toute soumission (ADR-0004). Le Document d'index garde
+ * ses propres faits de recherche (ADR-0013) et le module Carte produit
+ * garde sa propre normalisation et son invariant sans import
+ * (ADR-0022) : cette interface ne les rouvre pas.
  */
 
 import { z } from "zod"
@@ -200,6 +202,24 @@ const variantInputSchema = z.object({
   stock: z.number().int().min(0, "le stock doit être positif ou nul"),
 })
 
+/**
+ * La limite d'Images produit d'un Produit : huit.
+ *
+ * C'est un fait du domaine, appliqué par la validation d'entrée de ce module
+ * comme les autres règles de son entrée — donc opposable à toute soumission,
+ * y compris une soumission rejouée ou portée par un client qui ignore la borne.
+ * Le refus est alors celui du Catalogue, avec la même forme de message qu'un
+ * autre champ invalide, et l'éditeur le reçoit par le formulaire comme tel
+ * (ADR-0004).
+ *
+ * Le composant qui rend la galerie garde sa propre constante pour son
+ * compteur : ce n'est pas un doublon mais deux côtés de la couture — un fait
+ * de saisie d'un côté, un fait de domaine appliqué de l'autre — et aucun nom
+ * n'est partagé entre un module serveur et un module de rendu client
+ * (ADR-0004).
+ */
+const LIMITE_IMAGES_PRODUIT = 8
+
 const productInputSchema = z.object({
   name: z.string().min(1, "nom requis"),
   slug: z
@@ -214,7 +234,12 @@ const productInputSchema = z.object({
   categoryId: z.string().min(1, "catégorie requise"),
   price: z.number().int().min(0, "le prix doit être positif ou nul"),
   specs: z.record(z.string(), z.string()),
-  images: z.array(z.string()),
+  images: z
+    .array(z.string())
+    .max(
+      LIMITE_IMAGES_PRODUIT,
+      `au maximum ${LIMITE_IMAGES_PRODUIT} images par produit`
+    ),
   isFeatured: z.boolean(),
   featuredOrder: z.number().int().min(0),
   freeShipping: z.boolean(),
