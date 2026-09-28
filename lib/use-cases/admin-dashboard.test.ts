@@ -55,12 +55,9 @@ async function createSeedOrderAt(
   createdAt: Date,
   total: number,
   shippingFee: number,
-  // Le Total à payer stocké. Il vaut la somme par défaut : toutes les
-  // fixtures ordinaires sont auto-cohérentes, comme l'est toute Commande
-  // qu'un chemin de production peut écrire. Une fixture qui passe autre
-  // chose est une Commande qu'aucun chemin de production ne peut produire,
-  // et c'est pour cela qu'elle distingue une lecture d'un recalcul.
-  totalPayableStocké: number = total + shippingFee
+  // Le Total à payer réellement stocké, énoncé par chaque fixture et jamais
+  // redérivé ici. Voir ADR-0009 et ADR-0021.
+  totalPayableStocké: number
 ): Promise<string> {
   const order = await prisma.order.create({
     data: {
@@ -300,20 +297,39 @@ describe("admin dashboard stats", () => {
           12
         )
 
-      await createSeedOrderAt("delivered", localMidMonth(7, 15), 12000, 800)
-      await createSeedOrderAt("delivered", localMidMonth(3, 15), 5000, 250)
+      await createSeedOrderAt(
+        "delivered",
+        localMidMonth(7, 15),
+        12000,
+        800,
+        12800
+      )
+      await createSeedOrderAt(
+        "delivered",
+        localMidMonth(3, 15),
+        5000,
+        250,
+        5250
+      )
       await createSeedOrderAt(
         "delivered",
         new Date(
           Math.min(currentMonthStart.getTime() + 5 * 60_000, Date.now() - 1_000)
         ),
         9999,
-        1
+        1,
+        10000
       )
-      await createSeedOrderAt("shipped", localMidMonth(6, 15), 7000, 300)
-      await createSeedOrderAt("cancelled", localMidMonth(6, 16), 4444, 44)
-      await createSeedOrderAt("returned", localMidMonth(2, 15), 3600, 400)
-      await createSeedOrderAt("delivered", localMidMonth(13, 15), 8888, 888)
+      await createSeedOrderAt("shipped", localMidMonth(6, 15), 7000, 300, 7300)
+      await createSeedOrderAt("cancelled", localMidMonth(6, 16), 4444, 44, 4488)
+      await createSeedOrderAt("returned", localMidMonth(2, 15), 3600, 400, 4000)
+      await createSeedOrderAt(
+        "delivered",
+        localMidMonth(13, 15),
+        8888,
+        888,
+        9776
+      )
 
       const stats = await getDashboardStats()
 

@@ -89,21 +89,26 @@ Le reste de la décision tient :
 - aucune écriture ne touche `totalPayable` après la création d'une Commande.
 
 Les deux mentions de `money.totalPayable({ total, shippingFee })` — celle du
-corps de la décision et celle de l'amendement #341 — sont périmées sur le nom,
-non sur le rôle. Le site d'écriture reste la seule création de Commande ; il
-passe désormais par `totalAPayerDeLaCommande`, **non exportée**, dans
-`lib/use-cases/orders.ts`. Ce n'est plus « la règle canonique, à un site
-unique » mais « la règle inatteignable par import » : aucun site d'affichage,
-aucun module et aucun test ne peut l'atteindre par `import`, et c'est
-l'absence d'export qui l'assure. `lib/money.ts` ne tient plus que le
-formatage d'affichage et l'encodage de transport.
+corps de la décision et celle de l'amendement #341 — sont périmées sur le nom
+**et** sur le cadrage ; ADR-0009 traite le même symbole mort en le déclarant
+périmé sans réserve. Le corps ne se contente pas de nommer une règle qui
+n'existe plus : il affirme « the shipped money rule keeps its single
+arithmetic site », et `lib/money.ts` ne tient plus aucune arithmétique —
+seulement le formatage d'affichage et l'encodage de transport. Il n'y a plus
+de règle d'argent livrée, donc plus de site unique à tenir. Ce qui survit,
+c'est le site d'écriture, la seule création de Commande ; il passe désormais
+par `totalAPayerDeLaCommande`, **non exportée**, dans
+`lib/use-cases/orders.ts` : l'arithmétique vit à côté du site qui l'écrit, et
+l'absence d'export est ce qui l'assure — aucun site d'affichage, aucun module
+et aucun test ne peut l'atteindre par `import`.
 
 La règle est vérifiable, pas seulement affirmée. Deux gardes la portent,
 chacune sur une Commande dont le Total à payer stocké ne vaut pas son
 Sous-total plus ses Frais de livraison — la seule fixture qui distingue la
 lecture de la colonne d'un recalcul :
 
-- `lib/use-cases/admin-dashboard.test.ts` : les deux fenêtres, les seaux
-  mensuels et les Commandes récentes ;
+- `lib/use-cases/admin-dashboard.test.ts` : le Chiffre d'affaires encaissé des
+  30 derniers jours, le seau du mois et la Commande récente rapportent la
+  valeur stockée ;
 - `lib/use-cases/orders.test.ts` : le snapshot d'e-mail de la commande, à la
   couture des effets injectés.
