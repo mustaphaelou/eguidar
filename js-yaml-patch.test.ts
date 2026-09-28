@@ -43,7 +43,9 @@ function installedJsYamlVersion(): string | null {
 
 function emptyMergeSources(n: number, k: number): string {
   return (
-    "arr: &arr [" + "{}, ".repeat(n).slice(0, -2) + "]\n" +
+    "arr: &arr [" +
+    "{}, ".repeat(n).slice(0, -2) +
+    "]\n" +
     "targets:\n" +
     "  - <<: *arr\n".repeat(k)
   )

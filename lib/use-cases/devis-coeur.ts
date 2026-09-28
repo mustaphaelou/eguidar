@@ -145,7 +145,10 @@ function lignesDevis(
 /**
  * Cas validé de la Sélection du Devis (ville + devis).
  */
-export type ValidatedSelectionDevis = Extract<SelectionDevis, { cas: "validée" }>
+export type ValidatedSelectionDevis = Extract<
+  SelectionDevis,
+  { cas: "validée" }
+>
 
 /**
  * Rétrécissement de prise en commande : rend la Sélection validée
@@ -212,4 +215,3 @@ export function projeterDevis(
     villeId: selection.cas === "validée" ? selection.ville.id : null,
   }
 }
-

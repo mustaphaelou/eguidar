@@ -405,9 +405,9 @@ describe("ajouterArticleAuPanier — aller-retour écriture-puis-lecture", () =>
     await expect(
       modifierQuantiteArticlePanier(variantStandard, 2)
     ).resolves.toMatchObject({ ok: false, motif: "article-inconnu" })
-    await expect(retirerArticleDuPanier(variantStandard)).resolves.toMatchObject(
-      { ok: false, motif: "article-inconnu" }
-    )
+    await expect(
+      retirerArticleDuPanier(variantStandard)
+    ).resolves.toMatchObject({ ok: false, motif: "article-inconnu" })
 
     commeClient(userIdA)
     const panier = await lirePanier()
@@ -503,14 +503,14 @@ describe("refus — résultat auto-descriptif sans toucher le Panier", () => {
       message:
         "Quantité invalide : la quantité doit être un entier d'au moins 1.",
     })
-    await expect(
-      ajouterArticleAuPanier(variantStandard, 1.5)
-    ).resolves.toEqual({
-      ok: false,
-      motif: "quantite-invalide",
-      message:
-        "Quantité invalide : la quantité doit être un entier d'au moins 1.",
-    })
+    await expect(ajouterArticleAuPanier(variantStandard, 1.5)).resolves.toEqual(
+      {
+        ok: false,
+        motif: "quantite-invalide",
+        message:
+          "Quantité invalide : la quantité doit être un entier d'au moins 1.",
+      }
+    )
 
     commeVisiteur()
     await ajouterArticleAuPanier(variantStandard, 2)
@@ -581,9 +581,7 @@ describe("refus — résultat auto-descriptif sans toucher le Panier", () => {
       motif: "article-inconnu",
       message: "Cet article est introuvable dans votre panier.",
     })
-    await expect(
-      retirerArticleDuPanier("variante-fantome")
-    ).resolves.toEqual({
+    await expect(retirerArticleDuPanier("variante-fantome")).resolves.toEqual({
       ok: false,
       motif: "article-inconnu",
       message: "Cet article est introuvable dans votre panier.",

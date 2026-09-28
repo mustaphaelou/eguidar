@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  aDesSectionsArticle,
-  decoupeContenuArticle,
-} from "@/lib/blog-contenu"
+import { aDesSectionsArticle, decoupeContenuArticle } from "@/lib/blog-contenu"
 
 describe("decoupeContenuArticle", () => {
   it("rend le plaintext sans sections en un seul paragraphe", () => {
@@ -26,15 +23,11 @@ describe("decoupeContenuArticle", () => {
       { type: "titre-section", texte: "Choisir son écran" },
       { type: "paragraphe", texte: "Un paragraphe de conseils." },
     ])
-    expect(
-      aDesSectionsArticle("Intro.\n\n## Choisir son écran")
-    ).toBe(true)
+    expect(aDesSectionsArticle("Intro.\n\n## Choisir son écran")).toBe(true)
   })
 
   it("ignore les marqueurs ## vides et garde la sécurité plaintext", () => {
-    const blocs = decoupeContenuArticle(
-      "## \n\n<script>alert(1)</script>"
-    )
+    const blocs = decoupeContenuArticle("## \n\n<script>alert(1)</script>")
     expect(blocs).toEqual([
       { type: "paragraphe", texte: "<script>alert(1)</script>" },
     ])

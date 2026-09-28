@@ -46,8 +46,7 @@ async function traiterAvecRejou(
     const session = await auth.api.getSession({
       headers: fusionnerCookies(requete.headers, reponse),
     })
-    if (session?.user)
-      await rejouerPanierVisiteur(session.user.id)
+    if (session?.user) await rejouerPanierVisiteur(session.user.id)
   } catch {
     // Le rejou du Panier Visiteur ne doit jamais bloquer l'authentification.
   }

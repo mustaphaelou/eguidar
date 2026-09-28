@@ -61,7 +61,9 @@ describe("CityPicker", () => {
   })
 
   it("affiche un nom accentué sans son identifiant", () => {
-    render(<CityPicker cities={CITIES} selectedId={KENITRA_ID} path="/panier" />)
+    render(
+      <CityPicker cities={CITIES} selectedId={KENITRA_ID} path="/panier" />
+    )
 
     expect(trigger().textContent).toBe("Kénitra")
     expect(trigger().textContent).not.toContain(KENITRA_ID)
@@ -94,7 +96,7 @@ describe("CityPicker", () => {
       trigger().click()
     })
     const items = document.querySelectorAll<HTMLElement>(
-      '[data-slot="select-item"]',
+      '[data-slot="select-item"]'
     )
     await act(async () => {
       items[1]!.click()
@@ -102,7 +104,7 @@ describe("CityPicker", () => {
 
     expect(navigationSpies.push).toHaveBeenCalledWith(
       "/panier?ville=kenitra",
-      undefined,
+      undefined
     )
     expect(navigationSpies.push.mock.calls[0]?.[0]).not.toContain(KENITRA_ID)
   })

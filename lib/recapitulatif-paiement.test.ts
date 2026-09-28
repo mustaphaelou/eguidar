@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import { formatPrice } from "./money"
-import { type RécapitulatifRow, récapitulatifRowsFromCommande } from "./recapitulatif-paiement"
+import {
+  type RécapitulatifRow,
+  récapitulatifRowsFromCommande,
+} from "./recapitulatif-paiement"
 import { projeterDevis } from "./use-cases/devis"
 
 describe("récapitulatifRowsFromCommande", () => {
@@ -90,7 +93,12 @@ describe("récapitulatifRowsFromCommande", () => {
   })
 
   it("rejects retired spellings through the Devis and Commande entries", () => {
-    const casa = { id: "casa", slug: "casablanca", name: "Casablanca", fee: 2000 }
+    const casa = {
+      id: "casa",
+      slug: "casablanca",
+      name: "Casablanca",
+      fee: 2000,
+    }
     const fes = { id: "fes", slug: "fes", name: "Fès", fee: 2000 }
     const rowsList = [
       projeterDevis(

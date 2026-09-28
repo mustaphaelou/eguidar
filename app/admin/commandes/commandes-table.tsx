@@ -37,10 +37,7 @@ import {
 import { formatPrice } from "@/lib/money"
 import { ORDER_STATUS_LABELS, STATUTS_VALIDES } from "@/lib/statut-de-commande"
 import { shortOrderId } from "@/lib/utils"
-import type {
-  AdminOrdersPage,
-  AdminOrderSummary,
-} from "@/lib/use-cases/orders"
+import type { AdminOrdersPage, AdminOrderSummary } from "@/lib/use-cases/orders"
 
 import { useCommandeListing } from "./use-commande-listing"
 

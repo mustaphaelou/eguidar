@@ -66,12 +66,16 @@ function Probe() {
 
 const CITY_ID = "cmsp6pvbu000052p6o2m9o8zw"
 
-function profileHarness({ initialCityId = "" }: { initialCityId?: string } = {}) {
+function profileHarness({
+  initialCityId = "",
+}: { initialCityId?: string } = {}) {
   return (
     <AuthDialogsProvider>
       <Probe />
       <ProfileForm
-        cities={[{ id: CITY_ID, slug: "casablanca", name: "Casablanca", fee: 2500 }]}
+        cities={[
+          { id: CITY_ID, slug: "casablanca", name: "Casablanca", fee: 2500 },
+        ]}
         initialCityId={initialCityId}
         initialAddress=""
         initialPhone=""

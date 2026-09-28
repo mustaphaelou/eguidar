@@ -5,7 +5,10 @@ import { captcha, emailOTP } from "better-auth/plugins"
 
 import { prisma } from "@/lib/db"
 import { sendOtpEmail } from "@/lib/emails"
-import { SESSION_INACTIVE_SECONDS, SESSION_UPDATE_AGE_SECONDS } from "@/lib/session-constants"
+import {
+  SESSION_INACTIVE_SECONDS,
+  SESSION_UPDATE_AGE_SECONDS,
+} from "@/lib/session-constants"
 
 export const auth = betterAuth({
   appName: "Eguidar",

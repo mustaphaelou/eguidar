@@ -56,7 +56,8 @@ const REFUS: { motif: MotifRefusPanier; message: string }[] = [
   },
   {
     motif: "quantite-invalide",
-    message: "Quantité invalide : la quantité doit être un entier d'au moins 1.",
+    message:
+      "Quantité invalide : la quantité doit être un entier d'au moins 1.",
   },
   {
     motif: "variante-inconnue",

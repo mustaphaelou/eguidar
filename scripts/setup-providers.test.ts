@@ -77,10 +77,11 @@ for (const ouvreur of ["xdg-open", "open", "wslview", "explorer.exe"]) {
   })
 }
 
-function lancer(leTour: {
-  corpsGet?: string
-  echecLecture?: boolean
-}): { sortie: string; statut: number | null; putEffectue: boolean } {
+function lancer(leTour: { corpsGet?: string; echecLecture?: boolean }): {
+  sortie: string
+  statut: number | null
+  putEffectue: boolean
+} {
   if (leTour.corpsGet !== undefined) writeFileSync(CORPS_GET, leTour.corpsGet)
   rmSync(MARQUEUR_PUT, { force: true })
 

@@ -63,9 +63,14 @@ async function createProduit(
       images: overrides.images ?? [`https://example.com/${suffix}.jpg`],
       freeShipping: overrides.freeShipping ?? false,
       variants: {
-        create:
-          overrides.variants ??
-          [{ name: "Standard", sku: `SKU-${runId}-${suffix}`, priceDelta: 0, stock: 5 }],
+        create: overrides.variants ?? [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-${suffix}`,
+            priceDelta: 0,
+            stock: 5,
+          },
+        ],
       },
     },
     include: { variants: true },
@@ -463,9 +468,9 @@ describe("blog brouillon foundation", () => {
         slug: bSlug("edit-publie"),
       })
 
-      await expect(fetchArticleParSlug(bSlug("edit-publie"))).resolves.toMatchObject(
-        { titre: "Titre corrigé", statut: "publie" }
-      )
+      await expect(
+        fetchArticleParSlug(bSlug("edit-publie"))
+      ).resolves.toMatchObject({ titre: "Titre corrigé", statut: "publie" })
       const landing = await fetchBlogLanding()
       expect(landing.hero?.slug).toBe(bSlug("edit-publie"))
       expect(landing.hero?.titre).toBe("Titre corrigé")
@@ -504,9 +509,10 @@ describe("blog brouillon foundation", () => {
       })
 
       const landing = await fetchBlogLanding()
-      expect(
-        [landing.hero?.slug, ...landing.articles.map((a) => a.slug)]
-      ).not.toContain(bSlug("archive-visible"))
+      expect([
+        landing.hero?.slug,
+        ...landing.articles.map((a) => a.slug),
+      ]).not.toContain(bSlug("archive-visible"))
       expect(landing.hero?.slug).toBe(bSlug("archive-autre"))
 
       await expect(
@@ -674,9 +680,24 @@ describe("blog brouillon foundation", () => {
         freeShipping: true,
         images: ["https://example.com/prix.jpg"],
         variants: [
-          { name: "Base", sku: `SKU-${runId}-prix-base`, priceDelta: 0, stock: 5 },
-          { name: "Remise", sku: `SKU-${runId}-prix-remise`, priceDelta: -20000, stock: 3 },
-          { name: "Premium", sku: `SKU-${runId}-prix-prem`, priceDelta: 10000, stock: 2 },
+          {
+            name: "Base",
+            sku: `SKU-${runId}-prix-base`,
+            priceDelta: 0,
+            stock: 5,
+          },
+          {
+            name: "Remise",
+            sku: `SKU-${runId}-prix-remise`,
+            priceDelta: -20000,
+            stock: 3,
+          },
+          {
+            name: "Premium",
+            sku: `SKU-${runId}-prix-prem`,
+            priceDelta: 10000,
+            stock: 2,
+          },
         ],
       })
 
@@ -755,15 +776,16 @@ describe("blog brouillon foundation", () => {
       const disponible = await createProduit("dispo")
       const rupture = await createProduit("rupture", {
         variants: [
-          { name: "Standard", sku: `SKU-${runId}-rupture`, priceDelta: 0, stock: 0 },
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-rupture`,
+            priceDelta: 0,
+            stock: 0,
+          },
         ],
       })
 
-      await lierProduits(
-        publie.id,
-        [disponible.id, rupture.id],
-        makeEffects()
-      )
+      await lierProduits(publie.id, [disponible.id, rupture.id], makeEffects())
 
       const article = await fetchArticleParSlug(bSlug("lies-rupture"))
 

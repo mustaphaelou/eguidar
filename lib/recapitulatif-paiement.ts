@@ -43,7 +43,9 @@ type FaitsRécapitulatif = {
   total: number | null
 }
 
-export function construireLignes(faits: FaitsRécapitulatif): RécapitulatifRow[] {
+export function construireLignes(
+  faits: FaitsRécapitulatif
+): RécapitulatifRow[] {
   const rows: RécapitulatifRow[] = [
     {
       label: "Sous-total (TVA incluse)",
