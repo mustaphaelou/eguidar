@@ -18,7 +18,7 @@ const DATE_INITIALE = new Date("2026-01-15T10:00:00.000Z")
 /**
  * Les deux formes d'une entrée de la Galerie produit, telles que le formulaire
  * les soumet. Ce sont des objets du module neutre, pas une déclaration seconde :
- * l'opération prend ce que l'éditeur a Submité, et ces deux aides ne font que
+ * l'opération prend ce que l'éditeur a soumis, et ces deux aides ne font que
  * l'écrire plus lisiblement.
  */
 function persistee(url: string): EntreeImageProduit {

@@ -312,7 +312,7 @@ export interface CycleVieImageProduit {
     ownerId: string
   }): Promise<ResultatRelacherBrouillonImageProduit>
   /**
-   * Enregistrer un Produit, en代人ant la Galerie produit qu'il porte.
+   * Enregistrer un Produit, en transmettant la Galerie produit qu'il porte.
    *
    * **L'opération prend la galerie entière, dans l'ordre de l'éditeur, et
    * possède cet ordre.** Elle rend la main à l'appelant sur un fait simple :
