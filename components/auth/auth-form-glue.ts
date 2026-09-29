@@ -1,8 +1,5 @@
 "use client"
 
-/** Le code que le serveur envoie quand il refuse le jeton du Test de sécurité. */
-const REFUS_DU_TEST_DE_SECURITE = "VERIFICATION_FAILED"
-
 export function translateAuthError(error: {
   code?: string
   message?: string
@@ -26,7 +23,7 @@ export function translateAuthError(error: {
       return "Trop de tentatives. Veuillez patienter avant de réessayer."
     case "MISSING_RESPONSE":
       return "Veuillez valider le test de sécurité (Turnstile)."
-    case REFUS_DU_TEST_DE_SECURITE:
+    case "VERIFICATION_FAILED":
       return "Le test de sécurité a échoué. Veuillez réessayer."
     default:
       return error.message ?? "Une erreur est survenue. Veuillez réessayer."
@@ -50,5 +47,5 @@ export function resolveAuthRefusal(
 function isTestDeSecuriteRefusal(
   error: { code?: string } | null | undefined
 ): boolean {
-  return error?.code === REFUS_DU_TEST_DE_SECURITE
+  return error?.code === "VERIFICATION_FAILED"
 }
