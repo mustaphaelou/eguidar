@@ -17,6 +17,7 @@ import { useSignInFlow } from "./use-sign-in-flow"
 
 const captchaStub = vi.hoisted(() => ({
   ready: true,
+  jeton: "jeton-connexion",
   reset: vi.fn(),
 }))
 
@@ -26,7 +27,7 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
   >()),
   useTestDeSecurite: () => ({
     ready: captchaStub.ready,
-    headers: undefined,
+    headers: { "x-captcha-response": captchaStub.jeton },
     field: null,
     reset: captchaStub.reset,
   }),
@@ -203,7 +204,7 @@ describe("useSignInFlow", () => {
     expect(mockedAuthClient.signIn.email).toHaveBeenCalledWith({
       email: "test@example.com",
       password: "secret123",
-      fetchOptions: { headers: undefined },
+      fetchOptions: { headers: { "x-captcha-response": captchaStub.jeton } },
     })
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
@@ -269,7 +270,7 @@ describe("useSignInFlow", () => {
   it("resets the captcha so a rejected sign-in retries with a fresh token", async () => {
     mockedAuthClient.signIn.email.mockResolvedValue({
       data: null,
-      error: { code: "INVALID_RESPONSE", message: "captcha rejected" },
+      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
     })
 
     render(<Harness />)
@@ -281,6 +282,21 @@ describe("useSignInFlow", () => {
     expect(captchaStub.reset).toHaveBeenCalled()
     expect(error()).toBe("Le test de sécurité a échoué. Veuillez réessayer.")
     expect(step()).toBe("form")
+  })
+
+  it("does not reset the captcha when the sign-in is rejected for a non-captcha reason", async () => {
+    mockedAuthClient.signIn.email.mockResolvedValue({
+      data: null,
+      error: { code: "USER_ALREADY_EXISTS", message: "already exists" },
+    })
+
+    render(<Harness />)
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
+
+    await clickAndFlush(signInButton())
+
+    expect(captchaStub.reset).not.toHaveBeenCalled()
   })
 
   it("walks the tail from the unverified e-mail to the code step, the verified notice, and a successful sign-in", async () => {

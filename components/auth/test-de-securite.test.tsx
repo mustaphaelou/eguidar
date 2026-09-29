@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { isCaptchaRejection, useTestDeSecurite } from "./test-de-securite"
+import { useTestDeSecurite } from "./test-de-securite"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -97,21 +97,6 @@ async function loadScript() {
     script!.dispatchEvent(new Event("load"))
   })
 }
-
-describe("isCaptchaRejection", () => {
-  it("matches the two captcha-rejection codes", () => {
-    expect(isCaptchaRejection({ code: "MISSING_RESPONSE" })).toBe(true)
-    expect(isCaptchaRejection({ code: "INVALID_RESPONSE" })).toBe(true)
-  })
-
-  it("does not match other error codes, missing codes or a missing error", () => {
-    expect(isCaptchaRejection({ code: "INVALID_OTP" })).toBe(false)
-    expect(isCaptchaRejection({ code: "TOO_MANY_ATTEMPTS" })).toBe(false)
-    expect(isCaptchaRejection({})).toBe(false)
-    expect(isCaptchaRejection(null)).toBe(false)
-    expect(isCaptchaRejection(undefined)).toBe(false)
-  })
-})
 
 describe("useTestDeSecurite", () => {
   it("is always ready, renders nothing and issues no headers when the site key is absent", async () => {

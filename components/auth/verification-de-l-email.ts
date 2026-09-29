@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 
-import { translateAuthError } from "@/components/auth/auth-form-glue"
 import {
-  useTestDeSecurite,
   isCaptchaRejection,
-} from "@/components/auth/test-de-securite"
+  translateAuthError,
+} from "@/components/auth/auth-form-glue"
+import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 
 export type OtpExchangeType = "email-verification" | "forget-password"

@@ -11,6 +11,7 @@ import { useSignUpFlow } from "./use-sign-up-flow"
 
 const captchaStub = vi.hoisted(() => ({
   ready: true,
+  jeton: "jeton-inscription",
   reset: vi.fn(),
 }))
 
@@ -20,7 +21,7 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
   >()),
   useTestDeSecurite: () => ({
     ready: captchaStub.ready,
-    headers: undefined,
+    headers: { "x-captcha-response": captchaStub.jeton },
     field: null,
     reset: captchaStub.reset,
   }),
@@ -158,7 +159,7 @@ describe("useSignUpFlow", () => {
       name: "Jane Doe",
       email: "jane@example.com",
       password: "password123",
-      fetchOptions: { headers: undefined },
+      fetchOptions: { headers: { "x-captcha-response": captchaStub.jeton } },
     })
     expect(onStepChange).toHaveBeenCalledWith("otp", "jane@example.com")
     expect(step()).toBe("otp")
@@ -220,7 +221,7 @@ describe("useSignUpFlow", () => {
   it("resets the captcha so a rejected sign-up retries with a fresh token", async () => {
     mockedAuthClient.signUp.email.mockResolvedValue({
       data: null,
-      error: { code: "INVALID_RESPONSE", message: "captcha rejected" },
+      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
     })
 
     render(<Harness />)

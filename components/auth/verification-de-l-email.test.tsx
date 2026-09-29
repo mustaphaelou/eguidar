@@ -246,7 +246,7 @@ describe("useOtpExchange", () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
     mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
       data: null,
-      error: { code: "MISSING_RESPONSE", message: "captcha missing" },
+      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
     })
 
     await render(<Harness />)
@@ -257,7 +257,7 @@ describe("useOtpExchange", () => {
     expect(resetMock).toHaveBeenCalledWith("widget-1")
     expect(captchaReady()).toBe("false")
     expect(otpSent()).toBe("false")
-    expect(error()).toBe("Veuillez valider le test de sécurité (Turnstile).")
+    expect(error()).toBe("Le test de sécurité a échoué. Veuillez réessayer.")
   })
 
   it("does not reset the Test de sécurité when the send is rejected for a non-captcha reason", async () => {
