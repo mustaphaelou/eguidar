@@ -68,6 +68,16 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_test
+      # Le jeton du run vit dans le contexte `github.token`, et n'est PAS exporté
+      # dans l'environnement d'un `run:` : sans cette ligne, l'assertion du
+      # ruleset (`scripts/registre-des-checks/`) se tait en CI et une porte
+      # s'ouvre sans avoir rien vérifié. Ce n'est pas un secret du dépôt —
+      # Actions le forge par run, personne d'autre ne le lit, il expire avec le
+      # job — donc l'invariant d'ADR-0020 tient toujours, et `permissions:`
+      # reste `contents: read` : `metadata`, seule permission que la lecture
+      # demande, n'est pas une clé qu'on puisse révoquer. Le job `test` est le
+      # seul concerné : c'est là que l'assertion vit, et nulle part ailleurs.
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
