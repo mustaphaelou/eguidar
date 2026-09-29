@@ -35,9 +35,9 @@ les noms de la bibliothèque, et le corps garde ses mots d'époque. Cette
 dérive a un prix, et la spec #469 l'a payé : « OTP » et « Turnstile
 captcha » sont deux noms qui ne désignent rien dans le glossaire, donc
 aucun regard ne pouvait les confronter au code — et un code d'erreur venu
-d'une autre pile de défi, `INVALID_RESPONSE`
-(`test-de-securite.tsx:153`), s'est logé dans un module qui ne pouvait pas
-le reconnaître.
+d'une autre pile de défi, `INVALID_RESPONSE`, s'est logé dans
+`test-de-securite.tsx` jusqu'à #470, un module qui ne pouvait pas le
+reconnaître.
 
 Le reste de la décision tient : la page `/mot-de-passe-oublie`, la
 redirection permanente depuis `/request-password-reset`
