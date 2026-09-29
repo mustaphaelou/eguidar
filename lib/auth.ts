@@ -82,10 +82,18 @@ export const auth = betterAuth({
           captcha({
             provider: "cloudflare-turnstile",
             secretKey: process.env.TURNSTILE_SECRET_KEY,
+            // Un point d'entrée protégé que le client n'appelle pas ne protège
+            // rien : il n'ajoute que le bruit d'une liste qui dérive en silence
+            // de l'autre côté. La demande de réinitialisation du mot de passe
+            // était de ceux-là — elle passe par
+            // `/email-otp/send-verification-otp`, comme le reste de la
+            // Vérification de l'e-mail. Le remettre tient en une ligne, le jour
+            // où une vraie route de demande de réinitialisation apparaît.
+            // `components/auth/envois-proteges.test.tsx` tient les deux listes
+            // d'accord.
             endpoints: [
               "/sign-up/email",
               "/sign-in/email",
-              "/request-password-reset",
               "/email-otp/send-verification-otp",
             ],
           }),
