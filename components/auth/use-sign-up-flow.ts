@@ -3,12 +3,12 @@
 import { useState } from "react"
 
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
-import { translateAuthError } from "@/components/auth/auth-form-glue"
-import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import {
   isCaptchaRejection,
-  useTestDeSecurite,
-} from "@/components/auth/test-de-securite"
+  translateAuthError,
+} from "@/components/auth/auth-form-glue"
+import { useOtpExchange } from "@/components/auth/verification-de-l-email"
+import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 
 export function useSignUpFlow({

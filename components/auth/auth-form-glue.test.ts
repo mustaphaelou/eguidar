@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { translateAuthError } from "./auth-form-glue"
+import { isCaptchaRejection, translateAuthError } from "./auth-form-glue"
 
 describe("translateAuthError", () => {
   it("translates known error codes to French user-friendly messages", () => {
@@ -28,13 +28,10 @@ describe("translateAuthError", () => {
     expect(translateAuthError({ code: "TOO_MANY_ATTEMPTS" })).toBe(
       "Trop de tentatives. Veuillez patienter avant de réessayer."
     )
-    expect(translateAuthError({ code: "PASSWORDS_DO_NOT_MATCH" })).toBe(
-      "Les mots de passe ne correspondent pas."
-    )
     expect(translateAuthError({ code: "MISSING_RESPONSE" })).toBe(
       "Veuillez valider le test de sécurité (Turnstile)."
     )
-    expect(translateAuthError({ code: "INVALID_RESPONSE" })).toBe(
+    expect(translateAuthError({ code: "VERIFICATION_FAILED" })).toBe(
       "Le test de sécurité a échoué. Veuillez réessayer."
     )
   })
@@ -47,5 +44,23 @@ describe("translateAuthError", () => {
     expect(translateAuthError({})).toBe(
       "Une erreur est survenue. Veuillez réessayer."
     )
+  })
+})
+
+describe("isCaptchaRejection", () => {
+  it("matches the refusal the Turnstile handler returns", () => {
+    expect(isCaptchaRejection({ code: "VERIFICATION_FAILED" })).toBe(true)
+  })
+
+  it("does not treat a missing jeton as a refusal the widget recovers from", () => {
+    expect(isCaptchaRejection({ code: "MISSING_RESPONSE" })).toBe(false)
+  })
+
+  it("does not match other error codes, missing codes or a missing error", () => {
+    expect(isCaptchaRejection({ code: "INVALID_OTP" })).toBe(false)
+    expect(isCaptchaRejection({ code: "TOO_MANY_ATTEMPTS" })).toBe(false)
+    expect(isCaptchaRejection({})).toBe(false)
+    expect(isCaptchaRejection(null)).toBe(false)
+    expect(isCaptchaRejection(undefined)).toBe(false)
   })
 })
