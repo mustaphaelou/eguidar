@@ -27,10 +27,11 @@ vi.mock("next/navigation", () => mockNextNavigation())
  * partagée : une constante que les deux moitiés liraient ne pourrait pas
  * échouer, elle recopierait la dérive qu'elle est censée attraper.
  *
- * - Le client est lu **sur le fil**. Ce fichier ne double pas la bibliothèque :
- *   les trois Envois protégés partent vraiment, et l'URL ainsi que l'en-tête
- *   `x-captcha-response` sont lus au point d'entrée réseau. Le chemin observé
- *   est donc le chemin que le serveur verra, pas un chemin recopié.
+ * - Le navigateur est lu **sur le fil**. Ce fichier ne double pas la
+ *   bibliothèque : les trois Envois protégés partent vraiment, et l'URL ainsi
+ *   que l'en-tête `x-captcha-response` sont lus au point d'entrée réseau. Le
+ *   chemin observé est donc le chemin que le serveur verra, pas un chemin
+ *   recopié.
  * - Le serveur est lu **sur l'instance**. La liste vient de
  *   `auth.options.plugins`, le plugin tel qu'il a été enregistré, et non d'une
  *   relecture de `lib/auth.ts` : ce qui compte est ce que le serveur protège,
@@ -43,10 +44,10 @@ vi.mock("next/navigation", () => mockNextNavigation())
  * `basePath` avant de comparer (`captcha/index.mjs`), la garde le retire aussi.
  */
 
-/** Le jeton que le widget de la garde résout, et que chaque Envoi protégé porte. */
+/** Le jeton que le Test de sécurité résout, et que chaque Envoi protégé porte. */
 const JETON = "jeton-de-la-garde"
 
-/** La clé du widget, sans laquelle le Test de sécurité ne rend aucun jeton. */
+/** La clé du Test de sécurité, sans laquelle il ne rend aucun jeton. */
 const CLE_SITE = "1x00000000000000000000AA"
 
 /** La clé du serveur, sans laquelle le plugin de Test de sécurité n'est pas enregistré. */
@@ -104,9 +105,9 @@ beforeEach(async () => {
   document.body.appendChild(container)
   resetNavigation("/")
   vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", CLE_SITE)
-  // Le script du widget est posé avant le rendu et sans `src` : le widget le
-  // trouve, ne l'insère pas, et n'essaie surtout pas d'aller le chercher. La
-  // garde n'a pas à savoir comment le script arrive.
+  // Le script du Test de sécurité est posé avant le rendu et sans `src` : le
+  // Test de sécurité le trouve, ne l'insère pas, et n'essaie surtout pas d'aller
+  // le chercher. La garde n'a pas à savoir comment le script arrive.
   scriptDuWidget = document.createElement("script")
   scriptDuWidget.id = "turnstile-script"
   document.head.appendChild(scriptDuWidget)
@@ -121,9 +122,9 @@ beforeEach(async () => {
     remove: () => {},
     reset: () => {},
   }
-  // Les trois widgets n'écoutent le script que tant que le Test de sécurité
-  // n'est pas chargé : le déclenchement se fait une fois le stub en place,
-  // sinon ils sortiraient de leur attente par une microtâche hors de `act`.
+  // Les trois Tests de sécurité n'écoutent le script que tant qu'il n'est pas
+  // chargé : le déclenchement se fait une fois le stub en place, sinon ils
+  // sortiraient de leur attente par une microtâche hors de `act`.
   await act(async () => {
     scriptDuWidget.dispatchEvent(new Event("load"))
   })
@@ -248,11 +249,11 @@ async function envoyer() {
 }
 
 /**
- * Les points d'entrée que le client protège : ceux vers lesquels part une
+ * Les points d'entrée que le navigateur protège : ceux vers lesquels part une
  * requête portant le jeton. Un envoi ordinaire en est exclu par construction —
  * c'est ce qui distingue la liste de « toutes les requêtes de la page ».
  */
-function pointsDEntreeProtegesParLeClient(): string[] {
+function pointsDEntreeProtegesParLeNavigateur(): string[] {
   return [
     ...new Set(
       envois
@@ -288,10 +289,10 @@ async function pointsDEntreeProtegesParLeServeur(): Promise<string[]> {
 }
 
 /** Ce que chaque côté a en plus de l'autre — vide quand les deux disent pareil. */
-function ecart(client: string[], serveur: string[]) {
+function ecart(navigateur: string[], serveur: string[]) {
   return {
-    protegeSansEnvoi: serveur.filter((point) => !client.includes(point)),
-    envoiSansProtection: client.filter((point) => !serveur.includes(point)),
+    protegeSansEnvoi: serveur.filter((point) => !navigateur.includes(point)),
+    envoiSansProtection: navigateur.filter((point) => !serveur.includes(point)),
   }
 }
 
@@ -299,18 +300,21 @@ describe("Envois protégés et points d'entrée protégés", () => {
   it("les deux listes disent la même chose", async () => {
     await envoyer()
 
-    const client = pointsDEntreeProtegesParLeClient()
+    const navigateur = pointsDEntreeProtegesParLeNavigateur()
     const serveur = await pointsDEntreeProtegesParLeServeur()
-    const { protegeSansEnvoi, envoiSansProtection } = ecart(client, serveur)
+    const { protegeSansEnvoi, envoiSansProtection } = ecart(navigateur, serveur)
 
-    expect(client.length, "aucun envoi protégé n'est parti").toBeGreaterThan(0)
+    expect(
+      navigateur.length,
+      "aucun envoi protégé n'est parti"
+    ).toBeGreaterThan(0)
     expect(
       protegeSansEnvoi,
-      `le serveur protège ${protegeSansEnvoi.join(", ")} et le client n'en envoie aucun`
+      `le serveur protège ${protegeSansEnvoi.join(", ")} et le navigateur n'en envoie aucun`
     ).toEqual([])
     expect(
       envoiSansProtection,
-      `le client envoie ${envoiSansProtection.join(", ")} et le serveur ne protège aucun point d'entrée correspondant`
+      `le navigateur envoie ${envoiSansProtection.join(", ")} et le serveur ne protège aucun point d'entrée correspondant`
     ).toEqual([])
   })
 
@@ -324,26 +328,26 @@ describe("Envois protégés et points d'entrée protégés", () => {
     expect(chemins).toContain(`${CHEMIN_BASE}/email-otp/verify-email`)
     expect(chemins).toContain(`${CHEMIN_BASE}/sign-in/social`)
 
-    const client = pointsDEntreeProtegesParLeClient()
-    expect(client).not.toContain("/email-otp/verify-email")
-    expect(client).not.toContain("/sign-in/social")
-    expect(client).toContain("/email-otp/send-verification-otp")
+    const navigateur = pointsDEntreeProtegesParLeNavigateur()
+    expect(navigateur).not.toContain("/email-otp/verify-email")
+    expect(navigateur).not.toContain("/sign-in/social")
+    expect(navigateur).toContain("/email-otp/send-verification-otp")
   })
 
   it("l'accord se rompt dès qu'un seul côté gagne un membre", () => {
-    const client = ["/sign-in/email", "/sign-up/email"]
-    const serveur = [...client, "/email-otp/send-verification-otp"]
+    const navigateur = ["/sign-in/email", "/sign-up/email"]
+    const serveur = [...navigateur, "/email-otp/send-verification-otp"]
 
-    // Un membre que le client n'a pas.
-    expect(ecart(client, serveur).protegeSansEnvoi).toEqual([
+    // Un membre que le navigateur n'a pas.
+    expect(ecart(navigateur, serveur).protegeSansEnvoi).toEqual([
       "/email-otp/send-verification-otp",
     ])
     // Le même membre, vu de l'autre côté.
-    expect(ecart(serveur, client).envoiSansProtection).toEqual([
+    expect(ecart(serveur, navigateur).envoiSansProtection).toEqual([
       "/email-otp/send-verification-otp",
     ])
     // Deux listes d'accord ne signalent rien.
-    expect(ecart(client, client)).toEqual({
+    expect(ecart(navigateur, navigateur)).toEqual({
       protegeSansEnvoi: [],
       envoiSansProtection: [],
     })

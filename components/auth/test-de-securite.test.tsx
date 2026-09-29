@@ -214,7 +214,7 @@ describe("useTestDeSecurite", () => {
     expect(headers()).toBe(JSON.stringify({ "x-captcha-response": "tok-2" }))
   })
 
-  it("keeps the script tag when the widget unmounts and reuses it when a second one mounts", async () => {
+  it("keeps the script tag when the Test de sécurité unmounts and reuses it when a second one mounts", async () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
 
     await render(<Harness />)
@@ -224,15 +224,17 @@ describe("useTestDeSecurite", () => {
 
     await unmountLast()
 
-    // Le compte est pris entre les deux widgets : c'est là que la balise se
-    // ferait retirer. Retirée puis recréée, elle laisserait le document sans
-    // balise entre les deux, et le remontage redemanderait `api.js`.
+    // Le compte est pris entre les deux Tests de sécurité : c'est là que la
+    // balise se ferait retirer. Retirée puis recréée, elle laisserait le
+    // document sans balise entre les deux, et le remontage redemanderait
+    // `api.js`.
     expect(scriptTags()).toHaveLength(1)
 
     await render(<Harness />)
 
-    // Le second widget s'est bien remonté — sans quoi le compte porterait sur
-    // un widget qui n'existe plus — et n'a pas créé de seconde balise.
+    // Le second Test de sécurité s'est bien remonté — sans quoi le compte
+    // porterait sur un Test de sécurité qui n'existe plus — et n'a pas créé de
+    // seconde balise.
     expect(renderMock).toHaveBeenCalledTimes(2)
     expect(scriptTags()).toHaveLength(1)
   })
