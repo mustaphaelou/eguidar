@@ -381,6 +381,16 @@ describe("useSignInFlow", () => {
       url: "/produits?query=phone",
       expected: "http://localhost:3000/produits?query=phone",
     },
+    {
+      provider: "google",
+      url: "/?open=login&next=%2Fadmin",
+      expected: "http://localhost:3000/",
+    },
+    {
+      provider: "facebook",
+      url: "/?open=login&next=%2Fadmin",
+      expected: "http://localhost:3000/",
+    },
   ] as const)(
     "computes the $provider Connexion sociale callbackURL from $url",
     async ({ provider, url, expected }) => {

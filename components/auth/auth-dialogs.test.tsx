@@ -549,6 +549,32 @@ describe("AuthDialogs", () => {
 
     expect(navigationSpies.replace).not.toHaveBeenCalled()
   })
+
+  it("cleans an orphaned Destination post-connexion left without a dialog parameter", () => {
+    window.history.replaceState(null, "", "/?next=%2Fadmin")
+    render(() => storefront())
+    rerender()
+
+    expect(dialog()).toBeNull()
+    expect(locationParams().get("next")).toBeNull()
+    expect(new URL(window.location.href).search).toBe("")
+  })
+
+  it("still opens the Connexion modal with a preserved Destination post-connexion on a gated page, even though the cleaner sees the orphan first", async () => {
+    window.history.replaceState(null, "", "/checkout?next=/profil")
+    render(() => (
+      <AuthDialogs>
+        <RequireAuth />
+      </AuthDialogs>
+    ))
+    await flush()
+    rerender()
+
+    expect(dialog()).not.toBeNull()
+    expect(locationParams().get("open")).toBe("login")
+    expect(locationParams().get("next")).toBe("/profil")
+    expect(new URL(window.location.href).pathname).toBe("/checkout")
+  })
 })
 
 function ControllerHarness() {

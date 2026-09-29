@@ -66,12 +66,6 @@ export function withAuthParams(
   })
 }
 
-export function withoutAuthParams(url: string): string {
-  return rewriteSearchParams(url, (params) => {
-    params.delete(OPEN_PARAM)
-  })
-}
-
 export function withoutAuthSearchParams(
   search: string | URLSearchParams
 ): string {
