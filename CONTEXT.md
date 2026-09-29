@@ -223,7 +223,12 @@ _Avoid_: OTP, code de vérification, vérification OTP
 
 **Test de sécurité**:
 La vérification anti-robot (implémentée avec Turnstile) exigée avant les envois protégés : l'envoi du code de la Vérification de l'e-mail, la création de compte à l'Inscription, la Connexion par mot de passe et la demande de réinitialisation du mot de passe. Elle produit un jeton à usage unique, transmis avec l'envoi protégé et consommé par le serveur ; l'envoi n'est possible qu'une fois le jeton obtenu.
+Le défi appartient à l'Envoi protégé qui le réclame, pas à la surface qui l'affiche : c'est l'envoi qui le porte. La Connexion et l'Inscription en ont donc deux chacune — l'envoi de leurs identifiants, puis l'envoi du code de la Vérification de l'e-mail, qui est le même Envoi protégé sur deux surfaces — parce qu'un jeton est à usage unique et qu'un second envoi en réclame un second. La demande de réinitialisation du mot de passe en porte un, sur sa page. Réduire ce nombre à un par surface serait une autre décision.
 _Avoid_: captcha, widget, Turnstile (comme nom du concept), vérification humaine
+
+**Envoi protégé**:
+Un envoi qu'un Test de sécurité gate, et qui n'aboutit pas sans son jeton. Sa règle tient en trois temps : joindre le jeton, remettre le Test de sécurité à zéro lorsque le serveur refuse ce jeton, traduire le refus pour le Client. Un jeton refusé ne doit pas piéger le Client sur une page à recharger.
+_Avoid_: protected send, envoi sécurisé, appel protégé, requête protégée
 
 **Déconnexion**:
 The act by which a Client ends their own session via the « Déconnexion » button in the header, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
