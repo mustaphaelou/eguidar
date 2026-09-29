@@ -71,6 +71,17 @@ function render(element: ReactElement) {
   })
 }
 
+function unmountLast() {
+  const root = roots.pop()!
+  return act(async () => {
+    root.unmount()
+  })
+}
+
+function scriptTags() {
+  return document.querySelectorAll("#turnstile-script")
+}
+
 function ready() {
   return container.querySelector("[data-ready]")?.getAttribute("data-ready")
 }
@@ -201,5 +212,28 @@ describe("useTestDeSecurite", () => {
 
     expect(ready()).toBe("true")
     expect(headers()).toBe(JSON.stringify({ "x-captcha-response": "tok-2" }))
+  })
+
+  it("keeps the script tag when the widget unmounts and reuses it when a second one mounts", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+
+    await render(<Harness />)
+    await loadScript()
+
+    expect(scriptTags()).toHaveLength(1)
+
+    await unmountLast()
+
+    // Le compte est pris entre les deux widgets : c'est là que la balise se
+    // ferait retirer. Retirée puis recréée, elle laisserait le document sans
+    // balise entre les deux, et le remontage redemanderait `api.js`.
+    expect(scriptTags()).toHaveLength(1)
+
+    await render(<Harness />)
+
+    // Le second widget s'est bien remonté — sans quoi le compte porterait sur
+    // un widget qui n'existe plus — et n'a pas créé de seconde balise.
+    expect(renderMock).toHaveBeenCalledTimes(2)
+    expect(scriptTags()).toHaveLength(1)
   })
 })
