@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 
-import { translateAuthError } from "@/components/auth/auth-form-glue"
 import {
-  useTestDeSecurite,
-  isCaptchaRejection,
-} from "@/components/auth/test-de-securite"
+  resolveAuthRefusal,
+  translateAuthError,
+} from "@/components/auth/auth-form-glue"
+import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 
 export type OtpExchangeType = "email-verification" | "forget-password"
@@ -38,10 +38,7 @@ export function useOtpExchange({
         fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
-        if (isCaptchaRejection(result.error)) {
-          captcha.reset()
-        }
-        setError(translateAuthError(result.error))
+        setError(resolveAuthRefusal(result.error, captcha.reset))
         return
       }
       setOtpSent(true)

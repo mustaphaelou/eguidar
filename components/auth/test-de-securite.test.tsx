@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { isCaptchaRejection, useTestDeSecurite } from "./test-de-securite"
+import { useTestDeSecurite } from "./test-de-securite"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -71,6 +71,17 @@ function render(element: ReactElement) {
   })
 }
 
+function unmountLast() {
+  const root = roots.pop()!
+  return act(async () => {
+    root.unmount()
+  })
+}
+
+function scriptTags() {
+  return document.querySelectorAll("#turnstile-script")
+}
+
 function ready() {
   return container.querySelector("[data-ready]")?.getAttribute("data-ready")
 }
@@ -97,21 +108,6 @@ async function loadScript() {
     script!.dispatchEvent(new Event("load"))
   })
 }
-
-describe("isCaptchaRejection", () => {
-  it("matches the two captcha-rejection codes", () => {
-    expect(isCaptchaRejection({ code: "MISSING_RESPONSE" })).toBe(true)
-    expect(isCaptchaRejection({ code: "INVALID_RESPONSE" })).toBe(true)
-  })
-
-  it("does not match other error codes, missing codes or a missing error", () => {
-    expect(isCaptchaRejection({ code: "INVALID_OTP" })).toBe(false)
-    expect(isCaptchaRejection({ code: "TOO_MANY_ATTEMPTS" })).toBe(false)
-    expect(isCaptchaRejection({})).toBe(false)
-    expect(isCaptchaRejection(null)).toBe(false)
-    expect(isCaptchaRejection(undefined)).toBe(false)
-  })
-})
 
 describe("useTestDeSecurite", () => {
   it("is always ready, renders nothing and issues no headers when the site key is absent", async () => {
@@ -216,5 +212,30 @@ describe("useTestDeSecurite", () => {
 
     expect(ready()).toBe("true")
     expect(headers()).toBe(JSON.stringify({ "x-captcha-response": "tok-2" }))
+  })
+
+  it("keeps the script tag when the Test de sécurité unmounts and reuses it when a second one mounts", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+
+    await render(<Harness />)
+    await loadScript()
+
+    expect(scriptTags()).toHaveLength(1)
+
+    await unmountLast()
+
+    // Le compte est pris entre les deux Tests de sécurité : c'est là que la
+    // balise se ferait retirer. Retirée puis recréée, elle laisserait le
+    // document sans balise entre les deux, et le remontage redemanderait
+    // `api.js`.
+    expect(scriptTags()).toHaveLength(1)
+
+    await render(<Harness />)
+
+    // Le second Test de sécurité s'est bien remonté — sans quoi le compte
+    // porterait sur un Test de sécurité qui n'existe plus — et n'a pas créé de
+    // seconde balise.
+    expect(renderMock).toHaveBeenCalledTimes(2)
+    expect(scriptTags()).toHaveLength(1)
   })
 })

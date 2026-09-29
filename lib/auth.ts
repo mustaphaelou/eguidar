@@ -82,10 +82,11 @@ export const auth = betterAuth({
           captcha({
             provider: "cloudflare-turnstile",
             secretKey: process.env.TURNSTILE_SECRET_KEY,
+            // Un point d'entrée protégé que le client n'appelle pas ne protège
+            // rien : garde `envois-proteges.test.tsx`, ADR-0002 pour la route.
             endpoints: [
               "/sign-up/email",
               "/sign-in/email",
-              "/request-password-reset",
               "/email-otp/send-verification-otp",
             ],
           }),

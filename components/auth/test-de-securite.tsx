@@ -62,6 +62,10 @@ function TestSecuriteWidget({
     onTokenChangeRef.current = onTokenChange
   })
 
+  // La balige appartient au document, pas au Test de sécurité : aucun
+  // démontage ne la retire. Le Test de sécurité suivant la retrouve, attend son
+  // `load` ou lit `window.turnstile` si elle a déjà chargé — sans jamais
+  // redemander `api.js`.
   useEffect(() => {
     const existing = document.getElementById(
       "turnstile-script"
@@ -78,7 +82,6 @@ function TestSecuriteWidget({
     script.defer = true
     script.addEventListener("load", () => setLoaded(true))
     document.head.appendChild(script)
-    return () => script.remove()
   }, [])
 
   useEffect(() => {
@@ -143,14 +146,6 @@ function TestSecuriteWidget({
         </div>
       )}
     </div>
-  )
-}
-
-export function isCaptchaRejection(
-  error: { code?: string } | null | undefined
-): boolean {
-  return (
-    error?.code === "MISSING_RESPONSE" || error?.code === "INVALID_RESPONSE"
   )
 }
 

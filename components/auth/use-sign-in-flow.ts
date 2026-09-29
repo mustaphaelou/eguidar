@@ -4,12 +4,12 @@ import { useState } from "react"
 
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
-import { translateAuthError } from "@/components/auth/auth-form-glue"
-import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import {
-  isCaptchaRejection,
-  useTestDeSecurite,
-} from "@/components/auth/test-de-securite"
+  resolveAuthRefusal,
+  translateAuthError,
+} from "@/components/auth/auth-form-glue"
+import { useOtpExchange } from "@/components/auth/verification-de-l-email"
+import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
 import { withoutAuthParams } from "@/lib/lien-de-connexion"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
@@ -54,14 +54,15 @@ export function useSignInFlow({
         fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
+        // Seul producteur de `EMAIL_NOT_VERIFIED` : la branche court-circuite
+        // avant la traduction. Le message reste dans le switch de
+        // `auth-form-glue.ts` — le switch est le vocabulaire, pas la carte de ce
+        // que ce chemin atteint.
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
           onStepChange("otp", email)
           return
         }
-        if (isCaptchaRejection(result.error)) {
-          captcha.reset()
-        }
-        setError(translateAuthError(result.error))
+        setError(resolveAuthRefusal(result.error, captcha.reset))
         return
       }
       completeSignIn()

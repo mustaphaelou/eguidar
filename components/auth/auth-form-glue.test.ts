@@ -1,18 +1,21 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { translateAuthError } from "./auth-form-glue"
+import { resolveAuthRefusal, translateAuthError } from "./auth-form-glue"
 
 describe("translateAuthError", () => {
   it("translates known error codes to French user-friendly messages", () => {
     expect(translateAuthError({ code: "INVALID_EMAIL_OR_PASSWORD" })).toBe(
       "E-mail ou mot de passe invalide."
     )
+    // Le switch est le vocabulaire : `EMAIL_NOT_VERIFIED` reste traduit même si
+    // son seul producteur court-circuite avant la traduction
+    // (`use-sign-in-flow.ts`).
     expect(translateAuthError({ code: "EMAIL_NOT_VERIFIED" })).toBe(
       "Votre adresse e-mail n'est pas encore vérifiée."
     )
-    expect(translateAuthError({ code: "USER_ALREADY_EXISTS" })).toBe(
-      "Un compte existe déjà avec cette adresse e-mail."
-    )
+    expect(
+      translateAuthError({ code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" })
+    ).toBe("Un compte existe déjà avec cette adresse e-mail.")
     expect(translateAuthError({ code: "PASSWORD_TOO_SHORT" })).toBe(
       "Le mot de passe doit contenir au moins 8 caractères."
     )
@@ -28,13 +31,10 @@ describe("translateAuthError", () => {
     expect(translateAuthError({ code: "TOO_MANY_ATTEMPTS" })).toBe(
       "Trop de tentatives. Veuillez patienter avant de réessayer."
     )
-    expect(translateAuthError({ code: "PASSWORDS_DO_NOT_MATCH" })).toBe(
-      "Les mots de passe ne correspondent pas."
-    )
     expect(translateAuthError({ code: "MISSING_RESPONSE" })).toBe(
       "Veuillez valider le test de sécurité (Turnstile)."
     )
-    expect(translateAuthError({ code: "INVALID_RESPONSE" })).toBe(
+    expect(translateAuthError({ code: "VERIFICATION_FAILED" })).toBe(
       "Le test de sécurité a échoué. Veuillez réessayer."
     )
   })
@@ -47,5 +47,47 @@ describe("translateAuthError", () => {
     expect(translateAuthError({})).toBe(
       "Une erreur est survenue. Veuillez réessayer."
     )
+  })
+})
+
+describe("resolveAuthRefusal", () => {
+  it("resets the Test de sécurité and returns the French message on a refusal", () => {
+    const reset = vi.fn()
+
+    expect(resolveAuthRefusal({ code: "VERIFICATION_FAILED" }, reset)).toBe(
+      "Le test de sécurité a échoué. Veuillez réessayer."
+    )
+    expect(reset).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves the Test de sécurité alone when the error is another code", () => {
+    const reset = vi.fn()
+
+    expect(resolveAuthRefusal({ code: "INVALID_OTP" }, reset)).toBe(
+      "Le code de vérification est invalide ou incorrect."
+    )
+    expect(resolveAuthRefusal({ code: "TOO_MANY_ATTEMPTS" }, reset)).toBe(
+      "Trop de tentatives. Veuillez patienter avant de réessayer."
+    )
+    expect(reset).not.toHaveBeenCalled()
+  })
+
+  it("does not treat a missing jeton as a refusal the Test de sécurité recovers from", () => {
+    const reset = vi.fn()
+
+    expect(resolveAuthRefusal({ code: "MISSING_RESPONSE" }, reset)).toBe(
+      "Veuillez valider le test de sécurité (Turnstile)."
+    )
+    expect(reset).not.toHaveBeenCalled()
+  })
+
+  it("leaves the Test de sécurité alone for a missing code and for no error at all", () => {
+    const reset = vi.fn()
+    const generique = "Une erreur est survenue. Veuillez réessayer."
+
+    expect(resolveAuthRefusal({}, reset)).toBe(generique)
+    expect(resolveAuthRefusal(null, reset)).toBe(generique)
+    expect(resolveAuthRefusal(undefined, reset)).toBe(generique)
+    expect(reset).not.toHaveBeenCalled()
   })
 })
