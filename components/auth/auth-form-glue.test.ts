@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { isCaptchaRejection, translateAuthError } from "./auth-form-glue"
+import { resolveAuthRefusal, translateAuthError } from "./auth-form-glue"
 
 describe("translateAuthError", () => {
   it("translates known error codes to French user-friendly messages", () => {
@@ -10,9 +10,9 @@ describe("translateAuthError", () => {
     expect(translateAuthError({ code: "EMAIL_NOT_VERIFIED" })).toBe(
       "Votre adresse e-mail n'est pas encore vérifiée."
     )
-    expect(translateAuthError({ code: "USER_ALREADY_EXISTS" })).toBe(
-      "Un compte existe déjà avec cette adresse e-mail."
-    )
+    expect(
+      translateAuthError({ code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" })
+    ).toBe("Un compte existe déjà avec cette adresse e-mail.")
     expect(translateAuthError({ code: "PASSWORD_TOO_SHORT" })).toBe(
       "Le mot de passe doit contenir au moins 8 caractères."
     )
@@ -47,20 +47,44 @@ describe("translateAuthError", () => {
   })
 })
 
-describe("isCaptchaRejection", () => {
-  it("matches the refusal the Turnstile handler returns", () => {
-    expect(isCaptchaRejection({ code: "VERIFICATION_FAILED" })).toBe(true)
+describe("resolveAuthRefusal", () => {
+  it("resets the Test de sécurité and returns the French message on a refusal", () => {
+    const reset = vi.fn()
+
+    expect(resolveAuthRefusal({ code: "VERIFICATION_FAILED" }, reset)).toBe(
+      "Le test de sécurité a échoué. Veuillez réessayer."
+    )
+    expect(reset).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves the Test de sécurité alone when the error is another code", () => {
+    const reset = vi.fn()
+
+    expect(resolveAuthRefusal({ code: "INVALID_OTP" }, reset)).toBe(
+      "Le code de vérification est invalide ou incorrect."
+    )
+    expect(resolveAuthRefusal({ code: "TOO_MANY_ATTEMPTS" }, reset)).toBe(
+      "Trop de tentatives. Veuillez patienter avant de réessayer."
+    )
+    expect(reset).not.toHaveBeenCalled()
   })
 
   it("does not treat a missing jeton as a refusal the widget recovers from", () => {
-    expect(isCaptchaRejection({ code: "MISSING_RESPONSE" })).toBe(false)
+    const reset = vi.fn()
+
+    expect(resolveAuthRefusal({ code: "MISSING_RESPONSE" }, reset)).toBe(
+      "Veuillez valider le test de sécurité (Turnstile)."
+    )
+    expect(reset).not.toHaveBeenCalled()
   })
 
-  it("does not match other error codes, missing codes or a missing error", () => {
-    expect(isCaptchaRejection({ code: "INVALID_OTP" })).toBe(false)
-    expect(isCaptchaRejection({ code: "TOO_MANY_ATTEMPTS" })).toBe(false)
-    expect(isCaptchaRejection({})).toBe(false)
-    expect(isCaptchaRejection(null)).toBe(false)
-    expect(isCaptchaRejection(undefined)).toBe(false)
+  it("leaves the Test de sécurité alone for a missing code and for no error at all", () => {
+    const reset = vi.fn()
+    const generique = "Une erreur est survenue. Veuillez réessayer."
+
+    expect(resolveAuthRefusal({}, reset)).toBe(generique)
+    expect(resolveAuthRefusal(null, reset)).toBe(generique)
+    expect(resolveAuthRefusal(undefined, reset)).toBe(generique)
+    expect(reset).not.toHaveBeenCalled()
   })
 })

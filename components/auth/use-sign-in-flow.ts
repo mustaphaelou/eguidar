@@ -5,7 +5,7 @@ import { useState } from "react"
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
 import {
-  isCaptchaRejection,
+  resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
@@ -58,10 +58,7 @@ export function useSignInFlow({
           onStepChange("otp", email)
           return
         }
-        if (isCaptchaRejection(result.error)) {
-          captcha.reset()
-        }
-        setError(translateAuthError(result.error))
+        setError(resolveAuthRefusal(result.error, captcha.reset))
         return
       }
       completeSignIn()
