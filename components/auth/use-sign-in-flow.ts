@@ -54,6 +54,10 @@ export function useSignInFlow({
         fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
+        // Seul producteur de `EMAIL_NOT_VERIFIED` : la branche court-circuite
+        // avant la traduction. Le message reste dans le switch de
+        // `auth-form-glue.ts` — le switch est le vocabulaire, pas la carte de ce
+        // que ce chemin atteint.
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
           onStepChange("otp", email)
           return

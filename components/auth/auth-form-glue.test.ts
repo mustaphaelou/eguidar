@@ -7,6 +7,9 @@ describe("translateAuthError", () => {
     expect(translateAuthError({ code: "INVALID_EMAIL_OR_PASSWORD" })).toBe(
       "E-mail ou mot de passe invalide."
     )
+    // Le switch est le vocabulaire : `EMAIL_NOT_VERIFIED` reste traduit même si
+    // son seul producteur court-circuite avant la traduction
+    // (`use-sign-in-flow.ts`).
     expect(translateAuthError({ code: "EMAIL_NOT_VERIFIED" })).toBe(
       "Votre adresse e-mail n'est pas encore vérifiée."
     )
@@ -69,7 +72,7 @@ describe("resolveAuthRefusal", () => {
     expect(reset).not.toHaveBeenCalled()
   })
 
-  it("does not treat a missing jeton as a refusal the widget recovers from", () => {
+  it("does not treat a missing jeton as a refusal the Test de sécurité recovers from", () => {
     const reset = vi.fn()
 
     expect(resolveAuthRefusal({ code: "MISSING_RESPONSE" }, reset)).toBe(
