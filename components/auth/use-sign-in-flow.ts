@@ -3,7 +3,10 @@
 import { useState } from "react"
 
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
-import { useAuthDialogDestination } from "@/components/auth/auth-dialogs"
+import {
+  useAuthDialogDestination,
+  usePageAddressWithoutAuthParams,
+} from "@/components/auth/auth-dialogs"
 import {
   resolveAuthRefusal,
   translateAuthError,
@@ -11,7 +14,6 @@ import {
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
-import { withoutAuthParams } from "@/lib/lien-de-connexion"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 
 export type SignInFlow = ReturnType<typeof useSignInFlow>
@@ -28,6 +30,7 @@ export function useSignInFlow({
   onSuccess?: () => void
 }) {
   const next = useAuthDialogDestination()
+  const pageAddress = usePageAddressWithoutAuthParams()
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -76,7 +79,7 @@ export function useSignInFlow({
     setNotice(null)
     const result = await authClient.signIn.social({
       provider,
-      callbackURL: socialSignInDestination(),
+      callbackURL: socialSignInDestination(pageAddress),
     })
     if (result.error) setError(translateAuthError(result.error))
   }
@@ -116,9 +119,6 @@ export function useSignInFlow({
   }
 }
 
-function socialSignInDestination() {
-  return new URL(
-    withoutAuthParams(window.location.href),
-    window.location.origin
-  ).toString()
+function socialSignInDestination(pageAddress: string) {
+  return new URL(pageAddress, window.location.origin).toString()
 }

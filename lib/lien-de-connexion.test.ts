@@ -6,7 +6,6 @@ import {
   signupUrl,
   urlWouldChange,
   withAuthParams,
-  withoutAuthParams,
   withoutAuthSearchParams,
 } from "./lien-de-connexion"
 
@@ -190,21 +189,6 @@ describe("withAuthParams", () => {
   })
 })
 
-describe("withoutAuthParams", () => {
-  it("removes only the dialog parameter", () => {
-    expect(
-      withoutAuthParams("/recherche?q=chaussure&open=login&next=%2Fpanier")
-    ).toBe("/recherche?q=chaussure&next=%2Fpanier")
-  })
-
-  it("leaves URLs without a dialog parameter unchanged", () => {
-    expect(withoutAuthParams("/compte?onglet=commandes")).toBe(
-      "/compte?onglet=commandes"
-    )
-    expect(withoutAuthParams("/")).toBe("/")
-  })
-})
-
 describe("withoutAuthSearchParams", () => {
   it("maps an empty search to an empty result", () => {
     expect(withoutAuthSearchParams("")).toBe("")
@@ -292,7 +276,7 @@ describe("urlWouldChange", () => {
     expect(urlWouldChange(loginUrl(), "/panier")).toBe(true)
     expect(
       urlWouldChange(
-        withoutAuthParams("/panier?open=login"),
+        withoutAuthSearchParams("/panier?open=login"),
         "/panier?open=login"
       )
     ).toBe(true)

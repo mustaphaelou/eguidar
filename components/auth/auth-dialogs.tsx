@@ -57,9 +57,10 @@ function currentAddress(): string {
   return `${currentPathname()}${currentSearch()}${currentHash()}`
 }
 
-function pageAddressWithoutAuthParams(): string {
-  const cleaned = withoutAuthSearchParams(currentSearch())
-  return `${currentPathname()}${cleaned}${currentHash()}`
+function pageAddressWithoutAuthParams(
+  search: string | URLSearchParams
+): string {
+  return `${currentPathname()}${withoutAuthSearchParams(search)}${currentHash()}`
 }
 
 function navigateUnlessUnchanged(
@@ -104,8 +105,10 @@ export function AuthDialogsProvider({
 
   const cleanAuthParams = useCallback(() => {
     const current = currentAddress()
-    navigateUnlessUnchanged(current, pageAddressWithoutAuthParams(), (url) =>
-      router.replace(url, { scroll: false })
+    navigateUnlessUnchanged(
+      current,
+      pageAddressWithoutAuthParams(currentSearch()),
+      (url) => router.replace(url, { scroll: false })
     )
   }, [router])
 
@@ -115,7 +118,7 @@ export function AuthDialogsProvider({
       const next =
         options?.next ??
         parseAuthParams(currentSearch()).next ??
-        pageAddressWithoutAuthParams()
+        pageAddressWithoutAuthParams(currentSearch())
       openAuthDialog("login", next)
     },
     [openAuthDialog]
@@ -174,6 +177,16 @@ export function useAuthDialogDestination(): string | null {
   return parseAuthParams(searchParams).next
 }
 
+/**
+ * L'adresse de la page courante sans le Lien de connexion : la seule lecture
+ * du Lien de connexion hors contrôleur (destination par défaut et callback de
+ * la Connexion sociale), pour que `?open`/`?next` n'aient qu'un seul sens.
+ */
+export function usePageAddressWithoutAuthParams(): string {
+  const searchParams = useSearchParams()
+  return pageAddressWithoutAuthParams(searchParams)
+}
+
 export function useAuthDialogs() {
   const context = useContext(AuthDialogsContext)
   if (!context) {
@@ -185,15 +198,17 @@ export function useAuthDialogs() {
 function AuthUrlCleaner() {
   const searchParams = useSearchParams()
   const internals = useContext(AuthDialogsInternalsContext)
-  const { open, dialog } = parseAuthParams(searchParams)
+  const { open, dialog, next } = parseAuthParams(searchParams)
 
   useEffect(() => {
     if (!internals) return
     if (!internals.sessionReady) return
-    if (open !== null && !modalAllowed(open, dialog, internals)) {
-      internals.cleanAuthParams()
-    }
-  }, [open, dialog, internals])
+    // Un `?next` sans `?open` est un Lien de connexion interrompu : plus rien
+    // n'ouvre la modale, il ne ferait que détourner la prochaine Connexion.
+    if (open === null && next === null) return
+    if (open !== null && modalAllowed(open, dialog, internals)) return
+    internals.cleanAuthParams()
+  }, [open, dialog, next, internals])
 
   return null
 }
