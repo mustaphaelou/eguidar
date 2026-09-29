@@ -167,10 +167,13 @@ describe("useSignUpFlow", () => {
     expect(error()).toBeNull()
   })
 
-  it("surfaces USER_ALREADY_EXISTS and stays on the form step", async () => {
+  it("surfaces USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL and stays on the form step", async () => {
     mockedAuthClient.signUp.email.mockResolvedValue({
       data: null,
-      error: { code: "USER_ALREADY_EXISTS", message: "already exists" },
+      error: {
+        code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
+        message: "User already exists. Use another email.",
+      },
     })
     const onStepChange = vi.fn()
 
@@ -218,7 +221,7 @@ describe("useSignUpFlow", () => {
     expect(step()).toBe("otp")
   })
 
-  it("resets the captcha so a rejected sign-up retries with a fresh token", async () => {
+  it("resets the Test de sécurité so a rejected sign-up retries with a fresh jeton", async () => {
     mockedAuthClient.signUp.email.mockResolvedValue({
       data: null,
       error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
@@ -236,10 +239,10 @@ describe("useSignUpFlow", () => {
     expect(step()).toBe("form")
   })
 
-  it("does not reset the captcha when the sign-up is rejected for a non-captcha reason", async () => {
+  it("does not reset the Test de sécurité when the sign-up is refused for another reason", async () => {
     mockedAuthClient.signUp.email.mockResolvedValue({
       data: null,
-      error: { code: "USER_ALREADY_EXISTS", message: "already exists" },
+      error: { code: "PASSWORD_TOO_SHORT", message: "too short" },
     })
 
     render(<Harness />)

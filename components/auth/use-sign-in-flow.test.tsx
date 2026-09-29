@@ -267,7 +267,7 @@ describe("useSignInFlow", () => {
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
-  it("resets the captcha so a rejected sign-in retries with a fresh token", async () => {
+  it("resets the Test de sécurité so a rejected sign-in retries with a fresh jeton", async () => {
     mockedAuthClient.signIn.email.mockResolvedValue({
       data: null,
       error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
@@ -284,10 +284,13 @@ describe("useSignInFlow", () => {
     expect(step()).toBe("form")
   })
 
-  it("does not reset the captcha when the sign-in is rejected for a non-captcha reason", async () => {
+  it("does not reset the Test de sécurité when the sign-in is refused for another reason", async () => {
     mockedAuthClient.signIn.email.mockResolvedValue({
       data: null,
-      error: { code: "USER_ALREADY_EXISTS", message: "already exists" },
+      error: {
+        code: "INVALID_EMAIL_OR_PASSWORD",
+        message: "bad credentials",
+      },
     })
 
     render(<Harness />)

@@ -3,10 +3,7 @@
 import { useState } from "react"
 
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
-import {
-  isCaptchaRejection,
-  translateAuthError,
-} from "@/components/auth/auth-form-glue"
+import { resolveAuthRefusal } from "@/components/auth/auth-form-glue"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
@@ -41,10 +38,7 @@ export function useSignUpFlow({
         fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
-        if (isCaptchaRejection(result.error)) {
-          captcha.reset()
-        }
-        setError(translateAuthError(result.error))
+        setError(resolveAuthRefusal(result.error, captcha.reset))
         return
       }
       onStepChange("otp", email)

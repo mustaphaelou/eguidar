@@ -9,7 +9,7 @@ export function translateAuthError(error: {
       return "E-mail ou mot de passe invalide."
     case "EMAIL_NOT_VERIFIED":
       return "Votre adresse e-mail n'est pas encore vérifiée."
-    case "USER_ALREADY_EXISTS":
+    case "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL":
       return "Un compte existe déjà avec cette adresse e-mail."
     case "PASSWORD_TOO_SHORT":
       return "Le mot de passe doit contenir au moins 8 caractères."
@@ -30,7 +30,21 @@ export function translateAuthError(error: {
   }
 }
 
-export function isCaptchaRejection(
+/**
+ * Le refus d'un Envoi protégé, de bout en bout : remettre le Test de sécurité
+ * à zéro quand le serveur a refusé le jeton, et rendre le message français dans
+ * tous les cas. Les trois sites d'appel l'appellent, ils n'en écrivent plus la
+ * règle.
+ */
+export function resolveAuthRefusal(
+  error: { code?: string; message?: string } | null | undefined,
+  reset: () => void
+): string {
+  if (isCaptchaRejection(error)) reset()
+  return translateAuthError(error ?? {})
+}
+
+function isCaptchaRejection(
   error: { code?: string } | null | undefined
 ): boolean {
   return error?.code === "VERIFICATION_FAILED"

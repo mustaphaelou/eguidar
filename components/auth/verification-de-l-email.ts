@@ -3,7 +3,7 @@
 import { useState } from "react"
 
 import {
-  isCaptchaRejection,
+  resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
@@ -38,10 +38,7 @@ export function useOtpExchange({
         fetchOptions: { headers: captcha.headers },
       })
       if (result.error) {
-        if (isCaptchaRejection(result.error)) {
-          captcha.reset()
-        }
-        setError(translateAuthError(result.error))
+        setError(resolveAuthRefusal(result.error, captcha.reset))
         return
       }
       setOtpSent(true)
