@@ -19,6 +19,16 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Implementer worktrees nested in this checkout (git-ignored).
     ".worktrees/**",
+    // Directories git ignores and eslint-config-next does not know about. ESLint
+    // never reads `.gitignore`, so each one is spelled out: a guard that holds by
+    // accident is not a guard. `eslint-ignores.test.ts` derives the correspondence
+    // from `.gitignore` and fails when a directory joins one file and not the other.
+    // Security audit output and agent scratch (git-ignored).
+    ".scratch/**",
+    // Coverage reports (git-ignored).
+    "coverage/**",
+    // Agent notes (git-ignored).
+    "notes/**",
   ]),
 ]);
 
