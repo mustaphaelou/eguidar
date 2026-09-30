@@ -19,9 +19,13 @@ const SOURCE = "GET https://une-api.example/que-ce-depot-na-pas-appelle"
 const DECLARES = ["lint", "format", "typecheck", "test", "build"]
 
 /**
- * Ce que le ruleset de ce dépôt exige aujourd'hui : quatre des cinq, `format`
- * en moins. C'est la dérive que ce module existe pour nommer, et elle est
- * écrite ici comme une donnée, pas comme une espérance.
+ * Des exigences qui ne sont pas celles des jobs déclarés : quatre des cinq,
+ * `format` en moins. Cette liste est fabriquée, et ne prétend rien des réglages
+ * que ce dépôt porte : la comparaison n'a rien à prouver sur deux listes égales,
+ * où une fonction qui rend toujours deux listes vides passerait aussi
+ * facilement qu'une fonction juste. Il lui faut des listes qui divergent
+ * vraiment — et celle-ci diverge dans le sens qui a le plus dormi, un job vert
+ * partout que rien n'attend devant la fusion.
  */
 const EXIGES = ["lint", "typecheck", "test", "build"]
 
@@ -85,9 +89,9 @@ describe("la comparaison des deux listes", () => {
 
   it("nomme le check que le flux déclare et que le ruleset n'exige pas", () => {
     // Le sens de cet écart ne se voit pas à l'œil : `format` est bien exécuté
-    // par la CI, et son job est bien vert. Il n'est simplement pas exigé, donc
-    // rien ne l'attend devant la fusion. C'est la dérive réelle, et c'est le
-    // seul des deux sens que la contenance aurait laissé passer.
+    // par la CI, et son job est bien vert. Il n'est seulement pas exigé, donc
+    // rien ne l'attend devant la fusion. C'est la dérive qui a eu lieu, et c'est
+    // le seul des deux sens que la contenance aurait laissé passer.
     expect(comparerLesChecks(DECLARES, EXIGES)).toEqual({
       nonExigés: ["format"],
       sansJob: [],
@@ -204,7 +208,8 @@ describe("la lecture d'un ruleset", () => {
   it("rend les exigences d'un ruleset qu'elle sait lire, et se tait", () => {
     // Témoin de non-vacuité, dans les deux sens : un `jugerLeRuleset` qui
     // répondrait toujours « illisible » passerait les cas suivants aussi
-    // facilement qu'un qui lit. Le payload est celui que l'API rend, mesuré.
+    // facilement qu'un qui lit. La charge utile est celle que l'API rend,
+    // mesurée.
     expect(jugerLeRuleset(ruleset(EXIGES), SOURCE)).toEqual({
       lisible: true,
       exigences: {
