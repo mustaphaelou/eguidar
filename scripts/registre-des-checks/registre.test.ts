@@ -70,8 +70,8 @@ function ruleset(contextes: string[]): Record<string, unknown> {
  * que relever l'erreur par `toThrow` permet d'ancrer chaque forme à la phrase
  * exacte qu'elle mérite, comme le fait `ci-liste-lecture.test.ts`.
  */
-function raisonDe(payload: unknown): string | null {
-  const lecture = jugerLeRuleset(payload, SOURCE)
+function raisonDe(chargeUtile: unknown): string | null {
+  const lecture = jugerLeRuleset(chargeUtile, SOURCE)
   return lecture.lisible ? null : lecture.raison
 }
 
