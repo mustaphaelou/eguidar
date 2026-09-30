@@ -261,22 +261,22 @@ function exigerUnBooleen(
  * ajouter cinq portes à des réglages qui, eux, n'en ont pas. Dire « il n'y a pas
  * de règle » est la même information, et elle se répare d'une autre manière.
  */
-function exigerLesExigences(payload: unknown, source: string): Exigences {
-  if (!estObjet(payload) || typeof payload.name !== "string") {
+function exigerLesExigences(chargeUtile: unknown, source: string): Exigences {
+  if (!estObjet(chargeUtile) || typeof chargeUtile.name !== "string") {
     throw new ErreurDeLectureDuRuleset(
       `${source} : clé \`name\` absente ou illisible`
     )
   }
-  const { name: nom } = payload
+  const { name: nom } = chargeUtile
   const dans = `${source} (ruleset « ${nom} ») : `
 
-  if (!Array.isArray(payload.rules)) {
+  if (!Array.isArray(chargeUtile.rules)) {
     throw new ErreurDeLectureDuRuleset(
       `${dans}clé \`rules\` absente ou illisible`
     )
   }
 
-  const regle = payload.rules.find(
+  const regle = chargeUtile.rules.find(
     (entree) => estObjet(entree) && entree.type === "required_status_checks"
   )
   if (!estObjet(regle) || !estObjet(regle.parameters)) {
@@ -330,11 +330,11 @@ function exigerLesExigences(payload: unknown, source: string): Exigences {
  * rattraper, et à ne plus suivre le chemin que suit le vrai appelant.
  */
 export function jugerLeRuleset(
-  payload: unknown,
+  chargeUtile: unknown,
   source: string
 ): LectureDuRuleset {
   try {
-    return { lisible: true, exigences: exigerLesExigences(payload, source) }
+    return { lisible: true, exigences: exigerLesExigences(chargeUtile, source) }
   } catch (erreur) {
     return { lisible: false, raison: (erreur as Error).message }
   }
