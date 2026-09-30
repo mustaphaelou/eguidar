@@ -76,6 +76,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+        # `github.token` is not exported into a step: without it the ruleset
+        # assertion skips in CI. Not a secret — minted per run, dies with the
+        # job — and `permissions:` stands, `metadata` not being settable.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   build:
     runs-on: ubuntu-latest
