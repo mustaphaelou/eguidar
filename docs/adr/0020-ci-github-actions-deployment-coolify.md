@@ -10,13 +10,18 @@ in GitHub Actions, while continuous deployment stays with the machinery that alr
 
 ## Decision
 
-- **Continuous integration lives in one GitHub Actions workflow** with four parallel jobs —
-  `lint`, `typecheck`, `test`, `build` — run on every pull request targeting `main` and every
-  push to `main`. Each job invokes the existing repository script verbatim; the job names are the
-  required status checks.
+- **Continuous integration lives in one GitHub Actions workflow** with five parallel jobs —
+  `lint`, `format`, `typecheck`, `test`, `build` — run on every pull request targeting `main`
+  and every push to `main`. Each job invokes the existing repository script verbatim; the job
+  names are the required status checks.
 - **A ruleset on `main` makes green checks a precondition to merge**: pull request required, the
-  four checks required, branch required to be up to date with `main`, no review requirement, no
+  five checks required, branch required to be up to date with `main`, no review requirement, no
   bypass. Enforcement is enabled only after the workflow's first fully green run.
+- **The ruleset requires exactly the checks the workflow declares, and a test says so.**
+  `scripts/registre-des-checks/` reads the live ruleset from inside the `test` job, compares it
+  to the workflow's job names in both directions, and fails when the two diverge. Adding a job
+  is therefore not enough on its own: its status has to be required by the ruleset too, or the
+  `test` job goes red on the very pull request that adds it.
 - **The `test` job runs against an ephemeral `postgres:16-alpine` service container** and the
   suite keeps running serially (`fileParallelism: false`): CI never touches a shared or
   production database, and the global setup's truncation stays safe.
@@ -53,7 +58,7 @@ in GitHub Actions, while continuous deployment stays with the machinery that alr
 - **CI requires no repository secrets or variables**; it can only read the repository.
 - **Coolify's deploy behaviour is unchanged** — webhook on every push to `main`, Dockerfile
   build, `migrate` before the app — so shipping CI cannot change how the site is deployed.
-- **`main` only accepts changes through a pull request** whose four checks are green and whose
+- **`main` only accepts changes through a pull request** whose five checks are green and whose
   branch is up to date with `main`.
 - **Failures surface through GitHub's built-in notifications**; no external webhook or secret
   reports them.
