@@ -93,13 +93,11 @@ describe("registre durable des Brouillons d'Image produit", () => {
     horloge: Horloge = { maintenant: () => new Date(now) },
     stockage = creerStockageImageProduitMemoire()
   ) {
+    const registre = creerRegistreBrouillonImageProduitPrisma(horloge)
     return {
-      cycleVie: creerCycleVieImageProduit({
-        stockage,
-        registre: creerRegistreBrouillonImageProduitPrisma(horloge),
-        horloge,
-      }),
+      cycleVie: creerCycleVieImageProduit({ stockage, registre, horloge }),
       stockage,
+      registre,
     }
   }
 
@@ -596,5 +594,106 @@ describe("registre durable des Brouillons d'Image produit", () => {
         where: { id: demande.draftId },
       })
     ).toMatchObject({ state: "vivant", tentativeId: null, productId: null })
+  })
+
+  it("ne rend à l'éditeur que le Brouillon que la tentative avait pris", async () => {
+    // La compensation écrit une seule fois : celle d'une revendication dont
+    // l'enregistrement du Catalogue a échoué. Les quatre autres issues de la
+    // règle sont rejouées ici sur la rangée durable elle-même — pas sur ce que le
+    // port en relit — pour qu'une compensation qui n'aurait rien à faire soit
+    // prouvée inerte, et pas seulement sans effet observable.
+    const horloge = creerHorlogeControllable(now)
+    const { cycleVie, registre } = creerCycleVie(horloge.horloge)
+
+    async function demander(contentType: string) {
+      const demande = await cycleVie.demanderBrouillon({
+        ownerId,
+        contentType,
+        size: 2048,
+      })
+      if (!demande.ok) throw new Error("La demande devait réussir")
+      return demande.draftId
+    }
+
+    async function prendre(draftId: string, tentativeId: string) {
+      const revendication = await registre.revendiquer({
+        id: draftId,
+        ownerId,
+        tentativeId,
+        now: horloge.horloge.maintenant(),
+      })
+      if (!revendication.ok) throw new Error("La revendication devait réussir")
+    }
+
+    const [vivant, linked, rival, libere] = await Promise.all([
+      demander("image/png"),
+      demander("image/webp"),
+      demander("image/jpeg"),
+      demander("image/avif"),
+    ])
+    const produit = await enregistrerProduit(
+      RevendicationImagesProduit.creer({
+        galerie: [],
+        promues: [],
+        lier: async () => {},
+      })
+    )
+    await prendre(linked, "tentative-liee")
+    expect(
+      await registre.confirmerPromotion({
+        id: linked,
+        tentativeId: "tentative-liee",
+        productId: produit.productId,
+        publicUrl: "https://cdn.example.test/promue.png",
+      })
+    ).toBe(true)
+    await prendre(rival, "tentative-rivale")
+    await prendre(libere, "tentative-libere")
+    // Un Brouillon libéré qui porterait encore sa tentative : aucune opération
+    // du port ne le produit, et la règle doit pourtant le refuser. La rangée
+    // durable s'écrit donc directement, pour isoler l'état de la règle.
+    await prisma.brouillonImageProduit.update({
+      where: { id: libere },
+      data: { state: "libéré" },
+    })
+    // La rétention de l'adaptateur en horizon de test : `demanderBrouillon`
+    // la calcule sur l'horloge, qu'on peut faire avancer.
+    horloge.avancer(25 * 60 * 60)
+    const expire = await demander("image/gif")
+    await prendre(expire, "tentative-expiree")
+    horloge.avancer(25 * 60 * 60)
+    // La lecture est ce qui résout l'expiration et l'écrit.
+    await registre.lire(expire)
+
+    const avant = await prisma.brouillonImageProduit.findMany({
+      where: { id: { in: [vivant, linked, rival, libere, expire] } },
+      orderBy: { id: "asc" },
+    })
+    expect(avant).toHaveLength(5)
+    expect(avant.map(({ state }) => state).sort()).toEqual([
+      "expiré",
+      "libéré",
+      "revendiqué",
+      "revendiqué",
+      "vivant",
+    ])
+
+    for (const draftId of [vivant, linked, rival, libere, expire]) {
+      await registre.annulerRevendication({
+        id: draftId,
+        tentativeId: "tentative-liee",
+      })
+    }
+
+    const apres = await prisma.brouillonImageProduit.findMany({
+      where: { id: { in: [vivant, linked, rival, libere, expire] } },
+      orderBy: { id: "asc" },
+    })
+    // Les cinq rangées sont bit pour bit celles d'avant : ni le `libéré` qui
+    // porte encore sa tentative, ni l'`expiré`, ni le Brouillon déjà lié à un
+    // Produit, ni celui d'une tentative rivale, ni le `vivant` n'ont été
+    // touchés. La compensation est arrivée trop tard pour l'un d'eux à chaque
+    // fois, et une compensation en retard ne réécrit rien.
+    expect(apres).toEqual(avant)
   })
 })

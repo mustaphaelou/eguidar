@@ -681,6 +681,39 @@ export function compensationAdmise<T extends LigneCompensable>(
 }
 
 /**
+ * **La compensation, transcrite en SQL.** Une fonction pure ne se partage pas
+ * avec une clause : la comparer ligne à ligne serait déjà une seconde règle.
+ * Elle est donc écrite, nommée, et épinglée — `clauseCompensation` est comparée
+ * au verdict de `compensationAdmise` sur un jeu de rangées, et une clause
+ * modifiée pour diverger fait échouer la suite.
+ *
+ * Les trois conditions sont celles de la règle, dans le même ordre ; `id` est la
+ * clé de la rangée cherchée et n'en est pas une. Le nom de la tentative
+ * paramétré, l'état en littéral : ce sont les deux seules données qu'un
+ * appelant pourrait faire varier pour contourner la règle.
+ *
+ * Elle reste dans le module propriétaire, comme les autres clauses du registre :
+ * une suite qui l'importait est une suite qui atteint l'intérieur, pas le
+ * registre.
+ */
+export function clauseCompensation(input: {
+  id: string
+  tentativeId: string
+}): {
+  id: string
+  tentativeId: string
+  state: "revendiqué"
+  productId: null
+} {
+  return {
+    id: input.id,
+    tentativeId: input.tentativeId,
+    state: "revendiqué",
+    productId: null,
+  }
+}
+
+/**
  * Un Brouillon d'Image produit dont la rétention est dépassée et qui n'est lié à
  * aucun Produit se résout en `expiré`, dans l'état de revendication qu'il ait.
  *
@@ -889,20 +922,27 @@ export function creerRegistreBrouillonImageProduitPrisma(
     },
 
     /**
-     * La compensation ne rend `vivant` que ce qui est encore `revendiqué` : un
-     * Brouillon dont la rétention est échue a été résolu en `expiré`, et le
-     * rendre à `vivant` le rendrait revendicable alors que son objet a pu être
-     * supprimé par la règle de cycle de vie R2. Le port en mémoire applique la
-     * même précondition, et le contrat exige que les deux s'accordent.
+     * La compensation rend `vivant` ce que la règle du module propriétaire lui
+     * accorde, et rien d'autre : un Brouillon d'Image produit pris par cette
+     * tentative, encore `revendiqué`, et lié à aucun Produit. Un Brouillon dont
+     * la rétention est échue a été résolu en `expiré`, et le rendre à `vivant` le
+     * rendrait revendicable alors que son objet a pu être supprimé par la règle
+     * de cycle de vie R2 — c'est ce que le commit `1efee48` corrigeait ici.
+     *
+     * La lecture ne remplace pas la clause : elle décide, la clause garantit.
+     * Entre les deux, la rangée a pu bouger, et `updateMany` n'écrit que si les
+     * quatre faits tiennent encore. Une compensation est un rattrapage, pas une
+     * revendication : elle n'a pas à être atomique, elle a à être inerte quand
+     * elle arrive trop tard.
      */
     async annulerRevendication(input) {
+      const row = await prisma.brouillonImageProduit.findUnique({
+        where: { id: input.id },
+        select: selectionBrouillon,
+      })
+      if (!compensationAdmise(row, input.tentativeId)) return
       await prisma.brouillonImageProduit.updateMany({
-        where: {
-          id: input.id,
-          tentativeId: input.tentativeId,
-          state: "revendiqué",
-          productId: null,
-        },
+        where: clauseCompensation(input),
         data: {
           state: "vivant",
           tentativeId: null,
@@ -1093,6 +1133,19 @@ export function creerCycleVieImageProduit(
     const mimeParBrouillon = new Map<string, string>()
     const now = horloge.maintenant()
 
+    /**
+     * Rendre à l'éditeur ce qu'une revendication avait pris, parce que
+     * l'enregistrement du Catalogue a échoué. Cinq chemins y parviennent, et
+     * aucun n'est un chemin de succès : c'est un rattrapage, jamais un refus.
+     *
+     * Une compensation qui échoue ne peut donc ni devenir un refus — le refus qui
+     * part vers l'éditeur est celui du Catalogue, et le remplacer par le sien
+     * masquerait la seule cause qu'il reste — ni se perdre en silence. Elle est
+     * journalisée, dans la forme du journal best-effort du registre durable pour
+     * l'écriture de l'état `expiré`, et le Brouillon qu'elle n'a pas pu rendre
+     * est nommé : c'est la seule trace qui reste quand un éditeur ne retrouve
+     * pas le sien après un enregistrement échoué.
+     */
     async function restaurerRevendications(): Promise<void> {
       await Promise.all(
         revendiques.map((draft) =>
@@ -1101,7 +1154,12 @@ export function creerCycleVieImageProduit(
               id: draft.id,
               tentativeId,
             })
-            .catch(() => undefined)
+            .catch((error) => {
+              console.warn(
+                `[brouillon-image-produit] compensation non écrite pour ${draft.id}`,
+                error
+              )
+            })
         )
       )
     }
