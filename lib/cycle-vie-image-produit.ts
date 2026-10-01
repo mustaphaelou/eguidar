@@ -659,17 +659,19 @@ type LigneCompensable = {
  *
  * Un Brouillon absent n'est pas une compensation manquée : le port rend
  * `void`, et un `null` doit donc se classer comme un refus de compensation
- * plutôt que faire échouer l'appelant.
+ * plutôt que faire échouer l'appelant. D'où le prédicat de type : un seul
+ * appel dit à l'adaptateur s'il a une ligne à rendre, et le TypeScript ne lui
+ * laisse pas écrire une ligne qu'il n'a pas.
  *
  * **Pure :** ni base, ni horloge, ni concurrence. La rétention n'y entre pas
  * pour une raison — c'est l'état `expiré` déjà écrit par le registre qui la
  * porte, et c'est ce qui permet aux deux adaptateurs d'en répondre sans
  * horloge injectée.
  */
-export function compensationAdmise(
-  ligne: LigneCompensable | null | undefined,
+export function compensationAdmise<T extends LigneCompensable>(
+  ligne: T | null | undefined,
   tentativeId: string
-): boolean {
+): ligne is T {
   if (!ligne) return false
   return (
     ligne.state === "revendiqué" &&

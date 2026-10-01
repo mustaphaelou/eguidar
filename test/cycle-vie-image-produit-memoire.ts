@@ -1,4 +1,5 @@
 import {
+  compensationAdmise,
   creerCycleVieImageProduit,
   RevendicationImagesProduit,
   type BrouillonImageProduit,
@@ -283,24 +284,24 @@ export function creerRegistreImageProduitMemoire(
     },
 
     /**
-     * La compensation ne rend `vivant` que ce qui est encore `revendiqué` : un
-     * Brouillon résolu en `expiré` garde son expiration, exactement comme le
-     * registre durable, où la rétention décide de l'état indépendamment de la
-     * compensation. Rendre un Brouillon expiré à `vivant` le laisserait
-     * revendicable par une tentative alors que son objet a pu être supprimé.
+     * La compensation rend `vivant` ce que la règle du module propriétaire lui
+     * accorde, et rien de plus : un Brouillon d'Image produit pris par cette
+     * tentative, encore `revendiqué`, et lié à aucun Produit. Un Brouillon
+     * résolu en `expiré` garde son expiration — le rendre revendicable alors que
+     * son objet a pu être supprimé par la règle de cycle de vie R2 nuirait à
+     * l'éditeur sans rien lui rendre ; un Brouillon libéré ou déjà lié à un
+     * Produit n'a plus rien à rendre du tout.
+     *
+     * Ne rien trouver n'est pas un échec : le port rend `void`, et l'appelant
+     * n'a donc rien à rattraper.
      */
     async annulerRevendication(input) {
       panne("annulerRevendication")
       const brouillon = records.get(input.id)
-      if (
-        brouillon?.state === "revendiqué" &&
-        brouillon.tentativeId === input.tentativeId &&
-        brouillon.productId === null
-      ) {
-        brouillon.state = "vivant"
-        brouillon.tentativeId = null
-        brouillon.promotedPublicUrl = null
-      }
+      if (!compensationAdmise(brouillon, input.tentativeId)) return
+      brouillon.state = "vivant"
+      brouillon.tentativeId = null
+      brouillon.promotedPublicUrl = null
     },
 
     /**
