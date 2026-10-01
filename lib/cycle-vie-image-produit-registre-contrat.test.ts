@@ -3,18 +3,79 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import {
+  classerRevendication,
   creerRegistreBrouillonImageProduitPrisma,
   type Horloge,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
-  CODES_REFUS_CONTRAT,
+  codesAttendusParLeContrat,
   codesRefus,
   exigerEnteteRegistre,
   SCENARIOS_REGISTRE,
+  tousLesCodesDuPort,
   type AdaptateurRegistre,
 } from "@/test/contrat-registre-brouillon"
 import { creerRegistreImageProduitMemoire } from "@/test/cycle-vie-image-produit-memoire"
+
+const TENTATIVE = "tentative-1"
+const TENTATIVE_RIVALE = "tentative-2"
+const PROPRIETAIRE_TEMOIN = "editeur-temoin"
+const AUTRE_TEMOIN = "editeur-temoin-2"
+const AVANT_RETENTION = new Date("2026-05-01T11:00:00.000Z")
+const MAINTENANT_TEMOIN = new Date("2026-05-01T11:00:00.001Z")
+const APRES_RETENTION_TEMOIN = new Date("2026-05-01T11:00:00.002Z")
+
+/**
+ * Une rangée par refus que la règle doit savoir rendre. C'est un témoin de
+ * non-vacuité, pas une seconde batterie de cas : six faits, lisibles d'un coup
+ * d'œil, six verdicts. La rétention est le plus souvent intacte, pour que la
+ * seule chose qui distingue ces refus soit bien l'état regardé.
+ */
+const LIGNES_POUR_TEMOINS = [
+  {
+    nom: "vivant, à son éditeur",
+    state: "vivant",
+    ownerId: PROPRIETAIRE_TEMOIN,
+    tentativeId: null,
+    expiresAt: APRES_RETENTION_TEMOIN,
+  },
+  {
+    nom: "vivant, à un autre",
+    state: "vivant",
+    ownerId: AUTRE_TEMOIN,
+    tentativeId: null,
+    expiresAt: APRES_RETENTION_TEMOIN,
+  },
+  {
+    nom: "revendiqué par une rivale",
+    state: "revendiqué",
+    ownerId: PROPRIETAIRE_TEMOIN,
+    tentativeId: TENTATIVE_RIVALE,
+    expiresAt: APRES_RETENTION_TEMOIN,
+  },
+  {
+    nom: "libéré",
+    state: "libéré",
+    ownerId: PROPRIETAIRE_TEMOIN,
+    tentativeId: null,
+    expiresAt: APRES_RETENTION_TEMOIN,
+  },
+  {
+    nom: "un état que le registre ne connaît pas",
+    state: "état-inconnu",
+    ownerId: PROPRIETAIRE_TEMOIN,
+    tentativeId: null,
+    expiresAt: APRES_RETENTION_TEMOIN,
+  },
+  {
+    nom: "rétention échue",
+    state: "vivant",
+    ownerId: PROPRIETAIRE_TEMOIN,
+    tentativeId: null,
+    expiresAt: AVANT_RETENTION,
+  },
+].map(({ nom, ...reste }) => ({ nom, ...reste, productId: null }))
 
 const proprietaire = randomUUID()
 const autreProprietaire = randomUUID()
@@ -127,9 +188,33 @@ describe("registre des Brouillons d'Image produit — contrat des deux adaptateu
       atteints.push(...codesRefus(observation))
     }
 
-    expect([...new Set(atteints)].sort()).toEqual(
-      Object.keys(CODES_REFUS_CONTRAT).sort()
-    )
+    // Les trois autres sont marqués « classification » dans la table : c'est la
+    // règle partagée qui les rend, les deux adaptateurs ne peuvent pas en
+    // diverger, et la suite de la classification épingle les six.
+    expect([...new Set(atteints)].sort()).toEqual(codesAttendusParLeContrat())
+  })
+
+  it("la règle partagée sait rendre tous les refus du port", () => {
+    // Le témoin déplacé, mais pas affaibli : les six codes doivent sortir des
+    // verdicts de `classerRevendication`, sinon un refus serait devenu
+    // inexprimable et le port le déclarerait encore.
+    const rendus = new Set<string>()
+    const contexte = {
+      ownerId: PROPRIETAIRE_TEMOIN,
+      tentativeId: TENTATIVE,
+      now: MAINTENANT_TEMOIN,
+    }
+    const verdicts = [
+      ...LIGNES_POUR_TEMOINS.map((ligne) =>
+        classerRevendication(ligne, contexte)
+      ),
+      classerRevendication(null, contexte),
+    ]
+    for (const verdict of verdicts) {
+      if (verdict.kind === "tranche") rendus.add(verdict.code)
+      else if (verdict.kind === "a_ecrire") rendus.add(verdict.refusalSiEchec)
+    }
+    expect([...rendus].sort()).toEqual(tousLesCodesDuPort())
   })
 
   it("le contrat aperçoit une divergence que deux suites d'adaptateur laisseraient passer", async () => {

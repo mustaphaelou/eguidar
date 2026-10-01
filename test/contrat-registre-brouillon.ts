@@ -13,15 +13,31 @@ import {
 } from "@/test/cycle-vie-image-produit-memoire"
 
 /**
- * Le contrat que les deux adaptateurs du registre rejouent côte à côte.
+ * Le contrat que les deux adaptateurs du registre rejouent côte à côté.
  *
- * Une couture qui a deux adaptateurs est une couture réelle ; celle-ci avait
- * deux réponses là où elle n'en avait qu'une. Le contrat n'épingle donc aucune
- * valeur attendue : il rejoue le même scénario sur chaque adaptateur et
- * affirme que les deux répondent la même observation — le même refus, le même
- * résultat, le même état restant. Une divergence échoue ici au lieu de se
- * cacher derrière une suite verte, et l'adaptateur durable reste la référence
- * parce qu'il est la base.
+ * **Ce qu'il tient désormais, c'est le stockage.** Les deux adaptateurs
+ * appellent la même fonction de classification, donc ils ne peuvent plus
+ * diverger sur ce qu'un refus est : ce serait un bug dans la règle, et la règle
+ * a sa propre suite, où elle est épinglée sans base et sans doublure. Ce qui
+ * reste propre à un adaptateur, c'est comment la rangée est écrite et relue —
+ * la comparaison-and-échange, les transactions, la rangée telle qu'elle
+ * persiste, la confirmation d'une promotion, une libération.
+ *
+ * Une couture qui a deux adaptateurs est une couture réelle, et il en reste
+ * une : la libération d'un Brouillon dont la rétention est dépassée, que la
+ * base refuse et qu'un adaptateur de mémoire accepterait sans laisser de trace.
+ * Le contrat n'épingle donc aucune valeur attendue : il rejoue le même scénario
+ * sur chaque adaptateur et affirme que les deux répondent la même observation —
+ * le même refus, le même résultat, le même état restant. Une divergence échoue
+ * ici au lieu de se cacher derrière une suite verte, et l'adaptateur durable
+ * reste la référence parce qu'il est la base.
+ *
+ * Sept scénarios ont quitté ce fichier pour la suite de la classification : ils
+ * portaient sur ce que la classification décide, non sur la façon dont la rangée
+ * est stockée. Ils y sont repris sous leurs noms d'ici, pour qu'un scénario
+ * déplacé se reconnaisse. Trois refus du port ne sont donc plus atteints par un
+ * scénario d'ici — la table `CODES_REFUS_CONTRAT` dit lesquels, et la garde de
+ * non-vacuité les épingle de l'autre côté.
  *
  * Il vit dans `test/` et non dans une suite parce que les assertions
  * réellement identiques méritent un seul endroit : chaque suite garde ensuite ses
@@ -163,9 +179,14 @@ async function observe(
 /**
  * Les scénarios du contrat. Chacun se lit comme une phrase du cycle de vie, et
  * aucun n'écrit la valeur attendue : l'accord entre les deux adaptateurs est
- * l'assertion. Les refus qu'ils produisent sont énumérés par
- * `CODES_REFUS_CONTRAT`, que la suite vérifie — sans quoi un contrat qui ne
- * refuserait plus rien passerait aussi facilement qu'un contrat juste.
+ * l'assertion. Tous portent sur le **stockage** — la comparaison-and-échange, les
+ * transactions, la rangée persistée, la confirmation d'une promotion, une
+ * libération — et aucun sur ce que la classification décide, que les deux
+ * adaptateurs appliquent de la même façon par construction.
+ *
+ * Les refus qu'ils produisent sont énumérés par `CODES_REFUS_CONTRAT`, que la
+ * suite vérifie — sans quoi un contrat qui ne refuserait plus rien passerait
+ * aussi facilement qu'un contrat juste.
  */
 export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
   {
@@ -201,29 +222,6 @@ export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
     },
   },
   {
-    nom: "revendiquer un Brouillon vivant",
-    async jouer(registre, contexte) {
-      await creerBrouillon(registre, contexte)
-      return await observe(
-        await revendiquer(registre, contexte, TENTATIVE),
-        registre,
-        contexte
-      )
-    },
-  },
-  {
-    nom: "rejouer la revendication de la même tentative",
-    async jouer(registre, contexte) {
-      await creerBrouillon(registre, contexte)
-      await revendiquer(registre, contexte, TENTATIVE)
-      return await observe(
-        await revendiquer(registre, contexte, TENTATIVE),
-        registre,
-        contexte
-      )
-    },
-  },
-  {
     nom: "rejouer une revendication déjà gagnée, rétention échue entre-temps",
     // L'ordre des deux barreaux, et rien d'autre. La rétention limite une
     // *nouvelle* revendication : la tentative avait déjà pris ce Brouillon, et
@@ -251,54 +249,6 @@ export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
         registre,
         contexte
       )
-    },
-  },
-  {
-    nom: "refuser la revendication d'un autre propriétaire",
-    async jouer(registre, contexte) {
-      await creerBrouillon(registre, contexte)
-      return await observe(
-        await revendiquer(
-          registre,
-          contexte,
-          TENTATIVE,
-          contexte.autreProprietaire
-        ),
-        registre,
-        contexte
-      )
-    },
-  },
-  {
-    nom: "refuser la revendication d'un identifiant inconnu",
-    async jouer(registre, contexte) {
-      return await observe(
-        await revendiquer(registre, contexte, TENTATIVE),
-        registre,
-        contexte
-      )
-    },
-  },
-  {
-    nom: "revendiquer à la dernière milliseconde, refuser à l'instant exact de la rétention",
-    async jouer(registre, contexte) {
-      await creerBrouillon(registre, contexte)
-      contexte.horloge.fixer(new Date(expiration().getTime() - 1))
-      const avant = await revendiquer(registre, contexte, TENTATIVE)
-      contexte.horloge.fixer(expiration())
-      const aLaFrontiere = await revendiquer(
-        registre,
-        contexte,
-        TENTATIVE_RIVALE
-      )
-      contexte.horloge.avancer(1)
-      const apres = await revendiquer(registre, contexte, TENTATIVE_RIVALE)
-      return {
-        avant: projetReponse(avant),
-        aLaFrontiere: projetReponse(aLaFrontiere),
-        apres: projetReponse(apres),
-        etat: projetEtat(await registre.lire(contexte.draftId)),
-      }
     },
   },
   {
@@ -385,34 +335,6 @@ export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
     async jouer(registre, contexte) {
       await creerBrouillon(registre, contexte)
       await revendiquer(registre, contexte, TENTATIVE)
-      await registre.annulerRevendication({
-        id: contexte.draftId,
-        tentativeId: TENTATIVE,
-      })
-      return await observe(
-        await revendiquer(registre, contexte, TENTATIVE_RIVALE),
-        registre,
-        contexte
-      )
-    },
-  },
-  {
-    nom: "ne pas rendre à l'éditeur un Brouillon expiré",
-    // L'autre divergence du ticket : la compensation d'une revendication dont
-    // la rétention est échue. Rendre `vivant` un Brouillon expiré le rendrait
-    // revendicable alors que son objet a pu être supprimé par la règle de cycle
-    // de vie R2.
-    //
-    // C'est le **registre durable** qui ressuscitait, pas l'adaptateur en
-    // mémoire : celui-ci exigeait déjà `revendiqué` pour annuler. Le contrat
-    // impose donc la même précondition des deux côtés, et c'est le durable qui
-    // change — l'inverse de ce que la prose de la spec racontait, ce qu'on peut
-    // vérifier ici en rejouant le scénario contre l'ancien comportement.
-    async jouer(registre, contexte) {
-      await creerBrouillon(registre, contexte)
-      await revendiquer(registre, contexte, TENTATIVE)
-      contexte.horloge.avancer(APRES_RETENTION)
-      await registre.lire(contexte.draftId)
       await registre.annulerRevendication({
         id: contexte.draftId,
         tentativeId: TENTATIVE,
@@ -538,45 +460,50 @@ export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
       )
     },
   },
-  {
-    nom: "refuser un état ni vivant ni à rétention dépassée",
-    // Un état `expiré` dont la rétention n'est pas encore passée ne peut pas
-    // se produire en production, l'horloge ne recule pas. Le scénario le rejoue
-    // pour que les deux adaptateurs classent le même état de la même façon, et
-    // pas l'un comme expiré, l'autre comme simplement non vivant.
-    async jouer(registre, contexte) {
-      await creerBrouillon(registre, contexte)
-      contexte.horloge.avancer(APRES_RETENTION)
-      await registre.lire(contexte.draftId)
-      contexte.horloge.fixer(DATE_INITIALE)
-      return await observe(
-        await revendiquer(registre, contexte, TENTATIVE),
-        registre,
-        contexte
-      )
-    },
-  },
 ]
 
 /**
- * Les codes de refus que le contrat doit atteindre. Une suite qui les énumère
- * prouve que le contrat n'est pas vide : un accord obtenu parce que les deux
- * adaptateurs ne refusent plus rien n'est pas un accord.
+ * Où chaque refus du port est witnessed — « ici » par un scénario du contrat,
+ * « classification » par la règle partagée, dont les deux adaptateurs font la
+ * même application et ne peuvent donc pas diverger dessus.
  *
- * C'est un `Record` du code au marqueur, pas un tableau de codes : le type est
- * la clé, donc TypeScript exige **toutes** les clés de
- * `CodeRefusRegistreBrouillon`. Un code ajouté au port sans scénario ici est
- * une erreur de compilation, jamais un refus que la garde de non-vacuité laisse
- * passer en silence — un tableau typé `readonly string[]` ne lierait la liste à
- * rien et pourrait devenir vide sans que `tsc` ni la suite ne le remarquent.
+ * Une suite qui énumère ses refus prouve qu'elle n'est pas vide : un accord
+ * obtenu parce que les deux adaptateurs ne refusent plus rien n'est pas un
+ * accord. Trois codes ont quitté le contrat avec les scénarios de classification
+ * qui les produisaient. Les y sortir était juste — ils se decidaient dans une
+ * fonction, pas dans un stockage — mais la garde ne devait pas voyager avec eux
+ * sans dire où elle était allée : elle dit, et `classification` n'est pas une
+ * case vide, c'est une suite qui épingle les six.
+ *
+ * C'est un `Record` du code au témoin, pas un tableau de codes : le type est la
+ * clé, donc TypeScript exige **toutes** les clés de
+ * `CodeRefusRegistreBrouillon`. Un code ajouté au port sans témoin ici est une
+ * erreur de compilation, jamais un refus qu'une des deux gardes laisserait
+ * passer en silence.
  */
-export const CODES_REFUS_CONTRAT: Record<CodeRefusRegistreBrouillon, true> = {
-  introuvable: true,
-  "proprietaire-incorrect": true,
-  "non-vivant": true,
-  expire: true,
-  "deja-revendique": true,
-  "deja-libere": true,
+export const CODES_REFUS_CONTRAT: Record<CodeRefusRegistreBrouillon, Temoin> = {
+  introuvable: "ici",
+  "deja-revendique": "ici",
+  "deja-libere": "ici",
+  "proprietaire-incorrect": "classification",
+  "non-vivant": "classification",
+  expire: "classification",
+}
+
+export type Temoin = "ici" | "classification"
+
+/** Les refus qu'un scénario du contrat doit atteindre, selon la table. */
+export function codesAttendusParLeContrat(): CodeRefusRegistreBrouillon[] {
+  return (Object.keys(CODES_REFUS_CONTRAT) as CodeRefusRegistreBrouillon[])
+    .filter((code) => CODES_REFUS_CONTRAT[code] === "ici")
+    .sort()
+}
+
+/** Les refus que la règle partagée doit savoir rendre, tous. */
+export function tousLesCodesDuPort(): CodeRefusRegistreBrouillon[] {
+  return (
+    Object.keys(CODES_REFUS_CONTRAT) as CodeRefusRegistreBrouillon[]
+  ).sort()
 }
 
 async function rejouer(

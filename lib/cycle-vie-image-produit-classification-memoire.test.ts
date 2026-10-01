@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest"
 
+import {
+  clauseComparaisonEchange,
+  type BrouillonImageProduit,
+} from "@/lib/cycle-vie-image-produit"
 import { lire } from "@/lib/use-cases/outils-frontiere"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
+  recevable,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-06-01T10:00:00.000Z")
@@ -246,5 +251,100 @@ describe("l'adaptateur ne porte plus la règle", () => {
 
   it("le prédicat d'expiration du propre de l'adaptateur a disparu", () => {
     expect(ADAPTATEUR).not.toContain("resolubleEnExpire")
+  })
+})
+
+/**
+ * **`recevable` est la transcription de la clause de comparaison-and-échange.**
+ * Le fait était écrit deux fois avant que cette piste commence : l'adaptateur en
+ * mémoire l'avait sous forme de dernier barreau, et la base l'a toujours eu
+ * dans son `where`. #499 a nommé le premier ; cette suite le tient au même
+ * standard que #500 tient la seconde.
+ *
+ * La comparaison se fait sur la clause, pas sur un résumé : chaque condition de
+ * `recevable` se retrouve dans la clause, et chaque condition de la clause se
+ * retrouve dans `recevable`. Une clause qui perdrait une condition — ou qui en
+ * gagnerait une — ferait échouer la suite, des deux côtés.
+ *
+ * Ce que la comparaison **ne** dit pas, et qu'aucune suite ne peut dire : que la
+ * clause soit atomique. `recevable` répond « une écriture prendrait-elle ? »,
+ * sans jamais voir l'écrivain concurrent qu'elle ne voit pas. C'est
+ * précisément pourquoi elle n'est pas dans la classification.
+ */
+describe("recevable est la transcription de la clause de comparaison-and-échange", () => {
+  const clause = clauseComparaisonEchange({
+    id: DRAFT,
+    ownerId: PROPRIETAIRE,
+    now: DATE_INITIALE,
+  })
+
+  /** Un Brouillon aussi neutre que possible : seuls l'état et la tentative varient. */
+  function brouillon(
+    etat: BrouillonImageProduit["state"],
+    tentative: string | null
+  ): BrouillonImageProduit {
+    return {
+      id: DRAFT,
+      mimeType: "image/png",
+      byteSize: 1024,
+      ownerId: PROPRIETAIRE,
+      tentativeId: tentative,
+      createdAt: DATE_INITIALE,
+      expiresAt: EXPIRATION,
+      state: etat,
+      promotedPublicUrl: null,
+      productId: null,
+    }
+  }
+
+  const CAS: readonly (readonly [
+    BrouillonImageProduit["state"],
+    string | null,
+    boolean,
+  ])[] = [
+    ["vivant", null, true],
+    ["vivant", TENTATIVE, false],
+    ["revendiqué", TENTATIVE, false],
+    ["revendiqué", null, false],
+    ["libéré", null, false],
+    ["expiré", null, false],
+  ]
+
+  it("retient exactement ce que la clause retient", () => {
+    for (const [etat, tentative, attendue] of CAS) {
+      const rangee = brouillon(etat, tentative)
+      // La clause dit `state: "vivant"` et `tentativeId: null` ; on lit ses
+      // conditions telles qu'elle les écrit, sans les réécrire ici.
+      const parLaClause =
+        rangee.state === clause.state &&
+        rangee.tentativeId === clause.tentativeId
+      const parLaFonction = recevable(rangee)
+
+      const cas = `${etat}/${String(tentative)}`
+      expect(parLaFonction, cas).toBe(attendue)
+      expect(parLaFonction, cas).toBe(parLaClause)
+    }
+  })
+
+  it("ne fatigue pas à écrire des conditions que la clause n'a pas", () => {
+    // Les six états du domaine, et pas un de plus : un état que le registre ne
+    // connaît pas n'est pas une rangée, c'est une colonne mal lue. Sa règle est
+    // dans la suite de la classification, où elle se classe.
+    // La preuve que la comparaison ci-dessus n'est pas tautologique : les
+    // conditions que la clause écrit sont exactement celles que `recevable`
+    // regarde, et il n'y en a pas une de plus.
+    const conditions = Object.entries(clause).filter(
+      ([champ]) => champ !== "id"
+    )
+    expect(conditions.map(([champ]) => champ).sort()).toEqual([
+      "expiresAt",
+      "ownerId",
+      "state",
+      "tentativeId",
+    ])
+    // `ownerId` et `expiresAt` sont des conditions de la *demande*, pas de la
+    // rangée : la classification les a déjà tranchées avant l'écriture. Les
+    // deux autres sont les seules que la rangée doit porter.
+    expect(recevable(brouillon("vivant", null))).toBe(true)
   })
 })

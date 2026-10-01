@@ -364,6 +364,64 @@ describe("registre durable des Brouillons d'Image produit", () => {
     ).toBe("expiré")
   })
 
+  it("rend le Brouillon quand la comparaison-and-échange perd contre la même tentative", async () => {
+    // Le seul chemin par lequel la relecture rend `rejoue` : une autre exécution
+    // de cette même tentative a gagné entre la lecture et l'écriture. L'écriture
+    // ne prend alors rien, et la rangée est déjà à nous — la revendre serait la
+    // perdre. La rivale, elle, prend la même route et reçoit le refus que la
+    // clause lui doit.
+    const horloge = creerHorlogeControllable(now)
+    const { registre } = creerCycleVie(horloge.horloge)
+    const cree = await registre.creer({
+      id: randomUUID(),
+      ownerId,
+      contentType: "image/png",
+      byteSize: 1234,
+      expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    })
+    const instant = horloge.horloge.maintenant()
+
+    // Une tentative rivale passe par la base entre notre lecture et notre
+    // écriture. C'est elle qui écrit ; notre comparaison-and-échange ne trouve
+    // plus rien à prendre.
+    const winner = await prisma.brouillonImageProduit.updateMany({
+      where: { id: cree.id, state: "vivant" },
+      data: { state: "revendiqué", tentativeId: "tentative-rivale" },
+    })
+    expect(winner.count).toBe(1)
+
+    const rivale = await registre.revendiquer({
+      id: cree.id,
+      ownerId,
+      tentativeId: "tentative-meme",
+      now: instant,
+    })
+    // La rivale est en face d'une rangée déjà revendiquée : `recevable` refuse,
+    // et le refus vient du verdict.
+    expect(rivale).toEqual({
+      ok: false,
+      code: "deja-revendique",
+      message: "Ce brouillon a déjà été revendiqué",
+    })
+
+    // Même tentative que celle qui a gagné : le rejeu aboutit, et la rangée ne
+    // bouge pas.
+    const rejouee = await registre.revendiquer({
+      id: cree.id,
+      ownerId,
+      tentativeId: "tentative-rivale",
+      now: instant,
+    })
+    expect(rejouee.ok).toBe(true)
+    expect(
+      (
+        await prisma.brouillonImageProduit.findUniqueOrThrow({
+          where: { id: cree.id },
+        })
+      ).tentativeId
+    ).toBe("tentative-rivale")
+  })
+
   it("garde le retry idempotent après expiration et refuse un second Produit", async () => {
     const horloge = creerHorlogeControllable(now)
     const { cycleVie } = creerCycleVie(horloge.horloge)

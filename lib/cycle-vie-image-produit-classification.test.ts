@@ -15,6 +15,7 @@ const DEBUT = new Date("2026-07-01T10:00:00.000Z")
 const MS_PAR_H = 60 * 60 * 1000
 const RETENTION_H = 24
 const EXPIRATION = new Date(DEBUT.getTime() + RETENTION_H * MS_PAR_H)
+const APRES_RETENTION = new Date(EXPIRATION.getTime() + 1)
 
 /**
  * Les cinq faits dont se décide une revendication. La suite les écrit elle-même
@@ -393,5 +394,86 @@ describe("réétiquetage d'un Brouillon d'Image produit en `expiré`", () => {
     const ligne = brouillon()
     expect(ligne.expiresAt.getTime()).toBeGreaterThan(DEBUT.getTime())
     expect(reLabellableExpire(ligne)).toBe(true)
+  })
+})
+
+/**
+ * **Les sept scénarios que le contrat a cessés de porter.** Ils portaient sur ce
+ * que la classification décide, et le contrat ne peut plus rien y voir : les deux
+ * adaptateurs appellent la même fonction, donc ils ne peuvent pas en diverger.
+ * Les reprendre ici, sous les noms que le contrat leur donnait, garde le lien
+ * lisible — un scénario déplacé se reconnaît, il ne se devine pas.
+ *
+ * Ce qu'ils ne peuvent pas prouver, et que le contrat garde pour ça : qu'un
+ * adaptateur passe bien le bon instant, et rend bien le verdict qu'on lui rend.
+ */
+describe("les scénarios de classification, ex.contract du registre", () => {
+  it("revendiquer un Brouillon vivant", () => {
+    expect(classer(brouillon(), { now: DEBUT })).toEqual({
+      kind: "a_ecrire",
+      refusalSiEchec: "non-vivant",
+    })
+  })
+
+  it("rejouer la revendication de la même tentative", () => {
+    const ligne = brouillon({ state: "revendiqué", tentativeId: TENTATIVE })
+    expect(classer(ligne)).toEqual({ kind: "rejoue" })
+  })
+
+  it("refuser la revendication d'un autre propriétaire", () => {
+    expect(classer(brouillon({ ownerId: AUTRE_PROPRIETAIRE }))).toEqual({
+      kind: "tranche",
+      code: "proprietaire-incorrect",
+    })
+  })
+
+  it("refuser la revendication d'un identifiant inconnu", () => {
+    expect(classer(null)).toEqual({ kind: "tranche", code: "introuvable" })
+  })
+
+  it("revendiquer à la dernière milliseconde, refuser à l'instant exact de la rétention", () => {
+    const ligne = brouillon()
+    expect(classer(ligne, { now: new Date(EXPIRATION.getTime() - 1) })).toEqual(
+      {
+        kind: "a_ecrire",
+        refusalSiEchec: "non-vivant",
+      }
+    )
+    expect(classer(ligne, { now: EXPIRATION })).toEqual({
+      kind: "tranche",
+      code: "expire",
+    })
+  })
+
+  it("ne pas rendre à l'éditeur un Brouillon expiré", () => {
+    // Rendre, ici, c'est relire : la lecture réétiquette quand la rétention est
+    // échue et que la rangée peut le devenir. Un Brouillon déjà expiré n'a plus
+    // rien à réétiqueter, et la règle le dit sans regarder l'instant.
+    const ligne = brouillon({
+      state: "expiré",
+      tentativeId: TENTATIVE,
+      expiresAt: EXPIRATION,
+    })
+    expect(classer(ligne, { now: APRES_RETENTION })).toEqual({
+      kind: "tranche",
+      code: "expire",
+    })
+    expect(reLabellableExpire(ligne)).toBe(false)
+  })
+
+  it("refuser un état ni vivant ni à rétention dépassée", () => {
+    // Un `expiré` dont la rétention n'est pas encore passée : la production ne le
+    // produit pas, l'horloge ne recule pas. Il se classe quand même, et comme
+    // l'état le désigne — sans qu'on refasse ici le mapping du module.
+    expect(
+      classer(
+        brouillon({
+          state: "expiré",
+          tentativeId: TENTATIVE,
+          expiresAt: EXPIRATION,
+        }),
+        { now: DEBUT }
+      )
+    ).toEqual({ kind: "a_ecrire", refusalSiEchec: "non-vivant" })
   })
 })

@@ -187,7 +187,7 @@ const MESSAGE_PAR_CODE: Record<CodeRefusRegistreBrouillon, string> = {
  * fois : elle est un fait de stockage plutôt qu'une règle de domaine, et #500
  * l'épingle des deux côtés.
  */
-function recevable(brouillon: BrouillonImageProduit): boolean {
+export function recevable(brouillon: BrouillonImageProduit): boolean {
   return brouillon.state === "vivant" && brouillon.tentativeId === null
 }
 
