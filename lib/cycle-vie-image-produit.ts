@@ -714,28 +714,137 @@ export function clauseCompensation(input: {
 }
 
 /**
- * Un Brouillon d'Image produit dont la rétention est dépassée et qui n'est lié à
- * aucun Produit se résout en `expiré`, dans l'état de revendication qu'il ait.
- *
- * La compensation d'une revendication échouée est best-effort : un Brouillon
- * peut rester `revendiqué` avec un `tentativeId` et aucun `productId`. Il
- * refuse alors toute autre tentative — à juste titre, aucune double
- * revendication — mais resterait invisible comme expiré, alors que la
- * rétention est écoulée (histoire 25 de l'issue #406).
- *
- * `libéré` reste terminal : l'éditeur a été prévenu et l'objet supprimé.
- * `expiré` l'est déjà. Un Brouillon lié à un Produit est une Image produit
- * persistée : il n'est jamais réétiqueté.
+ * Les cinq faits dont se décide une revendication, ou dont se décide un
+ * réétiquetage. `state` est volontairement large : le registre durable lit la
+ * colonne comme une chaîne non validée, et une valeur qu'il ne connaît pas doit
+ * encore se classer au lieu de faire échouer une revendication.
  */
-function estResolubleEnExpire(
-  row: { state: string; expiresAt: Date; productId: string | null },
-  now: Date
-): boolean {
+type LigneAClasser = {
+  state: string
+  ownerId: string
+  tentativeId: string | null
+  expiresAt: Date
+  productId: string | null
+}
+
+/**
+ * **Un Brouillon d'Image produit peut-il être réétiqueté `expiré` ?** Une règle
+ * à part entière, et à côté de la classification, parce qu'elle ne répond pas à
+ * la même question.
+ *
+ * `classerRevendication` répond « cette revendication peut-elle se poursuivre ? » :
+ * elle a besoin d'une tentative, d'un propriétaire et d'un instant. Réétiqueter,
+ * non. Une lecture du registre (`lire`), une libération refusée, une
+ * revendication qui arrive après la rétention : aucune de ces trois n'a de
+ * tentative à passer, alors que les trois ont exactement la même question à
+ * poser. Leur faire passer une revendication pour emprunter son verdict
+ * reviendrait à inventer une revendication, et à dépendre d'un fait invérifié
+ * pour que l'emprunt reste juste.
+ *
+ * Alors ce n'est pas une question de contexte : la réponse tient dans la
+ * rangée. `productId` d'abord — un Brouillon lié à un Produit est une Image
+ * produit persistée, qui n'appartient plus au registre et ne se réétiquette
+ * jamais. Puis l'état : `libéré` est terminal, l'éditeur a été prévenu et l'objet
+ * supprimé ; `expiré` l'est déjà. Restent `vivant` et `revendiqué`, dont le
+ * second n'est un cas qu'on oublie : une compensation best-effort laisse un
+ * Brouillon `revendiqué` sans Produit, il refuse alors toute autre tentative
+ * — à juste titre, aucune double revendication — mais resterait invisible comme
+ * expiré alors que sa rétention est écoulée (histoire 25 de l'issue #406).
+ *
+ * **Pure, et sans horloge** : dire qu'une rangée *peut* être réétiqueté n'est pas
+ * dire que sa rétention est échouée. L'instant reste à celui qui sait de quelle
+ * rétention il parle — la classification, la lecture, la libération.
+ */
+export function reLabellableExpire(ligne: LigneAClasser | null): boolean {
+  if (!ligne) return false
   return (
-    row.productId === null &&
-    row.expiresAt <= now &&
-    (row.state === "vivant" || row.state === "revendiqué")
+    ligne.productId === null &&
+    (ligne.state === "vivant" || ligne.state === "revendiqué")
   )
+}
+
+/** Ce que la tentative apporte à la classification. Rien de plus. */
+type DemandeRevendication = {
+  ownerId: string
+  tentativeId: string
+  now: Date
+}
+
+/**
+ * Ce que la classification décide d'une rangée, et tout ce qu'un adaptateur
+ * pourrait avoir besoin de savoir ensuite sans la redemander.
+ *
+ * Le verdict ne porte que ce qu'un adaptateur ne peut pas retrouver seul.
+ * `refusalSiEchec` dit quel refus rendre si l'écriture se révèle avoir perdu la
+ * course, c'est-à-dire si la rangée a bougé entre la lecture et elle. C'est
+ * aussi pour cela qu'aucun autre fait n'y voyage : migrer un adaptateur ne doit
+ * pas le forcer à refaire une seconde lecture pour savoir quoi écrire, ni à
+ * redériver un refus, ni à connaître ses propres critères.
+ *
+ * `rejoue` est le troisième bras, et il n'en est pas un de refus : la tentative
+ * a déjà pris ce Brouillon, la revendication est un rejeu et il réussit. Il ne
+ * porte ni code ni réétiquetage parce qu'il n'y a rien à refuser et rien à
+ * réétiqueter — la rétention limite une *nouvelle* revendication, pas la
+ * résolution d'une tentative déjà gagnée. Le réétiquetage ne se décide d'ailleurs
+ * que sur le bras `tranche`, et `rejoue` n'en est pas un : c'est ce qui rend un
+ * rejeu jamais réétiquetant, sans qu'il ait à le dire.
+ */
+export type VerdictRevendication =
+  | { kind: "tranche"; code: CodeRefusRegistreBrouillon }
+  | { kind: "rejoue" }
+  | { kind: "a_ecrire"; refusalSiEchec: CodeRefusRegistreBrouillon }
+
+/**
+ * **La classification d'une revendication.** Une seule implémentation de la
+ * règle, que les deux adaptateurs du registre appelleront au lieu de la
+ * transcrire chacun de leur côté : une fonction dans l'un, une chaîne de
+ *Conditions de trente-neuf lignes dans l'autre.
+ *
+ * L'ordre des barreaux est la règle autant que les verdicts :
+ *
+ * 1. **la rangée existe-t-elle ?** Un identifiant inconnu ne se prête à rien.
+ * 2. **appartient-elle à cet éditeur ?** Avant tout le reste : une copie
+ *    d'identifiant ne dit rien du reste, et le propriétaire est le seul fait
+ *    qu'un appelant peut falsifier.
+ * 3. **la tentative l'a-t-elle déjà prise ?** Avant la rétention, et c'est
+ *    volontaire : c'est ce qui rend un enregistrement rejoué idempotent, et
+ *    c'est ce qui empêche qu'une rétention échue vienne réétiqueter un
+ *    Brouillon dont le commit est peut-être déjà durable.
+ * 4. **la rétention est-elle passée ?** À l'instant exact compris : `expiresAt`
+ *    est échu quand il est atteint, pas une milliseconde après.
+ * 5. **sinon, la comparaison-and-échange écrit**, et son échec se rend avec le
+ *    refus que l'état de la rangée désigne.
+ *
+ * Le barreau 4 tranche, et ne réétiquette rien par lui-même : dire qu'une
+ * rétention est échue n'est pas dire qu'une rangée peut être réétiquetée. La
+ * seconde question a sa propre règle, `reLabellableExpire`, qu'on pose à la
+ * rangée seule et qu'aucun verdict n'a à porter.
+ *
+ * **Pure :** ni base, ni horloge, ni concurrence. L'instant arrive en paramètre
+ * et la comparaison-and-échange reste à l'adaptateur — c'est elle qui est
+ * atomique, pas cette fonction, et c'est pourquoi le registre durable relit
+ * après avoir écrit.
+ */
+export function classerRevendication(
+  ligne: LigneAClasser | null,
+  contexte: DemandeRevendication
+): VerdictRevendication {
+  if (!ligne) {
+    return { kind: "tranche", code: "introuvable" }
+  }
+  if (ligne.ownerId !== contexte.ownerId) {
+    return { kind: "tranche", code: "proprietaire-incorrect" }
+  }
+  if (
+    ligne.state === "revendiqué" &&
+    ligne.tentativeId === contexte.tentativeId
+  ) {
+    return { kind: "rejoue" }
+  }
+  if (ligne.expiresAt <= contexte.now) {
+    return { kind: "tranche", code: "expire" }
+  }
+  return { kind: "a_ecrire", refusalSiEchec: codeRefusNonVivant(ligne.state) }
 }
 
 function refusNonVivant(state: string): {
@@ -745,23 +854,40 @@ function refusNonVivant(state: string): {
 } {
   return {
     ok: false,
-    code:
-      state === "revendiqué"
-        ? "deja-revendique"
-        : state === "libéré"
-          ? "deja-libere"
-          : "non-vivant",
+    code: codeRefusNonVivant(state),
     message: "Ce brouillon n'est pas vivant",
   }
 }
 
 /**
- * Ce qu'une lecture de la ligne décide de la revendication : soit la ligne
+ * Le refus que rend un état qui n'est plus vivant. Un seul endroit le sait :
+ * c'est la moitié d'un refus que l'adaptateur du registre compose autour de son
+ * message, et l'autre moitié est le `refusalSiEchec` du verdict que rend la
+ * classification quand l'écriture perd la course. Un état que le registre ne
+ * connaît pas n'est pas vivant comme les autres.
+ */
+function codeRefusNonVivant(state: string): CodeRefusRegistreBrouillon {
+  return state === "revendiqué"
+    ? "deja-revendique"
+    : state === "libéré"
+      ? "deja-libere"
+      : "non-vivant"
+}
+
+/**
+ * Ce qu'une lecture de la ligne décide de la revendication, avant que le
+ * registre durable ne passe à la classification partagée : soit la ligne
  * tranche, soit elle laisse la comparaison-and-échange écrire. L'état d'une
  * ligne qui laisse écrire est renvoyé avec elle, parce qu'il décide du refus
  * que l'appelant rendra si l'écriture échoue.
+ *
+ * C'est l'échelle propre du registre, celle qui répond déjà en
+ * `ResultatRevendicationRegistre` — refus *et* message. Elle disparaît quand le
+ * registre se met à classifier par `classerRevendication` (ticket #502), qui ne
+ * rend qu'un code : le message reste alors au seul module propriétaire, qui en
+ * compose un pour chaque code.
  */
-type VerdictRevendication =
+type VerdictRegistre =
   | { kind: "tranche"; resultat: ResultatRevendicationRegistre }
   | { kind: "a_ecrire"; row: LigneBrouillonImageProduit }
 
@@ -806,7 +932,7 @@ export function creerRegistreBrouillonImageProduitPrisma(
   async function classer(
     row: LigneBrouillonImageProduit | null,
     input: { id: string; ownerId: string; tentativeId: string; now: Date }
-  ): Promise<VerdictRevendication> {
+  ): Promise<VerdictRegistre> {
     if (!row) {
       return {
         kind: "tranche",
@@ -876,7 +1002,10 @@ export function creerRegistreBrouillonImageProduitPrisma(
         select: selectionBrouillon,
       })
       if (!row) return null
-      if (estResolubleEnExpire(row, now)) {
+      // La rétention est échue, et la rangée peut être réétiquetée : deux
+      // questions, deux règles. L'instant est ici, parce que c'est le seul
+      // endroit qui sache de quelle rétention il parle.
+      if (row.expiresAt <= now && reLabellableExpire(row)) {
         await marquerExpire(id, now)
         return { ...versBrouillon(row), state: "expiré" }
       }
