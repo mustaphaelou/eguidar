@@ -728,6 +728,74 @@ type LigneAClasser = {
 }
 
 /**
+ * **La clause SQL de réétiquetage.** La transcription exacte de
+ * `reLabellableExpire` à laquelle s'ajoute l'instant, parce que la clause doit
+ * pouvoir dire « échue » au moment du jeu de données.
+ *
+ * Les deux questions qu'une fonction pure ne peut pas porter ensemble se
+ * répartissent ainsi : ce qu'une rangée peut devenir tient dans la règle, et
+ * l'instant tient dans l'appelant, seul à savoir de quelle rétention il parle.
+ * La clause est leur conjonction, et c'est pourquoi elle ne se compare pas au
+ * verdict d'une revendication : elle n'en est pas la transcription.
+ *
+ * `state: { in: ["vivant", "revendiqué"] }` reprend les deux états que
+ * `reLabellableExpire` admet, et `productId: null` sa première condition. Une
+ * suite compare chaque champ de la clause à la règle, donc une clause éditée se
+ * voit en défaut.
+ */
+export function clauseReetiquetageExpire(input: { id: string; now: Date }): {
+  id: string
+  productId: null
+  state: { in: ("vivant" | "revendiqué")[] }
+  expiresAt: { lte: Date }
+} {
+  return {
+    id: input.id,
+    productId: null,
+    state: { in: ["vivant", "revendiqué"] },
+    expiresAt: { lte: input.now },
+  }
+}
+
+/**
+ * **La clause SQL de comparaison-and-échange.** Ce qu'une revendication retient
+ * de la base, sous verrou : la rangée est toujours celle qu'on a lue, toujours à
+ * cet éditeur, toujours `vivant` et jamais prise, et sa rétention n'est pas
+ * échue.
+ *
+ * Elle ne se compare pas à `reLabellableExpire` — elle n'a rien à dire d'un
+ * réétiquetage — mais au bras `a_ecrire` du verdict, qui autorise une écriture.
+ * Une implication suffit à la garantir, et elle est ce qui compte : la
+ * classification fait la règle au moment de la lecture, la clause la refait sous
+ * verrou, et si les deux se contredisaient la base jugerait autrement du module.
+ *
+ * L'inverse n'est pas vrai, et la suite le dit. La classification autorise une
+ * écriture sur un Brouillon `libéré` alors que la clause refuse : le registre
+ * retombe alors sur sa relecture, qui rend le refus que l'adaptateur en mémoire
+ * rendrait sans avoir écrit. Les deux répondent pareil, par deux chemins —
+ * celui du verdict unique que #502 leur donnera.
+ */
+export function clauseComparaisonEchange(input: {
+  id: string
+  ownerId: string
+  now: Date
+}): {
+  id: string
+  ownerId: string
+  state: "vivant"
+  tentativeId: null
+  expiresAt: { gt: Date }
+} {
+  return {
+    id: input.id,
+    ownerId: input.ownerId,
+    state: "vivant",
+    tentativeId: null,
+    expiresAt: { gt: input.now },
+  }
+}
+
+/**
  * **Un Brouillon d'Image produit peut-il être réétiqueté `expiré` ?** Une règle
  * à part entière, et à côté de la classification, parce qu'elle ne répond pas à
  * la même question.
@@ -904,12 +972,7 @@ export function creerRegistreBrouillonImageProduitPrisma(
   async function marquerExpire(id: string, now: Date): Promise<void> {
     try {
       await prisma.brouillonImageProduit.updateMany({
-        where: {
-          id,
-          productId: null,
-          state: { in: ["vivant", "revendiqué"] },
-          expiresAt: { lte: now },
-        },
+        where: clauseReetiquetageExpire({ id, now }),
         data: { state: "expiré" },
       })
     } catch (error) {
@@ -1023,13 +1086,11 @@ export function creerRegistreBrouillonImageProduitPrisma(
       if (avant.kind === "tranche") return avant.resultat
 
       const updated = await prisma.brouillonImageProduit.updateMany({
-        where: {
+        where: clauseComparaisonEchange({
           id: input.id,
           ownerId: input.ownerId,
-          state: "vivant",
-          tentativeId: null,
-          expiresAt: { gt: input.now },
-        },
+          now: input.now,
+        }),
         data: { state: "revendiqué", tentativeId: input.tentativeId },
       })
       if (updated.count === 1) {
