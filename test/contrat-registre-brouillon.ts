@@ -224,6 +224,24 @@ export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
     },
   },
   {
+    nom: "rejouer une revendication déjà gagnée, rétention échue entre-temps",
+    // L'ordre des deux barreaux, et rien d'autre. La rétention limite une
+    // *nouvelle* revendication : la tentative avait déjà pris ce Brouillon, et
+    // son rejeu doit aboutir même après que le temps a passé. Une échelle qui
+    // regarderait la rétention d'abord rendrait un refus ici, et l'adaptateur en
+    // mémoire — qui rend le verdict partagé — un succès.
+    async jouer(registre, contexte) {
+      await creerBrouillon(registre, contexte)
+      await revendiquer(registre, contexte, TENTATIVE)
+      contexte.horloge.avancer(APRES_RETENTION)
+      return await observe(
+        await revendiquer(registre, contexte, TENTATIVE),
+        registre,
+        contexte
+      )
+    },
+  },
+  {
     nom: "refuser la revendication d'une tentative rivale",
     async jouer(registre, contexte) {
       await creerBrouillon(registre, contexte)

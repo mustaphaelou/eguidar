@@ -1,6 +1,8 @@
 import {
+  classerRevendication,
   compensationAdmise,
   creerCycleVieImageProduit,
+  reLabellableExpire,
   RevendicationImagesProduit,
   type BrouillonImageProduit,
   type CodeRefusRegistreBrouillon,
@@ -159,20 +161,34 @@ function refusRegistre(
 }
 
 /**
- * Même règle que le registre durable : la rétention dépassée résout en `expiré`
- * un Brouillon non lié à un Produit, quel que soit son état de revendication.
- * `libéré` reste terminal, un Brouillon lié à un Produit n'est jamais
- * réétiqueté.
+ * La prose de cet adaptateur, un code par un. La classification partagée ne
+ * porte aucun message — les deux adaptateurs n'écrivent pas les mêmes, et c'est
+ * très bien ainsi : le module propriétaire compose le sien autour des codes, et
+ * `deja-libere` porte ici la même phrase que `non-vivant`, comme avant.
  */
-function resolubleEnExpire(
-  brouillon: BrouillonImageProduit,
-  now: Date
-): boolean {
-  return (
-    brouillon.productId === null &&
-    brouillon.expiresAt <= now &&
-    (brouillon.state === "vivant" || brouillon.state === "revendiqué")
-  )
+const MESSAGE_PAR_CODE: Record<CodeRefusRegistreBrouillon, string> = {
+  introuvable: "Brouillon introuvable",
+  "proprietaire-incorrect": "Ce brouillon ne vous appartient pas",
+  expire: "Ce brouillon a expiré",
+  "deja-revendique": "Ce brouillon a déjà été revendiqué",
+  "deja-libere": "Ce brouillon n'est pas vivant",
+  "non-vivant": "Ce brouillon n'est pas vivant",
+}
+
+/**
+ * La rangée peut-elle porter l'écriture qu'une revendication autorise ?
+ *
+ * La classification autorise aussi un Brouillon libéré, et un `vivant` qui
+ * garde une tentative — celui qu'une compensation laisse derrière elle quand
+ * elle échoue à moitié. La base ne les écrit pas : sa clause de
+ * comparaison-and-échange ne les retient pas, et l'écriture qui ne prend rien
+ * la fait retomber sur sa relecture, qui rend le même refus. Cette fonction est
+ * donc la transcription de cette clause, et la seule règle qui reste écrite deux
+ * fois : elle est un fait de stockage plutôt qu'une règle de domaine, et #500
+ * l'épingle des deux côtés.
+ */
+function recevable(brouillon: BrouillonImageProduit): boolean {
+  return brouillon.state === "vivant" && brouillon.tentativeId === null
 }
 
 export function creerRegistreImageProduitMemoire(
@@ -214,47 +230,67 @@ export function creerRegistreImageProduitMemoire(
       panne("lire")
       const brouillon = records.get(id)
       if (!brouillon) return null
-      if (resolubleEnExpire(brouillon, maintenant())) {
+      // Deux questions, deux règles : la règle dit ce que cette rangée peut
+      // devenir, et l'appelant est le seul à savoir de quelle rétention il
+      // parle. Une lecture n'a pas de revendication à fabriquer pour emprunter
+      // son verdict.
+      const now = maintenant()
+      if (brouillon.expiresAt <= now && reLabellableExpire(brouillon)) {
         brouillon.state = "expiré"
       }
       return copieBrouillon(brouillon)
     },
 
+    /**
+     * La revendication est la règle du module propriétaire plus deux écritures.
+     * Ce qui restait ici — l'échelle de cinq barreaux, le ternaire du refus non
+     * vivant, le prédicat d'expiration — était la troisième écriture d'une
+     * règle que le registre durable écrivait de son côté.
+     */
     async revendiquer(input) {
       panne("revendiquer")
       const brouillon = records.get(input.id)
-      if (!brouillon)
-        return refusRegistre("introuvable", "Brouillon introuvable")
-      if (brouillon.ownerId !== input.ownerId) {
-        return refusRegistre(
-          "proprietaire-incorrect",
-          "Ce brouillon ne vous appartient pas"
-        )
+
+      // Cette branche ne décide rien : la classification rend `introuvable` pour
+      // une rangée absente, et sa suite le prouve. Elle n'est là que pour que le
+      // type se resserre sur la rangée, sans quoi les trois écritures en dessous
+      // porteraient toutes un `!`.
+      if (!brouillon) {
+        return refusRegistre("introuvable", MESSAGE_PAR_CODE["introuvable"])
       }
-      if (
-        brouillon.state === "revendiqué" &&
-        brouillon.tentativeId === input.tentativeId
-      ) {
+
+      const verdict = classerRevendication(brouillon, {
+        ownerId: input.ownerId,
+        tentativeId: input.tentativeId,
+        now: input.now,
+      })
+
+      // Un rejeu est un succès rendu, pas une écriture : la tentative a déjà pris
+      // ce Brouillon, et le réécrire ne rendrait rien que la règle ne dise déjà.
+      if (verdict.kind === "rejoue") {
         return { ok: true, value: copieBrouillon(brouillon) }
       }
-      if (brouillon.expiresAt <= input.now) {
-        if (resolubleEnExpire(brouillon, input.now)) {
+
+      if (verdict.kind === "tranche") {
+        // Trancher n'est pas réétiqueter : la rétention est échue, mais dire que
+        // cette rangée-là peut le devenir est une autre question.
+        if (verdict.code === "expire" && reLabellableExpire(brouillon)) {
           brouillon.state = "expiré"
         }
-        return refusRegistre("expire", "Ce brouillon a expiré")
+        return refusRegistre(verdict.code, MESSAGE_PAR_CODE[verdict.code])
       }
-      if (brouillon.state !== "vivant" || brouillon.tentativeId !== null) {
+
+      // Le verdict autorise l'écriture ; la rangée doit pouvoir la recevoir. Il
+      // autorise aussi un Brouillon libéré, qu'aucune écriture ne peut réveiller
+      // — c'est à cette étroite condition que la base répondrait pareil, par sa
+      // relecture. #500 nomme cet écart et épingle la clause des deux côtés.
+      if (!recevable(brouillon)) {
         return refusRegistre(
-          brouillon.state === "revendiqué"
-            ? "deja-revendique"
-            : brouillon.state === "libéré"
-              ? "deja-libere"
-              : "non-vivant",
-          brouillon.state === "revendiqué"
-            ? "Ce brouillon a déjà été revendiqué"
-            : "Ce brouillon n'est pas vivant"
+          verdict.refusalSiEchec,
+          MESSAGE_PAR_CODE[verdict.refusalSiEchec]
         )
       }
+
       brouillon.state = "revendiqué"
       brouillon.tentativeId = input.tentativeId
       return { ok: true, value: copieBrouillon(brouillon) }
@@ -323,7 +359,11 @@ export function creerRegistreImageProduitMemoire(
         brouillon.state = "libéré"
         return true
       }
-      if (brouillon && resolubleEnExpire(brouillon, now)) {
+      if (
+        brouillon &&
+        brouillon.expiresAt <= now &&
+        reLabellableExpire(brouillon)
+      ) {
         brouillon.state = "expiré"
       }
       return false
