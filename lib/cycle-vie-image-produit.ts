@@ -625,6 +625,60 @@ export function portTransactionRegistreBrouillonImageProduit(
 }
 
 /**
+ * Les trois faits dont se décide une compensation. `state` est volontairement
+ * large : le registre durable lit la colonne comme une chaîne non validée
+ * (cf. `LigneBrouillonImageProduit`), et une valeur qu'il ne connaît pas doit
+ * encore se classer plutôt que faire échouer une compensation best-effort.
+ */
+type LigneCompensable = {
+  state: string
+  tentativeId: string | null
+  productId: string | null
+}
+
+/**
+ * **La précondition de compensation d'une revendication échouée.** Une seule
+ * implémentation de la règle, que les deux adaptateurs du registre appelleront
+ * au lieu de la transcrire chacun de leur côté.
+ *
+ * La compensation rend `vivant` un Brouillon d'Image produit que l'opération
+ * vient de revendiquer et n'a pas su enregistrer. Trois conditions la bornent,
+ * et chacune a déjà fait une règle à elle seule :
+ *
+ * - il faut que ce soit **cette** tentative qui l'ait pris — sinon la
+ *   compensation d'un échec rendrait à l'éditeur le Brouillon d'une autre, ou
+ *   celui d'un second essai de la même ;
+ * - il faut qu'il soit encore `revendiqué` — un Brouillon rendu `vivant` ne
+ *   porte plus de tentative, un Brouillon dont la rétention est échue a été
+ *   résolu en `expiré` (ticket #495, commit `1efee48` : le registre durable le
+ *   ressuscitait, il rendait revendicable un objet que la règle de cycle de vie
+ *   R2 avait pu supprimer) ;
+ * - il ne faut pas qu'il soit lié à un **Produit** : il est alors une Image
+ *   produit persistée, dont la suppression n'intervient qu'après un
+ *   enregistrement réussi.
+ *
+ * Un Brouillon absent n'est pas une compensation manquée : le port rend
+ * `void`, et un `null` doit donc se classer comme un refus de compensation
+ * plutôt que faire échouer l'appelant.
+ *
+ * **Pure :** ni base, ni horloge, ni concurrence. La rétention n'y entre pas
+ * pour une raison — c'est l'état `expiré` déjà écrit par le registre qui la
+ * porte, et c'est ce qui permet aux deux adaptateurs d'en répondre sans
+ * horloge injectée.
+ */
+export function compensationAdmise(
+  ligne: LigneCompensable | null | undefined,
+  tentativeId: string
+): boolean {
+  if (!ligne) return false
+  return (
+    ligne.state === "revendiqué" &&
+    ligne.tentativeId === tentativeId &&
+    ligne.productId === null
+  )
+}
+
+/**
  * Un Brouillon d'Image produit dont la rétention est dépassée et qui n'est lié à
  * aucun Produit se résout en `expiré`, dans l'état de revendication qu'il ait.
  *
