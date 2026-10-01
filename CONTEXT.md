@@ -169,6 +169,10 @@ _Avoid_: photo, visuel, media
 Une Image produit téléchargée pendant l'édition d'un Produit, mais pas encore enregistrée comme fait de ce Produit. Son propriétaire est l'éditeur d'Administration qui l'a téléchargée, jamais le Produit : elle porte un identifiant opaque plutôt qu'une URL, expire seule au bout de la rétention configurée, et disparaît si l'édition est abandonnée. Il se distingue d'une Image produit persistée, qui appartient à son Produit et dont la suppression n'intervient qu'après un enregistrement réussi.
 _Avoid_: upload temporaire, image en attente, brouillon d'upload
 
+**Statut de Brouillon d'Image produit**:
+Le cycle de vie d'un Brouillon d'Image produit : Vivant, Revendiqué, Libéré, Expiré. Un Brouillon Revendiqué puis lié à un Produit devient une Image produit persistée : son Statut n'est plus réétiqueté.
+_Avoid_: état, status
+
 **Galerie produit**:
 L'ensemble ordonné des Images produit d'un Produit. L'ordre est celui que l'Administration a donné, et il est
 significatif : un Brouillon d'Image produit intercalé entre deux Images produit déjà enregistrées s'insère entre
