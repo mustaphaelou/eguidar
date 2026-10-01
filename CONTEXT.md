@@ -106,6 +106,13 @@ en base et le module `lib/use-cases/admin-structure.ts` qui la lit et la mute. U
 une catégorie de cet arbre, à laquelle les Produits se rattachent.
 _Avoid_: category tree, arborescence de catégories, catégorie d'administration
 
+**Refus de la Structure**:
+Le refus par le serveur d'une opération sur la Structure : Structure introuvable, Structure
+contenant des sous-catégories, Produits qui lui sont rattachés, réaffectation invalide, ou Structure
+déjà en cours de modification par une autre opération. Une mutation de Structure ne produit jamais
+d'autre issue.
+_Avoid_: erreur catégorie, échec de suppression, category error
+
 **Recherche**:
 The act of finding products across the Catalogue by free-text query (with typo tolerance),
 filtrable par une ou plusieurs marques, une catégorie et une tranche de prix, triable (pertinence, prix, nouveautés) et paginée.
