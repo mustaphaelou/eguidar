@@ -309,6 +309,61 @@ describe("registre durable des Brouillons d'Image produit", () => {
     ])
   })
 
+  it("résout la rétention à l'instant exact, dans la réponse et dans la rangée", async () => {
+    // La frontière se pose deux fois : la réponse dit `expire`, et la rangée
+    // porte `expiré`. Les deux se lisent dans la base, sans passer par `lire` —
+    // qui, elle, réétiquette en relisant et prouverait donc sa propre version.
+    const horloge = creerHorlogeControllable(now)
+    const { registre } = creerCycleVie(horloge.horloge)
+    const cree = await registre.creer({
+      id: randomUUID(),
+      ownerId,
+      contentType: "image/png",
+      byteSize: 1234,
+      expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    })
+
+    // Une milliseconde avant la rétention, la revendication passe et prend.
+    horloge.fixer(new Date(cree.expiresAt.getTime() - 1))
+    const avant = await registre.revendiquer({
+      id: cree.id,
+      ownerId,
+      tentativeId: "tentative-frontiere",
+      now: horloge.horloge.maintenant(),
+    })
+    expect(avant.ok).toBe(true)
+    expect(
+      (
+        await prisma.brouillonImageProduit.findUniqueOrThrow({
+          where: { id: cree.id },
+        })
+      ).state
+    ).toBe("revendiqué")
+
+    // À l'instant exact, une tentative rivale se fait refuser, et la rangée se
+    // résout — un Brouillon revendiqué reste réétiquetable, c'est l'histoire 25
+    // de l'issue #406.
+    horloge.fixer(new Date(cree.expiresAt.getTime()))
+    const apres = await registre.revendiquer({
+      id: cree.id,
+      ownerId,
+      tentativeId: "tentative-rivale",
+      now: horloge.horloge.maintenant(),
+    })
+    expect(apres).toEqual({
+      ok: false,
+      code: "expire",
+      message: "Brouillon expiré",
+    })
+    expect(
+      (
+        await prisma.brouillonImageProduit.findUniqueOrThrow({
+          where: { id: cree.id },
+        })
+      ).state
+    ).toBe("expiré")
+  })
+
   it("garde le retry idempotent après expiration et refuse un second Produit", async () => {
     const horloge = creerHorlogeControllable(now)
     const { cycleVie } = creerCycleVie(horloge.horloge)

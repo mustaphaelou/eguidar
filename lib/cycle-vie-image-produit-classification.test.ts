@@ -252,6 +252,63 @@ function declarationDe(nom: string): string {
     : suite.slice(0, finDeLigne + 1 + prochaineColonneZero)
 }
 
+/**
+ * Le module propriétaire ne doit plus porter d'échelle à lui. Ces lectures
+ * disent qu'il ne la porte plus ; elles ne prouveraient rien s'il la portait
+ * encore à côté — et c'est exactement ce qui est arrivé : deux règles
+ * identiques, une divergence, et un commit pour la réparer.
+ */
+describe("le registre durable ne porte plus sa propre échelle", () => {
+  it("n'a plus de fonction de classification qui lui soit propre", () => {
+    for (const nom of [
+      "classer",
+      "estResolubleEnExpire",
+      "resolubleEnExpire",
+      "refusNonVivant",
+    ]) {
+      const declaree = new RegExp(`(?:function|const) ${nom}\\b`, "m").test(
+        MODULE
+      )
+      expect(declaree, nom).toBe(false)
+    }
+    expect(MODULE).not.toContain("VerdictRegistre")
+  })
+
+  it("classifie deux fois autour de la comparaison-and-échange", () => {
+    // Avant d'écrire, pour savoir si l'on écrit ; après, pour savoir qui a
+    // gagné. Les deux appels sont la double lecture, et ils sont la même
+    // fonction : ce que le commentaire d'ici exigeait d'eux est devenu le
+    // fait qu'ils ne peuvent pas être deux.
+    const revendiquer = corpsDeLaMethode("revendiquer")
+    const [, entre, apres] = revendiquer.split("classerRevendication(")
+    expect(revendiquer.match(/classerRevendication\(/g)).toHaveLength(2)
+    // Entre les deux, la seule écriture : sous la clause, qui décide sous
+    // verrou. Après la seconde, plus rien qui décide — le refus se lit dans le
+    // verdict relu, jamais dans un état relu de nouveau. C'est pourquoi les
+    // deux bras du verdict sont nommés là : les écrire à la main les
+    // remplacerait par un appel à `refusRegistre`, qui passerait quand même.
+    expect(entre).toContain("clauseComparaisonEchange(")
+    expect(apres).toContain("refusRegistre(")
+    expect(apres).toContain("apres.code")
+    expect(apres).toContain("apres.refusalSiEchec")
+  })
+})
+
+/**
+ * Une méthode du registre durable, de son ouverture à la suivante. Comme pour
+ * `declarationDe`, la recherche part de la ligne d'après : lancée sur la
+ * première ligne, `^` y retrouve la déclaration qu'on est en train de lire.
+ */
+function corpsDeLaMethode(nom: string): string {
+  const trouvee = MODULE.search(new RegExp(`^\\s+async ${nom}\\(`, "m"))
+  if (trouvee < 0) throw new Error(`La méthode ${nom} doit exister`)
+  const suite = MODULE.slice(MODULE.lastIndexOf("\n", trouvee) + 1)
+  const finDeLigne = suite.indexOf("\n")
+  const suiteApres = suite.slice(finDeLigne + 1)
+  const suivante = suiteApres.search(/^\s+(async )?\w+\(/m)
+  return suivante < 0 ? suite : suite.slice(0, finDeLigne + 1 + suivante)
+}
+
 describe("classification d'une revendication — aucun message", () => {
   it("ne rend que des codes, jamais une prose d'adaptateur", () => {
     for (const nom of [

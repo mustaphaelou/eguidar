@@ -915,24 +915,43 @@ export function classerRevendication(
   return { kind: "a_ecrire", refusalSiEchec: codeRefusNonVivant(ligne.state) }
 }
 
-function refusNonVivant(state: string): {
+/**
+ * Le refus que rend le registre, un code par un. La classification ne porte
+ * aucun message : les deux adaptateurs n'écrivent pas la même prose pour un même
+ * refus, et ce n'est pas un défaut à corriger mais un fait du domaine — l'un
+ * parle à l'éditeur, l'autre n'est qu'une doublure de test.
+ *
+ * Cette table est celle du module propriétaire, et la seule qui parle à
+ * l'éditeur. Elle est ici depuis que le registre ne compose plus ses refus dans
+ * son échelle ; rien n'a bougé pour l'appelant, mêmes codes et mêmes phrases.
+ */
+const MESSAGE_PAR_CODE_REGISTRE: Record<CodeRefusRegistreBrouillon, string> = {
+  introuvable: "Brouillon introuvable",
+  "proprietaire-incorrect": "Ce brouillon ne vous appartient pas",
+  expire: "Brouillon expiré",
+  "deja-revendique": "Ce brouillon a déjà été revendiqué",
+  "deja-libere": "Ce brouillon n'est pas vivant",
+  "non-vivant": "Ce brouillon n'est pas vivant",
+}
+
+/**
+ * Le refus d'un code, rendu dans la prose du module propriétaire. La
+ * classification décide le code, cette fonction le dit : les deux ensemble
+ * forment le refus complet, et aucun des deux ne connaît l'autre.
+ */
+function refusRegistre(code: CodeRefusRegistreBrouillon): {
   ok: false
   code: CodeRefusRegistreBrouillon
   message: string
 } {
-  return {
-    ok: false,
-    code: codeRefusNonVivant(state),
-    message: "Ce brouillon n'est pas vivant",
-  }
+  return { ok: false, code, message: MESSAGE_PAR_CODE_REGISTRE[code] }
 }
 
 /**
- * Le refus que rend un état qui n'est plus vivant. Un seul endroit le sait :
- * c'est la moitié d'un refus que l'adaptateur du registre compose autour de son
- * message, et l'autre moitié est le `refusalSiEchec` du verdict que rend la
- * classification quand l'écriture perd la course. Un état que le registre ne
- * connaît pas n'est pas vivant comme les autres.
+ * Le refus que rend un état qui n'est plus vivant. Un seul endroit le sait : il
+ * n'est plus qu'un bout de la classification, dont il tire le `refusalSiEchec`
+ * que l'adaptateur rend quand l'écriture perd la course. Un état que le
+ * registre ne connaît pas n'est pas vivant comme les autres.
  */
 function codeRefusNonVivant(state: string): CodeRefusRegistreBrouillon {
   return state === "revendiqué"
@@ -941,23 +960,6 @@ function codeRefusNonVivant(state: string): CodeRefusRegistreBrouillon {
       ? "deja-libere"
       : "non-vivant"
 }
-
-/**
- * Ce qu'une lecture de la ligne décide de la revendication, avant que le
- * registre durable ne passe à la classification partagée : soit la ligne
- * tranche, soit elle laisse la comparaison-and-échange écrire. L'état d'une
- * ligne qui laisse écrire est renvoyé avec elle, parce qu'il décide du refus
- * que l'appelant rendra si l'écriture échoue.
- *
- * C'est l'échelle propre du registre, celle qui répond déjà en
- * `ResultatRevendicationRegistre` — refus *et* message. Elle disparaît quand le
- * registre se met à classifier par `classerRevendication` (ticket #502), qui ne
- * rend qu'un code : le message reste alors au seul module propriétaire, qui en
- * compose un pour chaque code.
- */
-type VerdictRegistre =
-  | { kind: "tranche"; resultat: ResultatRevendicationRegistre }
-  | { kind: "a_ecrire"; row: LigneBrouillonImageProduit }
 
 /**
  * Registre durable. L'état `expiré` est écrit à la demande, à partir de
@@ -981,61 +983,6 @@ export function creerRegistreBrouillonImageProduitPrisma(
         error
       )
     }
-  }
-
-  /**
-   * L'échelle de refus de la revendication, dans un seul ordre. La
-   * comparaison-and-échange se lit deux fois — avant d'écrire, puis après, pour
-   * savoir qui a gagné — et les deux lectures doivent appliquer exactement les
-   * mêmes refus : une évolution de la propriété ou de l'expiration ne peut
-   * atterrir que dans l'une des deux. `a_ecrire` est le seul cas que la
-   * première lecture laisse passer à l'écriture ; l'état de la ligne y décide
-   * encore, c'est donc à l'appelant d'en tirer le refus après l'écriture.
-   */
-  async function classer(
-    row: LigneBrouillonImageProduit | null,
-    input: { id: string; ownerId: string; tentativeId: string; now: Date }
-  ): Promise<VerdictRegistre> {
-    if (!row) {
-      return {
-        kind: "tranche",
-        resultat: {
-          ok: false,
-          code: "introuvable",
-          message: "Brouillon introuvable",
-        },
-      }
-    }
-    if (row.ownerId !== input.ownerId) {
-      return {
-        kind: "tranche",
-        resultat: {
-          ok: false,
-          code: "proprietaire-incorrect",
-          message: "Ce brouillon ne vous appartient pas",
-        },
-      }
-    }
-    // La rétention limite une nouvelle revendication, pas la résolution
-    // d'une tentative déjà gagnée.
-    if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
-      return {
-        kind: "tranche",
-        resultat: { ok: true, value: versBrouillon(row) },
-      }
-    }
-    if (row.expiresAt <= input.now) {
-      await marquerExpire(input.id, input.now)
-      return {
-        kind: "tranche",
-        resultat: {
-          ok: false,
-          code: "expire",
-          message: "Brouillon expiré",
-        },
-      }
-    }
-    return { kind: "a_ecrire", row }
   }
 
   return {
@@ -1075,6 +1022,14 @@ export function creerRegistreBrouillonImageProduitPrisma(
       return versBrouillon(row)
     },
 
+    /**
+     * La revendication est la règle du module propriétaire, une
+     * comparaison-and-échange, et une relecture. La double lecture reste — il
+     * faut savoir qui a gagné — mais elle n'a plus à appliquer deux fois la même
+     * règle : les deux lectures appellent `classerRevendication`, donc le même
+     * rang produit le même verdict sur les deux, et l'égalité que le commentaire
+     * d'ici exigeait n'est plus une promesse à tenir mais une conséquence.
+     */
     async revendiquer(input) {
       const lire = () =>
         prisma.brouillonImageProduit.findUnique({
@@ -1082,8 +1037,35 @@ export function creerRegistreBrouillonImageProduitPrisma(
           select: selectionBrouillon,
         })
 
-      const avant = await classer(await lire(), input)
-      if (avant.kind === "tranche") return avant.resultat
+      const contexte = {
+        ownerId: input.ownerId,
+        tentativeId: input.tentativeId,
+        now: input.now,
+      }
+
+      // Cette branche ne décide rien — la classification rend `introuvable`
+      // pour une rangée absente, et sa suite le prouve. Elle est là pour que le
+      // type se resserre sur la rangée, sans quoi les lectures suivantes
+      // porteraient toutes un `!`.
+      const row = await lire()
+      if (!row) return refusRegistre("introuvable")
+
+      const avant = classerRevendication(row, contexte)
+
+      // Un rejeu est un succès rendu, pas une écriture : la tentative a déjà pris
+      // ce Brouillon, et le réécrire ne rendrait rien que la règle ne dise déjà.
+      if (avant.kind === "rejoue") {
+        return { ok: true, value: versBrouillon(row) }
+      }
+
+      if (avant.kind === "tranche") {
+        // Trancher n'est pas réétiqueter : la rétention est échue, mais dire que
+        // cette rangée-là peut le devenir est une autre question.
+        if (avant.code === "expire" && reLabellableExpire(row)) {
+          await marquerExpire(input.id, input.now)
+        }
+        return refusRegistre(avant.code)
+      }
 
       const updated = await prisma.brouillonImageProduit.updateMany({
         where: clauseComparaisonEchange({
@@ -1098,13 +1080,22 @@ export function creerRegistreBrouillonImageProduitPrisma(
         if (gagne) return { ok: true, value: versBrouillon(gagne) }
       }
 
-      // L'écriture a échoué : la ligne a bougé entre-temps, on relit pour
-      // savoir qui a gagné. Aucun des refus précédents ne s'appliquant, c'est
-      // que la ligne n'a pas bougé — une relecture n'y changerait rien.
-      const apres = await classer(await lire(), input)
-      return apres.kind === "tranche"
-        ? apres.resultat
-        : refusNonVivant(apres.row.state)
+      // L'écriture n'a rien pris : la ligne a bougé entre-temps, on relit pour
+      // savoir qui a gagné. Le refus vient du verdict, jamais d'un état relu —
+      // c'est ce qui garantissait que les deux lectures disaient la même chose.
+      const relue = await lire()
+      if (!relue) return refusRegistre("introuvable")
+      const apres = classerRevendication(relue, contexte)
+
+      if (apres.kind === "rejoue") {
+        // Une autre exécution de cette même tentative a pris la rangée entre la
+        // lecture et l'écriture. La revendre ici n'est pas la perdre : c'est la
+        // rappeler, et c'est ce que rend un rejeu.
+        return { ok: true, value: versBrouillon(relue) }
+      }
+      return refusRegistre(
+        apres.kind === "tranche" ? apres.code : apres.refusalSiEchec
+      )
     },
 
     async confirmerPromotion(input) {
