@@ -255,18 +255,71 @@ describe("adaptateur R2 des Images produit", () => {
     })
   })
 
-  it("laisse remonter une panne R2 sur la suppression d'une Image persistée", async () => {
-    // La suppression d'une Image produit persistée est un effet post-commit et
-    // best-effort : ses appelants attrapent pour journaliser. Une traduction
-    // silencieuse ferait croire au Catalogue que l'objet n'a jamais existé, et
-    // laisserait une panne invisible pour la Structure.
+  it("répond le même refus sur les six opérations quand le stockage est mort", async () => {
+    // Une seule façon d'échouer, pour les six opérations du port. Les quatre
+    // opérations de Brouillon répondaient déjà ; les deux suppressions par URL
+    // laissaient remonter l'exception et donnaient donc une seconde réponse au
+    // même incident. Épingler les six ensemble est ce qui empêche la
+    // divergence de revenir opération par opération.
+    sendMock.mockRejectedValue(new Error("secret AWS failure"))
+    signedUrlMock.mockRejectedValue(new Error("secret AWS failure"))
+
+    const resultats = [
+      await stockageImageProduitR2.presignerBrouillon({
+        draftId: "draft-1",
+        contentType: "image/png",
+        size: 42,
+      }),
+      await stockageImageProduitR2.supprimerBrouillon({
+        draftId: "draft-1",
+        contentType: "image/png",
+      }),
+      await stockageImageProduitR2.promouvoirBrouillon({
+        draftId: "draft-1",
+        contentType: "image/png",
+      }),
+      await stockageImageProduitR2.supprimerImagePromue({
+        draftId: "draft-1",
+        contentType: "image/png",
+      }),
+      await stockageImageProduitR2.supprimerImagePersistee(
+        "https://cdn.example.test/products/image-1.png"
+      ),
+      await stockageImageProduitR2.supprimerImageCategorie(
+        "https://cdn.example.test/categories/2026/vintage.jpg"
+      ),
+    ]
+
+    expect(resultats).toHaveLength(6)
+    for (const resultat of resultats) {
+      expect(resultat).toEqual({
+        ok: false,
+        erreur: {
+          code: "erreur-stockage",
+          message: "Échec de l'opération de stockage Cloudflare R2",
+        },
+      })
+    }
+  })
+
+  it("répond un refus sur la suppression d'une Image persistée au lieu de laisser remonter la panne R2", async () => {
+    // Les six opérations du port répondent de la même façon à une panne R2.
+    // Traduire ne fait pas disparaître la panne : le Catalogue journalise un
+    // refus comme il journalisait une exception, et c'est ce qui gardait la
+    // suppression best-effort sans jamais faire échouer une mutation engagée.
     sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
 
-    await expect(
-      stockageImageProduitR2.supprimerImagePersistee(
+    expect(
+      await stockageImageProduitR2.supprimerImagePersistee(
         "https://cdn.example.test/products/image-panne.gif"
       )
-    ).rejects.toThrow("secret AWS failure")
+    ).toEqual({
+      ok: false,
+      erreur: {
+        code: "erreur-stockage",
+        message: "Échec de l'opération de stockage Cloudflare R2",
+      },
+    })
   })
 
   it("conserve la limite de taille existante", () => {
@@ -304,16 +357,22 @@ describe("adaptateur R2 des Images produit", () => {
     ).toEqual(["categories/2026/vintage.jpg", "banners/accueil.png"])
   })
 
-  it("laisse remonter une panne R2 sur la suppression d'une image de catégorie", async () => {
-    // Même contrat best-effort que l'Image produit persistée : la Structure
-    // n'attrape que les exceptions, une traduction silencieuse la laisserait
-    // croire que l'objet n'a jamais existé.
+  it("répond un refus sur la suppression d'une image de catégorie au lieu de laisser remonter la panne R2", async () => {
+    // Même accord que pour l'Image produit persistée : la Structure journalise
+    // un refus comme elle journalisait une exception, donc la panne ne devient
+    // pas invisible en étant traduite.
     sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
 
-    await expect(
-      stockageImageProduitR2.supprimerImageCategorie(
+    expect(
+      await stockageImageProduitR2.supprimerImageCategorie(
         "https://cdn.example.test/categories/panne.jpg"
       )
-    ).rejects.toThrow("secret AWS failure")
+    ).toEqual({
+      ok: false,
+      erreur: {
+        code: "erreur-stockage",
+        message: "Échec de l'opération de stockage Cloudflare R2",
+      },
+    })
   })
 })
