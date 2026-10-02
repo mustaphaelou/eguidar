@@ -44,6 +44,7 @@
   },
   "overrides": {
     "deepmerge-ts": "8.0.2",
+    "fast-uri": "^3.1.8",
     "hono": "^4.13.5",
     "js-yaml": "^4.3.2",
     "mysql2": "^3.22.0",
