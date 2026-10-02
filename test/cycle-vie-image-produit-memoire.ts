@@ -10,6 +10,7 @@ import {
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type {
   CodeEchecStockage,
+  ContentTypeImageProduit,
   PortStockageImageProduit,
   ValeurPromotionBrouillon,
   ValeurPresignBrouillon,
@@ -18,7 +19,7 @@ import type {
 export interface StockageImageProduitMemoire extends PortStockageImageProduit {
   readonly presignatures: Array<{
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
     size: number
   }>
   readonly promotions: Array<{ draftId: string; publicUrl: string }>

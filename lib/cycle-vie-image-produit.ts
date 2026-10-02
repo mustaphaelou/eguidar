@@ -6,16 +6,18 @@ import { prisma } from "@/lib/db"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import {
-  CONTENT_TYPES_IMAGE_PRODUIT,
+  isContentTypeImageProduit,
   MAX_UPLOAD_SIZE,
   draftObjectKey,
   stockageImageProduitR2,
+  type ContentTypeImageProduit,
   type PortStockageImageProduit,
   type ResultatStockageImageProduit,
 } from "@/lib/r2"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type {
+  ContentTypeImageProduit,
   PortStockageImageProduit,
   ResultatStockageImageProduit,
 } from "@/lib/r2"
@@ -32,7 +34,13 @@ export type EtatBrouillonImageProduit =
 
 export interface BrouillonImageProduit {
   id: string
-  mimeType: string
+  /**
+   * Le type du fichier, tel que le registre l'a reconnu. Il n'y a pas d'autre
+   * forme lisible : une rangée qui en porte un autre n'est pas un Brouillon
+   * d'Image produit, et la frontière de lecture du registre le dit au lieu de
+   * le laisser passer.
+   */
+  mimeType: ContentTypeImageProduit
   byteSize: number
   ownerId: string
   tentativeId: string | null
@@ -43,6 +51,11 @@ export interface BrouillonImageProduit {
   productId: string | null
 }
 
+/**
+ * Ce que l'appelant soumet : du texte, pas un type de contenu. Le port de
+ * stockage et le registre ne prennent, eux, que l'union des types autorisés —
+ * c'est `validerMetadata` qui fait la transition, et la rend.
+ */
 export interface DemandeBrouillonImageProduit {
   ownerId: string
   contentType: string
@@ -120,10 +133,15 @@ export type ResultatRelacherBrouillonImageProduit =
  * vient. Elle ne sort plus de ce module : le résultat de l'opération ne rend
  * plus la liste des Images produit promues (ticket #458), et aucun appelant de
  * production ne l'a jamais lue.
+ *
+ * Elle porte le type de contenu parce que la compensation doit savoir quelle
+ * clé supprimer : il vient du Brouillon qu'elle décrit, donc il ne peut pas
+ * manquer, et il n'a pas à être cherché ailleurs.
  */
 interface ImageProduitPromue {
   draftId: string
   publicUrl: string
+  contentType: ContentTypeImageProduit
 }
 
 export interface ConfirmationPromotionBrouillonImageProduit {
@@ -255,7 +273,7 @@ export interface Horloge {
 export interface EntreeCreationBrouillonImageProduit {
   id: string
   ownerId: string
-  contentType: string
+  contentType: ContentTypeImageProduit
   byteSize: number
   expiresAt: Date
 }
@@ -429,20 +447,33 @@ function refusStockage(
   return refus("stockage-refuse", resultat.erreur.message)
 }
 
+/**
+ * Les métadonnées validées, et le type de contenu que la validation a reconnu.
+ *
+ * **Rendre le type, plutôt que ne rendre qu'un refus.** L'entrée du module est
+ * du texte : la validation décide s'il est l'un des types autorisés, et rend
+ * alors *le type qu'elle a reconnu*. Le port de stockage et le registre ne
+ * prenant que cet union, tout ce qui est écrit ensuite — la pré-signature, la
+ * clé réservée, la colonne — est connu correct sans une seconde vérification.
+ * Une validation qui se contentait de refuser laissait `contentType` un texte
+ * jusqu'au stockage, où il n'était plus qu'à transformer un refus en chaîne
+ * vide.
+ */
+interface MetadataValide {
+  ok: true
+  contentType: ContentTypeImageProduit
+}
+
 function validerMetadata(
   input: DemandeBrouillonImageProduit
-): RefusCycleVieImageProduit | null {
+): RefusCycleVieImageProduit | MetadataValide {
   if (typeof input.ownerId !== "string" || !input.ownerId.trim()) {
     return refus(
       "identifiant-proprietaire-invalide",
       "Identifiant de propriétaire invalide"
     )
   }
-  if (
-    !CONTENT_TYPES_IMAGE_PRODUIT.some(
-      (contentType) => contentType === input.contentType
-    )
-  ) {
+  if (!isContentTypeImageProduit(input.contentType)) {
     return refus("mime-non-autorise", "Type de fichier non pris en charge")
   }
   if (!Number.isInteger(input.size) || input.size <= 0) {
@@ -451,7 +482,7 @@ function validerMetadata(
   if (input.size > MAX_UPLOAD_SIZE) {
     return refus("trop-volumineux", "Fichier trop volumineux (10 Mo maximum)")
   }
-  return null
+  return { ok: true, contentType: input.contentType }
 }
 
 function dateDExpiration(now: Date): Date {
@@ -540,7 +571,29 @@ type LigneBrouillonImageProduit = {
   productId: string | null
 }
 
+/**
+ * **La frontière de lecture, et l'unique décision sur un type illisible.**
+ * La colonne `mimeType` reste une chaîne : le schéma ne bouge pas, et une
+ * rangée portant un type que le port refuserait peut donc être relue.
+ *
+ * Elle n'est pas un Brouillon d'Image produit. Rendre cette valeur à l'interface
+ * obligerait ses consommateurs à refaire le travail qu'elle a fait, et les deux
+ * d'entre eux qui doivent en dériver une clé — la compensation d'une promotion
+ * et la libération d'une source — n'auraient plus qu'à choisir entre une chaîne
+ * vide et un `!`. Les deux issues seraient fausses de la même façon : une
+ * suppression best-effort qui ne supprime rien en rapportant un succès.
+ *
+ * Alors la rangée est dite illisible, ici et une seule fois. Le refus remonte
+ * jusqu'aux chemins qui savent le composer — « registre indisponible » à la
+ * libération comme à la revendication — plutôt que de laisser l'appelant croire
+ * à une libération réussie, ou à un Brouillon qui n'existe pas.
+ */
 function versBrouillon(row: LigneBrouillonImageProduit): BrouillonImageProduit {
+  if (!isContentTypeImageProduit(row.mimeType)) {
+    throw new Error(
+      `Type de fichier illisible dans le registre des Brouillons : ${row.mimeType}`
+    )
+  }
   return {
     id: row.id,
     mimeType: row.mimeType,
@@ -890,8 +943,9 @@ export function creerCycleVieImageProduit(
   async function demanderBrouillon(
     input: DemandeBrouillonImageProduit
   ): Promise<ResultatDemandeBrouillonImageProduit> {
-    const metadataInvalide = validerMetadata(input)
-    if (metadataInvalide) return metadataInvalide
+    const metadata = validerMetadata(input)
+    if (!metadata.ok) return metadata
+    const { contentType } = metadata
 
     const draftId = randomUUID()
     const expiresAt = dateDExpiration(horloge.maintenant())
@@ -902,7 +956,7 @@ export function creerCycleVieImageProduit(
     try {
       upload = await stockage.presignerBrouillon({
         draftId,
-        contentType: input.contentType,
+        contentType,
         size: input.size,
       })
     } catch {
@@ -917,7 +971,7 @@ export function creerCycleVieImageProduit(
       await registre.creer({
         id: draftId,
         ownerId: input.ownerId,
-        contentType: input.contentType,
+        contentType,
         byteSize: input.size,
         expiresAt,
       })
@@ -1034,7 +1088,6 @@ export function creerCycleVieImageProduit(
     const draftIds = brouillonsDeLaGalerie(input.galerie)
 
     const revendiques: BrouillonImageProduit[] = []
-    const mimeParBrouillon = new Map<string, string>()
     const now = horloge.maintenant()
 
     async function restaurerRevendications(): Promise<void> {
@@ -1068,7 +1121,6 @@ export function creerCycleVieImageProduit(
         return resultatRegistreRefus(result)
       }
       revendiques.push(result.value)
-      mimeParBrouillon.set(result.value.id, result.value.mimeType)
     }
 
     const brouillonsLies = revendiques.filter(
@@ -1114,6 +1166,13 @@ export function creerCycleVieImageProduit(
       }
     }
 
+    /**
+     * La compensation d'une promotion : la copie faite sous `products/` est
+     * supprimée, en best-effort. Le type vient de l'Image promue elle-même,
+     * donc de la revendication qui l'a produite : il n'y a plus de table
+     * parallèle à consulter, ni de repli qui dériverait une clé sans extension
+     * pour rapporter une suppression réussie.
+     */
     async function supprimerPromotions(
       images: readonly ImageProduitPromue[]
     ): Promise<void> {
@@ -1122,7 +1181,7 @@ export function creerCycleVieImageProduit(
           stockage
             .supprimerImagePromue({
               draftId: image.draftId,
-              contentType: mimeParBrouillon.get(image.draftId) ?? "",
+              contentType: image.contentType,
             })
             .catch(() => undefined)
         )
@@ -1135,13 +1194,19 @@ export function creerCycleVieImageProduit(
     // chemin de compensation — le Brouillon y doit rester revendicable.
     // Un 404 (déjà nettoyé) ou une panne transitoire ne remet pas pour autant
     // l'enregistrement en cause ; la règle de cycle de vie R2 couvre le reste.
+    //
+    // Elle libère les Brouillons revendiqués, et eux seuls : la liste est celle
+    // que la boucle de revendication vient de remplir, donc aucune source ne
+    // peut y figurer par surprise, et surtout aucune ne peut en manquer. Le
+    // repli sur une chaîne vide, qui aurait dérivé une clé sans extension et
+    // rapporté une suppression réussie, n'a plus où se loger.
     async function libererSources(): Promise<void> {
       await Promise.all(
-        draftIds.map(async (draftId) => {
+        revendiques.map(async (brouillon) => {
           try {
             await stockage.supprimerBrouillon({
-              draftId,
-              contentType: mimeParBrouillon.get(draftId) ?? "",
+              draftId: brouillon.id,
+              contentType: brouillon.mimeType,
             })
           } catch {
             // Best-effort : déjà nettoyé (404) ou panne transitoire.
@@ -1157,6 +1222,7 @@ export function creerCycleVieImageProduit(
         const image = {
           draftId: draft.id,
           publicUrl: draft.promotedPublicUrl,
+          contentType: draft.mimeType,
         }
         promues.push(image)
         if (draft.productId === null) nouvellesPromotions.push(image)
@@ -1184,7 +1250,11 @@ export function creerCycleVieImageProduit(
         return refusStockage(result)
       }
 
-      const image = { draftId: draft.id, publicUrl: result.valeur.publicUrl }
+      const image = {
+        draftId: draft.id,
+        publicUrl: result.valeur.publicUrl,
+        contentType: draft.mimeType,
+      }
       promues.push(image)
       nouvellesPromotions.push(image)
     }
