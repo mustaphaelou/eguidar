@@ -15,8 +15,8 @@ type Entree<Operation extends keyof PortStockageImageProduit> = Parameters<
 
 /**
  * Le type de contenu que le port déclare pour l'une des quatre opérations qui
- * en prennent un. Les deux suppressions par URL ne le prennent pas et n'ont donc
- * rien à déclarer : elles n'instancient pas ce type.
+ * en prennent un. Les deux suppressions par URL n'en prennent pas : elles ne
+ * sont jamais instanciées ici, et le type n'a rien à dire d'elles.
  */
 type ContentTypeDeclare<Operation extends keyof PortStockageImageProduit> =
   Entree<Operation> extends { contentType: infer TypeDeContenu }
