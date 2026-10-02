@@ -10,6 +10,8 @@ import {
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
+  draftObjectKey,
+  persistentObjectKey,
   type ContentTypeImageProduit,
 } from "@/lib/r2"
 import { SlugConflictError } from "@/lib/use-cases/admin-catalog"
@@ -17,6 +19,9 @@ import {
   brouillon,
   creerCycleVieTest,
   persistee,
+  urlApercuBrouillon,
+  urlEnvoiBrouillon,
+  urlImagePersistee,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-01-15T10:00:00.000Z")
@@ -36,8 +41,12 @@ describe("CycleVieImageProduit", () => {
     expect(resultat.draftId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
     )
-    expect(resultat.uploadUrl).toBe(`memoire://upload/${resultat.draftId}`)
-    expect(resultat.previewUrl).toBe(`memoire://preview/${resultat.draftId}`)
+    expect(resultat.uploadUrl).toBe(
+      urlEnvoiBrouillon(resultat.draftId, "image/webp")
+    )
+    expect(resultat.previewUrl).toBe(
+      urlApercuBrouillon(resultat.draftId, "image/webp")
+    )
     expect(resultat.expiresAt).toEqual(
       new Date(DATE_INITIALE.getTime() + 24 * 60 * 60 * 1000)
     )
@@ -46,6 +55,7 @@ describe("CycleVieImageProduit", () => {
         draftId: resultat.draftId,
         contentType: "image/webp",
         size: 2048,
+        cle: draftObjectKey(resultat.draftId, "image/webp"),
       },
     ])
 
@@ -189,7 +199,9 @@ describe("CycleVieImageProduit", () => {
         ownerId: "editeur-1",
       })
     ).toEqual({ ok: true, draftId: demande.draftId })
-    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/avif"),
+    ])
   })
 
   it("laisse l'objet d'un Brouillon expiré à la seule règle de cycle de vie R2", async () => {
@@ -293,14 +305,16 @@ describe("CycleVieImageProduit", () => {
     expect(stockage.promotions).toEqual([
       {
         draftId: demande.draftId,
-        publicUrl: `memoire://image/${demande.draftId}`,
+        cleSource: draftObjectKey(demande.draftId, "image/webp"),
+        cle: persistentObjectKey(demande.draftId, "image/webp"),
+        publicUrl: urlImagePersistee(demande.draftId, "image/webp"),
       },
     ])
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "revendiqué",
       tentativeId: "tentative-1",
       productId: "produit-1",
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/webp"),
     })
   })
 
@@ -328,17 +342,21 @@ describe("CycleVieImageProduit", () => {
     expect(resultat.ok).toBe(true)
     // Le Catalogue ne reçoit que la clé persistée issue de la promotion,
     // jamais l'URL du Brouillon.
-    expect(galerieEnregistree).toEqual([`memoire://image/${demande.draftId}`])
+    expect(galerieEnregistree).toEqual([
+      urlImagePersistee(demande.draftId, "image/webp"),
+    ])
     expect(galerieEnregistree).not.toContain(
-      `memoire://preview/${demande.draftId}`
+      urlApercuBrouillon(demande.draftId, "image/webp")
     )
     // La source de `products/brouillons/` est libérée après le commit : copiée,
     // elle n'est plus nécessaire à personne (spec #406, décisions de test).
-    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/webp"),
+    ])
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "revendiqué",
       productId: "produit-1",
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/webp"),
     })
   })
 
@@ -396,7 +414,7 @@ describe("CycleVieImageProduit", () => {
       state: "revendiqué",
       tentativeId: "tentative-1",
       productId: "produit-1",
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/webp"),
     })
   })
 
@@ -421,8 +439,8 @@ describe("CycleVieImageProduit", () => {
     }
     const premierePersistee = "https://cdn.test/produits/persistee-1.webp"
     const secondePersistee = "https://cdn.test/produits/persistee-2.webp"
-    const urlPremiere = `memoire://image/${premiereDemande.draftId}`
-    const urlSeconde = `memoire://image/${secondeDemande.draftId}`
+    const urlPremiere = urlImagePersistee(premiereDemande.draftId, "image/jpeg")
+    const urlSeconde = urlImagePersistee(secondeDemande.draftId, "image/png")
 
     // La galerie est soumise telle que l'éditeur l'a arrangée : persistée,
     // Brouillon, persistée, Brouillon.
@@ -462,8 +480,18 @@ describe("CycleVieImageProduit", () => {
     // promu — jamais une Image produit déjà persistée.
     expect(sousEnsemblePromu).toEqual([urlPremiere, urlSeconde])
     expect(stockage.promotions).toEqual([
-      { draftId: premiereDemande.draftId, publicUrl: urlPremiere },
-      { draftId: secondeDemande.draftId, publicUrl: urlSeconde },
+      {
+        draftId: premiereDemande.draftId,
+        cleSource: draftObjectKey(premiereDemande.draftId, "image/jpeg"),
+        cle: persistentObjectKey(premiereDemande.draftId, "image/jpeg"),
+        publicUrl: urlPremiere,
+      },
+      {
+        draftId: secondeDemande.draftId,
+        cleSource: draftObjectKey(secondeDemande.draftId, "image/png"),
+        cle: persistentObjectKey(secondeDemande.draftId, "image/png"),
+        publicUrl: urlSeconde,
+      },
     ])
     for (const [index, demande] of [
       premiereDemande,
@@ -690,7 +718,9 @@ describe("CycleVieImageProduit", () => {
       code: "catalogue-refuse",
       message: "L'enregistrement du Catalogue a échoué",
     })
-    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([
+      persistentObjectKey(demande.draftId, "image/gif"),
+    ])
     // La compensation défait la promotion mais laisse la source du Brouillon :
     // le retry en a encore besoin.
     expect(stockage.suppressionsBrouillons).toEqual([])
@@ -712,12 +742,16 @@ describe("CycleVieImageProduit", () => {
       state: "revendiqué",
       tentativeId: "tentative-1",
       productId: "produit-1",
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/gif"),
     })
-    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([
+      persistentObjectKey(demande.draftId, "image/gif"),
+    ])
     // Le retry a fini ce que la première tentative n'avait pas le droit de
     // faire : libérer la source une fois le commit écrit.
-    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/gif"),
+    ])
   })
 
   it("remonte le message d'une erreur du Catalogue orientée utilisateur, compensation faite", async () => {
@@ -751,7 +785,9 @@ describe("CycleVieImageProduit", () => {
     })
     // La compensation n'a pas bougé pour autant : la promotion est défaite et
     // le Brouillon redevient revendicable pour un nouvel essai.
-    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([
+      persistentObjectKey(demande.draftId, "image/png"),
+    ])
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "vivant",
       tentativeId: null,
@@ -801,7 +837,7 @@ describe("CycleVieImageProduit", () => {
       state: "revendiqué",
       tentativeId: "tentative-1",
       productId: premier.productId,
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/avif"),
     })
     expect(appels).toBe(1)
     expect(stockage.promotions).toHaveLength(1)
@@ -835,7 +871,7 @@ describe("CycleVieImageProduit", () => {
       state: "revendiqué",
       tentativeId: "tentative-1",
       productId: premier.productId,
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/avif"),
     })
     expect(appels).toBe(1)
     expect(stockage.promotions).toHaveLength(1)
@@ -918,7 +954,7 @@ describe("CycleVieImageProduit", () => {
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "revendiqué",
       productId: "produit-1",
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/webp"),
     })
   })
 })

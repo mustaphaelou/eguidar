@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import { draftObjectKey } from "@/lib/r2"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
   creerStockageImageProduitMemoire,
+  urlApercuBrouillon,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-03-01T10:00:00.000Z")
@@ -44,7 +46,7 @@ function galerieDuBrouillon(demande: {
     {
       kind: "brouillon",
       draftId: demande.draftId,
-      previewUrl: `memoire://preview/${demande.draftId}`,
+      previewUrl: urlApercuBrouillon(demande.draftId, "image/png"),
     },
   ]
 }
@@ -62,7 +64,9 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     ).toEqual({ ok: true, draftId: demande.draftId })
 
     expect(registre.records.get(demande.draftId)?.state).toBe("libéré")
-    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/png"),
+    ])
     expect(stockage.suppressionsImagesPromues).toEqual([])
     expect(stockage.suppressionsImagesPersistees).toEqual([])
   })
@@ -85,7 +89,9 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       code: "brouillon-non-vivant",
       message: "Ce Brouillon d'Image produit a déjà été libéré",
     })
-    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/png"),
+    ])
   })
 
   it("refuse une revendication d'un Brouillon déjà libéré avec la même raison", async () => {
@@ -182,7 +188,9 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     })
     // La source a été libérée par le commit réussi, pas par ce refus ; ni la
     // promotion ni l'Image persistée n'ont été touchées.
-    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/png"),
+    ])
     expect(stockage.suppressionsImagesPromues).toEqual([])
     expect(stockage.suppressionsImagesPersistees).toEqual([])
   })

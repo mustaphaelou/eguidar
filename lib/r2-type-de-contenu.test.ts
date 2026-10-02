@@ -3,10 +3,14 @@ import { describe, expect, expectTypeOf, it } from "vitest"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
   draftObjectKey,
+  persistentObjectKey,
   type ContentTypeImageProduit,
   type PortStockageImageProduit,
 } from "@/lib/r2"
-import { creerStockageImageProduitMemoire } from "@/test/cycle-vie-image-produit-memoire"
+import {
+  creerStockageImageProduitMemoire,
+  urlImagePersistee,
+} from "@/test/cycle-vie-image-produit-memoire"
 
 /** L'entrée d'une opération du port, nommée une fois pour toutes. */
 type Entree<Operation extends keyof PortStockageImageProduit> = Parameters<
@@ -78,13 +82,27 @@ describe("type de contenu déclaré par le port de stockage", () => {
     // qu'un refactoring ne puisse pas les emporter sans que `tsc --noEmit` ne
     // le dise.
     expect(stockage.presignatures).toEqual([
-      { draftId: "draft-1", contentType: "image/png", size: 1 },
+      {
+        draftId: "draft-1",
+        contentType: "image/png",
+        size: 1,
+        cle: draftObjectKey("draft-1", "image/png"),
+      },
     ])
-    expect(stockage.suppressionsBrouillons).toEqual(["draft-1"])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey("draft-1", "image/png"),
+    ])
     expect(stockage.promotions).toEqual([
-      { draftId: "draft-1", publicUrl: "memoire://image/draft-1" },
+      {
+        draftId: "draft-1",
+        cleSource: draftObjectKey("draft-1", "image/png"),
+        cle: persistentObjectKey("draft-1", "image/png"),
+        publicUrl: urlImagePersistee("draft-1", "image/png"),
+      },
     ])
-    expect(stockage.suppressionsImagesPromues).toEqual(["draft-1"])
+    expect(stockage.suppressionsImagesPromues).toEqual([
+      persistentObjectKey("draft-1", "image/png"),
+    ])
   })
 
   it("continue de refuser à l'exécution de dériver une clé d'un type non autorisé", () => {

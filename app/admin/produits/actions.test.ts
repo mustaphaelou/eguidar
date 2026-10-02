@@ -35,7 +35,11 @@ import type {
   ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 import type { Client } from "@/lib/use-cases/session-courante"
-import { brouillon, persistee } from "@/test/cycle-vie-image-produit-memoire"
+import {
+  brouillon,
+  persistee,
+  urlImagePersistee,
+} from "@/test/cycle-vie-image-produit-memoire"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
 /**
@@ -222,13 +226,9 @@ beforeEach(() => {
   stockage.failPresign = false
   stockage.failPromotion = false
   stockage.failDelete = false
+  for (const pannes of Object.values(stockage.pannes)) pannes.clear()
   horloge.fixer(instant)
 })
-
-/** L'URL publique que la promotion d'un Brouillon produit, et que l Catalogue écrit. */
-function urlPromue(draftId: string): string {
-  return `memoire://image/${draftId}`
-}
 
 /**
  * Un Brouillon réellement téléversé : la demande passe par l'interface du
@@ -296,7 +296,10 @@ describe("createProductAction", () => {
     })
 
     expect(catalogue.ecritures).toEqual([
-      { produitId: "produit-1", galerie: [existante, urlPromue(draftId)] },
+      {
+        produitId: "produit-1",
+        galerie: [existante, urlImagePersistee(draftId, "image/webp")],
+      },
     ])
     // Le registre dit à qui appartient l'Image produit : à ce Produit, et à
     // personne d'autre.
@@ -304,7 +307,7 @@ describe("createProductAction", () => {
       state: "revendiqué",
       tentativeId: "tentative-1",
       productId: "produit-1",
-      promotedPublicUrl: urlPromue(draftId),
+      promotedPublicUrl: urlImagePersistee(draftId, "image/webp"),
     })
   })
 
@@ -404,7 +407,10 @@ describe("createProductAction", () => {
     })
 
     expect(catalogue.ecritures).toEqual([
-      { produitId: "produit-1", galerie: [urlPromue(draftId)] },
+      {
+        produitId: "produit-1",
+        galerie: [urlImagePersistee(draftId, "image/webp")],
+      },
     ])
     expect(registre.records.get(draftId)).toMatchObject({
       state: "revendiqué",
@@ -444,9 +450,9 @@ describe("updateProductAction", () => {
         produitId: "produit-1",
         galerie: [
           premierePersistee,
-          urlPromue(premier),
+          urlImagePersistee(premier, "image/webp"),
           secondePersistee,
-          urlPromue(second),
+          urlImagePersistee(second, "image/webp"),
         ],
       },
     ])
@@ -454,13 +460,13 @@ describe("updateProductAction", () => {
       state: "revendiqué",
       tentativeId: "tentative-update-1",
       productId: "produit-1",
-      promotedPublicUrl: urlPromue(premier),
+      promotedPublicUrl: urlImagePersistee(premier, "image/webp"),
     })
     expect(registre.records.get(second)).toMatchObject({
       state: "revendiqué",
       tentativeId: "tentative-update-1",
       productId: "produit-1",
-      promotedPublicUrl: urlPromue(second),
+      promotedPublicUrl: urlImagePersistee(second, "image/webp"),
     })
   })
 
@@ -522,7 +528,10 @@ describe("updateProductAction", () => {
     })
 
     expect(catalogue.ecritures).toEqual([
-      { produitId: "produit-1", galerie: [urlPromue(draftId)] },
+      {
+        produitId: "produit-1",
+        galerie: [urlImagePersistee(draftId, "image/webp")],
+      },
     ])
     // Le même Brouillon a été promu une seconde fois : sans sa source, le
     // retry n'aurait rien eu à promouvoir.
@@ -549,7 +558,10 @@ describe("updateProductAction", () => {
     })
 
     expect(catalogue.ecritures).toEqual([
-      { produitId: "produit-1", galerie: [urlPromue(draftId)] },
+      {
+        produitId: "produit-1",
+        galerie: [urlImagePersistee(draftId, "image/webp")],
+      },
     ])
     expect(registre.records.get(draftId)).toMatchObject({
       state: "revendiqué",
