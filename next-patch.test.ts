@@ -4,7 +4,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-const NEXT_PATCH_FLOOR = "16.3.3"
+const NEXT_PATCH_FLOOR = "16.3.6"
 
 function releaseParts(version: string): number[] {
   const release = version.split("-", 1)[0] ?? ""
@@ -36,29 +36,30 @@ function installedNextVersion(): string | null {
 
 describe("satisfiesPatchFloor", () => {
   it("accepts the patch floor itself", () => {
-    expect(satisfiesPatchFloor("16.3.3", NEXT_PATCH_FLOOR)).toBe(true)
+    expect(satisfiesPatchFloor("16.3.6", NEXT_PATCH_FLOOR)).toBe(true)
   })
 
   it("accepts later patch, minor and major releases", () => {
-    expect(satisfiesPatchFloor("16.3.4", NEXT_PATCH_FLOOR)).toBe(true)
+    expect(satisfiesPatchFloor("16.3.8", NEXT_PATCH_FLOOR)).toBe(true)
     expect(satisfiesPatchFloor("16.4.0", NEXT_PATCH_FLOOR)).toBe(true)
     expect(satisfiesPatchFloor("17.0.0", NEXT_PATCH_FLOOR)).toBe(true)
   })
 
   it("rejects the vulnerable releases below the floor", () => {
-    expect(satisfiesPatchFloor("16.3.2", NEXT_PATCH_FLOOR)).toBe(false)
-    expect(satisfiesPatchFloor("16.2.9", NEXT_PATCH_FLOOR)).toBe(false)
+    expect(satisfiesPatchFloor("16.3.5", NEXT_PATCH_FLOOR)).toBe(false)
+    expect(satisfiesPatchFloor("16.3.4", NEXT_PATCH_FLOOR)).toBe(false)
+    expect(satisfiesPatchFloor("16.2.0", NEXT_PATCH_FLOOR)).toBe(false)
     expect(satisfiesPatchFloor("15.5.25", NEXT_PATCH_FLOOR)).toBe(false)
   })
 
   it("rejects prereleases and malformed versions", () => {
-    expect(satisfiesPatchFloor("16.3.3-canary.0", NEXT_PATCH_FLOOR)).toBe(false)
+    expect(satisfiesPatchFloor("16.3.6-canary.0", NEXT_PATCH_FLOOR)).toBe(false)
     expect(satisfiesPatchFloor("", NEXT_PATCH_FLOOR)).toBe(false)
     expect(satisfiesPatchFloor("garbage", NEXT_PATCH_FLOOR)).toBe(false)
   })
 })
 
-describe("installed next (GHSA-p293-qw3h-jr36, GHSA-2xp9-vwfh-vxw4)", () => {
+describe("installed next (GHSA-p293-qw3h-jr36, GHSA-2xp9-vwfh-vxw4, GHSA-vcvr-r3jv-pc5j)", () => {
   it("sits at or above the patch floor", () => {
     const version = installedNextVersion()
     expect(version, "next not resolvable in the installed tree").not.toBeNull()
