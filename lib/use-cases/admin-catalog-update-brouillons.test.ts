@@ -24,12 +24,14 @@ import {
   updateProduct,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
+import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
   creerStockageImageProduitMemoire,
   persistee,
   sansTransaction,
+  urlImagePersistee,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const ownerId = randomUUID()
@@ -244,8 +246,14 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })
-    const firstPromotedUrl = `memoire://image/${premierDraft.draftId}`
-    const secondPromotedUrl = `memoire://image/${secondDraft.draftId}`
+    const firstPromotedUrl = urlImagePersistee(
+      premierDraft.draftId,
+      "image/webp"
+    )
+    const secondPromotedUrl = urlImagePersistee(
+      secondDraft.draftId,
+      "image/png"
+    )
     expect(persisted.images).toEqual([
       firstPromotedUrl,
       existingImage,
@@ -269,8 +277,18 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       promotedPublicUrl: secondPromotedUrl,
     })
     expect(environnement.stockage.promotions).toEqual([
-      { draftId: premierDraft.draftId, publicUrl: firstPromotedUrl },
-      { draftId: secondDraft.draftId, publicUrl: secondPromotedUrl },
+      {
+        draftId: premierDraft.draftId,
+        cleSource: draftObjectKey(premierDraft.draftId, "image/webp"),
+        cle: persistentObjectKey(premierDraft.draftId, "image/webp"),
+        publicUrl: firstPromotedUrl,
+      },
+      {
+        draftId: secondDraft.draftId,
+        cleSource: draftObjectKey(secondDraft.draftId, "image/png"),
+        cle: persistentObjectKey(secondDraft.draftId, "image/png"),
+        publicUrl: secondPromotedUrl,
+      },
     ])
   })
 
@@ -428,7 +446,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
 
     expect(echec).toMatchObject({ ok: false, code: "catalogue-refuse" })
     expect(environnement.stockage.suppressionsImagesPromues).toEqual([
-      draft.draftId,
+      persistentObjectKey(draft.draftId, "image/webp"),
     ])
     expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
       state: "vivant",
@@ -452,7 +470,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const afterRetry = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })
-    const promotedUrl = `memoire://image/${draft.draftId}`
+    const promotedUrl = urlImagePersistee(draft.draftId, "image/webp")
     expect(afterRetry.images).toEqual([existingImage, promotedUrl])
     expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
       state: "revendiqué",
@@ -503,7 +521,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       state: "revendiqué",
       tentativeId: "tentative-durable",
       productId: product.id,
-      promotedPublicUrl: `memoire://image/${draft.draftId}`,
+      promotedPublicUrl: urlImagePersistee(draft.draftId, "image/webp"),
     })
   })
 
@@ -564,7 +582,9 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       productId: null,
       promotedPublicUrl: null,
     })
-    expect(stockage.suppressionsImagesPromues).toEqual([draft.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([
+      persistentObjectKey(draft.draftId, "image/webp"),
+    ])
     const unchanged = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })
