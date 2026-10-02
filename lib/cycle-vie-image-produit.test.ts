@@ -1,10 +1,17 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, expectTypeOf, it, vi } from "vitest"
 
 import {
+  type BrouillonImageProduit,
+  type DemandeBrouillonImageProduit,
   type EnregistrerCatalogue,
+  type EntreeCreationBrouillonImageProduit,
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import {
+  CONTENT_TYPES_IMAGE_PRODUIT,
+  type ContentTypeImageProduit,
+} from "@/lib/r2"
 import { SlugConflictError } from "@/lib/use-cases/admin-catalog"
 import {
   brouillon,
@@ -70,6 +77,42 @@ describe("CycleVieImageProduit", () => {
     expect(resultat).toMatchObject({ ok: false, code: "mime-non-autorise" })
     expect(stockage.presignatures).toHaveLength(0)
     expect(registre.records.size).toBe(0)
+  })
+
+  it("ne rend au stockage et au registre que le type soumis, et lui seul", async () => {
+    // La validation choisit en laissant passer la valeur, pas en la remplaçant :
+    // chacun des types autorisés doit ressortir tel quel, sinon la clé dérivée
+    // et la pré-signature porteraient l'extension d'un autre type.
+    for (const contentType of CONTENT_TYPES_IMAGE_PRODUIT) {
+      const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
+
+      const demande = await cycleVie.demanderBrouillon({
+        ownerId: "editeur-1",
+        contentType,
+        size: 2048,
+      })
+      if (!demande.ok) throw new Error("La demande devait réussir")
+
+      expect(stockage.presignatures[0]?.contentType, contentType).toBe(
+        contentType
+      )
+      expect(registre.records.get(demande.draftId)?.mimeType, contentType).toBe(
+        contentType
+      )
+    }
+
+    // Verrous de compilation : la demande est du texte — c'est la validation qui
+    // décide — et plus rien en aval ne l'est. Un `string` revenu s'y glisser
+    // ferait échouer `tsc --noEmit`.
+    expectTypeOf<
+      DemandeBrouillonImageProduit["contentType"]
+    >().toEqualTypeOf<string>()
+    expectTypeOf<
+      EntreeCreationBrouillonImageProduit["contentType"]
+    >().toEqualTypeOf<ContentTypeImageProduit>()
+    expectTypeOf<
+      BrouillonImageProduit["mimeType"]
+    >().toEqualTypeOf<ContentTypeImageProduit>()
   })
 
   it("refuse un fichier trop volumineux avant toute interaction R2", async () => {

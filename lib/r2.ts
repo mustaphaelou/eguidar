@@ -59,23 +59,33 @@ export interface ValeurPromotionBrouillon {
   publicUrl: string
 }
 
+/**
+ * Le port de stockage des Images produit.
+ *
+ * **Un type de contenu y est l'union des types autorisés, pas une chaîne.**
+ * L'implémentation refuse depuis toujours tout ce qui n'est pas l'un des cinq,
+ * à la dérivation de la clé ; déclarer `string` ici l'admettait quand même, et
+ * l'interface promettait donc une valeur que le port ne tenait pas. La
+ * restriction vit désormais dans le type, et c'est le compilateur — non un
+ * contrôle à l'exécution — qui arrête un appelant qui passerait le reste.
+ */
 export interface PortStockageImageProduit {
   presignerBrouillon(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
     size: number
   }): Promise<ResultatStockageImageProduit<ValeurPresignBrouillon>>
   supprimerBrouillon(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
   }): Promise<ResultatStockageImageProduit<null>>
   promouvoirBrouillon(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
   }): Promise<ResultatStockageImageProduit<ValeurPromotionBrouillon>>
   supprimerImagePromue(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
   }): Promise<ResultatStockageImageProduit<null>>
   supprimerImagePersistee(
     publicUrl: string
@@ -98,7 +108,14 @@ function storageFailure(
   return { ok: false, erreur: { code, message } }
 }
 
-function isContentTypeImageProduit(
+/**
+ * Le seul prédicat du type de contenu, et il est exporté parce que le module
+ * propriétaire en a besoin pour le même travail : décider si une valeur qu'il
+ * reçoit du texte est l'un des types autorisés. Deux listes ne le direient pas
+ * deux fois — celle du module de stockage et celle, indépendante, de la route de
+ * téléversement.
+ */
+export function isContentTypeImageProduit(
   contentType: string
 ): contentType is ContentTypeImageProduit {
   return CONTENT_TYPES_IMAGE_PRODUIT.includes(
@@ -117,6 +134,16 @@ function isStorageIdentifier(value: string): boolean {
   )
 }
 
+/**
+ * La dérivation de clé, et le refus qui l'accompagne.
+ *
+ * **Le paramètre reste un `string`, contrairement au port.** Ces deux exports
+ * sont la convention d'espace de noms d'ADR-0004, et l'invariant qu'elle porte
+ * — une clé ne se dérive jamais d'un type refusé — se garde à l'exécution : le
+ * port a déjà arrêté l'appelant qui passerait le reste, mais une dérivation
+ * appelée ailleurs refuse encore, et elle refuse par une exception, comme les
+ * quatre opérations du port s'attendent à le lire.
+ */
 function keyForImage(
   prefix: string,
   imageId: string,

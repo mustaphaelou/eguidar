@@ -597,4 +597,37 @@ describe("registre durable des Brouillons d'Image produit", () => {
       })
     ).toMatchObject({ state: "vivant", tentativeId: null, productId: null })
   })
+
+  it("refuse une rangée dont le type stocké n'est pas un type autorisé", async () => {
+    // La colonne reste une chaîne : le schéma n'a pas bougé, et une rangée
+    // portant un type que le port refuserait peut donc être relue. Une seule
+    // décision la concerne, et elle est prise ici, à la frontière de lecture —
+    // sinon les deux aides de compensation du module propriétaire se trouveraient
+    // à recoudre une chaîne vide pour y dériver une clé, et une suppression
+    // best-effort ne supprimerait rien en rapportant un succès.
+    const draftId = randomUUID()
+    await prisma.brouillonImageProduit.create({
+      data: {
+        id: draftId,
+        storageKey: `products/brouillons/${draftId}.svg`,
+        mimeType: "image/svg+xml",
+        byteSize: 2048,
+        ownerId,
+        expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
+      },
+    })
+    const { cycleVie, stockage } = creerCycleVie()
+
+    // Le refus est dit, et il ne ment sur rien : ni « Brouillon introuvable »
+    // — la rangée est là — ni un succès de suppression.
+    await expect(cycleVie.lireBrouillon(draftId)).rejects.toThrow(
+      "image/svg+xml"
+    )
+    expect(await cycleVie.relacherBrouillon({ draftId, ownerId })).toEqual({
+      ok: false,
+      code: "registre-indisponible",
+      message: "Registre des Brouillons indisponible",
+    })
+    expect(stockage.suppressionsBrouillons).toEqual([])
+  })
 })
