@@ -46,7 +46,8 @@
     "deepmerge-ts": "8.0.2",
     "hono": "^4.13.5",
     "js-yaml": "^4.3.2",
-    "mysql2": "^3.22.0"
+    "mysql2": "^3.22.0",
+    "undici": "^7.29.1"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
