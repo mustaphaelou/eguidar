@@ -192,9 +192,8 @@ function mapCourseDeStructure(error: unknown): never {
  * Structure plutôt que le nœud visé est ce qui ferme la course de cycle :
  * `assertAcyclicCategoryTree` parcourt une chaîne d'ancêtres qu'un verrou de
  * nœud ne protège pas. La décision l'exige de toute mutation de Structure,
- * création d'une Structure racine comprise ; seule `createCategory` le
- * prendra encore, avec la transaction qu'elle gagnera en
- * [#489](https://github.com/eloaurdi/eguidar/issues/489).
+ * création d'une Structure racine comprise : personne n'y échappe, pas même
+ * elle.
  *
  * Le délai s'arme **avant** le verrou, et c'est l'inversion d'ADR-0027 qu'elle
  * corrige : pris après, il ne bornait que les verrous suivants et laissait
@@ -247,11 +246,18 @@ function mapCategoryUniqueViolation(error: unknown): never {
   )
 }
 
+/**
+ * Le slug est-il déjà porté par une autre Structure ? Le client est celui de la
+ * transaction, et il n'a pas de défaut : sous le verrou grossier, cette lecture
+ * valide et écrit dans un seul engagement, et une lecture hors transaction
+ * prendrait une seconde connexion pendant que la première tient le verrou.
+ */
 async function assertUniqueCategorySlug(
   slug: string,
+  client: Prisma.TransactionClient,
   excludeCategoryId?: string
 ): Promise<void> {
-  const existing = await prisma.category.findUnique({ where: { slug } })
+  const existing = await client.category.findUnique({ where: { slug } })
   if (existing && existing.id !== excludeCategoryId)
     throw new CategorySlugConflictError()
 }
@@ -318,21 +324,39 @@ export async function createCategory(
 ) {
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
-  await assertUniqueCategorySlug(data.slug)
-  await assertCategoryParent(data.parentId)
 
-  let category
+  // Une seule mutation atomique et sérialisée, comme les deux autres : la
+  // transaction prend le délai puis le verrou grossier en première instruction
+  // qui verrouille, avant la lecture du slug, celle du parent et l'écriture,
+  // qui partagent un seul engagement. Une insertion de racine ne pose aucune
+  // référence de clé étrangère, donc rien à verrouiller d'elle-même : le verrou
+  // ne protège pas sa propre course — deux racines concurrentes se committent
+  // toutes deux tant que la gagnante engage moins que le délai — il tient la
+  // promesse que deux mutations de Structure ne s'entrelacent jamais
+  // (ADR-0027).
+  let category: Category
   try {
-    category = await prisma.category.create({
-      data: {
-        name: data.name,
-        slug: data.slug,
-        parentId: data.parentId ?? null,
-        image: data.image ?? null,
-      },
+    category = await prisma.$transaction(async (tx) => {
+      await verrouillerStructure(tx)
+
+      await assertUniqueCategorySlug(data.slug, tx)
+      await assertCategoryParent(data.parentId, tx)
+
+      try {
+        return await tx.category.create({
+          data: {
+            name: data.name,
+            slug: data.slug,
+            parentId: data.parentId ?? null,
+            image: data.image ?? null,
+          },
+        })
+      } catch (error) {
+        mapCategoryUniqueViolation(error)
+      }
     })
   } catch (error) {
-    mapCategoryUniqueViolation(error)
+    mapCourseDeStructure(error)
   }
 
   await runEffect(
@@ -364,7 +388,7 @@ export async function updateCategory(
       const existing = await tx.category.findUnique({ where: { id } })
       if (!existing) throw new CategoryNotFoundError()
 
-      await assertUniqueCategorySlug(data.slug, id)
+      await assertUniqueCategorySlug(data.slug, tx, id)
       await assertAcyclicCategoryTree(id, data.parentId, tx)
 
       try {
