@@ -207,11 +207,19 @@ describe("CycleVieImageProduit", () => {
         ownerId: "editeur-1",
       })
     ).toEqual({ ok: true, draftId: demande.draftId })
-    // Une seule adresse visée, et c'est tout ce que cette suite dit du stockage :
-    // quelle clé elle désigne, c'est la disposition d'ADR-0004, que le contrat
-    // épingle au caractère près. Ce que le module propriétaire doit prouver est
-    // qu'il en vise une, et une seule.
-    expect(stockage.suppressionsBrouillons).toHaveLength(1)
+    // Une seule adresse visée, et c'est bien **celle de ce Brouillon** : un
+    // module qui visait la clé d'un autre laisserait l'éditeur avec son objet
+    // encore sous l'espace réservé — donc expiré par la règle, plus tard — et
+    // l'autre supprimé sans raison.
+    //
+    // Ce que l'égalité dit n'est pas la disposition de la clé : les deux côtés
+    // passent par `draftObjectKey`, la fonction de production, donc une
+    // disposition qui changerait les ferait changer ensemble et cette suite
+    // resterait verte. C'est le contrat qui écrit la disposition en clair et
+    // l'épingle au caractère près ; ici l'égalité ne dit que **lequel**.
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/avif"),
+    ])
   })
 
   it("laisse l'objet d'un Brouillon expiré à la seule règle de cycle de vie R2", async () => {
