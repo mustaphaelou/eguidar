@@ -125,8 +125,11 @@ la même.
 ## Options écartées
 
 - **Un garde de frontière comme unique garantie** — écarté : un test attrape le défaut après coup, à
-  la suite suivante, et ne dit rien de l'endroit où il faut poser la constante. Il sera écrit, mais il
-  garde une règle ; il n'est pas la règle. Son application automatique est suivie par
+  la suite suivante, et ne dit rien de l'endroit où il faut poser la constante. Un garde existe
+  pourtant — [`app/admin/actions-frontiere.test.ts`](../../app/admin/actions-frontiere.test.ts)
+  applique la règle aux cinq modules `app/admin/<un dossier>/actions.ts`, la surface où le défaut est
+  né — et il garde une règle ; il n'est pas la règle. Dire la même règle à l'écriture, par une règle
+  ESLint `no-restricted-imports`, reste le suivi de
   [#520](https://github.com/eloaurdi/eguidar/issues/520), distincte de cet ADR.
 
 - **Une liste des valeurs sûres à emprunter** — écarté : la question « quelles valeurs de ce module
@@ -179,7 +182,9 @@ la même.
   s'appuyant sur `importeDe` seul, il signalera
   [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5) comme une violation,
   alors que cet emprunt est doublement permis — il est un emprunt de type, et sa cible est de
-  surcroît neutre.
+  surcroît neutre. Le complément qui applique ce filtre est
+  [`empruntsDeValeur`](../../lib/use-cases/outils-frontiere.ts#L241-L254), qui jette l'emprunt de
+  type avant de résoudre le spécifieur : la garde appelle ce complément, et non `importeDe`.
 
 - **Piège nommé — la neutralité d'un module se vérifie par transit.** Un module neutre qui n'importe
   rien de notable peut tout de même atteindre un module client ou serveur par un intermédiaire. La
@@ -206,8 +211,8 @@ ligne de cette forme qu'il ait produites,
 [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5), `import type`, vise
 le client Prisma généré, qui est neutre. Autrement dit : **le dépôt n'a aucun exemple légal d'un
 emprunt de type vers un module client, parce qu'il n'en a aucun, interdit ou non.** C'est ce qui
-rend la suite de [#520](https://github.com/eloaurdi/eguidar/issues/520) utile : elle doit
-fabriquer ce cas pour elle-même, puisqu'il ne s'est jamais produit.
+rend la suite de [#520](https://github.com/eloaurdi/eguidar/issues/520) utile : elle fabrique ce
+cas pour elle-même, puisqu'il ne s'est jamais produit.
 
 **Le bundle.** [#517](https://github.com/eloaurdi/eguidar/issues/517) a relevé dans le bundle serveur
 compilé l'exportation réécrite en mandataire enregistré sous le nom du fichier et de l'exportation, et
@@ -218,3 +223,15 @@ d'une suite : elle demande le bundle, précisément parce qu'aucune suite ne le 
 jamais envoyer la sentinelle ([`:52-63`](../../app/admin/categories/actions.test.ts#L52-L63)) et passe
 malgré tout. Les cas verts et le bundle faux coexistent — c'est la démonstration, non le présupposé,
 que l'absence de reproduction de la transformation est la cause du silence.
+
+**La garde de frontière.** `app/admin/actions-frontiere.test.ts` n'exécute rien : elle lit la
+source, sans build ni transformation RSC, et la règle porte sur ce qui est importé, non sur ce
+que l'exécution en fait. Elle tient les cinq modules `app/admin/<un dossier>/actions.ts` à zéro
+emprunt de valeur vers un module `"use client"`, et elle se prouve elle-même par deux gestes
+inverses : elle remet dans `app/admin/categories/actions.ts` la ligne exacte que
+[#518](https://github.com/eloaurdi/eguidar/issues/518) avait retirée —
+`import { NO_PARENT_VALUE } from "@/components/admin/category-form"`, celle que donne
+`git show 53eb10b^:app/admin/categories/actions.ts` — et attend que la garde la nomme ; le même
+emprunt écrit `import type` passe. La liste des cinq actions gardées est écrite, non déduite
+du parcours, et le témoin de non-vacuité la compare à ce que le parcours trouve : une action
+neuve échoue au témoin jusqu'à ce qu'on la nomme.
