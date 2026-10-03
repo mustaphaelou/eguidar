@@ -99,7 +99,7 @@ export interface IdentiteStockage {
  *
  * Trois cas, et le troisième est ce qui rend l'accord observable : une levée est
  * **constatée** et non propagée. Sans elle, une divergence sur la façon
- * d'échouer se.device en test rouge sur une pile d'erreurs qui dit « quelque
+ * d'échouer se verrait en test rouge sur une pile d'erreurs qui dit « quelque
  * chose a levé » sans dire qui l'a fait — et le scénario qui constate l'accord
  * n'aurait rien à constater.
  */
