@@ -468,6 +468,162 @@ describe("admin structure mutations — categories", () => {
     ).rejects.toThrow(CategoryNotFoundError)
   })
 
+  it("ferme la course de cycle par deux modifications concurrentes", async () => {
+    // Deux racines indépendantes : les y faire traverser l'une sous l'autre,
+    // puis l'autre sous la première, refermerait la bouche. Sans le verrou
+    // grossier, les deux marches d'acyclicité liraient l'état d'avant l'une et
+    // l'autre, et les deux écritures passeraient : la base porterait un cycle.
+    const effets = effectSpies()
+    const racineA = await createCategory(
+      makeCategoryInput({ slug: categorySlug("cyc-race-a") })
+    )
+    const racineB = await createCategory(
+      makeCategoryInput({ slug: categorySlug("cyc-race-b") })
+    )
+
+    const modifications = [
+      updateCategory(
+        racineA.id,
+        makeCategoryInput({
+          slug: categorySlug("cyc-race-a"),
+          parentId: racineB.id,
+        }),
+        effets
+      ),
+      updateCategory(
+        racineB.id,
+        makeCategoryInput({
+          slug: categorySlug("cyc-race-b"),
+          parentId: racineA.id,
+        }),
+        effets
+      ),
+    ]
+    const issues = await Promise.allSettled(modifications)
+
+    // L'une passe, l'autre refuse : la marche d'acyclicité a lu sous le verrou
+    // l'écriture committée de la première, et la referme.
+    const reussites = issues.filter((issue) => issue.status === "fulfilled")
+    const refus = issues.filter((issue) => issue.status === "rejected")
+    expect(reussites).toHaveLength(1)
+    expect(refus).toHaveLength(1)
+    const raison = (refus[0] as PromiseRejectedResult).reason
+    expect(raison).toBeInstanceOf(CategoryValidationError)
+    expect((raison as Error).message).toBe(
+      "Données invalides : une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes"
+    )
+
+    // Aucun cycle : exactement une des deux porte l'autre, l'autre est restée
+    // racine — les deux se porterait refermer la bouche.
+    const apres = await prisma.category.findMany({
+      where: { id: { in: [racineA.id, racineB.id] } },
+      select: { id: true, parentId: true },
+    })
+    const parentIdA = apres.find((c) => c.id === racineA.id)?.parentId ?? null
+    const parentIdB = apres.find((c) => c.id === racineB.id)?.parentId ?? null
+    expect(
+      [parentIdA, parentIdB].filter((parent) => parent !== null)
+    ).toHaveLength(1)
+    expect(
+      [parentIdA, parentIdB].filter((parent) => parent === null)
+    ).toHaveLength(1)
+
+    // Seule la gagnante a publié : la perdante s'est rétractée avant tout effet.
+    expect(effets.revalidateCategories).toHaveBeenCalledOnce()
+    expect(effets.reindexProducts).not.toHaveBeenCalled()
+    expect(effets.deleteImage).not.toHaveBeenCalled()
+  })
+
+  it("sérialise deux modifications concurrentes de la même Structure", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("upd-concurrent") })
+    )
+
+    // Une mutation tierce tient le verrou grossier et retient sa transaction :
+    // la modification attend, puis lit une Structure qui n'existe plus. Sans le
+    // verrou elle lirait la Structure encore présente, et sa mise à jour
+    // finale mourrait sur une `P2025` de lecteur.
+    let tierceVerrouillee = false
+    let liberer = () => {}
+    const retention = new Promise<void>((resolve) => {
+      liberer = resolve
+    })
+    const transaction = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
+        tierceVerrouillee = true
+        await retention
+        await tx.category.delete({ where: { id: category.id } })
+      },
+      { timeout: 30_000 }
+    )
+    transaction.catch(() => {})
+    // Attendre que la tierce tienne le verrou avant de lancer la modification.
+    await new Promise<void>((resolve) => {
+      const verifier = () =>
+        tierceVerrouillee ? resolve() : setTimeout(verifier, 10)
+      verifier()
+    })
+
+    const effets = effectSpies()
+    const modification = updateCategory(
+      category.id,
+      makeCategoryInput({
+        slug: categorySlug("upd-concurrent"),
+        name: "Après",
+      }),
+      effets
+    )
+    modification.catch(() => {})
+    await attendre(200)
+    liberer()
+    await transaction
+
+    await expect(modification).rejects.toBeInstanceOf(CategoryNotFoundError)
+    expectNoEffects(effets)
+  })
+
+  it("rejette le slug déjà pris par une modification concurrente", async () => {
+    const effets = effectSpies()
+    const premiere = await createCategory(
+      makeCategoryInput({ slug: categorySlug("slug-race-a") })
+    )
+    const seconde = await createCategory(
+      makeCategoryInput({ slug: categorySlug("slug-race-b") })
+    )
+    const slugPartage = categorySlug("slug-race-partage")
+
+    // Les deux modifications visent le même slug : le verrou les sérialise, et
+    // la seconde lit sous le verrou le slug committé par la première.
+    const modifications = [
+      updateCategory(
+        premiere.id,
+        makeCategoryInput({ slug: slugPartage, name: "Première" }),
+        effets
+      ),
+      updateCategory(
+        seconde.id,
+        makeCategoryInput({ slug: slugPartage, name: "Seconde" }),
+        effets
+      ),
+    ]
+    const issues = await Promise.allSettled(modifications)
+
+    const reussites = issues.filter((issue) => issue.status === "fulfilled")
+    const refus = issues.filter((issue) => issue.status === "rejected")
+    expect(reussites).toHaveLength(1)
+    expect(refus).toHaveLength(1)
+    expect((refus[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+      CategorySlugConflictError
+    )
+
+    // Une seule Structure porte le slug : l'autre est restée à son slug
+    // d'origine — le verrou a sérialisé les deux, et la base n'en porte qu'un.
+    await expect(
+      prisma.category.count({ where: { slug: slugPartage } })
+    ).resolves.toBe(1)
+  })
+
   it("deletes an empty category and revalidates", async () => {
     const revalidateCategories = vi.fn()
     const reindexProducts = vi.fn()
