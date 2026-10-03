@@ -544,20 +544,14 @@ describe("admin structure mutations — categories", () => {
     // verrou elle lirait la Structure encore présente, et sa mise à jour
     // finale mourrait sur une `P2025` de lecteur.
     let tierceVerrouillee = false
-    let liberer = () => {}
-    const retention = new Promise<void>((resolve) => {
-      liberer = resolve
-    })
-    const transaction = prisma.$transaction(
-      async (tx) => {
+    const { transaction, liberer } = retenirTransaction(
+      async (tx, liberation) => {
         await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
         tierceVerrouillee = true
-        await retention
+        await liberation
         await tx.category.delete({ where: { id: category.id } })
-      },
-      { timeout: 30_000 }
+      }
     )
-    transaction.catch(() => {})
     // Attendre que la tierce tienne le verrou avant de lancer la modification.
     await new Promise<void>((resolve) => {
       const verifier = () =>

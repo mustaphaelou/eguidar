@@ -192,9 +192,8 @@ function mapCourseDeStructure(error: unknown): never {
  * Structure plutôt que le nœud visé est ce qui ferme la course de cycle :
  * `assertAcyclicCategoryTree` parcourt une chaîne d'ancêtres qu'un verrou de
  * nœud ne protège pas. La décision l'exige de toute mutation de Structure,
- * création d'une Structure racine comprise ; seule `deleteCategory` le prend
- * encore, `createCategory` et `updateCategory` avec les transactions qu'elles
- * gagneront en [#488](https://github.com/eloaurdi/eguidar/issues/488) et
+ * création d'une Structure racine comprise ; seule `createCategory` le
+ * prendra encore, avec la transaction qu'elle gagnera en
  * [#489](https://github.com/eloaurdi/eguidar/issues/489).
  *
  * Le `lock_timeout` suit immédiatement le verrou et borne chaque verrou pris
@@ -348,10 +347,10 @@ export async function updateCategory(
 
   // Une seule mutation atomique et sérialisée, comme la suppression : le verrou
   // grossier prend tout l'arbre en première instruction, puis la lecture de la
-  // Structure, la validation du slug, la marche d'acyclicité et l'écriture
-  // partagent une même transaction — la vérification d'acyclicité lit et écrit
-  // dans un seul engagement, et deux modifications de Structure ne
-  // s'entrelacent jamais (ADR-0027).
+  // Structure, la marche d'acyclicité et l'écriture partagent une même
+  // transaction — la vérification d'acyclicité lit et écrit dans un seul
+  // engagement, et deux modifications de Structure ne s'entrelacent jamais
+  // (ADR-0027).
   let resultat: { category: Category; image: string | null }
   try {
     resultat = await prisma.$transaction(async (tx) => {
