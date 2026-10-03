@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import { draftObjectKey } from "@/lib/r2"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
@@ -131,8 +132,8 @@ describe("abandon d'une édition d'un Produit", () => {
     // Le commit a libéré la source des deux Brouillons enregistrés ; celle du
     // Brouillon abandonné, jamais commité, reste intacte.
     expect(stockage.suppressionsBrouillons).toEqual([
-      premiereDemande.draftId,
-      secondeDemande.draftId,
+      draftObjectKey(premiereDemande.draftId, "image/webp"),
+      draftObjectKey(secondeDemande.draftId, "image/png"),
     ])
     expect(stockage.suppressionsImagesPromues).toEqual([])
     for (const [index, demande] of [

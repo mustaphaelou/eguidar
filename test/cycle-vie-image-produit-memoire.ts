@@ -8,43 +8,263 @@ import {
   type ResultatRevendicationRegistre,
 } from "@/lib/cycle-vie-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import type {
-  CodeEchecStockage,
-  PortStockageImageProduit,
-  ValeurPromotionBrouillon,
-  ValeurPresignBrouillon,
+import {
+  DRAFT_PRODUCTS_PREFIX,
+  MAX_UPLOAD_SIZE,
+  PRODUCTS_PREFIX,
+  draftObjectKey,
+  objectKeyFromPublicUrl,
+  persistentObjectKey,
+  publicUrlFromKey,
+  type CodeEchecStockage,
+  type ContentTypeImageProduit,
+  type EchecStockageImageProduit,
+  type PortStockageImageProduit,
+  type ResultatStockageImageProduit,
+  type ValeurPromotionBrouillon,
+  type ValeurPresignBrouillon,
 } from "@/lib/r2"
 
-export interface StockageImageProduitMemoire extends PortStockageImageProduit {
-  readonly presignatures: Array<{
-    draftId: string
-    contentType: string
-    size: number
-  }>
-  readonly promotions: Array<{ draftId: string; publicUrl: string }>
-  readonly suppressionsBrouillons: string[]
-  readonly suppressionsImagesPromues: string[]
-  readonly suppressionsImagesPersistees: string[]
-  readonly suppressionsImagesCategorie: string[]
-  failPresign: boolean
-  failPromotion: boolean
-  failDelete: boolean
+/**
+ * La base publique sous laquelle cet adaptateur range ce qu'il adresse. Elle
+ * est fixe comme l'est la configuration d'un bucket : une suite ne la choisit
+ * pas, elle s'y attend, et c'est ce qui rend l'adresse d'une Image produit
+ * lisible — `https://cdn.example.test/products/draft-1.webp` — là où elle
+ * n'était qu'une chaîne dont personne ne pouvait dire la forme.
+ */
+export const BASE_PUBLIQUE_MEMOIRE = "https://cdn.example.test"
+
+/**
+ * L'endpoint d'envoi, distinct de la base publique comme l'est celui de la
+ * production : la pré-signature adresse le bucket, l'aperçu sert l'URL publique.
+ * Un R2 en mémoire n'a pas de clé privée, donc aucune signature à faire —
+ * l'adresse d'envoi se dérive de la même clé que l'aperçu, sur une autre base.
+ */
+export const BASE_ENVOI_MEMOIRE = "https://upload.example.test"
+
+/**
+ * L'URL publique d'une clé. La conversion est celle du module de stockage,
+ * comme la dérivation ; la base étant une constante du module, elle ne rend
+ * jamais `null` ici. Une base vide serait un défaut de ce module et non une
+ * panne du stockage qu'une suite rejoue, donc elle lève au lieu de rendre un
+ * refus que rien ne pourrait atteindre.
+ */
+function urlPublique(cle: string): string {
+  const url = publicUrlFromKey(cle, BASE_PUBLIQUE_MEMOIRE)
+  if (!url) throw new Error(`Base publique vide : ${BASE_PUBLIQUE_MEMOIRE}`)
+  return url
+}
+
+/** L'adresse d'envoi d'une clé : le bucket, pas l'URL publique. */
+function urlEnvoi(cle: string): string {
+  return `${BASE_ENVOI_MEMOIRE}/${cle}`
 }
 
 function echec(
   code: CodeEchecStockage,
   message: string
-): { ok: false; erreur: { code: CodeEchecStockage; message: string } } {
+): { ok: false; erreur: EchecStockageImageProduit } {
   return { ok: false, erreur: { code, message } }
+}
+
+/**
+ * La dérivation d'une clé et le refus qu'elle peut rendre, dans la forme que
+ * l'adaptateur de production leur donne : la dérivation lève, l'opération
+ * répond `parametre-invalide`. Les six opérations du port lisent l'exception
+ * de la même façon, et c'est ce qui fait d'un identifiant indéparable un refus
+ * plutôt qu'une panne du test.
+ */
+function cleOuRefus(
+  deriver: () => string
+): ResultatStockageImageProduit<string> {
+  try {
+    return { ok: true, valeur: deriver() }
+  } catch (error) {
+    return echec(
+      "parametre-invalide",
+      error instanceof Error ? error.message : "Paramètre de stockage invalide"
+    )
+  }
+}
+
+/**
+ * La clé qu'une suppression par URL adresse, ou le refus qui la remplace.
+ *
+ * Une URL que la base publique ne nomme pas n'a pas de clé, donc pas
+ * d'adresse : elle se refuse en `parametre-invalide` comme en production, et
+ * comme elle ne vise rien, rien ne s'enregistre. C'est le seul endroit où une
+ * clé est relite depuis une URL, donc le seul qui exerce l'aller-retour.
+ */
+function cleSupprimeeParUrl(
+  publicUrl: string,
+  dansEspaceDeNoms: (cle: string) => boolean
+): ResultatStockageImageProduit<string> {
+  const cle = objectKeyFromPublicUrl(publicUrl, BASE_PUBLIQUE_MEMOIRE)
+  if (!cle || !dansEspaceDeNoms(cle)) {
+    return echec(
+      "parametre-invalide",
+      "URL non gérée par le stockage en mémoire"
+    )
+  }
+  return { ok: true, valeur: cle }
+}
+
+/**
+ * Les deux gardes d'espace de noms, réécrites ici comme le registre en mémoire
+ * réécrit les règles durables : elles ne sont pas exportées par le module de
+ * stockage, et un adaptateur qui veut appliquer la même frontière doit la
+ * redire. Le préfixe, lui, vient de là — il est le fait public que la règle de
+ * cycle de vie R2 épingle, et le retaper ici serait exactement le risque que
+ * cet export existe pour écarter.
+ *
+ * Une Image produit persistée n'existe que sous `products/`, hors du préfixe
+ * réservé aux Brouillons. Une image de Structure est le champ `image` d'une
+ * catégorie, antérieure à ce cycle de vie : elle est n'importe où sous la base
+ * publique — y compris sous `products/`, comportement conservé pour les
+ * catégories — mais jamais dans l'espace réservé, dont l'expiration est le fait
+ * de la règle R2 (ADR-0004).
+ */
+function estCleImageProduitPersistee(cle: string): boolean {
+  return (
+    cle.startsWith(PRODUCTS_PREFIX) && !cle.startsWith(DRAFT_PRODUCTS_PREFIX)
+  )
+}
+
+function estCleImageCategorie(cle: string): boolean {
+  return !cle.startsWith(DRAFT_PRODUCTS_PREFIX)
+}
+
+export interface StockageImageProduitMemoire extends PortStockageImageProduit {
+  readonly presignatures: Array<{
+    draftId: string
+    contentType: ContentTypeImageProduit
+    size: number
+    /** La clé visée, sous l'espace réservé aux Brouillons. */
+    cle: string
+  }>
+  readonly promotions: Array<{
+    draftId: string
+    /** La clé copiée en source, toujours sous l'espace réservé aux Brouillons. */
+    cleSource: string
+    /** La clé écrite en destination, hors de l'espace réservé. */
+    cle: string
+    publicUrl: string
+  }>
+  /** Les clés de Brouillon supprimées, sous `products/brouillons/`. */
+  readonly suppressionsBrouillons: string[]
+  /** Les clés persistantes supprimées, sous `products/` et hors du réservé. */
+  readonly suppressionsImagesPromues: string[]
+  readonly suppressionsImagesPersistees: string[]
+  readonly suppressionsImagesCategorie: string[]
+  /**
+   * Les trois indicateurs booléens que l'adaptateur portait déjà : le
+   * brouillard le plus grossier, celui qu'une suite atteint quand tout le
+   * stockage est mort. `pannes` ci-dessous dit la même chose opération par
+   * opération et atteint en plus ce qu'un booléen ne sait pas dire.
+   */
+  failPresign: boolean
+  failPromotion: boolean
+  failDelete: boolean
+  /**
+   * Les pannes, par opération : chacune des six peut répondre l'un des trois
+   * codes que le port sait exprimer, ou lever comme le ferait une connexion
+   * perdue. La levée est le seul mode qu'aucun des trois indicateurs ne sait
+   * produire, et c'est elle qui donne enfin un cas aux cinq `catch` du module
+   * propriétaire qui rattrapent une exception du stockage.
+   */
+  readonly pannes: Record<OperationStockage, Set<PanneStockage>>
+}
+
+/**
+ * Les six opérations du port de stockage, celles qu'un adaptateur en mémoire
+ * peut faire échouer. C'est le port qui les nomme, et non une liste recopiée
+ * ici : une opération qu'il gagnerait imposerait à cet enregistrement une clé
+ * de plus.
+ */
+export type OperationStockage = keyof PortStockageImageProduit
+
+/**
+ * Les trois refus que le port sait exprimer, plus la levée — la seule façon
+ * qu'il ait de ne pas répondre du tout.
+ */
+export type PanneStockage =
+  "non-configure" | "parametre-invalide" | "erreur-stockage" | "leve"
+
+/**
+ * L'URL publique d'une Image produit persistée, dérivée comme la production la
+ * dérive. Les suites du cycle de vie l'importent plutôt que de la recomposer :
+ * une adresse attendue qui refait la dérivation à la main peut être fausse
+ * exactement comme l'adaptateur, et ne prouve alors plus rien.
+ */
+export function urlImagePersistee(
+  imageId: string,
+  contentType: ContentTypeImageProduit
+): string {
+  return urlPublique(persistentObjectKey(imageId, contentType))
+}
+
+/**
+ * L'aperçu d'un Brouillon : l'URL publique que son objet occupera tant qu'il
+ * n'est pas promu.
+ */
+export function urlApercuBrouillon(
+  draftId: string,
+  contentType: ContentTypeImageProduit
+): string {
+  return urlPublique(draftObjectKey(draftId, contentType))
+}
+
+/** L'adresse d'envoi que la pré-signature rend à l'éditeur. */
+export function urlEnvoiBrouillon(
+  draftId: string,
+  contentType: ContentTypeImageProduit
+): string {
+  return urlEnvoi(draftObjectKey(draftId, contentType))
 }
 
 export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire {
   const presignatures: StockageImageProduitMemoire["presignatures"] = []
-  const promotions: Array<{ draftId: string; publicUrl: string }> = []
+  const promotions: StockageImageProduitMemoire["promotions"] = []
   const suppressionsBrouillons: string[] = []
   const suppressionsImagesPromues: string[] = []
   const suppressionsImagesPersistees: string[] = []
   const suppressionsImagesCategorie: string[] = []
+  // L'annotation est ce qui tient l'exhaustivité : une opération que le port
+  // gagnerait imposerait ici une clé de plus, et `tsc --noEmit` le dirait.
+  const pannes: Record<OperationStockage, Set<PanneStockage>> = {
+    presignerBrouillon: new Set(),
+    supprimerBrouillon: new Set(),
+    promouvoirBrouillon: new Set(),
+    supprimerImagePromue: new Set(),
+    supprimerImagePersistee: new Set(),
+    supprimerImageCategorie: new Set(),
+  }
+
+  /**
+   * La panne que l'opération est contrainte de subir, ou `null` quand elle
+   * réussit. Les trois indicateurs booléens sont lus ici et nulle part ailleurs :
+   * ils disent le brouillard que `pannes` dit plus précisément, et les deux
+   * mécanismes n'en font qu'un — le second l'emporte quand il parle.
+   */
+  function panne(
+    operation: OperationStockage,
+    brouillard: boolean
+  ): { ok: false; erreur: EchecStockageImageProduit } | null {
+    const subies = pannes[operation]
+    if (subies.has("leve")) {
+      throw new Error(`Stockage en mémoire indisponible : ${operation}`)
+    }
+    if (subies.has("non-configure")) {
+      return echec("non-configure", "Stockage en mémoire non configuré")
+    }
+    if (subies.has("parametre-invalide")) {
+      return echec("parametre-invalide", "Paramètre de stockage invalide")
+    }
+    if (subies.has("erreur-stockage") || brouillard) {
+      return echec("erreur-stockage", `échec mémoire de ${operation}`)
+    }
+    return null
+  }
 
   const stockage: StockageImageProduitMemoire = {
     presignatures,
@@ -53,61 +273,99 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
     suppressionsImagesPromues,
     suppressionsImagesPersistees,
     suppressionsImagesCategorie,
+    pannes,
     failPresign: false,
     failPromotion: false,
     failDelete: false,
 
     async presignerBrouillon(input) {
-      presignatures.push(input)
-      if (stockage.failPresign) {
-        return echec("erreur-stockage", "échec mémoire de la pré-signature")
+      const resolue = cleOuRefus(() =>
+        draftObjectKey(input.draftId, input.contentType)
+      )
+      if (!resolue.ok) return resolue
+      const cle = resolue.valeur
+      presignatures.push({ ...input, cle })
+      if (
+        !Number.isInteger(input.size) ||
+        input.size <= 0 ||
+        input.size > MAX_UPLOAD_SIZE
+      ) {
+        return echec(
+          "parametre-invalide",
+          input.size > MAX_UPLOAD_SIZE
+            ? "Fichier trop volumineux (10 Mo maximum)"
+            : "Taille de fichier invalide"
+        )
       }
+      const refus = panne("presignerBrouillon", stockage.failPresign)
+      if (refus) return refus
       const valeur: ValeurPresignBrouillon = {
-        uploadUrl: `memoire://upload/${input.draftId}`,
-        previewUrl: `memoire://preview/${input.draftId}`,
+        uploadUrl: urlEnvoi(cle),
+        previewUrl: urlPublique(cle),
       }
       return { ok: true, valeur }
     },
 
     async supprimerBrouillon(input) {
-      if (stockage.failDelete) {
-        return echec("erreur-stockage", "échec mémoire de la suppression")
-      }
-      suppressionsBrouillons.push(input.draftId)
+      const resolue = cleOuRefus(() =>
+        draftObjectKey(input.draftId, input.contentType)
+      )
+      if (!resolue.ok) return resolue
+      suppressionsBrouillons.push(resolue.valeur)
+      const refus = panne("supprimerBrouillon", stockage.failDelete)
+      if (refus) return refus
       return { ok: true, valeur: null }
     },
 
     async promouvoirBrouillon(input) {
-      if (stockage.failPromotion) {
-        return echec("erreur-stockage", "échec mémoire de la promotion")
-      }
-      const publicUrl = `memoire://image/${input.draftId}`
-      promotions.push({ draftId: input.draftId, publicUrl })
+      const source = cleOuRefus(() =>
+        draftObjectKey(input.draftId, input.contentType)
+      )
+      if (!source.ok) return source
+      const destination = cleOuRefus(() =>
+        persistentObjectKey(input.draftId, input.contentType)
+      )
+      if (!destination.ok) return destination
+
+      const publicUrl = urlPublique(destination.valeur)
+      promotions.push({
+        draftId: input.draftId,
+        cleSource: source.valeur,
+        cle: destination.valeur,
+        publicUrl,
+      })
+      const refus = panne("promouvoirBrouillon", stockage.failPromotion)
+      if (refus) return refus
       const valeur: ValeurPromotionBrouillon = { publicUrl }
       return { ok: true, valeur }
     },
 
     async supprimerImagePromue(input) {
-      if (stockage.failDelete) {
-        return echec("erreur-stockage", "échec mémoire de la suppression")
-      }
-      suppressionsImagesPromues.push(input.draftId)
+      const resolue = cleOuRefus(() =>
+        persistentObjectKey(input.draftId, input.contentType)
+      )
+      if (!resolue.ok) return resolue
+      suppressionsImagesPromues.push(resolue.valeur)
+      const refus = panne("supprimerImagePromue", stockage.failDelete)
+      if (refus) return refus
       return { ok: true, valeur: null }
     },
 
     async supprimerImagePersistee(publicUrl) {
-      if (stockage.failDelete) {
-        return echec("erreur-stockage", "échec mémoire de la suppression")
-      }
-      suppressionsImagesPersistees.push(publicUrl)
+      const resolue = cleSupprimeeParUrl(publicUrl, estCleImageProduitPersistee)
+      if (!resolue.ok) return resolue
+      suppressionsImagesPersistees.push(resolue.valeur)
+      const refus = panne("supprimerImagePersistee", stockage.failDelete)
+      if (refus) return refus
       return { ok: true, valeur: null }
     },
 
     async supprimerImageCategorie(publicUrl) {
-      if (stockage.failDelete) {
-        return echec("erreur-stockage", "échec mémoire de la suppression")
-      }
-      suppressionsImagesCategorie.push(publicUrl)
+      const resolue = cleSupprimeeParUrl(publicUrl, estCleImageCategorie)
+      if (!resolue.ok) return resolue
+      suppressionsImagesCategorie.push(resolue.valeur)
+      const refus = panne("supprimerImageCategorie", stockage.failDelete)
+      if (refus) return refus
       return { ok: true, valeur: null }
     },
   }

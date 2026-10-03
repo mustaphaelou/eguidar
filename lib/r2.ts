@@ -59,23 +59,33 @@ export interface ValeurPromotionBrouillon {
   publicUrl: string
 }
 
+/**
+ * Le port de stockage des Images produit.
+ *
+ * **Un type de contenu y est l'union des types autorisés, pas une chaîne.**
+ * L'implémentation refuse depuis toujours tout ce qui n'est pas l'un des cinq,
+ * à la dérivation de la clé ; déclarer `string` ici l'admettait quand même, et
+ * l'interface promettait donc une valeur que le port ne tenait pas. La
+ * restriction vit désormais dans le type, et c'est le compilateur — non un
+ * contrôle à l'exécution — qui arrête un appelant qui passerait le reste.
+ */
 export interface PortStockageImageProduit {
   presignerBrouillon(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
     size: number
   }): Promise<ResultatStockageImageProduit<ValeurPresignBrouillon>>
   supprimerBrouillon(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
   }): Promise<ResultatStockageImageProduit<null>>
   promouvoirBrouillon(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
   }): Promise<ResultatStockageImageProduit<ValeurPromotionBrouillon>>
   supprimerImagePromue(input: {
     draftId: string
-    contentType: string
+    contentType: ContentTypeImageProduit
   }): Promise<ResultatStockageImageProduit<null>>
   supprimerImagePersistee(
     publicUrl: string
@@ -83,8 +93,9 @@ export interface PortStockageImageProduit {
   /**
    * Image de Structure : champ URL libre, antérieur au cycle de vie des
    * Brouillons, qui vit hors du préfixe `products/`. Même frontière
-   * best-effort que `supprimerImagePersistee` : une panne R2 remonte, l'appelant
-   * journalise. Les espaces de noms sont disjoints, voir les gardes ci-dessous.
+   * best-effort que `supprimerImagePersistee` : une panne R2 devient un refus
+   * que l'appelant journalise. Les espaces de noms sont disjoints, voir les
+   * gardes ci-dessous.
    */
   supprimerImageCategorie(
     publicUrl: string
@@ -98,7 +109,14 @@ function storageFailure(
   return { ok: false, erreur: { code, message } }
 }
 
-function isContentTypeImageProduit(
+/**
+ * Le seul prédicat du type de contenu, et il est exporté parce que le module
+ * propriétaire en a besoin pour le même travail : décider si une valeur qu'il
+ * reçoit du texte est l'un des types autorisés. Deux listes ne le direient pas
+ * deux fois — celle du module de stockage et celle, indépendante, de la route de
+ * téléversement.
+ */
+export function isContentTypeImageProduit(
   contentType: string
 ): contentType is ContentTypeImageProduit {
   return CONTENT_TYPES_IMAGE_PRODUIT.includes(
@@ -117,6 +135,16 @@ function isStorageIdentifier(value: string): boolean {
   )
 }
 
+/**
+ * La dérivation de clé, et le refus qui l'accompagne.
+ *
+ * **Le paramètre reste un `string`, contrairement au port.** Ces deux exports
+ * sont la convention d'espace de noms d'ADR-0004, et l'invariant qu'elle porte
+ * — une clé ne se dérive jamais d'un type refusé — se garde à l'exécution : le
+ * port a déjà arrêté l'appelant qui passerait le reste, mais une dérivation
+ * appelée ailleurs refuse encore, et elle refuse par une exception, comme les
+ * quatre opérations du port s'attendent à le lire.
+ */
 function keyForImage(
   prefix: string,
   imageId: string,
@@ -246,12 +274,22 @@ function estCleImageCategorie(key: string): boolean {
 }
 
 /**
- * Suppression par URL publique, bornée par un espace de noms. Volontairement
- * non enveloppé : la suppression d'une image déjà persistée est un effet
- * post-commit et best-effort, et ses appelants attrapent pour journaliser.
- * Traduire l'échec en résultat ferait croire au Catalogue que l'objet n'a
- * jamais existé, et le laisser silencieusement échouer à la Structure. Une
- * panne R2 doit être visible dans les deux cas.
+ * Suppression par URL publique, bornée par un espace de noms.
+ *
+ * L'envoi n'est plus nu : les six opérations du port répondent de la même
+ * façon à une panne R2, en `erreur-stockage`. Il l'était pour une raison qui
+ * tient toujours — une suppression est un effet post-commit et best-effort,
+ * et une panne R2 doit rester visible — mais cette raison ne demandait pas
+ * une exception. Les deux appelants journalisent aussi bien un refus qu'une
+ * levée : traduire ne leur fait donc pas croire que l'objet n'a jamais
+ * existé, et ne laisse rien passer inaperçu. Ce qui change est le chemin,
+ * donc le vocabulaire qui atteint le journal : un code d'échec du stockage
+ * plutôt qu'une `Error` du SDK.
+ *
+ * L'invariant d'ADR-0014 — « `deleteImages` ne rejette jamais » — porte sur
+ * l'effet du Catalogue, pas sur cet appel R2, et reste vrai : le refus est
+ * journalisé comme l'était l'exception, et l'effet reste sous la garde
+ * externe qui empêche même une spy injectée de jeter.
  */
 async function supprimerImageParUrl(
   publicUrl: string,
@@ -265,13 +303,17 @@ async function supprimerImageParUrl(
     return invalidParameter("URL non gérée par le stockage R2")
   }
 
-  await configuration.client.send(
-    new DeleteObjectCommand({
-      Bucket: configuration.bucket,
-      Key: key,
-    })
-  )
-  return { ok: true, valeur: null }
+  try {
+    await configuration.client.send(
+      new DeleteObjectCommand({
+        Bucket: configuration.bucket,
+        Key: key,
+      })
+    )
+    return { ok: true, valeur: null }
+  } catch {
+    return storageError()
+  }
 }
 
 export const stockageImageProduitR2: PortStockageImageProduit = {

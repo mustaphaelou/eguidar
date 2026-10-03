@@ -10,6 +10,7 @@ import {
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import {
   createProduct,
   updateProduct,
@@ -18,6 +19,7 @@ import {
 import {
   creerHorlogeControllable,
   creerStockageImageProduitMemoire,
+  urlImagePersistee,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 const ownerId = randomUUID()
@@ -228,7 +230,9 @@ describe("registre durable des Brouillons d'Image produit", () => {
         ownerId,
       })
     ).toEqual({ ok: true, draftId: demande.draftId })
-    expect(stockage.suppressionsBrouillons).toEqual([demande.draftId])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/gif"),
+    ])
     expect(
       await prisma.brouillonImageProduit.findUniqueOrThrow({
         where: { id: demande.draftId },
@@ -301,12 +305,14 @@ describe("registre durable des Brouillons d'Image produit", () => {
           ? "tentative-concurrente-1"
           : "tentative-concurrente-2",
       productId: gagnant.productId,
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/jpeg"),
     })
     expect(stockage.promotions).toEqual([
       {
         draftId: demande.draftId,
-        publicUrl: `memoire://image/${demande.draftId}`,
+        cleSource: draftObjectKey(demande.draftId, "image/jpeg"),
+        cle: persistentObjectKey(demande.draftId, "image/jpeg"),
+        publicUrl: urlImagePersistee(demande.draftId, "image/jpeg"),
       },
     ])
   })
@@ -350,7 +356,9 @@ describe("registre durable des Brouillons d'Image produit", () => {
       await prisma.product.findUniqueOrThrow({
         where: { id: premier.productId },
       })
-    ).toMatchObject({ images: [`memoire://image/${demande.draftId}`] })
+    ).toMatchObject({
+      images: [urlImagePersistee(demande.draftId, "image/png")],
+    })
 
     let produitBAppele = false
     const second = await cycleVie.revendiquerEtEnregistrer({
@@ -376,7 +384,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
       state: "revendiqué",
       tentativeId: "tentative-produit-a",
       productId: premier.productId,
-      promotedPublicUrl: `memoire://image/${demande.draftId}`,
+      promotedPublicUrl: urlImagePersistee(demande.draftId, "image/png"),
     })
     horloge.avancer(48 * 60 * 60)
     const apresExpiration = await cycleVie.revendiquerEtEnregistrer({
@@ -395,7 +403,9 @@ describe("registre durable des Brouillons d'Image produit", () => {
       await prisma.product.findUniqueOrThrow({
         where: { id: premier.productId },
       })
-    ).toMatchObject({ images: [`memoire://image/${demande.draftId}`] })
+    ).toMatchObject({
+      images: [urlImagePersistee(demande.draftId, "image/png")],
+    })
   })
 
   it("persiste les URLs promues dans l'ordre et lie les Brouillons dans la transaction Catalogue", async () => {
@@ -430,8 +440,8 @@ describe("registre durable des Brouillons d'Image produit", () => {
       orderBy: { id: "asc" },
     })
     const expectedUrls = [
-      `memoire://image/${premiereDemande.draftId}`,
-      `memoire://image/${secondeDemande.draftId}`,
+      urlImagePersistee(premiereDemande.draftId, "image/jpeg"),
+      urlImagePersistee(secondeDemande.draftId, "image/png"),
     ]
     expect(product.images).toEqual(expectedUrls)
     expect(drafts).toHaveLength(2)
@@ -520,7 +530,9 @@ describe("registre durable des Brouillons d'Image produit", () => {
     const avecImage = await prisma.product.findUniqueOrThrow({
       where: { id: cree.id },
     })
-    expect(avecImage.images).toEqual([`memoire://image/${demande.draftId}`])
+    expect(avecImage.images).toEqual([
+      urlImagePersistee(demande.draftId, "image/webp"),
+    ])
   })
 
   it("refuse une création dont la galerie ne porte que des Images produit persistées", async () => {
@@ -589,12 +601,86 @@ describe("registre durable des Brouillons d'Image produit", () => {
     })
 
     expect(resultat).toMatchObject({ ok: false, code: "catalogue-refuse" })
-    expect(stockage.suppressionsImagesPromues).toEqual([demande.draftId])
+    expect(stockage.suppressionsImagesPromues).toEqual([
+      persistentObjectKey(demande.draftId, "image/png"),
+    ])
     expect(await prisma.product.count({ where: { slug: productSlug } })).toBe(0)
     expect(
       await prisma.brouillonImageProduit.findUniqueOrThrow({
         where: { id: demande.draftId },
       })
     ).toMatchObject({ state: "vivant", tentativeId: null, productId: null })
+  })
+
+  it("refuse une rangée dont le type stocké n'est pas un type autorisé", async () => {
+    // La colonne reste une chaîne : le schéma n'a pas bougé, et une rangée
+    // portant un type que le port refuserait peut donc être relue. Une seule
+    // décision la concerne, et elle est prise ici, à la frontière de lecture —
+    // sinon les deux aides de compensation du module propriétaire se trouveraient
+    // à recoudre une chaîne vide pour y dériver une clé, et une suppression
+    // best-effort ne supprimerait rien en rapportant un succès.
+    //
+    // Les trois chemins qui relisent la rangée sont conduits ici, et le refus
+    // que le module en tire se vérifie aux trois : la lecture d'inspection, la
+    // libération, et cette revendication que le commentaire du module nomme
+    // « registre indisponible à la libération comme à la revendication ». Aucun
+    // des deux premiers ne prouve le troisième — une revendication qui
+    // laisserait remonter l'exception brute se lirait exactement comme une
+    // libération qui la traduirait, si l'on ne conduisait que celle-là.
+    const draftId = randomUUID()
+    await prisma.brouillonImageProduit.create({
+      data: {
+        id: draftId,
+        storageKey: `products/brouillons/${draftId}.svg`,
+        mimeType: "image/svg+xml",
+        byteSize: 2048,
+        ownerId,
+        expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
+      },
+    })
+    const { cycleVie, stockage } = creerCycleVie()
+
+    // Le refus est dit, et il ne ment sur rien : ni « Brouillon introuvable »
+    // — la rangée est là — ni un succès de suppression.
+    await expect(cycleVie.lireBrouillon(draftId)).rejects.toThrow(
+      "image/svg+xml"
+    )
+    expect(await cycleVie.relacherBrouillon({ draftId, ownerId })).toEqual({
+      ok: false,
+      code: "registre-indisponible",
+      message: "Registre des Brouillons indisponible",
+    })
+    expect(stockage.suppressionsBrouillons).toEqual([])
+
+    // La revendication passe par l'écriture de la comparaison-et-échange avant
+    // de relire : la rangée y devient `revendiqué`, et c'est la relecture
+    // d'après qui bute. Le refus dit bien « registre indisponible » — et non
+    // « Brouillon non vivant », ce que l'état de la rangée ferait croire à
+    // quiconque ne voudrait lire que lui.
+    const revendication = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-illisible",
+      ownerId,
+      galerie: galerie({
+        draftId,
+        previewUrl: "https://preview.test/illisible",
+      }),
+      enregistrer: async () => {
+        throw new Error("Le Catalogue ne doit pas être appelé")
+      },
+    })
+    expect(revendication).toEqual({
+      ok: false,
+      code: "registre-indisponible",
+      message: "Registre des Brouillons indisponible",
+    })
+    expect(
+      await prisma.brouillonImageProduit.findUniqueOrThrow({
+        where: { id: draftId },
+      })
+    ).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-illisible",
+    })
+    expect(stockage.promotions).toEqual([])
   })
 })
