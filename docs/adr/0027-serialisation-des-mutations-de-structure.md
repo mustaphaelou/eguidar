@@ -138,7 +138,7 @@ voulu, et c'est aussi celui qui force la réécriture du test d'entrelacement ex
   pas échouer. Un index périmé après un échec reste le compromis d'ADR-0014, pas une course.
 
 - **Le test d'entrelacement d'aujourd'hui s'inverse, il ne se corrige pas.**
-  [`admin-structure.test.ts:648-743`](../../lib/use-cases/admin-structure.test.ts#L648-L743) fait
+  [`admin-structure.test.ts:800-895`](../../lib/use-cases/admin-structure.test.ts#L800-L895) fait
   insérer un Produit fantôme par une transaction tierce, **qui retient son commit**, puis lance la
   suppression. Sous le verrou grossier, la première instruction de la suppression bloque sur le
   `FOR KEY SHARE` que cette insertion tient, le fantôme devient visible, et la suppression
