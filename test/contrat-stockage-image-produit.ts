@@ -557,7 +557,7 @@ export function codesEchec(observation: unknown): string[] {
  * contre elle, et un adaptateur qui rend le même état que la base rend le bon
  * état. Ici la référence est le stockage et non une base, et l'adaptateur en
  * mémoire est une fiction : il n'a aucun moyen de trancher ce qui est vrai, il
- * ne peut que rejouer. LeWm rôle est donc juge, pas référence — et un juge qui
+ * ne peut que rejouer. Le rôle est donc juge, pas référence — et un juge qui
  * rejoue ce qu'il juge ne prouve rien. D'où l'épinglage, et d'où le fait que
  * cette couche ne doive son résultat qu'à une valeur écrite d'avance.
  *
@@ -734,7 +734,7 @@ export const VALEURS_EPINGLEES: readonly ValeurEpingleeStockage[] = [
     etat: "sain",
     // L'aperçu rendu est l'adresse que l'éditeur verra, et c'est la seule des
     // deux que la pré-signature expose au client : l'adresse d'envoi n'est pas
-    // derivable d'une URL et n'a donc pas de forme à comparer. La clé est donc
+    // dérivable d'une URL et n'a donc pas de forme à comparer. La clé est donc
     // lue comme le fait partout ailleurs — la base publique retirée — et non
     // comme une coupe de chaîne qui devrait deviner où la base s'arrête.
     async jouer(stockage, identite) {
