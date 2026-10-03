@@ -619,6 +619,14 @@ describe("registre durable des Brouillons d'Image produit", () => {
     // sinon les deux aides de compensation du module propriétaire se trouveraient
     // à recoudre une chaîne vide pour y dériver une clé, et une suppression
     // best-effort ne supprimerait rien en rapportant un succès.
+    //
+    // Les trois chemins qui relisent la rangée sont conduits ici, et le refus
+    // que le module en tire se vérifie aux trois : la lecture d'inspection, la
+    // libération, et cette revendication que le commentaire du module nomme
+    // « registre indisponible à la libération comme à la revendication ». Aucun
+    // des deux premiers ne prouve le troisième — une revendication qui
+    // laisserait remonter l'exception brute se lirait exactement comme une
+    // libération qui la traduirait, si l'on ne conduisait que celle-là.
     const draftId = randomUUID()
     await prisma.brouillonImageProduit.create({
       data: {
@@ -643,5 +651,36 @@ describe("registre durable des Brouillons d'Image produit", () => {
       message: "Registre des Brouillons indisponible",
     })
     expect(stockage.suppressionsBrouillons).toEqual([])
+
+    // La revendication passe par l'écriture de la comparaison-et-échange avant
+    // de relire : la rangée y devient `revendiqué`, et c'est la relecture
+    // d'après qui bute. Le refus dit bien « registre indisponible » — et non
+    // « Brouillon non vivant », ce que l'état de la rangée ferait croire à
+    // quiconque ne voudrait lire que lui.
+    const revendication = await cycleVie.revendiquerEtEnregistrer({
+      tentativeId: "tentative-illisible",
+      ownerId,
+      galerie: galerie({
+        draftId,
+        previewUrl: "https://preview.test/illisible",
+      }),
+      enregistrer: async () => {
+        throw new Error("Le Catalogue ne doit pas être appelé")
+      },
+    })
+    expect(revendication).toEqual({
+      ok: false,
+      code: "registre-indisponible",
+      message: "Registre des Brouillons indisponible",
+    })
+    expect(
+      await prisma.brouillonImageProduit.findUniqueOrThrow({
+        where: { id: draftId },
+      })
+    ).toMatchObject({
+      state: "revendiqué",
+      tentativeId: "tentative-illisible",
+    })
+    expect(stockage.promotions).toEqual([])
   })
 })
