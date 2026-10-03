@@ -241,7 +241,7 @@ describe("adaptateur R2 des Images produit", () => {
     // Le contrat ramène une réponse à son code et laisse le message de côté :
     // le message est le vocabulaire de l'adaptateur, et le module propriétaire
     // compose le sien à partir du code. Ce texte est donc le dernier lieu où il
-    // est vérifié, et il doit l'être — c'est lui qui atteinte un journal si le
+    // est vérifié, et il doit l'être — c'est lui qui atteint un journal si le
     // module propriétaire cessait un jour de composer le sien. Les deux codes
     // qu'il accompagne ne sont pas re-énoncés ici : le contrat les épingle, et
     // rejoue cet adaptateur pour voir que les six opérations les rendent.

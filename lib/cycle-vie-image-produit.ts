@@ -538,6 +538,29 @@ function galerieOrdonnee(
   })
 }
 
+/**
+ * L'Image produit qu'une promotion a produite, sous la forme que la compensation
+ * et la liaison savent lire.
+ *
+ * **Le Brouillon entre, l'URL se donne.** Les deux chemins qui construisent cette
+ * valeur — celui d'une promotion déjà écrite dans le registre et celui d'une
+ * promotion que ce module vient de demander — ne se distinguent que par l'origine
+ * de l'URL ; le reste du fait est le même, et il est écrit ici une seule fois. Une
+ * copie de part et d'autre laisserait le `contentType` se contredire d'une
+ * promotion à l'autre, et une compensation qui viserait une clé que la promotion
+ * n'a jamais écrite supprimerait rien en rapportant un succès.
+ */
+function imagePromue(
+  draft: BrouillonImageProduit,
+  publicUrl: string
+): ImageProduitPromue {
+  return {
+    draftId: draft.id,
+    publicUrl,
+    contentType: draft.mimeType,
+  }
+}
+
 function resultatRegistreRefus(
   resultat: Extract<ResultatRevendicationRegistre, { ok: false }>
 ): RefusCycleVieImageProduit {
@@ -1219,11 +1242,7 @@ export function creerCycleVieImageProduit(
     const nouvellesPromotions: ImageProduitPromue[] = []
     for (const draft of revendiques) {
       if (draft.promotedPublicUrl) {
-        const image = {
-          draftId: draft.id,
-          publicUrl: draft.promotedPublicUrl,
-          contentType: draft.mimeType,
-        }
+        const image = imagePromue(draft, draft.promotedPublicUrl)
         promues.push(image)
         if (draft.productId === null) nouvellesPromotions.push(image)
         continue
@@ -1250,11 +1269,7 @@ export function creerCycleVieImageProduit(
         return refusStockage(result)
       }
 
-      const image = {
-        draftId: draft.id,
-        publicUrl: result.valeur.publicUrl,
-        contentType: draft.mimeType,
-      }
+      const image = imagePromue(draft, result.valeur.publicUrl)
       promues.push(image)
       nouvellesPromotions.push(image)
     }
