@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { createProduct } from "@/lib/use-cases/admin-catalog"
 
 // L'image d'une catégorie est une URL libre, hors du préfixe `products/` : elle
 // ne passe que par l'opération de stockage réservée aux catégories. Ce mock
@@ -25,16 +26,19 @@ vi.mock("@/lib/r2", async (importOriginal) => {
 })
 
 import {
+  CategoryBusyError,
   CategoryHasChildrenError,
   CategoryHasProductsError,
   CategoryNotFoundError,
   CategorySlugConflictError,
   CategoryValidationError,
+  DELAI_VERROU_STRUCTURE_MS,
   createCategory,
   deleteCategory,
   updateCategory,
   type CategoryInput,
 } from "@/lib/use-cases/admin-structure"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   verifierFrontiereBestEffort,
   verifierRefusValidation,
@@ -112,6 +116,42 @@ function expectNoEffects(effets: ReturnType<typeof effectSpies>) {
   expect(effets.reindexProducts).not.toHaveBeenCalled()
   expect(effets.revalidateCategories).not.toHaveBeenCalled()
   expect(effets.deleteImage).not.toHaveBeenCalled()
+}
+
+/** Le repos réel qu'une épreuve de contention doit laisser à l'autre transaction. */
+function attendre(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Une transaction tierce qui tient ses verrous et attend d'être libérée — le
+ * motif que les épreuves de contention partagent. `tenir` reçoit le client de
+ * la transaction et la porte de sortie : une tierce qui doit agir *après* le
+ * signal — réclamer un verrou, par exemple — l'attend avant de rendre la main.
+ *
+ * Le délai d'attente n'est pas borné ici : c'est l'épreuve qui décide quand
+ * une transaction en sort, et une transaction tierce qui meurt ne doit pas
+ * faire échouer l'épreuve par son propre rejet.
+ */
+function retenirTransaction(
+  tenir: (
+    tx: Prisma.TransactionClient,
+    liberation: Promise<void>
+  ) => Promise<unknown>
+) {
+  let liberer = () => {}
+  const liberation = new Promise<void>((resolve) => {
+    liberer = resolve
+  })
+  const transaction = prisma.$transaction(
+    async (tx) => {
+      await tenir(tx, liberation)
+      await liberation
+    },
+    { timeout: 30_000 }
+  )
+  transaction.catch(() => {})
+  return { transaction, liberer }
 }
 
 describe("admin structure mutations — categories", () => {
@@ -426,6 +466,162 @@ describe("admin structure mutations — categories", () => {
     await expect(
       updateCategory("unknown-id", makeCategoryInput())
     ).rejects.toThrow(CategoryNotFoundError)
+  })
+
+  it("ferme la course de cycle par deux modifications concurrentes", async () => {
+    // Deux racines indépendantes : les y faire traverser l'une sous l'autre,
+    // puis l'autre sous la première, refermerait la bouche. Sans le verrou
+    // grossier, les deux marches d'acyclicité liraient l'état d'avant l'une et
+    // l'autre, et les deux écritures passeraient : la base porterait un cycle.
+    const effets = effectSpies()
+    const racineA = await createCategory(
+      makeCategoryInput({ slug: categorySlug("cyc-race-a") })
+    )
+    const racineB = await createCategory(
+      makeCategoryInput({ slug: categorySlug("cyc-race-b") })
+    )
+
+    const modifications = [
+      updateCategory(
+        racineA.id,
+        makeCategoryInput({
+          slug: categorySlug("cyc-race-a"),
+          parentId: racineB.id,
+        }),
+        effets
+      ),
+      updateCategory(
+        racineB.id,
+        makeCategoryInput({
+          slug: categorySlug("cyc-race-b"),
+          parentId: racineA.id,
+        }),
+        effets
+      ),
+    ]
+    const issues = await Promise.allSettled(modifications)
+
+    // L'une passe, l'autre refuse : la marche d'acyclicité a lu sous le verrou
+    // l'écriture committée de la première, et la referme.
+    const reussites = issues.filter((issue) => issue.status === "fulfilled")
+    const refus = issues.filter((issue) => issue.status === "rejected")
+    expect(reussites).toHaveLength(1)
+    expect(refus).toHaveLength(1)
+    const raison = (refus[0] as PromiseRejectedResult).reason
+    expect(raison).toBeInstanceOf(CategoryValidationError)
+    expect((raison as Error).message).toBe(
+      "Données invalides : une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes"
+    )
+
+    // Aucun cycle : exactement une des deux porte l'autre, l'autre est restée
+    // racine — les deux se porterait refermer la bouche.
+    const apres = await prisma.category.findMany({
+      where: { id: { in: [racineA.id, racineB.id] } },
+      select: { id: true, parentId: true },
+    })
+    const parentIdA = apres.find((c) => c.id === racineA.id)?.parentId ?? null
+    const parentIdB = apres.find((c) => c.id === racineB.id)?.parentId ?? null
+    expect(
+      [parentIdA, parentIdB].filter((parent) => parent !== null)
+    ).toHaveLength(1)
+    expect(
+      [parentIdA, parentIdB].filter((parent) => parent === null)
+    ).toHaveLength(1)
+
+    // Seule la gagnante a publié : la perdante s'est rétractée avant tout effet.
+    expect(effets.revalidateCategories).toHaveBeenCalledOnce()
+    expect(effets.reindexProducts).not.toHaveBeenCalled()
+    expect(effets.deleteImage).not.toHaveBeenCalled()
+  })
+
+  it("sérialise deux modifications concurrentes de la même Structure", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("upd-concurrent") })
+    )
+
+    // Une mutation tierce tient le verrou grossier et retient sa transaction :
+    // la modification attend, puis lit une Structure qui n'existe plus. Sans le
+    // verrou elle lirait la Structure encore présente, et sa mise à jour
+    // finale mourrait sur une `P2025` de lecteur.
+    let tierceVerrouillee = false
+    let liberer = () => {}
+    const retention = new Promise<void>((resolve) => {
+      liberer = resolve
+    })
+    const transaction = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
+        tierceVerrouillee = true
+        await retention
+        await tx.category.delete({ where: { id: category.id } })
+      },
+      { timeout: 30_000 }
+    )
+    transaction.catch(() => {})
+    // Attendre que la tierce tienne le verrou avant de lancer la modification.
+    await new Promise<void>((resolve) => {
+      const verifier = () =>
+        tierceVerrouillee ? resolve() : setTimeout(verifier, 10)
+      verifier()
+    })
+
+    const effets = effectSpies()
+    const modification = updateCategory(
+      category.id,
+      makeCategoryInput({
+        slug: categorySlug("upd-concurrent"),
+        name: "Après",
+      }),
+      effets
+    )
+    modification.catch(() => {})
+    await attendre(200)
+    liberer()
+    await transaction
+
+    await expect(modification).rejects.toBeInstanceOf(CategoryNotFoundError)
+    expectNoEffects(effets)
+  })
+
+  it("rejette le slug déjà pris par une modification concurrente", async () => {
+    const effets = effectSpies()
+    const premiere = await createCategory(
+      makeCategoryInput({ slug: categorySlug("slug-race-a") })
+    )
+    const seconde = await createCategory(
+      makeCategoryInput({ slug: categorySlug("slug-race-b") })
+    )
+    const slugPartage = categorySlug("slug-race-partage")
+
+    // Les deux modifications visent le même slug : le verrou les sérialise, et
+    // la seconde lit sous le verrou le slug committé par la première.
+    const modifications = [
+      updateCategory(
+        premiere.id,
+        makeCategoryInput({ slug: slugPartage, name: "Première" }),
+        effets
+      ),
+      updateCategory(
+        seconde.id,
+        makeCategoryInput({ slug: slugPartage, name: "Seconde" }),
+        effets
+      ),
+    ]
+    const issues = await Promise.allSettled(modifications)
+
+    const reussites = issues.filter((issue) => issue.status === "fulfilled")
+    const refus = issues.filter((issue) => issue.status === "rejected")
+    expect(reussites).toHaveLength(1)
+    expect(refus).toHaveLength(1)
+    expect((refus[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+      CategorySlugConflictError
+    )
+
+    // Une seule Structure porte le slug : l'autre est restée à son slug
+    // d'origine — le verrou a sérialisé les deux, et la base n'en porte qu'un.
+    await expect(
+      prisma.category.count({ where: { slug: slugPartage } })
+    ).resolves.toBe(1)
   })
 
   it("deletes an empty category and revalidates", async () => {
@@ -797,100 +993,386 @@ describe("admin structure mutations — categories", () => {
     expect(deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
   })
 
-  it("annule toute la réaffectation quand la suppression finale tombe sur la contrainte réelle", async () => {
+  it("attend la transaction tierce au verrou grossier, voit son Produit fantôme et le réaffecte", async () => {
     const effets = effectSpies()
     const category = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-rollback") })
+      makeCategoryInput({ slug: categorySlug("del-attente") })
     )
     const target = await createCategory(
-      makeCategoryInput({ slug: categorySlug("del-rollback-cible") })
+      makeCategoryInput({ slug: categorySlug("del-attente-cible") })
     )
     const product = await makeProductIn(
       category,
-      "rollback",
+      "attente",
       "Produit réaffecté"
     )
 
     // Une transaction tierce insère un Produit fantôme sur la Structure
     // source et retient son commit : cette insertion non committée tient un
-    // verrou `FOR KEY SHARE` sur la Structure source, que la suppression
-    // finale devra attendre.
-    let liberer = () => {}
-    const retention = new Promise<void>((resolve) => {
-      liberer = resolve
-    })
-    const insertion = prisma.$transaction(
-      async (tx) => {
-        await tx.product.create({
-          data: {
-            name: "Produit fantôme",
-            slug: productSlug("fantome"),
-            description: "desc",
-            brand: "Marque",
-            price: 10000,
-            specs: {},
-            images: [],
-            categoryId: category.id,
-          },
-        })
-        await retention
-      },
-      { timeout: 30_000 }
+    // verrou `FOR KEY SHARE` sur la source, que le verrou grossier attend —
+    // c'est sa première instruction.
+    const { transaction, liberer } = retenirTransaction((tx) =>
+      tx.product.create({
+        data: {
+          name: "Produit fantôme",
+          slug: productSlug("fantome"),
+          description: "desc",
+          brand: "Marque",
+          price: 10000,
+          specs: {},
+          images: [],
+          categoryId: category.id,
+        },
+      })
     )
-    insertion.catch(() => {})
-    await new Promise((resolve) => setTimeout(resolve, 150))
+    await attendre(150)
 
-    // Lancée sans l'attendre : la réaffectation part, puis la suppression
-    // finale se bloque sur le verrou de clé étrangère de la transaction tierce.
+    // Lancée sans l'attendre : la suppression part et se bloque sur le verrou
+    // de clé étrangère que tient la transaction tierce.
     const suppression = deleteCategory(
       category.id,
       { reassignToCategoryId: target.id },
       effets
     )
     suppression.catch(() => {})
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    // La transaction tierce commit : le Produit fantôme rend la suppression
-    // finale invalide pour `ON DELETE RESTRICT`, qui rétracte la mutation
-    // entière — réaffectation comprise.
+    await attendre(400)
+    // La transaction tierce commit. La suppression reprend, lit sous READ
+    // COMMITTED : le fantôme est visible, elle le réaffecte avec l'autre et
+    // supprime la source. Le verrou a sérialisé les deux : plus aucune erreur,
+    // et le Produit arrivé entre-temps ne s'est pas perdu.
     liberer()
+    await expect(suppression).resolves.toBeUndefined()
+    await transaction
 
-    const refus: unknown = await suppression.then(
+    // Le fait ne s'est pas perdu : la source est retirée, les deux Produits
+    // portent la cible, et la réindexation voit les deux.
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: target.id })
+    await expect(
+      prisma.product.findUnique({ where: { slug: productSlug("fantome") } })
+    ).resolves.toMatchObject({ categoryId: target.id })
+    expect(effets.reindexProducts).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: product.id, categorySlug: target.slug }),
+        expect.objectContaining({
+          slug: productSlug("fantome"),
+          categorySlug: target.slug,
+        }),
+      ])
+    )
+    expect(effets.deleteImage).toHaveBeenCalledWith(
+      "https://example.com/cat.jpg"
+    )
+    expect(effets.revalidateCategories).toHaveBeenCalled()
+  })
+
+  it("sérialise deux suppressions concurrentes de la même Structure", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-concurrent") })
+    )
+    const premierEffets = effectSpies()
+    const secondEffets = effectSpies()
+
+    // Deux suppressions de la même Structure, parties ensemble. Le verrou
+    // grossier les met en file : la seconde attend que la première ait
+    // committé, puis lit une Structure qui n'existe plus et le dit. Sans le
+    // verrou, les deux liraient la source encore présente et l'une des deux
+    // mourrait sur une `P2025` de lecteur — l'entrelacement que la décision
+    // ferme.
+    const resultats = await Promise.allSettled([
+      deleteCategory(category.id, {}, premierEffets),
+      deleteCategory(category.id, {}, secondEffets),
+    ])
+
+    const abouties = resultats.filter(
+      (resultat): resultat is PromiseFulfilledResult<void> =>
+        resultat.status === "fulfilled"
+    )
+    const refusee = resultats.find(
+      (resultat): resultat is PromiseRejectedResult =>
+        resultat.status === "rejected"
+    )
+    expect(abouties).toHaveLength(1)
+    expect(refusee?.reason).toBeInstanceOf(CategoryNotFoundError)
+
+    // Une seule mutation a valu : une seule suppression d'image, une seule
+    // invalidation, et rien pour celle qui s'est refusée.
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+    const effetsQuiOntParti = [premierEffets, secondEffets].filter(
+      (effets) => effets.revalidateCategories.mock.calls.length > 0
+    )
+    expect(effetsQuiOntParti).toHaveLength(1)
+    expect(effetsQuiOntParti[0]?.deleteImage).toHaveBeenCalledOnce()
+  })
+
+  it("traduit le dépassement du délai de verrou en Refus de la Structure", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-contention") })
+    )
+    const target = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-contention-cible") })
+    )
+    const product = await makeProductIn(
+      category,
+      "contention",
+      "Produit déplacé"
+    )
+
+    // Une transaction tierce tient un verrou de ligne sur un Produit de la
+    // source : elle ne touche aucune Structure, donc le verrou grossier passe,
+    // et c'est le déplacement des Produits qui attend. Le `lock_timeout` de la
+    // transaction borne cette attente et la coupe.
+    const { transaction, liberer } = retenirTransaction((tx) =>
+      tx.$queryRawUnsafe(
+        `SELECT id FROM "Product" WHERE id = $1 FOR UPDATE`,
+        product.id
+      )
+    )
+    await attendre(150)
+
+    const refus: unknown = await deleteCategory(
+      category.id,
+      { reassignToCategoryId: target.id },
+      effets
+    ).then(
       () => undefined,
       (error: unknown) => error
     )
-    // Contrat stable : la suppression rejette, et le rejet vient de la base —
-    // une erreur Prisma connue dont la cause est notre contrainte
-    // d'intégrité. Trois signaux suffisent, et seuls eux : le nom de la
-    // contrainte, que ce dépôt écrit lui-même dans sa migration ; un
-    // SQLSTATE de classe 23 lu dans la cause du lecteur d'adaptateur ; ou
-    // le code P2003 que Prisma réserve aux violations de clé étrangère.
-    // Ni la prose du serveur, ni sa langue, ni le code que Prisma choisit de
-    // revêtir (P2039 localement, P2003 en CI) ne participent au contrat.
-    expect(refus).toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
-    const erreur = refus as Prisma.PrismaClientKnownRequestError
-    const meta = erreur.meta as Record<string, unknown> | undefined
-    const driverError = meta?.driverAdapterError as
-      { cause?: { originalCode?: string } } | undefined
-    const sqlstate = driverError?.cause?.originalCode
-    expect(
-      erreur.message.includes("Product_categoryId_fkey") ||
-        (typeof sqlstate === "string" && /^23\d{3}$/.test(sqlstate)) ||
-        erreur.code === "P2003"
-    ).toBe(true)
-    await insertion
+    liberer()
+    await transaction
 
-    // Atomicité : la Structure source existe toujours, les Produits y sont
-    // toujours rattachés (réaffectation annulée), le fantôme aussi, et
-    // aucun effet n'a parti.
+    // Le perdant reçoit un refus, jamais une erreur de lecteur : c'est ce qui
+    // fait que `adminFormAction` le rend au lieu de le relancer.
+    expect(refus).toBeInstanceOf(CategoryBusyError)
+    expect(refus).toBeInstanceOf(UserFacingError)
+    expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    expect((refus as Error).message).toBe(
+      "la Structure est en cours de modification, réessayez"
+    )
+    // Rien n'a été écrit : la source existe, le Produit n'a pas bougé, aucun
+    // effet n'est parti.
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.not.toBeNull()
     await expect(
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toMatchObject({ categoryId: category.id })
+    expectNoEffects(effets)
+  })
+
+  it("traduit une violation de clé étrangère en Refus de la Structure", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-fk") })
+    )
+    const target = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-fk-cible") })
+    )
+    const product = await makeProductIn(category, "fk", "Produit déplacé")
+
+    // La Tierce partie d'ADR-0027 : une écriture qui ne passe pas par cette
+    // interface et ne prend donc pas le verrou. `session_replication_role`
+    // éteint les déclencheurs de clé étrangère de la seule session — sans lui,
+    // l'insertion prendrait sur la source le `FOR KEY SHARE` que le verrou
+    // grossier attend, et la course n'existerait plus : c'est le seul moyen
+    // qu'un Produit échappe au verrou.
+    const superutilisateur = await prisma.$queryRawUnsafe<
+      { superuser: boolean }[]
+    >(`SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user`)
+    expect(
+      superutilisateur[0]?.superuser,
+      "cette épreuve écrit sans déclencher la clé étrangère : la base de test doit appartenir à un superutilisateur, comme celle de docker-compose et de la CI"
+    ).toBe(true)
+
+    // La tierce tient aussi un verrou de ligne sur le Produit déplacé : la
+    // suppression lit sa source sans voir le fantôme — il n'est pas committé —
+    // puis s'arrête sur ce verrou, entre sa lecture et sa suppression finale.
+    // La tierce committant à cet instant, le fantôme devient visible et la
+    // suppression tombe sur `Product_categoryId_fkey`.
+    const { transaction, liberer } = retenirTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SET LOCAL session_replication_role = 'replica'`
+      )
+      await tx.$queryRawUnsafe(
+        `SELECT id FROM "Product" WHERE id = $1 FOR UPDATE`,
+        product.id
+      )
+      await tx.product.create({
+        data: {
+          name: "Produit fantôme",
+          slug: productSlug("fk-fantome"),
+          description: "desc",
+          brand: "Marque",
+          price: 10000,
+          specs: {},
+          images: [],
+          categoryId: category.id,
+        },
+      })
+    })
+    await attendre(150)
+
+    const suppression = deleteCategory(
+      category.id,
+      { reassignToCategoryId: target.id },
+      effets
+    )
+    suppression.catch(() => {})
+    await attendre(200)
+    const avantCommit = Date.now()
+    liberer()
+
+    await expect(suppression).rejects.toBeInstanceOf(CategoryBusyError)
+    // Le refus vient de la contrainte et non du délai de verrou : la tierce
+    // libère bien avant lui, et une attente qui le dépasserait l'aurait fait
+    // échouer. Les deux routes rendent le même refus — c'est voulu — donc seule
+    // la mesure les distingue.
+    expect(Date.now() - avantCommit).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
+    await transaction
+    // La transaction entière a été rétractée : réaffectation comprise, et
+    // aucun effet n'est parti (ADR-0014).
     await expect(
-      prisma.product.findUnique({ where: { slug: productSlug("fantome") } })
+      prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
+    expectNoEffects(effets)
+  })
+
+  it("laisse l'insertion d'un Produit mourir du côté Catalogue quand la suppression tient déjà le verrou", async () => {
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-symetrique") })
+    )
+
+    // Le cas symétrique de celui d'au-dessus : ici la suppression tient le
+    // verrou grossier la première. L'insertion attend, puis meurt sur
+    // `Product_categoryId_fkey` — et cette erreur sort de `createProduct`,
+    // jamais de `deleteCategory` : c'est le piège nommé d'ADR-0027, et le
+    // Catalogue n'est pas dans la surface d'erreurs décidée ici. D'où
+    // l'appel au vrai `createProduct` : c'est cette frontière que l'épreuve
+    // montre, pas une requête brute qui la simulerait.
+    const { transaction, liberer } = retenirTransaction(async (tx) => {
+      await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
+      await tx.category.delete({ where: { id: category.id } })
+    })
+    await attendre(150)
+
+    const insertion = createProduct(
+      {
+        name: "Produit tardif",
+        slug: productSlug("symetrique"),
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        isFeatured: false,
+        featuredOrder: 0,
+        freeShipping: false,
+        categoryId: category.id,
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-sym`,
+            priceDelta: 0,
+            stock: 1,
+          },
+        ],
+      },
+      {
+        reindexProducts: vi.fn(),
+        removeProductFromIndex: vi.fn(),
+        revalidateCatalog: vi.fn(),
+        deleteImages: vi.fn(),
+      }
+    )
+    insertion.catch(() => {})
+    await attendre(200)
+    liberer()
+    await transaction
+
+    // L'erreur reste celle du Catalogue : une erreur de lecteur, que la
+    // Structure ne prend pas pour elle.
+    const refus: unknown = await insertion.then(
+      () => undefined,
+      (error: unknown) => error
+    )
+    expect(refus).toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    expect(refus).not.toBeInstanceOf(UserFacingError)
+    await expect(
+      prisma.product.findUnique({ where: { slug: productSlug("symetrique") } })
+    ).resolves.toBeNull()
+  })
+
+  it("coupe au délai de verrou le cycle que l'ordre inverse des verrous pourrait former", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-interblocage") })
+    )
+    const target = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-interblocage-cible") })
+    )
+    const product = await makeProductIn(
+      category,
+      "interblocage",
+      "Produit déplacé"
+    )
+
+    // Une écriture du Catalogue prend le Produit avant la Structure :
+    // `updateProduct` verrouille la ligne du Produit, puis la clé étrangère
+    // prend la Structure. La suppression fait l'inverse — Structure d'abord —
+    // et les deux ordres se croisent. Le cycle est tendu ici sans course :
+    // la tierce tient le Produit, la suppression prend la Structure et
+    // s'arrête sur le Produit, puis la tierce réclame la Structure.
+    //
+    // C'est le délai qui tranche, et non le détecteur d'interblocage :
+    // PostgreSQL ne lève `40P01` qu'une seconde après la formation du cycle,
+    // alors que l'attente de la suppression a commencé avant — mesuré contre
+    // cette base, `55P03` à 1 021 ms. La traduction de `40P01` reste au
+    // module pour le jour où `deadlock_timeout` serait plus court que le
+    // délai ; elle n'est pas ce que cette épreuve éprouve.
+    const { transaction, liberer } = retenirTransaction(
+      async (tx, liberation) => {
+        await tx.$queryRawUnsafe(
+          `SELECT id FROM "Product" WHERE id = $1 FOR UPDATE`,
+          product.id
+        )
+        await liberation
+        await tx.$queryRawUnsafe(
+          `SELECT id FROM "Category" WHERE id = $1 FOR KEY SHARE`,
+          category.id
+        )
+      }
+    )
+    await attendre(150)
+
+    const suppression = deleteCategory(
+      category.id,
+      { reassignToCategoryId: target.id },
+      effets
+    )
+    suppression.catch(() => {})
+    await attendre(200)
+    liberer()
+    await transaction.catch(() => {})
+
+    // Le perdant reçoit un refus, comme pour tout dépassement : le cycle
+    // n'aboutit jamais à une exception de lecteur, et rien n'a été écrit.
+    await expect(suppression).rejects.toBeInstanceOf(CategoryBusyError)
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
     expectNoEffects(effets)
   })
 

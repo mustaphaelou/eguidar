@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import type { Prisma } from "@/lib/generated/prisma/client"
+import type { Category, Prisma } from "@/lib/generated/prisma/client"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
@@ -93,6 +93,121 @@ export class CategoryHasProductsError extends UserFacingError {
     )
     this.name = "CategoryHasProductsError"
   }
+}
+
+/**
+ * La Structure est en train de changer sous les pieds de l'éditeur : une autre
+ * mutation la tient verrouillée, le délai de verrou a expiré, ou une écriture
+ * a franchi le verrou et contredit ce que la transaction avait lu. Trois
+ * routes, un seul refus — l'éditeur n'a qu'une chose à faire, réessayer.
+ */
+export class CategoryBusyError extends UserFacingError {
+  constructor() {
+    super("la Structure est en cours de modification, réessayez")
+    this.name = "CategoryBusyError"
+  }
+}
+
+/**
+ * Le délai d'attente d'un verrou, en millisecondes. Plus court que le délai
+ * d'une transaction interactive Prisma — 5 000 ms par défaut, qu'aucune
+ * option de ce dépôt ne change : fail-fast vaut mieux qu'une transaction
+ * pendante qui bloque tout le monde (ADR-0027).
+ *
+ * Exporté pour que l'épreuve de contention sache jusqu'où elle peut attendre
+ * avant de conclure qu'un refus vient du verrou.
+ */
+export const DELAI_VERROU_STRUCTURE_MS = 1000
+
+/** Le SQLSTATE `lock_not_available`, que PostgreSQL lève au dépassement. */
+const SQLSTATE_VERROU_INDISPONIBLE = "55P03"
+
+/** Le SQLSTATE `deadlock_detected`. */
+const SQLSTATE_INTERBLOCAGE = "40P01"
+
+/**
+ * Les deux SQLSTATEs d'intégrité qu'une transaction de suppression peut
+ * rencontrer : `23001` est ce que lève le déclencheur d'intégrité
+ * référentielle sur un `ON DELETE RESTRICT` — `Product_categoryId_fkey` — et
+ * `23503` la violation de clé étrangère elle-même. Les deux ont été relevés
+ * sur un vrai PostgreSQL ; aucun autre n'est atteignable ici, la transaction
+ * n'écrivant que des `parentId` et des `categoryId`.
+ */
+const SQLSTATE_INTEGRITE = /^(23001|23503)$/
+
+/**
+ * Le SQLSTATE de la base, lu dans la cause du lecteur d'adaptateur : la seule
+ * voix qui ne dépende ni de la langue du serveur, ni du code que Prisma
+ * choisit de revêtir — celui-ci a déjà varié d'un environnement à l'autre
+ * (P2039 ici, P2003 ailleurs).
+ *
+ * La lecture est structurelle et non un `instanceof` : une version de Prisma
+ * qui classerait l'erreur autrement laisserait le refus se cacher, et
+ * l'appelant ne verrait qu'une erreur de lecteur.
+ */
+function sqlstateDeLErreur(error: unknown): string | undefined {
+  const meta = (error as { meta?: unknown } | null)?.meta
+  if (typeof meta !== "object" || meta === null) return undefined
+  const lecteur = (meta as Record<string, unknown>).driverAdapterError as
+    { cause?: { originalCode?: unknown } } | undefined
+  const code = lecteur?.cause?.originalCode
+  return typeof code === "string" ? code : undefined
+}
+
+/**
+ * La traduction des courses (ADR-0027). Un dépassement de verrou, un
+ * interblocage et une violation de clé étrangère sont trois refus de la
+ * Structure, jamais des erreurs de lecteur : `adminFormAction` relance toute
+ * erreur qu'elle ne reconnaît pas comme un `UserFacingError`, donc une erreur
+ * brute sort de l'action serveur en exception non rattrapée.
+ *
+ * Le SQLSTATE décide ; le code Prisma ne départage que ce qu'il sait seul, `P2003`
+ * étant réservé aux clés étrangères et `P2034` aux interblocages. Le refus
+ * métier que la transaction a déjà levé passe avant tout, intact.
+ *
+ * L'interblocage est ici et non ailleurs : le verrou grossier prend les
+ * Structures avant les Produits, quand toute écriture du Catalogue prend le
+ * Produit avant la Structure. L'ordre inverse est un piège nommé d'ADR-0027,
+ * et le perdant d'un tel cycle n'a lui aussi qu'une chose à faire.
+ */
+function mapCourseDeStructure(error: unknown): never {
+  if (error instanceof UserFacingError) throw error
+  const sqlstate = sqlstateDeLErreur(error)
+  const code = (error as { code?: unknown } | null)?.code
+  if (
+    sqlstate === SQLSTATE_VERROU_INDISPONIBLE ||
+    sqlstate === SQLSTATE_INTERBLOCAGE ||
+    (sqlstate !== undefined && SQLSTATE_INTEGRITE.test(sqlstate)) ||
+    code === "P2003" ||
+    code === "P2034"
+  ) {
+    throw new CategoryBusyError()
+  }
+  throw error
+}
+
+/**
+ * Le verrou grossier de la Structure (ADR-0027) : `SELECT … FROM "Category"
+ * FOR UPDATE` prend toute la table, donc tout l'arbre. Verrouiller chaque
+ * Structure plutôt que le nœud visé est ce qui ferme la course de cycle :
+ * `assertAcyclicCategoryTree` parcourt une chaîne d'ancêtres qu'un verrou de
+ * nœud ne protège pas. La décision l'exige de toute mutation de Structure,
+ * création d'une Structure racine comprise ; seule `deleteCategory` le prend
+ * encore, `createCategory` et `updateCategory` avec les transactions qu'elles
+ * gagneront en [#488](https://github.com/eloaurdi/eguidar/issues/488) et
+ * [#489](https://github.com/eloaurdi/eguidar/issues/489).
+ *
+ * Le `lock_timeout` suit immédiatement le verrou et borne chaque verrou pris
+ * ensuite dans la transaction. `set_config(..., true)` *est* le `SET LOCAL`
+ * qu'ADR-0027 nomme ; il est écrit ainsi parce que PostgreSQL n'accepte pas de
+ * paramètre dans un `SET`, et que Prisma envoie toute requête `$queryRaw`
+ * préparée.
+ */
+async function verrouillerStructure(
+  tx: Prisma.TransactionClient
+): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "Category" FOR UPDATE`
+  await tx.$queryRaw`SELECT set_config('lock_timeout', ${`${DELAI_VERROU_STRUCTURE_MS}ms`}, true)`
 }
 
 const slugSchema = z
@@ -229,33 +344,50 @@ export async function updateCategory(
   overrides?: Partial<StructureEffects>
 ) {
   const effects = avecSurcharges(defaultStructureEffects, overrides)
-  const existing = await prisma.category.findUnique({ where: { id } })
-  if (!existing) throw new CategoryNotFoundError()
-
   const data = parseCategoryInput(input)
-  await assertUniqueCategorySlug(data.slug, id)
-  await assertAcyclicCategoryTree(id, data.parentId)
 
-  let category
+  // Une seule mutation atomique et sérialisée, comme la suppression : le verrou
+  // grossier prend tout l'arbre en première instruction, puis la lecture de la
+  // Structure, la validation du slug, la marche d'acyclicité et l'écriture
+  // partagent une même transaction — la vérification d'acyclicité lit et écrit
+  // dans un seul engagement, et deux modifications de Structure ne
+  // s'entrelacent jamais (ADR-0027).
+  let resultat: { category: Category; image: string | null }
   try {
-    category = await prisma.category.update({
-      where: { id },
-      data: {
-        name: data.name,
-        slug: data.slug,
-        parentId: data.parentId ?? null,
-        image: data.image ?? null,
-      },
+    resultat = await prisma.$transaction(async (tx) => {
+      await verrouillerStructure(tx)
+
+      const existing = await tx.category.findUnique({ where: { id } })
+      if (!existing) throw new CategoryNotFoundError()
+
+      await assertUniqueCategorySlug(data.slug, id)
+      await assertAcyclicCategoryTree(id, data.parentId, tx)
+
+      try {
+        const category = await tx.category.update({
+          where: { id },
+          data: {
+            name: data.name,
+            slug: data.slug,
+            parentId: data.parentId ?? null,
+            image: data.image ?? null,
+          },
+        })
+        return { category, image: existing.image }
+      } catch (error) {
+        mapCategoryUniqueViolation(error)
+      }
     })
   } catch (error) {
-    mapCategoryUniqueViolation(error)
+    mapCourseDeStructure(error)
   }
+  const { category, image: imagePrecedente } = resultat
 
   const nextImage = data.image ?? null
-  if (existing.image && existing.image !== nextImage) {
+  if (imagePrecedente && imagePrecedente !== nextImage) {
     await runEffect(
-      `[structure] suppression d'image R2 non effectuée pour ${existing.image}`,
-      () => effects.deleteImage(existing.image!)
+      `[structure] suppression d'image R2 non effectuée pour ${imagePrecedente}`,
+      () => effects.deleteImage(imagePrecedente!)
     )
   }
   const products = await readIndexableCategoryProducts(id)
@@ -293,65 +425,76 @@ export async function deleteCategory(
   const reassignToCategoryId = options.reassignToCategoryId
   const reparentChildrenToCategoryId = options.reparentChildrenToCategoryId
 
-  // Une seule mutation atomique : la lecture propre à la suppression, les
-  // validations de réaffectation, le déplacement des Produits, le
-  // réattribut des sous-catégories, leur projeté indexable et la suppression
-  // de la Structure source partagent une même transaction. Un échec de la
+  // Une seule mutation atomique et sérialisée : le verrou grossier prend tout
+  // l'arbre en première instruction, puis la lecture propre à la suppression,
+  // les validations de réaffectation, le déplacement des Produits, le
+  // réattribut des sous-catégories, leur projeté indexable et la suppression de
+  // la Structure source partagent une même transaction. Un échec de la
   // suppression finale annule donc la réaffectation — la base fait foi
-  // (ADR-0014).
-  const { image, movedProducts } = await prisma.$transaction(async (tx) => {
-    const category = await tx.category.findUnique({
-      where: { id },
-      include: {
-        children: { select: { id: true } },
-        products: { select: { id: true } },
-      },
-    })
-    if (!category) throw new CategoryNotFoundError()
+  // (ADR-0014) — et deux suppressions ne s'entrelacent jamais (ADR-0027).
+  let resultat: { image: string | null; movedProducts: IndexableProduct[] }
+  try {
+    resultat = await prisma.$transaction(async (tx) => {
+      await verrouillerStructure(tx)
 
-    // Le réattribut précède la suppression : `Category_parentId_fkey` est en
-    // `ON DELETE SET NULL`, et sans cette écriture les enfants remonte-
-    // raient silencieusement au rang racine. L'ordre est donc le refus, puis
-    // l'écriture.
-    if (category.children.length > 0) {
-      if (!reparentChildrenToCategoryId) throw new CategoryHasChildrenError()
-      await assertCategoryParent(reparentChildrenToCategoryId, tx)
-      // Rattacher à elle-même ou à l'une de ses descendantes refermerait la
-      // boucle : la même marche que celle de la modification, mais sur le
-      // client de la transaction, pour ne lire que des faits engagés.
-      await assertAcyclicCategoryTree(id, reparentChildrenToCategoryId, tx)
-      await tx.category.updateMany({
-        where: { parentId: id },
-        data: { parentId: reparentChildrenToCategoryId },
+      const category = await tx.category.findUnique({
+        where: { id },
+        include: {
+          children: { select: { id: true } },
+          products: { select: { id: true } },
+        },
       })
-    }
+      if (!category) throw new CategoryNotFoundError()
 
-    let moved: IndexableProduct[] = []
-    if (reassignToCategoryId) {
-      if (reassignToCategoryId === id) {
-        throw new CategoryValidationError([
-          "une catégorie ne peut pas être réassignée vers elle-même",
-        ])
-      }
-      await assertCategoryParent(reassignToCategoryId, tx)
-      if (category.products.length > 0) {
-        await tx.product.updateMany({
-          where: { categoryId: id },
-          data: { categoryId: reassignToCategoryId },
+      // Le réattribut précède la suppression : `Category_parentId_fkey` est en
+      // `ON DELETE SET NULL`, et sans cette écriture les enfants remonte-
+      // raient silencieusement au rang racine. L'ordre est donc le refus, puis
+      // l'écriture.
+      if (category.children.length > 0) {
+        if (!reparentChildrenToCategoryId) throw new CategoryHasChildrenError()
+        await assertCategoryParent(reparentChildrenToCategoryId, tx)
+        // Rattacher à elle-même ou à l'une de ses descendantes refermerait la
+        // boucle : la même marche que celle de la modification, mais sur le
+        // client de la transaction, pour ne lire que des faits engagés.
+        await assertAcyclicCategoryTree(id, reparentChildrenToCategoryId, tx)
+        await tx.category.updateMany({
+          where: { parentId: id },
+          data: { parentId: reparentChildrenToCategoryId },
         })
-        const movedRows = await tx.product.findMany({
-          where: { id: { in: category.products.map((product) => product.id) } },
-          include: { variants: true, category: true },
-        })
-        moved = movedRows.map(toIndexableProduct)
       }
-    } else if (category.products.length > 0) {
-      throw new CategoryHasProductsError(category.products.length)
-    }
 
-    await tx.category.delete({ where: { id } })
-    return { image: category.image, movedProducts: moved }
-  })
+      let moved: IndexableProduct[] = []
+      if (reassignToCategoryId) {
+        if (reassignToCategoryId === id) {
+          throw new CategoryValidationError([
+            "une catégorie ne peut pas être réassignée vers elle-même",
+          ])
+        }
+        await assertCategoryParent(reassignToCategoryId, tx)
+        if (category.products.length > 0) {
+          await tx.product.updateMany({
+            where: { categoryId: id },
+            data: { categoryId: reassignToCategoryId },
+          })
+          const movedRows = await tx.product.findMany({
+            where: {
+              id: { in: category.products.map((product) => product.id) },
+            },
+            include: { variants: true, category: true },
+          })
+          moved = movedRows.map(toIndexableProduct)
+        }
+      } else if (category.products.length > 0) {
+        throw new CategoryHasProductsError(category.products.length)
+      }
+
+      await tx.category.delete({ where: { id } })
+      return { image: category.image, movedProducts: moved }
+    })
+  } catch (error) {
+    mapCourseDeStructure(error)
+  }
+  const { image, movedProducts } = resultat
 
   // Les effets auxiliaires n'attendent que le commit : les faits qu'ils
   // reçoivent sont committés et leur échec reste best-effort (ADR-0014).

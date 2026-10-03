@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  CategoryBusyError,
   CategoryHasChildrenError,
   CategoryHasProductsError,
   CategoryNotFoundError,
@@ -18,6 +19,7 @@ const errorFactory: [string, () => unknown][] = [
   ["CategoryNotFoundError", () => new CategoryNotFoundError()],
   ["CategoryHasChildrenError", () => new CategoryHasChildrenError()],
   ["CategoryHasProductsError", () => new CategoryHasProductsError(2)],
+  ["CategoryBusyError", () => new CategoryBusyError()],
 ]
 
 describe.each(errorFactory)("%s", (_name, create) => {
