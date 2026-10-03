@@ -17,8 +17,6 @@ import {
 } from "@/components/ui/select"
 import { slugify } from "@/lib/slug"
 
-export const NO_PARENT_VALUE = "none"
-
 export interface CategoryFormInitial {
   id?: string
   name: string
@@ -49,8 +47,12 @@ export function CategoryForm({
 }: CategoryFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const slugRef = useRef<HTMLInputElement>(null)
-  const [parentId, setParentId] = useState(
-    category?.parentId ?? NO_PARENT_VALUE
+  // Une Structure racine n'a pas de parente : son état est `null`, et le champ
+  // caché qui la porte n'est rendu que lorsqu'une parente est réellement choisie.
+  // L'option « Aucune (catégorie racine) » vaut `null` — l'absence elle-même, pas
+  // une valeur à comparer des deux côtés du formulaire.
+  const [parentId, setParentId] = useState<string | null>(
+    category?.parentId ?? null
   )
   const [image, setImage] = useState(category?.image ?? "")
   const excluded = new Set(excludedParentIds)
@@ -63,7 +65,9 @@ export function CategoryForm({
       {category?.id ? (
         <input type="hidden" name="categoryId" value={category.id} />
       ) : null}
-      <input type="hidden" name="parentId" value={parentId} />
+      {parentId ? (
+        <input type="hidden" name="parentId" value={parentId} />
+      ) : null}
 
       {state.error ? (
         <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -117,16 +121,13 @@ export function CategoryForm({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="parentId">Catégorie parente</Label>
-              <Select
-                value={parentId}
-                onValueChange={(value) => setParentId(value ?? NO_PARENT_VALUE)}
-              >
+              <Select value={parentId} onValueChange={setParentId}>
                 <SelectTrigger id="parentId" className="w-full">
                   <SelectValue placeholder="Aucune (catégorie racine)" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value={NO_PARENT_VALUE}>
+                    <SelectItem value={null}>
                       Aucune (catégorie racine)
                     </SelectItem>
                     {parentOptions.map((candidate) => (

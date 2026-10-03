@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { NO_PARENT_VALUE } from "@/components/admin/category-form"
 
 export interface DeleteCategoryState {
   error?: string
@@ -36,7 +35,11 @@ export function DeleteCategoryButton({
   action,
 }: DeleteCategoryButtonProps) {
   const [state, formAction, isPending] = useActionState(action, {})
-  const [reassignTo, setReassignTo] = useState(NO_PARENT_VALUE)
+  // « Bloquer — produits rattachés » n'est pas une cible : c'est l'absence de
+  // cible, donc `null` dans l'état du `Select` et l'absence du champ caché.
+  // Aucune constante n'est exportée d'ici, et le serveur n'a donc rien à
+  // reconnaître : `reassignToCategoryId` porte une Structure réelle, ou rien.
+  const [reassignTo, setReassignTo] = useState<string | null>(null)
   const targets = categories.filter((candidate) => candidate.id !== categoryId)
 
   return (
@@ -55,18 +58,13 @@ export function DeleteCategoryButton({
     >
       <input type="hidden" name="categoryId" value={categoryId} />
       {productCount > 0 ? (
-        <Select
-          value={reassignTo}
-          onValueChange={(value) => setReassignTo(value ?? NO_PARENT_VALUE)}
-        >
+        <Select value={reassignTo} onValueChange={setReassignTo}>
           <SelectTrigger size="sm" className="max-w-64">
-            <SelectValue />
+            <SelectValue placeholder="Bloquer — produits rattachés" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value={NO_PARENT_VALUE}>
-                Bloquer — produits rattachés
-              </SelectItem>
+              <SelectItem value={null}>Bloquer — produits rattachés</SelectItem>
               {targets.map((target) => (
                 <SelectItem key={target.id} value={target.id}>
                   Déplacer les produits vers {target.name}
@@ -76,7 +74,9 @@ export function DeleteCategoryButton({
           </SelectContent>
         </Select>
       ) : null}
-      <input type="hidden" name="reassignToCategoryId" value={reassignTo} />
+      {reassignTo ? (
+        <input type="hidden" name="reassignToCategoryId" value={reassignTo} />
+      ) : null}
       {state.error ? (
         <p className="max-w-64 text-end text-xs text-destructive">
           {state.error}
