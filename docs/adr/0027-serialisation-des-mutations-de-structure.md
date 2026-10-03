@@ -207,3 +207,86 @@ changée ; ce qui suit dit ce qui s'est réellement déplacé.
   nommés aussi : `Product_categoryId_fkey` échoue toujours du côté Catalogue, et la marche de
   `assertAcyclicCategoryTree` reste non bornée — en particulier sans ensemble de structures
   visitées, ce que cet amendement ne corrige pas.
+
+## Amendement — La première tranche : `deleteCategory` seule (#487)
+
+Les trois tranches se valent ensemble, mais elles ne se livrent pas ensemble :
+[#487](https://github.com/eloaurdi/eguidar/issues/487) a posé la première — la seule des trois qui
+ouvrait déjà sa transaction — et `createCategory` comme `updateCategory` gardent `READ COMMITTED`
+et leurs courses jusqu'à [#488](https://github.com/eloaurdi/eguidar/issues/488) et
+[#489](https://github.com/eloaurdi/eguidar/issues/489).
+
+**La décision est prise, pas livrée.** Ce qui précède reste entier, et plusieurs de ses phrases ne
+sont vraies que de `deleteCategory` tant que les deux autres tranches ne sont pas tombées : « Elle
+vaut pour `createCategory`, `updateCategory` et `deleteCategory` », « première instruction de la
+transaction de **chaque** mutation de Structure », « `createCategory` et `updateCategory` gagnent
+une transaction », « toute issue d'une mutation de Structure est un `UserFacingError` ». Les lire
+comme accomplies serait faux dès aujourd'hui ; ce qui suit dit ce que la tranche a réellement
+tranché, et rien de plus.
+
+- **Le `lock_timeout` vaut 1000 ms.** La décision dit qu'il existe, jamais combien. Mille
+  millisecondes tient sous le délai d'une transaction interactive Prisma — 5 000 ms par défaut —
+  et laisse à une mutation de Structure, qui se compte en quelques millisecondes, de quoi attendre
+  une transaction tierce sans devenir jamais la transaction pendante que la décision refuse. Le
+  délai est exporté (`DELAI_VERROU_STRUCTURE_MS`) : l'épreuve de contention doit savoir jusqu'où
+  elle peut attendre avant de conclure qu'un refus vient du verrou, et non d'une contrainte.
+
+- **Le `SET LOCAL` s'écrit `SELECT set_config('lock_timeout', …, true)`.** Même énoncé, autre
+  forme : PostgreSQL n'accepte pas de paramètre dans un `SET`, et Prisma envoie toute requête
+  `$queryRaw` préparée. Le délai reste ainsi une valeur, jamais du texte.
+
+- **Le SQLSTATE décide ; le code Prisma ne départage que ce qu'il sait seul.** Relevé contre
+  PostgreSQL, pas supposé : `meta.driverAdapterError.cause.originalCode` vaut `55P03` au
+  dépassement et `23001` sur la violation de `Product_categoryId_fkey`. Prisma revêt l'une et
+  l'autre de `P2039` ici ; `P2003` reste accepté parce qu'il est réservé aux clés étrangères
+  ailleurs. La classe entière n'est pas retenue : seuls `23001` et `23503` le sont, la transaction
+  de suppression n'écrivant que des `parentId` et des `categoryId`. Un dépassement de verrou et une
+  violation d'intégrité rendent le **même** refus — `CategoryBusyError`, « la Structure est en
+  cours de modification, réessayez » — parce que l'éditeur n'a qu'une chose à faire, et qu'une
+  épreuve doit pouvoir dire laquelle des deux routes elle éprouve.
+
+- **Une phrase de la décision est devenue fausse** : « Aucun `lock_timeout` ni `statement_timeout`
+  n'existe dans ce dépôt ». Il en existe un depuis cette tranche, et il n'appartient qu'à la
+  transaction de suppression.
+
+- **Ce que la tranche ne ferme pas.** L'attente que le verrou grossier lui-même impose n'est pas
+  bornée par ce `lock_timeout`, qui le suit : elle reste bornée par le délai de Prisma, et son
+  dépassement reste une erreur de lecteur. Changer l'ordre des deux instructions — le délai avant
+  le verrou — est une autre décision, et ce n'est pas celle-ci.
+
+### Le piège que le verrou grossier ouvre, et qui n'existait pas
+
+Le verrou prend les Structures avant les Produits ; toute écriture du Catalogue prend le Produit
+avant la Structure — `updateProduct` verrouille la ligne du Produit, puis la clé étrangère prend la
+Structure. Les deux ordres sont inverses et peuvent se croiser. C'est une conséquence directe du
+verrou grossier : avant lui, la suppression écrivait dans le même ordre que le Catalogue.
+
+Le cycle, tendu sans course, est **coupé par le délai** et non par le détecteur : PostgreSQL ne
+lève `40P01` qu'une seconde après la formation du cycle, alors que l'attente de la suppression a
+commencé avant — mesuré contre cette base, `55P03` à 1 021 ms. `40P01` reste traduit par la même
+fonction, pour le jour où `deadlock_timeout` serait plus court que le délai ; cette route n'est pas
+éprouvée par une suite, et il ne faut pas le dire autrement.
+
+### Ce que l'épreuve montre
+
+Joué contre un vrai PostgreSQL, deux connexions concurrentes, dans
+[`admin-structure.test.ts`](../lib/use-cases/admin-structure.test.ts) :
+
+| Cas                                                                                  | Constat mesuré                                                                |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Une tierce engage un Produit fantôme et retient son commit, la suppression part ensuite | la suppression **attend** le verrou, voit le Produit, le réaffecte, committe |
+| Deux suppressions concurrentes de la même source                                    | la seconde attend, puis voit l'absence : `CategoryNotFoundError`, jamais `P2025` |
+| La suppression tient le verrou, une insertion part ensuite                          | l'insertion attend, puis meurt sur `Product_categoryId_fkey` — **du côté Catalogue** |
+| Une tierce tient un verrou de ligne sur un Produit déplacé                          | `lock_timeout` coupe en 1 000 ms : `CategoryBusyError`, rien n'a été écrit      |
+| Une tierce écrit dans la Structure sans prendre le verrou                           | `Product_categoryId_fkey` : `CategoryBusyError`, transaction entière rétractée |
+| Une tierce tient le Produit puis réclame la Structure                               | l'ordre inverse ne produit aucun interblocage : le délai coupe, refus encore   |
+
+La troisième ligne est le cas symétrique qu'exige la décision, et il reste une erreur de lecteur
+— celle de `createProduct`, que le Catalogue ne traduit pas. C'est le piège nommé que la décision
+assume : la surface d'erreurs décidée ici ne vaut que pour la Structure.
+
+La cinquième ligne est la Tierce partie que la décision nomme, et elle réclame une base de test
+appartenant à un superutilisateur — `session_replication_role = 'replica'` écrit dans la Structure
+sans déclencher la clé étrangère, donc sans prendre le `FOR KEY SHARE` que le verrou grossier
+attend. C'est aussi la seule façon, sous READ COMMITTED, de faire tomber la contrainte : une
+course honnête est sérialisée par le verrou avant d'y jamais arriver.
