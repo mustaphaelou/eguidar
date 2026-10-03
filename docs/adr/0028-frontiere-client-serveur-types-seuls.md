@@ -3,10 +3,12 @@
 L'Administration de la Structure ne pouvait ni renommer ni supprimer une Structure, et ne disait
 pas pourquoi : l'écran renvoyait toujours le même Refus de la Structure, « Données invalides :
 catégorie parente inconnue », un message qui nomme un symptôme et jamais sa cause. La cause
-tenait en une ligne d'import. `app/admin/categories/actions.ts:5`, un module `"use server"`,
-empruntait la constante `NO_PARENT_VALUE` — déclarée à `components/admin/category-form.tsx:20`,
-dans un module `"use client"` — pour décider si le champ `parentId` d'un `FormData` désigne une
-Structure parente ou son absence.
+tenait en une ligne d'import. `app/admin/categories/actions.ts:5` d'avant
+[#518](https://github.com/eloaurdi/eguidar/issues/518) — voir
+`git show 53eb10b^:app/admin/categories/actions.ts` — un module `"use server"`,
+empruntait la constante `NO_PARENT_VALUE` — déclarée à `components/admin/category-form.tsx:20`
+d'avant [#518](https://github.com/eloaurdi/eguidar/issues/518) — pour décider si le champ
+`parentId` d'un `FormData` désigne une Structure parente ou son absence.
 
 Aucune des vérifications habituelles ne pouvait attraper cela, et il faut comprendre pourquoi avant
 d'écrire une règle qui tienne.
@@ -21,16 +23,17 @@ est appelable, et l'appeler lève. `NO_PARENT_VALUE` n'est donc plus `"none"` c�
 **Une comparaison contre un mandataire est toujours fausse.** `"none" !== mandataire` est vrai, quelle
 que soit la chaîne reçue. Le test censé distinguer « pas de parente » de « une parente » ne
 distingue plus rien : il répond « il y a une parente ». La comparaison
-`parentIdRaw !== NO_PARENT_VALUE` ([`actions.ts:20-21`](../../app/admin/categories/actions.ts#L20-L21))
-devient une constante vraie, et la branche qui devait produire `null` ne s'exécute jamais. Même
-verdict au même endroit pour la réaffectation de suppression
-([`actions.ts:66-70`](../../app/admin/categories/actions.ts#L66-L70)) : le champ caché
-`reassignToCategoryId` était rendu inconditionnellement
-([`delete-category-button.tsx:79`](../../components/admin/delete-category-button.tsx#L79)), hors du
-seul `productCount > 0` qui gouvernait le sélecteur, donc la sentinelle partait toujours. Le mode de
-défaillance est le pire qui soit : il ne lève pas, ne journalise pas, ne rend pas une erreur — il
-prend l'autre branche, et la suite de l'action échoue plus loin, sur un motif qui ne parle plus de
-la frontière.
+`parentIdRaw !== NO_PARENT_VALUE` (`actions.ts:20-21` d'avant
+[#518](https://github.com/eloaurdi/eguidar/issues/518) — voir
+`git show 53eb10b^:app/admin/categories/actions.ts`) devient une constante vraie, et la branche qui
+devait produire `null` ne s'exécute jamais. Même verdict au même endroit pour la réaffectation de
+suppression (`actions.ts:66-70`, même état antérieur) : le champ caché
+`reassignToCategoryId` était rendu inconditionnellement (`delete-category-button.tsx:79`
+d'avant [#519](https://github.com/eloaurdi/eguidar/issues/519)), hors du seul `productCount > 0`
+qui gouvernait le sélecteur, donc la sentinelle partait toujours. Le mode de défaillance est le
+pire qui soit : il ne lève pas, ne journalise pas, ne rend pas une erreur — il prend l'autre
+branche, et la suite de l'action échoue plus loin, sur un motif qui ne parle plus de la
+frontière.
 
 **Aucune suite de tests ne reproduit la transformation.** Vitest exécute du TypeScript transformé par
 Vite, qui ne comporte pas d'étape RSC. `NO_PARENT_VALUE` y est la vraie chaîne `"none"`, la
@@ -51,8 +54,15 @@ la même.
 - **La frontière client/serveur ne se traverse qu'en types, et rien d'autre.** Un `import type` est
   effacé à la compilation : il ne produit aucun code, donc aucune valeur ne peut se remplacer par une
   autre à l'exécution. C'est la seule catégorie d'emprunt que la frontière autorise. Le dépôt en
-  porte l'exemple légal — [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5)
-  tire `OrderStatus` du client Prisma généré par import de type seul.
+  porte le seul exemple écrit sous cette forme — [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5)
+  tire `OrderStatus` du client Prisma généré par import de type seul. Il faut dire ce que cet
+  exemple prouve et ce qu'il ne prouve pas : sa cible, `@/lib/generated/prisma/client`, ne porte
+  **aucune directive** — c'est un module neutre, comme ceux de la décision suivante. Aucun côté ne
+  le réclame, donc rien ne le réécrit, donc **aucune frontière n'y est traversée** : l'emprunt
+  serait légal par type *et* par cible neutre, et il ne démontre rien sur la frontière seul. Ce
+  qu'il démontre, c'est la moitié du chemin — la frontière autorise un emprunt de type — et c'est
+  pourquoi le dépôt n'a pas d'exemple légal d'un emprunt de type **vers un module client** : il n'y
+  en a pas, et c'est ce que la suite de frontière vérifie.
 
 - **Une valeur réellement partagée par les deux côtés habite un module qu'aucun côté ne réclame** :
   ni `"use client"`, ni `"use server"` — un module neutre, que le formulaire client et l'action
@@ -161,18 +171,20 @@ la même.
   *emprunté comme valeur*, pas sur ce qui est *atteint comme module*.
 
 - **Piège nommé — `importeDe` voit les imports de type.**
-  ([`lib/use-cases/outils-frontiere.ts:91-95`](../../lib/use-cases/outils-frontiere.ts#L91-L95))
-  [`referencesDeSource`](../../lib/use-cases/outils-frontiere.ts#L29-L64) en distinguish bien la
-  clause `import type` (ligne 39), mais [`importeDe`](../../lib/use-cases/outils-frontiere.ts#L91-L95)
-  l'ignore. Un garde qui laisse passer le type seul doit donc filtrer lui-même, sur `typeOnly` :
+  ([`lib/use-cases/outils-frontiere.ts:95-99`](../../lib/use-cases/outils-frontiere.ts#L95-L99))
+  [`referencesDeSource`](../../lib/use-cases/outils-frontiere.ts#L33-L68) en distingue bien la
+  clause `import type` (ligne 43), mais
+  [`importeDe`](../../lib/use-cases/outils-frontiere.ts#L95-L99) l'ignore. Un garde qui laisse
+  passer le type seul doit donc filtrer lui-même, sur `typeOnly` :
   s'appuyant sur `importeDe` seul, il signalera
-  [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5) comme une violation
-  alors que c'est l'exemple légal de cet ADR.
+  [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5) comme une violation,
+  alors que cet emprunt est doublement permis — il est un emprunt de type, et sa cible est de
+  surcroît neutre.
 
 - **Piège nommé — la neutralité d'un module se vérifie par transit.** Un module neutre qui n'importe
   rien de notable peut tout de même atteindre un module client ou serveur par un intermédiaire. La
   vérification utile parcourt le graphe des imports de valeurs, comme le fait
-  [`atteignables`](../../lib/use-cases/outils-frontiere.ts#L211-L224) pour ADR-0026 ; une vérification
+  [`atteignables`](../../lib/use-cases/outils-frontiere.ts#L276-L289) pour ADR-0026 ; une vérification
   en direct laisse passer la moitié des chemins.
 
 - **Un module neutre ne devient pas un fourre-tout.** Il ne reçoit une valeur partagée que parce
@@ -188,9 +200,14 @@ défaut y a été trouvé, puis vérifié dans le bundle.
 `components/` et `lib/` ont été parcourus en cherchant, depuis chaque module serveur, un import de
 **valeur** vers un module client. Une seule violation est apparue : `app/admin/categories/actions.ts`
 vers `components/admin/category-form.tsx` — celle que
-[#518](https://github.com/eloaurdi/eguidar/issues/518) supprime. Le même balayage a produit le seul
-exemple légal de ce qui est autorisé : [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5),
-`import type`.
+[#518](https://github.com/eloaurdi/eguidar/issues/518) supprime. Le même balayage a rencontré le
+seul emprunt que le dépôt fasse **vers un module client par type** — et il n'en fait pas : la seule
+ligne de cette forme qu'il ait produites,
+[`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5), `import type`, vise
+le client Prisma généré, qui est neutre. Autrement dit : **le dépôt n'a aucun exemple légal d'un
+emprunt de type vers un module client, parce qu'il n'en a aucun, interdit ou non.** C'est ce qui
+rend la suite de [#520](https://github.com/eloaurdi/eguidar/issues/520) utile : elle doit
+fabriquer ce cas pour elle-même, puisqu'il ne s'est jamais produit.
 
 **Le bundle.** [#517](https://github.com/eloaurdi/eguidar/issues/517) a relevé dans le bundle serveur
 compilé l'exportation réécrite en mandataire enregistré sous le nom du fichier et de l'exportation, et
@@ -198,6 +215,6 @@ la comparaison devenue inconditionnellement vraie. C'est la seule observation qu
 d'une suite : elle demande le bundle, précisément parce qu'aucune suite ne le produit.
 
 **La suite, à l'inverse.** `app/admin/categories/actions.test.ts` construit ses `FormData` sans
-jamais envoyer la sentinelle ([`:48-58`](../../app/admin/categories/actions.test.ts#L48-L58)) et passe
+jamais envoyer la sentinelle ([`:52-63`](../../app/admin/categories/actions.test.ts#L52-L63)) et passe
 malgré tout. Les cas verts et le bundle faux coexistent — c'est la démonstration, non le présupposé,
 que l'absence de reproduction de la transformation est la cause du silence.

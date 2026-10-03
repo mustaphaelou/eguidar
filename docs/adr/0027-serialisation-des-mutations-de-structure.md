@@ -138,7 +138,7 @@ voulu, et c'est aussi celui qui force la réécriture du test d'entrelacement ex
   pas échouer. Un index périmé après un échec reste le compromis d'ADR-0014, pas une course.
 
 - **Le test d'entrelacement d'aujourd'hui s'inverse, il ne se corrige pas.**
-  [`admin-structure.test.ts:648-743`](../../lib/use-cases/admin-structure.test.ts#L648-L743) fait
+  [`admin-structure.test.ts:800-895`](../../lib/use-cases/admin-structure.test.ts#L800-L895) fait
   insérer un Produit fantôme par une transaction tierce, **qui retient son commit**, puis lance la
   suppression. Sous le verrou grossier, la première instruction de la suppression bloque sur le
   `FOR KEY SHARE` que cette insertion tient, le fantôme devient visible, et la suppression
@@ -173,3 +173,37 @@ touché la base de données du projet.
 
 La ligne **« Sans verrou »** est la raison d'être de cette décision : c'est le seul constat qui ne
 soit pas un refus, et c'est le seul que le verrou fait disparaître.
+
+## Amendement — Le refus de supprimer une Structure à enfants devient saisissable (#519)
+
+[#519](https://github.com/eloaurdi/eguidar/issues/519), dans le chantier ouvert par
+[#517](https://github.com/eloaurdi/eguidar/issues/517), a rendu la suppression d'une Structure qui
+a des sous-catégories possible : le formulaire propose une Structure d'accueil, et `deleteCategory`
+la reçoit. Le premier piège nommé énonce donc une phrase devenue fausse —
+« Inatteignable en production : `deleteCategory` refuse une Structure qui a des enfants avant
+d'atteindre son unique `tx.category.delete` » n'est plus exact. Aucune ligne d'ici n'est
+changée ; ce qui suit dit ce qui s'est réellement déplacé.
+
+- **Le refus est devenu conditionnel à une cible choisie, et il reste le refus par défaut.**
+  `deleteCategory` refuse toujours une Structure qui a des enfants lorsqu'aucun
+  `reparentChildrenToCategoryId` n'est fourni — cas par défaut, et seule issue quand le
+  formulaire n'envoie rien. La règle ne s'est pas assoupplie : elle est devenue saisissable. Le
+  refus, lui, demeure atteignable et demeure l'issue quand l'éditeur choisit de ne pas déplacer.
+
+- **Le réattribut précède la suppression, dans la transaction.** C'est ce qui tient le piège
+  nommé plutôt que de le rendre seulement improbable : `Category_parentId_fkey` est en
+  `ON DELETE SET NULL`, et une suppression sans réattribut promouvrait silencieusement les
+  enfants au rang de racine. L'écriture des `parentId` passe par le client `tx`, avant l'unique
+  `tx.category.delete`, sous le même verrou `FOR UPDATE` : la promotion silencieuse n'a plus
+  d'issue, et le piège reste vrai quant à l'écart entre le schéma Prisma et la base, que cet
+  amendement ne corrige pas.
+
+- **La marche d'acyclicité suit le même chemin.** Le réattribut est validé contre la transaction
+  et non contre le client nu, pour ne lire que des faits engagés.
+
+- **La sérialisation de [#431](https://github.com/eloaurdi/eguidar/issues/431) est intacte.**
+  Le verrou grossier, le `SET LOCAL lock_timeout`, la surface d'erreurs, le propriétaire du
+  verrou et la frontière énoncée restent exactement ce qu'ils étaient. Les deux autres pièges
+  nommés aussi : `Product_categoryId_fkey` échoue toujours du côté Catalogue, et la marche de
+  `assertAcyclicCategoryTree` reste non bornée — en particulier sans ensemble de structures
+  visitées, ce que cet amendement ne corrige pas.

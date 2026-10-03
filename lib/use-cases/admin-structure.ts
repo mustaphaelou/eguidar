@@ -80,15 +80,16 @@ export class CategoryNotFoundError extends UserFacingError {
 
 export class CategoryHasChildrenError extends UserFacingError {
   constructor() {
-    super("Impossible de supprimer : la catégorie contient des sous-catégories")
+    super("Refus de la Structure : elle contient des sous-catégories")
     this.name = "CategoryHasChildrenError"
   }
 }
 
 export class CategoryHasProductsError extends UserFacingError {
   constructor(productCount: number) {
+    const pluriel = productCount > 1
     super(
-      `Impossible de supprimer : ${productCount} produit${productCount > 1 ? "s" : ""} lui est/sont rattaché(s)`
+      `Refus de la Structure : ${productCount} Produit${pluriel ? "s" : ""} lui ${pluriel ? "sont" : "est"} rattaché${pluriel ? "s" : ""}`
     )
     this.name = "CategoryHasProductsError"
   }
@@ -276,9 +277,9 @@ export async function updateCategory(
  * production exprime sa réaffectation sans `undefined` pont, et la couture
  * d'effets reste le paramètre optionnel de dernier rang (ADR-0014).
  *
- * `reparentChildrenToCategoryId` est le Recueil que l'éditeur a choisi pour les
- * sous-catégories : sans lui, la Structure qui a des enfants reste refusée. La
- * règle ne s'assouplit pas — elle devient saisissable.
+ * `reparentChildrenToCategoryId` est la Structure que l'éditeur a choisie pour
+ * accueillir les sous-catégories : sans elle, la Structure qui a des enfants
+ * reste refusée. La règle ne s'assouplit pas — elle devient saisissable.
  */
 export async function deleteCategory(
   id: string,

@@ -87,10 +87,14 @@ function modulesClients(sources: SourceProduction[]): Set<string> {
 }
 
 /**
- * Les actions serveur que la garde surveille. La liste se déduit des sources
- * plutôt qu'écrite : une action neuve est prise sans qu'on songe à la
- * nommer ici, et une action disparue fera échouer le témoin de non-vacuité
- * au lieu de disparaître en silence de la règle.
+ * Les actions serveur que la garde surveille. La liste est **écrite**, pas
+ * déduite : `ACTIONS_SURVEILLEES` énumère les cinq actions que la règle énonce,
+ * et le témoin de non-vacuité compare les deux. C'est délibéré — un parcours
+ * qui déduirait la liste de la source verrait une action neuve entrer dans la
+ * règle sans que personne ne l'y ait mise, alors que ce qui est gardé doit être
+ * une décision lisible, pas un effet de bord du balayage. Le prix se paie ici :
+ * une action neuve fait échouer ce témoin jusqu'à ce qu'on la nomme, et c'est
+ * le but — la règle ne s'élargit pas dans le dos du lecteur.
  */
 function actionsServeures(sources: SourceProduction[]): SourceProduction[] {
   return sources.filter(
@@ -118,7 +122,7 @@ function empruntsClients(sources: SourceProduction[]): string[] {
   return actionsServeures(sources).flatMap(({ chemin, source }) =>
     empruntsDeValeur(chemin, source, parChemin)
       .filter((emprunt) => clients.has(emprunt.chemin))
-      .map((emprunt) => `${chemin} -> ${emprunt.specifier}`)
+      .map((emprunt) => `${chemin} -> ${emprunt.specifieur}`)
   )
 }
 
@@ -217,7 +221,7 @@ describe("Administration — la garde sait nommer l'emprunt interdit", () => {
   it("le voit par l'alias, le relatif et le réexport", () => {
     // Trois écritures, un seul verdict : ce qui est interdit l'est aussi par
     // le chemin relatif, et un réexport est un emprunt comme un autre.
-    for (const specifier of [
+    for (const specifieur of [
       "@/components/admin/category-form",
       "../../../components/admin/category-form",
     ]) {
@@ -226,11 +230,11 @@ describe("Administration — la garde sait nommer l'emprunt interdit", () => {
           ...SOURCES,
           {
             chemin: "app/admin/fictif/actions.ts",
-            source: `"use server"\n\nimport { CategoryForm } from "${specifier}"\n`,
+            source: `"use server"\n\nimport { CategoryForm } from "${specifieur}"\n`,
           },
         ]),
-        specifier
-      ).toEqual([`app/admin/fictif/actions.ts -> ${specifier}`])
+        specifieur
+      ).toEqual([`app/admin/fictif/actions.ts -> ${specifieur}`])
     }
 
     expect(
@@ -322,6 +326,28 @@ describe("Administration — ce que la frontière autorise", () => {
       true
     )
     expect(empruntsClients(SOURCES)).toEqual([])
+  })
+
+  it("ne confond pas un prologue de directives et la même chaîne écrite plus bas", () => {
+    // Une directive est une réclamation, pas une chaîne : elle ne vaut que
+    // parce qu'elle ouvre le fichier. Le module ci-dessous porte la chaîne
+    // deux fois — une fois en tête, une fois dans une comparaison, en pleine
+    // ligne — et n'est un module client que par sa première ligne. L'inverse
+    // compte autant : un module qui n'écrit la chaîne qu'au milieu ne réclame
+    // aucun côté, et une garde qui le lisait client le rangerait à tort du
+    // côté des réécritures RSC.
+    expect(
+      directive('"use client"\n\nexport const cote = "use client"\n')
+    ).toBe("use client")
+    expect(
+      directive('export const cote = "use client"\n"use client"\n')
+    ).toBeNull()
+    // Les commentaires précèdent la réclamation sans l'annuler : un module qui
+    // s'auto-exclut de Biome, ou qui se présente, garde bien sa place.
+    expect(
+      directive('// @ts-check\n/* istanbul ignore */\n"use server"\n')
+    ).toBe("use server")
+    expect(directive('"use server"\n// "use client"\n')).toBe("use server")
   })
 
   it("ne confond pas l'emprunt de type des actions Commande avec une valeur", () => {

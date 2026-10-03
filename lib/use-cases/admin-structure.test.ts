@@ -59,7 +59,7 @@ interface ReleveEffet {
 /**
  * Ce qu'un effet observe de la base quand la suppression a réattribué les
  * sous-catégories : la source doit déjà être absente et l'enfant déjà porté par
- * le Recueil choisi.
+ * la Structure d'accueil choisie.
  */
 interface ReleveReattribution {
   effet: string
@@ -575,14 +575,14 @@ describe("admin structure mutations — categories", () => {
     expect(revalidateCategories).toHaveBeenCalled()
   })
 
-  it("rattache les sous-catégories au Recueil choisi avant de supprimer la Structure source", async () => {
+  it("rattache les sous-catégories à la Structure d'accueil choisie avant de supprimer la Structure source", async () => {
     const reindexProducts = vi.fn()
     const revalidateCategories = vi.fn()
     const parent = await createCategory(
       makeCategoryInput({ slug: categorySlug("rep-parent") })
     )
-    const recueil = await createCategory(
-      makeCategoryInput({ slug: categorySlug("rep-recueil") })
+    const accueil = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-accueil") })
     )
     const enfant = await createCategory(
       makeCategoryInput({
@@ -593,7 +593,7 @@ describe("admin structure mutations — categories", () => {
 
     await deleteCategory(
       parent.id,
-      { reparentChildrenToCategoryId: recueil.id },
+      { reparentChildrenToCategoryId: accueil.id },
       { reindexProducts, revalidateCategories }
     )
 
@@ -603,7 +603,7 @@ describe("admin structure mutations — categories", () => {
     // L'enfant survit, sous une autre parente : c'est l'éditeur qui l'a voulu.
     await expect(
       prisma.category.findUniqueOrThrow({ where: { id: enfant.id } })
-    ).resolves.toMatchObject({ parentId: recueil.id })
+    ).resolves.toMatchObject({ parentId: accueil.id })
     // Un document indexé ne porte que la catégorie de son Produit : déplacer
     // une sous-catégorie ne réécrit donc aucun document, et n'appelle pas
     // Meilisearch.
@@ -615,8 +615,8 @@ describe("admin structure mutations — categories", () => {
     const parent = await createCategory(
       makeCategoryInput({ slug: categorySlug("rep-post-commit") })
     )
-    const recueil = await createCategory(
-      makeCategoryInput({ slug: categorySlug("rep-post-commit-recueil") })
+    const accueil = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-post-commit-accueil") })
     )
     const enfant = await createCategory(
       makeCategoryInput({
@@ -645,7 +645,7 @@ describe("admin structure mutations — categories", () => {
 
     await deleteCategory(
       parent.id,
-      { reparentChildrenToCategoryId: recueil.id },
+      { reparentChildrenToCategoryId: accueil.id },
       { revalidateCategories, deleteImage: vi.fn(), reindexProducts: vi.fn() }
     )
 
@@ -653,7 +653,7 @@ describe("admin structure mutations — categories", () => {
       {
         effet: "invalidation",
         structureSourcePresente: false,
-        parenteEnfant: recueil.id,
+        parenteEnfant: accueil.id,
       },
     ])
   })
@@ -687,7 +687,7 @@ describe("admin structure mutations — categories", () => {
     expectNoEffects(effets)
   })
 
-  it("refuse de rattacher les sous-catégories à un Recueil inconnu, sans écriture ni effet", async () => {
+  it("refuse de rattacher les sous-catégories à une Structure d'accueil inconnue, sans écriture ni effet", async () => {
     const effets = effectSpies()
     const parent = await createCategory(
       makeCategoryInput({ slug: categorySlug("rep-inconnu") })
