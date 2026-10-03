@@ -35,6 +35,12 @@ interface StructureCible {
   parentId: string | null
 }
 
+/** Ce qui est rattaché à la Structure de la ligne, et donc ce qui pèse. */
+interface ComptesStructure {
+  childCount: number
+  productCount: number
+}
+
 interface DeleteCategoryButtonProps {
   categoryId: string
   categoryName: string
@@ -53,17 +59,17 @@ const BOITE_ERREUR =
 /**
  * Ce que la ligne dit d'elle-même, avant tout clic. La contrainte n'est pas une
  * surprise réservée à la confirmation : elle est écrite à côté du contrôle que
- * l'éditeur cherchait.
+ * l'éditeur cherchait. Les deux causes que le glossaire énumère — une
+ * Structure contenant des sous-catégories, des Produits qui lui sont rattachés —
+ * y sont nommées comme lui les nomme, jamais comme un « échec de suppression ».
  */
-function raisonVisible(
-  childCount: number,
-  productCount: number
-): string | null {
+function raisonVisible(comptes: ComptesStructure): string | null {
+  const { childCount, productCount } = comptes
   if (childCount > 0) {
-    return `Suppression impossible : ${childCount} sous-catégorie${childCount > 1 ? "s" : ""} à déplacer`
+    return `Refus de la Structure : ${childCount} sous-catégorie${childCount > 1 ? "s" : ""} à déplacer`
   }
   if (productCount > 0) {
-    return `Suppression à confirmer : ${productCount} Produit${productCount > 1 ? "s" : ""} à réaffecter`
+    return `Refus de la Structure : ${productCount} Produit${productCount > 1 ? "s" : ""} à réaffecter`
   }
   return null
 }
@@ -74,6 +80,16 @@ function raisonVisible(
  * parente suffit. Rattacher une Structure à l'une de ses descendantes
  * refermerait la boucle sur elle-même : la boîte ne propose pas ce qui
  * produirait le refus du serveur.
+ *
+ * **Ce n'est pas `assertAcyclicCategoryTree`, et l'écart est volontaire.** La
+ * marche du serveur (`lib/use-cases/admin-structure.ts`) parcourt la base dans la
+ * transaction de la mutation et n'a pas d'ensemble de structures visitées : le
+ * verrou d'ADR-0027 interdit d'en former un, et ce manque est un piège nommé.
+ * Celle-ci travaille sur une liste déjà en mémoire et garde donc `vus` — elle
+ * est plus défensive que le serveur sur ce seul point. Les deux ne peuvent pas
+ * fusionner : l'une raisonne sur des faits engagés, l'autre sur l'arbre rendu à
+ * l'écran. La seule garantie commune est le refus d'une cible cyclique, et c'est
+ * le serveur qui l'exige.
  */
 function descendDe(
   candidateId: string,
@@ -111,14 +127,20 @@ export function DeleteCategoryButton({
   const parentParId = new Map(
     categories.map((candidate) => [candidate.id, candidate.parentId])
   )
-  const autres = categories.filter((candidate) => candidate.id !== categoryId)
-  const recueils = autres.filter(
+  // Toute Structure de la liste sauf celle-ci : c'est le domaine de tous les
+  // choix. Les sous-catégories, elles, ne peuvent recevoir que ce qui n'en
+  // descend pas — une cible y fermerait la boucle sur elle-même.
+  const structuresCandidates = categories.filter(
+    (candidate) => candidate.id !== categoryId
+  )
+  const structuresDAccueil = structuresCandidates.filter(
     (candidate) => !descendDe(candidate.id, categoryId, parentParId)
   )
 
-  const raison = raisonVisible(childCount, productCount)
-  const enfants = childCount > 0
-  const produits = productCount > 0
+  const comptes = { childCount, productCount }
+  const raison = raisonVisible(comptes)
+  const enfants = comptes.childCount > 0
+  const produits = comptes.productCount > 0
   const confirmation = enfants || produits
 
   return (
@@ -176,13 +198,13 @@ export function DeleteCategoryButton({
                     </FieldLabel>
                     <Select value={reparentTo} onValueChange={setReparentTo}>
                       <SelectTrigger id={idSousCategories} size="sm">
-                        <SelectValue placeholder="Choisir la Structure qui les recueillera" />
+                        <SelectValue placeholder="Choisir la Structure d'accueil des sous-catégories" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {recueils.map((recueil) => (
-                            <SelectItem key={recueil.id} value={recueil.id}>
-                              Déplacer les sous-catégories vers {recueil.name}
+                          {structuresDAccueil.map((accueil) => (
+                            <SelectItem key={accueil.id} value={accueil.id}>
+                              Déplacer les sous-catégories vers {accueil.name}
                             </SelectItem>
                           ))}
                         </SelectGroup>
@@ -212,7 +234,7 @@ export function DeleteCategoryButton({
                           <SelectItem value={null}>
                             Bloquer — produits rattachés
                           </SelectItem>
-                          {autres.map((cible) => (
+                          {structuresCandidates.map((cible) => (
                             <SelectItem key={cible.id} value={cible.id}>
                               Déplacer les produits vers {cible.name}
                             </SelectItem>
@@ -251,7 +273,27 @@ export function DeleteCategoryButton({
           </Dialog>
         </div>
       ) : (
-        <form action={formAction} className="flex flex-col items-end gap-1.5">
+        /* Feuille vide : rien à choisir, rien à nommer — et c'est pour cela
+           qu'un `confirm()` suffit. La boîte de dialogue a remplacé
+           `confirm()` parce qu'elle **montrait ce que la suppression emportait** :
+           où partaient les Produits, où partaient les sous-catégories. Une
+           feuille vide n'a rien de tout cela à montrer, et son seul avertissement
+           est « cette action est définitive » — une phrase. Lui ouvrir une boîte
+           entière pour cela serait du poids mort ; elle resterait le seul cas du
+           dépôt sans confirmation, ce que #519 n'a jamais demandé de changer. */
+        <form
+          action={formAction}
+          onSubmit={(event) => {
+            if (
+              !confirm(
+                `Supprimer « ${categoryName} » ? Cette action est définitive.`
+              )
+            ) {
+              event.preventDefault()
+            }
+          }}
+          className="flex flex-col items-end gap-1.5"
+        >
           <input type="hidden" name="categoryId" value={categoryId} />
           {state.error ? <p className={BOITE_ERREUR}>{state.error}</p> : null}
           <Button

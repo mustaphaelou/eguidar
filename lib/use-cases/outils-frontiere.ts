@@ -25,7 +25,7 @@ export function lire(depuis: string, relatif: string): string {
 }
 
 interface ReferenceImport {
-  specifier: string
+  specifieur: string
   typeOnly: boolean
 }
 
@@ -39,7 +39,7 @@ function referencesDeSource(source: string): ReferenceImport[] {
   )) {
     const clause = match[0].slice(0, match[0].toLowerCase().lastIndexOf("from"))
     references.push({
-      specifier: match[2],
+      specifieur: match[2],
       typeOnly: /\b(?:import|export)\s+type\b/.test(clause),
     })
   }
@@ -48,7 +48,7 @@ function referencesDeSource(source: string): ReferenceImport[] {
   for (const match of source.matchAll(
     /\bimport\s+(?:\/\*[\s\S]*?\*\/\s*)*(?:type\s+)?(["'`])([^"'`]+)\1/g
   )) {
-    references.push({ specifier: match[2], typeOnly: false })
+    references.push({ specifieur: match[2], typeOnly: false })
   }
 
   // Import dynamique : le premier littéral après `import(` est son module.
@@ -56,29 +56,29 @@ function referencesDeSource(source: string): ReferenceImport[] {
   // les commentaires Webpack/Vite entre le module et la fin de l'appel.
   for (const match of source.matchAll(/\bimport[ \t]*\(/g)) {
     const suite = source.slice((match.index ?? 0) + match[0].length)
-    const specifier = suite.match(
+    const specifieur = suite.match(
       /^(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*?(["'`])([^"'`]+)\1/
     )
-    if (specifier) {
-      references.push({ specifier: specifier[2], typeOnly: false })
+    if (specifieur) {
+      references.push({ specifieur: specifieur[2], typeOnly: false })
     }
   }
 
   return references
 }
 
-function sansExtension(specifier: string): string {
-  return specifier.replace(/\.[cm]?[jt]sx?$/, "")
+function sansExtension(specifieur: string): string {
+  return specifieur.replace(/\.[cm]?[jt]sx?$/, "")
 }
 
-function correspondAuModule(specifier: string, module: string): boolean {
-  const specifierNormalise = sansExtension(specifier).replace(/^@\//, "")
+function correspondAuModule(specifieur: string, module: string): boolean {
+  const specifieurNormalise = sansExtension(specifieur).replace(/^@\//, "")
   const moduleNormalise = sansExtension(module).replace(/^@\//, "")
   if (
-    specifierNormalise === moduleNormalise ||
-    specifierNormalise.startsWith(`${moduleNormalise}/`) ||
+    specifieurNormalise === moduleNormalise ||
+    specifieurNormalise.startsWith(`${moduleNormalise}/`) ||
     (moduleNormalise.split("/").length === 1 &&
-      specifierNormalise.split("/").pop() === moduleNormalise)
+      specifieurNormalise.split("/").pop() === moduleNormalise)
   ) {
     return true
   }
@@ -87,14 +87,14 @@ function correspondAuModule(specifier: string, module: string): boolean {
   // qu'à son dernier segment : `./meili` et `../meili` gardent ainsi le même
   // verrou que `@/lib/meili` pour la couture.
   return (
-    specifierNormalise.startsWith(".") &&
-    specifierNormalise.split("/").pop() === moduleNormalise.split("/").pop()
+    specifieurNormalise.startsWith(".") &&
+    specifieurNormalise.split("/").pop() === moduleNormalise.split("/").pop()
   )
 }
 
 export function importeDe(source: string, module: string): boolean {
-  return referencesDeSource(source).some(({ specifier }) =>
-    correspondAuModule(specifier, module)
+  return referencesDeSource(source).some(({ specifieur }) =>
+    correspondAuModule(specifieur, module)
   )
 }
 
@@ -172,8 +172,22 @@ const EXTENSIONS = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"]
 export type Directive = "use client" | "use server"
 
 /**
- * La directive que la source porte en tête — `"use client"`, `"use server"` —
- * ou `null` si elle n'en porte aucune.
+ * Tout ce qui peut précéder le prologue de directives : espace (bom compris),
+ * ligne de shebang, commentaire de ligne, commentaire de bloc. Le prologue
+ * commence donc au premier caractère qui n'en est pas.
+ */
+const PREAMBULE = /^(?:\s+|#[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\/)*/
+
+/**
+ * La directive que la source **réclame en tête** — `"use client"`,
+ * `"use server"` — ou `null` si elle n'en réclame aucune.
+ *
+ * Seule la première instruction compte, et c'est ce qui distingue une
+ * réclamation d'une chaîne ordinaire : `"use client"` est une directive parce
+ * qu'elle ouvre le fichier, pas parce que le littéral s'y trouve. Un module qui
+ * écrit la chaîne plus bas — dans une chaîne, un commentaire, une comparaison
+ * — ne réclame aucun côté, et une garde qui le lirait client le rangerait à
+ * tort du côté des réécritures RSC.
  *
  * Une garde de frontière se lit sur la directive, jamais sur le nom du
  * dossier ni sur une convention de nommage : un composant serveur rend
@@ -183,9 +197,10 @@ export type Directive = "use client" | "use server"
  * et elle ne le fait que pour les modules qui le réclament.
  */
 export function directive(source: string): Directive | null {
-  if (/^["']use client["']/m.test(source)) return "use client"
-  if (/^["']use server["']/m.test(source)) return "use server"
-  return null
+  const reclamation = source
+    .replace(PREAMBULE, "")
+    .match(/^(["'])(use client|use server)\1/)
+  return (reclamation?.[2] as Directive | undefined) ?? null
 }
 
 /** Le chemin de dépôt qu'un spécifieur désigne, ou `null` s'il vient d'un paquet. */
@@ -202,7 +217,7 @@ export interface EmpruntDeValeur {
   /** Chemin du module emprunté, relatif à la racine du dépôt. */
   chemin: string
   /** Le spécifieur tel qu'il est écrit dans la source emprunteuse. */
-  specifier: string
+  specifieur: string
 }
 
 /**
@@ -228,13 +243,13 @@ export function empruntsDeValeur(
   source: string,
   parChemin: ReadonlyMap<string, SourceProduction>
 ): EmpruntDeValeur[] {
-  return referencesDeSource(source).flatMap(({ specifier, typeOnly }) => {
+  return referencesDeSource(source).flatMap(({ specifieur, typeOnly }) => {
     if (typeOnly) return []
-    const base = cible(chemin, specifier)
+    const base = cible(chemin, specifieur)
     if (base === null) return []
     return EXTENSIONS.map((extension) => `${base}${extension}`)
       .filter((candidat) => parChemin.has(candidat))
-      .map((candidat) => ({ chemin: candidat, specifier }))
+      .map((candidat) => ({ chemin: candidat, specifieur }))
   })
 }
 

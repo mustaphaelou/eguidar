@@ -1,45 +1,20 @@
 // @vitest-environment happy-dom
 
 import { act } from "react"
-import type { ReactElement } from "react"
-import { createRoot } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+import { actionQuiCapture, monterFormulaire } from "@/test/rendu-formulaire"
 
 import {
   DeleteCategoryButton,
   type DeleteCategoryState,
 } from "@/components/admin/delete-category-button"
 
-;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
-
 const SUPPRIMEE = "cat-supprimee"
 const CIBLE = "cat-cible"
 const ENFANT = "cat-enfant"
 
-let container: HTMLDivElement
-const roots: ReturnType<typeof createRoot>[] = []
-
-function render(element: ReactElement) {
-  const root = createRoot(container)
-  roots.push(root)
-  act(() => root.render(element))
-  return root
-}
-
-beforeEach(() => {
-  container = document.createElement("div")
-  document.body.appendChild(container)
-})
-
-afterEach(() => {
-  act(() => {
-    for (const root of roots) root.unmount()
-  })
-  roots.length = 0
-  container.remove()
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
-})
+const rendu = monterFormulaire()
 
 /** La boîte est montée dans un portail : elle vit dans le document, pas dans la ligne. */
 function dialogue() {
@@ -47,7 +22,9 @@ function dialogue() {
 }
 
 function declencheur() {
-  return container.querySelector<HTMLElement>('[data-slot="dialog-trigger"]')
+  return rendu.container.querySelector<HTMLElement>(
+    '[data-slot="dialog-trigger"]'
+  )
 }
 
 /** On ouvre la boîte par un vrai clic sur son déclencheur : sinon rien ne se monte. */
@@ -57,24 +34,6 @@ async function ouvrirDialogue() {
   await act(async () => {
     bouton.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
-  })
-}
-
-/** Le `Select` est piloté comme dans `city-picker.test.tsx` : on ouvre, on clique une option. */
-async function choisirOption(
-  libelleDuSelect: string,
-  libelleDeLOption: string
-) {
-  const declencheurDuSelect = declencheurDontLeLibelleEst(libelleDuSelect)
-  await act(async () => {
-    declencheurDuSelect.click()
-  })
-  const option = [
-    ...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'),
-  ].find((element) => element.textContent === libelleDeLOption)
-  if (!option) throw new Error(`option absente du menu : ${libelleDeLOption}`)
-  await act(async () => {
-    option.click()
   })
 }
 
@@ -93,6 +52,17 @@ function declencheurDontLeLibelleEst(libelle: string): HTMLElement {
   return cible
 }
 
+/** Le `Select` est piloté comme dans `city-picker.test.tsx` : on ouvre, on clique une option. */
+async function choisirOption(
+  libelleDuSelect: string,
+  libelleDeLOption: string
+) {
+  await act(async () => {
+    declencheurDontLeLibelleEst(libelleDuSelect).click()
+  })
+  await rendu.cliquerOption(libelleDeLOption)
+}
+
 /** Le bouton de confirmation de la boîte, reconnu à son libellé. */
 function boutonDeConfirmation() {
   const trouve = [
@@ -100,36 +70,6 @@ function boutonDeConfirmation() {
   ].find((bouton) => bouton.textContent === "Supprimer définitivement")
   if (!trouve) throw new Error("bouton de confirmation absent de la boîte")
   return trouve
-}
-
-/** Le bouton dont le libellé est exactement celui qu'on cherche, ligne d'abord. */
-function boutonDontLeLibelleEst(libelle: string): HTMLButtonElement {
-  const trouve = [
-    ...container.querySelectorAll<HTMLButtonElement>('[data-slot="button"]'),
-  ].find((bouton) => bouton.textContent === libelle)
-  if (!trouve) throw new Error(`bouton absent de la ligne : « ${libelle} »`)
-  return trouve
-}
-
-async function soumettre(form: HTMLFormElement) {
-  await act(async () => {
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  })
-}
-
-function actionQuiCapture() {
-  const soumissions: FormData[] = []
-  const action = vi.fn(
-    async (
-      _previous: DeleteCategoryState,
-      formData: FormData
-    ): Promise<DeleteCategoryState> => {
-      soumissions.push(formData)
-      return {}
-    }
-  )
-  return { soumissions, action }
 }
 
 const CATEGORIES = [
@@ -140,8 +80,8 @@ const CATEGORIES = [
 
 describe("DeleteCategoryButton", () => {
   it("annonce sur sa propre ligne qu'une Structure qui a des sous-catégories ne se supprime pas", () => {
-    const { action } = actionQuiCapture()
-    render(
+    const { action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -154,13 +94,13 @@ describe("DeleteCategoryButton", () => {
 
     // L'éditeur qui balaie la liste doit lire la contrainte sans cliquer : elle
     // est écrite sur la ligne, en toutes lettres.
-    expect(container.textContent).toContain("2 sous-catégories")
-    expect(boutonDontLeLibelleEst("Supprimer").disabled).toBe(true)
+    expect(rendu.container.textContent).toContain("2 sous-catégories")
+    expect(rendu.boutonDontLeLibelleEst("Supprimer").disabled).toBe(true)
   })
 
   it("ouvre, pour une Structure qui a des Produits, une boîte de dialogue qui nomme les comptes et la cible", async () => {
-    const { action } = actionQuiCapture()
-    render(
+    const { action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -183,9 +123,13 @@ describe("DeleteCategoryButton", () => {
     ).not.toBeNull()
   })
 
-  it("supprime une feuille vide sans quitter la page ni passer par une boîte", async () => {
-    const { soumissions, action } = actionQuiCapture()
-    render(
+  it("confirme une feuille vide, sans quitter la page ni passer par une boîte", async () => {
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    // happy-dom ne fournit pas `confirm` : c'est la suite qui en fait l'original
+    // de la suppression, et qui le decline d'abord.
+    const confirme = vi.fn(() => false)
+    vi.stubGlobal("confirm", confirme)
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -196,11 +140,25 @@ describe("DeleteCategoryButton", () => {
       />
     )
 
-    // Rien à confirmer : une feuille vide ne emporte personne.
+    // Rien à choisir, donc rien à montrer dans une boîte — mais la suppression
+    // reste définitive, et elle se demande. Un `confirm()` ne quitte pas la page.
     expect(declencheur()).toBeNull()
-    expect(boutonDontLeLibelleEst("Supprimer").disabled).toBe(false)
+    expect(rendu.boutonDontLeLibelleEst("Supprimer").disabled).toBe(false)
 
-    await soumettre(container.querySelector<HTMLFormElement>("form")!)
+    await rendu.soumettre(
+      rendu.container.querySelector<HTMLFormElement>("form")!
+    )
+
+    // Refusé : rien n'est écrit, et l'éditeur peut encore revenir en arrière.
+    expect(confirme).toHaveBeenCalledWith(
+      "Supprimer « Structure à supprimer » ? Cette action est définitive."
+    )
+    expect(soumissions).toHaveLength(0)
+
+    confirme.mockReturnValue(true)
+    await rendu.soumettre(
+      rendu.container.querySelector<HTMLFormElement>("form")!
+    )
 
     expect(soumissions).toHaveLength(1)
     expect(soumissions[0]!.get("categoryId")).toBe(SUPPRIMEE)
@@ -208,8 +166,8 @@ describe("DeleteCategoryButton", () => {
   })
 
   it("n'écrit rien tant que l'éditeur n'a pas confirmé dans la boîte", async () => {
-    const { soumissions, action } = actionQuiCapture()
-    render(
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -227,14 +185,14 @@ describe("DeleteCategoryButton", () => {
     )
     expect(soumissions).toHaveLength(0)
 
-    await soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
 
     expect(soumissions).toHaveLength(1)
   })
 
-  it("refuse de confirmer une Structure à sous-catégories tant qu'aucun Recueil n'est choisi", async () => {
-    const { soumissions, action } = actionQuiCapture()
-    render(
+  it("refuse de confirmer une Structure à sous-catégories tant qu'aucune Structure d'accueil n'est choisie", async () => {
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -255,16 +213,16 @@ describe("DeleteCategoryButton", () => {
       "Déplacer les sous-catégories vers",
       "Déplacer les sous-catégories vers Structure cible"
     )
-    await soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
 
     expect(soumissions).toHaveLength(1)
     expect(soumissions[0]!.get("reparentChildrenToCategoryId")).toBe(CIBLE)
     expect(soumissions[0]!.has("reassignToCategoryId")).toBe(false)
   })
 
-  it("n'offre pas comme Recueil une Structure qui descend de celle qu'on supprime", async () => {
-    const { action } = actionQuiCapture()
-    render(
+  it("n'offre pas comme Structure d'accueil une Structure qui descend de celle qu'on supprime", async () => {
+    const { action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -294,8 +252,8 @@ describe("DeleteCategoryButton", () => {
   })
 
   it("ne soumet aucune cible de réaffectation quand aucune Structure n'est choisie", async () => {
-    const { soumissions, action } = actionQuiCapture()
-    render(
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -307,15 +265,15 @@ describe("DeleteCategoryButton", () => {
     )
 
     await ouvrirDialogue()
-    await soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
 
     expect(soumissions).toHaveLength(1)
     expect(soumissions[0]!.has("reassignToCategoryId")).toBe(false)
   })
 
   it("soumet la Structure cible que l'éditeur a choisie pour les Produits", async () => {
-    const { soumissions, action } = actionQuiCapture()
-    render(
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -331,15 +289,15 @@ describe("DeleteCategoryButton", () => {
       "Déplacer les produits vers",
       "Déplacer les produits vers Structure cible"
     )
-    await soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
 
     expect(soumissions).toHaveLength(1)
     expect(soumissions[0]!.get("reassignToCategoryId")).toBe(CIBLE)
   })
 
   it("retire la cible soumise quand l'éditeur choisit « Bloquer — produits rattachés »", async () => {
-    const { soumissions, action } = actionQuiCapture()
-    render(
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"
@@ -359,7 +317,7 @@ describe("DeleteCategoryButton", () => {
       "Déplacer les produits vers",
       "Bloquer — produits rattachés"
     )
-    await soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
 
     expect(soumissions).toHaveLength(1)
     expect(soumissions[0]!.has("reassignToCategoryId")).toBe(false)
@@ -368,8 +326,8 @@ describe("DeleteCategoryButton", () => {
   it("annonce quand aucune Structure cible n'est choisie", async () => {
     // « Bloquer — produits rattachés » reste lisible tant qu'aucune cible n'est
     // choisie : l'absence de cible ne doit pas laisser le sélecteur vide.
-    const { action } = actionQuiCapture()
-    render(
+    const { action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
         categoryName="Structure à supprimer"

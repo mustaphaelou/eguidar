@@ -122,10 +122,7 @@ async function makeCategory(slugSuffix: string, parentId?: string) {
 // chaque suite balise ses lignes pour que son nettoyage ne touche jamais
 // celles d'une autre suite qui tourne sur la même base. La forme est donc
 // copiée à dessein : un préfixe partagé couplerait les deux espaces de noms.
-async function reinitialiser() {
-  sessionCouranteMock.mockReset()
-  sessionCouranteMock.mockResolvedValue(ADMIN)
-  reindexProductsMock.mockClear()
+async function balayer() {
   await prisma.product.deleteMany({
     where: { slug: { startsWith: `prod-act-${runId}-` } },
   })
@@ -134,13 +131,12 @@ async function reinitialiser() {
   })
 }
 
-async function balayer() {
-  await prisma.product.deleteMany({
-    where: { slug: { startsWith: `prod-act-${runId}-` } },
-  })
-  await prisma.category.deleteMany({
-    where: { slug: { startsWith: `cat-act-${runId}-` } },
-  })
+/** Le même balayage, plus les deux mocks remis à zéro entre deux cas. */
+async function reinitialiser() {
+  sessionCouranteMock.mockReset()
+  sessionCouranteMock.mockResolvedValue(ADMIN)
+  reindexProductsMock.mockClear()
+  await balayer()
 }
 
 describe("createCategoryAction", () => {
@@ -258,15 +254,15 @@ describe("deleteCategoryAction", () => {
     ])
   })
 
-  it("rattache les sous-catégories au Recueil choisi puis supprime la Structure", async () => {
+  it("rattache les sous-catégories à la Structure d'accueil choisie puis supprime la Structure", async () => {
     const structure = await makeCategory("avec-enfants")
     const enfant = await makeCategory("enfant-a-deplacer", structure.id)
-    const recueil = await makeCategory("recueil")
+    const accueil = await makeCategory("accueil")
 
     await expect(
       deleteCategoryAction(
         {},
-        deleteFormData(structure.id, undefined, recueil.id)
+        deleteFormData(structure.id, undefined, accueil.id)
       )
     ).resolves.toEqual({})
 
@@ -275,10 +271,10 @@ describe("deleteCategoryAction", () => {
     ).resolves.toBeNull()
     await expect(
       prisma.category.findUnique({ where: { id: enfant.id } })
-    ).resolves.toMatchObject({ parentId: recueil.id })
+    ).resolves.toMatchObject({ parentId: accueil.id })
   })
 
-  it("refuse encore une Structure qui a des sous-catégories quand le formulaire n'envoie aucun Recueil", async () => {
+  it("refuse encore une Structure qui a des sous-catégories quand le formulaire n'envoie aucune Structure d'accueil", async () => {
     const structure = await makeCategory("mur-de-sous-categories")
     const enfant = await makeCategory("enfant-qui-reste", structure.id)
 
@@ -288,8 +284,7 @@ describe("deleteCategoryAction", () => {
     )
 
     expect(resultat).toEqual({
-      error:
-        "Impossible de supprimer : la catégorie contient des sous-catégories",
+      error: "Refus de la Structure : elle contient des sous-catégories",
     })
     await expect(
       prisma.category.findUnique({ where: { id: structure.id } })
