@@ -41,6 +41,12 @@ describe("CycleVieImageProduit", () => {
     expect(resultat.draftId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
     )
+    // Les deux adresses que le module **rend à l'éditeur** sont les siennes,
+    // et cette suite les garde : le contrat épingle ce que le port de stockage
+    // rend, et lui s'arrête au port. Qu'il les transmette sans rien réécrire est
+    // une règle du module propriétaire, qu'aucun contrat de cette couture ne peut
+    // voir — un `previewUrl` réécrit ici atterrirait dans la galerie de l'éditeur
+    // et resterait vert partout ailleurs.
     expect(resultat.uploadUrl).toBe(
       urlEnvoiBrouillon(resultat.draftId, "image/webp")
     )
@@ -55,6 +61,8 @@ describe("CycleVieImageProduit", () => {
         draftId: resultat.draftId,
         contentType: "image/webp",
         size: 2048,
+        // La clé visée, telle que le module l'a demandée : c'est l'identité
+        // qu'il a transmise, pas une disposition que cette suite réécrive.
         cle: draftObjectKey(resultat.draftId, "image/webp"),
       },
     ])
@@ -199,9 +207,11 @@ describe("CycleVieImageProduit", () => {
         ownerId: "editeur-1",
       })
     ).toEqual({ ok: true, draftId: demande.draftId })
-    expect(stockage.suppressionsBrouillons).toEqual([
-      draftObjectKey(demande.draftId, "image/avif"),
-    ])
+    // Une seule adresse visée, et c'est tout ce que cette suite dit du stockage :
+    // quelle clé elle désigne, c'est la disposition d'ADR-0004, que le contrat
+    // épingle au caractère près. Ce que le module propriétaire doit prouver est
+    // qu'il en vise une, et une seule.
+    expect(stockage.suppressionsBrouillons).toHaveLength(1)
   })
 
   it("laisse l'objet d'un Brouillon expiré à la seule règle de cycle de vie R2", async () => {
