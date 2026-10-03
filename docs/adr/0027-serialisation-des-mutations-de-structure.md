@@ -252,7 +252,8 @@ tranché, et rien de plus.
 - **Ce que la tranche ne ferme pas.** L'attente que le verrou grossier lui-même impose n'est pas
   bornée par ce `lock_timeout`, qui le suit : elle reste bornée par le délai de Prisma, et son
   dépassement reste une erreur de lecteur. Changer l'ordre des deux instructions — le délai avant
-  le verrou — est une autre décision, et ce n'est pas celle-ci.
+  le verrou — est une autre décision, et ce n'est pas celle-ci. **Elle a été prise depuis**, et
+  l'amendement ci-dessous dit ce qu'elle a fermé.
 
 ### Le piège que le verrou grossier ouvre, et qui n'existait pas
 
@@ -290,3 +291,53 @@ appartenant à un superutilisateur — `session_replication_role = 'replica'` é
 sans déclencher la clé étrangère, donc sans prendre le `FOR KEY SHARE` que le verrou grossier
 attend. C'est aussi la seule façon, sous READ COMMITTED, de faire tomber la contrainte : une
 course honnête est sérialisée par le verrou avant d'y jamais arriver.
+
+## Amendement — L'ordre des deux instructions est inversé (#487)
+
+La décision prescrit « `SELECT … FROM "Category" FOR UPDATE`, en SQL brut, première instruction de la
+transaction de chaque mutation de Structure », puis « `SET LOCAL lock_timeout` suit immédiatement le
+verrou ». Cet ordre-là borne tout sauf la plus longue des attentes : celle du verrou grossier, qui
+précède toutes les autres et se heurte à toute mutation déjà en cours. Le délai suit l'attente qu'il
+devait couper, et l'attente retombait sur le délai de Prisma — 5 000 ms, puis une `P2028`, c'est-à-dire
+une erreur de lecteur.
+
+**Le délai s'arme désormais avant tout verrou**, et `verrouillerStructure` le pose en premier. Poser
+un réglage ne prend aucun verrou : le premier verrou pris reste le verrou grossier, la sérialisation
+reste entière, et cette attente comme toutes les autres tombe sous le même délai.
+
+- **Deux phrases de la décision sont devenues fausses** : « première instruction de la transaction
+  de chaque mutation de Structure » et « `SET LOCAL lock_timeout` suit immédiatement le verrou ».
+  La première n'est plus exacte — le `set_config` passe avant, et le `FOR UPDATE` est la première
+  instruction **qui verrouille** ; la seconde est inversée. Aucune ligne de la décision n'est
+  changée ici, comme le veut la convention du fichier ; ce sont ces deux phrases qu'il faut lire
+  ensemble avec le présent amendement.
+
+- **Ce que l'inversion couvre, et qui n'était pas vrai de l'ordre qu'elle remplace.** La phrase
+  « la forme que [`#488`](https://github.com/eloaurdi/eguidar/issues/488) et
+  [`#489`](https://github.com/eloaurdi/eguidar/issues/489) devront employer » est fausse pour
+  [`#488`](https://github.com/eloaurdi/eguidar/issues/488) : cette tranche est livrée, elle n'a pas
+  employé la forme qu'elle fixe. Elle reste vraie pour
+  [`#489`](https://github.com/eloaurdi/eguidar/issues/489), et `createCategory` prendra l'inversion
+  en même temps que le verrou, qu'elle ne prend toujours pas. Le verrou grossier étant pris par un
+  seul `verrouillerStructure`, l'inversion vaut déjà pour `updateCategory` : elle n'a pas été choisie
+  par la tranche de suppression, elle s'est imposée à toutes les autres.
+
+- **Ce que l'inversion ne referme pas.** Elle borne **toute attente de verrou** de la transaction,
+  et plus rien d'autre. La marche d'acyclicité ne prend aucun verrou : le troisième piège nommé
+  ci-dessus reste entier, et un cycle déjà présent fait toujours tourner la marche jusqu'au délai de
+  Prisma. La garantie de sérialisation est totale ; l'attente qu'elle produit ne l'est pas.
+
+### Ce que l'inversion prouve
+
+Joué contre le même PostgreSQL : une Tierce partie tient le verrou grossier sans le rendre, et la
+suppression part. L'épreuve attend le signal de la Tierce partie — le chronomètre ne commence pas
+avant que le verrou soit réellement tenu.
+
+| Ordre                 | Éprouvé par                                                      | Constat mesuré                                                                              |
+| --------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| délai après le verrou | aucune suite — observé sur l'ordre que cet amendement remplace   | au-delà du délai, la suppression **attend encore** ; elle ne s'arrête qu'au délai de Prisma |
+| délai avant le verrou | [`admin-structure.test.ts`](../lib/use-cases/admin-structure.test.ts) | refus à `55P03` au bout de **1 021 ms**, source intacte, aucun effet parti                  |
+
+La première ligne n'est pas éprouvée par une suite, et il ne faut pas le dire autrement : le code
+qui la produisait n'existe plus. Seule la seconde a un test, et c'est celle qui doit en avoir un :
+elle éprouve seule un délai qui ne s'arme pas avant le verrou.

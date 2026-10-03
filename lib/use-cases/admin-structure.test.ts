@@ -154,6 +154,37 @@ function retenirTransaction(
   return { transaction, liberer }
 }
 
+/**
+ * Attendre qu'un signal soit posé, plutôt que dormir un temps arbitraire.
+ *
+ * Une épreuve de contention ne peut pas supposer qu'une transaction tierce a
+ * pris son verrou après un sommeil fixe : sur une machine lente, la tierce peut
+ * n'être pas encore verrouillée quand la mutation part, et l'épreuve mesure
+ * alors autre chose que la contention — ou rate son verrou et se croit bornée
+ * par le délai alors qu'elle ne l'a jamais attendu. Attendre le signal rend
+ * l'épreuve honnête sur une machine lente comme sur une machine rapide.
+ */
+function attendreQue(acquis: () => boolean): Promise<void> {
+  return new Promise((resolve) => {
+    const verifier = () => (acquis() ? resolve() : setTimeout(verifier, 10))
+    verifier()
+  })
+}
+
+/**
+ * Le refus qu'une promesse rend, ou `undefined` si elle réussit.
+ *
+ * La forme est la même partout — `then` sur les deux voies — pour qu'une épreuve
+ * dise toujours la même chose de l'issue : ce qu'elle a reçue, refus compris,
+ * et non ce qu'elle a dû rattraper pour la voir.
+ */
+function refusDe(promesse: Promise<unknown>): Promise<unknown> {
+  return promesse.then(
+    () => undefined,
+    (error: unknown) => error
+  )
+}
+
 describe("admin structure mutations — categories", () => {
   beforeEach(async () => {
     await prisma.product.deleteMany({
@@ -553,11 +584,7 @@ describe("admin structure mutations — categories", () => {
       }
     )
     // Attendre que la tierce tienne le verrou avant de lancer la modification.
-    await new Promise<void>((resolve) => {
-      const verifier = () =>
-        tierceVerrouillee ? resolve() : setTimeout(verifier, 10)
-      verifier()
-    })
+    await attendreQue(() => tierceVerrouillee)
 
     const effets = effectSpies()
     const modification = updateCategory(
@@ -1004,7 +1031,8 @@ describe("admin structure mutations — categories", () => {
     // Une transaction tierce insère un Produit fantôme sur la Structure
     // source et retient son commit : cette insertion non committée tient un
     // verrou `FOR KEY SHARE` sur la source, que le verrou grossier attend —
-    // c'est sa première instruction.
+    // en première instruction qui verrouille, le `set_config` du délai n'en
+    // prenant aucun.
     const { transaction, liberer } = retenirTransaction((tx) =>
       tx.product.create({
         data: {
@@ -1131,13 +1159,8 @@ describe("admin structure mutations — categories", () => {
     )
     await attendre(150)
 
-    const refus: unknown = await deleteCategory(
-      category.id,
-      { reassignToCategoryId: target.id },
-      effets
-    ).then(
-      () => undefined,
-      (error: unknown) => error
+    const refus: unknown = await refusDe(
+      deleteCategory(category.id, { reassignToCategoryId: target.id }, effets)
     )
     liberer()
     await transaction
@@ -1295,15 +1318,61 @@ describe("admin structure mutations — categories", () => {
 
     // L'erreur reste celle du Catalogue : une erreur de lecteur, que la
     // Structure ne prend pas pour elle.
-    const refus: unknown = await insertion.then(
-      () => undefined,
-      (error: unknown) => error
-    )
+    const refus: unknown = await refusDe(insertion)
     expect(refus).toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
     expect(refus).not.toBeInstanceOf(UserFacingError)
     await expect(
       prisma.product.findUnique({ where: { slug: productSlug("symetrique") } })
     ).resolves.toBeNull()
+  })
+
+  it("borne au délai l'attente du verrou grossier lui-même", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-borne") })
+    )
+
+    // La Tierce partie prend le verrou grossier et ne le rend pas : c'est
+    // l'attente que le verrou lui-même imposait, celle qu'aucun `lock_timeout`
+    // placé après ne pouvait couper. Elle doit donc se couper ici, comme les
+    // autres. Ce n'est pas un sommeil qui dit que la Tierce partie tient le
+    // verrou, c'est son signal : une tierce lente ne doit pas faire éprouver
+    // une attente qui n'a pas eu lieu.
+    let tierceVerrouillee = false
+    const { transaction, liberer } = retenirTransaction(
+      async (tx, liberation) => {
+        await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
+        tierceVerrouillee = true
+        await liberation
+      }
+    )
+    await attendreQue(() => tierceVerrouillee)
+
+    const suppression = deleteCategory(category.id, {}, effets)
+    suppression.catch(() => {})
+    // Le refus doit tomber dans le délai, pas après : l'épreuve distingue donc
+    // « encore en attente du verrou » de « refusée », sans rien présumer du
+    // chemin qui l'a produit.
+    try {
+      const refus = await Promise.race([
+        refusDe(suppression),
+        attendre(DELAI_VERROU_STRUCTURE_MS + 400).then(() => "en attente"),
+      ])
+      // Un refus de la Structure, jamais une erreur de lecteur : c'est ce qui
+      // fait que `adminFormAction` le rend au lieu de le relancer.
+      expect(refus).toBeInstanceOf(CategoryBusyError)
+      expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    } finally {
+      liberer()
+      await transaction
+    }
+
+    // Rien n'a été écrit, et la Structure est toujours là : c'est un refus de
+    // contention, pas une suppression.
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
+    expectNoEffects(effets)
   })
 
   it("coupe au délai de verrou le cycle que l'ordre inverse des verrous pourrait former", async () => {

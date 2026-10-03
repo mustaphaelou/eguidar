@@ -196,17 +196,22 @@ function mapCourseDeStructure(error: unknown): never {
  * prendra encore, avec la transaction qu'elle gagnera en
  * [#489](https://github.com/eloaurdi/eguidar/issues/489).
  *
- * Le `lock_timeout` suit immédiatement le verrou et borne chaque verrou pris
- * ensuite dans la transaction. `set_config(..., true)` *est* le `SET LOCAL`
- * qu'ADR-0027 nomme ; il est écrit ainsi parce que PostgreSQL n'accepte pas de
- * paramètre dans un `SET`, et que Prisma envoie toute requête `$queryRaw`
- * préparée.
+ * Le délai s'arme **avant** le verrou, et c'est l'inversion d'ADR-0027 qu'elle
+ * corrige : pris après, il ne bornait que les verrous suivants et laissait
+ * l'attente du verrou grossier — la plus longue, celle qui précède toutes les
+ * autres — à la seule bonne volonté de Prisma. Armé avant, il borne celle-là
+ * aussi, et le premier verrou pris reste le verrou grossier. Poser un réglage
+ * ne prend aucun verrou : l'ordre ne coûte donc rien.
+ *
+ * `set_config(..., true)` *est* le `SET LOCAL` qu'ADR-0027 nomme ; il est écrit
+ * ainsi parce que PostgreSQL n'accepte pas de paramètre dans un `SET`, et que
+ * Prisma envoie toute requête `$queryRaw` préparée.
  */
 async function verrouillerStructure(
   tx: Prisma.TransactionClient
 ): Promise<void> {
-  await tx.$queryRaw`SELECT id FROM "Category" FOR UPDATE`
   await tx.$queryRaw`SELECT set_config('lock_timeout', ${`${DELAI_VERROU_STRUCTURE_MS}ms`}, true)`
+  await tx.$queryRaw`SELECT id FROM "Category" FOR UPDATE`
 }
 
 const slugSchema = z
@@ -345,12 +350,12 @@ export async function updateCategory(
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
 
-  // Une seule mutation atomique et sérialisée, comme la suppression : le verrou
-  // grossier prend tout l'arbre en première instruction, puis la lecture de la
-  // Structure, la marche d'acyclicité et l'écriture partagent une même
-  // transaction — la vérification d'acyclicité lit et écrit dans un seul
-  // engagement, et deux modifications de Structure ne s'entrelacent jamais
-  // (ADR-0027).
+  // Une seule mutation atomique et sérialisée, comme la suppression : le délai
+  // de verrou s'arme, puis le verrou grossier prend tout l'arbre en première
+  // instruction qui verrouille, avant la lecture de la Structure, la marche
+  // d'acyclicité et l'écriture, qui partagent une même transaction — la
+  // vérification d'acyclicité lit et écrit dans un seul engagement, et deux
+  // modifications de Structure ne s'entrelacent jamais (ADR-0027).
   let resultat: { category: Category; image: string | null }
   try {
     resultat = await prisma.$transaction(async (tx) => {
@@ -424,13 +429,14 @@ export async function deleteCategory(
   const reassignToCategoryId = options.reassignToCategoryId
   const reparentChildrenToCategoryId = options.reparentChildrenToCategoryId
 
-  // Une seule mutation atomique et sérialisée : le verrou grossier prend tout
-  // l'arbre en première instruction, puis la lecture propre à la suppression,
-  // les validations de réaffectation, le déplacement des Produits, le
-  // réattribut des sous-catégories, leur projeté indexable et la suppression de
-  // la Structure source partagent une même transaction. Un échec de la
-  // suppression finale annule donc la réaffectation — la base fait foi
-  // (ADR-0014) — et deux suppressions ne s'entrelacent jamais (ADR-0027).
+  // Une seule mutation atomique et sérialisée : le délai de verrou s'arme,
+  // puis le verrou grossier prend tout l'arbre en première instruction qui
+  // verrouille, avant la lecture propre à la suppression, les validations de
+  // réaffectation, le déplacement des Produits, le réattribut des
+  // sous-catégories, leur projeté indexable et la suppression de la Structure
+  // source — tout cela dans une même transaction. Un échec de la suppression
+  // finale annule donc la réaffectation — la base fait foi (ADR-0014) — et deux
+  // suppressions ne s'entrelacent jamais (ADR-0027).
   let resultat: { image: string | null; movedProducts: IndexableProduct[] }
   try {
     resultat = await prisma.$transaction(async (tx) => {
