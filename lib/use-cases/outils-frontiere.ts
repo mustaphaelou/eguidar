@@ -14,7 +14,11 @@ import { fileURLToPath } from "node:url"
  * fait le même parcours en y prenant aussi les suites de test, quand la
  * règle vaut pour la recette comme pour la production ; `atteignables` suit
  * les imports de valeur de module en module, pour verrouiller ce qu'une
- * surface cliente atteint vraiment et non ce qu'elle importe en un seul saut.
+ * surface cliente atteint vraiment et non ce qu'elle importe en un seul saut ;
+ * `directive` dit de quel côté de la frontière une source se réclame, et
+ * `empruntsDeValeur` liste ce qu'elle emprunte *pour sa valeur* — l'inverse
+ * d'`importeDe`, qui voit les imports de type comme les autres et ne peut
+ * donc pas fonder une garde qui les laisse passer.
  */
 export function lire(depuis: string, relatif: string): string {
   return readFileSync(new URL(relatif, depuis), "utf8")
@@ -164,15 +168,24 @@ export function sourcesToutes(
 /** Les extensions qu'un spécifieur sans extension peut désigner. */
 const EXTENSIONS = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"]
 
-function estServeur(source: string): boolean {
-  return /^["']use server["']/m.test(source)
-}
+/** Le côté de la frontière qu'une source réclame par sa directive. */
+export type Directive = "use client" | "use server"
 
-/** Les spécifieurs importés pour leur valeur — imports de type exclus. */
-function importations(source: string): string[] {
-  return referencesDeSource(source)
-    .filter(({ typeOnly }) => !typeOnly)
-    .map(({ specifier }) => specifier)
+/**
+ * La directive que la source porte en tête — `"use client"`, `"use server"` —
+ * ou `null` si elle n'en porte aucune.
+ *
+ * Une garde de frontière se lit sur la directive, jamais sur le nom du
+ * dossier ni sur une convention de nommage : un composant serveur rend
+ * volontairement des composants clients, et une garde écrite sur « tout fichier
+ * qui n'est pas client » s'allumerait sur ces imports-là, qui sont justes.
+ * Ce que la transformation RSC réécrit, c'est ce qu'un module *client* exporte,
+ * et elle ne le fait que pour les modules qui le réclament.
+ */
+export function directive(source: string): Directive | null {
+  if (/^["']use client["']/m.test(source)) return "use client"
+  if (/^["']use server["']/m.test(source)) return "use server"
+  return null
 }
 
 /** Le chemin de dépôt qu'un spécifieur désigne, ou `null` s'il vient d'un paquet. */
@@ -184,20 +197,57 @@ function cible(depuis: string, specifieur: string): string | null {
   )
 }
 
+/** Un module emprunté pour sa valeur, et le spécifieur qui l'emprunte. */
+export interface EmpruntDeValeur {
+  /** Chemin du module emprunté, relatif à la racine du dépôt. */
+  chemin: string
+  /** Le spécifieur tel qu'il est écrit dans la source emprunteuse. */
+  specifier: string
+}
+
+/**
+ * Les modules que `source` emprunte **pour leur valeur**, résolus vers des
+ * chemins de dépôt présents dans `parChemin`.
+ *
+ * C'est le complément d'`importeDe`, qui voit un import de type comme un
+ * import de valeur : `referencesDeSource` distingue bien la clause
+ * `import type`, `importeDe` jette cette information. Une garde qui doit
+ * laisser passer l'emprunt de type — la frontière client/serveur ne se
+ * traverse qu'en types, un `import type` étant effacé à la compilation —
+ * n'a donc rien à faire d'`importeDe` et fait ici son instruction. Le
+ * spécifieur est rendu avec le chemin résolu : une violation se signale par
+ * la ligne que le lecteur doit corriger, pas par un chemin déjà normalisé
+ * qu'il ne reconnaîtrait pas.
+ *
+ * Même filtre que `atteignables`, mêmes arrêts : un spécifieur de paquet est
+ * ignoré, faute de source dans le dépôt, et un module absent du parcours est
+ * ignoré comme résolu trop bas.
+ */
+export function empruntsDeValeur(
+  chemin: string,
+  source: string,
+  parChemin: ReadonlyMap<string, SourceProduction>
+): EmpruntDeValeur[] {
+  return referencesDeSource(source).flatMap(({ specifier, typeOnly }) => {
+    if (typeOnly) return []
+    const base = cible(chemin, specifier)
+    if (base === null) return []
+    return EXTENSIONS.map((extension) => `${base}${extension}`)
+      .filter((candidat) => parChemin.has(candidat))
+      .map((candidat) => ({ chemin: candidat, specifier }))
+  })
+}
+
 /** Les voisins de valeur d'un module, résolus et présents dans le dépôt. */
 function voisins(
   chemin: string,
   parChemin: ReadonlyMap<string, SourceProduction>
 ): string[] {
   const source = parChemin.get(chemin)
-  if (!source || estServeur(source.source)) return []
-  return importations(source.source).flatMap((specifieur) => {
-    const base = cible(chemin, specifieur)
-    if (base === null) return []
-    return EXTENSIONS.map((extension) => `${base}${extension}`).filter(
-      (candidat) => parChemin.has(candidat)
-    )
-  })
+  if (!source || directive(source.source) === "use server") return []
+  return empruntsDeValeur(chemin, source.source, parChemin).map(
+    (emprunt) => emprunt.chemin
+  )
 }
 
 /**
