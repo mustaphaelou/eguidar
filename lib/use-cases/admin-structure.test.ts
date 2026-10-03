@@ -56,6 +56,17 @@ interface ReleveEffet {
   categorieDuProduit: string | null
 }
 
+/**
+ * Ce qu'un effet observe de la base quand la suppression a réattribué les
+ * sous-catégories : la source doit déjà être absente et l'enfant déjà porté par
+ * la Structure d'accueil choisie.
+ */
+interface ReleveReattribution {
+  effet: string
+  structureSourcePresente: boolean
+  parenteEnfant: string | null
+}
+
 function makeCategoryInput(
   overrides: Partial<CategoryInput> = {}
 ): CategoryInput {
@@ -562,6 +573,147 @@ describe("admin structure mutations — categories", () => {
       }),
     ])
     expect(revalidateCategories).toHaveBeenCalled()
+  })
+
+  it("rattache les sous-catégories à la Structure d'accueil choisie avant de supprimer la Structure source", async () => {
+    const reindexProducts = vi.fn()
+    const revalidateCategories = vi.fn()
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-parent") })
+    )
+    const accueil = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-accueil") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("rep-enfant"),
+        parentId: parent.id,
+      })
+    )
+
+    await deleteCategory(
+      parent.id,
+      { reparentChildrenToCategoryId: accueil.id },
+      { reindexProducts, revalidateCategories }
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: parent.id } })
+    ).resolves.toBeNull()
+    // L'enfant survit, sous une autre parente : c'est l'éditeur qui l'a voulu.
+    await expect(
+      prisma.category.findUniqueOrThrow({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: accueil.id })
+    // Un document indexé ne porte que la catégorie de son Produit : déplacer
+    // une sous-catégorie ne réécrit donc aucun document, et n'appelle pas
+    // Meilisearch.
+    expect(reindexProducts).not.toHaveBeenCalled()
+    expect(revalidateCategories).toHaveBeenCalled()
+  })
+
+  it("ne déplace les sous-catégories qu'après le commit, quand les effets partent", async () => {
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-post-commit") })
+    )
+    const accueil = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-post-commit-accueil") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("rep-post-commit-enfant"),
+        parentId: parent.id,
+      })
+    )
+
+    const releves: ReleveReattribution[] = []
+    const relever = async (effet: string) => {
+      const source = await prisma.category.findUnique({
+        where: { id: parent.id },
+      })
+      const deplace = await prisma.category.findUnique({
+        where: { id: enfant.id },
+      })
+      releves.push({
+        effet,
+        structureSourcePresente: source !== null,
+        parenteEnfant: deplace?.parentId ?? null,
+      })
+    }
+    const revalidateCategories = vi.fn(async () => {
+      await relever("invalidation")
+    })
+
+    await deleteCategory(
+      parent.id,
+      { reparentChildrenToCategoryId: accueil.id },
+      { revalidateCategories, deleteImage: vi.fn(), reindexProducts: vi.fn() }
+    )
+
+    expect(releves).toEqual([
+      {
+        effet: "invalidation",
+        structureSourcePresente: false,
+        parenteEnfant: accueil.id,
+      },
+    ])
+  })
+
+  it("refuse de rattacher les sous-catégories à l'une d'elles, sans écriture ni effet", async () => {
+    const effets = effectSpies()
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-descendante") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("rep-descendante-enfant"),
+        parentId: parent.id,
+      })
+    )
+
+    await verifierRefusValidation(CategoryValidationError, () =>
+      deleteCategory(
+        parent.id,
+        { reparentChildrenToCategoryId: enfant.id },
+        effets
+      )
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: parent.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.category.findUnique({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: parent.id })
+    expectNoEffects(effets)
+  })
+
+  it("refuse de rattacher les sous-catégories à une Structure d'accueil inconnue, sans écriture ni effet", async () => {
+    const effets = effectSpies()
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-inconnu") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("rep-inconnu-enfant"),
+        parentId: parent.id,
+      })
+    )
+
+    await verifierRefusValidation(CategoryValidationError, () =>
+      deleteCategory(
+        parent.id,
+        { reparentChildrenToCategoryId: "unknown" },
+        effets
+      )
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: parent.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.category.findUnique({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: parent.id })
+    expectNoEffects(effets)
   })
 
   it("ne déclenche les effets de la suppression qu'après le commit, dans leur ordre", async () => {
