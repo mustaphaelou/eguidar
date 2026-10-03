@@ -240,7 +240,7 @@ const adaptateurs: readonly AdaptateurStockage[] = [
 ]
 
 describe("stockage des Images produit — contrat des deux adaptateurs", () => {
-  it("le contrat atteint tous les échecs que le port sait exprimer", async () => {
+  it("le contrat atteint tous les échecs que le port sait exprimer, sur chaque adaptateur", async () => {
     // Témoin de non-vacuité : un contrat où les deux adaptateurs refuseraient
     // la même chose, ou ne refuseraient jamais, passerait aussi facilement
     // qu'un contrat juste. Le port déclare `CodeEchecStockage` ; on vérifie que
@@ -248,22 +248,33 @@ describe("stockage des Images produit — contrat des deux adaptateurs", () => {
     // code — `tsc` refuse donc déjà qu'un code y manque, avant même que cette
     // suite le cherche dans les observations.
     //
-    // Le rejeu ne se fait que sur la référence : le témoin mesure ce que le
-    // contrat **atteint**, pas ce que les deux adaptateurs s'accordent à
-    // taire ensemble.
-    const atteints: string[] = []
-    for (const scenario of SCENARIOS_STOCKAGE) {
-      const [observation] = await exigerEnteteStockage(
-        scenario,
-        [stockageProduction],
-        IDENTITE
-      )
-      atteints.push(...codesEchec(observation))
+    // **Chaque adaptateur est mesuré seul.** La raison que le rejeu se fasse
+    // sur les deux était bonne — le témoin mesure le vocabulaire du port, pas
+    // ce que deux adaptateurs s'accordent à taire ensemble — mais elle ne
+    // survivait pas à sa propre objection : en ne rejouant que la référence, elle
+    // laissait un code que la fiction cesse d'atteindre invisible à un témoin
+    // dont le métier est le vocabulaire du port. Elle vérifie donc la même
+    // égalité une fois par adaptateur, et chacune doit tenir seule : deux
+    // adaptateurs qui perdent le même code au même endroit font échouer le
+    // témoin deux fois.
+    const atteintsParAdaptateur: string[][] = []
+    for (const adaptateur of adaptateurs) {
+      const atteints: string[] = []
+      for (const scenario of SCENARIOS_STOCKAGE) {
+        const [observation] = await exigerEnteteStockage(
+          scenario,
+          [adaptateur],
+          IDENTITE
+        )
+        atteints.push(...codesEchec(observation))
+      }
+      atteintsParAdaptateur.push(atteints)
     }
 
-    expect([...new Set(atteints)].sort()).toEqual(
-      Object.keys(CODES_ECHEC_CONTRAT).sort()
-    )
+    const attendus = Object.keys(CODES_ECHEC_CONTRAT).sort()
+    for (const atteints of atteintsParAdaptateur) {
+      expect([...new Set(atteints)].sort()).toEqual(attendus)
+    }
   })
 
   it("le contrat aperçoit une divergence que deux suites d'adaptateur laisseraient passer", async () => {
