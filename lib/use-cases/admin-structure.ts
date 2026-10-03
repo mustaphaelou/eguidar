@@ -155,7 +155,8 @@ async function assertCategoryParent(
 
 async function assertAcyclicCategoryTree(
   id: string,
-  parentId: string | null | undefined
+  parentId: string | null | undefined,
+  client: Prisma.TransactionClient = prisma
 ): Promise<void> {
   if (!parentId) return
   if (parentId === id) {
@@ -171,7 +172,7 @@ async function assertAcyclicCategoryTree(
       ])
     }
     const parent: { parentId: string | null } | null =
-      await prisma.category.findUnique({
+      await client.category.findUnique({
         where: { id: cursor },
         select: { parentId: true },
       })
@@ -274,20 +275,29 @@ export async function updateCategory(
  * Les options métier précèdent la surcharge d'effets : l'appelant de
  * production exprime sa réaffectation sans `undefined` pont, et la couture
  * d'effets reste le paramètre optionnel de dernier rang (ADR-0014).
+ *
+ * `reparentChildrenToCategoryId` est le Recueil que l'éditeur a choisi pour les
+ * sous-catégories : sans lui, la Structure qui a des enfants reste refusée. La
+ * règle ne s'assouplit pas — elle devient saisissable.
  */
 export async function deleteCategory(
   id: string,
-  options: { reassignToCategoryId?: string } = {},
+  options: {
+    reassignToCategoryId?: string
+    reparentChildrenToCategoryId?: string
+  } = {},
   overrides?: Partial<StructureEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const reassignToCategoryId = options.reassignToCategoryId
+  const reparentChildrenToCategoryId = options.reparentChildrenToCategoryId
 
   // Une seule mutation atomique : la lecture propre à la suppression, les
-  // validations de réaffectation, le déplacement des Produits, leur projeté
-  // indexable et la suppression de la Structure source partagent une même
-  // transaction. Un échec de la suppression finale annule donc la
-  // réaffectation — la base fait foi (ADR-0014).
+  // validations de réaffectation, le déplacement des Produits, le
+  // réattribut des sous-catégories, leur projeté indexable et la suppression
+  // de la Structure source partagent une même transaction. Un échec de la
+  // suppression finale annule donc la réaffectation — la base fait foi
+  // (ADR-0014).
   const { image, movedProducts } = await prisma.$transaction(async (tx) => {
     const category = await tx.category.findUnique({
       where: { id },
@@ -298,7 +308,22 @@ export async function deleteCategory(
     })
     if (!category) throw new CategoryNotFoundError()
 
-    if (category.children.length > 0) throw new CategoryHasChildrenError()
+    // Le réattribut précède la suppression : `Category_parentId_fkey` est en
+    // `ON DELETE SET NULL`, et sans cette écriture les enfants remonte-
+    // raient silencieusement au rang racine. L'ordre est donc le refus, puis
+    // l'écriture.
+    if (category.children.length > 0) {
+      if (!reparentChildrenToCategoryId) throw new CategoryHasChildrenError()
+      await assertCategoryParent(reparentChildrenToCategoryId, tx)
+      // Rattacher à elle-même ou à l'une de ses descendantes refermerait la
+      // boucle : la même marche que celle de la modification, mais sur le
+      // client de la transaction, pour ne lire que des faits engagés.
+      await assertAcyclicCategoryTree(id, reparentChildrenToCategoryId, tx)
+      await tx.category.updateMany({
+        where: { parentId: id },
+        data: { parentId: reparentChildrenToCategoryId },
+      })
+    }
 
     let moved: IndexableProduct[] = []
     if (reassignToCategoryId) {
