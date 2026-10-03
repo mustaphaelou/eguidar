@@ -62,14 +62,23 @@ function categoryFormData(suffix: string, champs: Record<string, string> = {}) {
   return data
 }
 
+/**
+ * Le formulaire tel que le rend `DeleteCategoryButton` : ni `reassignToCategoryId`
+ * ni `reparentChildrenToCategoryId` n'y sont présents tant que l'éditeur n'a
+ * choisi aucune cible, donc ne jamais les ajouter est le chemin de l'absence.
+ */
 function deleteFormData(
   categoryId: string,
-  reassignToCategoryId?: string
+  reassignToCategoryId?: string,
+  reparentChildrenToCategoryId?: string
 ): FormData {
   const data = new FormData()
   data.append("categoryId", categoryId)
   if (reassignToCategoryId) {
     data.append("reassignToCategoryId", reassignToCategoryId)
+  }
+  if (reparentChildrenToCategoryId) {
+    data.append("reparentChildrenToCategoryId", reparentChildrenToCategoryId)
   }
   return data
 }
@@ -247,6 +256,47 @@ describe("deleteCategoryAction", () => {
     expect(reindexProductsMock).toHaveBeenCalledWith([
       expect.objectContaining({ id: product.id }),
     ])
+  })
+
+  it("rattache les sous-catégories au Recueil choisi puis supprime la Structure", async () => {
+    const structure = await makeCategory("avec-enfants")
+    const enfant = await makeCategory("enfant-a-deplacer", structure.id)
+    const recueil = await makeCategory("recueil")
+
+    await expect(
+      deleteCategoryAction(
+        {},
+        deleteFormData(structure.id, undefined, recueil.id)
+      )
+    ).resolves.toEqual({})
+
+    await expect(
+      prisma.category.findUnique({ where: { id: structure.id } })
+    ).resolves.toBeNull()
+    await expect(
+      prisma.category.findUnique({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: recueil.id })
+  })
+
+  it("refuse encore une Structure qui a des sous-catégories quand le formulaire n'envoie aucun Recueil", async () => {
+    const structure = await makeCategory("mur-de-sous-categories")
+    const enfant = await makeCategory("enfant-qui-reste", structure.id)
+
+    const resultat = await deleteCategoryAction(
+      {},
+      deleteFormData(structure.id)
+    )
+
+    expect(resultat).toEqual({
+      error:
+        "Impossible de supprimer : la catégorie contient des sous-catégories",
+    })
+    await expect(
+      prisma.category.findUnique({ where: { id: structure.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.category.findUnique({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: structure.id })
   })
 
   it("remet le refus de réaffectation vers la Structure supprimée elle-même au formulaire", async () => {

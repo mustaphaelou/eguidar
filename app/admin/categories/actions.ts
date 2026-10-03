@@ -42,6 +42,7 @@ interface CategoryUpdateInput extends CategoryInput {
 interface CategoryDeleteInput {
   categoryId: string
   reassignToCategoryId?: string
+  reparentChildrenToCategoryId?: string
 }
 
 export const createCategoryAction = adminFormAction<CategoryInput>({
@@ -72,19 +73,30 @@ export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
   parse: (formData) => {
     const categoryId = parseRequiredId(formData, "categoryId")
     // Comme la parente : pas de cible choisie, pas de champ — donc rien à
-    // reconnaître, et une Structure qui a des Produits est refusée telle quelle.
+    // reconnaître, et une Structure qui a des Produits ou des sous-catégories est
+    // refusée telle quelle. Le `Recueil` des sous-catégories s'exprime de la même
+    // façon : le champ porte une Structure réelle, ou il n'est pas là.
     const reassignToCategoryId = String(
       formData.get("reassignToCategoryId") ?? ""
     )
-    return reassignToCategoryId
-      ? { categoryId, reassignToCategoryId }
-      : { categoryId }
-  },
-  run: async ({ categoryId, reassignToCategoryId }) => {
-    await deleteCategory(
-      categoryId,
-      reassignToCategoryId ? { reassignToCategoryId } : {}
+    const reparentChildrenToCategoryId = String(
+      formData.get("reparentChildrenToCategoryId") ?? ""
     )
+    return {
+      categoryId,
+      ...(reassignToCategoryId ? { reassignToCategoryId } : {}),
+      ...(reparentChildrenToCategoryId ? { reparentChildrenToCategoryId } : {}),
+    }
+  },
+  run: async ({
+    categoryId,
+    reassignToCategoryId,
+    reparentChildrenToCategoryId,
+  }) => {
+    await deleteCategory(categoryId, {
+      ...(reassignToCategoryId ? { reassignToCategoryId } : {}),
+      ...(reparentChildrenToCategoryId ? { reparentChildrenToCategoryId } : {}),
+    })
     return {}
   },
 })

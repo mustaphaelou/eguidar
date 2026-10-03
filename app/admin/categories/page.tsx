@@ -138,10 +138,12 @@ export default async function AdminCategoriesPage() {
                     <DeleteCategoryButton
                       categoryId={row.id}
                       categoryName={row.name}
+                      childCount={row._count.children}
                       productCount={row._count.products}
                       categories={categories.map((candidate) => ({
                         id: candidate.id,
                         name: candidate.name,
+                        parentId: candidate.parentId,
                       }))}
                       action={deleteCategoryAction}
                     />
