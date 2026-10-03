@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  MAX_UPLOAD_SIZE,
-  draftObjectKey,
-  type CodeEchecStockage,
-} from "@/lib/r2"
+import type { CodeEchecStockage } from "@/lib/r2"
 import {
   brouillon,
   creerCycleVieTest,
@@ -15,6 +11,30 @@ import {
 
 const DATE_INITIALE = new Date("2026-01-15T10:00:00.000Z")
 
+/**
+ * L'adaptateur en mémoire du stockage des Images produit, et lui seul.
+ *
+ * Cette suite a deux clients, et ils ne se ressemblent pas.
+ *
+ * Le premier, c'est le module propriétaire, qui veut une panne qu'il puisse
+ * placer opération par opération et une levée qu'il puisse provoquer : les
+ * modes d'échec du port, et le mode qui lance. Le contrat, lui, ne les rejoue
+ * pas — ce sont des réponses, pas des fautes, et les rejouer à travers lui
+ * n'ajouterait rien à ce que son témoin de non-vacuité couvre déjà.
+ *
+ * Le second, c'est ce que la fiction **est** : un R2 qui dérive les vraies clés
+ * plutôt que de fabriquer des URL, et qui enregistre l'adresse qu'il a visée.
+ * C'est cette promesse-là qui est à cette suite, parce qu'elle est une promesse
+ * sur cet adaptateur : le contrat dit que les deux répondent la même chose, et
+ * que la vraie disposition est celle d'ADR-0004, mais « la fiction adresse de
+ * vraies clés et non des URL inventées » n'est une vérité que ce cas peut dire.
+ *
+ * Ce qui n'est plus ici est tout ce qui est une règle du port : la disposition
+ * d'une clé, la frontière d'espace de noms des deux suppressions par URL, le
+ * refus d'un identifiant indéparable, celui d'une taille hors volume, et les
+ * codes eux-mêmes. Le contrat les épingle et les rejoue sur les deux adaptateurs,
+ * pour chaque type autorisé et dans les deux sens de chaque frontière.
+ */
 describe("adaptateur en mémoire du stockage des Images produit", () => {
   it("pré-signe un Brouillon sous la clé dérivée, et non sous une URL fabriquée", async () => {
     const stockage = creerStockageImageProduitMemoire()
@@ -125,83 +145,29 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
     ])
   })
 
-  it("garde les deux suppressions par URL hors de l'espace réservé des Brouillons", async () => {
+  it("ne vise rien quand une adresse ne mène à aucune clé", async () => {
     const stockage = creerStockageImageProduitMemoire()
-    const BrouillonAbandonne =
+    const brouillonAbandonne =
       "https://cdn.example.test/products/brouillons/abandonne.webp"
 
-    // Une Image produit persistée vit sous `products/`, une image de Structure
-    // n'importe où sous la base publique : deux espaces de noms, deux gardes.
-    // Ni l'une ni l'autre ne doit pouvoir viser le Brouillon abandonné, dont
-    // l'expiration est le fait de la règle de cycle de vie R2.
-    expect(
-      await stockage.supprimerImageCategorie(
-        "https://cdn.example.test/banners/accueil.png"
-      )
-    ).toEqual({ ok: true, valeur: null })
+    // Le verdict — cette adresse est-elle dans l'espace de noms de l'opération,
+    // et la base publique du stockage la nomme-t-elle ? — est une règle du port,
+    // et le contrat l'énonce dans ses deux sens pour les deux suppressions par
+    // URL. Ce qui n'appartient qu'à cet adaptateur, c'est ce qu'il a fait de sa
+    // propre décision : une adresse qu'il n'a pas résolue ne laisse derrière elle
+    // aucune trace d'adresse visée. Un refus qui aurait quand même enregistré
+    // quelque chose dirait qu'il a visé puis renoncé.
     for (const url of [
-      BrouillonAbandonne,
+      brouillonAbandonne,
       "https://cdn.example.test/categories/2026/vintage.jpg",
       "https://autre.example.test/products/image-1.webp",
     ]) {
-      expect(await stockage.supprimerImagePersistee(url), url).toMatchObject({
-        ok: false,
-        erreur: { code: "parametre-invalide" },
-      })
+      await stockage.supprimerImagePersistee(url)
     }
-    expect(
-      await stockage.supprimerImageCategorie(BrouillonAbandonne)
-    ).toMatchObject({ ok: false, erreur: { code: "parametre-invalide" } })
+    await stockage.supprimerImageCategorie(brouillonAbandonne)
 
-    // Un refus ne vise rien : ce qui n'a pas été adressé n'est pas enregistré.
     expect(stockage.suppressionsImagesPersistees).toEqual([])
-    expect(stockage.suppressionsImagesCategorie).toEqual([
-      "banners/accueil.png",
-    ])
-  })
-
-  it("refuse en `parametre-invalide` ce dont aucune clé ne peut être dérivée", async () => {
-    const stockage = creerStockageImageProduitMemoire()
-    // Un identifiant qui porte un séparateur remonterait dans l'espace
-    // réservé : la dérivation le refuse, comme elle le refuse en production,
-    // et les six opérations lisent cette exception pour en faire un refus.
-    const identifiantIsole = "brouillons/draft-1"
-
-    for (const resultat of [
-      await stockage.presignerBrouillon({
-        draftId: identifiantIsole,
-        contentType: "image/webp",
-        size: 2048,
-      }),
-      await stockage.supprimerBrouillon({
-        draftId: identifiantIsole,
-        contentType: "image/webp",
-      }),
-      await stockage.promouvoirBrouillon({
-        draftId: identifiantIsole,
-        contentType: "image/webp",
-      }),
-      await stockage.supprimerImagePromue({
-        draftId: identifiantIsole,
-        contentType: "image/webp",
-      }),
-      // La limite de taille appartient au port : il refuse avant de dériver.
-      await stockage.presignerBrouillon({
-        draftId: "draft-1",
-        contentType: "image/webp",
-        size: 0,
-      }),
-      await stockage.presignerBrouillon({
-        draftId: "draft-1",
-        contentType: "image/webp",
-        size: MAX_UPLOAD_SIZE + 1,
-      }),
-    ]) {
-      expect(resultat).toMatchObject({
-        ok: false,
-        erreur: { code: "parametre-invalide" },
-      })
-    }
+    expect(stockage.suppressionsImagesCategorie).toEqual([])
   })
 
   it("sait répondre chacun des trois codes du port, sur chacune des six opérations", async () => {
@@ -370,10 +336,11 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       })
     ).toEqual({ ok: true, productId: "produit-1" })
     // L'adresse, elle, a bien été résolue avant que la suppression ne lève :
-    // c'est ce qui distingue « n'a rien visé » de « a visé et n'a pas pu ».
-    expect(enregistrement.stockage.suppressionsBrouillons).toEqual([
-      draftObjectKey(demande.draftId, "image/webp"),
-    ])
+    // c'est ce qui distingue « n'a rien visé » de « a visé et n'a pas pu ». La
+    // clé que cette adresse désigne est la disposition d'ADR-0004, que le
+    // contrat épingle ; ce qu'ici doit rester, c'est qu'il y a bien une
+    // adresse visée — et qu'il n'y en a qu'une.
+    expect(enregistrement.stockage.suppressionsBrouillons).toHaveLength(1)
 
     const compensation = creerCycleVieTest(DATE_INITIALE)
     const autreDemande = await compensation.cycleVie.demanderBrouillon({
