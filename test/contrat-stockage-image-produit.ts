@@ -1,9 +1,11 @@
 import { expect } from "vitest"
 
 import {
+  CONTENT_TYPES_IMAGE_PRODUIT,
   DRAFT_PRODUCTS_PREFIX,
   MAX_UPLOAD_SIZE,
   objectKeyFromPublicUrl,
+  PRODUCTS_PREFIX,
   type CodeEchecStockage,
   type ContentTypeImageProduit,
   type PortStockageImageProduit,
@@ -529,4 +531,432 @@ export function codesEchec(observation: unknown): string[] {
   }
   visiter(observation)
   return codes
+}
+
+/**
+ * La couche de valeurs épinglées.
+ *
+ * La couche d'accord ci-dessus compare deux adaptateurs ; celle-ci ne les
+ * compare pas et ne se soucie pas d'eux. Elle rejoue **un seul** adaptateur —
+ * la référence, le stockage réel — et affirme que ce qu'il rend est exactement
+ * la valeur attendue. Elle est la seconde moitié du contrat, et elle existe
+ * parce que l'accord est faible exactement dans la direction qui compte :
+ *
+ * **L'accord ne peut pas voir la fiction avoir tort, seulement être
+ * incohérente.** Les deux adaptateurs dérivent leurs clés par la même fonction
+ * de production, donc un défaut de cette fonction traverse les deux et passe
+ * vert partout : le contrat d'accord le voit puisque les deux dérivent pareil,
+ * et les suites d'adaptateur le voient puisque chacune n'épingle que ce qu'elle
+ * manipule. Ce qui manque, c'est une affirmation qui dise « la clé d'un
+ * Brouillon est celle-là », et qui reste vraie quand les deux adaptateurs se
+ * trompent ensemble.
+ *
+ * Elle diffère du contrat du registre sur un point précis, et la raison ne se
+ * transporte pas. Le registre ne compare que des observations parce que la base
+ * est autoritaire : la base tranche, l'adaptateur en mémoire doit être jugé
+ * contre elle, et un adaptateur qui rend le même état que la base rend le bon
+ * état. Ici la référence est le stockage et non une base, et l'adaptateur en
+ * mémoire est une fiction : il n'a aucun moyen de trancher ce qui est vrai, il
+ * ne peut que rejouer. LeWm rôle est donc juge, pas référence — et un juge qui
+ * rejoue ce qu'il juge ne prouve rien. D'où l'épinglage, et d'où le fait que
+ * cette couche ne doive son résultat qu'à une valeur écrite d'avance.
+ *
+ * Elle est déclarée ici, à côté de la couche d'accord, et rejouée par la même
+ * suite voisine : le contrat du Stockage d'Image produit reste **un seul lieu
+ * déclaré**, et la question « comment une Image produit devient-elle une clé »
+ * a une réponse, pas deux. Une seconde suite pour cette couche aurait donné au
+ * contrat deux preuves, ce que l'arrangement du registre refuse pour une seule.
+ */
+
+/**
+ * L'identifiant que cette couche épingle.
+ *
+ * Il est écrit ici et non reçu du rejeu, et c'est ce qui sépare une valeur
+ * attendue d'une valeur recopiée : une clé attendue dont l'identifiant viendrait
+ * de l'observation serait vraie par construction — elle referait la dérivation
+ * qu'elle est censée contredire. La base publique, elle, reste seule à venir du
+ * rejeu : c'est la seule chose que les deux adaptateurs n'ont pas en commun, et
+ * la clé s'en affranchit puisqu'elle la retire de l'adresse.
+ */
+const IDENTITE_EPINGLEE = "image-produit-1"
+
+/**
+ * L'extension qu'attend la disposition d'ADR-0004 pour un type de contenu : son
+ * sous-type MIME, tel quel.
+ *
+ * Elle est **dérivée** du type et non recopiée type par type, et c'est le sens
+ * entier de la méthode. Une liste de littéraux aurait redit la liste des types
+ * autorisés sous une autre forme : le jour où un sixième type est autorisé,
+ * cette liste-ci serait fausse sans que personne l'ait consultée, tandis que la
+ * dérivation le suit seule. Un type qui n'a rien à voir avec les cinq premiers —
+ * `image/jxl`, disons — se retrouve donc épinglé sans qu'une ligne soit écrite,
+ * et une faute de frappe dans la table de production — un `.jpg` là où il faut
+ * un `.png` — reste vue parce que la règle, elle, ne se trompe pas de tableau.
+ *
+ * `image/jpeg` est le seul qui dévie, et pour une raison qui tient : `.jpeg`
+ * est un nom de fichier que personne n'écrit, alors qu'une image de catalogue
+ * est servie à des navigateurs et à des CDN qui attendent tous `.jpg`. C'est un
+ * fait de ce catalogue et non une table, et il se distingue donc d'une faute
+ * de frappe précisément parce qu'il est le seul.
+ */
+function extensionAttendue(contentType: ContentTypeImageProduit): string {
+  const sousType = contentType.slice("image/".length)
+  return sousType === "jpeg" ? ".jpg" : `.${sousType}`
+}
+
+/**
+ * La clé attendue d'un objet de Brouillon : la disposition d'ADR-0004,
+ * `products/brouillons/<uuid><ext>`.
+ *
+ * Les deux préfixes sont **écrits en clair**, et c'est la différence à faire
+ * avec `adresseReservee` ci-dessus, qui prend le préfixe du module de stockage.
+ * Les deux choix sont justes et ils ne se ressemblent pas. Une *entrée* doit
+ * venir du module : elle adresse ce que la règle de cycle de vie Cloudflare
+ * vise, et une suite qui retaperait le préfixe validerait un préfixe différent
+ * de celui qui expire. Une *attente* doit au contraire venir
+ * d'ailleurs, sinon elle ne dit rien : écrire la disposition d'ADR-0004 ici est
+ * la seule façon que le préfixe puisse changer sans que l'épinglage le suive
+ * par erreur.
+ *
+ * `products/brouillons/image-produit-1.jpg` pour `image/jpeg`,
+ * `products/brouillons/image-produit-1.png` pour `image/png`, et ainsi de
+ * suite — une par type autorisé.
+ */
+function cleBrouillonAttendue(contentType: ContentTypeImageProduit): string {
+  return `products/brouillons/${IDENTITE_EPINGLEE}${extensionAttendue(
+    contentType
+  )}`
+}
+
+/**
+ * La clé attendue d'une Image produit persistée, pour le même identifiant :
+ * `products/<uuid><ext>`. C'est le fait que la règle de cycle de vie doit
+ * pouvoir rater, et il est écrit ici plutôt que déduit du préfixe réservé — le
+ * dire « la clé persistée est celle qui n'est pas celle du Brouillon » laisserait
+ * le préfixe du produit sans épinglage.
+ */
+function clePersisteeAttendue(contentType: ContentTypeImageProduit): string {
+  return `products/${IDENTITE_EPINGLEE}${extensionAttendue(contentType)}`
+}
+
+/**
+ * Où une clé atterrit dans l'espace de noms du stockage.
+ *
+ * Une clé observée est ramenée à ce qu'elle **occupe** plutôt qu'à la suite de
+ * son nom, et c'est ce qui rend l'invariant de la règle de cycle de vie
+ * lisible d'un coup : la règle expire tout ce qui commence par l'espace réservé,
+ * et une Image produit persistée doit donc être notée `produits`. Les trois
+ * réponses se distinguent parce que `reserve` est le seul cas que la règle atteint
+ * — `ailleurs` n'est pas dans son champ, et le confondre avec `produits`
+ * rendrait le refus illisible.
+ *
+ * Cette projection sert à la seule valeur qui a besoin d'un classement ; la clé
+ * elle-même est épinglée par l'entrée d'avant, au caractère près.
+ */
+function espaceAtteint(cle: string): "reserve" | "produits" | "ailleurs" {
+  if (cle.startsWith(DRAFT_PRODUCTS_PREFIX)) return "reserve"
+  if (cle.startsWith(PRODUCTS_PREFIX)) return "produits"
+  return "ailleurs"
+}
+
+/**
+ * Une projection indexée par type de contenu autorisé, et son pendant attendu.
+ *
+ * La clé vient de `CONTENT_TYPES_IMAGE_PRODUIT` et l'attente de la même liste :
+ * les deux côtés sont donc bâtis sur le fait, jamais sur une recopie. C'est ce
+ * qui rend le parcours exhaustif par construction — un type autorisé de trop
+ * n'aurait pas de projection, donc pas d'attente, et l'absence se verrait — et
+ * ce qui le rend tenable : un type de plus n'a pas à être écrit.
+ */
+function projectionParType(
+  contenu: Record<ContentTypeImageProduit, ReponseObservee>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    CONTENT_TYPES_IMAGE_PRODUIT.map((contentType) => [
+      contentType,
+      contenu[contentType],
+    ])
+  )
+}
+
+/** L'attente qui accompagne une projection indexée par type autorisé. */
+function attenduParType(
+  valeur: (contentType: ContentTypeImageProduit) => ReponseObservee
+): Record<string, unknown> {
+  return Object.fromEntries(
+    CONTENT_TYPES_IMAGE_PRODUIT.map((contentType) => [
+      contentType,
+      valeur(contentType),
+    ])
+  )
+}
+
+export interface ValeurEpingleeStockage {
+  readonly nom: string
+  /**
+   * L'état du stockage que la valeur demande, comme pour un scénario. Il est
+   * `sain` partout ici et le resterait : une valeur attendue n'a pas à dire ce
+   * qu'un stockage mort rend, cela relève de la couche d'accord — mais le champ
+   * reste, parce que c'est lui qui décide que le rejeu reste une décision de la
+   * suite et non de la valeur.
+   */
+  readonly etat: EtatStockageRejoue
+  /**
+   * L'observation projetée, prise **sur le port et rien qu'au port**. Un adaptateur
+   * a un tableau, une carte, des enregistrements ; rien de tout cela n'est
+   * observable d'un appelant, et une assertion qui les lirait affirmerait de
+   * l'implémentation plutôt que du comportement.
+   */
+  jouer(
+    stockage: PortStockageImageProduit,
+    identite: IdentiteStockage
+  ): Promise<unknown>
+  /**
+   * La valeur attendue, écrite ici. C'est donc une propriété du contrat et non
+   * de la suite qui rejoue : une suite qui vérifierait les mêmes clés avec ses
+   * propres littéraux aurait deux vérités à tenir.
+   */
+  readonly attendu: unknown
+}
+
+/**
+ * Ce qui doit être vrai indépendamment des deux adaptateurs.
+ *
+ * Chaque entrée épingle une valeur, et aucune ne répète l'accord : si une
+ * réponse des deux adaptateurs se.compare mieux, elle n'a rien à faire ici, et
+ * si une valeur n'est pas une valeur, elle n'a rien à y faire non plus. Ce
+ * qui reste est court, et c'est bien la partie qui compte — trois clés, une
+ * frontière, deux refus.
+ */
+export const VALEURS_EPINGLEES: readonly ValeurEpingleeStockage[] = [
+  {
+    nom: "la clé de l'objet d'un Brouillon, pour chaque type de contenu autorisé",
+    etat: "sain",
+    // L'aperçu rendu est l'adresse que l'éditeur verra, et c'est la seule des
+    // deux que la pré-signature expose au client : l'adresse d'envoi n'est pas
+    // derivable d'une URL et n'a donc pas de forme à comparer. La clé est donc
+    // lue comme le fait partout ailleurs — la base publique retirée — et non
+    // comme une coupe de chaîne qui devrait deviner où la base s'arrête.
+    async jouer(stockage, identite) {
+      const projection: Record<ContentTypeImageProduit, ReponseObservee> = {
+        "image/jpeg": { ok: false, code: "parametre-invalide" },
+        "image/png": { ok: false, code: "parametre-invalide" },
+        "image/webp": { ok: false, code: "parametre-invalide" },
+        "image/avif": { ok: false, code: "parametre-invalide" },
+        "image/gif": { ok: false, code: "parametre-invalide" },
+      }
+      for (const contentType of CONTENT_TYPES_IMAGE_PRODUIT) {
+        projection[contentType] = await observer(
+          () =>
+            stockage.presignerBrouillon({
+              draftId: IDENTITE_EPINGLEE,
+              contentType,
+              size: TAILLE,
+            }),
+          (valeur) => cleSous(valeur.previewUrl, identite.basePublique)
+        )
+      }
+      return projectionParType(projection)
+    },
+    attendu: attenduParType((contentType) => ({
+      ok: true,
+      cle: cleBrouillonAttendue(contentType),
+    })),
+  },
+  {
+    nom: "la clé d'une Image produit persistée, pour chaque type de contenu autorisé",
+    etat: "sain",
+    // L'identifiant de la promotion est celui du Brouillon, et c'est ce que
+    // l'ADR fixe — la promotion est une copie, donc la clé persistée est une
+    // fonction pure de l'identifiant du Brouillon. Le parcours suit la liste des
+    // types autorisés : une Image persistée existe pour chacun d'eux, sinon la
+    // dérivation n'aurait de fait que pour cinq.
+    async jouer(stockage, identite) {
+      const projection: Record<ContentTypeImageProduit, ReponseObservee> = {
+        "image/jpeg": { ok: false, code: "parametre-invalide" },
+        "image/png": { ok: false, code: "parametre-invalide" },
+        "image/webp": { ok: false, code: "parametre-invalide" },
+        "image/avif": { ok: false, code: "parametre-invalide" },
+        "image/gif": { ok: false, code: "parametre-invalide" },
+      }
+      for (const contentType of CONTENT_TYPES_IMAGE_PRODUIT) {
+        projection[contentType] = await observer(
+          () =>
+            stockage.promouvoirBrouillon({
+              draftId: IDENTITE_EPINGLEE,
+              contentType,
+            }),
+          (valeur) => cleSous(valeur.publicUrl, identite.basePublique)
+        )
+      }
+      return projectionParType(projection)
+    },
+    attendu: attenduParType((contentType) => ({
+      ok: true,
+      cle: clePersisteeAttendue(contentType),
+    })),
+  },
+  {
+    nom: "l'espace réservé est une extension stricte de l'espace des Images produit",
+    etat: "sain",
+    // Les deux préfixes sont un **fait public**, pas un détail : c'est le
+    // document que Cloudflare reçoit, et ADR-0004 s'appuie dessus pour dire que
+    // la règle ne peut pas expirer une Image persistée. C'est aussi ce que la
+    // règle de cycle de vie relit sans jamais le retaper — elle tire son préfixe
+    // du même export, donc le infrastructure ne connaît qu'une version de ce
+    // fait et ne peut pas en valider une autre.
+    //
+    // La relation est observée et non affirmée : une sortie stricte du préfixe
+    // des Images produit par le préfixe des Brouillons est ce qui rend
+    // l'exclusion possible sans avoir à énumérer les identifiants. Un UUID n'a
+    // pas de séparateur, donc rien ne peut reconstituer `products/brouillons/`
+    // après `products/`, et c'est cela que la suite du cycle de vie vérifie sur
+    // un éventail de valeurs — avec le préfixe de la règle, pour que la
+    // vérification porte sur ce qui expire et non sur une copie.
+    async jouer() {
+      return {
+        produits: PRODUCTS_PREFIX,
+        brouillons: DRAFT_PRODUCTS_PREFIX,
+        extensionStricte:
+          DRAFT_PRODUCTS_PREFIX.startsWith(PRODUCTS_PREFIX) &&
+          DRAFT_PRODUCTS_PREFIX.length > PRODUCTS_PREFIX.length,
+      }
+    },
+    attendu: {
+      produits: "products/",
+      brouillons: "products/brouillons/",
+      extensionStricte: true,
+    },
+  },
+  {
+    nom: "la clé d'une Image produit persistée n'atteint jamais l'espace réservé",
+    etat: "sain",
+    // C'est l'invariant dont dépend Cloudflare, épinglé par le port et non par
+    // la dérivation : la clé que le stockage **promet** à un éditeur, celle qui
+    // finit dans sa galerie, est celle-là. `infra/regle-cycle-vie-r2.test.ts`
+    // vérifie la même frontière sur les fonctions de dérivation, avec le préfixe
+    // de la règle pour que la vérification porte sur ce qui expire ; ici elle est
+    // prise sur ce que le port rend, donc un adaptateur qui dériverait mal par
+    // l'interface verrait cette suite rouge même si ses fonctions de dérivation
+    // restaient justes.
+    //
+    // Un `produits` par type autorisé, écrit à l'avance, est l'assertion. Elle ne
+    // répète pas la clé de l'entrée précédente : celle-là dit quelle chaîne est
+    // rendue, celle-ci dit où elle atterrit — et c'est la question que Cloudflare
+    // pose. Une Image persistée qui finirait sous l'espace réservé serait
+    // expirée par la règle à la rétention, sans qu'aucune suite ne l'ait dit, et
+    // le repérage est total : ni `reserve` ni `ailleurs` ne satisfont cette
+    // attente.
+    async jouer(stockage, identite) {
+      const projection: Record<ContentTypeImageProduit, ReponseObservee> = {
+        "image/jpeg": { ok: false, code: "parametre-invalide" },
+        "image/png": { ok: false, code: "parametre-invalide" },
+        "image/webp": { ok: false, code: "parametre-invalide" },
+        "image/avif": { ok: false, code: "parametre-invalide" },
+        "image/gif": { ok: false, code: "parametre-invalide" },
+      }
+      for (const contentType of CONTENT_TYPES_IMAGE_PRODUIT) {
+        projection[contentType] = await observer(
+          () =>
+            stockage.promouvoirBrouillon({
+              draftId: IDENTITE_EPINGLEE,
+              contentType,
+            }),
+          (valeur) =>
+            espaceAtteint(cleSous(valeur.publicUrl, identite.basePublique))
+        )
+      }
+      return projectionParType(projection)
+    },
+    attendu: attenduParType(() => ({ ok: true, cle: "produits" })),
+  },
+  {
+    nom: "supprimer une Image produit persistée : sous l'espace des produits oui, sous l'espace réservé non",
+    etat: "sain",
+    // Les deux sens de la même frontière, sur une opération seulement. Le refus
+    // seul ne prouverait rien : une suppression qui refuserait tout passerait
+    // aussi facilement. Le succès sous `products/` est ce qui donne au refus sa
+    // portée — il dit « cette opération refuse *l'espace réservé* », pas « cette
+    // opération refuse ».
+    //
+    // L'adresse du succès est la clé attendue de la promotion, donc l'URL
+    // publique telle qu'un éditeur l'aurait dans sa galerie : la suppression
+    // rejoue le trajet inverse et doit retomber sur la même clé.
+    async jouer(stockage, identite) {
+      return {
+        sousProduits: await observer(() =>
+          stockage.supprimerImagePersistee(
+            `${identite.basePublique}/${clePersisteeAttendue("image/webp")}`
+          )
+        ),
+        sousEspaceReserve: await observer(() =>
+          stockage.supprimerImagePersistee(adresseReservee(identite))
+        ),
+      }
+    },
+    attendu: {
+      sousProduits: { ok: true, cle: null },
+      sousEspaceReserve: { ok: false, code: "parametre-invalide" },
+    },
+  },
+  {
+    nom: "supprimer une image de Structure : hors de l'espace réservé oui, dedans non",
+    etat: "sain",
+    // Même frontière, opération différente — et c'est la seconde qui était la
+    // dangereuse. Une image de Structure est un champ URL libre, antérieur au
+    // cycle de vie des Brouillons : elle peut nommer n'importe quoi sous la base
+    // publique, l'espace réservé compris, et rien dans sa forme ne dit qu'elle
+    // n'en fait pas partie.
+    //
+    // `sousProduits` est ici un succès alors qu'elle est un refus dans
+    // l'entrée précédente : les deux gardes ne sont pas la même. Une Image
+    // produit n'existe que sous `products/`, une image de Structure vit n'importe
+    // où — y compris sous `products/`, comportement conservé pour les catégories —
+    // mais jamais dans l'espace réservé. Épingler les deux sens ici est ce qui
+    // distingue deux gardes distinctes, et un refactor qui les fusionnerait ne
+    // verrait rien.
+    async jouer(stockage, identite) {
+      return {
+        sousProduits: await observer(() =>
+          stockage.supprimerImageCategorie(
+            `${identite.basePublique}/${clePersisteeAttendue("image/webp")}`
+          )
+        ),
+        horsProduits: await observer(() =>
+          stockage.supprimerImageCategorie(
+            `${identite.basePublique}/categories/image-produit-1.webp`
+          )
+        ),
+        sousEspaceReserve: await observer(() =>
+          stockage.supprimerImageCategorie(adresseReservee(identite))
+        ),
+      }
+    },
+    attendu: {
+      sousProduits: { ok: true, cle: null },
+      horsProduits: { ok: true, cle: null },
+      sousEspaceReserve: { ok: false, code: "parametre-invalide" },
+    },
+  },
+]
+
+/**
+ * Rejoue une valeur épinglée sur **un seul** adaptateur — la référence — et
+ * exige que ce qu'il rend soit la valeur attendue.
+ *
+ * Un seul adaptateur, et non les deux : l'accord est l'affaire de la couche
+ * d'accord, et rejouer les deux ici transformerait une valeur attendue en un
+ * second accord, c'est-à-dire en un test qui ne verrait plus la fiction avoir
+ * tort. La référence est le stockage réel, donc c'est elle qui doit porter les
+ * valeurs ; l'adaptateur en mémoire est une fiction et n'a pas à être le juge
+ * de la disposition d'ADR-0004.
+ */
+export async function exigerValeurEpingleeStockage(
+  valeur: ValeurEpingleeStockage,
+  adaptateur: AdaptateurStockage,
+  identite: IdentiteStockage
+): Promise<unknown> {
+  const observation = await valeur.jouer(adaptateur(valeur.etat), identite)
+  expect(observation, `${valeur.nom} — valeur épinglée`).toEqual(valeur.attendu)
+  return observation
 }

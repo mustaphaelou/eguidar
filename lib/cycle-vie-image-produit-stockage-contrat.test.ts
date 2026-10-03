@@ -42,15 +42,19 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: signedUrlMock,
 }))
 
-import { stockageImageProduitR2 } from "@/lib/r2"
+import { CONTENT_TYPES_IMAGE_PRODUIT, stockageImageProduitR2 } from "@/lib/r2"
 import {
   CODES_ECHEC_CONTRAT,
   codesEchec,
   exigerEnteteStockage,
+  exigerValeurEpingleeStockage,
   SCENARIOS_STOCKAGE,
+  VALEURS_EPINGLEES,
   type AdaptateurStockage,
   type EtatStockageRejoue,
   type IdentiteStockage,
+  type ReponseObservee,
+  type ValeurEpingleeStockage,
 } from "@/test/contrat-stockage-image-produit"
 import {
   BASE_PUBLIQUE_MEMOIRE,
@@ -325,6 +329,78 @@ describe("stockage des Images produit — contrat des deux adaptateurs", () => {
   for (const scenario of SCENARIOS_STOCKAGE) {
     it(`les deux adaptateurs s'accordent : ${scenario.nom}`, async () => {
       await exigerEnteteStockage(scenario, adaptateurs, IDENTITE)
+    })
+  }
+})
+
+/**
+ * La valeur attendue tient.
+ *
+ * Le même fichier que la couche d'accord, et pour la même raison : les valeurs
+ * épinglées sont **une couche du contrat** du Stockage d'Image produit, pas une
+ * suite de plus. Le contrat doit rester un lieu déclaré et un seul, et cette
+ * couche sa projection y est écrite ; lui donner son propre fichier de preuve
+ * aurait voulu dire deux endroits où les règles du stockage sont épinglées, donc
+ * deux vérités à tenir — exactement ce que l'arrangement du registre refuse.
+ *
+ * Un seul adaptateur est rejoué, la référence : la comparaison des deux est
+ * l'affaire du `describe` d'au-dessus, et rejouer les deux ici transformerait une
+ * valeur attendue en un second accord.
+ *
+ * Et rien n'y lit un interne d'adaptateur : ni le tableau d'adresses, ni la carte
+ * d'échecs, ni les enregistrements de la fiction en mémoire — qui en expose
+ * précisément, et dont la relecture serait le chemin le plus court. Tout passe
+ * par le port, sur des observations projetées ; les seuls faits lus ailleurs sont
+ * la disposition des clés et la liste des types autorisés, qui sont publics parce
+ * que le document que Cloudflare reçoit en dépend.
+ */
+describe("stockage des Images produit — valeurs épinglées", () => {
+  /**
+   * La valeur qu'un cas cherche par une phrase de son nom, comme pour les
+   * scénarios d'accord : un nom qui change casse le cas bruyamment.
+   */
+  function trouverValeur(fragmentDuNom: string): ValeurEpingleeStockage {
+    const valeur = VALEURS_EPINGLEES.find((candidate) =>
+      candidate.nom.includes(fragmentDuNom)
+    )
+    if (!valeur) {
+      throw new Error(
+        `La valeur épinglée « ${fragmentDuNom} » doit exister dans le contrat`
+      )
+    }
+    return valeur
+  }
+
+  it("épingle une clé propre à chaque type de contenu autorisé, et la liste entière", async () => {
+    // Le témoin de non-vacuité de la couche de valeurs. Il ne s'agit pas ici de
+    // vérifier que la dérivation est exacte — chaque type autorisé a déjà son cas
+    // — mais qu'elle l'est **pour chacun d'eux**, et pas pour les premiers de la
+    // liste seulement. Une projection qui n'aurait couvert que les cinq premiers
+    // laisserait disparaître un sixième type sans que la dérivation soit en
+    // cause.
+    //
+    // Les deux moitiés du témoin disent deux choses distinctes. L'égalité des
+    // noms de clés avec la liste autorisée dit que le parcours est exhaustif —
+    // et c'est constructif, puisque les deux côtés viennent de la liste. Le compte
+    // des clés distinctes dit autre chose : il prouve que le parcours a produit
+    // une clé par type, donc qu'un type qui se ferait voler l'extension d'un
+    // autre se verrait, ce que l'égalité des noms ne dirait pas.
+    const observation = (await exigerValeurEpingleeStockage(
+      trouverValeur("la clé de l'objet d'un Brouillon"),
+      stockageProduction,
+      IDENTITE
+    )) as Record<string, ReponseObservee>
+
+    expect(Object.keys(observation)).toEqual([...CONTENT_TYPES_IMAGE_PRODUIT])
+    const cles = Object.values(observation).map((reponse) =>
+      "ok" in reponse && reponse.ok ? reponse.cle : null
+    )
+    expect(new Set(cles).size).toBe(CONTENT_TYPES_IMAGE_PRODUIT.length)
+  })
+
+  for (const valeur of VALEURS_EPINGLEES) {
+    it(`la valeur attendue tient : ${valeur.nom}`, async () => {
+      await exigerValeurEpingleeStockage(valeur, stockageProduction, IDENTITE)
     })
   }
 })
