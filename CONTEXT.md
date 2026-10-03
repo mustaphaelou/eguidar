@@ -4,6 +4,14 @@ A French-language Moroccan e-commerce storefront (eguidar.com): catalog with cat
 
 ## Language
 
+**Bandeau de navigation**:
+La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche, le déclencheur de Connexion et le déclencheur du Panier, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration.
+_Avoid_: header, navbar, barre de navigation, barre du haut
+
+**Voile dépoli**:
+Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation**, les modales de Connexion et d'Inscription, et le panneau de Filtres de recherche sur mobile. Il ne porte aucun contenu et ne se choisit pas : une surface le porte ou ne le porte pas.
+_Avoid_: glass, glassmorphism, verre dépoli, frosted glass, backdrop blur
+
 **Livraison**:
 The delivery service for orders: delivery cities, their fees, and the free-shipping rule.
 _Avoid_: shipping, frais de port
@@ -83,6 +91,10 @@ _Avoid_: cart, caddie
 One product variant with its chosen quantity inside a Panier.
 _Avoid_: ligne de panier, line item
 
+**Page du Panier**:
+La page qui porte le Panier en entier : les Articles du panier, la Ville de livraison, le Devis et le Récapitulatif de paiement, puis le passage de commande. C'est le seul endroit où l'on commande.
+_Avoid_: panier (seul), checkout, panier page, page panier
+
 **Propriétaire du panier**:
 The Visiteur or the Client whose Panier it is; resolved once per request from the session.
 _Avoid_: owner, cart owner, panier owner
@@ -116,11 +128,11 @@ _Avoid_: erreur catégorie, échec de suppression, category error
 **Recherche**:
 The act of finding products across the Catalogue by free-text query (with typo tolerance),
 filtrable par une ou plusieurs marques, une catégorie et une tranche de prix, triable (pertinence, prix, nouveautés) et paginée.
-Le header propose des suggestions instantanées de produits et de catégories.
+Le Bandeau de navigation propose des suggestions instantanées de produits et de catégories.
 _Avoid_: search, recherche produit, recherche fuzz
 
 **Suggestion de produit**:
-La ligne compacte qu'une Recherche propose dans le header : la première image, le nom, la marque et le
+La ligne compacte qu'une Recherche propose dans le Bandeau de navigation : la première image, le nom, la marque et le
 Prix courant d'un Produit, vers sa page Produit. Ce n'est pas une Carte produit : elle ne porte ni le
 stock total ni la Livraison offerte.
 _Avoid_: suggestion de recherche, autocomplete, item de suggestion
@@ -238,7 +250,7 @@ Un envoi qu'un Test de sécurité gate, et qui n'aboutit pas sans son jeton. Sa 
 _Avoid_: protected send, envoi sécurisé, appel protégé, requête protégée
 
 **Déconnexion**:
-The act by which a Client ends their own session via the « Déconnexion » button in the header, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
+The act by which a Client ends their own session via the « Déconnexion » button in the Bandeau de navigation, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
 _Avoid_: logout, se déconnecter (as the screen name), déconnexion automatique (reserved for Session inactive)
 
 **Session inactive**:
