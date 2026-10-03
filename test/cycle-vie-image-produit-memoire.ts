@@ -169,7 +169,7 @@ export interface StockageImageProduitMemoire extends PortStockageImageProduit {
    * Les pannes, par opération : chacune des six peut répondre l'un des trois
    * codes que le port sait exprimer, ou lever comme le ferait une connexion
    * perdue. La levée est le seul mode qu'aucun des trois indicateurs ne sait
-   * produire, et c'est elle qui donne enfin un cas aux deux `catch` du module
+   * produire, et c'est elle qui donne enfin un cas aux cinq `catch` du module
    * propriétaire qui rattrapent une exception du stockage.
    */
   readonly pannes: Record<OperationStockage, Set<PanneStockage>>

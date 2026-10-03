@@ -257,7 +257,7 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
   })
 
   it("lève là où les trois indicateurs ne savent que répondre", async () => {
-    // Le module propriétaire enveloppe le stockage dans deux `catch` qui
+    // Le module propriétaire enveloppe le stockage dans cinq `catch` qui
     // n'étaient atteignables par aucune suite : ni cet adaptateur ne levait,
     // ni l'adaptateur de production ne lève plus depuis qu'il répond
     // `erreur-stockage` sur les six opérations. Un mode qui lance est donc la

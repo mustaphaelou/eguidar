@@ -231,6 +231,19 @@ export interface ScenarioStockage {
    */
   readonly etat: EtatStockageRejoue
   /**
+   * Que ce scénario **consigne** comme accord sur la façon dont le port échoue :
+   * aucune des opérations qu'il rejoue ne lève.
+   *
+   * Le champ est la moitié du travail, l'assertion en est l'autre. Il est ici
+   * parce que l'accord appartient au scénario — c'est lui qui sait quelles
+   * opérations la panne affecte, et le contrat ne doit pas avoir à le redemander
+   * à la suite. Un commentaire qui l'affirmerait ne prouverait rien : la
+   * projection d'une levée étant la même des deux côtés, deux adaptateurs
+   * passant à lever ensemble laisseraient le scénario au vert, et c'est
+   * précisément l'accident que ce contrat existe pour éviter.
+   */
+  readonly interditLaLevee?: true
+  /**
    * Le scénario, écrit une fois et rejoué par chaque adaptateur. Il rend une
    * observation comparable : l'accord que le contrat cherche.
    */
@@ -446,14 +459,20 @@ export const SCENARIOS_STOCKAGE: readonly ScenarioStockage[] = [
     // l'adaptateur en mémoire sait répondre pour chacune des six.
     //
     // L'accord est donc : **les six opérations répondent, et lever serait la
-    // divergence.** C'est ce que ce scénario consigne. Une levée du côté du
-    // stockage ne ferait pas échouer la suite par une exception — elle y
-    // parviendrait projetée en `{ leve: true }`, à côté d'un refus des deux
-    // adaptateurs, et l'accord la verrait comme ce qu'elle est : un adaptateur
-    // qui a décidé seul de ne pas répondre. Les deux `catch` du module
-    // propriétaire qui rattrapent une exception du stockage restent ainsi
-    // inatteignables par ce port, et le contrat le dit au lieu de le laisser
-    // croire nécessaire.
+    // divergence.** C'est ce que ce scénario consigne, et il le consigne deux
+    // fois : en rejouant les six opérations, puis en déclarant `interditLaLevee`,
+    // que la porte d'entrée vérifie. Le second volet est celui qui compte. Un
+    // premier volet seul ne verrait pas une dérive où les deux adaptateurs
+    // passent à lever ensemble — la projection serait la même des deux côtés,
+    // l'accord tiendrait, et la suite verrait un contrat au vert où il n'y a plus
+    // de contrat. Une levée d'un seul côté se verrait, elle : c'est l'accord qui
+    // la constate, et il n'a pas à être redoublé pour cela.
+    //
+    // Les cinq `catch` du module propriétaire qui rattrapent une exception du
+    // stockage — trois qui en tirent un refus, deux qui l'avalent en
+    // best-effort — restent ainsi inatteignables par ce port, et le contrat le
+    // dit au lieu de laisser croire qu'il faudrait les enlever.
+    interditLaLevee: true,
     async jouer(stockage, identite) {
       return await observerLesSix(stockage, identite)
     },
@@ -496,6 +515,14 @@ async function rejouer(
  * Rejoue un scénario sur chaque adaptateur, dans les mêmes conditions de départ,
  * et affirme que tous répondent la même observation. Rend les observations, pour
  * qu'une suite puisse en déduire les échecs que le contrat atteint.
+ *
+ * **Elle vérifie aussi l'accord que le scénario déclare avoir sur la façon
+ * d'échouer**, et elle le vérifie pour chaque observation, jamais pour
+ * l'ensemble : c'est la seule façon que la déclaration tienne quand les deux
+ * adaptateurs lèsent la règle ensemble. L'ordre des deux vérifications n'est pas
+ * indifférent — l'accord d'abord, donc qu'un adaptateur qui désobéit à côté
+ * d'un autre se lise comme une divergence et non comme deux manquements au même
+ * garde-fou.
  */
 export async function exigerEnteteStockage(
   scenario: ScenarioStockage,
@@ -511,6 +538,12 @@ export async function exigerEnteteStockage(
     expect(autre, `${scenario.nom} — accord entre les adaptateurs`).toEqual(
       reference
     )
+  }
+  if (scenario.interditLaLevee) {
+    expect(
+      observations.flatMap((observation) => levees(observation)),
+      `${scenario.nom} — le port sait répondre, donc aucune opération ne lève`
+    ).toEqual([])
   }
   return observations
 }
@@ -531,6 +564,37 @@ export function codesEchec(observation: unknown): string[] {
   }
   visiter(observation)
   return codes
+}
+
+/**
+ * Les endroits où une observation atteste une levée, à quelque profondeur.
+ *
+ * **Le chemin, et non un compte.** Une suite rouge doit nommer l'opération qui a
+ * levé ; un compte ne dirait que combien, et laisserait chercher laquelle des six
+ * avant de lire le reste. Le chemin se lit comme il se traverse —
+ * `presignerBrouillon.leve` — et la racine est nommée pour qu'une levée à la
+ * racine d'une observation reste un chemin comme les autres.
+ *
+ * Le parcours est celui de `codesEchec`, et il est réécrit plutôt que partagé :
+ * l'un compte des chaînes, l'autre des positions, et les unir demanderait une
+ * fermeture que deux fonctions exportées ne partagent pas.
+ */
+export function levees(observation: unknown): string[] {
+  const trouvees: string[] = []
+  const visiter = (valeur: unknown, chemin: string): void => {
+    if (Array.isArray(valeur)) {
+      valeur.forEach((entree, index) => visiter(entree, `${chemin}[${index}]`))
+      return
+    }
+    if (!valeur || typeof valeur !== "object") return
+    for (const [cle, contenu] of Object.entries(valeur)) {
+      const ici = `${chemin}.${cle}`
+      if (cle === "leve" && contenu === true) trouvees.push(ici)
+      else visiter(contenu, ici)
+    }
+  }
+  visiter(observation, "racine")
+  return trouvees
 }
 
 /**
