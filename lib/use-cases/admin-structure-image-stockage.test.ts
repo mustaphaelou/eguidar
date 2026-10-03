@@ -168,6 +168,9 @@ describe("effet d'image par défaut de la Structure", () => {
   })
 
   it("journalise une panne R2 sans faire échouer la mutation de Structure", async () => {
+    // Le port répond désormais au lieu de lever, donc le journal porte le refus
+    // du stockage plutôt qu'une `Error` du SDK. La panne reste une ligne
+    // journalisée, et la mutation reste engagée.
     sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
     const image = `${BASE_PUBLIQUE}/categories/2026/panne.jpg`
@@ -194,7 +197,7 @@ describe("effet d'image par défaut de la Structure", () => {
       })
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining(image),
-        expect.anything()
+        expect.objectContaining({ code: "erreur-stockage" })
       )
     } finally {
       warnSpy.mockRestore()

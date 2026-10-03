@@ -42,7 +42,7 @@ La revendication d'un brouillon est une **comparaison-et-echange** d'etat reserv
 
 La revendication d'un brouillon et la persistance du **Produit** forment **une seule operation logique commitee** : l'interface du cycle de vie prend la fonction d'enregistrement du Catalogue, l'execute entre la revendication et la confirmation, et ne rend la main qu'une fois l'ensemble resolu ou compensé.
 
-### Les quatre echecs, quatre traitements
+### Les cinq echecs, cinq traitements
 
 | Echec | Traitement |
 |---|---|
@@ -50,8 +50,11 @@ La revendication d'un brouillon et la persistance du **Produit** forment **une s
 | La transaction echoue apres promotion | la copie promue est supprimee en best-effort ; le brouillon redevient revendicable ; la base reste autoritaire pour la mutation du **Produit** |
 | La liberation explicite echoue | l'echec de stockage est **signale** a l'editeur ; le brouillon n'est pas silencieusement retire des faits du formulaire |
 | La suppression d'une Image produit persistee echoue | elle reste post-commit et best-effort : elle ne fait jamais echouer une mutation **Catalogue** deja engagee |
+| La lecture du registre rend une rangee dont le type n'est pas un type autorise | le refus remonte comme « registre indisponible » a la liberation comme a la revendication ; la lecture d'inspection laisse remonter l'exception |
 
-Ce dernier point ne change rien a la regle d'origine de cet ADR : la base est autoritaire, un travail commite n'est jamais annule parce qu'un effet annexe a echoue. L'amendement ne fait que separer **avant** commit (l'editeur voit l'echec, le brouillon survit) et **apres** commit (l'editeur ne voit rien, la mutation tient).
+Le traitement de la suppression d'une Image produit persistee ne change rien a la regle d'origine de cet ADR : la base est autoritaire, un travail commite n'est jamais annule parce qu'un effet annexe a echoue. L'amendement ne fait que separer **avant** commit (l'editeur voit l'echec, le brouillon survit) et **apres** commit (l'editeur ne voit rien, la mutation tient).
+
+Le cinquieme n'est pas un echec de stockage, et c'est ce qui le distingue des quatre autres. La colonne du type reste une chaine — le schema n'a pas bouge — donc une rangee portant un type que le port refuserait peut etre relue ; elle n'est alors pas un brouillon d'Image produit, et la frontiere de lecture le decide une fois plutot que de laisser ses deux consommateurs choisir entre une chaine vide et une cle sans extension, c'est-a-dire une suppression best-effort qui ne supprime rien en rapportant un succes. Cette decision etant prise, elle n'a pas de traduction metier a offrir aux chemins qui savent la composer : ils la traduisent en « registre indisponible », ce qui ne ment sur rien, et la lecture d'inspection — qui n'a rien a composer — la laisse remonter. Ce cas est inatteignable par les entrees publiques du module, qui n'ecrivent qu'un type valide ; c'est une donnee deja la, non un chemin d'appel.
 
 ### Ce qui ne change pas
 
@@ -88,7 +91,7 @@ Le module expose donc, en plus des quatre operations, une **liaison dotee de la 
 - l'interface du cycle de vie, elle, reste a **quatre operations** : cette couture est interne au module et a son composeur, elle n'est pas une operation de plus ;
 - la garde de frontiere l'autorise explicitement, et verifie au passage que le **Catalogue** n'atteint toujours pas le port de stockage.
 
-Ce que le **Catalogue** ne recoit pas change : ni cle R2, ni namespace, ni duree de pre-signature, ni etat du registre, ni identifiant de Brouillon en dehors de la liaison qu'il execute. Le vocabulaire de refus, lui, reste entierement compose dans le module proprietaire — y compris sa traduction HTTP, qui est totale et exhaustive pour que l'ajout d'un code soit une erreur de type plutot qu'un 500 silencieux.
+Ce que le **Catalogue** ne recoit pas change : ni cle R2, ni namespace, ni duree de pre-signature, ni etat du registre, ni identifiant de Brouillon en dehors de la liaison qu'il execute. Le vocabulaire de refus, lui, reste entierement compose dans le module proprietaire — y compris sa traduction HTTP, qui est totale et exhaustive pour que l'ajout d'un code soit une erreur de type plutot qu'un 500 silencieux. Une seule exception, et elle n'en est pas une : la lecture d'inspection laisse remonter l'exception d'une rangee illisible plutot que d'en composer un refus. Un defaut de donnees n'a pas de refus metier a dire — nommer un code pour lui reviendrait a ajouter une traduction d'un cas que rien ne peut produire — et le cinquieme traitement le dit a sa maniere.
 
 ## Amendement : une edition abandonnee n'a pas de nettoyage a la demande
 
