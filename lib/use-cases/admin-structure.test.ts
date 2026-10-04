@@ -172,6 +172,40 @@ function attendreQue(acquis: () => boolean): Promise<void> {
 }
 
 /**
+ * L'attente qu'une mutation passe réellement derrière le verrou grossier,
+ * mesurée par PostgreSQL et non supposée.
+ *
+ * Une Tierce partie qui garde ses lignes est `idle in transaction` : elle
+ * n'attend rien. La mutation partie derrière elle est `active`, porte
+ * `wait_event_type = 'Lock'` et exécute alors le `SELECT … FROM "Category" FOR
+ * UPDATE` de `verrouillerStructure`. Les trois conditions ensemble sont ce qui
+ * distingue « elle attend le verrou » de « elle n'est pas encore arrivée » : les
+ * deux premières seules seraient vraies de n'importe quelle attente de verrou
+ * de la base de test, y compris d'une autre.
+ *
+ * C'est ce que l'épreuve attend avant de relâcher la Tierce partie. Au bout
+ * d'un temps fixe, elle prouverait peut-être une contention qui n'a pas eu
+ * lieu, et le refus qu'elle observerait serait alors celui d'une course
+ * qu'aucune des deux transactions n'a vue.
+ */
+async function attendreQuUneAttenteDeVerrou(): Promise<void> {
+  const uneAttenteDeVerrou = async () => {
+    const lignes = await prisma.$queryRawUnsafe<{ attendu: bigint }[]>(
+      `SELECT count(*) AS attendu
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND state = 'active'
+          AND wait_event_type = 'Lock'
+          AND query LIKE '%FROM "Category" FOR UPDATE%'`
+    )
+    return Number(lignes[0]?.attendu ?? 0) > 0
+  }
+  while (!(await uneAttenteDeVerrou())) {
+    await attendre(10)
+  }
+}
+
+/**
  * Le refus qu'une promesse rend, ou `undefined` si elle réussit.
  *
  * La forme est la même partout — `then` sur les deux voies — pour qu'une épreuve
@@ -183,6 +217,54 @@ function refusDe(promesse: Promise<unknown>): Promise<unknown> {
     () => undefined,
     (error: unknown) => error
   )
+}
+
+/**
+ * L'épreuve du délai de verrou que les mutations de Structure partagent
+ * (ADR-0027). La Tierce partie prend le verrou grossier et ne le rend pas,
+ * `mutation` part derrière, et son refus doit tomber **dans** le délai — pas
+ * après, ce qui distinguerait « encore en attente du verrou » de « refusée »
+ * sans rien présumer du chemin qui l'a produit.
+ *
+ * Le refus rendu est un refus de la Structure, jamais une erreur de lecteur :
+ * c'est ce qui fait que `adminFormAction` le rend à l'éditeur au lieu de le
+ * relancer. Ce que la mutation laisse dans la base ne se dit pas ici — chaque
+ * épreuve le lit dans ses propres termes.
+ */
+async function eprouverLeDelaiDeVerrou(
+  demarrer: () => Promise<unknown>
+): Promise<unknown> {
+  let tierceVerrouillee = false
+  const { transaction, liberer } = retenirTransaction(
+    async (tx, liberation) => {
+      await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
+      tierceVerrouillee = true
+      await liberation
+    }
+  )
+  await attendreQue(() => tierceVerrouillee)
+
+  // La mutation ne part qu'ici : une promesse déjà créée au moment de l'appel
+  // s'exécuterait avant que la Tierce partie tienne quoi que ce soit, et
+  // l'épreuve ne mesurerait plus rien.
+  const mutation = demarrer()
+  mutation.catch(() => {})
+  try {
+    const refus = await Promise.race([
+      refusDe(mutation),
+      attendre(DELAI_VERROU_STRUCTURE_MS + 400).then(() => "en attente"),
+    ])
+    expect(refus).toBeInstanceOf(CategoryBusyError)
+    expect(refus).toBeInstanceOf(UserFacingError)
+    expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    expect((refus as Error).message).toBe(
+      "la Structure est en cours de modification, réessayez"
+    )
+    return refus
+  } finally {
+    liberer()
+    await transaction
+  }
 }
 
 describe("admin structure mutations — categories", () => {
@@ -273,6 +355,146 @@ describe("admin structure mutations — categories", () => {
     await verifierRefusValidation(CategoryValidationError, () =>
       createCategory(makeCategoryInput({ parentId: "unknown-parent" }))
     )
+  })
+
+  it("borne au délai l'attente du verrou grossier d'une création de racine", async () => {
+    const effets = effectSpies()
+    // Une Structure déjà là, donc des lignes que le verrou grossier peut
+    // prendre : `SELECT … FOR UPDATE` sérialise sur les lignes existantes, et
+    // l'Administration gère toujours un arbre déjà planté. Sans elle, la Tierce
+    // partie tiendrait un verrou sur rien et l'épreuve ne mesurerait rien.
+    await createCategory(
+      makeCategoryInput({ slug: categorySlug("create-borne-racine") })
+    )
+
+    // La création est la mutation la plus simple de la Structure — une
+    // insertion de racine ne pose aucune référence de clé étrangère, donc rien à
+    // verrouiller d'elle-même — et c'est pourtant elle qu'une Tierce partie
+    // Tenant le verrou grossier fait attendre, jusqu'au délai : personne n'y
+    // échappe, pas même elle (ADR-0027). Sans le verrou, la création passerait
+    // pendant que l'épreuve croit mesurer une contention.
+    const slug = categorySlug("create-borne")
+    await eprouverLeDelaiDeVerrou(() =>
+      createCategory(makeCategoryInput({ slug }), effets)
+    )
+
+    // Rien n'a été écrit et aucun effet n'est parti : c'est un refus de
+    // contention, pas une création.
+    await expect(prisma.category.count({ where: { slug } })).resolves.toBe(0)
+    expectNoEffects(effets)
+  })
+
+  it("refuse une Structure parente disparue entre la lecture et l'écriture", async () => {
+    const effets = effectSpies()
+    const parente = await createCategory(
+      makeCategoryInput({ slug: categorySlug("create-parent-disparu") })
+    )
+
+    // La Tierce partie supprime la Structure d'accueil sous le verrou grossier
+    // et retient son commit. La création part pendant ce retrait, et l'épreuve
+    // ne relâche la Tierce partie qu'une fois PostgreSQL dit que la création
+    // attend bel et bien le verrou : c'est cet ordre qui fait la différence,
+    // pas un temps suffisant.
+    //
+    // Sans transaction, la création lirait un parent encore présent — la
+    // suppression n'est pas committée — puis son écriture attendrait cette
+    // suppression et mourrait sur `Category_parentId_fkey`, un
+    // `PrismaClientKnownRequestError` que `adminFormAction` relance au lieu de
+    // le rendre. Sous le verrou grossier, elle n'a encore rien lu quand elle
+    // s'endort : elle se réveille sur une Structure qui n'existe plus et le dit
+    // par un refus de validation (ADR-0027).
+    const slug = categorySlug("create-enfant-disparu")
+    const { transaction, liberer } = retenirTransaction(
+      async (tx, liberation) => {
+        await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
+        await tx.category.delete({ where: { id: parente.id } })
+        await liberation
+      }
+    )
+    try {
+      const creation = createCategory(
+        makeCategoryInput({ slug, parentId: parente.id }),
+        effets
+      )
+      creation.catch(() => {})
+      await attendreQuUneAttenteDeVerrou()
+      liberer()
+      await transaction
+
+      await verifierRefusValidation(CategoryValidationError, () => creation)
+    } finally {
+      liberer()
+      await transaction
+    }
+
+    // Rien n'a été écrit, aucun effet n'est parti : le refus a précédé
+    // l'engagement, il ne l'a pas annulé.
+    await expect(prisma.category.count({ where: { slug } })).resolves.toBe(0)
+    expectNoEffects(effets)
+  })
+
+  it("rejette le slug déjà pris par une création concurrente", async () => {
+    const premierEffets = effectSpies()
+    const secondEffets = effectSpies()
+    const slugPartage = categorySlug("slug-course-partage")
+
+    // Deux créations du même slug, parties ensemble : l'une gagne, l'autre se
+    // fait refuser. L'épreuve ne mesure pas leur sérialisation — rien n'y
+    // garantit qu'elles se soient croisées, et l'épreuve du délai l'a déjà
+    // prouvée — elle garde la surface du refus : un slug concurrentiel reste
+    // `CategorySlugConflictError`, le chemin que le formulaire rend à l'éditeur,
+    // et la perdante ne publie rien.
+    const creations = [
+      createCategory(
+        makeCategoryInput({ slug: slugPartage, name: "Première" }),
+        premierEffets
+      ),
+      createCategory(
+        makeCategoryInput({ slug: slugPartage, name: "Seconde" }),
+        secondEffets
+      ),
+    ]
+    const issues = await Promise.allSettled(creations)
+
+    const reussites = issues.filter((issue) => issue.status === "fulfilled")
+    const refus = issues.filter((issue) => issue.status === "rejected")
+    expect(reussites).toHaveLength(1)
+    expect(refus).toHaveLength(1)
+    expect((refus[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+      CategorySlugConflictError
+    )
+
+    // Une seule Structure porte le slug, et la perdante n'a rien publié.
+    await expect(
+      prisma.category.count({ where: { slug: slugPartage } })
+    ).resolves.toBe(1)
+    const effetsQuiOntParti = [premierEffets, secondEffets].filter(
+      (effets) => effets.revalidateCategories.mock.calls.length > 0
+    )
+    expect(effetsQuiOntParti).toHaveLength(1)
+    const perdante =
+      effetsQuiOntParti[0] === secondEffets ? premierEffets : secondEffets
+    expectNoEffects(perdante)
+  })
+
+  it("ne déclenche l'effet de la création qu'après le commit", async () => {
+    // L'effet observe la base au moment précis où il s'exécute, et la Structure
+    // doit y être déjà engagée : un effet qui partirait avant le commit
+    // publierait une Structure que rien ne porte encore (ADR-0014).
+    const slug = categorySlug("create-effet")
+    let slugVisibleALEffet: string | null = null
+    const revalidateCategories = vi.fn(async () => {
+      const portee = await prisma.category.findUnique({ where: { slug } })
+      slugVisibleALEffet = portee?.slug ?? null
+    })
+
+    const category = await createCategory(makeCategoryInput({ slug }), {
+      revalidateCategories,
+    })
+
+    expect(revalidateCategories).toHaveBeenCalledOnce()
+    expect(slugVisibleALEffet).toBe(slug)
+    expect(category.slug).toBe(slug)
   })
 
   it("updates a category and revalidates; an empty category is not re-indexed", async () => {
@@ -1332,40 +1554,11 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("del-borne") })
     )
 
-    // La Tierce partie prend le verrou grossier et ne le rend pas : c'est
-    // l'attente que le verrou lui-même imposait, celle qu'aucun `lock_timeout`
-    // placé après ne pouvait couper. Elle doit donc se couper ici, comme les
-    // autres. Ce n'est pas un sommeil qui dit que la Tierce partie tient le
-    // verrou, c'est son signal : une tierce lente ne doit pas faire éprouver
-    // une attente qui n'a pas eu lieu.
-    let tierceVerrouillee = false
-    const { transaction, liberer } = retenirTransaction(
-      async (tx, liberation) => {
-        await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
-        tierceVerrouillee = true
-        await liberation
-      }
-    )
-    await attendreQue(() => tierceVerrouillee)
-
-    const suppression = deleteCategory(category.id, {}, effets)
-    suppression.catch(() => {})
-    // Le refus doit tomber dans le délai, pas après : l'épreuve distingue donc
-    // « encore en attente du verrou » de « refusée », sans rien présumer du
-    // chemin qui l'a produit.
-    try {
-      const refus = await Promise.race([
-        refusDe(suppression),
-        attendre(DELAI_VERROU_STRUCTURE_MS + 400).then(() => "en attente"),
-      ])
-      // Un refus de la Structure, jamais une erreur de lecteur : c'est ce qui
-      // fait que `adminFormAction` le rend au lieu de le relancer.
-      expect(refus).toBeInstanceOf(CategoryBusyError)
-      expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
-    } finally {
-      liberer()
-      await transaction
-    }
+    // C'est l'attente que le verrou grossier lui-même imposait, celle qu'aucun
+    // `lock_timeout` placé après ne pouvait couper. Elle doit donc se couper
+    // dans le délai, comme les autres mutations de Structure — l'épreuve du
+    // délai est partagée, la suppression n'y ajoute rien.
+    await eprouverLeDelaiDeVerrou(() => deleteCategory(category.id, {}, effets))
 
     // Rien n'a été écrit, et la Structure est toujours là : c'est un refus de
     // contention, pas une suppression.

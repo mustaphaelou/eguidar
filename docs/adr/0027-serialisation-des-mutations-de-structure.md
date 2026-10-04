@@ -341,3 +341,81 @@ avant que le verrou soit réellement tenu.
 La première ligne n'est pas éprouvée par une suite, et il ne faut pas le dire autrement : le code
 qui la produisait n'existe plus. Seule la seconde a un test, et c'est celle qui doit en avoir un :
 elle éprouve seule un délai qui ne s'arme pas avant le verrou.
+
+## Amendement — La troisième tranche : `createCategory` seule (#489)
+
+Les trois tranches se livrent maintenant ensemble.
+[#488](https://github.com/eloaurdi/eguidar/issues/488) avait posé la deuxième ; celle-ci pose la
+troisième, et avec elle la réserve de l'amendement de la première tranche — « La décision est
+prise, pas livrée » — cesse d'être exacte. Ce qui manquait à `createCategory`, une transaction, le
+verrou grossier et la surface d'erreurs, y est.
+
+- **Les quatre phrases que l'amendement de la première tranche disait fausses sont maintenant
+  vraies.** « Elle vaut pour `createCategory`, `updateCategory` et `deleteCategory` », «
+  `createCategory` et `updateCategory` gagnent une transaction », « toute issue d'une mutation de
+  Structure est un `UserFacingError` », et la forme « première instruction **qui verrouille** » que
+  l'amendement de l'inversion a rendue exacte. La garantie est désormais livrée dans son ensemble,
+  et non plus dans sa première tierce. La troisième reste une phrase d'aspiration :
+  `mapCourseDeStructure` traduit les courses qu'ADR-0027 nomme — dépassement de délai, interblocage,
+  violation de clé étrangère — et laisse passer le reste, un délai de transaction Prisma expiré
+  (`P2028`) par exemple, qui reste une erreur de lecteur. C'est ainsi depuis la première tranche ; la
+  création ne l'a pas rendu plus absolu.
+
+- **La création prend le verrou comme les deux autres, et avant toute lecture.** Le verrou est la
+  première instruction qui verrouille, donc la lecture du slug et celle du parent viennent après lui
+  et non avant — ce qu'exige l'amendement de l'inversion, et que la note de
+  [#489](https://github.com/eloaurdi/eguidar/issues/489) lisait à l'envers en demandant
+  d'« enchaîner le verrou juste après » le passage de `tx`. Le code suit la décision, pas la note.
+
+- **La promesse des deux racines est bornée par le délai, pas absolue.** Une insertion de racine ne
+  pose aucune référence de clé étrangère, donc rien à verrouiller d'elle-même : le verrou ne protège
+  pas sa propre course — deux créations de racines concurrentes ne partagent aucun invariant et se
+  committent toutes deux, c'est voulu — il tient la promesse. « Toutes deux » suppose la gagnante
+  engage moins que le délai ; au-delà, la perdante reçoit le Refus de la Structure, comme toute
+  mutation qui attend trop longtemps. L'exception est assumée et n'exonère personne du verrou.
+
+- **`assertUniqueCategorySlug` lit sur le client de la transaction**, comme
+  `assertCategoryParent` et `assertAcyclicCategoryTree` désormais. Les trois lectures et l'écriture
+  partagent un seul engagement et une seule connexion. C'est un changement de signature interne
+  dont [`updateCategory`](../../lib/use-cases/admin-structure.ts) bénéficie aussi : sa lecture du
+  slug ne prenait plus une seconde connexion pendant que la première tenait le verrou.
+
+- **Ce que cette tranche ne referme pas.** Les trois pièges nommés de la décision restent entiers :
+  `Product_categoryId_fkey` échoue toujours du côté Catalogue, la marche d'acyclicité reste non
+  bornée, et l'écart entre le schéma Prisma et la base sur `Category_parentId_fkey` demeure. La
+  frontière aussi : Commande, Catalogue et Livraison gardent READ COMMITTED, et les effets de la
+  Structure restent post-commit et best-effort (ADR-0014).
+
+### La condition que la preuve du verrou grossier présupposait
+
+`SELECT … FROM "Category" FOR UPDATE` prend des verrous de ligne : **sur une table vide, il ne
+verrouille rien**. Une Tierce partie qui le tient dans une base dont la Structure est vide laisse
+passer la création, et une épreuve de contention qui ne plante rien avant de le faire croit
+mesurer une contention qui n'a pas eu lieu — c'est ce qu'a montré la première forme de l'épreuve
+de cette tranche, qui a rendu son verdict en quelques centaines de millisecondes au lieu
+d'attendre le délai. L'épreuve plante donc une Structure avant de faire tenir le verrou, et le
+dit.
+
+Ce n'est pas une exception à la décision, qui parle d'un arbre administré, et c'est l'« exception
+assumée » ci-dessus qui le rend inoffensif : deux créations concurrentes sur une Structure vide ne
+partagent aucun fait, et une fois la première ligne plantée, toute création concurrente se sérialise
+comme les deux autres mutations. Ce que la tranche ajoute là est une limite de l'**épreuve**, pas
+de la garantie.
+
+### Ce que la preuve montre
+
+Joué contre le même PostgreSQL, dans
+[`admin-structure.test.ts`](../../lib/use-cases/admin-structure.test.ts) :
+
+| Cas                                                                                                          | Constat mesuré                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Une Tierce partie tient le verrou grossier et ne le rend pas, une création de racine part                     | `CategoryBusyError` à **≈ 1 000 ms**, aucun slug écrit, aucun effet parti — la création ne s'exempte pas du délai |
+| Une Tierce partie supprime la Structure d'accueil sous le verrou et retient son commit, la création part ensuite | **après** : la création attend le verrou, lit une Structure absente et rend `CategoryValidationError`, rien n'est écrit. **Avant**, la même épreuve rejouée contre le code antérieur à la tranche rendait une `PrismaClientKnownRequestError` sur `Category_parentId_fkey` : relevé en rejouant l'épreuve, **pas éprouvé par une suite** — le code qui le produisait n'existe plus |
+| Deux créations concurrentes du même slug                                                                     | l'une commite, l'autre rend `CategorySlugConflictError`, un seul slug et un seul jeu d'effets — l'épreuve garde la surface du refus, elle ne mesure pas leur sérialisation |
+| L'effet d'invalidation de la création                                                                         | il observe la Structure déjà engagée au moment où il s'exécute                                                    |
+
+La deuxième ligne est, pour la création, ce que la première ligne du tableau de la décision est
+pour la suppression : la seule où la garantie améliore une course au lieu de la traduire. Une Tierce
+partie qui retire la Structure d'accueil sous le verrou ne fait plus sortir l'action serveur en
+exception ; l'éditeur reçoit un refus qu'il sait traiter.
+
