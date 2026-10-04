@@ -128,15 +128,47 @@ describe.runIf(!!meili)("Les réglages de l'index des Produits", () => {
   )
 
   /**
-   * La stratégie de correspondance est le prochain ticket (#532), et elle a un
-   * travail à faire : l'écrire ici changerait ce que le Visiteur voit, ce que
-   * ce ticket promet de ne pas faire. Son absence est donc affirmée, pour que
-   * le jour où quelqu'un l'ajoute au passage, la suite dise que c'est un choix.
+   * Le propriétaire n'écrit rien d'autre que ces quatre attributs et ces trois
+   * réglages — la charge utile est lue en entier, pas réglage par réglage.
+   *
+   * #531 affirmait ici l'absence de la stratégie de correspondance, pour que
+   * le jour où quelqu'un l'ajouterait « en passant », la suite dise que c'est
+   * un choix. Elle n'a jamais pu être écrite dans cette charge utile : chez
+   * Meilisearch, la stratégie de correspondance n'est pas un réglage d'index.
+   * Le moteur la refuse — `Unknown field 'matchingStrategy': expected one of
+   * 'displayedAttributes', 'searchableAttributes', …` — et `GET /indexes/<uid>/settings`
+   * ne la rend pas davantage : c'est un paramètre de requête, que le SDK
+   * déclare dans `SearchParams` et nulle part dans `Settings`. Elle s'écrit
+   * donc sur chaque recherche, dans `lib/meili.ts`, et
+   * `lib/meili-correspondance.test.ts` en mesure la conséquence sur un moteur
+   * vivant.
+   *
+   * Cette égalité est plus large que l'absence qu'elle remplace : un réglage
+   * ajouté en passant, quel qu'il soit, la rend rouge.
    */
-  it("le propriétaire n'écrit rien de la stratégie de correspondance", async () => {
+  it("le propriétaire n'écrit rien d'autre", async () => {
     const recus = await reglagesRecus(client, PRODUCTS_INDEX)
 
-    expect(recus).not.toHaveProperty("matchingStrategy")
+    expect(recus).toEqual({
+      searchableAttributes: expect.any(Array),
+      filterableAttributes: [
+        "brand",
+        "categorySlug",
+        "minPrice",
+        "priceBucket",
+      ],
+      sortableAttributes: ["minPrice", "updatedAt"],
+      localizedAttributes: expect.any(Array),
+      typoTolerance: {
+        enabled: true,
+        minWordSizeForTypos: { oneTypo: 5, twoTypos: 9 },
+        disableOnWords: [],
+        disableOnAttributes: [],
+        disableOnNumbers: false,
+      },
+      pagination: { maxTotalHits: 1000 },
+      faceting: { maxValuesPerFacet: 100, sortFacetValuesBy: { "*": "alpha" } },
+    })
   })
 
   /**

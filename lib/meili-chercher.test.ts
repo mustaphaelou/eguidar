@@ -125,6 +125,29 @@ describe("chercherAvecMeili — traduction de la page", () => {
     expect(appels[0].options.attributesToSearchOn).toBeUndefined()
   })
 
+  /**
+   * La stratégie de correspondance est le seul moyen de dire au moteur
+   * qu'exiger chaque terme est une règle de la Recherche, et non le défaut du
+   * moteur. Elle est écrite sur *chaque* requête — la page comme les requêtes
+   * de facette, sans quoi les options de filtre compteraient sur une requête
+   * plus large que celle qui rend les résultats.
+   */
+  it("exige de la stratégie que chaque terme soit trouvé, page et facettes", async () => {
+    const { client, appels } = clientDeSubstitution()
+
+    await chercherAvecMeili(client, {
+      query: "casque sony wh",
+      taille: 24,
+      facettes: ["brand", "categorySlug"],
+    })
+
+    expect(appels.map(({ options }) => options.matchingStrategy)).toEqual([
+      "all",
+      "all",
+      "all",
+    ])
+  })
+
   it("construit les clauses de marque, de catégorie et de prix", async () => {
     const { client, appels } = clientDeSubstitution()
 

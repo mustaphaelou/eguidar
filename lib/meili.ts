@@ -54,6 +54,31 @@ function attributesToSearchOn(query: string): string[] | undefined {
 }
 
 /**
+ * Chaque terme de la requête doit être trouvé dans le document : c'est la
+ * promesse que la Recherche porte au Visiteur, et le moteur n'en fait pas son
+ * défaut. Son défaut, `last`, relâche — il retire les mots de la fin jusqu'à
+ * remplir une page — donc « samsung iphone » ou « 128 Go 256 » rendait des
+ * Produits, pendant que les tests du dépôt disaient le contraire.
+ *
+ * Ce n'est pas un réglage d'index : le moteur refuse le champ parmi les
+ * réglages (`Unknown field 'matchingStrategy'`), `GET /indexes/<uid>/settings`
+ * ne le rend pas, et le SDK ne le déclare que parmi les paramètres de requête.
+ * Il s'écrit donc ici, sur *chaque* requête — la page comme les requêtes de
+ * facette, sans quoi les options de filtre compteraient sur une requête plus
+ * large que celle qui rend les résultats.
+ *
+ * **Le rétrécissement est un choix, et il se voit.** Un Visiteur qui tape deux
+ * mots sur trois voit moins de Produits qu'avant, et le bandeau de suggestions
+ * ne propose plus rien tant que la requête n'est pas complète. L'autre voie est
+ * le relâchement du moteur — ce que la production faisait, et ce que les tests
+ * du dépôt niaient. Une faute de frappe reste permise : « chaque terme trouvé »
+ * veut dire « présent ou mal orthographié », jamais « présent à la lettre
+ * près ». `lib/meili-correspondance.test.ts` mesure les deux sur un moteur
+ * vivant, contrôle négatif compris.
+ */
+const MATCHING_STRATEGY = "all" as const
+
+/**
  * Les trois réglages que le Visiteur voit et que le moteur appliquait sans que
  * rien ne les écrive : la tolérance aux fautes — un mot mal orthographié doit
  * quand même trouver son Produit —, le plafond de la fenêtre de résultats, et
@@ -69,8 +94,9 @@ function attributesToSearchOn(query: string): string[] | undefined {
  * page rend zéro document — et non le total rendu : le nombre affiché reste
  * l'estimation du moteur, que ce plafond ne touche pas (ADR-0023).
  *
- * La stratégie de correspondance, elle, reste non écrite : la modifier change
- * les résultats, et c'est le travail de #532.
+ * La stratégie de correspondance, elle, n'est pas ici : le moteur n'a pas de
+ * réglage de ce nom, et elle voyage avec chaque requête — voir
+ * `MATCHING_STRATEGY` plus bas.
  */
 export async function ensureProductsIndex(meili: Meilisearch) {
   const settings = {
@@ -203,6 +229,7 @@ async function interrogerMeili(
             offset: ((requete.page ?? 1) - 1) * taille,
             sort: SORT_TO_MEILI[requete.tri ?? "pertinence"],
             attributesToRetrieve: PRODUCT_ATTRIBUTES_TO_RETRIEVE,
+            matchingStrategy: MATCHING_STRATEGY,
             ...(searchAttributes
               ? { attributesToSearchOn: searchAttributes }
               : {}),
@@ -214,6 +241,7 @@ async function interrogerMeili(
         filter,
         facets: [facette],
         limit: 0,
+        matchingStrategy: MATCHING_STRATEGY,
         ...(searchAttributes ? { attributesToSearchOn: searchAttributes } : {}),
       })
     ),
