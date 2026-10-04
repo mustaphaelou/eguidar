@@ -144,7 +144,13 @@ export interface FaitsFormulaireProduit {
   name: string
   slug: string
   brand: string
-  categoryId: string
+  /**
+   * `null` pour un **Produit sans Structure** (ADR-0029). L'Administration peut
+   * l'ouvrir et le lire ; elle ne peut pas l'enregistrer tant qu'elle n'a pas
+   * choisi une Structure — c'est le formulaire, pas le serveur, qui rend la
+   * distinction, et le `min(1)` du schema en reste le gardien.
+   */
+  categoryId: string | null
   description: string
   price: number
   isFeatured: boolean

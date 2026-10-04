@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { toIndexableProduct } from "@/lib/index-projection"
+import {
+  LIBELLE_SANS_STRUCTURE,
+  SLUG_SANS_STRUCTURE,
+  toIndexableProduct,
+} from "@/lib/index-projection"
 
 type ProductRecord = Parameters<typeof toIndexableProduct>[0]
 
@@ -127,6 +131,31 @@ describe("toIndexableProduct", () => {
       categorySlug: "magasins",
       categoryName: "Magasins",
     })
+  })
+
+  // Le Produit sans Structure (ADR-0029). Ces trois assertions sont la
+  // decision : le fait devient partiel, la cle de facette ne le devient pas.
+  it("renders a Produit sans Structure with a null fact and a total facet key", () => {
+    const doc = toIndexableProduct(makeProduct({ category: null }))
+
+    // Le fait, lui, est nul : c'est vrai, et une autre valeur serait un mensonge.
+    expect(doc.categoryId).toBeNull()
+    // La cle de facette ne l'est pas, et ce n'est pas un detail d'implémentation :
+    // `parseSearchParams` fait `if (categorySlug)`, donc une chaine vide
+    // donnerait une puce cliquable qui ne filtre rien.
+    expect(doc.categorySlug).toBe(SLUG_SANS_STRUCTURE)
+    expect(doc.categorySlug).not.toBe("")
+    expect(doc.categoryName).toBe(LIBELLE_SANS_STRUCTURE)
+  })
+
+  it("keeps the reserved facet key outside the slug grammar of a Structure", () => {
+    // La grammaire de `slugSchema`, recopiee depuis
+    // `lib/use-cases/admin-structure.ts`. C'est le test qui tient la
+    // non-collision : si une Structure pouvait un jour porter ce slug, deux
+    // populations se melangeraient dans une meme repartition, silencieusement.
+    const grammaireDeSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+    expect(SLUG_SANS_STRUCTURE).not.toMatch(grammaireDeSlug)
   })
 
   it("converts updatedAt to milliseconds", () => {

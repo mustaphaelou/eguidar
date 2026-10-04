@@ -1,6 +1,10 @@
 "use client"
 
-import { Delete01Icon, PlusSignIcon } from "@hugeicons/core-free-icons"
+import {
+  Alert02Icon,
+  Delete01Icon,
+  PlusSignIcon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useActionState, useRef, useState } from "react"
 
@@ -192,6 +196,24 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {/* Un Produit sans Structure (ADR-0029) s'ouvre, se lit et ne
+                  s'enregistre pas. Le sélecteur part vide — la validation le
+                  refuse tant qu'il l'est — et cette ligne est ce qui explique
+                  à l'éditeur pourquoi un Produit valide refuse son
+                  enregistrement. */}
+              {product && product.categoryId === null ? (
+                <p className="flex items-start gap-1.5 text-sm text-destructive">
+                  <HugeiconsIcon
+                    icon={Alert02Icon}
+                    strokeWidth={2}
+                    className="mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Ce Produit est sans Structure : sa Structure a été
+                    supprimée. Choisissez-en une pour l&apos;enregistrer.
+                  </span>
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="price">Prix (MAD, TVA incluse)</Label>

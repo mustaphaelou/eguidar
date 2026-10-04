@@ -6,12 +6,34 @@ import { useEffect, useRef, useState } from "react"
 
 import { Input } from "@/components/ui/input"
 import { urlProduit } from "@/lib/carte-produit"
+import { SLUG_SANS_STRUCTURE } from "@/lib/index-projection"
 import { formatPrice } from "@/lib/money"
+import { buildSearchHref } from "@/lib/search-params"
 import type { SuggestionProduit } from "@/lib/use-cases/search"
 
 interface SuggestionCategory {
   slug: string
   name: string
+}
+
+/**
+ * Où mène une suggestion de catégorie.
+ *
+ * Une Structure réelle mène à sa page. **La valeur réservée d'un Produit sans
+ * Structure (ADR-0029) n'a pas de page** : `/categorie/_sans-structure` rendrait
+ * un `notFound()`, parce qu'aucune Structure ne porte ce slug — c'est
+ * précisément ce que garantit son caractère réservé. Elle mène donc au
+ * Catalogue filtré sur elle, que `buildSearchHref` écrit et que la page
+ * « Tous nos produits » sait lire : la destination existe, et elle montre
+ * exactement les Produits que la promesse nomme.
+ *
+ * L'écart est mesuré, pas supposé : `/categorie/<slug>` passe par
+ * `fetchCategoryPageData`, qui rend `null` pour un slug absent.
+ */
+export function hrefDeSuggestion(slug: string): string {
+  return slug === SLUG_SANS_STRUCTURE
+    ? buildSearchHref("", { categorySlug: slug }, {}, {}, "/produits")
+    : `/categorie/${slug}`
 }
 
 const DEBOUNCE_MS = 300
@@ -107,7 +129,7 @@ export function SearchSuggestions({
                 {result.categories.map((category) => (
                   <Link
                     key={category.slug}
-                    href={`/categorie/${category.slug}`}
+                    href={hrefDeSuggestion(category.slug)}
                     onClick={onNavigate}
                     className="rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
                   >

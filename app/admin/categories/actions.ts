@@ -43,6 +43,7 @@ interface CategoryDeleteInput {
   categoryId: string
   reassignToCategoryId?: string
   reparentChildrenToCategoryId?: string
+  orphanProducts?: boolean
 }
 
 export const createCategoryAction = adminFormAction<CategoryInput>({
@@ -82,20 +83,28 @@ export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
     const reparentChildrenToCategoryId = String(
       formData.get("reparentChildrenToCategoryId") ?? ""
     )
+    // La case a cocher porte une **coche**, pas une sentinelle : elle est là ou
+    // elle n'est pas là, et « là » veut dire « l'éditeur a choisi de laisser les
+    // Produits sans Structure » (ADR-0029). Sans elle, et sans cible de
+    // reaffectation, la Structure reste refusee.
+    const orphanProducts = formData.get("orphanProducts") === "on"
     return {
       categoryId,
       ...(reassignToCategoryId ? { reassignToCategoryId } : {}),
       ...(reparentChildrenToCategoryId ? { reparentChildrenToCategoryId } : {}),
+      ...(orphanProducts ? { orphanProducts } : {}),
     }
   },
   run: async ({
     categoryId,
     reassignToCategoryId,
     reparentChildrenToCategoryId,
+    orphanProducts,
   }) => {
     await deleteCategory(categoryId, {
       ...(reassignToCategoryId ? { reassignToCategoryId } : {}),
       ...(reparentChildrenToCategoryId ? { reparentChildrenToCategoryId } : {}),
+      ...(orphanProducts ? { orphanProducts } : {}),
     })
     return {}
   },

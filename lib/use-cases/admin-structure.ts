@@ -440,18 +440,29 @@ export async function updateCategory(
  * `reparentChildrenToCategoryId` est la Structure que l'éditeur a choisie pour
  * accueillir les sous-catégories : sans elle, la Structure qui a des enfants
  * reste refusée. La règle ne s'assouplit pas — elle devient saisissable.
+ *
+ * `orphanProducts` répond à la même question, posée aux Produits (ADR-0029) :
+ * sans elle et sans `reassignToCategoryId`, la Structure qui a des Produits
+ * reste refusée. Comme pour les sous-catégories, la règle ne s'assouplit pas,
+ * elle devient saisissable.
  */
 export async function deleteCategory(
   id: string,
   options: {
     reassignToCategoryId?: string
     reparentChildrenToCategoryId?: string
+    orphanProducts?: boolean
   } = {},
   overrides?: Partial<StructureEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const reassignToCategoryId = options.reassignToCategoryId
   const reparentChildrenToCategoryId = options.reparentChildrenToCategoryId
+  // La réaffectation l'emporte sur l'orphelinat : les deux ensemble est un choix
+  // contradictoire, et c'est la réaffectation qui s'applique. Un Produit qui garde
+  // une Structure reste dans une page de catégorie et dans un décompte ; un
+  // Produit sans Structure n'est dans aucun des deux.
+  const orphans = options.orphanProducts === true && !reassignToCategoryId
 
   // Une seule mutation atomique et sérialisée : le délai de verrou s'arme,
   // puis le verrou grossier prend tout l'arbre en première instruction qui
@@ -492,29 +503,40 @@ export async function deleteCategory(
         })
       }
 
+      // Les Produits sortent de la Structure source par l'unique voie qui les
+      // y laisse : une écriture de `categoryId` dans cette transaction, sous le
+      // même verrou. `RESTRICT` ne peut donc pas refuser la suppression pour
+      // eux — la colonne est vide quand la contrainte est rencontrée (ADR-0029).
       let moved: IndexableProduct[] = []
-      if (reassignToCategoryId) {
-        if (reassignToCategoryId === id) {
-          throw new CategoryValidationError([
-            "une catégorie ne peut pas être réassignée vers elle-même",
-          ])
-        }
-        await assertCategoryParent(reassignToCategoryId, tx)
-        if (category.products.length > 0) {
+      if (category.products.length > 0) {
+        if (reassignToCategoryId) {
+          if (reassignToCategoryId === id) {
+            throw new CategoryValidationError([
+              "une catégorie ne peut pas être réassignée vers elle-même",
+            ])
+          }
+          await assertCategoryParent(reassignToCategoryId, tx)
           await tx.product.updateMany({
             where: { categoryId: id },
             data: { categoryId: reassignToCategoryId },
           })
-          const movedRows = await tx.product.findMany({
-            where: {
-              id: { in: category.products.map((product) => product.id) },
-            },
-            include: { variants: true, category: true },
+        } else if (!orphans) {
+          // Le refus reste le défaut : ni cible choisie, ni orphelinat choisi.
+          throw new CategoryHasProductsError(category.products.length)
+        } else {
+          // Le Produit sans Structure (ADR-0029). Il reste vendable et reste
+          // indexable : son `categorySlug` devient la valeur réservée, ce qui
+          // est justement pourquoi il est réindexé avec les autres.
+          await tx.product.updateMany({
+            where: { categoryId: id },
+            data: { categoryId: null },
           })
-          moved = movedRows.map(toIndexableProduct)
         }
-      } else if (category.products.length > 0) {
-        throw new CategoryHasProductsError(category.products.length)
+        const movedRows = await tx.product.findMany({
+          where: { id: { in: category.products.map((product) => product.id) } },
+          include: { variants: true, category: true },
+        })
+        moved = movedRows.map(toIndexableProduct)
       }
 
       await tx.category.delete({ where: { id } })

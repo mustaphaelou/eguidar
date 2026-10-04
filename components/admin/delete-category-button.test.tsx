@@ -295,6 +295,90 @@ describe("DeleteCategoryButton", () => {
     expect(soumissions[0]!.get("reassignToCategoryId")).toBe(CIBLE)
   })
 
+  // Le Produit sans Structure (ADR-0029) : la troisième issue, et la seule
+  // des trois qui ne soit pas une cible.
+  it("soumet l'orphelinat quand l'éditeur coche la case", async () => {
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
+      <DeleteCategoryButton
+        categoryId={SUPPRIMEE}
+        categoryName="Structure à supprimer"
+        childCount={0}
+        productCount={2}
+        categories={CATEGORIES}
+        action={action}
+      />
+    )
+
+    await ouvrirDialogue()
+    await act(async () => {
+      dialogue()!
+        .querySelector<HTMLInputElement>('[data-slot="checkbox"]')!
+        .click()
+    })
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+
+    expect(soumissions).toHaveLength(1)
+    expect(soumissions[0]!.get("orphanProducts")).toBe("on")
+    // Aucune cible : l'orphelinat **est** l'absence de cible, et le formulaire
+    // ne doit pas en porter une pour que le serveur ait quelque chose à lire.
+    expect(soumissions[0]!.get("reassignToCategoryId")).toBeNull()
+  })
+
+  it("n'envoie pas l'orphelinat quand la case est décochée", async () => {
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
+      <DeleteCategoryButton
+        categoryId={SUPPRIMEE}
+        categoryName="Structure à supprimer"
+        childCount={0}
+        productCount={2}
+        categories={CATEGORIES}
+        action={action}
+      />
+    )
+
+    await ouvrirDialogue()
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+
+    // Le champ n'existe pas du tout : c'est le chemin du refus, et le serveur
+    // n'a rien à reconnaître.
+    expect(soumissions[0]!.get("orphanProducts")).toBeNull()
+    expect(soumissions[0]!.get("reassignToCategoryId")).toBeNull()
+  })
+
+  it("efface la cible choisie dès que l'éditeur coche l'orphelinat", async () => {
+    const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
+      <DeleteCategoryButton
+        categoryId={SUPPRIMEE}
+        categoryName="Structure à supprimer"
+        childCount={0}
+        productCount={2}
+        categories={CATEGORIES}
+        action={action}
+      />
+    )
+
+    await ouvrirDialogue()
+    await choisirOption(
+      "Déplacer les produits vers",
+      "Déplacer les produits vers Structure cible"
+    )
+    // **Un seul choix à la fois.** Le serveur départagerait, mais une boîte qui
+    // proposerait les deux à la fois laisserait croire qu'ils s'appliquent
+    // ensemble.
+    await act(async () => {
+      dialogue()!
+        .querySelector<HTMLInputElement>('[data-slot="checkbox"]')!
+        .click()
+    })
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
+
+    expect(soumissions[0]!.get("orphanProducts")).toBe("on")
+    expect(soumissions[0]!.get("reassignToCategoryId")).toBeNull()
+  })
+
   it("retire la cible soumise quand l'éditeur choisit « Bloquer — produits rattachés »", async () => {
     const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
     rendu.render(

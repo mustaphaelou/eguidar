@@ -275,15 +275,33 @@ describe("ecartPrixDepuisTexte", () => {
 })
 
 describe("les faits du formulaire", () => {
-  it("décrivent le même Produit que l'entrée de la mutation, à la galerie près", () => {
+  it("décrivent le même Produit que l'entrée de la mutation, à la galerie et à la Structure près", () => {
     // L'entrée de la mutation est atteinte **par type seulement** : rien de
     // `@/lib/use-cases/admin-catalog` ne subsiste à la compilation, donc
-    // cette suite reste exécutable en Node sans base. La galerie est la seule
-    // divergence voulue : le formulaire manipule des Images produit, la
-    // mutation des URL.
+    // cette suite reste exécutable en Node sans base. Deux divergences sont
+    // voulues.
+    //
+    // La galerie : le formulaire manipule des Images produit, la mutation des
+    // URL.
+    //
+    // La Structure, depuis ADR-0029 : `FaitsFormulaireProduit.categoryId` est
+    // `string | null` parce que l'Administration doit pouvoir **ouvrir** un
+    // Produit sans Structure, alors que `ProductInput.categoryId` reste un
+    // `string` — c'est le `min(1)` de la validation qui refuse de l'enregistrer.
+    // L'écart est donc le mécanisme même de la règle, pas une approximation :
+    // le formulaire sait montrer un fait que la mutation refuse d'écrire.
     expectTypeOf<
-      Omit<FaitsFormulaireProduit, "id" | "images" | "variants">
-    >().toEqualTypeOf<Omit<ProductInput, "images" | "variants">>()
+      Omit<FaitsFormulaireProduit, "id" | "images" | "variants" | "categoryId">
+    >().toEqualTypeOf<
+      Omit<ProductInput, "images" | "variants" | "categoryId">
+    >()
+
+    // Et l'écart lui-même, nommé : `null` est lisible par le formulaire et
+    // n'est pas un `string`.
+    expectTypeOf<FaitsFormulaireProduit["categoryId"]>().toEqualTypeOf<
+      string | null
+    >()
+    expectTypeOf<ProductInput["categoryId"]>().toEqualTypeOf<string>()
   })
 
   it("décrivent la même Variante que l'entrée de la mutation", () => {
