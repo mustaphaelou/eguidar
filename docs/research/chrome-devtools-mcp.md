@@ -624,7 +624,7 @@ All remote sources were retrieved on **24 September 2026 (UTC)**. The repository
 - **L6** — [`app/admin/layout.tsx`](../../app/admin/layout.tsx), admin session gate and shell (lines 23–55).
 - **L7** — [`app/admin/page.tsx`](../../app/admin/page.tsx), Administration dashboard data and UI (lines 48–249).
 - **L8** — [`app/(boutique)/checkout/page.tsx`](../../app/(boutique)/checkout/page.tsx), authenticated checkout, Panier/profile loading, and delivery quote (lines 21–87).
-- **L9** — [`CONTEXT.md`](../../CONTEXT.md), project domain summary and Administration/checkout concepts (lines 1–4 and 222–262).
+- **L9** — [`GLOSSARY.md`](../../GLOSSARY.md), project domain summary and Administration/checkout concepts (lines 1–4 and 222–262).
 - **L10** — [`app/(boutique)/produits/page.tsx`](../../app/(boutique)/produits/page.tsx), catalogue route, metadata, and search/filter entry point (lines 10–51).
 - **L11** — [`app/(boutique)/recherche/page.tsx`](../../app/(boutique)/recherche/page.tsx), search route and query/filter state (lines 12–62).
 - **L12** — [`app/(boutique)/panier/page.tsx`](../../app/(boutique)/panier/page.tsx), Panier route, delivery-city picker, payment summary, and checkout link (lines 18–108).
@@ -687,7 +687,7 @@ All remote sources were retrieved on **24 September 2026 (UTC)**. The repository
 [L6]: ../../app/admin/layout.tsx
 [L7]: ../../app/admin/page.tsx
 [L8]: <../../app/(boutique)/checkout/page.tsx>
-[L9]: ../../CONTEXT.md
+[L9]: ../../GLOSSARY.md
 [L10]: <../../app/(boutique)/produits/page.tsx>
 [L11]: <../../app/(boutique)/recherche/page.tsx>
 [L12]: <../../app/(boutique)/panier/page.tsx>

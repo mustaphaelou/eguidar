@@ -37,7 +37,7 @@ Three deepenings, each a module that owns a rule currently held twice.
 - **Three modules, three tickets, three PRs.** Each is independent at the code level: none of the three interfaces is a prerequisite for another.
 - **The shared test seam is the module boundary.** The option module is proved as a pure value in, value out. The session module keeps the boundary twelve suites already mock, gaining one suite that stubs the authentication layer beneath it. The mechanism gains one suite that calls it with a fake effects bundle; the four entity suites keep their own invariants.
 - **One prerequisite, not a ticket.** The implementer checkout is behind the remote main, which carries work these three are defined against. Fast-forwarding is implementation step zero and is proved by the existing suite, so it carries no test surface of its own.
-- **Vocabulary follows the glossary.** The filter option list and the request's session both enter `CONTEXT.md` as terms; the role does not, because the Administration already names it.
+- **Vocabulary follows the glossary.** The filter option list and the request's session both enter `GLOSSARY.md` as terms; the role does not, because the Administration already names it.
 - **Two ADRs record the seams a future reader would question:** the session read that deliberately does not refuse, and the shared mutation mechanism that deliberately keeps four contract suites.
 - **No schema change anywhere.** No queue, no outbox, no new dependency.
 

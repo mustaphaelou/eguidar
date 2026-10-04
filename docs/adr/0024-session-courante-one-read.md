@@ -9,7 +9,7 @@ The same session read was written four times. `sign-in-status.tsx:13` called `au
 - **The module owns the role vocabulary.** `estAdmin(client)` sits beside the type, so no surface writes `client?.role === "admin"`.
 - **The read does not refuse.** The refusal stays one call away in the existing `loginUrl(destination)` (`lib/lien-de-connexion.ts:38`), composed by the surface that requires it: the admin layout, the action shell, or the page that demands a Client. The header needs a `null` answer, not a redirect, and `proxy.ts:25` keeps its deliberate edge-safe `getSessionCookie` presence check — a cookie check at the edge is not a session read, and never becomes one.
 - **The dead gate is deleted, and the two wrappers with it.** `lib/use-cases/admin-gate.ts`, `admin-gate.test.ts` and `admin-gate.integration.test.ts` go, as do `get-session.ts` and `get-admin-session.ts`: the sixteen `vi.mock` paths move onto the new module in the same change, so one path remains.
-- **No new term for the role.** The glossary already names **Administration** and **Compte client**; only **Session courante** is added (`CONTEXT.md`).
+- **No new term for the role.** The glossary already names **Administration** and **Compte client**; only **Session courante** is added (`GLOSSARY.md`).
 
 ## Considered Options
 

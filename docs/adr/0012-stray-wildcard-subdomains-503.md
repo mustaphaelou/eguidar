@@ -6,7 +6,7 @@ for its `Host`, and gets a plain-text 503 `no available server`. We keep it this
 deliberately (#121): the 503s are cosmetic — nothing links to stray subdomains, and they leak
 nothing, since no router and no service sits behind them. A broad host-matching redirect
 (`http.host ne "eguidar.com"`) would catch `cdn.` (R2) and `ssh.` (Tunnel) along with the
-strays. The apex stays the only host the origin serves (see « Hôte canonique » in `CONTEXT.md`);
+strays. The apex stays the only host the origin serves (see « Hôte canonique » in `GLOSSARY.md`);
 `www.` redirects at the edge via `egd001_www_to_apex` (#120), and `cdn.`, `ssh.`, `send.` keep
 their own records.
 
