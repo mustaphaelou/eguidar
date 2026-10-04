@@ -86,7 +86,7 @@ export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
     // La case a cocher porte une **coche**, pas une sentinelle : elle est là ou
     // elle n'est pas là, et « là » veut dire « l'éditeur a choisi de laisser les
     // Produits sans Structure » (ADR-0029). Sans elle, et sans cible de
-    // reaffectation, la Structure reste refusee.
+    // réaffectation, la Structure reste refusée.
     const orphanProducts = formData.get("orphanProducts") === "on"
     return {
       categoryId,

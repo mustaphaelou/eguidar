@@ -48,7 +48,6 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
       minPrice: 100000,
       totalStock: 5,
       images: [],
-      categoryId: "cat",
       categorySlug: smartphonesSlug,
       categoryName: "Smartphones",
       specsText: "",

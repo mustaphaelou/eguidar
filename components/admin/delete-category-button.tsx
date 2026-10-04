@@ -73,7 +73,7 @@ function raisonVisible(comptes: ComptesStructure): string | null {
   if (productCount > 0) {
     // Deux sorties, donc deux mots : la case a cocher rend l'orphelinat
     // saisissable (ADR-0029), et une ligne qui n'en nommerait qu'une
-    // mentirait sur ce que la boite va proposer.
+    // mentirait sur ce que la boîte va proposer.
     return `Refus de la Structure : ${productCount} Produit${productCount > 1 ? "s" : ""} à réaffecter ou à laisser sans Structure`
   }
   return null

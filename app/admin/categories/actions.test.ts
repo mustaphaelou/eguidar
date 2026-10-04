@@ -319,7 +319,7 @@ describe("deleteCategoryAction", () => {
     ).resolves.toMatchObject({ categoryId: null })
   })
 
-  it("refuse encore quand le formulaire ne coche ni l'orphelinat ni de cible", async () => {
+  it("refuse encore quand le formulaire ne coche ni l'orphelinat ni une cible", async () => {
     const { category, product } = await makeCategoryWithProduct("refus-defaut")
 
     const resultat = await deleteCategoryAction({}, deleteFormData(category.id))

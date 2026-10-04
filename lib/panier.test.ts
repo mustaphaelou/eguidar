@@ -652,3 +652,72 @@ describe("Commande — l'intake vide les bonnes lignes", () => {
     expect(panierB.itemCount).toBe(1)
   })
 })
+
+// Le Produit sans Structure (ADR-0029) est **vendu normalement**. C'est un
+// choix, pas un oubli : ni le Panier ni la Commande ne lisent la Structure, et
+// le rendre invendable demanderait une troisième décision — le refuser à la
+// vente, ou le publier ailleurs. Cette épreuve verrouille ce « normalement »,
+// parce qu'il ne tient à rien : il tient à ce que personne n'a ajouté de garde
+// qui lirait la Structure.
+describe("Commande — un Produit sans Structure se vend normalement", () => {
+  it("entre dans le Panier, s'y compte et se commande", async () => {
+    // Écrit comme le fait le produit : `categoryId` nul, sans Structure.
+    const sansStructure = await prisma.product.create({
+      data: {
+        name: "Produit sans Structure",
+        slug: `panier-interface-orphelin-${runId}`,
+        description: "Description sans Structure",
+        brand: "Marque A",
+        categoryId: null,
+        price: 100000,
+        specs: {},
+        images: [],
+        freeShipping: false,
+        variants: {
+          create: [
+            {
+              name: "Standard",
+              sku: `PDI-ORPH-${runId}-A1`,
+              priceDelta: 0,
+              stock: 10,
+            },
+          ],
+        },
+      },
+      include: { variants: true },
+    })
+    const variantSansStructure = sansStructure.variants[0]!.id
+
+    commeClient(userIdA)
+    await expect(
+      ajouterArticleAuPanier(variantSansStructure, 2)
+    ).resolves.toMatchObject({ ok: true })
+
+    const panier = await lirePanier()
+    expect(panier.lines[0]).toMatchObject({
+      variantId: variantSansStructure,
+      productName: "Produit sans Structure",
+      quantity: 2,
+      lineTotal: 200000,
+    })
+    expect(panier.itemCount).toBe(2)
+
+    await placeOrder(userIdA, {
+      cityId,
+      address: ADRESSE,
+      phone: TELEPHONE,
+    })
+
+    // La Commande porte le Produit, figé sous son nom : `OrderItem` ne lit
+    // jamais la Structure, et la ligne existe donc même sans elle.
+    const commande = await prisma.order.findFirstOrThrow({
+      where: { user: { email: { startsWith: emailPrefix } } },
+      include: { items: true },
+    })
+    expect(commande.items).toHaveLength(1)
+    expect(commande.items[0]).toMatchObject({
+      productName: "Produit sans Structure",
+      quantity: 2,
+    })
+  })
+})

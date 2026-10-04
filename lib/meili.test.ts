@@ -27,7 +27,6 @@ function makeDoc(id: string): IndexableProduct {
     minPrice: 50000,
     totalStock: 12,
     images: [],
-    categoryId: "cat-1",
     categorySlug: "categorie-meili",
     categoryName: "Catégorie Meili",
     specsText: "",

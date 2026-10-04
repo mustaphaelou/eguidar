@@ -66,7 +66,6 @@ function makeDoc(
     minPrice: 100000,
     totalStock: 5,
     images: [],
-    categoryId: "cat",
     categorySlug: smartphonesSlug,
     categoryName: "Smartphones",
     specsText: "",
@@ -162,8 +161,10 @@ const moteurSuggestions = creerMoteurEnMemoire(suggestionCategories.documents)
  */
 const moteurSansStructure = creerMoteurEnMemoire([
   makeDoc("orphelin", {
-    name: name("Produit orphelin"),
-    categoryId: null,
+    name: name("Produit sans Structure"),
+    // Le Document d'index ne porte pas le fait `categoryId` : ce qui y dit
+    // l'orphelinat, c'est la clé de facette — la seule qu'un moteur reçoit
+    // (ADR-0029).
     categorySlug: SLUG_SANS_STRUCTURE,
     categoryName: LIBELLE_SANS_STRUCTURE,
   }),
@@ -365,7 +366,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
     // affichée ici et `parseSearchParams` la laisserait tomber. Ce filtre est
     // donc la preuve que la valeur survit au voyage par l'URL.
     expect(result.products.map((p) => p.name)).toEqual([
-      name("Produit orphelin"),
+      name("Produit sans Structure"),
     ])
     expect(result.facets.categories).toContainEqual({
       value: SLUG_SANS_STRUCTURE,

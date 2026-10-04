@@ -127,35 +127,37 @@ describe("toIndexableProduct", () => {
     )
 
     expect(doc).toMatchObject({
-      categoryId: "cat-9",
       categorySlug: "magasins",
       categoryName: "Magasins",
     })
   })
 
-  // Le Produit sans Structure (ADR-0029). Ces trois assertions sont la
-  // decision : le fait devient partiel, la cle de facette ne le devient pas.
-  it("renders a Produit sans Structure with a null fact and a total facet key", () => {
+  // Le Produit sans Structure (ADR-0029). Ces assertions sont la décision :
+  // le fait devient partiel, la clé de facette ne le devient pas.
+  it("renders a Produit sans Structure under the reserved facet key", () => {
     const doc = toIndexableProduct(makeProduct({ category: null }))
 
-    // Le fait, lui, est nul : c'est vrai, et une autre valeur serait un mensonge.
-    expect(doc.categoryId).toBeNull()
-    // La cle de facette ne l'est pas, et ce n'est pas un detail d'implémentation :
-    // `parseSearchParams` fait `if (categorySlug)`, donc une chaine vide
-    // donnerait une puce cliquable qui ne filtre rien.
+    // La clé de facette ne devient jamais absente, et ce n'est pas un détail
+    // d'implémentation : `parseSearchParams` fait `if (categorySlug)`, donc une
+    // chaîne vide donnerait une puce cliquable qui ne filtre rien.
     expect(doc.categorySlug).toBe(SLUG_SANS_STRUCTURE)
     expect(doc.categorySlug).not.toBe("")
     expect(doc.categoryName).toBe(LIBELLE_SANS_STRUCTURE)
   })
 
-  it("keeps the reserved facet key outside the slug grammar of a Structure", () => {
-    // La grammaire de `slugSchema`, recopiee depuis
-    // `lib/use-cases/admin-structure.ts`. C'est le test qui tient la
-    // non-collision : si une Structure pouvait un jour porter ce slug, deux
-    // populations se melangeraient dans une meme repartition, silencieusement.
-    const grammaireDeSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-
-    expect(SLUG_SANS_STRUCTURE).not.toMatch(grammaireDeSlug)
+  // **Le Document d'index ne porte pas le fait.** L'invariant d'ADR-0029 est
+  // « aucun moteur de recherche ne reçoit `categoryId` » : Meilisearch reçoit le
+  // document entier, `addDocuments(products)` — le champ y entrait donc bel et
+  // bien, non filtrable mais présent. Le porter serait laisser à un lecteur
+  // futur une vérité qui ne tient pas : le champ est partiel, il est `null` pour
+  // un orphelin, et rien ne doit pouvoir compter dessus. La preuve est
+  // l'absence de la clé, sur un Produit **avec** Structure comme sans — sinon
+  // elle ne prouverait que le cas facile.
+  it("gives no search engine the categoryId fact, with a Structure or without", () => {
+    expect(toIndexableProduct(makeProduct())).not.toHaveProperty("categoryId")
+    expect(
+      toIndexableProduct(makeProduct({ category: null }))
+    ).not.toHaveProperty("categoryId")
   })
 
   it("converts updatedAt to milliseconds", () => {

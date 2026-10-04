@@ -188,3 +188,55 @@ fantôme, la même Tierce partie, `orphanProducts` au lieu d'une réaffectation 
 refusé sur `Product_categoryId_fkey`, le second aboutit et orpheline les deux Produits. C'est cette
 différence qui dit ce que la décision a changé : **rien sur la course, tout sur ce que l'éditeur peut
 faire ensuite.**
+
+## Amendement — ce que la preuve a montré de faux dans la décision
+
+Deux phrases de la décision étaient vraies pour l'auteur et fausses pour le code. Aucune n'est
+changée ici ; ce qui suit dit ce qui s'est réellement déplacé, et les deux déplacements sont des
+**retours à l'intention** plutôt que des choix nouveaux.
+
+### Le Document d'index ne porte plus le fait `categoryId`
+
+La décision dit « `categoryId` devient `string | null` — c'est un fait, et il est vrai qu'il soit
+nul », et son invariant dit « aucun moteur de recherche ne reçoit `categoryId` ». Les deux ne
+pouvaient pas tenir : `indexProductDocuments` passe le document **entier** à Meilisearch
+(`addDocuments(products)`, [`lib/meili.ts:140`](../../lib/meili.ts#L140)), donc un `categoryId` porté
+par la projection y entrait bel et bien — non filtrable, donc inoffensif, mais **reçu**. Le champ
+n'était lu par rien : la contradiction ne pouvait mettre de suite.
+
+Il est retiré de `IndexableProduct`, et l'invariant est désormais vrai **structurellement** : aucun
+chemin ne peut remettre le fait dans le document sans changer la projection, qui est la couture
+([^l'épreuve](../../lib/index-projection.test.ts) constate l'absence de la clé, avec une Structure
+comme sans — sinon elle ne prouverait que le cas facile). Ce qui decide de la valeur réservée reste
+entier : `categorySlug` est **la seule** clé de Structure qu'un moteur reçoit, elle ne manque
+jamais, et c'est elle qui porte `_sans-structure`.
+
+Ce qui change donc est plus étroit qu'il n'y paraît : la phrase « `categoryId` devient
+`string | null` » parle désormais du **fait en base** — `Product.categoryId`, que le formulaire et
+la liste de l'Administration lisent — et non d'une clé du Document d'index. Le fait reste partiel,
+et il reste vrai qu'il soit nul ; il a simplement cessé de voyager.
+
+### Le refus de réaffectation est total, et il ne dépend pas du nombre de Produits
+
+La décision décrit l'orphelinat comme « une cible choisie, ou rien », et rien n'y dit que la cible
+elle-même se valide. Le code, lui, avait glissé : la garde « une Structure a des Produits »
+enfermait les deux contrôles de la cible — « la cible est-elle la source ? », « la cible existe-t-elle
+? » — si bien qu'une cible invalide sur une Structure **vide** était lue puis ignorée, et la
+suppression aboutissait. **Une mutation de Structure rendait alors une issue qui n'est ni son
+succès ni son refus** — ce que le glossaire interdit en une phrase, « une mutation de Structure ne
+produit jamais d'autre issue ».
+
+Les contrôles sont donc validés **dès que la cible est choisie**, avant même de regarder les
+Produits. La preuve est l'épreuve qui manquait : les deux épreuves de réaffectation plantaient
+chacune un Produit, et ne pouvaient donc pas voir la régression ; celle qui la voit est
+**une Structure vide, une cible inconnue, un refus** — l'éditeur voit sa Structure, et le serveur
+lui dit pourquoi.
+
+### Ce que l'amendement ne change pas
+
+Rien de la décision elle-même : `categoryId` reste nullable, la contrainte reste en `RESTRICT`,
+l'orphelinat reste un choix de l'éditeur et jamais un défaut, le `min(1)` du formulaire reste, la
+valeur réservée reste `_sans-structure` et hors de la grammaire. Une preuve de plus est venue s'y
+ajouter — **le Produit sans Structure se vend normalement** ([`lib/panier.test.ts`](../../lib/panier.test.ts)
+l'entre dans le Panier, s'y compte et se commande) — parce que cet invariant du glossaire ne
+tenait à rien d'autre qu'à l'absence de garde, et une absence ne se prouve pas en écrivant.

@@ -514,7 +514,8 @@ export async function deleteCategory(
   // contradictoire, et c'est la réaffectation qui s'applique. Un Produit qui garde
   // une Structure reste dans une page de catégorie et dans un décompte ; un
   // Produit sans Structure n'est dans aucun des deux.
-  const orphans = options.orphanProducts === true && !reassignToCategoryId
+  const laisseSansStructure =
+    options.orphanProducts === true && !reassignToCategoryId
 
   // Une seule mutation atomique et sérialisée : le délai de verrou s'arme,
   // puis le verrou grossier prend tout l'arbre en première instruction qui
@@ -555,6 +556,23 @@ export async function deleteCategory(
         })
       }
 
+      // La cible de réaffectation se valide **dès qu'elle est choisie**, et non
+      // seulement quand la Structure porte des Produits : une cible inconnue ou
+      // égale à la source est un Refus de la Structure, et il le reste sur une
+      // Structure vide. La valider plus tard laisserait le serveur ignorer une
+      // cible qu'il a pourtant lue — l'éditeur verrait sa Structure supprimée
+      // sans que rien ne lui dise que sa cible n'existait pas (GLOSSARY.md,
+      // « Refus de la Structure » : une mutation de Structure ne produit
+      // jamais d'autre issue).
+      if (reassignToCategoryId) {
+        if (reassignToCategoryId === id) {
+          throw new CategoryValidationError([
+            "une catégorie ne peut pas être réassignée vers elle-même",
+          ])
+        }
+        await assertCategoryParent(reassignToCategoryId, tx)
+      }
+
       // Les Produits sortent de la Structure source par l'unique voie qui les
       // y laisse : une écriture de `categoryId` dans cette transaction, sous le
       // même verrou. `RESTRICT` ne peut donc pas refuser la suppression pour
@@ -562,17 +580,11 @@ export async function deleteCategory(
       let moved: IndexableProduct[] = []
       if (category.products.length > 0) {
         if (reassignToCategoryId) {
-          if (reassignToCategoryId === id) {
-            throw new CategoryValidationError([
-              "une catégorie ne peut pas être réassignée vers elle-même",
-            ])
-          }
-          await assertCategoryParent(reassignToCategoryId, tx)
           await tx.product.updateMany({
             where: { categoryId: id },
             data: { categoryId: reassignToCategoryId },
           })
-        } else if (!orphans) {
+        } else if (!laisseSansStructure) {
           // Le refus reste le défaut : ni cible choisie, ni orphelinat choisi.
           throw new CategoryHasProductsError(category.products.length)
         } else {

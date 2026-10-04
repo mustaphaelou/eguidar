@@ -113,7 +113,6 @@ function documentDe(
     minPrice: 100000 + rang * 10,
     totalStock: 5,
     images: [],
-    categoryId: `categorie-${cle}`,
     categorySlug: slugDe(identite, cle),
     categoryName: nomDe(cle),
     specsText: "",
