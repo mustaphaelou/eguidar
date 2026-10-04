@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import type { IndexableProduct } from "@/lib/index-projection"
+import {
+  LIBELLE_SANS_STRUCTURE,
+  SLUG_SANS_STRUCTURE,
+  type IndexableProduct,
+} from "@/lib/index-projection"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import type { OptionDeFiltre } from "@/lib/options-de-filtre"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
@@ -148,6 +152,25 @@ const SMARTPHONES_ATTENDU = { value: smartphonesSlug, label: "Smartphones" }
  */
 const suggestionCategories = jeuSuggestionCategories(randomUUID().slice(0, 8))
 const moteurSuggestions = creerMoteurEnMemoire(suggestionCategories.documents)
+
+/**
+ * Le moteur du Produit sans Structure (ADR-0029), **séparé du jeu principal**.
+ * Non par commodité : les suites voisines comparent `facets.categories` à une
+ * liste exacte, et y ajouter une troisième catégorie les obligerait à
+ * l'énumérer partout. Un moteur à lui rend l'épreuve lisible — deux Documents,
+ * une option — et laisse les autres dire ce qu'elles disent.
+ */
+const moteurSansStructure = creerMoteurEnMemoire([
+  makeDoc("orphelin", {
+    name: name("Produit orphelin"),
+    categoryId: null,
+    categorySlug: SLUG_SANS_STRUCTURE,
+    categoryName: LIBELLE_SANS_STRUCTURE,
+  }),
+  makeDoc("smartphone", {
+    name: name("Produit avec Structure"),
+  }),
+])
 
 /** Les cinq marques du jeu, dans l'ordre `fr` que l'assemblage rend. */
 const CINQ_MARQUES = [
@@ -307,6 +330,49 @@ describe("searchProducts sur le moteur en mémoire", () => {
       { ...AUDIO_ATTENDU, count: 2, selected: false },
       { ...SMARTPHONES_ATTENDU, count: 3, selected: true },
     ])
+  })
+
+  // Le Produit sans Structure (ADR-0029). La puce de la Recherche n'est pas
+  // une décoration : c'est le seul endroit où un Visiteur découvre qu'il y a
+  // des Produits sans Structure, donc elle doit se lire et — surtout —
+  // filtrer.
+  it("rang et filtre les Produits sans Structure sous la valeur réservée", async () => {
+    const result = await searchProducts(token, {}, {}, moteurSansStructure)
+
+    const option = result.facets.categories.find(
+      (c) => c.value === SLUG_SANS_STRUCTURE
+    )
+    expect(option).toEqual({
+      value: SLUG_SANS_STRUCTURE,
+      label: LIBELLE_SANS_STRUCTURE,
+      count: 1,
+      selected: false,
+    })
+    // Le libellé n'est pas la valeur brute : `_sans-structure` est un fait de
+    // la base d'index, « Sans Structure » est ce que le Visiteur lit.
+    expect(option?.label).not.toBe(SLUG_SANS_STRUCTURE)
+  })
+
+  it("filtre réellement sur la valeur réservée, et non sur une puce inerte", async () => {
+    const result = await searchProducts(
+      token,
+      { categorySlug: SLUG_SANS_STRUCTURE },
+      {},
+      moteurSansStructure
+    )
+
+    // Le piège mesuré : une sentinelle en chaîne vide produirait une puce
+    // affichée ici et `parseSearchParams` la laisserait tomber. Ce filtre est
+    // donc la preuve que la valeur survit au voyage par l'URL.
+    expect(result.products.map((p) => p.name)).toEqual([
+      name("Produit orphelin"),
+    ])
+    expect(result.facets.categories).toContainEqual({
+      value: SLUG_SANS_STRUCTURE,
+      label: LIBELLE_SANS_STRUCTURE,
+      count: 1,
+      selected: true,
+    })
   })
 
   it("garde la catégorie active visible à zéro, avec son nom", async () => {

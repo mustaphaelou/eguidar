@@ -70,7 +70,8 @@ function categoryFormData(suffix: string, champs: Record<string, string> = {}) {
 function deleteFormData(
   categoryId: string,
   reassignToCategoryId?: string,
-  reparentChildrenToCategoryId?: string
+  reparentChildrenToCategoryId?: string,
+  orphanProducts = false
 ): FormData {
   const data = new FormData()
   data.append("categoryId", categoryId)
@@ -79,6 +80,12 @@ function deleteFormData(
   }
   if (reparentChildrenToCategoryId) {
     data.append("reparentChildrenToCategoryId", reparentChildrenToCategoryId)
+  }
+  // La case a cocher ne parle pas par absence : elle porte `on`, et c'est
+  // cette présence qui est le choix. Ne jamais l'ajouter reste donc le chemin
+  // du refus, comme pour les deux cibles.
+  if (orphanProducts) {
+    data.append("orphanProducts", "on")
   }
   return data
 }
@@ -252,6 +259,39 @@ describe("deleteCategoryAction", () => {
     expect(reindexProductsMock).toHaveBeenCalledWith([
       expect.objectContaining({ id: product.id }),
     ])
+  })
+
+  it("laisse les Produits sans Structure quand le formulaire coche l'orphelinat", async () => {
+    const { category, product } = await makeCategoryWithProduct("orphelin")
+
+    await expect(
+      deleteCategoryAction(
+        {},
+        deleteFormData(category.id, undefined, undefined, true)
+      )
+    ).resolves.toEqual({})
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+    // Le Produit survit, sans Structure. C'est toute la décision, et elle se
+    // lit ici à travers l'action serveur plutôt qu'à travers le module.
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: null })
+  })
+
+  it("refuse encore quand le formulaire ne coche ni l'orphelinat ni de cible", async () => {
+    const { category, product } = await makeCategoryWithProduct("refus-defaut")
+
+    const resultat = await deleteCategoryAction({}, deleteFormData(category.id))
+
+    expect(resultat).toEqual({
+      error: "Refus de la Structure : 1 Produit lui est rattaché",
+    })
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
   })
 
   it("rattache les sous-catégories à la Structure d'accueil choisie puis supprime la Structure", async () => {

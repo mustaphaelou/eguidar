@@ -63,7 +63,10 @@ import {
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
-import { toIndexableProduct } from "@/lib/index-projection"
+import {
+  LIBELLE_SANS_STRUCTURE,
+  toIndexableProduct,
+} from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { deleteProductDocument, indexProductDocuments } from "@/lib/meili"
 import {
@@ -676,7 +679,9 @@ export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
     id: produit.id,
     name: produit.name,
     brand: produit.brand,
-    categoryName: produit.category.name,
+    // Le même libellé que la puce de la Recherche : deux libellés pour un seul
+    // fait finiraient par diverger (ADR-0029).
+    categoryName: produit.category?.name ?? LIBELLE_SANS_STRUCTURE,
     price: produit.price,
     isFeatured: produit.isFeatured,
     freeShipping: produit.freeShipping,

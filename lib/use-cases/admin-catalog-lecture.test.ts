@@ -5,10 +5,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { totalVariantStock } from "@/lib/product-metrics"
+import { LIBELLE_SANS_STRUCTURE } from "@/lib/index-projection"
 import {
   getAdminProduct,
   listAdminCategories,
   listAdminProducts,
+  updateProduct,
 } from "@/lib/use-cases/admin-catalog"
 
 const runId = randomUUID().slice(0, 8)
@@ -336,6 +338,87 @@ describe("édition d'un Produit de l'Administration", () => {
 
   it("répond null pour un identifiant inconnu, pour que l'appelant garde sa décision d'introuvable", async () => {
     expect(await getAdminProduct(randomUUID())).toBeNull()
+  })
+})
+
+// Le Produit sans Structure (ADR-0029). L'Administration est le seul endroit
+// où un éditeur peut **retrouver** un Produit orphelin : sans cette ligne, il
+// disparaît de la liste et plus personne ne sait qu'il se vend encore.
+describe("un Produit sans Structure reste lisible par l'Administration", () => {
+  it("porte le libellé de la valeur réservée dans la liste des Produits", async () => {
+    const orphelin = await prisma.product.create({
+      data: {
+        name: "Produit sans Structure",
+        slug: slug("sans-structure"),
+        description: "desc",
+        brand: "Marque Test",
+        categoryId: null,
+        price: 100000,
+        specs: {},
+        images: [],
+      },
+    })
+
+    const fait = await faitProduit(orphelin.id)
+
+    // Le même libellé que la puce de la Recherche : deux libellés pour un seul
+    // fait finiraient par diverger.
+    expect(fait?.categoryName).toBe(LIBELLE_SANS_STRUCTURE)
+  })
+
+  it("s'ouvre dans le formulaire, mais ne s'enregistre pas tant qu'aucune Structure n'est choisie", async () => {
+    // Le formulaire **peut** afficher un orphelin — sans quoi il serait
+    // illisible — et il ne peut pas l'enregistrer. L'épreuve passe par la
+    // mutation plutôt que par son schema : ce qui doit être prouvé est le
+    // comportement du serveur, pas la forme d'un objet interne.
+    const orphelin = await prisma.product.create({
+      data: {
+        name: "Produit sans Structure",
+        slug: slug("sans-structure-edition"),
+        description: "desc",
+        brand: "Marque Test",
+        categoryId: null,
+        price: 100000,
+        specs: {},
+        images: [],
+      },
+    })
+
+    const faits = await getAdminProduct(orphelin.id)
+    expect(faits?.categoryId).toBeNull()
+
+    // Les faits du formulaire sont l'entrée de la mutation à la galerie près :
+    // le formulaire manipule des Images produit, la mutation des URL. Ce
+    // Produit n'a pas de brouillon, donc la conversion est un `url`.
+    const entree = {
+      ...faits!,
+      images: faits!.images.map((image) =>
+        image.kind === "persistee" ? image.url : image.previewUrl
+      ),
+    }
+
+    // Ce que le formulaire soumet quand le sélecteur est vide : une chaîne
+    // vide. Elle est refusée, et le refus est rendu à l'éditeur.
+    await expect(
+      updateProduct(orphelin.id, { ...entree, price: 120000, categoryId: "" })
+    ).rejects.toThrow("catégorie requise")
+
+    // Rien n'a été écrit : le prix d'avant est intact.
+    await expect(
+      prisma.product.findUnique({ where: { id: orphelin.id } })
+    ).resolves.toMatchObject({ price: 100000, categoryId: null })
+
+    // Et **une seule** édition vaut réaffectation : choisir une Structure en
+    // même temps qu'on corrige le prix suffit à remettre le Produit dans le
+    // Catalogue, sans mutation séparée.
+    await updateProduct(orphelin.id, {
+      ...entree,
+      price: 120000,
+      categoryId,
+    })
+    await expect(
+      prisma.product.findUnique({ where: { id: orphelin.id } })
+    ).resolves.toMatchObject({ price: 120000, categoryId })
   })
 })
 

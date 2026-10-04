@@ -65,7 +65,12 @@ export interface ProductDetailData {
   images: string[]
   minPrice: number
   freeShipping: boolean
-  category: { id: string; name: string; slug: string }
+  /**
+   * `null` pour un **Produit sans Structure** (ADR-0029). La page en dégrade son
+   * fil d'Ariane plutôt que de ne pas le déduire — c'est le seul fait qu'elle
+   * perde, et il n'entre dans aucune Donnée structurée.
+   */
+  category: { id: string; name: string; slug: string } | null
   categoryChain: CategoryChainEntry[]
   variants: ProductVariantDto[]
   related: CarteProduit[]
@@ -264,12 +269,19 @@ export async function fetchProductPageData(
   })
   if (!product) return null
 
-  const related = await prisma.product.findMany({
-    where: { categoryId: product.categoryId, id: { not: product.id } },
-    include: { variants: { select: { priceDelta: true, stock: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  })
+  // **Les Produits liés sont les Produits d'une même Structure, et rien
+  // d'autre.** Le garde n'est pas défensif : rendu tel quel, `categoryId: null`
+  // vaut « `IS NULL` » chez Prisma, donc la requête appariait *tous* les autres
+  // Produits sans Structure — un voisinage muet, qu'aucune suite n'aurait rouge.
+  // Un Produit sans Structure n'a donc aucun Produit lié (ADR-0029).
+  const related = product.categoryId
+    ? await prisma.product.findMany({
+        where: { categoryId: product.categoryId, id: { not: product.id } },
+        include: { variants: { select: { priceDelta: true, stock: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+      })
+    : []
 
   return {
     id: product.id,
@@ -281,12 +293,16 @@ export async function fetchProductPageData(
     images: urlsImagesProduit(product.images),
     minPrice: minVariantPrice(product.price, product.variants),
     freeShipping: product.freeShipping,
-    category: {
-      id: product.category.id,
-      name: product.category.name,
-      slug: product.category.slug,
-    },
-    categoryChain: await getCategoryChain(product.category),
+    category: product.category
+      ? {
+          id: product.category.id,
+          name: product.category.name,
+          slug: product.category.slug,
+        }
+      : null,
+    categoryChain: product.category
+      ? await getCategoryChain(product.category)
+      : [],
     variants: product.variants.map((variant) => ({
       id: variant.id,
       name: variant.name,

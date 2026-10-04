@@ -6,6 +6,10 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { prisma } from "@/lib/db"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { createProduct } from "@/lib/use-cases/admin-catalog"
+import {
+  LIBELLE_SANS_STRUCTURE,
+  SLUG_SANS_STRUCTURE,
+} from "@/lib/index-projection"
 
 // L'image d'une catégorie est une URL libre, hors du préfixe `products/` : elle
 // ne passe que par l'opération de stockage réservée aux catégories. Ce mock
@@ -1014,6 +1018,100 @@ describe("admin structure mutations — categories", () => {
     expect(revalidateCategories).toHaveBeenCalled()
   })
 
+  // Le Produit sans Structure (ADR-0029). Ces quatre épreuves disent ce que
+  // l'orphelinat a change, et une seule l'enthiasme.
+  it("laisse les Produits sans Structure quand l'éditeur le demande", async () => {
+    const reindexProducts = vi.fn()
+    const revalidateCategories = vi.fn()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-orphelin") })
+    )
+    const product = await makeProductIn(
+      category,
+      "orphelin",
+      "Produit orphelin"
+    )
+
+    await deleteCategory(
+      category.id,
+      { orphanProducts: true },
+      { reindexProducts, revalidateCategories }
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+    // Le Produit **survit**. C'est la décision entière : il n'est pas
+    // supprimé avec sa Structure, il perd seulement sa Structure.
+    const survivant = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    })
+    expect(survivant.categoryId).toBeNull()
+
+    // Et il est réindexé avec les autres, sous la valeur réservée : son
+    // `categorySlug` a changé, donc son Document d'index aussi. Sans cela il
+    // resterait trouvable par son ancienne catégorie, qui n'existe plus.
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: product.id,
+        categoryId: null,
+        categorySlug: SLUG_SANS_STRUCTURE,
+        categoryName: LIBELLE_SANS_STRUCTURE,
+      }),
+    ])
+    expect(revalidateCategories).toHaveBeenCalled()
+  })
+
+  it("refuse encore une Structure qui a des Produits quand personne n'a choisi", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-refus-defaut") })
+    )
+    const product = await makeProductIn(category, "refus", "Produit refusé")
+
+    // Le refus est le **défaut** : `orphanProducts` absent vaut `false`, donc
+    // rien n'a été décidé et rien ne se décide à la place de l'éditeur.
+    await expect(
+      deleteCategory(category.id, {}, effets)
+    ).rejects.toBeInstanceOf(CategoryHasProductsError)
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
+    expectNoEffects(effets)
+  })
+
+  it("fait prévaloir la réaffectation quand l'orphelinat est demandé aussi", async () => {
+    const reindexProducts = vi.fn()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-contradictoire") })
+    )
+    const target = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-contradictoire-cible") })
+    )
+    const product = await makeProductIn(category, "contradictoire", "Produit")
+
+    // Les deux ensemble sont un choix contradictoire. La réaffectation
+    // l'emporte : un Produit qui garde une Structure reste dans une page de
+    // catégorie et dans un décompte, un Produit sans Structure n'est dans aucun
+    // des deux.
+    await deleteCategory(
+      category.id,
+      { orphanProducts: true, reassignToCategoryId: target.id },
+      { reindexProducts, revalidateCategories: vi.fn() }
+    )
+
+    await expect(
+      prisma.product.findUniqueOrThrow({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: target.id })
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ categorySlug: target.slug }),
+    ])
+  })
+
   it("rattache les sous-catégories à la Structure d'accueil choisie avant de supprimer la Structure source", async () => {
     const reindexProducts = vi.fn()
     const revalidateCategories = vi.fn()
@@ -1484,6 +1582,97 @@ describe("admin structure mutations — categories", () => {
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toMatchObject({ categoryId: category.id })
     expectNoEffects(effets)
+  })
+
+  it("refuse encore, avec `orphanProducts`, la course d'une Tierce partie — puis orpheline au réessai", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-fk-orphelin") })
+    )
+    const product = await makeProductIn(
+      category,
+      "fk-orphelin",
+      "Produit visible"
+    )
+
+    const superutilisateur = await prisma.$queryRawUnsafe<
+      { superuser: boolean }[]
+    >(`SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user`)
+    expect(superutilisateur[0]?.superuser).toBe(true)
+
+    // Exactement la Tierce partie de l'épreuve d'au-dessus : un fantôme que la
+    // suppression ne voit pas, retenu puis committé pendant qu'elle est
+    // arrêtée sur le verrou de ligne du Produit déplacé. **Seule l'option
+    // change** — `orphanProducts` au lieu d'une réaffectation.
+    const { transaction, liberer } = retenirTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SET LOCAL session_replication_role = 'replica'`
+      )
+      await tx.$queryRawUnsafe(
+        `SELECT id FROM "Product" WHERE id = $1 FOR UPDATE`,
+        product.id
+      )
+      await tx.product.create({
+        data: {
+          name: "Produit fantôme",
+          slug: productSlug("fk-orphelin-fantome"),
+          description: "desc",
+          brand: "Marque",
+          price: 10000,
+          specs: {},
+          images: [],
+          categoryId: category.id,
+        },
+      })
+    })
+    await attendre(150)
+
+    // **`orphanProducts` ne désarme pas `RESTRICT`, et c'est mesuré ici.** La
+    // suppression vide la colonne des Produits qu'elle voit ; le fantôme
+    // arrive après, et la contrainte le refuse encore. L'orphelinat n'a donc
+    // pas ouvert la porte que l'amendement d'ADR-0027 croyait ouvrir : la
+    // course reste refusée, du même refus, pour la même raison.
+    const suppression = deleteCategory(
+      category.id,
+      { orphanProducts: true },
+      effets
+    )
+    suppression.catch(() => {})
+    await attendre(200)
+    liberer()
+
+    await expect(suppression).rejects.toBeInstanceOf(CategoryBusyError)
+    await transaction
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toMatchObject({ categoryId: category.id })
+    expectNoEffects(effets)
+
+    // **Le refus n'est pas un blocage, c'est un réessai.** Au deuxième essai
+    // le fantôme est committé, donc visible : la suppression le voit, le vide
+    // comme les autres, et aboutit. C'est ce que l'éditeur fait, et c'est
+    // exactement ce que le Refus de la Structure lui dit de faire.
+    await deleteCategory(category.id, { orphanProducts: true }, effets)
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.toBeNull()
+    for (const slug of [
+      productSlug("fk-orphelin"),
+      productSlug("fk-orphelin-fantome"),
+    ]) {
+      await expect(
+        prisma.product.findUnique({ where: { slug } })
+      ).resolves.toMatchObject({ categoryId: null })
+    }
+    expect(effets.reindexProducts).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ categorySlug: SLUG_SANS_STRUCTURE }),
+      ])
+    )
   })
 
   it("laisse l'insertion d'un Produit mourir du côté Catalogue quand la suppression tient déjà le verrou", async () => {

@@ -115,14 +115,17 @@ _Avoid_: tous les produits (as the concept name)
 **Structure**:
 L'arborescence de catégories du Catalogue telle que l'Administration la gère : la table `Category`
 en base et le module `lib/use-cases/admin-structure.ts` qui la lit et la mute. Une Structure est
-une catégorie de cet arbre, à laquelle les Produits se rattachent.
+une catégorie de cet arbre, à laquelle les Produits se rattachent — sauf ceux dont elle a été
+supprimée, qui deviennent des **Produits sans Structure**.
 _Avoid_: category tree, arborescence de catégories, catégorie d'administration
 
 **Refus de la Structure**:
 Le refus par le serveur d'une opération sur la Structure : Structure introuvable, Structure
 contenant des sous-catégories, Produits qui lui sont rattachés, réaffectation invalide, ou Structure
 déjà en cours de modification par une autre opération. Une mutation de Structure ne produit jamais
-d'autre issue.
+d'autre issue. Le refus d'une Structure qui a des Produits **est le défaut** : l'éditeur peut le
+lever en choisissant de les réaffecter ou de les laisser sans Structure, jamais par inadvertance
+(ADR-0029).
 _Avoid_: erreur catégorie, échec de suppression, category error
 
 **Recherche**:
@@ -180,13 +183,24 @@ _Avoid_: chips, tags
 **Document d'index**:
 La forme indexable d'un produit pour la recherche : identifiants, libellés, marque, catégorie,
 texte des spécifications (clés et valeurs), noms de variantes et SKU (recherchables), prix
-minimal et son bucket de prix, stock total, images et date de mise à jour.
+minimal et son bucket de prix, stock total, images et date de mise à jour. Sa clé de facette
+`categorySlug` est **toujours** une chaîne : un **Produit sans Structure** y porte la valeur
+réservée `_sans-structure`, jamais une chaîne vide, qu'aucun filtre ne retiendrait (ADR-0029).
 _Avoid_: produit indexé, indexable product
 
 **Produit**:
 L'entité vendue du Catalogue, présentée à `/produit/[slug]` avec sa marque, sa description,
 ses spécifications, ses Images produit et ses Variantes.
 _Avoid_: article (seul), item
+
+**Produit sans Structure**:
+Un Produit dont la Structure a été supprimée, et qu'elle a emporté sans lui. Il est vendu
+normalement et reste lisible, mais il n'appartient à aucune page de catégorie et à aucun
+décompte du Catalogue. La Recherche le range sous la valeur de facette réservée
+`_sans-structure`, hors de la grammaire de slug d'une Structure : cette valeur ne peut donc
+jamais désigner une catégorie réelle. La seule façon d'en produire un est de supprimer une
+Structure ; la seule façon de ne plus l'être est de lui en choisir une (ADR-0029).
+_Avoid_: produit orphelin, catégorie supprimée, produit sans catégorie
 
 **Image produit**:
 A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X.

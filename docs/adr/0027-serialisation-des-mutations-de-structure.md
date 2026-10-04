@@ -419,3 +419,54 @@ pour la suppression : la seule où la garantie améliore une course au lieu de l
 partie qui retire la Structure d'accueil sous le verrou ne fait plus sortir l'action serveur en
 exception ; l'éditeur reçoit un refus qu'il sait traiter.
 
+## Amendement — Le piège nommé sur `Product_categoryId_fkey` survit à la nullabilité (#522)
+
+[#522](https://github.com/eloaurdi/eguidar/issues/522) a rendu `Product.categoryId` nullable et a
+donné au Produit sans Structure un état défini —
+[ADR-0029](0029-produit-sans-structure.md). Ce qu'elle touche ici est **le deuxième piège nommé**, et
+l'hypothèse qui le rendait fragile était fausse.
+
+**La contrainte ne s'affaiblit pas.** `Product_categoryId_fkey` est en `ON DELETE RESTRICT`
+([`20260810111743_init/migration.sql:239`](../../prisma/migrations/20260810111743_init/migration.sql#L239)),
+et `RESTRICT` ne considère que les lignes dont la clé étrangère est non nulle : une ligne dont
+`categoryId` est `NULL` ne référence rien et n'est jamais comptée. Rendre la colonne nullable ne
+change donc rien à ce que la contrainte refuse. **C'est ce qui rend la décision d'ADR-0029 possible :
+si `RESTRICT` ne survivait pas, aucun code ne pourrait orpheliner un Produit sans écrire contre sa
+propre base.**
+
+**Ce qui change, c'est qui rencontre la contrainte.** `deleteCategory` efface désormais lui-même la
+colonne — réaffectation ou orphelinat — avant son `tx.category.delete`, dans la même transaction et
+sous le même verrou grossier. La contrainte ne refuse donc plus les Produits que la transaction
+**voit** : elle les a déjà vidés. Elle refuse encore ceux qui arrivent après.
+
+**Et c'est la mesure qui le dit, pas le raisonnement.** L'épreuve de la Tierce partie
+(`session_replication_role = 'replica'`, un fantôme invisible à la lecture de la suppression) a été
+rejouée avec `orphanProducts` : elle rend **toujours** `CategoryBusyError` sur
+`Product_categoryId_fkey`, exactement comme avant. La suppression vide la colonne de ce qu'elle voit ;
+le fantôme arrive après, et la contrainte le refuse encore. **L'orphelinat n'a pas désarmé
+`RESTRICT`.** L'hypothèse contraire — « la colonne est déjà vide, donc plus rien ne peut la faire
+échouer » — était fausse, et elle n'aurait survécu à aucune suite.
+
+Ce qui change est donc plus étroit : **le refus devient un réessai, pas un blocage.** Au second essai
+le fantôme est committé, donc visible ; la suppression le voit, le vide comme les autres, et aboutit.
+C'est ce que l'éditeur fait, et c'est ce que le Refus de la Structure lui dit de faire.
+
+**La course 1 du tableau a désormais deux issues.** « La tierce insère un Produit, puis la
+suppression part » : la suppression attend le verrou, voit le Produit, et le réaffecte **ou** l'orpheline
+selon ce que l'éditeur a choisi. La sérialisation garantit qu'ils ne s'entrelacent pas ; elle ne dit
+plus lequel gagne, parce que les deux gagnent et que le départage est métier. Aucune ligne de la
+décision n'est changée ici, et le verrou grossier, le délai armé avant lui, la translation des
+courses et la frontière énoncée restent exactement ce qu'ils étaient.
+
+**Aucun test n'est devenu faux, et c'est un fait mesuré, pas une espérance.** Les épreuves de
+contention de [`admin-structure.test.ts`](../../lib/use-cases/admin-structure.test.ts) rendent
+toutes exactement ce qu'elles rendaient. L'épreuve de la Tierce partie a été rejouée avec
+`orphanProducts` et rend toujours `CategoryBusyError` sur `Product_categoryId_fkey` ; la preuve
+neuve est **le réessai**, ajouté à côté d'elle et non à sa place : le second essai, le fantôme
+étant alors visible, aboutit et orpheline les deux Produits. Les deux coexistent, et c'est leur
+différence qui dit ce que l'orphelinat a changé — rien sur la course, tout sur la suite qu'on donne
+à l'éditeur.
+
+Les deux autres pièges nommés sont intacts : `Category_parentId_fkey` reste en `ON DELETE SET NULL` et
+l'écart avec le schéma Prisma demeure, et la marche de `assertAcyclicCategoryTree` reste non bornée.
+

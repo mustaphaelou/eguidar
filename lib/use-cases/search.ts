@@ -14,7 +14,11 @@ import {
   type SearchFilters,
   type SearchSort,
 } from "@/lib/search-params"
-import type { IndexableProduct } from "@/lib/index-projection"
+import {
+  LIBELLE_SANS_STRUCTURE,
+  SLUG_SANS_STRUCTURE,
+  type IndexableProduct,
+} from "@/lib/index-projection"
 
 export {
   buildSearchHref,
@@ -84,6 +88,25 @@ async function fetchCategoryNames(
     select: { slug: true, name: true },
   })
   return new Map(categories.map((category) => [category.slug, category.name]))
+}
+
+/**
+ * Les noms de Structure des slugs reçus, plus le libellé de la valeur réservée
+ * d'un **Produit sans Structure** (ADR-0029).
+ *
+ * Cette valeur ne se trouve pas en base — elle est hors de la grammaire de slug,
+ * donc aucune Structure ne la porte. Sans cette ligne, `assemblerCategories`
+ * retomberait sur la valeur brute (`noms.get(value) ?? value`) et le panneau
+ * afficherait `_sans-structure` au Visiteur.
+ */
+async function fetchNomsDeFacette(
+  slugs: string[]
+): Promise<Map<string, string>> {
+  const noms = await fetchCategoryNames(slugs)
+  if (slugs.includes(SLUG_SANS_STRUCTURE)) {
+    noms.set(SLUG_SANS_STRUCTURE, LIBELLE_SANS_STRUCTURE)
+  }
+  return noms
 }
 
 export async function searchProducts(
@@ -186,7 +209,7 @@ export async function searchProducts(
   // porte la conséquence d'affichage.
   const slugs = new Set(Object.keys(repartitions.categories))
   if (filters.categorySlug) slugs.add(filters.categorySlug)
-  const categoryNames = await fetchCategoryNames([...slugs])
+  const categoryNames = await fetchNomsDeFacette([...slugs])
 
   // L'assemblage unique du panneau : les trois listes d'options naissent
   // ici, à côté des requêtes de facettes qui les comptent, et la barre
@@ -344,7 +367,7 @@ export async function searchSuggestions(
   )
     .sort(comparerParComptePuisSlug)
     .slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
-  const categoryNames = await fetchCategoryNames(
+  const categoryNames = await fetchNomsDeFacette(
     categorySlugCounts.map(([slug]) => slug)
   )
 

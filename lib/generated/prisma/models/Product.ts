@@ -247,7 +247,7 @@ export type ProductGroupByOutputType = {
   isFeatured: boolean
   featuredOrder: number
   freeShipping: boolean
-  categoryId: string
+  categoryId: string | null
   createdAt: Date
   updatedAt: Date
   _count: ProductCountAggregateOutputType | null
@@ -285,13 +285,13 @@ export type ProductWhereInput = {
   isFeatured?: Prisma.BoolFilter<"Product"> | boolean
   featuredOrder?: Prisma.IntFilter<"Product"> | number
   freeShipping?: Prisma.BoolFilter<"Product"> | boolean
-  categoryId?: Prisma.StringFilter<"Product"> | string
+  categoryId?: Prisma.StringNullableFilter<"Product"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Product"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Product"> | Date | string
   category?: Prisma.XOR<
-    Prisma.CategoryScalarRelationFilter,
+    Prisma.CategoryNullableScalarRelationFilter,
     Prisma.CategoryWhereInput
-  >
+  > | null
   variants?: Prisma.ProductVariantListRelationFilter
   articlesBlog?: Prisma.ArticleBlogProduitListRelationFilter
   brouillonsImageProduit?: Prisma.BrouillonImageProduitListRelationFilter
@@ -309,7 +309,7 @@ export type ProductOrderByWithRelationInput = {
   isFeatured?: Prisma.SortOrder
   featuredOrder?: Prisma.SortOrder
   freeShipping?: Prisma.SortOrder
-  categoryId?: Prisma.SortOrder
+  categoryId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   category?: Prisma.CategoryOrderByWithRelationInput
@@ -334,13 +334,13 @@ export type ProductWhereUniqueInput = Prisma.AtLeast<
     isFeatured?: Prisma.BoolFilter<"Product"> | boolean
     featuredOrder?: Prisma.IntFilter<"Product"> | number
     freeShipping?: Prisma.BoolFilter<"Product"> | boolean
-    categoryId?: Prisma.StringFilter<"Product"> | string
+    categoryId?: Prisma.StringNullableFilter<"Product"> | string | null
     createdAt?: Prisma.DateTimeFilter<"Product"> | Date | string
     updatedAt?: Prisma.DateTimeFilter<"Product"> | Date | string
     category?: Prisma.XOR<
-      Prisma.CategoryScalarRelationFilter,
+      Prisma.CategoryNullableScalarRelationFilter,
       Prisma.CategoryWhereInput
-    >
+    > | null
     variants?: Prisma.ProductVariantListRelationFilter
     articlesBlog?: Prisma.ArticleBlogProduitListRelationFilter
     brouillonsImageProduit?: Prisma.BrouillonImageProduitListRelationFilter
@@ -360,7 +360,7 @@ export type ProductOrderByWithAggregationInput = {
   isFeatured?: Prisma.SortOrder
   featuredOrder?: Prisma.SortOrder
   freeShipping?: Prisma.SortOrder
-  categoryId?: Prisma.SortOrder
+  categoryId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ProductCountOrderByAggregateInput
@@ -389,7 +389,8 @@ export type ProductScalarWhereWithAggregatesInput = {
   isFeatured?: Prisma.BoolWithAggregatesFilter<"Product"> | boolean
   featuredOrder?: Prisma.IntWithAggregatesFilter<"Product"> | number
   freeShipping?: Prisma.BoolWithAggregatesFilter<"Product"> | boolean
-  categoryId?: Prisma.StringWithAggregatesFilter<"Product"> | string
+  categoryId?:
+    Prisma.StringNullableWithAggregatesFilter<"Product"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Product"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Product"> | Date | string
 }
@@ -408,7 +409,7 @@ export type ProductCreateInput = {
   freeShipping?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
   articlesBlog?: Prisma.ArticleBlogProduitCreateNestedManyWithoutProduitInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutProductInput
@@ -426,7 +427,7 @@ export type ProductUncheckedCreateInput = {
   isFeatured?: boolean
   featuredOrder?: number
   freeShipping?: boolean
-  categoryId: string
+  categoryId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
@@ -448,7 +449,7 @@ export type ProductUpdateInput = {
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
   articlesBlog?: Prisma.ArticleBlogProduitUpdateManyWithoutProduitNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutProductNestedInput
@@ -466,7 +467,7 @@ export type ProductUncheckedUpdateInput = {
   isFeatured?: Prisma.BoolFieldUpdateOperationsInput | boolean
   featuredOrder?: Prisma.IntFieldUpdateOperationsInput | number
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  categoryId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
@@ -486,7 +487,7 @@ export type ProductCreateManyInput = {
   isFeatured?: boolean
   featuredOrder?: number
   freeShipping?: boolean
-  categoryId: string
+  categoryId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -519,7 +520,7 @@ export type ProductUncheckedUpdateManyInput = {
   isFeatured?: Prisma.BoolFieldUpdateOperationsInput | boolean
   featuredOrder?: Prisma.IntFieldUpdateOperationsInput | number
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  categoryId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -871,7 +872,7 @@ export type ProductScalarWhereInput = {
   isFeatured?: Prisma.BoolFilter<"Product"> | boolean
   featuredOrder?: Prisma.IntFilter<"Product"> | number
   freeShipping?: Prisma.BoolFilter<"Product"> | boolean
-  categoryId?: Prisma.StringFilter<"Product"> | string
+  categoryId?: Prisma.StringNullableFilter<"Product"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Product"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Product"> | Date | string
 }
@@ -890,7 +891,7 @@ export type ProductCreateWithoutVariantsInput = {
   freeShipping?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   articlesBlog?: Prisma.ArticleBlogProduitCreateNestedManyWithoutProduitInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutProductInput
 }
@@ -907,7 +908,7 @@ export type ProductUncheckedCreateWithoutVariantsInput = {
   isFeatured?: boolean
   featuredOrder?: number
   freeShipping?: boolean
-  categoryId: string
+  categoryId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   articlesBlog?: Prisma.ArticleBlogProduitUncheckedCreateNestedManyWithoutProduitInput
@@ -956,7 +957,7 @@ export type ProductUpdateWithoutVariantsInput = {
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   articlesBlog?: Prisma.ArticleBlogProduitUpdateManyWithoutProduitNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutProductNestedInput
 }
@@ -973,7 +974,7 @@ export type ProductUncheckedUpdateWithoutVariantsInput = {
   isFeatured?: Prisma.BoolFieldUpdateOperationsInput | boolean
   featuredOrder?: Prisma.IntFieldUpdateOperationsInput | number
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  categoryId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   articlesBlog?: Prisma.ArticleBlogProduitUncheckedUpdateManyWithoutProduitNestedInput
@@ -994,7 +995,7 @@ export type ProductCreateWithoutBrouillonsImageProduitInput = {
   freeShipping?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
   articlesBlog?: Prisma.ArticleBlogProduitCreateNestedManyWithoutProduitInput
 }
@@ -1011,7 +1012,7 @@ export type ProductUncheckedCreateWithoutBrouillonsImageProduitInput = {
   isFeatured?: boolean
   featuredOrder?: number
   freeShipping?: boolean
-  categoryId: string
+  categoryId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
@@ -1060,7 +1061,7 @@ export type ProductUpdateWithoutBrouillonsImageProduitInput = {
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
   articlesBlog?: Prisma.ArticleBlogProduitUpdateManyWithoutProduitNestedInput
 }
@@ -1077,7 +1078,7 @@ export type ProductUncheckedUpdateWithoutBrouillonsImageProduitInput = {
   isFeatured?: Prisma.BoolFieldUpdateOperationsInput | boolean
   featuredOrder?: Prisma.IntFieldUpdateOperationsInput | number
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  categoryId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
@@ -1098,7 +1099,7 @@ export type ProductCreateWithoutArticlesBlogInput = {
   freeShipping?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutProductInput
 }
@@ -1115,7 +1116,7 @@ export type ProductUncheckedCreateWithoutArticlesBlogInput = {
   isFeatured?: boolean
   featuredOrder?: number
   freeShipping?: boolean
-  categoryId: string
+  categoryId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
@@ -1164,7 +1165,7 @@ export type ProductUpdateWithoutArticlesBlogInput = {
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutProductNestedInput
 }
@@ -1181,7 +1182,7 @@ export type ProductUncheckedUpdateWithoutArticlesBlogInput = {
   isFeatured?: Prisma.BoolFieldUpdateOperationsInput | boolean
   featuredOrder?: Prisma.IntFieldUpdateOperationsInput | number
   freeShipping?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  categoryId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
@@ -1340,7 +1341,7 @@ export type ProductSelect<
     categoryId?: boolean
     createdAt?: boolean
     updatedAt?: boolean
-    category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+    category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
     variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>
     articlesBlog?: boolean | Prisma.Product$articlesBlogArgs<ExtArgs>
     brouillonsImageProduit?:
@@ -1369,7 +1370,7 @@ export type ProductSelectCreateManyAndReturn<
     categoryId?: boolean
     createdAt?: boolean
     updatedAt?: boolean
-    category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+    category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
   },
   ExtArgs["result"]["product"]
 >
@@ -1393,7 +1394,7 @@ export type ProductSelectUpdateManyAndReturn<
     categoryId?: boolean
     createdAt?: boolean
     updatedAt?: boolean
-    category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+    category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
   },
   ExtArgs["result"]["product"]
 >
@@ -1439,7 +1440,7 @@ export type ProductInclude<
   ExtArgs extends runtime.Types.Extensions.InternalArgs =
     runtime.Types.Extensions.DefaultArgs,
 > = {
-  category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
   variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>
   articlesBlog?: boolean | Prisma.Product$articlesBlogArgs<ExtArgs>
   brouillonsImageProduit?:
@@ -1450,13 +1451,13 @@ export type ProductIncludeCreateManyAndReturn<
   ExtArgs extends runtime.Types.Extensions.InternalArgs =
     runtime.Types.Extensions.DefaultArgs,
 > = {
-  category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
 }
 export type ProductIncludeUpdateManyAndReturn<
   ExtArgs extends runtime.Types.Extensions.InternalArgs =
     runtime.Types.Extensions.DefaultArgs,
 > = {
-  category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
 }
 
 export type $ProductPayload<
@@ -1465,7 +1466,7 @@ export type $ProductPayload<
 > = {
   name: "Product"
   objects: {
-    category: Prisma.$CategoryPayload<ExtArgs>
+    category: Prisma.$CategoryPayload<ExtArgs> | null
     variants: Prisma.$ProductVariantPayload<ExtArgs>[]
     articlesBlog: Prisma.$ArticleBlogProduitPayload<ExtArgs>[]
     brouillonsImageProduit: Prisma.$BrouillonImageProduitPayload<ExtArgs>[]
@@ -1483,7 +1484,7 @@ export type $ProductPayload<
       isFeatured: boolean
       featuredOrder: number
       freeShipping: boolean
-      categoryId: string
+      categoryId: string | null
       createdAt: Date
       updatedAt: Date
     },
@@ -2036,17 +2037,16 @@ export interface Prisma__ProductClient<
   GlobalOmitOptions = {},
 > extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
-  category<T extends Prisma.CategoryDefaultArgs<ExtArgs> = {}>(
-    args?: Prisma.Subset<T, Prisma.CategoryDefaultArgs<ExtArgs>>
+  category<T extends Prisma.Product$categoryArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.Product$categoryArgs<ExtArgs>>
   ): Prisma.Prisma__CategoryClient<
-    | runtime.Types.Result.GetResult<
-        Prisma.$CategoryPayload<ExtArgs>,
-        T,
-        "findUniqueOrThrow",
-        GlobalOmitOptions
-      >
-    | Null,
-    Null,
+    runtime.Types.Result.GetResult<
+      Prisma.$CategoryPayload<ExtArgs>,
+      T,
+      "findUniqueOrThrow",
+      GlobalOmitOptions
+    > | null,
+    null,
     ExtArgs,
     GlobalOmitOptions
   >
@@ -2598,6 +2598,28 @@ export type ProductDeleteManyArgs<
    * Limit how many Products to delete.
    */
   limit?: number
+}
+
+/**
+ * Product.category
+ */
+export type Product$categoryArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs =
+    runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the Category
+   */
+  select?: Prisma.CategorySelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Category
+   */
+  omit?: Prisma.CategoryOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CategoryInclude<ExtArgs> | null
+  where?: Prisma.CategoryWhereInput
 }
 
 /**

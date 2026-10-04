@@ -10,6 +10,30 @@ import {
   fetchProductPageData,
 } from "@/lib/use-cases/storefront"
 
+/**
+ * Deux Produits sans Structure (ADR-0029), écrits en base comme seule source
+ * peut les écrire : la suppression d'une Structure. **Deux, jamais un** — c'est
+ * le second qui rend la première épreuve capable de échouer, une requête
+ * `categoryId: null` appariait tous les orphelins sans avoir besoin de les
+ * compter.
+ */
+async function creerDeuxProduitsSansStructure() {
+  for (const suffixe of ["orphelin", "orphelin-bis"]) {
+    await prisma.product.create({
+      data: {
+        name: `Produit sans Structure ${suffixe}`,
+        slug: pSlug(suffixe),
+        description: "desc",
+        brand: "Marque",
+        price: 150000,
+        specs: {},
+        images: [],
+        categoryId: null,
+      },
+    })
+  }
+}
+
 const runId = randomUUID().slice(0, 8)
 const pSlug = (suffix: string) => `p-${runId}-${suffix}`
 const cSlug = (suffix: string) => `sf-${runId}-${suffix}`
@@ -454,7 +478,7 @@ describe("storefront browse", () => {
     ])
     expect(detail!.variants[0]).toMatchObject({ prix: 80000, stock: 4 })
     expect(detail!.variants[1]).toMatchObject({ prix: 70000, stock: 6 })
-    expect(detail!.category.slug).toBe(cSlug("grand"))
+    expect(detail!.category?.slug).toBe(cSlug("grand"))
     expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
       cSlug("root"),
       cSlug("child"),
@@ -501,7 +525,7 @@ describe("storefront browse", () => {
     ])
     expect(detail!.variants[0]).toMatchObject({ prix: 90000, stock: 3 })
     expect(detail!.variants[1]).toMatchObject({ prix: 95000, stock: 0 })
-    expect(detail!.category.slug).toBe(cSlug("grand"))
+    expect(detail!.category?.slug).toBe(cSlug("grand"))
     expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
       cSlug("root"),
       cSlug("child"),
@@ -641,6 +665,37 @@ describe("storefront browse", () => {
     expect(newest.image).toBe("https://example.com/rel-9.jpg")
     expect(newest.minPrice).toBe(50000)
     expect(newest.totalStock).toBe(6)
+  })
+
+  // Le Produit sans Structure (ADR-0029).
+  it("s'ouvre sans Structure, avec une chaîne de catégories vide", async () => {
+    await creerDeuxProduitsSansStructure()
+
+    const detail = await fetchProductPageData(pSlug("orphelin"))
+
+    // Le fait est nul, et il est dit tel quel plutôt que masqué par une
+    // Structure de remplacement : une page qui afficherait « Sans Structure »
+    // comme si c'était une catégorie mentirait sur son propre fil d'Ariane.
+    expect(detail!.category).toBeNull()
+    // La chaîne se dégrade en vide — c'est de là que la page construit
+    // `Accueil › Tous nos produits › <nom>` sans changer de code.
+    expect(detail!.categoryChain).toEqual([])
+  })
+
+  it("n'apparie pas les Produits sans Structure entre eux comme Produits liés", async () => {
+    // Le piège : `where: { categoryId: product.categoryId }` rendu tel quel
+    // vaut « `IS NULL` » chez Prisma, et la requête **appariait tous les
+    // autres** Produits sans Structure. Aucun de ces deux ne partage de
+    // Structure avec quoi que ce soit ; le « Vous aimerez aussi » n'a donc
+    // rien à proposer, et le dire est mieux que le faire au hasard.
+    await creerDeuxProduitsSansStructure()
+
+    const detail = await fetchProductPageData(pSlug("orphelin"))
+
+    expect(detail!.related).toEqual([])
+    await expect(
+      prisma.product.count({ where: { categoryId: null } })
+    ).resolves.toBeGreaterThanOrEqual(2)
   })
 
   it("unknown slugs return null", async () => {

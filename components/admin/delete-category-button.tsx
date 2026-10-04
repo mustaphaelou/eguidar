@@ -15,7 +15,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -69,7 +71,10 @@ function raisonVisible(comptes: ComptesStructure): string | null {
     return `Refus de la Structure : ${childCount} sous-catégorie${childCount > 1 ? "s" : ""} à déplacer`
   }
   if (productCount > 0) {
-    return `Refus de la Structure : ${productCount} Produit${productCount > 1 ? "s" : ""} à réaffecter`
+    // Deux sorties, donc deux mots : la case a cocher rend l'orphelinat
+    // saisissable (ADR-0029), et une ligne qui n'en nommerait qu'une
+    // mentirait sur ce que la boite va proposer.
+    return `Refus de la Structure : ${productCount} Produit${productCount > 1 ? "s" : ""} à réaffecter ou à laisser sans Structure`
   }
   return null
 }
@@ -121,8 +126,15 @@ export function DeleteCategoryButton({
   // reconnaître : `reassignToCategoryId` porte une Structure réelle, ou rien.
   const [reassignTo, setReassignTo] = useState<string | null>(null)
   const [reparentTo, setReparentTo] = useState<string | null>(null)
+  // **Les deux choix s'excluent, et c'est l'interface qui l'exige.** Le
+  // serveur départage la réaffectation sur l'orphelinat quand les deux
+  // arrivent, mais une boîte qui proposerait les deux à la fois laisserait
+  // croire qu'ils s'appliquent ensemble. Cocher l'un efface l'autre : un seul
+  // choix, une seule conséquence.
+  const [orphelinats, setOrphelinats] = useState(false)
   const idProduits = useId()
   const idSousCategories = useId()
+  const idOrphelins = useId()
 
   const parentParId = new Map(
     categories.map((candidate) => [candidate.id, candidate.parentId])
@@ -225,7 +237,14 @@ export function DeleteCategoryButton({
                     <FieldLabel htmlFor={idProduits}>
                       Déplacer les produits vers
                     </FieldLabel>
-                    <Select value={reassignTo} onValueChange={setReassignTo}>
+                    <Select
+                      value={orphelinats ? null : reassignTo}
+                      onValueChange={(value) => {
+                        setReassignTo(value ?? null)
+                        if (value) setOrphelinats(false)
+                      }}
+                      disabled={orphelinats}
+                    >
                       <SelectTrigger id={idProduits} size="sm">
                         <SelectValue placeholder="Bloquer — produits rattachés" />
                       </SelectTrigger>
@@ -248,6 +267,35 @@ export function DeleteCategoryButton({
                         name="reassignToCategoryId"
                         value={reassignTo}
                       />
+                    ) : null}
+
+                    {/* La troisième issue (ADR-0029). Elle est une case et non
+                        une option du `Select` parce qu'elle n'est pas une cible :
+                        c'est l'absence de cible que l'éditeur exprime, et une
+                        sentinelle à travers la frontière asynchrone serait
+                        remplacée par un mandataire — le serveur ne verrait
+                        jamais la valeur qui compte. La case cochée porte un
+                        `on`, rien à comparer. */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <Checkbox
+                        id={idOrphelins}
+                        checked={orphelinats}
+                        onCheckedChange={(coche) => {
+                          setOrphelinats(coche === true)
+                          if (coche === true) setReassignTo(null)
+                        }}
+                      />
+                      <Label
+                        htmlFor={idOrphelins}
+                        className="text-sm leading-snug"
+                      >
+                        Laisser les {productCount} Produit
+                        {productCount > 1 ? "s" : ""} sans Structure — ils
+                        restent en vente, hors de toute catégorie
+                      </Label>
+                    </div>
+                    {orphelinats ? (
+                      <input type="hidden" name="orphanProducts" value="on" />
                     ) : null}
                   </Field>
                 ) : null}
