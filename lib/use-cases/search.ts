@@ -270,6 +270,38 @@ export interface SearchSuggestionsData {
 const SEARCH_SUGGESTION_LIMIT = 6
 const SEARCH_SUGGESTION_CATEGORY_LIMIT = 5
 
+/**
+ * Compare deux entrées d'une répartition : le compte d'abord, le slug ensuite.
+ *
+ * **L'égalité est départagée par le slug, et c'est un choix, pas un reste.**
+ * Sans lui, deux catégories aussi demandées l'une que l'autre arriveraient dans
+ * l'ordre où le moteur a produit ses clés — l'ordre des Documents pour le
+ * moteur en mémoire, l'ordre alphabétique chez Meilisearch. Les deux moteurs
+ * remettraient alors deux réponses différentes pour une même répartition, et
+ * c'est précisément ce que la Recherche refuse de laisser faire : elle promet
+ * la même réponse partout, donc elle choisit elle-même.
+ *
+ * Le slug est le nom propre de la catégorie dans le Catalogue : il est unique,
+ * donc le départage est **total** et l'ordre obtenu ne dépend d'aucun ordre
+ * d'arrivée. Le tri n'a pas besoin d'être stable pour l'être ici.
+ *
+ * La comparaison est faite caractère par caractère plutôt qu'avec
+ * `localeCompare` : celle-ci suit la locale de qui rend, et la réponse doit
+ * être la même sur le serveur de production et dans le navigateur d'un Visiteur
+ * qui écrit `fr-CA`. C'est aussi l'ordre dans lequel Meilisearch rend ses
+ * valeurs de facette, si bien qu'à égalité de compte la suite proposée ne
+ * bouge pas d'un moteur à l'autre.
+ */
+function comparerParComptePuisSlug(
+  [slugGauche, compteGauche]: [string, number],
+  [slugDroite, compteDroite]: [string, number]
+): number {
+  return (
+    compteDroite - compteGauche ||
+    (slugGauche < slugDroite ? -1 : slugGauche > slugDroite ? 1 : 0)
+  )
+}
+
 export async function searchSuggestions(
   query: string,
   moteur: MoteurRecherche = moteurMeili()
@@ -285,9 +317,28 @@ export async function searchSuggestions(
   // Un moteur absent ou injoignable : les deux listes vides d'aujourd'hui.
   if (reponse.statut === "indisponible") return emptyResult
 
+  // Le choix des catégories se fait **ici**, au-dessus de la couture, et non
+  // dans l'ordre où un moteur produit ses clés : Meilisearch rend ses valeurs
+  // de facette par ordre alphabétique — `#531` l'a mesuré et l'a épinglé en
+  // littéral (`sortFacetValuesBy: { "*": "alpha" }`) — et prendre les premières
+  // entrées proposait donc au Visiteur ce qui commence par A, quoi qu'il ait
+  // demandé. L'ordre des valeurs de facette est un réglage du moteur, et le
+  // Visiteur ne doit pas avoir à le connaître pour que ses suggestions soient
+  // les bonnes : la décision se prend au lieu où la suggestion se construit, ce
+  // qui la rend identique quel que soit le moteur.
+  //
+  // **Ce que ce tri peut classer, c'est ce que le moteur a rendu.** Meilisearch
+  // plafonne ses valeurs de facette à cent par facette — le même épinglage que
+  // tout à l'heure — et les coupe donc avant qu'elles n'arrivent ici. Sur un
+  // Catalogue de plus de cent catégories, la suggestion ne peut pas offrir
+  // celles que le moteur n'a jamais nommé ; elle classe les cent qu'il a
+  // nommées. C'est un fait du moteur, dit et laissé tel quel, et non une
+  // limite de ce tri : la borne se lève dans le moteur ou nulle part.
   const categorySlugCounts = Object.entries(
     reponse.repartitions.categorySlug ?? {}
-  ).slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
+  )
+    .sort(comparerParComptePuisSlug)
+    .slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
   const categoryNames = await fetchCategoryNames(
     categorySlugCounts.map(([slug]) => slug)
   )
