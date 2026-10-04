@@ -100,12 +100,15 @@ Il ajoute à `.github/workflows/ci.yml` vingt-deux lignes — un service `meilis
 (`getmeili/meilisearch:v1.52`, le `health-cmd` de `docker-compose.yml`) à côté de PostgreSQL, plus
 `MEILI_URL` et `MEILI_MASTER_KEY` dans l'environnement du poste `test`.
 
-**Cet amendement n'est pas vrai sans lui, et il n'est pas encore vrai.** `4cf3f24` n'existe que
-localement : `git branch -a --contains 4cf3f24` ne renvoie que des branches locales — la branche
-`fix/487-delai-verrou-grossier` et celles de ce chantier —, la branche distante
-correspondante s'arrête à son parent `d9165ce`, et `.github/workflows/ci.yml` sur `origin/main`
-ne contient aucune occurrence de `meili`. Aucun commit de ce que suit n'est poussé, aucune PR n'est
-ouverte. Sur `main` tel qu'il est, les cinq sautent toujours.
+**Cet amendement n'est pas vrai sans lui.** Sans ce service, le poste `test` ne démarre aucun
+moteur : `getMeiliSearch` y rend `null`, les cinq blocs `describe.runIf(!!meili)` sautent comme
+avant, et cet amendement décrirait un épinglage que rien n'exerce.
+
+Ce que le dépôt en retient — ce qui est poussé, ce qui ne l'est pas, l'existence d'une demande de
+fusion — ne se consigne pas ici : cela devient faux au premier envoi, et une décision qui affirme
+un état de gestion de versions cesse de l'être sans que personne ne l'ait relue. L'état du dépôt
+tient dans le message de commit et dans la description de la demande de fusion, où il est vrai le
+jour où on le lit.
 
 ### Ce qui est maintenant épinglé
 
@@ -148,9 +151,9 @@ deux sont corrigés.
 Le rétrécissement est un choix, et **il se voit**. Mesuré sur un moteur Meilisearch v1.52 : à
 « samsung 128 256 », le défaut rend un Produit et une catégorie de suggestion ; `all` ne rend ni
 l'un ni l'autre. La requête complète, « samsung 128 go », rend les deux dans les deux modes. Un
-Visiteur qui tape deux mots sur trois voit donc moins de Produits, et le bandeau reste vide tant que
-sa requête n'est pas complète. C'est le prix de la phrase que le glossaire porte désormais ; l'autre
-voie est le relâchement, que la production faisait.
+Visiteur qui tape deux mots sur trois voit donc moins de Produits, et le Bandeau de navigation reste
+vide tant que sa requête n'est pas complète. C'est le prix de la phrase que le glossaire porte
+désormais ; l'autre voie est le relâchement, que la production faisait.
 
 ### Une affirmation de trop, sur le double
 
@@ -172,7 +175,7 @@ L'indisponibilité s'éprouve par le moteur de recette, figé sur une réponse
 ([`test/moteur-recherche-recette.ts`](../../test/moteur-recherche-recette.ts#L7)), et c'est ce que
 dit l'entrée *Moteur de recherche* du glossaire.
 
-### Deux rectifications
+### Une rectification
 
 **La stratégie de correspondance n'est pas un réglage d'index.** Relevé sur Meilisearch v1.52 :
 `PATCH /indexes/<uid>/settings` avec `{"matchingStrategy":"all"}` rend `Unknown field
@@ -190,11 +193,9 @@ et l'assertion a depuis été remplacée par une égalité de charge utile enti�
 large que l'absence qu'elle remplace : un réglage ajouté en passant, quel qu'il soit, la rend rouge.
 Le raisonnement de #531, lui, tient.
 
-**La [L56](#L56) en compte trois ; elles sont quatre.** Elle nomme « typo tolerance, accents and
-ranking » comme sémantiques n'appartenant qu'à Meilisearch et n'ayant que ces deux suites pour
-épingle. La stratégie de correspondance en est une quatrième, elle est maintenant mesurée sur un
-moteur vivant, et elle n'y est pas nommée. La ligne reste ce qu'elle disait ; c'est ce qu'elle
-recense qu'il faut lire avec ceci.
+C'est aussi la quatrième des sémantiques que la [L56](#L56) attribue à Meilisearch sans la nommer,
+avec « typo tolerance, accents and ranking » : n'ayant d'épinglage que sur un moteur vivant, elle ne
+pouvait être laissée au double, dont l'en-tête dit désormais ce qu'il n'atteste pas.
 
 ### Ce que cet amendement laisse ouvert
 

@@ -68,7 +68,14 @@ const CATEGORIES_DECLAREES: readonly {
 /** Un préfixe commun : il ne départage rien, et c'est le `cle` qui classe. */
 const PREFIXE = "suggestion-categories"
 
-export interface IdentiteSuggestionCategories {
+/**
+ * La forme du jeu partagé par les deux suites.
+ *
+ * Non exportée : elle est le type de retour de `jeuSuggestionCategories` et le
+ * paramètre de tout ce qui suit, et rien dehors n'a à la nommer. Les suites
+ * reçoivent le jeu, elles ne le redéfinissent pas.
+ */
+interface IdentiteSuggestionCategories {
   readonly id: string
   readonly token: string
   readonly categories: readonly SearchSuggestionCategory[]
@@ -161,7 +168,7 @@ export function jeuSuggestionCategories(
   }
 
   const jeu = { id, token, categories, documents, comptes }
-  exigerQueLesDeuxOrdresDisent(jeu)
+  exigerQueLesDeuxOrdresDifferent(jeu)
   return jeu
 }
 
@@ -170,6 +177,15 @@ export function jeuSuggestionCategories(
  * catégories se classent par nombre de Documents. Les deux sont calculés sur la
  * **table déclarée** — un fait de la suite — et non sur ce qu'un moteur a
  * répondu : le témoin porte sur le jeu, jamais sur une observation.
+ *
+ * La comparaison se refait ici caractère par caractère, au lieu de venir de
+ * `lib/use-cases/search.ts` : c'est une **reproduction, pas un miroir**. Un
+ * miroir — l'export du comparateur de production, que les suites appelleraient
+ * — serait vert au moment précis où la règle change, donc il ne verrait rien ;
+ * ici les deux écritures peuvent diverger, et la divergence se voit à la
+ * relecture. `moteurAuxClesParSlug` (`search-memoire.test.ts`) refait la même
+ * comparaison pour la même raison : il imite ce que rend Meilisearch, non ce
+ * que décide la Recherche.
  */
 export function lesDeuxOrdres(identite: IdentiteSuggestionCategories): {
   parAlphabet: readonly string[]
@@ -225,7 +241,7 @@ export function categoriesAttendues(
  * plus lisible, mais ne l'empêcherait pas — elle laisserait le jeu se
  * construire, se semer, s'indexer, puis échouer quelque part plus loin.
  */
-function exigerQueLesDeuxOrdresDisent(
+function exigerQueLesDeuxOrdresDifferent(
   identite: IdentiteSuggestionCategories
 ): void {
   const { parAlphabet, parComptes } = lesDeuxOrdres(identite)
@@ -295,8 +311,8 @@ export async function exigerCategoriesSuggestion(
  * Le plafond de cinq reste un plafond de cinq : les catégories proposées sont
  * cinq, et cinq catégories **distinctes**. Une répartition qui rendrait deux
  * fois la même catégorie — un adaptateur qui prête deux clés à une valeur —
- * ferait passer le compte et trahirait la bande de navigation, qui proposerait
- * deux fois le même lien.
+ * ferait passer le compte et trahirait le Bandeau de navigation, qui
+ * proposerait deux fois le même lien.
  */
 export async function exigerCinqCategoriesDistinctes(
   suggestions: SearchSuggestionsData

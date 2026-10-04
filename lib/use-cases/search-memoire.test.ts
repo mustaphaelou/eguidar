@@ -596,6 +596,11 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
  * Il ne change rien d'autre : mêmes documents, mêmes comptes, mêmes totaux. Sa
  * seule divergence est l'ordre des clés d'une répartition, ce qui suffit à
  * rendre les cinq premières entrées d'un moteur impropre à la suggestion.
+ *
+ * La comparaison caractère par caractère est **reprise** de
+ * `lib/use-cases/search.ts` et non importée : ce moteur imite Meilisearch, et
+ * un miroir de la production serait vert au moment précis où la règle de la
+ * Recherche changerait — c'est-à-dire quand il doit voir rouge.
  */
 function moteurAuxClesParSlug(moteur: MoteurRecherche): MoteurRecherche {
   return {
@@ -704,11 +709,11 @@ describe("les catégories que la Recherche propose, sur le moteur en mémoire", 
     // choix se fait au-dessus de la couture, sur les comptes, et jamais sur
     // l'ordre dans lequel un moteur produit ses clés.
     //
-    // Le moteur en mémoire rend ses clés dans l'ordre des Documents — donc à
-    // l'envers. Celui-ci les rend dans l'ordre des slugs, ce qu'est
-    // Meilisearch : ses cinq premières entrées sont donc `a, b, c, d, e`, les
-    // cinq que le défaut produisait, et l'attente doit tenir quand même. Une
-    // implementation qui prendrait les premières entrées échouerait ici.
+    // L'argument des deux ordres est écrit une fois, dans le module du
+    // scénario ; il n'y a ici qu'un fait à retenir — ce moteur rend ses cinq
+    // premières entrées `a, b, c, d, e`, les cinq que le défaut produisait,
+    // donc une implémentation qui prendrait les premières entrées échouerait
+    // sur cette ligne.
     const suggestions = await exigerCategoriesSuggestion(
       suggestionCategories,
       moteurAuxClesParSlug(moteurSuggestions)
@@ -721,9 +726,10 @@ describe("les catégories que la Recherche propose, sur le moteur en mémoire", 
     // Le second contrôle négatif, et le plus nécessaire des deux : une
     // affirmation qui ne peut pas échouer n'est pas une affirmation. Ce moteur
     // est le même, avec une seule répartition changée — la catégorie que
-    // l'ordre alphabétique plaçait en premier passe devant toutes les autres —
-    // donc une implementation qui proposerait les cinq premières entrées
-    // passerait, et une qui se fie à l'ordre des clés aussi.
+    // l'ordre alphabétique plaçait en premier passe devant toutes les autres.
+    // Donc une implémentation qui proposerait les cinq premières entrées
+    // ferait passer **ce contrôle** : il verrait le refus qu'il attend, et
+    // c'est précisément pour cela qu'il est distinct du précédent.
     //
     // Le message est épinglé : sans lui, l'échec pourrait être le n'importe
     // quoi d'autre, et le cas ne prouverait rien.

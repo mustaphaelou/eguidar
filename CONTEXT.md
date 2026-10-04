@@ -130,7 +130,8 @@ The act of finding products across the Catalogue by free-text query, in which ev
 query must be found in the Document d'index, typo tolerance permitting, filtrable par une ou
 plusieurs marques, une catégorie et une tranche de prix, triable (pertinence, prix, nouveautés) et
 paginée. Une faute de frappe reste permise — un terme mal orthographié trouve encore son Document
-d'index — et ni la casse ni les accents ne changent le résultat.
+d'index — et ni la casse ni les accents ne changent le résultat. Le dernier terme peut s'arrêter
+avant la fin : c'est le seul que le moteur tronque, les autres doivent se trouver entiers.
 Le Bandeau de navigation propose des suggestions instantanées de produits et de catégories ; il
 s'ouvre sur les catégories que la requête concerne le plus, classées par nombre de Documents
 d'index décroissant puis par slug croissant. Ce classement est un choix de la Recherche, pris

@@ -291,6 +291,11 @@ const SEARCH_SUGGESTION_CATEGORY_LIMIT = 5
  * qui écrit `fr-CA`. C'est aussi l'ordre dans lequel Meilisearch rend ses
  * valeurs de facette, si bien qu'à égalité de compte la suite proposée ne
  * bouge pas d'un moteur à l'autre.
+ *
+ * Les suites qui rejouent ce tri le réécrivent au lieu de l'appeler
+ * (`test/suggestion-categories-recherche.ts`, `moteurAuxClesParSlug` dans
+ * `lib/use-cases/search-memoire.test.ts`) : un miroir passerait au vert quand
+ * cette règle change, donc à l'instant où il devrait rougir.
  */
 function comparerParComptePuisSlug(
   [slugGauche, compteGauche]: [string, number],

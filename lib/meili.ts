@@ -68,7 +68,7 @@ function attributesToSearchOn(query: string): string[] | undefined {
  * large que celle qui rend les résultats.
  *
  * **Le rétrécissement est un choix, et il se voit.** Un Visiteur qui tape deux
- * mots sur trois voit moins de Produits qu'avant, et le bandeau de suggestions
+ * mots sur trois voit moins de Produits qu'avant, et le Bandeau de navigation
  * ne propose plus rien tant que la requête n'est pas complète. L'autre voie est
  * le relâchement du moteur — ce que la production faisait, et ce que les tests
  * du dépôt niaient. Une faute de frappe reste permise : « chaque terme trouvé »
