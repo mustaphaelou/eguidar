@@ -20,7 +20,8 @@ import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
  * recherche, les quatre tris, la pagination et les répartitions calculées
  * sous les filtres reçus — la règle d'ADR-0016 est retirée au-dessus de la
  * couture, par `searchProducts`. Ce qui reste à Meili — tolérance aux
- * fautes, classement par pertinence, localisation — n'est pas éprouvé ici.
+ * fautes, classement par pertinence, localisation, et la stratégie de
+ * correspondance qui exige chaque terme — n'est pas éprouvé ici.
  *
  * Les documents sont construits à la main (la forme est
  * `IndexableProduct`, `lib/index-projection.ts`) : le moteur lit leurs
@@ -174,7 +175,18 @@ describe("creerMoteurEnMemoire — appartenance au texte", () => {
     expect(ids(await chercher({ query: "ÉCRAN" }))).toEqual(["ecran"])
   })
 
-  it("exige chaque jeton de la requête et accepte les préfixes de jetons", async () => {
+  /**
+   * La règle est celle du moteur en mémoire, et elle n'appartient qu'à lui : il
+   * sature la requête — un jeton absent écarte le document — parce qu'il
+   * compare des jetons, ce qui est la définition de sa fonction.
+   *
+   * Ce test ne dit donc plus ce que la Recherche promet au Visiteur. « Chaque
+   * terme de la requête doit être trouvé » est la sémantique de Meilisearch,
+   * qu'un moteur qui relâche ne tient pas, et elle se mesure sur un moteur
+   * vivant : `lib/meili-correspondance.test.ts`. La redire ici serait une
+   * preuve sans moteur sous elle.
+   */
+  it("sature la requête : un jeton absent écarte le document, préfixes acceptés", async () => {
     expect(ids(await chercher({ query: "128 g" }))).toEqual(["iphone"])
     expect(ids(await chercher({ query: "128 Go 256" }))).toEqual([])
     expect(ids(await chercher({ query: "samsung iphone" }))).toEqual([])
