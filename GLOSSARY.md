@@ -122,10 +122,12 @@ _Avoid_: category tree, arborescence de catégories, catégorie d'administration
 **Refus de la Structure**:
 Le refus par le serveur d'une opération sur la Structure : Structure introuvable, Structure
 contenant des sous-catégories, Produits qui lui sont rattachés, réaffectation invalide, ou Structure
-déjà en cours de modification par une autre opération. Une mutation de Structure ne produit jamais
-d'autre issue. Le refus d'une Structure qui a des Produits **est le défaut** : l'éditeur peut le
-lever en choisissant de les réaffecter ou de les laisser sans Structure, jamais par inadvertance
-(ADR-0029).
+déjà en cours de modification par une autre opération. A mutation may also be refused because the
+stored Structure is **corrupt** — it already carries a cycle somewhere in an ancestor chain (ADR-0027).
+That is a different fault from a bad request, and it is refused in its own voice rather than as
+invalid input, since retrying repairs nothing. Une mutation de Structure ne produit jamais d'autre
+issue. Le refus d'une Structure qui a des Produits **est le défaut** : l'éditeur peut le lever en
+choisissant de les réaffecter ou de les laisser sans Structure, jamais par inadvertance (ADR-0029).
 _Avoid_: erreur catégorie, échec de suppression, category error
 
 **Recherche**:
