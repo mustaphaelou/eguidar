@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
 import type { IndexableProduct } from "@/lib/index-projection"
+import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import type { OptionDeFiltre } from "@/lib/options-de-filtre"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import {
@@ -12,6 +13,14 @@ import {
   searchSuggestions,
 } from "@/lib/use-cases/search"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
+import {
+  categoriesAttendues,
+  exigerCinqCategoriesDistinctes,
+  exigerCategoriesSemees,
+  exigerCategoriesSuggestion,
+  jeuSuggestionCategories,
+  lesDeuxOrdres,
+} from "@/test/suggestion-categories-recherche"
 
 /**
  * L'orchestration de la Recherche par-dessus la couture du MoteurRecherche
@@ -131,11 +140,14 @@ const moteur = creerMoteurEnMemoire(docs)
 const AUDIO_ATTENDU = { value: audioSlug, label: "Audio & Hi-Fi" }
 const SMARTPHONES_ATTENDU = { value: smartphonesSlug, label: "Smartphones" }
 
-/** Sept catégories pour la suggestion : le plafond de cinq doit mordre. */
-const CATEGORIES_SUGGESTION = Array.from({ length: 7 }, (_, index) => ({
-  slug: `srchm-${moteurId}-suggestion-cat-${index}`,
-  name: `SuggestionCat${index}`,
-}))
+/**
+ * Le jeu de l'ordre des catégories que la Recherche propose, déclaré une fois
+ * dans `@/test/suggestion-categories-recherche` et rejoué ici mot pour mot par
+ * la suite qui parle au moteur vivant. Sept catégories, treize Documents, et
+ * deux ordres qui ne se ressemblent pas.
+ */
+const suggestionCategories = jeuSuggestionCategories(randomUUID().slice(0, 8))
+const moteurSuggestions = creerMoteurEnMemoire(suggestionCategories.documents)
 
 /** Les cinq marques du jeu, dans l'ordre `fr` que l'assemblage rend. */
 const CINQ_MARQUES = [
@@ -195,7 +207,10 @@ beforeAll(async () => {
     data: [
       { name: "Smartphones", slug: smartphonesSlug },
       { name: "Audio & Hi-Fi", slug: audioSlug },
-      ...CATEGORIES_SUGGESTION,
+      ...suggestionCategories.categories.map((category) => ({
+        name: category.name,
+        slug: category.slug,
+      })),
     ],
     skipDuplicates: true,
   })
@@ -208,7 +223,7 @@ afterAll(async () => {
         in: [
           smartphonesSlug,
           audioSlug,
-          ...CATEGORIES_SUGGESTION.map((category) => category.slug),
+          ...suggestionCategories.categories.map((category) => category.slug),
         ],
       },
     },
@@ -515,34 +530,22 @@ describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
 })
 
 describe("searchSuggestions sur le moteur en mémoire", () => {
-  const sujets: IndexableProduct[] = Array.from({ length: 8 }, (_, index) => {
-    const categorie =
-      CATEGORIES_SUGGESTION[index % CATEGORIES_SUGGESTION.length]
-    return makeDoc(`suggestion-${index}`, {
-      name: name(`Suggestion ${index}`),
-      slug: `srchm-${moteurId}-suggestion-${index}`,
-      brand: "Marque Suggestions",
-      description: `${token} suggestions`,
-      categorySlug: categorie.slug,
-      categoryName: categorie.name,
-      minPrice: 100000 + index,
-      priceBucket: "1000-2500",
-    })
-  })
-  const moteurSuggestions = creerMoteurEnMemoire(sujets)
-
   it("plafonne les suggestions à six produits", async () => {
-    const suggestions = await searchSuggestions(token, moteurSuggestions)
+    const suggestions = await searchSuggestions(
+      suggestionCategories.token,
+      moteurSuggestions
+    )
 
-    // Huit documents correspondent : `searchSuggestions` en demande six.
+    // Treize documents correspondent : `searchSuggestions` en demande six, et
+    // le moteur en mémoire rend les six premiers qu'il a rencontrés.
     expect(suggestions.products).toHaveLength(6)
     expect(suggestions.products.map((p) => p.id)).toEqual([
-      "suggestion-0",
-      "suggestion-1",
-      "suggestion-2",
-      "suggestion-3",
-      "suggestion-4",
-      "suggestion-5",
+      `suggestion-${suggestionCategories.id}-g-1`,
+      `suggestion-${suggestionCategories.id}-f-1`,
+      `suggestion-${suggestionCategories.id}-e-1`,
+      `suggestion-${suggestionCategories.id}-e-2`,
+      `suggestion-${suggestionCategories.id}-d-1`,
+      `suggestion-${suggestionCategories.id}-d-2`,
     ])
   })
 
@@ -573,19 +576,6 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
     ])
   })
 
-  it("plafonne la distribution des catégories à cinq, noms compris", async () => {
-    const suggestions = await searchSuggestions(token, moteurSuggestions)
-
-    // Les huit documents couvrent les sept catégories semées : la suggestion
-    // n'en rend que cinq, avec le nom résolu par Prisma.
-    expect(suggestions.categories).toEqual(
-      CATEGORIES_SUGGESTION.slice(0, 5).map((category) => ({
-        slug: category.slug,
-        name: category.name,
-      }))
-    )
-  })
-
   it("rend la distribution des catégories du jeu principal", async () => {
     const suggestions = await searchSuggestions(token, moteur)
 
@@ -596,5 +586,158 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
     expect(suggestions.categories.map((c) => c.slug).sort()).toEqual(
       [audioSlug, smartphonesSlug].sort()
     )
+  })
+})
+
+/**
+ * Un moteur qui rend **les mêmes clés, dans l'ordre des slugs** — la forme que
+ * Meilisearch rend, et que le moteur en mémoire ne rend jamais.
+ *
+ * Il ne change rien d'autre : mêmes documents, mêmes comptes, mêmes totaux. Sa
+ * seule divergence est l'ordre des clés d'une répartition, ce qui suffit à
+ * rendre les cinq premières entrées d'un moteur impropre à la suggestion.
+ *
+ * La comparaison caractère par caractère est **reprise** de
+ * `lib/use-cases/search.ts` et non importée : ce moteur imite Meilisearch, et
+ * un miroir de la production serait vert au moment précis où la règle de la
+ * Recherche changerait — c'est-à-dire quand il doit voir rouge.
+ */
+function moteurAuxClesParSlug(moteur: MoteurRecherche): MoteurRecherche {
+  return {
+    async chercher(requete: RequeteMoteur) {
+      const reponse = await moteur.chercher(requete)
+      if (reponse.statut !== "ok") return reponse
+      return {
+        ...reponse,
+        repartitions: Object.fromEntries(
+          Object.entries(reponse.repartitions).map(([facette, comptes]) => [
+            facette,
+            Object.fromEntries(
+              Object.entries(comptes ?? {}).sort(([gauche], [droite]) =>
+                gauche < droite ? -1 : gauche > droite ? 1 : 0
+              )
+            ),
+          ])
+        ),
+      }
+    },
+  }
+}
+
+/**
+ * Le second moteur de contrôle : le même, sauf qu'**une** catégorie reçoit un
+ * compte que le jeu ne déclare pas — ici la première du jeu, celle que
+ * l'ordre alphabétique plaçait en tête.
+ *
+ * Il varie **les comptes seuls**, et laisse l'ordre des clés intact : c'est ce
+ * que la première répartition rend, et seule la valeur change. L'attente doit
+ * donc s'en apercevoir, et c'est là son travail : elle montre que ce sont les
+ * comptes qui décident, et elle montre surtout qu'elle **peut échouer** — sans
+ * elle, une attente qui ne distingue rien ne serait pas une attente.
+ */
+function moteurAuxComptes(
+  slugSurfacture: string,
+  compte: number
+): MoteurRecherche {
+  const sain = moteurSuggestions
+  return {
+    async chercher(requete: RequeteMoteur) {
+      const reponse = await sain.chercher(requete)
+      if (
+        reponse.statut !== "ok" ||
+        !requete.facettes?.includes("categorySlug")
+      )
+        return reponse
+      return {
+        ...reponse,
+        repartitions: {
+          ...reponse.repartitions,
+          categorySlug: {
+            ...reponse.repartitions.categorySlug,
+            [slugSurfacture]: compte,
+          },
+        },
+      }
+    },
+  }
+}
+
+/**
+ * L'ordre des catégories que la Recherche propose — le scénario rejoué sur le
+ * moteur en mémoire.
+ *
+ * La réponse attendue est écrite dans `@/test/suggestion-categories-recherche`
+ * et n'est pas répétée ici : la même attente doit tenir sur le moteur vivant,
+ * et une suite qui la retaperait aurait deux vérités à tenir.
+ */
+describe("les catégories que la Recherche propose, sur le moteur en mémoire", () => {
+  it("le jeu semé se classe autrement dans les deux ordres", () => {
+    const { parAlphabet, parComptes } = lesDeuxOrdres(suggestionCategories)
+
+    // Le témoin de non-vacuité, rendu lisible. La fabrique du jeu lève déjà si
+    // les deux ordres se confondaient ; cette ligne le dit en français, et
+    // surtout elle nomme **les deux** — sans elle, un jeu réaligné ne
+    // donnerait qu'un « les deux ordres sont égaux », sans que personne sache
+    // sur quelles catégories.
+    expect(parAlphabet).not.toEqual(parComptes)
+    expect(parAlphabet).toHaveLength(7)
+    expect(parComptes).toHaveLength(7)
+    // Les cinq premiers dans l'ordre des slugs ne sont pas les cinq attendus :
+    // c'est exactement ce que l'implémentation d'avant proposait.
+    expect(parAlphabet.slice(0, 5)).not.toEqual(
+      categoriesAttendues(suggestionCategories).map(
+        (categorie) => categorie.slug
+      )
+    )
+  })
+
+  it("les sept catégories ont atterri, avec les comptes qu'elles déclarent", async () => {
+    await exigerCategoriesSemees(suggestionCategories, moteurSuggestions)
+  })
+
+  it("ouvre sur les catégories que la requête concerne le plus, plafond compris", async () => {
+    const suggestions = await exigerCategoriesSuggestion(
+      suggestionCategories,
+      moteurSuggestions
+    )
+
+    await exigerCinqCategoriesDistinctes(suggestions)
+  })
+
+  it("rend la même réponse à un moteur qui rend ses clés dans l'ordre des slugs", async () => {
+    // Le premier contrôle négatif, et il porte la contrainte du ticket : le
+    // choix se fait au-dessus de la couture, sur les comptes, et jamais sur
+    // l'ordre dans lequel un moteur produit ses clés.
+    //
+    // L'argument des deux ordres est écrit une fois, dans le module du
+    // scénario ; il n'y a ici qu'un fait à retenir — ce moteur rend ses cinq
+    // premières entrées `a, b, c, d, e`, les cinq que le défaut produisait,
+    // donc une implémentation qui prendrait les premières entrées échouerait
+    // sur cette ligne.
+    const suggestions = await exigerCategoriesSuggestion(
+      suggestionCategories,
+      moteurAuxClesParSlug(moteurSuggestions)
+    )
+
+    await exigerCinqCategoriesDistinctes(suggestions)
+  })
+
+  it("refuse l'attente quand un moteur annonce d'autres comptes", async () => {
+    // Le second contrôle négatif, et le plus nécessaire des deux : une
+    // affirmation qui ne peut pas échouer n'est pas une affirmation. Ce moteur
+    // est le même, avec une seule répartition changée — la catégorie que
+    // l'ordre alphabétique plaçait en premier passe devant toutes les autres.
+    // Donc une implémentation qui proposerait les cinq premières entrées
+    // ferait passer **ce contrôle** : il verrait le refus qu'il attend, et
+    // c'est précisément pour cela qu'il est distinct du précédent.
+    //
+    // Le message est épinglé : sans lui, l'échec pourrait être le n'importe
+    // quoi d'autre, et le cas ne prouverait rien.
+    await expect(
+      exigerCategoriesSuggestion(
+        suggestionCategories,
+        moteurAuxComptes(suggestionCategories.categories[0].slug, 99)
+      )
+    ).rejects.toThrow("les suggestions ouvrent sur les catégories")
   })
 })

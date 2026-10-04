@@ -16,18 +16,35 @@ import type {
  * Moteur de recherche en mémoire — approximation documentée de Meilisearch,
  * pour les suites qui n'ont ni Docker ni moteur (ADR-0023).
  *
- * Ce qui est imité : l'appartenance au texte (tokens repliés sans casse ni
- * accents, chaque token de la requête préfixe d'un token du document), les
- * Filtres de recherche appliqués tels quels (marques en union, catégorie,
- * Tranche de prix sur le `minPrice` déjà cuit), les quatre tris, la
- * pagination et les répartitions sous les filtres reçus. Le total est la
- * mesure de la requête de page : une requête de décompte (`taille: 0`, ou
- * absente) ne mesure rien et répond `total: 0`.
+ * Ce qui est imité : le repli de la casse et des accents, les Filtres de
+ * recherche appliqués tels quels (marques en union, catégorie, Tranche de
+ * prix sur le `minPrice` déjà cuit), les quatre tris, la pagination et les
+ * répartitions sous les filtres reçus. Le total est la mesure de la requête
+ * de page : une requête de décompte (`taille: 0`, ou absente) ne mesure rien
+ * et répond `total: 0`.
  *
- * Ce qui reste à Meili : la tolérance aux fautes de frappe, le classement
- * par pertinence (`pertinence` garde ici l'ordre d'entrée) et la
- * localisation française. C'est un double de test : il est toujours
- * disponible et ne répond jamais l'indisponible.
+ * L'appartenance au texte, elle, n'est pas de la fidélité : chaque token de
+ * la requête est ici préfixe d'un token du document, et cette phrase n'est
+ * vraie que de ce moteur. Meilisearch ne fait pas ainsi — son `prefixSearch`
+ * vaut `indexingTime`, il ne troncature que le dernier mot de la requête —
+ * et c'est pourquoi « chaque terme de la requête doit être trouvé » se mesure
+ * sur un moteur vivant (`lib/meili-correspondance.test.ts`), pas ici. Le
+ * redire sur ce double serait une preuve sans moteur sous elle.
+ *
+ * Ce qu'il n'atteste donc pas : le classement par pertinence (`pertinence`
+ * garde l'ordre d'entrée), la sémantique des fautes de frappe et la
+ * localisation française, ni l'ordre ni le plafond des valeurs de facette —
+ * une répartition rend ici une clé par document, dans l'ordre de leur
+ * rencontre, jamais tronquée. C'est un double de test, et non un second
+ * moteur : rapide et sans moteur à démarrer, il éprouve l'orchestration —
+ * le retrait de la clause d'une facette (ADR-0016), le bornage d'une page
+ * hors bornes, le chemin hermétique — et non la qualité d'une Recherche.
+ *
+ * Il est toujours disponible et ne répond jamais l'indisponible, et c'est
+ * aussi ce qui l'exclut de l'indisponibilité : `chercher` n'a qu'un retour,
+ * `statut: "ok"` y est écrit en dur, et aucune branche ne pourrait rendre
+ * autre chose. Elle ne s'éprouve donc pas ici, mais par un moteur de recette,
+ * figé sur une réponse (`test/moteur-recherche-recette.ts`).
  */
 
 /** La même liste que `SEARCHABLE_PRODUCT_ATTRIBUTES` de `lib/meili.ts`. */
