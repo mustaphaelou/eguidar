@@ -9,7 +9,7 @@ import type { SearchFilters } from "@/lib/search-params"
  * carte des décomptes, son propre tri `fr`, sa propre copie de la règle
  * « une option retenue reste visible à zéro » et son propre ordre des
  * Tranches de prix. Ce module est le seul propriétaire de ces règles
- * (CONTEXT.md, « Option de filtre ») : `searchProducts` l'appelle à côté
+ * (GLOSSARY.md, « Option de filtre ») : `searchProducts` l'appelle à côté
  * des requêtes de facettes, la barre latérale ne fait plus que rendre la
  * liste reçue.
  *
