@@ -470,3 +470,95 @@ différence qui dit ce que l'orphelinat a changé — rien sur la course, tout s
 Les deux autres pièges nommés sont intacts : `Category_parentId_fkey` reste en `ON DELETE SET NULL` et
 l'écart avec le schéma Prisma demeure, et la marche de `assertAcyclicCategoryTree` reste non bornée.
 
+## Amendement — La marche d'acyclicité s'arrête sur un cycle déjà présent (#490)
+
+Le troisième piège nommé est fermé. `assertAcyclicCategoryTree` garde désormais les identifiants
+qu'elle a visités et s'arrête sur une revisite au lieu de remonter une chaîne sans fin. Ce n'est pas
+une innovation : le même domaine en portait déjà la forme, et le dépôt le disait.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Comme le veut la convention du fichier, aucune phrase de la décision n'est changée ici. Le piège
+nommé est en revanche énoncé **quatre fois**, et les quatre passages décrivent désormais un état
+fermé. C'est cet amendement qu'il faut y lire à côté :
+
+- le **troisième piège nommé** lui-même, et sa phrase « un cycle déjà présent fait simplement tourner
+  la marche jusqu'au délai de 5 000 ms » ;
+- la rééirmation dans l'amendement de la réaffectation saisissable ;
+- la rééirmation dans l'amendement de l'inversion des deux instructions — « La marche d'acyclicité ne
+  prend aucun verrou : le troisième piège nommé ci-dessus reste entier » ;
+- la rééirmation finale de l'amendement sur la nullabilité des Produits.
+
+Sa citation de ligne est par ailleurs périmée : le passage qu'elle désigne est aujourd'hui aux lignes
+282-309 du module.
+
+Le renvoi lui-même — « **Suivi à part** » — reste exact : c'est ce suivi.
+
+### L'écart que le dépôt décrivait lui-même
+
+`components/admin/delete-category-button.tsx` parcourt la même chaîne d'ancêtres, garde `vus`, et
+explique dans son commentaire que le serveur, lui, n'a pas de jeu de structures visitées — que le
+verrou interdit d'en former un, et que ce manque est un piège nommé. **Cette phrase est devenue
+fausse, et le commentaire avec elle.** La division qu'il énonçait — le serveur plus exposé que le
+client sur ce seul point — n'a plus de raison d'être : les deux marches portent le même garde, et la
+seule garantie commune qu'il mentionnait, le refus d'une cible cyclique, tient maintenant des deux
+côtés. Le commentaire est mis à jour dans le même temps que le code.
+
+### Un garde, deux diagnostics
+
+Le jeu de structures visitées s'arrête sur **toute** revisite, et deux faits s'y cachent. La marche
+peut revenir sur la Structure déplacée — l'éditeur veut la suspendre sous sa propre descendante, et le
+refus actuel dit exactement cela. Elle peut aussi revenir sur un nœud quelconque : la chaîne
+d'ancêtres que l'éditeur vise est **déjà cyclique**, et le déplacement qu'il propose n'y est pour rien.
+
+Les deux sont des refus, mais pas de la même faute. Le second n'appartient pas à l'éditeur : le lui
+rendre comme une saisie invalide lui apprend à réessayer, et réessayer ne répare pas une donnée
+corrompue. Le jeu de structures visitées les distingue **et** répond à ce que l'ADR dit de la surface
+d'erreurs : une épreuve doit pouvoir dire laquelle des deux routes elle éprouve.
+
+Le refus neuf ne réutilise donc pas `CategoryValidationError`. Son préfixe — `« Données invalides : »`
+— dirait la faute de l'éditeur dans les trois premiers mots d'un refus qui parle d'une corruption
+importée, reprise de données ou correction manuelle. Un refus à part est aussi ce qu'exige la
+décision elle-même : « Toute issue d'une mutation de Structure est un `UserFacingError`, jamais une
+erreur de lecteur ». Le glossaire en tire la même exigence par une autre porte — « Une mutation de
+Structure ne produit jamais d'autre issue » ([GLOSSARY.md](../../GLOSSARY.md)). La classe étend
+`UserFacingError`, comme toute classe de refus de ce dépôt — **`Error` nu la ferait sortir de l'action
+serveur en exception**, ce qui est précisément le symptôme que cet amendement ferme.
+
+### Le plafond écarté, et pourquoi
+
+Un plafond de profondeur aurait borné la marche en quelques lignes. Il a été écarté : il borne sans
+détecter, et il introduirait une règle d'affaires neuve — quelle profondeur est légale pour une
+Structure ? — à laquelle ni ce dépôt ni son glossaire ne répondent aujourd'hui. Détecter est plus
+précis et ne demande rien de neuf. Les deux ne s'excluaient pas ; le second seul eût été une
+dette nouvelle.
+
+### Ce que cet amendement ne ferme pas
+
+- **Le trou `P2028` reste ouvert.** Le garde supprime la source que l'épreuve ci-dessous mesure, pas
+  le symptôme : une chaîne profonde et acyclique fait toujours autant d'allers-retours dans une
+  transaction de 5 000 ms. `P2028` reste donc atteignable, et `mapCourseDeStructure` ne le traduit
+  toujours pas — il reste une erreur de lecteur. C'est un chantier à part, comme le disait déjà
+  l'amendement de la troisième tranche.
+- **La marche de `storefront.ts` n'est pas touchée.** `getCategoryChain` remonte la même chaîne sur
+  une `Map` en mémoire, sans garde non plus : un cycle y fait une boucle sans transaction à expire.
+  Même condition de données, autre surface — un rendu serveur, pas une mutation. Suivi à part.
+
+### Ce que l'épreuve montre
+
+Joué contre le même PostgreSQL, dans
+[`admin-structure.test.ts`](../../lib/use-cases/admin-structure.test.ts) : une Tierce partie écrit
+un `parentId` **directement en base** — un état corrompu importé, hors de toute mutation de Structure,
+puis une mutation vise un membre de ce cycle.
+
+| Cas                                                     | Avant                                                    | Après                                                       |
+| ------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
+| Cycle déjà en base, mutation qui vise un de ses membres | **`P2028` à 5 010 ms** — erreur de lecteur, non rattrapée | refus nommé, immédiat, transaction rétractée               |
+
+La mesure qui importe est le **type** de l'erreur d'hier, non sa lenteur : `mapCourseDeStructure`
+traduit `55P03`, `40P01`, `23001`/`23503`, `P2003` et `P2034`, laisse passer le reste, et
+`executeMutationAction` relance tout ce qui n'est pas un `UserFacingError`. La marche ne rendait donc
+pas seulement un refus absent — elle sortait de l'action serveur en exception, ce qu'ADR-0027 s'était
+donné pour but d'empêcher. L'amendement de la troisième tranche nommait `P2028` comme résidu
+assumé ; il reste un résidu, mais la marche n'est plus un moyen de l'atteindre à volonté.
+
