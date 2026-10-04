@@ -74,3 +74,150 @@ sorts and pagination sat behind `describe.runIf(!!meili)`, while the CI test job
   unchanged by that typing.
 - The count shown to the Visiteur remains the engine's estimate until a separate decision says
   otherwise.
+
+## Amendement — La décision était juste, et le service qu'elle supposait manquait (#535)
+
+L'option écartée à la [L56](#L56) — « the in-memory engine only, deleting the Meili suites » — l'a
+été pour une raison qui s'est révélée exacte : la tolérance aux fautes, les accents et le classement
+sont bien la sémantique de Meilisearch, et ces deux suites en étaient le seul épinglage. **La
+décision n'a pas à être reprise.** Ce qui n'était pas juste est ailleurs, et l'ADR le disait déjà :
+la CI démarrait PostgreSQL et lui seul. Sans `MEILI_URL`,
+[`getMeiliSearch`](../../lib/meili.ts#L18-L26) rend `null`, et les blocs
+`describe.runIf(!!meili)` sont **[sautés](../../lib/meili.test.ts#L43)**, jamais exécutés. Les deux
+suites que la décision comptait étaient `lib/meili.test.ts` et `lib/use-cases/search.test.ts` ; il y en
+a aujourd'hui cinq, toutes sur la même porte. Le double avait donc la qualité du seul épinglage que
+la décision croyait avoir, sans jamais l'exercer — une suite verte qui ne prouvait rien.
+
+Ce n'était pas une économie : [`test/setup.ts`](../../test/setup.ts) charge `.env`, donc le moteur
+tourne à chaque `npm test` en développement. La CI était le seul endroit où la Recherche ne
+rencontrait aucun moteur, et elle le rendait verte quand même.
+
+### Le préalable, et où il se trouve
+
+Ce que la CI ne voyait ne se voit plus depuis que le moteur y a un service : le commit
+[`4cf3f24`](../../.github/workflows/ci.yml), « Le Moteur de recherche reçoit son service en CI ».
+Il ajoute à `.github/workflows/ci.yml` vingt-deux lignes — un service `meilisearch`
+(`getmeili/meilisearch:v1.52`, le `health-cmd` de `docker-compose.yml`) à côté de PostgreSQL, plus
+`MEILI_URL` et `MEILI_MASTER_KEY` dans l'environnement du poste `test`.
+
+**Cet amendement n'est pas vrai sans lui, et il n'est pas encore vrai.** `4cf3f24` n'existe que
+localement : `git branch -a --contains 4cf3f24` ne renvoie que des branches locales — la branche
+`fix/487-delai-verrou-grossier` et celles de ce chantier —, la branche distante
+correspondante s'arrête à son parent `d9165ce`, et `.github/workflows/ci.yml` sur `origin/main`
+ne contient aucune occurrence de `meili`. Aucun commit de ce que suit n'est poussé, aucune PR n'est
+ouverte. Sur `main` tel qu'il est, les cinq sautent toujours.
+
+### Ce qui est maintenant épinglé
+
+Trois réglages que le Visiteur voit et que le moteur appliquait sans que rien ne les écrive sont
+désormais écrits par [`ensureProductsIndex`](../../lib/meili.ts#L101-L134) et relus sur un moteur
+vivant : `typoTolerance`, `pagination.maxTotalHits`, et `faceting.maxValuesPerFacet` /
+`sortFacetValuesBy`. Les valeurs sont celles que v1.52 appliquait déjà — les écrire ne change rien
+de visible, cela retire seulement qu'une montée de version les change en silence.
+
+Deux autres mesures complètent l'épinglage, chacune à l'endroit où elle seule peut se poser :
+
+- **La stratégie de correspondance**, sur un moteur vivant
+  ([`lib/meili-correspondance.test.ts`](../../lib/meili-correspondance.test.ts#L93)) — exigence des
+  trois termes, contrôle négatif compris, faute de frappe préservée, casse et accents repliés.
+- **L'ordre des suggestions de catégories, sur les deux moteurs** —
+  [`search-memoire.test.ts:693`](../../lib/use-cases/search-memoire.test.ts#L693) et
+  [`search-suggestions-meili.test.ts:96`](../../lib/use-cases/search-suggestions-meili.test.ts#L96).
+  Même jeu, mêmes assertions, deux moteurs qui rendent leurs clés dans deux ordres différents : le
+  test décrit la Recherche, pas un adaptateur.
+
+### Les deux comportements qui étaient faux sous une suite verte
+
+Ce sont deux **comportements** et non deux affirmations : ils se corrigeaient dans le code, et les
+deux sont corrigés.
+
+- **La stratégie de correspondance.** Le défaut du moteur, `last`, relâche : il retire les mots de
+  la fin jusqu'à remplir une page. « samsung iphone » et « 128 Go 256 » rendaient donc des
+  Produits, pendant que les suites du dépôt disaient le contraire — une suite intitulée « exige
+  chaque jeton de la requête » affirmait une exigence que la production n'avait pas. Le défaut du
+  moteur n'est plus laissé tel quel : [`MATCHING_STRATEGY`](../../lib/meili.ts#L79) vaut `all` et
+  s'écrit sur **chaque** requête, la page comme les requêtes de facette — sans quoi les options de
+  filtre compteraient sur une requête plus large que celle qui rend les résultats.
+- **L'ordre des suggestions.** Le Bandeau prenait les cinq premières entrées d'une répartition que
+  Meilisearch rend par ordre alphabétique : le Visiteur se voyait proposer les cinq catégories
+  qui commencent le plus tôt dans l'alphabet, pas les cinq que sa requête concernait. Le choix est
+  désormais fait au-dessus de la couture, dans
+  [`comparerParComptePuisSlug`](../../lib/use-cases/search.ts#L295-L303), sur les comptes que le
+  moteur a déjà rendus.
+
+Le rétrécissement est un choix, et **il se voit**. Mesuré sur un moteur Meilisearch v1.52 : à
+« samsung 128 256 », le défaut rend un Produit et une catégorie de suggestion ; `all` ne rend ni
+l'un ni l'autre. La requête complète, « samsung 128 go », rend les deux dans les deux modes. Un
+Visiteur qui tape deux mots sur trois voit donc moins de Produits, et le bandeau reste vide tant que
+sa requête n'est pas complète. C'est le prix de la phrase que le glossaire porte désormais ; l'autre
+voie est le relâchement, que la production faisait.
+
+### Une affirmation de trop, sur le double
+
+Ce troisième point n'est pas un comportement faux : c'est une **description** fausse, et une
+description se corrige dans un commentaire, non dans une décision. L'en-tête de
+[`test/moteur-recherche-memoire.ts`](../../test/moteur-recherche-memoire.ts#L15) plaçait « chaque
+token de la requête préfixe d'un token du document » du côté de ce qui est imité. C'est vrai de ce
+moteur et de lui seul — Meilisearch ne troncature que le dernier mot de la requête, son
+`prefixSearch` valant `indexingTime` — et une suite qui le redit sur ce double est verte sans moteur
+sous elle. L'en-tête dit désormais ce que le double **n'atteste pas** : le classement par pertinence,
+la sémantique des fautes de frappe, l'ordre et le plafond des valeurs de facette.
+
+Il n'est pas pour autant retiré, et rien ne le remplace : c'est le chemin hermétique — le retrait de
+la clause d'une facette (ADR-0016), le bornage d'une page hors bornes, sans moteur à démarrer. Une
+distinction qu'il faut écrire, parce que le chantier dont cet amendement est issu compte
+l'indisponibilité parmi les choses que le double éprouve : le double ne la rend pas. `chercher` n'a
+qu'un retour, `statut: "ok"` y est écrit en dur, aucune branche ne pourrait faire autrement.
+L'indisponibilité s'éprouve par le moteur de recette, figé sur une réponse
+([`test/moteur-recherche-recette.ts`](../../test/moteur-recherche-recette.ts#L7)), et c'est ce que
+dit l'entrée *Moteur de recherche* du glossaire.
+
+### Deux rectifications
+
+**La stratégie de correspondance n'est pas un réglage d'index.** Relevé sur Meilisearch v1.52 :
+`PATCH /indexes/<uid>/settings` avec `{"matchingStrategy":"all"}` rend `Unknown field
+\`matchingStrategy\`: expected one of \`displayedAttributes\`, \`searchableAttributes\`, …`, et
+`GET /indexes/<uid>/settings` ne la rend pas davantage — `POST` sur cette route répond `405`. Le SDK
+la déclare dans `SearchParams` et nulle part dans `Settings`. C'est un paramètre de requête, écrit
+sur chaque recherche depuis `lib/meili.ts`.
+
+Le commit `7f97c6f` (#531) affirmait le contraire, et son affirmation était plus instructive que
+son motif : la suite portait `expect(recus).not.toHaveProperty("matchingStrategy")`, et le commentaire
+au-dessus disait « le jour où quelqu'un l'ajoute au passage, la suite dise que c'est un choix » —
+donc la traitait comme un réglage volontairement absent, différé à #532. Elle n'a jamais pu l'être,
+et l'assertion a depuis été remplacée par une égalité de charge utile entière
+([`lib/meili-reglages.test.ts:149-172`](../../lib/meili-reglages.test.ts#L149-L172)), qui est plus
+large que l'absence qu'elle remplace : un réglage ajouté en passant, quel qu'il soit, la rend rouge.
+Le raisonnement de #531, lui, tient.
+
+**La [L56](#L56) en compte trois ; elles sont quatre.** Elle nomme « typo tolerance, accents and
+ranking » comme sémantiques n'appartenant qu'à Meilisearch et n'ayant que ces deux suites pour
+épingle. La stratégie de correspondance en est une quatrième, elle est maintenant mesurée sur un
+moteur vivant, et elle n'y est pas nommée. La ligne reste ce qu'elle disait ; c'est ce qu'elle
+recense qu'il faut lire avec ceci.
+
+### Ce que cet amendement laisse ouvert
+
+Rien de ce qui suit n'est ici une décision nouvelle.
+
+- **Le plafond de cent valeurs par facette.** Meilisearch tronque ses valeurs de facette à
+  cent ; l'ordre par compte ne peut donc classer que ce qui a survécu à la troncature, et la
+  suggestion ne peut pas offrir une catégorie que le moteur n'a jamais nommée. C'est un fait du
+  moteur, dit et laissé tel quel
+  ([`lib/use-cases/search.ts:330-336`](../../lib/use-cases/search.ts#L330-L336)) ; la borne se lève
+  dans le moteur ou nulle part.
+- **Le total estimé et plafonné**, la règle de la requête courte appliquée aux comptes de facette,
+  les champs trimés rendus, et le filet qui transforme toute erreur en Catalogue vide : les autres
+  écarts entre les deux moteurs, documentés et laissés.
+- **Le rendu de l'indisponible reste gelé**, comme la décision l'a gelé. Une Recherche rompue et
+  une Recherche qui n'a légitimement rien trouvé se ressemblent toujours.
+
+### Où les promesses sont écrites
+
+Les deux énoncés que ce chantier a produits ne sont pas dans cet ADR, ils sont dans le glossaire,
+qui est leur maison : l'entrée [**Recherche**](../../CONTEXT.md#L128) dit que chaque terme de la
+requête doit être trouvé dans le Document d'index, faute de frappe permise, et que ni la casse ni
+les accents ne changent le résultat ; l'entrée [**Moteur de recherche**](../../CONTEXT.md#L147)
+dit ce que le double en mémoire est et ce qu'il n'atteste pas. Un changement de stratégie de
+correspondance ou d'ordre de suggestions contredira désormais une ligne écrite, et non plus une
+suite que personne ne voit tourner.
