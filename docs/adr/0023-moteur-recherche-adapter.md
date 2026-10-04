@@ -216,9 +216,9 @@ Rien de ce qui suit n'est ici une décision nouvelle.
 ### Où les promesses sont écrites
 
 Les deux énoncés que ce chantier a produits ne sont pas dans cet ADR, ils sont dans le glossaire,
-qui est leur maison : l'entrée [**Recherche**](../../CONTEXT.md#L128) dit que chaque terme de la
+qui est leur maison : l'entrée [**Recherche**](../../GLOSSARY.md#L128) dit que chaque terme de la
 requête doit être trouvé dans le Document d'index, faute de frappe permise, et que ni la casse ni
-les accents ne changent le résultat ; l'entrée [**Moteur de recherche**](../../CONTEXT.md#L147)
+les accents ne changent le résultat ; l'entrée [**Moteur de recherche**](../../GLOSSARY.md#L148)
 dit ce que le double en mémoire est et ce qu'il n'atteste pas. Un changement de stratégie de
 correspondance ou d'ordre de suggestions contredira désormais une ligne écrite, et non plus une
 suite que personne ne voit tourner.

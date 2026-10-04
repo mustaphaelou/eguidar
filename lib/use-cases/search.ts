@@ -207,7 +207,7 @@ export async function searchProducts(
 
 /**
  * Suggestion de produit : la ligne compacte que la Recherche propose dans
- * le header (CONTEXT.md) — les six faits de sa rangée, projetés depuis la
+ * le header (GLOSSARY.md) — les six faits de sa rangée, projetés depuis la
  * Carte produit. Déclarée ici, une seule fois : le composant client
  * l'importe (`import type`).
  */
