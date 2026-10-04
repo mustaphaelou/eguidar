@@ -1,4 +1,4 @@
-import { Meilisearch } from "meilisearch"
+import { Meilisearch, type Settings } from "meilisearch"
 
 import type { IndexableProduct } from "@/lib/index-projection"
 import type {
@@ -53,6 +53,25 @@ function attributesToSearchOn(query: string): string[] | undefined {
   return SEARCHABLE_PRODUCT_ATTRIBUTES_WITHOUT_DESCRIPTION
 }
 
+/**
+ * Les trois réglages que le Visiteur voit et que le moteur appliquait sans que
+ * rien ne les écrive : la tolérance aux fautes — un mot mal orthographié doit
+ * quand même trouver son Produit —, le plafond de la fenêtre de résultats, et
+ * l'ordre puis le plafond des valeurs de facette, c'est-à-dire les options de
+ * filtre du panneau.
+ *
+ * Les valeurs sont celles que Meilisearch v1.52 applique par défaut. Les écrire
+ * ne change donc rien de ce qu'un Visiteur voit ; cela retire seulement la
+ * possibilité qu'une montée de version les change en silence. `lib/meili-reglages.test.ts`
+ * les relit sur un moteur vivant et échoue si elles dérivent.
+ *
+ * `pagination.maxTotalHits` borne la fenêtre accessible — passé ce plafond, une
+ * page rend zéro document — et non le total rendu : le nombre affiché reste
+ * l'estimation du moteur, que ce plafond ne touche pas (ADR-0023).
+ *
+ * La stratégie de correspondance, elle, reste non écrite : la modifier change
+ * les résultats, et c'est le travail de #532.
+ */
 export async function ensureProductsIndex(meili: Meilisearch) {
   const settings = {
     searchableAttributes: SEARCHABLE_PRODUCT_ATTRIBUTES,
@@ -64,7 +83,19 @@ export async function ensureProductsIndex(meili: Meilisearch) {
         locales: ["fr"],
       },
     ],
-  }
+    typoTolerance: {
+      enabled: true,
+      minWordSizeForTypos: { oneTypo: 5, twoTypos: 9 },
+      disableOnWords: [],
+      disableOnAttributes: [],
+      disableOnNumbers: false,
+    },
+    pagination: { maxTotalHits: 1000 },
+    faceting: {
+      maxValuesPerFacet: 100,
+      sortFacetValuesBy: { "*": "alpha" },
+    },
+  } satisfies Settings
   try {
     await meili.index(PRODUCTS_INDEX).fetchInfo()
   } catch {
