@@ -126,9 +126,16 @@ d'autre issue.
 _Avoid_: erreur catégorie, échec de suppression, category error
 
 **Recherche**:
-The act of finding products across the Catalogue by free-text query (with typo tolerance),
-filtrable par une ou plusieurs marques, une catégorie et une tranche de prix, triable (pertinence, prix, nouveautés) et paginée.
-Le Bandeau de navigation propose des suggestions instantanées de produits et de catégories.
+The act of finding products across the Catalogue by free-text query, in which every term of the
+query must be found in the Document d'index, typo tolerance permitting, filtrable par une ou
+plusieurs marques, une catégorie et une tranche de prix, triable (pertinence, prix, nouveautés) et
+paginée. Une faute de frappe reste permise — un terme mal orthographié trouve encore son Document
+d'index — et ni la casse ni les accents ne changent le résultat.
+Le Bandeau de navigation propose des suggestions instantanées de produits et de catégories ; il
+s'ouvre sur les catégories que la requête concerne le plus, classées par nombre de Documents
+d'index décroissant puis par slug croissant. Ce classement est un choix de la Recherche, pris
+au-dessus de la couture : il ne vient pas de l'ordre dans lequel un moteur rend ses valeurs de
+facette.
 _Avoid_: search, recherche produit, recherche fuzz
 
 **Suggestion de produit**:
@@ -139,8 +146,15 @@ _Avoid_: suggestion de recherche, autocomplete, item de suggestion
 
 **Moteur de recherche**:
 Le moteur derrière la surface d'interrogation de la Recherche, atteint à travers la couture neutre
-`lib/moteur-recherche.ts` : Meilisearch en production, un moteur en mémoire dans les tests. À ne pas
-confondre avec le Catalogue, qu'il interroge, ni avec l'écriture de l'index, qui reste hors de la couture.
+`lib/moteur-recherche.ts` : Meilisearch en production, un moteur en mémoire dans les tests. Le
+moteur en mémoire n'est pas un second moteur mais un double de test : rapide et sans moteur à
+démarrer, il éprouve l'orchestration — le retrait de la clause d'une facette, le bornage d'une page
+hors bornes — et non la qualité d'une Recherche. Il n'atteste ni le classement par pertinence, ni la
+tolérance aux fautes de frappe, ni l'ordre ni le plafond des valeurs de facette. Il ne rend jamais
+l'indisponibilité, lui qui est toujours disponible : elle s'éprouve par un moteur de recette, figé
+sur une réponse.
+À ne pas confondre avec le Catalogue, qu'il interroge, ni avec l'écriture de l'index, qui reste hors
+de la couture.
 _Avoid_: search engine, backend de recherche, Meilisearch (comme nom du concept)
 
 **Tranche de prix**:
