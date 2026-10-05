@@ -218,6 +218,44 @@ describe("updateCategoryAction", () => {
       prisma.category.findUnique({ where: { id: structure.id } })
     ).resolves.toMatchObject({ parentId: parente.id })
   })
+
+  it("rend au formulaire le refus d'une parente dont la chaîne porte déjà un cycle", async () => {
+    // Un cycle écrit directement en base, hors de toute mutation de Structure :
+    // sans garde dans la marche d'acyclicité, celle-ci remontait la chaîne sans
+    // fin jusqu'au délai de transaction et sortait de l'action en `P2028`,
+    // exception non rattrapée. Le garde la rend au formulaire, comme tout
+    // refus de la Structure (ADR-0027, amendement de #490).
+    const structure = await makeCategory("cycle-deja-base-hote")
+    const a = await makeCategory("cycle-deja-base-a")
+    const b = await makeCategory("cycle-deja-base-b")
+    await prisma.$transaction(async (tx) => {
+      await tx.category.update({
+        where: { id: a.id },
+        data: { parentId: b.id },
+      })
+      await tx.category.update({
+        where: { id: b.id },
+        data: { parentId: a.id },
+      })
+    })
+
+    await expect(
+      updateCategoryAction(
+        {},
+        categoryFormData("cycle-deja-base-hote", {
+          categoryId: structure.id,
+          parentId: a.id,
+        })
+      )
+    ).resolves.toEqual({
+      error:
+        "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle",
+    })
+
+    await expect(
+      prisma.category.findUnique({ where: { id: structure.id } })
+    ).resolves.toMatchObject({ parentId: null })
+  })
 })
 
 describe("deleteCategoryAction", () => {

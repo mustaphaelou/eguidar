@@ -86,15 +86,15 @@ function raisonVisible(comptes: ComptesStructure): string | null {
  * refermerait la boucle sur elle-même : la boîte ne propose pas ce qui
  * produirait le refus du serveur.
  *
- * **Ce n'est pas `assertAcyclicCategoryTree`, et l'écart est volontaire.** La
- * marche du serveur (`lib/use-cases/admin-structure.ts`) parcourt la base dans la
- * transaction de la mutation et n'a pas d'ensemble de structures visitées : le
- * verrou d'ADR-0027 interdit d'en former un, et ce manque est un piège nommé.
- * Celle-ci travaille sur une liste déjà en mémoire et garde donc `vus` — elle
- * est plus défensive que le serveur sur ce seul point. Les deux ne peuvent pas
- * fusionner : l'une raisonne sur des faits engagés, l'autre sur l'arbre rendu à
- * l'écran. La seule garantie commune est le refus d'une cible cyclique, et c'est
- * le serveur qui l'exige.
+ * **Ce n'est pas `assertAcyclicCategoryTree`, et l'écart reste volontaire.**
+ * Les deux marches portent le même garde depuis que le serveur garde, lui
+ * aussi, les identifiants qu'il visite : ce manque était un piège nommé
+ * d'ADR-0027, et il est un refus. Elles ne peuvent pas fusionner pour autant :
+ * l'une raisonne sur des faits engagés, l'autre sur l'arbre rendu à l'écran —
+ * et l'écart se voit sur un cycle déjà en base. `vus` arrête ici la remontée
+ * sans rien refuser : la cible y est encore proposée, et c'est le serveur seul
+ * qui peut dire que sa chaîne est cyclique. La garantie commune reste donc le
+ * refus d'une cible cyclique, et c'est toujours le serveur qui l'exige.
  */
 function descendDe(
   candidateId: string,

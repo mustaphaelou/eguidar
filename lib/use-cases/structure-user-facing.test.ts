@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  CategoryAncestorCycleError,
   CategoryBusyError,
   CategoryHasChildrenError,
   CategoryHasProductsError,
@@ -15,6 +16,7 @@ const errorFactory: [string, () => unknown][] = [
     "CategoryValidationError",
     () => new CategoryValidationError(["slug requis"]),
   ],
+  ["CategoryAncestorCycleError", () => new CategoryAncestorCycleError()],
   ["CategorySlugConflictError", () => new CategorySlugConflictError()],
   ["CategoryNotFoundError", () => new CategoryNotFoundError()],
   ["CategoryHasChildrenError", () => new CategoryHasChildrenError()],

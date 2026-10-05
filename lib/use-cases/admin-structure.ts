@@ -109,6 +109,27 @@ export class CategoryBusyError extends UserFacingError {
 }
 
 /**
+ * La chaîne d'ancêtres que l'éditeur vise **porte déjà un cycle** — un import,
+ * une reprise de données, une correction manuelle, ou rien qui vienne de
+ * l'interface : le verrou d'ADR-0027 interdit d'en former un par ici, pas d'en
+ * recevoir un.
+ *
+ * Le refus est donc le nôtre et non une saisie invalide, et il le dit en son
+ * propre nom : `CategoryValidationError` afficherait « Données invalides : »
+ * dans les trois premiers mots, ferait croire à l'éditeur qu'il a demandé
+ * l'impossible, et l'apprendrait à réessayer un déplacement que réessayer ne
+ * répare pas. Réessayer répare `CategoryBusyError` ; ceci, non (ADR-0027).
+ */
+export class CategoryAncestorCycleError extends UserFacingError {
+  constructor() {
+    super(
+      "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
+    )
+    this.name = "CategoryAncestorCycleError"
+  }
+}
+
+/**
  * Le délai d'attente d'un verrou, en millisecondes. Plus court que le délai
  * d'une transaction interactive Prisma — 5 000 ms par défaut, qu'aucune
  * option de ce dépôt ne change : fail-fast vaut mieux qu'une transaction
@@ -279,6 +300,32 @@ async function assertCategoryParent(
   if (!parent) throw new CategoryValidationError(["catégorie parente inconnue"])
 }
 
+/**
+ * La Structure `id` peut-elle se suspendre sous `parentId` ? La réponse se
+ * lit en remontant la chaîne d'ancêtres, nœud par nœud, sous le verrou
+ * grossier : c'est la seule question que la transaction est à même de poser,
+ * et elle est posée avant l'écriture (ADR-0027).
+ *
+ * La marche garde les identifiants qu'elle a visités, et **toute** revisite
+ * l'arrête — c'est ce qui la borne, là où le verrou ne la protégeait que de la
+ * formation d'un cycle. Deux faits se cachent derrière une revisite, et ils ne
+ * partagent pas un refus :
+ *
+ * - la marche revient sur `id` : l'éditeur demande de suspendre une Structure
+ *   sous sa propre descendante, et le refus le dit en ces mots ;
+ * - la marche revient sur un autre nœud : la chaîne visée est **déjà**
+ *   cyclique, et le déplacement n'y est pour rien. C'est une donnée corrompue,
+ *   pas une demande invalide — `CategoryAncestorCycleError`.
+ *
+ * Sans ce jeu, un cycle déjà en base — que rien de cette interface ne peut
+ * former — faisait tourner la marche jusqu'au délai de transaction de Prisma
+ * (5 000 ms) et rendait un `P2028`, que `mapCourseDeStructure` ne traduit
+ * pas : l'action serveur la relançait donc en exception non rattrapée
+ * (ADR-0027, amendement de #490).
+ *
+ * La garde rejette les revisites, pas la longueur : une chaîne profonde et
+ * acyclique passe, et aucune profondeur maximale n'est une règle de ce dépôt.
+ */
 async function assertAcyclicCategoryTree(
   id: string,
   parentId: string | null | undefined,
@@ -290,6 +337,7 @@ async function assertAcyclicCategoryTree(
       "une catégorie ne peut pas être sa propre parente",
     ])
   }
+  const vus = new Set<string>()
   let cursor: string | null = parentId
   while (cursor) {
     if (cursor === id) {
@@ -297,6 +345,10 @@ async function assertAcyclicCategoryTree(
         "une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes",
       ])
     }
+    // Déjà remontée, donc la chaîne se referme sur elle-même : c'est un cycle
+    // en base, et il faut s'arrêter avant de le boucler.
+    if (vus.has(cursor)) throw new CategoryAncestorCycleError()
+    vus.add(cursor)
     const parent: { parentId: string | null } | null =
       await client.category.findUnique({
         where: { id: cursor },

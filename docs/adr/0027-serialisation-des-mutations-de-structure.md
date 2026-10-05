@@ -490,7 +490,7 @@ fermé. C'est cet amendement qu'il faut y lire à côté :
 - la rééirmation finale de l'amendement sur la nullabilité des Produits.
 
 Sa citation de ligne est par ailleurs périmée : le passage qu'elle désigne est aujourd'hui aux lignes
-282-309 du module.
+329-361 du module.
 
 Le renvoi lui-même — « **Suivi à part** » — reste exact : c'est ce suivi.
 
@@ -561,4 +561,79 @@ traduit `55P03`, `40P01`, `23001`/`23503`, `P2003` et `P2034`, laisse passer le 
 pas seulement un refus absent — elle sortait de l'action serveur en exception, ce qu'ADR-0027 s'était
 donné pour but d'empêcher. L'amendement de la troisième tranche nommait `P2028` comme résidu
 assumé ; il reste un résidu, mais la marche n'est plus un moyen de l'atteindre à volonté.
+
+## Amendement — Les deux marches de la boutique portent le même garde (#540)
+
+Le suivi à part que l'amendement de #490 a laissé ouvert est tenu. `getCategoryChain` garde les
+identifiants qu'elle a visités, et toute revisite l'arrête — comme
+`assertAcyclicCategoryTree`, comme la boîte de suppression côté client. Les trois marches du dépôt
+portent désormais le même garde.
+
+### Ce que cet amendement rend faux, et où le lire
+
+La phrase de l'amendement de #490 — « La marche de `storefront.ts` n'est pas touchée […] Suivi à
+part » — reste exacte : l'amendement ne la change pas, et c'est celui-ci qu'il faut y lire à côté.
+
+### La seconde marche, que le ticket n'avait pas vue
+
+`collectCategoryAndDescendantIds` ([`storefront.ts:199-228`](../../lib/use-cases/storefront.ts#L199-L228))
+descend la même chaîne, file plutôt que curseur, et **était bornée par le même cycle**. Elle
+n'était nommée nulle part : le ticket #540 ne la décrit pas, et le suivi à part qu'ADR-0027
+laissait ouvert ne la visait pas non plus. Elle est du même défaut que celui que #490 fermait —
+une `Map` en mémoire, une boucle `while`, aucune garde — et la fermer avec lui était la seule
+façon de ne pas laisser dans le même fichier deux marches du même domaine dont une seule est
+bornée.
+
+### Un garde, deux postures
+
+Le garde est identique ; ce qu'on en fait ne l'est pas, et c'est la surface qui décide.
+
+- **La mutation refuse**, en son propre nom (`CategoryAncestorCycleError`) : quelqu'un a proposé
+  quelque chose, et lui rendre « Données invalides » lui apprendrait à réessayer un déplacement
+  que réessayer ne répare pas.
+- **La lecture dégrade**, en rendu : la chaîne s'arrête où elle se referme, la page se rend. Un
+  visiteur n'a aucune faute à commettre, et une donnée corrompue qui lui rend une page cassée
+  serait pire qu'une donnée corrompue qu'il ne voit pas.
+
+La posture est celle que cette lecture tient déjà pour une colonne JSON abimée : des faits
+dégradés, jamais une page cassée. Ce n'est pas une règle neuve, c'est le même contrat que
+`urlsImagesProduit` et `specificationsProduit` appliquent à deux colonnes voisines.
+
+### Le plafond écarté, et pourquoi — cette fois pour de bon
+
+L'amendement de #490 écartait le plafond au nom d'une règle d'affaires neuve : quelle profondeur
+est légale pour une Structure ? L'objection ne tombe pas ici, elle s'aggrave. Un plafond borne
+sans détecter, donc il tronque **aussi** une chaîne profonde et parfaitement saine — et il ne
+saura jamais distinguer les deux cas. Le jeu de structures visitées, lui, ne laisse passer
+qu'une chaîne réellement cyclique : une Structure à trente niveaux de profondeur remonte entière,
+comme avant. **La memoirisation suffit à borner la marche, sans qu'aucune règle nouvelle n'entre
+dans le dépôt** — ce que l'amendement de #490 disait déjà, et que ce second usage confirme de la
+même manière.
+
+### Ce que cet amendement ne ferme pas
+
+- **Le trou `P2028` reste ouvert**, inchangé : il ne concerne que la transaction de la mutation.
+- **`buildCategoryTree` n'a pas besoin de garde, et c'est mesuré.** Sur un cycle, les nœuds
+  concernés ne sont pas des racines — leur parente existe — donc ils ne sont pas atteignables
+  depuis `roots`, et `accumulateProductCounts` ne les voit jamais. La marche de l'accueil
+  s'arrête donc d'elle-même ; elle perd les Structures cycliques, elle ne boucle pas.
+
+### Ce que l'épreuve montre
+
+Joué contre le même PostgreSQL, dans
+[`storefront.test.ts`](../../lib/use-cases/storefront.test.ts) : une Tierce partie écrit un
+`parentId` **directement en base**, puis la boutique lit une fiche Produit et une page de
+catégorie qui sont toutes deux dans le cycle.
+
+| Cas                                   | Avant                                             | Après                                       |
+| ------------------------------------- | ------------------------------------------------- | ------------------------------------------- |
+| Fiche Produit d'une Structure cyclique | **ne rend jamais** — la marche occupe le process   | la fiche se rend, fil d'Ariane borné        |
+| Page de catégorie d'une Structure cyclique | **ne rend jamais** — la file grossit à chaque tour | la page se rend, descendantes énumérées une fois |
+
+La mesure qui importe est l'absence de sortie, non sa lenteur. L'amendement de #490 avait un
+délai de 5 000 ms pour borner le symptôme et en faire une erreur mesurable ; ici **rien n'`expire**
+: la marche est synchrone, sur une `Map` déjà chargée, sans transaction, sans timeout, sans
+`await` qui rende la main. Le rendu serveur ne s'arrête pas et le `chain` croît à chaque tour —
+la seule borne est la mémoire du process. L'épreuve rouge est donc un test qui ne termine pas,
+et non une assertion qui échoue.
 

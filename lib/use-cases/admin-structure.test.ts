@@ -30,6 +30,7 @@ vi.mock("@/lib/r2", async (importOriginal) => {
 })
 
 import {
+  CategoryAncestorCycleError,
   CategoryBusyError,
   CategoryHasChildrenError,
   CategoryHasProductsError,
@@ -84,6 +85,27 @@ function makeCategoryInput(
     image: "https://example.com/cat.jpg",
     ...overrides,
   }
+}
+
+/**
+ * Une Tierce partie referme un cycle **directement en base**, hors de toute
+ * mutation de Structure : c'est ainsi qu'un cycle arrive dans les données —
+ * un import, une reprise, une correction manuelle. Le verrou d'ADR-0027
+ * interdit d'en former un par l'interface, pas d'en recevoir un.
+ *
+ * Les écritures passent par le client de la transaction, jamais par
+ * `createCategory` ou `updateCategory` : ces deux-là sont précisément ce que le
+ * cycle doit contourner.
+ */
+async function planterUnCycleEnBase(ids: string[]): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    for (const [index, id] of ids.entries()) {
+      await tx.category.update({
+        where: { id },
+        data: { parentId: ids[(index + 1) % ids.length] },
+      })
+    }
+  })
 }
 
 /** Le Produit de test rattaché à la Structure donnée, sous son propre slug. */
@@ -686,7 +708,7 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("cycle-self") })
     )
 
-    await verifierRefusValidation(CategoryValidationError, () =>
+    const refus = await verifierRefusValidation(CategoryValidationError, () =>
       updateCategory(
         category.id,
         makeCategoryInput({
@@ -694,6 +716,13 @@ describe("admin structure mutations — categories", () => {
           parentId: category.id,
         })
       )
+    )
+
+    // La marche d'acyclicité s'arrête sur toute revisite, et celle-ci garde
+    // son refus : l'erreur la plus fréquente de l'éditeur garde ses mots, qui
+    // nomment la maladresse au lieu de nommer une boucle (#490).
+    expect(refus.message).toBe(
+      "Données invalides : une catégorie ne peut pas être sa propre parente"
     )
   })
 
@@ -708,7 +737,7 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("cyc-c"), parentId: child.id })
     )
 
-    await verifierRefusValidation(CategoryValidationError, () =>
+    const refus = await verifierRefusValidation(CategoryValidationError, () =>
       updateCategory(
         parent.id,
         makeCategoryInput({
@@ -717,6 +746,100 @@ describe("admin structure mutations — categories", () => {
         })
       )
     )
+
+    // Une revisite de la Structure déplacée est la faute de l'éditeur : c'est
+    // lui qui demande à se suspendre sous sa propre descendante. Le refus dit
+    // cela, et rien d'autre (#490).
+    expect(refus.message).toBe(
+      "Données invalides : une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes"
+    )
+  })
+
+  it("accepte une chaîne d'ancêtres profonde tant qu'elle est acyclique", async () => {
+    const deplacee = await createCategory(
+      makeCategoryInput({ slug: categorySlug("profonde-deplacee") })
+    )
+    // Une chaîne de vingt Structures, la plus profonde étant la nouvelle
+    // parente : le garde d'acyclicité rejette les revisites, pas la longueur,
+    // et aucune profondeur maximale n'est une règle de ce dépôt (#490).
+    let plusProfonde = await createCategory(
+      makeCategoryInput({ slug: categorySlug("profonde-0") })
+    )
+    for (let rang = 1; rang < 20; rang += 1) {
+      plusProfonde = await createCategory(
+        makeCategoryInput({
+          slug: categorySlug(`profonde-${rang}`),
+          parentId: plusProfonde.id,
+        })
+      )
+    }
+
+    await expect(
+      updateCategory(
+        deplacee.id,
+        makeCategoryInput({
+          slug: categorySlug("profonde-deplacee"),
+          parentId: plusProfonde.id,
+        })
+      )
+    ).resolves.toMatchObject({ parentId: plusProfonde.id })
+  })
+
+  it("refuse une modification dont la nouvelle parente porte déjà un cycle", async () => {
+    const effets = effectSpies()
+    const deplacee = await createCategory(
+      makeCategoryInput({ slug: categorySlug("corrompu-deplacee") })
+    )
+    const a = await createCategory(
+      makeCategoryInput({ slug: categorySlug("corrompu-a") })
+    )
+    const b = await createCategory(
+      makeCategoryInput({ slug: categorySlug("corrompu-b") })
+    )
+    const c = await createCategory(
+      makeCategoryInput({ slug: categorySlug("corrompu-c") })
+    )
+    await planterUnCycleEnBase([a.id, b.id, c.id])
+
+    const avant = Date.now()
+    const refus: unknown = await refusDe(
+      updateCategory(
+        deplacee.id,
+        makeCategoryInput({
+          slug: categorySlug("corrompu-deplacee"),
+          parentId: a.id,
+        }),
+        effets
+      )
+    )
+
+    // La marche s'arrête sur la revisite de `a` et rend son refus : pas un
+    // délai de transaction de 5 000 ms, pas un `P2028` de lecteur sorti de
+    // l'action serveur en exception, mais un refus de la Structure que
+    // l'éditeur voit (ADR-0027, amendement de #490).
+    expect(refus).toBeInstanceOf(CategoryAncestorCycleError)
+    expect(refus).toBeInstanceOf(UserFacingError)
+    expect(refus).not.toBeInstanceOf(CategoryValidationError)
+    expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    expect((refus as Error).message).toBe(
+      "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
+    )
+    // Le refus ne dit pas « Données invalides » : la faute n'est pas celle de
+    // l'éditeur, et réessayer ne répare pas une donnée corrompue.
+    expect((refus as Error).message).not.toMatch(/^Données invalides :/)
+    // La mesure qui compte : le refus tombe dans le délai du verrou, donc
+    // très en deçà du délai de transaction qu'il n'atteint plus.
+    expect(Date.now() - avant).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
+
+    // Rien n'a été écrit, rien n'a été publié : la Structure déplacée est restée
+    // racine, et le cycle est intact.
+    await expect(
+      prisma.category.findUnique({ where: { id: deplacee.id } })
+    ).resolves.toMatchObject({ parentId: null })
+    await expect(
+      prisma.category.findUnique({ where: { id: a.id } })
+    ).resolves.toMatchObject({ parentId: b.id })
+    expectNoEffects(effets)
   })
 
   it("throws CategoryNotFoundError when updating an unknown category", async () => {
@@ -1250,6 +1373,55 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.category.findUnique({ where: { id: enfant.id } })
     ).resolves.toMatchObject({ parentId: parent.id })
+    expectNoEffects(effets)
+  })
+
+  it("refuse de rattacher les sous-catégories à une Structure dont la chaîne porte déjà un cycle", async () => {
+    const effets = effectSpies()
+    const source = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-cyc-source") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("rep-cyc-enfant"),
+        parentId: source.id,
+      })
+    )
+    const a = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-cyc-a") })
+    )
+    const b = await createCategory(
+      makeCategoryInput({ slug: categorySlug("rep-cyc-b") })
+    )
+    await planterUnCycleEnBase([a.id, b.id])
+
+    const avant = Date.now()
+    const refus: unknown = await refusDe(
+      deleteCategory(source.id, { reparentChildrenToCategoryId: a.id }, effets)
+    )
+
+    // La seconde marche d'acyclicité porte le même garde que la première : la
+    // Structure d'accueil choisie est dans le cycle, et le déplacement n'y est
+    // pour rien (#490).
+    expect(refus).toBeInstanceOf(CategoryAncestorCycleError)
+    expect(refus).toBeInstanceOf(UserFacingError)
+    expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    expect((refus as Error).message).toBe(
+      "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
+    )
+    expect(Date.now() - avant).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
+
+    // La transaction entière est rétractée : la source existe encore, l'enfant
+    // lui est toujours rattaché, et le cycle est intact.
+    await expect(
+      prisma.category.findUnique({ where: { id: source.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.category.findUnique({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: source.id })
+    await expect(
+      prisma.category.findUnique({ where: { id: a.id } })
+    ).resolves.toMatchObject({ parentId: b.id })
     expectNoEffects(effets)
   })
 

@@ -186,6 +186,16 @@ async function loadCategoryLinks(): Promise<Map<string, CategoryLink>> {
   return new Map(categories.map((category) => [category.id, category]))
 }
 
+/**
+ * Une Structure et toutes ses descendantes : la page d'une catégorie y compte
+ * les Produits qu'elle affiche, ceux de ses sous-catégories comprises.
+ *
+ * La marche garde les identifiants qu'elle a déjà descendus, et **toute**
+ * revisite l'arrête — le même garde, et pour la même raison, que
+ * `getCategoryChain` : un cycle déjà en base se referme sur lui-même ici aussi,
+ * et la file grossissait à chaque tour sans qu'aucune transaction n'ait à
+ * expire (#540). Elle s'arrête donc où le cycle commence, et la page se rend.
+ */
 async function collectCategoryAndDescendantIds(
   rootId: string
 ): Promise<string[]> {
@@ -199,9 +209,16 @@ async function collectCategoryAndDescendantIds(
   }
   const ids = [rootId]
   const queue = [rootId]
+  const vus = new Set([rootId])
   while (queue.length > 0) {
     const current = queue.shift()!
     for (const child of childrenByParent.get(current) ?? []) {
+      // Déjà descendue : la marche se referme sur elle-même. Sans ce garde,
+      // un cycle déjà en base la fait boucler indéfiniment, en empilant à
+      // chaque tour — le même garde que `getCategoryChain`, pour la même
+      // raison (#540).
+      if (vus.has(child)) continue
+      vus.add(child)
       ids.push(child)
       queue.push(child)
     }
@@ -242,6 +259,27 @@ export async function fetchCategoryPageData(
   }
 }
 
+/**
+ * Le fil d'Ariane d'une Structure : elle et tous ses ancêtres, la Structure
+ * courante en dernier.
+ *
+ * La marche garde les identifiants qu'elle a visités et **toute** revisite
+ * l'arrête, comme `assertAcyclicCategoryTree` et comme la boîte de suppression
+ * côté client. Un cycle déjà en base — un import, une reprise, une correction
+ * manuelle ; le verrou d'ADR-0027 interdit d'en former un par l'interface,
+ * pas d'en recevoir un — la faisait remonter sans fin, et le rendu serveur ne
+ * s'arrêtait pas : ici aucune transaction n'est à expire, donc rien ne borne
+ * la boucle par ailleurs, et le `chain` croît à chaque tour (ADR-0027,
+ * amendement de #540).
+ *
+ * **La boutique dégrade, elle ne refuse pas.** Une donnée corrompue rend des
+ * faits dégradés — la chaîne s'arrête où elle se referme — et jamais une page
+ * cassée : c'est la posture que cette lecture tient déjà pour une colonne JSON
+ * abimée, et l'inverse du refus que la mutation rend, car personne n'a de
+ * faute à qui rendre une saisie. Le garde rejette les revisites, pas la
+ * longueur : une chaîne profonde et acyclique passe entière, et aucune
+ * profondeur maximale n'est une règle de ce dépôt.
+ */
 async function getCategoryChain(category: {
   id: string
   name: string
@@ -250,9 +288,11 @@ async function getCategoryChain(category: {
 }): Promise<CategoryChainEntry[]> {
   const categoriesById = await loadCategoryLinks()
   const chain: CategoryChainEntry[] = []
+  const vus = new Set<string>()
   let current: CategoryLink | undefined = category
-  while (current) {
+  while (current && !vus.has(current.id)) {
     chain.unshift({ name: current.name, slug: current.slug })
+    vus.add(current.id)
     current = current.parentId
       ? categoriesById.get(current.parentId)
       : undefined
