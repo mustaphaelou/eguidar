@@ -490,7 +490,7 @@ fermé. C'est cet amendement qu'il faut y lire à côté :
 - la rééirmation finale de l'amendement sur la nullabilité des Produits.
 
 Sa citation de ligne est par ailleurs périmée : le passage qu'elle désigne est aujourd'hui aux lignes
-282-309 du module.
+329-361 du module.
 
 Le renvoi lui-même — « **Suivi à part** » — reste exact : c'est ce suivi.
 
