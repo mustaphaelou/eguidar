@@ -130,6 +130,20 @@ issue. Le refus d'une Structure qui a des Produits **est le défaut** : l'édite
 choisissant de les réaffecter ou de les laisser sans Structure, jamais par inadvertance (ADR-0029).
 _Avoid_: erreur catégorie, échec de suppression, category error
 
+**Marche de la Structure**:
+Le parcours de l'ascendance ou de la descendance d'une Structure, suivi par `parentId` et arrêté
+sur toute revisite — seule marche du dépôt à ne rien lire en base, donc à ne dépendre d'aucun
+verrou. Une Structure corrompue s'arrête où son cycle commence et rend des faits dégradés : le
+refus d'une Structure cyclique appartient à ses mutations, seul terrain où un Client a une faute à
+qui la rendre (ADR-0030).
+_Avoid_: walk, traverse categories, parent chain, parcours de catégories
+
+**Structure hors arbre**:
+Une Structure corrompue que le cycle soustrait à toute autre : elle existe en base et n'appartient
+à aucune branche, donc ni à aucune page de l'Administration ni à l'arbre de la boutique. L'Administration
+la nomme ; la boutique se contente de journaliser (ADR-0030).
+_Avoid_: catégorie orpheline, catégorie cyclique, structure orpheline
+
 **Recherche**:
 The act of finding products across the Catalogue by free-text query, in which every term of the
 query must be found in the Document d'index, typo tolerance permitting, filtrable par une ou
