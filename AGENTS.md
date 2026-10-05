@@ -9,6 +9,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 Run every check CI runs, in order, stopping at the first failure: `bash scripts/checks.sh`
 
+Staged files pass a faster format gate at commit time (`.githooks/pre-commit`, wired by `npm run prepare`). Fix the file it names.
+
 ## Agent skills
 
 ### Issue tracker

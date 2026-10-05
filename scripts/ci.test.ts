@@ -46,6 +46,16 @@ const ENTREE_NON_CHECK = new Map([
     "build:check",
     "`build` avec la base épinglée dans le manifeste, sans le `prisma generate` ni les deux autres variables du job `build`",
   ],
+  // Le branchement du crochet de commit. npm le lance à l'installation, donc
+  // avant tout job, et dans un checkout aussi bien qu'hors de tout dépôt — le
+  // `Dockerfile` en installe les dépendances sans `.git`, et c'est pour cela
+  // que la commande se garde. Il écrit dans la configuration locale de git :
+  // une porte qui le tournerait réécrirait la configuration de la machine au
+  // lieu de vérifier quoi que ce soit.
+  [
+    "prepare",
+    "le branchement du crochet, qui écrit dans la configuration locale de git et se lance à l'installation",
+  ],
 ])
 
 function lireLesScripts(): Set<string> {

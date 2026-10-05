@@ -59,15 +59,13 @@ npm run test:watch
 
 Le dépôt embarque un crochet qui refuse un commit dont **les fichiers indexés** ne respectent pas la configuration Prettier — et rien d'autre. Ni lint, ni types, ni tests, ni build. Il porte sur le format seul, et son refus ne réécrit rien : ni `git add`, ni fichier touché dans votre dos.
 
-**Il ne protège que le clone où il est installé.** `core.hooksPath` est un réglage local, jamais committable, donc un clone neuf n'a pas de crochet — et c'est précisément pour cela que **la CI reste la porte qui fait autorité** : elle rejoue la même vérification sur chaque demande de fusion, crochet installé ou pas. Un commit refusé par le crochet reste donc poussable ; il ne s'agit que d'un écho, pas d'un verrou.
-
-L'activation se fait une fois par clone :
+Il vit dans `.githooks/pre-commit`, et **`npm install` le branche** : `npm run prepare` fait pointer `core.hooksPath` sur `.githooks`. Un clone neuf l'a donc dès qu'il a installé ses dépendances, sans qu'on ait à s'en souvenir. Pour le brancher à la main, ou le rebrancher après qu'un autre réglage a pris la place :
 
 ```bash
-git config core.hooksPath hooks
+git config core.hooksPath .githooks
 ```
 
-Pour revenir en arrière : `git config --unset core.hooksPath`. Sans cette ligne, `hooks/pre-commit` n'est jamais exécuté — et git ne dit rien. Un crochet privé de son bit d'exécution est ignoré tout aussi silencieusement.
+Pour revenir en arrière : `git config --unset core.hooksPath`. **Il ne protège que le clone où il est branché** — un clone qui n'a jamais installé ses dépendances n'en a pas — et c'est précisément pour cela que **la CI reste la porte qui fait autorité** : elle rejoue la même vérification sur chaque demande de fusion, crochet installé ou pas. Un commit refusé par le crochet reste donc poussable ; il ne s'agit que d'un écho, pas d'un verrou. Un crochet privé de son bit d'exécution est ignoré tout aussi silencieusement.
 
 Quand le crochet refuse, il nomme le fichier fautif et s'arrête là. Le correctif reste le vôtre :
 

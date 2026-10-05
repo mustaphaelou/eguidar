@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "format": "tsx scripts/format.ts --ecrire",
     "format:check": "tsx scripts/format.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",

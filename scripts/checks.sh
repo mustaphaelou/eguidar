@@ -11,7 +11,7 @@
 # vérifie autre chose que ce que la CI vérifie. `scripts/ci-liste.ts` en est le
 # seul propriétaire, et lui répond aussi à la seule question qui décide de tout
 # — qu'est-ce qu'un check. La CI tranche ; le manifeste, lui, déclare aussi
-# `dev`, `start`, `test:watch`, `format` et `build:check`, qu'aucune
+# `dev`, `start`, `test:watch`, `format`, `build:check` et `prepare`, qu'aucune
 # vérification automatique ne doit jamais lancer.
 #
 # Une réserve, franche : chaque check est lancé tel quel, dans l'environnement
