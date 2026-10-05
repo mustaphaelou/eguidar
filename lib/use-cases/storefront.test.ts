@@ -34,6 +34,27 @@ async function creerDeuxProduitsSansStructure() {
   }
 }
 
+/**
+ * Une Tierce partie referme un cycle **directement en base**, hors de toute
+ * mutation de Structure : c'est ainsi qu'un cycle arrive dans les données — un
+ * import, une reprise, une correction manuelle. Le verrou d'ADR-0027 interdit
+ * d'en former un par l'interface, pas d'en recevoir un.
+ *
+ * Les écritures passent par le client de la transaction, jamais par une
+ * mutation de Structure : ce sont précisément elles que le cycle doit
+ * contourner.
+ */
+async function planterUnCycleEnBase(ids: string[]): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    for (const [index, id] of ids.entries()) {
+      await tx.category.update({
+        where: { id },
+        data: { parentId: ids[(index + 1) % ids.length] },
+      })
+    }
+  })
+}
+
 const runId = randomUUID().slice(0, 8)
 const pSlug = (suffix: string) => `p-${runId}-${suffix}`
 const cSlug = (suffix: string) => `sf-${runId}-${suffix}`
@@ -703,5 +724,94 @@ describe("storefront browse", () => {
       fetchCategoryPageData("categorie-inconnue")
     ).resolves.toBeNull()
     await expect(fetchProductPageData("produit-inconnu")).resolves.toBeNull()
+  })
+
+  // La Structure **déjà cyclique** (#540). Même condition de données que
+  // l'amendement de #490, autre surface : ici un rendu de boutique, non une
+  // mutation. La boutique n'a ni verrou ni transaction à expire — les deux
+  // marches ci-dessous lisent une `Map` en mémoire — donc sans garde elles ne
+  // s'arrêtent pas, et le rendu serveur non plus.
+  describe("sur une Structure déjà cyclique", () => {
+    let cycle: { id: string; slug: string }[] = []
+
+    beforeAll(async () => {
+      cycle = []
+      for (const suffixe of ["cycle-a", "cycle-b"]) {
+        cycle.push(
+          await prisma.category.create({
+            data: { name: `Cyclique ${suffixe}`, slug: cSlug(suffixe) },
+          })
+        )
+      }
+      await planterUnCycleEnBase(cycle.map((structure) => structure.id))
+    })
+
+    // Le `beforeEach` de la suite supprime les Produits de ce `runId` : le
+    // Produit cyclique est donc recréé à chaque épreuve, pas au montage.
+    beforeEach(async () => {
+      await createProduct(cSlug("cycle-b"), {
+        name: "Produit cyclique",
+        slug: pSlug("cyclique"),
+        brand: "Marque",
+        price: 100000,
+        images: ["https://example.com/cyc.jpg"],
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-cyc1`,
+            priceDelta: 0,
+            stock: 1,
+          },
+        ],
+      })
+    })
+
+    afterAll(async () => {
+      // Rompre le cycle avant le nettoyage de la suite. `ON DELETE SET NULL`
+      // le ferait déjà, mais l'écrire évite de laisser la suite dépendre de
+      // lui pour tenant debout.
+      for (const structure of cycle) {
+        await prisma.category.update({
+          where: { id: structure.id },
+          data: { parentId: null },
+        })
+      }
+    })
+
+    it("la fiche Produit rend son fil d'Ariane au lieu de boucler", async () => {
+      const detail = await fetchProductPageData(pSlug("cyclique"))
+
+      expect(detail).not.toBeNull()
+      // La marche s'arrête sur la revisite et rend ce qu'elle a remonté. Sa
+      // dernière entrée reste la Structure du Produit : l'invariant du fil
+      // d'Ariane — la catégorie courante en dernier — tient sur une chaîne
+      // cyclique comme sur une autre.
+      expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
+        cSlug("cycle-a"),
+        cSlug("cycle-b"),
+      ])
+      // Aucune Structure n'y paraît deux fois : c'est le garde qui borne la
+      // marche, et un fil d'Ariane qui se répète mentirait sur l'arborescence.
+      expect(new Set(detail!.categoryChain.map((c) => c.slug)).size).toBe(
+        detail!.categoryChain.length
+      )
+      // Une donnée corrompue rend des faits dégradés — jamais une page
+      // cassée : c'est la posture que cette suite tient déjà pour une colonne
+      // JSON abimée.
+      expect(detail!.category?.slug).toBe(cSlug("cycle-b"))
+    })
+
+    it("la page de catégorie recense ses descendantes sans boucler", async () => {
+      const page = await fetchCategoryPageData(cSlug("cycle-a"))
+
+      expect(page).not.toBeNull()
+      expect(page!.category.slug).toBe(cSlug("cycle-a"))
+      expect(page!.children.map((c) => c.slug)).toEqual([cSlug("cycle-b")])
+      // La marche des descendantes suit la même chaîne et porte le même
+      // garde : sans lui, le cycle la fait boucler autant que la précédente.
+      // Le Produit de la Structure que le cycle referme sur elle-même entre
+      // donc comme descendante, une fois.
+      expect(page!.products.map((p) => p.slug)).toEqual([pSlug("cyclique")])
+    })
   })
 })
