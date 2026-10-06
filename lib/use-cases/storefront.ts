@@ -100,8 +100,26 @@ export function buildCategoryTree(
       children: [],
     })
   }
+
+  // **La traversée appartient à la Marche de la Structure** (#551, ADR-0030).
+  // L'arbre d'accueil descend depuis les racines : une Structure qu'aucune
+  // racine n'atteint — un cycle, ou la branche qu'un cycle soustrait à l'arbre
+  // — n'a pas de place ici, et n'en a jamais eu. Ce qui change est qu'elle est
+  // désormais **nommée** : `horsArbre()` journalise le cycle, une fois pour
+  // tout l'arbre, au lieu de l'effacer en silence. La boutique dégrade et rend
+  // sa page ; elle ne refuse pas — c'est la mutation qui refuse, et elle seule
+  // a un éditeur à qui rendre une faute (ADR-0030).
+  const marche = marcheStructure({
+    parents: new Map(
+      categories.map((category) => [category.id, category.parentId])
+    ),
+    noms: new Map(categories.map((category) => [category.id, category.name])),
+  })
+  const horsArbre = new Set(marche.horsArbre())
+
   const roots: CategoryNode[] = []
   for (const category of categories) {
+    if (horsArbre.has(category.id)) continue
     const node = nodes.get(category.id)!
     const parent = category.parentId ? nodes.get(category.parentId) : undefined
     if (parent) parent.children.push(node)
