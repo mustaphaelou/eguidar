@@ -46,7 +46,6 @@ function doc(
     minPrice: 100000,
     totalStock: 5,
     images: [],
-    categoryId: "cat",
     categorySlug: SMARTPHONES,
     categoryName: "Smartphones",
     specsText: "",

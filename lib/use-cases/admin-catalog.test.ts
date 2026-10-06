@@ -145,7 +145,6 @@ describe("admin catalog mutations", () => {
         name: "Test Product",
         brand: "Marque Test",
         totalStock: 5,
-        categoryId,
         categorySlug: `categorie-${runId}`,
         categoryName: "Catégorie Test T2",
         isFeatured: false,

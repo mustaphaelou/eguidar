@@ -371,6 +371,23 @@ describe("admin structure mutations — categories", () => {
     )
   })
 
+  // La valeur réservée du Produit sans Structure (ADR-0029) n'est pas un slug
+  // de Structure parce que **la grammaire ne la représente pas**, et l'épreuve
+  // se fait par le seul endroit qui décide quels slugs existent. Une Structure
+  // qui la porterait mêlerait deux populations dans une même facette de la
+  // Recherche, sans qu'aucune suite ne rougisse : la collision serait muette.
+  it("refuse la valeur réservée d'un Produit sans Structure comme slug de Structure", async () => {
+    await verifierRefusValidation(CategoryValidationError, () =>
+      createCategory(
+        makeCategoryInput({ slug: SLUG_SANS_STRUCTURE, name: "Collision" })
+      )
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { slug: SLUG_SANS_STRUCTURE } })
+    ).resolves.toBeNull()
+  })
+
   it("rejects an empty name", async () => {
     await verifierRefusValidation(CategoryValidationError, () =>
       createCategory(makeCategoryInput({ name: " " }))
@@ -1151,8 +1168,8 @@ describe("admin structure mutations — categories", () => {
     )
     const product = await makeProductIn(
       category,
-      "orphelin",
-      "Produit orphelin"
+      "sans-structure",
+      "Produit sans Structure"
     )
 
     await deleteCategory(
@@ -1174,14 +1191,17 @@ describe("admin structure mutations — categories", () => {
     // Et il est réindexé avec les autres, sous la valeur réservée : son
     // `categorySlug` a changé, donc son Document d'index aussi. Sans cela il
     // resterait trouvable par son ancienne catégorie, qui n'existe plus.
-    expect(reindexProducts).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: product.id,
-        categoryId: null,
-        categorySlug: SLUG_SANS_STRUCTURE,
-        categoryName: LIBELLE_SANS_STRUCTURE,
-      }),
-    ])
+    const [document] = reindexProducts.mock.calls[0]![0] as [
+      Record<string, unknown>[],
+    ]
+    expect(document).toMatchObject({
+      id: product.id,
+      categorySlug: SLUG_SANS_STRUCTURE,
+      categoryName: LIBELLE_SANS_STRUCTURE,
+    })
+    // Le fait `categoryId` ne voyage pas jusqu'au moteur — c'est l'invariant
+    // d'ADR-0029, et la projection est la couture qui le tient.
+    expect(document).not.toHaveProperty("categoryId")
     expect(revalidateCategories).toHaveBeenCalled()
   })
 
@@ -2076,6 +2096,26 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toMatchObject({ categoryId: category.id })
+    expectNoEffects(effets)
+  })
+
+  // Le Refus de la Structure est **total** : il ne dépend pas du nombre de
+  // Produits. Une réaffectation invalide reste un refus sur une Structure vide,
+  // sinon la cible choisie serait lue puis ignorée — l'éditeur verrait sa
+  // Structure supprimée, et le serveur aurait rendu le silence.
+  it("refuse une réaffectation inconnue sur une Structure qui n'a aucun Produit", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-bad-target-vide") })
+    )
+
+    await verifierRefusValidation(CategoryValidationError, () =>
+      deleteCategory(category.id, { reassignToCategoryId: "unknown" }, effets)
+    )
+
+    await expect(
+      prisma.category.findUnique({ where: { id: category.id } })
+    ).resolves.not.toBeNull()
     expectNoEffects(effets)
   })
 

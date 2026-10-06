@@ -342,8 +342,8 @@ describe("édition d'un Produit de l'Administration", () => {
 })
 
 // Le Produit sans Structure (ADR-0029). L'Administration est le seul endroit
-// où un éditeur peut **retrouver** un Produit orphelin : sans cette ligne, il
-// disparaît de la liste et plus personne ne sait qu'il se vend encore.
+// où un éditeur peut **retrouver** un Produit sans Structure : sans cette ligne,
+// il disparaît de la liste et plus personne ne sait qu'il se vend encore.
 describe("un Produit sans Structure reste lisible par l'Administration", () => {
   it("porte le libellé de la valeur réservée dans la liste des Produits", async () => {
     const orphelin = await prisma.product.create({

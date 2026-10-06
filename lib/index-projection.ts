@@ -39,12 +39,17 @@ export interface IndexableProduct {
   minPrice: number
   totalStock: number
   images: string[]
-  /** Le fait : `null` pour un Produit sans Structure. */
-  categoryId: string | null
   /**
-   * La clé de facette : **jamais** nulle. Un Produit sans Structure y porte
-   * `SLUG_SANS_STRUCTURE`, pour rester trouvable et filtrable. Aucun moteur de
-   * recherche ne reçoit `categoryId` — ils ne reçoivent que celle-ci.
+   * La clé de facette : **jamais** absente. Un Produit sans Structure y porte
+   * `SLUG_SANS_STRUCTURE`, pour rester trouvable et filtrable.
+   *
+   * **Le fait `categoryId` n'est pas ici, et son absence est l'invariant.**
+   * Aucun moteur de recherche ne le reçoit — Meilisearch reçoit le document
+   * entier, `addDocuments(products)`, donc un champ porté y entrerait bel et
+   * bien — et il n'a pas à y être : il est partiel, il vaut `null` pour un
+   * Produit sans Structure, et une clé de facette qui peut manquer est une
+   * facette qui compterait faux. La seule clé de Structure qu'un moteur reçoit
+   * est celle-ci.
    */
   categorySlug: string
   categoryName: string
@@ -97,7 +102,6 @@ export function toIndexableProduct(product: {
     images: Array.isArray(product.images)
       ? product.images.filter((i): i is string => typeof i === "string")
       : [],
-    categoryId: product.category?.id ?? null,
     categorySlug: product.category?.slug ?? SLUG_SANS_STRUCTURE,
     categoryName: product.category?.name ?? LIBELLE_SANS_STRUCTURE,
     specsText: specsToText(product.specs),

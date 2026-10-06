@@ -47,7 +47,6 @@ function doc(id: string, name: string): IndexableProduct {
     minPrice: 100000,
     totalStock: 5,
     images: [],
-    categoryId: "cat",
     categorySlug: CATEGORIE,
     categoryName: "Sonde de correspondance",
     specsText: "",

@@ -13,9 +13,9 @@ import {
 /**
  * Deux Produits sans Structure (ADR-0029), écrits en base comme seule source
  * peut les écrire : la suppression d'une Structure. **Deux, jamais un** — c'est
- * le second qui rend la première épreuve capable de échouer, une requête
- * `categoryId: null` appariait tous les orphelins sans avoir besoin de les
- * compter.
+ * le second qui rend la première épreuve capable d'échouer : une requête
+ * `categoryId: null` appariait à tous les Produits sans Structure sans avoir
+ * besoin de les compter.
  */
 async function creerDeuxProduitsSansStructure() {
   for (const suffixe of ["orphelin", "orphelin-bis"]) {
