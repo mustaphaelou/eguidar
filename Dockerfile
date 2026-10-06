@@ -4,6 +4,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
 COPY package.json package-lock.json ./
+# `braces` is a `file:vendor/braces` dependency, so `npm ci` reads this
+# directory before `COPY . .` ever runs. Copying it here keeps the install cache
+# keyed on the lockfile and the vendored copy, and nothing else.
+COPY vendor ./vendor
 RUN npm ci
 
 FROM deps AS builder

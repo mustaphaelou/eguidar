@@ -10,6 +10,15 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
+  // The vendored `braces` copy is upstream CommonJS: `require()` is the only
+  // loading form it has, and the rule that forbids it is aimed at this
+  // repository's own code. The directory stays linted — `.gitignore` does not
+  // ignore it, and `eslint-ignores.test.ts` requires the linter to see
+  // everything git tracks — so only the rule that cannot apply is turned off.
+  {
+    files: ["vendor/**/*.js"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
