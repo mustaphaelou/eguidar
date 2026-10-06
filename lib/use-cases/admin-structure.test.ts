@@ -36,6 +36,7 @@ import {
   CategoryHasProductsError,
   CategoryNotFoundError,
   CategorySlugConflictError,
+  CategoryTransactionExpiredError,
   CategoryValidationError,
   DELAI_VERROU_STRUCTURE_MS,
   createCategory,
@@ -290,6 +291,158 @@ async function eprouverLeDelaiDeVerrou(
   } finally {
     liberer()
     await transaction
+  }
+}
+
+/**
+ * Une chaîne d'ancêtres acyclique de la profondeur demandée, et la Structure
+ * racine posée à côté — celle que l'épreuve déplacera sous la plus profonde.
+ *
+ * Elle est plantée par `createCategory`, donc sous le verrou grossier et par
+ * l'interface : rien ici ne contourne une mutation de Structure.
+ */
+async function planterUneChaine(prefixe: string, profondeur: number) {
+  const deplacee = await createCategory(
+    makeCategoryInput({ slug: categorySlug(`${prefixe}-deplacee`) })
+  )
+  let plusProfonde = await createCategory(
+    makeCategoryInput({ slug: categorySlug(`${prefixe}-0`) })
+  )
+  for (let rang = 1; rang < profondeur; rang += 1) {
+    plusProfonde = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug(`${prefixe}-${rang}`),
+        parentId: plusProfonde.id,
+      })
+    )
+  }
+  return { deplacee, plusProfonde }
+}
+
+/**
+ * Le pool tient-il toutes ses connexions ? La question se pose à Prisma
+ * lui-même : une transaction de plus, avec un délai d'attente court, n'échoue
+ * que si aucune connexion n'est libre. C'est ce qui rend la saturation
+ * **mesurée** et non supposée : la taille du pool n'est pas un nombre que
+ * l'épreuve déclare, c'est ce qu'elle constate.
+ *
+ * Une sonde qui échouerait autrement que par ce délai n'apprendrait rien : elle
+ * le dit au lieu de se compter pour une saturation.
+ */
+async function lePoolEstSature(): Promise<boolean> {
+  const issue = await refusDe(
+    prisma.$transaction(async (tx) => tx.$queryRaw`SELECT 1`, { maxWait: 100 })
+  )
+  if (issue === undefined) return false
+  expect((issue as { code?: unknown }).code).toBe("P2028")
+  return true
+}
+
+/**
+ * Sature le pool de connexions de Prisma et le retient jusqu'à la libération.
+ *
+ * `P2028` couvre deux faits que Prisma distingue par son message : une
+ * transaction interactive devenue trop longue en cours de route, et une
+ * transaction qui n'a pas obtenu de connexion dans le délai d'attente de
+ * Prisma. Le premier n'est atteignable qu'en rendant la transaction réellement
+ * lente — aucune contention ne le peut, le `lock_timeout` d'ADR-0027 borne
+ * toutes les attentes de verrou. Le second se provoque sans rien simuler : le
+ * pool de l'adaptateur `pg` en tient dix par défaut, et cette épreuve en retient
+ * davantage.
+ *
+ * Le compteur ne s'incrémente qu'après un premier aller-retour réellement
+ * exécuté, et la sonde ci-dessus dit quand le pool est plein. Le plafond sous le
+ * nombre retenu est vérifié : sans lui, l'épreuve croirait saturer un pool qui
+ * avait encore de la place.
+ *
+ * Les transactions retenues au-delà de ce que le pool peut tenir n'obtiennent
+ * aucune connexion et meurent au délai d'attente de Prisma : c'est la saturation
+ * elle-même, et l'épreuve ne s'en plaint pas — leurs promesses sont rendues déjà
+ * rattrapées, sans quoi `Promise.all` relancerait le `P2028` qu'elles portent.
+ */
+async function saturerLePoolDeConnexions(): Promise<{
+  tenues: Promise<unknown>[]
+  liberer: () => void
+}> {
+  const nombre = 16
+  let etablies = 0
+  const retenues = Array.from({ length: nombre }, () =>
+    retenirTransaction(async (tx, liberation) => {
+      await tx.$queryRaw`SELECT 1`
+      etablies += 1
+      await liberation
+    })
+  )
+
+  await attendreQue(() => etablies > 0)
+  let essais = 0
+  while (!(await lePoolEstSature())) {
+    essais += 1
+    if (essais > 40) {
+      throw new Error("le pool ne s'est jamais saturé")
+    }
+    await attendre(50)
+  }
+  expect(
+    etablies,
+    "le pool doit être plus petit que le nombre de transactions retenues, sans quoi l'épreuve ne mesure aucune saturation"
+  ).toBeLessThan(nombre)
+
+  return {
+    tenues: retenues.map((tenue) => tenue.transaction.catch(() => {})),
+    liberer: () => retenues.forEach((tenue) => tenue.liberer()),
+  }
+}
+
+/**
+ * Le nombre de lectures `category.findUnique` que la mutation a demandées à sa
+ * transaction, et l'issue qu'elle a rendue.
+ *
+ * La couture est le client de la transaction lui-même : Prisma en construit un
+ * par transaction, `tx.category.findUnique` y est une propriété propre et
+ * remplaçable, et `$transaction` en est une aussi. L'épreuve lit donc un vrai
+ * PostgreSQL et ne double que le comptage — aucun SQL, aucune table, aucune
+ * doublure de base.
+ *
+ * C'est la seule mesure qui distingue « la chaîne est lue en une requête » de
+ * « la chaîne est lue en autant de requêtes que de maillons » : les deux rendent
+ * le même résultat, et sur une base locale la seconde ne se voit ni à l'issue ni
+ * à l'horloge.
+ */
+async function compterLesLecturesDeChaine(
+  demarrer: () => Promise<unknown>
+): Promise<{ issue: unknown; lectures: number }> {
+  // `$transaction` est surchargée — forme interactive et forme tableau — et
+  // l'implémentation n'en remplace qu'une : le transtypage dit laquelle, là où
+  // `vi.spyOn` ne sait que demander la signature entière.
+  type TransactionInteractive = (
+    callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+    options?: unknown
+  ) => Promise<unknown>
+  const transactionReelle = prisma.$transaction.bind(
+    prisma
+  ) as unknown as TransactionInteractive
+
+  let lectures = 0
+  const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+    callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+    options?: unknown
+  ) =>
+    transactionReelle(async (tx) => {
+      const lecturesDeLaTransaction = vi.spyOn(tx.category, "findUnique")
+      try {
+        return await callback(tx)
+      } finally {
+        lectures += lecturesDeLaTransaction.mock.calls.length
+        lecturesDeLaTransaction.mockRestore()
+      }
+    }, options)) as unknown as typeof prisma.$transaction)
+
+  try {
+    const issue = await refusDe(demarrer())
+    return { issue, lectures }
+  } finally {
+    espion.mockRestore()
   }
 }
 
@@ -773,23 +926,10 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("accepte une chaîne d'ancêtres profonde tant qu'elle est acyclique", async () => {
-    const deplacee = await createCategory(
-      makeCategoryInput({ slug: categorySlug("profonde-deplacee") })
-    )
     // Une chaîne de vingt Structures, la plus profonde étant la nouvelle
     // parente : le garde d'acyclicité rejette les revisites, pas la longueur,
     // et aucune profondeur maximale n'est une règle de ce dépôt (#490).
-    let plusProfonde = await createCategory(
-      makeCategoryInput({ slug: categorySlug("profonde-0") })
-    )
-    for (let rang = 1; rang < 20; rang += 1) {
-      plusProfonde = await createCategory(
-        makeCategoryInput({
-          slug: categorySlug(`profonde-${rang}`),
-          parentId: plusProfonde.id,
-        })
-      )
-    }
+    const { deplacee, plusProfonde } = await planterUneChaine("profonde", 20)
 
     await expect(
       updateCategory(
@@ -800,6 +940,95 @@ describe("admin structure mutations — categories", () => {
         })
       )
     ).resolves.toMatchObject({ parentId: plusProfonde.id })
+  })
+
+  it("lit la chaîne d'ancêtres en une requête, quelle que soit sa profondeur", async () => {
+    const courte = await planterUneChaine("courte", 4)
+    const longue = await planterUneChaine("longue", 24)
+
+    const surCourte = await compterLesLecturesDeChaine(() =>
+      updateCategory(
+        courte.deplacee.id,
+        makeCategoryInput({
+          slug: categorySlug("courte-deplacee"),
+          parentId: courte.plusProfonde.id,
+        })
+      )
+    )
+    const surLongue = await compterLesLecturesDeChaine(() =>
+      updateCategory(
+        longue.deplacee.id,
+        makeCategoryInput({
+          slug: categorySlug("longue-deplacee"),
+          parentId: longue.plusProfonde.id,
+        })
+      )
+    )
+
+    expect(surCourte.issue).toBeUndefined()
+    expect(surLongue.issue).toBeUndefined()
+    // Une lecture pour l'existence de la Structure déplacée, une pour son slug :
+    // la chaîne d'ancêtres tient dans une seule requête récursive, et le compte
+    // ne bouge donc pas quand la profondeur passe de 4 à 24. Avant, la marche
+    // ajoutait un `findUnique` par maillon — six lectures pour la première,
+    // vingt-six pour la seconde.
+    expect([surCourte.lectures, surLongue.lectures]).toEqual([2, 2])
+  })
+
+  it("refuse une chaîne d'ancêtres dont un maillon a disparu", async () => {
+    const effets = effectSpies()
+    const deplacee = await createCategory(
+      makeCategoryInput({ slug: categorySlug("trouee-deplacee") })
+    )
+    const trouee = await createCategory(
+      makeCategoryInput({ slug: categorySlug("trouee") })
+    )
+
+    // Un `parentId` qui ne désigne plus rien : la clé étrangère l'interdit par
+    // l'interface, et c'est le seul moyen qu'un maillon manque à la chaîne. La
+    // marche doit rendre ce trou comme « catégorie parente inconnue » — ce que
+    // faisait un `findUnique` sans ligne, et que la requête récursive reproduit
+    // en s'arrêtant sur un identifiant qu'elle n'a pas ramené.
+    const superutilisateur = await prisma.$queryRawUnsafe<
+      { superuser: boolean }[]
+    >(`SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user`)
+    expect(
+      superutilisateur[0]?.superuser,
+      "cette épreuve écrit sans déclencher la clé étrangère : la base de test doit appartenir à un superutilisateur, comme celle de docker-compose et de la CI"
+    ).toBe(true)
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SET LOCAL session_replication_role = 'replica'`
+      )
+      await tx.$executeRawUnsafe(
+        `UPDATE "Category" SET "parentId" = $1 WHERE id = $2`,
+        randomUUID(),
+        trouee.id
+      )
+    })
+
+    const refus = await refusDe(
+      updateCategory(
+        deplacee.id,
+        makeCategoryInput({
+          slug: categorySlug("trouee-deplacee"),
+          parentId: trouee.id,
+        }),
+        effets
+      )
+    )
+
+    expect(refus).toBeInstanceOf(CategoryValidationError)
+    expect(refus).toBeInstanceOf(UserFacingError)
+    expect((refus as Error).message).toBe(
+      "Données invalides : catégorie parente inconnue"
+    )
+    // Rien n'a été écrit, et aucun effet n'est parti.
+    await expect(
+      prisma.category.findUnique({ where: { id: deplacee.id } })
+    ).resolves.toMatchObject({ parentId: null })
+    expectNoEffects(effets)
   })
 
   it("refuse une modification dont la nouvelle parente porte déjà un cycle", async () => {
@@ -1773,6 +2002,48 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toMatchObject({ categoryId: category.id })
+    expectNoEffects(effets)
+  })
+
+  it("traduit l'expiration de la transaction en Refus de la Structure", async () => {
+    const effets = effectSpies()
+    const { tenues, liberer } = await saturerLePoolDeConnexions()
+
+    // Le pool est plein : la transaction de la création n'obtient aucune
+    // connexion, et Prisma la refuse au bout de son délai d'attente — un
+    // `P2028`, que rien n'attrapait avant `mapCourseDeStructure`. Aucune
+    // contention ici : le verrou grossier n'est jamais atteint, et c'est ce que
+    // la mesure dit.
+    const avant = Date.now()
+    let refus: unknown
+    try {
+      refus = await refusDe(
+        createCategory(
+          makeCategoryInput({ slug: categorySlug("p2028") }),
+          effets
+        )
+      )
+    } finally {
+      liberer()
+      await Promise.all(tenues)
+    }
+    const attente = Date.now() - avant
+
+    expect(refus).toBeInstanceOf(CategoryTransactionExpiredError)
+    expect(refus).toBeInstanceOf(UserFacingError)
+    expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    expect((refus as Error).message).toBe(
+      "Refus de la Structure : la transaction a dépassé son délai"
+    )
+    // Le refus vient du délai d'attente de Prisma — 2 000 ms — et non du délai
+    // de la transaction, qui en compte 5 000 : la mesure distingue les deux
+    // formes de `P2028`, que le même code réunit.
+    expect(attente).toBeGreaterThanOrEqual(1_900)
+    expect(attente).toBeLessThan(4_000)
+    // Rien n'a été écrit, et aucun effet n'est parti.
+    await expect(
+      prisma.category.findUnique({ where: { slug: categorySlug("p2028") } })
+    ).resolves.toBeNull()
     expectNoEffects(effets)
   })
 

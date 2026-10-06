@@ -271,7 +271,7 @@ fonction, pour le jour où `deadlock_timeout` serait plus court que le délai ; 
 ### Ce que l'épreuve montre
 
 Joué contre un vrai PostgreSQL, deux connexions concurrentes, dans
-[`admin-structure.test.ts`](../lib/use-cases/admin-structure.test.ts) :
+[`admin-structure.test.ts`](../../lib/use-cases/admin-structure.test.ts) :
 
 | Cas                                                                                  | Constat mesuré                                                                |
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -336,7 +336,7 @@ avant que le verrou soit réellement tenu.
 | Ordre                 | Éprouvé par                                                      | Constat mesuré                                                                              |
 | --------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | délai après le verrou | aucune suite — observé sur l'ordre que cet amendement remplace   | au-delà du délai, la suppression **attend encore** ; elle ne s'arrête qu'au délai de Prisma |
-| délai avant le verrou | [`admin-structure.test.ts`](../lib/use-cases/admin-structure.test.ts) | refus à `55P03` au bout de **1 021 ms**, source intacte, aucun effet parti                  |
+| délai avant le verrou | [`admin-structure.test.ts`](../../lib/use-cases/admin-structure.test.ts) | refus à `55P03` au bout de **1 021 ms**, source intacte, aucun effet parti                  |
 
 La première ligne n'est pas éprouvée par une suite, et il ne faut pas le dire autrement : le code
 qui la produisait n'existe plus. Seule la seconde a un test, et c'est celle qui doit en avoir un :
@@ -636,4 +636,95 @@ délai de 5 000 ms pour borner le symptôme et en faire une erreur mesurable ; i
 `await` qui rende la main. Le rendu serveur ne s'arrête pas et le `chain` croît à chaque tour —
 la seule borne est la mémoire du process. L'épreuve rouge est donc un test qui ne termine pas,
 et non une assertion qui échoue.
+
+## Amendement — `P2028` devient un Refus de la Structure, et la chaîne se lit en une requête (#541)
+
+Le résidu que l'amendement de la troisième tranche nommait est fermé. La décision était prise depuis
+le début — « Toute issue d'une mutation de Structure est un `UserFacingError`, jamais une erreur de
+lecteur » — et il manquait la traduction, ainsi que la cause qui rendait `P2028` atteignable sur des
+données saines.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Trois passages décrivent l'état fermé ici. Aucune ligne de la décision n'est changée, comme le veut
+la convention du fichier ; c'est le présent amendement qu'il faut y lire à côté :
+
+- l'amendement de la troisième tranche — « laisse passer le reste, un délai de transaction Prisma
+  expiré (`P2028`) par exemple, qui reste une erreur de lecteur » ;
+- l'amendement de #490 — « **Le trou `P2028` reste ouvert.** […] `mapCourseDeStructure` ne le
+  traduit toujours pas — il reste une erreur de lecteur » ;
+- l'amendement de #540 — « **Le trou `P2028` reste ouvert**, inchangé : il ne concerne que la
+  transaction de la mutation. »
+
+Le troisième piège nommé — la marche non bornée — est déjà fermé par l'amendement de #490 ; ce n'est
+pas ce que celui-ci reprend.
+
+### La traduction, et pourquoi un refus neuf
+
+`mapCourseDeStructure` gagne une quatrième route : `P2028` devient
+`CategoryTransactionExpiredError`, « Refus de la Structure : la transaction a dépassé son délai ».
+
+Ici, le code Prisma est la seule voix à consulter, et c'est la règle que l'amendement de la première
+tranche a posée — « Le SQLSTATE décide ; le code Prisma ne départage que ce qu'il sait seul ».
+`P2028` n'a **aucun** SQLSTATE à lire : ce n'est pas PostgreSQL qui le lève mais Prisma, et l'erreur
+ne porte ni `driverAdapterError` ni `originalCode`. Relevé contre le PostgreSQL du dépôt, sur les
+deux formes que ce code recouvre : la transaction interactive devenue trop longue en cours de route,
+et celle qui n'a pas obtenu de connexion dans le délai d'attente de Prisma. Les deux portent `P2028`.
+
+**Le refus ne réutilise pas `CategoryBusyError`**, et ce n'est pas une préférence de style. La
+contention et un délai dépassé ne demandent pas la même chose à l'éditeur : `CategoryBusyError` dit
+« réessayez » parce que réessayer répare une Structure tenue par une autre mutation. Ici, rien ne le
+promet. Le refus dit donc le fait — la transaction a dépassé son délai — sans prescrire un remède qui
+peut être faux, comme `CategoryAncestorCycleError` dit la corruption sans dire « Données invalides ».
+C'est aussi ce qui permet à une épreuve de dire laquelle des deux routes elle éprouve.
+
+### La chaîne d'ancêtres se lit en une requête
+
+`assertAcyclicCategoryTree` faisait un `findUnique` par maillon. Une chaîne profonde et acyclique
+coûtait donc autant d'allers-retours séquentiels dans une transaction interactive de 5 000 ms, et
+c'est cette dépendance — non la corruption — qui rendait `P2028` atteignable.
+
+Elle lit désormais la chaîne entière en **une** requête récursive (`WITH RECURSIVE … UNION …`), qui
+rend la table des liens `id → parentId`. La marche garde son curseur, son ordre et ses trois refus ;
+seule sa source change, et c'est pourquoi le refus nommé d'un cycle reste le sien (ADR-0030).
+`UNION` et non `UNION ALL` : la forme récursive écarte les lignes déjà produites, donc un cycle
+arrête la récursion au lieu de la faire tourner — c'est la seule borne de la requête, aucune
+profondeur maximale n'étant une règle de ce dépôt.
+
+**Aucune profondeur maximale n'entre dans le dépôt**, et c'est le point : la requête ne borne pas la
+longueur, elle cesse d'en payer le prix en allers-retours. Une chaîne de vingt-quatre niveaux — la
+plus profonde que l'épreuve plante — remonte entière, comme avant.
+
+### Ce que cet amendement ne ferme pas
+
+- **Le délai de la transaction reste celui de Prisma.** La troisième voie que #541 nommait — « un
+  délai propre à la transaction de Structure » — n'est pas prise ici : rien ne change les 5 000 ms
+  héritées. Une base qui ne rend pas la main à temps rend toujours `P2028` ; elle rend maintenant un
+  refus.
+- **Les deux autres pièges nommés sont intacts** : `Product_categoryId_fkey` échoue toujours du côté
+  Catalogue, et l'écart entre le schéma Prisma et la base sur `Category_parentId_fkey` demeure.
+- **La frontière est inchangée** : Commande, Catalogue et Livraison gardent READ COMMITTED et leurs
+  courses, et les effets de la Structure restent post-commit et best-effort (ADR-0014).
+
+### Ce que l'épreuve montre
+
+Joué contre le même PostgreSQL, dans
+[`admin-structure.test.ts`](../../lib/use-cases/admin-structure.test.ts) :
+
+| Cas                                                                                      | Constat mesuré                                                                                                                                    |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Le pool de connexions est saturé, une création part                                      | refus en **≈ 2 000 ms** — le délai d'attente de Prisma, pas celui de la transaction, qui en compte 5 000 — source non écrite, aucun effet parti   |
+| Une chaîne de 4 maillons, puis une de 24, sous un compteur de lectures de la transaction  | **2 lectures** dans les deux cas. Avant : **6**, puis **26** — un `findUnique` par maillon                                                        |
+
+La seconde ligne est la mesure qui compte, et elle lit un compteur de lectures, non une horloge :
+les deux formes rendent le même résultat, et sur une base locale un `findUnique` de plus ne se voit
+ni à l'issue ni au temps. La couture est le client de la transaction lui-même —
+`tx.category.findUnique` est une propriété propre et remplaçable, `$transaction` aussi — donc
+l'épreuve lit un vrai PostgreSQL et ne double que le comptage.
+
+La première ligne éprouve la seconde forme de `P2028` et non la première : une transaction
+interactive devenue trop longue n'est atteignable qu'en la rendant réellement lente, et aucune
+contention ne le peut — le `lock_timeout` de 1 000 ms borne toutes les attentes de verrou. Le pool,
+lui, se sature sans rien simuler. **La mesure qui importe est le code**, que les deux formes
+partagent, et c'est lui que la traduction lit.
 

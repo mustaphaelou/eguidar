@@ -7,6 +7,7 @@ import {
   CategoryHasProductsError,
   CategoryNotFoundError,
   CategorySlugConflictError,
+  CategoryTransactionExpiredError,
   CategoryValidationError,
 } from "@/lib/use-cases/admin-structure"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -22,6 +23,10 @@ const errorFactory: [string, () => unknown][] = [
   ["CategoryHasChildrenError", () => new CategoryHasChildrenError()],
   ["CategoryHasProductsError", () => new CategoryHasProductsError(2)],
   ["CategoryBusyError", () => new CategoryBusyError()],
+  [
+    "CategoryTransactionExpiredError",
+    () => new CategoryTransactionExpiredError(),
+  ],
 ]
 
 describe.each(errorFactory)("%s", (_name, create) => {
