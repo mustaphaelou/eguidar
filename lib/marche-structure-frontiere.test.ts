@@ -154,6 +154,45 @@ describe("Marche de la Structure — frontière client/serveur", () => {
     }
   })
 
+  it("le composant client traverse la Marche, et n'atteint ni la base ni une lecture serveur", () => {
+    // La couture n'a de sens que si le client la traverse vraiment (#551) :
+    // sans cette épreuve, le module pourrait rester neutre et n'être importé
+    // par aucune surface cliente — et `descendDe` pourrait revenir à la main.
+    const CLIENT = "components/admin/delete-category-button.tsx"
+    expect(PAR_CHEMIN.has(CLIENT)).toBe(true)
+
+    const atteints = atteignables(CLIENT, PAR_CHEMIN)
+    expect(atteints.has(MODULE_NEUTRE)).toBe(true)
+
+    // Le graphe de **valeur** du composant — ce que le bundler mettrait dans
+    // le paquet navigateur — ne touche ni la base, ni la lecture serveur du
+    // storefront, ni le client Prisma : un import imprudent y réintroduirait
+    // `pg` (`require('dns')`) et ferait tomber `next build` (Turbopack).
+    for (const interdit of [
+      BASE,
+      "lib/use-cases/storefront.ts",
+      "lib/use-cases/admin-structure.ts",
+      "lib/generated/prisma/client.ts",
+    ]) {
+      expect(atteints.has(interdit), interdit).toBe(false)
+    }
+
+    // Et aucun module atteint ne rouvre la porte par un voisin : ni le
+    // marqueur serveur, ni un module de requête ou de cache.
+    for (const chemin of atteints) {
+      const { source } = sourceDe(chemin)
+      expect(source, chemin).not.toMatch(/^["']use server["']/m)
+      for (const nom of [
+        "lib/db",
+        "server-only",
+        "next/headers",
+        "next/cache",
+      ]) {
+        expect(importeDe(source, nom), `${chemin} → ${nom}`).toBe(false)
+      }
+    }
+  })
+
   it("le parcours est non vacuant : les arbres sont visités, et la base se laisse trouver", () => {
     expect(SOURCES.length).toBeGreaterThan(200)
     expect(SOURCES.map(({ chemin }) => chemin)).toEqual(

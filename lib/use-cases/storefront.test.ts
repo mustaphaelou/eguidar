@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
@@ -8,8 +16,14 @@ import {
   fetchCategoryPageData,
   fetchHomeData,
   fetchProductPageData,
+  type CategoryNode,
 } from "@/lib/use-cases/storefront"
 import { planterUnCycleEnBase } from "@/test/structure-fixtures"
+
+/** Tous les slugs d'un arbre, à toute profondeur : ce que la page montre. */
+function slugsDeLArbre(nodes: CategoryNode[]): string[] {
+  return nodes.flatMap((node) => [node.slug, ...slugsDeLArbre(node.children)])
+}
 
 /**
  * Deux Produits sans Structure (ADR-0029), écrits en base comme seule source
@@ -792,6 +806,32 @@ describe("storefront browse", () => {
       // Le Produit de la Structure que le cycle referme sur elle-même entre
       // donc comme descendante, une fois.
       expect(page!.products.map((p) => p.slug)).toEqual([pSlug("cyclique")])
+    })
+
+    it("l'arbre d'accueil efface le cycle, et le journal le nomme une fois", async () => {
+      // L'arbre d'accueil descend depuis les racines : aucune n'atteint une
+      // Structure cyclique, donc la page n'en montre rien — et n'en montrait
+      // déjà rien. Ce que #551 ajoute est qu'elle le **dise** : la marche
+      // journalise ce que l'arbre a perdu, en nommant les Structures, et une
+      // seule fois pour tout l'arbre. Avant, `buildCategoryTree` effaçait en
+      // silence : la branche disparaissait de la page d'accueil sans un mot
+      // (ADR-0030).
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+      try {
+        const home = await fetchHomeData()
+
+        expect(slugsDeLArbre(home.categories)).not.toContain(cSlug("cycle-a"))
+        expect(slugsDeLArbre(home.categories)).not.toContain(cSlug("cycle-b"))
+
+        // Une ligne, pas une par maillon ni une par surface : c'est la retenue
+        // de la marche, et le seul endroit où la corruption se voit d'ici.
+        expect(warn).toHaveBeenCalledTimes(1)
+        const ligne = warn.mock.calls[0]!.join(" ")
+        expect(ligne).toContain("Cyclique cycle-a")
+        expect(ligne).toContain("Cyclique cycle-b")
+      } finally {
+        warn.mockRestore()
+      }
     })
   })
 })
