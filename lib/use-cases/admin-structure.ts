@@ -109,6 +109,32 @@ export class CategoryBusyError extends UserFacingError {
 }
 
 /**
+ * Le délai de la transaction a été dépassé avant que l'opération n'aboutisse —
+ * `P2028`, que Prisma lève aussi bien sur une transaction interactive devenue
+ * trop longue en cours de route que sur une transaction qui n'a pas obtenu de
+ * connexion dans son délai d'attente.
+ *
+ * Ce n'est pas la contention, et le refus ne prend donc pas les mots de
+ * `CategoryBusyError` : toutes les attentes de verrou sont déjà bornées par
+ * `DELAI_VERROU_STRUCTURE_MS`, et leur dépassement comme la contradiction d'une
+ * écriture concurrente rendent `CategoryBusyError`, qui dit « réessayez ».
+ * Réessayer répare la contention ; ici rien ne le promet — la chaîne
+ * d'ancêtres est lue en une requête, donc la profondeur n'est plus une cause,
+ * et ce qui reste est une base qui n'a pas rendu la main à temps.
+ *
+ * Le refus appartient à la Structure comme les autres (ADR-0027) : sans lui,
+ * `P2028` traversait `mapCourseDeStructure` sans être traduite, et
+ * `adminFormAction` relançait une erreur de lecteur au lieu de la rendre à
+ * l'éditeur.
+ */
+export class CategoryTransactionExpiredError extends UserFacingError {
+  constructor() {
+    super("Refus de la Structure : la transaction a dépassé son délai")
+    this.name = "CategoryTransactionExpiredError"
+  }
+}
+
+/**
  * La chaîne d'ancêtres que l'éditeur vise **porte déjà un cycle** — un import,
  * une reprise de données, une correction manuelle, ou rien qui vienne de
  * l'interface : le verrou d'ADR-0027 interdit d'en former un par ici, pas d'en
@@ -157,6 +183,16 @@ const SQLSTATE_INTERBLOCAGE = "40P01"
 const SQLSTATE_INTEGRITE = /^(23001|23503)$/
 
 /**
+ * Le code Prisma de la transaction expirée. Il n'a pas de SQLSTATE à lire : ce
+ * n'est pas PostgreSQL qui le lève mais Prisma, soit qu'une transaction
+ * interactive ait dépassé son délai en cours de route, soit qu'elle n'ait pas
+ * obtenu de connexion dans son délai d'attente. Relevé contre le PostgreSQL du
+ * dépôt : les deux formes portent ce code, et la première n'a ni
+ * `driverAdapterError` ni `originalCode` à offrir.
+ */
+const CODE_TRANSACTION_EXPIREE = "P2028"
+
+/**
  * Le SQLSTATE de la base, lu dans la cause du lecteur d'adaptateur : la seule
  * voix qui ne dépende ni de la langue du serveur, ni du code que Prisma
  * choisit de revêtir — celui-ci a déjà varié d'un environnement à l'autre
@@ -183,8 +219,11 @@ function sqlstateDeLErreur(error: unknown): string | undefined {
  * brute sort de l'action serveur en exception non rattrapée.
  *
  * Le SQLSTATE décide ; le code Prisma ne départage que ce qu'il sait seul, `P2003`
- * étant réservé aux clés étrangères et `P2034` aux interblocages. Le refus
- * métier que la transaction a déjà levé passe avant tout, intact.
+ * étant réservé aux clés étrangères, `P2034` aux interblocages, et `P2028` à une
+ * transaction expirée — ce dernier n'ayant aucun SQLSTATE, puisque c'est Prisma
+ * qui le lève et non PostgreSQL. Une transaction expirée n'est pas la
+ * contention : elle a son propre refus, `CategoryTransactionExpiredError`. Le
+ * refus métier que la transaction a déjà levé passe avant tout, intact.
  *
  * L'interblocage est ici et non ailleurs : le verrou grossier prend les
  * Structures avant les Produits, quand toute écriture du Catalogue prend le
@@ -195,6 +234,8 @@ function mapCourseDeStructure(error: unknown): never {
   if (error instanceof UserFacingError) throw error
   const sqlstate = sqlstateDeLErreur(error)
   const code = (error as { code?: unknown } | null)?.code
+  if (code === CODE_TRANSACTION_EXPIREE)
+    throw new CategoryTransactionExpiredError()
   if (
     sqlstate === SQLSTATE_VERROU_INDISPONIBLE ||
     sqlstate === SQLSTATE_INTERBLOCAGE ||
@@ -301,6 +342,49 @@ async function assertCategoryParent(
 }
 
 /**
+ * La chaîne d'ancêtres d'une Structure, lue en **une** requête : la table des
+ * liens `id → parentId` de tout ce qui se remonte depuis `parentId`.
+ *
+ * La marche d'acyclicité faisait un `findUnique` par maillon, et une chaîne
+ * profonde et acyclique coûtait donc autant d'allers-retours séquentiels dans
+ * une transaction interactive : c'est ce qui portait la transaction au-delà de
+ * son délai, et rendait un `P2028` que rien ne traduisait (ADR-0027,
+ * amendement de #541). Une requête récursive ramène la chaîne entière en un
+ * aller-retour, et le nombre d'allers-retours cesse de dépendre de la
+ * profondeur.
+ *
+ * `UNION` et non `UNION ALL` : la forme récursive écarte les lignes déjà
+ * produites, donc un cycle en base arrête la récursion au lieu de la faire
+ * tourner. C'est la seule borne de cette requête — aucune profondeur maximale
+ * n'est une règle de ce dépôt (ADR-0027, ADR-0030) — et c'est ce qui laisse à
+ * l'appelant le soin de dire ce qu'une revisite signifie.
+ *
+ * Rendre des liens plutôt que des maillons ordonnés est délibéré : c'est la
+ * même forme qu'un `findUnique` rendait, si bien que la marche ci-dessous garde
+ * son curseur, son ordre et ses trois refus, et ne change que sa source.
+ */
+async function lireChaineDesAncetres(
+  parentId: string,
+  client: Prisma.TransactionClient
+): Promise<Map<string, string | null>> {
+  const maillons = await client.$queryRaw<
+    { id: string; parentId: string | null }[]
+  >`
+    WITH RECURSIVE ancetres AS (
+      SELECT c.id, c."parentId"
+      FROM "Category" c
+      WHERE c.id = ${parentId}
+      UNION
+      SELECT p.id, p."parentId"
+      FROM "Category" p
+      JOIN ancetres a ON p.id = a."parentId"
+    )
+    SELECT id, "parentId" FROM ancetres
+  `
+  return new Map(maillons.map((maillon) => [maillon.id, maillon.parentId]))
+}
+
+/**
  * La Structure `id` peut-elle se suspendre sous `parentId` ? La réponse se
  * lit en remontant la chaîne d'ancêtres, nœud par nœud, sous le verrou
  * grossier : c'est la seule question que la transaction est à même de poser,
@@ -319,9 +403,11 @@ async function assertCategoryParent(
  *
  * Sans ce jeu, un cycle déjà en base — que rien de cette interface ne peut
  * former — faisait tourner la marche jusqu'au délai de transaction de Prisma
- * (5 000 ms) et rendait un `P2028`, que `mapCourseDeStructure` ne traduit
- * pas : l'action serveur la relançait donc en exception non rattrapée
- * (ADR-0027, amendement de #490).
+ * (5 000 ms) et rendait un `P2028`, que `mapCourseDeStructure` ne traduisait
+ * alors pas : l'action serveur la relançait donc en exception non rattrapée
+ * (ADR-0027, amendement de #490). Le refus nommé est depuis le fait du jeu de
+ * structures visitées ; `P2028` a sa propre traduction, et la marche ne lit
+ * plus qu'une fois (amendement de #541).
  *
  * La garde rejette les revisites, pas la longueur : une chaîne profonde et
  * acyclique passe, et aucune profondeur maximale n'est une règle de ce dépôt.
@@ -337,6 +423,7 @@ async function assertAcyclicCategoryTree(
       "une catégorie ne peut pas être sa propre parente",
     ])
   }
+  const liens = await lireChaineDesAncetres(parentId, client)
   const vus = new Set<string>()
   let cursor: string | null = parentId
   while (cursor) {
@@ -349,14 +436,12 @@ async function assertAcyclicCategoryTree(
     // en base, et il faut s'arrêter avant de le boucler.
     if (vus.has(cursor)) throw new CategoryAncestorCycleError()
     vus.add(cursor)
-    const parent: { parentId: string | null } | null =
-      await client.category.findUnique({
-        where: { id: cursor },
-        select: { parentId: true },
-      })
-    if (!parent)
+    // Un maillon absent de la table est un parent qui n'existe pas en base :
+    // c'est ce que rendait un `findUnique` sans ligne.
+    if (!liens.has(cursor)) {
       throw new CategoryValidationError(["catégorie parente inconnue"])
-    cursor = parent.parentId
+    }
+    cursor = liens.get(cursor) ?? null
   }
 }
 
