@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
@@ -8,7 +16,18 @@ import {
   fetchCategoryPageData,
   fetchHomeData,
   fetchProductPageData,
+  type CategoryNode,
 } from "@/lib/use-cases/storefront"
+import {
+  creerStructure,
+  planterUnCycleEnBase,
+  type StructureCreee,
+} from "@/test/structure-fixtures"
+
+/** Tous les slugs d'un arbre, à toute profondeur : ce que la page montre. */
+function slugsDeLArbre(nodes: CategoryNode[]): string[] {
+  return nodes.flatMap((node) => [node.slug, ...slugsDeLArbre(node.children)])
+}
 
 /**
  * Deux Produits sans Structure (ADR-0029), écrits en base comme seule source
@@ -34,30 +53,13 @@ async function creerDeuxProduitsSansStructure() {
   }
 }
 
-/**
- * Une Tierce partie referme un cycle **directement en base**, hors de toute
- * mutation de Structure : c'est ainsi qu'un cycle arrive dans les données — un
- * import, une reprise, une correction manuelle. Le verrou d'ADR-0027 interdit
- * d'en former un par l'interface, pas d'en recevoir un.
- *
- * Les écritures passent par le client de la transaction, jamais par une
- * mutation de Structure : ce sont précisément elles que le cycle doit
- * contourner.
- */
-async function planterUnCycleEnBase(ids: string[]): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    for (const [index, id] of ids.entries()) {
-      await tx.category.update({
-        where: { id },
-        data: { parentId: ids[(index + 1) % ids.length] },
-      })
-    }
-  })
-}
-
 const runId = randomUUID().slice(0, 8)
 const pSlug = (suffix: string) => `p-${runId}-${suffix}`
-const cSlug = (suffix: string) => `sf-${runId}-${suffix}`
+/** Le préfixe des Structures de cette suite — les siennes comme celles de la
+ *  fixture, qui le reçoit : le nettoyage se fait par `startsWith`, sans liste
+ *  d'identifiants à tenir à jour (#546). */
+const PREFIXE = `sf-${runId}-`
+const cSlug = (suffix: string) => `${PREFIXE}${suffix}`
 
 /**
  * Colonnes `images` et `specs` stockées hors de leur forme : une galerie
@@ -142,11 +144,15 @@ describe("storefront browse", () => {
   })
 
   afterAll(async () => {
+    // Les Produits d'abord : `Product_categoryId_fkey` est en `RESTRICT`, donc
+    // une Structure encore visée ne se supprime pas. Les Structures de la
+    // fixture partagée portent le préfixe de la suite — elles se suppriment
+    // donc avec les siennes, sans liste d'identifiants (#546).
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `p-${runId}-` } },
     })
     await prisma.category.deleteMany({
-      where: { slug: { startsWith: `sf-${runId}-` } },
+      where: { slug: { startsWith: PREFIXE } },
     })
     await prisma.$disconnect()
   })
@@ -726,30 +732,139 @@ describe("storefront browse", () => {
     await expect(fetchProductPageData("produit-inconnu")).resolves.toBeNull()
   })
 
+  // La lecture de la Structure (#552) : « une lecture complète des liens par
+  // requête qui en a besoin ».
+  //
+  // Le nombre ne se lit pas dans le code, et il ne se voit pas non plus à
+  // l'issue : deux lectures rendent exactement la même page, et sur une base
+  // locale la seconde ne coûte ni une erreur ni une seconde d'horloge. La seule
+  // mesure qui distingue « une lecture par page » de « une lecture par
+  // traversée » — la forme d'avant #548 — est donc un comptage à la couture que
+  // `loadCategoryLinks` traverse, le client Prisma lui-même.
+  describe("une seule lecture complète de la Structure par page", () => {
+    /**
+     * Une **lecture complète** : le `findMany` que rien ne borne, celui qui
+     * parcourt la table entière — la lecture des liens de `loadCategoryLinks`.
+     *
+     * Ce qui borne une lecture, c'est son `where` : la requête des enfants d'une
+     * Structure (`where: { parentId }`) lit la table sans la parcourir, et ne
+     * compte donc pas. Un `where` vide, lui, vaut « toutes les rangées » chez
+     * Prisma : il compte.
+     */
+    function estUneLectureComplete(
+      args: { where?: object } | undefined
+    ): boolean {
+      if (!args?.where) return true
+      return Object.keys(args.where).length === 0
+    }
+
+    /** Le nombre de lectures complètes qu'une page a demandées, et son issue. */
+    async function compterLesLecturesDeLaStructure<T>(
+      rendre: () => Promise<T>
+    ): Promise<{ issue: T; lectures: number }> {
+      const espion = vi.spyOn(prisma.category, "findMany")
+      try {
+        const issue = await rendre()
+        return {
+          issue,
+          lectures: espion.mock.calls.filter(([args]) =>
+            estUneLectureComplete(args)
+          ).length,
+        }
+      } finally {
+        espion.mockRestore()
+      }
+    }
+
+    // Le `beforeEach` de la suite supprime les Produits de ce `runId` : le
+    // Produit mesuré est donc recréé à chaque épreuve, pas au montage.
+    beforeEach(async () => {
+      await createProduct(cSlug("grand"), {
+        name: "Produit de la lecture unique",
+        slug: pSlug("lecture-unique"),
+        brand: "Marque",
+        price: 100000,
+        images: ["https://example.com/lu.jpg"],
+        variants: [
+          { name: "Standard", sku: `SKU-${runId}-lu`, priceDelta: 0, stock: 1 },
+        ],
+      })
+    })
+
+    it("la page de catégorie lit les liens une fois, et en sert ses deux traversées", async () => {
+      const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
+        fetchCategoryPageData(cSlug("root"))
+      )
+
+      expect(lectures).toBe(1)
+      // La même lecture a servi les deux traversées : la descendance, qui fait
+      // entrer le Produit du petit-fils dans la page de la racine, et la
+      // remontée, qui rend le fil d'Ariane. Une lecture par traversée en
+      // demanderait deux.
+      expect(issue!.products.map((p) => p.slug)).toEqual([
+        pSlug("lecture-unique"),
+      ])
+      expect(issue!.categoryChain.map((c) => c.slug)).toEqual([cSlug("root")])
+    })
+
+    it("la fiche Produit lit les liens une fois, pour son fil d'Ariane", async () => {
+      const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
+        fetchProductPageData(pSlug("lecture-unique"))
+      )
+
+      expect(lectures).toBe(1)
+      // Le fil d'Ariane est la seule traversée de cette page : la lecture qui
+      // l'a rendu est celle qui a construit la marche (#548).
+      expect(issue!.categoryChain.map((c) => c.slug)).toEqual([
+        cSlug("root"),
+        cSlug("child"),
+        cSlug("grand"),
+      ])
+    })
+
+    it("une fiche sans Structure ne paie aucune lecture des liens", async () => {
+      // « … par requête **qui en a besoin** » : un Produit sans Structure n'a
+      // pas de fil d'Ariane à construire, donc pas de liens à lire — la lecture
+      // se paie à l'intérieur du garde, pas avant lui (ADR-0029, #548).
+      await creerDeuxProduitsSansStructure()
+
+      const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
+        fetchProductPageData(pSlug("orphelin"))
+      )
+
+      expect(issue!.category).toBeNull()
+      expect(issue!.categoryChain).toEqual([])
+      expect(lectures).toBe(0)
+    })
+  })
+
   // La Structure **déjà cyclique** (#540). Même condition de données que
   // l'amendement de #490, autre surface : ici un rendu de boutique, non une
-  // mutation. La boutique n'a ni verrou ni transaction à expire — les deux
-  // marches ci-dessous lisent une `Map` en mémoire — donc sans garde elles ne
-  // s'arrêtent pas, et le rendu serveur non plus.
+  // mutation. La boutique n'a ni verrou ni transaction à expirer — ses deux
+  // traversées lisent une `Map` en mémoire — donc sans borne elles ne
+  // s'arrêtent pas, et le rendu serveur non plus. Depuis #548, c'est la Marche
+  // de la Structure qui les borne (ADR-0030) ; le cycle, lui, se plante par la
+  // fixture partagée plutôt que par une copie locale (#546).
   describe("sur une Structure déjà cyclique", () => {
-    let cycle: { id: string; slug: string }[] = []
+    let cycle: StructureCreee[] = []
 
     beforeAll(async () => {
-      cycle = []
-      for (const suffixe of ["cycle-a", "cycle-b"]) {
-        cycle.push(
-          await prisma.category.create({
-            data: { name: `Cyclique ${suffixe}`, slug: cSlug(suffixe) },
-          })
-        )
-      }
+      // Deux Structures saines, que `planterUnCycleEnBase` referme ensuite
+      // l'une sur l'autre comme le ferait un import ou une correction
+      // manuelle — hors de toute mutation de Structure. Elles portent le
+      // préfixe de la suite, donc le nettoyage par `startsWith` les emporte
+      // comme les autres, cycle compris (#546).
+      cycle = [
+        await creerStructure({ name: "Cyclique A", prefix: PREFIXE }),
+        await creerStructure({ name: "Cyclique B", prefix: PREFIXE }),
+      ]
       await planterUnCycleEnBase(cycle.map((structure) => structure.id))
     })
 
     // Le `beforeEach` de la suite supprime les Produits de ce `runId` : le
     // Produit cyclique est donc recréé à chaque épreuve, pas au montage.
     beforeEach(async () => {
-      await createProduct(cSlug("cycle-b"), {
+      await createProduct(cycle[1].slug, {
         name: "Produit cyclique",
         slug: pSlug("cyclique"),
         brand: "Marque",
@@ -766,52 +881,98 @@ describe("storefront browse", () => {
       })
     })
 
-    afterAll(async () => {
-      // Rompre le cycle avant le nettoyage de la suite. `ON DELETE SET NULL`
-      // le ferait déjà, mais l'écrire évite de laisser la suite dépendre de
-      // lui pour tenant debout.
-      for (const structure of cycle) {
-        await prisma.category.update({
-          where: { id: structure.id },
-          data: { parentId: null },
-        })
-      }
-    })
+    // Rien à nettoyer ici : les Structures du cycle portent le préfixe de la
+    // suite, donc le `afterAll` de la suite les emporte avec les siennes —
+    // Produits d'abord, `Product_categoryId_fkey` étant en `RESTRICT`, et
+    // `ON DELETE SET NULL` défait le cycle au passage (#546).
 
     it("la fiche Produit rend son fil d'Ariane au lieu de boucler", async () => {
       const detail = await fetchProductPageData(pSlug("cyclique"))
 
       expect(detail).not.toBeNull()
-      // La marche s'arrête sur la revisite et rend ce qu'elle a remonté. Sa
+      // La Marche s'arrête sur la revisite et rend ce qu'elle a remonté. Sa
       // dernière entrée reste la Structure du Produit : l'invariant du fil
       // d'Ariane — la catégorie courante en dernier — tient sur une chaîne
       // cyclique comme sur une autre.
       expect(detail!.categoryChain.map((c) => c.slug)).toEqual([
-        cSlug("cycle-a"),
-        cSlug("cycle-b"),
+        cycle[0].slug,
+        cycle[1].slug,
       ])
-      // Aucune Structure n'y paraît deux fois : c'est le garde qui borne la
-      // marche, et un fil d'Ariane qui se répète mentirait sur l'arborescence.
+      // Aucune Structure n'y paraît deux fois : c'est la Marche qui borne la
+      // remontée, et un fil d'Ariane qui se répète mentirait sur
+      // l'arborescence.
       expect(new Set(detail!.categoryChain.map((c) => c.slug)).size).toBe(
         detail!.categoryChain.length
       )
       // Une donnée corrompue rend des faits dégradés — jamais une page
       // cassée : c'est la posture que cette suite tient déjà pour une colonne
       // JSON abimée.
-      expect(detail!.category?.slug).toBe(cSlug("cycle-b"))
+      expect(detail!.category?.slug).toBe(cycle[1].slug)
     })
 
     it("la page de catégorie recense ses descendantes sans boucler", async () => {
-      const page = await fetchCategoryPageData(cSlug("cycle-a"))
+      const page = await fetchCategoryPageData(cycle[0].slug)
 
       expect(page).not.toBeNull()
-      expect(page!.category.slug).toBe(cSlug("cycle-a"))
-      expect(page!.children.map((c) => c.slug)).toEqual([cSlug("cycle-b")])
-      // La marche des descendantes suit la même chaîne et porte le même
-      // garde : sans lui, le cycle la fait boucler autant que la précédente.
-      // Le Produit de la Structure que le cycle referme sur elle-même entre
-      // donc comme descendante, une fois.
+      expect(page!.category.slug).toBe(cycle[0].slug)
+      expect(page!.children.map((c) => c.slug)).toEqual([cycle[1].slug])
+      // La descendance suit la même chaîne et la même Marche : sans elle, le
+      // cycle la ferait boucler autant que la remontée. Le Produit de la
+      // Structure que le cycle referme sur elle-même entre donc comme
+      // descendante, une fois.
       expect(page!.products.map((p) => p.slug)).toEqual([pSlug("cyclique")])
+    })
+
+    it("l'arbre d'accueil efface le cycle, et le journal le nomme une fois", async () => {
+      // L'arbre d'accueil descend depuis les racines : aucune n'atteint une
+      // Structure cyclique, donc la page n'en montre rien — et n'en montrait
+      // déjà rien. Ce que #551 ajoute est qu'elle le **dise** : la marche
+      // journalise ce que l'arbre a perdu, en nommant les Structures, et une
+      // seule fois pour tout l'arbre. Avant, `buildCategoryTree` effaçait en
+      // silence : la branche disparaissait de la page d'accueil sans un mot
+      // (ADR-0030).
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+      try {
+        const home = await fetchHomeData()
+
+        expect(slugsDeLArbre(home.categories)).not.toContain(cycle[0].slug)
+        expect(slugsDeLArbre(home.categories)).not.toContain(cycle[1].slug)
+
+        // Une ligne, pas une par maillon ni une par surface : c'est la retenue
+        // de la marche, et le seul endroit où la corruption se voit d'ici.
+        expect(warn).toHaveBeenCalledTimes(1)
+        const ligne = warn.mock.calls[0]!.join(" ")
+        expect(ligne).toContain(cycle[0].name)
+        expect(ligne).toContain(cycle[1].name)
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it("journalise le cycle une fois par requête, non une fois par traversée", async () => {
+      // La page croise le même cycle deux fois — la descendance qui décide des
+      // Produits, puis la remontée du fil d'Ariane — et une seule ligne doit
+      // sortir : deux instances de la Marche en auraient dit deux. C'est le
+      // critère de #548, et il tient à ce que la page construise **une** marche
+      // pour ses deux traversées, sur une seule lecture des liens.
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+      try {
+        const page = await fetchCategoryPageData(cycle[0].slug)
+        expect(page).not.toBeNull()
+        expect(warn).toHaveBeenCalledTimes(1)
+        const ligne = warn.mock.calls[0]!.join(" ")
+        expect(ligne).toContain(cycle[0].name)
+        expect(ligne).toContain(cycle[1].name)
+
+        // La fiche Produit ne traverse que le fil d'Ariane : une ligne aussi,
+        // pour la même corruption.
+        warn.mockClear()
+        const detail = await fetchProductPageData(pSlug("cyclique"))
+        expect(detail).not.toBeNull()
+        expect(warn).toHaveBeenCalledTimes(1)
+      } finally {
+        warn.mockRestore()
+      }
     })
   })
 })

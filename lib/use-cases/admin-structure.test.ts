@@ -49,6 +49,7 @@ import {
   verifierFrontiereBestEffort,
   verifierRefusValidation,
 } from "@/test/mutation-squelette-recette"
+import { planterUnCycleEnBase } from "@/test/structure-fixtures"
 
 const runId = randomUUID().slice(0, 8)
 const categorySlug = (suffix: string) => `cat-${runId}-${suffix}`
@@ -86,27 +87,6 @@ function makeCategoryInput(
     image: "https://example.com/cat.jpg",
     ...overrides,
   }
-}
-
-/**
- * Une Tierce partie referme un cycle **directement en base**, hors de toute
- * mutation de Structure : c'est ainsi qu'un cycle arrive dans les données —
- * un import, une reprise, une correction manuelle. Le verrou d'ADR-0027
- * interdit d'en former un par l'interface, pas d'en recevoir un.
- *
- * Les écritures passent par le client de la transaction, jamais par
- * `createCategory` ou `updateCategory` : ces deux-là sont précisément ce que le
- * cycle doit contourner.
- */
-async function planterUnCycleEnBase(ids: string[]): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    for (const [index, id] of ids.entries()) {
-      await tx.category.update({
-        where: { id },
-        data: { parentId: ids[(index + 1) % ids.length] },
-      })
-    }
-  })
 }
 
 /** Le Produit de test rattaché à la Structure donnée, sous son propre slug. */

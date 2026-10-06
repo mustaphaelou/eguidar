@@ -78,6 +78,24 @@ const CATEGORIES = [
   { id: ENFANT, name: "Structure enfant", parentId: SUPPRIMEE },
 ]
 
+/**
+ * La Structure **déjà cyclique** (#551) : un cycle qu'une Tierce partie a
+ * refermé en base, et la Structure à supprimer accrochée à l'un de ses
+ * maillons. La boîte est un rendu client — la seule surface qui n'a aucun
+ * verdict à rendre —, donc elle traverse le cycle, reste bornée, et propose
+ * quand même ses cibles (ADR-0030).
+ */
+const CYCLIQUE_A = "cat-cyclique-a"
+const CYCLIQUE_B = "cat-cyclique-b"
+
+const CATEGORIES_CYCLIQUES = [
+  { id: SUPPRIMEE, name: "Structure à supprimer", parentId: CYCLIQUE_A },
+  { id: ENFANT, name: "Structure enfant", parentId: SUPPRIMEE },
+  { id: CIBLE, name: "Structure cible", parentId: null },
+  { id: CYCLIQUE_A, name: "Structure cyclique A", parentId: CYCLIQUE_B },
+  { id: CYCLIQUE_B, name: "Structure cyclique B", parentId: CYCLIQUE_A },
+]
+
 describe("DeleteCategoryButton", () => {
   it("annonce sur sa propre ligne qu'une Structure qui a des sous-catégories ne se supprime pas", () => {
     const { action } = actionQuiCapture<DeleteCategoryState>()
@@ -427,5 +445,55 @@ describe("DeleteCategoryButton", () => {
     expect(
       declencheurDontLeLibelleEst("Déplacer les produits vers").textContent
     ).toContain("Bloquer — produits rattachés")
+  })
+
+  // La Structure déjà cyclique (#551). La boîte descendait l'arbre à la main ;
+  // elle traverse désormais la Marche de la Structure, qui s'arrête sur toute
+  // revisite. Elle garde ce qu'elle faisait : elle ne refuse rien.
+  it("reste bornée sur une Structure cyclique, et propose quand même ses cibles", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
+      <DeleteCategoryButton
+        categoryId={SUPPRIMEE}
+        categoryName="Structure à supprimer"
+        childCount={1}
+        productCount={1}
+        categories={CATEGORIES_CYCLIQUES}
+        action={action}
+      />
+    )
+
+    await ouvrirDialogue()
+    await act(async () => {
+      declencheurDontLeLibelleEst("Déplacer les sous-catégories vers").click()
+    })
+
+    const options = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'),
+    ].map((element) => element.textContent)
+
+    // La coupe est la même qu'avant : ce qui descend de la Structure supprimée
+    // ne peut pas l'accueillir — ici sa seule enfant.
+    expect(options).not.toContain(
+      "Déplacer les sous-catégories vers Structure enfant"
+    )
+    // Et la boîte **propose** : la cible saine, et jusqu'aux maillons du cycle.
+    // Elle ne refuse rien — sur une chaîne cyclique, le refus n'appartient
+    // qu'au serveur, et la cible reste donc offerte (ADR-0030).
+    expect(options).toContain(
+      "Déplacer les sous-catégories vers Structure cible"
+    )
+    expect(options).toContain(
+      "Déplacer les sous-catégories vers Structure cyclique A"
+    )
+
+    // Une seule ligne pour tout le rendu : la marche est construite **une
+    // fois**, non une fois par candidate — sinon le journal compterait les
+    // cibles et le filtre coûterait un parcours par candidate (#551).
+    expect(warn).toHaveBeenCalledTimes(1)
+    const ligne = warn.mock.calls[0]!.join(" ")
+    expect(ligne).toContain("Structure cyclique A")
+    expect(ligne).toContain("Structure cyclique B")
   })
 })

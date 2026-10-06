@@ -26,15 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  marcheDesStructures,
+  type MarcheStructure,
+  type StructureLue,
+} from "@/lib/marche-structure"
 
 export interface DeleteCategoryState {
   error?: string
-}
-
-interface StructureCible {
-  id: string
-  name: string
-  parentId: string | null
 }
 
 /** Ce qui est rattaché à la Structure de la ligne, et donc ce qui pèse. */
@@ -48,7 +47,7 @@ interface DeleteCategoryButtonProps {
   categoryName: string
   childCount: number
   productCount: number
-  categories: StructureCible[]
+  categories: StructureLue[]
   action: (
     prevState: DeleteCategoryState,
     formData: FormData
@@ -80,35 +79,28 @@ function raisonVisible(comptes: ComptesStructure): string | null {
 }
 
 /**
- * `candidateId` descend-elle de `racineId` ? La liste des Structures est
- * complète — la page lui passe tout l'arbre —, donc la remontée de parente en
- * parente suffit. Rattacher une Structure à l'une de ses descendantes
- * refermerait la boucle sur elle-même : la boîte ne propose pas ce qui
- * produirait le refus du serveur.
+ * `candidateId` descend-elle de `racineId` ? C'est la **Marche de la
+ * Structure** qui répond (#551, ADR-0030) : `ancetres` rend la chaîne de la
+ * candidate jusqu'à sa racine, la candidate en dernier, et s'arrête sur toute
+ * revisite.
  *
- * **Ce n'est pas `assertAcyclicCategoryTree`, et l'écart reste volontaire.**
- * Les deux marches portent le même garde depuis que le serveur garde, lui
- * aussi, les identifiants qu'il visite : ce manque était un piège nommé
- * d'ADR-0027, et il est un refus. Elles ne peuvent pas fusionner pour autant :
- * l'une raisonne sur des faits engagés, l'autre sur l'arbre rendu à l'écran —
- * et l'écart se voit sur un cycle déjà en base. `vus` arrête ici la remontée
- * sans rien refuser : la cible y est encore proposée, et c'est le serveur seul
- * qui peut dire que sa chaîne est cyclique. La garantie commune reste donc le
- * refus d'une cible cyclique, et c'est toujours le serveur qui l'exige.
+ * **La coupe du client et le refus du serveur divergent, et c'est la décision
+ * d'ADR-0030, pas un accident.** La marche répond un fait — la chaîne —, et la
+ * boîte n'en tire qu'une coupe : ce qui descend de la Structure supprimée ne
+ * peut pas l'accueillir, parce que le rattacher refermerait la boucle sur
+ * elle-même. Sur un cycle déjà en base, la remontée s'arrête sans rien refuser,
+ * la cible reste proposée, et c'est le serveur seul qui peut dire que sa chaîne
+ * est cyclique : `assertAcyclicCategoryTree` porte ce refus, lié à sa
+ * transaction, et reste le seul à lever `CategoryAncestorCycleError`. La
+ * divergence est argumentée dans ADR-0030 ; ce commentaire n'en est plus le
+ * propriétaire, il dit seulement où elle vit.
  */
 function descendDe(
   candidateId: string,
   racineId: string,
-  parentParId: Map<string, string | null>
+  marche: MarcheStructure
 ): boolean {
-  let curseur: string | null = candidateId
-  const vus = new Set<string>()
-  while (curseur && !vus.has(curseur)) {
-    if (curseur === racineId) return true
-    vus.add(curseur)
-    curseur = parentParId.get(curseur) ?? null
-  }
-  return false
+  return marche.ancetres(candidateId).includes(racineId)
 }
 
 export function DeleteCategoryButton({
@@ -136,9 +128,12 @@ export function DeleteCategoryButton({
   const idSousCategories = useId()
   const idOrphelins = useId()
 
-  const parentParId = new Map(
-    categories.map((candidate) => [candidate.id, candidate.parentId])
-  )
+  // **Une seule marche par rendu**, et non une par candidate : construite dans
+  // le filtre, elle ferait dédupliquer le journal par candidate — une ligne par
+  // cible au lieu d'une par cycle — et le filtre coûterait un parcours complet
+  // par cible (#551). Les noms y entrent pour que la ligne du journal nomme les
+  // Structures plutôt que leurs identifiants.
+  const marche = marcheDesStructures(categories)
   // Toute Structure de la liste sauf celle-ci : c'est le domaine de tous les
   // choix. Les sous-catégories, elles, ne peuvent recevoir que ce qui n'en
   // descend pas — une cible y fermerait la boucle sur elle-même.
@@ -146,7 +141,7 @@ export function DeleteCategoryButton({
     (candidate) => candidate.id !== categoryId
   )
   const structuresDAccueil = structuresCandidates.filter(
-    (candidate) => !descendDe(candidate.id, categoryId, parentParId)
+    (candidate) => !descendDe(candidate.id, categoryId, marche)
   )
 
   const comptes = { childCount, productCount }
