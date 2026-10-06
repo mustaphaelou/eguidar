@@ -9,6 +9,7 @@ import {
   fetchHomeData,
   fetchProductPageData,
 } from "@/lib/use-cases/storefront"
+import { planterUnCycleEnBase } from "@/test/structure-fixtures"
 
 /**
  * Deux Produits sans Structure (ADR-0029), écrits en base comme seule source
@@ -32,27 +33,6 @@ async function creerDeuxProduitsSansStructure() {
       },
     })
   }
-}
-
-/**
- * Une Tierce partie referme un cycle **directement en base**, hors de toute
- * mutation de Structure : c'est ainsi qu'un cycle arrive dans les données — un
- * import, une reprise, une correction manuelle. Le verrou d'ADR-0027 interdit
- * d'en former un par l'interface, pas d'en recevoir un.
- *
- * Les écritures passent par le client de la transaction, jamais par une
- * mutation de Structure : ce sont précisément elles que le cycle doit
- * contourner.
- */
-async function planterUnCycleEnBase(ids: string[]): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    for (const [index, id] of ids.entries()) {
-      await tx.category.update({
-        where: { id },
-        data: { parentId: ids[(index + 1) % ids.length] },
-      })
-    }
-  })
 }
 
 const runId = randomUUID().slice(0, 8)
