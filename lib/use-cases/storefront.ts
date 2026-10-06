@@ -180,6 +180,23 @@ type CategoryLink = {
   parentId: string | null
 }
 
+/**
+ * La lecture complète de la Structure : **une par page, et une seule** (#552).
+ *
+ * `fetchCategoryPageData` et `fetchProductPageData` en sont les seuls appelants,
+ * et chacun n'en fait qu'un appel — à l'intérieur de l'exécution unique de sa
+ * fonction `"use cache: remote"`, une marche en découle, et ses deux traversées
+ * la partagent (#548). Rien ne la retient au-delà : les liens vivent dans
+ * l'exécution qui les a lus et meurent avec elle — pas de `Map` de module, que la
+ * documentation range parmi les causes de blocage de build dans une portée
+ * cachée, pas de promesse gardée, pas d'`AsyncLocalStorage` (recherche #552,
+ * §4.3). Un Produit sans Structure ne la paie pas : il n'a pas de fil d'Ariane à
+ * construire (ADR-0029).
+ *
+ * Le compte est épinglé par `storefront.test.ts`, qui le mesure sur le client
+ * Prisma : deux lectures rendent exactement la même page, donc rien d'autre ne
+ * les distingue.
+ */
 async function loadCategoryLinks(): Promise<Map<string, CategoryLink>> {
   const categories = await prisma.category.findMany({
     select: { id: true, name: true, slug: true, parentId: true },
