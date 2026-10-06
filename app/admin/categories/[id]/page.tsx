@@ -7,6 +7,25 @@ import {
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { updateCategoryAction } from "@/app/admin/categories/actions"
 
+/**
+ * Une Structure et toutes ses descendantes : les parentes qu'un éditeur ne
+ * peut pas choisir, puisque se suspendre sous l'une d'elles refermerait un
+ * cycle.
+ *
+ * La marche garde les identifiants qu'elle a déjà descendus, et **toute**
+ * revisite l'arrête — le même garde, et pour la même raison, que
+ * `collectCategoryAndDescendantIds` côté boutique : un cycle déjà en base se
+ * referme sur lui-même ici aussi, et la pile grossissait à chaque tour sans
+ * qu'aucune transaction n'ait à expirer. Cette marche-ci tourne dans le rendu
+ * serveur, où rien d'autre ne la borne : le rendu ne rendait donc jamais la
+ * main, et l'éditeur ne pouvait pas ouvrir l'écran qui répare la donnée
+ * (#546). Le garde rejette les revisites, pas la longueur : une branche
+ * profonde et acyclique passe entière, et aucune profondeur maximale n'est une
+ * règle de ce dépôt (ADR-0027).
+ *
+ * C'est la dernière fois qu'elle est écrite ici : #549 la fera traverser
+ * `lib/marche-structure.ts`, le propriétaire de la règle (ADR-0030).
+ */
 function collectDescendantIds(
   categories: Awaited<ReturnType<typeof listAdminCategoriesWithCounts>>,
   rootId: string
@@ -20,12 +39,16 @@ function collectDescendantIds(
     }
   }
   const descendants: string[] = []
+  const vus = new Set([rootId])
   const stack = [rootId]
   while (stack.length > 0) {
     const id = stack.pop()!
-    const children = childrenByParent.get(id) ?? []
-    descendants.push(...children)
-    stack.push(...children)
+    for (const child of childrenByParent.get(id) ?? []) {
+      if (vus.has(child)) continue
+      vus.add(child)
+      descendants.push(child)
+      stack.push(child)
+    }
   }
   return descendants
 }
