@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { marcheStructure, type LiensStructure } from "@/lib/marche-structure"
+import {
+  marcheDesStructures,
+  marcheStructure,
+  type LiensStructure,
+  type StructureLue,
+} from "@/lib/marche-structure"
 
 /**
  * La Marche de la Structure : la traversée d'une Structure par `parentId`,
@@ -20,11 +25,11 @@ import { marcheStructure, type LiensStructure } from "@/lib/marche-structure"
 
 /** Une marche construite sur des liens donnés, sans nom : le cas minimal. */
 function marcheDe(
-  parents: Record<string, string | null>,
+  parentParId: Record<string, string | null>,
   noms?: Record<string, string>
 ) {
   const liens: LiensStructure = {
-    parents: new Map(Object.entries(parents)),
+    parentParId: new Map(Object.entries(parentParId)),
   }
   if (noms) liens.noms = new Map(Object.entries(noms))
   return marcheStructure(liens)
@@ -96,6 +101,63 @@ describe("marcheStructure — sur un arbre sain", () => {
 
   it("ne connaît aucune Structure hors arbre", () => {
     expect(marcheDe(ARBRE_SAIN).horsArbre()).toEqual([])
+  })
+})
+
+describe("marcheDesStructures — la marche d'une lecture", () => {
+  /**
+   * Le cycle de la suite, écrit comme une lecture le rend : une rangée par
+   * Structure, avec son nom et sa parente. C'est la forme que les surfaces ont
+   * en main — deux écrans d'administration, l'arbre d'accueil, la page de
+   * catégorie et la boîte de suppression — et celle que la marche doit
+   * consommer sans qu'aucune ne rebâtisse les deux cartes à la main (ADR-0022).
+   */
+  const RANGEES: StructureLue[] = [
+    { id: "a", name: "Boucle A", parentId: "b" },
+    { id: "b", name: "Boucle B", parentId: "c" },
+    { id: "c", name: "Boucle C", parentId: "a" },
+    { id: "accrochee", name: "Accrochée", parentId: "a" },
+    { id: "amont", name: "Amont", parentId: "a" },
+  ]
+
+  it("rend les mêmes faits que la forme en cartes", () => {
+    const parRangees = marcheDesStructures(RANGEES)
+    const parCartes = marcheDe(
+      { a: "b", b: "c", c: "a", accrochee: "a", amont: "a" },
+      { a: "Boucle A", b: "Boucle B", c: "Boucle C" }
+    )
+
+    // Les mêmes faits, quelle que soit la forme d'entrée : la marche ne doit
+    // pas dépendre de celle que l'appelant avait sous la main.
+    expect(new Set(parRangees.ancetres("a"))).toEqual(
+      new Set(parCartes.ancetres("a"))
+    )
+    expect(new Set(parRangees.descendance("a"))).toEqual(
+      new Set(parCartes.descendance("a"))
+    )
+    expect(new Set(parRangees.horsArbre())).toEqual(
+      new Set(parCartes.horsArbre())
+    )
+    // Cinq Structures, aucune racine : le cycle, sa descendante, et l'amont qui
+    // y mène. La forme en rangées ne perd rien de ce que les cartes disaient.
+    expect(parRangees.horsArbre()).toHaveLength(5)
+  })
+
+  it("nomme le journal par les noms des rangées", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      marcheDesStructures(RANGEES).ancetres("a")
+
+      // Le journal lit le nom sur la rangée : une lecture qui a déjà le nom
+      // n'a pas à le traduire en une seconde carte pour le rendre lisible.
+      expect(warn).toHaveBeenCalledTimes(1)
+      const ligne = warn.mock.calls[0]!.join(" ")
+      for (const nom of ["Boucle A", "Boucle B", "Boucle C"]) {
+        expect(ligne).toContain(nom)
+      }
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 

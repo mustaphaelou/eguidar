@@ -9,7 +9,7 @@
  * n'a personne à qui se plaindre. Les deux surfaces se contredisent
  * délibérément, et c'est la décision, pas un accident : un module qui rendrait
  * le verdict les rendrait identiques, et supprimerait la divergence que
- * `delete-category-button.tsx` argumente depuis des mois (ADR-0030).
+ * l'ADR-0030 consigne comme le cœur de sa décision.
  *
  * **Elle est neutre, et c'est une condition, pas une élégance.** Un de ses
  * appelants est un composant client : ni `"use client"`, ni `"use server"`, ni
@@ -31,20 +31,51 @@
  * c'est délibéré : un `Set` au niveau du module ferait dépendre les suites de
  * leur ordre d'exécution, et tairait l'avertissement pour toute la vie du
  * processus. Le journal reste donc un fait de la requête, comme la marche.
+ *
+ * **Les noms sont un confort, pas une condition.** `noms` reste facultatif :
+ * un appelant qui n'a pas le nom sous la main obtient quand même sa traversée,
+ * et le journal retombe alors sur l'identifiant. Un `cuid` se lit mal, mais il
+ * est vrai — la marche n'a pas à inventer un nom qu'aucune lecture ne lui a
+ * donné.
+ *
+ * **Un cycle très long est résumé, et c'est délibéré.** Le critère de #544 est
+ * « un cycle journalisé une fois, nommant les Structures impliquées » : au-delà
+ * de dix maillons, la ligne dit la taille du cycle et ses dix premiers, ce qui
+ * nomme les Structures impliquées sans verser vingt mille identifiants dans le
+ * journal. Une ligne de vingt mille maillons n'est pas un journal, c'est un
+ * vidage — et la première ligne utile reste « il y a un cycle, et le voici ».
  */
+
+/**
+ * Ce qu'une lecture de la Structure rend, réduit à ce que la marche consomme :
+ * une rangée par Structure, avec son nom et sa parente. Les surfaces qui
+ * lisaient la Structure le projetaient chacune à leur façon — deux cartes
+ * bâties à la main, cinq fois — et cinq copies d'un même fait divergent
+ * (ADR-0022).
+ */
+export interface StructureLue {
+  id: string
+  name: string
+  parentId: string | null
+}
 
 /**
  * Les faits que la marche consomme : le lien de chaque Structure vers sa
  * parente, et — quand l'appelant les a sous la main — les noms qui rendent le
  * journal lisible.
  *
- * `parents` porte l'absence de parente par `null`, pas par une clé absente :
- * une Structure dont la parente n'est pas dans la carte est une Structure
- * inconnue, une Structure sans parente est une racine. Les deux se confondraient
- * si l'absence de clé valait `null`.
+ * `parentParId` porte l'absence de parente par `null`, et une clé absente vaut
+ * `null` : une Structure dont la parente n'est pas dans la carte termine donc
+ * sa marche comme une racine — `ancetres` s'arrête, `horsArbre` n'invente
+ * aucun cycle. C'est ce que le code fait, et c'est solide : la clé étrangère
+ * `Category_parentId_fkey` garantit qu'un `parentId` nomme une rangée
+ * existante, donc une clé absente ne peut dire qu'une chose — la lecture de
+ * l'appelant ne couvrait pas cette rangée. La traiter en racine est la
+ * dégradation que ce module promet ; l'alternative, une erreur, est exactement
+ * ce qu'ADR-0030 interdit à une lecture de faire.
  */
 export interface LiensStructure {
-  parents: ReadonlyMap<string, string | null>
+  parentParId: ReadonlyMap<string, string | null>
   noms?: ReadonlyMap<string, string>
 }
 
@@ -91,6 +122,62 @@ function nommer(
 }
 
 /**
+ * L'index inverse des liens — chaque parente, et ses enfants — et les racines
+ * que les liens déclarent. `descendance` et `horsArbre` descendent le même
+ * graphe : le bâtir deux fois était écrire deux fois le même fait, et se donner
+ * deux occasions de diverger (ADR-0022).
+ */
+function indexDesLiens(parentParId: ReadonlyMap<string, string | null>): {
+  enfants: Map<string, string[]>
+  racines: string[]
+} {
+  const enfants = new Map<string, string[]>()
+  const racines: string[] = []
+  for (const [id, parente] of parentParId) {
+    if (parente === null) {
+      racines.push(id)
+      continue
+    }
+    const fratrie = enfants.get(parente)
+    if (fratrie) fratrie.push(id)
+    else enfants.set(parente, [id])
+  }
+  return { enfants, racines }
+}
+
+/**
+ * Une descente depuis `depart` : ce qu'elle atteint, chacune au plus une fois,
+ * et les enfants qu'elle a retrouvés déjà atteints — le pas qui referme un
+ * cycle. `descendance` part d'une Structure, `horsArbre` de toutes les racines :
+ * c'est la même passe, avec la même règle de terminaison — toute revisite
+ * l'arrête —, et elle n'est donc écrite qu'une fois.
+ */
+function atteindre(
+  depart: readonly string[],
+  enfants: ReadonlyMap<string, readonly string[]>
+): { atteints: string[]; revisites: Set<string> } {
+  const atteints: string[] = []
+  const vus = new Set<string>()
+  /** Les enfants déjà atteints : chacun est le pas qui referme un cycle. */
+  const revisites = new Set<string>()
+  const file = [...depart]
+  while (file.length > 0) {
+    const courant = file.shift()!
+    if (vus.has(courant)) continue
+    vus.add(courant)
+    atteints.push(courant)
+    for (const enfant of enfants.get(courant) ?? []) {
+      if (vus.has(enfant)) {
+        revisites.add(enfant)
+        continue
+      }
+      file.push(enfant)
+    }
+  }
+  return { atteints, revisites }
+}
+
+/**
  * Construit une marche sur des liens déjà en mémoire.
  *
  * La marche est une valeur : elle se construit une fois, s'interroge autant de
@@ -98,7 +185,7 @@ function nommer(
  * qu'elle a déjà signalés.
  */
 export function marcheStructure(liens: LiensStructure): MarcheStructure {
-  const { parents, noms } = liens
+  const { parentParId, noms } = liens
   const cyclesSignales = new Set<string>()
 
   /**
@@ -131,7 +218,10 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
     while (curseur !== null && !vus.has(curseur)) {
       chemin.push(curseur)
       vus.add(curseur)
-      curseur = parents.get(curseur) ?? null
+      // Une parente absente de la carte termine la marche comme une racine :
+      // la clé étrangère garantit qu'elle existe en base, donc la lecture de
+      // l'appelant ne la couvrait pas (voir `LiensStructure`).
+      curseur = parentParId.get(curseur) ?? null
     }
     return { chemin, cycle: cycleRefermePar(chemin, curseur) }
   }
@@ -168,32 +258,8 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
   }
 
   function descendance(id: string): string[] {
-    const enfants = new Map<string, string[]>()
-    for (const [enfant, parente] of parents) {
-      if (parente === null) continue
-      const fratrie = enfants.get(parente)
-      if (fratrie) fratrie.push(enfant)
-      else enfants.set(parente, [enfant])
-    }
-
-    const atteints: string[] = []
-    const vus = new Set<string>()
-    /** Les enfants déjà atteints : chacun est le pas qui referme un cycle. */
-    const revisites = new Set<string>()
-    const file = [id]
-    while (file.length > 0) {
-      const courant = file.shift()!
-      if (vus.has(courant)) continue
-      vus.add(courant)
-      atteints.push(courant)
-      for (const enfant of enfants.get(courant) ?? []) {
-        if (vus.has(enfant)) {
-          revisites.add(enfant)
-          continue
-        }
-        file.push(enfant)
-      }
-    }
+    const { enfants } = indexDesLiens(parentParId)
+    const { atteints, revisites } = atteindre([id], enfants)
 
     // Un cycle refermé par la descente : un enfant déjà atteint. Le cycle est
     // celui que la remontée depuis cet enfant referme — la même lecture que
@@ -215,32 +281,13 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
    * (ADR-0030, #544).
    */
   function horsArbre(): string[] {
-    const enfants = new Map<string, string[]>()
-    const racines: string[] = []
-    for (const [id, parente] of parents) {
-      if (parente === null) {
-        racines.push(id)
-        continue
-      }
-      const fratrie = enfants.get(parente)
-      if (fratrie) fratrie.push(id)
-      else enfants.set(parente, [id])
-    }
-
-    const atteints = new Set<string>()
-    const file = [...racines]
-    while (file.length > 0) {
-      const courant = file.shift()!
-      if (atteints.has(courant)) continue
-      atteints.add(courant)
-      for (const enfant of enfants.get(courant) ?? []) {
-        if (!atteints.has(enfant)) file.push(enfant)
-      }
-    }
+    const { enfants, racines } = indexDesLiens(parentParId)
+    const { atteints } = atteindre(racines, enfants)
+    const dansLArbre = new Set(atteints)
 
     const horsArbre: string[] = []
-    for (const id of parents.keys()) {
-      if (!atteints.has(id)) horsArbre.push(id)
+    for (const id of parentParId.keys()) {
+      if (!dansLArbre.has(id)) horsArbre.push(id)
     }
 
     // Chaque Structure hors arbre est dans un cycle ou mène à un cycle : c'est
@@ -261,7 +308,7 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
       ) {
         chemin.push(curseur)
         vus.add(curseur)
-        curseur = parents.get(curseur) ?? null
+        curseur = parentParId.get(curseur) ?? null
       }
       const cycle = cycleRefermePar(chemin, curseur)
       if (!cycle) continue
@@ -275,4 +322,27 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
   }
 
   return { ancetres, descendance, horsArbre }
+}
+
+/**
+ * La marche d'une lecture : les rangées que l'appelant a déjà en main, sans
+ * requête de plus. Une seule projection pour les surfaces qui lisent la
+ * Structure, parce que cinq copies d'un même fait divergent (ADR-0022).
+ *
+ * C'est le chemin ordinaire : une lecture qui a ses rangées n'a pas à bâtir
+ * deux cartes — les liens et les noms — pour interroger la marche.
+ * `marcheStructure` reste l'entrée des faits déjà séparés, et celle que la
+ * suite du module exerce sans noms.
+ */
+export function marcheDesStructures(
+  structures: readonly StructureLue[]
+): MarcheStructure {
+  return marcheStructure({
+    parentParId: new Map(
+      structures.map((structure) => [structure.id, structure.parentId])
+    ),
+    noms: new Map(
+      structures.map((structure) => [structure.id, structure.name])
+    ),
+  })
 }

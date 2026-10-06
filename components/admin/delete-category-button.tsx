@@ -26,16 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { marcheStructure, type MarcheStructure } from "@/lib/marche-structure"
+import {
+  marcheDesStructures,
+  type MarcheStructure,
+  type StructureLue,
+} from "@/lib/marche-structure"
 
 export interface DeleteCategoryState {
   error?: string
-}
-
-interface StructureCible {
-  id: string
-  name: string
-  parentId: string | null
 }
 
 /** Ce qui est rattaché à la Structure de la ligne, et donc ce qui pèse. */
@@ -49,7 +47,7 @@ interface DeleteCategoryButtonProps {
   categoryName: string
   childCount: number
   productCount: number
-  categories: StructureCible[]
+  categories: StructureLue[]
   action: (
     prevState: DeleteCategoryState,
     formData: FormData
@@ -130,20 +128,12 @@ export function DeleteCategoryButton({
   const idSousCategories = useId()
   const idOrphelins = useId()
 
-  const parentParId = new Map(
-    categories.map((candidate) => [candidate.id, candidate.parentId])
-  )
   // **Une seule marche par rendu**, et non une par candidate : construite dans
   // le filtre, elle ferait dédupliquer le journal par candidate — une ligne par
   // cible au lieu d'une par cycle — et le filtre coûterait un parcours complet
   // par cible (#551). Les noms y entrent pour que la ligne du journal nomme les
   // Structures plutôt que leurs identifiants.
-  const marche = marcheStructure({
-    parents: parentParId,
-    noms: new Map(
-      categories.map((candidate) => [candidate.id, candidate.name])
-    ),
-  })
+  const marche = marcheDesStructures(categories)
   // Toute Structure de la liste sauf celle-ci : c'est le domaine de tous les
   // choix. Les sous-catégories, elles, ne peuvent recevoir que ce qui n'en
   // descend pas — une cible y fermerait la boucle sur elle-même.

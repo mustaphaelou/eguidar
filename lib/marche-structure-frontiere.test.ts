@@ -11,7 +11,7 @@ import {
  * Frontière client/serveur de la Marche de la Structure.
  *
  * `lib/marche-structure.ts` est le module neutre que ce travail ajoute, et sa
- * neutralité n'est pas une élégance : un de ses six appelants est un composant
+ * neutralité n'est pas une élégance : un de ses appelants est un composant
  * client (`components/admin/delete-category-button.tsx`, #551), qui doit
  * pouvoir l'importer sans tirer `pg` (`require('dns')`) dans le bundle
  * navigateur — la panne que `next build` (Turbopack) rend, et que
@@ -41,13 +41,15 @@ const AIDE_FRONTIERE = "lib/use-cases/outils-frontiere.ts"
 
 /**
  * Ce que le module doit porter, énoncé symbole par symbole : un fichier vidé,
- * ou réduit à une signature, passerait sinon pour neutre. Les trois surfaces
- * sont celles que les six appelants traversent, et `LiensStructure` est le fait
- * qu'ils construisent.
+ * ou réduit à une signature, passerait sinon pour neutre. Les surfaces sont
+ * celles que les appelants traversent, et `StructureLue` est la projection
+ * qu'ils ont en main.
  */
 const SYMBOLES = [
   "marcheStructure",
+  "marcheDesStructures",
   "LiensStructure",
+  "StructureLue",
   "MarcheStructure",
   "ancetres",
   "descendance",

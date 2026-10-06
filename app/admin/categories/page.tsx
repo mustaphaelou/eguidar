@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { marcheStructure, type LiensStructure } from "@/lib/marche-structure"
+import { marcheDesStructures } from "@/lib/marche-structure"
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { deleteCategoryAction } from "@/app/admin/categories/actions"
 
@@ -32,24 +32,6 @@ type AdminCategory = Awaited<
  * comme les autres (ADR-0030, #550).
  */
 type LigneCategorie = AdminCategory & { depth: number; horsArbre: boolean }
-
-/**
- * Les liens que la marche consomme, bâtis sur la lecture déjà faite : la
- * traversée ne coûte donc aucune requête de plus. Les noms, que l'écran a sous
- * la main, rendent le journal du module lisible quand il nomme un cycle — sans
- * eux il n'égrènerait que des `cuid` (ADR-0030). Même projection que celle de
- * `app/admin/categories/[id]/page.tsx` : deux écrans, une même lecture, et
- * l'adaptateur reste auprès de celui qui la lit.
- */
-function liensDeLaLecture(categories: AdminCategory[]): LiensStructure {
-  const parents = new Map<string, string | null>()
-  const noms = new Map<string, string>()
-  for (const category of categories) {
-    parents.set(category.id, category.parentId)
-    noms.set(category.id, category.name)
-  }
-  return { parents, noms }
-}
 
 /**
  * Les lignes des Structures hors arbre. Elles se lisent **après** l'arbre et à
@@ -96,8 +78,10 @@ export default async function AdminCategoriesPage() {
   // qu'aucune racine n'atteint — un cycle, une chaîne qui y mène, et tout ce
   // qu'un cycle soustrait à l'arbre. Construite une fois, elle n'écrit donc
   // qu'une ligne par cycle : deux marches pour la même page en écriraient
-  // deux, chacune ayant sa propre retenue (ADR-0030, #550).
-  const marche = marcheStructure(liensDeLaLecture(categories))
+  // deux, chacune ayant sa propre retenue (ADR-0030, #550). Les noms de la
+  // lecture entrent dans la marche parce que le journal les nomme : sans eux
+  // il n'égrènerait que des `cuid`.
+  const marche = marcheDesStructures(categories)
   const rows = [
     ...buildRows(categories, null, new Map()),
     ...buildHorsArbreRows(categories, new Set(marche.horsArbre())),

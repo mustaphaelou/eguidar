@@ -55,7 +55,11 @@ async function creerDeuxProduitsSansStructure() {
 
 const runId = randomUUID().slice(0, 8)
 const pSlug = (suffix: string) => `p-${runId}-${suffix}`
-const cSlug = (suffix: string) => `sf-${runId}-${suffix}`
+/** Le préfixe des Structures de cette suite — les siennes comme celles de la
+ *  fixture, qui le reçoit : le nettoyage se fait par `startsWith`, sans liste
+ *  d'identifiants à tenir à jour (#546). */
+const PREFIXE = `sf-${runId}-`
+const cSlug = (suffix: string) => `${PREFIXE}${suffix}`
 
 /**
  * Colonnes `images` et `specs` stockées hors de leur forme : une galerie
@@ -140,11 +144,15 @@ describe("storefront browse", () => {
   })
 
   afterAll(async () => {
+    // Les Produits d'abord : `Product_categoryId_fkey` est en `RESTRICT`, donc
+    // une Structure encore visée ne se supprime pas. Les Structures de la
+    // fixture partagée portent le préfixe de la suite — elles se suppriment
+    // donc avec les siennes, sans liste d'identifiants (#546).
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `p-${runId}-` } },
     })
     await prisma.category.deleteMany({
-      where: { slug: { startsWith: `sf-${runId}-` } },
+      where: { slug: { startsWith: PREFIXE } },
     })
     await prisma.$disconnect()
   })
@@ -843,10 +851,12 @@ describe("storefront browse", () => {
     beforeAll(async () => {
       // Deux Structures saines, que `planterUnCycleEnBase` referme ensuite
       // l'une sur l'autre comme le ferait un import ou une correction
-      // manuelle — hors de toute mutation de Structure.
+      // manuelle — hors de toute mutation de Structure. Elles portent le
+      // préfixe de la suite, donc le nettoyage par `startsWith` les emporte
+      // comme les autres, cycle compris (#546).
       cycle = [
-        await creerStructure({ name: "Cyclique A" }),
-        await creerStructure({ name: "Cyclique B" }),
+        await creerStructure({ name: "Cyclique A", prefix: PREFIXE }),
+        await creerStructure({ name: "Cyclique B", prefix: PREFIXE }),
       ]
       await planterUnCycleEnBase(cycle.map((structure) => structure.id))
     })
@@ -871,28 +881,10 @@ describe("storefront browse", () => {
       })
     })
 
-    afterAll(async () => {
-      // Les Produits d'abord : `Product_categoryId_fkey` est en `RESTRICT`,
-      // donc une Structure encore visée ne se supprime pas. Le nettoyage de la
-      // suite les supprime aussi, mais il tourne après celui-ci.
-      await prisma.product.deleteMany({
-        where: { categoryId: { in: cycle.map((structure) => structure.id) } },
-      })
-      // Rompre le cycle avant le nettoyage. `ON DELETE SET NULL` le ferait
-      // déjà, mais l'écrire évite de laisser la suite dépendre de lui pour
-      // tenir debout.
-      for (const structure of cycle) {
-        await prisma.category.update({
-          where: { id: structure.id },
-          data: { parentId: null },
-        })
-      }
-      // Les Structures de la fixture partagée ne portent pas le préfixe que le
-      // nettoyage de la suite supprime : elles se suppriment ici (#546).
-      await prisma.category.deleteMany({
-        where: { id: { in: cycle.map((structure) => structure.id) } },
-      })
-    })
+    // Rien à nettoyer ici : les Structures du cycle portent le préfixe de la
+    // suite, donc le `afterAll` de la suite les emporte avec les siennes —
+    // Produits d'abord, `Product_categoryId_fkey` étant en `RESTRICT`, et
+    // `ON DELETE SET NULL` défait le cycle au passage (#546).
 
     it("la fiche Produit rend son fil d'Ariane au lieu de boucler", async () => {
       const detail = await fetchProductPageData(pSlug("cyclique"))
