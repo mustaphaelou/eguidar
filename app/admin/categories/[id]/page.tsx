@@ -4,53 +4,26 @@ import {
   CategoryForm,
   type CategoryFormInitial,
 } from "@/components/admin/category-form"
+import { marcheStructure, type LiensStructure } from "@/lib/marche-structure"
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { updateCategoryAction } from "@/app/admin/categories/actions"
 
 /**
- * Une Structure et toutes ses descendantes : les parentes qu'un éditeur ne
- * peut pas choisir, puisque se suspendre sous l'une d'elles refermerait un
- * cycle.
- *
- * La marche garde les identifiants qu'elle a déjà descendus, et **toute**
- * revisite l'arrête — le même garde, et pour la même raison, que
- * `collectCategoryAndDescendantIds` côté boutique : un cycle déjà en base se
- * referme sur lui-même ici aussi, et la pile grossissait à chaque tour sans
- * qu'aucune transaction n'ait à expirer. Cette marche-ci tourne dans le rendu
- * serveur, où rien d'autre ne la borne : le rendu ne rendait donc jamais la
- * main, et l'éditeur ne pouvait pas ouvrir l'écran qui répare la donnée
- * (#546). Le garde rejette les revisites, pas la longueur : une branche
- * profonde et acyclique passe entière, et aucune profondeur maximale n'est une
- * règle de ce dépôt (ADR-0027).
- *
- * C'est la dernière fois qu'elle est écrite ici : #549 la fera traverser
- * `lib/marche-structure.ts`, le propriétaire de la règle (ADR-0030).
+ * Les liens que la marche consomme, bâtis sur la lecture déjà faite : la
+ * traversée ne coûte donc aucune requête de plus. Les noms, que l'écran a sous
+ * la main, rendent le journal du module lisible quand il nomme un cycle —
+ * sans eux il n'égrènerait que des `cuid` (ADR-0030).
  */
-function collectDescendantIds(
-  categories: Awaited<ReturnType<typeof listAdminCategoriesWithCounts>>,
-  rootId: string
-): string[] {
-  const childrenByParent = new Map<string, string[]>()
+function liensDeLaLecture(
+  categories: Awaited<ReturnType<typeof listAdminCategoriesWithCounts>>
+): LiensStructure {
+  const parents = new Map<string, string | null>()
+  const noms = new Map<string, string>()
   for (const category of categories) {
-    if (category.parentId) {
-      const siblings = childrenByParent.get(category.parentId) ?? []
-      siblings.push(category.id)
-      childrenByParent.set(category.parentId, siblings)
-    }
+    parents.set(category.id, category.parentId)
+    noms.set(category.id, category.name)
   }
-  const descendants: string[] = []
-  const vus = new Set([rootId])
-  const stack = [rootId]
-  while (stack.length > 0) {
-    const id = stack.pop()!
-    for (const child of childrenByParent.get(id) ?? []) {
-      if (vus.has(child)) continue
-      vus.add(child)
-      descendants.push(child)
-      stack.push(child)
-    }
-  }
-  return descendants
+  return { parents, noms }
 }
 
 export default async function EditCategoryPage({
@@ -71,16 +44,29 @@ export default async function EditCategoryPage({
     image: category.image,
   }
 
+  // Les parentes qu'un éditeur ne peut pas choisir : la Structure et ses
+  // descendantes, puisque se suspendre sous l'une d'elles refermerait un
+  // cycle. La marche les rend d'un coup — elle inclut la Structure qu'on lui
+  // nomme, là où l'écran devait l'ajouter à la main — et c'est elle qui
+  // possède la règle : toute revisite l'arrête. Sans quoi un cycle déjà en base
+  // faisait grossir la pile à chaque tour dans le rendu serveur, où rien
+  // d'autre ne la borne : l'écran ne rendait jamais la main, et l'éditeur ne
+  // pouvait pas ouvrir l'écran qui répare la donnée (#546). Cette règle vivait
+  // ici, écrite à la main ; depuis #549 elle vit dans
+  // `lib/marche-structure.ts`, avec le journal qui nomme le cycle une fois
+  // (ADR-0030). L'ordre de la liste, lui, ne se voit nulle part : le
+  // formulaire la range dans un `Set`.
+  const interdites = marcheStructure(liensDeLaLecture(categories)).descendance(
+    category.id
+  )
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">Modifier — {category.name}</h1>
       <CategoryForm
         category={initial}
         categories={categories}
-        excludedParentIds={[
-          category.id,
-          ...collectDescendantIds(categories, category.id),
-        ]}
+        excludedParentIds={interdites}
         action={updateCategoryAction}
       />
     </div>
