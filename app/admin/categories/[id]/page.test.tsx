@@ -16,6 +16,8 @@
  * seul fait qui trahisse la traversée est le journal du cycle, que la marche
  * écrit et qu'une marche locale n'écrirait pas.
  */
+import { randomUUID } from "node:crypto"
+
 import { renderToReadableStream } from "react-dom/server"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
@@ -71,7 +73,12 @@ let cycle: StructureCreee[]
  *  une fois, sans repasser par la boucle. */
 let accrocheeAuCycle: StructureCreee
 
-const idsCrees: string[] = []
+/**
+ * Le préfixe des Structures de cette suite, remis à la fixture partagée : le
+ * nettoyage se fait par `startsWith`, sans liste d'identifiants à tenir à jour
+ * (#546). Il porte un jeton par exécution, comme les slugs des autres suites.
+ */
+const PREFIXE = `edition-546-${randomUUID().slice(0, 8)}-`
 
 async function rendreLEcran(id: string): Promise<string> {
   const stream = await renderToReadableStream(
@@ -99,41 +106,41 @@ function texteDuRendu(html: string): string {
 }
 
 beforeAll(async () => {
-  arbre = await creerArbrePropre({
-    racine: { name: "Arbre A" },
-    enfantA: { name: "Arbre B", parent: "racine" },
-    enfantB: { name: "Arbre C", parent: "racine" },
-    petitA: { name: "Arbre D", parent: "enfantA" },
-    petitB: { name: "Arbre E", parent: "enfantB" },
-    autre: { name: "Arbre F" },
-  })
+  arbre = await creerArbrePropre(
+    {
+      racine: { name: "Arbre A" },
+      enfantA: { name: "Arbre B", parent: "racine" },
+      enfantB: { name: "Arbre C", parent: "racine" },
+      petitA: { name: "Arbre D", parent: "enfantA" },
+      petitB: { name: "Arbre E", parent: "enfantB" },
+      autre: { name: "Arbre F" },
+    },
+    PREFIXE
+  )
 
   // Le cycle arrive comme il arrive en vrai : une Tierce partie le referme en
   // base, hors de toute mutation de Structure (ADR-0027). Il est planté **à
   // côté** de l'arbre propre, et l'épreuve de l'arbre propre vérifie que sa
   // présence ne change rien à l'écran d'une Structure saine.
   cycle = [
-    await creerStructure({ name: "Boucle A" }),
-    await creerStructure({ name: "Boucle B" }),
-    await creerStructure({ name: "Boucle C" }),
+    await creerStructure({ name: "Boucle A", prefix: PREFIXE }),
+    await creerStructure({ name: "Boucle B", prefix: PREFIXE }),
+    await creerStructure({ name: "Boucle C", prefix: PREFIXE }),
   ]
   accrocheeAuCycle = await creerStructure({
     name: "Boucle D",
     parentId: cycle[0].id,
+    prefix: PREFIXE,
   })
   await planterUnCycleEnBase(cycle.map((structure) => structure.id))
-
-  idsCrees.push(
-    ...Object.values(arbre).map((structure) => structure.id),
-    ...cycle.map((structure) => structure.id),
-    accrocheeAuCycle.id
-  )
 })
 
 afterAll(async () => {
   // `ON DELETE SET NULL` défait le cycle au passage ; l'ordre n'importe donc
-  // pas, et une seule instruction suffit.
-  await prisma.category.deleteMany({ where: { id: { in: idsCrees } } })
+  // pas, et une seule instruction suffit. Toutes les Structures de la suite
+  // portent son préfixe — la fixture l'a reçu — donc aucune liste
+  // d'identifiants n'est à tenir (#546).
+  await prisma.category.deleteMany({ where: { slug: { startsWith: PREFIXE } } })
   await prisma.$disconnect()
 })
 

@@ -19,15 +19,24 @@ import { slugify } from "@/lib/slug"
  * Les slugs sont uniques par exécution, comme les deux copies locales que ce
  * module remplace : deux suites ne peuvent pas se heurter sur un slug, et une
  * rangée laissée par une épreuve échouée ne bloque pas la suivante.
+ *
+ * **Le préfixe appartient à l'appelant.** Une suite qui veut nettoyer par
+ * `startsWith` — la façon dont `storefront.test.ts` se nettoie déjà — passe son
+ * propre préfixe, et la fixture le met en tête du slug. Sans préfixe, la
+ * fixture s'accorde le sien : une suite qui ne le connaît pas ne peut pas
+ * nettoyer par `startsWith`, et c'est le prix, pas un oubli.
  */
 
 const runId = randomUUID().slice(0, 8)
 let rang = 0
 
+/** Le préfixe que la fixture s'accorde quand la suite n'en fournit pas. */
+const PREFIXE_FIXTURE = `structure-${runId}-`
+
 /** Un slug neuf, unique dans l'exécution, et lisible dans un message d'échec. */
-function slugNeuf(name: string): string {
+function slugNeuf(name: string, prefix: string): string {
   rang += 1
-  return `structure-${runId}-${rang}-${slugify(name) || "sans-nom"}`
+  return `${prefix}${rang}-${slugify(name) || "sans-nom"}`
 }
 
 /** Ce qu'une Structure créée par ces fixtures rend à sa suite : de quoi
@@ -48,11 +57,13 @@ export function creerStructure(input: {
   name: string
   parentId?: string | null
   image?: string | null
+  /** Le préfixe du slug, pour que la suite nettoie par `startsWith`. */
+  prefix?: string
 }): Promise<StructureCreee> {
   return prisma.category.create({
     data: {
       name: input.name,
-      slug: slugNeuf(input.name),
+      slug: slugNeuf(input.name, input.prefix ?? PREFIXE_FIXTURE),
       parentId: input.parentId ?? null,
       image: input.image ?? null,
     },
@@ -65,10 +76,12 @@ export function creerStructure(input: {
  * l'objet est l'ordre d'écriture — une entrée ne peut donc nommer qu'une clé
  * déjà écrite. Une clé inconnue lève au lieu de planter une racine muette :
  * l'épreuve qui attendait une descendante doit l'apprendre ici, pas par une
- * assertion d'exclusion incompréhensible.
+ * assertion d'exclusion incompréhensible. Le préfixe est celui de la suite, et
+ * vaut pour tout l'arbre.
  */
 export async function creerArbrePropre(
-  arbre: Record<string, { name: string; parent?: string }>
+  arbre: Record<string, { name: string; parent?: string }>,
+  prefix?: string
 ): Promise<Record<string, StructureCreee>> {
   const crees: Record<string, StructureCreee> = {}
   for (const [cle, entree] of Object.entries(arbre)) {
@@ -81,6 +94,7 @@ export async function creerArbrePropre(
     crees[cle] = await creerStructure({
       name: entree.name,
       parentId: parente?.id ?? null,
+      prefix,
     })
   }
   return crees

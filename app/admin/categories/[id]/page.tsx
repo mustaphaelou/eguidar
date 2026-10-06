@@ -4,27 +4,9 @@ import {
   CategoryForm,
   type CategoryFormInitial,
 } from "@/components/admin/category-form"
-import { marcheStructure, type LiensStructure } from "@/lib/marche-structure"
+import { marcheDesStructures } from "@/lib/marche-structure"
 import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
 import { updateCategoryAction } from "@/app/admin/categories/actions"
-
-/**
- * Les liens que la marche consomme, bâtis sur la lecture déjà faite : la
- * traversée ne coûte donc aucune requête de plus. Les noms, que l'écran a sous
- * la main, rendent le journal du module lisible quand il nomme un cycle —
- * sans eux il n'égrènerait que des `cuid` (ADR-0030).
- */
-function liensDeLaLecture(
-  categories: Awaited<ReturnType<typeof listAdminCategoriesWithCounts>>
-): LiensStructure {
-  const parents = new Map<string, string | null>()
-  const noms = new Map<string, string>()
-  for (const category of categories) {
-    parents.set(category.id, category.parentId)
-    noms.set(category.id, category.name)
-  }
-  return { parents, noms }
-}
 
 export default async function EditCategoryPage({
   params,
@@ -56,9 +38,7 @@ export default async function EditCategoryPage({
   // `lib/marche-structure.ts`, avec le journal qui nomme le cycle une fois
   // (ADR-0030). L'ordre de la liste, lui, ne se voit nulle part : le
   // formulaire la range dans un `Set`.
-  const interdites = marcheStructure(liensDeLaLecture(categories)).descendance(
-    category.id
-  )
+  const interdites = marcheDesStructures(categories).descendance(category.id)
 
   return (
     <div className="flex flex-col gap-4">
