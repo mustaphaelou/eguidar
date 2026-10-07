@@ -196,3 +196,56 @@ contestation. Elles sont consignées ici pour être retournées, pas pour être 
   inchangés. L'interface de lecture grandit ; le côté écriture ne se déplace pas.
 - Aucun terme de glossaire n'est ajouté, et le travail de glossaire du **Brouillon d'Image produit**
   reste celui du cycle de vie des images.
+
+## Amendement — La lecture étroite des formulaires Produit rejoint la Lecture de la Structure (#564)
+
+La décision tient : le module Catalogue reste le propriétaire des lectures **Produit** de l'Administration,
+l'interface de lecture répond en faits et jamais en rangées, et le module neutre du formulaire Produit ne
+bouge pas. Une de ses trois lectures en sort : celle de la liste des Structures.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Aucune ligne de la décision n'est changée ; deux passages la décrivent désormais à rebours. C'est le
+présent amendement qu'il faut y lire à côté :
+
+- la première puce — « [`lib/use-cases/admin-catalog.ts`](../../lib/use-cases/admin-catalog.ts) garde
+  ses **trois lectures** et n'en gagne pas d'autre » : il en garde deux, et la troisième est devenue la
+  même lecture que celle des écrans de catégories, projetée autrement ;
+- la puce de la lecture de catégories — « **La lecture de catégories répond par exactement deux faits**
+  […] et **reste dans le module Catalogue**. Ses deux appelants sont deux écrans Produit déjà situés
+  dans ce module ; **un saut vers le module Structure n'aurait acheté que de la propreté, contre une
+  dépendance neuve pour deux faits.** Elle n'est pas confondue avec la lecture à compteurs du module
+  Structure, qui sert les écrans de catégories. » Les trois phrases sont fausses, et pour la même
+  raison : la dépendance vers le module Structure n'est plus neuve, elle existe pour cinq autres
+  lectures, et les deux lectures ne sont plus distinguables puisque c'en est une seule.
+
+### La lecture étroite cesse d'être une lecture
+
+`listAdminCategories` rendait `{ id, name }` et ne le savait pas : rien dans son nom, rien dans son
+appelant, ne disait qu'elle lisait une Structure. Elle disparaît. Les sélecteurs de Structure des deux
+formulaires Produit sont alimentés par la Lecture de la Structure, projetés à l'identifiant et au nom
+seulement — **le formulaire ne reçoit pas davantage de faits qu'il n'en demandait**, ce qui est la
+seule exigence que la présente décision posait sur cette lecture.
+
+La phrase « un module de lecture parallèle » de la première puce vise les lectures **Produit** : le
+module qui prend la Structure n'en est pas un, et le module Catalogue ne perd aucun de ses faits.
+
+### Le prix, et pourquoi il est accepté
+
+Les formulaires Produit lisent désormais deux agrégats et une jointure qu'ils ne regardent pas : leur
+sélecteur n'a besoin que d'un nom. Le prix est assumé et non subi, parce que l'autre issue était pire —
+une seconde lecture de la Structure aurait créé un second propriétaire de cette lecture, ce qui est
+exactement ce que le travail qui précède vient de supprimer. Une lecture de plus pour deux faits
+n'était pas un coût ; une lecture de plus pour la table entière en était un.
+
+### Ce que cet amendement ne change pas
+
+- **Le module Catalogue garde les deux lectures Produit** et garde son approfondissement sur place ;
+  `listAdminProducts` et `getAdminProduct` ne sont pas touchées.
+- **L'invariant « Aucun terme de glossaire n'est ajouté »** reste vrai pour le travail qu'il décrit :
+  c'est [#564](https://github.com/eloaurdi/eguidar/issues/564) qui ajoute un terme, et il le nomme —
+  la **Lecture de la Structure**.
+- **« Cet ADR n'amende rien »** reste vrai des autres ADR : ADR-0022, ADR-0014 et ADR-0025 sont
+  confirmés inchangés. Ce qu'il faut y lire à côté, c'est le présent amendement.
+- **Le module neutre du formulaire Produit** garde son contrat de neutralité et sa garde ; les
+  formulaires ne gagnent aucun fait et ne perdent aucun.

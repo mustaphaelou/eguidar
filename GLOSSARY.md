@@ -147,6 +147,17 @@ Une Structure corrompue que le cycle soustrait à toute autre : elle existe en b
 la nomme ; la boutique se contente de journaliser (ADR-0030).
 _Avoid_: catégorie orpheline, catégorie cyclique, structure orpheline
 
+**Lecture de la Structure**:
+La lecture serveur de la Structure pour une page : un seul module
+(`lib/use-cases/lecture-structure.ts`) lit la table `Category` une fois par exécution, en tire une
+Marche de la Structure, et répond de ce que la marche a parcouru comme de ce qu'une surface
+demande — l'arbre d'accueil, les lignes de l'Administration, le fil d'Ariane, une Structure et sa
+descendance, et le complément des deux. Elle rend des faits, jamais des verdicts : ce qu'un cycle
+signifie reste à celui qui l'appelle — l'Administration le nomme, la boutique dégrade (ADR-0030).
+Elle ne lit jamais dans une transaction : les lectures qu'une mutation doit juger sur des faits
+engagés restent avec elle, sous le verrou grossier (ADR-0027).
+_Avoid_: lecture de catégorie, category read, listAdminCategoriesWithCounts (comme nom du concept)
+
 **Recherche**:
 The act of finding products across the Catalogue by free-text query, in which every term of the
 query must be found in the Document d'index, typo tolerance permitting, filtrable par une ou
