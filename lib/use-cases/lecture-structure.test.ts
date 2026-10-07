@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   projeterArbreAccueil,
+  projeterEcranEdition,
   projeterLignesAdmin,
   projeterOptionsSelecteur,
   type FaitStructure,
@@ -26,12 +27,13 @@ import {
  * d'une requête, aucun rendu : une épreuve qui casserait au premier changement
  * de marge ou de collation n'éprouverait pas un fait de Structure.
  *
- * Trois projections s'y prouvent : l'arbre d'accueil, les lignes de
- * l'Administration, et le sélecteur d'un formulaire. Elles partagent les
- * fixtures parce qu'elles interrogent les **mêmes** faits, pas parce que la
- * preuve est la même — l'une rend une hiérarchie, l'autre une liste ordonnée qui
- * se lit à l'écran, la troisième une liste d'options qui ne rend que
- * l'identifiant et le nom. Chaque projection garde donc ses épreuves, et une
+ * Quatre projections s'y prouvent : l'arbre d'accueil, les lignes de
+ * l'Administration, le sélecteur d'un formulaire, et l'écran d'édition. Elles
+ * partagent les fixtures parce qu'elles interrogent les **mêmes** faits, pas
+ * parce que la preuve est la même — l'une rend une hiérarchie, l'autre une liste
+ * ordonnée qui se lit à l'écran, la troisième une liste d'options qui ne rend que
+ * l'identifiant et le nom, la dernière ce qu'un formulaire propose pour une
+ * Structure qu'il édite. Chaque projection garde donc ses épreuves, et une
  * assertion d'une projection ne vaut pas pour l'autre.
  */
 
@@ -594,7 +596,7 @@ describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affich
 
     // L'ordre est celui que le module promet déjà — le nom en français, puis le
     // slug — donc le même qu'à l'accueil et dans la liste d'Administration. Le
-    // formulaire ne trie pas pour sa despece : trois surfaces, une seule
+    // formulaire ne trie pas pour sa despece : quatre surfaces, une seule
     // promesse, et un éditeur qui voit le même ordre partout (US 31).
     expect(options).toEqual([
       { id: "enfant-a", name: "Enfant A" },
@@ -673,6 +675,177 @@ describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affich
       // enregistrement ajouterait une seconde ligne pour le même cycle, et
       // l'avertissement cesserait de dire combien de Structures toucher.
       expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
+/* ======================================================================== *
+ * L'écran d'édition d'une Structure (#572)                                  *
+ * ======================================================================== *
+ *
+ * La quatrième forme que la Lecture rend, et la première qui ne soit ni une liste
+ * à regarder ni un simple choix de parente : ce qu'un **formulaire** affiche
+ * pour une Structure — la Structure elle-même, les candidates qu'il propose, et
+ * celles qu'il ne peut pas proposer. Les deux dernières n'en sont qu'une : le
+ * formulaire reçoit des identifiants et **construit lui-même** le `Set` qui les
+ * écarte (ADR-0028) ; la projection n'en rend donc aucun, et ne décide de rien.
+ *
+ * **C'est la même lecture et la même marche que tout le reste, et c'est le
+ * point.** L'écran d'édition a deux questions à poser — « quelle Structure
+ * j'édite » et « quelles parentes puis-je proposer » — et chacune prise seule
+ * se paierait d'une lecture et d'une marche : deux lignes de journal pour un
+ * seul cycle, et l'avertissement cesserait de dire combien de Structures
+ * toucher. D'où une seule porte, qui répond à tout ce que l'écran rend
+ * (ADR-0030).
+ */
+describe("projeterEcranEdition — sur un arbre sain", () => {
+  it("rend la Structure éditée, ses candidates, et la primitive comme parentes exclues", () => {
+    const ecran = projeterEcranEdition(ARBRE_SAIN, "enfant-a")!
+
+    // La Structure éditée, dans la forme **étroite** que le formulaire rend :
+    // ni compte de Produits, ni profondeur, ni nom de parente — le formulaire ne
+    // les montre pas, donc les lire serait lui payer une preuve qu'il n'a pas
+    // demandée. Le `toEqual` est ce qui l'asserte : un fait de plus se verrait.
+    expect(ecran.structureEditee).toEqual({
+      id: "enfant-a",
+      name: "Enfant A",
+      slug: "enfant-a",
+      image: null,
+      parentId: "racine",
+    })
+
+    // Les candidates : la table entière, l'identifiant et le nom — les deux seuls
+    // faits d'une option de sélecteur — dans l'ordre que le module promet, et
+    // **sans** la descendance en moins. C'est le formulaire qui soustrait sa
+    // liste, donc une projection qui la soustrairait ici decidingait deux fois
+    // la même règle, à deux endroits qu'aucune épreuve ne relierait.
+    expect(ecran.candidates).toEqual([
+      { id: "enfant-a", name: "Enfant A" },
+      { id: "enfant-b", name: "Enfant B" },
+      { id: "isolee", name: "Isolée" },
+      { id: "petit-a", name: "Petit A" },
+      { id: "racine", name: "Racine" },
+    ])
+
+    // Et les parentes exclues : **la primitive, telle qu'elle est** — la
+    // Structure elle-même comprise. Ce « elle-même comprise » n'appartient pas à
+    // l'écran, qui le disait jusqu'ici en l'ajoutant à la main ; il vient de la
+    // marche, donc il ne peut pas s'oublier en chemin. Une projection qui le
+    // retirerait rendrait l'écran capable de proposer de suspendre une Structure
+    // sous elle-même, donc de refermer une boucle par un simple enregistrement.
+    expect(ecran.parentesExclues).toEqual(["enfant-a", "petit-a"])
+  })
+
+  it("laisse la parente actuelle parmi les candidates, jamais parmi les exclues", () => {
+    const ecran = projeterEcranEdition(ARBRE_SAIN, "enfant-a")!
+
+    // Le fait que la spec énonce par une histoire d'éditeur (US 14) : renommer
+    // une Structure ne doit pas obliger à lui choisir une nouvelle place. La
+    // parente est un **ancêtre**, donc elle n'est pas dans la branche qu'on
+    // exclut — et elle reste donc offerte. L'exclure « pour être sûr » est le
+    // régression que ces deux attentes gardent.
+    expect(ecran.structureEditee.parentId).toBe("racine")
+    expect(ecran.parentesExclues).not.toContain("racine")
+    expect(ecran.candidates).toContainEqual({ id: "racine", name: "Racine" })
+  })
+
+  it("rend une Structure que les faits ne portent pas comme un écran absent", () => {
+    // Une lecture peut nommer une rangée que la table ne porte plus : une
+    // suppression entre la lecture et le rendu. La Lecture **dégrade** — elle ne
+    // lève pas, elle ne rend pas une Structure imaginaire (ADR-0030) — et c'est
+    // l'écran qui décide alors ce qu'il en dit.
+    expect(projeterEcranEdition(ARBRE_SAIN, "inconnue")).toBeNull()
+    expect(projeterEcranEdition([], "inconnue")).toBeNull()
+  })
+
+  it("ne journalise rien : le journal garde son sens", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      projeterEcranEdition(ARBRE_SAIN, "enfant-a")
+
+      // Une ligne sur un arbre sain serait une alerte qu'un éditeur prendrait
+      // pour une corruption, et il chercherait une faute qui n'existe pas.
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
+describe("projeterEcranEdition — sur une Structure déjà cyclique", () => {
+  /**
+   * Un cycle, et une branche qui y mène, à côté d'une Structure saine :
+   *
+   *     racine
+   *     amont ──┐
+   *             ├─ boucle-a ⇄ boucle-b
+   *     ┘
+   *
+   * La forme exacte de l'écran d '#546' : c'est elle qu'un éditeur doit pouvoir
+   * ouvrir pour réparer la donnée, donc elle doit se rendre — et le dire une
+   * fois.
+   */
+  const AVEC_CYCLE: FaitStructure[] = [
+    structure("racine", "Racine", null, 1),
+    structure("amont", "Amont", "boucle-a"),
+    structure("boucle-a", "Boucle A", "boucle-b"),
+    structure("boucle-b", "Boucle B", "boucle-a"),
+  ]
+
+  it("rend l'écran sur un maillon du cycle, sans rien perdre du reste", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const ecran = projeterEcranEdition(AVEC_CYCLE, "boucle-a")!
+
+      // L'écran entier est là : la Structure éditée, la boucle qu'on peut
+      // réparer, et la Structure saine qu'on n'a pas à réécrire parce qu'une
+      // corruption existe ailleurs.
+      expect(ecran.structureEditee).toMatchObject({
+        id: "boucle-a",
+        parentId: "boucle-b",
+      })
+      expect(ecran.candidates.map((candidat) => candidat.id)).toEqual([
+        "amont",
+        "boucle-a",
+        "boucle-b",
+        "racine",
+      ])
+
+      // Les parentes exclues sont la branche du cycle : ses deux maillons et la
+      // branche accrochée, **chacun une fois**. La règle de terminaison de la
+      // marche est ce qui borne la liste, et une exclusion qui se répéterait
+      // proposerait deux fois la même.
+      expect(ecran.parentesExclues).toEqual(["boucle-a", "amont", "boucle-b"])
+      expect(new Set(ecran.parentesExclues).size).toBe(
+        ecran.parentesExclues.length
+      )
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("journalise le cycle une fois, en nommant ses Structures", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      projeterEcranEdition(AVEC_CYCLE, "boucle-a")
+
+      // **Une ligne, et c'est une preuve de structure, pas de contenu.** Les trois
+      // faits de l'écran — la Structure, les candidates, la branche exclue —
+      // sortent d'**une** marche : la retenue qui tait un cycle vit dans la
+      // marche et meurt avec elle. Une projection qui bâti une seconde marche
+      // pour l'une de ses trois réponses dirait le même cycle une seconde fois,
+      // et cette épreuve tomberait. Une ligne de plus se lirait « deux cycles »,
+      // alors qu'il n'y en a qu'un à réparer.
+      expect(warn).toHaveBeenCalledTimes(1)
+      const ligne = warn.mock.calls[0]!.join(" ")
+      expect(ligne).toContain("[marche-structure]")
+      expect(ligne).toContain("Boucle A")
+      expect(ligne).toContain("Boucle B")
+      // L'amont mène au cycle sans en être : la ligne nomme ce qu'il faut
+      // réparer, et un `Amont` de plus la rendrait illisible.
+      expect(ligne).not.toContain("Amont")
     } finally {
       warn.mockRestore()
     }

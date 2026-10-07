@@ -2,8 +2,10 @@
  * La Lecture de la Structure — le module serveur qui possède la lecture de la
  * Structure. Il lit la table `Category` **une fois par exécution**, en déduit
  * une Marche, et répond de ce qu'une surface demande ; la page d'accueil passe
- * par lui pour son arbre, et les autres surfaces y viendront une par une
- * (#564).
+ * par lui pour son arbre, la liste d'Administration pour ses lignes (#567), le
+ * sélecteur des formulaires Produit pour ses options (#568), et l'écran d'édition
+ * pour la Structure qu'il édite et les parentes qu'il peut proposer (#572). Les
+ * autres surfaces y viendront une par une (#564).
  *
  * **C'est un module serveur, et il ne prétend pas être neutre : il lit la base.**
  * Ce qui est neutre est en dessous, dans `lib/marche-structure.ts` (ADR-0030).
@@ -112,14 +114,18 @@
  * `"use client"` ne peut pas l'atteindre (ADR-0030).
  *
  * **Elles n'ont pas de porte de lecture, et c'est délibéré.** Une porte de
- * lecture par question relirait la table : la règle « une lecture par
- * exécution » (US 23) ne tient que si la page appelle **une** projection qui lit
- * et que tout le reste se dérive des faits qu'elle a déjà en main. Les deux
- * listes de la partition sont donc rendues par la page, sur le surensemble de
- * cette lecture, et nulle surface ne les réclame encore (#569).
+ * lecture par question relirait la table, et surtout rebâtirait une marche —
+ * or la retenue qui tait un cycle **vit dans la marche** : une seconde marche
+ * sur les mêmes faits dirait le même cycle une seconde fois. La règle n'est donc
+ * pas « une porte par question », c'est **une porte par écran**, et elle
+ * répond à tout ce que l'écran rend : c'est ainsi que `projeterEcranEdition`
+ * (#572) rend d'une seule marche la Structure qu'un écran édite *et* la
+ * branche qu'il lui exclut. `complementDe` reste sans porte, et ce n'est pas un
+ * oubli : aucune surface ne le réclame encore, et la première qui le fera
+ * partage son écran avec une projection qui a déjà lu.
  */
 import { prisma } from "@/lib/db"
-import { marcheDesStructures } from "@/lib/marche-structure"
+import { descendanceDe, marcheDesStructures } from "@/lib/marche-structure"
 
 export {
   complementDe,
@@ -160,11 +166,11 @@ export interface NoeudAccueil {
 }
 
 /**
- * Ce que l'ordre du module classe : le nom d'une Structure et son slug. Les trois
- * projections qui rendent une liste ordonnée — l'arbre d'accueil, les lignes
- * de l'Administration et le sélecteur d'un formulaire — comparent donc **la même
- * promesse**, écrite une fois, et non trois comparateurs qui pourraient diverger
- * sans qu'aucune épreuve ne s'en aperçoive.
+ * Ce que l'ordre du module classe : le nom d'une Structure et son slug. Les
+ * projections qui rendent une liste ordonnée — l'arbre d'accueil, les lignes de
+ * l'Administration, le sélecteur d'un formulaire et l'écran d'édition — comparent
+ * donc **la même promesse**, écrite une fois, et non quatre comparateurs qui
+ * pourraient diverger sans qu'aucune épreuve ne s'en aperçoive.
  */
 interface StructureOrdonnee {
   name: string
@@ -589,4 +595,123 @@ export function projeterOptionsSelecteur(
  */
 export async function lireOptionsSelecteur(): Promise<OptionStructure[]> {
   return projeterOptionsSelecteur(await lireToutesLesStructures())
+}
+
+/* ======================================================================== *
+ * L'écran d'édition d'une Structure (#572)                                  *
+ * ======================================================================== *
+ *
+ * La quatrième forme que la Lecture rend, et la première qui ne soit ni une liste
+ * à regarder ni un simple choix de parente : ce qu'un **formulaire** propose pour
+ * une Structure. Les lignes d'Administration se parcourent, l'arbre d'accueil se
+ * descend, le sélecteur d'un formulaire se parcourt ; ici la projection répond à
+ * trois questions d'un formulaire — quelle Structure j'édite, quelles Structures
+ * puis-je lui proposer comme parente, et lesquelles ne puis-je pas.
+ *
+ * **Une porte pour les trois, et c'est le fait central.** L'écran avait deux
+ * questions, donc deux lectures possibles : la rangée qu'il édite, et la
+ * branche qu'il exclut. Les prendre séparément aurait relu la table et aurait
+ * surtout rebâti **deux marches** — donc deux lignes de journal pour un seul
+ * cycle, et un avertissement qui aurait compté deux fois une boucle à réparer
+ * une fois. Une porte, une lecture, une marche, une ligne par cycle : c'est
+ * l'invariant que le module protège, et le formulaire reçoit sa liste sans rien
+ * savoir de la marche qui l'a produite (ADR-0030).
+ */
+
+/**
+ * La Structure qu'un écran édite, dans la forme **étroite** que le formulaire
+ * rend : ni compte de Produits, ni profondeur, ni nom de parente — il ne les
+ * montre pas, donc les lui faire porter serait lui payer une preuve qu'il n'a
+ * pas demandée (US 32).
+ */
+export interface StructureEditable {
+  id: string
+  name: string
+  slug: string
+  image: string | null
+  parentId: string | null
+}
+
+/**
+ * Ce que l'écran d'édition rend : la Structure qu'il édite, les candidates
+ * qu'il propose, et les parentes qu'il ne peut pas proposer.
+ *
+ * **Les deux listes ne se rencontrent pas dans le module : la première est la
+ * table entière, la seconde la branche.** C'est le formulaire qui construit son
+ * `Set` et qui soustrait, donc la projection ne décide pas qui est écarté — elle
+ * rend ce que la marche a parcouru et laisse la couture se fermer côté client,
+ * comme ADR-0028 l'a décidé. Soustraire ici la branche serait décider la même
+ * règle à deux endroits qu'aucune épreuve ne relierait, et une surface cliente
+ * qui n'aurait pas ce module-ci devrait la réécrire (US 39, US 40).
+ */
+export interface EcranEditionStructure {
+  /** La Structure éditée, dans la forme que le formulaire rend. */
+  structureEditee: StructureEditable
+  /** Toutes les Structures, par identifiant et nom, dans l'ordre du module. */
+  candidates: { id: string; name: string }[]
+  /** La Structure et ses descendantes : ce qu'un éditeur ne peut pas choisir. */
+  parentesExclues: string[]
+}
+
+/**
+ * Ce que l'écran d'édition rend, projeté sur des faits déjà en mémoire — la
+ * porte pure, où la règle se prouve sans PostgreSQL.
+ *
+ * **La liste des parentes exclues est la primitive, exactement comme elle est.**
+ * Elle est la Structure nommée **et** ses descendantes, chacune au plus une
+ * fois : l'écran ajoutait la Structure à la main, et le module ne le fait plus,
+ * donc le « elle-même comprise » ne peut pas s'oublier en chemin. Le retirer
+ * rendrait l'écran capable de se proposer comme propre parente, donc de
+ * refermer une boucle par un simple enregistrement.
+ *
+ * **Ce sont les seules questions de cette projection, et une seule marche y
+ * répond.** Les candidates n'ont besoin que d'un tri, et la rangée éditée
+ * d'une recherche ; les construire sur une marche leur aussi donnerait deux
+ * lignes de journal pour un cycle, donc un avertissement qui ne dirait plus
+ * combien de Structures toucher.
+ */
+export function projeterEcranEdition(
+  structures: readonly FaitStructure[],
+  id: string
+): EcranEditionStructure | null {
+  const fait = structures.find((structure) => structure.id === id)
+  // Une rangée que la table ne porte plus — une suppression entre la lecture et
+  // le rendu — ne devient pas une Structure imaginaire : la Lecture dégrade,
+  // rend une absence, et c'est l'écran qui décide alors ce qu'il en dit
+  // (ADR-0030). Elle ne lève donc pas, et ne demande même pas la branche : une
+  // Structure absente n'a pas de descendance à exclure.
+  if (!fait) return null
+
+  return {
+    structureEditee: {
+      id: fait.id,
+      name: fait.name,
+      slug: fait.slug,
+      image: fait.image,
+      parentId: fait.parentId,
+    },
+    // La table entière, dans l'ordre que le module promet — le même comparateur
+    // que pour l'arbre d'accueil, la liste d'Administration et le sélecteur d'un
+    // formulaire, donc une seule promesse d'ordre pour quatre surfaces. Elle
+    // n'est pas diminuée de la branche : c'est le formulaire qui soustrait, et le
+    // module rend donc des faits, pas un verdict.
+    candidates: [...structures]
+      .sort(comparerDesFreres)
+      .map((candidat) => ({ id: candidat.id, name: candidat.name })),
+    parentesExclues: descendanceDe(structures, id),
+  }
+}
+
+/**
+ * L'écran d'édition d'une Structure — la porte de lecture.
+ *
+ * Une exécution, une lecture, une marche, une ligne par cycle. L'écran appelle
+ * cette méthode **une fois** : il ne construit plus de marche, ne relit plus la
+ * table, et ne porte plus en prose la promesse que le module tient ici
+ * (ADR-0030).
+ */
+export async function lireEcranEdition(
+  id: string
+): Promise<EcranEditionStructure | null> {
+  return projeterEcranEdition(await lireToutesLesStructures(), id)
 }
