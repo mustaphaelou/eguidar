@@ -43,6 +43,20 @@
  * mémoire de `parentId` et du nom, comme le fil d'Ariane le fait déjà, et une
  * jointure de plus serait une seconde manière de lire la Structure.
  *
+ * **Cette dérivation est ce qui laisse l'Administration hors arbre payer juste
+ * ce qu'elle demande** (#567). La liste de l'Administration a besoin d'un nom de
+ * parente et d'un nombre de sous-catégories ; la boutique n'a besoin ni de l'un
+ * ni de l'autre. Les lire — un `parent: { select }` et un `_count.children` —
+ * les ferait payer à *toute* surface, sur la requête qu'elle fait déjà, et la
+ * boutique verrait son coût monter pour une preuve qu'elle n'a pas demandée.
+ * Dérivés, ils valent exactement ce que la base aurait rendu — la lecture prend
+ * la table entière, sans `where`, donc `_count.children` et « les Structures dont
+ * le lien est cette rangée » sont le même nombre, et `parent.name` et la carte
+ * des noms sont le même texte — et personne ne paie un fait qu'il n'a pas
+ * demandé. Le surensemble reste donc à six faits, et chaque projection rend la
+ * forme **étroite** que sa surface consomme : une surface ne reçoit pas plus
+ * qu'elle ne l'a demandé (US 32).
+ *
  * **L'ordre est une promesse du module, et il est tenu en JavaScript.** Le
  * déploiement n'épingle aucune collation, donc un `orderBy` de la base n'est pas
  * un ordre que le module puisse garder : deux serveurs de base versions
@@ -146,11 +160,23 @@ export interface NoeudAccueil {
 }
 
 /**
+ * Ce que l'ordre du module classe : le nom d'une Structure et son slug. Les deux
+ * projections qui rendent une liste ordonnée — l'arbre d'accueil et les lignes
+ * de l'Administration — comparent donc **la même promesse**, écrite une fois,
+ * et non deux comparateurs qui pourraient diverger sans qu'aucune épreuve ne
+ * s'en aperçoive.
+ */
+interface StructureOrdonnee {
+  name: string
+  slug: string
+}
+
+/**
  * L'ordre que le module promet : le nom en français, puis le slug — unique, donc
  * total. Le tri est ici et non dans la requête, et le commentaire de l'en-tête
  * dit pourquoi.
  */
-function comparerDesFreres(a: NoeudAccueil, b: NoeudAccueil): number {
+function comparerDesFreres(a: StructureOrdonnee, b: StructureOrdonnee): number {
   return (
     a.name.localeCompare(b.name, "fr") || a.slug.localeCompare(b.slug, "fr")
   )
@@ -294,4 +320,180 @@ async function lireToutesLesStructures(): Promise<FaitStructure[]> {
  */
 export async function lireArbreAccueil(): Promise<NoeudAccueil[]> {
   return projeterArbreAccueil(await lireToutesLesStructures())
+}
+
+/* ======================================================================== *
+ * Les lignes de l'Administration (#567)                                     *
+ * ======================================================================== *
+ *
+ * La liste d'Administration était la **seconde** implementation de la descente :
+ * son propre bâtisseur d'arbre, sa propre profondeur, son propre compagnon pour
+ * les Structures hors arbre, et deux tris — l'un qui portait l'ordre, l'autre qui
+ * ne compensait rien. Elle est ici, dans la projection pure, à côté de l'arbre
+ * d'accueil : même matière, même ordre, même règle de terminaison, et une seule
+ * ligne de journal pour un cycle quel que soit le nombre de surfaces qui le
+ * traverse.
+ */
+
+/**
+ * Une ligne de la liste d'Administration : les faits qu'une rangée de Structure
+ * porte, plus **les trois questions que la ligne pose sur sa propre place**.
+ *
+ * `profondeur` est le niveau dans l'arbre — une racine vaut zéro — et c'est un
+ * fait, pas une mesure : l'écran en fait un retrait, cette interface ne promet
+ * qu'un entier. `horsArbre` est la seule chose qu'une ligne doit à sa
+ * provenance : une Structure qu'aucune racine n'atteint ne se range dans aucune
+ * branche, donc elle ne se lit pas comme les autres (ADR-0030). `nomParente` est
+ * le nom que `parentId` désigne, et `null` pour une racine comme pour un lien
+ * que rien ne nomme — l'écran décide alors de ce qu'il en dit.
+ *
+ * Les deux compteurs sont **dérivés**, jamais lus : voir l'en-tête. Le lien, lui,
+ * reste dans la ligne : c'est lui qui décide si elle annonce une parente ou une
+ * racine, et une surface qui s'en passerait le devinerait.
+ */
+export interface LigneStructureAdmin {
+  id: string
+  name: string
+  slug: string
+  image: string | null
+  parentId: string | null
+  /** Le nom que `parentId` désigne, ou `null` — racine, ou lien non nommé. */
+  nomParente: string | null
+  /** Les **Produits directs** : le même fait que l'arbre d'accueil cumule. */
+  nombreProduits: number
+  /** Les sous-catégories directes : les Structures dont le lien est cette rangée. */
+  nombreEnfants: number
+  profondeur: number
+  horsArbre: boolean
+}
+
+/**
+ * Les lignes de la liste d'Administration, projetées sur des faits déjà en
+ * mémoire — la porte pure. C'est elle qui porte l'ordre de la page et le
+ * placement des Structures hors arbre, donc la preuve de ces deux faits ne coûte
+ * plus de base de données.
+ *
+ * **L'ordre est ici, et il est pré-ordre.** Les frères sont triés par le nom en
+ * français puis par le slug, et une Structure est rendue avant ses descendantes,
+ * dont elle est le repère de lecture : un `flatMap` récursif sur des rangées que
+ * la base rend dans **l'ordre de sa collation** ne produit un ordre que si les
+ * frères sont triés au préalable — c'est ce tri-là qui doit survivre au
+ * déplacement, contrairement à celui du compagnon hors arbre, qui n'existait que
+ * pour rattraper ce que la collation de la base n'ordonnait pas comme la
+ * comparaison française. Les deux vivent désormais ici, et ils sont un seul
+ * ordre.
+ *
+ * **Rien ne se perd, et c'est un changement de règle.** Une Structure dont le
+ * `parentId` ne nomme aucune autre rangée n'est plus **oubliée** : elle est
+ * rendue, comme hors arbre, parce que c'est ce qu'elle est — présente en base,
+ * absente de toute branche. Le bâtisseur d'arbre de l'écran ne la rendait pas du
+ * tout, et rien dans son rendu ne disait qu'une rangée manquait.
+ */
+export function projeterLignesAdmin(
+  structures: readonly FaitStructure[]
+): LigneStructureAdmin[] {
+  // Une seule marche pour toute la projection, donc une seule ligne par cycle :
+  // la mémoire des cycles signalés vit dans la marche, et elle meurt avec elle.
+  // Le sous-ensemble hors arbre et le journal qui le nomment viennent donc du
+  // même coup — le dire est le même acte.
+  const marche = marcheDesStructures(structures)
+  const horsArbre = new Set(marche.horsArbre())
+
+  // Les deux noms que la ligne annonce, dérivés des faits qu'elle a déjà : le nom
+  // de la parente par le lien, et le nombre de sous-catégories par le lien
+  // inverse. Une lecture de plus — une jointure, un `COUNT` — coûterait à toutes
+  // les surfaces alors que la table entière est déjà en mémoire.
+  const noms = new Map(structures.map((fait) => [fait.id, fait.name]))
+  const enfantsParParente = new Map<string, number>()
+  for (const fait of structures) {
+    if (fait.parentId === null) continue
+    enfantsParParente.set(
+      fait.parentId,
+      (enfantsParParente.get(fait.parentId) ?? 0) + 1
+    )
+  }
+
+  const ligneDe = (
+    fait: FaitStructure,
+    profondeur: number,
+    hors: boolean
+  ): LigneStructureAdmin => ({
+    id: fait.id,
+    name: fait.name,
+    slug: fait.slug,
+    image: fait.image,
+    parentId: fait.parentId,
+    nomParente:
+      fait.parentId === null ? null : (noms.get(fait.parentId) ?? null),
+    nombreProduits: fait.produitsDirects,
+    nombreEnfants: enfantsParParente.get(fait.id) ?? 0,
+    profondeur,
+    horsArbre: hors,
+  })
+
+  // Les faits groupés par parente, puis les frères triés une fois. Un `flatMap`
+  // qui recursait sur les faits tels que la base les rendait — donc dans l'ordre de
+  // sa collation — produirait une descente dont les frères sont dans cet ordre ;
+  // les trier ici est ce qui fait du regroupement l'ordre promis.
+  const faits = new Map(structures.map((fait) => [fait.id, fait]))
+  const groupes = new Map<string, FaitStructure[]>()
+  const racines: FaitStructure[] = []
+  for (const fait of structures) {
+    // La marche a déjà classé : hors arbre, une Structure n'appartient à aucune
+    // branche et se rend à la suite, une fois.
+    if (horsArbre.has(fait.id)) continue
+    const parente =
+      fait.parentId === null ? undefined : faits.get(fait.parentId)
+    if (parente === undefined) {
+      racines.push(fait)
+      continue
+    }
+    const groupe = groupes.get(parente.id)
+    if (groupe) groupe.push(fait)
+    else groupes.set(parente.id, [fait])
+  }
+  racines.sort(comparerDesFreres)
+  for (const groupe of groupes.values()) groupe.sort(comparerDesFreres)
+
+  // La descente, sur une pile explicite : une chaîne de plusieurs milliers de
+  // maillons est une forme ordinaire ici, et une descente récursive — celle que
+  // portait le bâtisseur d'arbre de cet écran — la ferait tomber. La profondeur voyage
+  // dans la pile, donc le coût de la récursion disparaît avec elle.
+  const lignes: LigneStructureAdmin[] = []
+  const pile: { fait: FaitStructure; profondeur: number }[] = []
+  for (let rang = racines.length - 1; rang >= 0; rang -= 1) {
+    pile.push({ fait: racines[rang]!, profondeur: 0 })
+  }
+  while (pile.length > 0) {
+    const { fait, profondeur } = pile.pop()!
+    lignes.push(ligneDe(fait, profondeur, false))
+    const groupe = groupes.get(fait.id) ?? []
+    for (let rang = groupe.length - 1; rang >= 0; rang -= 1) {
+      pile.push({ fait: groupe[rang]!, profondeur: profondeur + 1 })
+    }
+  }
+
+  // Et les Structures hors arbre, après l'arbre et à la racine : le même ordre
+  // que lui, sans retrait, parce qu'aucune branche ne les porte. Le tri est ici
+  // pour la même raison qu'au-dessus — la base ne l'ordonne pas comme la
+  // comparaison française — et il ne double pas la descente : ces rangées ne sont
+  // dans aucun groupe.
+  const horsLignes = structures
+    .filter((fait) => horsArbre.has(fait.id))
+    .sort(comparerDesFreres)
+    .map((fait) => ligneDe(fait, 0, true))
+
+  return [...lignes, ...horsLignes]
+}
+
+/**
+ * Les lignes de la liste d'Administration — la porte de lecture.
+ *
+ * Une exécution, une lecture, une marche, une ligne par cycle : c'est la
+ * surface qui rend la corruption visible à un être humain, donc celle dont le
+ * journal doit dire juste. L'écran appelle cette méthode une fois et ne construit
+ * plus de marche — il ne lui reste qu'à rendre les lignes.
+ */
+export async function lireLignesAdmin(): Promise<LigneStructureAdmin[]> {
+  return projeterLignesAdmin(await lireToutesLesStructures())
 }

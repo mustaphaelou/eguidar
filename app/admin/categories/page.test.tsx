@@ -2,24 +2,25 @@
  * Liste des catégories — test de rendu : fixtures réelles en base, rendu via
  * `renderToReadableStream`, assertions sur le HTML.
  *
- * C'est la première suite de cet écran, et elle garde le fait qui porte #550 :
- * la liste descend de la racine, donc une Structure cyclique ne la fait pas
- * échouer — elle en **disparaît**, et la liste est courte en silence. Depuis
- * ADR-0030 l'écran nomme ce qu'aucune branche n'atteint : les **Structures
- * hors arbre** du glossaire, appendues après l'arbre ordinaire et marquées
- * comme telles. C'est le seul endroit du dépôt où un cycle devient visible d'un
- * être humain, donc le seul d'où on peut le réparer ; la boutique, elle, ne
- * gagne aucune surface (ADR-0030).
+ * **Ce qui reste ici est ce que cette suite seule peut prouver** (#564, US 49) :
+ * que la page rend **toutes** les Structures d'une base réelle, et qu'elle les
+ * rend comme le veut le glossaire — « hors arbre » pour ce qu'aucune branche
+ * n'atteint, « sous … » et « Catégorie racine » pour le reste. L'ordre des lignes
+ * et la profondeur d'une ligne ne sont plus asserts ici : ils sont devenus des
+ * faits que le module promet, et leur preuve est dans
+ * `lib/use-cases/lecture-structure.test.ts`, sur des littéraux et sans base. Une
+ * assertion qui lisait le retrait d'une ligne disait « ce retrait vaut 1,5 »
+ * plutôt que « cette Structure est à deux niveaux » — donc elle épousait la mise
+ * en page au lieu d'éprouver un fait de Structure (US 42).
  *
- * L'écran rend **toutes** les Structures de la base : les épreuves de l'arbre
- * propre n'asserteront donc que l'ordre et la profondeur des leurs, jamais un
- * tableau complet, et celles du cycle que la place des leurs — après l'arbre,
- * et marquées.
+ * C'est aussi la seule place où le journal de la page s'écoute de bout en bout :
+ * une seule ligne pour le cycle, parce qu'une seule marche a été bâtie, et parce
+ * que la projection en bâtit une seule pour toutes ses questions (ADR-0030).
  *
  * `DeleteCategoryButton` est remplacé par un stub : la boîte a sa propre suite
- * et #551 la migre en parallèle. Le stub dit ce que la page lui donne à voir —
- * la Structure entière, cycle compris, sans quoi une cible fermant la boucle
- * lui resterait offerte.
+ * et #573 la migre. Le stub dit ce que la page lui donne à voir — la Structure
+ * entière, cycle compris, sans quoi une cible fermant la boucle lui resterait
+ * offerte.
  */
 import { randomUUID } from "node:crypto"
 
@@ -81,8 +82,11 @@ import {
  *                └─ Liste 550 C ─── Liste 550 E
  *   Liste 550 F
  *
- * La descente rend donc A, B, D, C, E, F — la profondeur d'un enfant est celle
- * de sa parente plus un, et une racine est à zéro.
+ * La forme est ce qu'elle est — une profondeur d'enfant égale à celle de sa
+ * parente plus un, une racine à zéro — mais cette suite ne l'assert plus : elle
+ * rend un HTML, et un HTML ne dit pas la profondeur d'une Structure, seulement
+ * le retrait que l'écran lui donne. La forme est prouvée sur des faits, dans la
+ * suite du module.
  */
 let arbre: Record<string, StructureCreee>
 /** Le cycle planté à côté : trois maillons, et une descendante accrochée au
@@ -118,7 +122,6 @@ async function rendreLaListe(): Promise<{ html: string; journal: string[] }> {
 
 interface LigneRendue {
   nom: string
-  profondeur: number
   /** La première cellule, texte seul : le nom et ce que la ligne dit de sa
    *  place — « sous … », « Catégorie racine », ou la marque hors arbre. */
   premiereCellule: string
@@ -126,9 +129,6 @@ interface LigneRendue {
    *  reçues : la page lui donne la lecture entière, jamais la seule branche. */
   candidats: number
 }
-
-/** Le retrait qu'un niveau de profondeur vaut à l'écran. */
-const RETRAIT_PAR_NIVEAU = 1.5
 
 /** Le texte d'un fragment de HTML, balises et commentaires React en moins. */
 function sansBalises(fragment: string): string {
@@ -140,10 +140,15 @@ function sansBalises(fragment: string): string {
 }
 
 /**
- * Les lignes du corps du tableau, dans l'ordre rendu. Le nom et la profondeur
- * se lisent dans le HTML : le premier est la seule `span` en `font-medium` de
- * la ligne, la seconde le retrait que l'écran applique — React omet l'unité
- * d'un zéro, d'où le `px` facultatif.
+ * Les lignes du corps du tableau, dans l'ordre rendu. Le nom et la première
+ * cellule se lisent dans le HTML : le premier est la seule `span` en
+ * `font-medium` de la ligne, la seconde tout ce qu'elle dit de sa place.
+ *
+ * **La profondeur ne se lit plus ici.** Elle se lit dans le `padding-left` que
+ * l'écran applique, et une assertion sur ce retrait affirmerait « ce retrait vaut
+ * 1,5 » — ce qu'elle n'affirme pas. Elle disait « cette Structure est à deux
+ * niveaux », ce qui est un fait de Structure : sa preuve est désormais dans la
+ * suite du module, sur des littéraux et sans base (#567, US 42).
  */
 function lignesDuRendu(html: string): LigneRendue[] {
   const corps = /<tbody[^>]*>([\s\S]*)<\/tbody>/.exec(html)?.[1] ?? ""
@@ -152,10 +157,6 @@ function lignesDuRendu(html: string): LigneRendue[] {
     .slice(1)
     .map((ligne) => ({
       nom: /<span class="font-medium">([^<]*)<\/span>/.exec(ligne)?.[1] ?? "",
-      profondeur:
-        Number(
-          /padding-left:\s*([\d.]+)(?:px)?/.exec(ligne)?.[1] ?? Number.NaN
-        ) / RETRAIT_PAR_NIVEAU,
       premiereCellule: sansBalises(ligne.split("</td>")[0] ?? ""),
       candidats: Number(
         /data-candidats="(\d+)"/.exec(ligne)?.[1] ?? Number.NaN
@@ -270,40 +271,21 @@ describe("AdminCategoriesPage — Structures hors arbre", () => {
 })
 
 describe("AdminCategoriesPage — arbre propre", () => {
-  it("rend une ligne par Structure, dans l'ordre et à la profondeur de l'arbre", async () => {
+  it("rend une ligne par Structure de la base", async () => {
     const { html } = await rendreLaListe()
     const lignes = lignesDuRendu(html)
-    const noms = lignes.map((ligne) => ligne.nom)
 
     // Une ligne par Structure de la base, ni plus ni moins : la liste rend
     // **toutes** les Structures, et le hors arbre s'ajoute à l'arbre au lieu
     // d'en doubler une ligne. C'est la garde du critère « une ligne par
     // Structure » (#550) — et celle du doublon, qu'un `flatMap` trop généreux
-    // produirait sans que rien d'autre ne le voie.
+    // produirait sans que rien d'autre ne le voie. Elle ne peut le dire que
+    // d'ici : elle relit la base, et c'est le seul endroit où les deux listes se
+    // rencontrent.
     const enBase = await prisma.category.findMany({ select: { name: true } })
-    expect([...noms].sort()).toEqual(enBase.map((c) => c.name).sort())
-
-    // L'ordre de la descente, et la profondeur de chaque ligne : la collation
-    // française range les enfants, et la profondeur d'un enfant est celle de sa
-    // parente plus un — une racine est à zéro.
-    const arbreAttendu: [StructureCreee, number][] = [
-      [arbre.racine, 0],
-      [arbre.enfantA, 1],
-      [arbre.petitA, 2],
-      [arbre.enfantB, 1],
-      [arbre.petitB, 2],
-      [arbre.autre, 0],
-    ]
-    const mesNoms = new Set(arbreAttendu.map(([structure]) => structure.name))
-    expect(noms.filter((nom) => mesNoms.has(nom))).toEqual(
-      arbreAttendu.map(([structure]) => structure.name)
+    expect([...lignes.map((ligne) => ligne.nom)].sort()).toEqual(
+      enBase.map((categorie) => categorie.name).sort()
     )
-    for (const [structure, profondeur] of arbreAttendu) {
-      const ligne = lignes.find((candidate) => candidate.nom === structure.name)
-      expect(ligne?.profondeur, `profondeur de « ${structure.name} »`).toBe(
-        profondeur
-      )
-    }
   })
 
   it("garde le sous-titre d'une Structure saine : sa parente, ou sa racine", async () => {
