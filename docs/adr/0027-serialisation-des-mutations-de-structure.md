@@ -728,3 +728,61 @@ contention ne le peut — le `lock_timeout` de 1 000 ms borne toutes les attente
 lui, se sature sans rien simuler. **La mesure qui importe est le code**, que les deux formes
 partagent, et c'est lui que la traduction lit.
 
+## Amendement — La Lecture de la Structure ne lit jamais sous le verrou grossier (#564)
+
+Le verrou grossier a une portée : les mutations de Structure, et rien d'autre. Un module qui possède la
+lecture de la Structure apparaît, et ce qu'il ne fait pas est écrit ici plutôt que dans son seul
+en-tête. Aucune ligne de la décision n'est changée ; trois passages sont la place où lire cette limite
+à côté :
+
+- la troisième puce de la décision — `assertAcyclicCategoryTree` « lisait la chaîne des parents sur le
+  client `prisma` nu : elle ne pouvait pas voir l'état non committé d'une transaction. Le verrou n'a de
+  sens que dans une transaction ». L'argument vaut pour toute lecture qu'une mutation **juge**, jamais
+  pour une lecture qui rend une page ;
+- l'invariant « **Aucun nouveau module, aucune couche de réessai.** Le verrou et la traduction vivent
+  dans `lib/use-cases/admin-structure.ts` » : un module neuf apparaît, et il ne prend ni verrou, ni SQL,
+  ni traduction. L'invariant reste vrai pour ce qu'il visait — le verrou et la traduction ne quittent
+  pas leur module — et ne l'est plus quant à ses mots ;
+- la première phrase de l'amendement de #490, « `assertAcyclicCategoryTree` lisait la chaîne des
+  parents sur le client `prisma` nu », dont le module neuf ne fournit aucun analogue.
+
+### La limite
+
+- **La Lecture de la Structure ne lit jamais dans une transaction.**
+  [`lib/use-cases/lecture-structure.ts`](../../lib/use-cases/lecture-structure.ts) lit la table
+  `Category` une fois par exécution, hors de tout `$transaction`, sans prendre `FOR UPDATE` et sans
+  armer `lock_timeout`. **Aucune mutation ne peut être servie par elle**, et la règle vaut dans les
+  deux sens : le module ne rend jamais un fait qu'une mutation ait à juger.
+
+- **Les lectures transactionnelles ne bougent pas.** Le verrou grossier, le contrôle d'unicité du
+  slug, le contrôle de la Structure parente, la chaîne d'ancêtres, les lectures de rangée de
+  `createCategory`, `updateCategory` et `deleteCategory`, et la lecture des Produits déplacés restent
+  dans [`admin-structure.ts`](../../lib/use-cases/admin-structure.ts), sous le verrou. Elles
+  raisonnent sur des faits engagés : c'est pour cela qu'elles lisent par le client de la transaction et
+  jamais par le `prisma` nu.
+
+- **La raison tient en une phrase.** Le verrou existe pour que les refus d'une mutation juge des faits
+  qu'elle s'est engagés à voir ; une lecture faite hors transaction rend un fait committé, que le
+  verrou garantit déjà — elle n'aurait rien à y gagner et une course à y perdre.
+
+- **Les deux lectures qui restent hors du module ne sont pas transactionnelles non plus** : les noms
+  de Structure d'une facette, lus par slug pour une Recherche, et le compte de Structures du tableau
+  de bord. Aucune n'est une marche, et le module les nomme comme exceptions dans son en-tête plutôt
+  que de les cacher.
+
+### Ce que cet amendement ne change pas
+
+- **La décision entière** : le verrou, son instruction en tête de transaction, le délai qui l'arme, la
+  surface d'erreurs des refus et la frontière — Commande, Catalogue et Livraison gardent READ COMMITTED
+  (ADR-0014).
+- **La propriété du verrou**, qui reste `lib/use-cases/admin-structure.ts`. ADR-0025 n'est toujours pas
+  amendé, et le module neuf n'apprend ni table, ni verrou, ni SQL.
+- **Le refus d'un cycle déjà présent**, qui reste lié à sa transaction : la Lecture dégrade, elle ne
+  refuse pas (ADR-0030).
+
+### Où la limite est écrite, à part d'ici
+
+Deux endroits la portent à côté de cet amendement : l'**en-tête du module**, qui déclare qu'il ne lit
+pas sous le verrou, et un **seuil** qui énonce qu'aucune lecture de la Structure n'existe hors de lui,
+les deux exceptions nommées comprises. Un seuil et non une garde de neutralité : la question n'est pas
+ce que le module atteint, c'est qui lit la table.
