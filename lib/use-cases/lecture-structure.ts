@@ -3,9 +3,11 @@
  * Structure. Il lit la table `Category` **une fois par exécution**, en déduit
  * une Marche, et répond de ce qu'une surface demande ; la page d'accueil passe
  * par lui pour son arbre, la liste d'Administration pour ses lignes (#567), le
- * sélecteur des formulaires Produit pour ses options (#568), et l'écran d'édition
- * pour la Structure qu'il édite et les parentes qu'il peut proposer (#572). Les
- * autres surfaces y viendront une par une (#564).
+ * sélecteur des formulaires Produit pour ses options (#568), l'écran d'édition
+ * pour la Structure qu'il édite et les parentes qu'il peut proposer (#572), et la
+ * page de catégorie pour la rangée qu'elle a demandée, son fil, ses
+ * sous-catégories et le filtre de ses Produits (#570). Les autres surfaces y
+ * viendront une par une (#564).
  *
  * **C'est un module serveur, et il ne prétend pas être neutre : il lit la base.**
  * Ce qui est neutre est en dessous, dans `lib/marche-structure.ts` (ADR-0030).
@@ -120,9 +122,16 @@
  * pas « une porte par question », c'est **une porte par écran**, et elle
  * répond à tout ce que l'écran rend : c'est ainsi que `projeterEcranEdition`
  * (#572) rend d'une seule marche la Structure qu'un écran édite *et* la
- * branche qu'il lui exclut. `complementDe` reste sans porte, et ce n'est pas un
- * oubli : aucune surface ne le réclame encore, et la première qui le fera
- * partage son écran avec une projection qui a déjà lu.
+ * branche qu'il lui exclut, et que `projeterPageCategorie` (#570) rend d'une
+ * seule marche le fil d'Ariane qu'une page montre *et* la descendance qui
+ * décide de ses Produits — les deux en sens opposé, donc deux marches si on les
+ * séparait, et deux lignes de journal pour une seule boucle. **La porte n'est
+ * donc pas toujours la primitive réexportée** : quand une projection a déjà une
+ * marche, elle lui demande `descendance()`, et la garantie « chaque Structure au
+ * plus une fois » est celle de la Marche, transmise telle quelle. `complementDe`
+ * reste sans porte, et ce n'est pas un oubli : aucune surface ne le réclame
+ * encore, et la première qui le fera partage son écran avec une projection qui a
+ * déjà lu.
  */
 import { prisma } from "@/lib/db"
 import { descendanceDe, marcheDesStructures } from "@/lib/marche-structure"
@@ -714,4 +723,193 @@ export async function lireEcranEdition(
   id: string
 ): Promise<EcranEditionStructure | null> {
   return projeterEcranEdition(await lireToutesLesStructures(), id)
+}
+
+/* ======================================================================== *
+ * La page de catégorie (#570)                                              *
+ * ======================================================================== *
+ *
+ * La cinquième forme rendue, et la première qu'on appelle par une **adresse** :
+ * la page de catégorie est jointe par son slug, et la Structure qu'elle rend
+ * est un fait que le surensemble porte déjà. Elle était donc la seule des
+ * surfaces à payer une rangée **de plus** pour se reconnaître — un
+ * `findUnique({ where: { slug } })` — et c'est celle que le déplacement
+ * supprime. C'est le seul gain visible de toute l'opération : il ne se voit pas
+ * dans la page, il se voit dans le nombre de requêtes (#564).
+ *
+ * **Trois réponses, une seule marche, une seule ligne par cycle.** La page rend
+ * la Structure qu'elle a demandée, le fil qui y mène, les sous-catégories qu'elle
+ * propose en puces, et l'ensemble d'identifiants qui décide de ses Produits. Les
+ * deux dernières réponses sont deux traversées **de sens opposé** — la remontée et
+ * la descente — et c'est ce qui décide qu'elles ne sont pas deux projections :
+ * chacune bâtirait sa marche, et une boucle déjà en base serait dite deux fois
+ * dans une exécution qui n'a qu'une seule boucle à réparer (ADR-0030). D'où une
+ * porte, comme pour l'écran d'édition (#572) : une porte par écran, qui répond à
+ * tout ce que l'écran rend.
+ *
+ * **Le filtre des Produits n'est pas la primitive réexportée, et c'est
+ * délibéré.** `descendanceDe` est bien le fait que le module expose — et c'est
+ * ce qu'un écran d'édition exclut, où il n'y a rien d'autre à traverser. Ici la
+ * même liste se poserait sur une marche déjà bâtie pour le fil d'Ariane : la
+ * prendre par `descendanceDe` serait **une seconde marche**, donc une seconde
+ * ligne de journal pour une seule boucle. Elle est donc lue par `descendance()`
+ * sur **la** marche du fil, et la garantie que la primitive promet — chaque
+ * Structure au plus une fois — voyage ainsi jusqu'à la requête, au lieu de
+ * mourir avec la Marche qui l'a calculée.
+ *
+ * **Le fil est `ancetres`, pas `descendanceDe`, et l'ordre en est la
+ * raison d'être.** Le cœur promet deux choses : la Structure et ses ancêtres, la
+ * Structure courante **en dernier**, d'un côté ; la Structure et ses
+ * descendantes, de l'autre. Un fil d'Ariane n'est pas une branche retournée :
+ * c'est une chaîne **remontée**, et la remonter à l'envers donnerait les
+ * descendantes triées par nom puis la Structure — un fil où l'on commence par
+ * le bas et se retrouve au sommet. `ancetres` rend déjà l'ordre que la boutique
+ * rendait à la main, donc l'appeler ne change rien à une page et ne touche pas
+ * au cœur : la promesse est celle qui existait, elle a juste changé de maison
+ * (US 3).
+ *
+ * **Les sous-catégories ne sont pas filtrées, et c'est la dégradation de la
+ * boutique.** Elles viennent du lien — les Structures dont `parentId` est cette
+ * rangée — sans le passage de `horsArbre` que l'arbre d'accueil fait. Une
+ * Structure corrompue reste donc une puce de lien : elle est dans le fil
+ * d'Ariane, elle est dans le filtre des Produits, et elle a sa place dans les
+ * puces. La retirer serait une seconde façon de l'effacer de l'écran, pour une
+ * surface qui n'a pas d'éditeur à qui nommer la faute — c'est la liste
+ * d'Administration qui la rend lisible (#567).
+ */
+
+export interface PageCategorie {
+  /** La Structure demandée, dans la forme **étroite** que la page rend. */
+  categorie: {
+    id: string
+    name: string
+    slug: string
+    image: string | null
+  }
+  /**
+   * Le fil d'Ariane : la racine d'abord, la Structure demandée **en dernier**,
+   * et chaque maillon une fois. C'est l'ordre que la Marche promet déjà, rendu
+   * par `ancetres` — la boutique le rendait à la main, il le reçoit.
+   */
+  filAriane: { name: string; slug: string }[]
+  /** Les sous-catégories **directes**, dans l'ordre que le module promet. */
+  enfants: {
+    id: string
+    name: string
+    slug: string
+    image: string | null
+  }[]
+  /**
+   * Les identifiants du filtre `categoryId: { in: … }` : la Structure et chacune
+   * de ses descendantes, **chacune une fois** — la garantie de la règle de
+   * terminaison, transmise telle quelle jusqu'à la requête.
+   *
+   * L'ordre n'en est pas un, et c'est délibéré : une liste passée à `in` ne se
+   * compare à rien, et l'ordre de la traverse dépend de l'ordre dans lequel la
+   * lecture a reçu les faits. Une surface qui la veut lisible triera les
+   * Structure qu'elle rend, avec le comparateur du module.
+   */
+  idsProduits: string[]
+}
+
+/**
+ * Les faits indexés par identifiant **et** par slug, bâtis une fois pour toute la
+ * projection.
+ *
+ * Les autres projections indexent par `id`, parce que c'est ainsi que le lien de
+ * parenté se parcourt ; une page, elle, est appelée par son adresse. Les deux
+ * index se construisent donc en une passe, et celui par slug ne sert qu'à
+ * reconnaître la Structure demandée — le refaire à chaque besoin ferait payer à
+ * la page une recherche linéaire par fait rendu.
+ */
+function indexerLesFaits(structures: readonly FaitStructure[]): {
+  parId: Map<string, FaitStructure>
+  parSlug: Map<string, FaitStructure>
+} {
+  const parId = new Map<string, FaitStructure>()
+  const parSlug = new Map<string, FaitStructure>()
+  for (const fait of structures) {
+    parId.set(fait.id, fait)
+    parSlug.set(fait.slug, fait)
+  }
+  return { parId, parSlug }
+}
+
+/**
+ * Ce que rend la page de catégorie, projeté sur des faits déjà en mémoire — la
+ * porte pure, où la règle se prouve sans PostgreSQL.
+ *
+ * **Ce qu'elle dégrade, et comment.** Un slug que les faits ne portent pas rend
+ * une absence, pas une page : la Lecture dégrade et ne lève pas, et c'est la
+ * page qui en fait un `notFound()` (ADR-0030). Un cycle, lui, ne rend pas
+ * d'absence — la page reste rendable, son fil s'arrête sur la revisite, ses
+ * sous-catégories restent là, et le journal nomme la boucle une fois.
+ */
+export function projeterPageCategorie(
+  structures: readonly FaitStructure[],
+  slug: string
+): PageCategorie | null {
+  const { parId, parSlug } = indexerLesFaits(structures)
+  const fait = parSlug.get(slug)
+  if (!fait) return null
+
+  // Une seule marche pour les deux traversées de sens opposé, donc une seule
+  // ligne par cycle : la mémoire des cycles signalés vit dans la marche, et elle
+  // meurt avec elle.
+  const marche = marcheDesStructures(structures)
+
+  return {
+    categorie: {
+      id: fait.id,
+      name: fait.name,
+      slug: fait.slug,
+      image: fait.image,
+    },
+    // La remontée rend déjà la Structure courante en dernier. Chaque maillon
+    // vient d'un fait en mémoire : la clé étrangère garantit qu'une parente
+    // nommée existe en base, donc qu'elle est dans le surensemble, et la Marche
+    // ne remonte qu'à travers des identifiants que les faits portent. La
+    // projection ne transformerait donc pas une absence en nom inventé.
+    filAriane: marche.ancetres(fait.id).map((id) => {
+      const maillon = parId.get(id)!
+      return { name: maillon.name, slug: maillon.slug }
+    }),
+    // Les enfants **directs**, dérivés du lien comme l'est le nombre de
+    // sous-catégories d'une ligne d'Administration : la requête
+    // `where: { parentId }` que la page faisait est un fait que les faits
+    // portent déjà, et une lecture de plus serait une seconde manière de lire la
+    // Structure. Le tri est celui du module — le nom en français puis le slug —
+    // donc les puces se lisent comme le reste de la boutique, et non dans la
+    // collation d'un serveur de base qu'aucun déploiement n'épingle. `filter`
+    // rend une copie : les faits appartiennent à la lecture, et les classer sur
+    // place les classerait pour la projection qui les utiliserait ensuite.
+    enfants: structures
+      .filter((candidat) => candidat.parentId === fait.id)
+      .sort(comparerDesFreres)
+      .map((enfant) => ({
+        id: enfant.id,
+        name: enfant.name,
+        slug: enfant.slug,
+        image: enfant.image,
+      })),
+    // La primitive, lue sur la marche du fil : la Structure et chacune de ses
+    // descendantes, chacune une fois. C'est le même fait que rend
+    // `descendanceDe`, pris sur une marche qui existe déjà — donc sans une
+    // seconde ligne de journal pour une seule boucle.
+    idsProduits: marche.descendance(fait.id),
+  }
+}
+
+/**
+ * La page de catégorie — la porte de lecture.
+ *
+ * Une exécution, une lecture, une marche, une ligne par cycle. La page appelle
+ * cette méthode **une fois**, et ne construit plus de marche, ne relit plus la
+ * table, ne tient plus en prose ni l'ordre du fil ni l'appartenance des
+ * descendants (ADR-0030).
+ */
+export async function lirePageCategorie(
+  slug: string
+): Promise<PageCategorie | null> {
+  return projeterPageCategorie(await lireToutesLesStructures(), slug)
 }
