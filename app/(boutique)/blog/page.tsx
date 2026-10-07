@@ -39,7 +39,7 @@ async function BlogContent() {
         <h1 className="mt-2 text-center text-[32px] leading-[1.125] font-bold tracking-[0.004em] sm:text-[40px] sm:leading-[1.1] sm:tracking-[0em] lg:text-[48px] lg:leading-[1.0835] lg:tracking-[-0.003em]">
           Blog
         </h1>
-        <p className="mx-auto mt-3 max-w-[70ch] text-center text-[17px] leading-[1.4706] tracking-[-0.022em] text-foreground/70 sm:text-[19px]">
+        <p className="mx-auto mt-3 max-w-[70ch] text-center text-body leading-body tracking-[-0.022em] text-foreground/70 sm:text-[19px]">
           Nos guides d&apos;achat et nos annonces, pour choisir sereinement
           votre électronique.
         </p>
@@ -67,13 +67,13 @@ async function BlogContent() {
 
         {isEmpty ? (
           <div className="mx-auto mt-10 max-w-[70ch] rounded-2xl bg-background p-8 text-center sm:p-10">
-            <p className="text-[17px] leading-[1.4706] tracking-[-0.022em] text-foreground/70">
+            <p className="text-body leading-body tracking-[-0.022em] text-foreground/70">
               Aucun article pour le moment. Revenez bientôt pour nos guides et
               nos annonces.
             </p>
             <Link
               href="/produits"
-              className="mt-4 inline-block text-[17px] text-link hover:underline"
+              className="mt-4 inline-block text-body text-link hover:underline"
             >
               Découvrir nos produits ›
             </Link>

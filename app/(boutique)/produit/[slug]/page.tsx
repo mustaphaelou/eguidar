@@ -110,7 +110,7 @@ async function ProductContent({
           <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
             Description
           </h2>
-          <p className="mt-4 max-w-[70ch] text-[17px] leading-[1.4706] tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
+          <p className="mt-4 max-w-[70ch] text-body leading-body tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
             {data.description}
           </p>
         </section>

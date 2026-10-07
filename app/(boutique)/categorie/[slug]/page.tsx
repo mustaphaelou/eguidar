@@ -81,7 +81,7 @@ async function CategoryContent({
           <h1 className="mt-2 text-[28px] leading-[1.1] font-semibold tracking-[-0.005em] sm:text-[32px] lg:text-[40px]">
             {data.category.name}
           </h1>
-          <p className="mt-2 text-[17px] leading-[1.4706] tracking-[-0.022em] text-foreground/70">
+          <p className="mt-2 text-body leading-body tracking-[-0.022em] text-foreground/70">
             {data.products.length} produit{data.products.length > 1 ? "s" : ""}
           </p>
         </div>
@@ -110,7 +110,7 @@ async function CategoryContent({
       ) : (
         <section className="bg-muted">
           <div className="mx-auto max-w-[980px] px-4 py-16 text-center sm:px-6">
-            <p className="text-[17px] leading-[1.4706] tracking-[-0.022em] text-foreground/70">
+            <p className="text-body leading-body tracking-[-0.022em] text-foreground/70">
               Aucun produit dans cette catégorie pour le moment.
             </p>
             <Button

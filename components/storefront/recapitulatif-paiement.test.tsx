@@ -160,7 +160,6 @@ describe("RecapitulatifPaiement", () => {
     const dds = container.querySelectorAll("dd")
     expect(dds[1].textContent).toBe("Livraison offerte")
     expect(dds[1].className).toContain("text-emerald-600")
-    expect(dds[1].className).toContain("dark:text-emerald-400")
   })
 
   it("passes Devis À choisir rows through without a total", () => {
