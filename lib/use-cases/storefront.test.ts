@@ -12,11 +12,11 @@ import {
 
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
+import type { NoeudAccueil } from "@/lib/use-cases/lecture-structure"
 import {
   fetchCategoryPageData,
   fetchHomeData,
   fetchProductPageData,
-  type CategoryNode,
 } from "@/lib/use-cases/storefront"
 import {
   creerStructure,
@@ -25,7 +25,7 @@ import {
 } from "@/test/structure-fixtures"
 
 /** Tous les slugs d'un arbre, à toute profondeur : ce que la page montre. */
-function slugsDeLArbre(nodes: CategoryNode[]): string[] {
+function slugsDeLArbre(nodes: NoeudAccueil[]): string[] {
   return nodes.flatMap((node) => [node.slug, ...slugsDeLArbre(node.children)])
 }
 
@@ -744,7 +744,8 @@ describe("storefront browse", () => {
   describe("une seule lecture complète de la Structure par page", () => {
     /**
      * Une **lecture complète** : le `findMany` que rien ne borne, celui qui
-     * parcourt la table entière — la lecture des liens de `loadCategoryLinks`.
+     * parcourt la table entière — la lecture des liens de `loadCategoryLinks`,
+     * et celle de la Lecture de la Structure, qui rend l'arbre d'accueil.
      *
      * Ce qui borne une lecture, c'est son `where` : la requête des enfants d'une
      * Structure (`where: { parentId }`) lit la table sans la parcourir, et ne
@@ -789,6 +790,19 @@ describe("storefront browse", () => {
           { name: "Standard", sku: `SKU-${runId}-lu`, priceDelta: 0, stock: 1 },
         ],
       })
+    })
+
+    it("l'accueil lit la Structure une fois, par la Lecture", async () => {
+      // L'arbre d'accueil est la première surface à passer par la Lecture de la
+      // Structure, et c'est le même instrument qu'ici qui le compte. Deux
+      // lectures signifieraient que la boutique a gardé la sienne à côté de
+      // celle du module — donc deux propriétaires d'un même fait, ce que la
+      // Lecture existe pour supprimer (#564).
+      const { lectures } = await compterLesLecturesDeLaStructure(() =>
+        fetchHomeData()
+      )
+
+      expect(lectures).toBe(1)
     })
 
     it("la page de catégorie lit les liens une fois, et en sert ses deux traversées", async () => {
