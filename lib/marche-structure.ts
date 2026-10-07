@@ -44,6 +44,35 @@
  * nomme les Structures impliquées sans verser vingt mille identifiants dans le
  * journal. Une ligne de vingt mille maillons n'est pas un journal, c'est un
  * vidage — et la première ligne utile reste « il y a un cycle, et le voici ».
+ *
+ * **Deux projections se parent dessus, et l'ordre qu'elles promettent est le
+ * leur, pas celui de la traverse.** La première rend une Structure et sa
+ * descendance, chacune au plus une fois : c'est ce qu'une surface exclut, et ce
+ * qu'elle n'a plus à refaire à la main. La seconde rend la partition qu'une page
+ * passe à ses boîtes — tout sauf la Structure, et tout sauf elle et sa
+ * descendance. Les deux listes se partagent une cause, et leur différence est un
+ * fait : ce qui les sépare, c'est exactement les descendantes. Elles se lisent
+ * **dans l'ordre que le module promet** — le nom en français, départagé par
+ * l'identifiant — parce que l'ordre de la traverse n'est pas un ordre : il
+ * dépend de l'ordre des rangées qu'une lecture a rendues, donc de la collation
+ * d'un serveur de base qu'aucun déploiement n'épingle. L'identifiant départage
+ * les Structures de même nom parce que le cœur ne connaît pas le slug, et
+ * qu'il est unique : l'ordre reste total et ne dépend d'aucune machine.
+ *
+ * **Elles vivent ici, et c'est une décision, pas un hasard.** ADR-0028 décide
+ * qu'une valeur partagée par le serveur et par le client habite un module
+ * qu'aucun des deux ne réclame ; le module de lecture, au-dessus, lit la base,
+ * donc un composant `"use client"` ne peut pas l'atteindre. Le cœur est neutre,
+ * et sa neutralité se prouve — le jour où une surface cliente aura besoin d'une
+ * projection pure de la Structure, elle la trouvera ici sans qu'une décision
+ * soit à reprendre. Aucune des deux ne refait la descente : chacune construit
+ * une marche et l'interroge une fois, donc la règle de terminaison reste écrite
+ * en un seul endroit, et c'est elle qui la porte.
+ *
+ * **Une page appelle l'une des deux, jamais les deux.** La partition porte la
+ * primitive qu'elle a calculée, pour qu'une page n'ait pas à demander les deux et
+ * à payer deux marches — donc deux lignes de journal pour un seul cycle. Ce que
+ * la liste rendue ne dit pas de la corruption, le journal le dit.
  */
 
 /**
@@ -345,4 +374,134 @@ export function marcheDesStructures(
       structures.map((structure) => [structure.id, structure.name])
     ),
   })
+}
+
+/**
+ * Les noms des Structures, en une carte — celle que la marche lit déjà pour nommer
+ * un cycle, et que l'ordre lit pour classer une liste.
+ */
+function nomsDesStructures(
+  structures: readonly StructureLue[]
+): ReadonlyMap<string, string> {
+  return new Map(structures.map((structure) => [structure.id, structure.name]))
+}
+
+/**
+ * L'ordre que le module promet pour une liste de Structures : le nom en français,
+ * départagé par l'identifiant.
+ *
+ * `nommer` sert de repli pour un identifiant que la carte ne porte pas : il rend
+ * alors l'identifiant lui-même, donc la comparaison reste honnête au lieu de
+ * classer `undefined` contre une chaîne. L'identifiant départage parce qu'il est
+ * unique — le cœur ne connaît pas le slug, qu'il n'a aucun besoin de connaître
+ * (ADR-0030).
+ */
+function comparerParNom(
+  noms: ReadonlyMap<string, string>
+): (a: string, b: string) => number {
+  return (a, b) =>
+    nommer(a, noms).localeCompare(nommer(b, noms), "fr") ||
+    a.localeCompare(b, "fr")
+}
+
+/**
+ * La branche d'une Structure, remise dans l'ordre du module : elle d'abord, puis
+ * ses descendantes.
+ *
+ * Les maillons sont ceux de la traverse, tous atteints une fois par sa règle de
+ * terminaison ; seule leur place change. La Structure demandée ouvre la liste,
+ * parce que c'est elle qu'on a nommée et qu'une surface qui exclut cette liste a
+ * besoin de la retrouver sans la deviner.
+ *
+ * Une Structure absente des faits rend donc `[id]` — la dégradée de la marche,
+ * qu'aucune projection ne transforme en refus.
+ */
+function brancheDansLOrdre(
+  marche: MarcheStructure,
+  noms: ReadonlyMap<string, string>,
+  id: string
+): string[] {
+  return [
+    id,
+    ...marche
+      .descendance(id)
+      .filter((atteinte) => atteinte !== id)
+      .sort(comparerParNom(noms)),
+  ]
+}
+
+/**
+ * **La primitive de la Structure** : elle et toutes ses descendantes, chacune au
+ * plus une fois, dans l'ordre que le module promet.
+ *
+ * C'est le fait central que le module de lecture expose, et une surface qui exclut
+ * une branche — le formulaire d'édition, qui interdit les parentes possibles —
+ * n'a plus à bâtir sa propre marche pour l'obtenir. La règle de terminaison reste
+ * celle de la marche : toute revisite arrête, un cycle déjà en base rend ses
+ * maillons et ne lève rien.
+ */
+export function descendanceDe(
+  structures: readonly StructureLue[],
+  id: string
+): string[] {
+  return brancheDansLOrdre(
+    marcheDesStructures(structures),
+    nomsDesStructures(structures),
+    id
+  )
+}
+
+/**
+ * Les trois listes d'une partition, en données ordinaires : des identifiants,
+ * chacun au plus une fois, et rien d'appelable. C'est ce qui franchit la couture
+ * client/serveur — des chaînes, comme la constante d'ADR-0028, en plus grand.
+ */
+export interface PartitionStructure {
+  /** La Structure et ses descendantes : la primitive, telle qu'elle est calculée. */
+  descendance: string[]
+  /** Toute Structure sauf celle-ci. */
+  horsSoi: string[]
+  /** Toute Structure qui n'est ni elle-même ni l'une de ses descendantes. */
+  horsDescendance: string[]
+}
+
+/**
+ * **Le complément de la primitive**, calculé une fois : tout sauf la Structure, et
+ * tout sauf elle et sa descendance.
+ *
+ * Les deux listes viennent de la même cause, et c'est ce qui fait une partition
+ * plutôt que deux filtres : leur différence est exactement la descendance, ni plus
+ * ni moins. Une page n'a donc qu'une projection à appeler pour ses boîtes, et la
+ * primitive qu'elle a calculée voyage avec elle — pas une seconde marche, donc pas
+ * une seconde ligne de journal pour un seul cycle.
+ *
+ * **Elle ne retire rien d'autre, et c'est délibéré.** Sur un cycle déjà en base,
+ * une cible qui descend de la Structure est écartée des sous-catégories — c'est la
+ * seule raison pour laquelle elle l'est — et reste proposée pour un Produit comme
+ * toute autre. Rien n'est jugé ici : la liste propose, et le serveur seul refuse
+ * (ADR-0030).
+ */
+export function complementDe(
+  structures: readonly StructureLue[],
+  id: string
+): PartitionStructure {
+  const noms = nomsDesStructures(structures)
+  const parNom = comparerParNom(noms)
+  const descendance = brancheDansLOrdre(
+    marcheDesStructures(structures),
+    noms,
+    id
+  )
+  const dansLaDescendance = new Set(descendance)
+  return {
+    descendance,
+    horsSoi: structures
+      .filter((structure) => structure.id !== id)
+      .map((structure) => structure.id)
+      .sort(parNom),
+    horsDescendance: structures
+      .filter((structure) => !dansLaDescendance.has(structure.id))
+      .map((structure) => structure.id)
+      .sort(parNom),
+  }
 }

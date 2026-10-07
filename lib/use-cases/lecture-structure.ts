@@ -85,9 +85,33 @@
  * `lib/use-cases/devis.ts`, `lib/panier.ts`). La barrière est une garde de
  * frontière, pas une directive : ce module atteint la base et aucun module
  * client ne doit l'atteindre.
+ *
+ * **La primitive et son complément sont ici, et vivent en dessous.** Une
+ * Structure et sa descendance, puis la partition qui en tire les deux listes
+ * d'une page, sont des projections pures : aucune lecture, aucune promesse, aucun
+ * état. Elles sont écrites dans `lib/marche-structure.ts` — le cœur neutre — et
+ * réexportées ici, comme `devis.ts` réexporte `devis-coeur.ts`, pour qu'une
+ * surface qui cherche « quelle projection répond à ma question » trouve une
+ * seule adresse (US 54). Le cœur est leur domicile et non le hasard : ADR-0028
+ * décide qu'une valeur partagée par le serveur et par le client habite un module
+ * qu'aucun des deux ne réclame — et ce module lit la base, donc un composant
+ * `"use client"` ne peut pas l'atteindre (ADR-0030).
+ *
+ * **Elles n'ont pas de porte de lecture, et c'est délibéré.** Une porte de
+ * lecture par question relirait la table : la règle « une lecture par
+ * exécution » (US 23) ne tient que si la page appelle **une** projection qui lit
+ * et que tout le reste se dérive des faits qu'elle a déjà en main. Les deux
+ * listes de la partition sont donc rendues par la page, sur le surensemble de
+ * cette lecture, et nulle surface ne les réclame encore (#569).
  */
 import { prisma } from "@/lib/db"
 import { marcheDesStructures } from "@/lib/marche-structure"
+
+export {
+  complementDe,
+  descendanceDe,
+  type PartitionStructure,
+} from "@/lib/marche-structure"
 
 /**
  * Les faits d'une Structure tels que la Lecture les rend à ses projections :
