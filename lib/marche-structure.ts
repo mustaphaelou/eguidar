@@ -11,12 +11,27 @@
  * le verdict les rendrait identiques, et supprimerait la divergence que
  * l'ADR-0030 consigne comme le cœur de sa décision.
  *
- * **Elle est neutre, et c'est une condition, pas une élégance.** Un de ses
- * appelants est un composant client : ni `"use client"`, ni `"use server"`, ni
- * `@/lib/db`, ni `next/headers`, ni `server-only`, ni `node:`, ni React. Le
- * même contrat que `lib/carte-produit.ts` (ADR-0022) et
- * `lib/formulaire-produit.ts` (ADR-0026) — et
+ * **Elle est neutre, et c'est une condition, pas une élégance.** Ni
+ * `"use client"`, ni `"use server"`, ni `@/lib/db`, ni `next/headers`, ni
+ * `server-only`, ni `node:`, ni React — le même contrat que `lib/carte-produit.ts`
+ * (ADR-0022) et `lib/formulaire-produit.ts` (ADR-0026), et
  * `lib/marche-structure-frontiere.test.ts` le prouve par le graphe d'imports.
+ *
+ * **Cette neutralité était motivée par un appelant, et l'appelant est parti**
+ * (#573, amendement d'ADR-0030). La boîte de suppression traversait le cœur
+ * depuis #551 : c'était elle qui rendait l'exigence actuelle plutôt
+ * qu'ambiguë. Elle ne le fait plus — elle reçoit ses deux listes de cibles et la
+ * table des noms, calculées par la page — donc la raison disparaît, et **la
+ * condition reste**. C'est ADR-0028 qui la tient : une projection pure de la
+ * Structure est une valeur que le serveur et le client peuvent avoir en commun,
+ * donc elle habite un module qu'aucun des deux ne réclame. Le module qui possède
+ * la lecture est au-dessus, et il lit la base, donc il ne peut pas servir de
+ * domicile. Le jour où une surface cliente aura de nouveau besoin de la
+ * descendance ou de la partition, elle les trouvera ici, sans qu'une décision
+ * soit à reprendre et sans qu'une deuxième règle naisse dans un composant
+ * `"use client"`. Une garde de frontière suit ce mouvement dans les deux sens :
+ * celle-ci prouve qu'aucun client n'atteint le cœur, celle du module de lecture
+ * prouvera qu'il n'atteint aucun client (#574).
  *
  * **Elle est synchrone et sans I/O.** Des faits en entrée (`parentId` déjà en
  * mémoire), des faits en sortie : aucune requête, aucune attente, aucun état
@@ -366,14 +381,27 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
 export function marcheDesStructures(
   structures: readonly StructureLue[]
 ): MarcheStructure {
-  return marcheStructure({
+  return marcheStructure(liensDesStructures(structures))
+}
+
+/**
+ * Les faits séparés comme la marche les consomme, tirés de rangées : le lien de
+ * chaque Structure vers sa parente, et le nom qui rend le journal lisible.
+ *
+ * Cette forme existe pour qui a besoin des liens **eux-mêmes** et pas seulement
+ * d'une marche — une surface qui interroge la même marche pour plusieurs
+ * questions n'a qu'une seule fois à les séparer, et à les garder pour les
+ * questions suivantes. C'est l'entrée que prend le complément plus bas.
+ */
+function liensDesStructures(
+  structures: readonly StructureLue[]
+): LiensStructure {
+  return {
     parentParId: new Map(
       structures.map((structure) => [structure.id, structure.parentId])
     ),
-    noms: new Map(
-      structures.map((structure) => [structure.id, structure.name])
-    ),
-  })
+    noms: nomsDesStructures(structures),
+  }
 }
 
 /**
@@ -394,10 +422,11 @@ function nomsDesStructures(
  * alors l'identifiant lui-même, donc la comparaison reste honnête au lieu de
  * classer `undefined` contre une chaîne. L'identifiant départage parce qu'il est
  * unique — le cœur ne connaît pas le slug, qu'il n'a aucun besoin de connaître
- * (ADR-0030).
+ * (ADR-0030). La carte des noms est facultative pour la même raison qu'elle
+ * l'est pour la marche : un fait que l'appelant n'a pas ne fait pas défaut.
  */
 function comparerParNom(
-  noms: ReadonlyMap<string, string>
+  noms: ReadonlyMap<string, string> | undefined
 ): (a: string, b: string) => number {
   return (a, b) =>
     nommer(a, noms).localeCompare(nommer(b, noms), "fr") ||
@@ -418,7 +447,7 @@ function comparerParNom(
  */
 function brancheDansLOrdre(
   marche: MarcheStructure,
-  noms: ReadonlyMap<string, string>,
+  noms: ReadonlyMap<string, string> | undefined,
   id: string
 ): string[] {
   return [
@@ -480,28 +509,59 @@ export interface PartitionStructure {
  * seule raison pour laquelle elle l'est — et reste proposée pour un Produit comme
  * toute autre. Rien n'est jugé ici : la liste propose, et le serveur seul refuse
  * (ADR-0030).
+ *
+ * **Deux portes, comme la marche en a deux.** Celle-ci prend des rangées et bâtit
+ * sa marche ; `complementDepuis` prend une marche que l'appelant a déjà. Voir ce
+ * dernier pour pourquoi la seconde existe : c'est elle que prend une surface qui
+ * a plus d'une question à poser aux mêmes faits, parce que la retenue qui tait un
+ * cycle **vit dans la marche** — en bâtir une seconde dirait le même cycle une
+ * seconde fois.
  */
 export function complementDe(
   structures: readonly StructureLue[],
   id: string
 ): PartitionStructure {
-  const noms = nomsDesStructures(structures)
+  const liens = liensDesStructures(structures)
+  return complementDepuis(marcheStructure(liens), liens, id)
+}
+
+/**
+ * **La même partition, sur une marche et des liens que l'appelant a déjà.**
+ *
+ * Une surface qui rend plus d'une projection sur les mêmes faits a déjà sa marche :
+ * la liste d'Administration pose une question à la table entière — sous quoi est
+ * cette Structure, est-elle hors arbre, où va un Produit, où va une
+ * sous-catégorie — et répondre à la dernière par `complementDe` bâtirait une
+ * seconde marche, donc une seconde retenue, donc **une seconde ligne de journal
+ * pour le même cycle**. L'avertissement cesserait alors de dire combien de
+ * Structures un éditeur doit réparer, et c'est la seule chose qu'il doit pouvoir
+ * y lire.
+ *
+ * La forme est donc celle de la marche elle-même : les faits en entrée, aucun
+ * état caché, une ligne de journal par cycle et par marche. Les liens viennent
+ * avec la marche parce qu'ils portent les deux listes — `parentParId` tient toutes
+ * les Structures à offrir, `noms` leur ordre — ; la primitive est calculée par la
+ * marche qu'on lui donne, jamais par une autre.
+ */
+export function complementDepuis(
+  marche: MarcheStructure,
+  liens: LiensStructure,
+  id: string
+): PartitionStructure {
+  const noms = liens.noms
   const parNom = comparerParNom(noms)
-  const descendance = brancheDansLOrdre(
-    marcheDesStructures(structures),
-    noms,
-    id
-  )
+  const descendance = brancheDansLOrdre(marche, noms, id)
   const dansLaDescendance = new Set(descendance)
+  // Les identifiants viennent des liens : une seule source de vérité pour « la
+  // table entière », donc aucune liste qui s'écarterait d'un fait que la
+  // projection d'à côté n'aurait pas lu.
+  const tous = [...liens.parentParId.keys()]
+
   return {
     descendance,
-    horsSoi: structures
-      .filter((structure) => structure.id !== id)
-      .map((structure) => structure.id)
-      .sort(parNom),
-    horsDescendance: structures
-      .filter((structure) => !dansLaDescendance.has(structure.id))
-      .map((structure) => structure.id)
+    horsSoi: tous.filter((autre) => autre !== id).sort(parNom),
+    horsDescendance: tous
+      .filter((autre) => !dansLaDescendance.has(autre))
       .sort(parNom),
   }
 }

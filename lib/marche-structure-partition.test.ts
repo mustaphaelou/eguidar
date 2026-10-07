@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   complementDe,
+  complementDepuis,
   descendanceDe,
+  marcheStructure,
+  type LiensStructure,
   type PartitionStructure,
   type StructureLue,
 } from "@/lib/marche-structure"
@@ -90,6 +93,27 @@ const CYCLE: StructureLue[] = [
 /** Les identifiants d'une liste, sans leur ordre : un ensemble est un ensemble. */
 function enEnsemble(ids: readonly string[]): Set<string> {
   return new Set(ids)
+}
+
+/**
+ * Les faits déjà séparés, comme la porte des faits les prend : une marche et
+ * ses liens, bâtis **une fois**. C'est ce que reçoit une surface qui a déjà une
+ * marche — la liste d'Administration, qui répond aussi de la place de chaque
+ * ligne — et c'est ce qui lui évite d'en bâtir une seconde.
+ */
+function faitsPretes(structures: readonly StructureLue[]): {
+  liens: LiensStructure
+  partitionDepuis: (id: string) => PartitionStructure
+} {
+  const liens: LiensStructure = {
+    parentParId: new Map(structures.map((fait) => [fait.id, fait.parentId])),
+    noms: new Map(structures.map((fait) => [fait.id, fait.name])),
+  }
+  const marche = marcheStructure(liens)
+  return {
+    liens,
+    partitionDepuis: (id) => complementDepuis(marche, liens, id),
+  }
 }
 
 /** La différence de deux listes, comme un ensemble : `a` moins `b`. */
@@ -389,5 +413,66 @@ describe("complementDe — les deux listes ne diffèrent que par la descendance"
         enEnsemble(tous)
       )
     }
+  })
+})
+
+describe("complementDepuis — la même partition, sur la marche que la surface a déjà", () => {
+  it("rend ce que complementDe rend, pour toute la fixture", () => {
+    // La porte des faits déjà bâtis et celle des rangées doivent dire la même
+    // chose : ce n'est pas une seconde règle, c'est la même règle écrite pour
+    // deux entrées. Une surface qui a déjà une marche — la liste d'Administration,
+    // qui répond aussi de la place de chaque ligne — ne doit pas pouvoir obtenir
+    // une partition différente de celle qu'aurait obtenue la porte ordinaire.
+    const { partitionDepuis } = faitsPretes(ARBRE_SAIN)
+
+    for (const fait of ARBRE_SAIN) {
+      expect(partitionDepuis(fait.id), fait.id).toEqual(
+        complementDe(ARBRE_SAIN, fait.id)
+      )
+    }
+  })
+
+  it("journalise une seule fois pour toutes les Structures qu'on lui demande", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const { partitionDepuis } = faitsPretes(CYCLE)
+      for (const fait of CYCLE) partitionDepuis(fait.id)
+
+      // **Une marche, une retenue, une ligne.** C'est toute la raison d'être de
+      // cette porte : la liste d'Administration demande une partition par ligne,
+      // donc une par Structure, et la porte des rangées en bâtirait autant de
+      // marches qu'il y a de lignes — donc autant de fois le même cycle, et un
+      // avertissement qui compterait un cycle à réparer par ligne. La retenue qui
+      // tait le cycle vit dans la marche ; qui la partage la tait une fois pour
+      // toutes (ADR-0030, US 34).
+      expect(warn).toHaveBeenCalledTimes(1)
+      const ligne = warn.mock.calls[0]!.join(" ")
+      expect(ligne).toContain("Boucle A")
+      expect(ligne).toContain("Boucle B")
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("dégrade comme la porte des rangées une Structure que les faits ne portent pas", () => {
+    // La dégradée ne dépend pas de l'entrée : une lecture peut nommer une rangée
+    // que ses faits ne couvrent pas — un filtre en amont, une suppression entre
+    // la lecture et le rendu — et la partition rend alors l'absence de
+    // Structure, jamais un refus (ADR-0030).
+    const surLesRangees = complementDe(ARBRE_SAIN, "inconnue")
+    const surLesFaits = faitsPretes(ARBRE_SAIN).partitionDepuis("inconnue")
+
+    expect(surLesFaits).toEqual(surLesRangees)
+    expect(surLesFaits.descendance).toEqual(["inconnue"])
+
+    // Et sur une table vide, la porte rend la Structure seule : il n'y a rien à
+    // écarter, et le dire ainsi empêche une surface de croire qu'elle a reçu une
+    // liste de cibles.
+    const surVides = faitsPretes([]).partitionDepuis("inconnue")
+    expect(surVides).toEqual({
+      descendance: ["inconnue"],
+      horsSoi: [],
+      horsDescendance: [],
+    })
   })
 })

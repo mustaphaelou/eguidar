@@ -16,6 +16,24 @@ const ENFANT = "cat-enfant"
 
 const rendu = monterFormulaire()
 
+/**
+ * **Ce que la boîte reçoit désormais, et ce qu'elle ne calcule plus** (#573,
+ * ADR-0030). Avant, elle prenait les rangées de la table et bâtissait sa marche à
+ * chaque rendu pour décider quelles Structures pouvaient accueillir ses
+ * sous-catégories — une règle de domaine dans un composant `"use client"`, que la
+ * prochaine surface qui en aurait besoin réécrirait (US 39). Elle prend donc les
+ * deux listes de cibles et la table des noms, en données ordinaires, et rend.
+ *
+ * **Les fixtures sont des faits, pas une table à parcourir.** Elles disent ce que
+ * le serveur a calculé — y compris l'écart entre les deux listes, qui est le fait
+ * que la boîte affichera — et jamais comment il l'a calculé : la règle elle-même
+ * se prouve dans `lib/marche-structure-partition.test.ts`, sur les mêmes
+ * littéraux, sans rendu et sans base. Cette suite dit donc deux choses seulement,
+ * et elles ne se recouvrent pas : que la boîte **rend les props qu'elle a
+ * reçues**, et qu'elle rend **les deux causes que le glossaire nomme** avant
+ * tout clic (US 41).
+ */
+
 /** La boîte est montée dans un portail : elle vit dans le document, pas dans la ligne. */
 function dialogue() {
   return document.querySelector<HTMLElement>('[data-slot="dialog-content"]')
@@ -52,6 +70,21 @@ function declencheurDontLeLibelleEst(libelle: string): HTMLElement {
   return cible
 }
 
+/**
+ * Les libellés des options d'un sélecteur, une fois ouvert. On choisit le
+ * sélecteur par son étiquette — ce que l'éditeur lit — et non par sa position : la
+ * boîte en porte deux, et leurs libellés ne se distinguent qu'à la fin de la
+ * phrase (« … sous-catégories », « … produits »).
+ */
+async function optionsDe(libelleDuSelect: string): Promise<string[]> {
+  await act(async () => {
+    declencheurDontLeLibelleEst(libelleDuSelect).click()
+  })
+  return [
+    ...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'),
+  ].map((element) => element.textContent ?? "")
+}
+
 /** Le `Select` est piloté comme dans `city-picker.test.tsx` : on ouvre, on clique une option. */
 async function choisirOption(
   libelleDuSelect: string,
@@ -72,29 +105,46 @@ function boutonDeConfirmation() {
   return trouve
 }
 
-const CATEGORIES = [
-  { id: SUPPRIMEE, name: "Structure à supprimer", parentId: null },
-  { id: CIBLE, name: "Structure cible", parentId: null },
-  { id: ENFANT, name: "Structure enfant", parentId: SUPPRIMEE },
-]
+/**
+ * Les cibles de la Structure à supprimer, telles que le serveur les calcule pour
+ * un arbre sain où `ENFANT` est sa seule descendante. **Les deux listes ne se
+ * ressemblent pas, et c'est le fait central** : un Produit part vers n'importe
+ * quelle Structure, descendantes comprises (US 16) ; une sous-catégorie ne peut
+ * partir que vers ce qui ne descend pas de la Structure supprimée, sous peine de
+ * refermer la boucle sur elle-même (US 15).
+ */
+const CIBLES_SAINES = {
+  ciblesProduits: [CIBLE, ENFANT],
+  ciblesSousCategories: [CIBLE],
+  nomsStructures: {
+    [SUPPRIMEE]: "Structure à supprimer",
+    [CIBLE]: "Structure cible",
+    [ENFANT]: "Structure enfant",
+  },
+} as const
 
 /**
- * La Structure **déjà cyclique** (#551) : un cycle qu'une Tierce partie a
- * refermé en base, et la Structure à supprimer accrochée à l'un de ses
- * maillons. La boîte est un rendu client — la seule surface qui n'a aucun
- * verdict à rendre —, donc elle traverse le cycle, reste bornée, et propose
- * quand même ses cibles (ADR-0030).
+ * Les mêmes cibles, pour la Structure **déjà cyclique** que #551 a rendue
+ * concevable : un cycle qu'une Tierce partie a refermé en base, et la Structure à
+ * supprimer accrochée à l'un de ses maillons. Les deux listes y contiennent les
+ * maillons du cycle — **c'est le serveur seul qui refuse**, et la boîte propose
+ * donc quand même (ADR-0030, US 17). Le fait qu'elle ne doive plus traverser le
+ * cycle pour le dire se prouve autrement : sa suite n'a plus de marche à boredom.
  */
 const CYCLIQUE_A = "cat-cyclique-a"
 const CYCLIQUE_B = "cat-cyclique-b"
 
-const CATEGORIES_CYCLIQUES = [
-  { id: SUPPRIMEE, name: "Structure à supprimer", parentId: CYCLIQUE_A },
-  { id: ENFANT, name: "Structure enfant", parentId: SUPPRIMEE },
-  { id: CIBLE, name: "Structure cible", parentId: null },
-  { id: CYCLIQUE_A, name: "Structure cyclique A", parentId: CYCLIQUE_B },
-  { id: CYCLIQUE_B, name: "Structure cyclique B", parentId: CYCLIQUE_A },
-]
+const CIBLES_CYCLIQUES = {
+  ciblesProduits: [CIBLE, CYCLIQUE_A, CYCLIQUE_B],
+  ciblesSousCategories: [CIBLE, CYCLIQUE_A, CYCLIQUE_B],
+  nomsStructures: {
+    [SUPPRIMEE]: "Structure à supprimer",
+    [ENFANT]: "Structure enfant",
+    [CIBLE]: "Structure cible",
+    [CYCLIQUE_A]: "Structure cyclique A",
+    [CYCLIQUE_B]: "Structure cyclique B",
+  },
+} as const
 
 describe("DeleteCategoryButton", () => {
   it("annonce sur sa propre ligne qu'une Structure qui a des sous-catégories ne se supprime pas", () => {
@@ -105,7 +155,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={2}
         productCount={0}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -124,7 +174,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -153,7 +203,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={0}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -191,7 +241,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -216,7 +266,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={2}
         productCount={0}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -246,27 +296,32 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={2}
         productCount={0}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
 
     await ouvrirDialogue()
-    await act(async () => {
-      declencheurDontLeLibelleEst("Déplacer les sous-catégories vers").click()
-    })
+    const optionsSousCategories = await optionsDe(
+      "Déplacer les sous-catégories vers"
+    )
 
     // Rattacher une Structure à l'une de ses descendantes refermerait la boucle
-    // sur elle-même : la boîte ne propose donc pas ce qui produirait le refus.
-    const options = [
-      ...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'),
-    ].map((element) => element.textContent)
-    expect(options).toContain(
+    // sur elle-même : la liste des sous-catégories ne contient donc pas `ENFANT`,
+    // et la boîte ne l'offre pas. **La règle n'est pas ici** — la liste reçue ne
+    // la porte pas, elle ne fait que la rendre — mais l'absence se voit, et c'est
+    // ce qu'un éditeur voit : la cible qui manquait doit manquer.
+    expect(optionsSousCategories).toContain(
       "Déplacer les sous-catégories vers Structure cible"
     )
-    expect(options).not.toContain(
+    expect(optionsSousCategories).not.toContain(
       "Déplacer les sous-catégories vers Structure enfant"
     )
+    // Et la liste des Produits, elle, garde la descendante : les deux listes ne se
+    // ressemblent pas, et c'est le seul endroit du dépôt où la différence se voit
+    // sans calcul (US 16).
+    expect(CIBLES_SAINES.ciblesProduits).toContain(ENFANT)
+    expect(CIBLES_SAINES.ciblesSousCategories).not.toContain(ENFANT)
   })
 
   it("ne soumet aucune cible de réaffectation quand aucune Structure n'est choisie", async () => {
@@ -277,7 +332,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -297,7 +352,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -323,7 +378,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -351,7 +406,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -373,7 +428,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -405,7 +460,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -435,7 +490,7 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={0}
         productCount={2}
-        categories={CATEGORIES}
+        {...CIBLES_SAINES}
         action={action}
       />
     )
@@ -447,11 +502,68 @@ describe("DeleteCategoryButton", () => {
     ).toContain("Bloquer — produits rattachés")
   })
 
-  // La Structure déjà cyclique (#551). La boîte descendait l'arbre à la main ;
-  // elle traverse désormais la Marche de la Structure, qui s'arrête sur toute
-  // revisite. Elle garde ce qu'elle faisait : elle ne refuse rien.
-  it("reste bornée sur une Structure cyclique, et propose quand même ses cibles", async () => {
+  // La Structure déjà cyclique (#551, ADR-0030). La boîte rend ce qu'elle a reçu,
+  // et les listes reçues ici contiennent les maillons du cycle : elle ne refuse
+  // rien, parce que le refus n'appartient qu'au serveur.
+  it("reste propositionnelle sur une Structure cyclique, et ne journalise plus", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const { action } = actionQuiCapture<DeleteCategoryState>()
+      rendu.render(
+        <DeleteCategoryButton
+          categoryId={SUPPRIMEE}
+          categoryName="Structure à supprimer"
+          childCount={1}
+          productCount={1}
+          {...CIBLES_CYCLIQUES}
+          action={action}
+        />
+      )
+
+      await ouvrirDialogue()
+      const optionsSousCategories = await optionsDe(
+        "Déplacer les sous-catégories vers"
+      )
+
+      // La liste des sous-catégories ne propose pas la descendante — ici sa seule
+      // enfant, qui est aussi la seule chose que l'exclusion retire.
+      expect(optionsSousCategories).not.toContain(
+        "Déplacer les sous-catégories vers Structure enfant"
+      )
+      // Et la boîte **propose** : la cible saine, et jusqu'aux maillons du cycle.
+      // Elle ne refuse rien — sur une chaîne cyclique, le refus n'appartient qu'au
+      // serveur, et la cible reste donc offerte (ADR-0030, US 17).
+      expect(optionsSousCategories).toEqual(
+        expect.arrayContaining([
+          "Déplacer les sous-catégories vers Structure cible",
+          "Déplacer les sous-catégories vers Structure cyclique A",
+          "Déplacer les sous-catégories vers Structure cyclique B",
+        ])
+      )
+
+      // **Plus aucune ligne de journal, et c'est la preuve que la règle a quitté la
+      // boîte** (#573). Avant, elle bâtissait une marche par rendu et le cycle se
+      // nommait ici — une fois, mais ici, dans le navigateur d'un éditeur qui n'a
+      // aucun écran de réparation à faire. Le cycle se nomme sur la liste
+      // d'Administration, qui le rend visible d'un être humain (ADR-0030), et la
+      // boîte n'a plus de quoi le voir : elle ne rend plus que des listes reçues.
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
+describe("DeleteCategoryButton — ce qui franchit la couture", () => {
+  it("n'offre qu'une cible reçue, et la nomme par la table des noms", async () => {
+    // **Ce que la suite peut prouver, et où s'arrête.** La règle « ce qui descend
+    // ne peut pas accueillir une sous-catégorie » n'est plus ici : elle est dans le
+    // cœur pur, sur des littéraux et sans rendu
+    // (`lib/marche-structure-partition.test.ts`). Ce qui reste à prouver ici est
+    // que la boîte rend **exactement** les listes qu'elle reçoit, dans l'ordre
+    // reçu, et qu'elle nomme chaque cible par la table qu'on lui a donnée (US 18).
+    // Une fixture qui contiene elle-même la descendante le montre : la boîte ne la
+    // retirerait pas.
     const { action } = actionQuiCapture<DeleteCategoryState>()
     rendu.render(
       <DeleteCategoryButton
@@ -459,41 +571,75 @@ describe("DeleteCategoryButton", () => {
         categoryName="Structure à supprimer"
         childCount={1}
         productCount={1}
-        categories={CATEGORIES_CYCLIQUES}
+        {...CIBLES_CYCLIQUES}
+        ciblesSousCategories={[CIBLE, CYCLIQUE_A, CYCLIQUE_B, ENFANT]}
         action={action}
       />
     )
 
     await ouvrirDialogue()
-    await act(async () => {
-      declencheurDontLeLibelleEst("Déplacer les sous-catégories vers").click()
-    })
+    const options = await optionsDe("Déplacer les sous-catégories vers")
 
-    const options = [
-      ...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'),
-    ].map((element) => element.textContent)
+    // La descendante est là, parce qu'elle est dans la liste reçue : la boîte ne
+    // filtre rien, elle rend. Et l'ordre reçu est l'ordre rendu — le tri est la
+    // promesse du module qui a produit les listes, pas de la boîte.
+    expect(options).toEqual([
+      "Déplacer les sous-catégories vers Structure cible",
+      "Déplacer les sous-catégories vers Structure cyclique A",
+      "Déplacer les sous-catégories vers Structure cyclique B",
+      "Déplacer les sous-catégories vers Structure enfant",
+    ])
+  })
 
-    // La coupe est la même qu'avant : ce qui descend de la Structure supprimée
-    // ne peut pas l'accueillir — ici sa seule enfant.
-    expect(options).not.toContain(
+  it("se rabat sur l'identifiant quand la table des noms ne porte pas la cible", async () => {
+    // Un `cuid` se lit mal, mais il est vrai : la boîte n'a pas à inventer un nom
+    // qu'aucune lecture ne lui a donné. Le repli est celui du journal de la marche,
+    // et il est dit ici pour qu'un nom vide ne s'affiche jamais.
+    const { action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
+      <DeleteCategoryButton
+        categoryId={SUPPRIMEE}
+        categoryName="Structure à supprimer"
+        childCount={1}
+        productCount={0}
+        {...CIBLES_SAINES}
+        ciblesSousCategories={[CIBLE, "cat-inconnue"]}
+        action={action}
+      />
+    )
+
+    await ouvrirDialogue()
+
+    expect(await optionsDe("Déplacer les sous-catégories vers")).toEqual([
+      "Déplacer les sous-catégories vers Structure cible",
+      "Déplacer les sous-catégories vers cat-inconnue",
+    ])
+  })
+
+  it("garde les deux listes distinctes : la descendance reste une cible de Produit", async () => {
+    // La différence entre les deux listes est le fait que la spec énonce par deux
+    // histoires d'éditeur (US 15, US 16) : un Produit n'a pas d'accusé de réception,
+    // une sous-catégorie en a un. Les voir côte à côte dans le même rendu est ce
+    // qui les empêche de se confondre.
+    const { action } = actionQuiCapture<DeleteCategoryState>()
+    rendu.render(
+      <DeleteCategoryButton
+        categoryId={SUPPRIMEE}
+        categoryName="Structure à supprimer"
+        childCount={1}
+        productCount={1}
+        {...CIBLES_SAINES}
+        action={action}
+      />
+    )
+
+    await ouvrirDialogue()
+
+    expect(await optionsDe("Déplacer les produits vers")).toContain(
+      "Déplacer les produits vers Structure enfant"
+    )
+    expect(await optionsDe("Déplacer les sous-catégories vers")).not.toContain(
       "Déplacer les sous-catégories vers Structure enfant"
     )
-    // Et la boîte **propose** : la cible saine, et jusqu'aux maillons du cycle.
-    // Elle ne refuse rien — sur une chaîne cyclique, le refus n'appartient
-    // qu'au serveur, et la cible reste donc offerte (ADR-0030).
-    expect(options).toContain(
-      "Déplacer les sous-catégories vers Structure cible"
-    )
-    expect(options).toContain(
-      "Déplacer les sous-catégories vers Structure cyclique A"
-    )
-
-    // Une seule ligne pour tout le rendu : la marche est construite **une
-    // fois**, non une fois par candidate — sinon le journal compterait les
-    // cibles et le filtre coûterait un parcours par candidate (#551).
-    expect(warn).toHaveBeenCalledTimes(1)
-    const ligne = warn.mock.calls[0]!.join(" ")
-    expect(ligne).toContain("Structure cyclique A")
-    expect(ligne).toContain("Structure cyclique B")
   })
 })

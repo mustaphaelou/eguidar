@@ -32,21 +32,26 @@ const RETRAIT_PAR_NIVEAU = 1.5
 export default async function AdminCategoriesPage() {
   // **Une lecture, une marche, une ligne par cycle** — la promesse n'est plus
   // écrite ici mais tenue par le module : l'écran rend les lignes qu'il lui rend,
-  // et ne construit plus ni arbre, ni profondeur, ni tri. Ce qu'il garde, c'est
-  // le rendu — le retrait que vaut une profondeur, la marque hors arbre, et la
-  // liste des Structures que reçoit la boîte de suppression (#564, ADR-0030).
+  // et ne construit plus ni arbre, ni profondeur, ni tri, ni partition. Ce qu'il
+  // garde, c'est le rendu — le retrait que vaut une profondeur, la marque hors
+  // arbre, et la table des noms que la boîte lit pour nommer ses cibles
+  // (#564, ADR-0030).
   //
-  // Cette liste est **la** lecture, projetée sur ce que la boîte sait — son
-  // identifiant, son nom, sa parente. Les lignes portent le reste, donc la
-  // projection ne relit rien et ne perd aucune Structure : la boîte voit le
-  // cycle compris, ce qui lui laisse une cible qui refermerait la boucle
-  // (#550), et #573 remplacera cette forme par les deux listes de la partition.
+  // **Une seule porte, donc une seule lecture, une seule marche** : les deux
+  // listes de cibles que reçoit la boîte sont sur la même ligne que les compteurs
+  // et la profondeur. Les demander à part aurait relu la table et — bien pire —
+  // aurait rebâti une marche par ligne, donc autant de retenues, donc **autant de
+  // lignes de journal pour un seul cycle** : un avertissement qui aurait annoncé
+  // à un éditeur autant de corruptions à réparer qu'il y a de lignes sur l'écran
+  // (ADR-0030).
   const lignes = await lireLignesAdmin()
-  const categories = lignes.map((ligne) => ({
-    id: ligne.id,
-    name: ligne.name,
-    parentId: ligne.parentId,
-  }))
+  // La table des noms, bâtie **une fois** pour toutes les boîtes de la page. C'est
+  // un objet de chaînes, donc il franchit la couture (ADR-0028) — un `Map` ou une
+  // fonction ne la franchirait pas. Le repli sur l'identifiant est dans la boîte :
+  // une cible sans nom reste affichable, et elle reste vraie.
+  const nomsStructures: Record<string, string> = Object.fromEntries(
+    lignes.map((ligne) => [ligne.id, ligne.name])
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -148,7 +153,9 @@ export default async function AdminCategoriesPage() {
                       categoryName={ligne.name}
                       childCount={ligne.nombreEnfants}
                       productCount={ligne.nombreProduits}
-                      categories={categories}
+                      ciblesProduits={ligne.ciblesProduits}
+                      ciblesSousCategories={ligne.ciblesSousCategories}
+                      nomsStructures={nomsStructures}
                       action={deleteCategoryAction}
                     />
                   </div>

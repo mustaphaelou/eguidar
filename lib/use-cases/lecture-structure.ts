@@ -120,12 +120,30 @@
  * pas « une porte par question », c'est **une porte par écran**, et elle
  * répond à tout ce que l'écran rend : c'est ainsi que `projeterEcranEdition`
  * (#572) rend d'une seule marche la Structure qu'un écran édite *et* la
- * branche qu'il lui exclut. `complementDe` reste sans porte, et ce n'est pas un
- * oubli : aucune surface ne le réclame encore, et la première qui le fera
- * partage son écran avec une projection qui a déjà lu.
+ * branche qu'il lui exclut.
+ *
+ * **La liste d'Administration est l'exemple du piège, et c'est #573 qui l'a
+ * fait tomber.** Elle a deux questions à poser aux mêmes faits — sous quoi est
+ * cette Structure, où va un Produit, où va une sous-catégorie — et les prendre à
+ * deux portes aurait relu la table et rebâti une marche par ligne. Une marche par
+ * ligne ne se paie pas seulement en temps : la retenue qui tait un cycle meurt
+ * avec elle, donc chaque ligne aurait dit le cycle **à son tour**, et
+ * l'avertissement aurait annoncé à un éditeur autant de corruptions à réparer
+ * qu'il y a de lignes sur son écran (ADR-0030, US 34). D'où `complementDepuis`,
+ * qui prend la marche et les liens que la projection a déjà bâtis, au lieu de
+ * `complementDe` qui en bâtit une nouvelle : les cibles de chaque ligne sortent
+ * de la marche des lignes. `complementDe` reste la porte de qui n'a qu'une
+ * partition à demander et rien d'autre à demander à la table — c'est
+ * `lib/marche-structure-partition.test.ts` qui l'éprouve, sur les mêmes littéraux.
  */
 import { prisma } from "@/lib/db"
-import { descendanceDe, marcheDesStructures } from "@/lib/marche-structure"
+import {
+  complementDepuis,
+  descendanceDe,
+  marcheDesStructures,
+  marcheStructure,
+  type LiensStructure,
+} from "@/lib/marche-structure"
 
 export {
   complementDe,
@@ -343,7 +361,8 @@ export async function lireArbreAccueil(): Promise<NoeudAccueil[]> {
 
 /**
  * Une ligne de la liste d'Administration : les faits qu'une rangée de Structure
- * porte, plus **les trois questions que la ligne pose sur sa propre place**.
+ * porte, plus les **questions que la ligne pose sur sa propre place et sur ce
+ * qu'elle pèse**.
  *
  * `profondeur` est le niveau dans l'arbre — une racine vaut zéro — et c'est un
  * fait, pas une mesure : l'écran en fait un retrait, cette interface ne promet
@@ -355,7 +374,22 @@ export async function lireArbreAccueil(): Promise<NoeudAccueil[]> {
  *
  * Les deux compteurs sont **dérivés**, jamais lus : voir l'en-tête. Le lien, lui,
  * reste dans la ligne : c'est lui qui décide si elle annonce une parente ou une
- * racine, et une surface qui s'en passerait le devinerait.
+ * racine, et une surface qui s'en passerait la devinerait.
+ *
+ * **Les deux listes de cibles sont la troisième question de l'écran**, et elles
+ * ne sont pas ses lignes : ce sont les deux listes que la boîte de suppression de
+ * la ligne propose, en identifiants, sans nom. La première accueille un Produit
+ * et vaut **toute** Structure autre que celle-ci — une descendante comprise, sans
+ * quoi déplacer un Produit serait plus astreint que déplacer une sous-catégorie ;
+ * la seconde accueille une sous-catégorie et vaut ce qui ne descend pas d'elle,
+ * parce que l'y rattacher refermerait la boucle sur elle-même. Elles sont donc le
+ * complément de la primitive, rendu par ligne.
+ *
+ * **Le prix, énoncé au lieu d'être subi** : une liste par Structure, donc des
+ * props au carré du nombre de Structures sur une page d'Administration. Un
+ * catalogue de quelques centaines de Structures rend cela indifférent ; passé deux
+ * cents, il faudrait hisser la partition dans un module client unique qui rendrait
+ * toutes les boîtes. C'est consigné, pas décidé (ADR-0030, #564).
  */
 export interface LigneStructureAdmin {
   id: string
@@ -371,13 +405,18 @@ export interface LigneStructureAdmin {
   nombreEnfants: number
   profondeur: number
   horsArbre: boolean
+  /** Où peut aller un Produit : toute Structure sauf celle-ci. */
+  ciblesProduits: string[]
+  /** Où peut aller une sous-catégorie : ce qui ne descend pas d'elle. */
+  ciblesSousCategories: string[]
 }
 
 /**
  * Les lignes de la liste d'Administration, projetées sur des faits déjà en
- * mémoire — la porte pure. C'est elle qui porte l'ordre de la page et le
- * placement des Structures hors arbre, donc la preuve de ces deux faits ne coûte
- * plus de base de données.
+ * mémoire — la porte pure. C'est elle qui porte l'ordre de la page, le
+ * placement des Structures hors arbre, et les deux listes de cibles que la boîte
+ * de suppression de chaque ligne reçoit ; leur preuve ne coûte donc plus de base
+ * de données.
  *
  * **L'ordre est ici, et il est pré-ordre.** Les frères sont triés par le nom en
  * français puis par le slug, et une Structure est rendue avant ses descendantes,
@@ -393,23 +432,36 @@ export interface LigneStructureAdmin {
  * `parentId` ne nomme aucune autre rangée n'est plus **oubliée** : elle est
  * rendue, comme hors arbre, parce que c'est ce qu'elle est — présente en base,
  * absente de toute branche. Le bâtisseur d'arbre de l'écran ne la rendait pas du
- * tout, et rien dans son rendu ne disait qu'une rangée manquait.
+ * tout, et rien dans son rendu ne disait qu'une rangée manquante.
+ *
+ * **Une seule marche répond à toutes ces questions, et c'est une contrainte, pas
+ * une économie.** Les cibles de chaque ligne sont le complément de la primitive, et
+ * le complément se calcule sur une marche : le calcul par la porte des rangées en
+ * bâtirait une par ligne, donc autant de retenues, donc **autant de lignes de
+ * journal pour le même cycle** — un avertissement qui annoncerait un cycle par
+ * ligne alors qu'il n'y en a qu'un à réparer. Les liens sont donc séparés une
+ * fois, la marche bâtie une fois, et la retenue qui tait le cycle sert à la fois
+ * au sous-ensemble hors arbre, à la ligne de journal et à toutes les partitions.
  */
 export function projeterLignesAdmin(
   structures: readonly FaitStructure[]
 ): LigneStructureAdmin[] {
-  // Une seule marche pour toute la projection, donc une seule ligne par cycle :
-  // la mémoire des cycles signalés vit dans la marche, et elle meurt avec elle.
-  // Le sous-ensemble hors arbre et le journal qui le nomment viennent donc du
-  // même coup — le dire est le même acte.
-  const marche = marcheDesStructures(structures)
+  // **Les faits déjà séparés, une seule fois.** Les liens portent les deux listes
+  // de cibles — `parentParId` toutes les Structures à offrir, `noms` leur ordre —,
+  // donc la marche les lit, et `complementDepuis` s'en sert pour la même question
+  // sans rien relire.
+  const noms = new Map(structures.map((fait) => [fait.id, fait.name]))
+  const liens: LiensStructure = {
+    parentParId: new Map(structures.map((fait) => [fait.id, fait.parentId])),
+    noms,
+  }
+  const marche = marcheStructure(liens)
   const horsArbre = new Set(marche.horsArbre())
 
   // Les deux noms que la ligne annonce, dérivés des faits qu'elle a déjà : le nom
   // de la parente par le lien, et le nombre de sous-catégories par le lien
   // inverse. Une lecture de plus — une jointure, un `COUNT` — coûterait à toutes
   // les surfaces alors que la table entière est déjà en mémoire.
-  const noms = new Map(structures.map((fait) => [fait.id, fait.name]))
   const enfantsParParente = new Map<string, number>()
   for (const fait of structures) {
     if (fait.parentId === null) continue
@@ -423,19 +475,28 @@ export function projeterLignesAdmin(
     fait: FaitStructure,
     profondeur: number,
     hors: boolean
-  ): LigneStructureAdmin => ({
-    id: fait.id,
-    name: fait.name,
-    slug: fait.slug,
-    image: fait.image,
-    parentId: fait.parentId,
-    nomParente:
-      fait.parentId === null ? null : (noms.get(fait.parentId) ?? null),
-    nombreProduits: fait.produitsDirects,
-    nombreEnfants: enfantsParParente.get(fait.id) ?? 0,
-    profondeur,
-    horsArbre: hors,
-  })
+  ): LigneStructureAdmin => {
+    // **Une seule descendance par ligne, prise sur la marche de la projection.**
+    // C'est la même règle que celle que la boîte se calculait à chaque rendu dans
+    // un composant client (#551, #573), et elle n'est écrite qu'ici et dans le
+    // cœur : la structure du formulaire ne la réécrira pas.
+    const partition = complementDepuis(marche, liens, fait.id)
+    return {
+      id: fait.id,
+      name: fait.name,
+      slug: fait.slug,
+      image: fait.image,
+      parentId: fait.parentId,
+      nomParente:
+        fait.parentId === null ? null : (noms.get(fait.parentId) ?? null),
+      nombreProduits: fait.produitsDirects,
+      nombreEnfants: enfantsParParente.get(fait.id) ?? 0,
+      profondeur,
+      horsArbre: hors,
+      ciblesProduits: partition.horsSoi,
+      ciblesSousCategories: partition.horsDescendance,
+    }
+  }
 
   // Les faits groupés par parente, puis les frères triés une fois. Un `flatMap`
   // qui recursait sur les faits tels que la base les rendait — donc dans l'ordre de

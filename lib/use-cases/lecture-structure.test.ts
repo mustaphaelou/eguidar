@@ -520,11 +520,19 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
 
       // **Une ligne, pas une par Structure avalée** : trois Structures hors arbre
       // ici, et le journal n'en dit qu'une. C'est la même marche qui sert à
-      // fonder le sous-ensemble hors arbre et à la nommer, donc la retenue qui
+      // fonder le sous-ensemble hors arbre et à le nommer, donc la retenue qui
       // empêche la seconde ligne est celle de la marche — et elle meurt avec elle,
       // donc avec la lecture. Une projection qui bâtirait une seconde marche
       // dirait le même cycle deux fois, et l'avertissement cesserait de dire
       // combien de Structures toucher.
+      //
+      // Et c'est aussi ce qui est en jeu pour les **cibles de chaque ligne** : la
+      // projection en demande une par Structure, donc une descente par ligne, et
+      // chacune d'elles retombe sur la boucle — puisque les trois maillons sont
+      // les ancêtres les uns des autres. Une marche par ligne dirait donc le cycle
+      // une fois de plus par ligne, et l'avertissement annoncerait un cycle à
+      // réparer par Structure d'une boucle qui n'en compte qu'un. Les cibles
+      // sortent donc de la marche de la projection, pas d'une autre.
       expect(warn).toHaveBeenCalledTimes(1)
       const ligne = warn.mock.calls[0]!.join(" ")
       expect(ligne).toContain("Boucle A")
@@ -560,6 +568,172 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
       nomParente: null,
       profondeur: 0,
     })
+  })
+})
+
+/* ======================================================================== *
+ * Les cibles que porte chaque ligne de la liste (#573)                     *
+ * ======================================================================== *
+ *
+ * La troisième question que l'écran d'Administration pose aux mêmes faits :
+ * où vont les Produits de la Structure d'une ligne, et où vont ses
+ * sous-catégories. Elle était jusqu'ici posée par la **boîte de suppression**, dans
+ * un composant `"use client"`, qui bâtissait sa marche à chaque rendu pour y
+ * répondre (US 40). Elle se pose ici, à côté des deux autres — donc de la même
+ * lecture et de la même marche, ce qui est la seule façon de ne pas dire le même
+ * cycle autant de fois qu'il y a de lignes.
+ *
+ * Les deux listes se lisent dans l'ordre que le **cœur** promet pour une
+ * partition — le nom en français, départagé par l'identifiant, qu'il est le seul
+ * à pouvoir départager — et non dans celui des lignes, qui se départage par le
+ * slug. Deux.selections sur le même écran ne promettent pas le même tri, et c'est
+ * dit : l'ordre d'une liste de cibles n'est pas l'ordre d'une lecture.
+ */
+describe("projeterLignesAdmin — les cibles que la boîte de chaque ligne reçoit", () => {
+  it("offre à un Produit toutes les Structures, descendantes comprises", () => {
+    const lignes = projeterLignesAdmin(ARBRE_SAIN)
+    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+
+    // Un Produit n'a pas d'accusé de réception : il atterrit où l'on dit, donc
+    // **toute** Structure autre que celle-ci est une cible — une descendante
+    // comprise, sans quoi déplacer un Produit serait plus astreint que le tri
+    // d'une sous-catégorie (US 16).
+    expect(parId.get("enfant-a")!.ciblesProduits).toEqual([
+      "enfant-b",
+      "isolee",
+      "petit-a",
+      "racine",
+    ])
+    expect(parId.get("isolee")!.ciblesProduits).toEqual([
+      "enfant-a",
+      "enfant-b",
+      "petit-a",
+      "racine",
+    ])
+    // Et jamais la Structure elle-même : elle est la ligne qu'on supprime.
+    for (const ligne of lignes) {
+      expect(ligne.ciblesProduits, ligne.id).not.toContain(ligne.id)
+      expect(new Set(ligne.ciblesProduits).size, ligne.id).toBe(
+        ligne.ciblesProduits.length
+      )
+    }
+  })
+
+  it("écarte des sous-catégories ce qui descend de la Structure de la ligne", () => {
+    const lignes = projeterLignesAdmin(ARBRE_SAIN)
+    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+
+    // Rattacher une Structure à l'une de ses descendantes refermerait la boucle
+    // sur elle-même : la liste des sous-catégories est donc la première moins la
+    // branche, et rien d'autre. `Petit A` reste une cible de **Produit** — c'est
+    // la seule différence entre les deux listes, et elle tient à la règle
+    // (ADR-0030).
+    expect(parId.get("enfant-a")!.ciblesSousCategories).toEqual([
+      "enfant-b",
+      "isolee",
+      "racine",
+    ])
+    expect(parId.get("petit-a")!.ciblesSousCategories).toEqual([
+      "enfant-a",
+      "enfant-b",
+      "isolee",
+      "racine",
+    ])
+  })
+
+  it("ne rend que des chaînes : rien d'appelable ne franchit la couture", () => {
+    // Ce qui traverse la frontière client/serveur, ce sont des identifiants
+    // (ADR-0028) : aucune fonction, aucun getter, aucune instance. Une forme plus
+    // grande qu'une constante, pas différente.
+    for (const ligne of projeterLignesAdmin(ARBRE_SAIN)) {
+      for (const liste of [ligne.ciblesProduits, ligne.ciblesSousCategories]) {
+        expect(liste.length).toBeGreaterThan(0)
+        for (const valeur of liste) {
+          expect(typeof valeur).toBe("string")
+        }
+      }
+    }
+  })
+})
+
+describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", () => {
+  /**
+   * Le cycle de la suite, avec une branche saine à côté :
+   *
+   *     racine ─── enfant-a ─── petit-a
+   *     isolee
+   *     amont ──┐
+   *             ├─ boucle-a ⇄ boucle-b
+   *             ┘
+   *
+   * Les trois maillons sont les ancêtres les uns des autres, donc les descen
+   * dantes les uns des autres : c'est la forme la plus dure pour la partition, et
+   * celle où une liste de cibles qui refuse au lieu de rendre se verrait tout de
+   * suite.
+   */
+  const AVEC_CYCLE: FaitStructure[] = [
+    structure("racine", "Racine", null, 1),
+    structure("enfant-a", "Enfant A", "racine"),
+    structure("petit-a", "Petit A", "enfant-a", 2),
+    structure("isolee", "Isolée", null, 4),
+    structure("amont", "Amont", "boucle-a"),
+    structure("boucle-a", "Boucle A", "boucle-b"),
+    structure("boucle-b", "Boucle B", "boucle-a"),
+  ]
+
+  it("propose les maillons du cycle pour un Produit, et les écarte des sous-catégories", () => {
+    const lignes = projeterLignesAdmin(AVEC_CYCLE)
+    const boucleA = lignes.find((ligne) => ligne.id === "boucle-a")!
+
+    // **La divergence d'ADR-0030, en deux listes.** Le maillon de la boucle est
+    // proposé comme destination d'un Produit et retiré de celle d'une
+    // sous-catégorie : ce n'est pas un refus, c'est le fait qu'un tel
+    // raccordement refermerait la boucle. La boîte **propose**, le serveur seul
+    // **refuse** — et `assertAcyclicCategoryTree` reste le seul à lever
+    // `CategoryAncestorCycleError`. Une liste qui aurait retiré le maillon des
+    // deux côtés aurait fait dire la même chose aux deux surfaces, et c'est
+    // précisément ce que la décision exclut (US 17).
+    expect(boucleA.ciblesProduits).toEqual([
+      "amont",
+      "boucle-b",
+      "enfant-a",
+      "isolee",
+      "petit-a",
+      "racine",
+    ])
+    expect(boucleA.ciblesSousCategories).not.toContain("boucle-b")
+    expect(boucleA.ciblesSousCategories).toEqual([
+      "enfant-a",
+      "isolee",
+      "petit-a",
+      "racine",
+    ])
+  })
+
+  it("donne à une Structure hors arbre les mêmes cibles qu'à une Structure saine", () => {
+    const lignes = projeterLignesAdmin(AVEC_CYCLE)
+    const amont = lignes.find((ligne) => ligne.id === "amont")!
+
+    // La corruption ne change rien aux listes : `horsArbre` est un fait de
+    // **place** dans l'arbre, pas de nature — « présente en base, absente de toute
+    // branche » (glossaire). Une ligne hors arbre se supprime donc comme les
+    // autres, et sa boîte propose comme les autres ; c'est le serveur, seul, qui
+    // refusera une cible qui referait la boucle.
+    //
+    // Et l'amont est la forme qui rend le fait lisible : il **n'a aucune
+    // descendante**, donc sa branche est lui seul, et les deux listes valent
+    // « tout sauf lui ». Une liste qui refuserait de se remplir sur une Structure
+    // hors arbre ferait disparaître de l'Administration la rangée qu'un éditeur
+    // vient réparer (ADR-0030).
+    expect(amont.ciblesProduits).toEqual([
+      "boucle-a",
+      "boucle-b",
+      "enfant-a",
+      "isolee",
+      "petit-a",
+      "racine",
+    ])
+    expect(amont.ciblesSousCategories).toEqual(amont.ciblesProduits)
   })
 })
 
