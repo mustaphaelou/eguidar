@@ -19,15 +19,10 @@ import {
   PRODUCT_TAG,
   productDetailTag,
 } from "@/lib/use-cases/cache-invalidation"
-
-export interface CategoryNode {
-  id: string
-  name: string
-  slug: string
-  image: string | null
-  productCount: number
-  children: CategoryNode[]
-}
+import {
+  lireArbreAccueil,
+  type NoeudAccueil,
+} from "@/lib/use-cases/lecture-structure"
 
 export interface CategoryChainEntry {
   name: string
@@ -35,7 +30,11 @@ export interface CategoryChainEntry {
 }
 
 export interface HomeData {
-  categories: CategoryNode[]
+  /**
+   * L'arbre d'accueil vient de la Lecture de la Structure, qui en possède la
+   * lecture : la page ne lit plus la table, elle ne fait que la demander.
+   */
+  categories: NoeudAccueil[]
   featured: CarteProduit[]
 }
 
@@ -80,52 +79,6 @@ export interface ProductDetailData {
   related: CarteProduit[]
 }
 
-type CategoryWithCount = {
-  id: string
-  name: string
-  slug: string
-  image: string | null
-  parentId: string | null
-  _count: { products: number }
-}
-
-export function buildCategoryTree(
-  categories: CategoryWithCount[]
-): CategoryNode[] {
-  const nodes = new Map<string, CategoryNode>()
-  for (const category of categories) {
-    nodes.set(category.id, {
-      id: category.id,
-      name: category.name,
-      slug: category.slug,
-      image: category.image,
-      productCount: category._count.products,
-      children: [],
-    })
-  }
-
-  // **La traversée appartient à la Marche de la Structure** (#551, ADR-0030).
-  // L'arbre d'accueil descend depuis les racines : une Structure qu'aucune
-  // racine n'atteint — un cycle, ou la branche qu'un cycle soustrait à l'arbre
-  // — n'a pas de place ici, et n'en a jamais eu. Ce qui change est qu'elle est
-  // désormais **nommée** : `horsArbre()` journalise le cycle, une fois pour
-  // tout l'arbre, au lieu de l'effacer en silence. La boutique dégrade et rend
-  // sa page ; elle ne refuse pas — c'est la mutation qui refuse, et elle seule
-  // a un éditeur à qui rendre une faute (ADR-0030).
-  const marche = marcheDesStructures(categories)
-  const horsArbre = new Set(marche.horsArbre())
-
-  const roots: CategoryNode[] = []
-  for (const category of categories) {
-    if (horsArbre.has(category.id)) continue
-    const node = nodes.get(category.id)!
-    const parent = category.parentId ? nodes.get(category.parentId) : undefined
-    if (parent) parent.children.push(node)
-    else roots.push(node)
-  }
-  return roots
-}
-
 type VariantSummary = { priceDelta: number; stock: number }
 
 /**
@@ -159,33 +112,23 @@ function versCarteProduit(product: {
   )
 }
 
+/**
+ * L'accueil : l'arbre d'accueil vient de la Lecture de la Structure, qui lit la
+ * table une fois et garantit l'ordre et le compte de Produits ; les Produits mis
+ * en avant restent une lecture du Catalogue, et les deux courent de front.
+ */
 export async function fetchHomeData(): Promise<HomeData> {
   const [categories, featured] = await Promise.all([
-    prisma.category.findMany({
-      include: { _count: { select: { products: true } } },
-      orderBy: { name: "asc" },
-    }),
+    lireArbreAccueil(),
     prisma.product.findMany({
       where: { isFeatured: true },
       include: { variants: { select: { priceDelta: true, stock: true } } },
       orderBy: [{ featuredOrder: "asc" }, { name: "asc" }],
     }),
   ])
-  const tree = buildCategoryTree(categories)
-  accumulateProductCounts(tree)
   return {
-    categories: tree,
+    categories,
     featured: featured.map((product) => versCarteProduit(product)),
-  }
-}
-
-function accumulateProductCounts(nodes: CategoryNode[]): void {
-  for (const node of nodes) {
-    accumulateProductCounts(node.children)
-    node.productCount += node.children.reduce(
-      (sum, child) => sum + child.productCount,
-      0
-    )
   }
 }
 
@@ -197,8 +140,18 @@ type CategoryLink = {
 }
 
 /**
- * La lecture complète de la Structure : **une par exécution, et une seule**
+ * La lecture des liens de la Structure : **une par exécution, et une seule**
  * (#552).
+ *
+ * **Elle n'est plus la seule, et c'est temporaire.** La Lecture de la Structure
+ * (`@/lib/use-cases/lecture-structure`) possède désormais la lecture de la
+ * Structure : c'est elle qui rend l'arbre d'accueil, et elle le rend en lisant
+ * la table une fois. Cette lecture-ci reste ici parce que ses deux projections —
+ * la descendance qui décide des Produits de la page de catégorie, et le fil
+ * d'Ariane — appartiennent au module qui la possède, et qu'aucune des deux n'y
+ * est encore (#570, #571). Elle disparaîtra avec elles ; en attendant, elle lit
+ * exactement les mêmes faits que la Lecture, en moins : ni l'image, ni le
+ * compte de Produits.
  *
  * `fetchCategoryPageData` et `fetchProductPageData` en sont les seuls appelants,
  * et chacun n'en fait qu'un appel — à l'intérieur de l'exécution unique de sa
@@ -227,7 +180,7 @@ type CategoryLink = {
  * call with the same inputs reuses that output, within a render pass and across
  * requests, for as long as the entry lasts. »
  * (`node_modules/next/dist/docs/01-app/03-api-reference/01-directives/use-cache.md:111`).
- * Le corps — donc la lecture complète — tourne une fois par requête, sur un
+ * Le corps — donc la lecture des liens — tourne une fois par requête, sur un
  * défaut de cache.
  *
  * Ce que la suite ne peut pas faire, et ne fait pas : appeler deux fois le

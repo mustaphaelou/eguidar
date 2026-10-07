@@ -114,9 +114,10 @@ _Avoid_: tous les produits (as the concept name)
 
 **Structure**:
 L'arborescence de catégories du Catalogue telle que l'Administration la gère : la table `Category`
-en base et le module `lib/use-cases/admin-structure.ts` qui la lit et la mute. Une Structure est
-une catégorie de cet arbre, à laquelle les Produits se rattachent — sauf ceux dont elle a été
-supprimée, qui deviennent des **Produits sans Structure**.
+en base, la **Lecture de la Structure** qui la lit pour une page, et le module
+`lib/use-cases/admin-structure.ts` qui la mute. Une Structure est une catégorie de cet arbre, à
+laquelle les Produits se rattachent — sauf ceux dont elle a été supprimée, qui deviennent des
+**Produits sans Structure**.
 _Avoid_: category tree, arborescence de catégories, catégorie d'administration
 
 **Refus de la Structure**:
