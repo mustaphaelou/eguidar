@@ -5,6 +5,7 @@ import {
   projeterEcranEdition,
   projeterLignesAdmin,
   projeterOptionsSelecteur,
+  projeterPageCategorie,
   type FaitStructure,
   type NoeudAccueil,
 } from "@/lib/use-cases/lecture-structure"
@@ -845,6 +846,253 @@ describe("projeterEcranEdition — sur une Structure déjà cyclique", () => {
       expect(ligne).toContain("Boucle B")
       // L'amont mène au cycle sans en être : la ligne nomme ce qu'il faut
       // réparer, et un `Amont` de plus la rendrait illisible.
+      expect(ligne).not.toContain("Amont")
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
+/* ======================================================================== *
+ * La page de catégorie (#570)                                              *
+ * ======================================================================== *
+ *
+ * La cinquième forme que la Lecture rend, et la première qu'on appelle par une
+ * **adresse** plutôt que par un écran : la page de catégorie est jointe par son
+ * slug, et la Structure qu'elle rend est un fait que le surensemble porte déjà.
+ * Elle était donc la seule des surfaces à payer une rangée **de plus** pour se
+ * reconnaître — un `findUnique({ where: { slug } })` — et c'est celle que le
+ * déplacement supprime. C'est le seul gain visible de toute l'opération, et il
+ * ne se voit pas dans la page : il se voit dans le nombre de requêtes
+ * (#564).
+ *
+ * **Trois réponses, une seule marche, un seul journal.** La page rend la
+ * Structure qu'elle a demandée, le fil qui y mène, les sous-catégories qu'elle
+ * propose en puces, et l'ensemble d'identifiants qui décide de ses Produits. Les
+ * deux dernières réponses sont deux traversées **de sens opposé** — la remontée
+ * et la descente — et c'est ce qui décide qu'elles ne peuvent pas être deux
+ * projections : chacune bâtirait sa propre marche, et une boucle déjà en base
+ * serait dite deux fois dans une exécution qui n'a qu'une seule boucle à
+ * réparer (ADR-0030).
+ */
+describe("projeterPageCategorie — sur un arbre sain", () => {
+  /**
+   * L'arbre que la page rend, avec des **slugs distincts des identifiants** —
+   * c'est la première différence avec les fixtures des autres projections, et
+   * elle est le sujet même de celle-ci : une page est appelée par son adresse,
+   * donc c'est le slug qu'elle cherche, et la projection doit savoir le trouver
+   * dans des faits indexés par identifiant.
+   *
+   *     racine ─── enfant-a ─── petit-a
+   *     isolee ─┬─ zèbre
+   *            └─ écran
+   */
+  const PAGE: FaitStructure[] = [
+    {
+      ...structure("c1", "Racine", null, 1),
+      slug: "racine",
+      image: "/racine.png",
+    },
+    { ...structure("c2", "Enfant A", "c1"), slug: "enfant-a" },
+    { ...structure("c3", "Petit A", "c2", 2), slug: "petit-a" },
+    { ...structure("c4", "Isolée", null, 4), slug: "isolee" },
+    // Les deux derniers sont écrits dans l'ordre **inverse** de celui que le
+    // module promet : la comparaison française lit « Écran » avant « Zèbre »,
+    // et une collation qui range les octets ferait l'inverse.
+    { ...structure("c5", "Zèbre", "c4"), slug: "zèbre" },
+    { ...structure("c6", "Écran", "c4"), slug: "écran" },
+  ]
+
+  it("trouve la Structure par son slug et rend son fil, la racine d'abord", () => {
+    const page = projeterPageCategorie(PAGE, "petit-a")!
+
+    // La rangée est **trouvée**, pas lue : la projection prend le fait dans le
+    // surensemble que la Lecture a déjà en mémoire. Une requête de plus, et la
+    // page ferait de nouveau deux propriétaires d'un même fait — celui que le
+    // déplacement vient de supprimer.
+    expect(page.categorie).toEqual({
+      id: "c3",
+      name: "Petit A",
+      slug: "petit-a",
+      image: null,
+    })
+
+    // L'ordre est la promesse même du cœur : la racine ouvre le fil, la
+    // Structure demandée le ferme. Un fil qui l'ouvrirait afficherait « Petit A
+    // › Enfant A » — donc l'inverse de l'endroit où l'on est, et une adresse qui
+    // remonte au lieu de descendre. C'est l'invariant que la page et le cœur se
+    // partagent sans avoir à se le dire.
+    expect(page.filAriane).toEqual([
+      { name: "Racine", slug: "racine" },
+      { name: "Enfant A", slug: "enfant-a" },
+      { name: "Petit A", slug: "petit-a" },
+    ])
+  })
+
+  it("passe l'image à la rangée qu'il rend, et rien d'autre", () => {
+    const page = projeterPageCategorie(PAGE, "racine")!
+
+    // La forme rendue est **étroite** : quatre faits, ceux que la page lit. Une
+    // projection qui rendrait la ligne entière ferait payer à la page un compte
+    // de Produits, une profondeur et un nom de parente qu'elle n'affiche pas
+    // (US 32) — et le `toEqual` est ce qui l'asserte : un fait de plus se verrait.
+    expect(page.categorie).toEqual({
+      id: "c1",
+      name: "Racine",
+      slug: "racine",
+      image: "/racine.png",
+    })
+  })
+
+  it("ne rend qu'elle-même quand la Structure est une racine", () => {
+    const page = projeterPageCategorie(PAGE, "racine")!
+
+    // Un fil d'une seule entrée n'est pas un fil tronqué : il dit que la page
+    // est au sommet de l'arbre, et c'est la seule chose qu'il puisse dire.
+    expect(page.filAriane).toEqual([{ name: "Racine", slug: "racine" }])
+  })
+
+  it("rend les sous-catégories directes dans l'ordre que le module promet", () => {
+    const page = projeterPageCategorie(PAGE, "isolee")!
+
+    // Les puces de la page sont ses enfants **directs**, et rien de plus : une
+    // petite-fille y serait un lien vers une page qui affiche elle-même la même
+    // puce, et la liste s'étofferait d'une entrée qui ne mène nulle part. Le
+    // lien — et lui seul — décide de l'appartenance.
+    expect(page.enfants.map((enfant) => enfant.name)).toEqual([
+      "Écran",
+      "Zèbre",
+    ])
+    // L'ordre est celui du module — le nom en français, départagé par le slug —
+    // et non celui dans lequel les faits ont été écrits : le tableau ci-dessus
+    // porte « Zèbre » avant « Écran ».
+  })
+
+  it("donne au filtre des Produits la Structure et ses descendantes, chacune une fois", () => {
+    const ids = projeterPageCategorie(PAGE, "racine")!.idsProduits
+
+    // « Chacune une fois » est une garantie de la primitive, et elle doit
+    // arriver **jusqu'à la requête** : la liste est un fait que la page reçoit,
+    // pas une variable locale que la Marche effacerait en sortant. Un `in` qui
+    // répéterait un identifiant rendrait le même ensemble — SQL teste
+    // l'appartenance, pas la multiplicité — donc personne ne verrait le doublon
+    // ici ; c'est la preuve sur les faits qui le tient.
+    expect(ids).toHaveLength(3)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect([...ids].sort()).toEqual(["c1", "c2", "c3"])
+    // La Structure **elle-même** comprise : ses propres Produits sont ceux de sa
+    // page, et une liste de ses seules descendantes en laisserait la page vide.
+    expect(ids).toContain("c1")
+    // Et rien d'autre : une Structure voisine n'est pas une descendante, et une
+    // liste qui ramènerait la table entière ferait de la page un catalogue.
+    expect(ids).not.toContain("c4")
+  })
+
+  it("rend un slug que les faits ne portent pas comme une page absente", () => {
+    // Un slug inconnu est l'absence d'une page, pas une page sans Structure :
+    // la Lecture **dégrade** et rend une absence, et c'est la page qui en fait
+    // un `notFound()` (ADR-0030). Lever ici, ou rendre une Structure imaginaire,
+    // ferait porter à la projection une décision qui n'est pas la sienne.
+    expect(projeterPageCategorie(PAGE, "categorie-inconnue")).toBeNull()
+    expect(projeterPageCategorie([], "petit-a")).toBeNull()
+  })
+
+  it("ne journalise rien : le journal garde son sens", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      projeterPageCategorie(PAGE, "petit-a")
+
+      // Une ligne sur un arbre sain serait une alerte qu'un éditeur prendrait
+      // pour une corruption, et il chercherait une faute qui n'existe pas. Les
+      // deux traversées de cette projection partagent une marche, donc le
+      // journal n'a rien à dire ici.
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
+describe("projeterPageCategorie — sur une Structure déjà cyclique", () => {
+  /**
+   * Une boucle que deux amont mènent à, à côté d'une Structure saine :
+   *
+   *     racine
+   *     amont-1 ──┐
+   *               ├─ boucle-a ⇄ boucle-b
+   *     amont-2 ──┘
+   *
+   * C'est la forme exacte du fichier de #546 : un cycle en base, atteint par
+   * deux entrées, qu'aucune racine n'atteint. La page de catégorie doit le
+   * rendre — elle rend ce qu'elle a sous la main — et le dire une fois.
+   */
+  const AVEC_CYCLE: FaitStructure[] = [
+    structure("racine", "Racine", null, 1),
+    structure("amont-1", "Amont 1", "boucle-a"),
+    structure("amont-2", "Amont 2", "boucle-a"),
+    structure("boucle-a", "Boucle A", "boucle-b"),
+    structure("boucle-b", "Boucle B", "boucle-a"),
+  ]
+
+  it("dégrade le cycle, rend le fil jusqu'à lui, et ne le répète pas", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const page = projeterPageCategorie(AVEC_CYCLE, "boucle-a")!
+
+      // Le fil s'arrête sur la revisite et rend ses maillons une fois chacun, la
+      // Structure demandée **en dernier** : l'invariant tient sur une chaîne
+      // cyclique comme sur une autre, et un fil qui se répéterait mentirait sur
+      // l'arborescence.
+      expect(page.filAriane.map((maillon) => maillon.name)).toEqual([
+        "Boucle B",
+        "Boucle A",
+      ])
+      expect(new Set(page.filAriane.map((maillon) => maillon.slug)).size).toBe(
+        page.filAriane.length
+      )
+
+      // Les sous-catégories ne sont pas filtrées : une Structure corrompue reste
+      // une rangée, et la retirer des puces serait une seconde façon de
+      // l'effacer de l'écran. La boutique dégrade, elle ne purge pas.
+      expect(page.enfants.map((enfant) => enfant.slug)).toEqual([
+        "amont-1",
+        "amont-2",
+        "boucle-b",
+      ])
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("ne donne aucun doublon au filtre, et ne dit le cycle qu'une fois", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const page = projeterPageCategorie(AVEC_CYCLE, "boucle-a")!
+
+      // Quatre identifiants, **quatre** : la boucle est atteinte par deux chemins
+      // et la règle de terminaison est ce qui l'en empêche. Une liste qui
+      // compterait deux fois une Structure ferait entrer deux fois le même
+      // Produit dans le compte que la page annonce sur son en-tête.
+      expect(page.idsProduits).toHaveLength(4)
+      expect(new Set(page.idsProduits).size).toBe(page.idsProduits.length)
+      expect([...page.idsProduits].sort()).toEqual([
+        "amont-1",
+        "amont-2",
+        "boucle-a",
+        "boucle-b",
+      ])
+      // La Structure saine, elle, n'en fait pas partie : elle n'est pas une
+      // descendante d'un maillon de la boucle.
+      expect(page.idsProduits).not.toContain("racine")
+
+      // **Une ligne, et c'est une preuve de structure.** Les deux traversées de
+      // cette page sont de sens opposé et sortent de la même marche : une
+      // projection qui en bâtirait une par réponse dirait le cycle deux fois, et
+      // l'avertissement cesserait de dire combien de Structures toucher.
+      expect(warn).toHaveBeenCalledTimes(1)
+      const ligne = warn.mock.calls[0]!.join(" ")
+      expect(ligne).toContain("Boucle A")
+      expect(ligne).toContain("Boucle B")
       expect(ligne).not.toContain("Amont")
     } finally {
       warn.mockRestore()

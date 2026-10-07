@@ -751,12 +751,43 @@ describe("storefront browse", () => {
      * Structure (`where: { parentId }`) lit la table sans la parcourir, et ne
      * compte donc pas. Un `where` vide, lui, vaut « toutes les rangées » chez
      * Prisma : il compte.
+     *
+     * **Et cette définition est liée à l'implémentation, pas au contrat** : elle
+     * ne compte ni un `findUnique` — la rangée que la page de catégorie faisait
+     * pour se reconnaître — ni une lecture bornée, alors que la page en faisait
+     * deux. Une lecture que la forme d'avant ne comptait pas n'est pas une
+     * lecture que la forme d'après en fait ; c'est pourquoi la mesure de toutes
+     * les requêtes sur `Category` est à côté, et non à la place de celle-ci.
      */
     function estUneLectureComplete(
       args: { where?: object } | undefined
     ): boolean {
       if (!args?.where) return true
       return Object.keys(args.where).length === 0
+    }
+
+    /**
+     * **Toutes** les requêtes que la page adresse à la table `Category` — les
+     * `findMany` et les `findUnique`, bornés ou non. C'est la mesure qui compte
+     * la rangée qu'une page se reconnaît par son adresse, donc celle qui prouve
+     * que la page de catégorie n'en fait plus : le gain de #570 est invisible
+     * pour `estUneLectureComplete`, qui n'a jamais su voir un `findUnique`.
+     */
+    async function compterLesRequetesDeStructure<T>(
+      rendre: () => Promise<T>
+    ): Promise<{ issue: T; requetes: number }> {
+      const findMany = vi.spyOn(prisma.category, "findMany")
+      const findUnique = vi.spyOn(prisma.category, "findUnique")
+      try {
+        const issue = await rendre()
+        return {
+          issue,
+          requetes: findMany.mock.calls.length + findUnique.mock.calls.length,
+        }
+      } finally {
+        findMany.mockRestore()
+        findUnique.mockRestore()
+      }
     }
 
     /** Le nombre de lectures complètes qu'une page a demandées, et son issue. */
@@ -819,6 +850,33 @@ describe("storefront browse", () => {
         pSlug("lecture-unique"),
       ])
       expect(issue!.categoryChain.map((c) => c.slug)).toEqual([cSlug("root")])
+    })
+
+    it("la page de catégorie n'adresse plus qu'une seule requête à la Structure", async () => {
+      // La mesure ci-dessus est **aveugle** à ce que #570 a retiré : elle ne
+      // compte que les `findMany` sans `where`, donc ni la rangée que la page
+      // faisait pour se reconnaître (`findUnique({ where: { slug } })`), ni la
+      // lecture des enfants (`where: { parentId }`). Trois requêtes, un « 1 ».
+      // Celle-ci compte tout, et le « 1 » qu'elle dit est le vrai.
+      const { issue, requetes } = await compterLesRequetesDeStructure(() =>
+        fetchCategoryPageData(cSlug("grand"))
+      )
+
+      // La rangée est un fait du surensemble que la Lecture a déjà lu : la
+      // chercher en mémoire ne coûte pas une requête, et une requête de plus
+      // ferait de la page le second propriétaire d'un fait qui a déjà le sien.
+      expect(requetes).toBe(1)
+      // Et la page rend toujours ce qu'elle rendait : la preuve n'est pas celle
+      // d'une page vide.
+      expect(issue!.category.slug).toBe(cSlug("grand"))
+      expect(issue!.categoryChain.map((c) => c.slug)).toEqual([
+        cSlug("root"),
+        cSlug("child"),
+        cSlug("grand"),
+      ])
+      expect(issue!.products.map((p) => p.slug)).toEqual([
+        pSlug("lecture-unique"),
+      ])
     })
 
     it("la fiche Produit lit les liens une fois, pour son fil d'Ariane", async () => {

@@ -21,6 +21,7 @@ import {
 } from "@/lib/use-cases/cache-invalidation"
 import {
   lireArbreAccueil,
+  lirePageCategorie,
   type NoeudAccueil,
 } from "@/lib/use-cases/lecture-structure"
 
@@ -140,26 +141,31 @@ type CategoryLink = {
 }
 
 /**
- * La lecture des liens de la Structure : **une par exécution, et une seule**
- * (#552).
+ * La lecture des liens de la Structure : **une par exécution, et une seule**.
  *
- * **Elle n'est plus la seule, et c'est temporaire.** La Lecture de la Structure
- * (`@/lib/use-cases/lecture-structure`) possède désormais la lecture de la
- * Structure : c'est elle qui rend l'arbre d'accueil, et elle le rend en lisant
- * la table une fois. Cette lecture-ci reste ici parce que ses deux projections —
- * la descendance qui décide des Produits de la page de catégorie, et le fil
- * d'Ariane — appartiennent au module qui la possède, et qu'aucune des deux n'y
- * est encore (#570, #571). Elle disparaîtra avec elles ; en attendant, elle lit
- * exactement les mêmes faits que la Lecture, en moins : ni l'image, ni le
- * compte de Produits.
+ * **Il ne lui reste qu'un appelant, et c'est temporaire.** La Lecture de la
+ * Structure (`@/lib/use-cases/lecture-structure`) possède la lecture de la
+ * Structure : c'est elle qui rend l'arbre d'accueil (#566), la liste
+ * d'Administration (#567), le sélecteur d'un formulaire (#568), l'écran
+ * d'édition (#572) et la page de catégorie (#570) — laquelle faisait jusqu'ici
+ * deux de ces trois lectures pour elle seule. `fetchProductPageData` est le
+ * dernier : son fil d'Ariane n'est pas encore dans la Lecture (#571), et il ne
+ * peut pas y entrer par un coup de terrain ici — la page Produit a sa propre
+ * porte, à écrire par son propre billet, avec le même module. Cette lecture-ci
+ * disparaîtra avec lui ; en attendant, elle lit exactement les mêmes faits que la
+ * Lecture, en moins : ni l'image, ni le compte de Produits.
  *
- * `fetchCategoryPageData` et `fetchProductPageData` en sont les seuls appelants,
- * et chacun n'en fait qu'un appel — à l'intérieur de l'exécution unique de sa
- * fonction `"use cache: remote"`, une marche en découle, et ses deux traversées
- * la partagent (#548). Rien ne la retient au-delà : les liens vivent dans
- * l'exécution qui les a lus et meurent avec elle — pas de `Map` de module, que
- * la documentation range parmi les causes de blocage de build dans une portée
- * cachée, « retrieving them from shared storage (Maps) »
+ * Elle est donc devenue le **seul** chemin par lequel une page de la boutique
+ * atteint encore la table hors du module — la lecture des noms d'une facette,
+ * elle, n'est pas une page et reste l'exception nommée de l'en-tête du module —
+ * et elle n'est plus partagée : `getCategoryChain`, son seul autre consommateur,
+ * est lui aussi à la portée de cet unique appelant. Les deux meurent ensemble, et
+ * aucune page ne verra l'une disparaître sans l'autre. Il n'en reste pas moins
+ * qu'un appel, à l'intérieur de l'exécution unique de la fonction
+ * `"use cache: remote"` qui le porte. Rien ne la retient au-delà : les liens
+ * vivent dans l'exécution qui les a lus et meurent avec elle — pas de `Map` de
+ * module, que la documentation range parmi les causes de blocage de build dans
+ * une portée cachée, « retrieving them from shared storage (Maps) »
  * (`node_modules/next/dist/docs/01-app/03-api-reference/01-directives/use-cache.md:697`),
  * pas de promesse gardée, pas d'`AsyncLocalStorage`. Un Produit sans Structure
  * ne la paie pas : il n'a pas de fil d'Ariane à construire (ADR-0029).
@@ -167,9 +173,9 @@ type CategoryLink = {
  * **Le compte est épinglé par exécution, pas par requête, et il faut le dire.**
  * `storefront.test.ts` le mesure sur le client Prisma : deux lectures rendent
  * exactement la même page, donc rien d'autre ne les distingue — et la mesure ne
- * voit qu'**une exécution**. Or les deux pages de la boutique appellent chacune
- * leur lecture deux fois, une dans `generateMetadata` et une dans le corps de
- * la page : `app/(boutique)/categorie/[slug]/page.tsx` pour
+ * voit qu'**une exécution**. La page de catégorie et la fiche Produit appellent
+ * chacune leur getter caché deux fois, une dans `generateMetadata` et une dans
+ * le corps de la page : `app/(boutique)/categorie/[slug]/page.tsx` pour
  * `getCategoryPageData(slug)`, et la page Produit pour
  * `getProductPageData(slug)` — son chemin n'est pas écrit ici, parce que
  * `lib/carte-produit-frontiere.test.ts` n'admet le segment de route que dans
@@ -197,49 +203,44 @@ async function loadCategoryLinks(): Promise<Map<string, CategoryLink>> {
   return new Map(categories.map((category) => [category.id, category]))
 }
 
+/**
+ * La page de catégorie : sa Structure, son fil d'Ariane, ses sous-catégories et
+ * l'ensemble d'identifiants qui décide de ses Produits viennent de la **Lecture
+ * de la Structure**, qui en possède la lecture (#570). La page ne lit plus la
+ * table : elle ne fait que la demander, et **une fois** — la rangée qu'elle
+ * rendait par `findUnique({ where: { slug } })` est un fait du surensemble, donc
+ * une recherche en mémoire ; c'est la seule requête que ce déplacement retire,
+ * et c'est le seul gain visible de toute l'opération.
+ *
+ * Il ne reste donc qu'une lecture ici, celle du **Catalogue** : les Produits
+ * eux-mêmes. Elle est bornée par `categoryId: { in: … }`, que la Lecture a
+ * rendu — la Structure et chacune de ses descendantes, chacune une fois. La
+ * borne n'est donc plus écrite par la page : elle est un fait que le module
+ * promet, et une page qui la réécrirait à la main pourrait y mettre deux fois la
+ * même Structure.
+ *
+ * Elle attend la Lecture au lieu de la courir : les deux lectures étaient
+ * concurrentes avant, et elles ne le sont plus. C'est le prix d'un module qui
+ * répond à toute une page d'une seule fois — et il est le même pour les quatre
+ * surfaces qui l'ont déjà fait (#566, #567, #568, #572).
+ */
 export async function fetchCategoryPageData(
   slug: string
 ): Promise<CategoryPageData | null> {
-  const category = await prisma.category.findUnique({ where: { slug } })
-  if (!category) return null
+  const page = await lirePageCategorie(slug)
+  // Un slug que la Structure ne porte pas rend une absence, et c'est la page qui
+  // en fait un `notFound()` : la Lecture dégrade, elle ne décide pas (ADR-0030).
+  if (!page) return null
 
-  // Les liens sont lus **une fois** pour la page, et une seule marche en
-  // découle : la descendance qui décide des Produits et le fil d'Ariane
-  // partagent la même lecture et le même journal — un cycle produit une ligne,
-  // pas une par traversée (#548). Les noms entrent dans la marche parce que le
-  // journal les nomme : un avertissement qui n'énumère que des `cuid` oblige à
-  // ouvrir une console de base pour le lire.
-  const categoriesById = await loadCategoryLinks()
-  const marche = marcheDesStructures([...categoriesById.values()])
-
-  // La Marche rend exactement l'ensemble du filtre `categoryId: { in: … }` — la
-  // Structure et chacune de ses descendantes, une fois — et s'arrête sur toute
-  // revisite : une Structure déjà descendue ne l'est pas deux fois, donc un
-  // cycle déjà en base se referme au lieu de faire croître la file sans fin
-  // (#540). La page compte les Produits de ce qu'elle a atteint, sous-catégories
-  // comprises, et se rend avec.
   const products = await prisma.product.findMany({
-    where: { categoryId: { in: marche.descendance(category.id) } },
+    where: { categoryId: { in: page.idsProduits } },
     include: { variants: { select: { priceDelta: true, stock: true } } },
     orderBy: [{ createdAt: "desc" }, { name: "asc" }],
   })
-  const [categoryChain, children] = await Promise.all([
-    getCategoryChain(category, categoriesById, marche),
-    prisma.category.findMany({
-      where: { parentId: category.id },
-      select: { id: true, name: true, slug: true, image: true },
-      orderBy: { name: "asc" },
-    }),
-  ])
   return {
-    category: {
-      id: category.id,
-      name: category.name,
-      slug: category.slug,
-      image: category.image,
-    },
-    categoryChain,
-    children,
+    category: page.categorie,
+    categoryChain: page.filAriane,
+    children: page.enfants,
     products: products.map((product) => versCarteProduit(product)),
   }
 }
@@ -247,6 +248,13 @@ export async function fetchCategoryPageData(
 /**
  * Le fil d'Ariane d'une Structure : elle et tous ses ancêtres, la Structure
  * courante en dernier.
+ *
+ * **Il ne sert plus qu'à la fiche Produit.** La page de catégorie rend le sien
+ * par la Lecture de la Structure (#570) — qui rend l'ordre ci-dessus par
+ * `ancetres`, sur la marche de sa propre lecture ; la promesse est la même, elle
+ * a changé de maison. Cette fonction-ci et `loadCategoryLinks` sont donc, l'une
+ * comme l'autre, à la portée du seul `fetchProductPageData`, et #571 les emporte
+ * ensemble : il n'y a plus à les garder pour une page qui est déjà passée.
  *
  * Les identifiants viennent de la Marche, qui s'arrête sur **toute** revisite —
  * comme `assertAcyclicCategoryTree`, comme la boîte de suppression côté client,
