@@ -8,10 +8,11 @@ import { totalVariantStock } from "@/lib/product-metrics"
 import { LIBELLE_SANS_STRUCTURE } from "@/lib/index-projection"
 import {
   getAdminProduct,
-  listAdminCategories,
   listAdminProducts,
   updateProduct,
 } from "@/lib/use-cases/admin-catalog"
+import { createCategory } from "@/lib/use-cases/admin-structure"
+import { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
 
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
@@ -422,17 +423,60 @@ describe("un Produit sans Structure reste lisible par l'Administration", () => {
   })
 })
 
-describe("catégories du formulaire Produit", () => {
+/**
+ * Le sélecteur de Structure des deux formulaires Produit. La lecture est celle
+ * de la Lecture de la Structure depuis #568, mais **c'est ici** qu'elle se
+ * prouve : c'est la seule suite qui traverse la porte de lecture, donc la seule
+ * qui puisse dire ce que reçoit un formulaire quand la table est réelle. La
+ * projection pure a sa porte et ses épreuves dans
+ * `lib/use-cases/lecture-structure.test.ts` — l'ordre, la forme étroite, le sort
+ * d'une Structure corrompue s'y prouvent sans base, et les y prouver une
+ * deuxième fois ici n'aurait laissé qu'une assertion de plus à maintenir.
+ */
+describe("le sélecteur de Structure des formulaires Produit", () => {
   it("répond exactement l'identifiant et le nom, rien d'autre", async () => {
-    const categories = await listAdminCategories()
+    const categories = await lireOptionsSelecteur()
 
     expect(categories.find((categorie) => categorie.id === categoryId)).toEqual(
       { id: categoryId, name: "Catégorie Test lecture" }
     )
     // Le sélecteur ne reçoit rien d'autre : un fait de plus ferait échouer
-    // cette épinglage, catégorie par catégorie.
+    // cette épinglage, catégorie par catégorie. Ni les compteurs ni le nom de la
+    // parente que la liste d'Administration rend, et que le module lit
+    // pourtant : c'est la projection qui décide ce qu'elle rend, pas la lecture
+    // qui décide ce qu'elle a lu (#568).
     for (const categorie of categories) {
       expect(Object.keys(categorie).sort()).toEqual(["id", "name"])
+    }
+  })
+
+  it("porte une Structure créée dans l'Administration dès la lecture suivante", async () => {
+    // **La première lecture passe avant la création**, et c'est l'ordre des deux
+    // qui prouve le fait : dans un même processus, une seconde lecture rend une
+    // table différente de la première. Une valeur gardée d'une exécution à
+    // l'autre — un `"use cache"` sur la porte de lecture du module, un `Map` de
+    // module — ne le pourrait pas, et l'éditeur verrait son propre travail
+    // manquer dans le sélecteur sans qu'aucune erreur ne le dise (US 22).
+    const avant = await lireOptionsSelecteur()
+
+    // La création passe par la mutation de l'Administration, pas par une
+    // écriture directe : c'est elle qui invalide le cache de la Structure, donc
+    // c'est elle qu'un sélecteur doit suivre.
+    const creee = await createCategory({
+      name: "Structure fraîche",
+      slug: `categorie-fraiche-${runId}`,
+    })
+
+    try {
+      // Et la lecture que ferait l'autre formulaire au rendu suivant.
+      expect(avant.map((option) => option.id)).not.toContain(creee.id)
+      const apres = await lireOptionsSelecteur()
+      expect(apres.find((option) => option.id === creee.id)).toEqual({
+        id: creee.id,
+        name: "Structure fraîche",
+      })
+    } finally {
+      await prisma.category.delete({ where: { id: creee.id } })
     }
   })
 })

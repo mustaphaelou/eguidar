@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   projeterArbreAccueil,
   projeterLignesAdmin,
+  projeterOptionsSelecteur,
   type FaitStructure,
   type NoeudAccueil,
 } from "@/lib/use-cases/lecture-structure"
@@ -25,11 +26,13 @@ import {
  * d'une requête, aucun rendu : une épreuve qui casserait au premier changement
  * de marge ou de collation n'éprouverait pas un fait de Structure.
  *
- * Deux projections s'y proofs : l'arbre d'accueil et les lignes de l'Administration.
- * Elles partagent les fixtures parce qu'elles interrogent les **mêmes** faits,
- * pas parce que la preuve est la même — l'une rend une hiérarchie, l'autre une
- * liste ordonnée qui se lit à l'écran. Chaque projection garde donc ses
- * épreuves, et une assertion d'une projection ne vaut pas pour l'autre.
+ * Trois projections s'y prouvent : l'arbre d'accueil, les lignes de
+ * l'Administration, et le sélecteur d'un formulaire. Elles partagent les
+ * fixtures parce qu'elles interrogent les **mêmes** faits, pas parce que la
+ * preuve est la même — l'une rend une hiérarchie, l'autre une liste ordonnée qui
+ * se lit à l'écran, la troisième une liste d'options qui ne rend que
+ * l'identifiant et le nom. Chaque projection garde donc ses épreuves, et une
+ * assertion d'une projection ne vaut pas pour l'autre.
  */
 
 /**
@@ -555,5 +558,123 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
       nomParente: null,
       profondeur: 0,
     })
+  })
+})
+
+/* ======================================================================== *
+ * Le sélecteur de Structure d'un formulaire (#568)                         *
+ * ======================================================================== *
+ *
+ * La troisième forme que la Lecture rend, et la plus étroite : un **sélecteur**
+ * affiche deux choses — le nom choisi, et l'identifiant que la soumission
+ * renverra. C'est tout ce qu'il sait, donc tout ce qu'il a le droit de recevoir.
+ *
+ * Cette projection est ici pour une raison d'interface, autant que de matière :
+ * la lecture étroite que les deux formulaires Produit employaient était l'une
+ * des **six lectures** de la table `Category` que ce travail fait rejoindre le
+ * module, et elle était la seule des six à vivre dans un module qui ne savait
+ * pas qu'il lisait une Structure (`lib/use-cases/admin-catalog.ts`). La garder
+ * aurait récréé le second propriétaire que le déplacement supprime ; le prix de
+ * l'échange se limite donc à deux agrégats et une jointure que ce sélecteur ne
+ * regarde pas (ADR-0026, amendement).
+ *
+ * **Une projection n'est pas obliged d'être un sous-ensemble de sa voisine**, et
+ * c'est même ce qu'on lui demande ici : la liste d'Administration rend des
+ * compteurs et le nom de la parente, un sélecteur ne rend ni l'un ni l'autre.
+ * Réutiliser `projeterLignesAdmin` aurait été la voie courte — la liste est déjà
+ * faite, il n'y avait qu'à la réduire — et elle aurait fait payer au formulaire
+ * des faits qu'il n'a pas demandés, sous une forme large dont la réduction
+ * serait restée à la charge de chaque appelant. Une surface ne reçoit pas plus
+ * qu'elle ne l'a demandé (US 32) : la forme étroite se dérive ici, une fois, et
+ * l'appelant n'a rien à réduire.
+ */
+describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affiche", () => {
+  it("rend l'identifiant et le nom de chaque Structure, dans l'ordre promis", () => {
+    const options = projeterOptionsSelecteur(ARBRE_SAIN)
+
+    // L'ordre est celui que le module promet déjà — le nom en français, puis le
+    // slug — donc le même qu'à l'accueil et dans la liste d'Administration. Le
+    // formulaire ne trie pas pour sa despece : trois surfaces, une seule
+    // promesse, et un éditeur qui voit le même ordre partout (US 31).
+    expect(options).toEqual([
+      { id: "enfant-a", name: "Enfant A" },
+      { id: "enfant-b", name: "Enfant B" },
+      { id: "isolee", name: "Isolée" },
+      { id: "petit-a", name: "Petit A" },
+      { id: "racine", name: "Racine" },
+    ])
+  })
+
+  it("départage les Structures de même nom par leur slug", () => {
+    const options = projeterOptionsSelecteur([
+      structure("jumeau-b", "Jumeau", null),
+      structure("jumeau-a", "Jumeau", null),
+    ])
+
+    // Le départage ne se voit pas dans la forme rendue — deux options portant le
+    // même nom se ressemblent — mais il décide laquelle vient d'abord, donc
+    // l'ordre reste total sur toutes les machines. L'épingler ici dit que le
+    // sélecteur tient la même promesse que les deux autres projections, et non
+    // qu'il se sort un ordre de lui-même.
+    expect(options.map((option) => option.id)).toEqual(["jumeau-a", "jumeau-b"])
+  })
+
+  it("nomme l'ordre avec la collation française, pas avec celle du serveur", () => {
+    const options = projeterOptionsSelecteur([
+      structure("zebre", "Zèbre", null),
+      structure("ecran", "Écran", null),
+    ])
+
+    // « Écran » se lit avant « Zèbre » en français, et après sous une collation
+    // qui range les octets — l'ordre que la collation d'un serveur de base peut
+    // donner, et que le module refuse de promettre à la place de la sienne.
+    expect(options.map((option) => option.id)).toEqual(["ecran", "zebre"])
+  })
+
+  it("rend exactement deux faits : ni compteur, ni nom de parente", () => {
+    const options = projeterOptionsSelecteur(ARBRE_SAIN)
+
+    // La forme étroite est l'**accord**, pas une intention : une projection qui
+    // rendrait la ligne entière ferait payer au formulaire des compteurs, un nom
+    // de parente, une profondeur et un lien — et le jour où le formulaire change
+    // d'options, ces faits voyageaient encore. Le verrou de compilation
+    // (`lib/admin-produit-frontiere.test.ts`) tient la même exigence par le
+    // type ; ici elle est tenue par la valeur, donc par les faits. La liste de
+    // l'Administration en rend dix : celle-ci en rend deux, et c'est le
+    // message que porte chaque clé.
+    for (const option of options) {
+      expect(Object.keys(option).sort()).toEqual(["id", "name"])
+    }
+  })
+
+  it("propose une Structure corrompue, et ne journalise rien", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const options = projeterOptionsSelecteur([
+        structure("racine", "Racine", null, 1),
+        structure("boucle-a", "Boucle A", "boucle-b"),
+        structure("boucle-b", "Boucle B", "boucle-a"),
+      ])
+
+      // Un sélecteur **n'est pas une marche** : il ne classe rien, donc il n'a
+      // aucun cycles à dégrader, et une Structure dont le lien ne mène nulle
+      // part y a sa place comme les autres. La laisser de côté ferait
+      // disparaître de l'Administration une rangée qu'un éditeur doit pouvoir
+      // choisir pour la réparer — la boutique dégrade, le formulaire propose, et
+      // le serveur seul refuse (ADR-0030).
+      expect(options.map((option) => option.id)).toEqual([
+        "boucle-a",
+        "boucle-b",
+        "racine",
+      ])
+      // Le cycle ne se signale donc pas ici, et c'est délibéré : la liste
+      // d'Administration le nomme une fois pour toute la table, sur la surface
+      // faite pour le rendre lisible. Un sélecteur qui en dirait un mot à chaque
+      // enregistrement ajouterait une seconde ligne pour le même cycle, et
+      // l'avertissement cesserait de dire combien de Structures toucher.
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
