@@ -152,9 +152,11 @@ _Avoid_: catégorie orpheline, catégorie cyclique, structure orpheline
 La lecture serveur de la Structure pour une page : un seul module
 (`lib/use-cases/lecture-structure.ts`) lit la table `Category` une fois par exécution, en tire une
 Marche de la Structure, et répond de ce que la marche a parcouru comme de ce qu'une surface
-demande — l'arbre d'accueil, les lignes de l'Administration, le fil d'Ariane, une Structure et sa
-descendance, et le complément des deux. Elle rend des faits, jamais des verdicts : ce qu'un cycle
-signifie reste à celui qui l'appelle — l'Administration le nomme, la boutique dégrade (ADR-0030).
+demande — l'arbre d'accueil, les lignes de l'Administration, les options d'un sélecteur, le fil
+d'Ariane, une Structure et sa descendance, et le complément des deux. Chaque projection rend la
+forme **étroite** que sa surface consomme : une surface ne reçoit pas plus de faits qu'elle n'en a
+demandés. Elle rend des faits, jamais des verdicts : ce qu'un cycle signifie reste à celui qui
+l'appelle — l'Administration le nomme, la boutique dégrade (ADR-0030).
 Elle ne lit jamais dans une transaction : les lectures qu'une mutation doit juger sur des faits
 engagés restent avec elle, sous le verrou grossier (ADR-0027).
 _Avoid_: lecture de catégorie, category read, listAdminCategoriesWithCounts (comme nom du concept)

@@ -160,11 +160,11 @@ export interface NoeudAccueil {
 }
 
 /**
- * Ce que l'ordre du module classe : le nom d'une Structure et son slug. Les deux
- * projections qui rendent une liste ordonnée — l'arbre d'accueil et les lignes
- * de l'Administration — comparent donc **la même promesse**, écrite une fois,
- * et non deux comparateurs qui pourraient diverger sans qu'aucune épreuve ne
- * s'en aperçoive.
+ * Ce que l'ordre du module classe : le nom d'une Structure et son slug. Les trois
+ * projections qui rendent une liste ordonnée — l'arbre d'accueil, les lignes
+ * de l'Administration et le sélecteur d'un formulaire — comparent donc **la même
+ * promesse**, écrite une fois, et non trois comparateurs qui pourraient diverger
+ * sans qu'aucune épreuve ne s'en aperçoive.
  */
 interface StructureOrdonnee {
   name: string
@@ -496,4 +496,97 @@ export function projeterLignesAdmin(
  */
 export async function lireLignesAdmin(): Promise<LigneStructureAdmin[]> {
   return projeterLignesAdmin(await lireToutesLesStructures())
+}
+
+/* ======================================================================== *
+ * Le sélecteur de Structure d'un formulaire (#568)                        *
+ * ======================================================================== *
+ *
+ * La troisième forme rendue, et la plus étroite : un sélecteur affiche un nom
+ * et renvoie un identifiant. Ce sont ses deux seuls faits, donc les deux seuls
+ * qu'il a le droit de recevoir.
+ *
+ * **Elle ne vient pas de la liste d'Administration, et c'est un choix.** Réduire
+ * `LigneStructureAdmin` aurait été la voie courte — la liste existe déjà, et
+ * `{ id, name }` s'en extrait en deux properties. Ce serait une faute, et pas
+ * seulement une maladresse : le formulaire payerait alors deux compteurs et un
+ * nom de parente qu'il n'affiche pas, et surtout **chaque appelant devrait
+ * réduire la liste lui-même**, donc la forme étroite à sa guise — et l'exigence
+ * « pas un fait de plus » deviendrait une convention plutôt qu'un accord. Une
+ * surface ne reçoit pas plus qu'elle ne l'a demandé (US 32) : la réduction est
+ * ici, une fois, et la forme qu'elle rend est celle que le sélecteur consomme.
+ *
+ * **Elle n'est pas une marche, et c'est ce qui la distingue des deux autres.**
+ * Un sélecteur ne classe rien : il n'a donc aucun cycle à dégrader, et aucune
+ * raison de construire une marche qui en signalerait un. Une Structure dont le
+ * lien ne mène nulle part — un cycle, une rangée orpheline — y garde sa place
+ * comme les autres, parce qu'un éditeur doit pouvoir la **choisir pour la
+ * réparer**. La boutique dégrade, le formulaire propose, et le serveur seul
+ * refuse (ADR-0030) ; retirer la rangée d'un sélecteur reviendrait à la faire
+ * disparaître de l'Administration alors qu'elle est précisément ce qu'un éditeur
+ * vient réparer. Le cycle reste nommé une fois, par la liste d'Administration —
+ * la surface faite pour le rendre lisible.
+ */
+
+/**
+ * Une option de sélecteur : **l'identifiant et le nom d'une Structure**, et rien
+ * d'autre. Ce n'est pas un fait abrégé de `FaitStructure` ni une ligne de
+ * base : c'est la forme que le sélecteur rend, déclarée ici pour qu'un
+ * formulaire et la page qui l'alimente n'aient plus à la déclarer entre eux
+ * (ADR-0026, amendement).
+ */
+export interface OptionStructure {
+  id: string
+  name: string
+}
+
+/**
+ * Les options d'un sélecteur de Structure, projetées sur des faits déjà en
+ * mémoire — la porte pure.
+ *
+ * **Le tri passe avant la réduction, et non après.** Le départage par le slug
+ * n'a plus de champ où se voir dans la forme rendue, donc le réduire d'abord
+ * reviendrait à le jeter avec le reste : deux Structures de même nom sortiraient
+ * alors dans l'ordre du tri instable du moteur, et l'ordre total que le module
+ * promet aux deux autres projections disparaîtrait ici sans qu'on le voie. On
+ * classe donc sur les faits, qui portent le nom et le slug, puis on rend la
+ * forme étroite.
+ *
+ * Une copie avant le tri, parce que les faits appartiennent à la lecture qui
+ * les a reçus : les classer sur place les classerait pour la projection qui les
+ * utiliserait ensuite dans la même exécution.
+ */
+export function projeterOptionsSelecteur(
+  structures: readonly FaitStructure[]
+): OptionStructure[] {
+  return [...structures].sort(comparerDesFreres).map((fait) => ({
+    id: fait.id,
+    name: fait.name,
+  }))
+}
+
+/**
+ * Les options du sélecteur de Structure d'un formulaire — la porte de lecture.
+ *
+ * La table entière, comme toute porte de ce module : elle lit le surensemble et
+ * n'en garde que la forme étroite. Une `select: { id, name }` supplémentaire
+ * serait une lecture de la Structure **de plus**, dans un module qui ne le serait
+ * pas — donc un second propriétaire de cette lecture, exactement ce que le
+ * déplacement vient de supprimer. Le prix de cet échange est énoncé dans
+ * l'amendement d'ADR-0026 : deux agrégats et une jointure que ce sélecteur ne
+ * regarde pas, contre une lecture de moins pour la table entière.
+ *
+ * **Cette porte n'est pas cachée, et c'est ce qui tient l'exigence de fraîcheur
+ * qu'un formulaire pose.** Les écrans Produit de l'Administration sont dynamiques
+ * — leur gabarit lit les cookies — et rien ici ne porte de directive de cache :
+ * la lecture est faite à chaque exécution, donc une Structure créée dans
+ * l'Administration est dans le sélecteur de l'autre formulaire dès la
+ * navigation suivante. Une entrée `"use cache: remote"` autour changerait ce
+ * contrat : elle ne serait plus fraîche que par invalidation d'étiquette, et
+ * `invalidateStructure()` ne purge pas le chemin `/admin/produits`. Ce module
+ * s'en tient donc à lire, et laisse à chaque page le soin de dire si elle veut
+ * être cachée — une page ne le dit jamais par accident.
+ */
+export async function lireOptionsSelecteur(): Promise<OptionStructure[]> {
+  return projeterOptionsSelecteur(await lireToutesLesStructures())
 }
