@@ -128,7 +128,7 @@ async function ArticleContent({
         ) : null}
 
         {avecSections ? (
-          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] max-md:text-[17px] max-md:leading-[1.4706] max-md:tracking-[-0.022em]">
+          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] max-md:text-body max-md:leading-body max-md:tracking-[-0.022em]">
             {blocs.map((bloc, index) =>
               bloc.type === "titre-section" ? (
                 <h2
@@ -145,7 +145,7 @@ async function ArticleContent({
             )}
           </div>
         ) : (
-          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] whitespace-pre-line max-md:text-[17px] max-md:leading-[1.4706] max-md:tracking-[-0.022em]">
+          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] whitespace-pre-line max-md:text-body max-md:leading-body max-md:tracking-[-0.022em]">
             {data.contenu}
           </div>
         )}

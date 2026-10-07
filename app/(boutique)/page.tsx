@@ -42,13 +42,13 @@ async function HomeContent() {
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <Button
               render={<Link href="/produits" />}
-              className="h-10 rounded-full px-5 text-[17px]"
+              className="h-10 rounded-full px-5 text-body"
             >
               Tous nos produits
             </Button>
             <Link
               href="#coups-de-coeur"
-              className="text-[17px] text-link hover:underline"
+              className="text-body text-link hover:underline"
             >
               Nos coups de cœur ›
             </Link>
@@ -96,12 +96,12 @@ async function HomeContent() {
                     {category.productCount} produit
                     {category.productCount > 1 ? "s" : ""}
                   </p>
-                  <h2 className="text-[28px] leading-[1.1] font-semibold sm:text-[32px] lg:text-[40px]">
+                  <h2 className="text-titre-carte leading-[1.1] font-semibold">
                     {category.name}
                   </h2>
                   <p
                     className={cn(
-                      "mt-2 text-[17px]",
+                      "mt-2 text-body",
                       dark ? "text-[#2997ff]" : "text-link"
                     )}
                   >

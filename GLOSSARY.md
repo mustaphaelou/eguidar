@@ -2,6 +2,8 @@
 
 A French-language Moroccan e-commerce storefront (eguidar.com): catalog with categories and product variants, cart, cash-on-delivery checkout, order lifecycle, and the Administration space. Single context.
 
+L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile dépoli viennent de là, et le site n'a qu'un seul thème, le clair. Une couleur qui change d'apparence selon la surface qui la porte est une couleur qui n'existe pas.
+
 ## Language
 
 **Bandeau de navigation**:
@@ -9,8 +11,12 @@ La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche, l
 _Avoid_: header, navbar, barre de navigation, barre du haut
 
 **Voile dépoli**:
-Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation**, les modales de Connexion et d'Inscription, et le panneau de Filtres de recherche sur mobile. Il ne porte aucun contenu et ne se choisit pas : une surface le porte ou ne le porte pas.
+Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation** et les modales de Connexion et d'Inscription. Un seul matériau et une seule recette : seule son opacité varie d'une surface à l'autre. Il ne porte aucun contenu, et le porter n'est jamais un choix de la surface — le **Bandeau de navigation** ne le porte qu'une fois la page défilée, les modales en permanence. Une feuille plein cadre qui recouvre la page, comme le panneau de Filtres sur mobile, ne le porte pas : elle a son propre fond.
 _Avoid_: glass, glassmorphism, verre dépoli, frosted glass, backdrop blur
+
+**Voile sombre**:
+La couche qui ferme l'accès au contenu situé derrière une modale, un tiroir ou un menu. Elle n'assombrit rien elle-même : elle rend le voile dépoli d'une surface lisible par-dessus ce qu'elle recouvre. Une seule recette, seule son opacité varie.
+_Avoid_: overlay, backdrop, scrim, voile, fond noir
 
 **Livraison**:
 The delivery service for orders: delivery cities, their fees, and the free-shipping rule.

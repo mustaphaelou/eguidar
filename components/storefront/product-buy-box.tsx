@@ -76,7 +76,7 @@ export function ProductBuyBox({
         <Button
           disabled
           size="xl"
-          className="w-full rounded-full text-[17px] lg:h-9"
+          className="w-full rounded-full text-body lg:h-9"
         >
           Ajouter au panier
         </Button>
@@ -172,7 +172,7 @@ export function ProductBuyBox({
         size="xl"
         onClick={lancerAjout}
         disabled={outOfStock || enAttente}
-        className="w-full rounded-full text-[17px] lg:h-9"
+        className="w-full rounded-full text-body lg:h-9"
       >
         {enAttente ? "Ajout…" : "Ajouter au panier"}
       </Button>
