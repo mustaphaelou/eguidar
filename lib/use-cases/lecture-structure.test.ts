@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   projeterArbreAccueil,
   projeterEcranEdition,
+  projeterFilAriane,
   projeterLignesAdmin,
   projeterOptionsSelecteur,
   projeterPageCategorie,
@@ -1271,5 +1272,187 @@ describe("projeterPageCategorie — sur une Structure déjà cyclique", () => {
     } finally {
       warn.mockRestore()
     }
+  })
+})
+
+/* ======================================================================== *
+ * La fiche Produit (#571)                                                 *
+ * ======================================================================== *
+ *
+ * La sixième forme rendue, et la plus étroite de toutes : un **fil d'Ariane**.
+ * Deux faits par maillon — le nom et le slug — et c'est tout ce qu'un lien de
+ * navigation rend. La page de catégorie rend le même fil pour sa Structure
+ * (#570) : la forme est donc **nommée une fois** (`MaillonAriane`), et le fil
+ * d'Ariane reste une promesse unique du module plutôt que deux listes de
+ * `{ name, slug }` qui divergeraient sans qu'aucune épreuve ne s'en aperçoive.
+ *
+ * **Ce que la fiche Produit ne demande pas, et ne doit donc pas payer.** Elle
+ * ne demande ni les sous-catégories de sa Structure, ni sa descendance, ni son
+ * image : ses « Produits liés » sont ceux de sa **seule** Structure, à elle
+ * seule, et la page tire son fil de la remontée. Réutiliser la projection de la
+ * page de catégorie aurait été la voie courte — elle rend déjà un fil — et elle
+ * aurait fait payer à une fiche Produit deux listes qu'elle ne lit pas, pour un
+ * module dont l'interface promet qu'une surface ne reçoit pas plus qu'elle n'a
+ * demandé (US 32).
+ *
+ * **Ce qui change pour la page, et ce qui ne change pas.** Elle ne construit
+ * plus sa marche : la lecture des liens et le `getCategoryChain` de `storefront`
+ * disparaissent, donc la boutique n'atteint plus la table `Category` hors du
+ * module. Ce qui ne change pas est le contrat de la marche elle-même : la
+ * Structure du Produit **en dernier**, chaque maillon **une fois**, et un cycle
+ * dégradé et nommé. Ces trois promesses étaient déjà celles d'`ancetres` ; la
+ * page les obtient désormais de la même source, et l'ordre du fil qu'elle rend
+ * ne bouge pas d'un caractère (US 3).
+ */
+describe("projeterFilAriane — sur un arbre sain", () => {
+  // `ARBRE_SAIN`, l'arbre ordinaire de la suite — une remontée n'a rien du
+  // parcours d'arbre à prouver, elle n'a qu'à remonter :
+  //
+  //     racine ─── enfant-a ─── petit-a
+  //     isolee
+  it("remonte de la racine à la Structure du Produit, qui ferme le fil", () => {
+    const fil = projeterFilAriane(ARBRE_SAIN, "petit-a")
+
+    // L'ordre est **la** promesse du cœur : la racine ouvre, la Structure
+    // demandée ferme. Une fiche qui l'ouvrirait afficherait « Petit A › Enfant A »
+    // — donc l'inverse du chemin qu'on vient d'emprunter.
+    expect(fil).toEqual([
+      { name: "Racine", slug: "racine" },
+      { name: "Enfant A", slug: "enfant-a" },
+      { name: "Petit A", slug: "petit-a" },
+    ])
+  })
+
+  it("ne rend qu'elle-même quand la Structure du Produit est une racine", () => {
+    // Un fil d'une seule entrée n'est pas un fil tronqué : il dit que la fiche
+    // est au sommet de l'arbre, et c'est la seule chose qu'il puisse dire.
+    expect(projeterFilAriane(ARBRE_SAIN, "isolee")).toEqual([
+      { name: "Isolée", slug: "isolee" },
+    ])
+  })
+
+  it("ne rend que les deux faits d'un lien, jamais davantage", () => {
+    // La forme rendue est **étroite** : deux faits, ceux qu'un lien de
+    // navigation rend. Le `toEqual` est ce qui l'asserte — un fait de plus
+    // porterait à une fiche Produit un compte de Produits, une profondeur ou un
+    // nom de parente qu'elle n'affiche pas (US 32).
+    expect(projeterFilAriane(ARBRE_SAIN, "enfant-a")).toEqual([
+      { name: "Racine", slug: "racine" },
+      { name: "Enfant A", slug: "enfant-a" },
+    ])
+  })
+
+  it("ne journalise rien : le journal garde son sens", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      projeterFilAriane(ARBRE_SAIN, "petit-a")
+
+      // Une ligne sur un arbre sain serait une alerte qu'un éditeur prendrait
+      // pour une corruption, et il chercherait une faute qui n'existe pas. Le fil
+      // ne fait qu'une remontée, et la retenue qui tait un cycle n'a rien à
+      // retenir ici.
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
+describe("projeterFilAriane — sur une Structure déjà cyclique", () => {
+  /**
+   * Un cycle qu'un amont mène à, à côté d'une Structure saine :
+   *
+   *     racine
+   *     amont ──┐
+   *             ├─ boucle-a ⇄ boucle-b
+   *     ┘
+   *
+   * La fiche Produit ne rend pas le fil de la Structure du cycle : elle rend le
+   * fil de **la Structure de son Produit**, et cette Structure peut être n'importe
+   * laquelle de la table — un maillon de la boucle, l'amont qui y mène, ou une
+   * rangée saine. Les deux premiers cas sont donc prouvés séparément : ils ne
+   * racontent pas la même chose sur l'ordre.
+   */
+  const AVEC_CYCLE: FaitStructure[] = [
+    structure("racine", "Racine", null, 1),
+    structure("amont", "Amont", "boucle-a"),
+    structure("boucle-a", "Boucle A", "boucle-b"),
+    structure("boucle-b", "Boucle B", "boucle-a"),
+  ]
+
+  it("dégrade le cycle quand le Produit est dans la boucle, et ferme le fil dessus", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const fil = projeterFilAriane(AVEC_CYCLE, "boucle-a")
+
+      // Le cas le plus piégeux : la Structure du Produit est **elle-même un
+      // maillon du cycle**. La remontée s'arrête sur la revisite et rend ce
+      // qu'elle a remonté — la Structure du Produit **en dernier**, l'invariant
+      // du fil d'Ariane tenant sur une chaîne cyclique comme sur une autre. Un
+      // fil qui l'ouvrirait afficherait « Boucle A › Boucle B », donc l'inverse
+      // du chemin emprunté.
+      expect(fil).toEqual([
+        { name: "Boucle B", slug: "boucle-b" },
+        { name: "Boucle A", slug: "boucle-a" },
+      ])
+
+      // Chaque maillon une fois : c'est la règle de terminaison de la Marche qui
+      // l'assure, et une fiche dont le fil se répéterait mentirait sur
+      // l'arborescence enossilant un lien deux fois.
+      expect(new Set(fil.map((maillon) => maillon.slug)).size).toBe(fil.length)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("dégrade le cycle quand le Produit est en amont de lui, et ferme le fil sur lui", () => {
+    const fil = projeterFilAriane(AVEC_CYCLE, "amont")
+
+    // Le second cas : la Structure du Produit est **au-dessus** de la boucle. Le
+    // fil rend alors tout ce que la remontée a traversé — les deux maillons de la
+    // boucle, puis l'amont — et **la Structure du Produit reste la dernière** :
+    // c'est elle qui ferme, quoi qu'il y ait en dessous. Le cycle ne vide donc
+    // pas le fil comme le ferait une Structure hors arbre : la boutique dégrade,
+    // elle ne purge pas (ADR-0030).
+    expect(fil).toEqual([
+      { name: "Boucle B", slug: "boucle-b" },
+      { name: "Boucle A", slug: "boucle-a" },
+      { name: "Amont", slug: "amont" },
+    ])
+    expect(new Set(fil.map((maillon) => maillon.slug)).size).toBe(fil.length)
+  })
+
+  it("journalise le cycle une fois pour toute la fiche, en nommant ses Structures", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      projeterFilAriane(AVEC_CYCLE, "boucle-a")
+
+      // **Une ligne, et c'est une preuve de structure.** Le fil est la seule
+      // traversée de cette fiche : elle bâtit une marche, et la retenue qui tait
+      // un cycle vit dans la marche, donc meurt avec elle. Une porte qui en
+      // bâtirait une par réponse dirait la même boucle une seconde fois, et
+      // l'avertissement cesserait de dire combien de Structures un éditeur doit
+      // réparer — c'est la seule chose qu'il doit pouvoir y lire (ADR-0030, US 34).
+      expect(warn).toHaveBeenCalledTimes(1)
+      const ligne = warn.mock.calls[0]!.join(" ")
+      expect(ligne).toContain("[marche-structure]")
+      expect(ligne).toContain("Boucle A")
+      expect(ligne).toContain("Boucle B")
+      // L'amont mène au cycle sans en être : la ligne nomme ce qu'il faut
+      // réparer, et un `Amont` de plus la rendrait illisible.
+      expect(ligne).not.toContain("Amont")
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("rend un fil vide pour une Structure que les faits ne portent pas", () => {
+    // Une suppression entre la lecture du Produit et celle des Structures : la
+    // rangée n'y est plus. La Lecture dégrade — elle rend une absence, elle ne
+    // lève pas (ADR-0030) — et l'absence est celle d'un Produit sans Structure,
+    // que la page déduit sans changer de code (ADR-0029). Un `!` aurait rendu la
+    // fiche cassée pour une fenêtre de quelques millisecondes entre deux
+    // requêtes ; un nom inventé aurait produit un lien vers une page morte.
+    expect(projeterFilAriane(AVEC_CYCLE, "rangee-supprimee")).toEqual([])
   })
 })

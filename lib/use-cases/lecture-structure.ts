@@ -4,9 +4,13 @@
  * une Marche, et répond de ce qu'une surface demande ; la page d'accueil passe
  * par lui pour son arbre, la liste d'Administration pour ses lignes (#567), le
  * sélecteur des formulaires Produit pour ses options (#568), l'écran d'édition
- * pour la Structure qu'il édite et les parentes qu'il peut proposer (#572), et la
+ * pour la Structure qu'il édite et les parentes qu'il peut proposer (#572), la
  * page de catégorie pour la rangée qu'elle a demandée, son fil, ses
- * sous-catégories et le filtre de ses Produits (#570). Les autres surfaces y
+ * sous-catégories et le filtre de ses Produits (#570), et la fiche Produit pour
+ * son seul fil d'Ariane (#571). **Aucune page de la boutique n'atteint plus la
+ * table `Category` par ses propres moyens** : l'accueil, la catégorie et la fiche
+ * passent toutes les trois par ici. Hors de ce module, il ne reste que les deux
+ * lectures nommées plus bas, et aucune n'est une page. Les autres surfaces y
  * viendront une par une (#564).
  *
  * **C'est un module serveur, et il ne prétend pas être neutre : il lit la base.**
@@ -128,7 +132,12 @@
  * séparait, et deux lignes de journal pour une seule boucle. **La porte n'est
  * donc pas toujours la primitive réexportée** : quand une projection a déjà une
  * marche, elle lui demande `descendance()`, et la garantie « chaque Structure au
- * plus une fois » est celle de la Marche, transmise telle quelle.
+ * plus une fois » est celle de la Marche, transmise telle quelle. À l'autre bout
+ * de la règle, `lireFilAriane` (#571) est bien **une question** : la fiche Produit
+ * n'en pose qu'une, donc sa porte est une question, et la marche qu'elle bâtit ne
+ * sert à rien d'autre qu'à son fil. Ce qui la distingue des deux projections
+ * ci-dessus, en revanche, c'est qu'elle ne sert qu'à un écran qui n'existe
+ * qu'avec une Structure — voir sa section.
  *
  * **La liste d'Administration est l'exemple du piège, et c'est #573 qui l'a
  * fait tomber.** Elle a deux questions à poser aux mêmes faits — sous quoi est
@@ -840,6 +849,20 @@ export async function lireEcranEdition(
  * d'Administration qui la rend lisible (#567).
  */
 
+/**
+ * **Un maillon de fil d'Ariane : le nom et le slug d'une Structure, rien
+ * d'autre.** C'est la forme du seul lien de navigation de la boutique, et elle
+ * est **nommée une fois** pour les deux surfaces qui rendent un fil — la page de
+ * catégorie (#570) et la fiche Produit (#571). Deux listes de `{ name, slug }`
+ * écrites à deux endroits seraient deux copies d'un même fait, donc deux
+ * occasions de divergir sans qu'une épreuve ne s'en aperçoive (ADR-0022) ; et
+ * `slug` y est indispensable, puisqu'il est l'adresse que le lien suit.
+ */
+export interface MaillonAriane {
+  name: string
+  slug: string
+}
+
 export interface PageCategorie {
   /** La Structure demandée, dans la forme **étroite** que la page rend. */
   categorie: {
@@ -853,7 +876,7 @@ export interface PageCategorie {
    * et chaque maillon une fois. C'est l'ordre que la Marche promet déjà, rendu
    * par `ancetres` — la boutique le rendait à la main, il le reçoit.
    */
-  filAriane: { name: string; slug: string }[]
+  filAriane: MaillonAriane[]
   /** Les sous-catégories **directes**, dans l'ordre que le module promet. */
   enfants: {
     id: string
@@ -974,4 +997,84 @@ export async function lirePageCategorie(
   slug: string
 ): Promise<PageCategorie | null> {
   return projeterPageCategorie(await lireToutesLesStructures(), slug)
+}
+
+/* ======================================================================== *
+ * La fiche Produit (#571)                                                  *
+ * ======================================================================== *
+ *
+ * La sixième forme rendue, et la plus étroite de toutes : un **fil
+ * d'Ariane**. Elle ne demande qu'une chose à la Structure, et c'est ce qui
+ * décide qu'elle a sa propre porte plutôt qu'un morceau de celle de la page de
+ * catégorie — « une porte par écran », pas « une porte par projection » (voir
+ * l'en-tête). Cette porte est donc **la porte de l'écran**, et non une question
+ * de plus posée à une projection qui en porte trois.
+ *
+ * **Le fil est le même fait que celui de la page de catégorie, et il est rendu
+ * de la même manière.** `ancetres` promet la racine d'abord et la Structure
+ * courante en dernier ; `MaillonAriane` nomme la forme ; les deux surfaces
+ * lisent donc une seule promesse, écrite une fois. Rien n'est réinventé ici : ce
+ * qui change, c'est que la boutique ne bâtit plus sa marche, et que le fil
+ * d'Ariane qu'elle rendait à la main vient de là où la page de catégorie prend
+ * le sien (US 3).
+ *
+ * **Un Produit sans Structure ne demande rien, et c'est ce qui se décide hors
+ * d'ici.** Une porte de lecture lit la table entière avant de savoir ce qu'elle
+ * vient chercher : si elle acceptait l'absence, elle paierait sa lecture pour
+ * rien, et le cas commun de la fiche Produit — le Produit dont la Structure a
+ * été supprimée, qui est **vendu normalement** (ADR-0029) — deviendrait le cas
+ * le plus cher de la page. Le court-circuit est donc **chez l'appelant**, sur le
+ * fait qu'il tient déjà — le Produit a ou n'a pas de Structure — et la preuve
+ * qu'il tient est une mesure, pas une phrase : `storefront.test.ts` compte les
+ * lectures de la table et en attend **zéro** pour un Produit sans Structure.
+ * Le module ne dégrade donc rien ici : il ne rend un fil vide que pour une
+ * Structure que les faits ne portent pas.
+ */
+export function projeterFilAriane(
+  structures: readonly FaitStructure[],
+  idStructure: string
+): MaillonAriane[] {
+  // Une seule marche pour la seule traversée de cette projection : la retenue
+  // qui tait un cycle vit dans la marche, et elle meurt avec elle. Une ligne
+  // par cycle, donc, comme pour les cinq autres formes.
+  const marche = marcheDesStructures(structures)
+  // Les faits par identifiant, parce que c'est le lien de parenté qu'on remonte
+  // et non une adresse qu'on cherche : la page de catégorie indexe aussi par
+  // slug, mais pour se reconnaître, et c'est le seul usage qu'elle en fait.
+  const { parId } = indexerLesFaits(structures)
+
+  const maillons: MaillonAriane[] = []
+  for (const id of marche.ancetres(idStructure)) {
+    const fait = parId.get(id)
+    // Une rangée que la table ne porte plus — une suppression entre la lecture
+    // du Produit et celle-ci — rend une **absence**, pas un nom inventé : la
+    // Lecture dégrade et ne lève pas (ADR-0030). Un `!` aurait fait de ce trou
+    // une page cassée, pour une fenêtre de quelques millisecondes entre deux
+    // requêtes. Le fil rendu est alors celui d'un Produit sans Structure, que la
+    // page sait déjà déduire sans changer de code (ADR-0029) ; et il ne peut pas
+    // être à moitié rempli : sans l'identifiant de départ, la remontée s'arrête
+    // à lui, donc rien d'autre ne manque.
+    if (fait === undefined) continue
+    maillons.push({ name: fait.name, slug: fait.slug })
+  }
+  return maillons
+}
+
+/**
+ * Le fil d'Ariane d'une fiche Produit — la porte de lecture.
+ *
+ * Une exécution, une lecture, une marche, une ligne par cycle : la fiche Produit
+ * ne pose qu'une question à la Structure, donc elle n'a qu'une marche, donc un
+ * cycle déjà en base ne dit qu'une ligne pour toute la page — comme pour les six
+ * surfaces qui l'ont déjà fait (#566, #567, #568, #570, #572, #576).
+ *
+ * **Ce qu'elle ne fait pas, c'est décider.** Une Structure que les faits ne
+ * portent pas rend un fil vide, et un Produit **sans** Structure ne doit rien
+ * demander du tout. Le court-circuit est à l'appelant, sur un fait qu'il tient
+ * déjà (ADR-0029, ci-dessus), et `storefront.test.ts` en mesure l'effet.
+ */
+export async function lireFilAriane(
+  idStructure: string
+): Promise<MaillonAriane[]> {
+  return projeterFilAriane(await lireToutesLesStructures(), idStructure)
 }
