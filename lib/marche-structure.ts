@@ -41,6 +41,15 @@
 besoin — une fois pour l'arbre d'accueil, une fois par Structure pour les cibles de suppression
 d'une page d'Administration, une fois pour un fil, une fois pour une branche.
  *
+ * **Ce qui rend cette promesse vraie, c'est l'index inverse des liens : il est
+ * bâti une fois, à la construction de la marche, et non dans chacune de ses
+ * méthodes (#584).** Ce n'est pas un détail d'implémentation : une méthode
+ * ajoutée plus tard rebâtirait le sien sans qu'on le voie, et le hors arbre
+ * comme la descendance pourraient dériver de deux topologies concurrentes alors
+ * qu'il n'y en a qu'une. Les bâtir à la construction les en empêche tous les
+ * deux — et `lib/marche-structure.test.ts` compte les constructions par la seule
+ * couture où elles se voient : la carte des liens que l'appelant fournit.
+ *
  * **Une seule chose y est retenue, et c'est le journal.** Chaque marche se
  * souvient des cycles qu'*elle* a déjà signalés : une requête qui atteint le
  * même cycle par trois surfaces produit une ligne, pas trois. Ce n'est pas un
@@ -185,8 +194,9 @@ function nommer(
 /**
  * L'index inverse des liens — chaque parente, et ses enfants — et les racines
  * que les liens déclarent. `descendance` et `horsArbre` descendent le même
- * graphe : le bâtir deux fois était écrire deux fois le même fait, et se donner
- * deux occasions de diverger (ADR-0022).
+ * graphe : en bâtir deux versions était écrire deux fois le même fait, et se
+ * donner deux occasions de diverger (ADR-0022). Il n'en est bâti qu'**une**,
+ * à la construction de la marche (#584).
  */
 function indexDesLiens(parentParId: ReadonlyMap<string, string | null>): {
   enfants: Map<string, string[]>
@@ -248,6 +258,25 @@ function atteindre(
 export function marcheStructure(liens: LiensStructure): MarcheStructure {
   const { parentParId, noms } = liens
   const cyclesSignales = new Set<string>()
+
+  /**
+   * L'index inverse, **bâti ici, une fois, à la construction** (#584).
+   *
+   * Il l'était dans `descendance` puis dans `horsArbre` — donc une fois par
+   * question, et l'écran d'Administration en demandait une par ligne : N+1 sur N
+   * lignes, à O(N) chacune. La question n'était donc pas « où le bâtir », mais
+   * « à qui il appartient » : c'est un fait de la marche, et non de ses
+   * méthodes.
+   *
+   * **Le construire tout de suite plutôt qu'à la première descente qui en a
+   * besoin** : la fenêtre qu'ouvre un « la première fois qu'on le demande » est
+   * celle qu'une méthode future referait sans le voir, et il ne resterait alors
+   * rien pour dire que le hors arbre et la descendance lisent la même chose.
+   * Le prix est une passe sur les liens même pour une marche qui ne demanderait
+   * que des ancêtres, le fil d'Ariane — une passe, linéaire, et c'est le prix
+   * que l'en-tête annonce déjà.
+   */
+  const { enfants, racines } = indexDesLiens(parentParId)
 
   /**
    * Le cycle qu'un pas vers la parente vient de refermer, s'il y en a un.
@@ -319,7 +348,6 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
   }
 
   function descendance(id: string): string[] {
-    const { enfants } = indexDesLiens(parentParId)
     const { atteints, revisites } = atteindre([id], enfants)
 
     // Un cycle refermé par la descente : un enfant déjà atteint. Le cycle est
@@ -340,9 +368,11 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
    * la même chose en coûtant un parcours complet par Structure — et la
    * détection doit rester assez bon marché pour être appelée sur chaque lecture
    * (ADR-0030, #544).
+   *
+   * Les racines viennent de l'index que la marche bâtit — le même que
+   * `descendance` lit, et non une seconde version (#584).
    */
   function horsArbre(): string[] {
-    const { enfants, racines } = indexDesLiens(parentParId)
     const { atteints } = atteindre(racines, enfants)
     const dansLArbre = new Set(atteints)
 

@@ -352,3 +352,181 @@ describe("marcheStructure — une longueur n'est jamais un refus", () => {
     }
   })
 })
+
+/**
+ * **L'index inverse appartient à la marche, et non à chacune de ses méthodes
+ * (#584).**
+ *
+ * Le module bâtit un index des liens — chaque parente et ses enfants, les
+ * racines que les liens déclarent — pour descendre. Ce n'est qu'**un** fait, et
+ * l'en-tête du module promet depuis le début que la marche est « construite une
+ * fois par requête et interrogée autant de fois qu'un écran en a besoin ». Le
+ * code disait le contraire : `descendance` et `horsArbre` bâtissaient chacune
+ * leur index, et l'écran d'Administration — qui demande la partition de chaque
+ * ligne — en bâtissait un par ligne, donc N+1 sur N lignes, à O(N) chacun.
+ *
+ * **Comment cette suite compte, sans regarder à l'intérieur.** Une preuve de
+ * coût qui se contente de mesurer une durée ne dit pas *ce qui* a été refait, et
+ * une preuve qui atteint une fonction privée n'éprouve plus rien dès que la
+ * fonction change de nom. Le compte est donc pris **là où la construction est
+ * visible** : `LiensStructure.parentParId` est une carte **que l'appelant
+ * fournit**, et bâtir l'index, c'est énumérer ses paires. Un `Proxy` autour de
+ * cette carte compte donc les lectures qui énumèrent — `Symbol.iterator`,
+ * `entries`, `values`, `forEach` — et ignore les autres. C'est la seule couture
+ * qui honore les deux exigences : la marche est observée par son interface,
+ * aucune fonction privée n'est nommée, et l'observation est un **compte**, pas
+ * une forme de structure interne.
+ *
+ * **`keys()` et `get()` ne comptent pas, et c'est ce qui rend le compte
+ * parlant.** `horsArbre` parcourt légitimement `parentParId.keys()` pour
+ * savoir quelles Structures existent, et la remontée fait légitimement `get()` :
+ * aucune des deux ne bâtit l'index. Les compter ferait porter la preuve par un
+ * fait qui n'est pas le sien — un décompte croissant qui pourrait être la
+ * remontée elle-même. L'épreuve voisine s'assure que la couture voit bien une
+ * énumération quand il y en a une.
+ */
+describe("marcheStructure — l'index inverse est un fait de la marche (#584)", () => {
+  /** La largeur d'une Structure dans la fixture : un Catalogue a des frères. */
+  const FAN = 4
+
+  /**
+   * Un Catalogue sain de `niveaux` rangées, chacune à `FAN` enfants : la forme
+   * ordinaire de la liste d'Administration, qui interroge la marche une fois par
+   * ligne. Cinq niveaux font 341 Structures — l'ordre de grandeur où la
+   * différence se voit dans un écran, et non le nombre d'une table de test.
+   */
+  function catalogue(niveaux: number): Record<string, string | null> {
+    const liens: Record<string, string | null> = { s0: null }
+    let frontier = ["s0"]
+    for (let niveau = 1, rang = 1; niveau < niveaux; niveau += 1) {
+      const suivants: string[] = []
+      for (const parente of frontier) {
+        for (let f = 0; f < FAN; f += 1) {
+          liens[`s${rang}`] = parente
+          suivants.push(`s${rang}`)
+          rang += 1
+        }
+      }
+      frontier = suivants
+    }
+    return liens
+  }
+
+  /**
+   * Les mêmes liens, plus le compte de leurs lectures **en entier**.
+   *
+   * Le `Proxy` ne fait qu'une chose : il note les méthodes qui énumèrent les
+   * paires et laisse passer les autres, `this` rattaché à la carte réelle pour
+   * qu'aucune méthode native ne voie un `Proxy` au lieu d'une carte. Un compte,
+   * pas une forme observée : la preuve ne tient à aucun contenu, donc elle tient
+   * à toute réécriture du cœur.
+   */
+  function liensComptes(parents: Record<string, string | null>): {
+    liens: LiensStructure
+    lectures: () => number
+  } {
+    const reels = new Map(Object.entries(parents))
+    let lectures = 0
+
+    /** Une lecture qui énumère : elle se compte, puis elle se délègue. */
+    const enumere =
+      (propriete: PropertyKey) =>
+      (...args: unknown[]) => {
+        lectures += 1
+        const methode = Reflect.get(reels, propriete) as (
+          ...params: unknown[]
+        ) => unknown
+        return methode.apply(reels, args)
+      }
+
+    const parentParId: ReadonlyMap<string, string | null> = new Proxy(reels, {
+      get(cible, propriete) {
+        // Les quatre lectures qui **énumèrent les paires**, donc les seules qui
+        // peuvent bâtir l'index. `keys()` et `get()` tombent plus bas : ils
+        // cherchent un lien, ils ne listent pas la table.
+        if (
+          propriete === Symbol.iterator ||
+          propriete === "entries" ||
+          propriete === "values" ||
+          propriete === "forEach"
+        ) {
+          return enumere(propriete)
+        }
+        const valeur = Reflect.get(cible, propriete)
+        return typeof valeur === "function" ? valeur.bind(cible) : valeur
+      },
+    })
+
+    return { liens: { parentParId }, lectures: () => lectures }
+  }
+
+  it("bâtit son index une fois, et une seule, quel que soit le nombre de questions", () => {
+    const parents = catalogue(5)
+    const { liens, lectures } = liensComptes(parents)
+    const marche = marcheStructure(liens)
+
+    // Le compte est non nul dès la construction : c'est là que l'index se bâtit,
+    // et non à la première question. Sans cette attente, `toBe(1)` passerait
+    // aussi bien sur une couture qui ne compte rien du tout.
+    expect(lectures()).toBeGreaterThan(0)
+    expect(lectures()).toBe(1)
+
+    // Le hors arbre — une fois, comme toute lecture — puis la descendance de
+    // **chaque** Structure : c'est exactement ce que fait l'écran
+    // d'Administration, ligne par ligne.
+    expect(marche.horsArbre()).toEqual([])
+    expect(lectures()).toBe(1)
+
+    for (const id of Object.keys(parents)) {
+      marche.descendance(id)
+      // Une Structure interrogée de plus, et toujours le même index. Avant #584,
+      // ce compte valait N+1 sur N lignes, et la liste d'Administration
+      // bâtissait son index au carré du nombre de Structures.
+      expect(lectures(), id).toBe(1)
+    }
+  })
+
+  it("lit les liens autant de fois sur un petit Catalogue que sur un grand", () => {
+    const petit = catalogue(2)
+    const grand = catalogue(5)
+    const liensDuPetit = liensComptes(petit)
+    const liensDuGrand = liensComptes(grand)
+    const marcheDuPetit = marcheStructure(liensDuPetit.liens)
+    const marcheDuGrand = marcheStructure(liensDuGrand.liens)
+
+    // Deux tables, soixante-dix fois plus de Structures de l'une à l'autre, le
+    // même compte : ce qui est bâti une fois l'est **pour toutes**, et non par
+    // ligne. Un compte croissant avec la taille de la table serait la preuve
+    // qu'il reste un index bâti quelque part dans le parcours, à chaque
+    // question posée.
+    expect(Object.keys(petit)).toHaveLength(5)
+    expect(Object.keys(grand)).toHaveLength(341)
+    expect(liensDuPetit.lectures()).toBe(1)
+    expect(liensDuGrand.lectures()).toBe(1)
+
+    for (const id of Object.keys(grand)) marcheDuGrand.descendance(id)
+    for (const id of Object.keys(petit)) marcheDuPetit.descendance(id)
+
+    expect(liensDuPetit.lectures()).toBe(1)
+    expect(liensDuGrand.lectures()).toBe(1)
+  })
+
+  it("ne compte que les lectures qui énumèrent, et il en voit une", () => {
+    // Le témoin de la couture, sans lequel le compte ne prouverait rien : il
+    // faut qu'il **voie** une énumération, et il faut qu'il ne confonde pas une
+    // remontée avec un bâti. `horsArbre` parcourt `keys()`, `ancetres` fait des
+    // `get()` — ni l'un ni l'autre ne bâtit d'index, donc le compte ne bouge
+    // pas ; une énumération faite d'ici, si, parce que c'est celle d'un index.
+    const { liens, lectures } = liensComptes(catalogue(2))
+    const marche = marcheStructure(liens)
+    const apresConstruction = lectures()
+
+    marche.ancetres("s3")
+    marche.horsArbre()
+    expect(lectures()).toBe(apresConstruction)
+
+    // Et l'énumération, cette fois, est vue : le compte est vivant.
+    expect([...liens.parentParId]).toHaveLength(5)
+    expect(lectures()).toBe(apresConstruction + 1)
+  })
+})
