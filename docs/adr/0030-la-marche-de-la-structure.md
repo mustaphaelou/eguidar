@@ -128,8 +128,15 @@ décrivent un état qui n'est plus le leur ; c'est le présent amendement qu'il 
 - la première puce de la décision — « le même contrat de neutralité que `lib/carte-produit.ts`
   (ADR-0022) et `lib/formulaire-produit.ts` (ADR-0026), **parce qu'un de ses appelants est client** » ;
 - la deuxième puce — « C'est l'argument déjà écrit à
-  [delete-category-button.tsx:89-97](../../components/admin/delete-category-button.tsx#L89-L97) », dont la
-  citation de ligne est déjà périmée : le passage qu'elle désigne est aujourd'hui aux lignes 85-97 ;
+  [delete-category-button.tsx:89-97](../../components/admin/delete-category-button.tsx#L89-L97) » : la
+  citation de ligne n'est pas périmée, elle **ne désigne plus rien**. Le passage qui
+  portait cet argument — le `descendDe` qui écartait d'une liste de cibles ce qui
+  descend de la Structure supprimée — n'a pas été déplacé : il a été **supprimé**,
+  parce que la règle qu'il portait est devenue une projection du cœur. `raisonVisible`,
+  aux lignes 85-97 du fichier d'aujourd'hui, est la contrainte affichée avant tout
+  clic, et n'a rien à voir avec la divergence boutique/mutation ; un lecteur qui
+  s'y rendrait lirait un autre sujet. C'est l'amendement de #573 qu'il faut lire à
+  cet endroit, comme ci-dessous ;
 - la première puce des conséquences — « **Six lectures traversent une couture :** […] la boîte de
   suppression côté client » ;
 - la troisième option écartée — « la divergence que
@@ -162,8 +169,9 @@ l'exclusion de réaffectation du formulaire d'édition, la liste de l'Administra
 d'accueil. Les quatre premières perdent le `vus` qu'elles avaient écrit à la main et le tiennent
 désormais par le module ; les deux dernières gardent ce qu'elles ne pouvaient pas avoir, le nom de ce
 qu'elles effacent. **La sixième disparaît** : la boîte de suppression ne traverse plus la marche, elle
-reçoit deux listes de cibles et une table de noms que la page a calculées, et `descendDe` disparaît
-avec elle. Ce qui traverse alors la couture client, ce sont des identifiants et des noms — la règle
+reçoit deux listes de cibles et une table de noms que la page lui passe, et `descendDe` disparaît
+avec elle. La page les calculait alors sur la lecture qu'elle demandait à la Lecture ; elle les reçoit
+aujourd'hui dans la forme que cette lecture rend (voir l'amendement suivant). Ce qui traverse alors la couture client, ce sont des identifiants et des noms — la règle
 d'ADR-0028 appliquée à une forme plus large, jamais une fonction.
 
 La marche se retrouve ainsi avec **un seul appelant de production**, le module qui la possède. Les
@@ -196,20 +204,31 @@ seul **refuse** : la page lui passe des cibles déjà triées, `deleteCategory` 
 cible cyclique, et un cycle déjà en base laisse la cible proposée. La boutique dégrade comme devant ;
 c'est la forme de la divergence qui change, pas sa direction.
 
-### La troisième preuve de la garde tombe, la garde ne tombe pas
+### La troisième preuve de la garde s'inverse, la garde ne tombe pas
 
-[`marche-structure-frontiere.test.ts`](../../lib/marche-structure-frontiere.test.ts) compte sept
+[`marche-structure-frontiere.test.ts`](../../lib/marche-structure-frontiere.test.ts) comptait sept
 épreuves, et la troisième — « le composant client traverse la Marche, et n'atteint ni la base ni une
-lecture serveur », lignes 159-196 — affirme l'inverse de ce que ce changement décide. Elle doit
-disparaître, et [#573](https://github.com/eloaurdi/eguidar/issues/573) la retire : pas le présent
-amendement, qui ne touche aucune suite.
+lecture serveur », lignes 159-196 — affirmait l'inverse de ce que ce changement décide. **Elle n'a
+pas disparu : elle a été retournée.** C'est
+[#573](https://github.com/eloaurdi/eguidar/issues/573) qui l'a fait, et non le présent amendement,
+qui ne touche aucune suite ; là où elle affirmait qu'un module client atteignait le cœur, elle
+affirme aujourd'hui qu'**aucun** module `"use client"` du dépôt ne l'atteint, sur l'ensemble des
+clients déduits de leur directive.
+
+La forme inverse est plus forte que la forme qu'elle remplace, et c'est pour cela qu'elle vaut
+mieux que sa suppression : l'ancienne prouvait la neutralité *actuelle* — un client atteignait
+réellement le cœur —, la nouvelle la prouve *structurelle*, sur tout le dépôt et non sur un
+composant. La liste des symboles que le module doit porter s'est allongée de trois entrées au
+passage — `liensDesStructures`, `comparerParNom` et la forme `StructureOrdonnee` qui porte les
+deux faits que l'ordre compare — parce qu'une garde qui n'énonce pas ce qu'elle garde est verte
+pour une raison qu'elle ne connaît pas.
 
 Restent la neutralité du module lui-même, la neutralité **par transit** du graphe de valeur, le
 parcours non vacuant, l'affirmation que les aides de frontière sont hors du graphe, et surtout **les
 deux contre-épreuves** — la violation synthétique écrite dans le vrai fichier, et le voisin qui
 l'emprunte sans être la graine. Elles interdisent qu'une garde verte le soit parce qu'elle ne suit
-rien, et leur valeur ne dépendait pas de la troisième épreuve : celle-ci n'était qu'une forme positive
-de plus, et sa forme positive est désormais portée par l'autre garde.
+rien, et leur valeur ne dépendait pas de la troisième épreuve : celle-ci n'était qu'une forme
+positive de plus, et sa forme positive est désormais portée par l'autre garde.
 
 ### Ce que cet amendement ne change pas
 
@@ -232,3 +251,87 @@ L'épreuve de ce changement appartient à [#573](https://github.com/eloaurdi/egu
 boîte ne rend plus de parcours sur des littéraux, et la garde du cœur n'affirme plus de client. Ce que
 le présent amendement rend mesurable est le compte — quatre appelants, dont un client — qu'il fait
 tomber à un.
+
+## Amendement — Une seule promesse d'ordre, et elle est écrite dans le cœur (#564)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les lectures
+dégradent, une seule marche pour toute la Structure. Cet amendement consigne deux décisions que le travail a
+prises **après** que l'amendement précédent eut été écrit, et que ce dépôt n'enregistre nulle part
+ailleurs.
+
+### Une seule promesse d'ordre, écrite dans le cœur neutre
+
+L'amendement ci-dessus dit « le module promet un ordre, et le propre » : le tri se fait en JavaScript, avec
+la comparaison que le dépôt écrivait déjà. Il ne dit pas **où cette comparaison est écrite**, et la question
+a reçu deux réponses pendant un temps.
+
+Pendant une forme, deux comparateurs coexistaient : `comparerParNom` dans
+[`marche-structure.ts`](../../lib/marche-structure.ts) — nom en français départagé par l'**identifiant** — et
+`comparerDesFreres` dans [`lecture-structure.ts`](../../lib/use-cases/lecture-structure.ts) — nom en français
+départagé par le **slug**. Les deux étaient exacts, tous deux rendaient l'ordre total, et rien ne les
+rapprochait : les cibles de suppression d'une page d'Administration se classaient par `cuid` pendant que les
+lignes de la même page, le sélecteur d'un formulaire, les puces d'une catégorie et les candidats d'un
+formulaire se classaient par slug. Une page pouvait donc servir deux catalogues à un éditeur, et US 5, US 30
+et US 31 — « une seule promesse d'ordre » — étaient fausses sans qu'aucune des deux règles ne soit fausse.
+
+**La décision : le comparateur est écrit une fois, dans le cœur, et le module le reprend tel quel.**
+`comparerParNom` est **exporté** par `marche-structure.ts` ; les six projections de la Lecture l'importent
+plutôt que d'écrire le leur. Le départage est l'**identifiant**, non le slug, parce que le cœur est neutre et
+que `StructureLue` ne porte pas de slug : l'ajouter contraindrait chaque appelant — y compris une future
+surface cliente qui n'aurait qu'un `cuid` sous la main — à fournir un fait dont la comparaison n'a pas besoin.
+L'identifiant est unique, donc l'ordre reste total et ne dépend d'aucune machine, ce qui est exactement la
+promesse qu'US 30 demande.
+
+**Ce qui est prouvé, et où.** Une recette partagée — [`test/ordre-structures-recette.ts`](../../test/ordre-structures-recette.ts)
+— porte la fixture et l'ordre attendu, et chaque projection la rejoue. La fixture croise les deux règles : deux
+Structures de même nom dont les slugs sont rangés à l'opposé de leurs identifiants, et deux noms dont la
+collation française inverse l'ordre des octets. Sans ce croisement, deux départages différents donneraient la
+même suite et la contradiction resterait invisible. Une seconde épreuve compare les rendus **côte à côte**,
+parce que tenir chaque projection à un ordre écrit ne dit pas qu'elles classent pareil.
+
+### Les cibles de suppression quittent la ligne d'Administration
+
+L'amendement ci-dessus dit que la boîte de suppression « reçoit deux listes de cibles et une table de noms que
+la page a calculées ». Il ne dit pas **quelle forme** les porteait, et la forme écrite était la ligne
+elle-même : `LigneStructureAdmin` portait `ciblesProduits` et `ciblesSousCategories`, donc chaque ligne
+portait les cibles de toutes les autres. C'est le contredit de l'exigence que cet amendement porte par
+ailleurs — « une surface ne reçoit pas plus qu'elle n'a demandé » (US 32).
+
+Les deux listes ont donc **leur propre forme**, `CiblesSuppression`, rendue par la même projection dans le
+même retour : une lecture, une marche, une ligne de journal par cycle, et deux formes étroites. L'écran
+d'Administration joint les deux par identifiant, et ne reçoit plus sur une ligne un fait qui n'est pas le
+sien.
+
+**Le coût en props n'est pas supprimé, et il reste consigné** : une liste de cibles par ligne, sur une page
+qui a une ligne par Structure, donc des props au carré du nombre de Structures. Le § Further Notes du spec
+l'énonce et ne le traite pas ; cet amendement le reprend tel quel, et la forme `EcranAdminStructure` est le
+lieu où il se lit. Passé deux cents Structures, la partition devrait être hissée dans un module client unique
+qui rendrait toutes les boîtes — décision qui appartient à ce module, pas à une page.
+
+### Ce que cet amendement ne change pas
+
+- **La règle de terminaison** reste dans le cœur pur, et le cœur n'a pas bougé : ni lecture, ni directive, ni
+  crochet, ses deux points d'entrée conservés.
+- **La divergence boutique/mutation** tient en entier, et la forme qu'elle prend dans la boîte ne change pas.
+- **La neutralité du cœur** reste une condition, et sa garde reste la même — à l'exception du changement
+  consigné plus bas sur l'instrument de ses contre-épreuves.
+- **Rien n'est rouvert** : ni le plafond de profondeur, ni l'index absent sur `parentId`, ni la création qui
+  n'appelle toujours pas la marche d'acyclicité.
+
+### L'instrument de frontière, et le changement qu'il a reçu
+
+Les gardes de ce dépôt se lisent sur la **directive** d'une source. `directive`, dans
+[`outils-frontiere.ts`](../../lib/use-cases/outils-frontiere.ts), lisait la **première** entrée du prologue ;
+il lit désormais la première réclamation **reconnue** de tout le prologue. Une source qui ouvre par
+`"use strict";` puis réclame `"use client"` passait donc pour neutre, et une garde qui déduisait ses modules
+clients d'une telle lecture était verte par une absence de classement et non par une absence d'arête — le
+défaut que toute contre-épreuve doit traquer.
+
+Le changement **n'était demandé par aucun ticket** : il a été fait pour que le balayage de la nouvelle garde
+ne puisse pas être contourné par un `use strict` en tête de fichier. Il est consigné ici parce qu'il touche
+cinq gardes par transit, et parce que [`outils-frontiere.test.ts`](../../lib/use-cases/outils-frontiere.test.ts)
+est désormais la suite qui possède ces aides : les deux directions du contrat de `directive` — une réclamation
+après une autre entrée du prologue **est** reconnue, une chaîne ordinaire qui contient `"use client"` ne
+l'est pas — y sont éprouvées avec la limite assumée, et les cinq gardes qui les empruntent n'ont plus à le
+faire chacune de leur côté. C'est ce qui rend leur consolidation future possible sans le risque d'une
+dérive (cf. § hors périmètre du spec : « les douze gardes de frontière »).

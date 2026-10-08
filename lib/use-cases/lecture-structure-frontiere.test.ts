@@ -82,8 +82,8 @@ const CLIENT_TEMOIN = "components/admin/delete-category-button.tsx"
 const SYMBOLES = [
   "lireArbreAccueil",
   "projeterArbreAccueil",
-  "lireLignesAdmin",
-  "projeterLignesAdmin",
+  "lireEcranAdmin",
+  "projeterEcranAdmin",
   "lireOptionsSelecteur",
   "projeterOptionsSelecteur",
   "lireEcranEdition",
@@ -95,6 +95,8 @@ const SYMBOLES = [
   "FaitStructure",
   "NoeudAccueil",
   "LigneStructureAdmin",
+  "CiblesSuppression",
+  "EcranAdminStructure",
   "OptionStructure",
   "StructureEditable",
   "EcranEditionStructure",
@@ -102,6 +104,7 @@ const SYMBOLES = [
   "PageCategorie",
   "descendanceDe",
   "complementDe",
+  "comparerParNom",
 ] as const
 
 /**
@@ -394,30 +397,22 @@ describe("Lecture de la Structure — le module n'atteint aucun module client", 
     }
   })
 
-  it("la dérivation des modules clients voit le prologue entier", () => {
-    // L'auto-épreuve de l'instrument dont dépend le balayage ci-dessus.
+  it("le balayage des clients repose sur une aide qui se prouve elle-même", () => {
+    // **Les deux directions du contrat de `directive` ne sont pas éprouvées
+    // ici.** Une réclamation placée après une autre entrée du prologue est
+    // reconnue ; une chaîne ordinaire qui contient le littéral ne l'est pas. Ces
+    // deux preuves — et la limite assumée, qu'un commentaire entre deux entrées
+    // arrête le prologue — sont dans
+    // [`outils-frontiere.test.ts`](./outils-frontiere.test.ts), qui **possède**
+    // l'aide. Les recopier ici les aurait sujettes à diverger : c'est exactement
+    // le défaut qu'US 43 nomme, une règle vraie dans une suite et périmée dans
+    // l'autre.
     //
-    // `directive` lisait la **première** entrée du prologue, ce qui suffisait tant
-    // que le dépôt n'avait qu'une seule façon de s'ouvrir. Une source qui
-    // ouvre par `"use strict";` puis réclame `"use client"` passait pourtant sous
-    // le balayage : la garde aurait été verte par une absence de classement et
-    // non par une absence d'arête. Le prologue est la suite des directives
-    // d'ouverture ; la première n'en est pas plus une réclamation que les
-    // suivantes.
-    //
-    // La limite assumée : les entrées doivent se suivre, sans commentaire entre
-    // deux. Cacher une réclamation derrière un commentaire serait agir en
-    // mauvaise foi ; on ne s'y prête pas.
-    expect(directive('"use client"')).toBe("use client")
-    expect(directive('"use server"')).toBe("use server")
-    expect(directive('"use strict";\n"use client"')).toBe("use client")
-    expect(directive('"use strict";\n"use server"\n')).toBe("use server")
-    expect(directive('// @ts-check\n"use client"\n')).toBe("use client")
-    // Et ce qui n'est pas une réclamation reste une chaîne ordinaire : c'est le
-    // prologue qui décide, pas la présence du littéral.
-    expect(directive('export const cote = "use client"\n')).toBeNull()
-    expect(directive('const x = 1\n"use client"\n')).toBeNull()
-    expect(directive("/* use client */\nexport const x = 1\n")).toBeNull()
+    // Ce que la garde tient, en revanche, c'est que le balayage **voit** des
+    // clients : sans ce témoin, « aucun client n'atteint la Lecture » serait aussi
+    // vrai d'un dépôt sans un seul composant client.
+    expect(MODULES_CLIENTS.length).toBeGreaterThan(0)
+    expect(directive(sourceDe(CLIENT_TEMOIN).source)).toBe("use client")
   })
 
   it("le parcours est non vacuant : les quatre arbres sont visités, et la page trouve la Lecture", () => {
@@ -506,7 +501,7 @@ describe("Lecture de la Structure — le module n'atteint aucun module client", 
     // balayage des clients, qui est l'autre moitié de la garde.
     const clientEnViolation = sourceApres(
       sourceDe(CLIENT_TEMOIN).source,
-      'import { lireLignesAdmin } from "@/lib/use-cases/lecture-structure"'
+      'import { lireEcranAdmin } from "@/lib/use-cases/lecture-structure"'
     )
     expect(directive(clientEnViolation)).toBe("use client")
     expect(
@@ -652,5 +647,167 @@ describe("Lecture de la Structure — le seuil de lecture", () => {
     expect(lecteurs(avecSource(boutique, enTransaction))).toEqual(
       [...LECTEURS_NOMMES.keys()].sort()
     )
+  })
+})
+
+/**
+ * Les portes de **lecture** que le module exporte, déduites de sa source : une
+ * fonction `lire…` exportée. La forme est lisible dans le nom, et c'est ce qui la
+ * rend dérivable plutôt que nommée : une liste écrite à la main serait une liste à
+ * tenir à jour, et une porte de plus s'y glisserait sans que rien ne s'en aperçoive.
+ */
+const PORTE_DE_LECTURE = /export\s+async\s+function\s+(lire[A-Za-z0-9_$]*)/g
+
+/**
+ * Les portes de lecture qu'une source **emprunte pour leur valeur**, dans l'ordre
+ * où elle les écrit.
+ *
+ * Le même filtre que `empruntsDeValeur` — un `import type` est effacé à la
+ * compilation, donc une frontière ne se traverse pas par lui — mais ici il faut en
+ * plus **les noms** : la règle porte sur une porte, pas sur un chemin. Une page qui
+ * importerait le type d'une porte n'en appellerait pas, et une garde qui la
+ * compterait serait fausse au lieu d'être verte, exactement comme l'expression du
+ * seuil qui épargne les lectures transactionnelles (`outils-frontiere.ts:16-21`).
+ *
+ * **Entre `}` et `from`, il ne passe que du blanc.** Un `[^;]*` se lirait
+ * jusqu'à l'import suivant et compterait des portes qui ne sont pas à sa
+ * ligne : l'expression attraperait alors tout, et ne compterait plus rien. C'est
+ * le défaut que l'expression du seuil commet dès qu'on élargit son motif, et la
+ * raison de s'en tenir à la forme exacte de l'import nommé.
+ */
+function portesEmpruntees(source: string, portes: readonly string[]): string[] {
+  return [
+    ...source.matchAll(
+      /import\s+(type\s+)?\{([^}]*)\}\s*from\s*["']@\/lib\/use-cases\/lecture-structure["']/g
+    ),
+  ]
+    .flatMap(([, typeOnly, noms]) =>
+      typeOnly
+        ? []
+        : (noms ?? "").split(",").map((nom) => nom.split(/\s+as\s+/)[0]!.trim())
+    )
+    .filter((nom) => portes.includes(nom))
+}
+
+/** Les écrans du dépôt : une page est un `page.tsx`, et rien d'autre ne l'est. */
+function estUnePage(chemin: string): boolean {
+  return chemin.startsWith("app/") && /\/page\.tsx$/.test(chemin)
+}
+
+/**
+ * Les écrans qui demandent **plus d'une** porte de lecture, avec les portes qu'ils
+ * demandent. La fonction ne lève rien et n'affirme rien : elle rend la liste des
+ * coupables, comme `lecteurs` rend la liste des lecteurs de la Structure — c'est
+ * l'épreuve qui décide, et la contre-épreuve peut donc passer une violation
+ * synthétique sans attraper l'exception d'un `expect` raté.
+ */
+function ecransDeDeuxPortes(
+  sources: readonly SourceProduction[],
+  portes: readonly string[]
+): { chemin: string; portes: string[] }[] {
+  return sources
+    .filter(({ chemin }) => estUnePage(chemin))
+    .flatMap(({ chemin, source }) => {
+      const emprantees = portesEmpruntees(source, portes)
+      return emprantees.length > 1 ? [{ chemin, portes: emprantees }] : []
+    })
+}
+
+/**
+ * « Une porte par écran », rendu par une garde de frontière (US 23, US 29).
+ *
+ * La règle du module est qu'une page appelle **une** porte : une porte relit la
+ * table et rebâtit une marche, donc deux portes veulent dire deux lectures et deux
+ * lignes de journal pour un seul cycle. C'était une prose dans l'en-tête, donc une
+ * règle qu'on appliquait en se souvenant de la lire ; US 29 demande qu'elle soit
+ * appliquée, et non expliquée. Elle est ici **dérivée** : les portes viennent des
+ * `export async function lire…` du module, et les écrans de leur nom de fichier —
+ * jamais d'une liste de chemins, le défaut qu'ADR-0028 nomme et que chaque garde
+ * du dépôt rappelle.
+ *
+ * **Ce que la garde ne couvre pas, dit franchement.** Elle lit le fichier de la
+ * page, pas ce qu'il rend : un écran composé d'un composant serveur qui appellerait
+ * une seconde porte passerait. Le remède n'est pas d'élargir la garde — elle verrait
+ * alors des portes légitimes d'un même écran — mais la **mesure** : chaque écran
+ * d'Administration compte ses lectures au rendu
+ * (`app/admin/categories/page.test.tsx`, `app/admin/categories/[id]/page.test.tsx`,
+ * `app/admin/categories/nouveau/page.test.tsx`), et une porte de plus s'y voit
+ * comme un compte de plus. Les deux instruments se complètent : celui-ci tient
+ * avant la fusion, celui-là tient à l'exécution.
+ */
+describe("Lecture de la Structure — une porte par écran", () => {
+  const source = sourceDe(MODULE_LECTURE).source
+  const portes = [...source.matchAll(PORTE_DE_LECTURE)].map(([, nom]) => nom!)
+
+  it("le module déclare ses portes de lecture, et la garde sait les lire", () => {
+    // La dérivation n'est pas une commodité : une garde qui ne verrait aucune porte
+    // serait verte pour toujours. On vérifie donc qu'elle en trouve, qu'aucune ne
+    // se répète, et que chacune des portes que l'énoncé du module nomme est bien
+    // dans le code — un `SYMBOLES` qui les énumère et un module qui en perd une
+    // doivent se voir.
+    expect(portes.length).toBeGreaterThanOrEqual(6)
+    expect(new Set(portes).size).toBe(portes.length)
+    for (const symbole of SYMBOLES) {
+      if (symbole.startsWith("lire")) expect(portes, symbole).toContain(symbole)
+    }
+  })
+
+  it("aucune page du dépôt n'appelle deux portes de lecture", () => {
+    // Le parcours est non vacuant d'abord : des pages existent, et l'une d'elles
+    // appelle bel et bien une porte — sans ce témoin, « zéro porte partout » serait
+    // satisfait par un regard muet.
+    const pages = SOURCES.filter(({ chemin }) => estUnePage(chemin))
+    expect(pages.length).toBeGreaterThan(10)
+
+    const appelantes = pages
+      .map(({ chemin, source }) => ({
+        chemin,
+        portes: portesEmpruntees(source, portes),
+      }))
+      .filter(({ portes }) => portes.length > 0)
+    expect(appelantes.length).toBeGreaterThan(0)
+    expect(appelantes.map(({ chemin }) => chemin)).toContain(
+      "app/admin/categories/page.tsx"
+    )
+    expect(appelantes.flatMap(({ portes }) => portes).sort()).toContain(
+      "lireEcranAdmin"
+    )
+
+    // Et la règle, enfin.
+    expect(ecransDeDeuxPortes(SOURCES, portes)).toEqual([])
+  })
+
+  it("la garde tombe sur un écran qui appelle deux portes, écrit dans un vrai fichier", () => {
+    // La contre-épreuve. **Une page réelle**, dont on remplace la source, reçoit un
+    // second appel de porte : la garde doit nommer la page et les deux portes.
+    // Sans elle, elle pourrait être verte parce qu'elle ne lit rien.
+    const PAGE = "app/admin/categories/page.tsx"
+    const reel = sourceDe(PAGE).source
+    expect(portesEmpruntees(reel, portes)).toEqual(["lireEcranAdmin"])
+
+    const enViolation = reel.replace(
+      'import { lireEcranAdmin } from "@/lib/use-cases/lecture-structure"',
+      'import {\n  lireEcranAdmin,\n  lireOptionsSelecteur,\n} from "@/lib/use-cases/lecture-structure"'
+    )
+    expect(enViolation).not.toBe(reel)
+    expect(ecransDeDeuxPortes(avecSource(PAGE, enViolation), portes)).toEqual([
+      {
+        chemin: PAGE,
+        portes: ["lireEcranAdmin", "lireOptionsSelecteur"],
+      },
+    ])
+
+    // **Et la même source, avec une seule porte, ne fait rien dire** : la garde ne
+    // doit pas devenir une interdiction de parler à la Lecture, seulement de lui
+    // demander deux choses.
+    expect(ecransDeDeuxPortes(avecSource(PAGE, reel), portes)).toEqual([])
+
+    // Enfin, un `import type` **n'est pas** un appel de porte : la frontière ne se
+    // traverse qu'en types, et une garde qui le compterait serait fausse.
+    const enType = reel.replace(
+      "import { lireEcranAdmin }",
+      'import type { CiblesSuppression } from "@/lib/use-cases/lecture-structure"\nimport { lireEcranAdmin }'
+    )
+    expect(portesEmpruntees(enType, portes)).toEqual(["lireEcranAdmin"])
   })
 })

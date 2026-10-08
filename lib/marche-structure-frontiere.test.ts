@@ -23,14 +23,14 @@ import {
  *
  * **Ce qui est arrivé à l'appelant client, et ce que la garde en dit maintenant.**
  * La boîte de suppression traversait le cœur depuis #551, et c'était la raison
- * pour laquelle sa neutralité était *actuelle* : une module `"use client"`
+ * pour laquelle sa neutralité était *actuelle* : un module `"use client"`
  * l'atteignait pour de bon. #573 la lui retire — la boîte reçoit ses deux listes
- * de cibles et la table des noms, calculées par la page (US 40), et
+ * de cibles et la table des noms, que la page lui passe (US 40), et
  * `descendDe` disparaît avec elle. L'amendement d'ADR-0030 consigne ce
  * changement et désigne cette épreuve comme celle qui doit tomber ; elle est
- * donc **remplacée, pas affaiblie** : là où elle affirmait qu'un client
- * atteignait le cœur, elle affirme qu'aucun ne l'atteint, sur l'ensemble des
- * modules clients déduits de leur directive. Un garde écrit sur une liste de
+ * donc **retournée, pas affaiblie** — et l'amendement le dit aussi : là où elle
+ * affirmait qu'un client atteignait le cœur, elle affirme qu'aucun ne l'atteint,
+ * sur l'ensemble des modules clients déduits de leur directive. Un garde écrit sur une liste de
  * noms s'allumerait sur un client neuf qui n'a rien à reprocher, et resterait
  * muet sur celui qui importerait — c'est le piège nommé d'ADR-0028, et il vaut
  * pour les gardes comme pour les actions.
@@ -180,7 +180,7 @@ describe("Marche de la Structure — frontière client/serveur", () => {
     // Marche » : elle prouvait que la neutralité était *actuelle*, qu'un
     // `"use client"` l'atteignait pour de bon. Cette raison est retirée avec
     // l'appelant — `components/admin/delete-category-button.tsx` reçoit désormais
-    // ses deux listes de cibles et la table des noms, calculées par la page, et
+    // ses deux listes de cibles et la table des noms, que la page lui passe, et
     // n'importe plus le cœur (US 40). L'amendement d'ADR-0030 le consigne.
     //
     // Ce qui reste n'est pas la même affirmation, et c'est pourquoi elle est

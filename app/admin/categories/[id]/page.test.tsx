@@ -58,6 +58,7 @@ vi.mock("@/components/admin/category-form", () => ({
 
 import EditCategoryPage from "./page"
 import { prisma } from "@/lib/db"
+import { compterLesLecturesDeLaStructure } from "@/test/lecture-structure-recette"
 import {
   creerArbrePropre,
   creerStructure,
@@ -168,6 +169,24 @@ afterAll(async () => {
   // d'identifiants n'est à tenir (#546).
   await prisma.category.deleteMany({ where: { slug: { startsWith: PREFIXE } } })
   await prisma.$disconnect()
+})
+
+describe("EditCategoryPage — le prix de la lecture", () => {
+  it("lit la Structure une fois par rendu, pour la Structure éditée, les candidates et les parentes exclues", async () => {
+    const { lectures } = await compterLesLecturesDeLaStructure(() =>
+      rendreLEcran(arbre.racine.id)
+    )
+
+    // **Une lecture pour trois réponses.** L'écran pose trois questions à la
+    // Structure — « quelle Structure j'édite », « quelles parentes puis-je
+    // proposer », « lesquelles ne puis-je pas » — et la règle est **une porte par
+    // écran** : les prendre à trois portes aurait relu la table trois fois et
+    // dit le cycle trois fois, donc compté trois fois une boucle à réparer une
+    // seule fois (US 23, US 29, ADR-0030). C'est le seul endroit où ce compte peut
+    // être vérifié : une écran qui rend la même page avec une lecture de moins
+    // n'a rien de visible, et une porte de plus ne se voit qu'ici.
+    expect(lectures).toBe(1)
+  })
 })
 
 describe("EditCategoryPage — sur un arbre propre", () => {

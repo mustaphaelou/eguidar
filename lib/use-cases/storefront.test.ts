@@ -14,6 +14,10 @@ import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import type { NoeudAccueil } from "@/lib/use-cases/lecture-structure"
 import {
+  compterLesLecturesDeLaStructure,
+  compterLesRequetesDeStructure,
+} from "@/test/lecture-structure-recette"
+import {
   fetchCategoryPageData,
   fetchHomeData,
   fetchProductPageData,
@@ -743,72 +747,11 @@ describe("storefront browse", () => {
   // traversée » — la forme d'avant #548 — est donc un comptage à la couture que
   // la Lecture de la Structure traverse, le client Prisma lui-même.
   describe("une seule lecture complète de la Structure par page", () => {
-    /**
-     * Une **lecture complète** : le `findMany` que rien ne borne, celui qui
-     * parcourt la table entière — la lecture de la Lecture de la Structure, quelle
-     * que soit la surface qui la demande : l'arbre d'accueil, la page de
-     * catégorie, la fiche Produit.
-     *
-     * Ce qui borne une lecture, c'est son `where` : la requête des enfants d'une
-     * Structure (`where: { parentId }`) lit la table sans la parcourir, et ne
-     * compte donc pas. Un `where` vide, lui, vaut « toutes les rangées » chez
-     * Prisma : il compte.
-     *
-     * **Et cette définition est liée à l'implémentation, pas au contrat** : elle
-     * ne compte ni un `findUnique` — la rangée que la page de catégorie faisait
-     * pour se reconnaître — ni une lecture bornée, alors que la page en faisait
-     * deux. Une lecture que la forme d'avant ne comptait pas n'est pas une
-     * lecture que la forme d'après en fait ; c'est pourquoi la mesure de toutes
-     * les requêtes sur `Category` est à côté, et non à la place de celle-ci.
-     */
-    function estUneLectureComplete(
-      args: { where?: object } | undefined
-    ): boolean {
-      if (!args?.where) return true
-      return Object.keys(args.where).length === 0
-    }
-
-    /**
-     * **Toutes** les requêtes que la page adresse à la table `Category` — les
-     * `findMany` et les `findUnique`, bornés ou non. C'est la mesure qui compte
-     * la rangée qu'une page se reconnaît par son adresse, donc celle qui prouve
-     * que la page de catégorie n'en fait plus : le gain de #570 est invisible
-     * pour `estUneLectureComplete`, qui n'a jamais su voir un `findUnique`.
-     */
-    async function compterLesRequetesDeStructure<T>(
-      rendre: () => Promise<T>
-    ): Promise<{ issue: T; requetes: number }> {
-      const findMany = vi.spyOn(prisma.category, "findMany")
-      const findUnique = vi.spyOn(prisma.category, "findUnique")
-      try {
-        const issue = await rendre()
-        return {
-          issue,
-          requetes: findMany.mock.calls.length + findUnique.mock.calls.length,
-        }
-      } finally {
-        findMany.mockRestore()
-        findUnique.mockRestore()
-      }
-    }
-
-    /** Le nombre de lectures complètes qu'une page a demandées, et son issue. */
-    async function compterLesLecturesDeLaStructure<T>(
-      rendre: () => Promise<T>
-    ): Promise<{ issue: T; lectures: number }> {
-      const espion = vi.spyOn(prisma.category, "findMany")
-      try {
-        const issue = await rendre()
-        return {
-          issue,
-          lectures: espion.mock.calls.filter(([args]) =>
-            estUneLectureComplete(args)
-          ).length,
-        }
-      } finally {
-        espion.mockRestore()
-      }
-    }
+    // Les deux compteurs — et la définition de ce qu'ils comptent — sont dans
+    // `@/test/lecture-structure-recette` : ils servent aussi aux écrans
+    // d'Administration, qui doivent payer une lecture pour les mêmes raisons que la
+    // boutique. Une copie locale par suite mesurerait deux choses différentes sous
+    // le même nom, et c'est le défaut que le partage supprime.
 
     // Le `beforeEach` de la suite supprime les Produits de ce `runId` : le
     // Produit mesuré est donc recréé à chaque épreuve, pas au montage.

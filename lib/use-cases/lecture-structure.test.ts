@@ -2,14 +2,19 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   projeterArbreAccueil,
+  projeterEcranAdmin,
   projeterEcranEdition,
   projeterFilAriane,
-  projeterLignesAdmin,
   projeterOptionsSelecteur,
   projeterPageCategorie,
   type FaitStructure,
   type NoeudAccueil,
 } from "@/lib/use-cases/lecture-structure"
+import {
+  dansLOrdreEprouve,
+  exigerLeMemeOrdre,
+  eprouverLOrdreDuModule,
+} from "@/test/ordre-structures-recette"
 
 /**
  * La Lecture de la Structure, par sa porte pure : l'arbre d'accueil projeté sur
@@ -54,17 +59,25 @@ function structure(
 }
 
 /**
- * Les identifiants de l'arbre, tous, en montant et en descendant par une pile
- * explicite : une chaîne de plusieurs milliers de maillons est une forme
- * ordinaire ici, et une récursion de facture l'aurait fait tomber.
+ * Les nœuds de l'arbre, tous, dans l'ordre où le module les rend : un **pré-ordre**,
+ * par une pile explicite — une chaîne de plusieurs milliers de maillons est une
+ * forme ordinaire ici, et une récursion de facture l'aurait fait tomber.
+ *
+ * Les enfants sont empilés à l'envers pour que la pile les rende **dans l'ordre du
+ * module** : une pile rend ce qu'on y pousse en dernier, et une liste qu'on retourne
+ * pour éviter cela donnerait, pour une liste d'identifiants, une suite qui ressemble
+ * à un classement sans en être un. C'est ce helper qui sert à l'épreuve d'accord
+ * entre les rendus, donc la confusion ne resterait pas invisible longtemps.
  */
 function tousLesNoeuds(noeuds: readonly NoeudAccueil[]): NoeudAccueil[] {
   const tous: NoeudAccueil[] = []
-  const pile = [...noeuds]
+  const pile = [...noeuds].reverse()
   while (pile.length > 0) {
     const noeud = pile.pop()!
     tous.push(noeud)
-    for (const enfant of noeud.children) pile.push(enfant)
+    for (let rang = noeud.children.length - 1; rang >= 0; rang -= 1) {
+      pile.push(noeud.children[rang]!)
+    }
   }
   return tous
 }
@@ -92,6 +105,189 @@ const ARBRE_SAIN: FaitStructure[] = [
   structure("isolee", "Isolée", null, 4),
 ]
 
+/* ======================================================================== *
+ * L'ordre du module, une promesse et six rendus (US 5, US 31)               *
+ * ======================================================================== *
+ *
+ * Les assertions d'ordre — le départage des Structures de même nom et la
+ * collation française — sont **écrites une fois**, dans
+ * `@/test/ordre-structures-recette`, avec leur fixture et l'ordre qu'elles
+ * attendent. Elles vivaient dans trois de ces blocs, recopiées, et le cœur en
+ * portait une quatrième dans `marche-structure-partition.test.ts` ; une projection
+ * écrite plus tard aurait pu sortir son propre comparateur sans que rien ne la
+ * lie aux trois autres, et rien ne se serait contredit sur une liste dont les
+ * noms sont distincts. C'est le défaut que la fixture croisée de la recette ferme.
+ *
+ * **La recette ne remplace pas l'accord entre les rendus, elle s'y ajoute.** Que
+ * chaque projection classe correctement ne dit pas qu'elles classent **pareillement** :
+ * deux règles exactes et différentes passent la recette et trahissent la promesse
+ * d'interface. L'épreuve d'accord compare donc les six rendus **côte à côte** —
+ * sans recalculer le classement, ce qui serait écrire la règle une troisième fois,
+ * dans la preuve même.
+ *
+ * Le **fil d'Ariane** est la seule forme que cet ordre ne classe pas, et ce n'est
+ * pas un oubli : son ordre est un **chemin** — la racine d'abord, la Structure
+ * demandée en dernier — et non un classement d'un ensemble. Ce qui doit y valoir,
+ * c'est que le fil nomme les mêmes Structures que les puces de sa parente et se
+ * referme sur celle de son Produit ; son bloc l'éprouve.
+ */
+eprouverLOrdreDuModule({
+  nom: "projeterArbreAccueil",
+  // L'arbre entier, à plat : la recette ne garde que les quatre épinglées, et
+  // l'ordre dans lequel elles apparaissent est l'ordre du pré-ordre.
+  projeter: (faits) =>
+    tousLesNoeuds(projeterArbreAccueil(faits)).map((n) => n.id),
+})
+
+eprouverLOrdreDuModule({
+  nom: "projeterEcranAdmin — les lignes",
+  projeter: (faits) =>
+    projeterEcranAdmin(faits).lignes.map((ligne) => ligne.id),
+})
+
+eprouverLOrdreDuModule({
+  nom: "projeterEcranAdmin — les cibles de la boîte de suppression",
+  // Les cibles de la **racine** — et non d'une des quatre : une cible s'écarte
+  // toujours la Structure dont elle est la cible, donc les quatre y sont toutes.
+  projeter: (faits) =>
+    projeterEcranAdmin(faits).cibles.find((cible) => cible.id === faits[0].id)!
+      .produits,
+})
+
+eprouverLOrdreDuModule({
+  nom: "projeterOptionsSelecteur",
+  projeter: (faits) =>
+    projeterOptionsSelecteur(faits).map((option) => option.id),
+})
+
+eprouverLOrdreDuModule({
+  nom: "projeterEcranEdition — les candidates",
+  projeter: (faits) =>
+    projeterEcranEdition(faits, faits[0].id)!.candidates.map((c) => c.id),
+})
+
+eprouverLOrdreDuModule({
+  nom: "projeterPageCategorie — les sous-catégories",
+  projeter: (faits) =>
+    projeterPageCategorie(faits, faits[0].slug)!.enfants.map((e) => e.id),
+})
+
+describe("l'ordre du module — les rendus s'accordent entre eux", () => {
+  it("l'arbre, les lignes, les cibles, les puces, les options et les candidates rangent les mêmes Structures de la même façon", () => {
+    const faits = [
+      {
+        id: "racine",
+        name: "Racine",
+        slug: "racine",
+        image: null,
+        parentId: null,
+        produitsDirects: 0,
+      },
+      {
+        id: "zebre",
+        name: "Zèbre",
+        slug: "zebre",
+        image: null,
+        parentId: "racine",
+        produitsDirects: 0,
+      },
+      {
+        id: "ecran",
+        name: "Écran",
+        slug: "ecran",
+        image: null,
+        parentId: "racine",
+        produitsDirects: 0,
+      },
+      {
+        id: "jumeau-b",
+        name: "Jumeau",
+        slug: "aaa-jumeau",
+        image: null,
+        parentId: "racine",
+        produitsDirects: 0,
+      },
+      {
+        id: "jumeau-a",
+        name: "Jumeau",
+        slug: "zzz-jumeau",
+        image: null,
+        parentId: "racine",
+        produitsDirects: 0,
+      },
+    ]
+    const ecran = projeterEcranAdmin(faits)
+
+    // Chacune est réduite aux quatre Structures épinglées : les rendus ne portent
+    // pas tous la même liste — le pré-ordre de l'arbre passe par la racine, les
+    // cibles de la racine l'excluent — et ce qui doit être **le même** est l'ordre
+    // dans lequel chacun range les mêmes Structures.
+    exigerLeMemeOrdre([
+      {
+        nom: "l'arbre d'accueil",
+        ids: dansLOrdreEprouve(
+          tousLesNoeuds(projeterArbreAccueil(faits)).map((n) => n.id)
+        ),
+      },
+      {
+        nom: "les lignes de l'Administration",
+        ids: dansLOrdreEprouve(ecran.lignes.map((l) => l.id)),
+      },
+      {
+        nom: "les cibles de la boîte de la racine",
+        ids: dansLOrdreEprouve(
+          ecran.cibles.find((cible) => cible.id === "racine")!.produits
+        ),
+      },
+      {
+        nom: "les puces de la page de catégorie",
+        ids: dansLOrdreEprouve(
+          projeterPageCategorie(faits, "racine")!.enfants.map((e) => e.id)
+        ),
+      },
+      {
+        nom: "les options du sélecteur",
+        ids: dansLOrdreEprouve(
+          projeterOptionsSelecteur(faits).map((o) => o.id)
+        ),
+      },
+      {
+        nom: "les candidates du formulaire d'édition",
+        ids: dansLOrdreEprouve(
+          projeterEcranEdition(faits, "racine")!.candidates.map((c) => c.id)
+        ),
+      },
+    ])
+  })
+
+  it("le fil d'Ariane nomme les mêmes Structures que les puces, et se referme sur la Structure du Produit", () => {
+    // Le fil n'est **pas** un classement : c'est un chemin, la racine d'abord et la
+    // Structure du Produit en dernier. Ce qu'il partage avec les puces de sa
+    // parente, ce sont les Structures qu'il nomme et l'ordre dans lequel il les
+    // rencontre : pour chaque puce, le fil est le chemin de la racine **plus** cette
+    // puce. Un fil qui classerait autrement que les puces romprait cette égalité
+    // sans qu'aucune des deux épreuves tombe.
+    const parent = "racine"
+    const puces = [
+      { id: "ecran", nom: "Écran" },
+      { id: "jumeau-a", nom: "Jumeau" },
+      { id: "jumeau-b", nom: "Jumeau" },
+      { id: "zebre", nom: "Zèbre" },
+    ]
+    const faits = [
+      structure(parent, "Racine", null),
+      ...puces.map((puce) => structure(puce.id, puce.nom, parent)),
+    ]
+
+    for (const puce of puces) {
+      expect(
+        projeterFilAriane(faits, puce.id).map((maillon) => maillon.slug),
+        `le fil vers « ${puce.id} »`
+      ).toEqual([parent, puce.id])
+    }
+  })
+})
+
 describe("projeterArbreAccueil — sur un arbre sain", () => {
   it("rend les racines et leurs enfants dans l'ordre que le module promet", () => {
     const arbre = projeterArbreAccueil(ARBRE_SAIN)
@@ -110,30 +306,6 @@ describe("projeterArbreAccueil — sur un arbre sain", () => {
       "Petit A",
     ])
     expect(racine.children[1]!.children).toEqual([])
-  })
-
-  it("départage les Structures de même nom par leur slug", () => {
-    const arbre = projeterArbreAccueil([
-      structure("jumeau-b", "Jumeau", null),
-      structure("jumeau-a", "Jumeau", null),
-    ])
-
-    // Le nom seul ne promet pas un ordre — deux Structures peuvent porter le
-    // même. Les slugs sont uniques, donc le départage est un fait et non un
-    // tirage : c'est lui qui rend l'ordre total sur toutes les machines.
-    expect(arbre.map((noeud) => noeud.id)).toEqual(["jumeau-a", "jumeau-b"])
-  })
-
-  it("nomme l'ordre avec la collation française, pas avec celle du serveur", () => {
-    const arbre = projeterArbreAccueil([
-      structure("zebre", "Zèbre", null),
-      structure("ecran", "Écran", null),
-    ])
-
-    // « Écran » se lit avant « Zèbre » en français, et après sous une collation
-    // qui range les octets. La promesse est celle que le dépôt écrit déjà en
-    // deux endroits, et elle ne dépend d'aucun serveur de base.
-    expect(arbre.map((noeud) => noeud.id)).toEqual(["ecran", "zebre"])
   })
 
   it("compte les Produits de la branche entière, descendance comprise", () => {
@@ -344,9 +516,9 @@ describe("projeterArbreAccueil — une longueur n'est jamais un refus", () => {
  * ce qu'elle n'affirme pas. Elle dit « cette ligne est à deux niveaux », et le
  * retrait n'est plus qu'une façon de le montrer (US 42).
  */
-describe("projeterLignesAdmin — sur un arbre sain", () => {
+describe("projeterEcranAdmin — les lignes — sur un arbre sain", () => {
   it("rend une ligne par Structure, dans l'ordre de la descente", () => {
-    const lignes = projeterLignesAdmin(ARBRE_SAIN)
+    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
 
     // Pré-ordre, frères par nom en français : la racine `Isolée` ouvre la liste,
     // puis la branche de `Racine` entière avant de revenir. Ni l'ordre d'écriture
@@ -362,7 +534,7 @@ describe("projeterLignesAdmin — sur un arbre sain", () => {
   })
 
   it("donne à chaque ligne sa profondeur dans l'arbre", () => {
-    const lignes = projeterLignesAdmin(ARBRE_SAIN)
+    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
 
     // La profondeur est un fait de la Structure, pas une mesure d'écran : la
     // profondeur d'un enfant est celle de sa parente plus un, et une racine est
@@ -370,32 +542,8 @@ describe("projeterLignesAdmin — sur un arbre sain", () => {
     expect(lignes.map((ligne) => ligne.profondeur)).toEqual([0, 0, 1, 2, 1])
   })
 
-  it("départage les Structures de même nom par leur slug", () => {
-    const lignes = projeterLignesAdmin([
-      structure("jumeau-b", "Jumeau", null),
-      structure("jumeau-a", "Jumeau", null),
-    ])
-
-    // Le nom seul ne promet pas un ordre — deux Structures peuvent porter le
-    // même. Les slugs sont uniques, donc le départage est un fait et non un
-    // tirage : c'est lui qui rend l'ordre total sur toutes les machines.
-    expect(lignes.map((ligne) => ligne.id)).toEqual(["jumeau-a", "jumeau-b"])
-  })
-
-  it("nomme l'ordre avec la collation française, pas avec celle du serveur", () => {
-    const lignes = projeterLignesAdmin([
-      structure("zebre", "Zèbre", null),
-      structure("ecran", "Écran", null),
-    ])
-
-    // « Écran » se lit avant « Zèbre » en français, et après sous une collation
-    // qui range les octets. La promesse est celle que le dépôt écrit déjà, et elle
-    // ne dépend d'aucun serveur de base.
-    expect(lignes.map((ligne) => ligne.id)).toEqual(["ecran", "zebre"])
-  })
-
   it("donne à chaque ligne le lien qui la nomme et le nom de sa parente", () => {
-    const lignes = projeterLignesAdmin(ARBRE_SAIN)
+    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
     const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
 
     // Le nom de la parente est **dérivé** du lien et du nom, jamais joint : le
@@ -421,7 +569,7 @@ describe("projeterLignesAdmin — sur un arbre sain", () => {
   })
 
   it("compte les Produits directs et les sous-catégories de chaque ligne", () => {
-    const lignes = projeterLignesAdmin(ARBRE_SAIN)
+    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
     const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
 
     // Les deux compteurs sont **dérivés en mémoire** — les sous-catégories, en
@@ -453,7 +601,7 @@ describe("projeterLignesAdmin — sur un arbre sain", () => {
   it("ne journalise rien : le journal garde son sens", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterLignesAdmin(ARBRE_SAIN)
+      projeterEcranAdmin(ARBRE_SAIN)
 
       // Une ligne sur un arbre sain serait une alerte qu'un éditeur prendrait
       // pour une corruption, et il chercherait une faute qui n'existe pas.
@@ -464,7 +612,7 @@ describe("projeterLignesAdmin — sur un arbre sain", () => {
   })
 })
 
-describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
+describe("projeterEcranAdmin — les lignes — sur une Structure déjà cyclique", () => {
   /**
    * Un cycle, et une branche qui y mène, à côté d'un arbre sain :
    *
@@ -490,7 +638,7 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
   ]
 
   it("liste après l'arbre, à la racine, et marque ce qu'aucune branche n'atteint", () => {
-    const lignes = projeterLignesAdmin(AVEC_CYCLE)
+    const { lignes } = projeterEcranAdmin(AVEC_CYCLE)
 
     // L'arbre ordinaire d'abord, le hors arbre ensuite — et **à la racine**, sans
     // retrait : aucune branche ne les porte, donc une indentation leur prêterait
@@ -518,7 +666,7 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
   it("journalise le cycle une fois pour toute la projection, en nommant ses Structures", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterLignesAdmin(AVEC_CYCLE)
+      projeterEcranAdmin(AVEC_CYCLE)
 
       // **Une ligne, pas une par Structure avalée** : trois Structures hors arbre
       // ici, et le journal n'en dit qu'une. C'est la même marche qui sert à
@@ -549,7 +697,7 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
   })
 
   it("classe parmi les hors arbre une Structure dont la parente n'est pas dans les faits", () => {
-    const lignes = projeterLignesAdmin([
+    const { lignes } = projeterEcranAdmin([
       structure("racine", "Racine", null, 1),
       structure("orpheline", "Orpheline", "absente-des-faits"),
     ])
@@ -574,7 +722,7 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
 })
 
 /* ======================================================================== *
- * Les cibles que porte chaque ligne de la liste (#573)                     *
+ * Les cibles que la boîte de suppression reçoit (#573)                      *
  * ======================================================================== *
  *
  * La troisième question que l'écran d'Administration pose aux mêmes faits :
@@ -585,57 +733,65 @@ describe("projeterLignesAdmin — sur une Structure déjà cyclique", () => {
  * lecture et de la même marche, ce qui est la seule façon de ne pas dire le même
  * cycle autant de fois qu'il y a de lignes.
  *
- * Les deux listes se lisent dans l'ordre que le **cœur** promet pour une
- * partition — le nom en français, départagé par l'identifiant, qu'il est le seul
- * à pouvoir départager — et non dans celui des lignes, qui se départage par le
- * slug. Deux.selections sur le même écran ne promettent pas le même tri, et c'est
- * dit : l'ordre d'une liste de cibles n'est pas l'ordre d'une lecture.
+ * **Ce ne sont pas les lignes qui les portent, et c'est la forme étroite qui le
+ * dit.** Les deux listes sont deux fois plus longues que la ligne qui les reçoit :
+ * les mettre sur la ligne aurait fait porter à chaque rangée un fait qui n'est pas
+ * le sien, et une ligne est rendue par un composant qui n'a pas d'autre chose à
+ * afficher. Elles arrivent donc par **leur propre forme**, `CiblesSuppression`,
+ * que la même projection rend dans le même retour — une lecture, une marche, une
+ * ligne de journal, et deux formes étroites (US 32). Le prix en props reste au
+ * carré du nombre de Structures : une boîte par ligne, une liste de cibles par
+ * boîte. Il est consigné dans ADR-0030 (§ Further Notes, « le coût, énoncé »), et
+ * l'en-tête du module le rappelle à côté de la forme.
+ *
+ * Leur ordre est **celui du module**, comme le reste de l'écran : le cœur écrit
+ * l'ordre une fois — le nom en français, départagé par l'identifiant — et la
+ * projection comme les quatre autres le reprennent tel quel. L'accord des deux est
+ * éprouvé plus haut, parmi les sept rendus.
  */
-describe("projeterLignesAdmin — les cibles que la boîte de chaque ligne reçoit", () => {
+describe("projeterEcranAdmin — les cibles que la boîte de chaque ligne reçoit", () => {
   it("offre à un Produit toutes les Structures, descendantes comprises", () => {
-    const lignes = projeterLignesAdmin(ARBRE_SAIN)
-    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+    const { cibles } = projeterEcranAdmin(ARBRE_SAIN)
+    const parId = new Map(cibles.map((cible) => [cible.id, cible]))
 
     // Un Produit n'a pas d'accusé de réception : il atterrit où l'on dit, donc
     // **toute** Structure autre que celle-ci est une cible — une descendante
     // comprise, sans quoi déplacer un Produit serait plus astreint que le tri
     // d'une sous-catégorie (US 16).
-    expect(parId.get("enfant-a")!.ciblesProduits).toEqual([
+    expect(parId.get("enfant-a")!.produits).toEqual([
       "enfant-b",
       "isolee",
       "petit-a",
       "racine",
     ])
-    expect(parId.get("isolee")!.ciblesProduits).toEqual([
+    expect(parId.get("isolee")!.produits).toEqual([
       "enfant-a",
       "enfant-b",
       "petit-a",
       "racine",
     ])
     // Et jamais la Structure elle-même : elle est la ligne qu'on supprime.
-    for (const ligne of lignes) {
-      expect(ligne.ciblesProduits, ligne.id).not.toContain(ligne.id)
-      expect(new Set(ligne.ciblesProduits).size, ligne.id).toBe(
-        ligne.ciblesProduits.length
-      )
+    for (const cible of cibles) {
+      expect(cible.produits, cible.id).not.toContain(cible.id)
+      expect(new Set(cible.produits).size, cible.id).toBe(cible.produits.length)
     }
   })
 
   it("écarte des sous-catégories ce qui descend de la Structure de la ligne", () => {
-    const lignes = projeterLignesAdmin(ARBRE_SAIN)
-    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+    const { cibles } = projeterEcranAdmin(ARBRE_SAIN)
+    const parId = new Map(cibles.map((cible) => [cible.id, cible]))
 
     // Rattacher une Structure à l'une de ses descendantes refermerait la boucle
     // sur elle-même : la liste des sous-catégories est donc la première moins la
     // branche, et rien d'autre. `Petit A` reste une cible de **Produit** — c'est
     // la seule différence entre les deux listes, et elle tient à la règle
     // (ADR-0030).
-    expect(parId.get("enfant-a")!.ciblesSousCategories).toEqual([
+    expect(parId.get("enfant-a")!.sousCategories).toEqual([
       "enfant-b",
       "isolee",
       "racine",
     ])
-    expect(parId.get("petit-a")!.ciblesSousCategories).toEqual([
+    expect(parId.get("petit-a")!.sousCategories).toEqual([
       "enfant-a",
       "enfant-b",
       "isolee",
@@ -643,12 +799,34 @@ describe("projeterLignesAdmin — les cibles que la boîte de chaque ligne reço
     ])
   })
 
+  it("porte une cible par Structure, et rien d'autre que ses deux listes", () => {
+    const { lignes, cibles } = projeterEcranAdmin(ARBRE_SAIN)
+
+    // Une cible par Structure de la table, et **une seule** : c'est ce qui permet
+    // à l'écran de rendre une boîte par ligne sans jamais chercher une cible qui
+    // n'est pas là. Les cibles viennent dans **l'ordre de la lecture**, pas dans
+    // celui des lignes — un pré-ordre qui range chaque Structure avant ses
+    // descendantes ; l'écran les joint donc par identifiant, et rien dans la forme
+    // ne prétend le contraire. Le `Object.keys` est ce qui assure le reste : un
+    // fait de plus dans la forme se verrait, et une cible de plus aussi.
+    expect(new Set(cibles.map((cible) => cible.id))).toEqual(
+      new Set(lignes.map((ligne) => ligne.id))
+    )
+    for (const cible of cibles) {
+      expect(Object.keys(cible).sort(), cible.id).toEqual([
+        "id",
+        "produits",
+        "sousCategories",
+      ])
+    }
+  })
+
   it("ne rend que des chaînes : rien d'appelable ne franchit la couture", () => {
     // Ce qui traverse la frontière client/serveur, ce sont des identifiants
     // (ADR-0028) : aucune fonction, aucun getter, aucune instance. Une forme plus
     // grande qu'une constante, pas différente.
-    for (const ligne of projeterLignesAdmin(ARBRE_SAIN)) {
-      for (const liste of [ligne.ciblesProduits, ligne.ciblesSousCategories]) {
+    for (const cible of projeterEcranAdmin(ARBRE_SAIN).cibles) {
+      for (const liste of [cible.produits, cible.sousCategories]) {
         expect(liste.length).toBeGreaterThan(0)
         for (const valeur of liste) {
           expect(typeof valeur).toBe("string")
@@ -658,7 +836,7 @@ describe("projeterLignesAdmin — les cibles que la boîte de chaque ligne reço
   })
 })
 
-describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", () => {
+describe("projeterEcranAdmin — les cibles d'une Structure déjà cyclique", () => {
   /**
    * Le cycle de la suite, avec une branche saine à côté :
    *
@@ -684,8 +862,8 @@ describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", (
   ]
 
   it("propose les maillons du cycle pour un Produit, et les écarte des sous-catégories", () => {
-    const lignes = projeterLignesAdmin(AVEC_CYCLE)
-    const boucleA = lignes.find((ligne) => ligne.id === "boucle-a")!
+    const { cibles } = projeterEcranAdmin(AVEC_CYCLE)
+    const boucleA = cibles.find((cible) => cible.id === "boucle-a")!
 
     // **La divergence d'ADR-0030, en deux listes.** Le maillon de la boucle est
     // proposé comme destination d'un Produit et retiré de celle d'une
@@ -695,7 +873,7 @@ describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", (
     // `CategoryAncestorCycleError`. Une liste qui aurait retiré le maillon des
     // deux côtés aurait fait dire la même chose aux deux surfaces, et c'est
     // précisément ce que la décision exclut (US 17).
-    expect(boucleA.ciblesProduits).toEqual([
+    expect(boucleA.produits).toEqual([
       "amont",
       "boucle-b",
       "enfant-a",
@@ -703,8 +881,8 @@ describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", (
       "petit-a",
       "racine",
     ])
-    expect(boucleA.ciblesSousCategories).not.toContain("boucle-b")
-    expect(boucleA.ciblesSousCategories).toEqual([
+    expect(boucleA.sousCategories).not.toContain("boucle-b")
+    expect(boucleA.sousCategories).toEqual([
       "enfant-a",
       "isolee",
       "petit-a",
@@ -713,8 +891,8 @@ describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", (
   })
 
   it("donne à une Structure hors arbre les mêmes cibles qu'à une Structure saine", () => {
-    const lignes = projeterLignesAdmin(AVEC_CYCLE)
-    const amont = lignes.find((ligne) => ligne.id === "amont")!
+    const { cibles } = projeterEcranAdmin(AVEC_CYCLE)
+    const amont = cibles.find((cible) => cible.id === "amont")!
 
     // La corruption ne change rien aux listes : `horsArbre` est un fait de
     // **place** dans l'arbre, pas de nature — « présente en base, absente de toute
@@ -727,7 +905,7 @@ describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", (
     // « tout sauf lui ». Une liste qui refuserait de se remplir sur une Structure
     // hors arbre ferait disparaître de l'Administration la rangée qu'un éditeur
     // vient réparer (ADR-0030).
-    expect(amont.ciblesProduits).toEqual([
+    expect(amont.produits).toEqual([
       "boucle-a",
       "boucle-b",
       "enfant-a",
@@ -735,7 +913,7 @@ describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", (
       "petit-a",
       "racine",
     ])
-    expect(amont.ciblesSousCategories).toEqual(amont.ciblesProduits)
+    expect(amont.sousCategories).toEqual(amont.produits)
   })
 })
 
@@ -759,7 +937,7 @@ describe("projeterLignesAdmin — les cibles d'une Structure déjà cyclique", (
  * **Une projection n'est pas obliged d'être un sous-ensemble de sa voisine**, et
  * c'est même ce qu'on lui demande ici : la liste d'Administration rend des
  * compteurs et le nom de la parente, un sélecteur ne rend ni l'un ni l'autre.
- * Réutiliser `projeterLignesAdmin` aurait été la voie courte — la liste est déjà
+ * Réutiliser `projeterEcranAdmin` aurait été la voie courte — la liste est déjà
  * faite, il n'y avait qu'à la réduire — et elle aurait fait payer au formulaire
  * des faits qu'il n'a pas demandés, sous une forme large dont la réduction
  * serait restée à la charge de chaque appelant. Une surface ne reçoit pas plus
@@ -770,9 +948,9 @@ describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affich
   it("rend l'identifiant et le nom de chaque Structure, dans l'ordre promis", () => {
     const options = projeterOptionsSelecteur(ARBRE_SAIN)
 
-    // L'ordre est celui que le module promet déjà — le nom en français, puis le
-    // slug — donc le même qu'à l'accueil et dans la liste d'Administration. Le
-    // formulaire ne trie pas pour sa despece : quatre surfaces, une seule
+    // L'ordre est celui que le module promet déjà — le nom en français, puis
+    // l'identifiant — donc le même qu'à l'accueil et dans la liste
+    // d'Administration. Le formulaire ne trie pas pour sa despece : six surfaces, une seule
     // promesse, et un éditeur qui voit le même ordre partout (US 31).
     expect(options).toEqual([
       { id: "enfant-a", name: "Enfant A" },
@@ -781,32 +959,6 @@ describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affich
       { id: "petit-a", name: "Petit A" },
       { id: "racine", name: "Racine" },
     ])
-  })
-
-  it("départage les Structures de même nom par leur slug", () => {
-    const options = projeterOptionsSelecteur([
-      structure("jumeau-b", "Jumeau", null),
-      structure("jumeau-a", "Jumeau", null),
-    ])
-
-    // Le départage ne se voit pas dans la forme rendue — deux options portant le
-    // même nom se ressemblent — mais il décide laquelle vient d'abord, donc
-    // l'ordre reste total sur toutes les machines. L'épingler ici dit que le
-    // sélecteur tient la même promesse que les deux autres projections, et non
-    // qu'il se sort un ordre de lui-même.
-    expect(options.map((option) => option.id)).toEqual(["jumeau-a", "jumeau-b"])
-  })
-
-  it("nomme l'ordre avec la collation française, pas avec celle du serveur", () => {
-    const options = projeterOptionsSelecteur([
-      structure("zebre", "Zèbre", null),
-      structure("ecran", "Écran", null),
-    ])
-
-    // « Écran » se lit avant « Zèbre » en français, et après sous une collation
-    // qui range les octets — l'ordre que la collation d'un serveur de base peut
-    // donner, et que le module refuse de promettre à la place de la sienne.
-    expect(options.map((option) => option.id)).toEqual(["ecran", "zebre"])
   })
 
   it("rend exactement deux faits : ni compteur, ni nom de parente", () => {
@@ -1138,9 +1290,9 @@ describe("projeterPageCategorie — sur un arbre sain", () => {
       "Écran",
       "Zèbre",
     ])
-    // L'ordre est celui du module — le nom en français, départagé par le slug —
-    // et non celui dans lequel les faits ont été écrits : le tableau ci-dessus
-    // porte « Zèbre » avant « Écran ».
+    // L'ordre est celui du module — le nom en français, départagé par
+    // l'identifiant — et non celui dans lequel les faits ont été écrits : le
+    // tableau ci-dessus porte « Zèbre » avant « Écran ».
   })
 
   it("donne au filtre des Produits la Structure et ses descendantes, chacune une fois", () => {

@@ -249,3 +249,51 @@ n'était pas un coût ; une lecture de plus pour la table entière en était un.
   confirmés inchangés. Ce qu'il faut y lire à côté, c'est le présent amendement.
 - **Le module neutre du formulaire Produit** garde son contrat de neutralité et sa garde ; les
   formulaires ne gagnent aucun fait et ne perdent aucun.
+
+## Amendement — Les compteurs de la liste d'Administration sont dérivés, pas lus (#567)
+
+Le module Catalogue garde ses lectures **Produit**, et la lecture de Structure qu'il rendait à compteurs
+n'existe plus depuis que la Lecture de la Structure possède la table. Ce que cet amendement consigne n'est
+pas ce qui a disparu — le présent amendement le dit déjà — mais **ce qui le remplace**, parce que la
+substitution n'est pas de même nature et qu'aucune des deux ne se comprend sans l'autre.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Aucune ligne de la décision n'est changée ; un passage la décrit désormais à rebours. C'est le présent
+amendement qu'il faut y lire à côté :
+
+- la puce de la lecture de catégories — « **Elle n'est pas confondue avec la lecture à compteurs du
+  module Structure, qui sert les écrans de catégories** ». Il n'y a plus de lecture à compteurs : la
+  Lecture lit la table **une fois**, sans `parent: { select }` ni `_count.children`, et les écrans de
+  catégories reçoivent un nom de parente et un nombre de sous-catégories **dérivés en mémoire**. La
+  distinction que la décision énonçait — deux lectures distinctes, dans deux modules — n'a plus
+  d'objet, et la phrase reste vraie seulement de l'historique.
+
+### La divergence, et ce qu'elle coûte
+
+Le critère d'acceptation de [#567](https://github.com/eloaurdi/eguidar/issues/567) disait que la lecture
+**sélectionne** le nom de la parente et le nombre de ses enfants. L'implémentation les **dérive** de deux
+faits déjà lus — `parentId` et le nom — au lieu de les sélectionner.
+
+Le motif est le même que celui qui a fait disparaître la rangée que la page de catégorie lisait pour se
+reconnaître, et il est énoncé dans l'en-tête de
+[`lecture-structure.ts`](../../lib/use-cases/lecture-structure.ts) : la lecture prend la table entière,
+sans `where` ; `_count.children` et « les Structures dont le lien est cette rangée » sont donc **le même
+nombre**, et `parent.name` et la carte des noms **le même texte**. Les sélectionner ferait payer la
+jointure et l'agrégat à *toute* surface — l'accueil, la catégorie, la fiche Produit — pour une preuve
+que la boutique n'a pas demandée, et la boutique verrait son coût monter sur la requête qu'elle fait
+déjà (US 32 : une surface ne reçoit pas plus qu'elle n'a demandé).
+
+La valeur rendue est donc **exactement** celle que la base aurait rendue, et l'écart n'est pas une
+approximation tolérée : c'est un fait équivalent. Les deux compteurs sont ici l'exemple le plus net de la
+règle que le présent ADR énonce pour les lectures Produit — *répondre en faits, jamais en rangées* —
+appliquée cette fois à l'intérieur de la lecture.
+
+### Ce que cet amendement ne change pas
+
+- **La décision entière** : les lectures Produit du module Catalogue, l'approfondissement sur place, la
+  frontière d'ADR-0028 et la forme étroite du sélecteur de Structure.
+- **Le module de la lecture de Structure** n'est pas celui d'ADR-0026 : c'est
+  [`lecture-structure.ts`](../../lib/use-cases/lecture-structure.ts), et la limite de son périmètre — il ne
+  lit jamais sous une transaction — est consignée dans l'amendement d'ADR-0027.
+- **Le vocabulaire de refus** et **la couture des effets** restent intacts (ADR-0025, ADR-0014).

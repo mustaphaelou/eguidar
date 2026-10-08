@@ -86,6 +86,7 @@ vi.mock("@/components/admin/delete-category-button", () => ({
 
 import AdminCategoriesPage from "./page"
 import { prisma } from "@/lib/db"
+import { compterLesLecturesDeLaStructure } from "@/test/lecture-structure-recette"
 import {
   creerArbrePropre,
   creerStructure,
@@ -423,6 +424,20 @@ describe("AdminCategoriesPage — Structures hors arbre", () => {
         ).toContain(maillon.id)
       }
     }
+  })
+})
+
+describe("AdminCategoriesPage — le prix de la lecture", () => {
+  it("lit la Structure une fois par rendu, pour les lignes et pour les cibles", async () => {
+    const { lectures } = await compterLesLecturesDeLaStructure(rendreLaListe)
+
+    // **Une lecture pour deux formes rendues.** C'est l'écran le plus lourd du
+    // dépôt sur cette table — une ligne par Structure, et deux listes de cibles
+    // par ligne — donc c'est lui qui rend la règle coûteuse : si les cibles
+    // avaient leur propre porte, ce compte serait deux. Les prendre séparément
+    // aurait relu la table et rebâti une marche par ligne, donc dit le cycle
+    // autant de fois qu'il y a de lignes sur l'écran (US 23, ADR-0030).
+    expect(lectures).toBe(1)
   })
 })
 

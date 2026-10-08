@@ -21,7 +21,7 @@
  * (#573, amendement d'ADR-0030). La boîte de suppression traversait le cœur
  * depuis #551 : c'était elle qui rendait l'exigence actuelle plutôt
  * qu'ambiguë. Elle ne le fait plus — elle reçoit ses deux listes de cibles et la
- * table des noms, calculées par la page — donc la raison disparaît, et **la
+ * table des noms, que la page lui passe — donc la raison disparaît, et **la
  * condition reste**. C'est ADR-0028 qui la tient : une projection pure de la
  * Structure est une valeur que le serveur et le client peuvent avoir en commun,
  * donc elle habite un module qu'aucun des deux ne réclame. Le module qui possède
@@ -31,13 +31,15 @@
  * soit à reprendre et sans qu'une deuxième règle naisse dans un composant
  * `"use client"`. Une garde de frontière suit ce mouvement dans les deux sens :
  * celle-ci prouve qu'aucun client n'atteint le cœur, celle du module de lecture
- * prouvera qu'il n'atteint aucun client (#574).
+ * prouve qu'il n'atteint aucun client (#574).
  *
  * **Elle est synchrone et sans I/O.** Des faits en entrée (`parentId` déjà en
  * mémoire), des faits en sortie : aucune requête, aucune attente, aucun état
  * hors de la marche. C'est ce qui la rend exerçable sans base — la première
  * preuve de terminaison du dépôt qui n'a pas besoin d'un PostgreSQL — et assez
- * peu chère pour être construite une fois par requête et interrogée sept fois.
+ * peu chère pour être construite une fois par requête et interrogée autant de fois qu'un écran en a
+besoin — une fois pour l'arbre d'accueil, une fois par Structure pour les cibles de suppression
+d'une page d'Administration, une fois pour un fil, une fois pour une branche.
  *
  * **Une seule chose y est retenue, et c'est le journal.** Chaque marche se
  * souvient des cycles qu'*elle* a déjà signalés : une requête qui atteint le
@@ -60,19 +62,22 @@
  * journal. Une ligne de vingt mille maillons n'est pas un journal, c'est un
  * vidage — et la première ligne utile reste « il y a un cycle, et le voici ».
  *
- * **Deux projections se parent dessus, et l'ordre qu'elles promettent est le
- * leur, pas celui de la traverse.** La première rend une Structure et sa
+ * **Deux projections se parent dessus, et l'ordre qu'elles rendent est le leur,
+ * pas celui de la traverse.** La première rend une Structure et sa
  * descendance, chacune au plus une fois : c'est ce qu'une surface exclut, et ce
  * qu'elle n'a plus à refaire à la main. La seconde rend la partition qu'une page
  * passe à ses boîtes — tout sauf la Structure, et tout sauf elle et sa
  * descendance. Les deux listes se partagent une cause, et leur différence est un
  * fait : ce qui les sépare, c'est exactement les descendantes. Elles se lisent
- * **dans l'ordre que le module promet** — le nom en français, départagé par
- * l'identifiant — parce que l'ordre de la traverse n'est pas un ordre : il
- * dépend de l'ordre des rangées qu'une lecture a rendues, donc de la collation
- * d'un serveur de base qu'aucun déploiement n'épingle. L'identifiant départage
- * les Structures de même nom parce que le cœur ne connaît pas le slug, et
- * qu'il est unique : l'ordre reste total et ne dépend d'aucune machine.
+ * dans **l'ordre du cœur** — le nom en français, départagé par l'identifiant, écrit
+ * une fois dans `comparerParNom` — parce que l'ordre de la traverse n'est pas un
+ * ordre : il dépend de l'ordre des rangées qu'une lecture a rendues, donc de la
+ * collation d'un serveur de base qu'aucun déploiement n'épingle. L'identifiant
+ * départage les Structures de même nom parce que le cœur ne connaît pas le slug,
+ * et qu'il est unique : l'ordre reste total et ne dépend d'aucune machine. Le
+ * module qui possède la lecture **reprend ce comparateur tel quel** plutôt que d'en
+ * écrire un sien : c'est le même fait classé par la même règle, et non deux
+ * règles qui ne se contredisent que sur une liste dont les noms se répètent.
  *
  * **Elles vivent ici, et c'est une décision, pas un hasard.** ADR-0028 décide
  * qu'une valeur partagée par le serveur et par le client habite un module
@@ -84,10 +89,22 @@
  * une marche et l'interroge une fois, donc la règle de terminaison reste écrite
  * en un seul endroit, et c'est elle qui la porte.
  *
- * **Une page appelle l'une des deux, jamais les deux.** La partition porte la
- * primitive qu'elle a calculée, pour qu'une page n'ait pas à demander les deux et
- * à payer deux marches — donc deux lignes de journal pour un seul cycle. Ce que
- * la liste rendue ne dit pas de la corruption, le journal le dit.
+ * **La partition a deux portes, comme la marche en a deux — et c'est le même
+ * arbitrage.** `complementDe` prend des rangées et bâtit sa marche ;
+ * `complementDepuis` prend une marche et les liens que l'appelant a déjà bâtis.
+ * Ce n'est pas un redondant : c'est la question que pose toute surface qui a
+ * **plus d'une** réponse à tirer des mêmes faits. La liste d'Administration en a
+ * quatre — la place de chaque ligne, et où vont ses Produits et ses
+ * sous-catégories — et répondre à la dernière par `complementDe` bâtirait une
+ * marche par ligne, donc une retenue par ligne, donc **autant de lignes de
+ * journal pour un seul cycle** : l'avertissement cesserait de dire combien de
+ * Structures un éditeur doit réparer, et c'est la seule chose qu'il doive pouvoir
+ * y lire (ADR-0030, US 34). Une surface qui n'a qu'une partition à demander
+ * appelle `complementDe`, qui bâtit sa marche et n'a rien à partager ; une
+ * surface qui en a autant que de lignes appelle `complementDepuis`. Les deux
+ * portes rendent **la même chose** — `lib/marche-structure-partition.test.ts` le
+ * rejoue sur toute la fixture — et la partition qu'elles portent voyage avec elle,
+ * donc aucune page n'a à demander les deux.
  */
 
 /**
@@ -388,12 +405,16 @@ export function marcheDesStructures(
  * Les faits séparés comme la marche les consomme, tirés de rangées : le lien de
  * chaque Structure vers sa parente, et le nom qui rend le journal lisible.
  *
- * Cette forme existe pour qui a besoin des liens **eux-mêmes** et pas seulement
- * d'une marche — une surface qui interroge la même marche pour plusieurs
- * questions n'a qu'une seule fois à les séparer, et à les garder pour les
- * questions suivantes. C'est l'entrée que prend le complément plus bas.
+ * Cette forme est **exportée** pour qui a besoin des liens **eux-mêmes** et pas
+ * seulement d'une marche : une surface qui interroge la même marche pour
+ * plusieurs questions a une seule fois à les séparer, et à les garder pour les
+ * questions suivantes. C'est le cas du module de lecture, qui répond de la place
+ * de chaque ligne *et* de la partition de chaque ligne aux mêmes faits — le
+ * réécrire lui-même aurait produit deux cartes des liens et deux cartes des noms,
+ * donc deux sources de vérité pour le même lien (ADR-0022). C'est aussi l'entrée
+ * que prend le complément plus bas.
  */
-function liensDesStructures(
+export function liensDesStructures(
   structures: readonly StructureLue[]
 ): LiensStructure {
   return {
@@ -415,22 +436,68 @@ function nomsDesStructures(
 }
 
 /**
- * L'ordre que le module promet pour une liste de Structures : le nom en français,
- * départagé par l'identifiant.
- *
- * `nommer` sert de repli pour un identifiant que la carte ne porte pas : il rend
- * alors l'identifiant lui-même, donc la comparaison reste honnête au lieu de
- * classer `undefined` contre une chaîne. L'identifiant départage parce qu'il est
- * unique — le cœur ne connaît pas le slug, qu'il n'a aucun besoin de connaître
- * (ADR-0030). La carte des noms est facultative pour la même raison qu'elle
- * l'est pour la marche : un fait que l'appelant n'a pas ne fait pas défaut.
+ * Ce que l'ordre classe : les **deux** faits qu'il compare, le nom puis
+ * l'identifiant. La forme est déclarée ici parce que l'ordre est comparé sur des
+ * faits — une rangée, un nœud rendu, un fait — et que le comparateur doit donc
+ * accepter n'importe lequel d'eux, pas une liste de tables différentes.
  */
-function comparerParNom(
+export interface StructureOrdonnee {
+  /** La clé qui départage : unique, donc l'ordre total. */
+  id: string
+  /** Le nom que l'ordre classe d'abord. */
+  name: string
+}
+
+/**
+ * **L'ordre du module**, écrit une fois : le nom en français, départagé par
+ * l'identifiant.
+ *
+ * **Il vit ici, et c'est un fait, pas une revendication.** Le cœur est le seul
+ * module qui ait à classer une liste *et* à le faire pour des surfaces qu'il ne
+ * connaît pas : ses trois listes sont rendues ici, et le module qui les consomme —
+ * `lib/use-cases/lecture-structure.ts` — classe de son côté, sur les mêmes
+ * petits. Un comparateur par projection aurait été le naturel du code : six
+ * fonctions, six occasions de divergir, et aucune épreuve ne s'en aperçoit
+ * parce que deux classements différents ne se contredisent sur aucune liste
+ * dont les noms soient distincts. C'est pourquoi celui-ci est **exporté** et
+ * repris tel quel par le module : une seule promesse d'ordre, lisible d'un coup
+ * (US 31).
+ *
+ * **L'identifiant départage, et non le slug, parce que le cœur ne connaît pas le
+ * slug.** `StructureLue` ne le porte pas, et l'ajouter pour départager
+ * contraindrait chaque appelant — y compris une surface cliente qui n'aurait
+ * qu'un `cuid` sous la main — à fournir un fait dont la comparaison n'a pas
+ * besoin. L'identifiant est unique, donc l'ordre reste total, et il ne dépend
+ * d'aucune machine : c'est la même promesse que le nom en français, qui elle
+ * non plus ne dépend d'aucun serveur de base (US 30).
+ */
+export function comparerParNom(
+  a: StructureOrdonnee,
+  b: StructureOrdonnee
+): number {
+  return a.name.localeCompare(b.name, "fr") || a.id.localeCompare(b.id, "fr")
+}
+
+/**
+ * Les mêmes identifiants, dans l'ordre du module.
+ *
+ * Les listes du cœur sont rendues en **identifiants** — c'est ce qui franchit la
+ * couture client/serveur (ADR-0028) — donc il leur faut un classement par
+ * identifiants ; l'ordre, lui, se compare sur des faits. Le passage se fait ici,
+ * une fois : chaque identifiant devient son couple `{ id, name }` — le nom par
+ * `nommer`, qui sert de repli à un identifiant que la carte ne porte pas —, le
+ * classement passe par `comparerParNom`, et le nom est retiré. La carte des noms
+ * reste facultative pour la même raison qu'elle l'est pour la marche : un fait
+ * que l'appelant n'a pas ne fait pas défaut.
+ */
+function dansLOrdreDuModule(
+  ids: readonly string[],
   noms: ReadonlyMap<string, string> | undefined
-): (a: string, b: string) => number {
-  return (a, b) =>
-    nommer(a, noms).localeCompare(nommer(b, noms), "fr") ||
-    a.localeCompare(b, "fr")
+): string[] {
+  return ids
+    .map((id) => ({ id, name: nommer(id, noms) }))
+    .sort(comparerParNom)
+    .map((ordonne) => ordonne.id)
 }
 
 /**
@@ -452,10 +519,10 @@ function brancheDansLOrdre(
 ): string[] {
   return [
     id,
-    ...marche
-      .descendance(id)
-      .filter((atteinte) => atteinte !== id)
-      .sort(comparerParNom(noms)),
+    ...dansLOrdreDuModule(
+      marche.descendance(id).filter((atteinte) => atteinte !== id),
+      noms
+    ),
   ]
 }
 
@@ -549,7 +616,6 @@ export function complementDepuis(
   id: string
 ): PartitionStructure {
   const noms = liens.noms
-  const parNom = comparerParNom(noms)
   const descendance = brancheDansLOrdre(marche, noms, id)
   const dansLaDescendance = new Set(descendance)
   // Les identifiants viennent des liens : une seule source de vérité pour « la
@@ -559,9 +625,13 @@ export function complementDepuis(
 
   return {
     descendance,
-    horsSoi: tous.filter((autre) => autre !== id).sort(parNom),
-    horsDescendance: tous
-      .filter((autre) => !dansLaDescendance.has(autre))
-      .sort(parNom),
+    horsSoi: dansLOrdreDuModule(
+      tous.filter((autre) => autre !== id),
+      noms
+    ),
+    horsDescendance: dansLOrdreDuModule(
+      tous.filter((autre) => !dansLaDescendance.has(autre)),
+      noms
+    ),
   }
 }
