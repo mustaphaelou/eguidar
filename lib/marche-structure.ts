@@ -98,6 +98,19 @@ d'une page d'Administration, une fois pour un fil, une fois pour une branche.
  * une marche et l'interroge une fois, donc la règle de terminaison reste écrite
  * en un seul endroit, et c'est elle qui la porte.
  *
+ * **La topologie elle-même se demande ici, et n'est déduite nulle part ailleurs
+ * (#585).** `racines` et `enfantsDe` rendent des identifiants, dans l'ordre du
+ * module, et aucune surface ne regroupe les liens par parente. Ce regroupement
+ * était la **seconde** copie du fait « qui descend de qui », et elle ne
+ * répondait pas à la même question : une Structure dont la parente ne nomme
+ * aucune rangée y était une racine, ici elle est une Structure hors arbre — donc
+ * la boutique lui offrait une branche qu'aucune branche ne porte. Les deux
+ * réponses ne s'accordaient que parce qu'un filtre se tenait entre elles, dans le
+ * contrôle de flux d'un module ; le filtre part avec la copie. La carte des
+ * identifiants vers les rangées **entières**, elle, reste au module de lecture :
+ * le cœur ne connaît ni un slug, ni une image, ni un compte de Produits, et
+ * répondre à « sous quoi est cette Structure » ne l'oblige pas à les apprendre.
+ *
  * **La partition a deux portes, comme la marche en a deux — et c'est le même
  * arbitrage.** `complementDe` prend des rangées et bâtit sa marche ;
  * `complementDepuis` prend une marche et les liens que l'appelant a déjà bâtis.
@@ -135,8 +148,8 @@ export interface StructureLue {
  * journal lisible.
  *
  * `parentParId` porte l'absence de parente par `null`, et une clé absente vaut
- * `null` : une remontée dont la parente n'est pas dans la carte s'arrête donc là,
- * et le hors arbre n'invente aucun cycle. **Une clé absente ne fait pas une
+ * `null` : la remontée rend cette parente une dernière fois, puis s'arrête, et
+ * le hors arbre n'invente aucun cycle. **Une clé absente ne fait pas une
  * racine** : une Structure dont le `parentId` ne nomme aucune rangée n'est la
  * racine de personne, donc aucune racine ne l'atteint, et `horsArbre` la range
  * parmi les Structures hors arbre. La clé étrangère `Category_parentId_fkey`
@@ -171,7 +184,38 @@ export interface MarcheStructure {
    * toute branche.
    */
   horsArbre(): string[]
+  /**
+   * Les Structures que les liens déclarent **racines** — celles dont la parente
+   * est `null` — dans l'ordre du module.
+   *
+   * **La topologie est rendue par la marche, et n'est déduite nulle part
+   * ailleurs** (#585). Une surface qui regroupe les liens par parente en écrit
+   * une seconde copie, et cette copie ne répond pas à la même question : elle
+   * promeut en racine toute Structure dont la parente ne nomme aucune rangée,
+   * là où la marche la range parmi les Structures hors arbre. Les deux ne
+   * s'accordaient que parce qu'un filtre se tenait entre elles, ce qui est un
+   * fait du contrôle de flux d'un module, pas une garantie d'aucun type.
+   *
+   * **La topologie de l'arbre est finie, et c'est une promesse de cette
+   * interface.** Chaque maillon d'un cycle a sa parente *dans* le cycle :
+   * aucune racine n'y mène, donc `horsArbre` absorbe le cycle entier avec ce qui
+   * y mène, et une descente partie des racines ne peut pas y retomber. Une
+   * traversée de `racines` et de `enfantsDe` s'arrête donc d'elle-même — sans
+   * garde de boucle, et sans borne de profondeur, qu'ADR-0027 a déjà refusée.
+   */
   racines(): string[]
+  /**
+   * Les enfants **directs** d'une Structure — celles dont le lien la nomme —
+   * dans l'ordre du module. C'est la fratrie, pas la descendance.
+   *
+   * **La réponse est brute, et c'est délibéré** : elle ne retire aucun enfant
+   * hors arbre. Pour une Structure **dans** l'arbre, la réponse brute et la
+   * réponse filtrée sont la même — l'ensemble hors arbre est fermé vers le bas,
+   * donc aucune Structure hors arbre n'a d'enfant dans l'arbre. Pour une
+   * Structure **hors** arbre, seule la réponse brute est utile : c'est elle que
+   * veut le compte de sous-catégories d'une ligne d'Administration, qui doit
+   * dire combien d'enfants une Structure a, branche corrompue comprise.
+   */
   enfantsDe(id: string): string[]
 }
 
@@ -197,10 +241,10 @@ function nommer(
 
 /**
  * L'index inverse des liens — chaque parente, et ses enfants — et les racines
- * que les liens déclarent. `descendance` et `horsArbre` descendent le même
- * graphe : en bâtir deux versions était écrire deux fois le même fait, et se
- * donner deux occasions de diverger (ADR-0022). Il n'en est bâti qu'**une**,
- * à la construction de la marche (#584).
+ * que les liens déclarent. `descendance`, `horsArbre`, `racines` et `enfantsDe`
+ * lisent le même graphe : en bâtir deux versions était écrire deux fois le même
+ * fait, et se donner deux occasions de diverger (ADR-0022). Il n'en est bâti
+ * qu'**une**, à la construction de la marche (#584).
  */
 function indexDesLiens(parentParId: ReadonlyMap<string, string | null>): {
   enfants: Map<string, string[]>
@@ -313,9 +357,10 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
     while (curseur !== null && !vus.has(curseur)) {
       chemin.push(curseur)
       vus.add(curseur)
-      // Une parente absente de la carte termine la marche comme une racine :
-      // la clé étrangère garantit qu'elle existe en base, donc la lecture de
-      // l'appelant ne la couvrait pas (voir `LiensStructure`).
+      // Une parente absente de la carte termine la remontée : la clé étrangère
+      // garantit qu'elle existe en base, donc la lecture de l'appelant ne la
+      // couvrait pas (voir `LiensStructure`). Ce n'est pas une racine pour
+      // autant — `racines` ne la rendra pas, et `horsArbre` la nomme.
       curseur = parentParId.get(curseur) ?? null
     }
     return { chemin, cycle: cycleRefermePar(chemin, curseur) }
@@ -417,10 +462,24 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
     return horsArbre
   }
 
+  /**
+   * Les racines que les liens déclarent, dans l'ordre du module.
+   *
+   * La liste est **copiée** : l'index appartient à la marche, et un appelant qui
+   * la recevrait pourrait la classer ou la vider pour la question suivante.
+   */
   function racines(): string[] {
     return dansLOrdreDuModule(racinesDesLiens, noms)
   }
 
+  /**
+   * Les enfants **directs** d'une Structure, dans l'ordre du module — la
+   * fratrie que l'index a regroupée, jamais la descendance.
+   *
+   * La réponse est brute : elle ne retire aucun enfant hors arbre, parce que le
+   * compte qu'une surface en fait doit dire toute la fratrie. Voir
+   * `MarcheStructure.enfantsDe`.
+   */
   function enfantsDe(id: string): string[] {
     return dansLOrdreDuModule(enfants.get(id) ?? [], noms)
   }

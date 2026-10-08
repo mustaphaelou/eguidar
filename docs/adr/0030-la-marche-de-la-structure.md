@@ -226,7 +226,11 @@ pour une raison qu'elle ne connaît pas. Les trois sont dans la liste du cœur
 la garde de ce module, et le seul endroit du dépôt où elles sont énoncées. `comparerParNom`
 figure en outre dans celle de la Lecture
 ([`lecture-structure-frontiere.test.ts`](../../lib/use-cases/lecture-structure-frontiere.test.ts#L82-L108)),
-qui le réexporte — donc deux gardes le nomment, et lui seul énonce les deux autres.
+qui le réexporte — donc deux gardes le nomment, et lui seul énonce les deux autres. **C'est la
+dernière phrase qui n'est plus vraie** : le réexport est supprimé et la seconde garde cesse de
+le nommer, comme le dit
+[l'amendement de #585](#amendement--la-topologie-de-la-structure-a-un-seul-propriétaire-et-une-structure-hors-arbre-se-rend-une-fois-585) ;
+les deux premières phrases, elles, tiennent toujours.
 
 Restent la neutralité du module lui-même, la neutralité **par transit** du graphe de valeur, le
 parcours non vacuant, l'affirmation que les aides de frontière sont hors du graphe, et surtout **les
@@ -413,7 +417,7 @@ n'enregistre nulle part ailleurs : **à qui appartient la réponse à « qui des
 
 Le fait était déduit en **quatre endroits, dans deux modules**, et les quatre déductions ne
 répondaient pas à la même question. Le cœur en bâtissait une version — son index inverse, à la
-construction depuis [l'amendement de #584](#amendement--lindex-inverse-est-un-fait-de-la-marche-bâti-une-fois-à-sa-construction-584584) —
+construction depuis [l'amendement de #584](#amendement--lindex-inverse-est-un-fait-de-la-marche-bâti-une-fois-à-sa-construction-584) —
 mais ne le rendait à personne : chaque surface regroupait les liens par parente pour elle-même. Et une
 de ces copies ne répondait pas comme le cœur : là où la marche range parmi les Structures hors arbre
 toute Structure dont la parente ne nomme aucune rangée, le regroupement la **promouvait en racine**. La
@@ -435,6 +439,27 @@ Ce qui change dans les faits, et dans une seule direction : **une Structure dont
 aucune rangée n'est plus rendue deux fois dans l'Administration**, et n'est plus offerte comme racine
 à la boutique. Ses listes de cibles, son compte de sous-catégories et sa ligne unique ne changent pas —
 c'est une **dégradation**, pas une perte, et c'est la dégradation que ce document promettait déjà.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Comme l'amendement de #564, celui-ci ne réécrit aucune ligne de la décision : il consigne à côté ce
+qui n'est plus vrai. Deux passages la décrivent, et c'est le présent amendement qu'il faut y lire :
+
+- la dernière phrase de « La troisième preuve de la garde s'inverse, la garde ne tombe pas » —
+  « `comparerParNom` figure en outre dans celle de la Lecture […], **qui le réexporte** — donc deux
+  gardes le nomment ». Le réexport est supprimé : la Lecture **emprunte** le comparateur et ne le rend
+  plus, donc sa garde cesse de l'énoncer. Les deux phrases précédentes — le comparateur est dans la
+  liste du cœur, et cette liste est le seul endroit où les trois formes sont énoncées — restent vraies,
+  et cet endroit est aujourd'hui **unique** ;
+- la puce « **L'interface de la marche ne grandit pas** » de l'[amendement de #584](#amendement--lindex-inverse-est-un-fait-de-la-marche-bâti-une-fois-à-sa-construction-584)
+  — ni membre ajouté, ni membre retiré, ni type retypé. Elle ne vaut plus : `MarcheStructure` gagne
+  `racines` et `enfantsDe`. Elle reste vraie pour l'amendement de #584 lui-même, et c'est la forme que
+  ce changement prend qu'il faut y lire : **une interface qui s'élargit**, et une garde qui s'allonge
+  mécaniquement.
+
+L'en-tête du cœur et celui du module de lecture disent la même chose de la topologie — l'un par la
+place qu'elle occupe dans la liste des surfaces qui traversent le cœur, l'autre par celle qu'elle occupe
+parmi les questions d'une lecture — et tous deux se corrigent avec le code, non depuis ce document.
 
 ### Ce que cet amendement ne change pas
 

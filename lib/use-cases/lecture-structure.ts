@@ -126,7 +126,7 @@
  *
  * **Une boucle ne pend pas à une racine, et c'est une garantie, pas une
  * absence de garde.** Chaque maillon d'un cycle a sa parente *dans* le cycle ;
- * aucune racine n'y mène, donc la structure hors arbre absorbe le cycle entier
+ * aucune racine n'y mène, donc la Structure hors arbre absorbe le cycle entier
  * avec ce qui y mène, et une descente partie des racines ne peut pas y retomber.
  * La topologie de l'arbre est donc **finie**, et c'est une promesse de la
  * Marche — `MarcheStructure.racines` et `MarcheStructure.enfantsDe` la portent
@@ -381,7 +381,7 @@ export function projeterArbreAccueil(
   const marche = marcheDesStructures(structures)
   // Le journal, et lui seul : c'est la demande du hors arbre qui fait nommer un
   // cycle par la marche. L'arbre ne s'en sert pas pour se bâtir — la topologie
-  // qu'il descend est finie sans rien TRIER, une boucle ne pouvant pas pendre à
+  // qu'il descend est finie sans rien trier, une boucle ne pouvant pas pendre à
   // une racine — mais un éditeur doit savoir qu'une corruption existe, et
   // l'accueil est la seule surface de la boutique qui la croise.
   marche.horsArbre()
@@ -638,10 +638,17 @@ export function projeterEcranAdmin(
   // marche nomme, et chaque identifiant se rend en rangée ici.
   const parId = faitsParId(structures)
 
+  /**
+   * La ligne d'une Structure, son compte d'enfants étant **déjà compté** par la
+   * descente qui l'a rencontrée : la fratrie est demandée à la marche une fois
+   * par Structure, et la compter deux fois ferait reclasser chaque fratrie du
+   * dépôt — le coût que l'amendement de #584 vient de supprimer.
+   */
   const ligneDe = (
     fait: FaitStructure,
     profondeur: number,
-    hors: boolean
+    hors: boolean,
+    nombreEnfants: number
   ): LigneStructureAdmin => ({
     id: fait.id,
     name: fait.name,
@@ -657,7 +664,7 @@ export function projeterEcranAdmin(
     // même nombre que `_count.children` aurait rendu — la lecture prend la table
     // entière, sans `where` — donc personne ne paie une jointure de plus pour un
     // fait que les liens portent déjà.
-    nombreEnfants: marche.enfantsDe(fait.id).length,
+    nombreEnfants,
     profondeur,
     horsArbre: hors,
   })
@@ -693,8 +700,10 @@ export function projeterEcranAdmin(
   }
   while (pile.length > 0) {
     const { fait, profondeur } = pile.pop()!
-    lignes.push(ligneDe(fait, profondeur, false))
+    // La fratrie est demandée **une fois** par Structure, et sert aux deux besoins
+    // de la ligne : son compte d'enfants et l'ordre de la descente.
     const fratrie = marche.enfantsDe(fait.id)
+    lignes.push(ligneDe(fait, profondeur, false, fratrie.length))
     for (let rang = fratrie.length - 1; rang >= 0; rang -= 1) {
       pile.push({
         fait: parId.get(fratrie[rang]!)!,
@@ -707,11 +716,12 @@ export function projeterEcranAdmin(
   // que lui, sans retrait, parce qu'aucune branche ne les porte. Le tri est ici
   // pour la même raison qu'au-dessus — la base ne l'ordonne pas comme la
   // comparaison française — et il ne double pas la descente : ces rangées ne sont
-  // dans aucune fratrie.
+  // dans aucune fratrie, et leur compte d'enfants est le seul endroit où la
+  // marche est redemandée pour elles.
   const horsLignes = structures
     .filter((fait) => horsArbre.has(fait.id))
     .sort(comparerParNom)
-    .map((fait) => ligneDe(fait, 0, true))
+    .map((fait) => ligneDe(fait, 0, true, marche.enfantsDe(fait.id).length))
 
   return { lignes: [...lignes, ...horsLignes], cibles }
 }
