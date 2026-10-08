@@ -54,7 +54,8 @@ export default async function AdminCategoriesPage() {
   )
   // Les cibles, indexées une fois pour toutes les lignes. C'est un **rangement**,
   // pas une règle : le module garantit une cible par Structure, dans l'ordre de
-  // ses lignes, donc chaque ligne trouve la sienne sans qu'on ait à le chercher.
+  // sa lecture, donc chaque ligne trouve la sienne par son identifiant sans
+  // qu'on ait à la chercher.
   const ciblesParStructure = new Map(cibles.map((cible) => [cible.id, cible]))
 
   return (
@@ -85,7 +86,8 @@ export default async function AdminCategoriesPage() {
             {lignes.map((ligne) => {
               // Les deux listes de cette boîte. Une cible par Structure est la
               // promesse du module — la projection en rend autant qu'il y a de
-              // lignes, dans le même ordre — donc le `!` porte sur un fait que la
+              // Structures lues, chacune une fois, dans l'ordre de la lecture et
+              // non dans celui des lignes — donc le `!` porte sur un fait que la
               // porte de lecture vient de rendre, pas sur une recherche.
               const cible = ciblesParStructure.get(ligne.id)!
               return (
