@@ -401,3 +401,83 @@ compte rien.
 Les autres épreuves du cœur — ancêtres, descendances, hors arbre, partition, ordre, cycles, chaînes
 longues — passent inchangées : ce sont elles qui disent que les rendus n'ont pas bougé, et la garde
 énumère toujours les mêmes symboles.
+
+## Amendement — La topologie de la Structure a un seul propriétaire, et une Structure hors arbre se rend une fois (#585)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les
+lectures dégradent, une seule marche pour toute la Structure, une neutralité qui tient. Cet amendement
+consigne une décision prise après que les trois précédents eurent été écrits, et que ce dépôt
+n'enregistre nulle part ailleurs : **à qui appartient la réponse à « qui descend de qui »**.
+
+### La décision, et la duplication qu'elle supprime
+
+Le fait était déduit en **quatre endroits, dans deux modules**, et les quatre déductions ne
+répondaient pas à la même question. Le cœur en bâtissait une version — son index inverse, à la
+construction depuis [l'amendement de #584](#amendement--lindex-inverse-est-un-fait-de-la-marche-bâti-une-fois-à-sa-construction-584584) —
+mais ne le rendait à personne : chaque surface regroupait les liens par parente pour elle-même. Et une
+de ces copies ne répondait pas comme le cœur : là où la marche range parmi les Structures hors arbre
+toute Structure dont la parente ne nomme aucune rangée, le regroupement la **promouvait en racine**. La
+boutique lui offrait donc une branche qu'aucune branche ne porte, et la liste d'Administration pouvait
+la rendre deux fois — une fois comme souche, une fois comme hors arbre.
+
+Les deux règles ne s'accordaient que parce qu'un filtre hors arbre se tenait entre elles, dans le
+contrôle de flux d'un module : un fait de procédure, pas une garantie d'aucun type. **La règle
+n'était donc pas en conflit — elle était dupliquée, et sa cohérence ne tenait qu'à un emplacement.**
+
+**La décision : l'interface de la marche rend la topologie.** Deux méthodes, `racines` et `enfantsDe`,
+rendent des identifiants dans l'ordre du module ; aucune carte de la topologie ne sort du cœur, donc
+aucune surface ne peut la réordonner. Le module qui possède la lecture garde sa carte d'identifiant
+vers la **rangée entière** — celle-là répond à une autre question, « quel est le slug de cette
+Structure », et la fondre obligerait le cœur à connaître un slug, une image et un compte de Produits,
+donc à cesser d'être neutre (ADR-0028).
+
+Ce qui change dans les faits, et dans une seule direction : **une Structure dont la parente ne nomme
+aucune rangée n'est plus rendue deux fois dans l'Administration**, et n'est plus offerte comme racine
+à la boutique. Ses listes de cibles, son compte de sous-catégories et sa ligne unique ne changent pas —
+c'est une **dégradation**, pas une perte, et c'est la dégradation que ce document promettait déjà.
+
+### Ce que cet amendement ne change pas
+
+- **Aucune contradiction avec la décision.** Elle fixe la neutralité du cœur, sa synchronie et le fait
+  que le lien de parenté est consommé en mémoire ; elle n'énumère pas les faits que le cœur peut
+  détenir. Deux méthodes qui répondent à des questions que le cœur calcule déjà sont dans cette marge,
+  et la neutralité se prouve toujours par le graphe d'imports
+  ([`marche-structure-frontiere.test.ts`](../../lib/marche-structure-frontiere.test.ts)), qui n'a pas
+  bougé.
+- **La règle de terminaison ne change pas** : toute revisite arrête, comme avant. La **finité** de la
+  topologie de l'arbre, elle, devient une **promesse** de l'interface, et c'est ce qui permet au cumul
+  des Produits de l'accueil de perdre son garde de boucle : une boucle ne peut pas pendre à une racine,
+  parce que chaque maillon d'un cycle a sa parente *dans* le cycle. Le cas n'est pas rare, il est
+  impossible, et une garde dont la nécessité est un commentaire est un commentaire avec un coût
+  d'exécution.
+- **Aucune profondeur maximale** n'est introduite : ADR-0027 l'a refusée, et la finité qui vient d'être
+  promise ne s'en approche pas.
+- **La divergence boutique/mutation tient en entier** : la boutique dégrade, la mutation refuse,
+  `CategoryAncestorCycleError` reste le seul à lever ce refus.
+- **La forme du retour de l'écran d'Administration n'est pas touchée** — deux tableaux parallèles,
+  joints par identifiant sur la page, avec une assertion non nulle. C'est une préoccupation de forme et
+  non de duplication, et ADR-0030 consigne déjà son coût et le jour où il sera payé.
+- **Rien n'est rouvert** : ni le seuil qui surveille les lectures de la relation hors du cœur — dont
+  l'angle mort est un travail distinct —, ni la prémisse des deux gardes de frontière, qui reste une
+  recherche de sous-chaîne, ni le schéma et son index absent sur `parentId`, ni la catégorie d'un
+  document de recherche.
+
+### Ce que l'épreuve montre aujourd'hui
+
+Les deux méthodes sont éprouvées dans la suite du cœur, sur des **littéraux**, sans base :
+[`lib/marche-structure.test.ts`](../../lib/marche-structure.test.ts) — racines dans l'ordre du module,
+fratrie dans l'ordre du module, la parente absente qui **n'est pas** une racine, la finité de la
+topologie prouvée en descendant réellement, et le compte des lectures qui énumèrent les liens, repris
+de l'amendement de #584 pour montrer que ces deux questions lisent le même index.
+
+L'épreuve qui manquait le plus est **entre les deux coutures** :
+[`lecture-structure-portes.test.ts`](../../lib/use-cases/lecture-structure-portes.test.ts) fait lire
+la table par une porte de lecture, projette les mêmes rangées par sa jumelle pure, et **compare les
+deux sorties** — pour les six portes, chacune son `lire…` et son `projeter…`. Chaque question se
+prouvait deux fois, dans deux fichiers, sans que les deux preuves soient jamais confrontées : c'est là
+que la divergence s'était logée. La comparaison ne se cache plus derrière « c'est l'autre chemin qui
+fait ça ».
+
+Et l'invariant que ce travail fixe est désormais nommé : une Structure dont la parente ne nomme
+aucune rangée apparaît **exactement une fois** dans la liste d'Administration, et **absente** de
+l'arbre d'accueil. Aucune épreuve ne l'énonçait, et c'est pourquoi la duplication était invisible.
