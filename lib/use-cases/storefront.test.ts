@@ -732,20 +732,22 @@ describe("storefront browse", () => {
     await expect(fetchProductPageData("produit-inconnu")).resolves.toBeNull()
   })
 
-  // La lecture de la Structure (#552) : « une lecture complète des liens par
-  // requête qui en a besoin ».
+  // La lecture de la Structure : « une lecture complète par requête **qui en a
+  // besoin** » (#552), et une seule quelle que soit la surface qui la demande
+  // (#564).
   //
   // Le nombre ne se lit pas dans le code, et il ne se voit pas non plus à
   // l'issue : deux lectures rendent exactement la même page, et sur une base
   // locale la seconde ne coûte ni une erreur ni une seconde d'horloge. La seule
   // mesure qui distingue « une lecture par page » de « une lecture par
   // traversée » — la forme d'avant #548 — est donc un comptage à la couture que
-  // `loadCategoryLinks` traverse, le client Prisma lui-même.
+  // la Lecture de la Structure traverse, le client Prisma lui-même.
   describe("une seule lecture complète de la Structure par page", () => {
     /**
      * Une **lecture complète** : le `findMany` que rien ne borne, celui qui
-     * parcourt la table entière — la lecture des liens de `loadCategoryLinks`,
-     * et celle de la Lecture de la Structure, qui rend l'arbre d'accueil.
+     * parcourt la table entière — la lecture de la Lecture de la Structure, quelle
+     * que soit la surface qui la demande : l'arbre d'accueil, la page de
+     * catégorie, la fiche Produit.
      *
      * Ce qui borne une lecture, c'est son `where` : la requête des enfants d'une
      * Structure (`where: { parentId }`) lit la table sans la parcourir, et ne
@@ -879,14 +881,17 @@ describe("storefront browse", () => {
       ])
     })
 
-    it("la fiche Produit lit les liens une fois, pour son fil d'Ariane", async () => {
+    it("la fiche Produit lit la Structure une fois, par la Lecture, pour son fil d'Ariane", async () => {
       const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
         fetchProductPageData(pSlug("lecture-unique"))
       )
 
       expect(lectures).toBe(1)
       // Le fil d'Ariane est la seule traversée de cette page : la lecture qui
-      // l'a rendu est celle qui a construit la marche (#548).
+      // l'a rendu est celle de la Lecture de la Structure, qui a construit la
+      // marche (#548, #571). Une lecture de plus — celle que la boutique
+      // prenait pour elle-même — ferait de la fiche le second propriétaire d'un
+      // fait qui a déjà le sien.
       expect(issue!.categoryChain.map((c) => c.slug)).toEqual([
         cSlug("root"),
         cSlug("child"),
@@ -894,10 +899,15 @@ describe("storefront browse", () => {
       ])
     })
 
-    it("une fiche sans Structure ne paie aucune lecture des liens", async () => {
+    it("une fiche sans Structure ne paie aucune lecture de la Structure", async () => {
       // « … par requête **qui en a besoin** » : un Produit sans Structure n'a
-      // pas de fil d'Ariane à construire, donc pas de liens à lire — la lecture
-      // se paie à l'intérieur du garde, pas avant lui (ADR-0029, #548).
+      // pas de fil d'Ariane à construire, donc rien à demander à la Structure. Le
+      // garde est **avant** la porte de lecture, dans `fetchProductPageData` : une
+      // porte de lecture lit la table entière dès qu'on l'appelle, donc l'appeler
+      // pour rien ferait payer au cas commun une lecture dont il n'a rien à
+      // faire — et le Produit sans Structure est précisément le cas commun
+      // (ADR-0029, #548, US 25). Ce « 0 » est la preuve que le garde est au bon
+      // endroit : un `lireFilAriane` appelé avant lui ferait tomber le compte à 1.
       await creerDeuxProduitsSansStructure()
 
       const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
@@ -962,7 +972,8 @@ describe("storefront browse", () => {
       const detail = await fetchProductPageData(pSlug("cyclique"))
 
       expect(detail).not.toBeNull()
-      // La Marche s'arrête sur la revisite et rend ce qu'elle a remonté. Sa
+      // La Marche s'arrête sur la revisite et rend ce qu'elle a remonté — celle
+      // de la Lecture de la Structure, que la fiche ne bâtit plus (#571). Sa
       // dernière entrée reste la Structure du Produit : l'invariant du fil
       // d'Ariane — la catégorie courante en dernier — tient sur une chaîne
       // cyclique comme sur une autre.
@@ -1022,11 +1033,11 @@ describe("storefront browse", () => {
     })
 
     it("journalise le cycle une fois par requête, non une fois par traversée", async () => {
-      // La page croise le même cycle deux fois — la descendance qui décide des
-      // Produits, puis la remontée du fil d'Ariane — et une seule ligne doit
-      // sortir : deux instances de la Marche en auraient dit deux. C'est le
+      // La page de catégorie croise le même cycle deux fois — la descendance qui
+      // décide des Produits, puis la remontée du fil d'Ariane — et une seule ligne
+      // doit sortir : deux instances de la Marche en auraient dit deux. C'est le
       // critère de #548, et il tient à ce que la page construise **une** marche
-      // pour ses deux traversées, sur une seule lecture des liens.
+      // pour ses deux traversées, sur une seule lecture de la Structure.
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
       try {
         const page = await fetchCategoryPageData(cycle[0].slug)
@@ -1036,12 +1047,19 @@ describe("storefront browse", () => {
         expect(ligne).toContain(cycle[0].name)
         expect(ligne).toContain(cycle[1].name)
 
-        // La fiche Produit ne traverse que le fil d'Ariane : une ligne aussi,
-        // pour la même corruption.
+        // La fiche Produit ne pose qu'une question à la Structure — son fil
+        // d'Ariane — donc elle ne bâtit qu'une marche, donc **une** ligne aussi,
+        // pour la même corruption. Et la ligne nomme les Structures à réparer :
+        // deux pages qui atteignent la même boucle doivent dire la même chose,
+        // sinon l'éditeur ne sait pas quelles rangées ouvrir (#571, US 34).
         warn.mockClear()
         const detail = await fetchProductPageData(pSlug("cyclique"))
         expect(detail).not.toBeNull()
         expect(warn).toHaveBeenCalledTimes(1)
+        const ligneFiche = warn.mock.calls[0]!.join(" ")
+        expect(ligneFiche).toContain("[marche-structure]")
+        expect(ligneFiche).toContain(cycle[0].name)
+        expect(ligneFiche).toContain(cycle[1].name)
       } finally {
         warn.mockRestore()
       }
