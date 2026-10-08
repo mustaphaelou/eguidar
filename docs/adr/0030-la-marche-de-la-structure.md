@@ -226,7 +226,11 @@ pour une raison qu'elle ne connaît pas. Les trois sont dans la liste du cœur
 la garde de ce module, et le seul endroit du dépôt où elles sont énoncées. `comparerParNom`
 figure en outre dans celle de la Lecture
 ([`lecture-structure-frontiere.test.ts`](../../lib/use-cases/lecture-structure-frontiere.test.ts#L82-L108)),
-qui le réexporte — donc deux gardes le nomment, et lui seul énonce les deux autres.
+qui le réexporte — donc deux gardes le nomment, et lui seul énonce les deux autres. **C'est la
+dernière phrase qui n'est plus vraie** : le réexport est supprimé et la seconde garde cesse de
+le nommer, comme le dit
+[l'amendement de #585](#amendement--la-topologie-de-la-structure-a-un-seul-propriétaire-et-une-structure-hors-arbre-se-rend-une-fois-585) ;
+les deux premières phrases, elles, tiennent toujours.
 
 Restent la neutralité du module lui-même, la neutralité **par transit** du graphe de valeur, le
 parcours non vacuant, l'affirmation que les aides de frontière sont hors du graphe, et surtout **les
@@ -401,3 +405,104 @@ compte rien.
 Les autres épreuves du cœur — ancêtres, descendances, hors arbre, partition, ordre, cycles, chaînes
 longues — passent inchangées : ce sont elles qui disent que les rendus n'ont pas bougé, et la garde
 énumère toujours les mêmes symboles.
+
+## Amendement — La topologie de la Structure a un seul propriétaire, et une Structure hors arbre se rend une fois (#585)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les
+lectures dégradent, une seule marche pour toute la Structure, une neutralité qui tient. Cet amendement
+consigne une décision prise après que les trois précédents eurent été écrits, et que ce dépôt
+n'enregistre nulle part ailleurs : **à qui appartient la réponse à « qui descend de qui »**.
+
+### La décision, et la duplication qu'elle supprime
+
+Le fait était déduit en **quatre endroits, dans deux modules**, et les quatre déductions ne
+répondaient pas à la même question. Le cœur en bâtissait une version — son index inverse, à la
+construction depuis [l'amendement de #584](#amendement--lindex-inverse-est-un-fait-de-la-marche-bâti-une-fois-à-sa-construction-584) —
+mais ne le rendait à personne : chaque surface regroupait les liens par parente pour elle-même. Et une
+de ces copies ne répondait pas comme le cœur : là où la marche range parmi les Structures hors arbre
+toute Structure dont la parente ne nomme aucune rangée, le regroupement la **promouvait en racine**. La
+boutique lui offrait donc une branche qu'aucune branche ne porte, et la liste d'Administration pouvait
+la rendre deux fois — une fois comme souche, une fois comme hors arbre.
+
+Les deux règles ne s'accordaient que parce qu'un filtre hors arbre se tenait entre elles, dans le
+contrôle de flux d'un module : un fait de procédure, pas une garantie d'aucun type. **La règle
+n'était donc pas en conflit — elle était dupliquée, et sa cohérence ne tenait qu'à un emplacement.**
+
+**La décision : l'interface de la marche rend la topologie.** Deux méthodes, `racines` et `enfantsDe`,
+rendent des identifiants dans l'ordre du module ; aucune carte de la topologie ne sort du cœur, donc
+aucune surface ne peut la réordonner. Le module qui possède la lecture garde sa carte d'identifiant
+vers la **rangée entière** — celle-là répond à une autre question, « quel est le slug de cette
+Structure », et la fondre obligerait le cœur à connaître un slug, une image et un compte de Produits,
+donc à cesser d'être neutre (ADR-0028).
+
+Ce qui change dans les faits, et dans une seule direction : **une Structure dont la parente ne nomme
+aucune rangée n'est plus rendue deux fois dans l'Administration**, et n'est plus offerte comme racine
+à la boutique. Ses listes de cibles, son compte de sous-catégories et sa ligne unique ne changent pas —
+c'est une **dégradation**, pas une perte, et c'est la dégradation que ce document promettait déjà.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Comme l'amendement de #564, celui-ci ne réécrit aucune ligne de la décision : il consigne à côté ce
+qui n'est plus vrai. Deux passages la décrivent, et c'est le présent amendement qu'il faut y lire :
+
+- la dernière phrase de « La troisième preuve de la garde s'inverse, la garde ne tombe pas » —
+  « `comparerParNom` figure en outre dans celle de la Lecture […], **qui le réexporte** — donc deux
+  gardes le nomment ». Le réexport est supprimé : la Lecture **emprunte** le comparateur et ne le rend
+  plus, donc sa garde cesse de l'énoncer. Les deux phrases précédentes — le comparateur est dans la
+  liste du cœur, et cette liste est le seul endroit où les trois formes sont énoncées — restent vraies,
+  et cet endroit est aujourd'hui **unique** ;
+- la puce « **L'interface de la marche ne grandit pas** » de l'[amendement de #584](#amendement--lindex-inverse-est-un-fait-de-la-marche-bâti-une-fois-à-sa-construction-584)
+  — ni membre ajouté, ni membre retiré, ni type retypé. Elle ne vaut plus : `MarcheStructure` gagne
+  `racines` et `enfantsDe`. Elle reste vraie pour l'amendement de #584 lui-même, et c'est la forme que
+  ce changement prend qu'il faut y lire : **une interface qui s'élargit**, et une garde qui s'allonge
+  mécaniquement.
+
+L'en-tête du cœur et celui du module de lecture disent la même chose de la topologie — l'un par la
+place qu'elle occupe dans la liste des surfaces qui traversent le cœur, l'autre par celle qu'elle occupe
+parmi les questions d'une lecture — et tous deux se corrigent avec le code, non depuis ce document.
+
+### Ce que cet amendement ne change pas
+
+- **Aucune contradiction avec la décision.** Elle fixe la neutralité du cœur, sa synchronie et le fait
+  que le lien de parenté est consommé en mémoire ; elle n'énumère pas les faits que le cœur peut
+  détenir. Deux méthodes qui répondent à des questions que le cœur calcule déjà sont dans cette marge,
+  et la neutralité se prouve toujours par le graphe d'imports
+  ([`marche-structure-frontiere.test.ts`](../../lib/marche-structure-frontiere.test.ts)), qui n'a pas
+  bougé.
+- **La règle de terminaison ne change pas** : toute revisite arrête, comme avant. La **finité** de la
+  topologie de l'arbre, elle, devient une **promesse** de l'interface, et c'est ce qui permet au cumul
+  des Produits de l'accueil de perdre son garde de boucle : une boucle ne peut pas pendre à une racine,
+  parce que chaque maillon d'un cycle a sa parente *dans* le cycle. Le cas n'est pas rare, il est
+  impossible, et une garde dont la nécessité est un commentaire est un commentaire avec un coût
+  d'exécution.
+- **Aucune profondeur maximale** n'est introduite : ADR-0027 l'a refusée, et la finité qui vient d'être
+  promise ne s'en approche pas.
+- **La divergence boutique/mutation tient en entier** : la boutique dégrade, la mutation refuse,
+  `CategoryAncestorCycleError` reste le seul à lever ce refus.
+- **La forme du retour de l'écran d'Administration n'est pas touchée** — deux tableaux parallèles,
+  joints par identifiant sur la page, avec une assertion non nulle. C'est une préoccupation de forme et
+  non de duplication, et ADR-0030 consigne déjà son coût et le jour où il sera payé.
+- **Rien n'est rouvert** : ni le seuil qui surveille les lectures de la relation hors du cœur — dont
+  l'angle mort est un travail distinct —, ni la prémisse des deux gardes de frontière, qui reste une
+  recherche de sous-chaîne, ni le schéma et son index absent sur `parentId`, ni la catégorie d'un
+  document de recherche.
+
+### Ce que l'épreuve montre aujourd'hui
+
+Les deux méthodes sont éprouvées dans la suite du cœur, sur des **littéraux**, sans base :
+[`lib/marche-structure.test.ts`](../../lib/marche-structure.test.ts) — racines dans l'ordre du module,
+fratrie dans l'ordre du module, la parente absente qui **n'est pas** une racine, la finité de la
+topologie prouvée en descendant réellement, et le compte des lectures qui énumèrent les liens, repris
+de l'amendement de #584 pour montrer que ces deux questions lisent le même index.
+
+L'épreuve qui manquait le plus est **entre les deux coutures** :
+[`lecture-structure-portes.test.ts`](../../lib/use-cases/lecture-structure-portes.test.ts) fait lire
+la table par une porte de lecture, projette les mêmes rangées par sa jumelle pure, et **compare les
+deux sorties** — pour les six portes, chacune son `lire…` et son `projeter…`. Chaque question se
+prouvait deux fois, dans deux fichiers, sans que les deux preuves soient jamais confrontées : c'est là
+que la divergence s'était logée. La comparaison ne se cache plus derrière « c'est l'autre chemin qui
+fait ça ».
+
+Et l'invariant que ce travail fixe est désormais nommé : une Structure dont la parente ne nomme
+aucune rangée apparaît **exactement une fois** dans la liste d'Administration, et **absente** de
+l'arbre d'accueil. Aucune épreuve ne l'énonçait, et c'est pourquoi la duplication était invisible.
