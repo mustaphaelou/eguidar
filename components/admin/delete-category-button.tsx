@@ -26,11 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  marcheDesStructures,
-  type MarcheStructure,
-  type StructureLue,
-} from "@/lib/marche-structure"
 
 export interface DeleteCategoryState {
   error?: string
@@ -42,12 +37,39 @@ interface ComptesStructure {
   productCount: number
 }
 
+/**
+ * **Ce que la boîte reçoit : des faits, et rien d'appelable** (#573, ADR-0030).
+ *
+ * Les deux listes de cibles sont les deux moitiés d'une **partition**, que la page
+ * a calculée sur la même lecture qui lui a rendu ses lignes : `ciblesProduits`
+ * vaut toute Structure autre que celle-ci — un Produit atterrit où l'on dit,
+ * descendantes comprises (US 16) — et `ciblesSousCategories` vaut ce qui ne
+ * descend pas d'elle, parce que l'y rattacher refermerait la boucle sur elle-même
+ * (US 15). Les deux sont triées dans l'ordre que le cœur promet, et la boîte ne
+ * les trie pas : elle rend ce qu'elle a reçu, dans l'ordre reçu.
+ *
+ * **Ce qui franchit la couture, ce sont des chaînes** (ADR-0028) : des
+ * identifiants, et une table de noms pour que l'éditeur reconnaisse où vont ses
+ * Produits (US 18). Ni fonction, ni prédicat, ni marche, ni getter. Une règle de
+ * domaine dans un `"use client"` est une règle que la prochaine surface
+ * réécrira (US 39) ; celle-ci vit dans le cœur pur, qui se prouve sans base
+ * (`lib/marche-structure-partition.test.ts`), et la page la calcule.
+ *
+ * Le repli sur l'identifiant est le même que celui du journal : un `cuid` se lit
+ * mal, mais il est vrai, et la boîte n'a pas à inventer un nom qu'aucune lecture
+ * ne lui a donné.
+ */
 interface DeleteCategoryButtonProps {
   categoryId: string
   categoryName: string
   childCount: number
   productCount: number
-  categories: StructureLue[]
+  /** Où peut aller un Produit : toute Structure sauf celle-ci. */
+  ciblesProduits: readonly string[]
+  /** Où peut aller une sous-catégorie : ce qui ne descend pas d'elle. */
+  ciblesSousCategories: readonly string[]
+  /** Les noms des Structures, par identifiant. */
+  nomsStructures: Readonly<Record<string, string>>
   action: (
     prevState: DeleteCategoryState,
     formData: FormData
@@ -78,37 +100,14 @@ function raisonVisible(comptes: ComptesStructure): string | null {
   return null
 }
 
-/**
- * `candidateId` descend-elle de `racineId` ? C'est la **Marche de la
- * Structure** qui répond (#551, ADR-0030) : `ancetres` rend la chaîne de la
- * candidate jusqu'à sa racine, la candidate en dernier, et s'arrête sur toute
- * revisite.
- *
- * **La coupe du client et le refus du serveur divergent, et c'est la décision
- * d'ADR-0030, pas un accident.** La marche répond un fait — la chaîne —, et la
- * boîte n'en tire qu'une coupe : ce qui descend de la Structure supprimée ne
- * peut pas l'accueillir, parce que le rattacher refermerait la boucle sur
- * elle-même. Sur un cycle déjà en base, la remontée s'arrête sans rien refuser,
- * la cible reste proposée, et c'est le serveur seul qui peut dire que sa chaîne
- * est cyclique : `assertAcyclicCategoryTree` porte ce refus, lié à sa
- * transaction, et reste le seul à lever `CategoryAncestorCycleError`. La
- * divergence est argumentée dans ADR-0030 ; ce commentaire n'en est plus le
- * propriétaire, il dit seulement où elle vit.
- */
-function descendDe(
-  candidateId: string,
-  racineId: string,
-  marche: MarcheStructure
-): boolean {
-  return marche.ancetres(candidateId).includes(racineId)
-}
-
 export function DeleteCategoryButton({
   categoryId,
   categoryName,
   childCount,
   productCount,
-  categories,
+  ciblesProduits,
+  ciblesSousCategories,
+  nomsStructures,
   action,
 }: DeleteCategoryButtonProps) {
   const [state, formAction, isPending] = useActionState(action, {})
@@ -128,21 +127,25 @@ export function DeleteCategoryButton({
   const idSousCategories = useId()
   const idOrphelins = useId()
 
-  // **Une seule marche par rendu**, et non une par candidate : construite dans
-  // le filtre, elle ferait dédupliquer le journal par candidate — une ligne par
-  // cible au lieu d'une par cycle — et le filtre coûterait un parcours complet
-  // par cible (#551). Les noms y entrent pour que la ligne du journal nomme les
-  // Structures plutôt que leurs identifiants.
-  const marche = marcheDesStructures(categories)
-  // Toute Structure de la liste sauf celle-ci : c'est le domaine de tous les
-  // choix. Les sous-catégories, elles, ne peuvent recevoir que ce qui n'en
-  // descend pas — une cible y fermerait la boucle sur elle-même.
-  const structuresCandidates = categories.filter(
-    (candidate) => candidate.id !== categoryId
-  )
-  const structuresDAccueil = structuresCandidates.filter(
-    (candidate) => !descendDe(candidate.id, categoryId, marche)
-  )
+  // **Aucune marche ici, et c'est le déplacement** (#573, ADR-0030). La boîte
+  // ne se construit plus de parcours à chaque rendu : elle reçoit les deux listes
+  // de cibles, que la page a calculées sur la lecture qu'elle lui rendait déjà,
+  // et se contente de les rendre. Trois conséquences, dont une seule est visible :
+  // le paquet navigateur ne porte plus de traversée de domaine (US 40), la règle
+  // « ce qui descend ne peut pas accueillir une sous-catégorie » n'existe plus
+  // qu'en un endroit — le cœur pur, prouvé sans base (US 39) —, et le journal
+  // d'un cycle ne se décide plus par le nombre de cibles candidates qu'une boîte
+  // affichait.
+  //
+  // **La divergence d'ADR-0030 ne disparaît pas avec la coupe : elle change de
+  // forme.** Elle se lisait ligne à ligne dans `descendDe` : la boîte écartait ce
+  // qui descend, le serveur refusait le reste. Elle se lit désormais dans les deux
+  // listes reçues — `ciblesSousCategories` ne contient pas la descendance,
+  // `ciblesProduits` la contient, sans distinction entre les deux pour le serveur —
+  // et dans le fait que `deleteCategory` reste seul à lever
+  // `CategoryAncestorCycleError`. La boîte **propose**, le serveur seul **refuse** ;
+  // sur un cycle déjà en base, la cible reste donc proposée (US 17).
+  const nomDe = (id: string): string => nomsStructures[id] ?? id
 
   const comptes = { childCount, productCount }
   const raison = raisonVisible(comptes)
@@ -209,9 +212,9 @@ export function DeleteCategoryButton({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {structuresDAccueil.map((accueil) => (
-                            <SelectItem key={accueil.id} value={accueil.id}>
-                              Déplacer les sous-catégories vers {accueil.name}
+                          {ciblesSousCategories.map((cible) => (
+                            <SelectItem key={cible} value={cible}>
+                              Déplacer les sous-catégories vers {nomDe(cible)}
                             </SelectItem>
                           ))}
                         </SelectGroup>
@@ -248,9 +251,9 @@ export function DeleteCategoryButton({
                           <SelectItem value={null}>
                             Bloquer — produits rattachés
                           </SelectItem>
-                          {structuresCandidates.map((cible) => (
-                            <SelectItem key={cible.id} value={cible.id}>
-                              Déplacer les produits vers {cible.name}
+                          {ciblesProduits.map((cible) => (
+                            <SelectItem key={cible} value={cible}>
+                              Déplacer les produits vers {nomDe(cible)}
                             </SelectItem>
                           ))}
                         </SelectGroup>

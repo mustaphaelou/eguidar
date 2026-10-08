@@ -17,10 +17,12 @@
  * une seule ligne pour le cycle, parce qu'une seule marche a été bâtie, et parce
  * que la projection en bâtit une seule pour toutes ses questions (ADR-0030).
  *
- * `DeleteCategoryButton` est remplacé par un stub : la boîte a sa propre suite
- * et #573 la migre. Le stub dit ce que la page lui donne à voir — la Structure
- * entière, cycle compris, sans quoi une cible fermant la boucle lui resterait
- * offerte.
+ * `DeleteCategoryButton` est remplacé par un stub : la boîte a sa propre suite,
+ * et une suite de rendu de composant ne prouve pas ce qu'une suite de composant
+ * prouve déjà. Le stub dit ce que la page lui donne à voir — **les deux listes de
+ * cibles et la table des noms**, cycle compris — sans quoi une cible qui refermerait
+ * la boucle lui resterait offerte, et sans quoi la couture client/serveur
+ * (#573, ADR-0028) n'aurait ici aucun témoin.
  */
 import { randomUUID } from "node:crypto"
 
@@ -48,18 +50,36 @@ vi.mock("next/image", () => ({
   ),
 }))
 
+/**
+ * Le stub de la boîte : il rend **les props telles qu'elles sont reçues**, en JSON
+ * dans un attribut, et rien d'autre.
+ *
+ * **Pourquoi du JSON dans le HTML.** C'est le seul endroit du dépôt où la couture
+ * client/serveur de la boîte est observée de bout en bout : la page est un
+ * composant serveur, la boîte est un composant client, et ce qui passe entre les
+ * deux est sérialisé. Écrire les props telles quelles permet à l'épreuve de
+ * reparcourir ce qui a **effectivement** franchi — et d'y voir qu'une liste
+ * d'identifiants et une table de noms, jamais une fonction, jamais une marche,
+ * jamais un `Set` (ADR-0028, US 40).
+ */
 vi.mock("@/components/admin/delete-category-button", () => ({
   DeleteCategoryButton: ({
     categoryId,
-    categories,
+    ciblesProduits,
+    ciblesSousCategories,
+    nomsStructures,
   }: {
     categoryId: string
-    categories: { id: string }[]
+    ciblesProduits: readonly string[]
+    ciblesSousCategories: readonly string[]
+    nomsStructures: Record<string, string>
   }) => (
     <span
       data-testid="bouton-suppression"
       data-structure={categoryId}
-      data-candidats={categories.length}
+      data-cibles-produits={JSON.stringify(ciblesProduits)}
+      data-cibles-sous-categories={JSON.stringify(ciblesSousCategories)}
+      data-noms={JSON.stringify(nomsStructures)}
     />
   ),
 }))
@@ -125,9 +145,26 @@ interface LigneRendue {
   /** La première cellule, texte seul : le nom et ce que la ligne dit de sa
    *  place — « sous … », « Catégorie racine », ou la marque hors arbre. */
   premiereCellule: string
-  /** Le nombre de Structures que la boîte de suppression de la ligne a
-   *  reçues : la page lui donne la lecture entière, jamais la seule branche. */
-  candidats: number
+  /** Les deux listes de cibles que la boîte de la ligne a reçues, relues depuis
+   *  le JSON qu'elle a reçu — donc depuis ce qui a réellement franchi la couture. */
+  ciblesProduits: string[]
+  ciblesSousCategories: string[]
+  /** La table des noms, relue de la même façon. */
+  nomsStructures: Record<string, string>
+}
+
+/** L'attribut `data-*` d'une valeur JSON, reparsée ; `[]` s'il est absent. */
+function jsonDe(html: string, attribut: string): string[] {
+  const brut = new RegExp(`${attribut}="([^"]*)"`).exec(html)?.[1] ?? "[]"
+  // Le HTML échappe les guillemets d'un attribut : `renderToReadableStream` rend
+  // le JSON avec `&quot;`, qu'il faut rétablir avant de reparcourir.
+  return JSON.parse(brut.replaceAll("&quot;", '"')) as string[]
+}
+
+/** L'attribut `data-*` d'un objet JSON, reparsé ; `{}` s'il est absent. */
+function objetDe(html: string, attribut: string): Record<string, string> {
+  const brut = new RegExp(`${attribut}="([^"]*)"`).exec(html)?.[1] ?? "{}"
+  return JSON.parse(brut.replaceAll("&quot;", '"')) as Record<string, string>
 }
 
 /** Le texte d'un fragment de HTML, balises et commentaires React en moins. */
@@ -158,9 +195,9 @@ function lignesDuRendu(html: string): LigneRendue[] {
     .map((ligne) => ({
       nom: /<span class="font-medium">([^<]*)<\/span>/.exec(ligne)?.[1] ?? "",
       premiereCellule: sansBalises(ligne.split("</td>")[0] ?? ""),
-      candidats: Number(
-        /data-candidats="(\d+)"/.exec(ligne)?.[1] ?? Number.NaN
-      ),
+      ciblesProduits: jsonDe(ligne, "data-cibles-produits"),
+      ciblesSousCategories: jsonDe(ligne, "data-cibles-sous-categories"),
+      nomsStructures: objetDe(ligne, "data-noms"),
     }))
 }
 
@@ -255,17 +292,136 @@ describe("AdminCategoriesPage — Structures hors arbre", () => {
     }
   })
 
-  it("donne à chaque ligne la Structure entière, hors arbre comprise", async () => {
+  it("donne à chaque boîte deux listes de cibles, et rien d'appelable", async () => {
     const { html } = await rendreLaListe()
     const lignes = lignesDuRendu(html)
-    const total = await prisma.category.count()
+    const enBase = await prisma.category.findMany({
+      select: { id: true, name: true },
+    })
+    const tousLesIds = enBase.map((structure) => structure.id)
 
-    // La boîte de suppression reçoit la lecture entière, et non la seule
-    // branche : c'est ce qui lui permet de ne pas offrir une cible qui
-    // refermerait la boucle — encore faut-il qu'elle voie le cycle (#550).
     expect(lignes.length).toBeGreaterThan(0)
     for (const ligne of lignes) {
-      expect(ligne.candidats, `candidats de « ${ligne.nom} »`).toBe(total)
+      // **Ce qui a franchi la couture, reparcouru.** La boîte est un composant
+      // client : ce qu'elle reçoit est sérialisé. La reparsir depuis le JSON qu'elle
+      // a reçu est donc le seul moyen de voir la couture de bout en bout — et ce
+      // qu'elle dit tient en une ligne : des tableaux de chaînes et une table de
+      // chaînes (ADR-0028, US 40). Une fonction, une marche ou un `Set` n'aurait pas
+      // pu s'écrire dans ce HTML, et c'est ce que la suite du composant affirme de
+      // son côté sur ses props.
+      for (const liste of [ligne.ciblesProduits, ligne.ciblesSousCategories]) {
+        for (const valeur of liste) expect(typeof valeur).toBe("string")
+      }
+      for (const nom of Object.values(ligne.nomsStructures)) {
+        expect(typeof nom).toBe("string")
+      }
+
+      // Un Produit part vers **toute** Structure autre que celle-ci, descendantes
+      // comprises : c'est ce qui distingue sa liste de celle des sous-catégories,
+      // et une liste qui les confondrait ferait porter à un Produit une règle qui
+      // n'est que celle des sous-catégories (US 16). Le compte est donc le nombre
+      // de Structures de la base moins une — la ligne elle-même.
+      const lignesRendues = lignes.length
+      expect(ligne.ciblesProduits, `produits de « ${ligne.nom} »`).toHaveLength(
+        tousLesIds.length - 1
+      )
+
+      // La liste des sous-catégories est un sous-ensemble de celle-là : elle s'y
+      // retrouve par appartenance, pas par soustraction — l'écart entre les deux
+      // est la branche, et sa règle est prouvée dans
+      // `lib/marche-structure-partition.test.ts`, sans rendu.
+      for (const cible of ligne.ciblesSousCategories) {
+        expect(ligne.ciblesProduits, cible).toContain(cible)
+      }
+
+      // Et la table des noms porte toute la table : c'est elle qui rend chaque
+      // cible lisible, donc une cible sans nom serait un `cuid` dans un sélecteur
+      // (US 18).
+      for (const structure of enBase) {
+        expect(ligne.nomsStructures[structure.id], structure.id).toBe(
+          structure.name
+        )
+      }
+      expect(Object.keys(ligne.nomsStructures)).toHaveLength(tousLesIds.length)
+      expect(lignesRendues).toBe(tousLesIds.length)
+    }
+  })
+
+  it("écarte de la liste des sous-catégories ce qui descend de la Structure de la ligne", async () => {
+    const { html } = await rendreLaListe()
+    const lignes = lignesDuRendu(html)
+    const parNom = new Map(lignes.map((ligne) => [ligne.nom, ligne]))
+
+    // L'écart se voit sur l'arbre propre, où la descendance est connue sans avoir
+    // à la recalculer : `Liste 550 D` est enfant de `Liste 550 B`, donc la boîte de
+    // `Liste 550 B` ne peut pas l'accueillir — elle le proposerait pour recevoir la
+    // sous-catégorie qu'elle est elle-même.
+    const ligneB = parNom.get(arbre.enfantA.name)!
+    expect(ligneB.ciblesSousCategories).not.toContain(arbre.petitA.id)
+    // Et il reste bien une cible de Produit : les deux listes ne se ressemblent
+    // pas, et c'est la règle de la spec (US 16).
+    expect(ligneB.ciblesProduits).toContain(arbre.petitA.id)
+  })
+
+  it("propose une Structure du cycle comme Structure d'accueil des sous-catégories", async () => {
+    const { html } = await rendreLaListe()
+    const lignes = lignesDuRendu(html)
+
+    // **La divergence d'ADR-0030, à la couture.** Les maillons d'un cycle sont les
+    // descendants les uns des autres — la règle de terminaison de la marche les
+    // atteint chacun une fois — donc aucun d'eux ne peut accueillir les
+    // sous-catégories d'un autre : c'est un **fait**, la seule raison pour laquelle
+    // ils disparaissent de ces listes, et la partition s'arrête là.
+    //
+    // Une Structure **saine**, elle, garde le cycle dans les deux listes : elle
+    // n'a aucun maillon de boucle dans sa branche, donc rien à écarter. La page ne
+    // filtre donc pas le cycle d'elle-même, elle rend ce qu'elle a calculé. Le
+    // serveur refusera une cible dont la chaîne referme la boucle — lui seul le
+    // sait, et lui seul lève `CategoryAncestorCycleError` — mais la cible reste
+    // **proposée** (ADR-0030, US 17). Une page qui écartait le cycle d'elle-même
+    // rendrait les deux surfaces identiques, et c'est ce que la décision exclut.
+    const horsArbreEtLeCycle = new Set([
+      ...cycle.map((structure) => structure.id),
+      accrocheeAuCycle.id,
+    ])
+    for (const structure of cycle) {
+      const ligne = lignes.find(
+        (candidate) => candidate.nom === structure.name
+      )!
+      for (const id of horsArbreEtLeCycle) {
+        expect(
+          ligne.ciblesSousCategories,
+          `${structure.name} → ${id}`
+        ).not.toContain(id)
+      }
+      // Ce qui reste, en revanche, est bien proposé : ce n'est pas un refus, c'est
+      // une liste de cibles qui n'a simplement personne à nommer de sa branche.
+      for (const structure of Object.values(arbre)) {
+        expect(
+          ligne.ciblesSousCategories,
+          `${structure.name} → ${structure.name}`
+        ).toContain(structure.id)
+        expect(
+          ligne.ciblesProduits,
+          `${structure.name} → ${structure.name}`
+        ).toContain(structure.id)
+      }
+    }
+
+    for (const structure of Object.values(arbre)) {
+      const ligne = lignes.find(
+        (candidate) => candidate.nom === structure.name
+      )!
+      for (const maillon of cycle) {
+        expect(
+          ligne.ciblesSousCategories,
+          `${structure.name} → ${maillon.name}`
+        ).toContain(maillon.id)
+        expect(
+          ligne.ciblesProduits,
+          `${structure.name} → ${maillon.name}`
+        ).toContain(maillon.id)
+      }
     }
   })
 })
