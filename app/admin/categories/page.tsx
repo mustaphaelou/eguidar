@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { lireLignesAdmin } from "@/lib/use-cases/lecture-structure"
+import { lireEcranAdmin } from "@/lib/use-cases/lecture-structure"
 import { deleteCategoryAction } from "@/app/admin/categories/actions"
 
 export const metadata: Metadata = {
@@ -34,24 +34,28 @@ export default async function AdminCategoriesPage() {
   // écrite ici mais tenue par le module : l'écran rend les lignes qu'il lui rend,
   // et ne construit plus ni arbre, ni profondeur, ni tri, ni partition. Ce qu'il
   // garde, c'est le rendu — le retrait que vaut une profondeur, la marque hors
-  // arbre, et la table des noms que la boîte lit pour nommer ses cibles
-  // (#564, ADR-0030).
+  // arbre, la table des noms que la boîte lit pour nommer ses cibles, et le
+  // raccord entre une ligne et les deux listes de sa boîte (#564, ADR-0030).
   //
-  // **Une seule porte, donc une seule lecture, une seule marche** : les deux
-  // listes de cibles que reçoit la boîte sont sur la même ligne que les compteurs
-  // et la profondeur. Les demander à part aurait relu la table et — bien pire —
+  // **Une seule porte, donc une seule lecture, une seule marche** : les lignes et
+  // les cibles que reçoit chaque boîte sortent du même retour, calculées sur la
+  // même marche. Les demander à deux portes aurait relu la table et — bien pire —
   // aurait rebâti une marche par ligne, donc autant de retenues, donc **autant de
   // lignes de journal pour un seul cycle** : un avertissement qui aurait annoncé
   // à un éditeur autant de corruptions à réparer qu'il y a de lignes sur l'écran
   // (ADR-0030).
-  const lignes = await lireLignesAdmin()
-  // La table des noms, bâtie **une fois** pour toutes les boîtes de la page. C'est
-  // un objet de chaînes, donc il franchit la couture (ADR-0028) — un `Map` ou une
+  const { lignes, cibles } = await lireEcranAdmin()
+  // La table des noms, bâtie **une fois** pour toutes les boîtes de la page. C'est un
+  // objet de chaînes, donc il franchit la couture (ADR-0028) — un `Map` ou une
   // fonction ne la franchirait pas. Le repli sur l'identifiant est dans la boîte :
   // une cible sans nom reste affichable, et elle reste vraie.
   const nomsStructures: Record<string, string> = Object.fromEntries(
     lignes.map((ligne) => [ligne.id, ligne.name])
   )
+  // Les cibles, indexées une fois pour toutes les lignes. C'est un **rangement**,
+  // pas une règle : le module garantit une cible par Structure, dans l'ordre de
+  // ses lignes, donc chaque ligne trouve la sienne sans qu'on ait à le chercher.
+  const ciblesParStructure = new Map(cibles.map((cible) => [cible.id, cible]))
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,90 +82,97 @@ export default async function AdminCategoriesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {lignes.map((ligne) => (
-              <TableRow key={ligne.id}>
-                <TableCell>
-                  <div
-                    className="flex items-center gap-3"
-                    style={{
-                      paddingLeft: ligne.profondeur * RETRAIT_PAR_NIVEAU,
-                    }}
-                  >
-                    {ligne.image ? (
-                      <Image
-                        src={ligne.image}
-                        alt=""
-                        width={40}
-                        height={40}
-                        className="size-10 shrink-0 rounded-lg border object-cover"
-                      />
-                    ) : null}
-                    <div className="flex flex-col">
-                      <span className="font-medium">{ligne.name}</span>
-                      {ligne.horsArbre ? (
-                        /* La marque du glossaire, et la seule : une Structure
+            {lignes.map((ligne) => {
+              // Les deux listes de cette boîte. Une cible par Structure est la
+              // promesse du module — la projection en rend autant qu'il y a de
+              // lignes, dans le même ordre — donc le `!` porte sur un fait que la
+              // porte de lecture vient de rendre, pas sur une recherche.
+              const cible = ciblesParStructure.get(ligne.id)!
+              return (
+                <TableRow key={ligne.id}>
+                  <TableCell>
+                    <div
+                      className="flex items-center gap-3"
+                      style={{
+                        paddingLeft: ligne.profondeur * RETRAIT_PAR_NIVEAU,
+                      }}
+                    >
+                      {ligne.image ? (
+                        <Image
+                          src={ligne.image}
+                          alt=""
+                          width={40}
+                          height={40}
+                          className="size-10 shrink-0 rounded-lg border object-cover"
+                        />
+                      ) : null}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{ligne.name}</span>
+                        {ligne.horsArbre ? (
+                          /* La marque du glossaire, et la seule : une Structure
                            hors arbre a une parente en base, mais aucune racine
                            ne mène à elle — « sous … » mentirait sur sa place,
                            et « Catégorie racine » sur sa nature. Le rouge
                            discret du `Badge` la lit comme ce qu'elle est, une
                            corruption à réparer, et non comme un compte. */
-                        <Badge variant="destructive">hors arbre</Badge>
-                      ) : ligne.parentId ? (
-                        <span className="text-sm text-muted-foreground">
-                          sous {ligne.nomParente ?? "catégorie inconnue"}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          Catégorie racine
-                        </span>
-                      )}
+                          <Badge variant="destructive">hors arbre</Badge>
+                        ) : ligne.parentId ? (
+                          <span className="text-sm text-muted-foreground">
+                            sous {ligne.nomParente ?? "catégorie inconnue"}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            Catégorie racine
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="font-mono text-sm text-muted-foreground">
-                    {ligne.slug}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {ligne.nombreProduits > 0 ? (
-                    <Badge>{ligne.nombreProduits}</Badge>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">0</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {ligne.nombreEnfants > 0 ? (
-                    <span className="text-sm text-muted-foreground">
-                      {ligne.nombreEnfants}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-sm text-muted-foreground">
+                      {ligne.slug}
                     </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      render={<Link href={`/admin/categories/${ligne.id}`} />}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Modifier
-                    </Button>
-                    <DeleteCategoryButton
-                      categoryId={ligne.id}
-                      categoryName={ligne.name}
-                      childCount={ligne.nombreEnfants}
-                      productCount={ligne.nombreProduits}
-                      ciblesProduits={ligne.ciblesProduits}
-                      ciblesSousCategories={ligne.ciblesSousCategories}
-                      nomsStructures={nomsStructures}
-                      action={deleteCategoryAction}
-                    />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell>
+                    {ligne.nombreProduits > 0 ? (
+                      <Badge>{ligne.nombreProduits}</Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {ligne.nombreEnfants > 0 ? (
+                      <span className="text-sm text-muted-foreground">
+                        {ligne.nombreEnfants}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        render={<Link href={`/admin/categories/${ligne.id}`} />}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Modifier
+                      </Button>
+                      <DeleteCategoryButton
+                        categoryId={ligne.id}
+                        categoryName={ligne.name}
+                        childCount={ligne.nombreEnfants}
+                        productCount={ligne.nombreProduits}
+                        ciblesProduits={cible.produits}
+                        ciblesSousCategories={cible.sousCategories}
+                        nomsStructures={nomsStructures}
+                        action={deleteCategoryAction}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       )}

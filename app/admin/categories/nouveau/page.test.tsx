@@ -49,6 +49,7 @@ vi.mock("@/components/admin/category-form", () => ({
 
 import NewCategoryPage from "./page"
 import { prisma } from "@/lib/db"
+import { compterLesLecturesDeLaStructure } from "@/test/lecture-structure-recette"
 import {
   creerArbrePropre,
   creerStructure,
@@ -111,16 +112,6 @@ function optionsDuRendu(html: string): { id: string; name: string }[] {
         return { id: id ?? "", name: nom ?? "" }
       })
     : []
-}
-
-/**
- * Une **lecture complète** : le `findMany` que rien ne borne, celui qui parcourt
- * la table entière. Ce qui borne une lecture, c'est son `where` — un `where`
- * vide, lui, vaut « toutes les rangées » chez Prisma et compte donc.
- */
-function estUneLectureComplete(args: { where?: object } | undefined): boolean {
-  if (!args?.where) return true
-  return Object.keys(args.where).length === 0
 }
 
 beforeAll(async () => {
@@ -224,19 +215,14 @@ describe("NewCategoryPage — le sélecteur de parente", () => {
   })
 
   it("lit la Structure une fois par rendu", async () => {
-    const espion = vi.spyOn(prisma.category, "findMany")
-    try {
-      await rendreLEcran()
+    const { lectures } = await compterLesLecturesDeLaStructure(rendreLEcran)
 
-      // Une lecture, pas deux : l'écran a une question, donc une porte. Une
-      // seconde lecture de la table serait un second propriétaire du même fait —
-      // exactement ce que la Lecture de la Structure existe pour supprimer
-      // (US 23, #564).
-      expect(
-        espion.mock.calls.filter(([args]) => estUneLectureComplete(args))
-      ).toHaveLength(1)
-    } finally {
-      espion.mockRestore()
-    }
+    // Une lecture, pas deux : l'écran a une question, donc une porte. Une
+    // seconde lecture de la table serait un second propriétaire du même fait —
+    // exactement ce que la Lecture de la Structure existe pour supprimer
+    // (US 23, #564). Le compteur est celui de `@/test/lecture-structure-recette`,
+    // partagé avec la boutique et avec les deux écrans d'Administration : c'est la
+    // même mesure partout, donc un écart de lecture se lit d'un écran à l'autre.
+    expect(lectures).toBe(1)
   })
 })

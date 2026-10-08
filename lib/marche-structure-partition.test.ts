@@ -9,6 +9,7 @@ import {
   type PartitionStructure,
   type StructureLue,
 } from "@/lib/marche-structure"
+import { eprouverLOrdreDuModule } from "@/test/ordre-structures-recette"
 
 /**
  * La primitive de la Structure et son complément, par la porte pure.
@@ -115,6 +116,35 @@ function faitsPretes(structures: readonly StructureLue[]): {
     partitionDepuis: (id) => complementDepuis(marche, liens, id),
   }
 }
+
+/**
+ * **L'ordre du cœur, éprouvé par la recette partagée.**
+ *
+ * Les trois listes du cœur se rendent dans l'ordre du module, et cet ordre est
+ * **le sien** : le comparateur est écrit une fois dans `lib/marche-structure.ts`,
+ * le module de lecture le reprend tel quel, et les deux se tiennent donc par les
+ * mêmes épreuves. Sans cela, les cibles d'une page et les lignes de la même page
+ * auraient pu se classer différemment — c'est-à-dire que deux comparateurs
+ * coexistent, tous deux « corrects », et qu'aucune preuve ne les rapprochait.
+ * L'histoire complète est dans
+ * [`lecture-structure.test.ts`](../../lib/use-cases/lecture-structure.test.ts),
+ * au bandeau « l'ordre du module ».
+ *
+ * **L'identifiant absent est le sujet de la partition**, donc un sujet qui n'existe
+ * pas : « tout sauf soi » rend alors toute la table, et la liste des
+ * sous-catégories la même — deux listes qui n'ont plus rien à écarter. C'est la
+ * façon la plus simple de faire porter à une partition l'ordre de la table
+ * entière, sans écrire une fixture de plus ici.
+ */
+eprouverLOrdreDuModule({
+  nom: "descendanceDe — la primitive",
+  projeter: (faits) => descendanceDe(faits, "racine"),
+})
+
+eprouverLOrdreDuModule({
+  nom: "complementDe — les cibles",
+  projeter: (faits) => complementDe(faits, "absente-des-faits").horsSoi,
+})
 
 /** La différence de deux listes, comme un ensemble : `a` moins `b`. */
 function difference(a: readonly string[], b: readonly string[]): Set<string> {

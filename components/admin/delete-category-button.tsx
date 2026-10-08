@@ -41,12 +41,13 @@ interface ComptesStructure {
  * **Ce que la boîte reçoit : des faits, et rien d'appelable** (#573, ADR-0030).
  *
  * Les deux listes de cibles sont les deux moitiés d'une **partition**, que la page
- * a calculée sur la même lecture qui lui a rendu ses lignes : `ciblesProduits`
- * vaut toute Structure autre que celle-ci — un Produit atterrit où l'on dit,
- * descendantes comprises (US 16) — et `ciblesSousCategories` vaut ce qui ne
- * descend pas d'elle, parce que l'y rattacher refermerait la boucle sur elle-même
- * (US 15). Les deux sont triées dans l'ordre que le cœur promet, et la boîte ne
- * les trie pas : elle rend ce qu'elle a reçu, dans l'ordre reçu.
+ * a calculée sur la même lecture qui lui a rendu ses lignes — la porte rend les
+ * deux, et les deux sont d'une forme étroite à part : `ciblesProduits` vaut toute
+ * Structure autre que celle-ci — un Produit atterrit où l'on dit, descendantes
+ * comprises (US 16) — et `ciblesSousCategories` vaut ce qui ne descend pas d'elle,
+ * parce que l'y rattacher refermerait la boucle sur elle-même (US 15). Les deux
+ * sont triées dans l'ordre que le module promet, et la boîte ne les trie pas :
+ * elle rend ce qu'elle a reçu, dans l'ordre reçu.
  *
  * **Ce qui franchit la couture, ce sont des chaînes** (ADR-0028) : des
  * identifiants, et une table de noms pour que l'éditeur reconnaisse où vont ses

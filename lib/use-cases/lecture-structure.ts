@@ -40,6 +40,21 @@
  * déduplication d'une requête à l'autre est celle de l'entrée `"use cache"`
  * qui l'appelle, pas la sienne (#564, § hors périmètre).
  *
+ * **Une projection bâtit donc sa marche, et elle ne la partage avec personne.**
+ * Les sept projections de ce module en bâtissent une chacune : elles ne sont pas
+ * appelées ensemble, mais par sept écrans différents, et une marche partagée
+ * supposerait une portée plus large que l'exécution — c'est-à-dire un état de
+ * module, que ce module refuse par la règle ci-dessus. Le prix en est mesuré :
+ * une ligne de journal par cycle et par écran qui le traverse, ce qui est
+ * exactement ce que l'avertissement promet de dire.
+ *
+ * **La règle « une porte par écran » est gardée, pas seulement écrite.**
+ * `lib/use-cases/lecture-structure-frontiere.test.ts` dérive les portes de la
+ * source de ce module — les `export async function lire…` — et exige qu'aucune
+ * page du dépôt n'en appelle deux, avec une contre-épreuve écrite dans un vrai
+ * fichier ; les écrans d'Administration mesurent en plus leurs lectures au rendu
+ * (US 23, US 29).
+ *
  * **Le surensemble porte six faits, et c'est tout ce dont les projections ont
  * besoin.** L'identité, le nom, le slug, l'image, le lien vers la parente, et
  * le nombre de **Produits directs**. Le nom n'y est pas pour l'affichage : c'est
@@ -61,19 +76,41 @@
  * la table entière, sans `where`, donc `_count.children` et « les Structures dont
  * le lien est cette rangée » sont le même nombre, et `parent.name` et la carte
  * des noms sont le même texte — et personne ne paie un fait qu'il n'a pas
- * demandé. Le surensemble reste donc à six faits, et chaque projection rend la
- * forme **étroite** que sa surface consomme : une surface ne reçoit pas plus
- * qu'elle ne l'a demandé (US 32).
+ * demandé.
+ *
+ * **Chaque projection rend la forme **étroite** que sa surface consomme, et une
+ * porte peut en rendre plus d'une.** Le surensemble reste donc à six faits, et la
+ * liste d'Administration le montre mieux que personne : ses lignes portent le nom
+ * de la parente, les compteurs, la profondeur et la marque hors arbre, et **rien
+ * d'autre**. Les deux listes que la boîte de suppression de chaque rangée propose
+ * sont un fait d'une autre nature — des identifiants, et deux fois plus longs que
+ * la ligne qui les reçoit — et elles ont donc leur **propre forme**,
+ * `CiblesSuppression`, rendue par la même marche dans le même retour. Les porter
+ * sur la ligne aurait fait porter à chaque rangée les cibles de toutes les autres :
+ * une surface ne reçoit pas plus qu'elle n'a demandé (US 32).
+ *
+ * **Ce que cela ne fait pas, c'est supprimer le coût en props**, qui reste au
+ * carré du nombre de Structures : une boîte par ligne, une liste de cibles par
+ * boîte. Le spec l'a **consigné sans le traiter** — « une liste par Structure,
+ * donc des props au carré […] consigné, pas décidé » (ADR-0030, § Further Notes,
+ * « le coût, énoncé ») — et cette forme est **le lieu où il est énoncé** : passé
+ * deux cents Structures, la partition devrait être hissée dans un module client
+ * unique qui rendrait toutes les boîtes. Ce jour-là la forme se décide ici, dans
+ * ce module, et non dans une page.
  *
  * **L'ordre est une promesse du module, et il est tenu en JavaScript.** Le
  * déploiement n'épingle aucune collation, donc un `orderBy` de la base n'est pas
  * un ordre que le module puisse garder : deux serveurs de base versions
- * différentes rendraient deux catalogues. Le tri se fait donc ici, avec la
- * comparaison que le dépôt écrit déjà en deux endroits
- * (`app/admin/categories/page.tsx`, `lib/options-de-filtre.ts`). Deux
- * Structures de même nom se départagent par leur slug, qui est unique : sans
- * cela l'ordre total n'existerait pas, et la page se réordonnerait d'une
- * lecture à l'autre.
+ * différentes rendraient deux catalogues. Le tri se fait donc ici, avec le
+ * comparateur que le **cœur** exporte — le nom en français, départagé par
+ * l'identifiant, écrit une fois dans `lib/marche-structure.ts` — et non dans la
+ * requête. Deux Structures de même nom se départagent donc par leur identifiant,
+ * qui est unique : sans cela l'ordre total n'existerait pas, et la page se
+ * réordonnerait d'une lecture à l'autre. Le comparateur est **repris tel quel**
+ * plutôt que recopié ici : le cœur est le seul module qui ait à classer des
+ * identifiants, et une promesse d'ordre qui se réécrit par projection est une
+ * promesse que rien ne tient (US 5, US 31). Il est réexporté plus bas pour la même
+ * raison que la primitive.
  *
  * **Une boucle ne pend pas à une racine, et c'est ce qui rend le filtre
  * suffisant.** Chaque maillon d'un cycle a sa parente *dans* le cycle ; aucune
@@ -180,16 +217,19 @@
 import { prisma } from "@/lib/db"
 import {
   complementDepuis,
+  comparerParNom,
   descendanceDe,
+  liensDesStructures,
   marcheDesStructures,
   marcheStructure,
-  type LiensStructure,
 } from "@/lib/marche-structure"
 
 export {
   complementDe,
+  comparerParNom,
   descendanceDe,
   type PartitionStructure,
+  type StructureOrdonnee,
 } from "@/lib/marche-structure"
 
 /**
@@ -225,30 +265,53 @@ export interface NoeudAccueil {
 }
 
 /**
- * Ce que l'ordre du module classe : le nom d'une Structure et son slug. Les
- * projections qui rendent une liste ordonnée — l'arbre d'accueil, les lignes de
- * l'Administration, le sélecteur d'un formulaire et l'écran d'édition — comparent
- * donc **la même promesse**, écrite une fois, et non quatre comparateurs qui
- * pourraient diverger sans qu'aucune épreuve ne s'en aperçoive.
+ * L'ordre du module, repris du cœur tel quel : le nom en français, puis
+ * l'identifiant. `comparerParNom` est écrit une fois, dans
+ * `lib/marche-structure.ts`, et **ce n'est pas une commodité** — voir son
+ * commentaire, et l'ordre des sept rendus que la suite éprouve côte à côte
+ * (US 31).
  */
-interface StructureOrdonnee {
-  name: string
-  slug: string
-}
 
 /**
- * L'ordre que le module promet : le nom en français, puis le slug — unique, donc
- * total. Le tri est ici et non dans la requête, et le commentaire de l'en-tête
- * dit pourquoi.
+ * Les faits groupés par parente, et les racines à côté : les frères **déjà
+ * classés**, dans l'ordre du module.
+ *
+ * Deux projections en ont besoin — l'arbre d'accueil, qui range ses nœuds, et les
+ * lignes de l'Administration, qui les parcourt — et les deux le faisaient chacune
+ * de leur côté : deux regroupements, deux tris, donc deux occasions de diverger
+ * sans qu'aucune épreuve ne s'en aperçoive. C'est ici qu'il est écrit une fois,
+ * et il ne fait **rien d'autre** que regrouper et classer : le tri des hors arbre,
+ * le placement et la profondeur restent aux projections, qui ne se ressemblent pas
+ * sur ces trois points.
+ *
+ * **Une Structure dont le lien ne nomme aucune autre rangée est rendue comme une
+ * racine**, et non perdue : elle est présente en base, et c'est à l'écran de dire
+ * comment elle l'annonce. La clé étrangère garantit qu'une telle rangée n'existe
+ * pas côté base ; le cas ne vient que de la porte pure, où l'appelant peut ne pas
+ * couvrir toute la table.
  */
-function comparerDesFreres(a: StructureOrdonnee, b: StructureOrdonnee): number {
-  return (
-    a.name.localeCompare(b.name, "fr") || a.slug.localeCompare(b.slug, "fr")
-  )
-}
-
-function trierLesFreres(noeuds: NoeudAccueil[]): void {
-  noeuds.sort(comparerDesFreres)
+function regrouperParParente(structures: readonly FaitStructure[]): {
+  parId: Map<string, FaitStructure>
+  racines: FaitStructure[]
+  groupes: Map<string, FaitStructure[]>
+} {
+  const parId = new Map(structures.map((fait) => [fait.id, fait]))
+  const groupes = new Map<string, FaitStructure[]>()
+  const racines: FaitStructure[] = []
+  for (const fait of structures) {
+    const parente =
+      fait.parentId === null ? undefined : parId.get(fait.parentId)
+    if (parente === undefined) {
+      racines.push(fait)
+      continue
+    }
+    const groupe = groupes.get(parente.id)
+    if (groupe) groupe.push(fait)
+    else groupes.set(parente.id, [fait])
+  }
+  racines.sort(comparerParNom)
+  for (const groupe of groupes.values()) groupe.sort(comparerParNom)
+  return { parId, racines, groupes }
 }
 
 /**
@@ -326,23 +389,31 @@ export function projeterArbreAccueil(
     })
   }
 
-  const racines: NoeudAccueil[] = []
-  for (const fait of structures) {
-    if (horsArbre.has(fait.id)) continue
-    const noeud = noeuds.get(fait.id)!
-    // La clé étrangère garantit que la parente existe en base, donc qu'elle est
-    // dans le surensemble : une parente absente ne se présente pas. Elle ne
-    // peut pas non plus être hors arbre quand la Structure ne l'est pas —
-    // l'absence d'un parent dans l'implique l'absence de l'enfant — donc un
-    // nœud à qui il en manque ne se rencontre pas davantage.
+  // Les faits regroupés par parente, les frères déjà classés, et rien de plus :
+  // l'arbre d'accueil et la liste de l'Administration ont cette étape en commun, et
+  // elle est écrite une fois.
+  const { groupes, racines: faitsRacines } = regrouperParParente(
+    structures.filter((fait) => !horsArbre.has(fait.id))
+  )
+  const noeudDe = (fait: FaitStructure): NoeudAccueil => noeuds.get(fait.id)!
+
+  const racines = faitsRacines.map(noeudDe)
+  for (const groupe of groupes.values()) {
+    // Tous les enfants d'un groupe partagent la même parente — c'est ce qui fait
+    // qu'un groupe est un groupe — donc le lien du premier les nomme tous.
+    const fait = groupe[0]!
     const parente =
       fait.parentId === null ? undefined : noeuds.get(fait.parentId)
-    if (parente) parente.children.push(noeud)
-    else racines.push(noeud)
+    const enfants = groupe.map(noeudDe)
+    if (parente) parente.children.push(...enfants)
+    else racines.push(...enfants)
   }
 
-  trierLesFreres(racines)
-  for (const noeud of noeuds.values()) trierLesFreres(noeud.children)
+  // Les racines sont déjà classées — `regrouperParParente` les classe — sauf
+  // celles que le cas dégradé vient d'y ajouter à la suite : le tri final les
+  // remet dans l'ordre du module quoi qu'il arrive, pour que la promesse ne
+  // dépende pas du cas que l'appelant a passé.
+  racines.sort(comparerParNom)
   cumulerLesProduits(racines)
   return racines
 }
@@ -388,7 +459,7 @@ export async function lireArbreAccueil(): Promise<NoeudAccueil[]> {
 }
 
 /* ======================================================================== *
- * Les lignes de l'Administration (#567)                                     *
+ * L'écran de la liste des Structures (#567, #573)                            *
  * ======================================================================== *
  *
  * La liste d'Administration était la **seconde** implementation de la descente :
@@ -398,6 +469,15 @@ export async function lireArbreAccueil(): Promise<NoeudAccueil[]> {
  * d'accueil : même matière, même ordre, même règle de terminaison, et une seule
  * ligne de journal pour un cycle quel que soit le nombre de surfaces qui le
  * traverse.
+ *
+ * **L'écran rend deux formes, et c'est ce que la porte rend.** Les lignes d'une
+ * part — ce qu'une rangée affiche —, les cibles de suppression d'autre part — ce
+ * que la boîte de chaque rangée propose. Les deux sortent de la même lecture et de
+ * la même marche, donc l'écran ne paie qu'une porte ; mais elles ne se mélangent
+ * pas dans une forme large, parce qu'une ligne n'a rien à faire des cibles de sa
+ * voisine et qu'une projection qui rend le tout à chacun ferait porter au carré
+ * du nombre de Structures un fait que la rangée n'affiche pas (US 32). La
+ * frontière est donc dans **le retour**, pas dans le nombre de portes.
  */
 
 /**
@@ -417,20 +497,14 @@ export async function lireArbreAccueil(): Promise<NoeudAccueil[]> {
  * reste dans la ligne : c'est lui qui décide si elle annonce une parente ou une
  * racine, et une surface qui s'en passerait la devinerait.
  *
- * **Les deux listes de cibles sont la troisième question de l'écran**, et elles
- * ne sont pas ses lignes : ce sont les deux listes que la boîte de suppression de
- * la ligne propose, en identifiants, sans nom. La première accueille un Produit
- * et vaut **toute** Structure autre que celle-ci — une descendante comprise, sans
- * quoi déplacer un Produit serait plus astreint que déplacer une sous-catégorie ;
- * la seconde accueille une sous-catégorie et vaut ce qui ne descend pas d'elle,
- * parce que l'y rattacher refermerait la boucle sur elle-même. Elles sont donc le
- * complément de la primitive, rendu par ligne.
- *
- * **Le prix, énoncé au lieu d'être subi** : une liste par Structure, donc des
- * props au carré du nombre de Structures sur une page d'Administration. Un
- * catalogue de quelques centaines de Structures rend cela indifférent ; passé deux
- * cents, il faudrait hisser la partition dans un module client unique qui rendrait
- * toutes les boîtes. C'est consigné, pas décidé (ADR-0030, #564).
+ * **Ce que la ligne ne porte pas, et pourquoi.** Les deux listes de cibles que la
+ * boîte de suppression propose n'y sont pas : elles sont deux fois plus longues
+ * que la ligne, et ce sont des identifiants, pas des faits de la Structure. Une
+ * ligne qui les portait ferait porter à chaque rangée d'une page les cibles de
+ * toutes les autres — un fait qu'elle n'affiche pas et qu'aucun composant de
+ * ligne n'a à lire. Elles ont donc **leur propre forme**, `CiblesSuppression`, que
+ * la même projection rend au même endroit. L'écran les.range lui-même ; il rend
+ * des faits, et il ne décide de rien.
  */
 export interface LigneStructureAdmin {
   id: string
@@ -446,28 +520,73 @@ export interface LigneStructureAdmin {
   nombreEnfants: number
   profondeur: number
   horsArbre: boolean
-  /** Où peut aller un Produit : toute Structure sauf celle-ci. */
-  ciblesProduits: string[]
-  /** Où peut aller une sous-catégorie : ce qui ne descend pas d'elle. */
-  ciblesSousCategories: string[]
 }
 
 /**
- * Les lignes de la liste d'Administration, projetées sur des faits déjà en
- * mémoire — la porte pure. C'est elle qui porte l'ordre de la page, le
- * placement des Structures hors arbre, et les deux listes de cibles que la boîte
- * de suppression de chaque ligne reçoit ; leur preuve ne coûte donc plus de base
- * de données.
+ * Les deux listes que la boîte de suppression d'une rangée propose, et rien
+ * d'autre : l'identifiant de la rangée, puis ses deux listes.
+ *
+ * Ce sont les deux moitiés d'une **partition**, celle que le cœur pur calcule :
+ * la première accueille un Produit et vaut **toute** Structure autre que
+ * celle-ci — une descendante comprise, sans quoi déplacer un Produit serait plus
+ * astreint que déplacer une sous-catégorie (US 16) ; la seconde accueille une
+ * sous-catégorie et vaut ce qui ne descend pas d'elle, parce que l'y rattacher
+ * refermerait la boucle sur elle-même (US 15).
+ *
+ * **Trois faits, et c'est tout ce qui franchit la couture** : deux tableaux de
+ * chaînes, plus l'identifiant qui dit de quelle ligne ils sont. Aucune fonction,
+ * aucun prédicat, aucune marche — la règle vit dans le cœur, qui se prouve sans
+ * base, et la page n'a plus qu'à les nommer (ADR-0028, US 39, US 40).
+ */
+export interface CiblesSuppression {
+  /** La Structure de la ligne dont ces cibles sont les deux listes. */
+  id: string
+  /** Où peut aller un Produit : toute Structure sauf celle-ci. */
+  produits: string[]
+  /** Où peut aller une sous-catégorie : ce qui ne descend pas d'elle. */
+  sousCategories: string[]
+}
+
+/**
+ * Ce que la liste d'Administration rend à son écran : **les lignes qu'il affiche,
+ * et les cibles qu'il passe à chaque boîte**. Deux formes étroites, une seule
+ * lecture, une seule marche, une seule ligne de journal par cycle.
+ *
+ * Les cibles viennent dans l'**ordre de la lecture**, c'est-à-dire dans celui de la
+ * table comme elle a été lue — pas dans celui des lignes, qui est un pré-ordre et
+ * n'a pas la même place pour chaque Structure. Ce n'est donc **pas** une
+ * convention de jointure : la projection tient qu'il y a une cible par Structure,
+ * jamais deux, jamais aucune, et l'écran les joint par identifiant. Lui garderait
+ * l'ordre des lignes s'il le voulait, et rien dans la forme ne prétend le
+ * contraire.
+ *
+ * **Le prix en props reste au carré du nombre de Structures**, et il est
+ * énoncé plutôt que subi : une liste de cibles par ligne, sur une page qui a une
+ * ligne par Structure. Un catalogue de quelques centaines de Structures rend cela
+ * indifférent ; passé deux cents, il faudrait hisser la partition dans un module
+ * client unique qui rendrait toutes les boîtes. C'est consigné dans ADR-0030
+ * (§ Further Notes, « le coût, énoncé ») et **repris tel quel ici** : la forme
+ * étroite rend le prix lisible là où il se paie, et non dispersé sur chaque ligne.
+ */
+export interface EcranAdminStructure {
+  lignes: LigneStructureAdmin[]
+  cibles: CiblesSuppression[]
+}
+/**
+ * Ce que la liste d'Administration rend, projeté sur des faits déjà en mémoire —
+ * la porte pure. C'est elle qui porte l'ordre de la page, le placement des
+ * Structures hors arbre, et les deux listes de cibles que la boîte de suppression
+ * de chaque ligne reçoit ; leur preuve ne coûte donc plus de base de données.
  *
  * **L'ordre est ici, et il est pré-ordre.** Les frères sont triés par le nom en
- * français puis par le slug, et une Structure est rendue avant ses descendantes,
- * dont elle est le repère de lecture : un `flatMap` récursif sur des rangées que
- * la base rend dans **l'ordre de sa collation** ne produit un ordre que si les
- * frères sont triés au préalable — c'est ce tri-là qui doit survivre au
- * déplacement, contrairement à celui du compagnon hors arbre, qui n'existait que
- * pour rattraper ce que la collation de la base n'ordonnait pas comme la
- * comparaison française. Les deux vivent désormais ici, et ils sont un seul
- * ordre.
+ * français puis par l'identifiant — l'ordre du module, repris du cœur tel quel —
+ * et une Structure est rendue avant ses descendantes, dont elle est le repère de
+ * lecture : un `flatMap` récursif sur des rangées que la base rend dans **l'ordre
+ * de sa collation** ne produit un ordre que si les frères sont triés au préalable.
+ * C'est ce tri-là qui doit survivre au déplacement, contrairement à celui du
+ * compagnon hors arbre, qui n'existait que pour rattraper ce que la collation de la
+ * base n'ordonnait pas comme la comparaison française. Les deux vivent désormais
+ * ici, et ils sont un seul ordre.
  *
  * **Rien ne se perd, et c'est un changement de règle.** Une Structure dont le
  * `parentId` ne nomme aucune autre rangée n'est plus **oubliée** : elle est
@@ -481,21 +600,21 @@ export interface LigneStructureAdmin {
  * bâtirait une par ligne, donc autant de retenues, donc **autant de lignes de
  * journal pour le même cycle** — un avertissement qui annoncerait un cycle par
  * ligne alors qu'il n'y en a qu'un à réparer. Les liens sont donc séparés une
- * fois, la marche bâtie une fois, et la retenue qui tait le cycle sert à la fois
- * au sous-ensemble hors arbre, à la ligne de journal et à toutes les partitions.
+ * fois — par `liensDesStructures`, la porte du cœur, et non par une carte
+ * reécrite ici —, la marche bâtie une fois, et la retenue qui tait le cycle sert à
+ * la fois au sous-ensemble hors arbre, à la ligne de journal et à toutes les
+ * partitions.
  */
-export function projeterLignesAdmin(
+export function projeterEcranAdmin(
   structures: readonly FaitStructure[]
-): LigneStructureAdmin[] {
-  // **Les faits déjà séparés, une seule fois.** Les liens portent les deux listes
-  // de cibles — `parentParId` toutes les Structures à offrir, `noms` leur ordre —,
-  // donc la marche les lit, et `complementDepuis` s'en sert pour la même question
-  // sans rien relire.
-  const noms = new Map(structures.map((fait) => [fait.id, fait.name]))
-  const liens: LiensStructure = {
-    parentParId: new Map(structures.map((fait) => [fait.id, fait.parentId])),
-    noms,
-  }
+): EcranAdminStructure {
+  // **Les faits déjà séparés, une seule fois, et par le cœur.** Les liens portent
+  // les deux listes de cibles — `parentParId` toutes les Structures à offrir,
+  // `noms` leur nom et leur ordre —, donc la marche les lit, et `complementDepuis`
+  // s'en sert pour la même question sans rien relire. Les réécrire ici donnerait
+  // deux cartes des liens et deux cartes des noms : deux sources de vérité pour le
+  // même lien (ADR-0022).
+  const liens = liensDesStructures(structures)
   const marche = marcheStructure(liens)
   const horsArbre = new Set(marche.horsArbre())
 
@@ -516,52 +635,40 @@ export function projeterLignesAdmin(
     fait: FaitStructure,
     profondeur: number,
     hors: boolean
-  ): LigneStructureAdmin => {
-    // **Une seule descendance par ligne, prise sur la marche de la projection.**
-    // C'est la même règle que celle que la boîte se calculait à chaque rendu dans
-    // un composant client (#551, #573), et elle n'est écrite qu'ici et dans le
-    // cœur : la structure du formulaire ne la réécrira pas.
+  ): LigneStructureAdmin => ({
+    id: fait.id,
+    name: fait.name,
+    slug: fait.slug,
+    image: fait.image,
+    parentId: fait.parentId,
+    nomParente:
+      fait.parentId === null ? null : (liens.noms?.get(fait.parentId) ?? null),
+    nombreProduits: fait.produitsDirects,
+    nombreEnfants: enfantsParParente.get(fait.id) ?? 0,
+    profondeur,
+    horsArbre: hors,
+  })
+
+  // Les cibles, dans l'ordre des lignes. La partition est lue sur **la** marche de
+  // la projection : c'est la même règle que celle que la boîte se calculait à
+  // chaque rendu dans un composant client (#551, #573), et elle n'est écrite qu'ici
+  // et dans le cœur — la structure du formulaire ne la réécrira pas.
+  const cibles: CiblesSuppression[] = structures.map((fait) => {
     const partition = complementDepuis(marche, liens, fait.id)
     return {
       id: fait.id,
-      name: fait.name,
-      slug: fait.slug,
-      image: fait.image,
-      parentId: fait.parentId,
-      nomParente:
-        fait.parentId === null ? null : (noms.get(fait.parentId) ?? null),
-      nombreProduits: fait.produitsDirects,
-      nombreEnfants: enfantsParParente.get(fait.id) ?? 0,
-      profondeur,
-      horsArbre: hors,
-      ciblesProduits: partition.horsSoi,
-      ciblesSousCategories: partition.horsDescendance,
+      produits: partition.horsSoi,
+      sousCategories: partition.horsDescendance,
     }
-  }
+  })
 
-  // Les faits groupés par parente, puis les frères triés une fois. Un `flatMap`
-  // qui recursait sur les faits tels que la base les rendait — donc dans l'ordre de
-  // sa collation — produirait une descente dont les frères sont dans cet ordre ;
-  // les trier ici est ce qui fait du regroupement l'ordre promis.
-  const faits = new Map(structures.map((fait) => [fait.id, fait]))
-  const groupes = new Map<string, FaitStructure[]>()
-  const racines: FaitStructure[] = []
-  for (const fait of structures) {
-    // La marche a déjà classé : hors arbre, une Structure n'appartient à aucune
-    // branche et se rend à la suite, une fois.
-    if (horsArbre.has(fait.id)) continue
-    const parente =
-      fait.parentId === null ? undefined : faits.get(fait.parentId)
-    if (parente === undefined) {
-      racines.push(fait)
-      continue
-    }
-    const groupe = groupes.get(parente.id)
-    if (groupe) groupe.push(fait)
-    else groupes.set(parente.id, [fait])
-  }
-  racines.sort(comparerDesFreres)
-  for (const groupe of groupes.values()) groupe.sort(comparerDesFreres)
+  // Les faits groupés par parente, les frères déjà classés, une fois — voir
+  // `regrouperParParente`, que l'arbre d'accueil consomme aussi. La marche a
+  // classé avant : hors arbre, une Structure n'appartient à aucune branche et se
+  // rend à la suite, une fois.
+  const { groupes, racines } = regrouperParParente(
+    structures.filter((fait) => !horsArbre.has(fait.id))
+  )
 
   // La descente, sur une pile explicite : une chaîne de plusieurs milliers de
   // maillons est une forme ordinaire ici, et une descente récursive — celle que
@@ -588,22 +695,24 @@ export function projeterLignesAdmin(
   // dans aucun groupe.
   const horsLignes = structures
     .filter((fait) => horsArbre.has(fait.id))
-    .sort(comparerDesFreres)
+    .sort(comparerParNom)
     .map((fait) => ligneDe(fait, 0, true))
 
-  return [...lignes, ...horsLignes]
+  return { lignes: [...lignes, ...horsLignes], cibles }
 }
 
 /**
- * Les lignes de la liste d'Administration — la porte de lecture.
+ * L'écran de la liste des Structures — la porte de lecture.
  *
  * Une exécution, une lecture, une marche, une ligne par cycle : c'est la
  * surface qui rend la corruption visible à un être humain, donc celle dont le
- * journal doit dire juste. L'écran appelle cette méthode une fois et ne construit
- * plus de marche — il ne lui reste qu'à rendre les lignes.
+ * journal doit dire juste. L'écran appelle cette méthode **une fois** et ne
+ * construit plus de marche — il ne lui reste qu'à rendre les lignes, et à passer
+ * à chaque boîte les deux listes que cette même lecture a calculées. Deux portes
+ * auraient relu la table et dit le cycle deux fois (ADR-0030).
  */
-export async function lireLignesAdmin(): Promise<LigneStructureAdmin[]> {
-  return projeterLignesAdmin(await lireToutesLesStructures())
+export async function lireEcranAdmin(): Promise<EcranAdminStructure> {
+  return projeterEcranAdmin(await lireToutesLesStructures())
 }
 
 /* ======================================================================== *
@@ -616,7 +725,7 @@ export async function lireLignesAdmin(): Promise<LigneStructureAdmin[]> {
  *
  * **Elle ne vient pas de la liste d'Administration, et c'est un choix.** Réduire
  * `LigneStructureAdmin` aurait été la voie courte — la liste existe déjà, et
- * `{ id, name }` s'en extrait en deux properties. Ce serait une faute, et pas
+ * `{ id, name }` s'en extrait en deux propriétés. Ce serait une faute, et pas
  * seulement une maladresse : le formulaire payerait alors deux compteurs et un
  * nom de parente qu'il n'affiche pas, et surtout **chaque appelant devrait
  * réduire la liste lui-même**, donc la forme étroite à sa guise — et l'exigence
@@ -652,13 +761,13 @@ export interface OptionStructure {
  * Les options d'un sélecteur de Structure, projetées sur des faits déjà en
  * mémoire — la porte pure.
  *
- * **Le tri passe avant la réduction, et non après.** Le départage par le slug
- * n'a plus de champ où se voir dans la forme rendue, donc le réduire d'abord
- * reviendrait à le jeter avec le reste : deux Structures de même nom sortiraient
- * alors dans l'ordre du tri instable du moteur, et l'ordre total que le module
- * promet aux deux autres projections disparaîtrait ici sans qu'on le voie. On
- * classe donc sur les faits, qui portent le nom et le slug, puis on rend la
- * forme étroite.
+ * **Le tri passe avant la réduction, et non après.** Le départage des Structures de
+ * même nom n'a plus de champ où se voir dans la forme rendue, donc le réduire
+ * d'abord reviendrait à le jeter avec le reste : deux Structures de même nom
+ * sortiraient alors dans l'ordre du tri instable du moteur, et l'ordre total que
+ * le module promet aux autres projections disparaîtrait ici sans qu'on le voie. On
+ * classe donc sur les faits — qui portent le nom et l'identifiant que le
+ * comparateur regarde — puis on rend la forme étroite.
  *
  * Une copie avant le tri, parce que les faits appartiennent à la lecture qui
  * les a reçus : les classer sur place les classerait pour la projection qui les
@@ -667,7 +776,7 @@ export interface OptionStructure {
 export function projeterOptionsSelecteur(
   structures: readonly FaitStructure[]
 ): OptionStructure[] {
-  return [...structures].sort(comparerDesFreres).map((fait) => ({
+  return [...structures].sort(comparerParNom).map((fait) => ({
     id: fait.id,
     name: fait.name,
   }))
@@ -749,8 +858,13 @@ export interface StructureEditable {
 export interface EcranEditionStructure {
   /** La Structure éditée, dans la forme que le formulaire rend. */
   structureEditee: StructureEditable
-  /** Toutes les Structures, par identifiant et nom, dans l'ordre du module. */
-  candidates: { id: string; name: string }[]
+  /**
+   * Toutes les Structures, par identifiant et nom, dans l'ordre du module. La
+   * forme est celle d'une option de sélecteur — les deux seuls faits qu'un
+   * formulaire sait afficher — et non un type déclaré ici : deux listes de
+   * `{ id, name }` écrites à deux endroits seraient deux copies d'un même fait.
+   */
+  candidates: OptionStructure[]
   /** La Structure et ses descendantes : ce qu'un éditeur ne peut pas choisir. */
   parentesExclues: string[]
 }
@@ -794,12 +908,13 @@ export function projeterEcranEdition(
     },
     // La table entière, dans l'ordre que le module promet — le même comparateur
     // que pour l'arbre d'accueil, la liste d'Administration et le sélecteur d'un
-    // formulaire, donc une seule promesse d'ordre pour quatre surfaces. Elle
+    // formulaire, donc une seule promesse d'ordre pour toutes les surfaces. Elle
     // n'est pas diminuée de la branche : c'est le formulaire qui soustrait, et le
     // module rend donc des faits, pas un verdict.
-    candidates: [...structures]
-      .sort(comparerDesFreres)
-      .map((candidat) => ({ id: candidat.id, name: candidat.name })),
+    candidates: [...structures].sort(comparerParNom).map((candidat) => ({
+      id: candidat.id,
+      name: candidat.name,
+    })),
     parentesExclues: descendanceDe(structures, id),
   }
 }
@@ -885,14 +1000,25 @@ export interface MaillonAriane {
   slug: string
 }
 
+/**
+ * **Une Structure telle qu'un lien la rend** : l'identifiant, le nom, le slug —
+ * l'adresse que le lien suit — et l'image. C'est la forme des deux seules réponses
+ * de la page qui sont des liens : la Structure demandée et chacune de ses
+ * sous-catégories. La **déclarer une fois** n'est pas une décoration : deux types
+ * `{ id, name, slug, image }` écrits à deux endroits seraient deux copies d'un
+ * même fait, donc deux occasions de divergir sans qu'une épreuve ne s'en aperçoive
+ * (ADR-0022).
+ */
+export interface StructureLiee {
+  id: string
+  name: string
+  slug: string
+  image: string | null
+}
+
 export interface PageCategorie {
   /** La Structure demandée, dans la forme **étroite** que la page rend. */
-  categorie: {
-    id: string
-    name: string
-    slug: string
-    image: string | null
-  }
+  categorie: StructureLiee
   /**
    * Le fil d'Ariane : la racine d'abord, la Structure demandée **en dernier**,
    * et chaque maillon une fois. C'est l'ordre que la Marche promet déjà, rendu
@@ -900,12 +1026,7 @@ export interface PageCategorie {
    */
   filAriane: MaillonAriane[]
   /** Les sous-catégories **directes**, dans l'ordre que le module promet. */
-  enfants: {
-    id: string
-    name: string
-    slug: string
-    image: string | null
-  }[]
+  enfants: StructureLiee[]
   /**
    * Les identifiants du filtre `categoryId: { in: … }` : la Structure et chacune
    * de ses descendantes, **chacune une fois** — la garantie de la règle de
@@ -920,26 +1041,23 @@ export interface PageCategorie {
 }
 
 /**
- * Les faits indexés par identifiant **et** par slug, bâtis une fois pour toute la
- * projection.
+ * Les faits indexés par identifiant, bâtis une fois pour toute la projection.
  *
- * Les autres projections indexent par `id`, parce que c'est ainsi que le lien de
- * parenté se parcourt ; une page, elle, est appelée par son adresse. Les deux
- * index se construisent donc en une passe, et celui par slug ne sert qu'à
- * reconnaître la Structure demandée — le refaire à chaque besoin ferait payer à
- * la page une recherche linéaire par fait rendu.
+ * C'est ainsi que le lien de parenté se parcourt — et c'est aussi ainsi qu'une page
+ * remonte son fil : `ancetres` rend des identifiants, et il faut leur nom et leur
+ * slug. Les deux projections qui remontent un chemin partagent donc cet index, et
+ * il ne sert à rien d'autre.
+ *
+ * **L'autre index, celui par slug, n'existe plus.** Il ne servait qu'à reconnaître
+ * la Structure demandée, une fois par projection : le workbook d'identifiants le
+ * ferait aussi bien en une passe, sur une table déjà en mémoire, et le construire
+ * pour un seul usage était payer un index entier pour une lecture. C'est
+ * `projeterPageCategorie` qui le cherche, et il le cherche une fois.
  */
-function indexerLesFaits(structures: readonly FaitStructure[]): {
-  parId: Map<string, FaitStructure>
-  parSlug: Map<string, FaitStructure>
-} {
-  const parId = new Map<string, FaitStructure>()
-  const parSlug = new Map<string, FaitStructure>()
-  for (const fait of structures) {
-    parId.set(fait.id, fait)
-    parSlug.set(fait.slug, fait)
-  }
-  return { parId, parSlug }
+function indexerParId(
+  structures: readonly FaitStructure[]
+): Map<string, FaitStructure> {
+  return new Map(structures.map((fait) => [fait.id, fait]))
 }
 
 /**
@@ -956,9 +1074,14 @@ export function projeterPageCategorie(
   structures: readonly FaitStructure[],
   slug: string
 ): PageCategorie | null {
-  const { parId, parSlug } = indexerLesFaits(structures)
-  const fait = parSlug.get(slug)
+  // La Structure demandée est **trouvée**, pas lue : elle est un fait que la
+  // Lecture a déjà en mémoire, et une requête de plus ferait de la page un second
+  // propriétaire d'un même fait — celui que le déplacement vient de supprimer
+  // (#570). La recherche est linéaire et le reste du parcours aussi, donc elle ne
+  // coûte rien de plus que l'index qu'elle remplace.
+  const fait = structures.find((candidat) => candidat.slug === slug)
   if (!fait) return null
+  const parId = indexerParId(structures)
 
   // Une seule marche pour les deux traversées de sens opposé, donc une seule
   // ligne par cycle : la mémoire des cycles signalés vit dans la marche, et elle
@@ -992,7 +1115,7 @@ export function projeterPageCategorie(
     // place les classerait pour la projection qui les utiliserait ensuite.
     enfants: structures
       .filter((candidat) => candidat.parentId === fait.id)
-      .sort(comparerDesFreres)
+      .sort(comparerParNom)
       .map((enfant) => ({
         id: enfant.id,
         name: enfant.name,
@@ -1061,9 +1184,9 @@ export function projeterFilAriane(
   // par cycle, donc, comme pour les cinq autres formes.
   const marche = marcheDesStructures(structures)
   // Les faits par identifiant, parce que c'est le lien de parenté qu'on remonte
-  // et non une adresse qu'on cherche : la page de catégorie indexe aussi par
-  // slug, mais pour se reconnaître, et c'est le seul usage qu'elle en fait.
-  const { parId } = indexerLesFaits(structures)
+  // et non une adresse qu'on cherche : c'est le seul index que cette projection
+  // ait besoin de bâtir, et elle le partage avec la page de catégorie.
+  const parId = indexerParId(structures)
 
   const maillons: MaillonAriane[] = []
   for (const id of marche.ancetres(idStructure)) {

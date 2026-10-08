@@ -181,7 +181,7 @@ const PREAMBULE = /^(?:\s+|#[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\/)*/
 /**
  * Le prologue de directives **en entier** : la suite des chaînes littérales qui
  * ouvrent le fichier, séparées par du blanc et chacune suivie de son
- * point-virgule éventuel. Un itération du groupe exige au moins une paire de
+ * point-virgule éventuel. Une itération du groupe exige au moins une paire de
  * guillemets, donc le groupe ne peut pas boucler à vide.
  *
  * Ce que le prologue décide, et non la place d'une chaîne dans le fichier :
