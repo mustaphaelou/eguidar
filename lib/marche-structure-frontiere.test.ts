@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   atteignables,
+  directive,
   importeDe,
   sourcesDeProduction,
   type SourceProduction,
@@ -11,14 +12,28 @@ import {
  * Frontière client/serveur de la Marche de la Structure.
  *
  * `lib/marche-structure.ts` est le module neutre que ce travail ajoute, et sa
- * neutralité n'est pas une élégance : un de ses appelants est un composant
- * client (`components/admin/delete-category-button.tsx`, #551), qui doit
- * pouvoir l'importer sans tirer `pg` (`require('dns')`) dans le bundle
- * navigateur — la panne que `next build` (Turbopack) rend, et que
- * `carte-produit-frontiere.test.ts` et `formulaire-produit-frontiere.test.ts`
- * verrouillent déjà pour leurs modules. ADR-0030 le nomme comme le troisième
- * module de ce contrat, et désigne `formulaire-produit-frontiere.test.ts`
- * comme le modèle.
+ * neutralité n'est pas une élégance : le cœur doit rester importable des deux
+ * côtés, parce qu'une projection pure de la Structure peut être demandée par
+ * une surface cliente, et que le module qui les possèderait tous — la Lecture,
+ * `lib/use-cases/lecture-structure.ts` — lit la base et ne peut donc pas être
+ * atteint par un `"use client"` (ADR-0028, ADR-0030). Le contrat est le même que
+ * `lib/carte-produit.ts` (ADR-0022) et `lib/formulaire-produit.ts` (ADR-0026) ;
+ * ADR-0030 désigne `formulaire-produit-frontiere.test.ts` comme le modèle, et la
+ * dernière épreuve ci-dessous en reprend le geste.
+ *
+ * **Ce qui est arrivé à l'appelant client, et ce que la garde en dit maintenant.**
+ * La boîte de suppression traversait le cœur depuis #551, et c'était la raison
+ * pour laquelle sa neutralité était *actuelle* : un module `"use client"`
+ * l'atteignait pour de bon. #573 la lui retire — la boîte reçoit ses deux listes
+ * de cibles et la table des noms, que la page lui passe (US 40), et
+ * `descendDe` disparaît avec elle. L'amendement d'ADR-0030 consigne ce
+ * changement et désigne cette épreuve comme celle qui doit tomber ; elle est
+ * donc **retournée, pas affaiblie** — et l'amendement le dit aussi : là où elle
+ * affirmait qu'un client atteignait le cœur, elle affirme qu'aucun ne l'atteint,
+ * sur l'ensemble des modules clients déduits de leur directive. Un garde écrit sur une liste de
+ * noms s'allumerait sur un client neuf qui n'a rien à reprocher, et resterait
+ * muet sur celui qui importerait — c'est le piège nommé d'ADR-0028, et il vaut
+ * pour les gardes comme pour les actions.
  *
  * **Le graphe d'imports, jamais le nom du fichier.** `atteignables` suit les
  * imports **de valeur** — la sémantique du bundler — et s'arrête sur un module
@@ -44,16 +59,34 @@ const AIDE_FRONTIERE = "lib/use-cases/outils-frontiere.ts"
  * ou réduit à une signature, passerait sinon pour neutre. Les surfaces sont
  * celles que les appelants traversent, et `StructureLue` est la projection
  * qu'ils ont en main.
+ *
+ * **Trois de ces entrées sont l'ordre, et c'est ce qu'un cœur vidé
+ * n'emporterait pas avec lui.** `liensDesStructures` est la porte par laquelle
+ * le module de lecture entre — c'est par elle qu'il garde les liens pour
+ * toutes ses questions d'un coup —, `comparerParNom` est l'export qui porte la
+ * promesse d'ordre que le module rend sans la réécrire : **cinq** de ses
+ * projections classent par lui, et la sixième — le fil d'Ariane — rend un
+ * chemin, pas un classement. `StructureOrdonnee` en est la forme : **les deux** faits que
+ * l'ordre compare, l'identifiant et le nom. Un cœur vidé de son comparateur
+ * resterait neutre, donc passerait cette garde, et le dépôt perdrait sa
+ * promesse d'ordre sans qu'aucune ligne de journal ne le dise — le même
+ * défaut qu'une garde qui n'énonce pas ce qu'elle garde (ADR-0030, US 31).
  */
 const SYMBOLES = [
   "marcheStructure",
   "marcheDesStructures",
+  "liensDesStructures",
   "LiensStructure",
   "StructureLue",
   "MarcheStructure",
   "ancetres",
   "descendance",
   "horsArbre",
+  "StructureOrdonnee",
+  "comparerParNom",
+  "descendanceDe",
+  "complementDe",
+  "complementDepuis",
 ] as const
 
 /**
@@ -156,31 +189,40 @@ describe("Marche de la Structure — frontière client/serveur", () => {
     }
   })
 
-  it("le composant client traverse la Marche, et n'atteint ni la base ni une lecture serveur", () => {
-    // La couture n'a de sens que si le client la traverse vraiment (#551) :
-    // sans cette épreuve, le module pourrait rester neutre et n'être importé
-    // par aucune surface cliente — et `descendDe` pourrait revenir à la main.
+  it("aucun module client n'atteint la Marche, et le composant de suppression ne l'importe plus", () => {
+    // **L'inverse de ce que la garde affirmait avant #573, et sa forme
+    // présente.** La troisième épreuve disait « le composant client traverse la
+    // Marche » : elle prouvait que la neutralité était *actuelle*, qu'un
+    // `"use client"` l'atteignait pour de bon. Cette raison est retirée avec
+    // l'appelant — `components/admin/delete-category-button.tsx` reçoit désormais
+    // ses deux listes de cibles et la table des noms, que la page lui passe, et
+    // n'importe plus le cœur (US 40). L'amendement d'ADR-0030 le consigne.
+    //
+    // Ce qui reste n'est pas la même affirmation, et c'est pourquoi elle est
+    // écrite : **aucun module `"use client"` n'atteint le cœur, dans tout le dépôt.**
+    // Le graphe de valeur de la boîte de suppression — ce que le bundler
+    // mettrait dans le paquet navigateur — ne touche donc plus la Marche, ni la
+    // base, ni une lecture serveur, ni le client Prisma : un import imprudent y
+    // réintroduirait `pg` (`require('dns')`) et ferait tomber `next build`
+    // (Turbopack). Et aucun module atteint ne rouvre la porte par un voisin : ni le
+    // marqueur serveur, ni un module de requête ou de cache.
     const CLIENT = "components/admin/delete-category-button.tsx"
     expect(PAR_CHEMIN.has(CLIENT)).toBe(true)
+    expect(directive(sourceDe(CLIENT).source)).toBe("use client")
 
     const atteints = atteignables(CLIENT, PAR_CHEMIN)
-    expect(atteints.has(MODULE_NEUTRE)).toBe(true)
+    expect(atteints.has(MODULE_NEUTRE)).toBe(false)
 
-    // Le graphe de **valeur** du composant — ce que le bundler mettrait dans
-    // le paquet navigateur — ne touche ni la base, ni la lecture serveur du
-    // storefront, ni le client Prisma : un import imprudent y réintroduirait
-    // `pg` (`require('dns')`) et ferait tomber `next build` (Turbopack).
     for (const interdit of [
       BASE,
       "lib/use-cases/storefront.ts",
       "lib/use-cases/admin-structure.ts",
+      "lib/use-cases/lecture-structure.ts",
       "lib/generated/prisma/client.ts",
     ]) {
       expect(atteints.has(interdit), interdit).toBe(false)
     }
 
-    // Et aucun module atteint ne rouvre la porte par un voisin : ni le
-    // marqueur serveur, ni un module de requête ou de cache.
     for (const chemin of atteints) {
       const { source } = sourceDe(chemin)
       expect(source, chemin).not.toMatch(/^["']use server["']/m)
@@ -192,6 +234,25 @@ describe("Marche de la Structure — frontière client/serveur", () => {
       ]) {
         expect(importeDe(source, nom), `${chemin} → ${nom}`).toBe(false)
       }
+    }
+
+    // **Et dans tout le dépôt, pas seulement dans cette boîte.** Un `"use client"`
+    // qui atteindrait un jour le cœur romprait le contrat sans qu'aucune des
+    // épreuves ci-dessus ne le voie : chacune ne regarde qu'un chemin. La
+    // neutralité est un fait du module, elle se vérifie donc sur l'ensemble des
+    // clients, déduit de la directive et non d'une liste de noms — un garde écrit
+    // sur une liste s'allumerait sur un client neuf qui n'aurait rien à reprocher,
+    // et resterait muet sur celui qui importerait (ADR-0028).
+    const clients = SOURCES.filter(
+      ({ source }) => directive(source) === "use client"
+    )
+    expect(clients.length).toBeGreaterThan(0)
+    expect(clients.map(({ chemin }) => chemin)).toContain(CLIENT)
+    for (const { chemin } of clients) {
+      expect(
+        atteignables(chemin, PAR_CHEMIN).has(MODULE_NEUTRE),
+        `${chemin} → ${MODULE_NEUTRE}`
+      ).toBe(false)
     }
   })
 

@@ -12,11 +12,15 @@ import {
 
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
+import type { NoeudAccueil } from "@/lib/use-cases/lecture-structure"
+import {
+  compterLesLecturesDeLaStructure,
+  compterLesRequetesDeStructure,
+} from "@/test/lecture-structure-recette"
 import {
   fetchCategoryPageData,
   fetchHomeData,
   fetchProductPageData,
-  type CategoryNode,
 } from "@/lib/use-cases/storefront"
 import {
   creerStructure,
@@ -25,7 +29,7 @@ import {
 } from "@/test/structure-fixtures"
 
 /** Tous les slugs d'un arbre, à toute profondeur : ce que la page montre. */
-function slugsDeLArbre(nodes: CategoryNode[]): string[] {
+function slugsDeLArbre(nodes: NoeudAccueil[]): string[] {
   return nodes.flatMap((node) => [node.slug, ...slugsDeLArbre(node.children)])
 }
 
@@ -732,49 +736,22 @@ describe("storefront browse", () => {
     await expect(fetchProductPageData("produit-inconnu")).resolves.toBeNull()
   })
 
-  // La lecture de la Structure (#552) : « une lecture complète des liens par
-  // requête qui en a besoin ».
+  // La lecture de la Structure : « une lecture complète par requête **qui en a
+  // besoin** » (#552), et une seule quelle que soit la surface qui la demande
+  // (#564).
   //
   // Le nombre ne se lit pas dans le code, et il ne se voit pas non plus à
   // l'issue : deux lectures rendent exactement la même page, et sur une base
   // locale la seconde ne coûte ni une erreur ni une seconde d'horloge. La seule
   // mesure qui distingue « une lecture par page » de « une lecture par
   // traversée » — la forme d'avant #548 — est donc un comptage à la couture que
-  // `loadCategoryLinks` traverse, le client Prisma lui-même.
+  // la Lecture de la Structure traverse, le client Prisma lui-même.
   describe("une seule lecture complète de la Structure par page", () => {
-    /**
-     * Une **lecture complète** : le `findMany` que rien ne borne, celui qui
-     * parcourt la table entière — la lecture des liens de `loadCategoryLinks`.
-     *
-     * Ce qui borne une lecture, c'est son `where` : la requête des enfants d'une
-     * Structure (`where: { parentId }`) lit la table sans la parcourir, et ne
-     * compte donc pas. Un `where` vide, lui, vaut « toutes les rangées » chez
-     * Prisma : il compte.
-     */
-    function estUneLectureComplete(
-      args: { where?: object } | undefined
-    ): boolean {
-      if (!args?.where) return true
-      return Object.keys(args.where).length === 0
-    }
-
-    /** Le nombre de lectures complètes qu'une page a demandées, et son issue. */
-    async function compterLesLecturesDeLaStructure<T>(
-      rendre: () => Promise<T>
-    ): Promise<{ issue: T; lectures: number }> {
-      const espion = vi.spyOn(prisma.category, "findMany")
-      try {
-        const issue = await rendre()
-        return {
-          issue,
-          lectures: espion.mock.calls.filter(([args]) =>
-            estUneLectureComplete(args)
-          ).length,
-        }
-      } finally {
-        espion.mockRestore()
-      }
-    }
+    // Les deux compteurs — et la définition de ce qu'ils comptent — sont dans
+    // `@/test/lecture-structure-recette` : ils servent aussi aux écrans
+    // d'Administration, qui doivent payer une lecture pour les mêmes raisons que la
+    // boutique. Une copie locale par suite mesurerait deux choses différentes sous
+    // le même nom, et c'est le défaut que le partage supprime.
 
     // Le `beforeEach` de la suite supprime les Produits de ce `runId` : le
     // Produit mesuré est donc recréé à chaque épreuve, pas au montage.
@@ -789,6 +766,19 @@ describe("storefront browse", () => {
           { name: "Standard", sku: `SKU-${runId}-lu`, priceDelta: 0, stock: 1 },
         ],
       })
+    })
+
+    it("l'accueil lit la Structure une fois, par la Lecture", async () => {
+      // L'arbre d'accueil est la première surface à passer par la Lecture de la
+      // Structure, et c'est le même instrument qu'ici qui le compte. Deux
+      // lectures signifieraient que la boutique a gardé la sienne à côté de
+      // celle du module — donc deux propriétaires d'un même fait, ce que la
+      // Lecture existe pour supprimer (#564).
+      const { lectures } = await compterLesLecturesDeLaStructure(() =>
+        fetchHomeData()
+      )
+
+      expect(lectures).toBe(1)
     })
 
     it("la page de catégorie lit les liens une fois, et en sert ses deux traversées", async () => {
@@ -807,14 +797,44 @@ describe("storefront browse", () => {
       expect(issue!.categoryChain.map((c) => c.slug)).toEqual([cSlug("root")])
     })
 
-    it("la fiche Produit lit les liens une fois, pour son fil d'Ariane", async () => {
+    it("la page de catégorie n'adresse plus qu'une seule requête à la Structure", async () => {
+      // La mesure ci-dessus est **aveugle** à ce que #570 a retiré : elle ne
+      // compte que les `findMany` sans `where`, donc ni la rangée que la page
+      // faisait pour se reconnaître (`findUnique({ where: { slug } })`), ni la
+      // lecture des enfants (`where: { parentId }`). Trois requêtes, un « 1 ».
+      // Celle-ci compte tout, et le « 1 » qu'elle dit est le vrai.
+      const { issue, requetes } = await compterLesRequetesDeStructure(() =>
+        fetchCategoryPageData(cSlug("grand"))
+      )
+
+      // La rangée est un fait du surensemble que la Lecture a déjà lu : la
+      // chercher en mémoire ne coûte pas une requête, et une requête de plus
+      // ferait de la page le second propriétaire d'un fait qui a déjà le sien.
+      expect(requetes).toBe(1)
+      // Et la page rend toujours ce qu'elle rendait : la preuve n'est pas celle
+      // d'une page vide.
+      expect(issue!.category.slug).toBe(cSlug("grand"))
+      expect(issue!.categoryChain.map((c) => c.slug)).toEqual([
+        cSlug("root"),
+        cSlug("child"),
+        cSlug("grand"),
+      ])
+      expect(issue!.products.map((p) => p.slug)).toEqual([
+        pSlug("lecture-unique"),
+      ])
+    })
+
+    it("la fiche Produit lit la Structure une fois, par la Lecture, pour son fil d'Ariane", async () => {
       const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
         fetchProductPageData(pSlug("lecture-unique"))
       )
 
       expect(lectures).toBe(1)
       // Le fil d'Ariane est la seule traversée de cette page : la lecture qui
-      // l'a rendu est celle qui a construit la marche (#548).
+      // l'a rendu est celle de la Lecture de la Structure, qui a construit la
+      // marche (#548, #571). Une lecture de plus — celle que la boutique
+      // prenait pour elle-même — ferait de la fiche le second propriétaire d'un
+      // fait qui a déjà le sien.
       expect(issue!.categoryChain.map((c) => c.slug)).toEqual([
         cSlug("root"),
         cSlug("child"),
@@ -822,10 +842,15 @@ describe("storefront browse", () => {
       ])
     })
 
-    it("une fiche sans Structure ne paie aucune lecture des liens", async () => {
+    it("une fiche sans Structure ne paie aucune lecture de la Structure", async () => {
       // « … par requête **qui en a besoin** » : un Produit sans Structure n'a
-      // pas de fil d'Ariane à construire, donc pas de liens à lire — la lecture
-      // se paie à l'intérieur du garde, pas avant lui (ADR-0029, #548).
+      // pas de fil d'Ariane à construire, donc rien à demander à la Structure. Le
+      // garde est **avant** la porte de lecture, dans `fetchProductPageData` : une
+      // porte de lecture lit la table entière dès qu'on l'appelle, donc l'appeler
+      // pour rien ferait payer au cas commun une lecture dont il n'a rien à
+      // faire — et le Produit sans Structure est précisément le cas commun
+      // (ADR-0029, #548, US 25). Ce « 0 » est la preuve que le garde est au bon
+      // endroit : un `lireFilAriane` appelé avant lui ferait tomber le compte à 1.
       await creerDeuxProduitsSansStructure()
 
       const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
@@ -890,7 +915,8 @@ describe("storefront browse", () => {
       const detail = await fetchProductPageData(pSlug("cyclique"))
 
       expect(detail).not.toBeNull()
-      // La Marche s'arrête sur la revisite et rend ce qu'elle a remonté. Sa
+      // La Marche s'arrête sur la revisite et rend ce qu'elle a remonté — celle
+      // de la Lecture de la Structure, que la fiche ne bâtit plus (#571). Sa
       // dernière entrée reste la Structure du Produit : l'invariant du fil
       // d'Ariane — la catégorie courante en dernier — tient sur une chaîne
       // cyclique comme sur une autre.
@@ -950,11 +976,11 @@ describe("storefront browse", () => {
     })
 
     it("journalise le cycle une fois par requête, non une fois par traversée", async () => {
-      // La page croise le même cycle deux fois — la descendance qui décide des
-      // Produits, puis la remontée du fil d'Ariane — et une seule ligne doit
-      // sortir : deux instances de la Marche en auraient dit deux. C'est le
+      // La page de catégorie croise le même cycle deux fois — la descendance qui
+      // décide des Produits, puis la remontée du fil d'Ariane — et une seule ligne
+      // doit sortir : deux instances de la Marche en auraient dit deux. C'est le
       // critère de #548, et il tient à ce que la page construise **une** marche
-      // pour ses deux traversées, sur une seule lecture des liens.
+      // pour ses deux traversées, sur une seule lecture de la Structure.
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
       try {
         const page = await fetchCategoryPageData(cycle[0].slug)
@@ -964,12 +990,19 @@ describe("storefront browse", () => {
         expect(ligne).toContain(cycle[0].name)
         expect(ligne).toContain(cycle[1].name)
 
-        // La fiche Produit ne traverse que le fil d'Ariane : une ligne aussi,
-        // pour la même corruption.
+        // La fiche Produit ne pose qu'une question à la Structure — son fil
+        // d'Ariane — donc elle ne bâtit qu'une marche, donc **une** ligne aussi,
+        // pour la même corruption. Et la ligne nomme les Structures à réparer :
+        // deux pages qui atteignent la même boucle doivent dire la même chose,
+        // sinon l'éditeur ne sait pas quelles rangées ouvrir (#571, US 34).
         warn.mockClear()
         const detail = await fetchProductPageData(pSlug("cyclique"))
         expect(detail).not.toBeNull()
         expect(warn).toHaveBeenCalledTimes(1)
+        const ligneFiche = warn.mock.calls[0]!.join(" ")
+        expect(ligneFiche).toContain("[marche-structure]")
+        expect(ligneFiche).toContain(cycle[0].name)
+        expect(ligneFiche).toContain(cycle[1].name)
       } finally {
         warn.mockRestore()
       }

@@ -179,15 +179,36 @@ export type Directive = "use client" | "use server"
 const PREAMBULE = /^(?:\s+|#[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\/)*/
 
 /**
+ * Le prologue de directives **en entier** : la suite des chaînes littérales qui
+ * ouvrent le fichier, séparées par du blanc et chacune suivie de son
+ * point-virgule éventuel. Une itération du groupe exige au moins une paire de
+ * guillemets, donc le groupe ne peut pas boucler à vide.
+ *
+ * Ce que le prologue décide, et non la place d'une chaîne dans le fichier :
+ * `"use client"` est une directive parce qu'elle ouvre le fichier, pas parce
+ * que le littéral s'y trouve. Un module qui écrit la chaîne plus bas — dans une
+ * chaîne, un commentaire, une comparaison — ne réclame aucun côté, et une
+ * garde qui le lirait client le rangerait à tort du côté des réécritures RSC.
+ */
+const PROLOGUE = /^(?:\s*(["'])[^"'\n]*\1\s*;?)*/
+
+/**
  * La directive que la source **réclame en tête** — `"use client"`,
  * `"use server"` — ou `null` si elle n'en réclame aucune.
  *
- * Seule la première instruction compte, et c'est ce qui distingue une
- * réclamation d'une chaîne ordinaire : `"use client"` est une directive parce
- * qu'elle ouvre le fichier, pas parce que le littéral s'y trouve. Un module qui
- * écrit la chaîne plus bas — dans une chaîne, un commentaire, une comparaison
- * — ne réclame aucun côté, et une garde qui le lirait client le rangerait à
- * tort du côté des réécritures RSC.
+ * **Tout le prologue compte, pas sa première entrée.** Une source qui ouvre par
+ * `"use strict";` puis réclame `"use client"` réclame le côté client au même
+ * titre qu'une autre ; lire la seule première entrée la faisait passer pour
+ * neutre, et une garde de frontière qui en déduit ses modules clients était alors
+ * verte par une absence de classement et non par une absence d'arête — le défaut
+ * que toute contre-épreuve doit traquer. C'est le prologue qui distingue une
+ * réclamation d'une chaîne ordinaire, pas l'entrée : la première réclamation
+ * reconnue l'emporte, et une source sans prologue de directives n'en réclame
+ * aucune.
+ *
+ * La limite assumée : les entrées doivent se suivre, sans commentaire entre
+ * deux. Cacher une réclamation derrière un commentaire serait agir en mauvaise
+ * foi ; on ne s'y prête pas.
  *
  * Une garde de frontière se lit sur la directive, jamais sur le nom du
  * dossier ni sur une convention de nommage : un composant serveur rend
@@ -197,9 +218,8 @@ const PREAMBULE = /^(?:\s+|#[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\/)*/
  * et elle ne le fait que pour les modules qui le réclament.
  */
 export function directive(source: string): Directive | null {
-  const reclamation = source
-    .replace(PREAMBULE, "")
-    .match(/^(["'])(use client|use server)\1/)
+  const prologue = source.replace(PREAMBULE, "").match(PROLOGUE)?.[0] ?? ""
+  const reclamation = prologue.match(/([\"'])(use client|use server)\1/)
   return (reclamation?.[2] as Directive | undefined) ?? null
 }
 

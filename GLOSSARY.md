@@ -120,9 +120,10 @@ _Avoid_: tous les produits (as the concept name)
 
 **Structure**:
 L'arborescence de catégories du Catalogue telle que l'Administration la gère : la table `Category`
-en base et le module `lib/use-cases/admin-structure.ts` qui la lit et la mute. Une Structure est
-une catégorie de cet arbre, à laquelle les Produits se rattachent — sauf ceux dont elle a été
-supprimée, qui deviennent des **Produits sans Structure**.
+en base, la **Lecture de la Structure** qui la lit pour une page, et le module
+`lib/use-cases/admin-structure.ts` qui la mute. Une Structure est une catégorie de cet arbre, à
+laquelle les Produits se rattachent — sauf ceux dont elle a été supprimée, qui deviennent des
+**Produits sans Structure**.
 _Avoid_: category tree, arborescence de catégories, catégorie d'administration
 
 **Refus de la Structure**:
@@ -152,6 +153,23 @@ Une Structure corrompue que le cycle soustrait à toute autre : elle existe en b
 à aucune branche, donc ni à aucune page de l'Administration ni à l'arbre de la boutique. L'Administration
 la nomme ; la boutique se contente de journaliser (ADR-0030).
 _Avoid_: catégorie orpheline, catégorie cyclique, structure orpheline
+
+**Lecture de la Structure**:
+La lecture serveur de la Structure pour une page : un seul module
+(`lib/use-cases/lecture-structure.ts`) lit la table `Category` une fois par exécution, en tire une
+Marche de la Structure, et répond de ce que la marche a parcouru comme de ce qu'une surface
+demande — l'arbre d'accueil, les lignes de l'Administration, les options d'un sélecteur, le fil
+d'Ariane, une Structure et sa descendance, et le complément des deux. Chaque projection rend la
+forme **étroite** que sa surface consomme : une surface ne reçoit pas plus de faits qu'elle n'en a
+demandés — et une porte peut en rendre plus d'une, comme le fait l'écran de la liste d'Administration,
+à qui elle rend les lignes d'une part et, dans leur propre forme, les cibles de suppression de chaque
+boîte d'autre part. Elle rend des faits, jamais des verdicts : ce qu'un cycle signifie reste à celui qui
+l'appelle — l'Administration le nomme, la boutique dégrade (ADR-0030). L'ordre qu'elle promet — le nom
+en français, départagé par l'identifiant — est écrit une fois, dans le cœur de la Marche, et toutes ses
+surfaces le rendent sans le refaire (ADR-0030).
+Elle ne lit jamais dans une transaction : les lectures qu'une mutation doit juger sur des faits
+engagés restent avec elle, sous le verrou grossier (ADR-0027).
+_Avoid_: lecture de catégorie, category read, listAdminCategoriesWithCounts (comme nom du concept)
 
 **Recherche**:
 The act of finding products across the Catalogue by free-text query, in which every term of the
