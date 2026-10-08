@@ -41,9 +41,14 @@
  * qui l'appelle, pas la sienne (#564, § hors périmètre).
  *
  * **Une projection bâtit donc sa marche, et elle ne la partage avec personne.**
- * Les six projections de ce module en bâtissent une chacune — six `projeter…`,
- * une par porte `lire…` qui ne fait que la lire — : elles ne sont pas
- * appelées ensemble, mais par six écrans différents, et une marche partagée
+ * Cinq des six projections de ce module en bâtissent une — cinq `projeter…`,
+ * chacun avec sa porte `lire…` qui ne fait que la lire : quatre en bâtissent
+ * une elles-mêmes, la cinquième passe par la primitive du cœur. La sixième, le
+ * sélecteur d'un formulaire, n'en bâtit aucune **et c'est délibéré** : un
+ * sélecteur ne classe rien, donc un cycle ne l'atteint pas, et un éditeur doit
+ * pouvoir choisir une rangée corrompue pour la réparer ; c'est la liste
+ * d'Administration qui nomme le cycle, sur la surface faite pour le lire. Elles
+ * ne sont pas appelées ensemble, mais par six écrans différents, et une marche partagée
  * supposerait une portée plus large que l'exécution — c'est-à-dire un état de
  * module, que ce module refuse par la règle ci-dessus. Le prix en est mesuré :
  * une ligne de journal par cycle et par écran qui le traverse, ce qui est
@@ -273,8 +278,9 @@ export interface NoeudAccueil {
  * puis l'identifiant. `comparerParNom` est écrit une fois, dans
  * `lib/marche-structure.ts`, et **ce n'est pas une commodité** — voir son
  * commentaire, et l'accord que la suite éprouve entre les **six** formes qu'elle
- * fait rendre côte à côte, arbre, lignes, cibles, puces, options et candidates
- * (US 31). C'est ici que le module classe pour la première fois, et c'est donc
+ * fait rendre côte à côte — arbre, lignes, cibles, puces, options, candidates,
+ * soit les six projections qui classent, et pas le fil d'Ariane qui rend un
+ * chemin (US 31). C'est ici que le module classe pour la première fois, et c'est donc
  * ici que la promesse se prend ; les tris des projections le reprennent, ils ne
  * le réécrivent pas.
  *

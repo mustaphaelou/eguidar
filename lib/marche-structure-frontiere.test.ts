@@ -64,8 +64,9 @@ const AIDE_FRONTIERE = "lib/use-cases/outils-frontiere.ts"
  * n'emporterait pas avec lui.** `liensDesStructures` est la porte par laquelle
  * le module de lecture entre — c'est par elle qu'il garde les liens pour
  * toutes ses questions d'un coup —, `comparerParNom` est l'export qui porte la
- * promesse d'ordre que le module et ses six projections rendent sans la
- * réécrire, et `StructureOrdonnee` en est la forme : **les deux** faits que
+ * promesse d'ordre que le module rend sans la réécrire : **cinq** de ses
+ * projections classent par lui, et la sixième — le fil d'Ariane — rend un
+ * chemin, pas un classement. `StructureOrdonnee` en est la forme : **les deux** faits que
  * l'ordre compare, l'identifiant et le nom. Un cœur vidé de son comparateur
  * resterait neutre, donc passerait cette garde, et le dépôt perdrait sa
  * promesse d'ordre sans qu'aucune ligne de journal ne le dise — le même

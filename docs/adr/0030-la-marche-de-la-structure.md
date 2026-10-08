@@ -280,8 +280,9 @@ formulaire se classaient par slug. Une page pouvait donc servir deux catalogues 
 et US 31 — « une seule promesse d'ordre » — étaient fausses sans qu'aucune des deux règles ne soit fausse.
 
 **La décision : le comparateur est écrit une fois, dans le cœur, et le module le reprend tel quel.**
-`comparerParNom` est **exporté** par `marche-structure.ts` ; les six projections de la Lecture l'importent
-plutôt que d'écrire le leur. Le départage est l'**identifiant**, non le slug, parce que le cœur est neutre et
+`comparerParNom` est **exporté** par `marche-structure.ts` ; les projections de la Lecture qui classent
+l'importent plutôt que d'écrire le leur — **cinq** sur six : le fil d'Ariane rend un chemin, pas un
+classement, et n'a donc rien à comparer. Le départage est l'**identifiant**, non le slug, parce que le cœur est neutre et
 que `StructureLue` ne porte pas de slug : l'ajouter contraindrait chaque appelant — y compris une future
 surface cliente qui n'aurait qu'un `cuid` sous la main — à fournir un fait dont la comparaison n'a pas besoin.
 L'identifiant est unique, donc l'ordre reste total et ne dépend d'aucune machine, ce qui est exactement la
