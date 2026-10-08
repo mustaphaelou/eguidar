@@ -161,6 +161,108 @@ describe("marcheDesStructures — la marche d'une lecture", () => {
   })
 })
 
+describe("marcheStructure — racines et enfants directs (#585)", () => {
+  const LIENS = {
+    ...ARBRE_SAIN,
+    orpheline: "parente-absente",
+    amont: "boucle-a",
+    "boucle-a": "boucle-b",
+    "boucle-b": "boucle-a",
+  } as const
+
+  it("rend les racines que les liens déclarent, dans l'ordre du module", () => {
+    expect(marcheDe(LIENS).racines()).toEqual(["isolee", "racine"])
+
+    const noms = { isolee: "Zèbre", racine: "Alpha" }
+    expect(marcheDe(LIENS, noms).racines()).toEqual(["racine", "isolee"])
+  })
+
+  it("rend les enfants directs d'une Structure, dans l'ordre du module", () => {
+    const noms = { "enfant-a": "Zèbre", "enfant-b": "Écran" }
+    expect(marcheDe(LIENS, noms).enfantsDe("racine")).toEqual([
+      "enfant-b",
+      "enfant-a",
+    ])
+    expect(marcheDe(LIENS).enfantsDe("racine")).toEqual([
+      "enfant-a",
+      "enfant-b",
+    ])
+
+    expect(marcheDe(LIENS).enfantsDe("enfant-a")).toEqual(["petit-a"])
+    expect(marcheDe(LIENS).enfantsDe("isolee")).toEqual([])
+    expect(marcheDe(LIENS).enfantsDe("inconnue")).toEqual([])
+  })
+
+  it("ne fait pas racine d'une Structure dont la parente ne nomme aucune rangée", () => {
+    const marche = marcheDe(LIENS)
+
+    expect(marche.racines()).not.toContain("orpheline")
+    expect(marche.horsArbre()).toContain("orpheline")
+  })
+
+  it("répond de toute la fratrie, branche corrompue comprise", () => {
+    const marche = marcheDe(LIENS, { amont: "Amont", "boucle-b": "Boucle B" })
+
+    expect(marche.enfantsDe("boucle-a")).toEqual(["amont", "boucle-b"])
+  })
+
+  it("n'accorde aucun enfant hors arbre à une Structure dans l'arbre", () => {
+    const marche = marcheDe(LIENS)
+    const horsArbre = new Set(marche.horsArbre())
+    expect(horsArbre.size).toBeGreaterThan(0)
+
+    for (const id of Object.keys(LIENS)) {
+      if (horsArbre.has(id)) continue
+      for (const enfant of marche.enfantsDe(id)) {
+        expect(horsArbre.has(enfant), `${id} → ${enfant}`).toBe(false)
+      }
+    }
+  })
+
+  it("une descente partie des racines s'arrête d'elle-même, cycle compris", () => {
+    const marche = marcheDe({
+      racine: null,
+      enfant: "racine",
+      amont: "boucle-a",
+      "boucle-a": "boucle-b",
+      "boucle-b": "boucle-a",
+    })
+    const horsArbre = new Set(marche.horsArbre())
+
+    const atteints: string[] = []
+    const pile = [...marche.racines()]
+    while (pile.length > 0) {
+      const id = pile.pop()!
+      atteints.push(id)
+      for (const enfant of marche.enfantsDe(id)) pile.push(enfant)
+    }
+
+    expect(new Set(atteints).size).toBe(atteints.length)
+    expect(atteints).toEqual(["racine", "enfant"])
+    expect(horsArbre).toEqual(new Set(["amont", "boucle-a", "boucle-b"]))
+  })
+
+  it("rend une copie à chaque question : la réponse n'appartient qu'à elle", () => {
+    const noms = {
+      racine: "Racine",
+      "enfant-a": "Enfant A",
+      "enfant-b": "Enfant B",
+      isolee: "Isolée",
+    }
+    const marche = marcheDe(LIENS, noms)
+    expect(marche.racines()).toEqual(["isolee", "racine"])
+
+    const racines = marche.racines()
+    racines.reverse()
+    racines.pop()
+    expect(marche.racines()).toEqual(["isolee", "racine"])
+
+    const enfants = marche.enfantsDe("racine")
+    enfants.length = 0
+    expect(marche.enfantsDe("racine")).toEqual(["enfant-a", "enfant-b"])
+  })
+})
+
 describe("marcheStructure — sur un cycle", () => {
   /**
    * Un cycle de trois, plus une descendante accrochée à l'un des maillons :
@@ -319,6 +421,35 @@ describe("marcheStructure — une longueur n'est jamais un refus", () => {
     expect(descendance).toHaveLength(PROFONDEUR)
     expect(new Set(descendance).size).toBe(PROFONDEUR)
     expect(marche.horsArbre()).toEqual([])
+  })
+
+  it("descend une chaîne profonde par ses racines et ses enfants, et s'arrête", () => {
+    const PROFONDEUR = 5_000
+    const parents: Record<string, string | null> = { s0: null }
+    for (let i = 1; i < PROFONDEUR; i += 1) {
+      parents[`s${i}`] = `s${i - 1}`
+    }
+    parents[`s${PROFONDEUR - 1}`] = "boucle-a"
+    parents["boucle-a"] = "boucle-b"
+    parents["boucle-b"] = "boucle-a"
+
+    const marche = marcheDe(parents)
+    const atteints: string[] = []
+    const pile = [...marche.racines()]
+    while (pile.length > 0) {
+      const id = pile.pop()!
+      atteints.push(id)
+      for (const enfant of marche.enfantsDe(id)) pile.push(enfant)
+    }
+
+    expect(atteints).toHaveLength(PROFONDEUR - 1)
+    expect(new Set(atteints).size).toBe(PROFONDEUR - 1)
+    expect(atteints).toContain(`s${PROFONDEUR - 2}`)
+    expect(marche.horsArbre()).toEqual([
+      `s${PROFONDEUR - 1}`,
+      "boucle-a",
+      "boucle-b",
+    ])
   })
 
   it("ne remonte pas une longue chaîne corrompue une fois par Structure", () => {
@@ -493,6 +624,19 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
       // Une Structure interrogée de plus, et toujours le même index. Avant #584,
       // ce compte valait N+1 sur N lignes, et la liste d'Administration
       // bâtissait son index au carré du nombre de Structures.
+      expect(lectures(), id).toBe(1)
+    }
+  })
+
+  it("les deux questions de topologie lisent le même index (#585)", () => {
+    const parents = arbreSain(5)
+    const { liens, lectures } = coutureQuiCompte(parents)
+    const marche = marcheStructure(liens)
+    expect(lectures()).toBe(1)
+
+    for (const id of Object.keys(parents)) {
+      marche.racines()
+      marche.enfantsDe(id)
       expect(lectures(), id).toBe(1)
     }
   })

@@ -69,7 +69,7 @@
  * ne sert pas l'affichage : l'arbre d'accueil annonce les Produits d'une
  * branche entière, donc il part du direct et cumule. Le nom de la parente et le
  * nombre de ses enfants, en revanche, **ne sont pas lus** : ils se dérivent en
- * mémoire de `parentId` et du nom, comme le fil d'Ariane le fait déjà, et une
+ * mémoire du lien et du nom, comme le fil d'Ariane le fait déjà, et une
  * jointure de plus serait une seconde manière de lire la Structure.
  *
  * **Cette dérivation est ce qui laisse l'Administration hors arbre payer juste
@@ -79,10 +79,14 @@
  * les ferait payer à *toute* surface, sur la requête qu'elle fait déjà, et la
  * boutique verrait son coût monter pour une preuve qu'elle n'a pas demandée.
  * Dérivés, ils valent exactement ce que la base aurait rendu — la lecture prend
- * la table entière, sans `where`, donc `_count.children` et « les Structures dont
- * le lien est cette rangée » sont le même nombre, et `parent.name` et la carte
- * des noms sont le même texte — et personne ne paie un fait qu'il n'a pas
+ * la table entière, sans `where`, donc `_count.children` et la fratrie que la
+ * **marche** rend sont le même nombre, et `parent.name` et la carte des faits par
+ * identifiant sont le même texte — et personne ne paie un fait qu'il n'a pas
  * demandé.
+ *
+ * **Et la fratrie elle-même vient de la marche, qui en est le seul propriétaire**
+ * (#585) : `enfantsDe` la rend, dans l'ordre du module, et aucune projection ne la
+ * regroupe une seconde fois.
  *
  * **Chaque projection rend la forme **étroite** que sa surface consomme, et une
  * porte peut en rendre plus d'une.** Le surensemble reste donc à six faits, et la
@@ -112,21 +116,27 @@
  * l'identifiant, écrit une fois dans `lib/marche-structure.ts` — et non dans la
  * requête. Deux Structures de même nom se départagent donc par leur identifiant,
  * qui est unique : sans cela l'ordre total n'existerait pas, et la page se
- * réordonnerait d'une lecture à l'autre. Le comparateur est **repris tel quel**
- * plutôt que recopié ici : le cœur est le seul module qui ait à classer des
+ * réordonnerait d'une lecture à l'autre. Le comparateur est **emprunté au
+ * cœur**, non recopié ici : le cœur est le seul module qui ait à classer des
  * identifiants, et une promesse d'ordre qui se réécrit par projection est une
- * promesse que rien ne tient (US 5, US 31). Il est réexporté plus bas pour la même
- * raison que la primitive.
+ * promesse que rien ne tient (US 5, US 31). Il n'est plus réexporté d'ici, et
+ * c'est dit : un symbole du cœur que ce module rendrait à son tour serait une
+ * seconde adresse pour une seule promesse, et la garde qui l'énoncerait ferait
+ * passer un fait du cœur pour un sien (#585).
  *
- * **Une boucle ne pend pas à une racine, et c'est ce qui rend le filtre
- * suffisant.** Chaque maillon d'un cycle a sa parente *dans* le cycle ; aucune
- * racine n'y mène donc, et le cycle avec ce qui y mène est exactement ce que
- * `horsArbre` rend. Un arbre d'accueil n'a donc pas besoin de savoir où il
- * s'arrête, ni d'une borne de profondeur : aucune profondeur maximale n'est une
- * règle de ce dépôt (ADR-0027). Pour la même raison le cumul des Produits ne
- * remonte pas : il verse chaque nœud dans sa parente en une passe, au lieu de
- * remonter chaque branche jusqu'à sa racine — un cumul qui remonterait coûterait
- * le carré de la profondeur, et la chaîne profonde est une forme ordinaire.
+ * **Une boucle ne pend pas à une racine, et c'est une garantie, pas une
+ * absence de garde.** Chaque maillon d'un cycle a sa parente *dans* le cycle ;
+ * aucune racine n'y mène, donc la structure hors arbre absorbe le cycle entier
+ * avec ce qui y mène, et une descente partie des racines ne peut pas y retomber.
+ * La topologie de l'arbre est donc **finie**, et c'est une promesse de la
+ * Marche — `MarcheStructure.racines` et `MarcheStructure.enfantsDe` la portent
+ * (#585). Aucun arbre construit dessus n'a besoin de savoir où il s'arrête, ni
+ * d'une garde de boucle, ni d'une borne de profondeur : aucune profondeur
+ * maximale n'est une règle de ce dépôt (ADR-0027). Pour la même raison le cumul
+ * des Produits ne remonte pas : il verse chaque nœud dans sa parente en une
+ * passe, au lieu de remonter chaque branche jusqu'à sa racine — un cumul qui
+ * remonterait coûterait le carré de la profondeur, et la chaîne profonde est une
+ * forme ordinaire.
  *
  * **Ce module ne lit jamais dans une transaction, et ne rend jamais un fait
  * qu'une mutation ait à juger** (ADR-0027). Les lectures que les mutations
@@ -173,16 +183,18 @@
  * le prouve sur l'ensemble des modules clients du dépôt, déduits de leur
  * directive et non d'une liste de noms (ADR-0028).
  *
- * **La primitive et son complément sont ici, et vivent en dessous.** Une
- * Structure et sa descendance, puis la partition qui en tire les deux listes
- * d'une page, sont des projections pures : aucune lecture, aucune promesse, aucun
- * état. Elles sont écrites dans `lib/marche-structure.ts` — le cœur neutre — et
- * réexportées ici, comme `devis.ts` réexporte `devis-coeur.ts`, pour qu'une
- * surface qui cherche « quelle projection répond à ma question » trouve une
- * seule adresse (US 54). Le cœur est leur domicile et non le hasard : ADR-0028
- * décide qu'une valeur partagée par le serveur et par le client habite un module
- * qu'aucun des deux ne réclame — et ce module lit la base, donc un composant
- * `"use client"` ne peut pas l'atteindre (ADR-0030).
+ * **La primitive et son complément sont en dessous, et le module ne les réexporte
+ * plus.** Une Structure et sa descendance, puis la partition qui en tire les deux
+ * listes d'une page, sont des projections pures : aucune lecture, aucune promesse,
+ * aucun état. Elles sont écrites dans `lib/marche-structure.ts` — le cœur neutre —
+ * et c'est **là** qu'une surface qui cherche « quelle projection répond à ma
+ * question » les trouve, sans passer par un module qui lit la base. Leur domicile
+ * n'est pas le hasard : ADR-0028 décide qu'une valeur partagée par le serveur et
+ * par le client habite un module qu'aucun des deux ne réclame — et ce module lit
+ * la base, donc un composant `"use client"` ne peut pas l'atteindre (ADR-0030). Le
+ * réexport qui les doublait ici n'avait aucun appelant, et il faisait passer le
+ * **comparateur** du cœur pour un symbole de ce module : deux gardes le nommaient,
+ * et la liste de celle-ci était une copie de celle du cœur (#585).
  *
  * **Elles n'ont pas de porte de lecture, et c'est délibéré.** Une porte de
  * lecture par question relirait la table, et surtout rebâtirait une marche —
@@ -195,7 +207,7 @@
  * seule marche le fil d'Ariane qu'une page montre *et* la descendance qui
  * décide de ses Produits — les deux en sens opposé, donc deux marches si on les
  * séparait, et deux lignes de journal pour une seule boucle. **La porte n'est
- * donc pas toujours la primitive réexportée** : quand une projection a déjà une
+ * donc pas toujours la primitive** : quand une projection a déjà une
  * marche, elle lui demande `descendance()`, et la garantie « chaque Structure au
  * plus une fois » est celle de la Marche, transmise telle quelle. À l'autre bout
  * de la règle, `lireFilAriane` (#571) est bien **une question** : la fiche Produit
@@ -228,14 +240,6 @@ import {
   liensDesStructures,
   marcheDesStructures,
   marcheStructure,
-} from "@/lib/marche-structure"
-
-export {
-  complementDe,
-  comparerParNom,
-  descendanceDe,
-  type PartitionStructure,
-  type StructureOrdonnee,
 } from "@/lib/marche-structure"
 
 /**
@@ -271,55 +275,34 @@ export interface NoeudAccueil {
 }
 
 /**
- * Les faits groupés par parente, et les racines à côté : les frères **déjà
- * classés**, dans l'ordre du module.
+ * Les faits indexés par identifiant, bâtis une fois par projection qui en a
+ * besoin : la rangée **entière** sous l'identifiant que la marche nomme.
  *
- * **L'ordre du module est celui du cœur, repris tel quel** : le nom en français,
- * puis l'identifiant. `comparerParNom` est écrit une fois, dans
- * `lib/marche-structure.ts`, et **ce n'est pas une commodité** — voir son
- * commentaire, et l'accord que la suite éprouve entre les **six** formes qu'elle
- * fait rendre côte à côte — arbre, lignes, cibles, puces, options, candidates,
- * soit les six projections qui classent, et pas le fil d'Ariane qui rend un
- * chemin (US 31). C'est ici que le module classe pour la première fois, et c'est donc
- * ici que la promesse se prend ; les tris des projections le reprennent, ils ne
- * le réécrivent pas.
+ * **Ce n'est pas la même question que celle de la marche, et les deux ne se
+ * fondent pas.** La marche répond « qui descend de qui » — des identifiants, et
+ * rien d'autre ; ceci répond « quelle rangée se cache sous cet identifiant » — un
+ * slug, une image, un compte de Produits. Les fondre obligerait le cœur neutre à
+ * connaître un slug et une image, donc à cesser d'être neutre : ADR-0028 le lui
+ * interdit, et ADR-0030 tient sa neutralité pour une condition. La carte reste
+ * donc ici, dans le module qui lit la base (#585).
  *
- * Deux projections en ont besoin — l'arbre d'accueil, qui range ses nœuds, et les
- * lignes de l'Administration, qui les parcourt — et les deux le faisaient chacune
- * de leur côté : deux regroupements, deux tris, donc deux occasions de diverger
- * sans qu'aucune épreuve ne s'en aperçoive. C'est ici qu'il est écrit une fois,
- * et il ne fait **rien d'autre** que regrouper et classer : le tri des hors arbre,
- * le placement et la profondeur restent aux projections, qui ne se ressemblent pas
- * sur ces trois points.
+ * **Écrite une fois, parce que quatre projections la demandent** — l'arbre
+ * d'accueil, qui bâtit ses nœuds sur les rangs que la marche nomme ; les lignes
+ * d'Administration, qui descendent depuis les racines ; la page de catégorie et
+ * la fiche Produit, qui remontent un fil. Elle l'était en double, dans le
+ * regroupement par parente d'un côté et dans la remontée de l'autre : deux
+ * copies d'une même ligne, donc deux réponses possibles à une même question.
  *
- * **Une Structure dont le lien ne nomme aucune autre rangée est rendue comme une
- * racine**, et non perdue : elle est présente en base, et c'est à l'écran de dire
- * comment elle l'annonce. La clé étrangère garantit qu'une telle rangée n'existe
- * pas côté base ; le cas ne vient que de la porte pure, où l'appelant peut ne pas
- * couvrir toute la table.
+ * **L'autre index, celui par slug, n'existe toujours pas.** Il ne servait qu'à
+ * reconnaître la Structure demandée, une fois par projection : une passe sur la
+ * table déjà en mémoire le ferait aussi bien, et le construire pour un seul
+ * usage était payer un index entier pour une lecture. C'est
+ * `projeterPageCategorie` qui la cherche, et il la cherche une fois.
  */
-function regrouperParParente(structures: readonly FaitStructure[]): {
-  parId: Map<string, FaitStructure>
-  racines: FaitStructure[]
-  groupes: Map<string, FaitStructure[]>
-} {
-  const parId = new Map(structures.map((fait) => [fait.id, fait]))
-  const groupes = new Map<string, FaitStructure[]>()
-  const racines: FaitStructure[] = []
-  for (const fait of structures) {
-    const parente =
-      fait.parentId === null ? undefined : parId.get(fait.parentId)
-    if (parente === undefined) {
-      racines.push(fait)
-      continue
-    }
-    const groupe = groupes.get(parente.id)
-    if (groupe) groupe.push(fait)
-    else groupes.set(parente.id, [fait])
-  }
-  racines.sort(comparerParNom)
-  for (const groupe of groupes.values()) groupe.sort(comparerParNom)
-  return { parId, racines, groupes }
+function faitsParId(
+  structures: readonly FaitStructure[]
+): Map<string, FaitStructure> {
+  return new Map(structures.map((fait) => [fait.id, fait]))
 }
 
 /**
@@ -330,6 +313,15 @@ function regrouperParParente(structures: readonly FaitStructure[]): {
  * ses enfants ont versé le leur. Le parcours va donc du plus petit au plus
  * grand, comme la récursion qu'il remplace — sans le tas qu'elle consommerait
  * sur une chaîne de plusieurs milliers de maillons.
+ *
+ * **Aucun garde de boucle, et c'est une preuve, pas une absence de témoin.**
+ * Un nœud est versé une fois parce que chaque Structure a **une** parente : il
+ * apparaît donc dans une seule fratrie, et la descente partie des racines
+ * l'atteint une seule fois. Le cycle, lui, est hors arbre entier — chaque
+ * maillon a sa parente dans le cycle, donc aucune racine n'y mène — et la
+ * topologie de l'arbre est finie (ADR-0027, ADR-0030, #585). Le garde qui se
+ * tenait ici protégeait d'un nœud atteint deux fois, c'est-à-dire d'une boucle
+ * pendue à une racine : le cas n'est pas rare, il est **impossible**.
  */
 function cumulerLesProduits(racines: NoeudAccueil[]): void {
   const noeuds = new Map<string, NoeudAccueil>()
@@ -340,11 +332,6 @@ function cumulerLesProduits(racines: NoeudAccueil[]): void {
   )
   while (pile.length > 0) {
     const { noeud, parente } = pile.pop()!
-    // Le filtre des Structures hors arbre rend l'arbre fini — une boucle ne peut
-    // pas pendre à une racine — donc ce cas n'arrive pas. Il reste parce qu'une
-    // boucle qui ne s'arrête pas sur une page d'accueil ne se débogue pas : elle
-    // rend une page cassée, sans laisser de trace.
-    if (noeuds.has(noeud.id)) continue
     noeuds.set(noeud.id, noeud)
     if (parente !== null) parenteDe.set(noeud.id, parente)
     ordre.push(noeud)
@@ -364,6 +351,16 @@ function cumulerLesProduits(racines: NoeudAccueil[]): void {
 /**
  * L'arbre d'accueil, projeté sur des faits déjà en mémoire — la porte pure.
  *
+ * **La topologie est demandée à la marche, et n'est déduite nulle part ici.**
+ * Les racines et les enfants directs sortent de `racines()` et de `enfantsDe()`,
+ * dans l'ordre du module : l'arbre n'a donc rien à regrouper, et surtout rien à
+ * **re**grouper autrement. Le regroupement qui vivait ici répondait à la même
+ * question différemment — une Structure dont la parente ne nommait aucune
+ * rangée y était promue racine, donc la boutique lui offrait une branche
+ * qu'aucune branche ne porte — et les deux réponses ne s'accordaient que parce
+ * qu'un filtre hors arbre se tenait entre elles, dans le contrôle de flux de ce
+ * module et nulle part dans un type (#585).
+ *
  * **Ce qu'elle dégrade, et comment.** Une Structure qu'aucune racine n'atteint
  * n'a pas de place dans un arbre qui descend depuis les racines : elle en était
  * écartée avant que la Marche n'existe, et elle en est écartée maintenant pour
@@ -382,46 +379,52 @@ export function projeterArbreAccueil(
   // Une seule marche pour toute la projection, donc une seule ligne par cycle :
   // la mémoire des cycles signalés vit dans la marche, et elle meurt avec elle.
   const marche = marcheDesStructures(structures)
-  const horsArbre = new Set(marche.horsArbre())
+  // Le journal, et lui seul : c'est la demande du hors arbre qui fait nommer un
+  // cycle par la marche. L'arbre ne s'en sert pas pour se bâtir — la topologie
+  // qu'il descend est finie sans rien TRIER, une boucle ne pouvant pas pendre à
+  // une racine — mais un éditeur doit savoir qu'une corruption existe, et
+  // l'accueil est la seule surface de la boutique qui la croise.
+  marche.horsArbre()
 
+  // Les faits par identifiant, une fois : les nœuds se bâtissent sur les rangs
+  // que la marche nomme. Tout identifiant qu'elle rend est une clé de cette
+  // carte — ses listes se lisent sur les mêmes liens — donc le `!` de `noeudDe`
+  // n'invente rien.
+  const parId = faitsParId(structures)
   const noeuds = new Map<string, NoeudAccueil>()
-  for (const fait of structures) {
-    noeuds.set(fait.id, {
-      id: fait.id,
+  const noeudDe = (id: string): NoeudAccueil => {
+    const noeud = noeuds.get(id)
+    if (noeud) return noeud
+    const fait = parId.get(id)!
+    const bati: NoeudAccueil = {
+      id,
       name: fait.name,
       slug: fait.slug,
       image: fait.image,
       // Le point de départ du cumul : les Produits de la Structure elle-même.
       productCount: fait.produitsDirects,
       children: [],
-    })
+    }
+    noeuds.set(id, bati)
+    return bati
   }
 
-  // Les faits regroupés par parente, les frères déjà classés, et rien de plus :
-  // l'arbre d'accueil et la liste de l'Administration ont cette étape en commun, et
-  // elle est écrite une fois.
-  const { groupes, racines: faitsRacines } = regrouperParParente(
-    structures.filter((fait) => !horsArbre.has(fait.id))
-  )
-  const noeudDe = (fait: FaitStructure): NoeudAccueil => noeuds.get(fait.id)!
-
-  const racines = faitsRacines.map(noeudDe)
-  for (const groupe of groupes.values()) {
-    // Tous les enfants d'un groupe partagent la même parente — c'est ce qui fait
-    // qu'un groupe est un groupe — donc le lien du premier les nomme tous.
-    const fait = groupe[0]!
-    const parente =
-      fait.parentId === null ? undefined : noeuds.get(fait.parentId)
-    const enfants = groupe.map(noeudDe)
-    if (parente) parente.children.push(...enfants)
-    else racines.push(...enfants)
+  // Les racines d'abord — dans l'ordre du module, donc sans tri à refaire —,
+  // puis la descente sous chacune, sur une pile explicite : une chaîne de
+  // plusieurs milliers de maillons est une forme ordinaire ici, et une
+  // récursion la ferait tomber. Un nœud n'est bâti que pour une Structure que
+  // l'arbre atteint : ce qu'aucune racine n'atteint ne se bâtit pas du tout.
+  const racines = marche.racines().map(noeudDe)
+  const pile = [...racines]
+  while (pile.length > 0) {
+    const noeud = pile.pop()!
+    for (const id of marche.enfantsDe(noeud.id)) {
+      const enfant = noeudDe(id)
+      noeud.children.push(enfant)
+      pile.push(enfant)
+    }
   }
 
-  // Les racines sont déjà classées — `regrouperParParente` les classe — sauf
-  // celles que le cas dégradé vient d'y ajouter à la suite : le tri final les
-  // remet dans l'ordre du module quoi qu'il arrive, pour que la promesse ne
-  // dépende pas du cas que l'appelant a passé.
-  racines.sort(comparerParNom)
   cumulerLesProduits(racines)
   return racines
 }
@@ -524,7 +527,11 @@ export interface LigneStructureAdmin {
   nomParente: string | null
   /** Les **Produits directs** : le même fait que l'arbre d'accueil cumule. */
   nombreProduits: number
-  /** Les sous-catégories directes : les Structures dont le lien est cette rangée. */
+  /**
+   * Les sous-catégories directes : la fratrie que la marche rend — les
+   * Structures dont le lien est cette rangée, **toutes** comprises, branche
+   * corrompue incluse. C'est le même nombre que `_count.children` aurait rendu.
+   */
   nombreEnfants: number
   profondeur: number
   horsArbre: boolean
@@ -586,12 +593,12 @@ export interface EcranAdminStructure {
  * Structures hors arbre, et les deux listes de cibles que la boîte de suppression
  * de chaque ligne reçoit ; leur preuve ne coûte donc plus de base de données.
  *
- * **L'ordre est ici, et il est pré-ordre.** Les frères sont triés par le nom en
- * français puis par l'identifiant — l'ordre du module, repris du cœur tel quel —
- * et une Structure est rendue avant ses descendantes, dont elle est le repère de
- * lecture : un `flatMap` récursif sur des rangées que la base rend dans **l'ordre
- * de sa collation** ne produit un ordre que si les frères sont triés au préalable.
- * C'est ce tri-là qui doit survivre au déplacement, contrairement à celui du
+ * **L'ordre est ici, et il est pré-ordre.** Les fratries viennent de la marche —
+ * `enfantsDe`, dans l'ordre du module, repris du cœur tel quel — et une Structure
+ * est rendue avant ses descendantes, dont elle est le repère de lecture : un
+ * `flatMap` récursif sur des rangées que la base rend dans **l'ordre de sa
+ * collation** ne produit un ordre que si les frères sont classés au préalable.
+ * C'est ce classement-là qui doit survivre au déplacement, contrairement à celui du
  * compagnon hors arbre, qui n'existait que pour rattraper ce que la collation de la
  * base n'ordonnait pas comme la comparaison française. Les deux vivent désormais
  * ici, et ils sont un seul ordre.
@@ -600,7 +607,9 @@ export interface EcranAdminStructure {
  * `parentId` ne nomme aucune autre rangée n'est plus **oubliée** : elle est
  * rendue, comme hors arbre, parce que c'est ce qu'elle est — présente en base,
  * absente de toute branche. Le bâtisseur d'arbre de l'écran ne la rendait pas du
- * tout, et rien dans son rendu ne disait qu'une rangée manquante.
+ * tout, et rien dans son rendu ne disait qu'une rangée manquante. Elle ne s'y
+ * rend qu'**une** fois non plus : la place d'une ligne hors arbre vient de la
+ * marche, qui ne l'atteint par aucune racine, donc d'aucune descente (#585).
  *
  * **Une seule marche répond à toutes ces questions, et c'est une contrainte, pas
  * une économie.** Les cibles de chaque ligne sont le complément de la primitive, et
@@ -609,7 +618,7 @@ export interface EcranAdminStructure {
  * journal pour le même cycle** — un avertissement qui annoncerait un cycle par
  * ligne alors qu'il n'y en a qu'un à réparer. Les liens sont donc séparés une
  * fois — par `liensDesStructures`, la porte du cœur, et non par une carte
- * reécrite ici —, la marche bâtie une fois, et la retenue qui tait le cycle sert à
+ * réécrite ici —, la marche bâtie une fois, et la retenue qui tait le cycle sert à
  * la fois au sous-ensemble hors arbre, à la ligne de journal et à toutes les
  * partitions.
  */
@@ -625,19 +634,9 @@ export function projeterEcranAdmin(
   const liens = liensDesStructures(structures)
   const marche = marcheStructure(liens)
   const horsArbre = new Set(marche.horsArbre())
-
-  // Les deux noms que la ligne annonce, dérivés des faits qu'elle a déjà : le nom
-  // de la parente par le lien, et le nombre de sous-catégories par le lien
-  // inverse. Une lecture de plus — une jointure, un `COUNT` — coûterait à toutes
-  // les surfaces alors que la table entière est déjà en mémoire.
-  const enfantsParParente = new Map<string, number>()
-  for (const fait of structures) {
-    if (fait.parentId === null) continue
-    enfantsParParente.set(
-      fait.parentId,
-      (enfantsParParente.get(fait.parentId) ?? 0) + 1
-    )
-  }
+  // Les faits par identifiant, une fois : la descente part des racines que la
+  // marche nomme, et chaque identifiant se rend en rangée ici.
+  const parId = faitsParId(structures)
 
   const ligneDe = (
     fait: FaitStructure,
@@ -650,9 +649,15 @@ export function projeterEcranAdmin(
     image: fait.image,
     parentId: fait.parentId,
     nomParente:
-      fait.parentId === null ? null : (liens.noms?.get(fait.parentId) ?? null),
+      fait.parentId === null ? null : (parId.get(fait.parentId)?.name ?? null),
     nombreProduits: fait.produitsDirects,
-    nombreEnfants: enfantsParParente.get(fait.id) ?? 0,
+    // Le compte est celui de la **marche**, et il compte toute la fratrie : un
+    // enfant dans une branche corrompue en fait partie, et une ligne doit dire
+    // la taille réelle de ce qu'un éditeur s'apprête à changer (US 7). C'est le
+    // même nombre que `_count.children` aurait rendu — la lecture prend la table
+    // entière, sans `where` — donc personne ne paie une jointure de plus pour un
+    // fait que les liens portent déjà.
+    nombreEnfants: marche.enfantsDe(fait.id).length,
     profondeur,
     horsArbre: hors,
   })
@@ -673,29 +678,28 @@ export function projeterEcranAdmin(
     }
   })
 
-  // Les faits groupés par parente, les frères déjà classés, une fois — voir
-  // `regrouperParParente`, que l'arbre d'accueil consomme aussi. La marche a
-  // classé avant : hors arbre, une Structure n'appartient à aucune branche et se
-  // rend à la suite, une fois.
-  const { groupes, racines } = regrouperParParente(
-    structures.filter((fait) => !horsArbre.has(fait.id))
-  )
-
   // La descente, sur une pile explicite : une chaîne de plusieurs milliers de
   // maillons est une forme ordinaire ici, et une descente récursive — celle que
-  // portait le bâtisseur d'arbre de cet écran — la ferait tomber. La profondeur voyage
-  // dans la pile, donc le coût de la récursion disparaît avec elle.
+  // portait le bâtisseur d'arbre de cet écran — la ferait tomber. La profondeur
+  // voyage dans la pile, donc le coût de la récursion disparaît avec elle. Les
+  // racines et les fratries viennent de la marche, dans l'ordre du module : le
+  // pré-ordre de la page n'est donc pas un classement de plus, et une Structure
+  // qu'aucune racine n'atteint ne s'y glisse pas — elle se rend à la suite.
   const lignes: LigneStructureAdmin[] = []
+  const racines = marche.racines()
   const pile: { fait: FaitStructure; profondeur: number }[] = []
   for (let rang = racines.length - 1; rang >= 0; rang -= 1) {
-    pile.push({ fait: racines[rang]!, profondeur: 0 })
+    pile.push({ fait: parId.get(racines[rang]!)!, profondeur: 0 })
   }
   while (pile.length > 0) {
     const { fait, profondeur } = pile.pop()!
     lignes.push(ligneDe(fait, profondeur, false))
-    const groupe = groupes.get(fait.id) ?? []
-    for (let rang = groupe.length - 1; rang >= 0; rang -= 1) {
-      pile.push({ fait: groupe[rang]!, profondeur: profondeur + 1 })
+    const fratrie = marche.enfantsDe(fait.id)
+    for (let rang = fratrie.length - 1; rang >= 0; rang -= 1) {
+      pile.push({
+        fait: parId.get(fratrie[rang]!)!,
+        profondeur: profondeur + 1,
+      })
     }
   }
 
@@ -703,7 +707,7 @@ export function projeterEcranAdmin(
   // que lui, sans retrait, parce qu'aucune branche ne les porte. Le tri est ici
   // pour la même raison qu'au-dessus — la base ne l'ordonne pas comme la
   // comparaison française — et il ne double pas la descente : ces rangées ne sont
-  // dans aucun groupe.
+  // dans aucune fratrie.
   const horsLignes = structures
     .filter((fait) => horsArbre.has(fait.id))
     .sort(comparerParNom)
@@ -988,13 +992,12 @@ export async function lireEcranEdition(
  * (US 3).
  *
  * **Les sous-catégories ne sont pas filtrées, et c'est la dégradation de la
- * boutique.** Elles viennent du lien — les Structures dont `parentId` est cette
- * rangée — sans le passage de `horsArbre` que l'arbre d'accueil fait. Une
- * Structure corrompue reste donc une puce de lien : elle est dans le fil
- * d'Ariane, elle est dans le filtre des Produits, et elle a sa place dans les
- * puces. La retirer serait une seconde façon de l'effacer de l'écran, pour une
- * surface qui n'a pas d'éditeur à qui nommer la faute — c'est la liste
- * d'Administration qui la rend lisible (#567).
+ * boutique.** Elles viennent de la fratrie que la marche rend — `enfantsDe`, brute —
+ * et la page n'y ajoute aucun retrait : une Structure corrompue reste donc une
+ * puce de lien, elle est dans le fil d'Ariane, elle est dans le filtre des
+ * Produits, et elle a sa place dans les puces. La retirer serait une seconde
+ * façon de l'effacer de l'écran, pour une surface qui n'a pas d'éditeur à qui
+ * nommer la faute — c'est la liste d'Administration qui la rend lisible (#567).
  */
 
 /**
@@ -1012,24 +1015,29 @@ export interface MaillonAriane {
 }
 
 /**
- * **Une Structure telle qu'un lien la rend** : l'identifiant, le nom, le slug —
- * l'adresse que le lien suit — et l'image. C'est la forme des deux seules réponses
- * de la page qui sont des liens : la Structure demandée et chacune de ses
- * sous-catégories. La **déclarer une fois** n'est pas une décoration : deux types
- * `{ id, name, slug, image }` écrits à deux endroits seraient deux copies d'un
- * même fait, donc deux occasions de divergir sans qu'une épreuve ne s'en aperçoive
- * (ADR-0022).
+ * Ce que rend la page de catégorie : la Structure qu'elle a demandée, son fil
+ * d'Ariane, ses sous-catégories directes, et les identifiants du filtre de ses
+ * Produits.
+ *
+ * **La forme d'un lien est écrite une fois, dans `categorie`**, et `enfants` s'y
+ * réfère : deux types `{ id, name, slug, image }` écrits à deux endroits
+ * seraient deux copies d'un même fait, donc deux occasions de divergir sans
+ * qu'une épreuve ne s'en aperçoive (ADR-0022). Elle **était** déclarée à part,
+ * et même exportée : un symbole de plus dans l'interface du module, que pas un
+ * appelant de la page ne nommait, et qu'aucune garde n'énonçait — donc un nom à
+ * tenir sans qu'une seule lecture ne le rende nécessaire (#585).
  */
-export interface StructureLiee {
-  id: string
-  name: string
-  slug: string
-  image: string | null
-}
-
 export interface PageCategorie {
-  /** La Structure demandée, dans la forme **étroite** que la page rend. */
-  categorie: StructureLiee
+  /**
+   * **Une Structure telle qu'un lien la rend** : l'identifiant, le nom, le slug —
+   * l'adresse que le lien suit — et l'image. C'est la forme des deux seules
+   * réponses de la page qui sont des liens : la Structure demandée et chacune de
+   * ses sous-catégories. La **déclarer une fois** n'est pas une décoration : deux
+   * types `{ id, name, slug, image }` écrits à deux endroits seraient deux copies
+   * d'un même fait, donc deux occasions de diverger sans qu'une épreuve ne s'en
+   * aperçoive (ADR-0022).
+   */
+  categorie: { id: string; name: string; slug: string; image: string | null }
   /**
    * Le fil d'Ariane : la racine d'abord, la Structure demandée **en dernier**,
    * et chaque maillon une fois. C'est l'ordre que la Marche promet déjà, rendu
@@ -1037,7 +1045,7 @@ export interface PageCategorie {
    */
   filAriane: MaillonAriane[]
   /** Les sous-catégories **directes**, dans l'ordre que le module promet. */
-  enfants: StructureLiee[]
+  enfants: PageCategorie["categorie"][]
   /**
    * Les identifiants du filtre `categoryId: { in: … }` : la Structure et chacune
    * de ses descendantes, **chacune une fois** — la garantie de la règle de
@@ -1049,26 +1057,6 @@ export interface PageCategorie {
    * Structure qu'elle rend, avec le comparateur du module.
    */
   idsProduits: string[]
-}
-
-/**
- * Les faits indexés par identifiant, bâtis une fois pour toute la projection.
- *
- * C'est ainsi que le lien de parenté se parcourt — et c'est aussi ainsi qu'une page
- * remonte son fil : `ancetres` rend des identifiants, et il faut leur nom et leur
- * slug. Les deux projections qui remontent un chemin partagent donc cet index, et
- * il ne sert à rien d'autre.
- *
- * **L'autre index, celui par slug, n'existe plus.** Il ne servait qu'à reconnaître
- * la Structure demandée, une fois par projection : le workbook d'identifiants le
- * ferait aussi bien en une passe, sur une table déjà en mémoire, et le construire
- * pour un seul usage était payer un index entier pour une lecture. C'est
- * `projeterPageCategorie` qui le cherche, et il le cherche une fois.
- */
-function indexerParId(
-  structures: readonly FaitStructure[]
-): Map<string, FaitStructure> {
-  return new Map(structures.map((fait) => [fait.id, fait]))
 }
 
 /**
@@ -1092,7 +1080,7 @@ export function projeterPageCategorie(
   // coûte rien de plus que l'index qu'elle remplace.
   const fait = structures.find((candidat) => candidat.slug === slug)
   if (!fait) return null
-  const parId = indexerParId(structures)
+  const parId = faitsParId(structures)
 
   // Une seule marche pour les deux traversées de sens opposé, donc une seule
   // ligne par cycle : la mémoire des cycles signalés vit dans la marche, et elle
@@ -1115,25 +1103,24 @@ export function projeterPageCategorie(
       const maillon = parId.get(id)!
       return { name: maillon.name, slug: maillon.slug }
     }),
-    // Les enfants **directs**, dérivés du lien comme l'est le nombre de
-    // sous-catégories d'une ligne d'Administration : la requête
-    // `where: { parentId }` que la page faisait est un fait que les faits
-    // portent déjà, et une lecture de plus serait une seconde manière de lire la
-    // Structure. Le tri est celui du module — le nom en français puis
-    // l'identifiant — donc les puces se lisent comme le reste de la boutique, et
-    // non dans la collation d'un serveur de base qu'aucun déploiement n'épingle.
-    // `filter` rend une copie : les faits appartiennent à la lecture, et les
-    // classer sur place les classerait pour la projection qui les utiliserait
-    // ensuite.
-    enfants: structures
-      .filter((candidat) => candidat.parentId === fait.id)
-      .sort(comparerParNom)
-      .map((enfant) => ({
+    // Les enfants **directs**, lus sur la marche : elle répond de la fratrie,
+    // dans l'ordre du module, et la projection n'a plus à la chercher dans les
+    // faits ni à la classer. La requête `where: { parentId }` que la page
+    // faisait est un fait que les faits portent déjà, et une lecture de plus
+    // serait une seconde manière de lire la Structure — surtout un second
+    // regroupement des liens par parente, donc une seconde réponse à la question
+    // « sous quoi est cette Structure » (#585). Les puces se lisent donc comme
+    // le reste de la boutique, et non dans la collation d'un serveur de base
+    // qu'aucun déploiement n'épingle.
+    enfants: marche.enfantsDe(fait.id).map((id) => {
+      const enfant = parId.get(id)!
+      return {
         id: enfant.id,
         name: enfant.name,
         slug: enfant.slug,
         image: enfant.image,
-      })),
+      }
+    }),
     // La primitive, lue sur la marche du fil : la Structure et chacune de ses
     // descendantes, chacune une fois. C'est le même fait que rend
     // `descendanceDe`, pris sur une marche qui existe déjà — donc sans une
@@ -1198,7 +1185,7 @@ export function projeterFilAriane(
   // Les faits par identifiant, parce que c'est le lien de parenté qu'on remonte
   // et non une adresse qu'on cherche : c'est le seul index que cette projection
   // ait besoin de bâtir, et elle le partage avec la page de catégorie.
-  const parId = indexerParId(structures)
+  const parId = faitsParId(structures)
 
   const maillons: MaillonAriane[] = []
   for (const id of marche.ancetres(idStructure)) {
