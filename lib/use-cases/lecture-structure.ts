@@ -41,8 +41,9 @@
  * qui l'appelle, pas la sienne (#564, § hors périmètre).
  *
  * **Une projection bâtit donc sa marche, et elle ne la partage avec personne.**
- * Les sept projections de ce module en bâtissent une chacune : elles ne sont pas
- * appelées ensemble, mais par sept écrans différents, et une marche partagée
+ * Les six projections de ce module en bâtissent une chacune — six `projeter…`,
+ * une par porte `lire…` qui ne fait que la lire — : elles ne sont pas
+ * appelées ensemble, mais par six écrans différents, et une marche partagée
  * supposerait une portée plus large que l'exécution — c'est-à-dire un état de
  * module, que ce module refuse par la règle ci-dessus. Le prix en est mesuré :
  * une ligne de journal par cycle et par écran qui le traverse, ce qui est
@@ -265,16 +266,17 @@ export interface NoeudAccueil {
 }
 
 /**
- * L'ordre du module, repris du cœur tel quel : le nom en français, puis
- * l'identifiant. `comparerParNom` est écrit une fois, dans
- * `lib/marche-structure.ts`, et **ce n'est pas une commodité** — voir son
- * commentaire, et l'ordre des sept rendus que la suite éprouve côte à côte
- * (US 31).
- */
-
-/**
  * Les faits groupés par parente, et les racines à côté : les frères **déjà
  * classés**, dans l'ordre du module.
+ *
+ * **L'ordre du module est celui du cœur, repris tel quel** : le nom en français,
+ * puis l'identifiant. `comparerParNom` est écrit une fois, dans
+ * `lib/marche-structure.ts`, et **ce n'est pas une commodité** — voir son
+ * commentaire, et l'accord que la suite éprouve entre les **six** formes qu'elle
+ * fait rendre côte à côte, arbre, lignes, cibles, puces, options et candidates
+ * (US 31). C'est ici que le module classe pour la première fois, et c'est donc
+ * ici que la promesse se prend ; les tris des projections le reprennent, ils ne
+ * le réécrivent pas.
  *
  * Deux projections en ont besoin — l'arbre d'accueil, qui range ses nœuds, et les
  * lignes de l'Administration, qui les parcourt — et les deux le faisaient chacune
@@ -649,10 +651,13 @@ export function projeterEcranAdmin(
     horsArbre: hors,
   })
 
-  // Les cibles, dans l'ordre des lignes. La partition est lue sur **la** marche de
-  // la projection : c'est la même règle que celle que la boîte se calculait à
-  // chaque rendu dans un composant client (#551, #573), et elle n'est écrite qu'ici
-  // et dans le cœur — la structure du formulaire ne la réécrira pas.
+  // Les cibles, dans l'ordre de la **lecture** — pas dans celui des lignes, qui
+  // est un pré-ordre et n'a pas la même place pour chaque Structure ; c'est
+  // pourquoi la projection en tient une par Structure, et l'écran les joint par
+  // identifiant. La partition est lue sur **la** marche de la projection : c'est
+  // la même règle que celle que la boîte se calculait à chaque rendu dans un
+  // composant client (#551, #573), et elle n'est écrite qu'ici et dans le cœur —
+  // la structure du formulaire ne la réécrira pas.
   const cibles: CiblesSuppression[] = structures.map((fait) => {
     const partition = complementDepuis(marche, liens, fait.id)
     return {
@@ -1108,11 +1113,12 @@ export function projeterPageCategorie(
     // sous-catégories d'une ligne d'Administration : la requête
     // `where: { parentId }` que la page faisait est un fait que les faits
     // portent déjà, et une lecture de plus serait une seconde manière de lire la
-    // Structure. Le tri est celui du module — le nom en français puis le slug —
-    // donc les puces se lisent comme le reste de la boutique, et non dans la
-    // collation d'un serveur de base qu'aucun déploiement n'épingle. `filter`
-    // rend une copie : les faits appartiennent à la lecture, et les classer sur
-    // place les classerait pour la projection qui les utiliserait ensuite.
+    // Structure. Le tri est celui du module — le nom en français puis
+    // l'identifiant — donc les puces se lisent comme le reste de la boutique, et
+    // non dans la collation d'un serveur de base qu'aucun déploiement n'épingle.
+    // `filter` rend une copie : les faits appartiennent à la lecture, et les
+    // classer sur place les classerait pour la projection qui les utiliserait
+    // ensuite.
     enfants: structures
       .filter((candidat) => candidat.parentId === fait.id)
       .sort(comparerParNom)

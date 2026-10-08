@@ -221,7 +221,12 @@ réellement le cœur —, la nouvelle la prouve *structurelle*, sur tout le dép
 composant. La liste des symboles que le module doit porter s'est allongée de trois entrées au
 passage — `liensDesStructures`, `comparerParNom` et la forme `StructureOrdonnee` qui porte les
 deux faits que l'ordre compare — parce qu'une garde qui n'énonce pas ce qu'elle garde est verte
-pour une raison qu'elle ne connaît pas.
+pour une raison qu'elle ne connaît pas. Les trois sont dans la liste du cœur
+([`marche-structure-frontiere.test.ts`](../../lib/marche-structure-frontiere.test.ts#L74-L89)) : c'est
+la garde de ce module, et le seul endroit du dépôt où elles sont énoncées. `comparerParNom`
+figure en outre dans celle de la Lecture
+([`lecture-structure-frontiere.test.ts`](../../lib/use-cases/lecture-structure-frontiere.test.ts#L82-L108)),
+qui le réexporte — donc deux gardes le nomment, et lui seul énonce les deux autres.
 
 Restent la neutralité du module lui-même, la neutralité **par transit** du graphe de valeur, le
 parcours non vacuant, l'affirmation que les aides de frontière sont hors du graphe, et surtout **les
@@ -329,9 +334,11 @@ défaut que toute contre-épreuve doit traquer.
 
 Le changement **n'était demandé par aucun ticket** : il a été fait pour que le balayage de la nouvelle garde
 ne puisse pas être contourné par un `use strict` en tête de fichier. Il est consigné ici parce qu'il touche
-cinq gardes par transit, et parce que [`outils-frontiere.test.ts`](../../lib/use-cases/outils-frontiere.test.ts)
+trois gardes par transit — celle de la Marche, celle de la Lecture et celle des actions d'Administration, les
+seules à appeler `directive`, directement ou par `empruntsDeValeur` qui l'appelle pour elles —, et parce que
+[`outils-frontiere.test.ts`](../../lib/use-cases/outils-frontiere.test.ts)
 est désormais la suite qui possède ces aides : les deux directions du contrat de `directive` — une réclamation
 après une autre entrée du prologue **est** reconnue, une chaîne ordinaire qui contient `"use client"` ne
-l'est pas — y sont éprouvées avec la limite assumée, et les cinq gardes qui les empruntent n'ont plus à le
+l'est pas — y sont éprouvées avec la limite assumée, et les trois gardes qui les empruntent n'ont plus à le
 faire chacune de leur côté. C'est ce qui rend leur consolidation future possible sans le risque d'une
 dérive (cf. § hors périmètre du spec : « les douze gardes de frontière »).

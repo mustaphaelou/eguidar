@@ -59,16 +59,30 @@ const AIDE_FRONTIERE = "lib/use-cases/outils-frontiere.ts"
  * ou réduit à une signature, passerait sinon pour neutre. Les surfaces sont
  * celles que les appelants traversent, et `StructureLue` est la projection
  * qu'ils ont en main.
+ *
+ * **Trois de ces entrées sont l'ordre, et c'est ce qu'un cœur vidé
+ * n'emporterait pas avec lui.** `liensDesStructures` est la porte par laquelle
+ * le module de lecture entre — c'est par elle qu'il garde les liens pour
+ * toutes ses questions d'un coup —, `comparerParNom` est l'export qui porte la
+ * promesse d'ordre que le module et ses six projections rendent sans la
+ * réécrire, et `StructureOrdonnee` en est la forme : **les deux** faits que
+ * l'ordre compare, l'identifiant et le nom. Un cœur vidé de son comparateur
+ * resterait neutre, donc passerait cette garde, et le dépôt perdrait sa
+ * promesse d'ordre sans qu'aucune ligne de journal ne le dise — le même
+ * défaut qu'une garde qui n'énonce pas ce qu'elle garde (ADR-0030, US 31).
  */
 const SYMBOLES = [
   "marcheStructure",
   "marcheDesStructures",
+  "liensDesStructures",
   "LiensStructure",
   "StructureLue",
   "MarcheStructure",
   "ancetres",
   "descendance",
   "horsArbre",
+  "StructureOrdonnee",
+  "comparerParNom",
   "descendanceDe",
   "complementDe",
   "complementDepuis",
