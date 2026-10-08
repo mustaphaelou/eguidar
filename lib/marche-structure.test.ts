@@ -505,7 +505,7 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
     const marcheDuPetit = marcheStructure(liensDuPetit.liens)
     const marcheDuGrand = marcheStructure(liensDuGrand.liens)
 
-    // Deux tables, soixante-dix fois plus de Structures de l'une à l'autre, le
+    // Deux tables, soixante-huit fois plus de Structures de l'une à l'autre, le
     // même compte : ce qui est bâti une fois l'est **pour toutes**, et non par
     // ligne. Un compte croissant avec la taille de la table serait la preuve
     // qu'il reste un index bâti quelque part dans le parcours, à chaque
