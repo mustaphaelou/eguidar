@@ -148,8 +148,8 @@ export interface StructureLue {
  * journal lisible.
  *
  * `parentParId` porte l'absence de parente par `null`, et une clé absente vaut
- * `null` : la remontée rend cette parente une dernière fois, puis s'arrête, et
- * le hors arbre n'invente aucun cycle. **Une clé absente ne fait pas une
+ * `null` : une remontée dont la parente n'est pas dans la carte s'arrête donc là,
+ * et le hors arbre n'invente aucun cycle. **Une clé absente ne fait pas une
  * racine** : une Structure dont le `parentId` ne nomme aucune rangée n'est la
  * racine de personne, donc aucune racine ne l'atteint, et `horsArbre` la range
  * parmi les Structures hors arbre. La clé étrangère `Category_parentId_fkey`
