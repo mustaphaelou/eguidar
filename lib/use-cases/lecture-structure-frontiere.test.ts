@@ -77,7 +77,7 @@ const CLIENT_TEMOIN = "components/admin/delete-category-button.tsx"
  * — donc pour un module dont la neutralité serait vacuë. Les six portes de
  * lecture sont les six questions que les surfaces ont posées (#567, #568, #570,
  * #571, #572, #576) ; les six projections pures sont leur porte jumelle, sans
- * lecture, et le réexport du cœur les accompagne.
+ * lecture.
  */
 const SYMBOLES = [
   "lireArbreAccueil",
@@ -104,7 +104,6 @@ const SYMBOLES = [
   "PageCategorie",
   "descendanceDe",
   "complementDe",
-  "comparerParNom",
 ] as const
 
 /**

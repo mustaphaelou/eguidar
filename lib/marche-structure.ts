@@ -135,14 +135,16 @@ export interface StructureLue {
  * journal lisible.
  *
  * `parentParId` porte l'absence de parente par `null`, et une clé absente vaut
- * `null` : une Structure dont la parente n'est pas dans la carte termine donc
- * sa marche comme une racine — `ancetres` s'arrête, `horsArbre` n'invente
- * aucun cycle. C'est ce que le code fait, et c'est solide : la clé étrangère
- * `Category_parentId_fkey` garantit qu'un `parentId` nomme une rangée
- * existante, donc une clé absente ne peut dire qu'une chose — la lecture de
- * l'appelant ne couvrait pas cette rangée. La traiter en racine est la
- * dégradation que ce module promet ; l'alternative, une erreur, est exactement
- * ce qu'ADR-0030 interdit à une lecture de faire.
+ * `null` : une remontée dont la parente n'est pas dans la carte s'arrête donc là,
+ * et le hors arbre n'invente aucun cycle. **Une clé absente ne fait pas une
+ * racine** : une Structure dont le `parentId` ne nomme aucune rangée n'est la
+ * racine de personne, donc aucune racine ne l'atteint, et `horsArbre` la range
+ * parmi les Structures hors arbre. La clé étrangère `Category_parentId_fkey`
+ * garantit qu'une telle rangée n'existe pas côté base : une clé absente ne peut
+ * donc dire qu'une chose, la lecture de l'appelant ne couvrait pas cette
+ * rangée. La traiter en Structure hors arbre est la dégradation que ce module
+ * promet ; l'alternative, une erreur, est exactement ce qu'ADR-0030 interdit à
+ * une lecture de faire.
  */
 export interface LiensStructure {
   parentParId: ReadonlyMap<string, string | null>
@@ -169,6 +171,8 @@ export interface MarcheStructure {
    * toute branche.
    */
   horsArbre(): string[]
+  racines(): string[]
+  enfantsDe(id: string): string[]
 }
 
 /**
@@ -277,7 +281,7 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
    * l'en-tête annonce déjà payer, qui y tient la marche pour « assez peu chère
    * pour être construite une fois par requête ».
    */
-  const { enfants, racines } = indexDesLiens(parentParId)
+  const { enfants, racines: racinesDesLiens } = indexDesLiens(parentParId)
 
   /**
    * Le cycle qu'un pas vers la parente vient de refermer, s'il y en a un.
@@ -374,7 +378,7 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
    * `descendance` lit, et non une seconde version (#584).
    */
   function horsArbre(): string[] {
-    const { atteints } = atteindre(racines, enfants)
+    const { atteints } = atteindre(racinesDesLiens, enfants)
     const dansLArbre = new Set(atteints)
 
     const horsArbre: string[] = []
@@ -413,7 +417,15 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
     return horsArbre
   }
 
-  return { ancetres, descendance, horsArbre }
+  function racines(): string[] {
+    return dansLOrdreDuModule(racinesDesLiens, noms)
+  }
+
+  function enfantsDe(id: string): string[] {
+    return dansLOrdreDuModule(enfants.get(id) ?? [], noms)
+  }
+
+  return { ancetres, descendance, horsArbre, racines, enfantsDe }
 }
 
 /**

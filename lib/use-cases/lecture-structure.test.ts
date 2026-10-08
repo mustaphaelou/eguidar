@@ -423,6 +423,18 @@ describe("projeterArbreAccueil — sur une Structure déjà cyclique", () => {
     // additionnerait annoncerait un nombre que le catalogue n'a pas.
     expect(arbre[0]!.productCount).toBe(3)
   })
+
+  it("efface une Structure dont la parente ne nomme aucune rangée, comme elle efface un cycle", () => {
+    const arbre = projeterArbreAccueil([
+      structure("racine", "Racine", null, 1),
+      structure("enfant", "Enfant", "racine", 2),
+      structure("orpheline", "Orpheline", "absente-des-faits", 4),
+    ])
+
+    expect(arbre.map((noeud) => noeud.id)).toEqual(["racine"])
+    expect(identifiants(arbre)).not.toContain("orpheline")
+    expect(arbre[0]!.productCount).toBe(3)
+  })
 })
 
 describe("projeterArbreAccueil — une longueur n'est jamais un refus", () => {
@@ -696,10 +708,11 @@ describe("projeterEcranAdmin — les lignes — sur une Structure déjà cycliqu
     }
   })
 
-  it("classe parmi les hors arbre une Structure dont la parente n'est pas dans les faits", () => {
-    const { lignes } = projeterEcranAdmin([
+  it("classe parmi les hors arbre une Structure dont la parente n'est pas dans les faits, et ne la rend qu'une fois", () => {
+    const { lignes, cibles } = projeterEcranAdmin([
       structure("racine", "Racine", null, 1),
-      structure("orpheline", "Orpheline", "absente-des-faits"),
+      structure("orpheline", "Orpheline", "absente-des-faits", 5),
+      structure("enfant-orphelin", "Enfant orphelin", "orpheline"),
     ])
 
     // Une `parentId` que rien ne nomme est impossible côté base — la clé étrangère
@@ -709,15 +722,26 @@ describe("projeterEcranAdmin — les lignes — sur une Structure déjà cycliqu
     // épreuve.
     expect(lignes.map((ligne) => [ligne.id, ligne.horsArbre])).toEqual([
       ["racine", false],
+      ["enfant-orphelin", true],
       ["orpheline", true],
     ])
-    // Et aucun nom de parente n'est inventé pour elle : le lien reste, le nom
-    // reste absent, et c'est l'écran qui décide comment l'annoncer.
-    expect(lignes[1]).toMatchObject({
+    const orpheline = lignes.find((ligne) => ligne.id === "orpheline")!
+    expect(orpheline).toMatchObject({
       parentId: "absente-des-faits",
       nomParente: null,
       profondeur: 0,
     })
+
+    for (const fait of ["orpheline", "enfant-orphelin"]) {
+      expect(
+        lignes.filter((ligne) => ligne.id === fait),
+        fait
+      ).toHaveLength(1)
+    }
+    const cible = cibles.find((entree) => entree.id === "orpheline")!
+    expect(cible.produits).toEqual(["enfant-orphelin", "racine"])
+    expect(cible.sousCategories).toEqual(["racine"])
+    expect(orpheline.nombreEnfants).toBe(1)
   })
 })
 

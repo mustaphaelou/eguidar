@@ -82,6 +82,8 @@ const SYMBOLES = [
   "ancetres",
   "descendance",
   "horsArbre",
+  "racines",
+  "enfantsDe",
   "StructureOrdonnee",
   "comparerParNom",
   "descendanceDe",
