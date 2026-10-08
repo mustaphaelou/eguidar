@@ -715,13 +715,3 @@ export async function deleteCategory(
     () => effects.revalidateCategories()
   )
 }
-
-export function listAdminCategoriesWithCounts() {
-  return prisma.category.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      parent: { select: { id: true, name: true } },
-      _count: { select: { products: true, children: true } },
-    },
-  })
-}

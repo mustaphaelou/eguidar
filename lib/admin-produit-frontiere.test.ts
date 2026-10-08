@@ -3,9 +3,9 @@ import { describe, expect, expectTypeOf, it } from "vitest"
 import type { Product as LigneProduitPrisma } from "@/lib/generated/prisma/client"
 import type {
   getAdminProduct,
-  listAdminCategories,
   listAdminProducts,
 } from "@/lib/use-cases/admin-catalog"
+import type { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
 import {
   importeDe,
   lire,
@@ -221,6 +221,17 @@ describe("Administration Produit — plus aucun cast de colonne stockée", () =>
    * `npm run typecheck`, et par rien d'autre : `expectTypeOf` est un no-op
    * d'exécution.
    *
+   * **Le troisième énoncé a changé de maison, pas de portée** (#568). Il
+   * épinglait la lecture étroite du module Catalogue, que les deux formulaires
+   * Produit appelaient pour leur sélecteur de Structure ; cette lecture a
+   * rejoint la Lecture de la Structure, qui la projette depuis son surensemble.
+   * Le verrou reste ici, et pour la même raison : son sujet n'est pas le module
+   * qui lit, c'est **la forme que reçoit un formulaire d'Administration** — et
+   * une page reste capable de recevoir une ligne déguisée en fait si la
+   * projection qui l'alimente s'élargit. Le retirer serait rendre le dépôt
+   * capable d'ajouter un fait de plus dans un sélecteur sans qu'aucune épreuve
+   * ne le voie ; le déplacer serait le même trou, à un autre endroit.
+   *
    * Portée déclarée : ils attrapent une lecture redevenue **une ligne**. Ils
    * n'attrapent pas une `select` partielle qui rendrait une colonne brute sous
    * un nom de fait — la forme serait alors indistinguable d'un fait, un
@@ -236,10 +247,14 @@ describe("Administration Produit — plus aucun cast de colonne stockée", () =>
     expectTypeOf<Awaited<ReturnType<typeof listAdminProducts>>>().not.toExtend<
       LigneProduitPrisma[]
     >()
-    // La lecture des catégories répond en exactement les deux faits que le
-    // sélecteur affiche — pas la ligne, pas un `Category` déguisé.
+    // Le sélecteur de Structure répond en exactement les deux faits qu'il
+    // affiche — pas la ligne, pas un `Category` déguisé, et pas les compteurs ni
+    // le nom de parente que la liste d'Administration rend pour l'Administration
+    // (#568). Le littéral est écrit en toutes lettres plutôt que nommé
+    // `OptionStructure` : c'est l'accord avec le formulaire qui s'épingle, donc
+    // une interface qui gagnerait un champ le ferait échouer.
     expectTypeOf<
-      Awaited<ReturnType<typeof listAdminCategories>>
+      Awaited<ReturnType<typeof lireOptionsSelecteur>>
     >().toEqualTypeOf<{ id: string; name: string }[]>()
   })
 })

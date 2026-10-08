@@ -12,7 +12,7 @@
  * transport.
  *
  * **L'interface de lecture répond en faits, jamais en rangées de base
- * de données.** Trois lectures, trois réponses :
+ * de données.** Deux lectures, deux réponses :
  *
  * - `listAdminProducts()` — la liste : identité, marque, nom de
  *   catégorie, prix, mis en avant, livraison offerte, **une seule
@@ -29,10 +29,16 @@
  *   lecture est aussi la relecture d'un commit déjà durable que fait
  *   l'action d'enregistrement ; `null` y signifie « introuvable », et
  *   son fait suffit à l'appelant, qui n'en lit rien d'autre.
- * - `listAdminCategories()` — le sélecteur de catégorie : exactement
- *   l'identifiant et le nom, rien d'autre. À ne pas confondre avec la
- *   lecture à compteurs du module Structure, qui sert les écrans de
- *   catégories.
+ *
+ * **Le sélecteur de Structure n'est plus de ce compte** : les deux
+ * formulaires Produit le tiennent de la Lecture de la Structure
+ * (`lib/use-cases/lecture-structure.ts`), qui lit la table `Category`
+ * une fois par exécution et la projette à l'identifiant et au nom.
+ * C'était ici une lecture de cette table, dans un module qui ne le
+ * savait pas — et une lecture de plus pour la table entière aurait
+ * récréé le second propriétaire que la Lecture supprime (ADR-0026,
+ * amendement). Ce module garde donc les **deux** lectures
+ * Produit et n'en gagne pas d'autre.
  *
  * Après ADR-0026, aucun module de rendu d'Administration ne calcule,
  * ne projette, ni ne sait que ces colonnes sont du JSON : la couture
@@ -766,20 +772,4 @@ export async function getAdminProduct(
       stock: variante.stock,
     })),
   }
-}
-
-/**
- * Les catégories du sélecteur du formulaire Produit, dans l'ordre alphabétique
- * : exactement l'identifiant et le nom, les deux seuls faits que le sélecteur
- * affiche. Elle reste ici, dans le module Catalogue, avec ses deux appelants
- * produit — et n'est pas la lecture à compteurs du module Structure, qui sert
- * les écrans de catégories.
- */
-export async function listAdminCategories(): Promise<
-  { id: string; name: string }[]
-> {
-  return prisma.category.findMany({
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  })
 }

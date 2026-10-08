@@ -13,79 +13,50 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { marcheDesStructures } from "@/lib/marche-structure"
-import { listAdminCategoriesWithCounts } from "@/lib/use-cases/admin-structure"
+import { lireEcranAdmin } from "@/lib/use-cases/lecture-structure"
 import { deleteCategoryAction } from "@/app/admin/categories/actions"
 
 export const metadata: Metadata = {
   title: "Catégories",
 }
 
-type AdminCategory = Awaited<
-  ReturnType<typeof listAdminCategoriesWithCounts>
->[number]
-
 /**
- * Une ligne de la liste. `depth` est le retrait de l'arbre, et `horsArbre` la
- * seule chose que la ligne doit à sa provenance : une Structure qu'aucune
- * racine n'atteint ne se range dans aucune branche, donc elle ne se lit pas
- * comme les autres (ADR-0030, #550).
+ * Le retrait qu'un niveau de profondeur vaut à l'écran. C'est **une décision de
+ * mise en page, et rien d'autre** : la profondeur elle-même est un fait que le
+ * module promet, et sa preuve est dans la suite du module, où elle ne se lit pas
+ * dans un `padding`. Le jour où l'écran change d'échelle, cette constante change
+ * — et aucune épreuve de domaine ne bouge avec elle.
  */
-type LigneCategorie = AdminCategory & { depth: number; horsArbre: boolean }
-
-/**
- * Les lignes des Structures hors arbre. Elles se lisent **après** l'arbre et à
- * la racine : aucune branche ne les porte, donc rien ne les indente. La
- * collation est celle de l'arbre, et le tri est explicite parce que la marche
- * ne promet aucun ordre — elle promet des faits, pas une mise en page
- * (ADR-0030, #550).
- */
-function buildHorsArbreRows(
-  categories: AdminCategory[],
-  horsArbre: ReadonlySet<string>
-): LigneCategorie[] {
-  return categories
-    .filter((category) => horsArbre.has(category.id))
-    .sort((a, b) => a.name.localeCompare(b.name, "fr"))
-    .map((category) => ({ ...category, depth: 0, horsArbre: true }))
-}
-
-function buildRows(
-  categories: AdminCategory[],
-  parentId: string | null,
-  depthByParent: Map<string, number>
-): LigneCategorie[] {
-  const children = categories
-    .filter((category) => (category.parentId ?? null) === parentId)
-    .sort((a, b) => a.name.localeCompare(b.name, "fr"))
-  return children.flatMap((category) => {
-    const depth = (parentId ? (depthByParent.get(parentId) ?? 0) : -1) + 1
-    const row = { ...category, depth, horsArbre: false }
-    return [
-      row,
-      ...buildRows(
-        categories,
-        category.id,
-        depthByParent.set(category.id, depth)
-      ),
-    ]
-  })
-}
+const RETRAIT_PAR_NIVEAU = 1.5
 
 export default async function AdminCategoriesPage() {
-  const categories = await listAdminCategoriesWithCounts()
-  // **Une seule marche pour la page.** C'est elle qui nomme les Structures
-  // qu'aucune racine n'atteint — un cycle, une chaîne qui y mène, et tout ce
-  // qu'un cycle soustrait à l'arbre. Construite une fois, elle n'écrit donc
-  // qu'une ligne par cycle : deux marches pour la même page en écriraient
-  // deux, chacune ayant sa propre retenue (ADR-0030, #550). Les noms de la
-  // lecture entrent dans la marche parce que le journal les nomme : sans eux
-  // il n'égrènerait que des `cuid`.
-  const marche = marcheDesStructures(categories)
-  const rows = [
-    ...buildRows(categories, null, new Map()),
-    ...buildHorsArbreRows(categories, new Set(marche.horsArbre())),
-  ]
+  // **Une lecture, une marche, une ligne par cycle** — la promesse n'est plus
+  // écrite ici mais tenue par le module : l'écran rend les lignes qu'il lui rend,
+  // et ne construit plus ni arbre, ni profondeur, ni tri, ni partition. Ce qu'il
+  // garde, c'est le rendu — le retrait que vaut une profondeur, la marque hors
+  // arbre, la table des noms que la boîte lit pour nommer ses cibles, et le
+  // raccord entre une ligne et les deux listes de sa boîte (#564, ADR-0030).
+  //
+  // **Une seule porte, donc une seule lecture, une seule marche** : les lignes et
+  // les cibles que reçoit chaque boîte sortent du même retour, calculées sur la
+  // même marche. Les demander à deux portes aurait relu la table et — bien pire —
+  // aurait rebâti une marche par ligne, donc autant de retenues, donc **autant de
+  // lignes de journal pour un seul cycle** : un avertissement qui aurait annoncé
+  // à un éditeur autant de corruptions à réparer qu'il y a de lignes sur l'écran
+  // (ADR-0030).
+  const { lignes, cibles } = await lireEcranAdmin()
+  // La table des noms, bâtie **une fois** pour toutes les boîtes de la page. C'est un
+  // objet de chaînes, donc il franchit la couture (ADR-0028) — un `Map` ou une
+  // fonction ne la franchirait pas. Le repli sur l'identifiant est dans la boîte :
+  // une cible sans nom reste affichable, et elle reste vraie.
+  const nomsStructures: Record<string, string> = Object.fromEntries(
+    lignes.map((ligne) => [ligne.id, ligne.name])
+  )
+  // Les cibles, indexées une fois pour toutes les lignes. C'est un **rangement**,
+  // pas une règle : le module garantit une cible par Structure, dans l'ordre de
+  // sa lecture, donc chaque ligne trouve la sienne par son identifiant sans
+  // qu'on ait à la chercher.
+  const ciblesParStructure = new Map(cibles.map((cible) => [cible.id, cible]))
 
   return (
     <div className="flex flex-col gap-4">
@@ -96,7 +67,7 @@ export default async function AdminCategoriesPage() {
         </Button>
       </div>
 
-      {rows.length === 0 ? (
+      {lignes.length === 0 ? (
         <p className="text-muted-foreground">
           Aucune catégorie pour le moment. Créez votre première catégorie.
         </p>
@@ -112,90 +83,98 @@ export default async function AdminCategoriesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>
-                  <div
-                    className="flex items-center gap-3"
-                    style={{ paddingLeft: row.depth * 1.5 }}
-                  >
-                    {row.image ? (
-                      <Image
-                        src={row.image}
-                        alt=""
-                        width={40}
-                        height={40}
-                        className="size-10 shrink-0 rounded-lg border object-cover"
-                      />
-                    ) : null}
-                    <div className="flex flex-col">
-                      <span className="font-medium">{row.name}</span>
-                      {row.horsArbre ? (
-                        /* La marque du glossaire, et la seule : une Structure
+            {lignes.map((ligne) => {
+              // Les deux listes de cette boîte. Une cible par Structure est la
+              // promesse du module — la projection en rend autant qu'il y a de
+              // Structures lues, chacune une fois, dans l'ordre de la lecture et
+              // non dans celui des lignes — donc le `!` porte sur un fait que la
+              // porte de lecture vient de rendre, pas sur une recherche.
+              const cible = ciblesParStructure.get(ligne.id)!
+              return (
+                <TableRow key={ligne.id}>
+                  <TableCell>
+                    <div
+                      className="flex items-center gap-3"
+                      style={{
+                        paddingLeft: ligne.profondeur * RETRAIT_PAR_NIVEAU,
+                      }}
+                    >
+                      {ligne.image ? (
+                        <Image
+                          src={ligne.image}
+                          alt=""
+                          width={40}
+                          height={40}
+                          className="size-10 shrink-0 rounded-lg border object-cover"
+                        />
+                      ) : null}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{ligne.name}</span>
+                        {ligne.horsArbre ? (
+                          /* La marque du glossaire, et la seule : une Structure
                            hors arbre a une parente en base, mais aucune racine
                            ne mène à elle — « sous … » mentirait sur sa place,
                            et « Catégorie racine » sur sa nature. Le rouge
                            discret du `Badge` la lit comme ce qu'elle est, une
                            corruption à réparer, et non comme un compte. */
-                        <Badge variant="destructive">hors arbre</Badge>
-                      ) : row.parentId ? (
-                        <span className="text-sm text-muted-foreground">
-                          sous {row.parent?.name ?? "catégorie inconnue"}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          Catégorie racine
-                        </span>
-                      )}
+                          <Badge variant="destructive">hors arbre</Badge>
+                        ) : ligne.parentId ? (
+                          <span className="text-sm text-muted-foreground">
+                            sous {ligne.nomParente ?? "catégorie inconnue"}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            Catégorie racine
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="font-mono text-sm text-muted-foreground">
-                    {row.slug}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {row._count.products > 0 ? (
-                    <Badge>{row._count.products}</Badge>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">0</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {row._count.children > 0 ? (
-                    <span className="text-sm text-muted-foreground">
-                      {row._count.children}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-sm text-muted-foreground">
+                      {ligne.slug}
                     </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      render={<Link href={`/admin/categories/${row.id}`} />}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Modifier
-                    </Button>
-                    <DeleteCategoryButton
-                      categoryId={row.id}
-                      categoryName={row.name}
-                      childCount={row._count.children}
-                      productCount={row._count.products}
-                      categories={categories.map((candidate) => ({
-                        id: candidate.id,
-                        name: candidate.name,
-                        parentId: candidate.parentId,
-                      }))}
-                      action={deleteCategoryAction}
-                    />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell>
+                    {ligne.nombreProduits > 0 ? (
+                      <Badge>{ligne.nombreProduits}</Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {ligne.nombreEnfants > 0 ? (
+                      <span className="text-sm text-muted-foreground">
+                        {ligne.nombreEnfants}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        render={<Link href={`/admin/categories/${ligne.id}`} />}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Modifier
+                      </Button>
+                      <DeleteCategoryButton
+                        categoryId={ligne.id}
+                        categoryName={ligne.name}
+                        childCount={ligne.nombreEnfants}
+                        productCount={ligne.nombreProduits}
+                        ciblesProduits={cible.produits}
+                        ciblesSousCategories={cible.sousCategories}
+                        nomsStructures={nomsStructures}
+                        action={deleteCategoryAction}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       )}

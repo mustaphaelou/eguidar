@@ -18,10 +18,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  getAdminProduct,
-  listAdminCategories,
-} from "@/lib/use-cases/admin-catalog"
+import { getAdminProduct } from "@/lib/use-cases/admin-catalog"
+import { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
 import {
   updateProductAction,
   updateVariantStockAction,
@@ -35,7 +33,7 @@ export default async function EditProductPage({
   const { id } = await params
   const [product, categories] = await Promise.all([
     getAdminProduct(id),
-    listAdminCategories(),
+    lireOptionsSelecteur(),
   ])
   if (!product) notFound()
 
