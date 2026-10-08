@@ -386,22 +386,32 @@ describe("marcheStructure — une longueur n'est jamais un refus", () => {
  * énumération quand il y en a une.
  */
 describe("marcheStructure — l'index inverse est un fait de la marche (#584)", () => {
-  /** La largeur d'une Structure dans la fixture : un Catalogue a des frères. */
-  const FAN = 4
+  /**
+   * La fratrie que la fixture donne à une Structure : quatre frères, donc
+   * quatre enfants — et **aucun** pour une Structure du dernier niveau, que
+   * rien n'engendre.
+   */
+  const FRATRIE = 4
 
   /**
-   * Un Catalogue sain de `niveaux` rangées, chacune à `FAN` enfants : la forme
-   * ordinaire de la liste d'Administration, qui interroge la marche une fois par
-   * ligne. Cinq niveaux font 341 Structures — l'ordre de grandeur où la
-   * différence se voit dans un écran, et non le nombre d'une table de test.
+   * Un arbre sain de `niveaux` **niveaux** — une racine, puis `FRATRIE`
+   * descendants pour chaque Structure du niveau précédent, le dernier niveau
+   * restant sans enfant. Deux niveaux font 5 Structures, cinq en font 341 :
+   * l'ordre de grandeur où la différence se voit dans un écran, et non le
+   * nombre d'une table de test.
+   *
+   * C'est la forme ordinaire de la **table des Structures** que liste
+   * l'Administration, et cette liste interroge la marche une fois par ligne :
+   * la fixture est là pour ressembler à cette question, pas pour être un arbre
+   * quelconque.
    */
-  function catalogue(niveaux: number): Record<string, string | null> {
+  function arbreSain(niveaux: number): Record<string, string | null> {
     const liens: Record<string, string | null> = { s0: null }
     let frontier = ["s0"]
     for (let niveau = 1, rang = 1; niveau < niveaux; niveau += 1) {
       const suivants: string[] = []
       for (const parente of frontier) {
-        for (let f = 0; f < FAN; f += 1) {
+        for (let f = 0; f < FRATRIE; f += 1) {
           liens[`s${rang}`] = parente
           suivants.push(`s${rang}`)
           rang += 1
@@ -413,7 +423,8 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
   }
 
   /**
-   * Les mêmes liens, plus le compte de leurs lectures **en entier**.
+   * La couture qui compte : les mêmes liens, plus le compte de leurs lectures
+   * **en entier**.
    *
    * Le `Proxy` ne fait qu'une chose : il note les méthodes qui énumèrent les
    * paires et laisse passer les autres, `this` rattaché à la carte réelle pour
@@ -421,7 +432,7 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
    * pas une forme observée : la preuve ne tient à aucun contenu, donc elle tient
    * à toute réécriture du cœur.
    */
-  function liensComptes(parents: Record<string, string | null>): {
+  function coutureQuiCompte(parents: Record<string, string | null>): {
     liens: LiensStructure
     lectures: () => number
   } {
@@ -461,8 +472,8 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
   }
 
   it("bâtit son index une fois, et une seule, quel que soit le nombre de questions", () => {
-    const parents = catalogue(5)
-    const { liens, lectures } = liensComptes(parents)
+    const parents = arbreSain(5)
+    const { liens, lectures } = coutureQuiCompte(parents)
     const marche = marcheStructure(liens)
 
     // Le compte est non nul dès la construction : c'est là que l'index se bâtit,
@@ -486,11 +497,11 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
     }
   })
 
-  it("lit les liens autant de fois sur un petit Catalogue que sur un grand", () => {
-    const petit = catalogue(2)
-    const grand = catalogue(5)
-    const liensDuPetit = liensComptes(petit)
-    const liensDuGrand = liensComptes(grand)
+  it("lit les liens autant de fois sur un petit arbre que sur un grand", () => {
+    const petit = arbreSain(2)
+    const grand = arbreSain(5)
+    const liensDuPetit = coutureQuiCompte(petit)
+    const liensDuGrand = coutureQuiCompte(grand)
     const marcheDuPetit = marcheStructure(liensDuPetit.liens)
     const marcheDuGrand = marcheStructure(liensDuGrand.liens)
 
@@ -517,7 +528,7 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
     // remontée avec un bâti. `horsArbre` parcourt `keys()`, `ancetres` fait des
     // `get()` — ni l'un ni l'autre ne bâtit d'index, donc le compte ne bouge
     // pas ; une énumération faite d'ici, si, parce que c'est celle d'un index.
-    const { liens, lectures } = liensComptes(catalogue(2))
+    const { liens, lectures } = coutureQuiCompte(arbreSain(2))
     const marche = marcheStructure(liens)
     const apresConstruction = lectures()
 

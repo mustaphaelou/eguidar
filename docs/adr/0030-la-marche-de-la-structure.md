@@ -343,3 +343,61 @@ après une autre entrée du prologue **est** reconnue, une chaîne ordinaire qui
 l'est pas — y sont éprouvées avec la limite assumée, et les trois gardes qui les empruntent n'ont plus à le
 faire chacune de leur côté. C'est ce qui rend leur consolidation future possible sans le risque d'une
 dérive (cf. § hors périmètre du spec : « les douze gardes de frontière »).
+
+## Amendement — L'index inverse est un fait de la marche, bâti une fois à sa construction (#584)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les
+lectures dégradent, une seule marche pour toute la Structure. Cet amendement consigne une décision
+prise après que les deux précédents eurent été écrits, et que ce dépôt n'enregistre nulle part
+ailleurs : **à qui appartient l'index inverse des liens**.
+
+### La décision, et le coût qui l'impose
+
+La marche bât cet index — chaque parente et ses enfants, les racines que les liens déclarent — pour
+descendre. Il l'était dans `descendance` **puis** dans `horsArbre`, donc une fois par question, et la
+liste d'Administration — qui demande la partition de chaque ligne — en demandait un par ligne :
+**N+1 sur N lignes, à O(N) chacune**. L'en-tête annonçait depuis le début le contraire, une marche
+« assez peu chère pour être construite une fois par requête », et cette promesse n'était tenue qu'en
+mots : le code en était l'exception. **Le coût est ce qui décide ici** : c'est l'écran qui interroge
+la marche une fois par ligne qui rend cette promesse fausse, et rien d'autre ne le fait.
+
+**La décision : l'index est bâti une fois, à la construction de la marche, et `descendance` comme
+`horsArbre` lisent cette instance-là.** La question n'était donc pas « où le bâtir », mais « à qui il
+appartient » : c'est un fait de la marche, et non de ses méthodes. Cela ferme deux fenêtres : une
+méthode future ne peut plus rebâtir un index sans qu'une épreuve le dise, et le hors arbre comme la
+descendance ne peuvent plus dériver de deux topologies concurrentes alors qu'il n'y en a qu'une.
+
+### Ce que cet amendement ne change pas
+
+- **L'interface de la marche ne grandit pas** : ni membre ajouté, ni membre retiré, ni type retypé —
+  donc la garde qui énumère les symboles du cœur passe sans amendement.
+- **La règle de `indexDesLiens` est celle d'hier** : une parente `null` est une racine, toute autre
+  clé est une clé de regroupement. Et tout ce que la marche rend — ancêtres, descendance, hors arbre,
+  la partition — rend exactement les mêmes faits qu'avant.
+- **Le journal n'est pas touché** : une ligne par cycle et par marche, dédoublonnée par l'ensemble
+  **trié** des liens du cycle, résumée au-delà de dix maillons.
+- **Le module qui possède la lecture n'est pas édité** :
+  [`lib/use-cases/lecture-structure.ts`](../../lib/use-cases/lecture-structure.ts) reste inchangé, et
+  rien de ce qu'il demande à la marche n'a bougé.
+- **Rien n'est rouvert** : ni l'élargissement de l'interface ni le regroupement dupliqué de la
+  Lecture — qui appartiennent à l'issue suivante, distincte de celle-ci —, ni la question de la
+  parente absente, ni les deux branches défensives — le garde de boucle de la remontée, la promotion
+  dans le regroupement —, ni l'aveuglement de la garde qui surveille les lectures de la relation hors
+  du cœur, ni la base et son index absent sur `parentId`.
+
+### Ce que l'épreuve montre aujourd'hui
+
+Le compte vit dans la suite du cœur lui-même —
+[`lib/marche-structure.test.ts`](../../lib/marche-structure.test.ts), sans base de données, comme
+toutes les épreuves de la marche — et il est pris **à la seule couture où une construction se voit** :
+`LiensStructure.parentParId`, la carte que l'appelant fournit, puisque bâtir l'index c'est énumérer
+ses paires. Un `Proxy` posé sur elle compte donc les lectures qui énumèrent et laisse passer les
+autres — `keys()` et `get()`, que le hors arbre et la remontée font légitimement. Aucune fonction
+privée n'est nommée, aucune forme interne n'est affirmée : la preuve ne tient à aucun contenu, donc
+elle tient à toute réécriture du cœur. Une épreuve voisine s'assure que la couture **voit** une
+énumération quand il y en a une, sans quoi le compte vaudrait aussi bien sur une couture qui ne
+compte rien.
+
+Les autres épreuves du cœur — ancêtres, descendances, hors arbre, partition, ordre, cycles, chaînes
+longues — passent inchangées : ce sont elles qui disent que les rendus n'ont pas bougé, et la garde
+énumère toujours les mêmes symboles.

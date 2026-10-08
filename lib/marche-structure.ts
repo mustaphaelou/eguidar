@@ -273,8 +273,9 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
    * celle qu'une méthode future referait sans le voir, et il ne resterait alors
    * rien pour dire que le hors arbre et la descendance lisent la même chose.
    * Le prix est une passe sur les liens même pour une marche qui ne demanderait
-   * que des ancêtres, le fil d'Ariane — une passe, linéaire, et c'est le prix
-   * que l'en-tête annonce déjà.
+   * que des ancêtres, le fil d'Ariane — une passe linéaire, et c'est le prix que
+   * l'en-tête annonce déjà payer, qui y tient la marche pour « assez peu chère
+   * pour être construite une fois par requête ».
    */
   const { enfants, racines } = indexDesLiens(parentParId)
 
