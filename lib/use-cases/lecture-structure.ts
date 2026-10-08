@@ -9,9 +9,9 @@
  * sous-catégories et le filtre de ses Produits (#570), et la fiche Produit pour
  * son seul fil d'Ariane (#571). **Aucune page de la boutique n'atteint plus la
  * table `Category` par ses propres moyens** : l'accueil, la catégorie et la fiche
- * passent toutes les trois par ici. Hors de ce module, il ne reste que les deux
- * lectures nommées plus bas, et aucune n'est une page. Les autres surfaces y
- * viendront une par une (#564).
+ * passent toutes les trois par ici. Hors de ce module, il ne reste que les
+ * lectures nommées plus bas — deux en production, une dans l'outillage — et
+ * aucune n'est une page. Les autres surfaces y viendront une par une (#564).
  *
  * **C'est un module serveur, et il ne prétend pas être neutre : il lit la base.**
  * Ce qui est neutre est en dessous, dans `lib/marche-structure.ts` (ADR-0030).
@@ -99,14 +99,36 @@
  * (`lib/use-cases/search.ts` — la lecture traverse la couture du moteur et rend
  * une entrée qui n'est pas en base, ADR-0029), et le compte de Structures du
  * tableau de bord d'Administration (`lib/use-cases/admin-dashboard.ts`). Aucune
- * n'est une marche. Toute autre lecture de la Structure est une faute.
+ * n'est une marche.
+ *
+ * **Une troisième lecture existe, et elle n'est pas une surface.** Le seed
+ * (`prisma/seed.ts`) écrit les Structures, puis relit par slug la rangée qu'il
+ * vient d'écrire pour y rattacher les Produits du jeu d'essai : c'est un outil
+ * d'exploitation, lancé par un opérateur et jamais par une page, et ce qu'il
+ * relit est une clé qu'il vient de poser, non un fait de catalogue. Elle est
+ * nommée ici pour que « toute autre lecture de la Structure est une faute »
+ * reste vrai sur tout l'arbre, `prisma/` compris — un seuil qui se tait sur un
+ * fichier qu'il a sous les yeux est un seuil qui ne sait pas ce qu'il couvre.
+ *
+ * **Un seuil garde cette liste, et il dit aussi ce qu'il ne voit pas.** Les
+ * lectures transactionnelles des mutations (`tx.category.findUnique`,
+ * `client.category.findUnique` — `lib/use-cases/admin-structure.ts`) ne sont pas
+ * des exceptions : ADR-0027 les laisse sous le verrou grossier, sur des faits
+ * engagés. La forme du seuil les épargne donc — il reconnaît le délégué du client
+ * partagé, pas le modèle — et c'est ce qui décide de sa forme : une expression
+ * `/category\.findUnique/` les aurait attrapées, et la garde aurait été **fausse**
+ * au lieu d'être verte. `lib/use-cases/lecture-structure-frontiere.test.ts` est ce
+ * seuil, avec sa contre-épreuve : y ajouter un lecteur est un acte, et non un
+ * oubli que l'on constate en CI.
  *
  * Volontairement sans `import "server-only"` : ce garde-fou lève sous vitest
  * (condition d'export `default`) et casserait la suite de ce module comme il a
  * cassé `devis.test.ts` et `orders.test.ts` (précédent :
  * `lib/use-cases/devis.ts`, `lib/panier.ts`). La barrière est une garde de
  * frontière, pas une directive : ce module atteint la base et aucun module
- * client ne doit l'atteindre.
+ * client ne doit l'atteindre — `lib/use-cases/lecture-structure-frontiere.test.ts`
+ * le prouve sur l'ensemble des modules clients du dépôt, déduits de leur
+ * directive et non d'une liste de noms (ADR-0028).
  *
  * **La primitive et son complément sont ici, et vivent en dessous.** Une
  * Structure et sa descendance, puis la partition qui en tire les deux listes
