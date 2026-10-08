@@ -48,7 +48,8 @@ export function GlobalNavBar({
     <header
       className={cn(
         "sticky top-0 z-40 transition-colors duration-300",
-        scrolled && "globalnav-scrim"
+        scrolled &&
+          "voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]"
       )}
     >
       <div className="mx-auto flex h-11 max-w-[1024px] items-center justify-between gap-4 px-4 sm:px-[22px]">
@@ -117,7 +118,7 @@ export function GlobalNavBar({
       </div>
 
       {searchOpen ? (
-        <div className="globalnav-scrim border-t-0 px-4">
+        <div className="voile-depoli border-b border-hairline px-4 [--voile-depoli-opacite:80%]">
           <form
             method="GET"
             action="/recherche"
@@ -143,7 +144,7 @@ export function GlobalNavBar({
 
       {menuOpen ? (
         <nav
-          className="globalnav-scrim border-t-0 lg:hidden"
+          className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%] lg:hidden"
           aria-label="Menu mobile"
         >
           <div className="mx-auto flex max-w-[1024px] flex-col gap-1 px-4 py-4 sm:px-[22px]">

@@ -55,7 +55,7 @@ export function BarreDAchat({
             aria-label={
               variantNom ? `Ajouter au panier — ${variantNom}` : undefined
             }
-            className="rounded-full text-[17px]"
+            className="rounded-full text-body"
           >
             {enAttente ? "Ajout…" : "Ajouter au panier"}
           </Button>

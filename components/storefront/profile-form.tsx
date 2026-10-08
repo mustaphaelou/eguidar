@@ -55,7 +55,7 @@ export function ProfileForm({
         </p>
       ) : null}
       {state.success ? (
-        <p className="rounded-xl border border-emerald-600/30 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+        <p className="rounded-xl border border-emerald-600/30 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-700">
           Profil enregistré.
         </p>
       ) : null}

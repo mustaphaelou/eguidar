@@ -32,7 +32,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/30 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-voile-sombre duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -55,7 +55,7 @@ function DialogContent({
         data-slot="dialog-content"
         aria-modal="true"
         className={cn(
-          "glass-panel fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] w-full gap-6 overflow-y-auto rounded-t-4xl p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-sm text-popover-foreground ring-1 ring-foreground/5 duration-100 outline-none sm:start-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[calc(100dvh-4rem)] sm:w-auto sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-4xl sm:pb-6 sm:rtl:translate-x-1/2 data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-2 sm:data-open:slide-in-from-bottom-0 sm:data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-2 sm:data-closed:slide-out-to-bottom-0 sm:data-closed:zoom-out-95",
+          "voile-depoli fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] w-full gap-6 overflow-y-auto rounded-t-4xl p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-sm text-popover-foreground ring-1 ring-hairline duration-100 outline-none sm:start-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[calc(100dvh-4rem)] sm:w-auto sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-4xl sm:pb-6 sm:rtl:translate-x-1/2 data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-2 sm:data-open:slide-in-from-bottom-0 sm:data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-2 sm:data-closed:slide-out-to-bottom-0 sm:data-closed:zoom-out-95",
           className
         )}
         {...props}

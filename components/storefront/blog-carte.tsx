@@ -85,8 +85,8 @@ export function BlogHeroCard({ article }: { article: CardBlog }) {
           titreLignes="line-clamp-3"
           kickerClasse="text-[12px] leading-[1.3334] font-bold tracking-[-0.01em] text-white/80 uppercase sm:text-[14px]"
           titreClasse="text-[24px] leading-[1.1667] font-bold tracking-[0.009em] sm:text-[40px] sm:leading-[1.1] sm:tracking-[0em] lg:text-[48px] lg:leading-[1.0835] lg:tracking-[-0.003em]"
-          extraitClasse="text-[17px] leading-[1.4706] tracking-[-0.022em]"
-          dateClasse="mt-3 text-[14px] leading-[1.4286] font-semibold tracking-[-0.016em] text-[#86868b] sm:text-[17px] sm:tracking-[-0.022em]"
+          extraitClasse="text-body leading-body tracking-[-0.022em]"
+          dateClasse="mt-3 text-[14px] leading-[1.4286] font-semibold tracking-[-0.016em] text-[#86868b] sm:text-body sm:tracking-[-0.022em]"
         />
       </div>
     </Link>

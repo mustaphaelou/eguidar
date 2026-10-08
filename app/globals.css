@@ -2,12 +2,15 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
+  --text-body: var(--text-body);
+  --text-titre-carte: var(--text-titre-carte);
+  --leading-body: var(--leading-body);
   --color-link: var(--link);
+  --color-voile-sombre: var(--voile-sombre);
+  --color-hairline: var(--hairline);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,61 +52,95 @@
 }
 
 :root {
-  /* Apple palette — verified against apple.com stylesheets, see docs/research/apple-design-system.md */
+  /* Palette d'apple.com — le site n'a qu'un thème, le clair (GLOSSARY.md).
+     Les gris portent `none` comme teinte pour qu'un color-mix() nederive
+     jamais vers le rouge ; les teintes citees viennent d'apple.com. */
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
     Helvetica, Arial, sans-serif;
-  --background: #ffffff; /* --sk-body-background-color */
-  --foreground: #1d1d1f; /* --sk-body-text-color */
-  --card: #ffffff;
-  --card-foreground: #1d1d1f;
-  --popover: #ffffff;
-  --popover-foreground: #1d1d1f;
-  --primary: #0071e3; /* --sk-fill-blue / --sk-button-background */
-  --primary-foreground: #ffffff;
-  --secondary: #fafafc; /* --sk-fill-secondary */
-  --secondary-foreground: #1d1d1f;
-  --muted: #f5f5f7; /* --sk-fill-tertiary */
-  --muted-foreground: #6e6e73; /* --sk-glyph-gray-secondary */
-  --accent: #f5f5f7;
-  --accent-foreground: #1d1d1f;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: #d2d2d7; /* --sk-fill-gray-tertiary */
-  --input: #d2d2d7;
-  --ring: #0071e3; /* --sk-focus-color */
-  --link: #0066cc; /* --sk-body-link-color */
-  --chart-1: oklch(0.879 0.169 91.605);
-  --chart-2: oklch(0.769 0.188 70.08);
-  --chart-3: oklch(0.666 0.179 58.318);
-  --chart-4: oklch(0.555 0.163 48.998);
-  --chart-5: oklch(0.473 0.137 46.201);
+  --background: oklch(1 0 none); /* --sk-body-background-color */
+  --foreground: oklch(23.2% 0 none); /* --sk-body-text-color */
+  --card: oklch(1 0 none);
+  --card-foreground: oklch(23.2% 0 none);
+  --popover: oklch(1 0 none);
+  --popover-foreground: oklch(23.2% 0 none);
+  --primary: oklch(56.3% 0.193 256); /* --sk-fill-blue / --sk-button-background */
+  --primary-foreground: oklch(1 0 none);
+  --secondary: oklch(98.6% 0 none); /* --sk-fill-secondary */
+  --secondary-foreground: oklch(23.2% 0 none);
+  --muted: oklch(97.1% 0 none); /* --sk-fill-tertiary */
+  --muted-foreground: oklch(54% 0 none); /* --sk-glyph-gray-secondary */
+  --accent: oklch(97.1% 0 none);
+  --accent-foreground: oklch(23.2% 0 none);
+  --destructive: oklch(57.7% 0.245 27.3);
+  --border: oklch(86.5% 0 none); /* --sk-fill-gray-tertiary */
+  --input: oklch(86.5% 0 none);
+  --ring: var(--primary); /* --sk-focus-color */
+  --link: oklch(52.2% 0.177 256); /* --sk-body-link-color */
+  --chart-1: oklch(87.9% 0.169 91.6);
+  --chart-2: oklch(76.9% 0.188 70.1);
+  --chart-3: oklch(66.6% 0.179 58.3);
+  --chart-4: oklch(55.5% 0.163 49);
+  --chart-5: oklch(47.3% 0.137 46.2);
   --radius: 0.45rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.588 0.158 241.966);
-  --sidebar-primary-foreground: oklch(0.977 0.013 236.62);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(98.5% 0 none);
+  --sidebar-foreground: oklch(14.5% 0 none);
+  --sidebar-primary: oklch(58.8% 0.158 242);
+  --sidebar-primary-foreground: oklch(97.7% 0.013 236.6);
+  --sidebar-accent: oklch(97% 0 none);
+  --sidebar-accent-foreground: oklch(20.5% 0 none);
+  --sidebar-border: oklch(92.2% 0 none);
+  --sidebar-ring: oklch(70.8% 0 none);
+
+  /* 1rem vaut 17px : html est a 106.25%. Les bornes du clamp ci-dessous
+     sont donc des 28px et 40px convertis dans cette base (1.647 / 2.353). */
+  --text-body: 1rem;
+  --leading-body: 1.471;
+  /* 28px sous 680px, 40px des 1088px (les paliers sm: et lg: de la carte) */
+  --text-titre-carte: clamp(1.647rem, 0.47rem + 2.9412vw, 2.353rem);
+
+  /* Le filet d'apple.com : un noir a 16%, une fois, derive de --foreground. */
+  --hairline: color-mix(in oklch, black 16%, transparent);
+  /* Le Voile sombre : une seule recette, seule l'opacite varie. */
+  --voile-sombre: color-mix(
+    in oklch,
+    black var(--voile-sombre-opacite, 30%),
+    transparent
+  );
 }
 
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border outline-ring/50;
   }
+
+  :root {
+    color-scheme: light;
+    text-wrap: pretty;
+    overflow-wrap: break-word;
+    font-synthesis: none;
+    interpolate-size: allow-keywords;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
     position: relative;
-    font-size: 17px; /* typography-body */
-    line-height: 1.4705882353;
+    min-height: 100svh;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     font-weight: 400;
     letter-spacing: -0.022em;
   }
+
   html {
     @apply font-sans;
     font-size: 106.25%; /* 1em = 17px */
   }
+
   h1,
   h2,
   h3,
@@ -112,20 +149,36 @@
   h6 {
     font-weight: 600;
   }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  button,
+  [role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+  }
 }
 
-/* Frosted-glass scrim — apple.com's --globalnav-backdrop-filter: saturate(180%) blur(20px) */
-.globalnav-scrim {
-  background-color: rgba(250, 250, 252, 0.8);
+/* Le Voile dépoli — la recette est unique, seule --voile-depoli-opacite
+   change d'une surface a l'autre. Le filet reste la décision de la surface :
+   une barre pleine largeur n'en trace que le bas. */
+.voile-depoli {
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.16);
-}
-
-/* Frosted-glass panel — same recipe as the globalnav scrim, for floating windows (auth dialogs) */
-.glass-panel {
-  background-color: rgba(250, 250, 252, 0.72);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid rgba(0, 0, 0, 0.16);
+  background-color: color-mix(
+    in oklch,
+    var(--secondary) var(--voile-depoli-opacite, 72%),
+    transparent
+  );
 }

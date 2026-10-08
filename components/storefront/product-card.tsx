@@ -49,9 +49,7 @@ export function ProductCardItem({ product }: { product: CarteProduit }) {
         <p className="text-base font-bold">{formatPrice(product.minPrice)}</p>
         <p className="text-xs text-muted-foreground">
           {product.totalStock > 0 ? (
-            <span className="text-emerald-600 dark:text-emerald-400">
-              En stock
-            </span>
+            <span className="text-emerald-600">En stock</span>
           ) : (
             <span className="text-destructive">Rupture de stock</span>
           )}
