@@ -17,6 +17,7 @@ export interface StructureCreee {
   id: string
   name: string
   slug: string
+  image: string | null
   parentId: string | null
 }
 
@@ -33,12 +34,15 @@ export function creerStructure(input: {
       parentId: input.parentId ?? null,
       image: input.image ?? null,
     },
-    select: { id: true, name: true, slug: true, parentId: true },
+    select: { id: true, name: true, slug: true, image: true, parentId: true },
   })
 }
 
 export async function creerArbrePropre(
-  arbre: Record<string, { name: string; parent?: string }>,
+  arbre: Record<
+    string,
+    { name: string; parent?: string; image?: string | null }
+  >,
   prefix?: string
 ): Promise<Record<string, StructureCreee>> {
   const crees: Record<string, StructureCreee> = {}
@@ -52,6 +56,7 @@ export async function creerArbrePropre(
     crees[cle] = await creerStructure({
       name: entree.name,
       parentId: parente?.id ?? null,
+      image: entree.image ?? null,
       prefix,
     })
   }
