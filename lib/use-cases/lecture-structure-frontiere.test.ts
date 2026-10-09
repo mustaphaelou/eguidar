@@ -5,6 +5,7 @@ import {
   directive,
   empruntsDeValeur,
   importeDe,
+  lire,
   sourcesDeProduction,
   type SourceProduction,
 } from "@/lib/use-cases/outils-frontiere"
@@ -356,6 +357,513 @@ describe("Lecture de la Structure — le seuil de lecture", () => {
     expect(lecteurs(avecSource(boutique, enTransaction))).toEqual(
       [...LECTEURS_NOMMES.keys()].sort()
     )
+  })
+})
+
+const SCHEMA = lire(import.meta.url, "../../prisma/schema.prisma")
+
+interface FormeDeLaStructure {
+  modele: string
+  delegue: string
+  porteur: string
+  champ: string
+}
+
+interface SiteLecture {
+  chemin: string
+  ligne: number
+  voie: "delegue" | "relation"
+  delegation: string | null
+  extrait: string
+}
+
+interface Repere {
+  index: number
+  voie: "delegue" | "relation"
+  delegation: string | null
+  extrait: string
+}
+
+function modelesDuSchema(schema: string): { nom: string; corps: string }[] {
+  return [
+    ...schema.matchAll(/^model\s+([A-Za-z_$][\w$]*)\s*\{$([\s\S]*?)^\}$/gm),
+  ].map(([, nom, corps]) => ({ nom: nom!, corps: corps! }))
+}
+
+function champsVers(modele: string, corps: string): string[] {
+  return [
+    ...corps.matchAll(
+      new RegExp(
+        `^\\s+([A-Za-z_$][\\w$]*)\\s+${modele}(\\[\\])?\\??\\s+@relation`,
+        "gm"
+      )
+    ),
+  ].map(([, champ]) => champ!)
+}
+
+function formeDeLaStructure(schema: string): FormeDeLaStructure {
+  const modeles = modelesDuSchema(schema)
+  const arbres = modeles.filter(
+    ({ nom, corps }) => champsVers(nom, corps).length > 0
+  )
+  if (arbres.length !== 1)
+    throw new Error(
+      `Le schéma doit porter une seule Structure qui se porte elle-même, il en porte ${arbres.length}`
+    )
+
+  const { nom: modele } = arbres[0]!
+  const porteurs = modeles
+    .filter(({ nom }) => nom !== modele)
+    .flatMap(({ nom, corps }) =>
+      champsVers(modele, corps).map((champ) => ({ porteur: nom, champ }))
+    )
+  if (porteurs.length !== 1)
+    throw new Error(
+      `Une seule rangée doit porter la relation vers ${modele}, ${porteurs.length} la portent`
+    )
+
+  return {
+    modele,
+    delegue: modele[0]!.toLowerCase() + modele.slice(1),
+    porteur: porteurs[0]!.porteur,
+    champ: porteurs[0]!.champ,
+  }
+}
+
+const FORME = formeDeLaStructure(SCHEMA)
+
+function finDeChaine(source: string, ouverture: number): number {
+  for (let index = ouverture + 1; index < source.length; index += 1) {
+    if (source[index] === "\\") index += 1
+    else if (source[index] === source[ouverture]) return index
+  }
+  return source.length
+}
+
+function finDeBloc(source: string, ouverture: number): number {
+  let profondeur = 0
+  for (let index = ouverture; index < source.length; index += 1) {
+    const caractere = source[index]
+    if (caractere === '"' || caractere === "'" || caractere === "`") {
+      index = finDeChaine(source, index)
+      continue
+    }
+    if (caractere === "{") profondeur += 1
+    else if (caractere === "}" && --profondeur === 0) return index
+  }
+  return -1
+}
+
+function reperesDeDelegue(
+  source: string,
+  delegue: string
+): Omit<Repere, "voie">[] {
+  const motifs = [
+    new RegExp(
+      `[A-Za-z_$][\\w$]*\\s*\\??\\.\\s*${delegue}\\s*\\??\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\(`,
+      "g"
+    ),
+    new RegExp(
+      `[A-Za-z_$][\\w$]*\\s*\\??\\.?\\s*\\[\\s*["'\`]${delegue}["'\`]\\s*\\]\\s*\\??\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\(`,
+      "g"
+    ),
+  ]
+
+  return motifs.flatMap((motif) =>
+    [...source.matchAll(motif)].flatMap((entree) => {
+      const delegation = entree[1]!
+      if (ECRITURES_DELEGUEES.has(delegation)) return []
+      return [
+        {
+          index: entree.index ?? 0,
+          delegation,
+          extrait: entree[0].replace(/\s*\($/, ""),
+        },
+      ]
+    })
+  )
+}
+
+function reperesDeRelation(
+  source: string,
+  champ: string
+): Omit<Repere, "voie" | "delegation">[] {
+  const vus = new Map<number, string>()
+  for (const entree of source.matchAll(/\b(include|select)\s*:\s*\{/g)) {
+    const ouverture = (entree.index ?? 0) + entree[0].length - 1
+    const fin = finDeBloc(source, ouverture)
+    if (fin < 0) continue
+    for (const cle of source
+      .slice(ouverture, fin + 1)
+      .matchAll(new RegExp(`\\b${champ}\\b["'\`]?\\s*(?=[,:}])`, "g"))) {
+      vus.set(ouverture + (cle.index ?? 0), `${entree[1]}: ${champ}`)
+    }
+  }
+  return [...vus].map(([index, extrait]) => ({ index, extrait }))
+}
+
+function sitesDeLecture(
+  sources: readonly SourceProduction[],
+  forme: FormeDeLaStructure
+): SiteLecture[] {
+  return sources
+    .filter(({ chemin }) => !estGeneree(chemin))
+    .flatMap(({ chemin, source }) =>
+      [
+        ...reperesDeDelegue(source, forme.delegue).map((repere) => ({
+          ...repere,
+          voie: "delegue" as const,
+        })),
+        ...reperesDeRelation(source, forme.champ).map(({ index, extrait }) => ({
+          index,
+          voie: "relation" as const,
+          delegation: null,
+          extrait,
+        })),
+      ]
+        .sort((a, b) => a.index - b.index)
+        .map(({ index, voie, delegation, extrait }) => ({
+          chemin,
+          ligne: source.slice(0, index).split("\n").length,
+          voie,
+          delegation,
+          extrait,
+        }))
+    )
+    .sort((a, b) => a.chemin.localeCompare(b.chemin) || a.ligne - b.ligne)
+}
+
+describe("Lecture de la Structure — la reconnaissance de la lecture", () => {
+  it("la forme se lit dans le dépôt, et le dépôt la confirme", () => {
+    expect(modelesDuSchema(SCHEMA).length).toBeGreaterThan(10)
+    expect(SCHEMA).toContain(`model ${FORME.modele} {`)
+    expect(SCHEMA).toContain(`model ${FORME.porteur} {`)
+    expect(FORME).toEqual({
+      modele: "Category",
+      delegue: "category",
+      porteur: "Product",
+      champ: "category",
+    })
+
+    const genereDuModele = sourceDe(
+      `lib/generated/prisma/models/${FORME.modele}.ts`
+    ).source
+    const genereDuPorteur = sourceDe(
+      `lib/generated/prisma/models/${FORME.porteur}.ts`
+    ).source
+    expect(genereDuModele).toContain(`prisma.${FORME.delegue}.findMany`)
+    expect(genereDuModele).toContain(`["${FORME.delegue}"]`)
+    expect(genereDuPorteur).toContain(`${FORME.champ}?: Prisma.XOR<`)
+  })
+
+  it("un renommage de la forme déplace la cible au lieu de la désarmer", () => {
+    const renomme = SCHEMA.replaceAll("Category", "Groupe").replaceAll(
+      "category",
+      "groupe"
+    )
+    expect(renomme).not.toBe(SCHEMA)
+    expect(renomme).not.toContain("Category")
+    expect(renomme).not.toContain("category")
+
+    const cible = formeDeLaStructure(renomme)
+    expect(cible).toEqual({
+      modele: "Groupe",
+      delegue: "groupe",
+      porteur: "Product",
+      champ: "groupe",
+    })
+
+    for (const [source, voie, extrait] of [
+      ["await prisma.groupe.findMany()", "delegue", "prisma.groupe.findMany"],
+      [
+        "await prisma.product.findMany({ include: { groupe: true } })",
+        "relation",
+        "include: groupe",
+      ],
+    ]) {
+      expect(
+        sitesDeLecture([{ chemin: "lib/forme.ts", source }], cible).map(
+          (site) => `${site.voie}:${site.extrait}`
+        ),
+        source
+      ).toEqual([`${voie}:${extrait}`])
+    }
+
+    for (const source of [
+      "await prisma.category.findMany()",
+      "await prisma.product.findMany({ include: { category: true } })",
+    ]) {
+      expect(
+        sitesDeLecture([{ chemin: "lib/forme.ts", source }], cible),
+        source
+      ).toEqual([])
+      expect(
+        sitesDeLecture([{ chemin: "lib/forme.ts", source }], FORME),
+        source
+      ).not.toEqual([])
+    }
+
+    const deuxArbres = [
+      renomme,
+      "model Jumeau {",
+      "  parentId String?",
+      "  parent   Jumeau? @relation(fields: [parentId], references: [id])",
+      "}",
+      "",
+    ].join("\n")
+    expect(() => formeDeLaStructure(deuxArbres)).toThrow(/une seule Structure/)
+  })
+
+  it("le délégué est vu par tout récepteur, et le seuil d'aujourd'hui n'en voyait qu'un", () => {
+    for (const recepteur of ["prisma", "tx", "client", "session"]) {
+      const source = `await ${recepteur}.${FORME.delegue}.findUnique({ where: { id } })`
+      expect(
+        sitesDeLecture([{ chemin: "lib/forme.ts", source }], FORME).map(
+          ({ voie, delegation, extrait }) => `${voie}:${delegation}:${extrait}`
+        ),
+        recepteur
+      ).toEqual([`delegue:findUnique:${recepteur}.${FORME.delegue}.findUnique`])
+    }
+
+    expect(lecturesDeLaStructure("await tx.category.findUnique({})")).toEqual(
+      []
+    )
+  })
+
+  it("la relation est vue par toute rangée qui l'amène, d'un niveau ou de deux", () => {
+    for (const [source, voie, extrait] of [
+      [
+        `await prisma.product.findUnique({ include: { ${FORME.champ}: true } })`,
+        "relation",
+        `include: ${FORME.champ}`,
+      ],
+      [
+        `await prisma.product.findMany({ include: { variants: true, ${FORME.champ}: true } })`,
+        "relation",
+        `include: ${FORME.champ}`,
+      ],
+      [
+        `await prisma.product.findMany({ select: { ${FORME.champ}: { select: { name: true } } } })`,
+        "relation",
+        `select: ${FORME.champ}`,
+      ],
+      [
+        `await prisma.productVariant.findUnique({ include: { product: { include: { ${FORME.champ}: true, variants: true } } } })`,
+        "relation",
+        `include: ${FORME.champ}`,
+      ],
+      [
+        `await prisma.product.findMany({ include: { ${FORME.champ}: { include: { products: true } } } })`,
+        "relation",
+        `include: ${FORME.champ}`,
+      ],
+    ]) {
+      expect(
+        sitesDeLecture([{ chemin: "lib/forme.ts", source }], FORME).map(
+          (site) => `${site.voie}:${site.extrait}`
+        ),
+        source
+      ).toEqual([`${voie}:${extrait}`])
+    }
+
+    for (const source of [
+      "await prisma.product.findMany({ include: { variants: true } })",
+      "await prisma.product.findMany({ where: { categoryId: null } })",
+      "await prisma.product.findMany({ where: { category: { is: null } } })",
+      "await prisma.product.update({ data: { categoryId: null } })",
+      "await prisma.product.create({ data: { category: { connect: { id } } } })",
+      "const nom = produit.category.nom",
+    ]) {
+      expect(
+        sitesDeLecture([{ chemin: "lib/forme.ts", source }], FORME),
+        source
+      ).toEqual([])
+    }
+  })
+
+  it("la reconnaissance voit des formes qu'aucune source de production n'écrit", () => {
+    const formes: [string, string, string][] = [
+      [
+        `await prisma["${FORME.delegue}"].findMany()`,
+        "delegue",
+        `prisma["${FORME.delegue}"].findMany`,
+      ],
+      [
+        `await prisma?.${FORME.delegue}?.findMany()`,
+        "delegue",
+        `prisma?.${FORME.delegue}?.findMany`,
+      ],
+      [
+        `await prisma.product.findMany({ select: { ${FORME.champ}: true } })`,
+        "relation",
+        `select: ${FORME.champ}`,
+      ],
+      [
+        `await prisma.product.findMany({ include: { ${FORME.champ}: { include: { products: true } } } })`,
+        "relation",
+        `include: ${FORME.champ}`,
+      ],
+      [
+        `await tx.${FORME.delegue}.aggregate({ _count: true })`,
+        "delegue",
+        `tx.${FORME.delegue}.aggregate`,
+      ],
+    ]
+    expect(formes.length).toBeGreaterThanOrEqual(5)
+
+    for (const [forme, voie, extrait] of formes) {
+      expect(
+        SOURCES.filter(({ source }) => source.includes(forme)).map(
+          ({ chemin }) => chemin
+        ),
+        forme
+      ).toEqual([])
+      expect(
+        sitesDeLecture([{ chemin: "lib/forme.ts", source: forme }], FORME).map(
+          (site) => `${site.voie}:${site.extrait}`
+        ),
+        forme
+      ).toEqual([`${voie}:${extrait}`])
+    }
+  })
+
+  it("les écritures restent exemptées, et l'exemption vient du client généré", () => {
+    expect(ECRITURES_DELEGUEES.size).toBeGreaterThan(0)
+
+    const genere = sourceDe(
+      `lib/generated/prisma/models/${FORME.modele}.ts`
+    ).source
+    const documentees = new Set(
+      [
+        ...genere.matchAll(
+          new RegExp(`prisma\\.${FORME.delegue}\\.([A-Za-z]+)`, "g")
+        ),
+      ].map(([, delegation]) => delegation!)
+    )
+    expect(documentees).toContain("findMany")
+
+    for (const delegation of ECRITURES_DELEGUEES) {
+      expect(documentees, delegation).toContain(delegation)
+      for (const recepteur of ["prisma", "tx", "client"]) {
+        expect(
+          sitesDeLecture(
+            [
+              {
+                chemin: "lib/forme.ts",
+                source: `await ${recepteur}.${FORME.delegue}.${delegation}({})`,
+              },
+            ],
+            FORME
+          ),
+          `${recepteur}.${delegation}`
+        ).toEqual([])
+      }
+    }
+  })
+
+  it("les sources générées restent exclues, et l'exclusion n'est pas un trou", () => {
+    const generees = SOURCES.filter(({ chemin }) => estGeneree(chemin))
+    expect(generees.length).toBeGreaterThan(0)
+    for (const { chemin, source } of generees) {
+      expect(source, chemin).toContain(BANIERE_GENEREE)
+    }
+
+    const porteuses = generees.filter(
+      ({ source }) => reperesDeDelegue(source, FORME.delegue).length > 0
+    )
+    expect(porteuses.map(({ chemin }) => chemin)).toContain(
+      `lib/generated/prisma/models/${FORME.modele}.ts`
+    )
+    expect(porteuses.length).toBeGreaterThan(0)
+    expect(sitesDeLecture(generees, FORME)).toEqual([])
+  })
+
+  it("la reconnaissance nomme le site, et tombe sur une violation écrite dans un fichier réel", () => {
+    const cible = "lib/use-cases/blog.ts"
+    const reel = sourceDe(cible).source
+    expect(sitesDeLecture(SOURCES, FORME).length).toBeGreaterThan(10)
+    expect(
+      sitesDeLecture(SOURCES, FORME).filter(
+        ({ chemin: trouve }) => trouve === cible
+      )
+    ).toEqual([])
+
+    const enViolation = sourceApres(
+      reel,
+      [
+        `const parTransaction = await tx.${FORME.delegue}.findUnique({ where: { id } })`,
+        `const parPoignee = await client.${FORME.delegue}.findFirst()`,
+        `const parRang = await prisma.product.findMany({ include: { ${FORME.champ}: true } })`,
+        `const ecrit = await prisma.${FORME.delegue}.update({ data: { name: "x" } })`,
+      ].join("\n")
+    )
+    expect(enViolation).not.toBe(reel)
+
+    const sitesDuFichier = sitesDeLecture(
+      avecSource(cible, enViolation),
+      FORME
+    ).filter(({ chemin: trouve }) => trouve === cible)
+    expect(sitesDuFichier).toEqual([
+      {
+        chemin: cible,
+        ligne: 2,
+        voie: "delegue",
+        delegation: "findUnique",
+        extrait: `tx.${FORME.delegue}.findUnique`,
+      },
+      {
+        chemin: cible,
+        ligne: 3,
+        voie: "delegue",
+        delegation: "findFirst",
+        extrait: `client.${FORME.delegue}.findFirst`,
+      },
+      {
+        chemin: cible,
+        ligne: 4,
+        voie: "relation",
+        delegation: null,
+        extrait: `include: ${FORME.champ}`,
+      },
+    ])
+  })
+
+  it("la reconnaissance se prouve sur le dépôt réel, pas sur un exemple", () => {
+    expect(SOURCES.length).toBeGreaterThan(200)
+
+    const trouves = sitesDeLecture(SOURCES, FORME)
+    expect(trouves).toHaveLength(16)
+    expect(trouves.filter(({ voie }) => voie === "relation")).toHaveLength(8)
+    expect(trouves.filter(({ voie }) => voie === "delegue")).toHaveLength(8)
+    expect(trouves.map(({ chemin }) => chemin)).toEqual(
+      expect.arrayContaining([
+        MODULE_LECTURE,
+        "lib/use-cases/storefront.ts",
+        "lib/use-cases/admin-structure.ts",
+        "lib/use-cases/admin-catalog.ts",
+        "lib/use-cases/admin-dashboard.ts",
+        "lib/use-cases/search.ts",
+        "prisma/seed.ts",
+      ])
+    )
+
+    for (const [recepteur, attendues] of [
+      ["prisma", 4],
+      ["tx", 2],
+      ["client", 2],
+    ] as const) {
+      expect(
+        trouves.filter(({ extrait }) =>
+          extrait.startsWith(`${recepteur}.${FORME.delegue}.`)
+        ),
+        recepteur
+      ).toHaveLength(attendues)
+    }
+    expect(
+      trouves
+        .filter(({ extrait }) => extrait === `select: ${FORME.champ}`)
+        .map(({ chemin }) => chemin)
+    ).toEqual(["lib/use-cases/admin-catalog.ts"])
   })
 })
 
