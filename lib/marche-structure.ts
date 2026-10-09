@@ -9,6 +9,20 @@ export interface LiensStructure {
   noms?: ReadonlyMap<string, string>
 }
 
+/**
+ * La marche répond des faits, jamais des verdicts (ADR-0030) : elle arrête la
+ * boucle et rend ce qu'elle a parcouru, et ce qu'un cycle signifie reste à
+ * l'appelant.
+ *
+ * **La topologie de l'arbre est finie, et c'est une promesse, pas une garde.**
+ * Chaque maillon d'un cycle a sa parente *dans* le cycle : aucune racine n'y
+ * mène, donc une descente partie de `racines` par `enfantsDe` ne peut pas y
+ * retomber, donc le calcul du hors arbre absorbe le cycle entier avec ce qui y
+ * mène. Un appelant qui descend la topologie atteint donc chaque Structure une
+ * fois et jamais deux, et n'a rien à garder de son côté. Le cas n'est pas rare,
+ * il est impossible — et une garde dont la nécessité est un commentaire est un
+ * commentaire avec un coût d'exécution.
+ */
 export interface MarcheStructure {
   ancetres(id: string): string[]
   descendance(id: string): string[]
