@@ -506,3 +506,219 @@ fait ça ».
 Et l'invariant que ce travail fixe est désormais nommé : une Structure dont la parente ne nomme
 aucune rangée apparaît **exactement une fois** dans la liste d'Administration, et **absente** de
 l'arbre d'accueil. Aucune épreuve ne l'énonçait, et c'est pourquoi la duplication était invisible.
+
+## Amendement — Une lecture de la relation est une exception nommée, et la liste est la règle (#604)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les lectures
+dégradent, une seule marche pour la Structure, une neutralité qui tient. Cet amendement consigne une
+décision prise après que les quatre précédents eurent été écrits, et que ce dépôt n'enregistre nulle
+part ailleurs : **ce que le seuil qui surveille les lectures de la relation hors du cœur appelle une
+lecture, et où passe la ligne**.
+
+### Ce que le seuil appelle une lecture, et où passe la ligne
+
+Le seuil tient en quatre sujets, chacun dans sa suite : la frontière client dans
+[`lecture-structure-frontiere.test.ts`](../../lib/use-cases/lecture-structure-frontiere.test.ts), la
+reconnaissance dans
+[`lecture-structure-reconnaissance.test.ts`](../../lib/use-cases/lecture-structure-reconnaissance.test.ts),
+la liste nommée dans
+[`lecture-structure-seuil.test.ts`](../../lib/use-cases/lecture-structure-seuil.test.ts), la porte par
+écran dans
+[`lecture-structure-portes.test.ts`](../../lib/use-cases/lecture-structure-portes.test.ts). Sa forme
+n'est écrite en littéral nulle part : `formeDeLaStructure` la lit dans
+[`schema.prisma`](../../prisma/schema.prisma), et rend le modèle, son délégué, la seule rangée qui
+porte la relation vers lui, et le champ de cette relation. Un second modèle qui se porterait lui-même ne
+ferait pas _désarmer_ la reconnaissance : il la **fait tomber**, sur un schéma qui en porterait deux.
+
+Deux voies, et le seuil les compte l'une et l'autre.
+
+- **Le délégué, par n'importe quel récepteur** — `prisma`, `tx`, `client`, `session`. La Transaction et
+  la poignée comprises, parce que ce ne sont pas là des noms propres à une mutation : `assertUniqueCategorySlug`
+  et `assertCategoryParent` reçoivent leur client en paramètre
+  ([`admin-structure.ts:198`](../../lib/use-cases/admin-structure.ts#L198),
+  [`:208`](../../lib/use-cases/admin-structure.ts#L208)), et c'est sous cette forme que la lecture se
+  fait, au moment où le refus se décide. Le délégué est vu qu'il soit atteint par une propriété nommée
+  ou par un nom lié : `const { category } = prisma`, `const alias = prisma.category`, et l'appel en
+  optionnel `prisma.category.findMany?.()` sont trois lectures, non trois souvenirs. Un nom qui n'est
+  pas le délégué, ou un nom lié sans appel, ne réveille rien.
+  Les délégations d'écriture sont exemptées, et **l'exemption vient d'une liste tenue au seuil**,
+  `ECRITURES_DELEGUEES`. Ce que la suite prouve de cette liste est un seul sens : chacune de ses
+  entrées est bien une délégation que le client généré documente. Elle ne prouve pas que cette liste
+  soit complète, et l'amendement ne l'affirme pas — l'ensemble est complet aujourd'hui, le code ne le
+  démontre pas.
+- **La relation, atteinte par une rangée qui l'amène** — en `include` ou en `select`, d'un niveau ou de
+  deux. Le seuil suit le pointeur à travers `variants` comme à travers `product`, ce qui vaut pour
+  [`admin-catalog.ts:489`](../../lib/use-cases/admin-catalog.ts#L489) autant que pour une rangée de
+  premier niveau.
+
+Ce que le seuil **ne** voit pas est écrit en clair dans la même suite, sous forme de sources dont la
+reconnaissance doit rendre une liste vide : un filtre scalaire `where: { categoryId }`, un filtre de
+relation `where: { category: { is: null } }`, une écriture qui raccorde une catégorie, et l'accès à une
+propriété déjà chargée, qui n'est pas une requête.
+
+**La ligne : le cœur possède la topologie, et une rangée n'en est qu'un pointeur.** C'est la
+formulation qu'emploient les raisons voisines — « le pointeur d'une seule rangée, pas sa place dans
+l'arbre », « l'existence d'une seule rangée portant ce slug, pas sa place dans l'arbre ». Aucune des
+huit lectures de la relation ne demande _qui descend de qui_ : chacune demande le nom ou le slug qu'une
+rangée porte, d'une rangée que la requête a déjà nommée. Un filtre scalaire ne demande rien du tout ;
+une écriture qui raccorde une catégorie écrit une arête sans en lire aucune. La ligne ne se déplace donc
+pas quand une lecture change de forme : elle se vérifie à chaque fois, et c'est ce que la comparaison
+de la liste fait.
+
+### Le compte, et le chiffre que le spec donne de travers
+
+Le seuil trouve seize sites et la suite en nomme seize : huit par la relation, huit par le délégué — et
+parmi ces huit, **quatre par la poignée**, deux `tx` et deux `client`, toutes dans
+[`admin-structure.ts`](../../lib/use-cases/admin-structure.ts). Quatre entrées sont héritées du seuil
+précédent, douze sont ajoutées par ce travail, et la suite compte les deux nombres.
+
+Le fait « héritée » est porté une seule fois, par le champ `herite` de l'entrée. Il ne l'est plus par
+un préfixe de raison, qui était un second énoncé de la même chose : changer l'un des deux laissait
+l'autre mentir en silence.
+
+Le spec dit **cinq** lectures de production. Il y en a **huit** par la relation et **quatre** par la
+poignée. Le huit est bon ; le cinq ne l'est pas, et c'est le huit qu'il faut tenir : le compte à écrire
+n'est pas celui de ce que la décision décrit, c'est celui de ce que le dépôt écrit.
+
+### Aucune des douze n'a été routée par le cœur
+
+Chacune est une exception nommée, avec sa raison, dans la liste que le seuil compare par égalité à ce
+que la reconnaissance trouve. Aucune n'a été demandée au cœur, et aucune n'y a été donnée.
+
+- **[`admin-catalog.ts`](../../lib/use-cases/admin-catalog.ts)**, quatre fois : le Document d'index du
+  produit qu'une transaction vient d'écrire ([`296`](../../lib/use-cases/admin-catalog.ts#L296)) et du
+  produit qu'elle relit à sa sortie ([`426`](../../lib/use-cases/admin-catalog.ts#L426)) ; le produit
+  portant la variante dont le stock change, atteint par deux joins
+  ([`489`](../../lib/use-cases/admin-catalog.ts#L489)) ; et le seul nom de la catégorie de la liste des
+  Produits de l'Administration ([`541`](../../lib/use-cases/admin-catalog.ts#L541)). Les trois premiers
+  sont le même fait — le nom de la catégorie dans un Document d'index — et le dernier est une chaîne.
+- **[`admin-structure.ts`](../../lib/use-cases/admin-structure.ts)**, six fois : l'unicité du slug
+  ([`198`](../../lib/use-cases/admin-structure.ts#L198)) et la présence du parent visé
+  ([`208`](../../lib/use-cases/admin-structure.ts#L208)), tous deux par la poignée que la mutation leur
+  passe, et le second est le refus « catégorie parente inconnue », écrit le 2026-08-10 en
+  [`7c4f258`](https://github.com/eloaurdi/eguidar/commit/7c4f25838422ade7b1eac22b8027ae01ba8c3c0d),
+  sept semaines avant qu'ADR-0027 ne vienne le consigner le 2026-10-01 — elle l'a documenté, elle ne
+  l'a pas posé ; la rangée
+  qu'on s'apprête à réécrire ([`327`](../../lib/use-cases/admin-structure.ts#L327)) et les enfants et
+  produits d'une Structure qu'on supprime, pour décider d'un refus
+  ([`394`](../../lib/use-cases/admin-structure.ts#L394)), tous deux par la Transaction ; et les deux
+  lectures de la voie d'index, à la réaffectation
+  ([`270`](../../lib/use-cases/admin-structure.ts#L270)) et à la suppression
+  ([`439`](../../lib/use-cases/admin-structure.ts#L439)).
+- **[`storefront.ts`](../../lib/use-cases/storefront.ts)**, une fois : le nom de la catégorie du produit
+  affiché, pour amorcer son fil d'Ariane
+  ([`137`](../../lib/use-cases/storefront.ts#L137)) — le pointeur d'une rangée, la descente restant à la
+  Lecture.
+- **[`prisma/seed.ts`](../../prisma/seed.ts)**, une fois : le nom de la catégorie dans les Documents
+  d'index écrits par l'outillage d'exploitation
+  ([`338`](../../prisma/seed.ts#L338)).
+
+**La voie d'index garde son exclusion, et elle prend la forme que le seuil lui impose.**
+[`readIndexableCategoryProducts`](../../lib/use-cases/admin-structure.ts#L265) est toujours un `where: { categoryId }`
+plat, et ADR-0030 l'a déjà écrit : elle ne traverse pas la marche. Mais l'`include: { category: true }`
+qui se tient à côté — [`270`](../../lib/use-cases/admin-structure.ts#L270) — est **maintenant vu par le
+seuil**, et il est une entrée nommée comme les onze autres. L'exclusion ne tient donc plus à une
+propriété de la requête ; elle tient à une raison écrite, ce qui est sa forme la plus forte : la
+première disait « ce n'est pas une marche », la seconde dit « ce n'est pas la topologie, et voici
+pourquoi ». Une réaffectation ne réindexe toujours que les Produits de la Structure déplacée, pas ceux
+de ses descendantes — fait connu, hors de cette décision, et que l'amendement de #585 laissait ouvert.
+
+### La facette garde son propriétaire
+
+L'issue demandait si la facette de catégorie de la Recherche devait passer par le cœur. Non, et la
+décision était déjà celle du dépôt avant qu'on la pose : la valeur réservée `_sans-structure` et son
+libellé sont écrits une fois, dans [`lib/index-projection.ts`](../../lib/index-projection.ts) — le
+module neutre d'ADR-0028 — et
+[`index-projection-frontiere.test.ts`](../../lib/index-projection-frontiere.test.ts) le prouve sur tout
+le corpus : une seule écriture de la valeur, une seule déclaration de chacun des deux noms, et quatre
+producteurs nommés, dont chacun l'emprunte au propriétaire — la voie d'écriture du Document d'index, la
+nomenclature de la Recherche, la puce de l'Administration, la suggestion du Bandeau.
+
+Ce que la question cherchait à créer était un **second** propriétaire, non un propriétaire mieux
+placé. Il n'y en a pas : les producteurs lisaient déjà le bon, et ce qui restait était la preuve, non
+la dérivation. La lecture que la Recherche fait pour sa nomenclature —
+[`search.ts:78`](../../lib/use-cases/search.ts#L78), un `findMany` par slug — n'est pas plus la topologie
+que les autres : c'est une entrée héritée du seuil, nommée « les noms d'une facette, lus par slug »
+(ADR-0029). La facette ne traverse donc ni le cœur ni la Lecture, et la question n'a pas à être
+reposée.
+
+### Ce seuil est le plus haut disponible pour la règle
+
+Un seuil plus profond n'est pas disponible pour _cette_ règle, et il ne le sera pas sans une autre
+décision. Ce qu'il faudrait ajouter est précisément ce que la suite refuse aujourd'hui : les filtres
+scalaires, les filtres de relation sur une absence, les écritures qui raccordent une catégorie. Or
+aucun de ces trois n'est une lecture de la topologie — ils sont, pris ensemble, **la voie d'écriture de
+la Structure et les refus d'ADR-0027**. Les garder hors du seuil ne laisse donc rien sans surveillance :
+une lecture de la topologie reste signalée partout où elle se produit, et ce que le seuil laisse passer
+est ce qu'ADR-0027 a déjà placé sous le gros verrou. Un seuil qui les prendrait ne garderait plus la
+décision de ce document ; il en garderait une autre, qui n'a pas été prise.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Deux passages décrivent un état qui n'est plus le leur ; c'est le présent amendement qu'il faut y lire
+à côté.
+
+- la puce « **L'écriture de l'index ne traverse pas la marche** » des conséquences — «
+  [readIndexableCategoryProducts](../../lib/use-cases/admin-structure.ts) est un `where: { categoryId }`
+  plat ». Elle tient toujours, et c'est la forme que le seuil lui donne qu'il faut y lire : la raison
+  qu'elle invoque — le `where` plat — ne porte plus l'exclusion à elle seule, puisque l'`include` qui
+  l'accompagne est vu, et nommé ;
+- la phrase « Le glossaire le nomme, et **son en-tête déclare les deux lectures qui restent hors de
+  lui** » de l'[amendement de #564](#amendement--la-lecture-de-la-structure-possède-la-lecture-et-le-client-ne-traverse-plus-la-marche-564).
+  Le module n'a plus d'en-tête : `667d916` a supprimé les commentaires du code de première partie
+  (#599), et rien ne l'a rétabli. Ce qui déclarait ces lectures est aujourd'hui **la liste exécutable du
+  seuil** — seize sites, seize raisons — et c'est elle qui les porte. L'[amendement de #585](#amendement--la-topologie-de-la-structure-a-un-seul-propriétaire-et-une-structure-hors-arbre-se-rend-une-fois-585)
+  l'avait déjà dit en général — « tous deux se corrigent avec le code, non depuis ce document » ; le
+  présent ne fait que nommer ce qui s'est corrigé.
+
+### Ce que cet amendement ne change pas
+
+- **Aucune contradiction avec la décision.** Elle fixe la neutralité du cœur, sa synchronie et le fait
+  que le lien de parenté est consommé en mémoire ; elle n'énumère pas les requêtes qu'un module a le
+  droit de poser sur une rangée. Aucune des douze n'est une marche : chacune rend un fait d'une rangée
+  nommée, et le cœur ne rend pas cela.
+- **Le cœur n'a pas bougé** : ni lecture, ni directive, ni crochet, ses deux points d'entrée conservés,
+  et son interface ne grandit pas — donc la garde qui énumère ses symboles passe sans amendement.
+- **La règle de terminaison ne change pas** : toute revisite arrête, comme avant.
+- **La divergence boutique/mutation tient en entier** : la boutique dégrade, la mutation refuse,
+  `CategoryAncestorCycleError` reste le seul à lever ce refus, et `assertAcyclicCategoryTree` reste lié
+  à sa transaction.
+- **Aucune profondeur maximale** n'est introduite : ADR-0027 l'a refusée, et rien ici ne s'en approche.
+- **Rien n'est rouvert** : ni la prémisse des deux gardes de frontière, qui reste une recherche de
+  sous-chaîne, ni le schéma et son index absent sur `parentId`, ni la catégorie d'un document de
+  recherche. L'angle mort que l'[amendement de #585](#amendement--la-topologie-de-la-structure-a-un-seul-propriétaire-et-une-structure-hors-arbre-se-rend-une-fois-585)
+  disait « un travail distinct » est ce travail ; il est pris, non rouvert.
+
+### Ce que l'épreuve montre aujourd'hui
+
+Le seuil se prouve sur le dépôt réel et non sur un exemple : le compte de seize, la répartition huit
+par huit, la répartition des récepteurs — quatre lectures par `prisma`, deux par `tx`, deux par `client`
+— et le fait que le seul `select: category` du dépôt soit dans
+[`admin-catalog.ts`](../../lib/use-cases/admin-catalog.ts), sont tous énoncés dans la suite. La liste
+nommée est comparée **par égalité** à ce que la reconnaissance trouve, dans les deux sens : ce qui
+interdit aussi bien une lecture sans nom qu'un nom sans lecture.
+
+Trois contre-épreuves tiennent la garde honnête. Une relation plantée dans un fichier réel — un site
+nommé de plus — la fait tomber. Une **raison sans lecture derrière elle** la fait tomber de l'autre
+sens : le site's retiré de
+[`storefront.ts`](../../lib/use-cases/storefront.ts#L137) laisse une raison sans fait, et la garde
+tombe. Une lecture par `Transaction` est vue, et se nomme comme les autres.
+
+**Les entrées sont liées à la déclaration qui les porte, non à leur place dans le fichier.** La clé
+d'une entrée n'est pas son rang parmi les lectures de même forme, mais **la déclaration qui la
+porte** — `createProduct`, `assertCategoryParent`, `fetchProductPageData`. Ce que la clé garantit est
+donc que deux lectures de même forme se distinguent par ce qui les appelle, et non par l'ordre où la
+source les écrit : une édition qui décale les lignes laisse la liste intacte, et une lecture de même
+forme déplacée d'une déclaration à l'autre change de clé au lieu de se banaliser dans un rang. La suite
+le prouve dans les deux sens : une lecture de même forme plantée dans `assertUniqueCategorySlug` laisse
+la clé de `assertCategoryParent` **inchangée**, et deux lectures de même forme dans une même
+déclaration rendent la clé deux fois, qu'il faut nommer deux fois.
+
+Ce que la clé **ne** garantit pas, et qu'il faut dire avec la même netteté, tient en une phrase
+mesurée : **échanger deux raisons entre deux entrées correctes laisse la garde verte.** Ce n'est pas
+une déduction, c'est un constat — les deux entrées portant sur la même lecture de même forme dans deux
+déclarations distinctes, leur clé ne dépend pas de leur raison. La déclaration qui porte une lecture
+est le site de la reconnaissance, non sa nature : la clé distingue deux lectures, elle ne dit pas si
+l'une est légitime. La limite est donc de **justesse**, et non de lisibilité — elle existait déjà sous
+le rang, qui était plus fragile encore, et elle est celle qu'un travail distinct, qui demanderait à la
+reconnaissance de rendre le sens de la lecture, pourrait lever.

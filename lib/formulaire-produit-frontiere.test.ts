@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   atteignables,
+  carteDe,
   importeDe,
   sourcesDeProduction,
   type SourceProduction,
@@ -65,10 +66,6 @@ function aucuneDependance(source: string, chemin: string): void {
   for (const nom of MODULES_INTERDITS) {
     expect(importeDe(source, nom), `${chemin} → ${nom}`).toBe(false)
   }
-}
-
-function carteDe(...paires: [string, string][]): Map<string, SourceProduction> {
-  return new Map(paires.map(([chemin, source]) => [chemin, { chemin, source }]))
 }
 
 describe("Formulaire Produit — frontière client/serveur", () => {
