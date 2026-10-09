@@ -2,20 +2,16 @@ import { describe, expect, it } from "vitest"
 
 import {
   atteignables,
+  carteDe,
   directive,
   empruntsDeValeur,
   importeDe,
   lire,
   sourcesDeProduction,
   sourcesToutes,
-  type SourceProduction,
 } from "@/lib/use-cases/outils-frontiere"
 
 const AIDE = "lib/use-cases/outils-frontiere.ts"
-
-function carteDe(...paires: [string, string][]): Map<string, SourceProduction> {
-  return new Map(paires.map(([chemin, source]) => [chemin, { chemin, source }]))
-}
 
 describe("outils de frontière — la directive qu'une source réclame", () => {
   it("lit la réclamation du prologue entier, et non sa première entrée", () => {

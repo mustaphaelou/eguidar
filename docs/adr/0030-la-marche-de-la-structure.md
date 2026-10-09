@@ -517,8 +517,14 @@ lecture, et où passe la ligne**.
 
 ### Ce que le seuil appelle une lecture, et où passe la ligne
 
-Le seuil est une suite — [`lecture-structure-frontiere.test.ts`](../../lib/use-cases/lecture-structure-frontiere.test.ts)
-— et `sitesDeLecture` y balaie tout le corpus de production pour rendre un site par lecture. Sa forme
+Le seuil tient en quatre sujets, chacun dans sa suite : la frontière client dans
+[`lecture-structure-frontiere.test.ts`](../../lib/use-cases/lecture-structure-frontiere.test.ts), la
+reconnaissance dans
+[`lecture-structure-reconnaissance.test.ts`](../../lib/use-cases/lecture-structure-reconnaissance.test.ts),
+la liste nommée dans
+[`lecture-structure-seuil.test.ts`](../../lib/use-cases/lecture-structure-seuil.test.ts), la porte par
+écran dans
+[`lecture-structure-portes.test.ts`](../../lib/use-cases/lecture-structure-portes.test.ts). Sa forme
 n'est écrite en littéral nulle part : `formeDeLaStructure` la lit dans
 [`schema.prisma`](../../prisma/schema.prisma), et rend le modèle, son délégué, la seule rangée qui
 porte la relation vers lui, et le champ de cette relation. Un second modèle qui se porterait lui-même ne
@@ -531,8 +537,15 @@ Deux voies, et le seuil les compte l'une et l'autre.
   et `assertCategoryParent` reçoivent leur client en paramètre
   ([`admin-structure.ts:198`](../../lib/use-cases/admin-structure.ts#L198),
   [`:208`](../../lib/use-cases/admin-structure.ts#L208)), et c'est sous cette forme que la lecture se
-  fait, au moment où le refus se décide. Les délégations d'écriture sont exemptées, et l'exemption ne
-  vient pas d'une liste tenue au seuil : elle vient du client généré, qui les documente toutes.
+  fait, au moment où le refus se décide. Le délégué est vu qu'il soit atteint par une propriété nommée
+  ou par un nom lié : `const { category } = prisma`, `const alias = prisma.category`, et l'appel en
+  optionnel `prisma.category.findMany?.()` sont trois lectures, non trois souvenirs. Un nom qui n'est
+  pas le délégué, ou un nom lié sans appel, ne réveille rien.
+  Les délégations d'écriture sont exemptées, et **l'exemption vient d'une liste tenue au seuil**,
+  `ECRITURES_DELEGUEES`. Ce que la suite prouve de cette liste est un seul sens : chacune de ses
+  entrées est bien une délégation que le client généré documente. Elle ne prouve pas que cette liste
+  soit complète, et l'amendement ne l'affirme pas — l'ensemble est complet aujourd'hui, le code ne le
+  démontre pas.
 - **La relation, atteinte par une rangée qui l'amène** — en `include` ou en `select`, d'un niveau ou de
   deux. Le seuil suit le pointeur à travers `variants` comme à travers `product`, ce qui vaut pour
   [`admin-catalog.ts:489`](../../lib/use-cases/admin-catalog.ts#L489) autant que pour une rangée de
@@ -559,6 +572,10 @@ parmi ces huit, **quatre par la poignée**, deux `tx` et deux `client`, toutes d
 [`admin-structure.ts`](../../lib/use-cases/admin-structure.ts). Quatre entrées sont héritées du seuil
 précédent, douze sont ajoutées par ce travail, et la suite compte les deux nombres.
 
+Le fait « héritée » est porté une seule fois, par le champ `herite` de l'entrée. Il ne l'est plus par
+un préfixe de raison, qui était un second énoncé de la même chose : changer l'un des deux laissait
+l'autre mentir en silence.
+
 Le spec dit **cinq** lectures de production. Il y en a **huit** par la relation et **quatre** par la
 poignée. Le huit est bon ; le cinq ne l'est pas, et c'est le huit qu'il faut tenir : le compte à écrire
 n'est pas celui de ce que la décision décrit, c'est celui de ce que le dépôt écrit.
@@ -578,7 +595,10 @@ que la reconnaissance trouve. Aucune n'a été demandée au cœur, et aucune n'y
 - **[`admin-structure.ts`](../../lib/use-cases/admin-structure.ts)**, six fois : l'unicité du slug
   ([`198`](../../lib/use-cases/admin-structure.ts#L198)) et la présence du parent visé
   ([`208`](../../lib/use-cases/admin-structure.ts#L208)), tous deux par la poignée que la mutation leur
-  passe, et le second est le refus « catégorie parente inconnue » qu'ADR-0027 a posé ; la rangée
+  passe, et le second est le refus « catégorie parente inconnue », écrit le 2026-08-10 en
+  [`7c4f258`](https://github.com/eloaurdi/eguidar/commit/7c4f25838422ade7b1eac22b8027ae01ba8c3c0d),
+  sept semaines avant qu'ADR-0027 ne vienne le consigner le 2026-10-01 — elle l'a documenté, elle ne
+  l'a pas posé ; la rangée
   qu'on s'apprête à réécrire ([`327`](../../lib/use-cases/admin-structure.ts#L327)) et les enfants et
   produits d'une Structure qu'on supprime, pour décider d'un refus
   ([`394`](../../lib/use-cases/admin-structure.ts#L394)), tous deux par la Transaction ; et les deux
@@ -684,11 +704,18 @@ sens : le site's retiré de
 [`storefront.ts`](../../lib/use-cases/storefront.ts#L137) laisse une raison sans fait, et la garde
 tombe. Une lecture par `Transaction` est vue, et se nomme comme les autres.
 
-**Et une limite, qu'il faut dire.** Les raisons sont indexées par **rang** — la position parmi les
-lectures de même forme dans un même fichier — et non par contenu : deux raisons échangées entre deux
-rangs de même forme laissent la garde verte. C'est une limite de **lisibilité**, non de justesse, et la
-suite en montre la borne : une lecture nouvelle, sans nom, fait toujours tomber la garde, une raison
-sans lecture derrière elle aussi, et chaque raison est confrontée à la **ligne de source** qu'elle
-pointe. Ce que la liste ne dit pas aujourd'hui, c'est _laquelle_ des deux lectures de même forme elle
-décrit — et le dire demanderait une clé de contenu, donc une forme que la reconnaissance ne rend pas
-encore.
+**Les raisons sont liées au contenu de leur lecture, non à sa place.** La clé d'une entrée n'est pas
+son rang parmi les lectures de même forme, mais **la déclaration qui la porte** — `createProduct`,
+`assertCategoryParent`, `fetchProductPageData`. Deux raisons échangées entre deux lectures de même
+forme ne peuvent plus l'être en silence : la clé dérive de ce que la source dit, alors qu'un rang
+aurait suivi un déplacement de ligne. La liste est stable sous une édition qui décale les lignes, et
+elle nomme, pour chaque entrée, _laquelle_ des lectures de même forme elle décrit. La suite le prouve
+dans les deux sens : une lecture de même forme plantée dans `assertUniqueCategorySlug` laisse la clé de
+`assertCategoryParent` **inchangée**, et deux lectures de même forme dans une même déclaration rendent
+la clé deux fois, qu'il faut nommer deux fois.
+
+Une limite subsiste, qu'il faut dire. La déclaration qui porte une lecture est le site de la
+reconnaissance, non sa nature : la clé distingue deux lectures de même forme, elle ne dit pas si l'une
+est légitime. Une raison qui décrit la mauvaise lecture reste donc possible sans que la garde la voie —
+c'est une limite de **justesse**, et non de lisibilité, qu'un travail distinct, qui demanderait à la
+reconnaissance de rendre le sens de la lecture, pourrait lever.
