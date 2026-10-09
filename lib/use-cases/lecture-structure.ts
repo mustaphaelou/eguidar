@@ -198,6 +198,17 @@ export function projeterEcranAdmin(
     }
   }
 
+  // Le compte d'une ligne hors arbre est **brut**, et c'est délibéré : il compte
+  // toute la fratrie que la marche rend, un enfant dans une branche corrompue
+  // compris. Une ligne doit dire la taille réelle de ce qu'un éditeur s'apprête à
+  // changer (US 7) ; l'ensemble hors arbre étant fermé vers le bas, un enfant
+  // hors arbre l'est toujours, donc **filtrer le compte le rendrait nul sur
+  // toutes les lignes hors arbre** — c'est-à-dire juste sur celles qu'un éditeur
+  // vient réparer. C'est le seul endroit où la **fratrie** de ces rangées est
+  // demandée à la marche, qu'aucune descente partie des racines n'atteint, et c'est
+  // le même nombre que `_count.children` aurait rendu, la lecture prenant la
+  // table entière sans `where` : personne ne paie une jointure de plus pour un
+  // fait que les liens portent déjà.
   const horsLignes = structures
     .filter((fait) => horsArbre.has(fait.id))
     .sort(comparerParNom)
