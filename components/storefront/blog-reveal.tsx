@@ -4,11 +4,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Révélation au défilement façon Newsroom : fondu + remontée en
- * 0,8s cubic-bezier(.4,0,.25,1), montée paresseuse via IntersectionObserver.
- * Désactivée sous prefers-reduced-motion (apparition immédiate, sans transition).
- */
 export function BlogReveal({
   children,
   className,

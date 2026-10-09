@@ -8,16 +8,6 @@ import {
 
 const DATE_INITIALE = new Date("2026-05-02T10:00:00.000Z")
 
-/**
- * Les quatre chemins par lesquels le module propriétaire rend le refus
- * « registre indisponible ». Un registre qui ne peut pas échouer ne prouve pas
- * le chemin qui le rattrape : sans l'injection de panne de l'adaptateur en
- * mémoire, aucun de ces quatre refus n'a de cas dans aucune suite.
- *
- * Ce sont des refus de dépendance, pas des refus métier : le Brouillon existe
- * côté éditeur et aucun octet n'est écrit dans le stockage. Chaque cas vérifie
- * donc que l'échec du registre ne laisse aucune trace de suppression.
- */
 async function demanderBrouillon(cycleVie: CycleVieImageProduit) {
   const resultat = await cycleVie.demanderBrouillon({
     ownerId: "editeur-1",
@@ -28,7 +18,6 @@ async function demanderBrouillon(cycleVie: CycleVieImageProduit) {
   return resultat
 }
 
-/** Le message est unique : un registre hors service ne promet aucune reprise. */
 const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
 
 describe("refus « registre indisponible »", () => {
@@ -47,8 +36,6 @@ describe("refus « registre indisponible »", () => {
       code: "registre-indisponible",
       message: MESSAGE_REGISTRE_INDISPONIBLE,
     })
-    // La pré-signature a eu lieu, mais aucun enregistrement n'existe : l'éditeur
-    // ne reçoit pas d'identifiant qui ne serait pas dans le registre.
     expect(registre.records.size).toBe(0)
     expect(stockage.suppressionsBrouillons).toEqual([])
   })
@@ -68,8 +55,6 @@ describe("refus « registre indisponible »", () => {
       code: "registre-indisponible",
       message: MESSAGE_REGISTRE_INDISPONIBLE,
     })
-    // La libération n'a pas pu être marquée, donc l'objet reste : le supprimer
-    // laisserait un Brouillon que le registre croira encore vivant.
     expect(stockage.suppressionsBrouillons).toEqual([])
   })
 
@@ -88,8 +73,6 @@ describe("refus « registre indisponible »", () => {
       code: "registre-indisponible",
       message: MESSAGE_REGISTRE_INDISPONIBLE,
     })
-    // L'ordre est « marquer avant de supprimer » : la panne du registre laisse
-    // l'objet en place, jamais un Brouillon libéré dont l'image a disparu.
     expect(stockage.suppressionsBrouillons).toEqual([])
     expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
   })
@@ -104,8 +87,6 @@ describe("refus « registre indisponible »", () => {
     })
     if (!second.ok) throw new Error("La demande devait réussir")
 
-    // Seul le second Brouillon tombe en panne : le premier a été revendiqué, la
-    // compensation doit le rendre à l'éditeur pour qu'un nouvel essai passe.
     const revendiquer = registre.revendiquer.bind(registre)
     registre.revendiquer = async (input) => {
       if (input.id === second.draftId) throw new Error("registre indisponible")
@@ -153,8 +134,6 @@ describe("refus « registre indisponible »", () => {
     })
     expect(echec).toMatchObject({ code: "registre-indisponible" })
 
-    // Un registre qui revient ne doit pas trouver le Brouillon dans un état
-    // intermédiaire : l'éditeur réessaie et cela passe.
     registre.pannes.delete("revendiquer")
     const retry = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",

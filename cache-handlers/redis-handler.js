@@ -130,7 +130,6 @@ const redisHandler = {
         { EX: ttl }
       )
     } catch {
-      // set() failures are swallowed: the response is still served, next request misses.
     } finally {
       resolvePending()
       pendingSets.delete(cacheKey)
@@ -150,11 +149,9 @@ const redisHandler = {
         try {
           tagManifest.set(tagNames[i], JSON.parse(values[i]))
         } catch {
-          // keep previous local state for malformed payloads
         }
       }
     } catch {
-      // Redis unavailable: keep the local manifest, entries fall back to their own TTLs.
     }
   },
 
@@ -193,7 +190,6 @@ const redisHandler = {
       }
       await pipeline.exec()
     } catch {
-      // Local manifest already covers this instance; Redis sync is best-effort.
     }
   },
 }

@@ -10,8 +10,6 @@ vi.mock("@/lib/use-cases/session-courante", () => ({
   estAdmin: (client: { role?: string } | null) => client?.role === "admin",
 }))
 
-// Seul le cycle de vie est doublée : la traduction HTTP reste celle du module
-// propriétaire, sinon la route=testerait sa propre copie du vocabulaire.
 vi.mock("@/lib/cycle-vie-image-produit", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/cycle-vie-image-produit")>()),
   default: { demanderBrouillon: demanderBrouillonMock },
@@ -105,9 +103,6 @@ describe("POST /api/admin/uploads/presign", () => {
     ["stockage-indisponible", 503],
     ["stockage-refuse", 502],
     ["registre-indisponible", 500],
-    // La demande d'un brouillon ne peut pas produire ces codes, mais la route
-    // ne le devine pas : elle lit la table totale du module propriétaire plutôt
-    // qu'un `switch` à `default: 500` qui absorberait en silence huit codes.
     ["brouillon-introuvable", 404],
     ["proprietaire-incorrect", 403],
     ["brouillon-non-vivant", 409],

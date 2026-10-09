@@ -224,17 +224,10 @@ describe("useTestDeSecurite", () => {
 
     await unmountLast()
 
-    // Le compte est pris entre les deux Tests de sécurité : c'est là que la
-    // balise se ferait retirer. Retirée puis recréée, elle laisserait le
-    // document sans balise entre les deux, et le remontage redemanderait
-    // `api.js`.
     expect(scriptTags()).toHaveLength(1)
 
     await render(<Harness />)
 
-    // Le second Test de sécurité s'est bien remonté — sans quoi le compte
-    // porterait sur un Test de sécurité qui n'existe plus — et n'a pas créé de
-    // seconde balise.
     expect(renderMock).toHaveBeenCalledTimes(2)
     expect(scriptTags()).toHaveLength(1)
   })

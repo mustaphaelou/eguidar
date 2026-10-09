@@ -1,32 +1,8 @@
 import { priceBucketIdFor } from "@/lib/price-buckets"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 
-/**
- * La clé de facette d'un **Produit sans Structure** (ADR-0029) : un Produit dont
- * la Structure a été supprimée reste vendable, donc indexable, et doit donc
- * rester trouvable.
- *
- * **Son premier caractère est la décision, et ce n'est pas le mot.** La
- * grammaire de slug d'une Structure est `/^[a-z0-9]+(?:-[a-z0-9]+)*$/`
- * (`slugSchema`, `lib/use-cases/admin-structure.ts`) : `_` n'y est pas
- * représentable, donc **aucune Structure ne peut porter cette valeur, jamais**.
- * C'est ce qui sépare cette constante des deux sentinelles qu'elle remplace.
- *
- * - Une **chaîne vide** ne filtre rien : `parseSearchParams` fait `if
- *   (categorySlug)` et la laisse tomber, donc la puce s'afficherait cliquable
- *   et inerte. Une facette qui ne filtre pas est une facette fausse.
- * - Un **slug ordinaire** — `sans-structure` — est collisionnable dès la
- *   prochaine Structure créée par un éditeur, et mélangerait alors deux
- *   populations dans une répartition sans qu'aucune suite ne rougisse.
- *
- * La comparaison de cette valeur se fait à raison exacte des deux côtés de la
- * couture : c'est un `string` ordinaire des deux côtés, jamais une constante
- * importée d'un module `"use client"` à travers une frontière asynchrone —
- * le piège que `parseCategoryFormData` documente déjà.
- */
 export const SLUG_SANS_STRUCTURE = "_sans-structure"
 
-/** Le libellé que la Recherche affiche pour cette valeur de facette. */
 export const LIBELLE_SANS_STRUCTURE = "Sans Structure"
 
 export interface IndexableProduct {
@@ -39,18 +15,6 @@ export interface IndexableProduct {
   minPrice: number
   totalStock: number
   images: string[]
-  /**
-   * La clé de facette : **jamais** absente. Un Produit sans Structure y porte
-   * `SLUG_SANS_STRUCTURE`, pour rester trouvable et filtrable.
-   *
-   * **Le fait `categoryId` n'est pas ici, et son absence est l'invariant.**
-   * Aucun moteur de recherche ne le reçoit — Meilisearch reçoit le document
-   * entier, `addDocuments(products)`, donc un champ porté y entrerait bel et
-   * bien — et il n'a pas à y être : il est partiel, il vaut `null` pour un
-   * Produit sans Structure, et une clé de facette qui peut manquer est une
-   * facette qui compterait faux. La seule clé de Structure qu'un moteur reçoit
-   * est celle-ci.
-   */
   categorySlug: string
   categoryName: string
   specsText: string

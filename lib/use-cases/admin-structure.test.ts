@@ -11,12 +11,6 @@ import {
   SLUG_SANS_STRUCTURE,
 } from "@/lib/index-projection"
 
-// L'image d'une catégorie est une URL libre, hors du préfixe `products/` : elle
-// ne passe que par l'opération de stockage réservée aux catégories. Ce mock
-// court-circuite l'adaptateur pour éprouver l'effet best-effort de la
-// Structure, qui doit journaliser une panne sans faire échouer la mutation.
-// L'effet par défaut est éprouvé sans court-circuit dans
-// `admin-structure-image-stockage.test.ts`.
 const sendMock = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/r2", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/r2")>()
@@ -55,23 +49,12 @@ const runId = randomUUID().slice(0, 8)
 const categorySlug = (suffix: string) => `cat-${runId}-${suffix}`
 const productSlug = (suffix: string) => `struc-${runId}-${suffix}`
 
-/**
- * Ce qu'un effet observe de la base au moment précis où il s'exécute : relevé
- * à l'intérieur du callback, asserté à l'extérieur, car `runEffect` avale les
- * erreurs d'un effet — un `expect` jeté dans le callback ne ferait pas
- * échouer le test.
- */
 interface ReleveEffet {
   effet: string
   structureSourcePresente: boolean
   categorieDuProduit: string | null
 }
 
-/**
- * Ce qu'un effet observe de la base quand la suppression a réattribué les
- * sous-catégories : la source doit déjà être absente et l'enfant déjà porté par
- * la Structure d'accueil choisie.
- */
 interface ReleveReattribution {
   effet: string
   structureSourcePresente: boolean
@@ -89,7 +72,6 @@ function makeCategoryInput(
   }
 }
 
-/** Le Produit de test rattaché à la Structure donnée, sous son propre slug. */
 async function makeProductIn(
   category: { id: string },
   suffix: string,
@@ -109,7 +91,6 @@ async function makeProductIn(
   })
 }
 
-/** Les trois effets de la Structure sous spy, pour prouver leur absence. */
 function effectSpies() {
   return {
     reindexProducts: vi.fn(),
@@ -118,28 +99,16 @@ function effectSpies() {
   }
 }
 
-/** Un refus ne publie rien : ni réindexation, ni suppression d'image, ni invalidation. */
 function expectNoEffects(effets: ReturnType<typeof effectSpies>) {
   expect(effets.reindexProducts).not.toHaveBeenCalled()
   expect(effets.revalidateCategories).not.toHaveBeenCalled()
   expect(effets.deleteImage).not.toHaveBeenCalled()
 }
 
-/** Le repos réel qu'une épreuve de contention doit laisser à l'autre transaction. */
 function attendre(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * Une transaction tierce qui tient ses verrous et attend d'être libérée — le
- * motif que les épreuves de contention partagent. `tenir` reçoit le client de
- * la transaction et la porte de sortie : une tierce qui doit agir *après* le
- * signal — réclamer un verrou, par exemple — l'attend avant de rendre la main.
- *
- * Le délai d'attente n'est pas borné ici : c'est l'épreuve qui décide quand
- * une transaction en sort, et une transaction tierce qui meurt ne doit pas
- * faire échouer l'épreuve par son propre rejet.
- */
 function retenirTransaction(
   tenir: (
     tx: Prisma.TransactionClient,
@@ -161,16 +130,6 @@ function retenirTransaction(
   return { transaction, liberer }
 }
 
-/**
- * Attendre qu'un signal soit posé, plutôt que dormir un temps arbitraire.
- *
- * Une épreuve de contention ne peut pas supposer qu'une transaction tierce a
- * pris son verrou après un sommeil fixe : sur une machine lente, la tierce peut
- * n'être pas encore verrouillée quand la mutation part, et l'épreuve mesure
- * alors autre chose que la contention — ou rate son verrou et se croit bornée
- * par le délai alors qu'elle ne l'a jamais attendu. Attendre le signal rend
- * l'épreuve honnête sur une machine lente comme sur une machine rapide.
- */
 function attendreQue(acquis: () => boolean): Promise<void> {
   return new Promise((resolve) => {
     const verifier = () => (acquis() ? resolve() : setTimeout(verifier, 10))
@@ -178,23 +137,6 @@ function attendreQue(acquis: () => boolean): Promise<void> {
   })
 }
 
-/**
- * L'attente qu'une mutation passe réellement derrière le verrou grossier,
- * mesurée par PostgreSQL et non supposée.
- *
- * Une Tierce partie qui garde ses lignes est `idle in transaction` : elle
- * n'attend rien. La mutation partie derrière elle est `active`, porte
- * `wait_event_type = 'Lock'` et exécute alors le `SELECT … FROM "Category" FOR
- * UPDATE` de `verrouillerStructure`. Les trois conditions ensemble sont ce qui
- * distingue « elle attend le verrou » de « elle n'est pas encore arrivée » : les
- * deux premières seules seraient vraies de n'importe quelle attente de verrou
- * de la base de test, y compris d'une autre.
- *
- * C'est ce que l'épreuve attend avant de relâcher la Tierce partie. Au bout
- * d'un temps fixe, elle prouverait peut-être une contention qui n'a pas eu
- * lieu, et le refus qu'elle observerait serait alors celui d'une course
- * qu'aucune des deux transactions n'a vue.
- */
 async function attendreQuUneAttenteDeVerrou(): Promise<void> {
   const uneAttenteDeVerrou = async () => {
     const lignes = await prisma.$queryRawUnsafe<{ attendu: bigint }[]>(
@@ -212,13 +154,6 @@ async function attendreQuUneAttenteDeVerrou(): Promise<void> {
   }
 }
 
-/**
- * Le refus qu'une promesse rend, ou `undefined` si elle réussit.
- *
- * La forme est la même partout — `then` sur les deux voies — pour qu'une épreuve
- * dise toujours la même chose de l'issue : ce qu'elle a reçue, refus compris,
- * et non ce qu'elle a dû rattraper pour la voir.
- */
 function refusDe(promesse: Promise<unknown>): Promise<unknown> {
   return promesse.then(
     () => undefined,
@@ -226,18 +161,6 @@ function refusDe(promesse: Promise<unknown>): Promise<unknown> {
   )
 }
 
-/**
- * L'épreuve du délai de verrou que les mutations de Structure partagent
- * (ADR-0027). La Tierce partie prend le verrou grossier et ne le rend pas,
- * `mutation` part derrière, et son refus doit tomber **dans** le délai — pas
- * après, ce qui distinguerait « encore en attente du verrou » de « refusée »
- * sans rien présumer du chemin qui l'a produit.
- *
- * Le refus rendu est un refus de la Structure, jamais une erreur de lecteur :
- * c'est ce qui fait que `adminFormAction` le rend à l'éditeur au lieu de le
- * relancer. Ce que la mutation laisse dans la base ne se dit pas ici — chaque
- * épreuve le lit dans ses propres termes.
- */
 async function eprouverLeDelaiDeVerrou(
   demarrer: () => Promise<unknown>
 ): Promise<unknown> {
@@ -251,9 +174,6 @@ async function eprouverLeDelaiDeVerrou(
   )
   await attendreQue(() => tierceVerrouillee)
 
-  // La mutation ne part qu'ici : une promesse déjà créée au moment de l'appel
-  // s'exécuterait avant que la Tierce partie tienne quoi que ce soit, et
-  // l'épreuve ne mesurerait plus rien.
   const mutation = demarrer()
   mutation.catch(() => {})
   try {
@@ -274,13 +194,6 @@ async function eprouverLeDelaiDeVerrou(
   }
 }
 
-/**
- * Une chaîne d'ancêtres acyclique de la profondeur demandée, et la Structure
- * racine posée à côté — celle que l'épreuve déplacera sous la plus profonde.
- *
- * Elle est plantée par `createCategory`, donc sous le verrou grossier et par
- * l'interface : rien ici ne contourne une mutation de Structure.
- */
 async function planterUneChaine(prefixe: string, profondeur: number) {
   const deplacee = await createCategory(
     makeCategoryInput({ slug: categorySlug(`${prefixe}-deplacee`) })
@@ -299,16 +212,6 @@ async function planterUneChaine(prefixe: string, profondeur: number) {
   return { deplacee, plusProfonde }
 }
 
-/**
- * Le pool tient-il toutes ses connexions ? La question se pose à Prisma
- * lui-même : une transaction de plus, avec un délai d'attente court, n'échoue
- * que si aucune connexion n'est libre. C'est ce qui rend la saturation
- * **mesurée** et non supposée : la taille du pool n'est pas un nombre que
- * l'épreuve déclare, c'est ce qu'elle constate.
- *
- * Une sonde qui échouerait autrement que par ce délai n'apprendrait rien : elle
- * le dit au lieu de se compter pour une saturation.
- */
 async function lePoolEstSature(): Promise<boolean> {
   const issue = await refusDe(
     prisma.$transaction(async (tx) => tx.$queryRaw`SELECT 1`, { maxWait: 100 })
@@ -318,28 +221,6 @@ async function lePoolEstSature(): Promise<boolean> {
   return true
 }
 
-/**
- * Sature le pool de connexions de Prisma et le retient jusqu'à la libération.
- *
- * `P2028` couvre deux faits que Prisma distingue par son message : une
- * transaction interactive devenue trop longue en cours de route, et une
- * transaction qui n'a pas obtenu de connexion dans le délai d'attente de
- * Prisma. Le premier n'est atteignable qu'en rendant la transaction réellement
- * lente — aucune contention ne le peut, le `lock_timeout` d'ADR-0027 borne
- * toutes les attentes de verrou. Le second se provoque sans rien simuler : le
- * pool de l'adaptateur `pg` en tient dix par défaut, et cette épreuve en retient
- * davantage.
- *
- * Le compteur ne s'incrémente qu'après un premier aller-retour réellement
- * exécuté, et la sonde ci-dessus dit quand le pool est plein. Le plafond sous le
- * nombre retenu est vérifié : sans lui, l'épreuve croirait saturer un pool qui
- * avait encore de la place.
- *
- * Les transactions retenues au-delà de ce que le pool peut tenir n'obtiennent
- * aucune connexion et meurent au délai d'attente de Prisma : c'est la saturation
- * elle-même, et l'épreuve ne s'en plaint pas — leurs promesses sont rendues déjà
- * rattrapées, sans quoi `Promise.all` relancerait le `P2028` qu'elles portent.
- */
 async function saturerLePoolDeConnexions(): Promise<{
   tenues: Promise<unknown>[]
   liberer: () => void
@@ -374,27 +255,9 @@ async function saturerLePoolDeConnexions(): Promise<{
   }
 }
 
-/**
- * Le nombre de lectures `category.findUnique` que la mutation a demandées à sa
- * transaction, et l'issue qu'elle a rendue.
- *
- * La couture est le client de la transaction lui-même : Prisma en construit un
- * par transaction, `tx.category.findUnique` y est une propriété propre et
- * remplaçable, et `$transaction` en est une aussi. L'épreuve lit donc un vrai
- * PostgreSQL et ne double que le comptage — aucun SQL, aucune table, aucune
- * doublure de base.
- *
- * C'est la seule mesure qui distingue « la chaîne est lue en une requête » de
- * « la chaîne est lue en autant de requêtes que de maillons » : les deux rendent
- * le même résultat, et sur une base locale la seconde ne se voit ni à l'issue ni
- * à l'horloge.
- */
 async function compterLesLecturesDeChaine(
   demarrer: () => Promise<unknown>
 ): Promise<{ issue: unknown; lectures: number }> {
-  // `$transaction` est surchargée — forme interactive et forme tableau — et
-  // l'implémentation n'en remplace qu'une : le transtypage dit laquelle, là où
-  // `vi.spyOn` ne sait que demander la signature entière.
   type TransactionInteractive = (
     callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
     options?: unknown
@@ -504,11 +367,6 @@ describe("admin structure mutations — categories", () => {
     )
   })
 
-  // La valeur réservée du Produit sans Structure (ADR-0029) n'est pas un slug
-  // de Structure parce que **la grammaire ne la représente pas**, et l'épreuve
-  // se fait par le seul endroit qui décide quels slugs existent. Une Structure
-  // qui la porterait mêlerait deux populations dans une même facette de la
-  // Recherche, sans qu'aucune suite ne rougisse : la collision serait muette.
   it("refuse la valeur réservée d'un Produit sans Structure comme slug de Structure", async () => {
     await verifierRefusValidation(CategoryValidationError, () =>
       createCategory(
@@ -535,27 +393,15 @@ describe("admin structure mutations — categories", () => {
 
   it("borne au délai l'attente du verrou grossier d'une création de racine", async () => {
     const effets = effectSpies()
-    // Une Structure déjà là, donc des lignes que le verrou grossier peut
-    // prendre : `SELECT … FOR UPDATE` sérialise sur les lignes existantes, et
-    // l'Administration gère toujours un arbre déjà planté. Sans elle, la Tierce
-    // partie tiendrait un verrou sur rien et l'épreuve ne mesurerait rien.
     await createCategory(
       makeCategoryInput({ slug: categorySlug("create-borne-racine") })
     )
 
-    // La création est la mutation la plus simple de la Structure — une
-    // insertion de racine ne pose aucune référence de clé étrangère, donc rien à
-    // verrouiller d'elle-même — et c'est pourtant elle qu'une Tierce partie
-    // Tenant le verrou grossier fait attendre, jusqu'au délai : personne n'y
-    // échappe, pas même elle (ADR-0027). Sans le verrou, la création passerait
-    // pendant que l'épreuve croit mesurer une contention.
     const slug = categorySlug("create-borne")
     await eprouverLeDelaiDeVerrou(() =>
       createCategory(makeCategoryInput({ slug }), effets)
     )
 
-    // Rien n'a été écrit et aucun effet n'est parti : c'est un refus de
-    // contention, pas une création.
     await expect(prisma.category.count({ where: { slug } })).resolves.toBe(0)
     expectNoEffects(effets)
   })
@@ -566,19 +412,6 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("create-parent-disparu") })
     )
 
-    // La Tierce partie supprime la Structure d'accueil sous le verrou grossier
-    // et retient son commit. La création part pendant ce retrait, et l'épreuve
-    // ne relâche la Tierce partie qu'une fois PostgreSQL dit que la création
-    // attend bel et bien le verrou : c'est cet ordre qui fait la différence,
-    // pas un temps suffisant.
-    //
-    // Sans transaction, la création lirait un parent encore présent — la
-    // suppression n'est pas committée — puis son écriture attendrait cette
-    // suppression et mourrait sur `Category_parentId_fkey`, un
-    // `PrismaClientKnownRequestError` que `adminFormAction` relance au lieu de
-    // le rendre. Sous le verrou grossier, elle n'a encore rien lu quand elle
-    // s'endort : elle se réveille sur une Structure qui n'existe plus et le dit
-    // par un refus de validation (ADR-0027).
     const slug = categorySlug("create-enfant-disparu")
     const { transaction, liberer } = retenirTransaction(
       async (tx, liberation) => {
@@ -603,8 +436,6 @@ describe("admin structure mutations — categories", () => {
       await transaction
     }
 
-    // Rien n'a été écrit, aucun effet n'est parti : le refus a précédé
-    // l'engagement, il ne l'a pas annulé.
     await expect(prisma.category.count({ where: { slug } })).resolves.toBe(0)
     expectNoEffects(effets)
   })
@@ -614,12 +445,6 @@ describe("admin structure mutations — categories", () => {
     const secondEffets = effectSpies()
     const slugPartage = categorySlug("slug-course-partage")
 
-    // Deux créations du même slug, parties ensemble : l'une gagne, l'autre se
-    // fait refuser. L'épreuve ne mesure pas leur sérialisation — rien n'y
-    // garantit qu'elles se soient croisées, et l'épreuve du délai l'a déjà
-    // prouvée — elle garde la surface du refus : un slug concurrentiel reste
-    // `CategorySlugConflictError`, le chemin que le formulaire rend à l'éditeur,
-    // et la perdante ne publie rien.
     const creations = [
       createCategory(
         makeCategoryInput({ slug: slugPartage, name: "Première" }),
@@ -640,7 +465,6 @@ describe("admin structure mutations — categories", () => {
       CategorySlugConflictError
     )
 
-    // Une seule Structure porte le slug, et la perdante n'a rien publié.
     await expect(
       prisma.category.count({ where: { slug: slugPartage } })
     ).resolves.toBe(1)
@@ -654,9 +478,6 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("ne déclenche l'effet de la création qu'après le commit", async () => {
-    // L'effet observe la base au moment précis où il s'exécute, et la Structure
-    // doit y être déjà engagée : un effet qui partirait avant le commit
-    // publierait une Structure que rien ne porte encore (ADR-0014).
     const slug = categorySlug("create-effet")
     let slugVisibleALEffet: string | null = null
     const revalidateCategories = vi.fn(async () => {
@@ -755,8 +576,6 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("journalise une panne R2 sur l'image de catégorie sans faire échouer l'update", async () => {
-    // L'effet par défaut doit rester visible : une panne R2 ne doit ni faire
-    // échouer une mutation Structure engagée, ni disparaître en silence.
     sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
     const category = await createCategory(
@@ -868,9 +687,6 @@ describe("admin structure mutations — categories", () => {
       )
     )
 
-    // La marche d'acyclicité s'arrête sur toute revisite, et celle-ci garde
-    // son refus : l'erreur la plus fréquente de l'éditeur garde ses mots, qui
-    // nomment la maladresse au lieu de nommer une boucle (#490).
     expect(refus.message).toBe(
       "Données invalides : une catégorie ne peut pas être sa propre parente"
     )
@@ -897,18 +713,12 @@ describe("admin structure mutations — categories", () => {
       )
     )
 
-    // Une revisite de la Structure déplacée est la faute de l'éditeur : c'est
-    // lui qui demande à se suspendre sous sa propre descendante. Le refus dit
-    // cela, et rien d'autre (#490).
     expect(refus.message).toBe(
       "Données invalides : une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes"
     )
   })
 
   it("accepte une chaîne d'ancêtres profonde tant qu'elle est acyclique", async () => {
-    // Une chaîne de vingt Structures, la plus profonde étant la nouvelle
-    // parente : le garde d'acyclicité rejette les revisites, pas la longueur,
-    // et aucune profondeur maximale n'est une règle de ce dépôt (#490).
     const { deplacee, plusProfonde } = await planterUneChaine("profonde", 20)
 
     await expect(
@@ -947,11 +757,6 @@ describe("admin structure mutations — categories", () => {
 
     expect(surCourte.issue).toBeUndefined()
     expect(surLongue.issue).toBeUndefined()
-    // Une lecture pour l'existence de la Structure déplacée, une pour son slug :
-    // la chaîne d'ancêtres tient dans une seule requête récursive, et le compte
-    // ne bouge donc pas quand la profondeur passe de 4 à 24. Avant, la marche
-    // ajoutait un `findUnique` par maillon — six lectures pour la première,
-    // vingt-six pour la seconde.
     expect([surCourte.lectures, surLongue.lectures]).toEqual([2, 2])
   })
 
@@ -964,11 +769,6 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("trouee") })
     )
 
-    // Un `parentId` qui ne désigne plus rien : la clé étrangère l'interdit par
-    // l'interface, et c'est le seul moyen qu'un maillon manque à la chaîne. La
-    // marche doit rendre ce trou comme « catégorie parente inconnue » — ce que
-    // faisait un `findUnique` sans ligne, et que la requête récursive reproduit
-    // en s'arrêtant sur un identifiant qu'elle n'a pas ramené.
     const superutilisateur = await prisma.$queryRawUnsafe<
       { superuser: boolean }[]
     >(`SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user`)
@@ -1004,7 +804,6 @@ describe("admin structure mutations — categories", () => {
     expect((refus as Error).message).toBe(
       "Données invalides : catégorie parente inconnue"
     )
-    // Rien n'a été écrit, et aucun effet n'est parti.
     await expect(
       prisma.category.findUnique({ where: { id: deplacee.id } })
     ).resolves.toMatchObject({ parentId: null })
@@ -1039,10 +838,6 @@ describe("admin structure mutations — categories", () => {
       )
     )
 
-    // La marche s'arrête sur la revisite de `a` et rend son refus : pas un
-    // délai de transaction de 5 000 ms, pas un `P2028` de lecteur sorti de
-    // l'action serveur en exception, mais un refus de la Structure que
-    // l'éditeur voit (ADR-0027, amendement de #490).
     expect(refus).toBeInstanceOf(CategoryAncestorCycleError)
     expect(refus).toBeInstanceOf(UserFacingError)
     expect(refus).not.toBeInstanceOf(CategoryValidationError)
@@ -1050,15 +845,9 @@ describe("admin structure mutations — categories", () => {
     expect((refus as Error).message).toBe(
       "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
     )
-    // Le refus ne dit pas « Données invalides » : la faute n'est pas celle de
-    // l'éditeur, et réessayer ne répare pas une donnée corrompue.
     expect((refus as Error).message).not.toMatch(/^Données invalides :/)
-    // La mesure qui compte : le refus tombe dans le délai du verrou, donc
-    // très en deçà du délai de transaction qu'il n'atteint plus.
     expect(Date.now() - avant).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
 
-    // Rien n'a été écrit, rien n'a été publié : la Structure déplacée est restée
-    // racine, et le cycle est intact.
     await expect(
       prisma.category.findUnique({ where: { id: deplacee.id } })
     ).resolves.toMatchObject({ parentId: null })
@@ -1075,10 +864,6 @@ describe("admin structure mutations — categories", () => {
   })
 
   it("ferme la course de cycle par deux modifications concurrentes", async () => {
-    // Deux racines indépendantes : les y faire traverser l'une sous l'autre,
-    // puis l'autre sous la première, refermerait la bouche. Sans le verrou
-    // grossier, les deux marches d'acyclicité liraient l'état d'avant l'une et
-    // l'autre, et les deux écritures passeraient : la base porterait un cycle.
     const effets = effectSpies()
     const racineA = await createCategory(
       makeCategoryInput({ slug: categorySlug("cyc-race-a") })
@@ -1107,8 +892,6 @@ describe("admin structure mutations — categories", () => {
     ]
     const issues = await Promise.allSettled(modifications)
 
-    // L'une passe, l'autre refuse : la marche d'acyclicité a lu sous le verrou
-    // l'écriture committée de la première, et la referme.
     const reussites = issues.filter((issue) => issue.status === "fulfilled")
     const refus = issues.filter((issue) => issue.status === "rejected")
     expect(reussites).toHaveLength(1)
@@ -1119,8 +902,6 @@ describe("admin structure mutations — categories", () => {
       "Données invalides : une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes"
     )
 
-    // Aucun cycle : exactement une des deux porte l'autre, l'autre est restée
-    // racine — les deux se porterait refermer la bouche.
     const apres = await prisma.category.findMany({
       where: { id: { in: [racineA.id, racineB.id] } },
       select: { id: true, parentId: true },
@@ -1134,7 +915,6 @@ describe("admin structure mutations — categories", () => {
       [parentIdA, parentIdB].filter((parent) => parent === null)
     ).toHaveLength(1)
 
-    // Seule la gagnante a publié : la perdante s'est rétractée avant tout effet.
     expect(effets.revalidateCategories).toHaveBeenCalledOnce()
     expect(effets.reindexProducts).not.toHaveBeenCalled()
     expect(effets.deleteImage).not.toHaveBeenCalled()
@@ -1145,10 +925,6 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("upd-concurrent") })
     )
 
-    // Une mutation tierce tient le verrou grossier et retient sa transaction :
-    // la modification attend, puis lit une Structure qui n'existe plus. Sans le
-    // verrou elle lirait la Structure encore présente, et sa mise à jour
-    // finale mourrait sur une `P2025` de lecteur.
     let tierceVerrouillee = false
     const { transaction, liberer } = retenirTransaction(
       async (tx, liberation) => {
@@ -1158,7 +934,6 @@ describe("admin structure mutations — categories", () => {
         await tx.category.delete({ where: { id: category.id } })
       }
     )
-    // Attendre que la tierce tienne le verrou avant de lancer la modification.
     await attendreQue(() => tierceVerrouillee)
 
     const effets = effectSpies()
@@ -1189,8 +964,6 @@ describe("admin structure mutations — categories", () => {
     )
     const slugPartage = categorySlug("slug-race-partage")
 
-    // Les deux modifications visent le même slug : le verrou les sérialise, et
-    // la seconde lit sous le verrou le slug committé par la première.
     const modifications = [
       updateCategory(
         premiere.id,
@@ -1213,8 +986,6 @@ describe("admin structure mutations — categories", () => {
       CategorySlugConflictError
     )
 
-    // Une seule Structure porte le slug : l'autre est restée à son slug
-    // d'origine — le verrou a sérialisé les deux, et la base n'en porte qu'un.
     await expect(
       prisma.category.count({ where: { slug: slugPartage } })
     ).resolves.toBe(1)
@@ -1273,19 +1044,12 @@ describe("admin structure mutations — categories", () => {
     sendMock.mockClear()
     vi.mocked(revalidatePath).mockClear()
 
-    // Nouvelle forme d'appel : les options métier sont en second rang avec
-    // leur défaut, la couture d'effets reste en dernier — aucun `undefined`
-    // pont n'est nécessaire pour appeler la suppression.
     await deleteCategory(category.id)
 
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
-    // L'effet d'image par défaut part par la couture R2 — ici le mock de ce
-    // fichier ; l'adaptateur réel est éprouvé, lui, dans
-    // `admin-structure-image-stockage.test.ts`…
     expect(sendMock).toHaveBeenCalledOnce()
-    // …et l'effet d'invalidation par défaut part aussi par sa couture.
     expect(revalidatePath).toHaveBeenCalledWith("/admin/categories")
   })
 
@@ -1367,8 +1131,6 @@ describe("admin structure mutations — categories", () => {
     expect(revalidateCategories).toHaveBeenCalled()
   })
 
-  // Le Produit sans Structure (ADR-0029). Ces quatre épreuves disent ce que
-  // l'orphelinat a change, et une seule l'enthiasme.
   it("laisse les Produits sans Structure quand l'éditeur le demande", async () => {
     const reindexProducts = vi.fn()
     const revalidateCategories = vi.fn()
@@ -1390,16 +1152,11 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
-    // Le Produit **survit**. C'est la décision entière : il n'est pas
-    // supprimé avec sa Structure, il perd seulement sa Structure.
     const survivant = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })
     expect(survivant.categoryId).toBeNull()
 
-    // Et il est réindexé avec les autres, sous la valeur réservée : son
-    // `categorySlug` a changé, donc son Document d'index aussi. Sans cela il
-    // resterait trouvable par son ancienne catégorie, qui n'existe plus.
     const [document] = reindexProducts.mock.calls[0]![0] as [
       Record<string, unknown>[],
     ]
@@ -1408,8 +1165,6 @@ describe("admin structure mutations — categories", () => {
       categorySlug: SLUG_SANS_STRUCTURE,
       categoryName: LIBELLE_SANS_STRUCTURE,
     })
-    // Le fait `categoryId` ne voyage pas jusqu'au moteur — c'est l'invariant
-    // d'ADR-0029, et la projection est la couture qui le tient.
     expect(document).not.toHaveProperty("categoryId")
     expect(revalidateCategories).toHaveBeenCalled()
   })
@@ -1421,8 +1176,6 @@ describe("admin structure mutations — categories", () => {
     )
     const product = await makeProductIn(category, "refus", "Produit refusé")
 
-    // Le refus est le **défaut** : `orphanProducts` absent vaut `false`, donc
-    // rien n'a été décidé et rien ne se décide à la place de l'éditeur.
     await expect(
       deleteCategory(category.id, {}, effets)
     ).rejects.toBeInstanceOf(CategoryHasProductsError)
@@ -1446,10 +1199,6 @@ describe("admin structure mutations — categories", () => {
     )
     const product = await makeProductIn(category, "contradictoire", "Produit")
 
-    // Les deux ensemble sont un choix contradictoire. La réaffectation
-    // l'emporte : un Produit qui garde une Structure reste dans une page de
-    // catégorie et dans un décompte, un Produit sans Structure n'est dans aucun
-    // des deux.
     await deleteCategory(
       category.id,
       { orphanProducts: true, reassignToCategoryId: target.id },
@@ -1489,13 +1238,9 @@ describe("admin structure mutations — categories", () => {
     await expect(
       prisma.category.findUnique({ where: { id: parent.id } })
     ).resolves.toBeNull()
-    // L'enfant survit, sous une autre parente : c'est l'éditeur qui l'a voulu.
     await expect(
       prisma.category.findUniqueOrThrow({ where: { id: enfant.id } })
     ).resolves.toMatchObject({ parentId: accueil.id })
-    // Un document indexé ne porte que la catégorie de son Produit : déplacer
-    // une sous-catégorie ne réécrit donc aucun document, et n'appelle pas
-    // Meilisearch.
     expect(reindexProducts).not.toHaveBeenCalled()
     expect(revalidateCategories).toHaveBeenCalled()
   })
@@ -1629,9 +1374,6 @@ describe("admin structure mutations — categories", () => {
       deleteCategory(source.id, { reparentChildrenToCategoryId: a.id }, effets)
     )
 
-    // La seconde marche d'acyclicité porte le même garde que la première : la
-    // Structure d'accueil choisie est dans le cycle, et le déplacement n'y est
-    // pour rien (#490).
     expect(refus).toBeInstanceOf(CategoryAncestorCycleError)
     expect(refus).toBeInstanceOf(UserFacingError)
     expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
@@ -1640,8 +1382,6 @@ describe("admin structure mutations — categories", () => {
     )
     expect(Date.now() - avant).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
 
-    // La transaction entière est rétractée : la source existe encore, l'enfant
-    // lui est toujours rattaché, et le cycle est intact.
     await expect(
       prisma.category.findUnique({ where: { id: source.id } })
     ).resolves.not.toBeNull()
@@ -1667,12 +1407,6 @@ describe("admin structure mutations — categories", () => {
       "Produit engagé"
     )
 
-    // Chaque effet relève l'état de la base par une connexion distincte de la
-    // transaction : elle ne voit que des faits committés. Si un effet tournait
-    // avant le commit, la Structure source existerait encore et le relevé le
-    // dirait. L'assertion vit donc dans le callback — c'est lui qui prouve
-    // l'ordre — mais son résultat est aussi relevé puis asserté à l'extérieur,
-    // car `runEffect` avale les erreurs d'un effet.
     const releves: ReleveEffet[] = []
     const relever = async (effet: string) => {
       const source = await prisma.category.findUnique({
@@ -1705,9 +1439,6 @@ describe("admin structure mutations — categories", () => {
       { reindexProducts, deleteImage, revalidateCategories }
     )
 
-    // Trois relevés identiques et dans l'ordre de la séquence : la Structure
-    // source est déjà supprimée et le Produit déjà réaffecté quand le premier
-    // effet part (ADR-0014).
     expect(releves).toEqual([
       {
         effet: "réindexation",
@@ -1749,11 +1480,6 @@ describe("admin structure mutations — categories", () => {
       "Produit réaffecté"
     )
 
-    // Une transaction tierce insère un Produit fantôme sur la Structure
-    // source et retient son commit : cette insertion non committée tient un
-    // verrou `FOR KEY SHARE` sur la source, que le verrou grossier attend —
-    // en première instruction qui verrouille, le `set_config` du délai n'en
-    // prenant aucun.
     const { transaction, liberer } = retenirTransaction((tx) =>
       tx.product.create({
         data: {
@@ -1770,8 +1496,6 @@ describe("admin structure mutations — categories", () => {
     )
     await attendre(150)
 
-    // Lancée sans l'attendre : la suppression part et se bloque sur le verrou
-    // de clé étrangère que tient la transaction tierce.
     const suppression = deleteCategory(
       category.id,
       { reassignToCategoryId: target.id },
@@ -1779,16 +1503,10 @@ describe("admin structure mutations — categories", () => {
     )
     suppression.catch(() => {})
     await attendre(400)
-    // La transaction tierce commit. La suppression reprend, lit sous READ
-    // COMMITTED : le fantôme est visible, elle le réaffecte avec l'autre et
-    // supprime la source. Le verrou a sérialisé les deux : plus aucune erreur,
-    // et le Produit arrivé entre-temps ne s'est pas perdu.
     liberer()
     await expect(suppression).resolves.toBeUndefined()
     await transaction
 
-    // Le fait ne s'est pas perdu : la source est retirée, les deux Produits
-    // portent la cible, et la réindexation voit les deux.
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
@@ -1820,12 +1538,6 @@ describe("admin structure mutations — categories", () => {
     const premierEffets = effectSpies()
     const secondEffets = effectSpies()
 
-    // Deux suppressions de la même Structure, parties ensemble. Le verrou
-    // grossier les met en file : la seconde attend que la première ait
-    // committé, puis lit une Structure qui n'existe plus et le dit. Sans le
-    // verrou, les deux liraient la source encore présente et l'une des deux
-    // mourrait sur une `P2025` de lecteur — l'entrelacement que la décision
-    // ferme.
     const resultats = await Promise.allSettled([
       deleteCategory(category.id, {}, premierEffets),
       deleteCategory(category.id, {}, secondEffets),
@@ -1842,8 +1554,6 @@ describe("admin structure mutations — categories", () => {
     expect(abouties).toHaveLength(1)
     expect(refusee?.reason).toBeInstanceOf(CategoryNotFoundError)
 
-    // Une seule mutation a valu : une seule suppression d'image, une seule
-    // invalidation, et rien pour celle qui s'est refusée.
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
@@ -1868,10 +1578,6 @@ describe("admin structure mutations — categories", () => {
       "Produit déplacé"
     )
 
-    // Une transaction tierce tient un verrou de ligne sur un Produit de la
-    // source : elle ne touche aucune Structure, donc le verrou grossier passe,
-    // et c'est le déplacement des Produits qui attend. Le `lock_timeout` de la
-    // transaction borne cette attente et la coupe.
     const { transaction, liberer } = retenirTransaction((tx) =>
       tx.$queryRawUnsafe(
         `SELECT id FROM "Product" WHERE id = $1 FOR UPDATE`,
@@ -1886,16 +1592,12 @@ describe("admin structure mutations — categories", () => {
     liberer()
     await transaction
 
-    // Le perdant reçoit un refus, jamais une erreur de lecteur : c'est ce qui
-    // fait que `adminFormAction` le rend au lieu de le relancer.
     expect(refus).toBeInstanceOf(CategoryBusyError)
     expect(refus).toBeInstanceOf(UserFacingError)
     expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
     expect((refus as Error).message).toBe(
       "la Structure est en cours de modification, réessayez"
     )
-    // Rien n'a été écrit : la source existe, le Produit n'a pas bougé, aucun
-    // effet n'est parti.
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.not.toBeNull()
@@ -1915,12 +1617,6 @@ describe("admin structure mutations — categories", () => {
     )
     const product = await makeProductIn(category, "fk", "Produit déplacé")
 
-    // La Tierce partie d'ADR-0027 : une écriture qui ne passe pas par cette
-    // interface et ne prend donc pas le verrou. `session_replication_role`
-    // éteint les déclencheurs de clé étrangère de la seule session — sans lui,
-    // l'insertion prendrait sur la source le `FOR KEY SHARE` que le verrou
-    // grossier attend, et la course n'existerait plus : c'est le seul moyen
-    // qu'un Produit échappe au verrou.
     const superutilisateur = await prisma.$queryRawUnsafe<
       { superuser: boolean }[]
     >(`SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user`)
@@ -1929,11 +1625,6 @@ describe("admin structure mutations — categories", () => {
       "cette épreuve écrit sans déclencher la clé étrangère : la base de test doit appartenir à un superutilisateur, comme celle de docker-compose et de la CI"
     ).toBe(true)
 
-    // La tierce tient aussi un verrou de ligne sur le Produit déplacé : la
-    // suppression lit sa source sans voir le fantôme — il n'est pas committé —
-    // puis s'arrête sur ce verrou, entre sa lecture et sa suppression finale.
-    // La tierce committant à cet instant, le fantôme devient visible et la
-    // suppression tombe sur `Product_categoryId_fkey`.
     const { transaction, liberer } = retenirTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         `SET LOCAL session_replication_role = 'replica'`
@@ -1968,14 +1659,8 @@ describe("admin structure mutations — categories", () => {
     liberer()
 
     await expect(suppression).rejects.toBeInstanceOf(CategoryBusyError)
-    // Le refus vient de la contrainte et non du délai de verrou : la tierce
-    // libère bien avant lui, et une attente qui le dépasserait l'aurait fait
-    // échouer. Les deux routes rendent le même refus — c'est voulu — donc seule
-    // la mesure les distingue.
     expect(Date.now() - avantCommit).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
     await transaction
-    // La transaction entière a été rétractée : réaffectation comprise, et
-    // aucun effet n'est parti (ADR-0014).
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.not.toBeNull()
@@ -1989,11 +1674,6 @@ describe("admin structure mutations — categories", () => {
     const effets = effectSpies()
     const { tenues, liberer } = await saturerLePoolDeConnexions()
 
-    // Le pool est plein : la transaction de la création n'obtient aucune
-    // connexion, et Prisma la refuse au bout de son délai d'attente — un
-    // `P2028`, que rien n'attrapait avant `mapCourseDeStructure`. Aucune
-    // contention ici : le verrou grossier n'est jamais atteint, et c'est ce que
-    // la mesure dit.
     const avant = Date.now()
     let refus: unknown
     try {
@@ -2015,12 +1695,8 @@ describe("admin structure mutations — categories", () => {
     expect((refus as Error).message).toBe(
       "Refus de la Structure : la transaction a dépassé son délai"
     )
-    // Le refus vient du délai d'attente de Prisma — 2 000 ms — et non du délai
-    // de la transaction, qui en compte 5 000 : la mesure distingue les deux
-    // formes de `P2028`, que le même code réunit.
     expect(attente).toBeGreaterThanOrEqual(1_900)
     expect(attente).toBeLessThan(4_000)
-    // Rien n'a été écrit, et aucun effet n'est parti.
     await expect(
       prisma.category.findUnique({ where: { slug: categorySlug("p2028") } })
     ).resolves.toBeNull()
@@ -2043,10 +1719,6 @@ describe("admin structure mutations — categories", () => {
     >(`SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user`)
     expect(superutilisateur[0]?.superuser).toBe(true)
 
-    // Exactement la Tierce partie de l'épreuve d'au-dessus : un fantôme que la
-    // suppression ne voit pas, retenu puis committé pendant qu'elle est
-    // arrêtée sur le verrou de ligne du Produit déplacé. **Seule l'option
-    // change** — `orphanProducts` au lieu d'une réaffectation.
     const { transaction, liberer } = retenirTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         `SET LOCAL session_replication_role = 'replica'`
@@ -2070,11 +1742,6 @@ describe("admin structure mutations — categories", () => {
     })
     await attendre(150)
 
-    // **`orphanProducts` ne désarme pas `RESTRICT`, et c'est mesuré ici.** La
-    // suppression vide la colonne des Produits qu'elle voit ; le fantôme
-    // arrive après, et la contrainte le refuse encore. L'orphelinat n'a donc
-    // pas ouvert la porte que l'amendement d'ADR-0027 croyait ouvrir : la
-    // course reste refusée, du même refus, pour la même raison.
     const suppression = deleteCategory(
       category.id,
       { orphanProducts: true },
@@ -2094,10 +1761,6 @@ describe("admin structure mutations — categories", () => {
     ).resolves.toMatchObject({ categoryId: category.id })
     expectNoEffects(effets)
 
-    // **Le refus n'est pas un blocage, c'est un réessai.** Au deuxième essai
-    // le fantôme est committé, donc visible : la suppression le voit, le vide
-    // comme les autres, et aboutit. C'est ce que l'éditeur fait, et c'est
-    // exactement ce que le Refus de la Structure lui dit de faire.
     await deleteCategory(category.id, { orphanProducts: true }, effets)
 
     await expect(
@@ -2123,13 +1786,6 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("del-symetrique") })
     )
 
-    // Le cas symétrique de celui d'au-dessus : ici la suppression tient le
-    // verrou grossier la première. L'insertion attend, puis meurt sur
-    // `Product_categoryId_fkey` — et cette erreur sort de `createProduct`,
-    // jamais de `deleteCategory` : c'est le piège nommé d'ADR-0027, et le
-    // Catalogue n'est pas dans la surface d'erreurs décidée ici. D'où
-    // l'appel au vrai `createProduct` : c'est cette frontière que l'épreuve
-    // montre, pas une requête brute qui la simulerait.
     const { transaction, liberer } = retenirTransaction(async (tx) => {
       await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
       await tx.category.delete({ where: { id: category.id } })
@@ -2170,8 +1826,6 @@ describe("admin structure mutations — categories", () => {
     liberer()
     await transaction
 
-    // L'erreur reste celle du Catalogue : une erreur de lecteur, que la
-    // Structure ne prend pas pour elle.
     const refus: unknown = await refusDe(insertion)
     expect(refus).toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
     expect(refus).not.toBeInstanceOf(UserFacingError)
@@ -2186,14 +1840,8 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("del-borne") })
     )
 
-    // C'est l'attente que le verrou grossier lui-même imposait, celle qu'aucun
-    // `lock_timeout` placé après ne pouvait couper. Elle doit donc se couper
-    // dans le délai, comme les autres mutations de Structure — l'épreuve du
-    // délai est partagée, la suppression n'y ajoute rien.
     await eprouverLeDelaiDeVerrou(() => deleteCategory(category.id, {}, effets))
 
-    // Rien n'a été écrit, et la Structure est toujours là : c'est un refus de
-    // contention, pas une suppression.
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.not.toBeNull()
@@ -2214,19 +1862,6 @@ describe("admin structure mutations — categories", () => {
       "Produit déplacé"
     )
 
-    // Une écriture du Catalogue prend le Produit avant la Structure :
-    // `updateProduct` verrouille la ligne du Produit, puis la clé étrangère
-    // prend la Structure. La suppression fait l'inverse — Structure d'abord —
-    // et les deux ordres se croisent. Le cycle est tendu ici sans course :
-    // la tierce tient le Produit, la suppression prend la Structure et
-    // s'arrête sur le Produit, puis la tierce réclame la Structure.
-    //
-    // C'est le délai qui tranche, et non le détecteur d'interblocage :
-    // PostgreSQL ne lève `40P01` qu'une seconde après la formation du cycle,
-    // alors que l'attente de la suppression a commencé avant — mesuré contre
-    // cette base, `55P03` à 1 021 ms. La traduction de `40P01` reste au
-    // module pour le jour où `deadlock_timeout` serait plus court que le
-    // délai ; elle n'est pas ce que cette épreuve éprouve.
     const { transaction, liberer } = retenirTransaction(
       async (tx, liberation) => {
         await tx.$queryRawUnsafe(
@@ -2252,8 +1887,6 @@ describe("admin structure mutations — categories", () => {
     liberer()
     await transaction.catch(() => {})
 
-    // Le perdant reçoit un refus, comme pour tout dépassement : le cycle
-    // n'aboutit jamais à une exception de lecteur, et rien n'a été écrit.
     await expect(suppression).rejects.toBeInstanceOf(CategoryBusyError)
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
@@ -2287,8 +1920,6 @@ describe("admin structure mutations — categories", () => {
       )
     )
 
-    // La mutation committée fait foi : elle survit à la panne de l'effet, et
-    // les effets suivants de la séquence sont malgré tout partis.
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
@@ -2350,10 +1981,6 @@ describe("admin structure mutations — categories", () => {
     expectNoEffects(effets)
   })
 
-  // Le Refus de la Structure est **total** : il ne dépend pas du nombre de
-  // Produits. Une réaffectation invalide reste un refus sur une Structure vide,
-  // sinon la cible choisie serait lue puis ignorée — l'éditeur verrait sa
-  // Structure supprimée, et le serveur aurait rendu le silence.
   it("refuse une réaffectation inconnue sur une Structure qui n'a aucun Produit", async () => {
     const effets = effectSpies()
     const category = await createCategory(

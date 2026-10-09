@@ -132,27 +132,14 @@ describe("toIndexableProduct", () => {
     })
   })
 
-  // Le Produit sans Structure (ADR-0029). Ces assertions sont la décision :
-  // le fait devient partiel, la clé de facette ne le devient pas.
   it("renders a Produit sans Structure under the reserved facet key", () => {
     const doc = toIndexableProduct(makeProduct({ category: null }))
 
-    // La clé de facette ne devient jamais absente, et ce n'est pas un détail
-    // d'implémentation : `parseSearchParams` fait `if (categorySlug)`, donc une
-    // chaîne vide donnerait une puce cliquable qui ne filtre rien.
     expect(doc.categorySlug).toBe(SLUG_SANS_STRUCTURE)
     expect(doc.categorySlug).not.toBe("")
     expect(doc.categoryName).toBe(LIBELLE_SANS_STRUCTURE)
   })
 
-  // **Le Document d'index ne porte pas le fait.** L'invariant d'ADR-0029 est
-  // « aucun moteur de recherche ne reçoit `categoryId` » : Meilisearch reçoit le
-  // document entier, `addDocuments(products)` — le champ y entrait donc bel et
-  // bien, non filtrable mais présent. Le porter serait laisser à un lecteur
-  // futur une vérité qui ne tient pas : le champ est partiel, il est `null` pour
-  // un orphelin, et rien ne doit pouvoir compter dessus. La preuve est
-  // l'absence de la clé, sur un Produit **avec** Structure comme sans — sinon
-  // elle ne prouverait que le cas facile.
   it("gives no search engine the categoryId fact, with a Structure or without", () => {
     expect(toIndexableProduct(makeProduct())).not.toHaveProperty("categoryId")
     expect(

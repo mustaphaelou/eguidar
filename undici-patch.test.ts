@@ -117,10 +117,6 @@ describe("an unrequested subprotocol fails the connection (CVE-2026-19534)", () 
     server = createServer((_request, response) => {
       response.writeHead(426).end()
     })
-    // Un 101 handshake par ailleurs correct — `Sec-WebSocket-Accept` juste, pour
-    // que le client ne puisse pas légitimement s'en prendre à lui — qui nomme un
-    // sous-protocole que le client n'a jamais demandé. C'est le seul élément
-    // hostile ; la RFC 6455 §4.1 impose alors d'échouer la connexion.
     server.on("upgrade", (request, socket) => {
       sockets.add(socket)
       socket.on("close", () => sockets.delete(socket))

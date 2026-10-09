@@ -12,9 +12,6 @@ describe("la destination d'une suggestion de catégorie", () => {
   })
 
   it("mène la valeur réservée au Catalogue filtré, et à nulle page de catégorie", () => {
-    // `/categorie/_sans-structure` rendrait un `notFound()` : aucune Structure
-    // ne porte ce slug, et c'est exactement ce que son caractère réservé
-    // garantit. La destination doit donc être ailleurs.
     const href = hrefDeSuggestion(SLUG_SANS_STRUCTURE)
 
     expect(href.startsWith("/categorie/")).toBe(false)
@@ -22,9 +19,6 @@ describe("la destination d'une suggestion de catégorie", () => {
   })
 
   it("donne au Catalogue une destination que sa propre lecture reconnaît", () => {
-    // La promesse n'est pas « l'URL a l'air juste » : c'est que le filtre
-    // survit au voyage. Une sentinelle en chaîne vide se perdrait ici — donc
-    // l'épreuve est le voyage.
     const href = hrefDeSuggestion(SLUG_SANS_STRUCTURE)
     const params: Record<string, string> = {}
     for (const [cle, valeur] of new URL(href, "http://localhost").searchParams)

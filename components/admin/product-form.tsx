@@ -196,11 +196,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {/* Un Produit sans Structure (ADR-0029) s'ouvre, se lit et ne
-                  s'enregistre pas. Le sélecteur part vide — la validation le
-                  refuse tant qu'il l'est — et cette ligne est ce qui explique
-                  à l'éditeur pourquoi un Produit valide refuse son
-                  enregistrement. */}
+              {}
               {product && product.categoryId === null ? (
                 <p className="flex items-start gap-1.5 text-sm text-destructive">
                   <HugeiconsIcon

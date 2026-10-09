@@ -52,13 +52,6 @@ function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
   }
 }
 
-/**
- * Une revendication qui a promu exactement les URL données. La règle de
- * création appartient au Catalogue : un Produit qui porte des Images produit
- * doit donc les avoir promues, et une suite qui veut une galerie passe par la
- * porte, comme un appelant réel. La liaison est neutre — elle n'est observée
- * qu'ailleurs.
- */
 function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
   return RevendicationImagesProduit.creer({
     galerie: urls,
@@ -69,12 +62,6 @@ function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
 
 let categoryId: string
 
-/**
- * Une galerie de `nombre` URL d'Images produit, dans l'ordre de soumission.
- * Le nombre est écrit en clair et non lu dans la borne du Catalogue : une
- * suite qui construit la limite avec la limite ne peut pas prouver que la
- * limite est la bonne.
- */
 function galerie(nombre: number): string[] {
   return Array.from(
     { length: nombre },
@@ -539,19 +526,6 @@ describe("admin catalog mutations", () => {
     expect(revendication.galerie).toEqual(galerie)
     expect(revendication.promues).toEqual(galerie)
 
-    // Verrous de compilation. Chacun se lit sur le type que la porte exige,
-    // jamais sur un appel : c'est là que les trois faits sont exigés, et c'est
-    // là qu'une exigence qui tombe se voit. Si l'une disparaît — `promues` ou
-    // `lier` rendu facultatif, la liaison et les URL promues rendues à deux
-    // paramètres séparés — la directive devient inutile et `tsc --noEmit`
-    // échoue.
-    //
-    // Un appel ne ferait pas l'affaire : la porte *copie* la galerie et les URL
-    // promues, donc l'appeler sans l'une des deux lève à l'exécution. Elle ne
-    // copie que la *référence* de la liaison — celle-ci échoue plus tard, dans
-    // le Catalogue, pas à la porte. Un verrou de compilation n'a pas à faire
-    // tomber la suite qui le porte, alors que deux des trois sondes le
-    // feraient.
     type FaitsExigesParLaPorte = Parameters<
       typeof RevendicationImagesProduit.creer
     >[0]
@@ -567,13 +541,8 @@ describe("admin catalog mutations", () => {
       promues: galerie,
       lier: async () => undefined,
     }
-    // Ces trois formes ne se lisent pas à l'exécution : ce sont des formes
-    // incomplètes, précisément pour cela. Elles sont rendues pour qu'aucune
-    // règle ne les déclare inutilisées.
     expect([sansPromues, sansLier, sansGalerie]).toHaveLength(3)
 
-    // Et la valeur elle-même ne se fabrique pas à la main, même complète : sa
-    // marque est privée, donc attribuable à la seule classe.
     // @ts-expect-error — une valeur complète ne se construit pas hors de la porte
     const horsPorte: RevendicationImagesProduit = {
       galerie,
@@ -585,12 +554,6 @@ describe("admin catalog mutations", () => {
   })
 
   it("refuse une création dont la galerie porte une URL que l'opération n'a pas promue", async () => {
-    // La règle est celle du Catalogue, écrite comme une appartenance à l'ensemble
-    // des URL que la même opération a promues. Ce qui est comparé est la galerie
-    // **écrite** : la revendication annonce ici les deux URL, mais n'a promu que
-    // la première. Une règle écrite sur la galerie annoncée passerait, et
-    // l'URL glissée serait persistée — donc c'est bien le fait du Catalogue qui
-    // tranche.
     const promotee = "https://cdn.example.com/promue.jpg"
     const glissee = "https://cdn.example.com/glissee.jpg"
     const refus = await verifierRefusValidation(CatalogValidationError, () =>
@@ -614,11 +577,6 @@ describe("admin catalog mutations", () => {
   })
 
   it("refuse une création qui porte des images sans aucune revendication", async () => {
-    // Il n'y a plus qu'une seule façon d'écrire une Image produit nouvelle : la
-    // promotion que la même opération vient de faire. Une galerie écrite sans
-    // revendication est donc une galerie d'URL que personne n'a promues — la
-    // forme qu'aucun appelant de production ne peut prendre, et que le
-    // Catalogue refuse pour cette raison-là, pas pour une raison de galerie.
     const refus = await verifierRefusValidation(CatalogValidationError, () =>
       createProduct(
         makeInput({
@@ -654,9 +612,6 @@ describe("admin catalog mutations", () => {
   })
 
   it("crée un Produit sans aucune image", async () => {
-    // La règle refuse une image écrite sans promotion, pas l'absence d'image :
-    // l'éditeur crée son Produit et y ajoute des images ensuite, par une mise
-    // à jour. Une création sans image n'a rien à revendiquer, et réussit donc.
     const product = await createProduct(makeInput({ slug: slug("img-aucune") }))
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
@@ -666,13 +621,6 @@ describe("admin catalog mutations", () => {
   })
 
   it("refuse une galerie au-delà de la limite d'Images produit", async () => {
-    // La limite est un fait du Catalogue : il la refuse à l'entrée, donc une
-    // soumission qui la dépasse est refusée avant qu'un Produit n'existe, et
-    // avec le message de validation du Catalogue — la même forme qu'un autre
-    // champ invalide. Ces neuf URL ne sont promues par rien non plus, et c'est
-    // bien le message de la limite qui doit être rendu : la validation d'entrée
-    // tranche avant la règle de création, comme elle tranche avant la
-    // comparaison des images d'une mise à jour.
     const refus = await verifierRefusValidation(CatalogValidationError, () =>
       createProduct(makeInput({ slug: slug("img-limite"), images: galerie(9) }))
     )
@@ -715,11 +663,6 @@ describe("admin catalog mutations", () => {
     }))
     const deleteImages = vi.fn(async () => {})
 
-    // Les neuf URL soumises sont aussi des URL étrangères au Produit : c'est
-    // donc le message de la limite, et non celui de la propriété d'une Image
-    // produit, qui doit être rendu — la validation d'entrée tranche avant la
-    // comparaison des images. Et l'Image produit déjà enregistrée reste la
-    // sienne : un enregistrement refusé n'a rien supprimé.
     const refus = await verifierRefusValidation(CatalogValidationError, () =>
       updateProduct(
         product.id,
@@ -790,11 +733,6 @@ describe("admin catalog mutations", () => {
       stock: v.stock,
     }))
 
-    // La revendication n'autorise que les URL qu'elle a promues : une URL
-    // étrangère, même accompagnée d'une liaison valide, reste une URL glissée
-    // par le client. C'est le refus de propriété du Catalogue qui le dit, et il
-    // ne le dit qu'une fois : la mise à jour ne pré-contrôle rien et ne relit
-    // pas la galerie, elle transmet ce qu'elle a reçu.
     const refus = await verifierRefusValidation(CatalogValidationError, () =>
       updateProduct(
         product.id,

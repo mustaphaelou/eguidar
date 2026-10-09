@@ -19,37 +19,12 @@ import type {
 import { lire } from "@/lib/use-cases/outils-frontiere"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-/**
- * Le langage du formulaire Produit, traversé par son interface.
- *
- * Suite pure : elle n'écrit **aucune requête** et n'atteint **aucune base** —
- * les faits qu'un éditeur entre, le refus qu'il reçoit et la valeur que
- * l'appelant obtient sont la seule chose affirmée ici. Les deux moitiés du
- * langage des Spécifications sont éprouvées l'une par l'autre (aller-retour), la
- * paire de l'écart de prix avec sa chute à zéro, et **le transport** avec la
- * soumission que le module de rendu produit réellement.
- *
- * Deux imports ne portent pas sur le module sous test, et les deux sont
- * justifiés :
- *
- * - `@/lib/use-cases/admin-catalog` est **de type seul** — rien n'en subsiste à
- *   la compilation, et c'est ce qui rend l'épinglage de compilation possible
- *   sans base ;
- * - `@/lib/use-cases/mutation-actions` n'est **pas** importé : le refus qu'il
- *   déclare est comparé en **lisant sa source** (voir « garde le même mot, au
- *   caractère près »). L'importer tirerait `next/navigation` puis la session
- *   serveur — donc la base — dans une suite que la spécification veut
- *   exécutable en Node sans base.
- */
-
-/** Un record de spécifications dont aucune clé ni valeur ne contient de saut de ligne. */
 const SPECS: Record<string, string> = {
   Écran: "6,1 pouces",
   Puce: "A17 Pro",
   Ports: "USB-C, USB-C, USB-C",
 }
 
-/** La Variante que le module de rendu inscrit par défaut dans le champ caché. */
 const VARIANTE_STANDARD = {
   name: "Standard",
   sku: "SKU-1",
@@ -57,7 +32,6 @@ const VARIANTE_STANDARD = {
   stock: 2,
 }
 
-/** Le refus que reçoit l'appelant, ou l'échec du test si la ligne est acceptée. */
 function refusDe(texte: string): unknown {
   try {
     specificationsDepuisTexte(texte)
@@ -67,40 +41,23 @@ function refusDe(texte: string): unknown {
   throw new Error(`La ligne ${JSON.stringify(texte)} n'a pas été refusée`)
 }
 
-/** Ce que le module de rendu inscrit dans le formulaire, avant sérialisation. */
 interface SoumissionRendue {
   nom?: string
   slug?: string
   marque?: string
   categorieId?: string
   description?: string
-  /** Le prix de base, **en dirhams** : c'est une chaîne, pas des centimes. */
   prix?: string
   specsText?: string
-  /** Le champ d'ordre, tel que tapé. */
   ordre?: string
-  /** Les deux cases à cocher : `"on"` ou `""`, jamais `true`. */
   misEnAvant?: string
   livraisonOfferte?: string
-  /** La galerie et les Variantes, déjà dans la forme du champ caché. */
   images?: unknown
   variantes?: unknown
   tentativeId?: string
-  /** Le champ caché que le module de rendu n'écrit qu'en édition. */
   produitId?: string | null
 }
 
-/**
- * Le `FormData` **tel que `components/admin/product-form.tsx` le construit** :
- * mêmes noms de champs, même convention `"on"` / `""` pour les deux cases à
- * cocher, même sélecteur de catégorie devenu champ caché, même JSON caché pour
- * la galerie et les Variantes, même identifiant de tentative. Cette factory est
- * le miroir du module de rendu : si l'un des deux change sans l'autre, c'est
- * cette suite qui le dit — pas un éditeur devant son écran.
- *
- * On ne passe donc jamais un `FormData` forgé à la main là où le module de
- * rendu écrit un `JSON.stringify` : la sérialisation se fait ici, comme là.
- */
 function formulaireSoumis({
   nom = "Produit",
   slug = "produit",
@@ -125,12 +82,9 @@ function formulaireSoumis({
   donnees.append("price", prix)
   donnees.append("specsText", specsText)
   donnees.append("featuredOrder", ordre)
-  // Le sélecteur de catégorie n'est pas un champ du formulaire : son état est
-  // recopié dans un champ caché, comme les deux cases à cocher.
   donnees.append("categoryId", categorieId)
   donnees.append("isFeatured", misEnAvant)
   donnees.append("freeShipping", livraisonOfferte)
-  // Les deux champs cachés JSON, puis l'identifiant de tentative.
   donnees.append("images", JSON.stringify(images))
   donnees.append("variants", JSON.stringify(variantes))
   donnees.append("tentativeId", tentativeId)
@@ -138,14 +92,12 @@ function formulaireSoumis({
   return donnees
 }
 
-/** La soumission lue, par le transport, d'un formulaire rendu. */
 function soumissionLue(
   rendue: SoumissionRendue = {}
 ): SoumissionFormulaireProduit {
   return soumissionDepuisFormData(formulaireSoumis(rendue))
 }
 
-/** Le refus que reçoit l'appelant, ou l'échec du test si la soumission passe. */
 function refusDeSoumission(donnees: FormData): unknown {
   try {
     soumissionDepuisFormData(donnees)
@@ -218,11 +170,6 @@ describe("specificationsDepuisTexte", () => {
   })
 
   it("refuse par une Error simple, pas une UserFacingError", () => {
-    // La levée se produit pendant la lecture de la soumission : l'enveloppe de
-    // mutation partagée transforme n'importe quelle `Error` en
-    // `{ error: <message> }`. Une `UserFacingError` ici changerait le chemin de
-    // la levée. `user-facing-error.ts` n'importe rien, donc cette suite reste
-    // exécutable en Node sans base.
     const refus = refusDe("Écran 6,1 pouces")
 
     expect(refus).toBeInstanceOf(Error)
@@ -263,8 +210,6 @@ describe("ecartPrixDepuisTexte", () => {
   })
 
   it("garde un nombre JSON de centimes, jamais une chaîne", () => {
-    // L'encodage ne change pas : le champ caché `variants` transporte un
-    // nombre, que le serveur relit par un `JSON.parse` direct.
     const cents = ecartPrixDepuisTexte("15,00")
 
     expect(typeof cents).toBe("number")
@@ -276,28 +221,12 @@ describe("ecartPrixDepuisTexte", () => {
 
 describe("les faits du formulaire", () => {
   it("décrivent le même Produit que l'entrée de la mutation, à la galerie et à la Structure près", () => {
-    // L'entrée de la mutation est atteinte **par type seulement** : rien de
-    // `@/lib/use-cases/admin-catalog` ne subsiste à la compilation, donc
-    // cette suite reste exécutable en Node sans base. Deux divergences sont
-    // voulues.
-    //
-    // La galerie : le formulaire manipule des Images produit, la mutation des
-    // URL.
-    //
-    // La Structure, depuis ADR-0029 : `FaitsFormulaireProduit.categoryId` est
-    // `string | null` parce que l'Administration doit pouvoir **ouvrir** un
-    // Produit sans Structure, alors que `ProductInput.categoryId` reste un
-    // `string` — c'est le `min(1)` de la validation qui refuse de l'enregistrer.
-    // L'écart est donc le mécanisme même de la règle, pas une approximation :
-    // le formulaire sait montrer un fait que la mutation refuse d'écrire.
     expectTypeOf<
       Omit<FaitsFormulaireProduit, "id" | "images" | "variants" | "categoryId">
     >().toEqualTypeOf<
       Omit<ProductInput, "images" | "variants" | "categoryId">
     >()
 
-    // Et l'écart lui-même, nommé : `null` est lisible par le formulaire et
-    // n'est pas un `string`.
     expectTypeOf<FaitsFormulaireProduit["categoryId"]>().toEqualTypeOf<
       string | null
     >()
@@ -379,9 +308,6 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("garde les deux encodages monétaires du formulaire : le prix en dirhams, les écarts déjà en centimes", () => {
-    // Le prix de base traverse le formulaire comme une chaîne décimale et
-    // arrive en centimes ; chaque écart de prix est déjà un nombre de
-    // centimes dans le champ caché, que le serveur ne relit pas.
     const soumission = soumissionLue({
       prix: "1250,75",
       variantes: [{ name: "Pro", sku: "SKU-2", priceDelta: -1500, stock: 0 }],
@@ -395,9 +321,6 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("reconnaît les deux cases à cocher par la seule convention « on »", () => {
-    // Le module de rendu n'écrit pas `checked` : il écrit `"on"` ou `""`.
-    // Aucune autre valeur n'est vraie, et un champ absent ne l'est pas
-    // davantage.
     const cochees = soumissionLue({ misEnAvant: "on", livraisonOfferte: "on" })
     const decochees = soumissionLue()
 
@@ -437,17 +360,12 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("ne valide pas les Variantes : il rend la main à la mutation", () => {
-    // Une Variante sans nom ni SKU passe le transport telle quelle. C'est le
-    // `productInputSchema` du Catalogue qui la refuse, avec son propre
-    // message ; le valider ici changerait le refus qu'un éditeur reçoit.
     const soumission = soumissionLue({ variantes: [{ priceDelta: 1500 }] })
 
     expect(soumission.champsCatalogue.variants).toEqual([{ priceDelta: 1500 }])
   })
 
   it("accepte un Produit sans Variante, comme le veut ADR-0026", () => {
-    // Le prix minimal retombe alors sur le prix de base ; aucune validation de
-    // Variante minimale n'apparaît par le transport.
     const soumission = soumissionLue({ variantes: [], prix: "99,99" })
 
     expect(soumission.champsCatalogue.variants).toEqual([])
@@ -455,10 +373,6 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("retombe à zéro sur un ordre illisible et laisse le Catalogue refuser le reste", () => {
-    // Le transport ne juge pas le champ d'ordre : il ne fait que le lire. Un
-    // entier négatif ou fractionnaire traverse donc entier, et c'est le
-    // `productInputSchema` du Catalogue — `featuredOrder` y est un entier
-    // positif ou nul — qui le refuse.
     expect(soumissionLue({ ordre: "abc" }).champsCatalogue.featuredOrder).toBe(
       0
     )
@@ -478,12 +392,6 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("ne fabrique pas d'identifiant de tentative quand le champ est absent ou blanc", () => {
-    // Le transport lit le câble, il ne décide pas d'une identité : un champ
-    // absent ou seulement blanc donne une chaîne vide, et c'est le refus que le
-    // cycle de vie des Images produit définit déjà qui la reçoit. Le transport
-    // tirait ici un `randomUUID()` neuf, ce qui rendait ce refus inatteignable
-    // et laissait une soumission rejouée — un client qui ne rend pas le champ —
-    // se présenter comme une tentative neuve.
     const absente = formulaireSoumis()
     absente.delete("tentativeId")
 
@@ -492,10 +400,6 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("ne tire aucune identité d'une valeur qui n'est pas une chaîne", () => {
-    // Un client qui poste un fichier sous ce nom de champ n'obtient pas pour
-    // autant une identité : `String(uneFile)` donnerait `"[object File]"`, un
-    // identifiant non vide et donc forgé. Le garde `typeof` est ce qui l'en
-    // empêche — il n'est pas redondant.
     const donnees = formulaireSoumis()
     donnees.set("tentativeId", new File(["tentative-1"], "tentativeId"))
 
@@ -503,9 +407,6 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("ignore le productId caché : l'identification reste à l'action", () => {
-    // Le module de rendu écrit ce champ en édition, mais le transport n'en
-    // sait rien : `parseRequiredId` appartient à l'action, qui, seule, sait
-    // qu'elle édite un Produit existant.
     const soumission = soumissionLue({ produitId: "produit-1" })
 
     expect(Object.keys(soumission)).toEqual([
@@ -517,9 +418,6 @@ describe("soumissionDepuisFormData", () => {
   })
 
   it("donne à la mutation son entrée, à la galerie près", () => {
-    // La forme de `champsCatalogue` est l'entrée du Catalogue elle-même, sans
-    // adaptateur : le module atteint son type par un import de type seul, et
-    // la galerie en reste écartée parce que la mutation range des URL.
     const soumission = soumissionLue()
 
     expectTypeOf(soumission.champsCatalogue).toEqualTypeOf<
@@ -530,13 +428,7 @@ describe("soumissionDepuisFormData", () => {
 })
 
 describe("les refus de la soumission", () => {
-  // Les refus sont affirmés **contre le littéral**, pas contre la constante :
-  // c'est le texte qu'un éditeur lit, et il doit rester ce texte-ci. La
-  // constante est éprouvée séparément, plus bas.
-
   it("refuse un champ caché qui n'est pas du JSON, avec le message d'aujourd'hui", () => {
-    // Le module de rendu n'enverrait jamais cela ; la robustesse se paie donc
-    // par un refus, pas par une lecture à moitié faite.
     const imagesIllisibles = formulaireSoumis()
     imagesIllisibles.set("images", "{ceci n'est pas du json")
     const variantesIllisibles = formulaireSoumis()
@@ -567,17 +459,10 @@ describe("les refus de la soumission", () => {
   })
 
   it("laisse un champ prix vide passer à zéro, comme aujourd'hui", () => {
-    // Le champ porte `required` dans le navigateur ; côté serveur, une chaîne
-    // vide est un zéro pour l'aide d'argent partagée. Le transport n'ajoute
-    // donc aucun refus que le formulaire ne fasse déjà.
     expect(soumissionLue({ prix: "" }).champsCatalogue.price).toBe(0)
   })
 
   it("refuse par une Error simple, jamais par une UserFacingError", () => {
-    // Les deux levées se produisent pendant la lecture de la soumission :
-    // l'enveloppe de mutation partagée transforme alors n'importe quelle
-    // `Error` en `{ error: <message> }`. Une `UserFacingError` changerait le
-    // chemin de la levée.
     const donnees = formulaireSoumis()
     donnees.set("images", "{ceci n'est pas du json")
     const refus = refusDeSoumission(donnees)
@@ -598,9 +483,6 @@ describe("les refus de la soumission", () => {
   })
 
   it("lit le prix de base avant les Spécifications, comme aujourd'hui", () => {
-    // L'ordre de lecture ne se voit pas quand un seul des deux champs est
-    // fautif ; il se voit quand les deux le sont. Le prix était lu avant le
-    // champ Spécifications, donc c'est son refus qui passe.
     const refus = refusDeSoumission(
       formulaireSoumis({ prix: "abc", specsText: "Écran 6,1 pouces" })
     )
@@ -611,30 +493,10 @@ describe("les refus de la soumission", () => {
 
 describe("les messages de refus du module", () => {
   it("épingle le message d'un formulaire illisible, au caractère près", () => {
-    // Le littéral existe une seconde fois dans le mécanisme partagé de
-    // mutation, qui est hors de portée de ce travail et garde le sien pour
-    // `parseMoneyField`, `parseRequiredId` et le statut de la Commande. Les
-    // deux chaînes sont le même mot : l'épingler ici rend une dérive — dans un
-    // sens ou dans l'autre — impossible à laisser passer.
     expect(MESSAGE_FORMULAIRE_INVALIDE).toBe("Formulaire invalide")
   })
 
   it("garde le même mot, au caractère près, que le refus du mécanisme partagé", () => {
-    // L'énoncé précédent compare chaque chaîne à son propre littéral, ce qui
-    // laisse les deux dériver **ensemble** sans que rien ne s'en aperçoive. Ce
-    // test les compare l'une à l'autre : si l'une bouge, l'autre doit suivre.
-    //
-    // La comparaison se fait **sur la source** du mécanisme, jamais par un
-    // import de sa valeur : l'importer tirerait `next/navigation` puis la
-    // session serveur, donc la base, dans une suite que la spécification veut
-    // exécutable en Node sans base. Or la duplication est un fait de source
-    // avant d'être une valeur : lire la ligne qui déclare le littéral est
-    // l'instrument honnête, et c'est celui qu'emploient déjà les gardes de
-    // frontière du dépôt.
-    //
-    // La déclaration est épinglée avec sa valeur, volontairement : renommer la
-    // constante du mécanisme doit casser cet énoncé, pour qu'une telle décision
-    // passe par ici plutôt que par un glissement.
     const mecanisme = lire(import.meta.url, "./use-cases/mutation-actions.ts")
 
     expect(mecanisme).toContain(

@@ -31,11 +31,6 @@ export interface CreateBrouillonInput {
 
 export interface BlogEffects {
   revalidateBlog?(article: BlogEventArticle): void
-  /**
-   * Supprime les images de couverture données, une par une, en best-effort.
-   * Invariant : ne rejette jamais — un échec de suppression R2 ne doit pas
-   * faire échouer la mutation (ADR-0004).
-   */
   deleteImages(urls: string[]): Promise<void>
 }
 
@@ -94,7 +89,6 @@ function parseCreateBrouillonInput(
       result.error.issues.map((issue) => issue.message)
     )
   }
-  // Choix d'implémentation : themeSlug ou themeId (XOR) pour le 0..n côté admin.
   const hasThemeSlug = !!result.data.themeSlug
   const hasThemeId = !!result.data.themeId
   if (hasThemeSlug === hasThemeId) {
@@ -157,13 +151,6 @@ export async function createBrouillon(
   return article
 }
 
-/**
- * Publie un Article de blog (Brouillon → Publié uniquement).
- * Tamponne publishedAt à la première publication puis la conserve
- * (re-publication Publié → Publié idempotente). Un Archivé refuse
- * la re-publication (UserFacingError — spec : publier = Brouillon,
- * archiver = Publié).
- */
 export async function publier(id: string, effects: BlogEffects) {
   const article = await prisma.articleBlog.findUnique({
     where: { id },
@@ -213,13 +200,6 @@ const mettreAJourSchema = z.object({
   themeId: z.string().min(1).optional(),
 })
 
-/**
- * Retouches d'un Article de blog (Brouillon ou Publié, sans dépublication).
- * Choix #163 : un article Archivé refuse toute retouche (UserFacingError —
- * l'archive est terminale pour les edits ; republier via `publier` d'abord).
- * Le slug est figé dès la première publication (`publishedAt != null`),
- * y compris après archive (SlugImmutableError).
- */
 export async function mettreAJour(
   id: string,
   patch: MettreAJourInput,
@@ -292,9 +272,7 @@ export async function mettreAJour(
 
   try {
     await effects.deleteImages(removedImages)
-  } catch {
-    // Best-effort : un échec de suppression R2 ne doit pas bloquer la mutation.
-  }
+  } catch {}
 
   const previousSlug = updated.slug !== article.slug ? article.slug : undefined
   effects.revalidateBlog?.({
@@ -305,12 +283,6 @@ export async function mettreAJour(
   return updated
 }
 
-/**
- * Archive un Article de blog (Publié → Archivé uniquement).
- * Archivé → Archivé idempotent (comme `publier`). Un Brouillon refuse
- * l'archivage (UserFacingError — spec : archiver = Publié).
- * `publishedAt` est conservé tel quel, donc un Archivé a toujours sa date.
- */
 export async function archiver(id: string, effects: BlogEffects) {
   const article = await prisma.articleBlog.findUnique({
     where: { id },
@@ -338,7 +310,6 @@ export async function archiver(id: string, effects: BlogEffects) {
 }
 
 export interface ProduitLie extends CarteProduit {
-  /** Première variante disponible (stock > 0), pour l'ajout au panier. */
   varianteId: string | null
 }
 
@@ -352,21 +323,9 @@ export interface ArticleBlogPublic {
   theme: ThemeRef
   publishedAt: Date | null
   statut: StatutPublication
-  /**
-   * Produits liés de l'Article de blog, en cartes catalogue (#164).
-   * Ordre d'attachement préservé (ordre croissant), indisponibles masqués
-   * à la lecture (produit supprimé ou stock total nul) — `[]` possible,
-   * l'article reste Publié dans tous les cas.
-   */
   produits: ProduitLie[]
 }
 
-/**
- * Carte produit d'un Produit lié : la projection (`@/lib/carte-produit`)
- * sur les métriques cuites par `@/lib/product-metrics`, enrichie de la
- * première variante disponible. Masque la rupture (#164) : la Carte
- * produit disparaît, l'Article de blog reste publié.
- */
 function toProduitLieCard(product: {
   id: string
   name: string
@@ -395,14 +354,6 @@ function toProduitLieCard(product: {
   return { ...carte, varianteId: disponible?.id ?? null }
 }
 
-/**
- * Attache 0..n Produits liés à un Article de blog (sémantique de
- * remplacement, ordre préservé via `ordre`, `[]` autorisé pour tout
- * détacher). Déduplique en préservant le premier ordre d'apparition.
- * Rejette les identifiants inconnus (UserFacingError) sans rien écrire.
- * Ne touche jamais aux médias (best-effort delete = #163 `mettreAJour`).
- * Choix d'implémentation : remplacement atomique + ordre + dédupe pour le 0..n.
- */
 export async function lierProduits(
   articleId: string,
   productIds: string[],
@@ -442,11 +393,6 @@ export async function lierProduits(
   return { articleId: article.id, productIds: deduped }
 }
 
-/**
- * Résolution publique d'un Article de blog par son slug.
- * Publié + Archivé résolvent (l'Archivé garde son URL avec contenu complet) ;
- * un Brouillon n'est jamais résolu publiquement (retourne null).
- */
 export async function fetchArticleParSlug(
   slug: string
 ): Promise<ArticleBlogPublic | null> {
@@ -529,11 +475,6 @@ function toCardBlog(article: {
   }
 }
 
-/**
- * Données de la landing /blog : hero = l'Article de blog Publié le plus
- * récent, articles = la suite du fil. Publié uniquement, plus récent d'abord
- * (publishedAt desc, createdAt desc en départage).
- */
 export async function fetchBlogLanding(): Promise<BlogLanding> {
   const articles = await prisma.articleBlog.findMany({
     where: { statut: "publie" },

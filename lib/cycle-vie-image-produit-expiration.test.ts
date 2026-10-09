@@ -17,7 +17,6 @@ const DATE_INITIALE = new Date("2026-02-01T12:00:00.000Z")
 const categorieSlug = `cat-expiration-${ownerId.slice(0, 8)}`
 let productId: string
 
-/** Un Produit réel : confirmer une promotion écrit une clé étrangère. */
 async function creerProduit(): Promise<string> {
   return prisma.product
     .create({
@@ -66,12 +65,6 @@ function lireEtatPersiste(draftId: string) {
     .then((row) => row.state)
 }
 
-/**
- * Reproduit l'état qu'une compensation de revendication échouée laisse
- * derrière elle : le Brouillon est revendiqué par une tentative et n'est lié à
- * aucun Produit, mais la libération n'a pas été écrite. On passe par
- * l'opération de revendication elle-même, sans la compensation.
- */
 async function revendreSansCompenser(
   registre: ExpirationDurable["registre"],
   draftId: string,
@@ -243,16 +236,11 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
 
     horloge.fixer(demande.expiresAt)
 
-    // L'expiration est un fait du registre, pas une conséquence de la
-    // compensation : elle doit se voir, et se dire, même quand la compensation
-    // a échoué et qu'aucun balayeur ne repassera.
     expect((await cycleVie.lireBrouillon(demande.draftId))?.state).toBe(
       "expiré"
     )
     expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
 
-    // Une tentative rivale est toujours refusée — aucune double revendication —
-    // mais le refus est désormais celui d'un Brouillon expiré.
     expect(
       await registre.revendiquer({
         id: demande.draftId,
@@ -288,8 +276,6 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
 
     horloge.fixer(new Date(demande.expiresAt.getTime() + 1))
 
-    // Une Image produit persistée n'appartient plus au cycle de vie des
-    // Brouillons : la rétention ne la réétiquette pas.
     expect((await cycleVie.lireBrouillon(demande.draftId))?.state).toBe(
       "revendiqué"
     )
@@ -304,9 +290,6 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
     ).toMatchObject({ ok: false, code: "expire" })
     expect(await lireEtatPersiste(demande.draftId)).toBe("revendiqué")
 
-    // La rétention limite une nouvelle revendication, pas la résolution d'une
-    // tentative déjà gagnée : le retry de la même tentative résout toujours vers
-    // le même Produit et la même URL publique.
     expect(
       await registre.revendiquer({
         id: demande.draftId,

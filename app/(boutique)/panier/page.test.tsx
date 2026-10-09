@@ -1,13 +1,3 @@
-/**
- * Page Panier — test de rendu : fixtures réelles en base, session et
- * profil moqués, rendu via `renderToReadableStream`, assertions sur le
- * HTML.
- *
- * La matrice de la Précédence du Devis vit à la porte (`chargerDevis`,
- * `lib/use-cases/devis.test.ts`) : cette suite n'en garde qu'un seul cas —
- * le lien de l'URL l'emporte sur la Ville du profil. Le reste est rendu :
- * Panier vide, refus « À choisir », tarifs.
- */
 import { randomUUID } from "node:crypto"
 
 import { renderToReadableStream } from "react-dom/server"

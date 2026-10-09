@@ -29,11 +29,6 @@ afterEach(() => {
   container.remove()
 })
 
-/**
- * Harness minimal au niveau de l'interface : monte le hook sans toucher
- * aux coutures internes (`selectionnerDevis` / `lignesDevis` ne sont ni
- * importées ni moquées ici) et expose le dernier rendu via `.current`.
- */
 function renderHook<T>(hook: () => T): { readonly current: T } {
   let current!: T
   function Probe() {

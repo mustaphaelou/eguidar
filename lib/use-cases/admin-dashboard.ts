@@ -158,10 +158,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }),
   ])
 
-  // Le Total à payer est un fait de la Commande, écrit une fois à la création
-  // (ADR-0021) : les deux fenêtres le somment tel quel, sans le re-dériver du
-  // Sous-total et des Frais de livraison. Le type de sortie de `aggregate` est
-  // fixe et ne se rétrécit pas selon l'entrée, d'où le repli à zéro inchangé.
   const caEncaisse30j = currentWindowSums._sum.totalPayable ?? 0
   const priorCaEncaisse = previousWindowSums._sum.totalPayable ?? 0
   const caDelta =

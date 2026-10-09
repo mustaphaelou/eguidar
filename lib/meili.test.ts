@@ -13,7 +13,6 @@ import type { IndexableProduct } from "@/lib/index-projection"
 const meili = getMeiliSearch()
 const runId = randomUUID()
 
-// large timeout: parallel mutation suites with default effects queue many Meili tasks
 const TASK_WAIT_TIMEOUT = 60_000
 
 function makeDoc(id: string): IndexableProduct {

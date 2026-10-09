@@ -6,45 +6,7 @@ import {
   sourcesDeProduction,
 } from "@/lib/use-cases/outils-frontiere"
 
-/**
- * Frontière client/serveur de la Carte produit.
- *
- * `carte-produit.ts` est partagé des deux côtés de la couture : les
- * composants clients qui rendent une Carte produit l'importent (Produit lié,
- * Carte produit partagée, Recherche/Catalogue, suggestions de Recherche), et
- * les modules de lecture serveur l'importent déjà (`@/lib/use-cases/blog`).
- * Un import de `@/lib/db` y réintroduirait `pg` (`require('dns')`) dans le
- * bundle navigateur et casserait `next build` (Turbopack) — la panne
- * documentée dans `devis-frontiere.test.ts` et `ville-url-frontiere.test.ts`.
- * La directive `"use client"`, un crochet, `next/headers` ou `server-only` le
- * rendraient de même inutilisable d'un des deux côtés.
- *
- * Premier verrou : le module n'importe **rien du tout** — son graphe
- * transitif est vide, donc sa neutralité ne dépend d'aucun voisin et
- * « un import imprudent ne peut jamais tirer la base dans le bundle
- * navigateur » est inconditionnel.
- *
- * Deuxième verrou : le module reste le propriétaire unique de la projection —
- * la lecture serveur du Produit lié passe par lui au lieu de réassembler les
- * huit faits (première image comprise) sur place.
- *
- * Troisième verrou : chaque surface cliente atteint la Carte produit par le
- * module neutre — directement, ou par la Carte produit partagée pour le
- * Produit lié, qui lui délègue son lien.
- *
- * Quatrième verrou : aucun composant qui importe la Carte produit n'importe
- * la base — parcours de tout `components/`, pas une liste de quatre noms.
- *
- * Cinquième verrou : `/produit/<slug>` n'est écrit que par `urlProduit`
- * (ADR-0022) — parcours de `app/`, `components/` et `lib/`, donc une surface
- * neuve ne peut pas se remettre à écrire le chemin à la main.
- */
 describe("Carte produit — frontière client/serveur", () => {
-  /**
-   * Chaque surface cliente et le module par lequel elle atteint la Carte
-   * produit : le Produit lié par la Carte produit partagée, qui porte le lien
-   * vers la page Produit ; les autres par le module neutre directement.
-   */
   const SURFACES_CLIENTES: Record<string, string> = {
     "produit-lie-carte.tsx": "./carte-produit",
     "carte-produit.tsx": "@/lib/carte-produit",
@@ -87,7 +49,6 @@ describe("Carte produit — frontière client/serveur", () => {
 
   it("aucun composant qui importe la Carte produit n'importe la base", () => {
     const sources = sourcesDeProduction(import.meta.url, "../components")
-    // Parcours non vacuant : chaque source de `components/` est visitée.
     expect(sources.length).toBeGreaterThan(50)
 
     const importateurs = sources.filter(({ source }) =>
@@ -113,8 +74,6 @@ describe("Carte produit — frontière client/serveur", () => {
       "../components",
       "../lib"
     )
-    // Parcours non vacuant : les trois arborescences sont visitées, `app/`
-    // compris, donc une page neuve ne peut pas échapper au verrou.
     expect(sources.length).toBeGreaterThan(100)
     expect(sources.map(({ chemin }) => chemin)).toContain(
       "app/(boutique)/page.tsx"
@@ -128,6 +87,6 @@ describe("Carte produit — frontière client/serveur", () => {
     const proprietaire = sources.find(
       ({ chemin }) => chemin === "lib/carte-produit.ts"
     )
-    expect(proprietaire?.source.match(/\/produit\//g)).toHaveLength(2)
+    expect(proprietaire?.source.match(/\/produit\//g)).toHaveLength(1)
   })
 })

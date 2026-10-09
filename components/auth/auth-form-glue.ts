@@ -30,12 +30,6 @@ export function translateAuthError(error: {
   }
 }
 
-/**
- * Le refus d'un Envoi protégé, de bout en bout : remettre le Test de sécurité
- * à zéro quand le serveur a refusé le jeton, et rendre le message français dans
- * tous les cas. Les trois sites d'appel l'appellent, ils n'en écrivent plus la
- * règle.
- */
 export function resolveAuthRefusal(
   error: { code?: string; message?: string } | null | undefined,
   reset: () => void

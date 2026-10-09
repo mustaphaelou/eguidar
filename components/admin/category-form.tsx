@@ -47,10 +47,6 @@ export function CategoryForm({
 }: CategoryFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const slugRef = useRef<HTMLInputElement>(null)
-  // Une Structure racine n'a pas de parente : son état est `null`, et le champ
-  // caché qui la porte n'est rendu que lorsqu'une parente est réellement choisie.
-  // L'option « Aucune (catégorie racine) » vaut `null` — l'absence elle-même, pas
-  // une valeur à comparer des deux côtés du formulaire.
   const [parentId, setParentId] = useState<string | null>(
     category?.parentId ?? null
   )

@@ -2,19 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import { importeDe, lire } from "@/lib/use-cases/outils-frontiere"
 
-/**
- * Frontière client/serveur du langage d'URL de la Ville.
- *
- * Le module `ville-url.ts` est partagé : la CityPicker (composant client)
- * l'importe pour écrire `?ville=`, `chargerDevis` (côté serveur) l'importe
- * pour résoudre la valeur — un import de `@/lib/db` y réintroduirait `pg`
- * (`require('dns')`) dans le bundle navigateur et casserait `next build`
- * (Turbopack), comme documenté dans `devis-frontiere.test.ts`.
- *
- * Le motif d'import ancre la fin du nom de module (quote comprise) pour
- * ne pas confondre `@/lib/use-cases/livraison-prix` — le module pur qui
- * porte le type — avec `@/lib/use-cases/livraison`, qui tire la base.
- */
 describe("Langage d'URL de la Ville — frontière client/serveur", () => {
   it("le module est neutre : ni use client, ni crochet, ni accès base", () => {
     const source = lire(import.meta.url, "./ville-url.ts")

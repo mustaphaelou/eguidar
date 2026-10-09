@@ -11,30 +11,6 @@ import {
 
 const DATE_INITIALE = new Date("2026-01-15T10:00:00.000Z")
 
-/**
- * L'adaptateur en mémoire du stockage des Images produit, et lui seul.
- *
- * Cette suite a deux clients, et ils ne se ressemblent pas.
- *
- * Le premier, c'est le module propriétaire, qui veut une panne qu'il puisse
- * placer opération par opération et une levée qu'il puisse provoquer : les
- * modes d'échec du port, et le mode qui lance. Le contrat, lui, ne les rejoue
- * pas — ce sont des réponses, pas des fautes, et les rejouer à travers lui
- * n'ajouterait rien à ce que son témoin de non-vacuité couvre déjà.
- *
- * Le second, c'est ce que la fiction **est** : un R2 qui dérive les vraies clés
- * plutôt que de fabriquer des URL, et qui enregistre l'adresse qu'il a visée.
- * C'est cette promesse-là qui est à cette suite, parce qu'elle est une promesse
- * sur cet adaptateur : le contrat dit que les deux répondent la même chose, et
- * que la vraie disposition est celle d'ADR-0004, mais « la fiction adresse de
- * vraies clés et non des URL inventées » n'est une vérité que ce cas peut dire.
- *
- * Ce qui n'est plus ici est tout ce qui est une règle du port : la disposition
- * d'une clé, la frontière d'espace de noms des deux suppressions par URL, le
- * refus d'un identifiant indéparable, celui d'une taille hors volume, et les
- * codes eux-mêmes. Le contrat les épingle et les rejoue sur les deux adaptateurs,
- * pour chaque type autorisé et dans les deux sens de chaque frontière.
- */
 describe("adaptateur en mémoire du stockage des Images produit", () => {
   it("pré-signe un Brouillon sous la clé dérivée, et non sous une URL fabriquée", async () => {
     const stockage = creerStockageImageProduitMemoire()
@@ -45,9 +21,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       size: 2048,
     })
 
-    // Les valeurs sont épinglées, pas dérivées par la même route que
-    // l'adaptateur : une assertion qui recalculerait l'attendu avec les mêmes
-    // fonctions ne pourrait pas contredire le code.
     expect(resultat).toEqual({
       ok: true,
       valeur: {
@@ -78,8 +51,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       ok: true,
       valeur: { publicUrl: "https://cdn.example.test/products/draft-1.webp" },
     })
-    // La promotion adresse deux clés : celle qu'elle copie et celle qu'elle
-    // écrit. Le même identifiant, deux préfixes — c'est la promotion entière.
     expect(stockage.promotions).toEqual([
       {
         draftId: "draft-1",
@@ -113,9 +84,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
         contentType: "image/webp",
       })
     ).toEqual({ ok: true, valeur: null })
-    // Les deux suppressions par identifiant visent la même Image à deux
-    // moments de sa vie. Enregistrer les clés plutôt que les identifiants,
-    // c'est ce qui rend cette différence observable.
     expect(stockage.suppressionsImagesPromues).toEqual([
       "products/draft-1.webp",
     ])
@@ -135,8 +103,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       )
     ).toEqual({ ok: true, valeur: null })
 
-    // L'aller-retour clé ⇄ URL est donc exécuté par une suite qui passe par le
-    // port, et non plus seulement par celle qui appelle l'implémentation.
     expect(stockage.suppressionsImagesPersistees).toEqual([
       "products/image-1.webp",
     ])
@@ -150,13 +116,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
     const brouillonAbandonne =
       "https://cdn.example.test/products/brouillons/abandonne.webp"
 
-    // Le verdict — cette adresse est-elle dans l'espace de noms de l'opération,
-    // et la base publique du stockage la nomme-t-elle ? — est une règle du port,
-    // et le contrat l'énonce dans ses deux sens pour les deux suppressions par
-    // URL. Ce qui n'appartient qu'à cet adaptateur, c'est ce qu'il a fait de sa
-    // propre décision : une adresse qu'il n'a pas résolue ne laisse derrière elle
-    // aucune trace d'adresse visée. Un refus qui aurait quand même enregistré
-    // quelque chose dirait qu'il a visé puis renoncé.
     for (const url of [
       brouillonAbandonne,
       "https://cdn.example.test/categories/2026/vintage.jpg",
@@ -171,10 +130,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
   })
 
   it("sait répondre chacun des trois codes du port, sur chacune des six opérations", async () => {
-    // Une panne se décide opération par opération. Un mode global dirait
-    // « plus rien ne marche » et laisserait une suite incapable de rejouer le
-    // cas qui compte : une promotion qui réussit pendant qu'une suppression
-    // échoue, ou l'inverse.
     const operations = [
       [
         "presignerBrouillon",
@@ -227,9 +182,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       OperationStockage,
       (s: StockageImageProduitMemoire) => Promise<unknown>,
     ][]
-    // Un enregistrement, pas une liste : un quatrième code que le port
-    // gagnerait à exprimer rendrait cette ligne fausse, et `tsc --noEmit` le
-    // dirait. C'est le seul endroit où ce tableau gagnerait à la compilation.
     const codes = {
       "non-configure": "non-configure",
       "parametre-invalide": "parametre-invalide",
@@ -245,8 +197,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
           erreur: { code },
         })
       }
-      // La même opération, sans panne, réussit : une panne se règle sur
-      // l'opération et sur rien d'autre.
       expect(
         await appeler(creerStockageImageProduitMemoire()),
         operation
@@ -257,11 +207,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
   })
 
   it("lève là où les trois indicateurs ne savent que répondre", async () => {
-    // Le module propriétaire enveloppe le stockage dans cinq `catch` qui
-    // n'étaient atteignables par aucune suite : ni cet adaptateur ne levait,
-    // ni l'adaptateur de production ne lève plus depuis qu'il répond
-    // `erreur-stockage` sur les six opérations. Un mode qui lance est donc la
-    // seule façon de donner un cas à la compensation.
     const stockage = creerStockageImageProduitMemoire()
     stockage.pannes.promouvoirBrouillon.add("leve")
 
@@ -272,8 +217,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       })
     ).rejects.toThrow("Stockage en mémoire indisponible : promouvoirBrouillon")
 
-    // Les trois indicateurs booléens, eux, répondent : aucun des trois ne sait
-    // produire une exception.
     const brouillard = creerStockageImageProduitMemoire()
     brouillard.failPresign = true
     brouillard.failPromotion = true
@@ -309,9 +252,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
     })
     if (!demande.ok) throw new Error("La demande devait réussir")
     enregistrement.stockage.pannes.supprimerBrouillon.add("leve")
-    // Que la panne lève vraiment, et qu'elle ne soit pas une panne absente : le
-    // rattrapage avalant les deux issues, une levée muette mesurerait un
-    // best-effort qui n'a rien eu à rattraper.
     const preuve = creerStockageImageProduitMemoire()
     preuve.pannes.supprimerBrouillon.add("leve")
     await expect(
@@ -321,9 +261,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       })
     ).rejects.toThrow("supprimerBrouillon")
 
-    // La libération des sources est best-effort : une panne pendant qu'elle
-    // supprime la copie du Brouillon ne remet pas l'enregistrement en cause,
-    // parce que le commit du Catalogue est déjà écrit.
     expect(
       await enregistrement.cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-1",
@@ -335,11 +272,6 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
         },
       })
     ).toEqual({ ok: true, productId: "produit-1" })
-    // L'adresse, elle, a bien été résolue avant que la suppression ne lève :
-    // c'est ce qui distingue « n'a rien visé » de « a visé et n'a pas pu ». La
-    // clé que cette adresse désigne est la disposition d'ADR-0004, que le
-    // contrat épingle ; ce qu'ici doit rester, c'est qu'il y a bien une
-    // adresse visée — et qu'il n'y en a qu'une.
     expect(enregistrement.stockage.suppressionsBrouillons).toHaveLength(1)
 
     const compensation = creerCycleVieTest(DATE_INITIALE)

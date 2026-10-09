@@ -24,10 +24,6 @@ afterEach(() => {
   container.remove()
 })
 
-/**
- * Harness minimal au niveau de l'interface : monte le hook et expose le
- * dernier rendu via `.current`, sans toucher au port par défaut.
- */
 function renderHook<T>(hook: () => T): { readonly current: T } {
   let current!: T
   function Probe() {

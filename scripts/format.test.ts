@@ -16,22 +16,13 @@ const RACINE = path.resolve(import.meta.dirname, "..")
 const SCRIPT = path.join(RACINE, "scripts", "format.ts")
 const CONFIG = path.join(RACINE, ".prettierrc")
 
-/** Le lanceur que le manifeste déclare, résolu sans dépendre du `PATH`. */
 const LANCEUR = createRequire(import.meta.url).resolve("tsx/cli")
 
 const DOSSIER = mkdtempSync(path.join(tmpdir(), "format-"))
 const FICHIER = path.join(DOSSIER, "salutation.ts")
-/** Un dépôt jetable, pour la seule lecture de l'index. */
 const REPO = path.join(DOSSIER, "index")
 const HORS_DEPO = path.join(DOSSIER, "pas-un-depot")
 
-/**
- * Un fichier délibérément mal formé : espaces autour du deux-points, cinq
- * espaces d'indentation, aucun point-virgule, pas de saut de ligne final.
- * Chacune de ces violations tient sous la configuration du projet comme sous
- * celle par défaut de Prettier, donc le test ne tient pas d'un réglage
- * particulier de l'une ou de l'autre.
- */
 const VIOLATION = `export const saluer = ( nom : string ) => {
      return "bonjour, " + nom
 }`
@@ -63,20 +54,9 @@ function lancer(
   }
 }
 
-/**
- * La porte et le correctif, pointés sur le fichier planté. `--config` est
- * explicite parce que le dossier temporaire est hors du dépôt : sans lui,
- * Prettier n'y trouverait aucune configuration et jugerait le fichier selon ses
- * valeurs par défaut, pas selon celles du projet.
- */
 const lire = () => lancer(["--config", CONFIG, FICHIER])
 const corriger = () => lancer(["--ecrire", "--config", CONFIG, FICHIER])
 
-/**
- * L'identité git est passée à chaque commande plutôt que posée dans une
- * configuration : ce test n'écrit nulle part ailleurs, et il n'écrit surtout pas
- * dans l'index du dépôt qu'il est en train de tester.
- */
 function git(...lesArguments: string[]): void {
   const execution = spawnSync(
     "git",
@@ -100,13 +80,6 @@ function ecrire(chemin: string, valeur = 1): void {
   writeFileSync(path.join(REPO, chemin), `export const valeur = ${valeur}\n`)
 }
 
-/**
- * L'état que le crochet trouve au moment d'un commit : cinq fichiers modifiés
- * — dont un `.md` que la porte ne couvre pas, un `.tsx` imbriqué et un nom
- * porteur d'un espace et d'un accent — et un fichier supprimé de l'arbre. Tout
- * est déjà écrit une fois, pour que la suppression soit une vraie suppression
- * et non un fichier qui n'a jamais existé.
- */
 function preparerLeDepot(): void {
   mkdirSync(path.join(REPO, "compose"), { recursive: true })
   mkdirSync(HORS_DEPO)
@@ -151,9 +124,6 @@ describe("scripts/format.ts — la porte mord, et le correctif la fait taire", (
     expect(correction.statut).toBe(0)
     expect(readFileSync(FICHIER, "utf8")).not.toBe(VIOLATION)
 
-    // C'est cet aller-retour qui prouve que les deux scripts partagent le même
-    // jeu de fichiers. Une dérive entre le correctif et la porte laisserait la
-    // porte rouge ici ; rien d'autre dans le dépôt ne le remarquerait.
     expect(apres.statut).toBe(0)
     expect(apres.sortie).not.toContain("salutation.ts")
   })
@@ -163,8 +133,6 @@ describe("l'énumération que le crochet consume", () => {
   it("nomme les fichiers indexés du jeu, et aucun autre", () => {
     const enumeration = lancer(["--indexes"], REPO)
 
-    // Le `.md` est écarté, le fichier supprimé aussi : il n'existe plus, donc il
-    // ne peut pas violer quoi que ce soit.
     expect(enumeration.statut).toBe(0)
     expect(enumeration.sortie.trim().split("\n").sort()).toEqual([
       "compose/imbrique.tsx",
@@ -174,8 +142,6 @@ describe("l'énumération que le crochet consume", () => {
   })
 
   it("ne nomme plus rien dès que l'index n'a plus rien à dire", () => {
-    // Le silence est un retour attendu, pas un oubli : c'est ce qui laisse le
-    // crochet sortir sans un mot quand il n'a rien à signaler.
     git("commit", "--quiet", "--message", "tout est indexé")
 
     const enumeration = lancer(["--indexes"], REPO)
@@ -185,9 +151,6 @@ describe("l'énumération que le crochet consume", () => {
   })
 
   it("sort en erreur en nommant la cause quand l'index ne se lit pas", () => {
-    // Hors de tout dépôt, `git` n'envoie pas une liste vide : il échoue. La
-    // différence est tout le sujet, car un crochet dont la plomberie échoue en
-    // silence passe pour un crochet qui n'a rien trouvé.
     const horsDepot = lancer(["--indexes"], HORS_DEPO)
 
     expect(horsDepot.statut).not.toBe(0)
@@ -204,8 +167,6 @@ describe("la déclaration de la porte", () => {
     expect(scripts["format"]).toContain("scripts/format.ts")
     expect(scripts["format:check"]).toContain("scripts/format.ts")
 
-    // Un glob recopié dans le manifeste serait exactement la dérive que le test
-    // précédent ne voit pas : ni l'un ni l'autre n'en porte.
     expect(scripts["format"]).not.toContain("*")
     expect(scripts["format:check"]).not.toContain("*")
   })
@@ -213,9 +174,6 @@ describe("la déclaration de la porte", () => {
   it("exclut les worktrees imbriqués dans sa propre configuration d'ignore", () => {
     const ignores = readFileSync(path.join(RACINE, ".prettierignore"), "utf8")
 
-    // Sans cette ligne, l'exclusion ne tient plus que par le fait que Prettier
-    // lit `.gitignore` par défaut — le même pari que `vitest.config.ts` et
-    // `eslint.config.mjs` ont cessé de prendre pour argent comptant.
     expect(ignores).toMatch(/^\.worktrees\/$/m)
   })
 })

@@ -38,7 +38,6 @@ async function demanderBrouillon(
   return resultat
 }
 
-/** La galerie que l'éditeur soumet pour ce seul Brouillon. */
 function galerieDuBrouillon(demande: {
   draftId: string
 }): EntreeImageProduit[] {
@@ -102,8 +101,6 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       ownerId: "editeur-1",
     })
 
-    // Libérer puis prétendre revendiquer est le même état non vivant que
-    // libérer deux fois : l'éditeur doit lire la même raison explicite.
     expect(
       await cycleVie.revendiquerEtEnregistrer({
         tentativeId: "tentative-1",
@@ -156,10 +153,6 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       code: "proprietaire-incorrect",
       message: "Ce Brouillon d'Image produit ne vous appartient pas",
     })
-    // L'état que le registre garde après ce refus ne se rejoue pas ici : le
-    // contrat de `test/contrat-registre-brouillon.ts` l'affirme sur les deux
-    // adaptateurs. L'invariant propre de cette suite est que rien n'est
-    // supprimé du stockage pour un Brouillon qui n'est pas à l'appelant.
     expect(stockage.suppressionsBrouillons).toEqual([])
   })
 
@@ -186,8 +179,6 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       ok: false,
       code: "brouillon-non-vivant",
     })
-    // La source a été libérée par le commit réussi, pas par ce refus ; ni la
-    // promotion ni l'Image persistée n'ont été touchées.
     expect(stockage.suppressionsBrouillons).toEqual([
       draftObjectKey(demande.draftId, "image/png"),
     ])

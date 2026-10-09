@@ -7,12 +7,6 @@ import {
   type FaitsCarteProduit,
 } from "@/lib/carte-produit"
 
-/**
- * Suite pure de la Carte produit : les faits qu'un jeu d'entrées projette,
- * la décision de masquage et le chemin écrit — aucune base, aucun fixture
- * Prisma. Les métriques arrivent cuites : `product-metrics.ts` les calcule,
- * la projection les recopie.
- */
 type FaitsComplets = FaitsCarteProduit & {
   totalStock: number
   freeShipping: boolean
@@ -32,10 +26,6 @@ function makeFaits(overrides: Partial<FaitsComplets> = {}): FaitsComplets {
   }
 }
 
-/**
- * Les six faits d'une Suggestion de produit : ni le stock total ni la
- * Livraison offerte ne sont connus de ce chemin de lecture.
- */
 function makeFaitsSansMetriques(): FaitsCarteProduit {
   return {
     id: "p-1",
@@ -116,9 +106,6 @@ describe("projeterCarteProduit", () => {
   it("« montrer » exige les deux métriques", () => {
     const faits = makeFaitsSansMetriques()
 
-    // Verrou de compilation : la ligne suivante ne compile que si l'overload
-    // « montrer » exige `totalStock` et `freeShipping`. Si l'exigence tombe,
-    // la directive devient inutile et `tsc --noEmit` échoue.
     // @ts-expect-error — « montrer » exige les deux métriques
     const carte = projeterCarteProduit(faits, { rupture: "montrer" })
 

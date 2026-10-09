@@ -47,9 +47,7 @@ async function traiterAvecRejou(
       headers: fusionnerCookies(requete.headers, reponse),
     })
     if (session?.user) await rejouerPanierVisiteur(session.user.id)
-  } catch {
-    // Le rejou du Panier Visiteur ne doit jamais bloquer l'authentification.
-  }
+  } catch {}
   return reponse
 }
 

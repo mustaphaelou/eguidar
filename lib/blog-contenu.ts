@@ -2,12 +2,6 @@ export type BlocContenuArticle =
   | { type: "titre-section"; texte: string }
   | { type: "paragraphe"; texte: string }
 
-/**
- * Découpe le contenu plaintext d'un Article de blog en blocs.
- * Une ligne commençant par `## ` devient un titre de section (H2),
- * les autres blocs séparés par des lignes blanches restent des paragraphes.
- * Sécurité : plaintext uniquement, rendu via nœuds texte React (pas de HTML).
- */
 export function decoupeContenuArticle(contenu: string): BlocContenuArticle[] {
   const blocs: BlocContenuArticle[] = []
   const morceaux = contenu.split(/\n{2,}/)

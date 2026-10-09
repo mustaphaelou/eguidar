@@ -210,9 +210,6 @@ export function MobileFilterDrawer({
 export function ActiveFilters({ facets }: { facets: SearchFacets }) {
   const { filters, navigate } = useSearchNavigation()
   const activeBrands = filters.brand ?? []
-  // Les libellés viennent de la liste d'options reçue — la catégorie comme
-  // la Tranche de prix —, jamais d'une seconde lecture de `price-buckets` :
-  // ce que le panneau affiche et ce que la puce affiche sont le même fait.
   const categoryName = facets.categories.find(
     (category) => category.value === filters.categorySlug
   )?.label
@@ -299,11 +296,6 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
 
   const activeBrands = filters.brand ?? []
 
-  // La barre latérale ne calcule plus rien : les options arrivent comptées,
-  // triées et retenues par `lib/options-de-filtre.ts`, dans l'ordre où elles
-  // se lisent. Il ne lui reste que des décisions d'affichage — masquer une
-  // option à zéro qui n'est pas retenue, et replier les marques derrière
-  // « voir tout » sans jamais replier une marque retenue.
   const brandOptions = facets.brands.filter(
     (option) => option.count > 0 || option.selected
   )

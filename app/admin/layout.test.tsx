@@ -14,8 +14,6 @@ vi.mock("next/headers", async () => {
 
 vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
   const h = await import("@/test/navigation-mocks")
-  // Seule la lecture est stubée : `estAdmin` reste la vraie règle du module,
-  // sans quoi la suite ne prouverait plus le refus de l'Administration.
   return {
     ...(await importOriginal<
       typeof import("@/lib/use-cases/session-courante")
@@ -94,9 +92,7 @@ describe("AdminLayout", () => {
 
     try {
       await renderAdminLayout()
-    } catch {
-      // Expected: the redirect sentinel aborts the render
-    }
+    } catch {}
 
     expect(redirectMock).toHaveBeenCalledWith("/?open=login&next=%2Fadmin")
   })

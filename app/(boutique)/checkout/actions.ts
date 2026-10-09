@@ -32,9 +32,7 @@ export const placeOrderAction: (
         address: input.address,
         cityId: input.cityId,
       })
-    } catch {
-      // Le profil pré-remplit le prochain paiement : son échec ne doit pas bloquer la commande.
-    }
+    } catch {}
     redirect(`/commande/confirmation/${order.id}`)
   },
 })

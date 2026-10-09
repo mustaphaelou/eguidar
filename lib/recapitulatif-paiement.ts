@@ -10,13 +10,6 @@ export interface RécapitulatifRow {
   tone?: RécapitulatifRowTone
 }
 
-/**
- * Entrée Commande du Récapitulatif de paiement (forme structurelle minimale).
- *
- * `OrderDetail`, `AdminOrderDetail` et `OrderEmailSnapshot` satisfont déjà
- * cette forme sans import nouveau. Le Total à payer est consommé tel quel
- * (`totalPayable` précalculé), jamais re-dérivé de `total + shippingFee`.
- */
 export interface CommandePourRécapitulatif {
   total: number
   shippingFee: number
@@ -24,19 +17,6 @@ export interface CommandePourRécapitulatif {
   cityName?: string | null
 }
 
-/**
- * Faits normalisés — seul chemin de construction des lignes.
- *
- * `shipping: null` est le seul cas « À choisir » (aucun Devis sélectionné).
- * Le Devis ne produit que `null` (sans ville) ou `{ fee: number, city }`
- * (avec ville validée), et `fromCommande` n'émet que `{ fee: number, city? }`
- * (la Commande porte toujours des frais numériques). `total: null` omet la
- * ligne Total (Devis sans ville) ; la Commande fournit toujours son
- * `totalPayable`.
- *
- * Volontairement non exporté : les consommateurs construisent le littéral
- * d'objet de manière structurelle sans importer le type.
- */
 type FaitsRécapitulatif = {
   sousTotal: number
   shipping: { fee: number; city?: string } | null
@@ -91,12 +71,6 @@ export function construireLignes(
   return rows
 }
 
-/**
- * Construit les lignes Sous-total / Livraison / Total à payer depuis une Commande.
- *
- * Consomme le `totalPayable` précalculé de la Commande, jamais
- * `total + shippingFee`.
- */
 export function récapitulatifRowsFromCommande(
   commande: CommandePourRécapitulatif
 ): RécapitulatifRow[] {

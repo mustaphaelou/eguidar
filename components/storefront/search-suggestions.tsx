@@ -16,20 +16,6 @@ interface SuggestionCategory {
   name: string
 }
 
-/**
- * Où mène une suggestion de catégorie.
- *
- * Une Structure réelle mène à sa page. **La valeur réservée d'un Produit sans
- * Structure (ADR-0029) n'a pas de page** : `/categorie/_sans-structure` rendrait
- * un `notFound()`, parce qu'aucune Structure ne porte ce slug — c'est
- * précisément ce que garantit son caractère réservé. Elle mène donc au
- * Catalogue filtré sur elle, que `buildSearchHref` écrit et que la page
- * « Tous nos produits » sait lire : la destination existe, et elle montre
- * exactement les Produits que la promesse nomme.
- *
- * L'écart est mesuré, pas supposé : `/categorie/<slug>` passe par
- * `fetchCategoryPageData`, qui rend `null` pour un slug absent.
- */
 export function hrefDeSuggestion(slug: string): string {
   return slug === SLUG_SANS_STRUCTURE
     ? buildSearchHref("", { categorySlug: slug }, {}, {}, "/produits")
@@ -75,9 +61,7 @@ export function SearchSuggestions({
         setResult(data)
         setResultQuery(trimmed)
         setOpen(true)
-      } catch {
-        // ignore network errors; no dropdown is better than a broken one
-      }
+      } catch {}
     }, DEBOUNCE_MS)
     return () => {
       clearTimeout(timer)

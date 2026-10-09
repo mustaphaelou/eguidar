@@ -78,12 +78,6 @@ function effetsSilencieux() {
   }
 }
 
-/**
- * La règle de création appartient au Catalogue : un Produit qui porte des
- * Images produit doit les avoir promues. Les Produits de départ de cette suite
- * passent donc par la porte, comme un appelant réel. La liaison est neutre —
- * c'est la mise à jour, ci-dessous, qui observe la sienne.
- */
 function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
   return RevendicationImagesProduit.creer({
     galerie: urls,
@@ -104,12 +98,6 @@ function variantesPersistees(
   }))
 }
 
-/**
- * Un Brouillon en cours d'envoi, écrit depuis la demande réelle : cette suite
- * mesure la promotion, donc sa pré-signature n'est pas une URL lisible mais la
- * réponse du stockage. C'est ce qui distingue son aide de celle que partagent
- * les autres suites.
- */
 function brouillon(demande: BrouillonImageProduitDemande): EntreeImageProduit {
   return {
     kind: "brouillon",
@@ -210,17 +198,6 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   })
 
   it("promet les nouveaux Brouillons et conserve l'ordre soumis", async () => {
-    // La preuve de bout en bout que l'ordre de l'éditeur atteint la base : la
-    // galerie est soumise entière, dans l'ordre de l'éditeur, et l'appelant
-    // ne fait que forward ce que le cycle de vie lui rend. Les deux Brouillons
-    // sont intercalés entre deux Images produit déjà persistées, donc un
-    // réassemblage par l'appelant — ou un ordre de promotion — les trahirait.
-    //
-    // De bout en bout pour l'ordre, qui se relit dans la rangée. Pas pour la
-    // liaison : le registre est ici en mémoire, donc la confirmation se lit
-    // hors de la transaction du Catalogue et cette suite ne prouverait pas
-    // qu'une confirmation perdue empêche la rangée d'être écrite. C'est la
-    // suite durable, plus bas, qui la prouve.
     const product = await createProduct(
       makeInput([existingImage, existingSecondImage]),
       effetsSilencieux(),
@@ -293,12 +270,6 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   })
 
   it("écrit le Catalogue une fois par soumission d'une galerie sans Brouillon", async () => {
-    // Le cas le plus ordinaire de l'Administration : un Produit déjà porteur de
-    // ses Images produit, dont l'éditeur réordonne la galerie ou renomme le
-    // Produit. Cette galerie ne prend plus de chemin particulier — l'opération
-    // l'écrit comme une autre, sans rien promouvoir et sans rien lier. La
-    // liaison reçoit une liste vide : elle ne doit ni échouer, ni écrire quoi que
-    // ce soit, et c'est le cas.
     const product = await createProduct(
       makeInput([existingImage, existingSecondImage]),
       effetsSilencieux(),
@@ -331,29 +302,16 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const premier = await soumettre("tentative-sans-brouillon-1")
 
     expect(premier).toMatchObject({ ok: true, productId: product.id })
-    // Une soumission, une écriture du Catalogue.
     expect(ecritures).toBe(1)
-    // Ni promotion, ni liaison, ni retrait de source : il n'y avait rien à
-    // prendre.
     expect(environnement.stockage.promotions).toEqual([])
     expect(environnement.stockage.suppressionsBrouillons).toEqual([])
     expect(environnement.registre.records.size).toBe(0)
-    // Le Catalogue nomme toujours à son effet la liste des Images produit
-    // persistées qu'il retire, et elle est vide : la galerie soumise est celle
-    // du Produit, donc rien n'est retiré. L'effet est appelé une fois, il n'a
-    // rien à supprimer.
     expect(effects.deleteImages).toHaveBeenCalledExactlyOnceWith([])
     const apres = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
     })
     expect(apres.images).toEqual([existingImage, existingSecondImage])
 
-    // Soumettre deux fois ne crée rien et ne retire rien : la seconde
-    // soumission écrit le même Produit, avec la même galerie. Sans Brouillon,
-    // l'identité de la tentative n'a rien où s'accrocher — la relecture d'un
-    // commit déjà durable ne peut donc pas court-circuiter, et elle n'a pas à le
-    // faire : la galerie soumise est celle du Produit, donc la réécrire change
-    // la même rangée.
     const second = await soumettre("tentative-sans-brouillon-1")
 
     expect(second).toMatchObject({ ok: true, productId: product.id })
@@ -547,11 +505,6 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       ownerId,
       galerie: [persistee(existingImage), brouillon(draft)],
       enregistrer: async (revendication) => {
-        // La liaison d'abord, l'échec ensuite : la transaction du Catalogue
-        // s'ouvre, lie le Brouillon, puis se referme sur une erreur. La
-        // revocation est donc à prouver par la suite : une valeur ne se
-        // refabrique pas à la main, et c'est bien la porte qui rend la seconde
-        // — même galerie, même sous-ensemble promu, une liaison qui échoue.
         await updateProduct(
           product.id,
           makeInput([...revendication.galerie], {

@@ -676,9 +676,6 @@ describe("order status transitions", () => {
     const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
       async () => {}
     )
-    // Volontairement distinct de total + shippingFee (53500) : aucun chemin de
-    // production n'écrit une telle Commande — c'est ce qui distingue la lecture
-    // de la colonne d'un re-dérivé de `total + shippingFee`.
     const orderId = await createAdminOrderRecord(
       userIdA,
       [{ variantId: variantP1, quantity: 1 }],

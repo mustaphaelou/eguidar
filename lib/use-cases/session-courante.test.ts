@@ -32,14 +32,6 @@ function sessionDe(role: string) {
   return { user: { ...COMPTE, role }, session: {} }
 }
 
-/**
- * La Session courante, prouvée à sa propre interface.
- *
- * Toutes les autres suites stubs la lecture (le module) ; celle-ci stube la
- * couche d'authentification *sous* elle et vérifie ce qu'une réponse de
- * Better Auth devient : un Client avec ses faits d'identité et son rôle
- * typé, ou `null`.
- */
 describe("lireSession", () => {
   beforeEach(() => {
     getSession.mockReset()
