@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest"
+import { randomUUID } from "node:crypto"
+
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
 import {
@@ -14,6 +16,8 @@ import {
   projeterFilAriane,
   projeterOptionsSelecteur,
   projeterPageCategorie,
+  type CiblesSuppression,
+  type EcranAdminStructure,
   type FaitStructure,
 } from "@/lib/use-cases/lecture-structure"
 import {
@@ -23,6 +27,12 @@ import {
 } from "@/lib/use-cases/outils-frontiere"
 import { structure, tousLesNoeuds } from "@/test/lecture-structure-recette"
 import { MODULE_LECTURE, SYMBOLES } from "@/test/lecture-structure-outils"
+import {
+  creerArbrePropre,
+  creerStructure,
+  planterUnCycleEnBase,
+  type StructureCreee,
+} from "@/test/structure-fixtures"
 
 const SOURCES = sourcesDeProduction(
   import.meta.url,
@@ -136,6 +146,15 @@ describe("Lecture de la Structure — une porte par écran", () => {
 // base. Chacune des deux familles disait vrai de son côté, et l'accord des deux
 // n'était regardé nulle part — c'est sous ce jeu de faits, une boucle et une
 // parente qui ne nomme aucune rangée, que la divergence s'était logée.
+//
+// La comparaison se rejoue sur deux tables, parce qu'une seule ne prouve pas
+// les deux choses. La table simulée, posée en amont de `lireToutesLesStructures`,
+// peut porter la rangée que la clé étrangère interdit : une parente qui ne
+// nomme rien. La table vraie, plantée puis lue par Prisma, prouve l'autre
+// moitié — que la porte de lecture apporte les mêmes faits que les faits écrits
+// à la main. Une colonne oubliée dans son `select` ferait alors diverger les
+// deux sorties, ce qu'une table simulée ne peut pas voir, puisque les rangées
+// simulées sont celles que la suite écrit.
 
 type RangéeLue = Awaited<ReturnType<typeof prisma.category.findMany>>
 
@@ -173,44 +192,105 @@ const RANGEES = rangeesDe(CORROMPUES)
 
 const HORS_ARBRE = ["boucle-a", "boucle-b", "enfant-hors-arbre", "hors-arbre"]
 
-interface Porte {
-  nom: string
-  lire: () => Promise<unknown>
-  projeter: (faits: readonly FaitStructure[]) => unknown
+// Les questions que les six portes posent, et le fait que chacune va chercher
+// dans la table : un identifiant pour l'écran d'édition et pour le fil
+// d'Ariane, un slug pour la page de catégorie, qui le demande ainsi.
+interface Cibles {
+  idEdition: string
+  slugCategorie: string
+  idFil: string
 }
 
-const PORTES: readonly Porte[] = [
-  {
-    nom: "l'arbre d'accueil",
-    lire: lireArbreAccueil,
-    projeter: (faits) => projeterArbreAccueil(faits),
-  },
-  {
-    nom: "l'écran d'Administration",
-    lire: lireEcranAdmin,
-    projeter: (faits) => projeterEcranAdmin(faits),
-  },
-  {
-    nom: "les options du sélecteur",
-    lire: lireOptionsSelecteur,
-    projeter: (faits) => projeterOptionsSelecteur(faits),
-  },
-  {
-    nom: "l'écran d'édition",
-    lire: () => lireEcranEdition("petit-a"),
-    projeter: (faits) => projeterEcranEdition(faits, "petit-a"),
-  },
-  {
-    nom: "la page de catégorie",
-    lire: () => lirePageCategorie("racine"),
-    projeter: (faits) => projeterPageCategorie(faits, "racine"),
-  },
-  {
-    nom: "le fil d'Ariane",
-    lire: () => lireFilAriane("boucle-a"),
-    projeter: (faits) => projeterFilAriane(faits, "boucle-a"),
-  },
+interface Porte {
+  lire: () => Promise<unknown>
+  projeter: (faits: readonly FaitStructure[]) => unknown
+  comparable: (issue: unknown) => unknown
+}
+
+type FabriqueDePortes = (cibles: Cibles) => Porte
+
+const RENDU_TEL_QUEL: Porte["comparable"] = (issue) => issue
+
+function parIdentifiant(
+  une: CiblesSuppression,
+  autre: CiblesSuppression
+): number {
+  return une.id < autre.id ? -1 : une.id > autre.id ? 1 : 0
+}
+
+// Les cibles de suppression sont rendues rangée par rangée, donc dans l'ordre
+// où les rangées arrivent : une table n'a pas d'ordre, une liste écrite à la
+// main en a un. Les deux portes rendent donc le même contenu dans un ordre
+// différent, et aucune n'a promis l'autre — ADR-0030 fait joindre les cibles à
+// leurs lignes par identifiant, sur la page. La comparaison les range donc
+// comme la page les joint ; c'est le seul réordonnancement qu'elle se permet.
+// Les lignes, elles, rendent l'ordre que le module promet, et se comparent
+// entières. Le seul rétrécissement que cette suite se permet est ici : la porte
+// rend un `EcranAdminStructure`, et rien d'autre ne peut l'alimenter.
+const CIBLES_PAR_IDENTIFIANT: Porte["comparable"] = (issue) => {
+  const ecran = issue as EcranAdminStructure
+  return { ...ecran, cibles: [...ecran.cibles].sort(parIdentifiant) }
+}
+
+const FABRIQUES: readonly (readonly [
+  nom: string,
+  fabrique: FabriqueDePortes,
+])[] = [
+  [
+    "l'arbre d'accueil",
+    () => ({
+      lire: lireArbreAccueil,
+      projeter: projeterArbreAccueil,
+      comparable: RENDU_TEL_QUEL,
+    }),
+  ],
+  [
+    "l'écran d'Administration",
+    () => ({
+      lire: lireEcranAdmin,
+      projeter: projeterEcranAdmin,
+      comparable: CIBLES_PAR_IDENTIFIANT,
+    }),
+  ],
+  [
+    "les options du sélecteur",
+    () => ({
+      lire: lireOptionsSelecteur,
+      projeter: projeterOptionsSelecteur,
+      comparable: RENDU_TEL_QUEL,
+    }),
+  ],
+  [
+    "l'écran d'édition",
+    ({ idEdition }) => ({
+      lire: () => lireEcranEdition(idEdition),
+      projeter: (faits) => projeterEcranEdition(faits, idEdition),
+      comparable: RENDU_TEL_QUEL,
+    }),
+  ],
+  [
+    "la page de catégorie",
+    ({ slugCategorie }) => ({
+      lire: () => lirePageCategorie(slugCategorie),
+      projeter: (faits) => projeterPageCategorie(faits, slugCategorie),
+      comparable: RENDU_TEL_QUEL,
+    }),
+  ],
+  [
+    "le fil d'Ariane",
+    ({ idFil }) => ({
+      lire: () => lireFilAriane(idFil),
+      projeter: (faits) => projeterFilAriane(faits, idFil),
+      comparable: RENDU_TEL_QUEL,
+    }),
+  ],
 ]
+
+const CIBLES_LITTALES: Cibles = {
+  idEdition: "petit-a",
+  slugCategorie: "racine",
+  idFil: "boucle-a",
+}
 
 async function surLaTable<T>(
   rendre: () => Promise<T>,
@@ -226,10 +306,10 @@ async function surLaTable<T>(
   }
 }
 
-function enSilence<T>(rendre: () => T): T {
+async function enSilence<T>(rendre: () => T | Promise<T>): Promise<T> {
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
   try {
-    return rendre()
+    return await rendre()
   } finally {
     warn.mockRestore()
   }
@@ -282,20 +362,22 @@ describe("Lecture de la Structure — la porte de lecture et sa porte jumelle pu
     }
   })
 
-  for (const porte of PORTES) {
-    it(`${porte.nom} — les deux portes rendent la même sortie des mêmes faits`, async () => {
-      const lu = await surLaTable(porte.lire)
-      const projete = enSilence(() => porte.projeter(CORROMPUES))
+  for (const [nom, fabrique] of FABRIQUES) {
+    it(`${nom} — les deux portes rendent la même sortie des mêmes faits`, async () => {
+      const porte = fabrique(CIBLES_LITTALES)
 
-      exigerPlein(lu, `${porte.nom} — la porte de lecture`)
-      exigerPlein(projete, `${porte.nom} — la porte pure`)
-      expect(lu).toEqual(projete)
+      const lu = await surLaTable(porte.lire)
+      const projete = await enSilence(() => porte.projeter(CORROMPUES))
+
+      exigerPlein(lu, `${nom} — la porte de lecture`)
+      exigerPlein(projete, `${nom} — la porte pure`)
+      expect(porte.comparable(lu)).toEqual(porte.comparable(projete))
     })
   }
 
   it("la comparaison mord : elle voit une divergence dès qu'il y en a une", async () => {
     const lu = await surLaTable(lireEcranAdmin)
-    const projete = enSilence(() => projeterEcranAdmin(CORROMPUES))
+    const projete = await enSilence(() => projeterEcranAdmin(CORROMPUES))
 
     expect(lu.lignes).toHaveLength(CORROMPUES.length)
     expect(lu.cibles).toHaveLength(CORROMPUES.length)
@@ -306,5 +388,171 @@ describe("Lecture de la Structure — la porte de lecture et sa porte jumelle pu
       rangeesDe(CORROMPUES.filter((fait) => fait.id !== "boucle-b"))
     )
     expect(amputee).not.toEqual(projete)
+  })
+})
+
+// La seconde moitié de la comparaison : la même confrontation, sur une table
+// que Prisma lit vraiment. La table simulée porte le fait que la clé étrangère
+// interdit — une parente qui ne nomme aucune rangée — mais ses rangées sont
+// celles que la suite écrit, donc elle ne voit pas ce que la porte de lecture
+// oublie de demander à la base. Ici la table est plantée rangée par rangée, et
+// les faits écrits à la main sont recopiés depuis ce que la plantation a rendu :
+// un `select` qui perdrait une colonne rendrait alors la porte de lecture
+// différente de sa jumelle, et l'écart se verrait.
+
+const PREFIXE = `portes-${randomUUID().slice(0, 8)}-`
+
+let base: FaitStructure[]
+let horsArbreDeLaBase: string[]
+let ciblesDeLaBase: Cibles
+let idDeLaRacineImagee: string
+
+function faitDe(
+  plantee: StructureCreee,
+  parentId: string | null = plantee.parentId
+): FaitStructure {
+  return {
+    id: plantee.id,
+    name: plantee.name,
+    slug: plantee.slug,
+    image: plantee.image,
+    parentId,
+    produitsDirects: 0,
+  }
+}
+
+beforeAll(async () => {
+  const arbre = await creerArbrePropre(
+    {
+      racine: { name: "Portes A", image: "/portes-a.png" },
+      enfant: { name: "Portes B", parent: "racine" },
+      petit: { name: "Portes C", parent: "enfant" },
+      isolee: { name: "Portes D" },
+    },
+    PREFIXE
+  )
+  const boucle = [
+    await creerStructure({ name: "Portes E", prefix: PREFIXE }),
+    await creerStructure({ name: "Portes F", prefix: PREFIXE }),
+    await creerStructure({ name: "Portes G", prefix: PREFIXE }),
+  ]
+  const accrocheeAuCycle = await creerStructure({
+    name: "Portes H",
+    parentId: boucle[0].id,
+    prefix: PREFIXE,
+  })
+  await planterUnCycleEnBase(boucle.map((entree) => entree.id))
+
+  // `planterUnCycleEnBase` referme la boucle en base : les rangées qu'elle a
+  // rendues disent encore la parente qu'elles avaient à leur création, et c'est
+  // la boucle refermée qu'il faut écrire ici.
+  base = [
+    ...Object.values(arbre).map((entree) => faitDe(entree)),
+    ...boucle.map((entree, rang) =>
+      faitDe(entree, boucle[(rang + 1) % boucle.length].id)
+    ),
+    faitDe(accrocheeAuCycle),
+  ]
+  horsArbreDeLaBase = [
+    ...boucle.map((entree) => entree.id),
+    accrocheeAuCycle.id,
+  ]
+  ciblesDeLaBase = {
+    idEdition: arbre.petit.id,
+    slugCategorie: arbre.racine.slug,
+    idFil: boucle[0].id,
+  }
+  idDeLaRacineImagee = arbre.racine.id
+})
+
+afterAll(async () => {
+  await prisma.category.deleteMany({ where: { slug: { startsWith: PREFIXE } } })
+  await prisma.$disconnect()
+})
+
+describe("Lecture de la Structure — la porte de lecture lit la table, et sa porte jumelle pure rend les mêmes faits", () => {
+  it("la table ne porte que les rangées plantées : la porte de lecture la lit entière", async () => {
+    const dansLaTable = await prisma.category.findMany({ select: { id: true } })
+
+    expect(
+      new Set(dansLaTable.map((rangee) => rangee.id)),
+      "une suite a laissé une rangée, et la porte de lecture la rendrait aussi"
+    ).toEqual(new Set(base.map((fait) => fait.id)))
+  })
+
+  it("le jeu planté porte bien un cycle, que la marche dégrade et nomme", async () => {
+    // Une marche par porte : chacune journalise le cycle une fois, et non une
+    // fois par surface — c'est ce qu'ADR-0030 tient pour une ligne et non
+    // autant que de surfaces.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const { lignes } = await lireEcranAdmin()
+      const presents = tousLesNoeuds(await lireArbreAccueil()).map(
+        (noeud) => noeud.id
+      )
+      const journal = warn.mock.calls.map((morceaux) => morceaux.join(" "))
+
+      expect(new Set(lignes.map((ligne) => ligne.id))).toEqual(
+        new Set(base.map((fait) => fait.id))
+      )
+      expect(
+        new Set(lignes.filter((ligne) => ligne.horsArbre).map((l) => l.id))
+      ).toEqual(new Set(horsArbreDeLaBase))
+      expect(new Set(presents)).toEqual(
+        new Set(
+          base
+            .map((fait) => fait.id)
+            .filter((id) => !horsArbreDeLaBase.includes(id))
+        )
+      )
+
+      // L'image plantée est le fait qu'une table simulée ne peut pas prouver :
+      // la porte la rend, donc son `select` la demande à la base.
+      expect(
+        lignes.find((ligne) => ligne.id === idDeLaRacineImagee)?.image
+      ).toBe("/portes-a.png")
+
+      // Deux marches, donc deux lignes : chacune nomme les trois maillons.
+      expect(journal).toHaveLength(2)
+      for (const ligne of journal) {
+        for (const maillon of ["Portes E", "Portes F", "Portes G"]) {
+          expect(ligne).toContain(maillon)
+        }
+      }
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  for (const [nom, fabrique] of FABRIQUES) {
+    it(`${nom} — les deux portes rendent la même sortie des mêmes faits`, async () => {
+      const porte = fabrique(ciblesDeLaBase)
+
+      const lu = await enSilence(porte.lire)
+      const projete = await enSilence(() => porte.projeter(base))
+
+      exigerPlein(lu, `${nom} — la porte de lecture`)
+      exigerPlein(projete, `${nom} — la porte pure`)
+      expect(porte.comparable(lu)).toEqual(porte.comparable(projete))
+    })
+  }
+
+  it("la comparaison mord sur la vraie table : une rangée de plus la fait tomber", async () => {
+    const projete = await enSilence(() => projeterEcranAdmin(base))
+    const enPlus = await creerStructure({ name: "Portes I", prefix: PREFIXE })
+    try {
+      const lu = await enSilence(() => lireEcranAdmin())
+
+      // La porte de lecture rend la rangée que les faits écrits à la main ne
+      // portent pas : sans cela, l'égalité des deux sorties ne prouverait pas
+      // que la porte lit bien cette table.
+      expect(lu.lignes.map((ligne) => ligne.id)).toContain(enPlus.id)
+      expect(lu.lignes).toHaveLength(base.length + 1)
+      expect(CIBLES_PAR_IDENTIFIANT(lu)).not.toEqual(
+        CIBLES_PAR_IDENTIFIANT(projete)
+      )
+    } finally {
+      await prisma.category.delete({ where: { id: enPlus.id } })
+    }
   })
 })
