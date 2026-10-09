@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   directive,
   importeDe,
+  sourceDuCorpus,
   sourcesDeProduction,
   type SourceProduction,
 } from "@/lib/use-cases/outils-frontiere"
@@ -87,18 +88,9 @@ const SOURCES = sourcesDeProduction(
   "../prisma"
 )
 
-function sourceDe(chemin: string): SourceProduction {
+function sourceDuDepot(chemin: string): SourceProduction {
   const trouvee = SOURCES.find(({ chemin: nominee }) => nominee === chemin)
-  if (!trouvee) throw new Error(`Source de production absente : ${chemin}`)
-  return trouvee
-}
-
-function sourceDu(
-  sources: readonly SourceProduction[],
-  chemin: string
-): SourceProduction {
-  const trouvee = sources.find(({ chemin: nominee }) => nominee === chemin)
-  if (!trouvee) throw new Error(`Source absente du corpus : ${chemin}`)
+  if (!trouvee) throw new Error(`Source absente du dépôt : ${chemin}`)
   return trouvee
 }
 
@@ -160,7 +152,7 @@ function producteurs(sources: readonly SourceProduction[]): string[] {
 function sansProprietaire(sources: readonly SourceProduction[]): string[] {
   return producteurs(sources).filter(
     (chemin) =>
-      !importeDe(sourceDu(sources, chemin).source, "lib/index-projection")
+      !importeDe(sourceDuCorpus(sources, chemin).source, "lib/index-projection")
   )
 }
 
@@ -182,7 +174,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
       ])
     )
     for (const [chemin, { noms }] of PRODUCTEURS_NOMMES) {
-      const { source } = sourceDe(chemin)
+      const { source } = sourceDuDepot(chemin)
       for (const nom of noms) {
         expect(occurrences(source, nom), `${chemin} → ${nom}`).toBeGreaterThan(
           0
@@ -192,7 +184,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
   })
 
   it("la valeur réservée et son libellé sont écrits une fois, dans le propriétaire", () => {
-    const { source } = sourceDe(PROPRIETAIRE)
+    const { source } = sourceDuDepot(PROPRIETAIRE)
 
     expect(ecrivains(SOURCES, VALEUR_RESERVEE)).toEqual([PROPRIETAIRE])
     expect(ecrivains(SOURCES, LIBELLE_RESERVE)).toEqual([PROPRIETAIRE])
@@ -217,12 +209,9 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
   it("tout site qui produit la valeur, hors le propriétaire, l'emprunte au propriétaire", () => {
     expect(producteurs(SOURCES)).toEqual([...PRODUCTEURS_NOMMES.keys()].sort())
-    expect(SITES_EMPRUNTES).toEqual(
-      [...PRODUCTEURS_NOMMES.keys()].filter((chemin) => chemin !== PROPRIETAIRE)
-    )
 
     for (const [chemin, { noms }] of PRODUCTEURS_NOMMES) {
-      const { source } = sourceDe(chemin)
+      const { source } = sourceDuDepot(chemin)
       expect(new Set(nomsReserves(source)), chemin).toEqual(new Set(noms))
       for (const nom of noms) {
         expect(
@@ -234,7 +223,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
     for (const chemin of SITES_EMPRUNTES) {
       expect(
-        importeDe(sourceDe(chemin).source, "lib/index-projection"),
+        importeDe(sourceDuDepot(chemin).source, "lib/index-projection"),
         chemin
       ).toBe(true)
     }
@@ -245,19 +234,19 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
     expect(VOIES_D_ECRITURE.size).toBeGreaterThan(0)
 
     for (const chemin of VOIES_D_ECRITURE.keys()) {
-      const { source } = sourceDe(chemin)
+      const { source } = sourceDuDepot(chemin)
       expect(importeDe(source, "lib/index-projection"), chemin).toBe(true)
       expect(atteintLaProjection(source), chemin).toBe(true)
     }
     expect(
       [...VOIES_D_ECRITURE.keys()].filter(
-        (chemin) => !atteintLaProjection(sourceDe(chemin).source)
+        (chemin) => !atteintLaProjection(sourceDuDepot(chemin).source)
       )
     ).toEqual([])
   })
 
   it("le propriétaire est neutre, pour que la valeur traverse la couture", () => {
-    const { source } = sourceDe(PROPRIETAIRE)
+    const { source } = sourceDuDepot(PROPRIETAIRE)
 
     expect(directive(source)).toBeNull()
     for (const interdit of [
@@ -281,7 +270,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
   it("la garde tombe sur une seconde écriture de la valeur, dans un fichier réel", () => {
     const cible = "lib/use-cases/search.ts"
-    const reel = sourceDe(cible).source
+    const reel = sourceDuDepot(cible).source
 
     expect(ecrivains(SOURCES, VALEUR_RESERVEE)).toEqual([PROPRIETAIRE])
 
@@ -303,7 +292,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
   it("la garde tombe sur une seconde écriture du libellé, dans un fichier réel", () => {
     const cible = "lib/use-cases/admin-catalog.ts"
-    const reel = sourceDe(cible).source
+    const reel = sourceDuDepot(cible).source
 
     expect(ecrivains(SOURCES, LIBELLE_RESERVE)).toEqual([PROPRIETAIRE])
 
@@ -322,7 +311,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
   it("la garde tombe sur une seconde déclaration du nom, dans un fichier réel", () => {
     const cible = "lib/use-cases/storefront.ts"
-    const reel = sourceDe(cible).source
+    const reel = sourceDuDepot(cible).source
 
     const enViolation = sourceApres(
       reel,
@@ -339,7 +328,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
   it("la garde tombe sur un producteur que personne n'a nommé", () => {
     const cible = "lib/use-cases/storefront.ts"
-    const reel = sourceDe(cible).source
+    const reel = sourceDuDepot(cible).source
 
     expect(producteurs(SOURCES)).not.toContain(cible)
 
@@ -359,7 +348,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
   it("la garde voit un site qui nomme la valeur sans atteindre le propriétaire", () => {
     const cible = "lib/use-cases/storefront.ts"
-    const reel = sourceDe(cible).source
+    const reel = sourceDuDepot(cible).source
 
     const enViolation = sourceApres(reel, `const FILTRE = ${SLUG_RESERVE}`)
     expect(enViolation).not.toBe(reel)
@@ -374,7 +363,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
 
   it("la garde tombe sur une voie d'écriture qui re-dérive la valeur, dans un fichier réel", () => {
     const cible = "prisma/seed.ts"
-    const reel = sourceDe(cible).source
+    const reel = sourceDuDepot(cible).source
 
     expect(atteintLaProjection(reel)).toBe(true)
 

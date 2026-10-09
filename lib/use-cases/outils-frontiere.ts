@@ -162,6 +162,53 @@ export function empruntsDeValeur(
   })
 }
 
+export function carte(
+  sources: readonly SourceProduction[]
+): Map<string, SourceProduction> {
+  return new Map(sources.map((source) => [source.chemin, source]))
+}
+
+export function carteDe(
+  ...paires: [string, string][]
+): Map<string, SourceProduction> {
+  return carte(paires.map(([chemin, source]) => ({ chemin, source })))
+}
+
+export function sourceDuCorpus(
+  sources: readonly SourceProduction[],
+  chemin: string
+): SourceProduction {
+  const trouvee = sources.find(({ chemin: nominee }) => nominee === chemin)
+  if (!trouvee) throw new Error(`Source absente du corpus : ${chemin}`)
+  return trouvee
+}
+
+export function sourceApres(source: string, ligne: string): string {
+  const premiere = source.split("\n")[0]!
+  return `${premiere}\n${ligne}\n${source.slice(premiere.length)}`
+}
+
+export function avecSources(
+  sources: readonly SourceProduction[],
+  ...remplacements: SourceProduction[]
+): SourceProduction[] {
+  const remplaces = new Map(
+    remplacements.map(({ chemin, source }) => [chemin, source])
+  )
+  return sources.map((entree) => {
+    const source = remplaces.get(entree.chemin)
+    return source === undefined ? entree : { chemin: entree.chemin, source }
+  })
+}
+
+export function avecSource(
+  sources: readonly SourceProduction[],
+  chemin: string,
+  source: string
+): SourceProduction[] {
+  return avecSources(sources, { chemin, source })
+}
+
 function voisins(
   chemin: string,
   parChemin: ReadonlyMap<string, SourceProduction>
