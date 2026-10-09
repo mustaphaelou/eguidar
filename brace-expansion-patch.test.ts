@@ -3,9 +3,6 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-// Deux lignes majeures coexistent dans l'arbre — 1.x sous le minimatch
-// d'eslint, 5.x sous les deux minimatch 10 — et les avis de DoS sont corrigés
-// séparément sur chaque ligne. Chaque ligne porte donc son propre plancher.
 const BRACE_EXPANSION_FLOORS: Record<number, string> = {
   1: "1.1.21",
   5: "5.0.12",
@@ -30,12 +27,6 @@ function floorFor(version: string): string | null {
   return BRACE_EXPANSION_FLOORS[major] ?? null
 }
 
-/**
- * Les copies installées sont lues dans `package-lock.json` et non par
- * `createRequire` : les deux copies 5.x sont imbriquées sous leur minimatch, et
- * une résolution depuis la racine ne les voit pas. Le lockfile est de toute
- * façon ce que `npm ci` installe en CI.
- */
 function installedCopies(): { path: string; version: string }[] {
   const lock = JSON.parse(
     readFileSync(path.join(process.cwd(), "package-lock.json"), "utf8")

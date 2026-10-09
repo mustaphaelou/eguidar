@@ -14,18 +14,8 @@ import { searchProducts } from "@/lib/use-cases/search"
 
 const meili = getMeiliSearch()
 
-// large timeout: parallel mutation suites with default effects queue many Meili tasks
 const TASK_WAIT_TIMEOUT = 60_000
 
-/**
- * Ce que seul Meilisearch peut prouver : la tolérance aux fautes de frappe,
- * l'insensibilité à la casse et aux accents, et le classement par pertinence.
- * Le moteur en mémoire les laisse délibérément à Meili (ADR-0023) et ne les
- * imite pas ; les faits de la Recherche qui, eux, ne dépendent pas du moteur
- * — facettes, filtres, tris, pagination, suggestions — vivent désormais dans
- * `lib/use-cases/search-memoire.test.ts` et tournent sur la CI, sans
- * `MEILI_URL` ni Docker.
- */
 describe.runIf(!!meili)("search products against Meilisearch", () => {
   const client = meili!
   const runId = randomUUID().slice(0, 8)
@@ -130,8 +120,6 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
   }, TASK_WAIT_TIMEOUT)
 
   afterAll(async () => {
-    // Les slugs de cette suite sont sans caractère spécial : le filtre de
-    // nettoyage est donc cité directement, dans cette suite Meili uniquement.
     const smartphonesTask = await client.index(PRODUCTS_INDEX).deleteDocuments({
       filter: `categorySlug = "${smartphonesSlug}"`,
     })
@@ -191,8 +179,6 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
   })
 
   it("répond par l'interface MoteurRecherche — fumée d'adaptateur", async () => {
-    // Le seul fait que ce bloc doit à la couture : `moteurMeili()` satisfait
-    // `MoteurRecherche` et répond `ok`, le discriminant que #367 a ajouté.
     const reponse = await moteurMeili().chercher({
       query: token,
       filtres: { categorySlug: smartphonesSlug },

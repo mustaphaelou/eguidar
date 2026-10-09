@@ -113,9 +113,6 @@ describe("abandon d'une édition d'un Produit", () => {
     const faitsSoumis = galerieAvecSuppressionEnAttente.filter(
       (image) => image.kind === "brouillon" || !image.suppressionEnAttente
     )
-    // La galerie que l'opération a rendue ordonnée est la référence de tout ce
-    // qui suit : c'est elle que la soumission reconstitute, puis que le refus
-    // doit laisser intacte.
     const urlsPersistees = [...produit.images]
 
     expect(faitsSoumis).toEqual([
@@ -129,8 +126,6 @@ describe("abandon d'une édition d'un Produit", () => {
     expect(produit.images).toEqual(urlsPersistees)
     expect(objetsPersistants).toEqual(new Set(urlsPersistees))
     expect(stockage.suppressionsImagesPersistees).toEqual([])
-    // Le commit a libéré la source des deux Brouillons enregistrés ; celle du
-    // Brouillon abandonné, jamais commité, reste intacte.
     expect(stockage.suppressionsBrouillons).toEqual([
       draftObjectKey(premiereDemande.draftId, "image/webp"),
       draftObjectKey(secondeDemande.draftId, "image/png"),

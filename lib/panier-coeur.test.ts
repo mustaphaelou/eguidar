@@ -10,12 +10,6 @@ import {
   type StockagePanier,
 } from "@/lib/panier-coeur"
 
-/**
- * Stockage en mémoire sur la couture interne : un tableau d'Articles
- * stockés bruts. `ajouterQuantite` fusionne de façon additive,
- * `definirQuantite` fixe, `retirerArticle` retire et rapporte. Les
- * lectures projetées composent les projections pures du cœur.
- */
 function stockageEnMemoire(
   faits: Pick<StockagePanier, "capArticlesMax" | "motifIdentifiantVide">
 ): StockagePanier & { articles: ArticleStockePanier[] } {
@@ -62,7 +56,6 @@ function stockageEnMemoire(
   }
 }
 
-/** Faux Catalogue : la Variante existe si le prédicat le dit. */
 function catalogueFake(
   existe: (variantId: string) => boolean
 ): CataloguePanier {
@@ -259,13 +252,11 @@ describe("couture interne : creerPanierStore (ajouter)", () => {
     const stockage = stockageAvecCap()
     const catalogue = catalogueFake((id) => id !== VARIANTE_INCONNUE)
     const store = creerPanierStore(stockage, catalogue)
-    // Quantité invalide gagne même avec Catalogue manqué.
     expect(await store.ajouter(VARIANTE_INCONNUE, 0)).toEqual({
       ok: false,
       motif: "quantite-invalide",
       message: MESSAGE_QUANTITE_INVALIDE,
     })
-    // Plafond gagne avant la revalidation de la Variante (au plafond).
     await store.ajouter("variante-a", 1)
     await store.ajouter("variante-b", 1)
     expect(await store.ajouter(VARIANTE_INCONNUE, 1)).toEqual({
@@ -273,7 +264,6 @@ describe("couture interne : creerPanierStore (ajouter)", () => {
       motif: "cap-atteinte",
       message: "Votre panier est plein : 2 articles maximum.",
     })
-    // Variante gagne quand le plafond n'est pas atteint.
     await store.retirer("variante-a")
     expect(await store.ajouter(VARIANTE_INCONNUE, 1)).toEqual({
       ok: false,
@@ -346,9 +336,6 @@ describe("couture interne : creerPanierStore (modifier)", () => {
       stockage,
       catalogueFake(() => false)
     )
-    // Article présent sans Variante vivante : seed direct du stockage
-    // (chez le Client, une ligne persistée ne survit pas à sa Variante ;
-    // le stockage en mémoire permet d'épingler la règle quand même).
     stockage.articles.push({ variantId: "variante-a", quantity: 2 })
     expect(await store.modifier("variante-a", 3)).toEqual({
       ok: false,
@@ -395,19 +382,16 @@ describe("couture interne : creerPanierStore (modifier)", () => {
     const catalogue = catalogueFake(() => false)
     const store = creerPanierStore(stockage, catalogue)
     stockage.articles.push({ variantId: "variante-a", quantity: 2 })
-    // Quantité invalide gagne même avec Catalogue toujours manqué.
     expect(await store.modifier("variante-a", 0)).toEqual({
       ok: false,
       motif: "quantite-invalide",
       message: MESSAGE_QUANTITE_INVALIDE,
     })
-    // Article inconnu gagne avant la revalidation de la Variante.
     expect(await store.modifier("variante-b", 1)).toEqual({
       ok: false,
       motif: "article-inconnu",
       message: MESSAGE_ARTICLE_INCONNU,
     })
-    // Variante gagne pour un Article présent.
     expect(await store.modifier("variante-a", 3)).toEqual({
       ok: false,
       motif: "variante-inconnue",

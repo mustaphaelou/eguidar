@@ -55,8 +55,6 @@ async function createSeedOrderAt(
   createdAt: Date,
   total: number,
   shippingFee: number,
-  // Le Total à payer réellement stocké, énoncé par chaque fixture et jamais
-  // redérivé ici. Voir ADR-0009 et ADR-0021.
   totalPayableStocké: number
 ): Promise<string> {
   const order = await prisma.order.create({
@@ -359,13 +357,6 @@ describe("admin dashboard stats", () => {
     })
 
     it("answers with the persisted Total à payer, never with a sum recomputed from the Sous-total and the Frais de livraison", async () => {
-      // Fixture de garde : le Total à payer stocké (380,00 MAD) ne vaut pas le
-      // Sous-total plus les Frais de livraison (500,00 MAD). Aucune Commande
-      // de production ne peut être dans cet état — la création écrit la somme,
-      // et rien ne la réécrit ensuite — et c'est précisément pour cela que
-      // cette fixture est la seule qui distingue la lecture de la colonne
-      // d'un recalcul. Toutes les autres fixtures sont auto-cohérentes :
-      // elles passent identiquement dans les deux cas.
       const totalÀPayerStocké = 38000
       const createdAt = new Date(Date.now() - 3 * DAY_MS)
       const id = await createSeedOrderAt(
@@ -378,15 +369,12 @@ describe("admin dashboard stats", () => {
 
       const stats = await getDashboardStats()
 
-      // Le Chiffre d'affaires encaissé des 30 derniers jours.
       expect(stats.caEncaisse30j).toBe(totalÀPayerStocké)
-      // Le seau du mois dans lequel la Commande tombe.
       expect(
         stats.revenueByMonth.find(
           (bucket) => bucket.month === localMonthKey(createdAt)
         )?.revenue
       ).toBe(totalÀPayerStocké)
-      // La Commande récente : le Total à payer stocké, le Sous-total intact.
       const recente = stats.recentOrders.find((order) => order.id === id)
       expect(recente).toMatchObject({
         total: 45000,

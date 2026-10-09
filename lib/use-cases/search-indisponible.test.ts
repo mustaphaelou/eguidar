@@ -12,16 +12,8 @@ import {
   creerMoteurRecette,
 } from "@/test/moteur-recherche-recette"
 
-/**
- * L'indisponibilité du Moteur de recherche reste un seul fait typé au-dessus
- * de la couture. Ce fichier tourne sans `MEILI_URL` et sans Docker : il remet
- * aux cas d'usage un moteur de recette, pour figer le rendu d'aujourd'hui :
- * un Catalogue vide.
- */
-
 type MoteurRecette = MoteurRecherche & { requetes: RequeteMoteur[] }
 
-/** Les requêtes qui demandent des documents, par opposition aux comptages `taille: 0`. */
 function requetesPage(moteur: MoteurRecette): RequeteMoteur[] {
   return moteur.requetes.filter((requete) => (requete.taille ?? 0) > 0)
 }
@@ -35,13 +27,6 @@ function moteurCatalogueVide(): MoteurRecette {
   })
 }
 
-/**
- * L'univers des Tranches de prix sans résultat : l'assemblage les émet
- * toutes, à zéro, et c'est la barre latérale qui masque celles qu'elle doit
- * masquer. L'univers comme l'ordre viennent de `PRICE_BUCKETS` : une
- * sixième bande ne peut pas désynchroniser cette attente sans que le module
- * la porte aussi.
- */
 const BANDES_A_ZERO = PRICE_BUCKETS.map(({ id, label }) => ({
   value: id,
   label,
@@ -49,12 +34,6 @@ const BANDES_A_ZERO = PRICE_BUCKETS.map(({ id, label }) => ({
   selected: false,
 }))
 
-/**
- * Le DTO de l'écran vide : le Catalogue vide et les options d'une réponse
- * sans résultat — aucune marque, aucune catégorie, les cinq bandes à zéro.
- * Une panne comme un Catalogue vide l'assemblent de la même façon, sans
- * nomenclature lue.
- */
 const DTO_PAGE_VIDE = {
   query: "casque",
   totalHits: 0,
@@ -102,11 +81,9 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
     await searchProducts("casque", {}, { page: 3, pageSize: 2 }, indisponible)
     await searchProducts("casque", {}, { page: 3, pageSize: 2 }, catalogueVide)
 
-    // la page demandée, une fois : rien à reclamper sans total
     expect(
       requetesPage(indisponible).map((requete) => requete.page ?? 1)
     ).toEqual([3])
-    // un Catalogue vide, lui, se replie sur la première page et la redemande
     expect(
       requetesPage(catalogueVide).map((requete) => requete.page ?? 1)
     ).toEqual([3, 1])
@@ -126,11 +103,6 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
       indisponible
     )
 
-    // Le Catalogue vide est la réponse entière, mais l'assemblage tourne sur
-    // une carte de libellés vide : chaque valeur retenue sort à zéro, et la
-    // catégorie garde son slug pour libellé — la preuve qu'aucune
-    // nomenclature n'est lue en base sur ce chemin. La barre latérale les
-    // garde donc visibles, et les puces restent retirables.
     expect(resultat.facets.brands).toEqual([
       { value: "Sony", label: "Sony", count: 0, selected: true },
     ])
@@ -150,7 +122,6 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
     expect(resultat.totalHits).toBe(0)
     expect(resultat.pageSize).toBe(SEARCH_PAGE_SIZE)
 
-    // une seule page demandée : la panne ne provoque aucun bornage
     expect(requetesPage(indisponible)).toHaveLength(1)
   })
 
@@ -159,7 +130,6 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
 
     await searchSuggestions("casque", indisponible)
 
-    // une seule requête, celle d'aujourd'hui : six documents, les catégories comptées
     expect(indisponible.requetes).toHaveLength(1)
     expect(indisponible.requetes[0]).toMatchObject({
       query: "casque",

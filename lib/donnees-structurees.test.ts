@@ -41,7 +41,7 @@ describe("buildProductDonneesStructurees", () => {
         "https://cdn.eguidar.com/products/iphone-1.webp",
         "https://cdn.eguidar.com/products/iphone-2.webp",
       ],
-      minPrice: 1299900, // 12,999.00 MAD in cents
+      minPrice: 1299900,
       variants: [
         {
           sku: "IPH15P-128-TI",
@@ -50,7 +50,7 @@ describe("buildProductDonneesStructurees", () => {
         },
         {
           sku: "IPH15P-256-TI",
-          prix: 1449900, // 14,499.00 MAD
+          prix: 1449900,
           stock: 0,
         },
       ],
@@ -100,7 +100,7 @@ describe("buildProductDonneesStructurees", () => {
       slug: "cable-usb-c",
       description: "Câble USB-C résistant.",
       images: ["https://cdn.eguidar.com/products/cable.webp"],
-      minPrice: 19900, // 199.00 MAD in cents
+      minPrice: 19900,
       variants: [],
     }
 

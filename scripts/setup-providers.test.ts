@@ -21,25 +21,20 @@ const REGLES_ARTEFACT = (
   ) as { rules: unknown[] }
 ).rules
 
-/**
- * La question que l'étape 3 ne doit poser qu'après une lecture réussie qui a
- * compté des règles étrangères — c'est la promesse de `README.md:38`.
- */
 const QUESTION_SECONDE_CONFIRMATION =
   "Delete those rules and leave only the artifact's rule?"
 
-/** Les réponses de l'assistant, dans l'ordre de ses questions. */
 const REPONSES = [
-  "", // pause de démarrage
-  "", // TEST_DB_NAME → défaut
-  "", // TEST_DATABASE_URL → défaut
+  "",
+  "",
+  "",
   "site-cle",
   "cle-secrete",
-  "jeton-r2", // CLOUDFLARE_API_TOKEN
-  "compte-r2", // R2_ACCOUNT_ID
-  "y", // « Apply the rule now ? »
-  "n", // seconde confirmation éventuelle
-  "", // pause avant vérification
+  "jeton-r2",
+  "compte-r2",
+  "y",
+  "n",
+  "",
 ].join("\n")
 
 const DOSSIER = mkdtempSync(path.join(tmpdir(), "setup-providers-"))
@@ -50,11 +45,6 @@ const ENV_FILE = path.join(DOSSIER, "env")
 
 mkdirSync(STUBS, { recursive: true })
 
-/**
- * Un `curl` de test : les PUT laissent une trace, les GET lisent un corps
- * fixé par le test, et `CURL_ECHEC_LECTURE` simule une panne réseau. Les
- * ouvreurs de navigateur sont neutralisés pour rester déterministe.
- */
 writeFileSync(
   path.join(STUBS, "curl"),
   `#!/usr/bin/env bash
@@ -152,7 +142,6 @@ describe("scripts/setup-providers.sh — garde avant le PUT qui remplace l'ensem
 
     expect(occurrences(sortie, QUESTION_SECONDE_CONFIRMATION)).toBe(1)
     expect(sortie).toContain("regle-d-autre-equipe")
-    // Répondu « n » à la seconde confirmation : rien n'est appliqué.
     expect(putEffectue).toBe(false)
     expect(sortie).toContain("would delete existing bucket rules")
   })

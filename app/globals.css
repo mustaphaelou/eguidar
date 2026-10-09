@@ -52,31 +52,28 @@
 }
 
 :root {
-  /* Palette d'apple.com — le site n'a qu'un thème, le clair (GLOSSARY.md).
-     Les gris portent `none` comme teinte pour qu'un color-mix() nederive
-     jamais vers le rouge ; les teintes citees viennent d'apple.com. */
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
     Helvetica, Arial, sans-serif;
-  --background: oklch(1 0 none); /* --sk-body-background-color */
-  --foreground: oklch(23.2% 0 none); /* --sk-body-text-color */
+  --background: oklch(1 0 none);
+  --foreground: oklch(23.2% 0 none);
   --card: oklch(1 0 none);
   --card-foreground: oklch(23.2% 0 none);
   --popover: oklch(1 0 none);
   --popover-foreground: oklch(23.2% 0 none);
-  --primary: oklch(56.3% 0.193 256); /* --sk-fill-blue / --sk-button-background */
+  --primary: oklch(56.3% 0.193 256);
   --primary-foreground: oklch(1 0 none);
-  --secondary: oklch(98.6% 0 none); /* --sk-fill-secondary */
+  --secondary: oklch(98.6% 0 none);
   --secondary-foreground: oklch(23.2% 0 none);
-  --muted: oklch(97.1% 0 none); /* --sk-fill-tertiary */
-  --muted-foreground: oklch(54% 0 none); /* --sk-glyph-gray-secondary */
+  --muted: oklch(97.1% 0 none);
+  --muted-foreground: oklch(54% 0 none);
   --accent: oklch(97.1% 0 none);
   --accent-foreground: oklch(23.2% 0 none);
   --destructive: oklch(57.7% 0.245 27.3);
-  --border: oklch(86.5% 0 none); /* --sk-fill-gray-tertiary */
+  --border: oklch(86.5% 0 none);
   --input: oklch(86.5% 0 none);
-  --ring: var(--primary); /* --sk-focus-color */
-  --link: oklch(52.2% 0.177 256); /* --sk-body-link-color */
+  --ring: var(--primary);
+  --link: oklch(52.2% 0.177 256);
   --chart-1: oklch(87.9% 0.169 91.6);
   --chart-2: oklch(76.9% 0.188 70.1);
   --chart-3: oklch(66.6% 0.179 58.3);
@@ -92,16 +89,11 @@
   --sidebar-border: oklch(92.2% 0 none);
   --sidebar-ring: oklch(70.8% 0 none);
 
-  /* 1rem vaut 17px : html est a 106.25%. Les bornes du clamp ci-dessous
-     sont donc des 28px et 40px convertis dans cette base (1.647 / 2.353). */
   --text-body: 1rem;
   --leading-body: 1.471;
-  /* 28px sous 680px, 40px des 1088px (les paliers sm: et lg: de la carte) */
   --text-titre-carte: clamp(1.647rem, 0.47rem + 2.9412vw, 2.353rem);
 
-  /* Le filet d'apple.com : un noir a 16%, une fois, derive de --foreground. */
   --hairline: color-mix(in oklch, black 16%, transparent);
-  /* Le Voile sombre : une seule recette, seule l'opacite varie. */
   --voile-sombre: color-mix(
     in oklch,
     black var(--voile-sombre-opacite, 30%),
@@ -138,7 +130,7 @@
 
   html {
     @apply font-sans;
-    font-size: 106.25%; /* 1em = 17px */
+    font-size: 106.25%;
   }
 
   h1,
@@ -170,9 +162,6 @@
   }
 }
 
-/* Le Voile dépoli — la recette est unique, seule --voile-depoli-opacite
-   change d'une surface a l'autre. Le filet reste la décision de la surface :
-   une barre pleine largeur n'en trace que le bas. */
 .voile-depoli {
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);

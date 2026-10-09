@@ -10,13 +10,6 @@ import {
   vi,
 } from "vitest"
 
-/**
- * L'effet de suppression d'Images produit par défaut, éprouvé sans
- * court-circuiter l'adaptateur R2 : c'est le seul moyen de voir ce qui atteint
- * le journal du Catalogue quand le réseau est mort. Seul le client S3 est
- * remplacé. La suite voisine, qui court-circuite le port, éprouve le refus tel
- * qu'un adaptateur lecomposerait.
- */
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
 
 vi.mock("@aws-sdk/client-s3", () => {
@@ -78,11 +71,6 @@ function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
   }
 }
 
-/**
- * `deleteImages` n'est pas surchargée : c'est l'effet de production qui parle.
- * Seul le reste des effets est rendu muet, pour que le journal ne porte que ce
- * que la suppression d'image y met.
- */
 function effetsSilencieux() {
   return {
     reindexProducts: vi.fn(async () => {}),
@@ -140,10 +128,6 @@ describe("suppression post-commit des Images produit persistées, sans court-cir
   })
 
   it("journalise un refus par URL en échec et tient la mutation engagee", async () => {
-    // Un réseau mort, pas une panne isolée : chaque suppression échoue, et
-    // chacune doit laisser une ligne. Le port répond désormais au lieu de
-    // lever, donc le journal porte un code d'échec du stockage — c'est ce qui
-    // remplace l'`Error` brute que le `catch` recevait auparavant.
     sendMock.mockRejectedValue(new Error("secret AWS failure"))
     const images = [
       `${BASE_PUBLIQUE}/products/image-1.jpg`,
@@ -155,8 +139,6 @@ describe("suppression post-commit des Images produit persistées, sans court-cir
         images: [...images],
       }),
       effetsSilencieux(),
-      // La règle de création est celle du Catalogue : ces deux Images produit
-      // n'entrent que promues par l'opération qui les écrit.
       RevendicationImagesProduit.creer({
         galerie: [...images],
         promues: [...images],

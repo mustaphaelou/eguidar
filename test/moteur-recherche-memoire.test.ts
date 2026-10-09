@@ -10,25 +10,6 @@ import type {
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
 
-/**
- * Le contrat du Moteur de recherche en mémoire — la suite qui épingle le
- * double de test lui-même, sans base et sans Meili.
- *
- * `lib/use-cases/search-memoire.test.ts` éprouve l'orchestration de la
- * Recherche à travers cette couture ; ici on fige ce que le moteur promet :
- * l'appartenance au texte par jetons repliés, les trois Filtres de
- * recherche, les quatre tris, la pagination et les répartitions calculées
- * sous les filtres reçus — la règle d'ADR-0016 est retirée au-dessus de la
- * couture, par `searchProducts`. Ce qui reste à Meili — tolérance aux
- * fautes, classement par pertinence, localisation, et la stratégie de
- * correspondance qui exige chaque terme — n'est pas éprouvé ici.
- *
- * Les documents sont construits à la main (la forme est
- * `IndexableProduct`, `lib/index-projection.ts`) : le moteur lit leurs
- * métriques déjà cuites (`minPrice`, `totalStock`, `priceBucket`) sans
- * jamais les recalculer (ADR-0013, ADR-0022).
- */
-
 const SMARTPHONES = "cat-smartphones"
 const AUDIO = "cat-audio"
 
@@ -111,11 +92,6 @@ const DOCUMENTS = [iphone, samsung, casque, ecran, clavier]
 
 const moteur = creerMoteurEnMemoire(DOCUMENTS)
 
-/**
- * Le moteur en mémoire ne répond jamais l'indisponible : ce rétrécissement
- * est l'assertion que chaque cas fait de toute façon avant de lire la
- * réponse (`statut` est le discriminant de la couture, #367).
- */
 function reponseOk(reponse: ReponseMoteur): ReponseDocuments {
   if (reponse.statut !== "ok") {
     throw new Error("le moteur en mémoire ne répond jamais l'indisponible")
@@ -123,12 +99,6 @@ function reponseOk(reponse: ReponseMoteur): ReponseDocuments {
   return reponse
 }
 
-/**
- * `taille` par défaut à la taille du Catalogue : au-dessus de la couture,
- * l'orchestration en envoie toujours une (`SEARCH_PAGE_SIZE`), tandis que
- * `taille: 0` est la requête de décompte — sans quoi le moteur ne rend
- * aucun document.
- */
 async function chercher(requete: RequeteMoteur): Promise<ReponseDocuments> {
   return reponseOk(
     await moteur.chercher({ taille: DOCUMENTS.length, ...requete })
@@ -174,17 +144,6 @@ describe("creerMoteurEnMemoire — appartenance au texte", () => {
     expect(ids(await chercher({ query: "ÉCRAN" }))).toEqual(["ecran"])
   })
 
-  /**
-   * La règle est celle du moteur en mémoire, et elle n'appartient qu'à lui : il
-   * sature la requête — un jeton absent écarte le document — parce qu'il
-   * compare des jetons, ce qui est la définition de sa fonction.
-   *
-   * Ce test ne dit donc plus ce que la Recherche promet au Visiteur. « Chaque
-   * terme de la requête doit être trouvé » est la sémantique de Meilisearch,
-   * qu'un moteur qui relâche ne tient pas, et elle se mesure sur un moteur
-   * vivant : `lib/meili-correspondance.test.ts`. La redire ici serait une
-   * preuve sans moteur sous elle.
-   */
   it("sature la requête : un jeton absent écarte le document, préfixes acceptés", async () => {
     expect(ids(await chercher({ query: "128 g" }))).toEqual(["iphone"])
     expect(ids(await chercher({ query: "128 Go 256" }))).toEqual([])
@@ -207,7 +166,6 @@ describe("creerMoteurEnMemoire — Filtres de recherche", () => {
       query: "",
       filtres: { brand: ["Sony", "LG"] },
     })
-    // Le tri de la suite, jamais l'ordre d'entrée du moteur.
     expect(ids(union).sort()).toEqual(["casque", "ecran"])
     expect(union.total).toBe(2)
 
@@ -238,8 +196,6 @@ describe("creerMoteurEnMemoire — Filtres de recherche", () => {
     })
     expect(ids(moinsDeMille)).toEqual(["clavier"])
 
-    // `iphone` porte `minPrice: 1249900` sans que son `priceBucket` soit
-    // recalculé : la borne basse est inclusive, la borne haute exclusive.
     const plusDeDixMille = await chercher({
       query: "",
       filtres: { priceBucketId: "10000-plus" },
@@ -304,9 +260,6 @@ describe("creerMoteurEnMemoire — tris", () => {
   })
 
   it("rend l'ordre d'entrée pour pertinence — la pertinence reste à Meili", async () => {
-    // L'ADR-0023 le documente : `pertinence` n'imite pas le classement de
-    // Meili, il garde l'ordre des documents fournis. C'est cette promesse
-    // — et rien d'autre — que la pagination de l'orchestration exploite.
     const resultat = await chercher({ query: "", tri: "pertinence" })
 
     expect(ids(resultat)).toEqual(DOCUMENTS.map((document) => document.id))
@@ -346,8 +299,6 @@ describe("creerMoteurEnMemoire — pagination et taille", () => {
       facettes: ["brand"],
     })
 
-    // Le total est la mesure de la requête de page : une requête de décompte
-    // ne mesure rien et répond zéro, comme l'adaptateur Meili.
     expect(resultat.documents).toEqual([])
     expect(resultat.total).toBe(0)
     expect(resultat.repartitions.brand).toEqual({
@@ -360,8 +311,6 @@ describe("creerMoteurEnMemoire — pagination et taille", () => {
   })
 
   it("taille borne la page sans toucher au total", async () => {
-    // C'est le fait que `searchSuggestions` exploite : une taille de six
-    // plafonne les documents rendus, jamais le total ni les répartitions.
     const resultat = await chercher({
       query: "",
       taille: 6,
@@ -394,19 +343,9 @@ describe("creerMoteurEnMemoire — pagination et taille", () => {
 })
 
 describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () => {
-  // ADR-0016 vit au-dessus de la couture : c'est `searchProducts` qui retire
-  // la clause de la facette comptée avant d'appeler un moteur, et un moteur
-  // applique exactement les filtres qu'il reçoit. Cette suite passe donc les
-  // filtres déjà retirés ; `lib/use-cases/search-memoire.test.ts` éprouve la
-  // règle entière, sous l'orchestration.
   it("une facette subit la marque et ignore sa propre clause", async () => {
-    // Deux filtres seulement, l'un sur la marque et l'autre sur la catégorie :
-    // chaque décompte est demandé sous les filtres dont sa propre clause a été
-    // retirée, et subit donc celle de l'autre.
     const filtres = { brand: ["Sony"], categorySlug: SMARTPHONES }
 
-    // La marque ignore son propre filtre (les cinq marques restent
-    // comptables) et subit la catégorie : les trois produits Smartphones.
     const marques = await chercher({
       query: "",
       filtres: retirerFacette(filtres, "brand"),
@@ -419,8 +358,6 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
       Samsung: 1,
     })
 
-    // La catégorie ignore son propre filtre (les deux catégories restent
-    // comptables) et subit la marque : le seul produit Sony.
     const categories = await chercher({
       query: "",
       filtres: retirerFacette(filtres, "categorySlug"),
@@ -433,9 +370,6 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
   it("une facette subit aussi les deux autres filtres", async () => {
     const filtres = { categorySlug: AUDIO, priceBucketId: "2500-5000" }
 
-    // La Tranche de prix ignore sa propre clause : sous la catégorie Audio
-    // sans filtre de tranche, les deux tranches des produits Audio restent
-    // comptables — et non la seule tranche choisie.
     const tranches = await chercher({
       query: "",
       filtres: retirerFacette(filtres, "priceBucket"),
@@ -446,8 +380,6 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
       "1000-2500": 1,
       "2500-5000": 1,
     })
-    // Contre-épreuve de la même règle : sans les autres filtres, les cinq
-    // tranches du Catalogue sont comptables.
     const sansFiltres = await chercher({
       query: "",
       taille: 0,
@@ -492,8 +424,6 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
   it("applique exactement les filtres reçus, sans retirer de clause", async () => {
     const filtres = { brand: ["Sony"] }
 
-    // Le retrait est le fait de l'orchestration, jamais du moteur : la même
-    // requête sans retrait ne compte que la marque filtrée.
     const compteSousFiltreRetire = await chercher({
       query: "",
       filtres: retirerFacette(filtres, "brand"),

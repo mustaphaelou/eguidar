@@ -1,66 +1,3 @@
-/**
- * Le Catalogue — lectures et mutations Produit de l'Administration.
- *
- * Propriétaire unique d'ADR-0026. Le module tient les deux directions
- * du même chemin Produit : la mutation et la lecture. L'interface de
- * mutation est celle d'aujourd'hui — `ProductInput`, les validations,
- * les classes d'erreur, la transaction engagée — et n'est pas
- * redocumentée ici : la couture d'effets reste celle d'ADR-0014
- * (`CatalogEffects`, ses adaptateurs de production, la frontière
- * best-effort après commit) et le mécanisme partagé reste celui
- * d'ADR-0025, qui n'apprend aucun concept de produit, de base ni de
- * transport.
- *
- * **L'interface de lecture répond en faits, jamais en rangées de base
- * de données.** Deux lectures, deux réponses :
- *
- * - `listAdminProducts()` — la liste : identité, marque, nom de
- *   catégorie, prix, mis en avant, livraison offerte, **une seule
- *   vignette** et le **stock total** cuit par `@/lib/product-metrics`
- *   puis composé ici, comme le fait déjà le chemin de lecture de la
- *   Boutique. Ni la galerie ni les Variantes : la liste ne les rend
- *   pas.
- * - `getAdminProduct(id)` — l'édition : les faits complets du
- *   formulaire — galerie et spécifications normalisées par les mêmes
- *   faits canoniques, Variantes projetées —, ou `null` pour que
- *   l'appelant garde sa décision d'introuvable. La forme de ces faits
- *   appartient à `@/lib/formulaire-produit`, atteinte **par type
- *   seulement** : ce module n'y gagne aucun fait de valeur. Cette
- *   lecture est aussi la relecture d'un commit déjà durable que fait
- *   l'action d'enregistrement ; `null` y signifie « introuvable », et
- *   son fait suffit à l'appelant, qui n'en lit rien d'autre.
- *
- * **Le sélecteur de Structure n'est plus de ce compte** : les deux
- * formulaires Produit le tiennent de la Lecture de la Structure
- * (`lib/use-cases/lecture-structure.ts`), qui lit la table `Category`
- * une fois par exécution et la projette à l'identifiant et au nom.
- * C'était ici une lecture de cette table, dans un module qui ne le
- * savait pas — et une lecture de plus pour la table entière aurait
- * récréé le second propriétaire que la Lecture supprime (ADR-0026,
- * amendement). Ce module garde donc les **deux** lectures
- * Produit et n'en gagne pas d'autre.
- *
- * Après ADR-0026, aucun module de rendu d'Administration ne calcule,
- * ne projette, ni ne sait que ces colonnes sont du JSON : la couture
- * est ici, d'un seul côté, comme elle l'est côté Boutique.
- *
- * Quatre règles que ce module tient et qu'aucun appelant ne doit
- * redécider : un Produit **sans Variante est légal** — le prix minimal
- * retombe alors sur le prix de base, et le tableau de Variantes peut
- * être vide — ; l'écart de prix reste un fait de stockage et
- * d'Administration, jamais une entrée d'affichage de la Boutique
- * (ADR-0013) ; un Produit porte **au plus huit Images produit**, et
- * cette borne est appliquée ici, dans la validation d'entrée, donc
- * opposable à toute soumission (ADR-0004) ; une **création n'écrit que
- * des Images produit que la même opération a promues** — un Produit
- * qui n'existe pas encore ne possède aucune Image produit, donc la
- * seule voie pour y écrire une image est la promotion que cette
- * création vient de faire (ADR-0004). Le Document d'index garde
- * ses propres faits de recherche (ADR-0013) et le module Carte produit
- * garde sa propre normalisation et son invariant sans import
- * (ADR-0022) : cette interface ne les rouvre pas.
- */
-
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
@@ -119,11 +56,6 @@ export interface CatalogEffects {
   reindexProducts(products: IndexableProduct[]): Promise<void>
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): void
-  /**
-   * Supprime les images produit données, une par une, en best-effort.
-   * Invariant : ne rejette jamais — un échec de suppression R2 ne doit pas
-   * faire échouer la mutation (ADR-0004).
-   */
   deleteImages(urls: string[]): Promise<void>
 }
 
@@ -138,15 +70,6 @@ function journaliserEchecSuppressionImage(
   )
 }
 
-/**
- * Les effets de production d'une mutation, pour le Produit qu'elle concerne.
- *
- * L'identifiant est exigé, pas facultatif : il ne sert qu'au journal d'échec
- * de suppression d'image, et une fonction qui ignore de quel Produit elle
- * parle afficherait « inconnu » dans la seule ligne qui doit aider le support.
- * Les mutations dont l'effet ne porte sur aucune image d'un Produit connu
- * construisent leurs effets une fois le Produit résolu.
- */
 function defaultCatalogEffects(productId: string): CatalogEffects {
   return {
     reindexProducts: indexProductDocuments,
@@ -215,22 +138,6 @@ const variantInputSchema = z.object({
   stock: z.number().int().min(0, "le stock doit être positif ou nul"),
 })
 
-/**
- * La limite d'Images produit d'un Produit : huit.
- *
- * C'est un fait du domaine, appliqué par la validation d'entrée de ce module
- * comme les autres règles de son entrée — donc opposable à toute soumission,
- * y compris une soumission rejouée ou portée par un client qui ignore la borne.
- * Le refus est alors celui du Catalogue, avec la même forme de message qu'un
- * autre champ invalide, et l'éditeur le reçoit par le formulaire comme tel
- * (ADR-0004).
- *
- * Le composant qui rend la galerie garde sa propre constante pour son
- * compteur : ce n'est pas un doublon mais deux côtés de la couture — un fait
- * de saisie d'un côté, un fait de domaine appliqué de l'autre — et aucun nom
- * n'est partagé entre un module serveur et un module de rendu client
- * (ADR-0004).
- */
 const LIMITE_IMAGES_PRODUIT = 8
 
 const productInputSchema = z.object({
@@ -313,12 +220,6 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
-/**
- * Une Image produit persistée ne peut être écrite sur un Produit que si elle
- * lui appartient déjà, ou si elle vient d'être promue par la même opération.
- * `promues` porte les URL publiques produites par la revendication en cours :
- * sans elles, une URL nouvelle est une URL glissée par un client, donc refusée.
- */
 function assertPersistedImagesAreOwned(
   storedImages: unknown,
   submittedImages: readonly string[],
@@ -332,21 +233,6 @@ function assertPersistedImagesAreOwned(
   }
 }
 
-/**
- * Une création n'écrit que des Images produit que la même opération a promues.
- *
- * C'est la règle d'appartenance ci-dessus appliquée à une galerie propre vide :
- * un Produit qui n'existe pas encore ne possède aucune Image produit, donc son
- * ensemble de départ est vide et la seule manière d'y écrire une image est la
- * promotion que cette création vient de faire. Il n'y a donc plus qu'une seule
- * façon d'écrire une Image produit nouvelle — celle que connaît le module de
- * cycle de vie, qu'un client n'atteint pas en glissant une URL.
- *
- * Ce qui est comparé est la galerie **écrite** (`data.images`), la seule que le
- * Catalogue va persister, et non la galerie qu'une revendication déclare : un
- * appelant qui assemblerait les arguments autrement — en annonçant une galerie
- * puis en écrivant une autre — n'échapperait pas à la règle pour autant.
- */
 function assertCreationImagesArePromoted(
   imagesEcrites: readonly string[],
   revendication?: RevendicationImagesProduit
@@ -376,9 +262,6 @@ export async function createProduct(
   revendication?: RevendicationImagesProduit
 ) {
   const data = parseProductInput(input)
-  // La validation d'entrée tranche d'abord — une galerie au-delà de la borne
-  // reste un refus de champ — puis la règle de création, avant toute lecture de
-  // base et donc avant toute écriture.
   assertCreationImagesArePromoted(data.images, revendication)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -447,8 +330,6 @@ export async function updateProduct(
   if (!existing) throw new ProductNotFoundError()
 
   const data = parseProductInput(input)
-  // Toujours exécutée : la galerie écrite ne peut contenir que des Images
-  // déjà portées par ce Produit, ou promues par cette même revendication.
   assertPersistedImagesAreOwned(
     existing.images,
     data.images,
@@ -634,17 +515,6 @@ export async function updateVariantStock(
   return product
 }
 
-/**
- * Les faits d'un Produit dans la liste de l'Administration : exactement ce
- * que la liste rend, et rien de plus — son identité, sa marque, le nom de
- * sa catégorie, son prix, ses deux drapeaux (Mis en avant, Livraison
- * offerte), une seule Image produit et son stock total.
- *
- * La liste ne rend ni la galerie ni les Variantes : elle ne les reçoit donc
- * pas. Le stock total est cuit ici par `totalVariantStock` et l'Image produit
- * par `urlsImagesProduit`, les faits canoniques du Produit — aucun module de
- * rendu ne refait l'addition ni ne juge la forme d'une colonne stockée.
- */
 export interface FaitsProduitListe {
   id: string
   name: string
@@ -657,14 +527,6 @@ export interface FaitsProduitListe {
   totalStock: number
 }
 
-/**
- * Les Produits de l'Administration, du plus récemment modifié au plus
- * ancien, sous la forme des seuls faits que la liste rend. La requête ne
- * remplit que les colonnes qu'elle compose : la galerie y entre brute, pour
- * en tirer la première Image produit, et les Variantes par la **seule** colonne
- * que la règle canonique du stock total déclare — `totalVariantStock` ne lit que
- * le stock, donc l'écart de prix n'a pas à voyager.
- */
 export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
   const produits = await prisma.product.findMany({
     orderBy: { updatedAt: "desc" },
@@ -685,8 +547,6 @@ export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
     id: produit.id,
     name: produit.name,
     brand: produit.brand,
-    // Le même libellé que la puce de la Recherche : deux libellés pour un seul
-    // fait finiraient par diverger (ADR-0029).
     categoryName: produit.category?.name ?? LIBELLE_SANS_STRUCTURE,
     price: produit.price,
     isFeatured: produit.isFeatured,
@@ -696,26 +556,6 @@ export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
   }))
 }
 
-/**
- * Le Produit à éditer, sous la forme des faits complets du formulaire — ou
- * `null`, qui reste la réponse du Produit introuvable pour que l'appelant garde
- * sa décision (`notFound()` sur l'écran d'édition, « Produit enregistré
- * introuvable » dans l'action qui relit un commit déjà durable).
- *
- * La requête ne remplit que ce qu'elle projette, et les deux colonnes JSON y
- * entrent brutes pour être normalisées ici par les faits canoniques :
- * `urlsImagesProduit` pour la galerie, dont les URL deviennent les entrées
- * persistées que le formulaire manipule, et `specificationsProduit` pour les
- * spécifications. Une colonne mal formée répond donc un champ vide, jamais un
- * éditeur cassé — le même verdict que porte la lecture de liste, composée du
- * même fait canonique.
- *
- * Chaque Variante est projetée sur les cinq faits que le formulaire saisit, et
- * l'ordre de création est conservé : c'est l'ordre dans lequel l'éditeur les
- * trouve. Le type du formulaire est atteint **par type seulement** — le module
- * Catalogue ne gagne aucun fait de valeur du langage du formulaire, et son
- * graphe de valeur ne change pas.
- */
 export async function getAdminProduct(
   id: string
 ): Promise<FaitsFormulaireProduit | null> {

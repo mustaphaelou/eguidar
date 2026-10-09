@@ -19,7 +19,6 @@ const CHEMIN_ARTEFACT = path.join(
   "regle-cycle-vie-r2.json"
 )
 
-/** Préfixes d'une règle « globale » : ils expirent tout le bucket. */
 const PREFIXES_GLOBAUX = ["", "*", "/"] as const
 
 function lireArtefact() {
@@ -36,21 +35,12 @@ describe("règle de cycle de vie R2 des Brouillons d'Image produit", () => {
   it("porte une seule règle, un seul filtre de préfixe et une action d'expiration", () => {
     const artefact = lireArtefact()
 
-    // Pas de pin sur la valeur du bucket : la source de vérité est
-    // `R2_BUCKET` (module `infra/regle-cycle-vie-r2.ts`), et la réconciliation
-    // « artefact versionné == bucket de l'application » est l'arrêt auquel se
-    // broche `scripts/setup-providers.sh` avant d'écrire. Épingler "eguidar"
-    // ici rendait vert impossible dès que le bucket n'était pas le par défaut.
     expect(artefact.rules).toHaveLength(1)
     const [regle, ...autres] = artefact.rules
     expect(autres).toEqual([])
     expect(regle.enabled).toBe(true)
     expect(regle.id).toBe("brouillons-image-produit")
     expect(regle.prefix).toBe(DRAFT_PRODUCTS_PREFIX)
-    // La rétention configurée n'est pas la valeur initiale : l'invariant qui
-    // compte — la règle n'expire jamais un Brouillon encore revendicable — est
-    // vérifié sur un éventail de valeurs dans
-    // `lib/cycle-vie-image-produit-retention.test.ts`.
     expect(regle.expire.days).toBe(
       Math.ceil(retentionBrouillonImageProduitHeures() / 24)
     )

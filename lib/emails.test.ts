@@ -74,8 +74,6 @@ describe("orderDetailsHtml", () => {
       ...baseSnapshot,
       total: 20000,
       shippingFee: 3000,
-      // Volontairement distinct de total + shippingFee (23000)
-      // pour verrouiller la règle : l'e-mail affiche totalPayable tel quel.
       totalPayable: 25000,
     })
 

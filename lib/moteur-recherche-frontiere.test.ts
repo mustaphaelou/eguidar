@@ -28,17 +28,6 @@ function aucuneDependance(source: string, modules: readonly string[]): void {
   }
 }
 
-/**
- * Frontière du Moteur de recherche — couture neutre, sans moteur.
- *
- * `lib/moteur-recherche.ts` nomme la couture de la Recherche sans nommer un
- * moteur : y importer `meilisearch` (le SDK), `@/lib/meili` (son
- * adaptateur), `@/lib/db`, `next/headers` ou `server-only` remettrait
- * l'identité du moteur — et le graphe serveur — dans le module neutre, ce
- * que l'ADR-0023 interdit et que `next build` paierait (Turbopack).
- * `lib/use-cases/search.ts` orchestre la Recherche derrière la couture :
- * il passe par `moteurMeili()`, jamais par le SDK directement.
- */
 describe("Moteur de recherche — frontière", () => {
   it("la couture est neutre : ni SDK Meili, ni adaptateur, ni base", () => {
     const couture = lire(import.meta.url, "./moteur-recherche.ts")

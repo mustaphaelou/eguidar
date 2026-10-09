@@ -26,26 +26,6 @@ import {
   lesDeuxOrdres,
 } from "@/test/suggestion-categories-recherche"
 
-/**
- * L'orchestration de la Recherche par-dessus la couture du MoteurRecherche
- * (ADR-0023), sur le moteur en mémoire.
- *
- * Ces faits — décomptes de facettes, règle d'ADR-0016, filtres, tris,
- * pagination et son redressement, état vide, suggestions — vivaient dans le
- * bloc `describe.runIf(!!meili)` de `lib/use-cases/search.test.ts` et ne
- * tournaient donc jamais sur la CI, qui ne démarre pas Meilisearch. Ils ne
- * demandent aucun moteur : ils traversent `searchProducts` /
- * `searchSuggestions` avec `creerMoteurEnMemoire(docs)`.
- *
- * Restent à Meili — et restent dans le bloc sous condition — la tolérance aux
- * fautes de frappe, l'insensibilité à la casse et aux accents, et le
- * classement par pertinence, que le double ne prétend pas imiter.
- *
- * `searchProducts` résout les **noms** de catégorie par Prisma
- * (`fetchCategoryNames`, `lib/use-cases/search.ts`) : cette suite demande
- * donc Postgres, jamais `MEILI_URL` ni Docker.
- */
-
 const moteurId = randomUUID().slice(0, 8)
 const smartphonesSlug = `srchm-${moteurId}-smartphones`
 const audioSlug = `srchm-${moteurId}-audio`
@@ -79,12 +59,6 @@ function makeDoc(
   }
 }
 
-/**
- * Le même jeu que le bloc Meili d'origine, à une exception : les
- * `categoryName` des documents sont des valeurs quelconques, parce que le nom
- * affiché d'une catégorie vient de Postgres (`fetchCategoryNames`) et jamais
- * du Document d'index. Seul le nom semé en base est éprouvé.
- */
 const docs: IndexableProduct[] = [
   makeDoc("iphone", {
     name: name("iPhone 15 Pro"),
@@ -143,28 +117,12 @@ const moteur = creerMoteurEnMemoire(docs)
 const AUDIO_ATTENDU = { value: audioSlug, label: "Audio & Hi-Fi" }
 const SMARTPHONES_ATTENDU = { value: smartphonesSlug, label: "Smartphones" }
 
-/**
- * Le jeu de l'ordre des catégories que la Recherche propose, déclaré une fois
- * dans `@/test/suggestion-categories-recherche` et rejoué ici mot pour mot par
- * la suite qui parle au moteur vivant. Sept catégories, treize Documents, et
- * deux ordres qui ne se ressemblent pas.
- */
 const suggestionCategories = jeuSuggestionCategories(randomUUID().slice(0, 8))
 const moteurSuggestions = creerMoteurEnMemoire(suggestionCategories.documents)
 
-/**
- * Le moteur du Produit sans Structure (ADR-0029), **séparé du jeu principal**.
- * Non par commodité : les suites voisines comparent `facets.categories` à une
- * liste exacte, et y ajouter une troisième catégorie les obligerait à
- * l'énumérer partout. Un moteur à lui rend l'épreuve lisible — deux Documents,
- * une option — et laisse les autres dire ce qu'elles disent.
- */
 const moteurSansStructure = creerMoteurEnMemoire([
   makeDoc("orphelin", {
     name: name("Produit sans Structure"),
-    // Le Document d'index ne porte pas le fait `categoryId` : ce qui y dit
-    // l'orphelinat, c'est la clé de facette — la seule qu'un moteur reçoit
-    // (ADR-0029).
     categorySlug: SLUG_SANS_STRUCTURE,
     categoryName: LIBELLE_SANS_STRUCTURE,
   }),
@@ -173,7 +131,6 @@ const moteurSansStructure = creerMoteurEnMemoire([
   }),
 ])
 
-/** Les cinq marques du jeu, dans l'ordre `fr` que l'assemblage rend. */
 const CINQ_MARQUES = [
   { value: "Apple", label: "Apple", count: 1 },
   { value: "LG", label: "LG", count: 1 },
@@ -182,11 +139,6 @@ const CINQ_MARQUES = [
   { value: "Sony", label: "Sony", count: 1 },
 ]
 
-/**
- * Les cinq Tranches de prix, dans l'ordre fixe de leurs bandes : leur
- * univers est `PRICE_BUCKETS`, donc une sixième bande ne peut pas
- * désynchroniser cette attente sans que le module la porte aussi.
- */
 const CINQ_TRANCHES = PRICE_BUCKETS.map(({ id, label }) => ({
   value: id,
   label,
@@ -200,7 +152,6 @@ const UNE_PAR_BANDE: Record<string, number> = {
   "10000-plus": 1,
 }
 
-/** Les cinq marques attendues, `selected` compris selon les filtres actifs. */
 function marquesAttendues(retenues: string[] = []): OptionDeFiltre[] {
   return CINQ_MARQUES.map((marque) => ({
     ...marque,
@@ -208,11 +159,6 @@ function marquesAttendues(retenues: string[] = []): OptionDeFiltre[] {
   }))
 }
 
-/**
- * Les Tranches de prix attendues pour un jeu de décomptes. Depuis #371 la
- * liste est complète : une bande sans résultat sort à zéro, et c'est la
- * barre latérale qui masque celles qu'elle doit masquer.
- */
 function tranchesAttendues(
   comptes: Record<string, number> = {},
   retenue?: string
@@ -225,8 +171,6 @@ function tranchesAttendues(
 }
 
 beforeAll(async () => {
-  // `test/global-setup.ts` tronque la base entre invocations, pas entre
-  // fichiers : d'où `skipDuplicates` à l'écriture et `deleteMany` à la sortie.
   await prisma.category.createMany({
     data: [
       { name: "Smartphones", slug: smartphonesSlug },
@@ -261,7 +205,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
 
     expect(result.totalHits).toBe(5)
     expect(result.facets.brands).toEqual(marquesAttendues())
-    // Le nom vient de Postgres ; un slug inconnu de la base retombe sur lui-même.
     expect(result.facets.categories).toEqual([
       { ...AUDIO_ATTENDU, count: 2, selected: false },
       { ...SMARTPHONES_ATTENDU, count: 3, selected: false },
@@ -276,7 +219,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
       name("Casque Sony WH-1000XM5"),
     ])
     expect(result.totalHits).toBe(1)
-    // ADR-0016 : le décompte des marques ignore le filtre de marque.
     expect(result.facets.brands).toEqual(marquesAttendues(["Sony"]))
     expect(result.facets.categories).toEqual([
       { ...AUDIO_ATTENDU, count: 1, selected: false },
@@ -313,8 +255,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
       moteur
     )
 
-    // Le tri par pertinence est l'ordre d'entrée du moteur en mémoire : la
-    // suite éprouve le jeu rendu, pas l'ordre dans lequel il est rendu.
     expect(result.products.map((p) => p.name).sort()).toEqual(
       [
         name("Clavier mécanique"),
@@ -333,10 +273,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
     ])
   })
 
-  // Le Produit sans Structure (ADR-0029). La puce de la Recherche n'est pas
-  // une décoration : c'est le seul endroit où un Visiteur découvre qu'il y a
-  // des Produits sans Structure, donc elle doit se lire et — surtout —
-  // filtrer.
   it("rang et filtre les Produits sans Structure sous la valeur réservée", async () => {
     const result = await searchProducts(token, {}, {}, moteurSansStructure)
 
@@ -349,8 +285,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
       count: 1,
       selected: false,
     })
-    // Le libellé n'est pas la valeur brute : `_sans-structure` est un fait de
-    // la base d'index, « Sans Structure » est ce que le Visiteur lit.
     expect(option?.label).not.toBe(SLUG_SANS_STRUCTURE)
   })
 
@@ -362,9 +296,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
       moteurSansStructure
     )
 
-    // Le piège mesuré : une sentinelle en chaîne vide produirait une puce
-    // affichée ici et `parseSearchParams` la laisserait tomber. Ce filtre est
-    // donc la preuve que la valeur survit au voyage par l'URL.
     expect(result.products.map((p) => p.name)).toEqual([
       name("Produit sans Structure"),
     ])
@@ -441,8 +372,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
     expect(result.products).toEqual([])
     expect(result.facets.brands).toEqual([])
     expect(result.facets.categories).toEqual([])
-    // L'univers des bandes est connu : la liste sort complète, à zéro, et
-    // c'est la barre latérale qui masque les bandes sans résultat.
     expect(result.facets.priceBuckets).toEqual(tranchesAttendues())
   })
 
@@ -527,8 +456,6 @@ describe("searchProducts sur le moteur en mémoire", () => {
   })
 
   it("pagine et rapporte les métadonnées de page", async () => {
-    // Le tri du jeu est celui de la suite, jamais l'ordre d'entrée du moteur :
-    // `pertinence` en mémoire ne promet aucun classement.
     const result = await searchProducts(
       token,
       {},
@@ -570,15 +497,9 @@ describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
     const brand = ["Sony", "LG"]
     const result = await searchProducts(token, { brand }, {}, moteur)
 
-    // Le jeu de résultats subit l'union des marques (2 produits) tandis que
-    // le décompte des marques la retire — il est calculé sous
-    // `retirerFacette({ brand }, "brand")` et compte les cinq marques.
     expect(result.totalHits).toBe(2)
     expect(result.facets.brands).toEqual(marquesAttendues(["Sony", "LG"]))
 
-    // La même règle, affirmée directement sur le moteur : c'est
-    // l'orchestration qui retire la clause avant l'appel, et le moteur
-    // applique exactement les filtres qu'il reçoit.
     const sansMarque = await moteur.chercher({
       query: token,
       filtres: retirerFacette({ brand }, "brand"),
@@ -603,8 +524,6 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
       moteurSuggestions
     )
 
-    // Treize documents correspondent : `searchSuggestions` en demande six, et
-    // le moteur en mémoire rend les six premiers qu'il a rencontrés.
     expect(suggestions.products).toHaveLength(6)
     expect(suggestions.products.map((p) => p.id)).toEqual([
       `suggestion-${suggestionCategories.id}-g-1`,
@@ -629,8 +548,6 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
 
     const suggestions = await searchSuggestions(token, moteurDocument)
 
-    // Le Document complet porte aussi le stock et la livraison ; la suggestion
-    // expose seulement les six faits, et une absence de stock ne la masque pas.
     expect(suggestions.products).toEqual([
       {
         id: "projection",
@@ -656,19 +573,6 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
   })
 })
 
-/**
- * Un moteur qui rend **les mêmes clés, dans l'ordre des slugs** — la forme que
- * Meilisearch rend, et que le moteur en mémoire ne rend jamais.
- *
- * Il ne change rien d'autre : mêmes documents, mêmes comptes, mêmes totaux. Sa
- * seule divergence est l'ordre des clés d'une répartition, ce qui suffit à
- * rendre les cinq premières entrées d'un moteur impropre à la suggestion.
- *
- * La comparaison caractère par caractère est **reprise** de
- * `lib/use-cases/search.ts` et non importée : ce moteur imite Meilisearch, et
- * un miroir de la production serait vert au moment précis où la règle de la
- * Recherche changerait — c'est-à-dire quand il doit voir rouge.
- */
 function moteurAuxClesParSlug(moteur: MoteurRecherche): MoteurRecherche {
   return {
     async chercher(requete: RequeteMoteur) {
@@ -691,17 +595,6 @@ function moteurAuxClesParSlug(moteur: MoteurRecherche): MoteurRecherche {
   }
 }
 
-/**
- * Le second moteur de contrôle : le même, sauf qu'**une** catégorie reçoit un
- * compte que le jeu ne déclare pas — ici la première du jeu, celle que
- * l'ordre alphabétique plaçait en tête.
- *
- * Il varie **les comptes seuls**, et laisse l'ordre des clés intact : c'est ce
- * que la première répartition rend, et seule la valeur change. L'attente doit
- * donc s'en apercevoir, et c'est là son travail : elle montre que ce sont les
- * comptes qui décident, et elle montre surtout qu'elle **peut échouer** — sans
- * elle, une attente qui ne distingue rien ne serait pas une attente.
- */
 function moteurAuxComptes(
   slugSurfacture: string,
   compte: number
@@ -729,28 +622,13 @@ function moteurAuxComptes(
   }
 }
 
-/**
- * L'ordre des catégories que la Recherche propose — le scénario rejoué sur le
- * moteur en mémoire.
- *
- * La réponse attendue est écrite dans `@/test/suggestion-categories-recherche`
- * et n'est pas répétée ici : la même attente doit tenir sur le moteur vivant,
- * et une suite qui la retaperait aurait deux vérités à tenir.
- */
 describe("les catégories que la Recherche propose, sur le moteur en mémoire", () => {
   it("le jeu semé se classe autrement dans les deux ordres", () => {
     const { parAlphabet, parComptes } = lesDeuxOrdres(suggestionCategories)
 
-    // Le témoin de non-vacuité, rendu lisible. La fabrique du jeu lève déjà si
-    // les deux ordres se confondaient ; cette ligne le dit en français, et
-    // surtout elle nomme **les deux** — sans elle, un jeu réaligné ne
-    // donnerait qu'un « les deux ordres sont égaux », sans que personne sache
-    // sur quelles catégories.
     expect(parAlphabet).not.toEqual(parComptes)
     expect(parAlphabet).toHaveLength(7)
     expect(parComptes).toHaveLength(7)
-    // Les cinq premiers dans l'ordre des slugs ne sont pas les cinq attendus :
-    // c'est exactement ce que l'implémentation d'avant proposait.
     expect(parAlphabet.slice(0, 5)).not.toEqual(
       categoriesAttendues(suggestionCategories).map(
         (categorie) => categorie.slug
@@ -772,15 +650,6 @@ describe("les catégories que la Recherche propose, sur le moteur en mémoire", 
   })
 
   it("rend la même réponse à un moteur qui rend ses clés dans l'ordre des slugs", async () => {
-    // Le premier contrôle négatif, et il porte la contrainte du ticket : le
-    // choix se fait au-dessus de la couture, sur les comptes, et jamais sur
-    // l'ordre dans lequel un moteur produit ses clés.
-    //
-    // L'argument des deux ordres est écrit une fois, dans le module du
-    // scénario ; il n'y a ici qu'un fait à retenir — ce moteur rend ses cinq
-    // premières entrées `a, b, c, d, e`, les cinq que le défaut produisait,
-    // donc une implémentation qui prendrait les premières entrées échouerait
-    // sur cette ligne.
     const suggestions = await exigerCategoriesSuggestion(
       suggestionCategories,
       moteurAuxClesParSlug(moteurSuggestions)
@@ -790,16 +659,6 @@ describe("les catégories que la Recherche propose, sur le moteur en mémoire", 
   })
 
   it("refuse l'attente quand un moteur annonce d'autres comptes", async () => {
-    // Le second contrôle négatif, et le plus nécessaire des deux : une
-    // affirmation qui ne peut pas échouer n'est pas une affirmation. Ce moteur
-    // est le même, avec une seule répartition changée — la catégorie que
-    // l'ordre alphabétique plaçait en premier passe devant toutes les autres.
-    // Donc une implémentation qui proposerait les cinq premières entrées
-    // ferait passer **ce contrôle** : il verrait le refus qu'il attend, et
-    // c'est précisément pour cela qu'il est distinct du précédent.
-    //
-    // Le message est épinglé : sans lui, l'échec pourrait être le n'importe
-    // quoi d'autre, et le cas ne prouverait rien.
     await expect(
       exigerCategoriesSuggestion(
         suggestionCategories,

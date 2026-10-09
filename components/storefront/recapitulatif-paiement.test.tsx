@@ -79,7 +79,6 @@ describe("RecapitulatifPaiement", () => {
     expect(dds[1].textContent).toBe("À choisir")
     expect(dds[1].className).toContain("text-muted-foreground")
 
-    // Total omis quand aucune Ville de livraison n'est choisie
     expect(container.querySelectorAll("dl > div")).toHaveLength(2)
   })
 
@@ -197,8 +196,6 @@ describe("RecapitulatifPaiement", () => {
         commande={{
           total: 20000,
           shippingFee: 3000,
-          // Volontairement distinct de total + shippingFee (23000) :
-          // le module d'affichage consomme totalPayable tel quel.
           totalPayable: 25000,
           cityName: "Casablanca",
         }}

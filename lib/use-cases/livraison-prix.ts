@@ -1,19 +1,3 @@
-/**
- * Tarification pure de la Livraison — module client-safe.
- *
- * Tient la règle de frais de livraison nommée (`computeShippingFee`), ses
- * types (`ShippingQuote`, `DeliveryCityOption`, `ShippingFeeInput`,
- * `DEFAULT_FREE_SHIPPING_THRESHOLD`) et sa classe d'erreur
- * (`DeliveryCityNotFoundError`) — rien d'autre : le chiffrage du
- * Panier ville par ville vit dans la porte serveur du Devis
- * (`chargerDevis`).
- *
- * Ne doit jamais importer `@/lib/db` (ni aucun module qui l'importe) : un
- * import serveur ici réintroduirait `pg` (`require('dns')`) dans le bundle
- * navigateur et casserait `next build` (Turbopack) — c'est cette garde qui
- * rend le module client-safe. La partie accès base reste dans
- * `@/lib/use-cases/livraison`.
- */
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export class DeliveryCityNotFoundError extends UserFacingError {

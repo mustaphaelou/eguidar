@@ -4,11 +4,6 @@ import { describe, expect, it } from "vitest"
 import { chercherAvecMeili } from "@/lib/meili"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
 
-/**
- * Les faits de l'adaptateur Meili qui ne demandent ni moteur ni base : un
- * client de substitution enregistre les options qu'il reçoit. `lib/meili.test.ts`
- * reste la suite de gestion d'index (écriture) et n'est pas touché ici.
- */
 interface AppelMeili {
   query: string
   options: Record<string, unknown>
@@ -125,21 +120,6 @@ describe("chercherAvecMeili — traduction de la page", () => {
     expect(appels[0].options.attributesToSearchOn).toBeUndefined()
   })
 
-  /**
-   * La stratégie de correspondance est le seul moyen de dire au moteur
-   * qu'exiger chaque terme est une règle de la Recherche, et non le défaut du
-   * moteur. Elle est écrite sur *chaque* requête — la page comme les requêtes
-   * de facette, sans quoi les options de filtre compteraient sur une requête
-   * plus large que celle qui rend les résultats.
-   *
-   * L'assertion porte sur les options de requête, comme le filtre, le tri et
-   * la projection de cette suite : c'est le métier d'un adaptateur, et son
-   * travail déclaré. Elle n'est pas redondante avec la mesure de
-   * `lib/meili-correspondance.test.ts` — celle-ci interroge un moteur vivant,
-   * mais ne lui demande que des pages, et ne verrait donc pas une stratégie
-   * écrite sur la page seule. Ici, c'est le seul épinglage qui ne demande aucun
-   * moteur.
-   */
   it("exige de la stratégie que chaque terme soit trouvé, page et facettes", async () => {
     const { client, appels } = clientDeSubstitution()
 

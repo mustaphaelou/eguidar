@@ -326,13 +326,6 @@ describe("lireDevis (Lecture du Devis : la page lit en un seul appel)", () => {
     getFreeShippingThresholdMock.mockResolvedValue(100000)
   })
 
-  /**
-   * La composition de l'entrée, établie une seule fois : charger, puis
-   * projeter sur la Ville initiale du chargé — les deux moitiés doivent
-   * être strictement celles du deux-temps manuel, et le projeté rester
-   * cohérent avec la Ville initiale portée. La Précédence elle-même n'est
-   * pas re-jouée ici : elle appartient au chargeur, testée plus haut.
-   */
   async function égaleLeDeuxTempsManuel(
     faits: DevisPrecedenceFaitsBruts
   ): Promise<{ chargé: DevisChargé; projeté: DevisProjeté }> {

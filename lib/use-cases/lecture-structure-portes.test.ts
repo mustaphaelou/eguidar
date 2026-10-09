@@ -93,12 +93,6 @@ const RANGEES = [
     parentId: null,
     _count: { products: 0 },
   },
-  // **Une rangée dont la parente ne nomme rien** — impossible côté base, et
-  // possible ici parce que la table est simulée. C'est le fait que la
-  // comparaison doit garder : les deux portes le classent hors arbre, la boutique
-  // ne l'offre pas comme racine, et l'Administration ne la rend qu'une fois. Un
-  // jeu de faits où toute parente se résout ne prouverait rien de cela — et c'est
-  // exactement le jeu de faits sous lequel la divergence s'était logée.
   {
     id: "orpheline",
     name: "Orpheline",

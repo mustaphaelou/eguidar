@@ -15,8 +15,6 @@ vi.mock("next/navigation", async () => {
 })
 vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
   const mocks = await import("@/test/navigation-mocks")
-  // Seule la lecture est stubée : `estAdmin` reste la vraie règle du module,
-  // sans quoi la suite ne prouverait plus le refus de l'Administration.
   return {
     ...(await importOriginal<
       typeof import("@/lib/use-cases/session-courante")
@@ -24,8 +22,6 @@ vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
     lireSession: mocks.sessionCouranteMock,
   }
 })
-// La réindexation de l'action ne doit pas partir vers Meilisearch : seul le
-// fait qu'elle soit appelée avec les faits committés intéresse cette suite.
 vi.mock("@/lib/meili", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/meili")>()),
   indexProductDocuments: reindexProductsMock,
@@ -49,11 +45,6 @@ const ADMIN: Client = {
   role: "admin",
 }
 
-/**
- * Le formulaire tel que le rend `CategoryForm` : le champ caché `parentId` n'y
- * est présent que si une parente est choisie, donc cette fabrication — qui ne
- * l'ajoute jamais — est le chemin de l'absence.
- */
 function categoryFormData(suffix: string, champs: Record<string, string> = {}) {
   const data = new FormData()
   data.append("name", "Structure")
@@ -62,11 +53,6 @@ function categoryFormData(suffix: string, champs: Record<string, string> = {}) {
   return data
 }
 
-/**
- * Le formulaire tel que le rend `DeleteCategoryButton` : ni `reassignToCategoryId`
- * ni `reparentChildrenToCategoryId` n'y sont présents tant que l'éditeur n'a
- * choisi aucune cible, donc ne jamais les ajouter est le chemin de l'absence.
- */
 function deleteFormData(
   categoryId: string,
   reassignToCategoryId?: string,
@@ -81,16 +67,12 @@ function deleteFormData(
   if (reparentChildrenToCategoryId) {
     data.append("reparentChildrenToCategoryId", reparentChildrenToCategoryId)
   }
-  // La case a cocher ne parle pas par absence : elle porte `on`, et c'est
-  // cette présence qui est le choix. Ne jamais l'ajouter reste donc le chemin
-  // du refus, comme pour les deux cibles.
   if (orphanProducts) {
     data.append("orphanProducts", "on")
   }
   return data
 }
 
-/** Le Produit de test rattaché à la Structure donnée, sous son propre slug. */
 async function makeProductIn(category: { id: string }, suffix: string) {
   return prisma.product.create({
     data: {
@@ -124,11 +106,6 @@ async function makeCategory(slugSuffix: string, parentId?: string) {
   })
 }
 
-// Même forme de nettoyage que dans `admin-structure.test.ts`, mais sous les
-// préfixes propres à cette suite (`cat-act-`/`prod-act-` et son runId) :
-// chaque suite balise ses lignes pour que son nettoyage ne touche jamais
-// celles d'une autre suite qui tourne sur la même base. La forme est donc
-// copiée à dessein : un préfixe partagé couplerait les deux espaces de noms.
 async function balayer() {
   await prisma.product.deleteMany({
     where: { slug: { startsWith: `prod-act-${runId}-` } },
@@ -138,7 +115,6 @@ async function balayer() {
   })
 }
 
-/** Le même balayage, plus les deux mocks remis à zéro entre deux cas. */
 async function reinitialiser() {
   sessionCouranteMock.mockReset()
   sessionCouranteMock.mockResolvedValue(ADMIN)
@@ -151,8 +127,6 @@ describe("createCategoryAction", () => {
   afterAll(balayer)
 
   it("enregistre une Structure racine quand le formulaire n'envoie aucune parente", async () => {
-    // `redirect()` est le dernier geste de `run` : la suite le voit comme un
-    // rejet, et l'écriture est donc lue en base plutôt que dans un retour.
     await expect(
       createCategoryAction({}, categoryFormData("racine"))
     ).rejects.toThrow(RedirectSentinel)
@@ -163,9 +137,6 @@ describe("createCategoryAction", () => {
   })
 
   it("ne reconnaît aucune valeur magique : une parente inconnue reste une parente inconnue", async () => {
-    // `"none"` était la sentinelle de l'absence de parente, transportée
-    // jusqu'ici depuis un module `"use client"`. L'action ne la connaît plus :
-    // elle la lit comme l'identifiant d'une Structure qui n'existe pas.
     await expect(
       createCategoryAction(
         {},
@@ -220,11 +191,6 @@ describe("updateCategoryAction", () => {
   })
 
   it("rend au formulaire le refus d'une parente dont la chaîne porte déjà un cycle", async () => {
-    // Un cycle écrit directement en base, hors de toute mutation de Structure :
-    // sans garde dans la marche d'acyclicité, celle-ci remontait la chaîne sans
-    // fin jusqu'au délai de transaction et sortait de l'action en `P2028`,
-    // exception non rattrapée. Le garde la rend au formulaire, comme tout
-    // refus de la Structure (ADR-0027, amendement de #490).
     const structure = await makeCategory("cycle-deja-base-hote")
     const a = await makeCategory("cycle-deja-base-a")
     const b = await makeCategory("cycle-deja-base-b")
@@ -312,8 +278,6 @@ describe("deleteCategoryAction", () => {
     await expect(
       prisma.category.findUnique({ where: { id: category.id } })
     ).resolves.toBeNull()
-    // Le Produit survit, sans Structure. C'est toute la décision, et elle se
-    // lit ici à travers l'action serveur plutôt qu'à travers le module.
     await expect(
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toMatchObject({ categoryId: null })

@@ -41,12 +41,6 @@ describe("CycleVieImageProduit", () => {
     expect(resultat.draftId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
     )
-    // Les deux adresses que le module **rend à l'éditeur** sont les siennes,
-    // et cette suite les garde : le contrat épingle ce que le port de stockage
-    // rend, et lui s'arrête au port. Qu'il les transmette sans rien réécrire est
-    // une règle du module propriétaire, qu'aucun contrat de cette couture ne peut
-    // voir — un `previewUrl` réécrit ici atterrirait dans la galerie de l'éditeur
-    // et resterait vert partout ailleurs.
     expect(resultat.uploadUrl).toBe(
       urlEnvoiBrouillon(resultat.draftId, "image/webp")
     )
@@ -61,8 +55,6 @@ describe("CycleVieImageProduit", () => {
         draftId: resultat.draftId,
         contentType: "image/webp",
         size: 2048,
-        // La clé visée, telle que le module l'a demandée : c'est l'identité
-        // qu'il a transmise, pas une disposition que cette suite réécrive.
         cle: draftObjectKey(resultat.draftId, "image/webp"),
       },
     ])
@@ -98,9 +90,6 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("ne rend au stockage et au registre que le type soumis, et lui seul", async () => {
-    // La validation choisit en laissant passer la valeur, pas en la remplaçant :
-    // chacun des types autorisés doit ressortir tel quel, sinon la clé dérivée
-    // et la pré-signature porteraient l'extension d'un autre type.
     for (const contentType of CONTENT_TYPES_IMAGE_PRODUIT) {
       const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
 
@@ -119,9 +108,6 @@ describe("CycleVieImageProduit", () => {
       )
     }
 
-    // Verrous de compilation : la demande est du texte — c'est la validation qui
-    // décide — et plus rien en aval ne l'est. Un `string` revenu s'y glisser
-    // ferait échouer `tsc --noEmit`.
     expectTypeOf<
       DemandeBrouillonImageProduit["contentType"]
     >().toEqualTypeOf<string>()
@@ -207,16 +193,6 @@ describe("CycleVieImageProduit", () => {
         ownerId: "editeur-1",
       })
     ).toEqual({ ok: true, draftId: demande.draftId })
-    // Une seule adresse visée, et c'est bien **celle de ce Brouillon** : un
-    // module qui visait la clé d'un autre laisserait l'éditeur avec son objet
-    // encore sous l'espace réservé — donc expiré par la règle, plus tard — et
-    // l'autre supprimé sans raison.
-    //
-    // Ce que l'égalité dit n'est pas la disposition de la clé : les deux côtés
-    // passent par `draftObjectKey`, la fonction de production, donc une
-    // disposition qui changerait les ferait changer ensemble et cette suite
-    // resterait verte. C'est le contrat qui écrit la disposition en clair et
-    // l'épingle au caractère près ; ici l'égalité ne dit que **lequel**.
     expect(stockage.suppressionsBrouillons).toEqual([
       draftObjectKey(demande.draftId, "image/avif"),
     ])
@@ -358,16 +334,12 @@ describe("CycleVieImageProduit", () => {
     })
 
     expect(resultat.ok).toBe(true)
-    // Le Catalogue ne reçoit que la clé persistée issue de la promotion,
-    // jamais l'URL du Brouillon.
     expect(galerieEnregistree).toEqual([
       urlImagePersistee(demande.draftId, "image/webp"),
     ])
     expect(galerieEnregistree).not.toContain(
       urlApercuBrouillon(demande.draftId, "image/webp")
     )
-    // La source de `products/brouillons/` est libérée après le commit : copiée,
-    // elle n'est plus nécessaire à personne (spec #406, décisions de test).
     expect(stockage.suppressionsBrouillons).toEqual([
       draftObjectKey(demande.draftId, "image/webp"),
     ])
@@ -388,11 +360,6 @@ describe("CycleVieImageProduit", () => {
     if (!demande.ok) throw new Error("La demande devait réussir")
     const enregistrer = vi.fn(async () => ({ productId: "produit-1" }))
 
-    // Ce que le transport rend désormais d'un champ `tentativeId` absent ou
-    // seulement blanc : une chaîne vide, plutôt qu'une identité fabriquée. Le
-    // refus est celui que le cycle de vie définit déjà pour une identité de
-    // tentative ou de propriétaire vide — aucun code, aucun message ajouté — et
-    // il tombe avant le registre, donc avant qu'un Brouillon soit revendiqué.
     const refus = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "   ",
       ownerId: "editeur-1",
@@ -407,16 +374,12 @@ describe("CycleVieImageProduit", () => {
     })
     expect(enregistrer).not.toHaveBeenCalled()
     expect(stockage.promotions).toEqual([])
-    // Le Brouillon reste vivant et sans tentative : l'éditeur n'a rien perdu de
-    // ce qu'il a téléversé, il n'a qu'à corriger le formulaire et réessayer.
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "vivant",
       tentativeId: null,
       productId: null,
     })
 
-    // La même soumission, porteuse de l'identité que le formulaire transporte,
-    // s'enregistre exactement comme aujourd'hui.
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
@@ -437,10 +400,6 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("garde l'ordre de l'éditeur : un Brouillon intercalé atterrit entre les Images produit persistées", async () => {
-    // Le fait est énoncé à l'interface du cycle de vie, parce que c'est là
-    // qu'il vit désormais : la Galerie produit est un fait ordonné de
-    // l'Administration, et l'opération en possède l'ordre. Il n'est plus
-    // énoncé dans une action serveur, qui n'a plus rien à composer.
     const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const premiereDemande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
@@ -460,8 +419,6 @@ describe("CycleVieImageProduit", () => {
     const urlPremiere = urlImagePersistee(premiereDemande.draftId, "image/jpeg")
     const urlSeconde = urlImagePersistee(secondeDemande.draftId, "image/png")
 
-    // La galerie est soumise telle que l'éditeur l'a arrangée : persistée,
-    // Brouillon, persistée, Brouillon.
     const galerieSoumise: EntreeImageProduit[] = [
       persistee(premierePersistee),
       brouillon(premiereDemande.draftId),
@@ -485,17 +442,12 @@ describe("CycleVieImageProduit", () => {
 
     expect(resultat).toMatchObject({ ok: true, productId: "produit-1" })
 
-    // Le fait : l'ordre soumis est l'ordre écrit, et un Brouillon intercalé
-    // n'est ni repoussé à la fin de la galerie, ni écrit dans l'ordre des
-    // seuls Brouillons.
     expect(galerieEcrits).toEqual([
       premierePersistee,
       urlPremiere,
       secondePersistee,
       urlSeconde,
     ])
-    // Le sous-ensemble promu, lui, ne porte que ce que cette opération a
-    // promu — jamais une Image produit déjà persistée.
     expect(sousEnsemblePromu).toEqual([urlPremiere, urlSeconde])
     expect(stockage.promotions).toEqual([
       {
@@ -525,12 +477,6 @@ describe("CycleVieImageProduit", () => {
   })
 
   it("une galerie sans Brouillon prend le même chemin qu'une galerie qui en contient", async () => {
-    // Une galerie sans Brouillon n'est plus un cas que l'appelant doit traiter
-    // à part : elle entre par la même opération. Il n'y a rien à revendiquer,
-    // donc rien à promouvoir et rien à lier — la galerie part telle quelle, le
-    // sous-ensemble promu est vide, et ce que le Catalogue en fait reste sa
-    // décision. Le refus d'une liste de Brouillons vide a disparu : il n'était
-    // atteignable que parce qu'un appelant court-circuitait avant d'appeler.
     const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const urls = [
       "https://cdn.test/produits/une.webp",
@@ -546,33 +492,22 @@ describe("CycleVieImageProduit", () => {
       enregistrer: async (revendication) => {
         appels += 1
         vues.push(revendication)
-        // La liaison est appelée par le Catalogue dans sa transaction, même
-        // sans Brouillon : elle ne lie rien, et ne refuse pas non plus.
         await revendication.lier("produit-1")
         return { productId: "produit-1", result: revendication.galerie }
       },
     })
 
     expect(resultat).toMatchObject({ ok: true, productId: "produit-1" })
-    // Le Catalogue est écrit, et il ne l'est qu'une fois.
     expect(appels).toBe(1)
     expect(vues).toHaveLength(1)
-    // La galerie est celle de l'éditeur, dans son ordre ; le sous-ensemble promu
-    // ne porte que ce que cette opération a promu, donc rien.
     expect(vues[0].galerie).toEqual(urls)
     expect(vues[0].promues).toEqual([])
-    // Ni promotion, ni suppression, ni ligne de registre : il n'y avait rien à
-    // prendre, et donc rien à rendre ni à nettoyer.
     expect(stockage.promotions).toEqual([])
     expect(stockage.suppressionsBrouillons).toEqual([])
     expect(registre.records.size).toBe(0)
   })
 
   it("traite une galerie vide comme une galerie sans Brouillon", async () => {
-    // Le cas dégénéré du précédent : un Produit que l'Administration crée avant
-    // de lui téléverser la moindre image. Rien à revendiquer, rien à promouvoir,
-    // et l'opération écrit quand même le Catalogue — ce qui rend possible de créer
-    // un Produit maintenant et de lui donner des images par une mise à jour.
     const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
     const vues: RevendicationImagesProduit[] = []
     let appels = 0
@@ -620,12 +555,6 @@ describe("CycleVieImageProduit", () => {
     })
     expect(premier).toMatchObject({ ok: true, productId: "produit-1" })
 
-    // La soumission rejouée — celle d'un client qui ne rend pas le champ, ou
-    // d'une requête forgée à la main — arrive sans identité. Elle est refusée
-    // avant le registre : elle ne peut donc pas même tenter de reprendre le
-    // Brouillon que la première tentative tient déjà. Le transport, qui
-    // fabricait autrefois une identité neuve, laissait cette soumission
-    // concourir sous un nom qu'elle s'était donné.
     const rejete = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "",
       ownerId: "editeur-1",
@@ -739,8 +668,6 @@ describe("CycleVieImageProduit", () => {
     expect(stockage.suppressionsImagesPromues).toEqual([
       persistentObjectKey(demande.draftId, "image/gif"),
     ])
-    // La compensation défait la promotion mais laisse la source du Brouillon :
-    // le retry en a encore besoin.
     expect(stockage.suppressionsBrouillons).toEqual([])
     expect(registre.records.get(demande.draftId)?.state).toBe("vivant")
 
@@ -754,8 +681,6 @@ describe("CycleVieImageProduit", () => {
       },
     })
     expect(retry).toEqual({ ok: true, productId: "produit-1" })
-    // Le retry promeut de nouveau et lie le Brouillon au même Produit : l'état
-    // du registre est la preuve, l'URL rendue par le résultat ne l'est plus.
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "revendiqué",
       tentativeId: "tentative-1",
@@ -765,8 +690,6 @@ describe("CycleVieImageProduit", () => {
     expect(stockage.suppressionsImagesPromues).toEqual([
       persistentObjectKey(demande.draftId, "image/gif"),
     ])
-    // Le retry a fini ce que la première tentative n'avait pas le droit de
-    // faire : libérer la source une fois le commit écrit.
     expect(stockage.suppressionsBrouillons).toEqual([
       draftObjectKey(demande.draftId, "image/gif"),
     ])
@@ -781,12 +704,6 @@ describe("CycleVieImageProduit", () => {
     })
     if (!demande.ok) throw new Error("La demande devait réussir")
 
-    // Slug en conflit, SKU dupliqué, galerie invalide : ces erreurs portent
-    // leur message jusqu'à l'éditeur sur le chemin sans Brouillon
-    // (`app/admin/produits/actions.test.ts`). Levées ici, avec des
-    // Brouillons, elles doivent faire de même : `SlugConflictError`
-    // représente les trois, toutes `UserFacingError`
-    // (`lib/use-cases/catalog-user-facing.test.ts`).
     const echec = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
@@ -801,8 +718,6 @@ describe("CycleVieImageProduit", () => {
       code: "catalogue-refuse",
       message: "Un produit avec ce slug existe déjà",
     })
-    // La compensation n'a pas bougé pour autant : la promotion est défaite et
-    // le Brouillon redevient revendicable pour un nouvel essai.
     expect(stockage.suppressionsImagesPromues).toEqual([
       persistentObjectKey(demande.draftId, "image/png"),
     ])
@@ -848,9 +763,6 @@ describe("CycleVieImageProduit", () => {
     })
 
     expect(second).toEqual({ ok: true, productId: premier.productId })
-    // Le retry ne promeut rien et ne lie rien : le Brouillon reste celui de la
-    // première tentative, et c'est l'état du registre qui le dit — le résultat
-    // rendu ne porte que l'identifiant du Produit.
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "revendiqué",
       tentativeId: "tentative-1",
@@ -904,9 +816,6 @@ describe("CycleVieImageProduit", () => {
     })
     if (!demande.ok) throw new Error("La demande devait réussir")
 
-    // Revendication écrite, compensation non : c'est l'état qu'un échec de
-    // restauration laisse, et le registre doit le résoudre en expiré à la
-    // rétention dépassée plutôt que de le laisser en revendication.
     expect(
       await registre.revendiquer({
         id: demande.draftId,
@@ -928,19 +837,9 @@ describe("CycleVieImageProduit", () => {
         enregistrer: async () => ({ productId: "produit-1" }),
       })
     ).toMatchObject({ ok: false, code: "brouillon-expire" })
-    // L'état `expiré` que le registre a écrit ne se ré-affirme pas ici : le
-    // contrat de `test/contrat-registre-brouillon.ts` le rejoue sur les deux
-    // adaptateurs. L'invariant propre de cette suite est le refus que le
-    // module en tire, ci-dessus.
   })
 
   it("ne rend qu'un identifiant de Produit, et le verrou de compilation le dit", async () => {
-    // Le résultat de l'opération est un fait et un refus. Ni la valeur que le
-    // Catalogue a écrite, ni la liste des Images produit promues n'y figurent :
-    // elles se lisent à leur source, la rangée et le registre. Les deux
-    // directives ci-dessous sont le verrou : si l'interface réannonçait un
-    // `result` ou une liste `images`, ces lectures compileraient, les
-    // directives deviendraient inutiles et `tsc --noEmit` échouerait.
     const { cycleVie, registre } = creerCycleVieTest(DATE_INITIALE)
     const demande = await cycleVie.demanderBrouillon({
       ownerId: "editeur-1",
@@ -961,14 +860,10 @@ describe("CycleVieImageProduit", () => {
 
     if (!resultat.ok) throw new Error("L'enregistrement devait réussir")
     expect(Object.keys(resultat)).toEqual(["ok", "productId"])
-    // Verrou de compilation : aucune valeur du Catalogue n'est rendue.
     // @ts-expect-error — le résultat ne porte pas la valeur du Catalogue
     expect(resultat.result).toBeUndefined()
-    // Verrou de compilation : aucune liste d'Images promues n'est rendue.
     // @ts-expect-error — le résultat ne porte pas la liste des Images promues
     expect(resultat.images).toBeUndefined()
-    // Ce que l'appelant ne lit pas, l'opération ne le rend pas — mais ce qu'elle
-    // a fait, le registre le sait : le Brouillon est lié à ce Produit.
     expect(registre.records.get(demande.draftId)).toMatchObject({
       state: "revendiqué",
       productId: "produit-1",

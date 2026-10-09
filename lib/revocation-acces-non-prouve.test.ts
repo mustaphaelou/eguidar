@@ -6,13 +6,6 @@ import {
   type PortAccesCompteClient,
 } from "@/lib/revocation-acces-non-prouve"
 
-/**
- * Double en mémoire du port d'accès du Compte client.
- *
- * Expose l'état observable (comptes liés restants, sessions restantes) pour
- * asserter le comportement externe uniquement : aucun comptage d'appels,
- * aucun détail d'implémentation.
- */
 interface EtatCompteClient {
   emailVerified: boolean
   comptesLies: CompteLie[]

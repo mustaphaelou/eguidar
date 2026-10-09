@@ -33,7 +33,6 @@ function unmount(root: ReturnType<typeof createRoot>) {
   if (index >= 0) roots.splice(index, 1)
 }
 
-/** Le seul déclencheur d'envoi : le test passe par lui, jamais par l'input caché. */
 function boutonAjouter(): HTMLButtonElement {
   const bouton = Array.from(
     container.querySelectorAll<HTMLButtonElement>("button")
@@ -153,7 +152,6 @@ describe("ImageGalleryUpload", () => {
       <GalerieTest initialImages={gallery} onChange={onChange} />
     )
 
-    // Huit entrées actives : la limite est atteinte, aucun envoi possible.
     expect(boutonAjouter().disabled).toBe(true)
     expect(container.textContent).toContain("8/8 images")
 
@@ -162,8 +160,6 @@ describe("ImageGalleryUpload", () => {
     )!
     act(() => remove.dispatchEvent(new Event("click", { bubbles: true })))
 
-    // Une suppression en attente libère sa place : c'est le bouton, et lui
-    // seul, qui doit redevenir actif pour déclencher le remplacement.
     expect(boutonAjouter().disabled).toBe(false)
     expect(container.textContent).toContain("7/8 images")
     act(() => boutonAjouter().click())
@@ -177,8 +173,6 @@ describe("ImageGalleryUpload", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    // Huit entrées, dont une en suppression en attente : la limite porte sur
-    // la galerie soumise, donc l'image retirée libère une place.
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/admin/uploads/presign")
     expect(onChange).toHaveBeenLastCalledWith([
       ...gallery.map((image, index) =>

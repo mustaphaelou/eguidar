@@ -10,32 +10,8 @@ import {
   type Exigences,
 } from "./registre"
 
-/**
- * La lecture du ruleset, une fois pour toute la suite — et pas avant qu'un
- * test la demande. Les deux assertions portent sur les mêmes réglages, lus au
- * même instant : deux lectures pourraient tomber de part et d'autre d'une
- * édition du ruleset, et ne jamais se contredire. Une lecture qui échoue reste
- * en mémoire, échec compris, pour que la seconde assertion redise la même cause
- * au lieu d'en chercher une autre.
- */
 let lue: Promise<Exigences> | null = null
 
-/**
- * Les exigences du dépôt, lues — ou la suite se tait en disant pourquoi.
- *
- * L'absence d'identifiant n'est pas un rouge : un contributeur qui n'a aucun
- * moyen de lire les réglages de GitHub ne peut rien décider de ce que la suite
- * constate, et le faire échouer lui annoncerait une dérive qu'il n'a pas
- * constatée. Mais le silence doit se voir : c'est `skip(note)` qui l'affiche
- * dans le rapport, et non un `it.skip` muet, pour que personne n'y lise un
- * « vérifié » qu'aucun run n'a établi.
- *
- * Le cas d'en face n'a pas d'issue douce, et c'est délibéré : un identifiant
- * présent dont la lecture échoue est une panne de GitHub ou une permission
- * retirée, deux choses qui se réparent et qu'aucune pull request ne devrait
- * bloquer. `lireLesExigences` réessaie trois fois, puis lève en nommant la
- * cause — l'erreur que la spec exige.
- */
 async function exigerLesExigences(leContexte: TestContext): Promise<Exigences> {
   const jeton = jetonDuDepot()
   if (jeton === null) {
@@ -49,10 +25,6 @@ async function exigerLesExigences(leContexte: TestContext): Promise<Exigences> {
 }
 
 describe("le ruleset exige exactement les portes que la CI déclare", () => {
-  // Le timeout est celui que le module calcule — trois requêtes bornées et deux
-  // pauses — et non les 5 000 ms par défaut de Vitest, qui sont le délai d'une
-  // seule requête : le run échouerait alors sur son propre délai d'attente, en
-  // nommant une porte qui n'a rien à voir avec la cause.
   it(
     "ne laisse aucun job dont le statut ne soit pas exigé, ni aucun statut exigé qu'aucun job ne fournisse",
     async (leContexte) => {
@@ -62,11 +34,6 @@ describe("le ruleset exige exactement les portes que la CI déclare", () => {
         contextes
       )
 
-      // Les deux sens dans un seul test, et non un test par sens : ils ne se
-      // contredisent pas, et un écart qui n'en nommerait qu'un laisserait passer
-      // l'autre. Le premier est la dérive qui a eu lieu — un job vert partout,
-      // que rien n'attend devant la fusion. Le second est un job supprimé, qui
-      // bloque une pull request sans raison.
       expect(
         nonExigés.map(
           (contexte) =>
@@ -90,12 +57,6 @@ describe("le ruleset exige exactement les portes que la CI déclare", () => {
       const { exigeBrancheAJour, suspendLExigenceALaCreation } =
         await exigerLesExigences(leContexte)
 
-      // Ces deux-là sont dans l'ADR-0020, et ils sont les seuls qu'on vérifie en
-      // plus de la liste des portes. Ni le nombre d'approbations — passer de 0 à
-      // 1 serait plus de protection, et un test qui rougit sur une amélioration
-      // est un test à supprimer — ni la liste des contournements, que l'API
-      // masque sans droit d'écriture : une assertion là-dessus ne pourrait jamais
-      // tourner, donc elle ne prouverait jamais rien.
       expect(
         [
           exigeBrancheAJour

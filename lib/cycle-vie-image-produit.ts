@@ -34,12 +34,6 @@ export type EtatBrouillonImageProduit =
 
 export interface BrouillonImageProduit {
   id: string
-  /**
-   * Le type du fichier, tel que le registre l'a reconnu. Il n'y a pas d'autre
-   * forme lisible : une rangée qui en porte un autre n'est pas un Brouillon
-   * d'Image produit, et la frontière de lecture du registre le dit au lieu de
-   * le laisser passer.
-   */
   mimeType: ContentTypeImageProduit
   byteSize: number
   ownerId: string
@@ -51,11 +45,6 @@ export interface BrouillonImageProduit {
   productId: string | null
 }
 
-/**
- * Ce que l'appelant soumet : du texte, pas un type de contenu. Le port de
- * stockage et le registre ne prennent, eux, que l'union des types autorisés —
- * c'est `validerMetadata` qui fait la transition, et la rend.
- */
 export interface DemandeBrouillonImageProduit {
   ownerId: string
   contentType: string
@@ -84,17 +73,6 @@ export interface RefusCycleVieImageProduit {
   message: string
 }
 
-/**
- * La traduction HTTP du vocabulaire de refus, au même endroit que ce
- * vocabulaire. Le type de la table est l'union des codes : un code ajouté sans
- * statut est une erreur de compilation, jamais un 500 silencieux que rien ne
- * signale — et aucune route n'a plus sa propre copie, partielle donc fausse
- * dès qu'un code bouge.
- *
- * Un refus de l'éditeur se lit par lui : 400 pour ce qu'il a mal soumis, 403
- * pour ce qui n'est pas à lui, 404 pour ce qui n'existe plus, 409 et 410 pour
- * un état qui ne se reprendra pas, 502 et 503 pour une dépendance en panne.
- */
 export const STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT: Record<
   CodeRefusCycleVieImageProduit,
   number
@@ -128,16 +106,6 @@ export type ResultatDemandeBrouillonImageProduit =
 export type ResultatRelacherBrouillonImageProduit =
   { ok: true; draftId: string } | RefusCycleVieImageProduit
 
-/**
- * L'URL publique qu'une promotion a produite, et le Brouillon dont elle
- * vient. Elle ne sort plus de ce module : le résultat de l'opération ne rend
- * plus la liste des Images produit promues (ticket #458), et aucun appelant de
- * production ne l'a jamais lue.
- *
- * Elle porte le type de contenu parce que la compensation doit savoir quelle
- * clé supprimer : il vient du Brouillon qu'elle décrit, donc il ne peut pas
- * manquer, et il n'a pas à être cherché ailleurs.
- */
 interface ImageProduitPromue {
   draftId: string
   publicUrl: string
@@ -162,49 +130,16 @@ export type LierBrouillonsImageProduit = (
   transaction?: PortTransactionRegistreBrouillonImageProduit
 ) => Promise<void>
 
-/**
- * Les trois faits qu'une revendication tient prête à forward : la Galerie
- * produit qu'elle a composée, dans l'ordre de l'Administration, le sous-ensemble
- * qu'elle a promu, et la liaison à exécuter dans la transaction du Catalogue.
- * Pourquoi ils ne se passent pas séparément est écrit une seule fois, sur la
- * valeur qu'ils composent.
- */
 export interface FaitsRevendicationImagesProduit {
   readonly galerie: readonly string[]
   readonly promues: readonly string[]
   readonly lier: LierBrouillonsImageProduit
 }
 
-/**
- * La valeur qu'une revendication tient prête à forward, et que le Catalogue
- * reçoit en un seul morceau.
- *
- * **Les trois faits vont ensemble, et c'est la seule raison de cette porte.**
- * Les URL promues sont ce qui autorise une Image produit nouvelle à être
- * écrite : une liaison sans elles se ferait refuser la galerie, et une galerie
- * sans promotion ne lierait rien. Cette valeur n'a donc pas de constructeur
- * public et porte une marque : la seule façon de l'obtenir est la porte, qui
- * exige les trois faits, donc un appelant ne peut plus passer la liaison et le
- * sous-ensemble promu séparément.
- *
- * **Ce que la porte garantit : les trois faits voyagent ensemble.** Qui peut
- * construire une valeur est une autre garantie, celle de la garde de frontière
- * de ce module : aucune surface cliente n'atteint ni ce module ni son port de
- * stockage, et le port de transaction passé au Catalogue n'expose qu'une
- * confirmation de promotion (ADR-0004). Le Catalogue ne peut donc pas vérifier
- * qu'une URL a été promue, et la valeur ne le prétend pas.
- */
 export class RevendicationImagesProduit {
-  /** La Galerie produit dans l'ordre de l'Administration. */
   readonly galerie: readonly string[]
-  /** Le sous-ensemble que cette même opération a promu. */
   readonly promues: readonly string[]
-  /** La liaison à exécuter dans la transaction du Catalogue. */
   readonly lier: LierBrouillonsImageProduit
-  /**
-   * La marque de la porte : elle rend la valeur non reproductible ailleurs,
-   * donc non reproductible sans passer par la porte.
-   */
   private readonly porte: true
 
   private constructor(faits: FaitsRevendicationImagesProduit) {
@@ -214,15 +149,6 @@ export class RevendicationImagesProduit {
     this.porte = true
   }
 
-  /**
-   * La seule porte de construction : elle exige les trois faits, et la valeur
-   * qu'elle rend dit pourquoi.
-   *
-   * Elle est statique parce que le constructeur est privé : c'est cette porte,
-   * et elle seule, qui peut l'appeler. C'est aussi pour cela qu'elle reste dans
-   * la classe et n'a pas d'alias hors de lui — un second nom pour la même porte
-   * serait une seconde façon de l'annoncer, donc de la contourner.
-   */
   static creer(
     faits: FaitsRevendicationImagesProduit
   ): RevendicationImagesProduit {
@@ -230,39 +156,10 @@ export class RevendicationImagesProduit {
   }
 }
 
-/**
- * La façon dont l'appelant écrit le Catalogue, une fois la revendication
- * décidée.
- *
- * **Elle reçoit la valeur, pas des faits à recomposer.** L'appelant n'a donc
- * plus qu'une chose à dire : voici comment le Catalogue s'écrit. Il forward la
- * valeur telle quelle, sans la relire, la compléter ni la refaire.
- *
- * **Elle rend le seul fait dont l'opération a besoin : l'identifiant du Produit
- * écrit.** Elle ne rend pas la valeur que sa mutation rend — la rangée, la
- * projection, ce que l'appelant voudra — parce que le cycle de vie n'en lit
- * aucune. Un résultat générique instancié `unknown` aux deux sites d'appel et
- * jeté aux deux n'annonçait qu'une lecture qui n'avait lieu nulle part. Une
- * valeur nommée plutôt qu'une chaîne nue, parce que le fait rendu est un
- * *Produit enregistré* et non un identifiant : si l'écriture demande un jour le
- * nom de l'URL de sa page, la forme s'y prêtera sans que l'interface change
- * encore.
- */
 export type EnregistrerCatalogue = (
   revendication: RevendicationImagesProduit
 ) => Promise<{ productId: string }>
 
-/**
- * Ce que l'appelant reçoit de l'opération : un fait — le Produit écrit, par
- * son identifiant — ou un refus. Rien d'autre.
- *
- * **La Galerie produit enregistrée ne se rend pas ici.** Elle est écrite, et se
- * lit dans la rangée du Catalogue ; l'état d'un Brouillon se lit dans le
- * registre. Les rendre dans le résultat les ferait annoncer par l'opération
- * une vérité qu'elle ne connaît qu'après l'écriture, à quelqu'un qui la lit
- * déjà à sa source — et ferait de ce rendu une deuxième déclaration de ce qui
- * est déjà durable.
- */
 export type ResultatRevendiquerEtEnregistrer =
   { ok: true; productId: string } | RefusCycleVieImageProduit
 
@@ -326,66 +223,18 @@ export interface CycleVieImageProduit {
     draftId: string
     ownerId: string
   }): Promise<ResultatRelacherBrouillonImageProduit>
-  /**
-   * Enregistrer un Produit, en transmettant la Galerie produit qu'il porte.
-   *
-   * **L'opération prend la galerie entière, dans l'ordre de l'éditeur, et
-   * possède cet ordre.** Elle rend la main à l'appelant sur un fait simple :
-   * l'ordre dans lequel l'éditeur a arrangé sa galerie est l'ordre dans lequel
-   * elle sera enregistrée, un Brouillon intercalé entre deux Images produit
-   * persistées atterrissant entre elles.
-   *
-   * **Une seule opération, pas deux.** Le cycle de vie n'apprend rien du
-   * Catalogue : il ne le connaît pas, et il n'a pas à savoir si la mutation
-   * qui écrit est une création ou une mise à jour. C'est l'appelant qui choisit
-   * laquelle écrire, en fournissant `enregistrer`. La liaison y reste une
-   * fonction qu'il fournit, parce que le Catalogue atteint déjà ce module —
-   * l'appeler ici serait un cycle d'import.
-   *
-   * **Une galerie sans Brouillon prend ce chemin-là aussi.** Il n'y a rien à
-   * revendiquer, donc rien à promouvoir et rien à lier : la galerie part telle
-   * quelle, le sous-ensemble promu est vide, et c'est le Catalogue qui décide de
-   * ce qu'il accepte d'en écrire. Une telle galerie est un cas légal, jamais un
-   * refus — et une opération de plus qui mériterait son propre chemin n'existe
-   * plus, donc plus rien à se souvenir d'appeler d'abord.
-   *
-   * **Elle rend un fait et un refus, rien de plus.** L'appelant a besoin de
-   * savoir quel Produit a été écrit, pour le rediriger vers lui ; il n'a besoin
-   * de rien d'autre, et l'opération n'a rien d'autre à dire. Un résultat qu'il
-   * jetterait, une liste d'Images promues qu'il ne lirait pas, seraient une
-   * interface qui annonce des lectures à venir — et une obligation de les
-   * garder justes.
-   */
   revendiquerEtEnregistrer(input: {
     tentativeId: string
     ownerId: string
-    /** La Galerie produit soumise, entière, dans l'ordre de l'éditeur. */
     galerie: readonly EntreeImageProduit[]
     enregistrer: EnregistrerCatalogue
-    /**
-     * La relecture du commit déjà durable, qu'un retry de la même tentative
-     * fournit. Elle ne rend rien : elle échoue si le commit n'existe pas, et
-     * c'est de là que vient le refus « catalogue-refuse » de ce chemin. Elle
-     * n'est jamais lue, donc elle ne rend pas davantage.
-     */
     resultatDejaPersiste?: (productId: string) => Promise<void>
   }): Promise<ResultatRevendiquerEtEnregistrer>
   lireBrouillon(id: string): Promise<BrouillonImageProduit | null>
 }
 
-/**
- * Rétention initiale d'un Brouillon d'Image produit abandonné, en heures. C'est
- * la valeur de repli : la rétention effective est lue dans l'environnement,
- * voir `retentionBrouillonImageProduitHeures`.
- */
 export const RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT = 24
 
-/**
- * La rétention effective, en heures, lue dans l'unique variable
- * d'environnement qui la porte (ADR-0004). C'est la seule lecture : la règle de
- * cycle de vie R2 en dérive ses jours, donc l'application et la règle
- * d'expiration ne peuvent pas diverger.
- */
 export function retentionBrouillonImageProduitHeures(): number {
   const valeur = process.env.RETENTION_BROUILLON_IMAGE_PRODUIT_H
   if (!valeur) return RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT
@@ -402,11 +251,6 @@ function refus(
   return { ok: false, code, message }
 }
 
-/**
- * Refus honnête : au-delà de la rétention, l'objet peut déjà avoir été
- * supprimé par la règle de cycle de vie R2, donc la seule issue est un
- * nouveau téléversement. Aucun nettoyage n'est tenté ici.
- */
 const MESSAGE_BROUILLON_EXPIRE =
   "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."
 
@@ -416,18 +260,8 @@ const MESSAGE_BROUILLON_DEJA_LIBERE =
 const MESSAGE_CONFLIT_REVENDICATION =
   "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie."
 
-/**
- * Un registre indisponible n'est pas un refus métier : la rétention du
- * Brouillon n'est pas en jeu, seul l'enregistrement durable est momentanément
- * hors service. Le message est donc unique, et ne promet aucune reprise.
- */
 const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
 
-/**
- * « n'est pas vivant » ne dit rien à l'éditeur : un Brouillon déjà libéré
- * n'a qu'à disparaître de la galerie, un Brouillon déjà revendiqué appartient
- * désormais à un Produit et ne peut plus être retiré.
- */
 function raisonNonVivant(draft: BrouillonImageProduit): string {
   if (draft.state === "libéré") {
     return "Ce Brouillon d'Image produit a déjà été libéré"
@@ -447,18 +281,6 @@ function refusStockage(
   return refus("stockage-refuse", resultat.erreur.message)
 }
 
-/**
- * Les métadonnées validées, et le type de contenu que la validation a reconnu.
- *
- * **Rendre le type, plutôt que ne rendre qu'un refus.** L'entrée du module est
- * du texte : la validation décide s'il est l'un des types autorisés, et rend
- * alors *le type qu'elle a reconnu*. Le port de stockage et le registre ne
- * prenant que cet union, tout ce qui est écrit ensuite — la pré-signature, la
- * clé réservée, la colonne — est connu correct sans une seconde vérification.
- * Une validation qui se contentait de refuser laissait `contentType` un texte
- * jusqu'au stockage, où il n'était plus qu'à transformer un refus en chaîne
- * vide.
- */
 interface MetadataValide {
   ok: true
   contentType: ContentTypeImageProduit
@@ -491,15 +313,6 @@ function dateDExpiration(now: Date): Date {
   )
 }
 
-/**
- * **Le découpage de la Galerie produit.** Les Brouillons à revendiquer, dans
- * l'ordre de l'éditeur, sans doublon. Les Images produit déjà persistées n'en
- * font pas partie : elles ne sont ni à revendiquer ni à promouvoir, et ce que
- * le Catalogue accepte d'en écrire reste sa propre décision.
- *
- * Une liste vide n'est donc pas un refus, c'est une galerie dont cette opération
- * n'a rien à faire avant d'écrire le Catalogue.
- */
 function brouillonsDeLaGalerie(
   galerie: readonly EntreeImageProduit[]
 ): string[] {
@@ -512,18 +325,6 @@ function brouillonsDeLaGalerie(
   ]
 }
 
-/**
- * **Le réassemblage de l'ordre.** La liste d'URL que le Catalogue va écrire,
- * dans l'ordre exact des entrées soumises, chaque Brouillon prenant la place de
- * l'URL publique que sa promotion vient de produire. C'est ici qu'un Brouillon
- * intercalé entre deux Images produit persistées atterrit entre elles.
- *
- * Une URL absente ne peut pas survenir : chaque Brouillon de la galerie a été
- * revendiqué et promu avant que cette liste soit demandée, et chaque promotion
- * répond une URL. Son absence est donc une invariante rompue, pas une donnée
- * d'entrée — et le dire ici, plutôt que de rendre une galerie plus courte que
- * celle que l'éditeur a arrangée, vaut mieux qu'un silence.
- */
 function galerieOrdonnee(
   galerie: readonly EntreeImageProduit[],
   urlParBrouillon: ReadonlyMap<string, string>
@@ -538,18 +339,6 @@ function galerieOrdonnee(
   })
 }
 
-/**
- * L'Image produit qu'une promotion a produite, sous la forme que la compensation
- * et la liaison savent lire.
- *
- * **Le Brouillon entre, l'URL se donne.** Les deux chemins qui construisent cette
- * valeur — celui d'une promotion déjà écrite dans le registre et celui d'une
- * promotion que ce module vient de demander — ne se distinguent que par l'origine
- * de l'URL ; le reste du fait est le même, et il est écrit ici une seule fois. Une
- * copie de part et d'autre laisserait le `contentType` se contredire d'une
- * promotion à l'autre, et une compensation qui viserait une clé que la promotion
- * n'a jamais écrite supprimerait rien en rapportant un succès.
- */
 function imagePromue(
   draft: BrouillonImageProduit,
   publicUrl: string
@@ -580,7 +369,6 @@ function resultatRegistreRefus(
   }
 }
 
-/** La ligne du registre, telle que Prisma la rend : `state` n'y est pas typé. */
 type LigneBrouillonImageProduit = {
   id: string
   mimeType: string
@@ -594,23 +382,6 @@ type LigneBrouillonImageProduit = {
   productId: string | null
 }
 
-/**
- * **La frontière de lecture, et l'unique décision sur un type illisible.**
- * La colonne `mimeType` reste une chaîne : le schéma ne bouge pas, et une
- * rangée portant un type que le port refuserait peut donc être relue.
- *
- * Elle n'est pas un Brouillon d'Image produit. Rendre cette valeur à l'interface
- * obligerait ses consommateurs à refaire le travail qu'elle a fait, et les deux
- * d'entre eux qui doivent en dériver une clé — la compensation d'une promotion
- * et la libération d'une source — n'auraient plus qu'à choisir entre une chaîne
- * vide et un `!`. Les deux issues seraient fausses de la même façon : une
- * suppression best-effort qui ne supprime rien en rapportant un succès.
- *
- * Alors la rangée est dite illisible, ici et une seule fois. Le refus remonte
- * jusqu'aux chemins qui savent le composer — « registre indisponible » à la
- * libération comme à la revendication — plutôt que de laisser l'appelant croire
- * à une libération réussie, ou à un Brouillon qui n'existe pas.
- */
 function versBrouillon(row: LigneBrouillonImageProduit): BrouillonImageProduit {
   if (!isContentTypeImageProduit(row.mimeType)) {
     throw new Error(
@@ -700,20 +471,6 @@ export function portTransactionRegistreBrouillonImageProduit(
   }
 }
 
-/**
- * Un Brouillon d'Image produit dont la rétention est dépassée et qui n'est lié à
- * aucun Produit se résout en `expiré`, dans l'état de revendication qu'il ait.
- *
- * La compensation d'une revendication échouée est best-effort : un Brouillon
- * peut rester `revendiqué` avec un `tentativeId` et aucun `productId`. Il
- * refuse alors toute autre tentative — à juste titre, aucune double
- * revendication — mais resterait invisible comme expiré, alors que la
- * rétention est écoulée (histoire 25 de l'issue #406).
- *
- * `libéré` reste terminal : l'éditeur a été prévenu et l'objet supprimé.
- * `expiré` l'est déjà. Un Brouillon lié à un Produit est une Image produit
- * persistée : il n'est jamais réétiqueté.
- */
 function estResolubleEnExpire(
   row: { state: string; expiresAt: Date; productId: string | null },
   now: Date
@@ -742,23 +499,10 @@ function refusNonVivant(state: string): {
   }
 }
 
-/**
- * Ce qu'une lecture de la ligne décide de la revendication : soit la ligne
- * tranche, soit elle laisse la comparaison-and-échange écrire. L'état d'une
- * ligne qui laisse écrire est renvoyé avec elle, parce qu'il décide du refus
- * que l'appelant rendra si l'écriture échoue.
- */
 type VerdictRevendication =
   | { kind: "tranche"; resultat: ResultatRevendicationRegistre }
   | { kind: "a_ecrire"; row: LigneBrouillonImageProduit }
 
-/**
- * Registre durable. L'état `expiré` est écrit à la demande, à partir de
- * l'horloge injectée : aucun balayeur, aucune file, aucun planificateur. Une
- * lecture, une tentative de revendication ou de libération d'un Brouillon dont
- * `expiresAt` est passé suffit à résoudre puis à persister l'état, pour que le
- * support puisse l'expliquer sans passer par R2.
- */
 export function creerRegistreBrouillonImageProduitPrisma(
   horloge: Horloge
 ): PortRegistreBrouillonImageProduit {
@@ -781,15 +525,6 @@ export function creerRegistreBrouillonImageProduitPrisma(
     }
   }
 
-  /**
-   * L'échelle de refus de la revendication, dans un seul ordre. La
-   * comparaison-and-échange se lit deux fois — avant d'écrire, puis après, pour
-   * savoir qui a gagné — et les deux lectures doivent appliquer exactement les
-   * mêmes refus : une évolution de la propriété ou de l'expiration ne peut
-   * atterrir que dans l'une des deux. `a_ecrire` est le seul cas que la
-   * première lecture laisse passer à l'écriture ; l'état de la ligne y décide
-   * encore, c'est donc à l'appelant d'en tirer le refus après l'écriture.
-   */
   async function classer(
     row: LigneBrouillonImageProduit | null,
     input: { id: string; ownerId: string; tentativeId: string; now: Date }
@@ -814,8 +549,6 @@ export function creerRegistreBrouillonImageProduitPrisma(
         },
       }
     }
-    // La rétention limite une nouvelle revendication, pas la résolution
-    // d'une tentative déjà gagnée.
     if (row.state === "revendiqué" && row.tentativeId === input.tentativeId) {
       return {
         kind: "tranche",
@@ -895,9 +628,6 @@ export function creerRegistreBrouillonImageProduitPrisma(
         if (gagne) return { ok: true, value: versBrouillon(gagne) }
       }
 
-      // L'écriture a échoué : la ligne a bougé entre-temps, on relit pour
-      // savoir qui a gagné. Aucun des refus précédents ne s'appliquant, c'est
-      // que la ligne n'a pas bougé — une relecture n'y changerait rien.
       const apres = await classer(await lire(), input)
       return apres.kind === "tranche"
         ? apres.resultat
@@ -908,13 +638,6 @@ export function creerRegistreBrouillonImageProduitPrisma(
       return confirmerPromotionAvecTransaction(prisma, input)
     },
 
-    /**
-     * La compensation ne rend `vivant` que ce qui est encore `revendiqué` : un
-     * Brouillon dont la rétention est échue a été résolu en `expiré`, et le
-     * rendre à `vivant` le rendrait revendicable alors que son objet a pu être
-     * supprimé par la règle de cycle de vie R2. Le port en mémoire applique la
-     * même précondition, et le contrat exige que les deux s'accordent.
-     */
     async annulerRevendication(input) {
       await prisma.brouillonImageProduit.updateMany({
         where: {
@@ -1044,13 +767,6 @@ export function creerCycleVieImageProduit(
       return refus("brouillon-non-vivant", raisonNonVivant(draft))
     }
 
-    /**
-     * La libération est terminale : marquer d'abord le Brouillon d'Image
-     * produit empêche de revendiquer un objet absent. Si la suppression échoue
-     * ensuite, l'orphelin reste dans l'espace réservé `products/brouillons/`
-     * et sera récupéré par la règle de cycle de vie R2 ; aucun second nettoyage
-     * n'est ajouté ici.
-     */
     try {
       const marked = await registre.marquerLibere({
         id: draft.id,
@@ -1103,11 +819,6 @@ export function creerCycleVieImageProduit(
         "Tentative d'édition ou propriétaire invalide"
       )
     }
-    // Le découpage est ici, et l'ordre de l'éditeur est conservé : la galerie
-    // reste la référence, cette liste n'en est qu'une lecture pour le registre.
-    // Elle peut être vide — une galerie déjà entièrement persistée n'a rien à
-    // revendiquer — et cela ne refuse rien : il n'y a simplement aucun Brouillon
-    // à prendre avant d'écrire le Catalogue.
     const draftIds = brouillonsDeLaGalerie(input.galerie)
 
     const revendiques: BrouillonImageProduit[] = []
@@ -1161,10 +872,6 @@ export function creerCycleVieImageProduit(
         productIds.size !== 1
       ) {
         await restaurerRevendications()
-        // Le seul refus qui porte encore ce code : la galerie mêle des
-        // Brouillons qu'une tentative a déjà liés à un Produit et d'autres qui
-        // ne le sont pas. Rien à voir avec « aucun Brouillon à revendiquer »,
-        // qui a disparu : une galerie sans Brouillon n'est pas un refus.
         return refus(
           "revendication-refusee",
           "Les Brouillons ne sont pas tous liés à la même tentative"
@@ -1173,11 +880,7 @@ export function creerCycleVieImageProduit(
       if (input.resultatDejaPersiste) {
         const productId = [...productIds][0]
         try {
-          // La relecture ne rend rien : ce qu'elle prouve, c'est que le commit
-          // existe, et son échec est le refus d'après.
           await input.resultatDejaPersiste(productId)
-          // Le commit est déjà durable (les Brouillons sont liés) : on
-          // profite du retry pour achever une libération best-effort manquée.
           await libererSources()
           return { ok: true, productId }
         } catch {
@@ -1189,13 +892,6 @@ export function creerCycleVieImageProduit(
       }
     }
 
-    /**
-     * La compensation d'une promotion : la copie faite sous `products/` est
-     * supprimée, en best-effort. Le type vient de l'Image promue elle-même,
-     * donc de la revendication qui l'a produite : il n'y a plus de table
-     * parallèle à consulter, ni de repli qui dériverait une clé sans extension
-     * pour rapporter une suppression réussie.
-     */
     async function supprimerPromotions(
       images: readonly ImageProduitPromue[]
     ): Promise<void> {
@@ -1211,18 +907,6 @@ export function creerCycleVieImageProduit(
       )
     }
 
-    // La promotion est une copie : une fois le commit Catalogue écrit, la
-    // source du Brouillon (`products/brouillons/`) ne sert plus à personne.
-    // On ne la libère qu'après ce commit, en best-effort, et jamais sur un
-    // chemin de compensation — le Brouillon y doit rester revendicable.
-    // Un 404 (déjà nettoyé) ou une panne transitoire ne remet pas pour autant
-    // l'enregistrement en cause ; la règle de cycle de vie R2 couvre le reste.
-    //
-    // Elle libère les Brouillons revendiqués, et eux seuls : la liste est celle
-    // que la boucle de revendication vient de remplir, donc aucune source ne
-    // peut y figurer par surprise, et surtout aucune ne peut en manquer. Le
-    // repli sur une chaîne vide, qui aurait dérivé une clé sans extension et
-    // rapporté une suppression réussie, n'a plus où se loger.
     async function libererSources(): Promise<void> {
       await Promise.all(
         revendiques.map(async (brouillon) => {
@@ -1231,9 +915,7 @@ export function creerCycleVieImageProduit(
               draftId: brouillon.id,
               contentType: brouillon.mimeType,
             })
-          } catch {
-            // Best-effort : déjà nettoyé (404) ou panne transitoire.
-          }
+          } catch {}
         })
       )
     }
@@ -1293,9 +975,6 @@ export function creerCycleVieImageProduit(
 
     let enregistre: Awaited<ReturnType<EnregistrerCatalogue>>
     try {
-      // Le réassemblage est dans le même `try` que l'appel au Catalogue, pour
-      // que son hypothèse — une URL pour chaque Brouillon — reste couverte par
-      // la compensation comme le reste de ce chemin.
       const revendication = RevendicationImagesProduit.creer({
         galerie: galerieOrdonnee(
           input.galerie,
@@ -1306,11 +985,6 @@ export function creerCycleVieImageProduit(
       })
       enregistre = await input.enregistrer(revendication)
     } catch (error) {
-      // La compensation est obligatoire, le message l'est aussi : une erreur
-      // du Catalogue destinée à l'éditeur (slug en conflit, SKU dupliqué,
-      // galerie invalide, règle de création) garde son message sur ce chemin
-      // comme sur celui d'une galerie sans Brouillon, où il n'y a rien à
-      // compenser. Une erreur ordinaire reste générique.
       await supprimerPromotions(nouvellesPromotions)
       await restaurerRevendications()
       return refus(
@@ -1321,15 +995,8 @@ export function creerCycleVieImageProduit(
       )
     }
 
-    // Le commit Catalogue est écrit : la source du Brouillon est libérée ici,
-    // une seule fois, sur ce chemin de réussite seulement — jamais pendant
-    // une compensation (cf. `libererSources`).
     await libererSources()
 
-    // Le seul fait rendu est le Produit écrit. La galerie enregistrée se lit
-    // dans la rangée du Catalogue et l'état des Brouillons dans le registre :
-    // les rendre ici ferait dire deux fois la même chose, par une opération qui
-    // ne les a pas lues à leur source.
     return { ok: true, productId: enregistre.productId }
   }
 

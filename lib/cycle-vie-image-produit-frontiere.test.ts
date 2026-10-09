@@ -22,17 +22,6 @@ const SOURCES = sourcesDeProduction(
 )
 const PAR_CHEMIN = new Map(SOURCES.map((source) => [source.chemin, source]))
 
-/**
- * Seuls l'artefact de règle, le module propriétaire du cycle de vie, le
- * Catalogue et l'exception Structure peuvent atteindre l'adaptateur R2. Les
- * deux mutations n'appellent que la suppression post-commit d'une URL déjà
- * persistée ; les routes, forms et composants ne doivent jamais figurer dans
- * cette liste.
- *
- * `admin-structure.ts` est une exception intentionnelle : `Category.image` est
- * un champ URL libre antérieur au cycle de vie des Images produit. Cette
- * exception ne donne pas au produit le droit de supprimer par URL avant commit.
- */
 const IMPORTATEURS_R2_AUTORISES = [
   "infra/regle-cycle-vie-r2.ts",
   MODULE_CYCLE_VIE,
@@ -40,12 +29,6 @@ const IMPORTATEURS_R2_AUTORISES = [
   MODULE_STRUCTURE,
 ] as const
 
-/**
- * Les seuls consommateurs du module propriétaire sont ses traductions HTTP,
- * la mutation Catalogue qui compose la revendication et l'artefact de règle
- * R2. Un composant ou une mutation d'Administration parle donc au module,
- * jamais au port de stockage.
- */
 const IMPORTATEURS_CYCLE_VIE_AUTORISES = [
   "app/admin/produits/actions.ts",
   "app/api/admin/uploads/delete/route.ts",
@@ -148,9 +131,6 @@ describe("Cycle de vie des Images produit — frontière", () => {
   })
 
   it("partage les deux suppressions par URL entre le Catalogue et la Structure, sans les confondre", () => {
-    // Les espaces de noms sont disjoints : le Catalogue ne supprime que des
-    // Images produit persistées, la Structure que des images de catégorie. Un
-    // appel de chaque côté, et jamais le même des deux.
     const persistees = SOURCES.filter(({ source: contenu }) =>
       contenu.includes("stockageImageProduitR2.supprimerImagePersistee(url)")
     )

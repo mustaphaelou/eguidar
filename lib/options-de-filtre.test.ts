@@ -6,16 +6,6 @@ import {
   type RepartitionsDeFacettes,
 } from "@/lib/options-de-filtre"
 
-/**
- * Les règles du panneau de la Recherche, valeur en entrée, valeur en
- * sortie : les décomptes traversent, marques et catégories sont triées par
- * libellé sous la locale `fr`, les Tranches de prix gardent l'ordre fixe de
- * leurs bandes, une valeur retenue est toujours émise même à zéro, un
- * libellé non résolu retombe sur sa valeur, et `selected` dit les filtres
- * actifs. Les options à zéro non retenues sortent du module : c'est la
- * barre latérale qui les masque.
- */
-
 const AUCUNE: RepartitionsDeFacettes = {
   brands: {},
   categories: {},
@@ -24,7 +14,6 @@ const AUCUNE: RepartitionsDeFacettes = {
 
 const AUCUN_NOM = new Map<string, string>()
 
-/** Les cinq bandes, dans l'ordre fixe de `PRICE_BUCKETS`. */
 const BANDES_ATTENDUES = [
   "0-1000",
   "1000-2500",
@@ -92,9 +81,6 @@ describe("assemblerOptionsDeFiltre", () => {
       AUCUN_NOM
     )
 
-    // Sous `fr`, « Électronique » se range avec les E — un tri par point de
-    // code l'aurait placé après « Zebra ». La casse ne sépare pas « apple »
-    // des autres.
     expect(options.brands.map((option) => option.value)).toEqual([
       "apple",
       "Électronique",
@@ -122,7 +108,6 @@ describe("assemblerOptionsDeFiltre", () => {
     const options = assemblerOptionsDeFiltre(
       {
         ...AUCUNE,
-        // La répartition arrive dans le désordre et tait deux bandes.
         priceBuckets: { "10000-plus": 9, "0-1000": 1 },
       },
       {},

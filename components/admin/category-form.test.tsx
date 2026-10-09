@@ -21,7 +21,6 @@ const AUTRE = "cat-autre"
 
 const rendu = monterFormulaire()
 
-/** Le seul `Select` du formulaire, et son unique déclencheur. */
 function declencheur() {
   return rendu.container.querySelector<HTMLElement>(
     '[data-slot="select-trigger"]'
@@ -74,8 +73,6 @@ describe("CategoryForm", () => {
   })
 
   it("revient à l'absence quand l'éditeur choisit « Aucune (catégorie racine) »", async () => {
-    // Une Structure déjà sous une parente : l'éditeur doit pouvoir la ramener
-    // en racine sans recharger l'écran.
     const { soumissions, action } = actionQuiCapture<CategoryFormState>()
     rendu.render(
       <CategoryForm

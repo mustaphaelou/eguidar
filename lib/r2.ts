@@ -8,13 +8,6 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
-/**
- * Durée de vie d'une URL d'envoi pré-signée, en secondes. Exportée parce que
- * la rétention d'un Brouillon d'Image produit est délibérément plus longue :
- * c'est ce qui permet de réessayer un enregistrement échoué sans téléverser
- * l'image à nouveau (ADR-0004). Les deux durées sont liées par une propriété
- * vérifiée, pas par une convention.
- */
 export const DUREE_VIE_URL_ENVOI_PRESIGNEE_S = 300
 
 export const CONTENT_TYPES_IMAGE_PRODUIT = [
@@ -59,16 +52,6 @@ export interface ValeurPromotionBrouillon {
   publicUrl: string
 }
 
-/**
- * Le port de stockage des Images produit.
- *
- * **Un type de contenu y est l'union des types autorisés, pas une chaîne.**
- * L'implémentation refuse depuis toujours tout ce qui n'est pas l'un des cinq,
- * à la dérivation de la clé ; déclarer `string` ici l'admettait quand même, et
- * l'interface promettait donc une valeur que le port ne tenait pas. La
- * restriction vit désormais dans le type, et c'est le compilateur — non un
- * contrôle à l'exécution — qui arrête un appelant qui passerait le reste.
- */
 export interface PortStockageImageProduit {
   presignerBrouillon(input: {
     draftId: string
@@ -90,13 +73,6 @@ export interface PortStockageImageProduit {
   supprimerImagePersistee(
     publicUrl: string
   ): Promise<ResultatStockageImageProduit<null>>
-  /**
-   * Image de Structure : champ URL libre, antérieur au cycle de vie des
-   * Brouillons, qui vit hors du préfixe `products/`. Même frontière
-   * best-effort que `supprimerImagePersistee` : une panne R2 devient un refus
-   * que l'appelant journalise. Les espaces de noms sont disjoints, voir les
-   * gardes ci-dessous.
-   */
   supprimerImageCategorie(
     publicUrl: string
   ): Promise<ResultatStockageImageProduit<null>>
@@ -109,13 +85,6 @@ function storageFailure(
   return { ok: false, erreur: { code, message } }
 }
 
-/**
- * Le seul prédicat du type de contenu, et il est exporté parce que le module
- * propriétaire en a besoin pour le même travail : décider si une valeur qu'il
- * reçoit du texte est l'un des types autorisés. Deux listes ne le direient pas
- * deux fois — celle du module de stockage et celle, indépendante, de la route de
- * téléversement.
- */
 export function isContentTypeImageProduit(
   contentType: string
 ): contentType is ContentTypeImageProduit {
@@ -135,16 +104,6 @@ function isStorageIdentifier(value: string): boolean {
   )
 }
 
-/**
- * La dérivation de clé, et le refus qui l'accompagne.
- *
- * **Le paramètre reste un `string`, contrairement au port.** Ces deux exports
- * sont la convention d'espace de noms d'ADR-0004, et l'invariant qu'elle porte
- * — une clé ne se dérive jamais d'un type refusé — se garde à l'exécution : le
- * port a déjà arrêté l'appelant qui passerait le reste, mais une dérivation
- * appelée ailleurs refuse encore, et elle refuse par une exception, comme les
- * quatre opérations du port s'attendent à le lire.
- */
 function keyForImage(
   prefix: string,
   imageId: string,
@@ -251,18 +210,6 @@ function storageError(): {
   )
 }
 
-/**
- * Deux opérations de suppression par URL, un seul invariant partagé : ni
- * l'une ni l'autre ne peut viser `products/brouillons/`.
- *
- * Une Image produit persistée n'existe que sous `products/`, hors du préfixe
- * réservé aux Brouillons. Une image de Structure est le champ `image` d'une
- * catégorie, antérieure à ce cycle de vie : elle est n'importe où sous la base
- * publique — y compris sous `products/`, comportement conservé pour les
- * catégories — mais jamais dans l'espace réservé. Une suppression de catégorie
- * ne doit jamais pouvoir supprimer un Brouillon abandonné, dont l'expiration
- * est le fait de la règle de cycle de vie R2 (ADR-0004).
- */
 function estCleImageProduitPersistee(key: string): boolean {
   return (
     key.startsWith(PRODUCTS_PREFIX) && !key.startsWith(DRAFT_PRODUCTS_PREFIX)
@@ -273,24 +220,6 @@ function estCleImageCategorie(key: string): boolean {
   return !key.startsWith(DRAFT_PRODUCTS_PREFIX)
 }
 
-/**
- * Suppression par URL publique, bornée par un espace de noms.
- *
- * L'envoi n'est plus nu : les six opérations du port répondent de la même
- * façon à une panne R2, en `erreur-stockage`. Il l'était pour une raison qui
- * tient toujours — une suppression est un effet post-commit et best-effort,
- * et une panne R2 doit rester visible — mais cette raison ne demandait pas
- * une exception. Les deux appelants journalisent aussi bien un refus qu'une
- * levée : traduire ne leur fait donc pas croire que l'objet n'a jamais
- * existé, et ne laisse rien passer inaperçu. Ce qui change est le chemin,
- * donc le vocabulaire qui atteint le journal : un code d'échec du stockage
- * plutôt qu'une `Error` du SDK.
- *
- * L'invariant d'ADR-0014 — « `deleteImages` ne rejette jamais » — porte sur
- * l'effet du Catalogue, pas sur cet appel R2, et reste vrai : le refus est
- * journalisé comme l'était l'exception, et l'effet reste sous la garde
- * externe qui empêche même une spy injectée de jeter.
- */
 async function supprimerImageParUrl(
   publicUrl: string,
   dansEspaceDeNoms: (key: string) => boolean

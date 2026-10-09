@@ -4,8 +4,6 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-// Les quatre avis de la série couvrent chacun une plage différente, dont une
-// qui monte jusqu'à 10.7.0 : le plancher commun est le premier 10.7.1.
 const IP_ADDRESS_PATCH_FLOOR = "10.7.1"
 
 function releaseParts(version: string): number[] {

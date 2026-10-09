@@ -7,7 +7,6 @@ import {
   runOrderedEffects,
 } from "@/lib/use-cases/mutation-squelette"
 
-/** Un bundle d'effets factice : la suite ne monte aucune entité. */
 type FauxEffets = {
   notifier(): Promise<void>
   reindexer(): void
@@ -28,8 +27,6 @@ describe("la frontière best-effort", () => {
           throw panne
         })
       ).resolves.toBeUndefined()
-      // Un effet synchrone qui jette franchit la même frontière : la copie
-      // d'orders.ts s'était rétrécie à `() => void`.
       await expect(
         runEffect("invalidation non effectuée", () => {
           throw panne

@@ -9,11 +9,6 @@ import {
   type PortMutationsDuPanier,
 } from "./use-mutations-du-panier"
 
-/**
- * Le Produit lié d'un Article de blog : la Carte produit partagée, plus
- * l'ajout au panier que cette seule surface porte — son bouton, son accusé et
- * son Refus passent à `CarteProduit` par la place d'action.
- */
 export function ProduitLieCarte({
   product,
   port,

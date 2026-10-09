@@ -9,17 +9,6 @@ import {
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
-/**
- * La Carte produit rendue — le bloc que partagent ses quatre surfaces :
- * l'accueil, la catégorie, la page Produit et le Produit lié (page Produit et
- * Article de blog). Aucune directive : le composant sert les pages serveur
- * comme le Produit lié, qui est client.
- *
- * `action` est la place de la chrome propre à une surface, rendue après le
- * lien dans l'enveloppe `flex flex-col gap-2`. Sans action, le lien reste la
- * racine du rendu : les trois surfaces sans ajout au panier gardent donc leur
- * balisage d'origine, et le lien demeure l'élément de la grille.
- */
 export function CarteProduit({
   product,
   action,

@@ -60,9 +60,6 @@ export function ImageGalleryUpload({
     setUploading(true)
     try {
       const uploaded: EntreeImageProduitFormulaire[] = []
-      // La limite porte sur la galerie *soumise*, donc une Image produit dont
-      // la suppression est en attente libère sa place : l'éditeur peut
-      // remplacer une image qu'il vient de retirer.
       const placesRestants = Math.max(
         0,
         MAX_FILES - images.filter(imageEstActive).length
@@ -342,10 +339,7 @@ export function ImageGalleryUpload({
         className="hidden"
         onChange={(event) => handleFiles(event.target.files)}
       />
-      {/* La limite porte sur la galerie soumise, donc sur les entrées
-          actives : une suppression en attente libère une place, et c'est le
-          bouton qui doit la rendre utilisable (`placesRestants` reste la borne
-          dure à l'envoi). */}
+      {}
       <Button
         type="button"
         variant="outline"

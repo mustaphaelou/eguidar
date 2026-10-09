@@ -82,11 +82,6 @@ const QUOTE_CASA: ShippingQuote = {
   total: 102500,
 }
 
-/**
- * Fixture minimale : un Devis chargé déjà résolu, jamais re-dérivé ici —
- * les faits du formulaire uniquement, la re-sélection vit dans
- * `lib/use-cases/devis-selection.test.tsx`.
- */
 function devisPourTest({
   selection,
   quotes,

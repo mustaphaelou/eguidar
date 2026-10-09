@@ -22,11 +22,6 @@ const categorieId = randomUUID()
 const categorieSlug = `cat-registre-contrat-${categorieId.slice(0, 8)}`
 const produits: [string, string] = [randomUUID(), randomUUID()]
 
-/**
- * Le registre durable, construit sur l'horloge que le contrat lui passe : les
- * deux adaptateurs jouent le même scénario au même instant, sans quoi
- * l'accord porterait sur autre chose.
- */
 const registreDurable: AdaptateurRegistre = (horloge: Horloge) =>
   creerRegistreBrouillonImageProduitPrisma(horloge)
 
@@ -81,9 +76,6 @@ describe("registre des Brouillons d'Image produit — contrat des deux adaptateu
   })
 
   beforeEach(async () => {
-    // Chaque rejeu écrit un Brouillon neuf, avec un identifiant neuf : le
-    // registre durable a une clé primaire, et un rejeu ne doit pas voir la
-    // ligne du précédent.
     await prisma.brouillonImageProduit.deleteMany({
       where: { ownerId: proprietaire },
     })
@@ -111,12 +103,6 @@ describe("registre des Brouillons d'Image produit — contrat des deux adaptateu
   }
 
   it("le contrat atteint tous les refus que le port sait exprimer", async () => {
-    // Témoin de non-vacuité : un contrat où les deux adaptateurs refuseraient
-    // la même chose, ou ne refuseraient jamais, passerait aussi facilement
-    // qu'un contrat juste. Le port déclare `CodeRefusRegistreBrouillon` ; on
-    // vérifie que le contrat le couvre entier, et la liste attendue est un
-    // `Record` de ce code — `tsc` refuse donc déjà qu'un code y manque, avant
-    // même que cette suite le cherche dans les observations.
     const atteints: string[] = []
     for (const scenario of SCENARIOS_REGISTRE) {
       const [observation] = await exigerEnteteRegistre(
@@ -133,10 +119,6 @@ describe("registre des Brouillons d'Image produit — contrat des deux adaptateu
   })
 
   it("le contrat aperçoit une divergence que deux suites d'adaptateur laisseraient passer", async () => {
-    // Un adaptateur qui répond `true` à une libération dont la rétention est
-    // dépassée, sans laisser de trace : c'est la divergence du ticket. On la
-    // fabrique le temps du cas, on ne la commite pas — le contrat doit la voir
-    // échouer, sinon il ne prouve rien.
     const faux: AdaptateurRegistre = (horloge) => ({
       ...creerRegistreImageProduitMemoire(() => horloge.maintenant()),
       async marquerLibere() {

@@ -168,11 +168,6 @@ describe("ProductForm", () => {
   })
 
   it("porte la même identité de tentative d'une soumission à l'autre", async () => {
-    // Le transport ne fabrique plus d'identité : une soumission sans elle est
-    // refusée par le refus que le cycle de vie des Images produit définit
-    // déjà. Le formulaire de l'Administration est donc tenu de la rendre, et de
-    // la garder d'un essai à l'autre — c'est ce qui fait d'un second essai la
-    // même tentative, et d'un Brouillon téléversé un Brouillon revendicable.
     const soumissions: { tentativeId: string; images: unknown }[] = []
     const action = vi.fn(
       async (
@@ -206,8 +201,6 @@ describe("ProductForm", () => {
       })
     }
 
-    // Un refus suivi d'un nouvel essai : c'est le cas où l'identité pourrait
-    // être refabriquée si elle était tirée à chaque rendu.
     expect(action).toHaveBeenCalledTimes(2)
     expect(container.textContent).toContain("Refus de validation")
     expect(soumissions).toEqual([

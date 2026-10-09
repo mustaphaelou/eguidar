@@ -169,8 +169,6 @@ function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
   return result.data
 }
 
-// Ligne telle qu'elle est stockée : le Total à payer est un fait de la
-// Commande, jamais re-dérivé de `total + shippingFee` au moment de la lire.
 type OrderWithItems = {
   id: string
   cityName: string
@@ -254,14 +252,6 @@ async function restockerArticles(
   }
 }
 
-/**
- * Le Total à payer de la Commande, tel qu'il naît à sa création.
- *
- * Non exportée : l'arithmétique du Total à payer appartient à l'acte de naissance
- * de la Commande et à rien d'autre. Partagée, elle redevenait une règle que tout
- * site d'affichage pouvait importer — c'est par là que quatre lectures
- * re-dérivaient `total + shippingFee` au lieu de lire le fait persisté.
- */
 function totalAPayerDeLaCommande(montants: {
   total: number
   shippingFee: number

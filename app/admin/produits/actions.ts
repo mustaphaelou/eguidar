@@ -25,37 +25,16 @@ interface ProductUpdateInput extends SoumissionFormulaireProduit {
   productId: string
 }
 
-/**
- * Le résultat d'une opération déjà écrite : les Brouillons sont liés au
- * Produit, donc le commit Catalogue existe — on relit le Produit au lieu de
- * le créer ou le modifier une seconde fois. La relecture ne rend rien : elle
- * échoue si le commit est introuvable, et c'est de là que vient le refus que
- * l'éditeur voit alors.
- */
 const resultatDejaPersiste = async (productId: string) => {
   const product = await getAdminProduct(productId)
   if (!product) throw new Error("Produit enregistré introuvable")
 }
 
-/**
- * Créer un Produit. La lecture de la soumission est celle du module neutre du
- * formulaire, seul propriétaire du format : cette action ne tient aucun
- * mapping de champ, elle passe le `FormData` et transmet ce qu'il rend.
- */
 export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
   {
     next: "/admin/produits",
     parse: soumissionDepuisFormData,
     run: async ({ champsCatalogue, images, tentativeId }, client) => {
-      // Une galerie sans Brouillon passe ici aussi : c'est le même chemin, et
-      // rien ici n'a à savoir s'il y en a un. Le sous-ensemble promu est alors
-      // vide, et c'est la règle du Catalogue, appliquée une seule fois dans
-      // `createProduct`, qui décide si ces URL peuvent être écrites ; l'éditeur
-      // reçoit son refus s'il y a lieu.
-      //
-      // L'enregistrement ne rend que l'identifiant du Produit qu'il vient
-      // d'écrire : le cycle de vie ne lit rien d'autre, donc il n'a rien
-      // d'autre à recevoir. La rangée reste à la mutation qui l'a lue.
       const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
         tentativeId,
         ownerId: client.id,
@@ -77,14 +56,6 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
   }
 )
 
-/**
- * Mettre à jour un Produit. Même lecture de la soumission, plus
- * l'identification : le `productId` caché est résolu ici, par l'aide
- * d'identifiant requis du mécanisme partagé de mutation, parce que c'est
- * cette action — et elle seule — qui sait qu'elle édite un Produit existant.
- * Le module neutre du formulaire n'apprend donc pas quelles actions ont
- * besoin d'un identifiant.
- */
 export const updateProductAction = adminFormAction<ProductUpdateInput>({
   next: "/admin/produits",
   parse: (formData) => {
@@ -94,15 +65,6 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
     }
   },
   run: async ({ productId, champsCatalogue, images, tentativeId }, client) => {
-    // Aucune lecture ni vérification d'image ici : la propriété d'une Image
-    // produit persistée est l'invariant du Catalogue, appliqué une seule fois
-    // dans `updateProduct`, qui refuse une URL glissée même accompagnée d'une
-    // revendication valide. Une galerie sans Brouillon n'a rien de spécial,
-    // donc elle ne court-circuite plus.
-    //
-    // Ici une mise à jour, là une création : le cycle de vie n'en sait rien et
-    // n'a pas à le savoir. La relecture d'un commit déjà durable est celle de
-    // l'action de création, écrite une seule fois.
     const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
       tentativeId,
       ownerId: client.id,

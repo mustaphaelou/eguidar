@@ -17,23 +17,9 @@ import { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
 
-/**
- * Colonnes `images` et `specs` stockées hors de leur forme : une galerie
- * qui n'est pas un tableau, des spécifications qui ne sont pas une série
- * d'entrées. Les deux fixtures sont partagées par tous les tests qui
- * épinglent une colonne malformée — la lecture d'édition d'un Produit les
- * reprend telles quelles.
- */
 const GALERIE_HORS_FORME = { url: "https://cdn.example.com/pas-un-tableau.jpg" }
 const SPECS_HORS_FORME = "Écran : 6 pouces"
 
-/**
- * Des spécifications **à moitié crédibles** : une vraie série d'entrées dont
- * une seule valeur n'est pas une chaîne. Ce n'est pas une colonne hors de sa
- * forme — c'est une forme que le Catalogue n'écrit pas —, donc une rangée
- * latente. Elle est partagée avec la suite de la Boutique, où la même fixture
- * épingle le même verdict de l'autre côté de la couture.
- */
 const SPECS_A_MOITIE_CREDIBLES = { Écran: "6", Poids: 200 }
 
 interface RecetteProduit {
@@ -42,8 +28,6 @@ interface RecetteProduit {
   price?: number
   isFeatured?: boolean
   freeShipping?: boolean
-  /** Les colonnes JSON telles qu'elles sont stockées : cette suite écrit
-   * volontairement des valeurs hors de leur forme, que la mutation refuse. */
   images?: Prisma.InputJsonValue
   specs?: Prisma.InputJsonValue
   variants?: { name: string; stock: number; priceDelta?: number }[]
@@ -51,8 +35,6 @@ interface RecetteProduit {
 
 let categoryId: string
 
-/** Un Produit écrit directement en base : la suite épingle la lecture, pas
- * la mutation, et une colonne malformée n'est pas écrivable par elle. */
 function creerProduit(suffix: string, recette: RecetteProduit = {}) {
   const variantes = recette.variants ?? [{ name: "Standard", stock: 5 }]
   return prisma.product.create({
@@ -85,8 +67,6 @@ async function faitProduit(id: string) {
   return (await listAdminProducts()).find((produit) => produit.id === id)
 }
 
-// Les trois lectures partagent la même recette : une catégorie, et des
-// Produits que la suite écrit puis efface entre chaque épinglage.
 beforeAll(async () => {
   const categorie = await prisma.category.create({
     data: {
@@ -143,8 +123,6 @@ describe("liste des Produits de l'Administration", () => {
   it("liste les Produits du plus récemment modifié au plus ancien", async () => {
     const ancien = await creerProduit("ordre-1")
     const recent = await creerProduit("ordre-2")
-    // Seule une écriture change la date de mise à jour : sans elle, les deux
-    // créations se suivent et l'ordre ne prouverait rien du tri.
     await prisma.product.update({
       where: { id: ancien.id },
       data: { name: "Touche" },
@@ -205,14 +183,10 @@ describe("liste des Produits de l'Administration", () => {
 
     const fait = await faitProduit(produit.id)
 
-    // Le Produit reste listé : une colonne abimée ne fait pas tomber l'écran.
     expect(fait).toBeDefined()
     expect(fait?.image).toBeNull()
     expect(fait?.name).toBe("Produit aux colonnes abimées")
     expect(fait?.totalStock).toBe(5)
-    // La lecture de liste ne répond qu'une vignette, et ne porte donc pas les
-    // spécifications : le même verdict sur les deux colonnes est éprouvé par
-    // l'interface de la lecture d'édition, plus bas, sur ces mêmes fixtures.
   })
 })
 
@@ -276,10 +250,6 @@ describe("édition d'un Produit de l'Administration", () => {
       specs: SPECS_HORS_FORME,
     })
 
-    // Un éditeur voit un formulaire complet, dont deux champs vides : les
-    // faits complets du formulaire, moins ce que les colonnes ne savent pas
-    // dire. Le même verdict que porte la lecture de liste, sur les mêmes
-    // fixtures — et non un éditeur cassé.
     expect(await getAdminProduct(produit.id)).toEqual({
       id: produit.id,
       name: "Produit de recette",
@@ -306,12 +276,6 @@ describe("édition d'un Produit de l'Administration", () => {
   })
 
   it("ouvre un Produit dont les spécifications stockées ne sont qu'à moitié crédibles avec un champ vide", async () => {
-    // Le même verdict que pour une colonne entièrement hors de forme, et pour
-    // la même raison : une seule valeur illisible disqualifie tout
-    // l'enregistrement (ADR-0026). Le champ s'ouvre donc **vide**, pas à moitié
-    // rempli — un filtre par entrée donnerait ici un champ à moitié rempli, et
-    // l'éditeur enregistrerait une fiche amputée. La même fixture, prise de
-    // l'autre côté de la couture, épingle le verdict côté Boutique.
     const produit = await creerProduit("edition-specs-a-moitie", {
       specs: SPECS_A_MOITIE_CREDIBLES,
     })
@@ -319,8 +283,6 @@ describe("édition d'un Produit de l'Administration", () => {
     const faits = await getAdminProduct(produit.id)
 
     expect(faits?.specs).toEqual({})
-    // Le reste du formulaire est complet : une spécification illisible n'a pas
-    // ôté le Produit à l'éditeur, seulement une ligne à la fiche.
     expect(faits).toMatchObject({
       name: "Produit de recette",
       slug: slug("edition-specs-a-moitie"),
@@ -342,9 +304,6 @@ describe("édition d'un Produit de l'Administration", () => {
   })
 })
 
-// Le Produit sans Structure (ADR-0029). L'Administration est le seul endroit
-// où un éditeur peut **retrouver** un Produit sans Structure : sans cette ligne,
-// il disparaît de la liste et plus personne ne sait qu'il se vend encore.
 describe("un Produit sans Structure reste lisible par l'Administration", () => {
   it("porte le libellé de la valeur réservée dans la liste des Produits", async () => {
     const orphelin = await prisma.product.create({
@@ -362,16 +321,10 @@ describe("un Produit sans Structure reste lisible par l'Administration", () => {
 
     const fait = await faitProduit(orphelin.id)
 
-    // Le même libellé que la puce de la Recherche : deux libellés pour un seul
-    // fait finiraient par diverger.
     expect(fait?.categoryName).toBe(LIBELLE_SANS_STRUCTURE)
   })
 
   it("s'ouvre dans le formulaire, mais ne s'enregistre pas tant qu'aucune Structure n'est choisie", async () => {
-    // Le formulaire **peut** afficher un orphelin — sans quoi il serait
-    // illisible — et il ne peut pas l'enregistrer. L'épreuve passe par la
-    // mutation plutôt que par son schema : ce qui doit être prouvé est le
-    // comportement du serveur, pas la forme d'un objet interne.
     const orphelin = await prisma.product.create({
       data: {
         name: "Produit sans Structure",
@@ -388,9 +341,6 @@ describe("un Produit sans Structure reste lisible par l'Administration", () => {
     const faits = await getAdminProduct(orphelin.id)
     expect(faits?.categoryId).toBeNull()
 
-    // Les faits du formulaire sont l'entrée de la mutation à la galerie près :
-    // le formulaire manipule des Images produit, la mutation des URL. Ce
-    // Produit n'a pas de brouillon, donc la conversion est un `url`.
     const entree = {
       ...faits!,
       images: faits!.images.map((image) =>
@@ -398,20 +348,14 @@ describe("un Produit sans Structure reste lisible par l'Administration", () => {
       ),
     }
 
-    // Ce que le formulaire soumet quand le sélecteur est vide : une chaîne
-    // vide. Elle est refusée, et le refus est rendu à l'éditeur.
     await expect(
       updateProduct(orphelin.id, { ...entree, price: 120000, categoryId: "" })
     ).rejects.toThrow("catégorie requise")
 
-    // Rien n'a été écrit : le prix d'avant est intact.
     await expect(
       prisma.product.findUnique({ where: { id: orphelin.id } })
     ).resolves.toMatchObject({ price: 100000, categoryId: null })
 
-    // Et **une seule** édition vaut réaffectation : choisir une Structure en
-    // même temps qu'on corrige le prix suffit à remettre le Produit dans le
-    // Catalogue, sans mutation séparée.
     await updateProduct(orphelin.id, {
       ...entree,
       price: 120000,
@@ -423,16 +367,6 @@ describe("un Produit sans Structure reste lisible par l'Administration", () => {
   })
 })
 
-/**
- * Le sélecteur de Structure des deux formulaires Produit. La lecture est celle
- * de la Lecture de la Structure depuis #568, mais **c'est ici** qu'elle se
- * prouve : c'est la seule suite qui traverse la porte de lecture, donc la seule
- * qui puisse dire ce que reçoit un formulaire quand la table est réelle. La
- * projection pure a sa porte et ses épreuves dans
- * `lib/use-cases/lecture-structure.test.ts` — l'ordre, la forme étroite, le sort
- * d'une Structure corrompue s'y prouvent sans base, et les y prouver une
- * deuxième fois ici n'aurait laissé qu'une assertion de plus à maintenir.
- */
 describe("le sélecteur de Structure des formulaires Produit", () => {
   it("répond exactement l'identifiant et le nom, rien d'autre", async () => {
     const categories = await lireOptionsSelecteur()
@@ -440,35 +374,20 @@ describe("le sélecteur de Structure des formulaires Produit", () => {
     expect(categories.find((categorie) => categorie.id === categoryId)).toEqual(
       { id: categoryId, name: "Catégorie Test lecture" }
     )
-    // Le sélecteur ne reçoit rien d'autre : un fait de plus ferait échouer
-    // cette épinglage, catégorie par catégorie. Ni les compteurs ni le nom de la
-    // parente que la liste d'Administration rend, et que le module lit
-    // pourtant : c'est la projection qui décide ce qu'elle rend, pas la lecture
-    // qui décide ce qu'elle a lu (#568).
     for (const categorie of categories) {
       expect(Object.keys(categorie).sort()).toEqual(["id", "name"])
     }
   })
 
   it("porte une Structure créée dans l'Administration dès la lecture suivante", async () => {
-    // **La première lecture passe avant la création**, et c'est l'ordre des deux
-    // qui prouve le fait : dans un même processus, une seconde lecture rend une
-    // table différente de la première. Une valeur gardée d'une exécution à
-    // l'autre — un `"use cache"` sur la porte de lecture du module, un `Map` de
-    // module — ne le pourrait pas, et l'éditeur verrait son propre travail
-    // manquer dans le sélecteur sans qu'aucune erreur ne le dise (US 22).
     const avant = await lireOptionsSelecteur()
 
-    // La création passe par la mutation de l'Administration, pas par une
-    // écriture directe : c'est elle qui invalide le cache de la Structure, donc
-    // c'est elle qu'un sélecteur doit suivre.
     const creee = await createCategory({
       name: "Structure fraîche",
       slug: `categorie-fraiche-${runId}`,
     })
 
     try {
-      // Et la lecture que ferait l'autre formulaire au rendu suivant.
       expect(avant.map((option) => option.id)).not.toContain(creee.id)
       const apres = await lireOptionsSelecteur()
       expect(apres.find((option) => option.id === creee.id)).toEqual({

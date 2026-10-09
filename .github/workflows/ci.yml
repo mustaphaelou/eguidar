@@ -3,8 +3,6 @@ name: CI
 on:
   pull_request:
     branches: [main]
-    # `ready_for_review` so a branch opened as a draft is verified the moment it
-    # becomes reviewable, not only when a later push happens to synchronise it.
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
@@ -66,15 +64,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Le Moteur de recherche a son propre service, pour la même raison que la
-      # base : sans lui, `getMeiliSearch()` rend `null`, les deux suites
-      # `describe.runIf(!!meili)` sont sautées, et la Recherche n'est éprouvée
-      # que contre son moteur en mémoire. Localement `test/setup.ts` charge
-      # `.env`, donc le moteur y tourne déjà — l'absence de service était un
-      # écart entre développement et CI, pas une économie.
-      # La version est celle de `docker-compose.yml`, et le `health-cmd` aussi :
-      # une donnée plus récente ne lit pas le répertoire de données existant
-      # (ADR-0023, decision du versionnage).
       meilisearch:
         image: getmeili/meilisearch:v1.52
         env:
@@ -98,9 +87,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-        # `github.token` is not exported into a step: without it the ruleset
-        # assertion skips in CI. Not a secret — minted per run, dies with the
-        # job — and `permissions:` stands, `metadata` not being settable.
         env:
           GITHUB_TOKEN: ${{ github.token }}
 

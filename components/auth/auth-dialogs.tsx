@@ -177,11 +177,6 @@ export function useAuthDialogDestination(): string | null {
   return parseAuthParams(searchParams).next
 }
 
-/**
- * L'adresse de la page courante sans le Lien de connexion : la seule lecture
- * du Lien de connexion hors contrôleur (destination par défaut et callback de
- * la Connexion sociale), pour que `?open`/`?next` n'aient qu'un seul sens.
- */
 export function usePageAddressWithoutAuthParams(): string {
   const searchParams = useSearchParams()
   return pageAddressWithoutAuthParams(searchParams)
@@ -203,8 +198,6 @@ function AuthUrlCleaner() {
   useEffect(() => {
     if (!internals) return
     if (!internals.sessionReady) return
-    // Un `?next` sans `?open` est un Lien de connexion interrompu : plus rien
-    // n'ouvre la modale, il ne ferait que détourner la prochaine Connexion.
     if (open === null && next === null) return
     if (open !== null && modalAllowed(open, dialog, internals)) return
     internals.cleanAuthParams()

@@ -45,9 +45,6 @@ export function CheckoutForm({
     placeOrderAction,
     initialState
   )
-  // Le récapitulatif re-chiffre instantanément au changement de ville via
-  // la porte d'entrée cliente du Devis — champs du formulaire + soumission
-  // ici, jamais les ingrédients bruts.
   const { villes, rows, choisir, villeId } = useDevisSelection(devis)
   const selectedCityId = villeId ?? ""
   const optionsVilles = cityOptions(villes)

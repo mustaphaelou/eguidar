@@ -10,11 +10,6 @@ import { DUREE_VIE_URL_ENVOI_PRESIGNEE_S } from "@/lib/r2"
 const HEURES_PAR_JOUR = 24
 const CLE_RETENTION = "RETENTION_BROUILLON_IMAGE_PRODUIT_H"
 
-/**
- * Une rétention configurée, puis la rétention effective que l'application en
- * déduit. `undefined`unset, les autres cas couvrent le repli sur la valeur
- * initiale et une configuration normale.
- */
 const RETENTIONS_CONFIGUREES = [
   {
     configuree: undefined,
@@ -61,17 +56,10 @@ describe("rétention d'un Brouillon d'Image produit", () => {
   })
 
   it("porte dans la règle R2 la rétention configurée, jamais la valeur initiale", () => {
-    // La règle de cycle de vie R2 est le seul mécanisme d'expiration hors
-    // bande : si elle expiré plus tôt que la rétention que l'application
-    // applique, la promotion d'un Brouillon encore revendicable échouerait et
-    // l'enregistrement de l'éditeur cass.
     for (const { configuree, effective } of RETENTIONS_CONFIGUREES) {
       configurerRetention(configuree)
       const jours = joursDeLaRegle()
 
-      // R2 n'exprime l'expiration qu'en jours entiers : on arrondit au jour
-      // supérieur, sinon la règle supprimerait un fichier que l'application
-      // considère encore revendicable.
       expect(jours * HEURES_PAR_JOUR, configuree).toBeGreaterThanOrEqual(
         effective
       )
@@ -82,9 +70,6 @@ describe("rétention d'un Brouillon d'Image produit", () => {
   })
 
   it("reste strictement plus longue que la durée de vie d'une URL d'envoi", () => {
-    // La raison d'être de la rétention : réessayer un enregistrement échoué sans
-    // téléverser à nouveau l'image. Elle tient donc tant qu'elle survit à la
-    // seule URL d'envoi que l'éditeur a.
     for (const { configuree, effective } of RETENTIONS_CONFIGUREES) {
       expect(effective * 60 * 60, configuree).toBeGreaterThan(
         DUREE_VIE_URL_ENVOI_PRESIGNEE_S

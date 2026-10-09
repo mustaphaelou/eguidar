@@ -10,12 +10,6 @@ import {
   vi,
 } from "vitest"
 
-/**
- * L'effet d'image par défaut de la Structure, éprouvé sans court-circuiter
- * l'adaptateur R2 : c'est le seul moyen de voir qu'une image de catégorie
- * n'est réellement jamais supprimée si la garde d'espace de noms du stockage des
- * Images produit lui est appliquée. Seul le client S3 est remplacé.
- */
 const { sendMock, deleteCommandInputs } = vi.hoisted(() => ({
   sendMock: vi.fn(),
   deleteCommandInputs: [] as unknown[],
@@ -121,9 +115,6 @@ describe("effet d'image par défaut de la Structure", () => {
       })
     )
 
-    // L'URL de la catégorie n'est pas sous `products/` : l'appliquer une garde
-    // d'espace de noms de produit la refusait en silence, et l'objet restait
-    // dans le bucket pour toujours.
     expect(clesSupprimees()).toEqual(["categories/2026/vintage.jpg"])
   })
 
@@ -168,9 +159,6 @@ describe("effet d'image par défaut de la Structure", () => {
   })
 
   it("journalise une panne R2 sans faire échouer la mutation de Structure", async () => {
-    // Le port répond désormais au lieu de lever, donc le journal porte le refus
-    // du stockage plutôt qu'une `Error` du SDK. La panne reste une ligne
-    // journalisée, et la mutation reste engagée.
     sendMock.mockRejectedValueOnce(new Error("secret AWS failure"))
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
     const image = `${BASE_PUBLIQUE}/categories/2026/panne.jpg`

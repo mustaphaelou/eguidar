@@ -60,7 +60,6 @@ function commeVisiteur() {
   sessionCouranteMock.mockResolvedValue(null)
 }
 
-/** Vide le Panier courant via l'interface publique uniquement. */
 async function viderPanierCourant(): Promise<void> {
   const panier = await lirePanier()
   for (const ligne of panier.lines) {
@@ -162,22 +161,17 @@ beforeAll(async () => {
 beforeEach(async () => {
   resetCookieStoreMock()
   sessionCouranteMock.mockReset()
-  // Isolation via l'interface : aucun accès direct aux tables du Panier.
-  // Le reset vide le Panier du Visiteur ; les Paniers persistés sont vidés
-  // via l'interface.
   commeClient(userIdA)
   await viderPanierCourant()
   commeClient(userIdB)
   await viderPanierCourant()
   sessionCouranteMock.mockReset()
-  // Teardown des Commandes de l'intake (pas une assertion).
   await prisma.orderItem.deleteMany({
     where: { order: { user: { email: { startsWith: emailPrefix } } } },
   })
   await prisma.order.deleteMany({
     where: { user: { email: { startsWith: emailPrefix } } },
   })
-  // Restaure le stock décrémenté par l'intake (pas une assertion).
   await prisma.productVariant.updateMany({
     where: { sku: { startsWith: `PDI-${runId}-` } },
     data: { stock: 50 },
@@ -653,15 +647,8 @@ describe("Commande — l'intake vide les bonnes lignes", () => {
   })
 })
 
-// Le Produit sans Structure (ADR-0029) est **vendu normalement**. C'est un
-// choix, pas un oubli : ni le Panier ni la Commande ne lisent la Structure, et
-// le rendre invendable demanderait une troisième décision — le refuser à la
-// vente, ou le publier ailleurs. Cette épreuve verrouille ce « normalement »,
-// parce qu'il ne tient à rien : il tient à ce que personne n'a ajouté de garde
-// qui lirait la Structure.
 describe("Commande — un Produit sans Structure se vend normalement", () => {
   it("entre dans le Panier, s'y compte et se commande", async () => {
-    // Écrit comme le fait le produit : `categoryId` nul, sans Structure.
     const sansStructure = await prisma.product.create({
       data: {
         name: "Produit sans Structure",
@@ -708,8 +695,6 @@ describe("Commande — un Produit sans Structure se vend normalement", () => {
       phone: TELEPHONE,
     })
 
-    // La Commande porte le Produit, figé sous son nom : `OrderItem` ne lit
-    // jamais la Structure, et la ligne existe donc même sans elle.
     const commande = await prisma.order.findFirstOrThrow({
       where: { user: { email: { startsWith: emailPrefix } } },
       include: { items: true },

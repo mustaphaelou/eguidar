@@ -14,19 +14,6 @@ const runId = randomUUID()
 
 const TASK_WAIT_TIMEOUT = 60_000
 
-/**
- * Les trois réglages que le Visiteur voit et que rien n'écrivait : la
- * tolérance aux fautes (un mot mal orthographié trouve son Produit), la
- * fenêtre de résultats — au-delà de ce plafond, une page rend zéro document —,
- * et l'ordre puis le plafond des valeurs de facette, qui sont les options de
- * filtre du panneau. Les valeurs sont celles que le moteur a rendues sur l'index
- * `products` avec la v1.52, recopiées ici en littéral.
- *
- * Les reprendre d'une constante exportée par `lib/meili.ts` ferait de cette
- * suite un miroir du code : elle passerait quelle que soit la valeur, et
- * n'épinglerait rien. Une valeur écrite en clair est au contraire un fait que
- * seul le moteur peut contredire.
- */
 const REGLAGES_EPINGLES = [
   {
     nom: "la tolérance aux fautes",
@@ -55,11 +42,6 @@ const REGLAGES_EPINGLES = [
   valeur: unknown
 }[]
 
-/**
- * Ce que le moteur **rapporte** : les valeurs effectives de l'index, défauts
- * du moteur compris. C'est la lecture qui tient la valeur, et la seule qui
- * voie une montée de version de Meilisearch changer un défaut.
- */
 async function reglagesRapportes(
   client: Meilisearch,
   indexUid: string
@@ -67,22 +49,6 @@ async function reglagesRapportes(
   return client.index(indexUid).getSettings()
 }
 
-/**
- * Ce que le moteur a **reçu**.
- *
- * `GET /indexes/<uid>/settings` ne peut pas dire si le dépôt a parlé : sur
- * l'index `products`, `typoTolerance`, `faceting` et `pagination` y revenaient
- * avec leur valeur par défaut alors que rien ne les écrivait — et un index neuf
- * sans le moindre réglage rend `{}`. Une lecture des valeurs effectives est donc
- * verte avant comme après l'écriture, et ne verrait jamais qu'un défaut a
- * changé de valeur.
- *
- * Ce qui dit si le dépôt a parlé est la tâche `settingsUpdate` que le moteur a
- * conservée : son `details` est la charge utile reçue, et elle ne portait que
- * les quatre attributs que `ensureProductsIndex` écrivait. C'est cette lecture
- * qui rend cette suite rouge sur l'index d'aujourd'hui et verte sur celui de
- * demain.
- */
 async function reglagesRecus(
   client: Meilisearch,
   indexUid: string
@@ -107,8 +73,6 @@ describe.runIf(!!meili)("Les réglages de l'index des Produits", () => {
 
   beforeAll(async () => {
     await ensureProductsIndex(client)
-    // `ensureProductsIndex` se contente d'enfiler la tâche ; la lecture des
-    // réglages reçus la veut terminée.
     await reglagesRecus(client, PRODUCTS_INDEX)
   })
 
@@ -127,25 +91,6 @@ describe.runIf(!!meili)("Les réglages de l'index des Produits", () => {
     }
   )
 
-  /**
-   * Le propriétaire n'écrit rien d'autre que ces quatre attributs et ces trois
-   * réglages — la charge utile est lue en entier, pas réglage par réglage.
-   *
-   * #531 affirmait ici l'absence de la stratégie de correspondance, pour que
-   * le jour où quelqu'un l'ajouterait « en passant », la suite dise que c'est
-   * un choix. Elle n'a jamais pu être écrite dans cette charge utile : chez
-   * Meilisearch, la stratégie de correspondance n'est pas un réglage d'index.
-   * Le moteur la refuse — `Unknown field 'matchingStrategy': expected one of
-   * 'displayedAttributes', 'searchableAttributes', …` — et `GET /indexes/<uid>/settings`
-   * ne la rend pas davantage : c'est un paramètre de requête, que le SDK
-   * déclare dans `SearchParams` et nulle part dans `Settings`. Elle s'écrit
-   * donc sur chaque recherche, dans `lib/meili.ts`, et
-   * `lib/meili-correspondance.test.ts` en mesure la conséquence sur un moteur
-   * vivant.
-   *
-   * Cette égalité est plus large que l'absence qu'elle remplace : un réglage
-   * ajouté en passant, quel qu'il soit, la rend rouge.
-   */
   it("le propriétaire n'écrit rien d'autre", async () => {
     const recus = await reglagesRecus(client, PRODUCTS_INDEX)
 
@@ -171,13 +116,6 @@ describe.runIf(!!meili)("Les réglages de l'index des Produits", () => {
     })
   })
 
-  /**
-   * Le contrôle négatif des deux lectures. Un index jetable reçoit des valeurs
-   * que le moteur accepte et qui s'écartent des trois épinglées : les deux
-   * lectures doivent les rendre telles quelles. Sans lui, une lecture qui
-   * rendrait toujours la valeur attendue passerait partout — c'est-à-dire une
-   * suite dont aucune des trois lignes ne pourrait échouer.
-   */
   it(
     "les deux lectures voient la dérive qu'un index jetable fait accepter",
     { timeout: TASK_WAIT_TIMEOUT },
@@ -200,8 +138,6 @@ describe.runIf(!!meili)("Les réglages de l'index des Produits", () => {
         const rapportes = await reglagesRapportes(client, uid)
         expect(rapportes.typoTolerance).toMatchObject({ enabled: false })
         expect(rapportes.pagination).toEqual({ maxTotalHits: 42 })
-        // Le moteur complète ce qu'un index neuf laisse à son défaut : le
-        // plafond écrit ne fait pas disparaître l'ordre qu'il n'a pas reçu.
         expect(rapportes.faceting).toEqual({
           maxValuesPerFacet: 3,
           sortFacetValuesBy: { "*": "alpha" },

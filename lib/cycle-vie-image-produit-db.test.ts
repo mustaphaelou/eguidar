@@ -105,13 +105,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
     }
   }
 
-  /**
-   * L'enregistrement du Catalogue tel que l'appelant l'écrit désormais : la
-   * revendication est reçue, forwarded telle quelle, et la galerie portée est
-   * celle qu'elle a rendue. L'URL de promotion, elle, n'est plus connue de
-   * l'appelant — il ne l'a pas demandée. Il ne rend que l'identifiant du
-   * Produit écrit : la rangée se relit dans la base, comme partout ailleurs.
-   */
   async function enregistrerProduit(revendication: RevendicationImagesProduit) {
     const product = await createProduct(
       makeInput([...revendication.galerie]),
@@ -124,7 +117,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
     return { productId: product.id }
   }
 
-  /** La galerie d'un seul Brouillon, telle que le formulaire la soumet. */
   function galerie(
     ...entrees: { draftId: string; previewUrl: string }[]
   ): EntreeImageProduit[] {
@@ -135,12 +127,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
     }))
   }
 
-  /**
-   * La même galerie, sans un seul Brouillon : une ou plusieurs Images produit
-   * déjà persistées, telles que le formulaire les soumet. Une galerie de cette
-   * forme prend le même chemin que la précédente — c'est ce que prouve la suite
-   * à sa création, et ce que l'action ne court-circuite plus.
-   */
   function galerieDePersistees(...urls: string[]): EntreeImageProduit[] {
     return urls.map((url) => ({ kind: "persistee", url }))
   }
@@ -339,8 +325,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
       tentativeId: "tentative-produit-a",
       ownerId,
       galerie: galerie(demande),
-      // La relecture ne rend rien : elle échoue si le commit est introuvable,
-      // et c'est tout ce qu'elle a à prouver.
       resultatDejaPersiste: async (productId) => {
         await prisma.product.findUniqueOrThrow({ where: { id: productId } })
       },
@@ -349,9 +333,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
       },
     })
     expect(retry).toEqual({ ok: true, productId: premier.productId })
-    // La galerie enregistrée se lit dans la rangée, comme partout ailleurs
-    // dans cette suite : c'est la preuve que le retry a résolu le même Produit,
-    // et non un rendu de plus à côté.
     expect(
       await prisma.product.findUniqueOrThrow({
         where: { id: premier.productId },
@@ -467,10 +448,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
   })
 
   it("crée un Produit sans image, puis lui donne des images par une mise à jour", async () => {
-    // Le cas dégénéré d'une création : rien à revendiquer, donc rien à promouvoir,
-    // et le Catalogue écrit un Produit sans image. C'est ce qui permet de créer
-    // un Produit maintenant et de compléter sa galerie ensuite — la même
-    // opération, à deux moments.
     const { cycleVie, stockage } = creerCycleVie()
 
     const creation = await cycleVie.revendiquerEtEnregistrer({
@@ -504,9 +481,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
           cree.id,
           {
             ...makeInput([...revendication.galerie]),
-            // Une mise à jour reprend les Variantes existantes : c'est leur
-            // identifiant qui dit au Catalogue qu'il complète le Produit au lieu
-            // d'en créer une seconde fois.
             variants: cree.variants.map((variant) => ({
               id: variant.id,
               name: variant.name,
@@ -536,13 +510,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
   })
 
   it("refuse une création dont la galerie ne porte que des Images produit persistées", async () => {
-    // Le chemin que la suppression des court-circuits a ouvert : cette galerie
-    // entre dans l'opération, qui n'a rien à revendiquer et donc rien à promouvoir,
-    // puis atteint `createProduct` avec un sous-ensemble promu vide. La règle de
-    // création — une création n'écrit que des Images produit que la même
-    // opération a promues — tranche alors, et c'est elle qui dit non. Ce n'est
-    // plus un message d'action, et un appelant qui assemblerait les arguments
-    // autrement n'y échapperait pas.
     const { cycleVie, stockage } = creerCycleVie()
     const arbitraire = "https://cdn.test/produits/arbitraire.webp"
 
@@ -559,8 +526,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
       message:
         "Données invalides : une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit",
     })
-    // Rien n'a été écrit, et rien n'a été promu ni nettoyé : le refus vient de la
-    // règle du Catalogue, avant toute écriture.
     expect(await prisma.product.count({ where: { slug: productSlug } })).toBe(0)
     expect(stockage.promotions).toEqual([])
     expect(stockage.suppressionsImagesPromues).toEqual([])
@@ -586,8 +551,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
             reindexProducts: async () => {},
             revalidateCatalog: () => {},
           },
-          // La liaison échoue : la transaction Catalogue s'ouvre et se referme
-          // sans que le Brouillon soit lié.
           RevendicationImagesProduit.creer({
             galerie: revendication.galerie,
             promues: revendication.promues,
@@ -613,20 +576,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
   })
 
   it("refuse une rangée dont le type stocké n'est pas un type autorisé", async () => {
-    // La colonne reste une chaîne : le schéma n'a pas bougé, et une rangée
-    // portant un type que le port refuserait peut donc être relue. Une seule
-    // décision la concerne, et elle est prise ici, à la frontière de lecture —
-    // sinon les deux aides de compensation du module propriétaire se trouveraient
-    // à recoudre une chaîne vide pour y dériver une clé, et une suppression
-    // best-effort ne supprimerait rien en rapportant un succès.
-    //
-    // Les trois chemins qui relisent la rangée sont conduits ici, et le refus
-    // que le module en tire se vérifie aux trois : la lecture d'inspection, la
-    // libération, et cette revendication que le commentaire du module nomme
-    // « registre indisponible à la libération comme à la revendication ». Aucun
-    // des deux premiers ne prouve le troisième — une revendication qui
-    // laisserait remonter l'exception brute se lirait exactement comme une
-    // libération qui la traduirait, si l'on ne conduisait que celle-là.
     const draftId = randomUUID()
     await prisma.brouillonImageProduit.create({
       data: {
@@ -640,8 +589,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
     })
     const { cycleVie, stockage } = creerCycleVie()
 
-    // Le refus est dit, et il ne ment sur rien : ni « Brouillon introuvable »
-    // — la rangée est là — ni un succès de suppression.
     await expect(cycleVie.lireBrouillon(draftId)).rejects.toThrow(
       "image/svg+xml"
     )
@@ -652,11 +599,6 @@ describe("registre durable des Brouillons d'Image produit", () => {
     })
     expect(stockage.suppressionsBrouillons).toEqual([])
 
-    // La revendication passe par l'écriture de la comparaison-et-échange avant
-    // de relire : la rangée y devient `revendiqué`, et c'est la relecture
-    // d'après qui bute. Le refus dit bien « registre indisponible » — et non
-    // « Brouillon non vivant », ce que l'état de la rangée ferait croire à
-    // quiconque ne voudrait lire que lui.
     const revendication = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-illisible",
       ownerId,
