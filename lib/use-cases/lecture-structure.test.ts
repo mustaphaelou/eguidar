@@ -10,33 +10,12 @@ import {
   type FaitStructure,
   type NoeudAccueil,
 } from "@/lib/use-cases/lecture-structure"
+import { structure, tousLesNoeuds } from "@/test/lecture-structure-recette"
 import {
   dansLOrdreEprouve,
   exigerLeMemeOrdre,
   eprouverLOrdreDuModule,
 } from "@/test/ordre-structures-recette"
-
-function structure(
-  id: string,
-  name: string,
-  parentId: string | null,
-  produitsDirects = 0
-): FaitStructure {
-  return { id, name, slug: id, image: null, parentId, produitsDirects }
-}
-
-function tousLesNoeuds(noeuds: readonly NoeudAccueil[]): NoeudAccueil[] {
-  const tous: NoeudAccueil[] = []
-  const pile = [...noeuds].reverse()
-  while (pile.length > 0) {
-    const noeud = pile.pop()!
-    tous.push(noeud)
-    for (let rang = noeud.children.length - 1; rang >= 0; rang -= 1) {
-      pile.push(noeud.children[rang]!)
-    }
-  }
-  return tous
-}
 
 function identifiants(noeuds: readonly NoeudAccueil[]): string[] {
   return tousLesNoeuds(noeuds).map((noeud) => noeud.id)

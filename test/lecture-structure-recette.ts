@@ -1,6 +1,33 @@
 import { vi } from "vitest"
 
 import { prisma } from "@/lib/db"
+import type {
+  FaitStructure,
+  NoeudAccueil,
+} from "@/lib/use-cases/lecture-structure"
+
+export function structure(
+  id: string,
+  name: string,
+  parentId: string | null,
+  produitsDirects = 0,
+  image: string | null = null
+): FaitStructure {
+  return { id, name, slug: id, image, parentId, produitsDirects }
+}
+
+export function tousLesNoeuds(noeuds: readonly NoeudAccueil[]): NoeudAccueil[] {
+  const tous: NoeudAccueil[] = []
+  const pile = [...noeuds].reverse()
+  while (pile.length > 0) {
+    const noeud = pile.pop()!
+    tous.push(noeud)
+    for (let rang = noeud.children.length - 1; rang >= 0; rang -= 1) {
+      pile.push(noeud.children[rang]!)
+    }
+  }
+  return tous
+}
 
 function estUneLectureComplete(args: { where?: object } | undefined): boolean {
   if (!args?.where) return true
