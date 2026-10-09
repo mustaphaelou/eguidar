@@ -704,18 +704,21 @@ sens : le site's retiré de
 [`storefront.ts`](../../lib/use-cases/storefront.ts#L137) laisse une raison sans fait, et la garde
 tombe. Une lecture par `Transaction` est vue, et se nomme comme les autres.
 
-**Les raisons sont liées au contenu de leur lecture, non à sa place.** La clé d'une entrée n'est pas
-son rang parmi les lectures de même forme, mais **la déclaration qui la porte** — `createProduct`,
-`assertCategoryParent`, `fetchProductPageData`. Deux raisons échangées entre deux lectures de même
-forme ne peuvent plus l'être en silence : la clé dérive de ce que la source dit, alors qu'un rang
-aurait suivi un déplacement de ligne. La liste est stable sous une édition qui décale les lignes, et
-elle nomme, pour chaque entrée, _laquelle_ des lectures de même forme elle décrit. La suite le prouve
-dans les deux sens : une lecture de même forme plantée dans `assertUniqueCategorySlug` laisse la clé de
-`assertCategoryParent` **inchangée**, et deux lectures de même forme dans une même déclaration rendent
-la clé deux fois, qu'il faut nommer deux fois.
+**Les entrées sont liées à la déclaration qui les porte, non à leur place dans le fichier.** La clé
+d'une entrée n'est pas son rang parmi les lectures de même forme, mais **la déclaration qui la
+porte** — `createProduct`, `assertCategoryParent`, `fetchProductPageData`. Ce que la clé garantit est
+donc que deux lectures de même forme se distinguent par ce qui les appelle, et non par l'ordre où la
+source les écrit : une édition qui décale les lignes laisse la liste intacte, et une lecture de même
+forme déplacée d'une déclaration à l'autre change de clé au lieu de se banaliser dans un rang. La suite
+le prouve dans les deux sens : une lecture de même forme plantée dans `assertUniqueCategorySlug` laisse
+la clé de `assertCategoryParent` **inchangée**, et deux lectures de même forme dans une même
+déclaration rendent la clé deux fois, qu'il faut nommer deux fois.
 
-Une limite subsiste, qu'il faut dire. La déclaration qui porte une lecture est le site de la
-reconnaissance, non sa nature : la clé distingue deux lectures de même forme, elle ne dit pas si l'une
-est légitime. Une raison qui décrit la mauvaise lecture reste donc possible sans que la garde la voie —
-c'est une limite de **justesse**, et non de lisibilité, qu'un travail distinct, qui demanderait à la
+Ce que la clé **ne** garantit pas, et qu'il faut dire avec la même netteté, tient en une phrase
+mesurée : **échanger deux raisons entre deux entrées correctes laisse la garde verte.** Ce n'est pas
+une déduction, c'est un constat — les deux entrées portant sur la même lecture de même forme dans deux
+déclarations distinctes, leur clé ne dépend pas de leur raison. La déclaration qui porte une lecture
+est le site de la reconnaissance, non sa nature : la clé distingue deux lectures, elle ne dit pas si
+l'une est légitime. La limite est donc de **justesse**, et non de lisibilité — elle existait déjà sous
+le rang, qui était plus fragile encore, et elle est celle qu'un travail distinct, qui demanderait à la
 reconnaissance de rendre le sens de la lecture, pourrait lever.
