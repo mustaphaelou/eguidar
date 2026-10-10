@@ -269,8 +269,6 @@ describe("projeterArbreAccueil — sur une Structure déjà cyclique", () => {
     expect(arbre[0]!.productCount).toBe(3)
   })
 
-  // #593 : absente de l'arbre, et non la souche d'un arbre à elle — c'est ce que
-  // dit la marche, qui la range parmi les Structures hors arbre.
   it("efface une Structure dont la parente ne nomme aucune rangée, comme elle efface un cycle", () => {
     const arbre = projeterArbreAccueil([
       structure("racine", "Racine", null, 1),

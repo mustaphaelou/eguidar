@@ -138,24 +138,6 @@ describe("Lecture de la Structure — une porte par écran", () => {
   })
 })
 
-// Cette suite franchit volontairement la couture que le reste du dépôt franchit
-// sans y regarder : elle fait lire la table par la porte de lecture, projette
-// les mêmes rangées par sa porte jumelle pure, et compare les deux sorties. Les
-// portes pures sont éprouvées ailleurs, sur des faits écrits à la main ; les
-// portes de lecture le sont par les pages qui les appellent, contre une vraie
-// base. Chacune des deux familles disait vrai de son côté, et l'accord des deux
-// n'était regardé nulle part — c'est sous ce jeu de faits, une boucle et une
-// parente qui ne nomme aucune rangée, que la divergence s'était logée.
-//
-// La comparaison se rejoue sur deux tables, parce qu'une seule ne prouve pas
-// les deux choses. La table simulée, posée en amont de `lireToutesLesStructures`,
-// peut porter la rangée que la clé étrangère interdit : une parente qui ne
-// nomme rien. La table vraie, plantée puis lue par Prisma, prouve l'autre
-// moitié — que la porte de lecture apporte les mêmes faits que les faits écrits
-// à la main. Une colonne oubliée dans son `select` ferait alors diverger les
-// deux sorties, ce qu'une table simulée ne peut pas voir, puisque les rangées
-// simulées sont celles que la suite écrit.
-
 type RangéeLue = Awaited<ReturnType<typeof prisma.category.findMany>>
 
 type RangeeStructure = Omit<FaitStructure, "produitsDirects"> & {
@@ -176,12 +158,6 @@ const CORROMPUES: FaitStructure[] = [
   structure("enfant-c", "Écran", "racine", 2),
   structure("petit-a", "Petit A", "enfant-a", 7),
   structure("isolee", "Isolée", null, 0),
-  // Une parente qui ne nomme aucune rangée : la marche classe cette Structure
-  // hors arbre, et c'est sous ce fait que le regroupement dupliqué de la Lecture
-  // la promouvait en racine. #585 a supprimé ce regroupement et rendu la marche
-  // seule propriétaire de la topologie : les deux portes s'accordent donc
-  // aujourd'hui, et la Structure reste au jeu de faits pour que l'accord ne
-  // puisse pas se rompre.
   structure("hors-arbre", "Hors arbre", "parente-absente", 5),
   structure("enfant-hors-arbre", "Enfant hors arbre", "hors-arbre", 1),
   structure("boucle-a", "Boucle A", "boucle-b", 2),
@@ -192,9 +168,6 @@ const RANGEES = rangeesDe(CORROMPUES)
 
 const HORS_ARBRE = ["boucle-a", "boucle-b", "enfant-hors-arbre", "hors-arbre"]
 
-// Les questions que les six portes posent, et le fait que chacune va chercher
-// dans la table : un identifiant pour l'écran d'édition et pour le fil
-// d'Ariane, un slug pour la page de catégorie, qui le demande ainsi.
 interface Cibles {
   idEdition: string
   slugCategorie: string
@@ -218,15 +191,6 @@ function parIdentifiant(
   return une.id < autre.id ? -1 : une.id > autre.id ? 1 : 0
 }
 
-// Les cibles de suppression sont rendues rangée par rangée, donc dans l'ordre
-// où les rangées arrivent : une table n'a pas d'ordre, une liste écrite à la
-// main en a un. Les deux portes rendent donc le même contenu dans un ordre
-// différent, et aucune n'a promis l'autre — ADR-0030 fait joindre les cibles à
-// leurs lignes par identifiant, sur la page. La comparaison les range donc
-// comme la page les joint ; c'est le seul réordonnancement qu'elle se permet.
-// Les lignes, elles, rendent l'ordre que le module promet, et se comparent
-// entières. Le seul rétrécissement que cette suite se permet est ici : la porte
-// rend un `EcranAdminStructure`, et rien d'autre ne peut l'alimenter.
 const CIBLES_PAR_IDENTIFIANT: Porte["comparable"] = (issue) => {
   const ecran = issue as EcranAdminStructure
   return { ...ecran, cibles: [...ecran.cibles].sort(parIdentifiant) }
@@ -391,15 +355,6 @@ describe("Lecture de la Structure — la porte de lecture et sa porte jumelle pu
   })
 })
 
-// La seconde moitié de la comparaison : la même confrontation, sur une table
-// que Prisma lit vraiment. La table simulée porte le fait que la clé étrangère
-// interdit — une parente qui ne nomme aucune rangée — mais ses rangées sont
-// celles que la suite écrit, donc elle ne voit pas ce que la porte de lecture
-// oublie de demander à la base. Ici la table est plantée rangée par rangée, et
-// les faits écrits à la main sont recopiés depuis ce que la plantation a rendu :
-// un `select` qui perdrait une colonne rendrait alors la porte de lecture
-// différente de sa jumelle, et l'écart se verrait.
-
 const PREFIXE = `portes-${randomUUID().slice(0, 8)}-`
 
 let base: FaitStructure[]
@@ -443,9 +398,6 @@ beforeAll(async () => {
   })
   await planterUnCycleEnBase(boucle.map((entree) => entree.id))
 
-  // `planterUnCycleEnBase` referme la boucle en base : les rangées qu'elle a
-  // rendues disent encore la parente qu'elles avaient à leur création, et c'est
-  // la boucle refermée qu'il faut écrire ici.
   base = [
     ...Object.values(arbre).map((entree) => faitDe(entree)),
     ...boucle.map((entree, rang) =>
@@ -481,9 +433,6 @@ describe("Lecture de la Structure — la porte de lecture lit la table, et sa po
   })
 
   it("le jeu planté porte bien un cycle, que la marche dégrade et nomme", async () => {
-    // Une marche par porte : chacune journalise le cycle une fois, et non une
-    // fois par surface — c'est ce qu'ADR-0030 tient pour une ligne et non
-    // autant que de surfaces.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
       const { lignes } = await lireEcranAdmin()
@@ -506,13 +455,10 @@ describe("Lecture de la Structure — la porte de lecture lit la table, et sa po
         )
       )
 
-      // L'image plantée est le fait qu'une table simulée ne peut pas prouver :
-      // la porte la rend, donc son `select` la demande à la base.
       expect(
         lignes.find((ligne) => ligne.id === idDeLaRacineImagee)?.image
       ).toBe("/portes-a.png")
 
-      // Deux marches, donc deux lignes : chacune nomme les trois maillons.
       expect(journal).toHaveLength(2)
       for (const ligne of journal) {
         for (const maillon of ["Portes E", "Portes F", "Portes G"]) {
@@ -543,9 +489,6 @@ describe("Lecture de la Structure — la porte de lecture lit la table, et sa po
     try {
       const lu = await enSilence(() => lireEcranAdmin())
 
-      // La porte de lecture rend la rangée que les faits écrits à la main ne
-      // portent pas : sans cela, l'égalité des deux sorties ne prouverait pas
-      // que la porte lit bien cette table.
       expect(lu.lignes.map((ligne) => ligne.id)).toContain(enPlus.id)
       expect(lu.lignes).toHaveLength(base.length + 1)
       expect(CIBLES_PAR_IDENTIFIANT(lu)).not.toEqual(
