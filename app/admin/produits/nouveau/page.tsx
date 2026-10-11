@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { ProductForm } from "@/components/admin/product-form"
-import { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import { createProductAction } from "@/app/admin/produits/actions"
 
 export const metadata: Metadata = {
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 export default async function NewProductPage() {
-  const categories = await lireOptionsSelecteur()
+  const categories = (await lireStructure()).options()
 
   return (
     <div className="flex flex-col gap-4">

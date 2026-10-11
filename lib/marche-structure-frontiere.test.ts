@@ -27,8 +27,6 @@ const SYMBOLES = [
   "enfantsDe",
   "StructureOrdonnee",
   "comparerParNom",
-  "descendanceDe",
-  "complementDe",
   "complementDepuis",
 ] as const
 

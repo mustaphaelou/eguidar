@@ -722,3 +722,164 @@ est le site de la reconnaissance, non sa nature : la clé distingue deux lecture
 l'une est légitime. La limite est donc de **justesse**, et non de lisibilité — elle existait déjà sous
 le rang, qui était plus fragile encore, et elle est celle qu'un travail distinct, qui demanderait à la
 reconnaissance de rendre le sens de la lecture, pourrait lever.
+
+## Amendement — Une seule lecture de la Structure, et des questions qui sont ses faits (#618)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les
+lectures dégradent, une seule marche pour la Structure, une neutralité qui tient. Cet amendement
+consigne une décision prise après que les cinq précédents eurent été écrits, et que ce dépôt
+n'enregistre nulle part ailleurs : **de quoi est fait le module qui possède la lecture, et ce que
+ses noms désignent**.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Comme l'amendement de #564, celui-ci ne réécrit aucune ligne de la décision : il consigne à côté ce
+qui n'est plus vrai. Cinq passages décrivent un état qui n'est plus le leur ; c'est le présent
+amendement qu'il faut y lire :
+
+- la liste de ce qu'une surface demande et la clause « **et une porte peut en rendre plus d'une** »
+  de l'entrée « Lecture de la Structure » du glossaire
+  ([`GLOSSARY.md:160-174`](../../GLOSSARY.md#L160-L174)), avec l'exemple de l'écran de la liste
+  d'Administration qui rend « les lignes d'une part et, dans leur propre forme, les cibles de
+  suppression ». Les deux tombent dans le même temps que le présent amendement : la règle qui les
+  rendait nécessaires — une seule porte par écran — tombe avec la suite qui l'énonçait, et plus rien
+  n'interdit à une surface de demander deux fois. L'entrée est réécrite dans la même passe ;
+- « **deux portes au cœur**, comme [`devis.ts`](../../lib/use-cases/devis.ts) au-dessus de
+  [`devis-coeur.ts`](../../lib/use-cases/devis-coeur.ts) », dans l'[amendement de
+  #564](#amendement--la-lecture-de-la-structure-possède-la-lecture-et-le-client-ne-traverse-plus-la-marche-564).
+  La forme est celle du Devis, dont les deux portes lisent deux choses différentes ; elle n'est plus
+  celle de la Lecture, dont les six portes lisaient la même table. Ce qui reste vrai de la forme,
+  c'est le cœur pur et l'entrée serveur au-dessus — et le nombre de portes au cœur tombe à une ;
+- « les projections de la Lecture qui classent l'importent plutôt que d'écrire le leur — **cinq**
+  sur six », dans le même amendement. Les projections disparaissent : ce qu'elles classaient est
+  devenu des questions d'une valeur, et le comparateur ne traverse plus la couture qu'en **trois**
+  sites du module ;
+- « cette liste est le seul endroit où les trois formes sont énoncées […] et cet endroit est
+  aujourd'hui **unique** », dans l'[amendement de
+  #585](#amendement--la-topologie-de-la-structure-a-un-seul-propriétaire-et-une-structure-hors-arbre-se-rend-une-fois-585).
+  Le cœur énumère toujours `comparerParNom`, `liensDesStructures` et `StructureOrdonnee` dans la
+  liste de sa garde de frontière, et elle reste le seul endroit du dépôt qui les énumère **tous** ;
+  mais la lecture énumère désormais, elle aussi, les noms qu'elle emprunte — `comparerParNom` et
+  `liensDesStructures` parmi eux — pour les comparer par égalité aux imports que sa source déclare.
+  L'unicité ne tient plus ;
+- « **la porte par écran** dans
+  [`lecture-structure-portes.test.ts`](../../lib/use-cases/lecture-structure-portes.test.ts) », le
+  quatrième des quatre sujets que compte l'[amendement de
+  #604](#amendement--une-lecture-de-la-relation-est-une-exception-nommée-et-la-liste-est-la-règle-604).
+  Sa section et sa contre-épreuve sont supprimées, et le seuil n'a plus que **trois** sujets. La
+  propriété qu'elle gardait — une surface, une porte — n'est pas abandonnée : elle est rendue par le
+  compte des lectures complètes, mesuré là où une surface demande.
+
+### La décision : une porte, une valeur, une construction pure
+
+Le module qui possède la lecture rend **une valeur**. `lireStructure()` lit la table une fois, par
+la lecture privée qu'il garde, et rend ce que la construction pure `lectureDesStructures(faits)`
+bâtit sur ces faits. Les trois noms reprennent la forme que le cœur de la Marche possède déjà — une
+valeur bâtie de faits, son constructeur, et une porte au-dessus.
+
+Les **neuf questions** ne portent le nom d'aucun écran : `arbreAccueil()`, `lignesAdmin()`,
+`ciblesSuppression()`, `options()`, `structure(id)`, `structureParSlug(slug)`, `filAriane(id)`,
+`enfants(id)`, `branche(id)`. Le compte monte de six à neuf pendant que l'export tombe de
+vingt-deux noms à cinq : les neuf sont les faits que les six réponses d'écran portaient,
+désagrégés. Une page de plus n'ajoute aucun nom ici, et qui l'écrit demande les questions qu'il rend
+sans reprendre une décision.
+
+Deux des neuf ne sont qu'une clé : `structure` et `structureParSlug` rendent la même fiche, l'un
+par identifiant pour l'éditeur, l'autre par slug pour la boutique — deux noms plutôt qu'une
+signature qui devine. `branche(id)` prend la place des parentes exclues du formulaire d'édition et
+sert la requête des Produits de la page de catégorie : le nom appartient au fait — une Structure et
+sa branche, dans l'ordre du module — et non à la prop du formulaire.
+
+Les trois réponses d'écran **meurent**, et les deux duplications avec elles : les candidates du
+formulaire d'édition n'étaient que les options du sélecteur réécrites quarante lignes plus loin, et
+le fil d'Ariane de la page de catégorie réécrivait celui que la Lecture rend déjà. Elles ne sont pas
+gardées comme commodités : chaque appelant les délie aujourd'hui, et chaque appariement appartient à
+la page qui les joint par identifiant.
+
+Le fil d'Ariane **garde le comportement de la projection pure** : une parente que les faits ne
+nomment pas ne contribue aucun lien. La réponse d'écran affirmait le contraire, et la divergence des
+deux — l'une sautant un identifiant, l'autre l'affirmant — se résout en faveur de la dégradation.
+
+### La réouverture refusée : le comparateur reste sur la couture
+
+« Que la Marche rende l'ordre. » La question est posée, et la réponse est consignée ici pour qu'elle
+ne soit pas reposée : **le comparateur reste sur la couture**, importé et appliqué par le module qui
+possède la lecture, comme l'exige déjà la décision de l'[amendement de #564 sur
+l'ordre](#amendement--une-seule-promesse-dordre-et-elle-est-écrite-dans-le-cœur-564). La marche ne
+gagne pas de question qui rende l'ordre d'un ensemble quelconque d'identifiants : une telle réponse
+serait une seconde promesse d'ordre, écrite hors du cœur, et c'est exactement ce que cet
+amendement-là a fait disparaître. La raison est celle qu'il a déjà donnée — le comparateur est écrit
+une fois, dans le cœur neutre, et le départage par l'identifiant ne demande aucun fait que le module
+n'ait déjà sous la main.
+
+### La construction paresseuse, et l'écart avec l'amendement de #584
+
+Une seule décision s'écarte ici de l'[amendement de
+#584](#amendement--lindex-inverse-est-un-fait-de-la-marche-bâti-une-fois-à-sa-construction-584) :
+l'index y est bâti **à la construction de la marche** ; ici la marche — et les cartes d'identifiant
+et de slug — est bâtie **paresseusement, à la première question qui en a besoin, et au plus une
+fois**.
+
+La raison est un compte : trois des neuf questions — les options, la fiche, la fiche par slug —
+n'ont besoin ni de la marche ni des cartes, et leurs trois surfaces ne paient donc aucune marche
+aujourd'hui. Une construction immédiate leur en ferait payer une. Le « au plus une fois » de
+l'amendement de #584, lui, **tient** : c'est la seule des deux décisions qui soit reprise, et elle
+tient par la même raison qu'alors — une question future ne rebâtit pas ce que la première a bâti.
+
+### Le compte, et le bilan honnête
+
+- les **noms exportés** tombent de vingt-deux à cinq : `lireStructure`, `lectureDesStructures`,
+  `LectureStructure`, `FaitStructure`, `NoeudAccueil`. Les autres formes d'arrêt cessent d'être
+  exportées, et se déduisent là où une garde a besoin d'une forme ;
+- la **liste figée** que les gardes énumèrent tombe de vingt-quatre entrées à dix-huit — et l'une
+  des vingt-quatre était un **fantôme**. La garde de frontière vérifie la présence d'un nom par
+  sous-chaîne ([`lecture-structure-frontiere.test.ts:52-54`](../../lib/use-cases/lecture-structure-frontiere.test.ts#L52-L54)),
+  et `complementDe` était satisfait par le **préfixe** d'un autre nom, celui de l'import
+  `complementDepuis`. L'entrée que la composition supprimée croyait laisser en place était donc
+  gardée par une rencontre de lettres ;
+- les **questions** passent de six à neuf ;
+- les **noms qu'une surface doit apprendre** passent de un à cinq au plus large.
+
+Le compte des lectures ne bouge pas, et la masse des gardes non plus : seules la section de la porte
+par écran et sa contre-épreuve sortent.
+
+### Ce que cet amendement ne change pas
+
+- **Aucune contradiction avec la décision.** Elle fixe la neutralité du cœur, sa synchronie et le
+  fait que le lien de parenté est consommé en mémoire ; elle n'énumère ni les questions d'un module
+  ni les noms qu'un module exporte.
+- **Le cœur garde sa marche, ses trois constructeurs, son comparateur et sa partition**, et son
+  appelant de production reste unique. `complementDe` et `descendanceDe` perdent leur seul
+  appelant : deux compositions sur une marche que personne ne leur passe.
+- **La divergence boutique/mutation tient en entier** : la boutique dégrade, la mutation refuse,
+  `CategoryAncestorCycleError` reste le seul à lever ce refus, et `assertAcyclicCategoryTree` reste
+  lié à sa transaction.
+- **La lecture privée ne bouge pas** : mêmes colonnes, même compte des Produits directs, aucun
+  filtre, et aucune seconde lecture n'apparaît nulle part. L'entrée du seuil qui la nomme garde son
+  nom et sa place.
+- **Les gardes qui doivent passer inchangées** — la frontière, le seuil, la reconnaissance, les deux
+  recettes partagées, les suites de comportement des surfaces — restent des descriptions du même
+  dépôt.
+- **Rien n'est rouvert** : ni plafond de profondeur, ni index absent sur `parentId`, ni la création
+  qui n'appelle toujours pas la marche d'acyclicité. Ni les deux branches défensives de la
+  construction de la marche, ni le schéma, ni la forme de la lecture.
+
+### Ce que l'épreuve montre aujourd'hui
+
+La lecture comptée **garde sa maison dans les suites des surfaces**, et c'est elle qui devient la
+preuve : les assertions d'exactement une lecture complète par rendu valent toujours, et valent
+désormais pour une liste qui demande deux questions et une page qui en demande quatre.
+
+La suite des portes devient **une lecture et neuf comparaisons** sur les mêmes faits, au lieu de six
+paires porte contre jumelle ; elle garde ses deux terrains, la table de substitution et la table
+plantée. La liste figée est comparée **par égalité dans les deux sens, sur ses trois moitiés** — les
+noms empruntés contre les imports que la source déclare, les exports contre `NOMS_EXPORTES`, les neuf
+questions contre les membres que la valeur déclare —, ce qui fait tomber autant un nom sans fait
+qu'un fait sans nom. La suite de comportement ne bouge pas dans sa substance : ses descriptions
+passent des six projections aux neuf questions, ses imports à la construction unique, et pas une
+assertion sur un rendu n'est touchée.
+
+**Un manque nommé.** La construction paresseuse n'est éprouvée par aucune des deux coutures : la
+marche se bâtit **dans** la valeur, et ce dépôt ne simule pas ses propres modules. Ce qui est éprouvé,
+c'est que la lecture a lieu une fois par surface ; que la marche se bâtit **au plus** une fois est
+tenu par le code et énoncé ici, non affirmé par une épreuve.

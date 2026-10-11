@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { CategoryForm } from "@/components/admin/category-form"
-import { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import { createCategoryAction } from "@/app/admin/categories/actions"
 
 export const metadata: Metadata = {
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 export default async function NewCategoryPage() {
-  const candidates = await lireOptionsSelecteur()
+  const candidates = (await lireStructure()).options()
 
   return (
     <div className="flex flex-col gap-4">

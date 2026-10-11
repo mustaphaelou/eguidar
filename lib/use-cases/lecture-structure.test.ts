@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
-  projeterArbreAccueil,
-  projeterEcranAdmin,
-  projeterEcranEdition,
-  projeterFilAriane,
-  projeterOptionsSelecteur,
-  projeterPageCategorie,
+  lectureDesStructures,
   type FaitStructure,
   type NoeudAccueil,
 } from "@/lib/use-cases/lecture-structure"
@@ -30,44 +25,50 @@ const ARBRE_SAIN: FaitStructure[] = [
 ]
 
 eprouverLOrdreDuModule({
-  nom: "projeterArbreAccueil",
+  nom: "arbreAccueil",
   projeter: (faits) =>
-    tousLesNoeuds(projeterArbreAccueil(faits)).map((n) => n.id),
+    tousLesNoeuds(lectureDesStructures(faits).arbreAccueil()).map((n) => n.id),
 })
 
 eprouverLOrdreDuModule({
-  nom: "projeterEcranAdmin — les lignes",
+  nom: "lignesAdmin",
   projeter: (faits) =>
-    projeterEcranAdmin(faits).lignes.map((ligne) => ligne.id),
+    lectureDesStructures(faits)
+      .lignesAdmin()
+      .map((ligne) => ligne.id),
 })
 
 eprouverLOrdreDuModule({
-  nom: "projeterEcranAdmin — les cibles de la boîte de suppression",
+  nom: "ciblesSuppression — les cibles de la boîte de suppression",
   projeter: (faits) =>
-    projeterEcranAdmin(faits).cibles.find((cible) => cible.id === faits[0].id)!
-      .produits,
+    lectureDesStructures(faits)
+      .ciblesSuppression()
+      .find((cible) => cible.id === faits[0].id)!.produits,
 })
 
 eprouverLOrdreDuModule({
-  nom: "projeterOptionsSelecteur",
+  nom: "options",
   projeter: (faits) =>
-    projeterOptionsSelecteur(faits).map((option) => option.id),
+    lectureDesStructures(faits)
+      .options()
+      .map((option) => option.id),
 })
 
 eprouverLOrdreDuModule({
-  nom: "projeterEcranEdition — les candidates",
-  projeter: (faits) =>
-    projeterEcranEdition(faits, faits[0].id)!.candidates.map((c) => c.id),
+  nom: "branche",
+  projeter: (faits) => lectureDesStructures(faits).branche(faits[0].id),
 })
 
 eprouverLOrdreDuModule({
-  nom: "projeterPageCategorie — les sous-catégories",
+  nom: "enfants",
   projeter: (faits) =>
-    projeterPageCategorie(faits, faits[0].slug)!.enfants.map((e) => e.id),
+    lectureDesStructures(faits)
+      .enfants(faits[0].id)
+      .map((enfant) => enfant.id),
 })
 
 describe("l'ordre du module — les rendus s'accordent entre eux", () => {
-  it("l'arbre, les lignes, les cibles, les puces, les options et les candidates rangent les mêmes Structures de la même façon", () => {
+  it("l'arbre, les lignes, les cibles, les puces, les options et la branche rangent les mêmes Structures de la même façon", () => {
     const faits = [
       {
         id: "racine",
@@ -110,42 +111,40 @@ describe("l'ordre du module — les rendus s'accordent entre eux", () => {
         produitsDirects: 0,
       },
     ]
-    const ecran = projeterEcranAdmin(faits)
+    const lecture = lectureDesStructures(faits)
+    const lignes = lecture.lignesAdmin()
+    const cibles = lecture.ciblesSuppression()
 
     exigerLeMemeOrdre([
       {
         nom: "l'arbre d'accueil",
         ids: dansLOrdreEprouve(
-          tousLesNoeuds(projeterArbreAccueil(faits)).map((n) => n.id)
+          tousLesNoeuds(lecture.arbreAccueil()).map((n) => n.id)
         ),
       },
       {
         nom: "les lignes de l'Administration",
-        ids: dansLOrdreEprouve(ecran.lignes.map((l) => l.id)),
+        ids: dansLOrdreEprouve(lignes.map((l) => l.id)),
       },
       {
         nom: "les cibles de la boîte de la racine",
         ids: dansLOrdreEprouve(
-          ecran.cibles.find((cible) => cible.id === "racine")!.produits
+          cibles.find((cible) => cible.id === "racine")!.produits
         ),
       },
       {
         nom: "les puces de la page de catégorie",
         ids: dansLOrdreEprouve(
-          projeterPageCategorie(faits, "racine")!.enfants.map((e) => e.id)
+          lecture.enfants("racine").map((enfant) => enfant.id)
         ),
       },
       {
         nom: "les options du sélecteur",
-        ids: dansLOrdreEprouve(
-          projeterOptionsSelecteur(faits).map((o) => o.id)
-        ),
+        ids: dansLOrdreEprouve(lecture.options().map((o) => o.id)),
       },
       {
-        nom: "les candidates du formulaire d'édition",
-        ids: dansLOrdreEprouve(
-          projeterEcranEdition(faits, "racine")!.candidates.map((c) => c.id)
-        ),
+        nom: "la branche de la racine",
+        ids: dansLOrdreEprouve(lecture.branche("racine")),
       },
     ])
   })
@@ -165,16 +164,18 @@ describe("l'ordre du module — les rendus s'accordent entre eux", () => {
 
     for (const puce of puces) {
       expect(
-        projeterFilAriane(faits, puce.id).map((maillon) => maillon.slug),
+        lectureDesStructures(faits)
+          .filAriane(puce.id)
+          .map((maillon) => maillon.slug),
         `le fil vers « ${puce.id} »`
       ).toEqual([parent, puce.id])
     }
   })
 })
 
-describe("projeterArbreAccueil — sur un arbre sain", () => {
+describe("arbreAccueil — sur un arbre sain", () => {
   it("rend les racines et leurs enfants dans l'ordre que le module promet", () => {
-    const arbre = projeterArbreAccueil(ARBRE_SAIN)
+    const arbre = lectureDesStructures(ARBRE_SAIN).arbreAccueil()
 
     expect(arbre.map((noeud) => noeud.name)).toEqual(["Isolée", "Racine"])
 
@@ -190,7 +191,7 @@ describe("projeterArbreAccueil — sur un arbre sain", () => {
   })
 
   it("compte les Produits de la branche entière, descendance comprise", () => {
-    const arbre = projeterArbreAccueil(ARBRE_SAIN)
+    const arbre = lectureDesStructures(ARBRE_SAIN).arbreAccueil()
     const parId = new Map(
       tousLesNoeuds(arbre).map((noeud) => [noeud.id, noeud])
     )
@@ -203,13 +204,13 @@ describe("projeterArbreAccueil — sur un arbre sain", () => {
   })
 
   it("passe à la page le slug et l'image de la Structure", () => {
-    const arbre = projeterArbreAccueil([
+    const arbre = lectureDesStructures([
       {
         ...structure("racine", "Racine", null, 1),
         slug: "la-racine",
         image: "/racine.png",
       },
-    ])
+    ]).arbreAccueil()
 
     expect(arbre[0]).toMatchObject({
       slug: "la-racine",
@@ -220,7 +221,7 @@ describe("projeterArbreAccueil — sur un arbre sain", () => {
   it("ne journalise rien : le journal garde son sens", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterArbreAccueil(ARBRE_SAIN)
+      lectureDesStructures(ARBRE_SAIN).arbreAccueil()
 
       expect(warn).not.toHaveBeenCalled()
     } finally {
@@ -229,7 +230,7 @@ describe("projeterArbreAccueil — sur un arbre sain", () => {
   })
 })
 
-describe("projeterArbreAccueil — sur une Structure déjà cyclique", () => {
+describe("arbreAccueil — sur une Structure déjà cyclique", () => {
   const CYCLE: FaitStructure[] = [
     structure("racine", "Racine", null, 1),
     structure("enfant", "Enfant", "racine", 2),
@@ -242,7 +243,7 @@ describe("projeterArbreAccueil — sur une Structure déjà cyclique", () => {
   it("efface le cycle, rend le reste, et le journal le nomme une fois", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const arbre = projeterArbreAccueil(CYCLE)
+      const arbre = lectureDesStructures(CYCLE).arbreAccueil()
 
       expect(arbre.map((noeud) => noeud.id)).toEqual(["racine"])
       expect(arbre[0]!.productCount).toBe(3)
@@ -263,18 +264,18 @@ describe("projeterArbreAccueil — sur une Structure déjà cyclique", () => {
   })
 
   it("efface une Structure qu'aucune racine n'atteint, sans la nommer", () => {
-    const arbre = projeterArbreAccueil(CYCLE)
+    const arbre = lectureDesStructures(CYCLE).arbreAccueil()
 
     expect(identifiants(arbre)).not.toContain("amont-1")
     expect(arbre[0]!.productCount).toBe(3)
   })
 
   it("efface une Structure dont la parente ne nomme aucune rangée, comme elle efface un cycle", () => {
-    const arbre = projeterArbreAccueil([
+    const arbre = lectureDesStructures([
       structure("racine", "Racine", null, 1),
       structure("enfant", "Enfant", "racine", 2),
       structure("orpheline", "Orpheline", "absente-des-faits", 4),
-    ])
+    ]).arbreAccueil()
 
     expect(arbre.map((noeud) => noeud.id)).toEqual(["racine"])
     expect(identifiants(arbre)).not.toContain("orpheline")
@@ -282,7 +283,7 @@ describe("projeterArbreAccueil — sur une Structure déjà cyclique", () => {
   })
 })
 
-describe("projeterArbreAccueil — une longueur n'est jamais un refus", () => {
+describe("arbreAccueil — une longueur n'est jamais un refus", () => {
   const PROFONDEUR = 5_000
 
   function chaineAvecUnCycleAuBout(): FaitStructure[] {
@@ -310,7 +311,9 @@ describe("projeterArbreAccueil — une longueur n'est jamais un refus", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
       const debut = Date.now()
-      const arbre = projeterArbreAccueil(chaineAvecUnCycleAuBout())
+      const arbre = lectureDesStructures(
+        chaineAvecUnCycleAuBout()
+      ).arbreAccueil()
       const duree = Date.now() - debut
 
       expect(arbre).toHaveLength(1)
@@ -336,9 +339,68 @@ describe("projeterArbreAccueil — une longueur n'est jamais un refus", () => {
   })
 })
 
-describe("projeterEcranAdmin — les lignes — sur un arbre sain", () => {
+describe("branche — une longueur n'est jamais un refus", () => {
+  const PROFONDEUR = 5_000
+
+  function chaineSousUnCycle(): FaitStructure[] {
+    const chaine: FaitStructure[] = [
+      structure("racine", "Racine", "boucle-a", 1),
+    ]
+    for (let rang = 1; rang < PROFONDEUR; rang += 1) {
+      chaine.push(
+        structure(
+          `c${rang}`,
+          `Maillon ${rang}`,
+          rang === 1 ? "racine" : `c${rang - 1}`,
+          1
+        )
+      )
+    }
+    return [
+      ...chaine,
+      structure("boucle-a", "Boucle A", "boucle-b", 1),
+      structure("boucle-b", "Boucle B", "boucle-a", 1),
+    ]
+  }
+
+  function brancheEnSilence(id: string): { ids: string[]; duree: number } {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const debut = Date.now()
+      const ids = lectureDesStructures(chaineSousUnCycle()).branche(id)
+      return { ids, duree: Date.now() - debut }
+    } finally {
+      warn.mockRestore()
+    }
+  }
+
+  it("descend une chaîne qui mène à un cycle, et s'arrête", () => {
+    const { ids: branche, duree } = brancheEnSilence("racine")
+
+    expect(branche).toHaveLength(PROFONDEUR)
+    expect(branche[0]).toBe("racine")
+    expect(branche).toContain(`c${PROFONDEUR - 1}`)
+    expect(new Set(branche).size).toBe(branche.length)
+
+    expect(duree).toBeLessThan(2_000)
+  })
+
+  it("descend depuis une Structure qu'aucune racine n'atteint, et s'arrête", () => {
+    const { ids: branche, duree } = brancheEnSilence("boucle-a")
+
+    expect(branche).toHaveLength(PROFONDEUR + 2)
+    expect(branche[0]).toBe("boucle-a")
+    expect(branche).toContain("boucle-b")
+    expect(branche).toContain(`c${PROFONDEUR - 1}`)
+    expect(new Set(branche).size).toBe(branche.length)
+
+    expect(duree).toBeLessThan(2_000)
+  })
+})
+
+describe("lignesAdmin — sur un arbre sain", () => {
   it("rend une ligne par Structure, dans l'ordre de la descente", () => {
-    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
+    const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()
 
     expect(lignes.map((ligne) => ligne.id)).toEqual([
       "isolee",
@@ -350,13 +412,13 @@ describe("projeterEcranAdmin — les lignes — sur un arbre sain", () => {
   })
 
   it("donne à chaque ligne sa profondeur dans l'arbre", () => {
-    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
+    const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()
 
     expect(lignes.map((ligne) => ligne.profondeur)).toEqual([0, 0, 1, 2, 1])
   })
 
   it("donne à chaque ligne le lien qui la nomme et le nom de sa parente", () => {
-    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
+    const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()
     const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
 
     expect(parId.get("petit-a")).toMatchObject({
@@ -378,7 +440,7 @@ describe("projeterEcranAdmin — les lignes — sur un arbre sain", () => {
   })
 
   it("compte les Produits directs et les sous-catégories de chaque ligne", () => {
-    const { lignes } = projeterEcranAdmin(ARBRE_SAIN)
+    const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()
     const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
 
     expect(parId.get("racine")).toMatchObject({
@@ -406,7 +468,7 @@ describe("projeterEcranAdmin — les lignes — sur un arbre sain", () => {
   it("ne journalise rien : le journal garde son sens", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterEcranAdmin(ARBRE_SAIN)
+      lectureDesStructures(ARBRE_SAIN).lignesAdmin()
 
       expect(warn).not.toHaveBeenCalled()
     } finally {
@@ -415,7 +477,7 @@ describe("projeterEcranAdmin — les lignes — sur un arbre sain", () => {
   })
 })
 
-describe("projeterEcranAdmin — les lignes — sur une Structure déjà cyclique", () => {
+describe("lignesAdmin — sur une Structure déjà cyclique", () => {
   const AVEC_CYCLE: FaitStructure[] = [
     structure("racine", "Racine", null, 1),
     structure("enfant-a", "Enfant A", "racine"),
@@ -427,7 +489,7 @@ describe("projeterEcranAdmin — les lignes — sur une Structure déjà cycliqu
   ]
 
   it("liste après l'arbre, à la racine, et marque ce qu'aucune branche n'atteint", () => {
-    const { lignes } = projeterEcranAdmin(AVEC_CYCLE)
+    const lignes = lectureDesStructures(AVEC_CYCLE).lignesAdmin()
 
     expect(lignes.map((ligne) => [ligne.id, ligne.profondeur])).toEqual([
       ["isolee", 0],
@@ -446,10 +508,12 @@ describe("projeterEcranAdmin — les lignes — sur une Structure déjà cycliqu
     expect(lignes.filter((ligne) => !ligne.horsArbre)).toHaveLength(4)
   })
 
-  it("journalise le cycle une fois pour toute la projection, en nommant ses Structures", () => {
+  it("journalise le cycle une fois pour toute la lecture, en nommant ses Structures", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterEcranAdmin(AVEC_CYCLE)
+      const lecture = lectureDesStructures(AVEC_CYCLE)
+      lecture.lignesAdmin()
+      lecture.ciblesSuppression()
 
       expect(warn).toHaveBeenCalledTimes(1)
       const ligne = warn.mock.calls[0]!.join(" ")
@@ -462,11 +526,13 @@ describe("projeterEcranAdmin — les lignes — sur une Structure déjà cycliqu
   })
 
   it("classe parmi les hors arbre une Structure dont la parente n'est pas dans les faits, et ne la rend qu'une fois", () => {
-    const { lignes, cibles } = projeterEcranAdmin([
+    const lecture = lectureDesStructures([
       structure("racine", "Racine", null, 1),
       structure("orpheline", "Orpheline", "absente-des-faits", 5),
       structure("enfant-orphelin", "Enfant orphelin", "orpheline"),
     ])
+    const lignes = lecture.lignesAdmin()
+    const cibles = lecture.ciblesSuppression()
 
     expect(lignes.map((ligne) => [ligne.id, ligne.horsArbre])).toEqual([
       ["racine", false],
@@ -493,9 +559,9 @@ describe("projeterEcranAdmin — les lignes — sur une Structure déjà cycliqu
   })
 })
 
-describe("projeterEcranAdmin — les cibles que la boîte de chaque ligne reçoit", () => {
+describe("ciblesSuppression — les deux listes que la boîte de chaque ligne reçoit", () => {
   it("offre à un Produit toutes les Structures, descendantes comprises", () => {
-    const { cibles } = projeterEcranAdmin(ARBRE_SAIN)
+    const cibles = lectureDesStructures(ARBRE_SAIN).ciblesSuppression()
     const parId = new Map(cibles.map((cible) => [cible.id, cible]))
 
     expect(parId.get("enfant-a")!.produits).toEqual([
@@ -517,7 +583,7 @@ describe("projeterEcranAdmin — les cibles que la boîte de chaque ligne reçoi
   })
 
   it("écarte des sous-catégories ce qui descend de la Structure de la ligne", () => {
-    const { cibles } = projeterEcranAdmin(ARBRE_SAIN)
+    const cibles = lectureDesStructures(ARBRE_SAIN).ciblesSuppression()
     const parId = new Map(cibles.map((cible) => [cible.id, cible]))
 
     expect(parId.get("enfant-a")!.sousCategories).toEqual([
@@ -534,7 +600,9 @@ describe("projeterEcranAdmin — les cibles que la boîte de chaque ligne reçoi
   })
 
   it("porte une cible par Structure, et rien d'autre que ses deux listes", () => {
-    const { lignes, cibles } = projeterEcranAdmin(ARBRE_SAIN)
+    const lecture = lectureDesStructures(ARBRE_SAIN)
+    const lignes = lecture.lignesAdmin()
+    const cibles = lecture.ciblesSuppression()
 
     expect(new Set(cibles.map((cible) => cible.id))).toEqual(
       new Set(lignes.map((ligne) => ligne.id))
@@ -549,7 +617,7 @@ describe("projeterEcranAdmin — les cibles que la boîte de chaque ligne reçoi
   })
 
   it("ne rend que des chaînes : rien d'appelable ne franchit la couture", () => {
-    for (const cible of projeterEcranAdmin(ARBRE_SAIN).cibles) {
+    for (const cible of lectureDesStructures(ARBRE_SAIN).ciblesSuppression()) {
       for (const liste of [cible.produits, cible.sousCategories]) {
         expect(liste.length).toBeGreaterThan(0)
         for (const valeur of liste) {
@@ -560,7 +628,7 @@ describe("projeterEcranAdmin — les cibles que la boîte de chaque ligne reçoi
   })
 })
 
-describe("projeterEcranAdmin — les cibles d'une Structure déjà cyclique", () => {
+describe("ciblesSuppression — sur une Structure déjà cyclique", () => {
   const AVEC_CYCLE: FaitStructure[] = [
     structure("racine", "Racine", null, 1),
     structure("enfant-a", "Enfant A", "racine"),
@@ -572,7 +640,7 @@ describe("projeterEcranAdmin — les cibles d'une Structure déjà cyclique", ()
   ]
 
   it("propose les maillons du cycle pour un Produit, et les écarte des sous-catégories", () => {
-    const { cibles } = projeterEcranAdmin(AVEC_CYCLE)
+    const cibles = lectureDesStructures(AVEC_CYCLE).ciblesSuppression()
     const boucleA = cibles.find((cible) => cible.id === "boucle-a")!
 
     expect(boucleA.produits).toEqual([
@@ -593,7 +661,7 @@ describe("projeterEcranAdmin — les cibles d'une Structure déjà cyclique", ()
   })
 
   it("donne à une Structure hors arbre les mêmes cibles qu'à une Structure saine", () => {
-    const { cibles } = projeterEcranAdmin(AVEC_CYCLE)
+    const cibles = lectureDesStructures(AVEC_CYCLE).ciblesSuppression()
     const amont = cibles.find((cible) => cible.id === "amont")!
 
     expect(amont.produits).toEqual([
@@ -608,9 +676,9 @@ describe("projeterEcranAdmin — les cibles d'une Structure déjà cyclique", ()
   })
 })
 
-describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affiche", () => {
+describe("options — un sélecteur ne rend que ce qu'il affiche", () => {
   it("rend l'identifiant et le nom de chaque Structure, dans l'ordre promis", () => {
-    const options = projeterOptionsSelecteur(ARBRE_SAIN)
+    const options = lectureDesStructures(ARBRE_SAIN).options()
 
     expect(options).toEqual([
       { id: "enfant-a", name: "Enfant A" },
@@ -622,7 +690,7 @@ describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affich
   })
 
   it("rend exactement deux faits : ni compteur, ni nom de parente", () => {
-    const options = projeterOptionsSelecteur(ARBRE_SAIN)
+    const options = lectureDesStructures(ARBRE_SAIN).options()
 
     for (const option of options) {
       expect(Object.keys(option).sort()).toEqual(["id", "name"])
@@ -632,11 +700,11 @@ describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affich
   it("propose une Structure corrompue, et ne journalise rien", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const options = projeterOptionsSelecteur([
+      const options = lectureDesStructures([
         structure("racine", "Racine", null, 1),
         structure("boucle-a", "Boucle A", "boucle-b"),
         structure("boucle-b", "Boucle B", "boucle-a"),
-      ])
+      ]).options()
 
       expect(options.map((option) => option.id)).toEqual([
         "boucle-a",
@@ -650,11 +718,11 @@ describe("projeterOptionsSelecteur — un sélecteur ne rend que ce qu'il affich
   })
 })
 
-describe("projeterEcranEdition — sur un arbre sain", () => {
-  it("rend la Structure éditée, ses candidates, et la primitive comme parentes exclues", () => {
-    const ecran = projeterEcranEdition(ARBRE_SAIN, "enfant-a")!
+describe("structure, options et branche — sur un arbre sain", () => {
+  it("rend la Structure demandée, les options du sélecteur, et la branche comme parentes exclues", () => {
+    const lecture = lectureDesStructures(ARBRE_SAIN)
 
-    expect(ecran.structureEditee).toEqual({
+    expect(lecture.structure("enfant-a")).toEqual({
       id: "enfant-a",
       name: "Enfant A",
       slug: "enfant-a",
@@ -662,7 +730,7 @@ describe("projeterEcranEdition — sur un arbre sain", () => {
       parentId: "racine",
     })
 
-    expect(ecran.candidates).toEqual([
+    expect(lecture.options()).toEqual([
       { id: "enfant-a", name: "Enfant A" },
       { id: "enfant-b", name: "Enfant B" },
       { id: "isolee", name: "Isolée" },
@@ -670,26 +738,43 @@ describe("projeterEcranEdition — sur un arbre sain", () => {
       { id: "racine", name: "Racine" },
     ])
 
-    expect(ecran.parentesExclues).toEqual(["enfant-a", "petit-a"])
+    expect(lecture.branche("enfant-a")).toEqual(["enfant-a", "petit-a"])
   })
 
-  it("laisse la parente actuelle parmi les candidates, jamais parmi les exclues", () => {
-    const ecran = projeterEcranEdition(ARBRE_SAIN, "enfant-a")!
+  it("laisse la parente actuelle parmi les options, jamais parmi la branche", () => {
+    const lecture = lectureDesStructures(ARBRE_SAIN)
 
-    expect(ecran.structureEditee.parentId).toBe("racine")
-    expect(ecran.parentesExclues).not.toContain("racine")
-    expect(ecran.candidates).toContainEqual({ id: "racine", name: "Racine" })
+    expect(lecture.structure("enfant-a")!.parentId).toBe("racine")
+    expect(lecture.branche("enfant-a")).not.toContain("racine")
+    expect(lecture.options()).toContainEqual({ id: "racine", name: "Racine" })
   })
 
-  it("rend une Structure que les faits ne portent pas comme un écran absent", () => {
-    expect(projeterEcranEdition(ARBRE_SAIN, "inconnue")).toBeNull()
-    expect(projeterEcranEdition([], "inconnue")).toBeNull()
+  it("rend une Structure que les faits ne portent pas comme une fiche absente", () => {
+    expect(lectureDesStructures(ARBRE_SAIN).structure("inconnue")).toBeNull()
+    expect(lectureDesStructures([]).structure("inconnue")).toBeNull()
+  })
+
+  it("rend une Structure sans descendante elle seule : sa branche est elle-même", () => {
+    const lecture = lectureDesStructures(ARBRE_SAIN)
+
+    expect(lecture.branche("isolee")).toEqual(["isolee"])
+    expect(lecture.branche("petit-a")).toEqual(["petit-a"])
+  })
+
+  it("rend une Structure que les faits ne portent pas elle seule, sans lever", () => {
+    expect(lectureDesStructures(ARBRE_SAIN).branche("inconnue")).toEqual([
+      "inconnue",
+    ])
+    expect(lectureDesStructures([]).branche("inconnue")).toEqual(["inconnue"])
   })
 
   it("ne journalise rien : le journal garde son sens", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterEcranEdition(ARBRE_SAIN, "enfant-a")
+      const lecture = lectureDesStructures(ARBRE_SAIN)
+      lecture.structure("enfant-a")
+      lecture.options()
+      lecture.branche("enfant-a")
 
       expect(warn).not.toHaveBeenCalled()
     } finally {
@@ -698,7 +783,7 @@ describe("projeterEcranEdition — sur un arbre sain", () => {
   })
 })
 
-describe("projeterEcranEdition — sur une Structure déjà cyclique", () => {
+describe("structure, options et branche — sur une Structure déjà cyclique", () => {
   const AVEC_CYCLE: FaitStructure[] = [
     structure("racine", "Racine", null, 1),
     structure("amont", "Amont", "boucle-a"),
@@ -706,25 +791,42 @@ describe("projeterEcranEdition — sur une Structure déjà cyclique", () => {
     structure("boucle-b", "Boucle B", "boucle-a"),
   ]
 
-  it("rend l'écran sur un maillon du cycle, sans rien perdre du reste", () => {
+  it("rend la fiche et la branche d'un maillon du cycle, sans rien perdre du reste", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const ecran = projeterEcranEdition(AVEC_CYCLE, "boucle-a")!
+      const lecture = lectureDesStructures(AVEC_CYCLE)
 
-      expect(ecran.structureEditee).toMatchObject({
+      expect(lecture.structure("boucle-a")).toMatchObject({
         id: "boucle-a",
         parentId: "boucle-b",
       })
-      expect(ecran.candidates.map((candidat) => candidat.id)).toEqual([
+      expect(lecture.options().map((option) => option.id)).toEqual([
         "amont",
         "boucle-a",
         "boucle-b",
         "racine",
       ])
 
-      expect(ecran.parentesExclues).toEqual(["boucle-a", "amont", "boucle-b"])
-      expect(new Set(ecran.parentesExclues).size).toBe(
-        ecran.parentesExclues.length
+      expect(lecture.branche("boucle-a")).toEqual([
+        "boucle-a",
+        "amont",
+        "boucle-b",
+      ])
+      expect(new Set(lecture.branche("boucle-a")).size).toBe(
+        lecture.branche("boucle-a").length
+      )
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("rend le même ensemble par chacun des deux maillons du cycle", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const lecture = lectureDesStructures(AVEC_CYCLE)
+
+      expect([...lecture.branche("boucle-b")].sort()).toEqual(
+        [...lecture.branche("boucle-a")].sort()
       )
     } finally {
       warn.mockRestore()
@@ -734,7 +836,7 @@ describe("projeterEcranEdition — sur une Structure déjà cyclique", () => {
   it("journalise le cycle une fois, en nommant ses Structures", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterEcranEdition(AVEC_CYCLE, "boucle-a")
+      lectureDesStructures(AVEC_CYCLE).branche("boucle-a")
 
       expect(warn).toHaveBeenCalledTimes(1)
       const ligne = warn.mock.calls[0]!.join(" ")
@@ -748,7 +850,7 @@ describe("projeterEcranEdition — sur une Structure déjà cyclique", () => {
   })
 })
 
-describe("projeterPageCategorie — sur un arbre sain", () => {
+describe("structureParSlug, filAriane, enfants et branche — sur un arbre sain", () => {
   const PAGE: FaitStructure[] = [
     {
       ...structure("c1", "Racine", null, 1),
@@ -763,16 +865,17 @@ describe("projeterPageCategorie — sur un arbre sain", () => {
   ]
 
   it("trouve la Structure par son slug et rend son fil, la racine d'abord", () => {
-    const page = projeterPageCategorie(PAGE, "petit-a")!
+    const lecture = lectureDesStructures(PAGE)
 
-    expect(page.categorie).toEqual({
+    expect(lecture.structureParSlug("petit-a")).toEqual({
       id: "c3",
       name: "Petit A",
       slug: "petit-a",
       image: null,
+      parentId: "c2",
     })
 
-    expect(page.filAriane).toEqual([
+    expect(lecture.filAriane("c3")).toEqual([
       { name: "Racine", slug: "racine" },
       { name: "Enfant A", slug: "enfant-a" },
       { name: "Petit A", slug: "petit-a" },
@@ -780,33 +883,33 @@ describe("projeterPageCategorie — sur un arbre sain", () => {
   })
 
   it("passe l'image à la rangée qu'il rend, et rien d'autre", () => {
-    const page = projeterPageCategorie(PAGE, "racine")!
+    const fiche = lectureDesStructures(PAGE).structureParSlug("racine")
 
-    expect(page.categorie).toEqual({
+    expect(fiche).toEqual({
       id: "c1",
       name: "Racine",
       slug: "racine",
       image: "/racine.png",
+      parentId: null,
     })
   })
 
   it("ne rend qu'elle-même quand la Structure est une racine", () => {
-    const page = projeterPageCategorie(PAGE, "racine")!
-
-    expect(page.filAriane).toEqual([{ name: "Racine", slug: "racine" }])
-  })
-
-  it("rend les sous-catégories directes dans l'ordre que le module promet", () => {
-    const page = projeterPageCategorie(PAGE, "isolee")!
-
-    expect(page.enfants.map((enfant) => enfant.name)).toEqual([
-      "Écran",
-      "Zèbre",
+    expect(lectureDesStructures(PAGE).filAriane("c1")).toEqual([
+      { name: "Racine", slug: "racine" },
     ])
   })
 
+  it("rend les sous-catégories directes dans l'ordre que le module promet", () => {
+    expect(
+      lectureDesStructures(PAGE)
+        .enfants("c4")
+        .map((enfant) => enfant.name)
+    ).toEqual(["Écran", "Zèbre"])
+  })
+
   it("donne au filtre des Produits la Structure et ses descendantes, chacune une fois", () => {
-    const ids = projeterPageCategorie(PAGE, "racine")!.idsProduits
+    const ids = lectureDesStructures(PAGE).branche("c1")
 
     expect(ids).toHaveLength(3)
     expect(new Set(ids).size).toBe(ids.length)
@@ -815,15 +918,21 @@ describe("projeterPageCategorie — sur un arbre sain", () => {
     expect(ids).not.toContain("c4")
   })
 
-  it("rend un slug que les faits ne portent pas comme une page absente", () => {
-    expect(projeterPageCategorie(PAGE, "categorie-inconnue")).toBeNull()
-    expect(projeterPageCategorie([], "petit-a")).toBeNull()
+  it("rend un slug que les faits ne portent pas comme une fiche absente", () => {
+    expect(
+      lectureDesStructures(PAGE).structureParSlug("categorie-inconnue")
+    ).toBeNull()
+    expect(lectureDesStructures([]).structureParSlug("petit-a")).toBeNull()
   })
 
   it("ne journalise rien : le journal garde son sens", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterPageCategorie(PAGE, "petit-a")
+      const lecture = lectureDesStructures(PAGE)
+      lecture.structureParSlug("petit-a")
+      lecture.filAriane("c3")
+      lecture.enfants("c4")
+      lecture.branche("c1")
 
       expect(warn).not.toHaveBeenCalled()
     } finally {
@@ -832,7 +941,7 @@ describe("projeterPageCategorie — sur un arbre sain", () => {
   })
 })
 
-describe("projeterPageCategorie — sur une Structure déjà cyclique", () => {
+describe("structureParSlug, filAriane, enfants et branche — sur une Structure déjà cyclique", () => {
   const AVEC_CYCLE: FaitStructure[] = [
     structure("racine", "Racine", null, 1),
     structure("amont-1", "Amont 1", "boucle-a"),
@@ -844,17 +953,17 @@ describe("projeterPageCategorie — sur une Structure déjà cyclique", () => {
   it("dégrade le cycle, rend le fil jusqu'à lui, et ne le répète pas", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const page = projeterPageCategorie(AVEC_CYCLE, "boucle-a")!
+      const lecture = lectureDesStructures(AVEC_CYCLE)
 
-      expect(page.filAriane.map((maillon) => maillon.name)).toEqual([
-        "Boucle B",
-        "Boucle A",
-      ])
-      expect(new Set(page.filAriane.map((maillon) => maillon.slug)).size).toBe(
-        page.filAriane.length
-      )
+      expect(
+        lecture.filAriane("boucle-a").map((maillon) => maillon.name)
+      ).toEqual(["Boucle B", "Boucle A"])
+      expect(
+        new Set(lecture.filAriane("boucle-a").map((maillon) => maillon.slug))
+          .size
+      ).toBe(lecture.filAriane("boucle-a").length)
 
-      expect(page.enfants.map((enfant) => enfant.slug)).toEqual([
+      expect(lecture.enfants("boucle-a").map((enfant) => enfant.slug)).toEqual([
         "amont-1",
         "amont-2",
         "boucle-b",
@@ -867,17 +976,20 @@ describe("projeterPageCategorie — sur une Structure déjà cyclique", () => {
   it("ne donne aucun doublon au filtre, et ne dit le cycle qu'une fois", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const page = projeterPageCategorie(AVEC_CYCLE, "boucle-a")!
+      const lecture = lectureDesStructures(AVEC_CYCLE)
+      lecture.filAriane("boucle-a")
+      lecture.enfants("boucle-a")
+      const ids = lecture.branche("boucle-a")
 
-      expect(page.idsProduits).toHaveLength(4)
-      expect(new Set(page.idsProduits).size).toBe(page.idsProduits.length)
-      expect([...page.idsProduits].sort()).toEqual([
+      expect(ids).toHaveLength(4)
+      expect(new Set(ids).size).toBe(ids.length)
+      expect([...ids].sort()).toEqual([
         "amont-1",
         "amont-2",
         "boucle-a",
         "boucle-b",
       ])
-      expect(page.idsProduits).not.toContain("racine")
+      expect(ids).not.toContain("racine")
 
       expect(warn).toHaveBeenCalledTimes(1)
       const ligne = warn.mock.calls[0]!.join(" ")
@@ -890,9 +1002,9 @@ describe("projeterPageCategorie — sur une Structure déjà cyclique", () => {
   })
 })
 
-describe("projeterFilAriane — sur un arbre sain", () => {
+describe("filAriane — sur un arbre sain", () => {
   it("remonte de la racine à la Structure du Produit, qui ferme le fil", () => {
-    const fil = projeterFilAriane(ARBRE_SAIN, "petit-a")
+    const fil = lectureDesStructures(ARBRE_SAIN).filAriane("petit-a")
 
     expect(fil).toEqual([
       { name: "Racine", slug: "racine" },
@@ -902,13 +1014,13 @@ describe("projeterFilAriane — sur un arbre sain", () => {
   })
 
   it("ne rend qu'elle-même quand la Structure du Produit est une racine", () => {
-    expect(projeterFilAriane(ARBRE_SAIN, "isolee")).toEqual([
+    expect(lectureDesStructures(ARBRE_SAIN).filAriane("isolee")).toEqual([
       { name: "Isolée", slug: "isolee" },
     ])
   })
 
   it("ne rend que les deux faits d'un lien, jamais davantage", () => {
-    expect(projeterFilAriane(ARBRE_SAIN, "enfant-a")).toEqual([
+    expect(lectureDesStructures(ARBRE_SAIN).filAriane("enfant-a")).toEqual([
       { name: "Racine", slug: "racine" },
       { name: "Enfant A", slug: "enfant-a" },
     ])
@@ -917,16 +1029,25 @@ describe("projeterFilAriane — sur un arbre sain", () => {
   it("ne journalise rien : le journal garde son sens", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterFilAriane(ARBRE_SAIN, "petit-a")
+      lectureDesStructures(ARBRE_SAIN).filAriane("petit-a")
 
       expect(warn).not.toHaveBeenCalled()
     } finally {
       warn.mockRestore()
     }
   })
+
+  it("laisse une parente que les faits ne nomment pas hors du fil, au lieu d'en dire un lien", () => {
+    const fil = lectureDesStructures([
+      structure("racine", "Racine", null, 1),
+      structure("enfant", "Enfant", "absente-des-faits", 2),
+    ]).filAriane("enfant")
+
+    expect(fil).toEqual([{ name: "Enfant", slug: "enfant" }])
+  })
 })
 
-describe("projeterFilAriane — sur une Structure déjà cyclique", () => {
+describe("filAriane — sur une Structure déjà cyclique", () => {
   const AVEC_CYCLE: FaitStructure[] = [
     structure("racine", "Racine", null, 1),
     structure("amont", "Amont", "boucle-a"),
@@ -937,7 +1058,7 @@ describe("projeterFilAriane — sur une Structure déjà cyclique", () => {
   it("dégrade le cycle quand le Produit est dans la boucle, et ferme le fil dessus", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const fil = projeterFilAriane(AVEC_CYCLE, "boucle-a")
+      const fil = lectureDesStructures(AVEC_CYCLE).filAriane("boucle-a")
 
       expect(fil).toEqual([
         { name: "Boucle B", slug: "boucle-b" },
@@ -951,7 +1072,7 @@ describe("projeterFilAriane — sur une Structure déjà cyclique", () => {
   })
 
   it("dégrade le cycle quand le Produit est en amont de lui, et ferme le fil sur lui", () => {
-    const fil = projeterFilAriane(AVEC_CYCLE, "amont")
+    const fil = lectureDesStructures(AVEC_CYCLE).filAriane("amont")
 
     expect(fil).toEqual([
       { name: "Boucle B", slug: "boucle-b" },
@@ -964,7 +1085,7 @@ describe("projeterFilAriane — sur une Structure déjà cyclique", () => {
   it("journalise le cycle une fois pour toute la fiche, en nommant ses Structures", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      projeterFilAriane(AVEC_CYCLE, "boucle-a")
+      lectureDesStructures(AVEC_CYCLE).filAriane("boucle-a")
 
       expect(warn).toHaveBeenCalledTimes(1)
       const ligne = warn.mock.calls[0]!.join(" ")
@@ -978,6 +1099,8 @@ describe("projeterFilAriane — sur une Structure déjà cyclique", () => {
   })
 
   it("rend un fil vide pour une Structure que les faits ne portent pas", () => {
-    expect(projeterFilAriane(AVEC_CYCLE, "rangee-supprimee")).toEqual([])
+    expect(
+      lectureDesStructures(AVEC_CYCLE).filAriane("rangee-supprimee")
+    ).toEqual([])
   })
 })

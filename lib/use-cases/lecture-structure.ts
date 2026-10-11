@@ -2,9 +2,7 @@ import { prisma } from "@/lib/db"
 import {
   complementDepuis,
   comparerParNom,
-  descendanceDe,
   liensDesStructures,
-  marcheDesStructures,
   marcheStructure,
 } from "@/lib/marche-structure"
 
@@ -26,10 +24,58 @@ export interface NoeudAccueil {
   children: NoeudAccueil[]
 }
 
-function faitsParId(
-  structures: readonly FaitStructure[]
-): Map<string, FaitStructure> {
-  return new Map(structures.map((fait) => [fait.id, fait]))
+interface FicheStructure {
+  id: string
+  name: string
+  slug: string
+  image: string | null
+  parentId: string | null
+}
+
+interface LigneStructureAdmin {
+  id: string
+  name: string
+  slug: string
+  image: string | null
+  parentId: string | null
+  nomParente: string | null
+  nombreProduits: number
+  nombreEnfants: number
+  profondeur: number
+  horsArbre: boolean
+}
+
+interface CibleSuppression {
+  id: string
+  produits: string[]
+  sousCategories: string[]
+}
+
+interface OptionStructure {
+  id: string
+  name: string
+}
+
+interface MaillonAriane {
+  name: string
+  slug: string
+}
+
+export interface LectureStructure {
+  arbreAccueil(): NoeudAccueil[]
+  lignesAdmin(): LigneStructureAdmin[]
+  ciblesSuppression(): CibleSuppression[]
+  options(): OptionStructure[]
+  structure(id: string): FicheStructure | null
+  structureParSlug(slug: string): FicheStructure | null
+  filAriane(id: string): MaillonAriane[]
+  enfants(id: string): FicheStructure[]
+  branche(id: string): string[]
+}
+
+function uneFois<T>(construire: () => T): () => T {
+  let memorise: { valeur: T } | undefined
+  return () => (memorise ??= { valeur: construire() }).valeur
 }
 
 function cumulerLesProduits(racines: NoeudAccueil[]): void {
@@ -57,43 +103,191 @@ function cumulerLesProduits(racines: NoeudAccueil[]): void {
   }
 }
 
-export function projeterArbreAccueil(
-  structures: readonly FaitStructure[]
-): NoeudAccueil[] {
-  const marche = marcheDesStructures(structures)
-  marche.horsArbre()
+export function lectureDesStructures(
+  faits: readonly FaitStructure[]
+): LectureStructure {
+  const liens = uneFois(() => liensDesStructures(faits))
+  const marche = uneFois(() => marcheStructure(liens()))
+  const parId = uneFois(
+    (): Map<string, FaitStructure> =>
+      new Map(faits.map((fait) => [fait.id, fait]))
+  )
+  const parSlug = uneFois(
+    (): Map<string, FaitStructure> =>
+      new Map(faits.map((fait) => [fait.slug, fait]))
+  )
 
-  const parId = faitsParId(structures)
-  const noeuds = new Map<string, NoeudAccueil>()
-  const noeudDe = (id: string): NoeudAccueil => {
-    const noeud = noeuds.get(id)
-    if (noeud) return noeud
-    const fait = parId.get(id)!
-    const bati: NoeudAccueil = {
-      id,
+  function dansLOrdre(ids: readonly string[]): string[] {
+    return ids
+      .map((id) => ({ id, name: parId().get(id)?.name ?? id }))
+      .sort(comparerParNom)
+      .map((ordonne) => ordonne.id)
+  }
+
+  function fiche(fait: FaitStructure): FicheStructure {
+    return {
+      id: fait.id,
       name: fait.name,
       slug: fait.slug,
       image: fait.image,
-      productCount: fait.produitsDirects,
-      children: [],
-    }
-    noeuds.set(id, bati)
-    return bati
-  }
-
-  const racines = marche.racines().map(noeudDe)
-  const pile = [...racines]
-  while (pile.length > 0) {
-    const noeud = pile.pop()!
-    for (const id of marche.enfantsDe(noeud.id)) {
-      const enfant = noeudDe(id)
-      noeud.children.push(enfant)
-      pile.push(enfant)
+      parentId: fait.parentId,
     }
   }
 
-  cumulerLesProduits(racines)
-  return racines
+  function arbreAccueil(): NoeudAccueil[] {
+    const courant = marche()
+    courant.horsArbre()
+
+    const noeuds = new Map<string, NoeudAccueil>()
+    const noeudDe = (id: string): NoeudAccueil => {
+      const noeud = noeuds.get(id)
+      if (noeud) return noeud
+      const fait = parId().get(id)!
+      const bati: NoeudAccueil = {
+        id,
+        name: fait.name,
+        slug: fait.slug,
+        image: fait.image,
+        productCount: fait.produitsDirects,
+        children: [],
+      }
+      noeuds.set(id, bati)
+      return bati
+    }
+
+    const racines = courant.racines().map(noeudDe)
+    const pile = [...racines]
+    while (pile.length > 0) {
+      const noeud = pile.pop()!
+      for (const id of courant.enfantsDe(noeud.id)) {
+        const enfant = noeudDe(id)
+        noeud.children.push(enfant)
+        pile.push(enfant)
+      }
+    }
+
+    cumulerLesProduits(racines)
+    return racines
+  }
+
+  function lignesAdmin(): LigneStructureAdmin[] {
+    const courant = marche()
+    const horsArbre = new Set(courant.horsArbre())
+    const index = parId()
+
+    const ligneDe = (
+      fait: FaitStructure,
+      profondeur: number,
+      hors: boolean,
+      nombreEnfants: number
+    ): LigneStructureAdmin => ({
+      id: fait.id,
+      name: fait.name,
+      slug: fait.slug,
+      image: fait.image,
+      parentId: fait.parentId,
+      nomParente:
+        fait.parentId === null
+          ? null
+          : (index.get(fait.parentId)?.name ?? null),
+      nombreProduits: fait.produitsDirects,
+      nombreEnfants,
+      profondeur,
+      horsArbre: hors,
+    })
+
+    const lignes: LigneStructureAdmin[] = []
+    const racines = courant.racines()
+    const pile: { fait: FaitStructure; profondeur: number }[] = []
+    for (let rang = racines.length - 1; rang >= 0; rang -= 1) {
+      pile.push({ fait: index.get(racines[rang]!)!, profondeur: 0 })
+    }
+    while (pile.length > 0) {
+      const { fait, profondeur } = pile.pop()!
+      const fratrie = courant.enfantsDe(fait.id)
+      lignes.push(ligneDe(fait, profondeur, false, fratrie.length))
+      for (let rang = fratrie.length - 1; rang >= 0; rang -= 1) {
+        pile.push({
+          fait: index.get(fratrie[rang]!)!,
+          profondeur: profondeur + 1,
+        })
+      }
+    }
+
+    const horsLignes = faits
+      .filter((fait) => horsArbre.has(fait.id))
+      .sort(comparerParNom)
+      .map((fait) => ligneDe(fait, 0, true, courant.enfantsDe(fait.id).length))
+
+    return [...lignes, ...horsLignes]
+  }
+
+  function ciblesSuppression(): CibleSuppression[] {
+    return faits.map((fait) => {
+      const partition = complementDepuis(marche(), liens(), fait.id)
+      return {
+        id: fait.id,
+        produits: partition.horsSoi,
+        sousCategories: partition.horsDescendance,
+      }
+    })
+  }
+
+  function options(): OptionStructure[] {
+    return [...faits].sort(comparerParNom).map((fait) => ({
+      id: fait.id,
+      name: fait.name,
+    }))
+  }
+
+  function structure(id: string): FicheStructure | null {
+    const fait = parId().get(id)
+    return fait === undefined ? null : fiche(fait)
+  }
+
+  function structureParSlug(slug: string): FicheStructure | null {
+    const fait = parSlug().get(slug)
+    return fait === undefined ? null : fiche(fait)
+  }
+
+  function filAriane(id: string): MaillonAriane[] {
+    const maillons: MaillonAriane[] = []
+    for (const ancetre of marche().ancetres(id)) {
+      const fait = parId().get(ancetre)
+      if (fait === undefined) continue
+      maillons.push({ name: fait.name, slug: fait.slug })
+    }
+    return maillons
+  }
+
+  function enfants(id: string): FicheStructure[] {
+    return marche()
+      .enfantsDe(id)
+      .map((enfant) => fiche(parId().get(enfant)!))
+  }
+
+  function branche(id: string): string[] {
+    return [
+      id,
+      ...dansLOrdre(
+        marche()
+          .descendance(id)
+          .filter((atteinte) => atteinte !== id)
+      ),
+    ]
+  }
+
+  return {
+    arbreAccueil,
+    lignesAdmin,
+    ciblesSuppression,
+    options,
+    structure,
+    structureParSlug,
+    filAriane,
+    enfants,
+    branche,
+  }
 }
 
 async function lireToutesLesStructures(): Promise<FaitStructure[]> {
@@ -117,230 +311,6 @@ async function lireToutesLesStructures(): Promise<FaitStructure[]> {
   }))
 }
 
-export async function lireArbreAccueil(): Promise<NoeudAccueil[]> {
-  return projeterArbreAccueil(await lireToutesLesStructures())
-}
-
-export interface LigneStructureAdmin {
-  id: string
-  name: string
-  slug: string
-  image: string | null
-  parentId: string | null
-  nomParente: string | null
-  nombreProduits: number
-  nombreEnfants: number
-  profondeur: number
-  horsArbre: boolean
-}
-
-export interface CiblesSuppression {
-  id: string
-  produits: string[]
-  sousCategories: string[]
-}
-
-export interface EcranAdminStructure {
-  lignes: LigneStructureAdmin[]
-  cibles: CiblesSuppression[]
-}
-export function projeterEcranAdmin(
-  structures: readonly FaitStructure[]
-): EcranAdminStructure {
-  const liens = liensDesStructures(structures)
-  const marche = marcheStructure(liens)
-  const horsArbre = new Set(marche.horsArbre())
-  const parId = faitsParId(structures)
-
-  const ligneDe = (
-    fait: FaitStructure,
-    profondeur: number,
-    hors: boolean,
-    nombreEnfants: number
-  ): LigneStructureAdmin => ({
-    id: fait.id,
-    name: fait.name,
-    slug: fait.slug,
-    image: fait.image,
-    parentId: fait.parentId,
-    nomParente:
-      fait.parentId === null ? null : (parId.get(fait.parentId)?.name ?? null),
-    nombreProduits: fait.produitsDirects,
-    nombreEnfants,
-    profondeur,
-    horsArbre: hors,
-  })
-
-  const cibles: CiblesSuppression[] = structures.map((fait) => {
-    const partition = complementDepuis(marche, liens, fait.id)
-    return {
-      id: fait.id,
-      produits: partition.horsSoi,
-      sousCategories: partition.horsDescendance,
-    }
-  })
-
-  const lignes: LigneStructureAdmin[] = []
-  const racines = marche.racines()
-  const pile: { fait: FaitStructure; profondeur: number }[] = []
-  for (let rang = racines.length - 1; rang >= 0; rang -= 1) {
-    pile.push({ fait: parId.get(racines[rang]!)!, profondeur: 0 })
-  }
-  while (pile.length > 0) {
-    const { fait, profondeur } = pile.pop()!
-    const fratrie = marche.enfantsDe(fait.id)
-    lignes.push(ligneDe(fait, profondeur, false, fratrie.length))
-    for (let rang = fratrie.length - 1; rang >= 0; rang -= 1) {
-      pile.push({
-        fait: parId.get(fratrie[rang]!)!,
-        profondeur: profondeur + 1,
-      })
-    }
-  }
-
-  const horsLignes = structures
-    .filter((fait) => horsArbre.has(fait.id))
-    .sort(comparerParNom)
-    .map((fait) => ligneDe(fait, 0, true, marche.enfantsDe(fait.id).length))
-
-  return { lignes: [...lignes, ...horsLignes], cibles }
-}
-
-export async function lireEcranAdmin(): Promise<EcranAdminStructure> {
-  return projeterEcranAdmin(await lireToutesLesStructures())
-}
-
-export interface OptionStructure {
-  id: string
-  name: string
-}
-
-export function projeterOptionsSelecteur(
-  structures: readonly FaitStructure[]
-): OptionStructure[] {
-  return [...structures].sort(comparerParNom).map((fait) => ({
-    id: fait.id,
-    name: fait.name,
-  }))
-}
-
-export async function lireOptionsSelecteur(): Promise<OptionStructure[]> {
-  return projeterOptionsSelecteur(await lireToutesLesStructures())
-}
-
-export interface StructureEditable {
-  id: string
-  name: string
-  slug: string
-  image: string | null
-  parentId: string | null
-}
-
-export interface EcranEditionStructure {
-  structureEditee: StructureEditable
-  candidates: OptionStructure[]
-  parentesExclues: string[]
-}
-
-export function projeterEcranEdition(
-  structures: readonly FaitStructure[],
-  id: string
-): EcranEditionStructure | null {
-  const fait = structures.find((structure) => structure.id === id)
-  if (!fait) return null
-
-  return {
-    structureEditee: {
-      id: fait.id,
-      name: fait.name,
-      slug: fait.slug,
-      image: fait.image,
-      parentId: fait.parentId,
-    },
-    candidates: [...structures].sort(comparerParNom).map((candidat) => ({
-      id: candidat.id,
-      name: candidat.name,
-    })),
-    parentesExclues: descendanceDe(structures, id),
-  }
-}
-
-export async function lireEcranEdition(
-  id: string
-): Promise<EcranEditionStructure | null> {
-  return projeterEcranEdition(await lireToutesLesStructures(), id)
-}
-
-export interface MaillonAriane {
-  name: string
-  slug: string
-}
-
-export interface PageCategorie {
-  categorie: { id: string; name: string; slug: string; image: string | null }
-  filAriane: MaillonAriane[]
-  enfants: PageCategorie["categorie"][]
-  idsProduits: string[]
-}
-
-export function projeterPageCategorie(
-  structures: readonly FaitStructure[],
-  slug: string
-): PageCategorie | null {
-  const fait = structures.find((candidat) => candidat.slug === slug)
-  if (!fait) return null
-  const parId = faitsParId(structures)
-
-  const marche = marcheDesStructures(structures)
-
-  return {
-    categorie: {
-      id: fait.id,
-      name: fait.name,
-      slug: fait.slug,
-      image: fait.image,
-    },
-    filAriane: marche.ancetres(fait.id).map((id) => {
-      const maillon = parId.get(id)!
-      return { name: maillon.name, slug: maillon.slug }
-    }),
-    enfants: marche.enfantsDe(fait.id).map((id) => {
-      const enfant = parId.get(id)!
-      return {
-        id: enfant.id,
-        name: enfant.name,
-        slug: enfant.slug,
-        image: enfant.image,
-      }
-    }),
-    idsProduits: marche.descendance(fait.id),
-  }
-}
-
-export async function lirePageCategorie(
-  slug: string
-): Promise<PageCategorie | null> {
-  return projeterPageCategorie(await lireToutesLesStructures(), slug)
-}
-
-export function projeterFilAriane(
-  structures: readonly FaitStructure[],
-  idStructure: string
-): MaillonAriane[] {
-  const marche = marcheDesStructures(structures)
-  const parId = faitsParId(structures)
-
-  const maillons: MaillonAriane[] = []
-  for (const id of marche.ancetres(idStructure)) {
-    const fait = parId.get(id)
-    if (fait === undefined) continue
-    maillons.push({ name: fait.name, slug: fait.slug })
-  }
-  return maillons
-}
-
-export async function lireFilAriane(
-  idStructure: string
-): Promise<MaillonAriane[]> {
-  return projeterFilAriane(await lireToutesLesStructures(), idStructure)
+export async function lireStructure(): Promise<LectureStructure> {
+  return lectureDesStructures(await lireToutesLesStructures())
 }

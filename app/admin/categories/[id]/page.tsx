@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { CategoryForm } from "@/components/admin/category-form"
-import { lireEcranEdition } from "@/lib/use-cases/lecture-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import { updateCategoryAction } from "@/app/admin/categories/actions"
 
 export default async function EditCategoryPage({
@@ -10,18 +10,17 @@ export default async function EditCategoryPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const ecran = await lireEcranEdition(id)
-  if (!ecran) notFound()
+  const lecture = await lireStructure()
+  const structure = lecture.structure(id)
+  if (!structure) notFound()
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">
-        Modifier — {ecran.structureEditee.name}
-      </h1>
+      <h1 className="text-2xl font-semibold">Modifier — {structure.name}</h1>
       <CategoryForm
-        category={ecran.structureEditee}
-        categories={ecran.candidates}
-        excludedParentIds={ecran.parentesExclues}
+        category={structure}
+        categories={lecture.options()}
+        excludedParentIds={lecture.branche(id)}
         action={updateCategoryAction}
       />
     </div>

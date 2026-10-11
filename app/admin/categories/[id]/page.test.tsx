@@ -106,7 +106,7 @@ afterAll(async () => {
 })
 
 describe("EditCategoryPage — le prix de la lecture", () => {
-  it("lit la Structure une fois par rendu, pour la Structure éditée, les candidates et les parentes exclues", async () => {
+  it("lit la Structure une fois par rendu, pour la fiche, les options et la branche", async () => {
     const { lectures } = await compterLesLecturesDeLaStructure(() =>
       rendreLEcran(arbre.racine.id)
     )

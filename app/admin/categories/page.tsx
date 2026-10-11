@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { lireEcranAdmin } from "@/lib/use-cases/lecture-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import { deleteCategoryAction } from "@/app/admin/categories/actions"
 
 export const metadata: Metadata = {
@@ -23,7 +23,9 @@ export const metadata: Metadata = {
 const RETRAIT_PAR_NIVEAU = 1.5
 
 export default async function AdminCategoriesPage() {
-  const { lignes, cibles } = await lireEcranAdmin()
+  const lecture = await lireStructure()
+  const lignes = lecture.lignesAdmin()
+  const cibles = lecture.ciblesSuppression()
   const nomsStructures: Record<string, string> = Object.fromEntries(
     lignes.map((ligne) => [ligne.id, ligne.name])
   )

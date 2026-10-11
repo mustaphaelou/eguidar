@@ -4,29 +4,26 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
 import {
-  lireArbreAccueil,
-  lireEcranAdmin,
-  lireEcranEdition,
-  lireFilAriane,
-  lireOptionsSelecteur,
-  lirePageCategorie,
-  projeterArbreAccueil,
-  projeterEcranAdmin,
-  projeterEcranEdition,
-  projeterFilAriane,
-  projeterOptionsSelecteur,
-  projeterPageCategorie,
-  type CiblesSuppression,
-  type EcranAdminStructure,
+  lectureDesStructures,
+  lireStructure,
   type FaitStructure,
+  type LectureStructure,
 } from "@/lib/use-cases/lecture-structure"
 import {
-  avecSource,
   sourceDuCorpus,
   sourcesDeProduction,
 } from "@/lib/use-cases/outils-frontiere"
 import { structure, tousLesNoeuds } from "@/test/lecture-structure-recette"
-import { MODULE_LECTURE, SYMBOLES } from "@/test/lecture-structure-outils"
+import {
+  MODULE_LECTURE,
+  NOMS_EMPRUNTES,
+  NOMS_EXPORTES,
+  QUESTIONS,
+  SYMBOLES,
+  exportsDuModule,
+  importsEmpruntes,
+  membresDeLaValeur,
+} from "@/test/lecture-structure-outils"
 import {
   creerArbrePropre,
   creerStructure,
@@ -42,99 +39,86 @@ const SOURCES = sourcesDeProduction(
   "../../prisma"
 )
 
-const PORTE_DE_LECTURE = /export\s+async\s+function\s+(lire[A-Za-z0-9_$]*)/g
+const SOURCE_DU_MODULE = sourceDuCorpus(SOURCES, MODULE_LECTURE).source
 
-function portesEmpruntees(source: string, portes: readonly string[]): string[] {
-  return [
-    ...source.matchAll(
-      /import\s+(type\s+)?\{([^}]*)\}\s*from\s*["']@\/lib\/use-cases\/lecture-structure["']/g
-    ),
-  ]
-    .flatMap(([, typeOnly, noms]) =>
-      typeOnly
-        ? []
-        : (noms ?? "").split(",").map((nom) => nom.split(/\s+as\s+/)[0]!.trim())
-    )
-    .filter((nom) => portes.includes(nom))
-}
-
-function estUnePage(chemin: string): boolean {
-  return chemin.startsWith("app/") && /\/page\.tsx$/.test(chemin)
-}
-
-function ecransDeDeuxPortes(
-  sources: readonly { chemin: string; source: string }[],
-  portes: readonly string[]
-): { chemin: string; portes: string[] }[] {
-  return sources
-    .filter(({ chemin }) => estUnePage(chemin))
-    .flatMap(({ chemin, source }) => {
-      const emprustees = portesEmpruntees(source, portes)
-      return emprustees.length > 1 ? [{ chemin, portes: emprustees }] : []
-    })
-}
-
-describe("Lecture de la Structure — une porte par écran", () => {
-  const source = sourceDuCorpus(SOURCES, MODULE_LECTURE).source
-  const portes = [...source.matchAll(PORTE_DE_LECTURE)].map(([, nom]) => nom!)
-
-  it("le module déclare ses portes de lecture, et la garde sait les lire", () => {
-    expect(portes.length).toBeGreaterThanOrEqual(6)
-    expect(new Set(portes).size).toBe(portes.length)
-    for (const symbole of SYMBOLES) {
-      if (symbole.startsWith("lire")) expect(portes, symbole).toContain(symbole)
-    }
+describe("Lecture de la Structure — la liste figée, comparée par égalité dans les deux sens", () => {
+  it("la liste figée compte dix-huit entrées : cinq exports, neuf questions, quatre emprunts", () => {
+    expect(SYMBOLES).toHaveLength(NOMS_EXPORTES.length + 9 + 4)
   })
 
-  it("aucune page du dépôt n'appelle deux portes de lecture", () => {
-    const pages = SOURCES.filter(({ chemin }) => estUnePage(chemin))
-    expect(pages.length).toBeGreaterThan(10)
-
-    const appelantes = pages
-      .map(({ chemin, source }) => ({
-        chemin,
-        portes: portesEmpruntees(source, portes),
-      }))
-      .filter(({ portes }) => portes.length > 0)
-    expect(appelantes.length).toBeGreaterThan(0)
-    expect(appelantes.map(({ chemin }) => chemin)).toContain(
-      "app/admin/categories/page.tsx"
-    )
-    expect(appelantes.flatMap(({ portes }) => portes).sort()).toContain(
-      "lireEcranAdmin"
-    )
-
-    expect(ecransDeDeuxPortes(SOURCES, portes)).toEqual([])
+  it("les exports sont ceux que la source déclare : ni un de plus, ni un de moins", () => {
+    expect(exportsDuModule(SOURCE_DU_MODULE)).toEqual([...NOMS_EXPORTES].sort())
   })
 
-  it("la garde tombe sur un écran qui appelle deux portes, écrit dans un vrai fichier", () => {
-    const PAGE = "app/admin/categories/page.tsx"
-    const reel = sourceDuCorpus(SOURCES, PAGE).source
-    expect(portesEmpruntees(reel, portes)).toEqual(["lireEcranAdmin"])
-
-    const enViolation = reel.replace(
-      'import { lireEcranAdmin } from "@/lib/use-cases/lecture-structure"',
-      'import {\n  lireEcranAdmin,\n  lireOptionsSelecteur,\n} from "@/lib/use-cases/lecture-structure"'
+  it("les emprunts sont les imports que la source déclare : ni un de plus, ni un de moins", () => {
+    expect(importsEmpruntes(SOURCE_DU_MODULE)).toEqual(
+      [...NOMS_EMPRUNTES].sort()
     )
-    expect(enViolation).not.toBe(reel)
-    expect(
-      ecransDeDeuxPortes(avecSource(SOURCES, PAGE, enViolation), portes)
-    ).toEqual([
-      {
-        chemin: PAGE,
-        portes: ["lireEcranAdmin", "lireOptionsSelecteur"],
-      },
-    ])
+  })
 
-    expect(ecransDeDeuxPortes(avecSource(SOURCES, PAGE, reel), portes)).toEqual(
-      []
+  it("les questions sont les membres que la valeur déclare : ni une de plus, ni une de moins", () => {
+    expect(membresDeLaValeur(SOURCE_DU_MODULE)).toEqual([...QUESTIONS].sort())
+  })
+
+  it("l'égalité mord : un export de plus, une question de plus, ou un emprunt de moins, la font tomber", () => {
+    const avecUnExport = SOURCE_DU_MODULE.replace(
+      "function uneFois<T>",
+      "export function uneFois<T>"
+    )
+    expect(avecUnExport).not.toBe(SOURCE_DU_MODULE)
+    expect(exportsDuModule(avecUnExport)).not.toEqual([...NOMS_EXPORTES].sort())
+
+    const avecUneDixieme = SOURCE_DU_MODULE.replace(
+      "  branche(id: string): string[]",
+      "  branche(id: string): string[]\n  dixieme(): string[]"
+    )
+    expect(avecUneDixieme).not.toBe(SOURCE_DU_MODULE)
+    expect(membresDeLaValeur(avecUneDixieme)).not.toEqual([...QUESTIONS].sort())
+
+    const sansEmprunt = SOURCE_DU_MODULE.replace("  comparerParNom,\n", "")
+    expect(sansEmprunt).not.toBe(SOURCE_DU_MODULE)
+    expect(importsEmpruntes(sansEmprunt)).not.toEqual(
+      [...NOMS_EMPRUNTES].sort()
     )
 
-    const enType = reel.replace(
-      "import { lireEcranAdmin }",
-      'import type { CiblesSuppression } from "@/lib/use-cases/lecture-structure"\nimport { lireEcranAdmin }'
+    const avecUnExportDefaut = `${SOURCE_DU_MODULE}\nexport default function structureParDefaut() {}\n`
+    expect(exportsDuModule(avecUnExportDefaut)).not.toEqual(
+      [...NOMS_EXPORTES].sort()
     )
-    expect(portesEmpruntees(enType, portes)).toEqual(["lireEcranAdmin"])
+
+    const avecUnExportType = `${SOURCE_DU_MODULE}\nexport type { FicheStructure }\n`
+    expect(exportsDuModule(avecUnExportType)).not.toEqual(
+      [...NOMS_EXPORTES].sort()
+    )
+
+    const avecUnEmpruntNamespace = SOURCE_DU_MODULE.replace(
+      "import {\n  complementDepuis,",
+      'import * as marche from "@/lib/marche-structure"\nimport {\n  complementDepuis,'
+    )
+    expect(avecUnEmpruntNamespace).not.toBe(SOURCE_DU_MODULE)
+    expect(importsEmpruntes(avecUnEmpruntNamespace)).not.toEqual(
+      [...NOMS_EMPRUNTES].sort()
+    )
+
+    const avecUnTypeEnLigne = SOURCE_DU_MODULE.replace(
+      "  comparerParNom,\n",
+      "  comparerParNom,\n  type Fait,\n"
+    )
+    expect(avecUnTypeEnLigne).not.toBe(SOURCE_DU_MODULE)
+    expect(importsEmpruntes(avecUnTypeEnLigne)).toContain("Fait")
+    expect(importsEmpruntes(avecUnTypeEnLigne)).not.toContain("type Fait")
+    expect(importsEmpruntes(avecUnTypeEnLigne)).not.toEqual(
+      [...NOMS_EMPRUNTES].sort()
+    )
+
+    const avecUnMembreSurLAcceulade = SOURCE_DU_MODULE.replace(
+      "export interface LectureStructure {\n  arbreAccueil",
+      "export interface LectureStructure { arbreAccueil"
+    )
+    expect(avecUnMembreSurLAcceulade).not.toBe(SOURCE_DU_MODULE)
+    expect(membresDeLaValeur(avecUnMembreSurLAcceulade)).toEqual(
+      [...QUESTIONS].sort()
+    )
   })
 })
 
@@ -172,88 +156,63 @@ interface Cibles {
   idEdition: string
   slugCategorie: string
   idFil: string
+  idEnfants: string
+  idBranche: string
 }
 
-interface Porte {
-  lire: () => Promise<unknown>
-  projeter: (faits: readonly FaitStructure[]) => unknown
-  comparable: (issue: unknown) => unknown
+interface Comparaison {
+  nom: string
+  repondre: (lecture: LectureStructure) => unknown
+  comparable?: (issue: unknown) => unknown
 }
 
-type FabriqueDePortes = (cibles: Cibles) => Porte
+type FabriqueDeComparaisons = (cibles: Cibles) => readonly Comparaison[]
 
-const RENDU_TEL_QUEL: Porte["comparable"] = (issue) => issue
+const RENDU_TEL_QUEL = (issue: unknown): unknown => issue
 
-function parIdentifiant(
-  une: CiblesSuppression,
-  autre: CiblesSuppression
-): number {
+function parIdentifiant(une: { id: string }, autre: { id: string }): number {
   return une.id < autre.id ? -1 : une.id > autre.id ? 1 : 0
 }
 
-const CIBLES_PAR_IDENTIFIANT: Porte["comparable"] = (issue) => {
-  const ecran = issue as EcranAdminStructure
-  return { ...ecran, cibles: [...ecran.cibles].sort(parIdentifiant) }
+const CIBLES_PAR_IDENTIFIANT = (issue: unknown): unknown => {
+  const cibles = issue as { id: string }[]
+  return [...cibles].sort(parIdentifiant)
 }
 
-const FABRIQUES: readonly (readonly [
-  nom: string,
-  fabrique: FabriqueDePortes,
-])[] = [
-  [
-    "l'arbre d'accueil",
-    () => ({
-      lire: lireArbreAccueil,
-      projeter: projeterArbreAccueil,
-      comparable: RENDU_TEL_QUEL,
-    }),
-  ],
-  [
-    "l'écran d'Administration",
-    () => ({
-      lire: lireEcranAdmin,
-      projeter: projeterEcranAdmin,
-      comparable: CIBLES_PAR_IDENTIFIANT,
-    }),
-  ],
-  [
-    "les options du sélecteur",
-    () => ({
-      lire: lireOptionsSelecteur,
-      projeter: projeterOptionsSelecteur,
-      comparable: RENDU_TEL_QUEL,
-    }),
-  ],
-  [
-    "l'écran d'édition",
-    ({ idEdition }) => ({
-      lire: () => lireEcranEdition(idEdition),
-      projeter: (faits) => projeterEcranEdition(faits, idEdition),
-      comparable: RENDU_TEL_QUEL,
-    }),
-  ],
-  [
-    "la page de catégorie",
-    ({ slugCategorie }) => ({
-      lire: () => lirePageCategorie(slugCategorie),
-      projeter: (faits) => projeterPageCategorie(faits, slugCategorie),
-      comparable: RENDU_TEL_QUEL,
-    }),
-  ],
-  [
-    "le fil d'Ariane",
-    ({ idFil }) => ({
-      lire: () => lireFilAriane(idFil),
-      projeter: (faits) => projeterFilAriane(faits, idFil),
-      comparable: RENDU_TEL_QUEL,
-    }),
-  ],
+const NEUF_QUESTIONS: FabriqueDeComparaisons = ({
+  idEdition,
+  slugCategorie,
+  idFil,
+  idEnfants,
+  idBranche,
+}) => [
+  { nom: "l'arbre d'accueil", repondre: (l) => l.arbreAccueil() },
+  { nom: "les lignes de l'Administration", repondre: (l) => l.lignesAdmin() },
+  {
+    nom: "les cibles de suppression",
+    repondre: (l) => l.ciblesSuppression(),
+    comparable: CIBLES_PAR_IDENTIFIANT,
+  },
+  { nom: "les options du sélecteur", repondre: (l) => l.options() },
+  {
+    nom: "la fiche d'une Structure par son identifiant",
+    repondre: (l) => l.structure(idEdition),
+  },
+  {
+    nom: "la fiche d'une Structure par son slug",
+    repondre: (l) => l.structureParSlug(slugCategorie),
+  },
+  { nom: "le fil d'Ariane", repondre: (l) => l.filAriane(idFil) },
+  { nom: "les enfants d'une Structure", repondre: (l) => l.enfants(idEnfants) },
+  { nom: "la branche d'une Structure", repondre: (l) => l.branche(idBranche) },
 ]
 
 const CIBLES_LITTALES: Cibles = {
   idEdition: "petit-a",
   slugCategorie: "racine",
   idFil: "boucle-a",
+  idEnfants: "racine",
+  idBranche: "racine",
 }
 
 async function surLaTable<T>(
@@ -285,12 +244,13 @@ function exigerPlein(issue: unknown, porte: string): void {
   )
 }
 
-describe("Lecture de la Structure — la porte de lecture et sa porte jumelle pure rendent la même chose", () => {
+describe("Lecture de la Structure — la porte de lecture et la construction pure rendent la même chose", () => {
   it("le jeu de faits porte bien les deux corruptions : un cycle, et une parente qui ne nomme aucune rangée", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const { lignes } = projeterEcranAdmin(CORROMPUES)
-      const presents = tousLesNoeuds(projeterArbreAccueil(CORROMPUES)).map(
+      const lecture = lectureDesStructures(CORROMPUES)
+      const lignes = lecture.lignesAdmin()
+      const presents = tousLesNoeuds(lecture.arbreAccueil()).map(
         (noeud) => noeud.id
       )
 
@@ -326,32 +286,36 @@ describe("Lecture de la Structure — la porte de lecture et sa porte jumelle pu
     }
   })
 
-  for (const [nom, fabrique] of FABRIQUES) {
-    it(`${nom} — les deux portes rendent la même sortie des mêmes faits`, async () => {
-      const porte = fabrique(CIBLES_LITTALES)
+  it("les neuf questions rendent la même sortie par la porte et par la construction", async () => {
+    const lu = await surLaTable(lireStructure)
 
-      const lu = await surLaTable(porte.lire)
-      const projete = await enSilence(() => porte.projeter(CORROMPUES))
+    for (const question of NEUF_QUESTIONS(CIBLES_LITTALES)) {
+      const luQuestion = question.repondre(lu)
+      const purQuestion = await enSilence(() =>
+        question.repondre(lectureDesStructures(CORROMPUES))
+      )
 
-      exigerPlein(lu, `${nom} — la porte de lecture`)
-      exigerPlein(projete, `${nom} — la porte pure`)
-      expect(porte.comparable(lu)).toEqual(porte.comparable(projete))
-    })
-  }
+      exigerPlein(luQuestion, `${question.nom} — par la porte`)
+      exigerPlein(purQuestion, `${question.nom} — par la construction`)
+      const comparer = question.comparable ?? RENDU_TEL_QUEL
+      expect(comparer(luQuestion), question.nom).toEqual(comparer(purQuestion))
+    }
+  })
 
   it("la comparaison mord : elle voit une divergence dès qu'il y en a une", async () => {
-    const lu = await surLaTable(lireEcranAdmin)
-    const projete = await enSilence(() => projeterEcranAdmin(CORROMPUES))
+    const lu = await surLaTable(lireStructure)
+    const pur = lectureDesStructures(CORROMPUES)
 
-    expect(lu.lignes).toHaveLength(CORROMPUES.length)
-    expect(lu.cibles).toHaveLength(CORROMPUES.length)
-    expect(lu).toEqual(projete)
+    expect(lu.lignesAdmin()).toHaveLength(CORROMPUES.length)
+    expect(lu.ciblesSuppression()).toHaveLength(CORROMPUES.length)
+    expect(lu.lignesAdmin()).toEqual(pur.lignesAdmin())
+    expect(lu.ciblesSuppression()).toEqual(pur.ciblesSuppression())
 
     const amputee = await surLaTable(
-      lireEcranAdmin,
+      lireStructure,
       rangeesDe(CORROMPUES.filter((fait) => fait.id !== "boucle-b"))
     )
-    expect(amputee).not.toEqual(projete)
+    expect(amputee.lignesAdmin()).not.toEqual(pur.lignesAdmin())
   })
 })
 
@@ -413,6 +377,8 @@ beforeAll(async () => {
     idEdition: arbre.petit.id,
     slugCategorie: arbre.racine.slug,
     idFil: boucle[0].id,
+    idEnfants: arbre.racine.id,
+    idBranche: arbre.racine.id,
   }
   idDeLaRacineImagee = arbre.racine.id
 })
@@ -422,7 +388,7 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-describe("Lecture de la Structure — la porte de lecture lit la table, et sa porte jumelle pure rend les mêmes faits", () => {
+describe("Lecture de la Structure — la porte de lecture lit la table, et la construction pure rend les mêmes faits", () => {
   it("la table ne porte que les rangées plantées : la porte de lecture la lit entière", async () => {
     const dansLaTable = await prisma.category.findMany({ select: { id: true } })
 
@@ -432,11 +398,12 @@ describe("Lecture de la Structure — la porte de lecture lit la table, et sa po
     ).toEqual(new Set(base.map((fait) => fait.id)))
   })
 
-  it("le jeu planté porte bien un cycle, que la marche dégrade et nomme", async () => {
+  it("le jeu planté porte bien un cycle, que la marche dégrade et nomme une fois", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      const { lignes } = await lireEcranAdmin()
-      const presents = tousLesNoeuds(await lireArbreAccueil()).map(
+      const lecture = await lireStructure()
+      const lignes = lecture.lignesAdmin()
+      const presents = tousLesNoeuds(lecture.arbreAccueil()).map(
         (noeud) => noeud.id
       )
       const journal = warn.mock.calls.map((morceaux) => morceaux.join(" "))
@@ -459,7 +426,7 @@ describe("Lecture de la Structure — la porte de lecture lit la table, et sa po
         lignes.find((ligne) => ligne.id === idDeLaRacineImagee)?.image
       ).toBe("/portes-a.png")
 
-      expect(journal).toHaveLength(2)
+      expect(journal).toHaveLength(1)
       for (const ligne of journal) {
         for (const maillon of ["Portes E", "Portes F", "Portes G"]) {
           expect(ligne).toContain(maillon)
@@ -470,29 +437,31 @@ describe("Lecture de la Structure — la porte de lecture lit la table, et sa po
     }
   })
 
-  for (const [nom, fabrique] of FABRIQUES) {
-    it(`${nom} — les deux portes rendent la même sortie des mêmes faits`, async () => {
-      const porte = fabrique(ciblesDeLaBase)
+  it("les neuf questions rendent la même sortie sur la vraie table", async () => {
+    const lu = await enSilence(lireStructure)
+    const pur = lectureDesStructures(base)
 
-      const lu = await enSilence(porte.lire)
-      const projete = await enSilence(() => porte.projeter(base))
+    for (const question of NEUF_QUESTIONS(ciblesDeLaBase)) {
+      const luQuestion = question.repondre(lu)
+      const purQuestion = await enSilence(() => question.repondre(pur))
 
-      exigerPlein(lu, `${nom} — la porte de lecture`)
-      exigerPlein(projete, `${nom} — la porte pure`)
-      expect(porte.comparable(lu)).toEqual(porte.comparable(projete))
-    })
-  }
+      exigerPlein(luQuestion, `${question.nom} — par la porte`)
+      exigerPlein(purQuestion, `${question.nom} — par la construction`)
+      const comparer = question.comparable ?? RENDU_TEL_QUEL
+      expect(comparer(luQuestion), question.nom).toEqual(comparer(purQuestion))
+    }
+  })
 
   it("la comparaison mord sur la vraie table : une rangée de plus la fait tomber", async () => {
-    const projete = await enSilence(() => projeterEcranAdmin(base))
+    const pur = lectureDesStructures(base)
     const enPlus = await creerStructure({ name: "Portes I", prefix: PREFIXE })
     try {
-      const lu = await enSilence(() => lireEcranAdmin())
+      const lu = await enSilence(lireStructure)
 
-      expect(lu.lignes.map((ligne) => ligne.id)).toContain(enPlus.id)
-      expect(lu.lignes).toHaveLength(base.length + 1)
-      expect(CIBLES_PAR_IDENTIFIANT(lu)).not.toEqual(
-        CIBLES_PAR_IDENTIFIANT(projete)
+      expect(lu.lignesAdmin().map((ligne) => ligne.id)).toContain(enPlus.id)
+      expect(lu.lignesAdmin()).toHaveLength(base.length + 1)
+      expect(CIBLES_PAR_IDENTIFIANT(lu.ciblesSuppression())).not.toEqual(
+        CIBLES_PAR_IDENTIFIANT(pur.ciblesSuppression())
       )
     } finally {
       await prisma.category.delete({ where: { id: enPlus.id } })
