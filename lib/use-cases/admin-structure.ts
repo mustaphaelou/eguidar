@@ -190,6 +190,24 @@ function mapCategoryUniqueViolation(error: unknown): never {
   )
 }
 
+async function sousVerrouDeStructure<T>(
+  body: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await verrouillerStructure(tx)
+
+      try {
+        return await body(tx)
+      } catch (error) {
+        mapCategoryUniqueViolation(error)
+      }
+    })
+  } catch (error) {
+    mapCourseDeStructure(error)
+  }
+}
+
 async function assertUniqueCategorySlug(
   slug: string,
   client: Prisma.TransactionClient,
@@ -279,30 +297,19 @@ export async function createCategory(
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
 
-  let category: Category
-  try {
-    category = await prisma.$transaction(async (tx) => {
-      await verrouillerStructure(tx)
+  const category = await sousVerrouDeStructure(async (tx) => {
+    await assertUniqueCategorySlug(data.slug, tx)
+    await assertCategoryParent(data.parentId, tx)
 
-      await assertUniqueCategorySlug(data.slug, tx)
-      await assertCategoryParent(data.parentId, tx)
-
-      try {
-        return await tx.category.create({
-          data: {
-            name: data.name,
-            slug: data.slug,
-            parentId: data.parentId ?? null,
-            image: data.image ?? null,
-          },
-        })
-      } catch (error) {
-        mapCategoryUniqueViolation(error)
-      }
+    return tx.category.create({
+      data: {
+        name: data.name,
+        slug: data.slug,
+        parentId: data.parentId ?? null,
+        image: data.image ?? null,
+      },
     })
-  } catch (error) {
-    mapCourseDeStructure(error)
-  }
+  })
 
   await runEffect(
     "[structure] invalidation du cache non effectuée pour la création de catégorie",
