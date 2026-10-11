@@ -160,16 +160,15 @@ _Avoid_: catégorie orpheline, catégorie cyclique, structure orpheline
 **Lecture de la Structure**:
 La lecture serveur de la Structure pour une page : un seul module
 (`lib/use-cases/lecture-structure.ts`) lit la table `Category` une fois par exécution, en tire une
-Marche de la Structure, et répond de ce que la marche a parcouru comme de ce qu'une surface
-demande — l'arbre d'accueil, les lignes de l'Administration, les options d'un sélecteur, le fil
-d'Ariane, une Structure et sa descendance, et le complément des deux. Chaque projection rend la
-forme **étroite** que sa surface consomme : une surface ne reçoit pas plus de faits qu'elle n'en a
-demandés — et une porte peut en rendre plus d'une, comme le fait l'écran de la liste d'Administration,
-à qui elle rend les lignes d'une part et, dans leur propre forme, les cibles de suppression de chaque
-boîte d'autre part. Elle rend des faits, jamais des verdicts : ce qu'un cycle signifie reste à celui qui
-l'appelle — l'Administration le nomme, la boutique dégrade (ADR-0030). L'ordre qu'elle promet — le nom
-en français, départagé par l'identifiant — est écrit une fois, dans le cœur de la Marche, et toutes ses
-surfaces le rendent sans le refaire (ADR-0030).
+Marche de la Structure, et rend une **valeur** bâtie de ces faits. Une surface lui demande ce
+qu'elle rend — l'arbre d'accueil, les lignes de l'Administration, les cibles de suppression d'une
+ligne, les options d'un sélecteur, une Structure par son identifiant ou par son slug, le fil
+d'Ariane, ses enfants, sa branche — et rien de plus : elle peut en demander une seule ou quatre
+d'un coup, et la lecture reste la même. Les questions portent le nom de ces faits, jamais celui d'un
+écran : une page de plus n'ajoute aucun nom ici. Elle rend des faits, jamais des verdicts : ce qu'un
+cycle signifie reste à celui qui l'appelle — l'Administration le nomme, la boutique dégrade
+(ADR-0030). L'ordre qu'elle promet — le nom en français, départagé par l'identifiant — est écrit
+une fois, dans le cœur de la Marche, et toutes ses surfaces le rendent sans le refaire (ADR-0030).
 Elle ne lit jamais dans une transaction : les lectures qu'une mutation doit juger sur des faits
 engagés restent avec elle, sous le verrou grossier (ADR-0027).
 _Avoid_: lecture de catégorie, category read, listAdminCategoriesWithCounts (comme nom du concept)
