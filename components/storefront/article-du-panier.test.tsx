@@ -25,7 +25,10 @@ vi.mock("next/image", () => ({
   ),
 }))
 
-import type { ArticleDuPanier as ArticleDuPanierDonnees } from "@/lib/panier"
+import type {
+  ArticleDuPanier as ArticleDuPanierDonnees,
+  ResultatPanier,
+} from "@/lib/panier"
 import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
 import { ArticleDuPanier } from "./article-du-panier"
@@ -91,6 +94,34 @@ function cliquer(button: HTMLButtonElement) {
       new MouseEvent("click", { bubbles: true, cancelable: true })
     )
   })
+}
+
+function evenementPointeur(type: string, x: number, y: number): PointerEvent {
+  return new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    clientX: x,
+    clientY: y,
+    pointerId: 1,
+    pointerType: "touch",
+    isPrimary: true,
+  })
+}
+
+function poserDoigtSur(cible: Element, x: number, y: number) {
+  act(() => cible.dispatchEvent(evenementPointeur("pointerdown", x, y)))
+}
+
+function deplacerDoigtSur(cible: Element, x: number, y: number) {
+  act(() => cible.dispatchEvent(evenementPointeur("pointermove", x, y)))
+}
+
+function relacherDoigtSur(cible: Element, x: number, y: number) {
+  act(() => cible.dispatchEvent(evenementPointeur("pointerup", x, y)))
+}
+
+function quantite() {
+  return bouton("Diminuer la quantité").nextElementSibling?.textContent ?? ""
 }
 
 describe("ArticleDuPanier", () => {
@@ -199,5 +230,169 @@ describe("ArticleDuPanier", () => {
 
     expect(container.querySelector("[role='alert']")).toBeNull()
     expect(port.appels).toHaveLength(2)
+  })
+
+  it("moves the number on pointer-down, before the write resolves", async () => {
+    let resoudre!: (resultat: ResultatPanier) => void
+    const port = creerPortPanierEnMemoire((appel) =>
+      appel.operation === "modifier"
+        ? new Promise<ResultatPanier>((resolve) => {
+            resoudre = resolve
+          })
+        : { ok: true }
+    )
+    render(<ArticleDuPanier article={article()} port={port} />)
+
+    poserDoigtSur(bouton("Augmenter la quantité"), 100, 100)
+
+    expect(quantite()).toBe("3")
+    expect(port.appels).toEqual([])
+
+    cliquer(bouton("Augmenter la quantité"))
+
+    expect(port.appels).toEqual([
+      { operation: "modifier", variantId: "variante-x", quantity: 3 },
+    ])
+    expect(quantite()).toBe("3")
+
+    act(() => resoudre({ ok: true }))
+    await rejouerTransition()
+  })
+
+  it("coalesces rapid presses into one flight, the newest quantity carried", async () => {
+    const resoudre: ((resultat: ResultatPanier) => void)[] = []
+    const port = creerPortPanierEnMemoire((appel) =>
+      appel.operation === "modifier"
+        ? new Promise<ResultatPanier>((resolve) => {
+            resoudre.push(resolve)
+          })
+        : { ok: true }
+    )
+    render(<ArticleDuPanier article={article()} port={port} />)
+
+    cliquer(bouton("Augmenter la quantité"))
+    cliquer(bouton("Augmenter la quantité"))
+    cliquer(bouton("Augmenter la quantité"))
+
+    expect(port.appels).toEqual([
+      { operation: "modifier", variantId: "variante-x", quantity: 3 },
+    ])
+    expect(quantite()).toBe("5")
+
+    act(() => resoudre[0]!({ ok: true }))
+    await rejouerTransition()
+
+    expect(port.appels).toEqual([
+      { operation: "modifier", variantId: "variante-x", quantity: 3 },
+      { operation: "modifier", variantId: "variante-x", quantity: 5 },
+    ])
+
+    act(() => resoudre[1]!({ ok: true }))
+    await rejouerTransition()
+
+    expect(port.appels).toHaveLength(2)
+    expect(quantite()).toBe("5")
+  })
+
+  it("puts the number back when a modifier is refused", async () => {
+    const port = creerPortPanierEnMemoire(() => ({
+      ok: false,
+      motif: "article-inconnu",
+      message: MESSAGE_ARTICLE_INCONNU,
+    }))
+    render(<ArticleDuPanier article={article()} port={port} />)
+
+    poserDoigtSur(bouton("Augmenter la quantité"), 100, 100)
+    cliquer(bouton("Augmenter la quantité"))
+    expect(quantite()).toBe("3")
+
+    await rejouerTransition()
+
+    expect(quantite()).toBe("2")
+    expect(container.querySelector("[role='alert']")?.textContent).toBe(
+      MESSAGE_ARTICLE_INCONNU
+    )
+  })
+
+  it("cancels the press preview when the finger leaves the control", async () => {
+    const port = creerPortPanierEnMemoire()
+    render(<ArticleDuPanier article={article()} port={port} />)
+
+    const augmenter = bouton("Augmenter la quantité")
+    poserDoigtSur(augmenter, 100, 100)
+    expect(quantite()).toBe("3")
+
+    deplacerDoigtSur(augmenter, 140, 100)
+    expect(quantite()).toBe("2")
+    relacherDoigtSur(augmenter, 140, 100)
+
+    await rejouerTransition()
+    expect(port.appels).toEqual([])
+  })
+
+  it("swipes the row left and hands the Variante to the removal write", async () => {
+    const port = creerPortPanierEnMemoire()
+    const retires: string[] = []
+    render(
+      <ArticleDuPanier
+        article={article()}
+        port={port}
+        onRetire={(retire) => retires.push(retire.variantId)}
+      />
+    )
+
+    const ligne = container.querySelector("li")!
+    poserDoigtSur(ligne, 200, 100)
+    deplacerDoigtSur(ligne, 140, 100)
+    relacherDoigtSur(ligne, 140, 100)
+    await rejouerTransition()
+
+    expect(retires).toEqual(["variante-x"])
+    expect(port.appels).toEqual([
+      { operation: "retirer", variantId: "variante-x" },
+    ])
+  })
+
+  it("lets a control keep its press instead of swiping the row", async () => {
+    const port = creerPortPanierEnMemoire()
+    render(<ArticleDuPanier article={article()} port={port} />)
+
+    const ligne = container.querySelector("li")!
+    const augmenter = bouton("Augmenter la quantité")
+    poserDoigtSur(augmenter, 200, 100)
+    deplacerDoigtSur(augmenter, 140, 100)
+    relacherDoigtSur(ligne, 140, 100)
+    await rejouerTransition()
+
+    expect(port.appels).toEqual([])
+    expect(quantite()).toBe("2")
+  })
+
+  it("brings the row back when the swipe's removal is refused", async () => {
+    const port = creerPortPanierEnMemoire(() => ({
+      ok: false,
+      motif: "article-inconnu",
+      message: MESSAGE_ARTICLE_INCONNU,
+    }))
+    const retours: string[] = []
+    render(
+      <ArticleDuPanier
+        article={article()}
+        port={port}
+        onRetour={(retour) => retours.push(retour.variantId)}
+      />
+    )
+
+    const ligne = container.querySelector("li")!
+    poserDoigtSur(ligne, 200, 100)
+    deplacerDoigtSur(ligne, 140, 100)
+    relacherDoigtSur(ligne, 140, 100)
+    await rejouerTransition()
+
+    expect(retours).toEqual(["variante-x"])
+    expect(container.querySelector("[role='alert']")?.textContent).toBe(
+      MESSAGE_ARTICLE_INCONNU
+    )
+    expect(bouton("Augmenter la quantité").disabled).toBe(false)
   })
 })
