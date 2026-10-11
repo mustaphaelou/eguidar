@@ -819,7 +819,7 @@ présent amendement qu'il faut y lire à côté, en ces endroits :
 - l'amendement de #490, qui tire l'exigence du glossaire — « Une mutation de Structure ne produit
   jamais d'autre issue » ([GLOSSARY.md](../../GLOSSARY.md)) — et en fait « Toute issue d'une
   mutation de Structure est un `UserFacingError` ». Sa citation est la seule des trois qui soit
-  périmée : le glossaire a retreint sa promesse, et c'est la version retreinte qu'il faut lui lire.
+  périmée : le glossaire a rétreint sa promesse, et c'est la version rétreinte qu'il faut lui lire.
 
 Le reste de la décision ne bouge pas : le verrou reste grossier, son délai reste armé avant lui, et
 `P2028` reste le refus que l'amendement de #541 en a fait. Les **deux autres** pièges nommés sont
@@ -846,7 +846,7 @@ effet ; le jour où un corps y écrirait un `slug`, l'échelle serait déjà là
 **Aucun module neuf, aucune couche de réessai.** L'invariant tient tel qu'il est écrit : la couture
 est une fonction privée du module qui possède le verrou, elle n'ajoute aucun symbole exporté et
 aucune importation, et rien ne réessaie — ni `SERIALIZABLE`, ni backoff, ni boucle. C'est là que la
-retreinte se décide, et c'est aussi ce qui la borne : une seule liste de défauts à connaître pour
+rétreinte se décide, et c'est aussi ce qui la borne : une seule liste de défauts à connaître pour
 maintenir la garantie, à l'endroit unique où une quatrième porte ira la chercher.
 
 Ce que la couture n'a pas fait, et qu'il faut dire parce que le dossier le laisse croire autrement :
@@ -875,5 +875,5 @@ La décision qu'un défaut non nommé s'échappe tel quel est écrite ici et dan
 L'échappement est donc **consigné et non prouvé**, et il le reste tant qu'une suite ne le prouve
 pas — le même traitement que les autres trous nommés de ce fichier. Ce qui est éprouvé, en
 revanche, ne bouge pas : la suite de Structure existante continue de rendre les huit refus avec la
-même voix et le même message, et c'est elle qui permet de dire que la retreinte n'a rien coûté à un
+même voix et le même message, et c'est elle qui permet de dire que la rétreinte n'a rien coûté à un
 éditeur.
