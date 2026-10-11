@@ -692,7 +692,7 @@ describe("storefront browse", () => {
       expect(lectures).toBe(1)
     })
 
-    it("la page de catégorie lit les liens une fois, et en sert ses deux traversées", async () => {
+    it("la page de catégorie lit la Structure une fois, et en tire sa fiche, son fil, ses enfants et sa branche", async () => {
       const { issue, lectures } = await compterLesLecturesDeLaStructure(() =>
         fetchCategoryPageData(cSlug("root"))
       )

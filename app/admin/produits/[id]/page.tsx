@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getAdminProduct } from "@/lib/use-cases/admin-catalog"
-import { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   updateProductAction,
   updateVariantStockAction,
@@ -31,11 +31,12 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [product, categories] = await Promise.all([
+  const [product, lecture] = await Promise.all([
     getAdminProduct(id),
-    lireOptionsSelecteur(),
+    lireStructure(),
   ])
   if (!product) notFound()
+  const categories = lecture.options()
 
   return (
     <div className="flex flex-col gap-6">

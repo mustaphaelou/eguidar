@@ -12,7 +12,7 @@ import {
   updateProduct,
 } from "@/lib/use-cases/admin-catalog"
 import { createCategory } from "@/lib/use-cases/admin-structure"
-import { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
@@ -369,7 +369,7 @@ describe("un Produit sans Structure reste lisible par l'Administration", () => {
 
 describe("le sélecteur de Structure des formulaires Produit", () => {
   it("répond exactement l'identifiant et le nom, rien d'autre", async () => {
-    const categories = await lireOptionsSelecteur()
+    const categories = (await lireStructure()).options()
 
     expect(categories.find((categorie) => categorie.id === categoryId)).toEqual(
       { id: categoryId, name: "Catégorie Test lecture" }
@@ -380,7 +380,7 @@ describe("le sélecteur de Structure des formulaires Produit", () => {
   })
 
   it("porte une Structure créée dans l'Administration dès la lecture suivante", async () => {
-    const avant = await lireOptionsSelecteur()
+    const avant = (await lireStructure()).options()
 
     const creee = await createCategory({
       name: "Structure fraîche",
@@ -389,7 +389,7 @@ describe("le sélecteur de Structure des formulaires Produit", () => {
 
     try {
       expect(avant.map((option) => option.id)).not.toContain(creee.id)
-      const apres = await lireOptionsSelecteur()
+      const apres = (await lireStructure()).options()
       expect(apres.find((option) => option.id === creee.id)).toEqual({
         id: creee.id,
         name: "Structure fraîche",

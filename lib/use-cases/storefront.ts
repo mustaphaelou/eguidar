@@ -16,9 +16,7 @@ import {
   productDetailTag,
 } from "@/lib/use-cases/cache-invalidation"
 import {
-  lireArbreAccueil,
-  lireFilAriane,
-  lirePageCategorie,
+  lireStructure,
   type NoeudAccueil,
 } from "@/lib/use-cases/lecture-structure"
 
@@ -96,8 +94,8 @@ function versCarteProduit(product: {
 }
 
 export async function fetchHomeData(): Promise<HomeData> {
-  const [categories, featured] = await Promise.all([
-    lireArbreAccueil(),
+  const [lecture, featured] = await Promise.all([
+    lireStructure(),
     prisma.product.findMany({
       where: { isFeatured: true },
       include: { variants: { select: { priceDelta: true, stock: true } } },
@@ -105,7 +103,7 @@ export async function fetchHomeData(): Promise<HomeData> {
     }),
   ])
   return {
-    categories,
+    categories: lecture.arbreAccueil(),
     featured: featured.map((product) => versCarteProduit(product)),
   }
 }
@@ -113,19 +111,20 @@ export async function fetchHomeData(): Promise<HomeData> {
 export async function fetchCategoryPageData(
   slug: string
 ): Promise<CategoryPageData | null> {
-  const page = await lirePageCategorie(slug)
-  if (!page) return null
+  const lecture = await lireStructure()
+  const categorie = lecture.structureParSlug(slug)
+  if (!categorie) return null
 
-  const products = await prisma.product.findMany({
-    where: { categoryId: { in: page.idsProduits } },
+  const produits = await prisma.product.findMany({
+    where: { categoryId: { in: lecture.branche(categorie.id) } },
     include: { variants: { select: { priceDelta: true, stock: true } } },
     orderBy: [{ createdAt: "desc" }, { name: "asc" }],
   })
   return {
-    category: page.categorie,
-    categoryChain: page.filAriane,
-    children: page.enfants,
-    products: products.map((product) => versCarteProduit(product)),
+    category: categorie,
+    categoryChain: lecture.filAriane(categorie.id),
+    children: lecture.enfants(categorie.id),
+    products: produits.map((product) => versCarteProduit(product)),
   }
 }
 
@@ -148,7 +147,7 @@ export async function fetchProductPageData(
     : []
 
   const categoryChain: CategoryChainEntry[] = product.category
-    ? await lireFilAriane(product.category.id)
+    ? (await lireStructure()).filAriane(product.category.id)
     : []
 
   return {

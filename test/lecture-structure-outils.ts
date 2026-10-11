@@ -20,32 +20,92 @@ const RACINE = "racine"
 
 export const MODULE_LECTURE = "lib/use-cases/lecture-structure.ts"
 
-export const SYMBOLES = [
-  "lireArbreAccueil",
-  "projeterArbreAccueil",
-  "lireEcranAdmin",
-  "projeterEcranAdmin",
-  "lireOptionsSelecteur",
-  "projeterOptionsSelecteur",
-  "lireEcranEdition",
-  "projeterEcranEdition",
-  "lirePageCategorie",
-  "projeterPageCategorie",
-  "lireFilAriane",
-  "projeterFilAriane",
+export const QUESTIONS = [
+  "arbreAccueil",
+  "lignesAdmin",
+  "ciblesSuppression",
+  "options",
+  "structure",
+  "structureParSlug",
+  "filAriane",
+  "enfants",
+  "branche",
+] as const
+
+export const NOMS_EMPRUNTES = [
+  "comparerParNom",
+  "liensDesStructures",
+  "marcheStructure",
+  "complementDepuis",
+] as const
+
+export const NOMS_EXPORTES = [
+  "lireStructure",
+  "lectureDesStructures",
+  "LectureStructure",
   "FaitStructure",
   "NoeudAccueil",
-  "LigneStructureAdmin",
-  "CiblesSuppression",
-  "EcranAdminStructure",
-  "OptionStructure",
-  "StructureEditable",
-  "EcranEditionStructure",
-  "MaillonAriane",
-  "PageCategorie",
-  "descendanceDe",
-  "complementDe",
 ] as const
+
+export const SYMBOLES = [
+  ...NOMS_EXPORTES,
+  ...QUESTIONS,
+  ...NOMS_EMPRUNTES,
+] as const
+
+const MODULE_MARCHE = "@/lib/marche-structure"
+
+const EXPORT_NOMME =
+  /^export\s+(?:declare\s+)?(?:async\s+)?(?:function|const|let|var|class|interface|type|enum|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm
+
+export function exportsDuModule(source: string): string[] {
+  const nommes = [...source.matchAll(EXPORT_NOMME)].map(([, nom]) => nom!)
+  for (const [, noms] of source.matchAll(/^export\s*\{([^}]*)\}/gm)) {
+    for (const nom of (noms ?? "").split(",")) {
+      const importe = nom
+        .split(/\s+as\s+/)
+        .pop()!
+        .trim()
+      if (importe.length > 0) nommes.push(importe)
+    }
+  }
+  for (const [, cible] of source.matchAll(
+    /^export\s+\*\s+from\s+["']([^"']+)["']/gm
+  )) {
+    nommes.push(`* depuis ${cible}`)
+  }
+  return nommes.sort()
+}
+
+export function importsEmpruntes(source: string): string[] {
+  return [
+    ...source.matchAll(
+      new RegExp(
+        `import\\s+(?:type\\s+)?\\{([^}]*)\\}\\s*from\\s*["']${MODULE_MARCHE}["']`,
+        "g"
+      )
+    ),
+  ]
+    .flatMap(([, noms]) =>
+      (noms ?? "")
+        .split(",")
+        .map((nom) => nom.split(/\s+as\s+/)[0]!.trim())
+        .filter((nom) => nom.length > 0)
+    )
+    .sort()
+}
+
+export function membresDeLaValeur(source: string): string[] {
+  const corps =
+    /export\s+interface\s+LectureStructure\s*\{([\s\S]*?)\n\}/
+      .exec(source)?.[1]
+      ?.split("\n")
+      .slice(1)
+      .join("\n") ?? ""
+  return [...corps.matchAll(/^\s*([A-Za-z_$][\w$]*)\s*\(/gm)]
+    .map(([, nom]) => nom!)
+    .sort()
+}
 
 export const SCHEMA = lire(import.meta.url, "../prisma/schema.prisma")
 

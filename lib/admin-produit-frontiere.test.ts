@@ -5,7 +5,7 @@ import type {
   getAdminProduct,
   listAdminProducts,
 } from "@/lib/use-cases/admin-catalog"
-import type { lireOptionsSelecteur } from "@/lib/use-cases/lecture-structure"
+import type { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
 import {
   importeDe,
   lire,
@@ -114,7 +114,7 @@ describe("Administration Produit — plus aucun cast de colonne stockée", () =>
       LigneProduitPrisma[]
     >()
     expectTypeOf<
-      Awaited<ReturnType<typeof lireOptionsSelecteur>>
+      ReturnType<ReturnType<typeof lectureDesStructures>["options"]>
     >().toEqualTypeOf<{ id: string; name: string }[]>()
   })
 })
