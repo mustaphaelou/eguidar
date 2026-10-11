@@ -786,3 +786,87 @@ Deux endroits la portent à côté de cet amendement : l'**en-tête du module**,
 pas sous le verrou, et un **seuil** qui énonce qu'aucune lecture de la Structure n'existe hors de lui,
 les deux exceptions nommées comprises. Un seuil et non une garde de neutralité : la question n'est pas
 ce que le module atteint, c'est qui lit la table.
+
+## Amendement — Le module ne refuse que ce qu'il sait nommer (#616)
+
+La surface d'erreurs décidée ici est totale **pour les défauts que le module sait nommer**, et ne
+l'est pas au-delà. Toute issue d'une mutation de Structure n'est donc pas un `UserFacingError` :
+un défaut que ni l'échelle d'unicité ni l'échelle de course ne reconnaît sort de la couture **tel
+quel**, et le module ne compose pour lui aucun Refus de la Structure. C'est la même partition
+qu'ADR-0004 tient pour une rangée illisible — un défaut sans traduction n'a pas de refus à dire, et
+lui en inventer un reviendrait à nommer un cas que rien ne peut produire.
+
+Le glossaire le dit désormais dans ces termes, et c'est sa phrase qu'il faut lire à côté :
+
+> Une mutation de Structure ne produit jamais d'autre **refus** : tout défaut qu'elle sait nommer
+> devient un Refus de la Structure, et un défaut qu'elle ne sait pas nommer est rendu tel quel,
+> sans refus composé — la même partition qu'ADR-0004 tient pour une rangée illisible.
+> ([GLOSSARY.md](../../GLOSSARY.md), entrée **Refus de la Structure**)
+
+### Ce que la décision disait, et où lire cette limite à côté
+
+Aucune ligne de la décision n'est changée, comme le veut la convention du fichier ; c'est le
+présent amendement qu'il faut y lire à côté, en ces endroits :
+
+- la cinquième puce de la décision — « **La surface d'erreurs est totale du côté Structure.** Toute
+  issue d'une mutation de Structure est un `UserFacingError`, jamais une erreur de lecteur ». Le
+  mot « totale » y est le même mot que dans la promesse du glossaire, et c'est lui qui demande à
+  être lu ainsi : totale **pour ce que le module sait nommer** ;
+- la formulation que l'amendement de la troisième tranche donnait de cette même propriété — « toute
+  issue d'une mutation de Structure est un `UserFacingError` », rangée parmi les quatre phrases
+  qu'il rendait vraies. Elle reste vraie des défauts nommés, et elle était déjà la lecture qu'il
+  fallait faire ;
+- l'amendement de #490, qui tire l'exigence du glossaire — « Une mutation de Structure ne produit
+  jamais d'autre issue » ([GLOSSARY.md](../../GLOSSARY.md)) — et en fait « Toute issue d'une
+  mutation de Structure est un `UserFacingError` ». Sa citation est la seule des trois qui soit
+  périmée : le glossaire a retreint sa promesse, et c'est la version retreinte qu'il faut lui lire.
+
+Le reste de la décision ne bouge pas : le verrou reste grossier, son délai reste armé avant lui,
+`P2028` reste le refus que l'amendement de #541 en a fait, et les trois pièges nommés restent
+entiers.
+
+### Où vit l'échelle, et ce qu'elle n'a pas introduit
+
+Les deux échelles de défauts tiennent désormais en **un seul passage privé** du module qui possède
+déjà le verrou : `sousVerrouDeStructure`, dans
+[`admin-structure.ts`](../../lib/use-cases/admin-structure.ts). Il ouvre la transaction, arme le
+verrou par `verrouillerStructure`, rend la valeur du corps, et porte les deux échelles dans cet
+ordre — l'unicité d'abord (`P2002` sur `slug` → `CategorySlugConflictError`, tout autre défaut
+relancé tel quel), la course ensuite, qui laisse d'abord passer tout `UserFacingError` pour qu'un
+refus du corps ne soit jamais réétiqueté par la mécanique. Les trois portes n'ont plus de
+`try`/`catch` : chacune est sa règle et rien d'autre.
+
+**Aucun module neuf, aucune couche de réessai.** L'invariant tient tel qu'il est écrit : la couture
+est une fonction privée du module qui possède le verrou, elle n'ajoute aucun symbole exporté et
+aucune importation, et rien ne réessaie — ni `SERIALIZABLE`, ni backoff, ni boucle. C'est là que la
+retreinte se décide, et c'est aussi ce qui la borne : une seule liste de défauts à connaître pour
+maintenir la garantie, à l'endroit unique où une quatrième porte ira la chercher.
+
+Ce que la couture n'a pas fait, et qu'il faut dire parce que le dossier le laisse croire autrement :
+rien de ce qui est au-dessus d'elle. Les options de transaction restent celles de Prisma, les
+effets post-commit restent dans les portes et best-effort (ADR-0014, ADR-0025), la frontière reste
+la Structure.
+
+### Le trou nommé : l'échappement est consigné, non prouvé
+
+La décision qu'un défaut non nommé s'échappe tel quel est écrite ici et dans le glossaire, et
+**aucune épreuve ne la prouve**. Ce n'est pas un oubli de rédaction, c'est un manque à nommer :
+
+- **Aucun défaut ne s'obtient à peu de frais.** Tout ce que la course rend dans cette base porte
+  déjà un nom : `55P03`, `40P01`, `23001`/`23503`, `P2003`, `P2034`, `P2028`, `P2002` sur `slug`. La
+  liste est close de ce côté — et `40P01` n'a pas d'épreuve, comme le dit déjà l'amendement de la
+  première tranche, ce qui ne change rien ici : l'échelle le nomme, donc un Client ne le verrait pas
+  tel quel. Pour éprouver l'échappement, il faudrait donc produire un défaut que le module ne nomme
+  pas, c'est-à-dire en injecter un ;
+- **Cette injection est hors du contrat de ce dépôt** : le premier double de client de transaction
+  y serait un fait neuf, dans un dépôt qui n'a qu'un seul adaptateur de base et qui prouve contre un
+  PostgreSQL réel. Les courses déjà éprouvées sont d'ailleurs la preuve que les codes qu'elles
+  rendent sont bien ceux de cette base et de ce Prisma ;
+- **La seule assertion de relancement du dépôt est ailleurs** : elle porte sur `createProduct`, une
+  mutation du Catalogue, qui ne traverse jamais cette échelle. Elle ne prouve rien ici.
+
+L'échappement est donc **consigné et non prouvé**, et il le reste tant qu'une suite ne le prouve
+pas — le même traitement que les autres trous nommés de ce fichier. Ce qui est éprouvé, en
+revanche, ne bouge pas : la suite de Structure existante continue de rendre les huit refus avec la
+même voix et le même message, et c'est elle qui permet de dire que la retreinte n'a rien coûté à un
+éditeur.
