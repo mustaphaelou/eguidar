@@ -127,17 +127,20 @@ laquelle les Produits se rattachent — sauf ceux dont elle a été supprimée, 
 _Avoid_: category tree, arborescence de catégories, catégorie d'administration
 
 **Refus de la Structure**:
-Le refus par le serveur d'une opération sur la Structure : Structure introuvable, Structure
-contenant des sous-catégories, Produits qui lui sont rattachés, réaffectation invalide, Structure
-déjà en cours de modification par une autre opération, ou transaction dont le délai est dépassé. A
+Le refus par le serveur d'une opération sur la Structure : données invalides, slug déjà pris,
+Structure introuvable, Structure contenant des sous-catégories, Produits qui lui sont rattachés,
+réaffectation invalide, Structure déjà en cours de modification par une autre opération, ou
+transaction dont le délai est dépassé. A
 mutation may also be refused because the stored Structure is **corrupt** — it already carries a cycle
 somewhere in an ancestor chain (ADR-0027). That is a different fault from a bad request, and it is
 refused in its own voice rather than as invalid input, since retrying repairs nothing. Un délai de
 transaction dépassé a lui aussi sa propre voix : ce n'est pas la contention, que « réessayez »
 répare, et `CategoryBusyError` ne dit donc pas ce fait (ADR-0027). Une mutation de Structure ne
-produit jamais d'autre issue. Le refus d'une Structure qui a des Produits **est le défaut** :
-l'éditeur peut le lever en choisissant de les réaffecter ou de les laisser sans Structure, jamais
-par inadvertance (ADR-0029).
+produit jamais d'autre **refus** : tout défaut qu'elle sait nommer devient un Refus de la Structure,
+et un défaut qu'elle ne sait pas nommer est rendu tel quel, sans refus composé — la même partition
+qu'ADR-0004 tient pour une rangée illisible. Le refus d'une Structure qui a des Produits **est le
+défaut** : l'éditeur peut le lever en choisissant de les réaffecter ou de les laisser sans
+Structure, jamais par inadvertance (ADR-0029).
 _Avoid_: erreur catégorie, échec de suppression, category error
 
 **Marche de la Structure**:
