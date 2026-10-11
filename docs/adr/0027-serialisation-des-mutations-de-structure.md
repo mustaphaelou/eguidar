@@ -821,9 +821,11 @@ présent amendement qu'il faut y lire à côté, en ces endroits :
   mutation de Structure est un `UserFacingError` ». Sa citation est la seule des trois qui soit
   périmée : le glossaire a retreint sa promesse, et c'est la version retreinte qu'il faut lui lire.
 
-Le reste de la décision ne bouge pas : le verrou reste grossier, son délai reste armé avant lui,
-`P2028` reste le refus que l'amendement de #541 en a fait, et les trois pièges nommés restent
-entiers.
+Le reste de la décision ne bouge pas : le verrou reste grossier, son délai reste armé avant lui, et
+`P2028` reste le refus que l'amendement de #541 en a fait. Les **deux autres** pièges nommés sont
+intacts : `Product_categoryId_fkey` échoue toujours du côté Catalogue, et l'écart entre le schéma
+Prisma et la base sur `Category_parentId_fkey` demeure. Le troisième, la marche non bornée, est
+celui que l'amendement de #490 a fermé.
 
 ### Où vit l'échelle, et ce qu'elle n'a pas introduit
 
@@ -835,6 +837,11 @@ ordre — l'unicité d'abord (`P2002` sur `slug` → `CategorySlugConflictError`
 relancé tel quel), la course ensuite, qui laisse d'abord passer tout `UserFacingError` pour qu'un
 refus du corps ne soit jamais réétiqueté par la mécanique. Les trois portes n'ont plus de
 `try`/`catch` : chacune est sa règle et rien d'autre.
+
+Une des trois y a gagné ce qu'elle ne portait pas : `deleteCategory` traverse désormais l'échelle
+d'unicité, là où elle n'avait que l'échelle de course. Le corps ne peut pas l'y atteindre — il
+réaffecte, déplace et supprime, il n'écrit aucun `slug` — donc l'élargissement est aujourd'hui sans
+effet ; le jour où un corps y écrirait un `slug`, l'échelle serait déjà là pour le nommer.
 
 **Aucun module neuf, aucune couche de réessai.** L'invariant tient tel qu'il est écrit : la couture
 est une fonction privée du module qui possède le verrou, elle n'ajoute aucun symbole exporté et
@@ -862,7 +869,7 @@ La décision qu'un défaut non nommé s'échappe tel quel est écrite ici et dan
   y serait un fait neuf, dans un dépôt qui n'a qu'un seul adaptateur de base et qui prouve contre un
   PostgreSQL réel. Les courses déjà éprouvées sont d'ailleurs la preuve que les codes qu'elles
   rendent sont bien ceux de cette base et de ce Prisma ;
-- **La seule assertion de relancement du dépôt est ailleurs** : elle porte sur `createProduct`, une
+- **La seule assertion de relancement du dépôt est ailleurs** : elle porte sur `updateProduct`, une
   mutation du Catalogue, qui ne traverse jamais cette échelle. Elle ne prouve rien ici.
 
 L'échappement est donc **consigné et non prouvé**, et il le reste tant qu'une suite ne le prouve
