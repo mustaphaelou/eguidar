@@ -80,6 +80,45 @@ describe("Lecture de la Structure — la liste figée, comparée par égalité d
     expect(importsEmpruntes(sansEmprunt)).not.toEqual(
       [...NOMS_EMPRUNTES].sort()
     )
+
+    const avecUnExportDefaut = `${SOURCE_DU_MODULE}\nexport default function structureParDefaut() {}\n`
+    expect(exportsDuModule(avecUnExportDefaut)).not.toEqual(
+      [...NOMS_EXPORTES].sort()
+    )
+
+    const avecUnExportType = `${SOURCE_DU_MODULE}\nexport type { FicheStructure }\n`
+    expect(exportsDuModule(avecUnExportType)).not.toEqual(
+      [...NOMS_EXPORTES].sort()
+    )
+
+    const avecUnEmpruntNamespace = SOURCE_DU_MODULE.replace(
+      "import {\n  complementDepuis,",
+      'import * as marche from "@/lib/marche-structure"\nimport {\n  complementDepuis,'
+    )
+    expect(avecUnEmpruntNamespace).not.toBe(SOURCE_DU_MODULE)
+    expect(importsEmpruntes(avecUnEmpruntNamespace)).not.toEqual(
+      [...NOMS_EMPRUNTES].sort()
+    )
+
+    const avecUnTypeEnLigne = SOURCE_DU_MODULE.replace(
+      "  comparerParNom,\n",
+      "  comparerParNom,\n  type Fait,\n"
+    )
+    expect(avecUnTypeEnLigne).not.toBe(SOURCE_DU_MODULE)
+    expect(importsEmpruntes(avecUnTypeEnLigne)).toContain("Fait")
+    expect(importsEmpruntes(avecUnTypeEnLigne)).not.toContain("type Fait")
+    expect(importsEmpruntes(avecUnTypeEnLigne)).not.toEqual(
+      [...NOMS_EMPRUNTES].sort()
+    )
+
+    const avecUnMembreSurLAcceulade = SOURCE_DU_MODULE.replace(
+      "export interface LectureStructure {\n  arbreAccueil",
+      "export interface LectureStructure { arbreAccueil"
+    )
+    expect(avecUnMembreSurLAcceulade).not.toBe(SOURCE_DU_MODULE)
+    expect(membresDeLaValeur(avecUnMembreSurLAcceulade)).toEqual(
+      [...QUESTIONS].sort()
+    )
   })
 })
 

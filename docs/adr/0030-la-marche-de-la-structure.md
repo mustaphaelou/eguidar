@@ -872,13 +872,14 @@ désormais pour une liste qui demande deux questions et une page qui en demande 
 
 La suite des portes devient **une lecture et neuf comparaisons** sur les mêmes faits, au lieu de six
 paires porte contre jumelle ; elle garde ses deux terrains, la table de substitution et la table
-plantée. La liste figée est comparée **par égalité dans les deux sens, sur ses deux moitiés** — les
-noms empruntés contre les imports que la source déclare, les neuf questions contre les membres que
-la valeur déclare —, ce qui fait tomber autant un nom sans fait qu'un fait sans nom. La suite de
-comportement ne bouge pas dans sa substance : ses descriptions passent des six projections aux neuf
-questions, ses imports à la construction unique, et pas une assertion sur un rendu n'est touchée.
+plantée. La liste figée est comparée **par égalité dans les deux sens, sur ses trois moitiés** — les
+noms empruntés contre les imports que la source déclare, les exports contre `NOMS_EXPORTES`, les neuf
+questions contre les membres que la valeur déclare —, ce qui fait tomber autant un nom sans fait
+qu'un fait sans nom. La suite de comportement ne bouge pas dans sa substance : ses descriptions
+passent des six projections aux neuf questions, ses imports à la construction unique, et pas une
+assertion sur un rendu n'est touchée.
 
 **Un manque nommé.** La construction paresseuse n'est éprouvée par aucune des deux coutures : la
-marche se bât **dans** la valeur, et ce dépôt ne simule pas ses propres modules. Ce qui est éprouvé,
-c'est que la lecture a lieu une fois par surface ; que la marche se bât **au plus** une fois est
+marche se bâtit **dans** la valeur, et ce dépôt ne simule pas ses propres modules. Ce qui est éprouvé,
+c'est que la lecture a lieu une fois par surface ; que la marche se bâtit **au plus** une fois est
 tenu par le code et énoncé ici, non affirmé par une épreuve.

@@ -60,7 +60,10 @@ const EXPORT_NOMME =
 
 export function exportsDuModule(source: string): string[] {
   const nommes = [...source.matchAll(EXPORT_NOMME)].map(([, nom]) => nom!)
-  for (const [, noms] of source.matchAll(/^export\s*\{([^}]*)\}/gm)) {
+  if (/^export\s+default\b/m.test(source)) nommes.push("default")
+  for (const [, noms] of source.matchAll(
+    /^export\s*(?:type\s+)?\{([^}]*)\}/gm
+  )) {
     for (const nom of (noms ?? "").split(",")) {
       const importe = nom
         .split(/\s+as\s+/)
@@ -78,7 +81,7 @@ export function exportsDuModule(source: string): string[] {
 }
 
 export function importsEmpruntes(source: string): string[] {
-  return [
+  const emprunts = [
     ...source.matchAll(
       new RegExp(
         `import\\s+(?:type\\s+)?\\{([^}]*)\\}\\s*from\\s*["']${MODULE_MARCHE}["']`,
@@ -89,19 +92,29 @@ export function importsEmpruntes(source: string): string[] {
     .flatMap(([, noms]) =>
       (noms ?? "")
         .split(",")
+        .map((nom) => nom.trim().replace(/^type\s+/, ""))
         .map((nom) => nom.split(/\s+as\s+/)[0]!.trim())
         .filter((nom) => nom.length > 0)
     )
     .sort()
+
+  for (const [, alias] of source.matchAll(
+    new RegExp(
+      `import\\s+(?:type\\s+)?\\*\\s+as\\s+([A-Za-z_$][\\w$]*)\\s+from\\s*["']${MODULE_MARCHE}["']`,
+      "g"
+    )
+  )) {
+    emprunts.push(`* as ${alias}`)
+  }
+
+  return emprunts.sort()
 }
 
 export function membresDeLaValeur(source: string): string[] {
   const corps =
-    /export\s+interface\s+LectureStructure\s*\{([\s\S]*?)\n\}/
-      .exec(source)?.[1]
-      ?.split("\n")
-      .slice(1)
-      .join("\n") ?? ""
+    /export\s+interface\s+LectureStructure\s*\{([\s\S]*?)\n\}/.exec(
+      source
+    )?.[1] ?? ""
   return [...corps.matchAll(/^\s*([A-Za-z_$][\w$]*)\s*\(/gm)]
     .map(([, nom]) => nom!)
     .sort()

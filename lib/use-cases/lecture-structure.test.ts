@@ -754,6 +754,20 @@ describe("structure, options et branche — sur un arbre sain", () => {
     expect(lectureDesStructures([]).structure("inconnue")).toBeNull()
   })
 
+  it("rend une Structure sans descendante elle seule : sa branche est elle-même", () => {
+    const lecture = lectureDesStructures(ARBRE_SAIN)
+
+    expect(lecture.branche("isolee")).toEqual(["isolee"])
+    expect(lecture.branche("petit-a")).toEqual(["petit-a"])
+  })
+
+  it("rend une Structure que les faits ne portent pas elle seule, sans lever", () => {
+    expect(lectureDesStructures(ARBRE_SAIN).branche("inconnue")).toEqual([
+      "inconnue",
+    ])
+    expect(lectureDesStructures([]).branche("inconnue")).toEqual(["inconnue"])
+  })
+
   it("ne journalise rien : le journal garde son sens", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
@@ -800,6 +814,19 @@ describe("structure, options et branche — sur une Structure déjà cyclique", 
       ])
       expect(new Set(lecture.branche("boucle-a")).size).toBe(
         lecture.branche("boucle-a").length
+      )
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("rend le même ensemble par chacun des deux maillons du cycle", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const lecture = lectureDesStructures(AVEC_CYCLE)
+
+      expect([...lecture.branche("boucle-b")].sort()).toEqual(
+        [...lecture.branche("boucle-a")].sort()
       )
     } finally {
       warn.mockRestore()
