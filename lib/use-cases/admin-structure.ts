@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import type { Category, Prisma } from "@/lib/generated/prisma/client"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
@@ -326,36 +326,26 @@ export async function updateCategory(
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
 
-  let resultat: { category: Category; image: string | null }
-  try {
-    resultat = await prisma.$transaction(async (tx) => {
-      await verrouillerStructure(tx)
-
+  const { category, image: imagePrecedente } = await sousVerrouDeStructure(
+    async (tx) => {
       const existing = await tx.category.findUnique({ where: { id } })
       if (!existing) throw new CategoryNotFoundError()
 
       await assertUniqueCategorySlug(data.slug, tx, id)
       await assertAcyclicCategoryTree(id, data.parentId, tx)
 
-      try {
-        const category = await tx.category.update({
-          where: { id },
-          data: {
-            name: data.name,
-            slug: data.slug,
-            parentId: data.parentId ?? null,
-            image: data.image ?? null,
-          },
-        })
-        return { category, image: existing.image }
-      } catch (error) {
-        mapCategoryUniqueViolation(error)
-      }
-    })
-  } catch (error) {
-    mapCourseDeStructure(error)
-  }
-  const { category, image: imagePrecedente } = resultat
+      const category = await tx.category.update({
+        where: { id },
+        data: {
+          name: data.name,
+          slug: data.slug,
+          parentId: data.parentId ?? null,
+          image: data.image ?? null,
+        },
+      })
+      return { category, image: existing.image }
+    }
+  )
 
   const nextImage = data.image ?? null
   if (imagePrecedente && imagePrecedente !== nextImage) {
