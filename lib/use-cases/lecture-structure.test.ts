@@ -339,6 +339,65 @@ describe("arbreAccueil — une longueur n'est jamais un refus", () => {
   })
 })
 
+describe("branche — une longueur n'est jamais un refus", () => {
+  const PROFONDEUR = 5_000
+
+  function chaineSousUnCycle(): FaitStructure[] {
+    const chaine: FaitStructure[] = [
+      structure("racine", "Racine", "boucle-a", 1),
+    ]
+    for (let rang = 1; rang < PROFONDEUR; rang += 1) {
+      chaine.push(
+        structure(
+          `c${rang}`,
+          `Maillon ${rang}`,
+          rang === 1 ? "racine" : `c${rang - 1}`,
+          1
+        )
+      )
+    }
+    return [
+      ...chaine,
+      structure("boucle-a", "Boucle A", "boucle-b", 1),
+      structure("boucle-b", "Boucle B", "boucle-a", 1),
+    ]
+  }
+
+  function brancheEnSilence(id: string): { ids: string[]; duree: number } {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const debut = Date.now()
+      const ids = lectureDesStructures(chaineSousUnCycle()).branche(id)
+      return { ids, duree: Date.now() - debut }
+    } finally {
+      warn.mockRestore()
+    }
+  }
+
+  it("descend une chaîne qui mène à un cycle, et s'arrête", () => {
+    const { ids: branche, duree } = brancheEnSilence("racine")
+
+    expect(branche).toHaveLength(PROFONDEUR)
+    expect(branche[0]).toBe("racine")
+    expect(branche).toContain(`c${PROFONDEUR - 1}`)
+    expect(new Set(branche).size).toBe(branche.length)
+
+    expect(duree).toBeLessThan(2_000)
+  })
+
+  it("descend depuis une Structure qu'aucune racine n'atteint, et s'arrête", () => {
+    const { ids: branche, duree } = brancheEnSilence("boucle-a")
+
+    expect(branche).toHaveLength(PROFONDEUR + 2)
+    expect(branche[0]).toBe("boucle-a")
+    expect(branche).toContain("boucle-b")
+    expect(branche).toContain(`c${PROFONDEUR - 1}`)
+    expect(new Set(branche).size).toBe(branche.length)
+
+    expect(duree).toBeLessThan(2_000)
+  })
+})
+
 describe("lignesAdmin — sur un arbre sain", () => {
   it("rend une ligne par Structure, dans l'ordre de la descente", () => {
     const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()

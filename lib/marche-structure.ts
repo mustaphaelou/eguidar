@@ -230,29 +230,10 @@ function brancheDansLOrdre(
   ]
 }
 
-export function descendanceDe(
-  structures: readonly StructureLue[],
-  id: string
-): string[] {
-  return brancheDansLOrdre(
-    marcheDesStructures(structures),
-    nomsDesStructures(structures),
-    id
-  )
-}
-
 export interface PartitionStructure {
   descendance: string[]
   horsSoi: string[]
   horsDescendance: string[]
-}
-
-export function complementDe(
-  structures: readonly StructureLue[],
-  id: string
-): PartitionStructure {
-  const liens = liensDesStructures(structures)
-  return complementDepuis(marcheStructure(liens), liens, id)
 }
 
 export function complementDepuis(
