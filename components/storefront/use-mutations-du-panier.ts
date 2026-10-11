@@ -21,15 +21,18 @@ const portActionsPanier: PortMutationsDuPanier = {
   retirer: retirerArticleDuPanierAction,
 }
 
+/** La fin d'une opération, rendue à l'appelant qui l'a demandée. */
+type SurFin = (resultat: ResultatPanier) => void
+
 export function useMutationsDuPanier(
   port: PortMutationsDuPanier = portActionsPanier
 ): {
   enAttente: boolean
   messageRefus: string | undefined
   ajoute: boolean
-  ajouter(variantId: string, quantity: number): void
-  modifier(variantId: string, quantity: number): void
-  retirer(variantId: string): void
+  ajouter(variantId: string, quantity: number, surFin?: SurFin): void
+  modifier(variantId: string, quantity: number, surFin?: SurFin): void
+  retirer(variantId: string, surFin?: SurFin): void
 } {
   const [enAttente, demarrer] = useTransition()
   const [ajoute, setAjoute] = useState(false)
@@ -37,17 +40,19 @@ export function useMutationsDuPanier(
 
   function lancer(
     operation: () => Promise<ResultatPanier>,
-    accuser: boolean
+    accuser: boolean,
+    surFin?: SurFin
   ): void {
     setAjoute(false)
     setMessageRefus(undefined)
     demarrer(async () => {
       const resultat = await operation()
-      if (!resultat.ok) {
+      if (resultat.ok) {
+        if (accuser) setAjoute(true)
+      } else {
         setMessageRefus(resultat.message)
-        return
       }
-      if (accuser) setAjoute(true)
+      surFin?.(resultat)
     })
   }
 
@@ -55,14 +60,14 @@ export function useMutationsDuPanier(
     enAttente,
     messageRefus,
     ajoute,
-    ajouter(variantId, quantity) {
-      lancer(() => port.ajouter(variantId, quantity), true)
+    ajouter(variantId, quantity, surFin) {
+      lancer(() => port.ajouter(variantId, quantity), true, surFin)
     },
-    modifier(variantId, quantity) {
-      lancer(() => port.modifier(variantId, quantity), false)
+    modifier(variantId, quantity, surFin) {
+      lancer(() => port.modifier(variantId, quantity), false, surFin)
     },
-    retirer(variantId) {
-      lancer(() => port.retirer(variantId), false)
+    retirer(variantId, surFin) {
+      lancer(() => port.retirer(variantId), false, surFin)
     },
   }
 }

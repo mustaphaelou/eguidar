@@ -175,6 +175,44 @@ describe("useMutationsDuPanier", () => {
     expect(hook.current.messageRefus).toBe("Cet article n'est plus disponible.")
   })
 
+  it("accuse la fin d'une opération au rappel que l'appelant a posé", async () => {
+    const port = creerPortPanierEnMemoire()
+    const hook = renderHook(() => useMutationsDuPanier(port))
+    const fins: ResultatPanier[] = []
+
+    act(() => {
+      hook.current.modifier("variante-a", 3, (resultat) => fins.push(resultat))
+    })
+    await rejouerTransition()
+    expect(fins).toEqual([{ ok: true }])
+
+    act(() => {
+      hook.current.retirer("variante-a", (resultat) => fins.push(resultat))
+    })
+    await rejouerTransition()
+    expect(fins).toEqual([{ ok: true }, { ok: true }])
+  })
+
+  it("rend le refus au rappel, en même temps qu'il le relaie", async () => {
+    const port = creerPortPanierEnMemoire(() => ({
+      ok: false,
+      motif: "article-inconnu",
+      message: MESSAGE_ARTICLE_INCONNU,
+    }))
+    const hook = renderHook(() => useMutationsDuPanier(port))
+    const fins: ResultatPanier[] = []
+
+    act(() => {
+      hook.current.modifier("variante-a", 3, (resultat) => fins.push(resultat))
+    })
+    await rejouerTransition()
+
+    expect(fins).toEqual([
+      { ok: false, motif: "article-inconnu", message: MESSAGE_ARTICLE_INCONNU },
+    ])
+    expect(hook.current.messageRefus).toBe(MESSAGE_ARTICLE_INCONNU)
+  })
+
   it("efface l'accusé et le refus dès qu'une opération suivante démarre", async () => {
     let resoudreModification!: (resultat: ResultatPanier) => void
     const port = creerPortPanierEnMemoire((appel) =>

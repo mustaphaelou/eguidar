@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { ShoppingBag01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { ArticleDuPanier } from "@/components/storefront/article-du-panier"
+import { ListeArticlesDuPanier } from "@/components/storefront/liste-articles-du-panier"
 import { CityPicker } from "@/components/storefront/city-picker"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
@@ -72,11 +72,7 @@ async function CartContent({
       <h1 className="mb-4 text-2xl font-bold">Mon panier</h1>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
-        <ul>
-          {panier.lines.map((article) => (
-            <ArticleDuPanier key={article.variantId} article={article} />
-          ))}
-        </ul>
+        <ListeArticlesDuPanier articles={panier.lines} />
 
         <aside className="h-fit rounded-2xl border p-5">
           <h2 className="mb-4 text-lg font-semibold">Récapitulatif</h2>
