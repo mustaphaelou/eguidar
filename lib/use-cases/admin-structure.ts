@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import type { Category, Prisma } from "@/lib/generated/prisma/client"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import { toIndexableProduct } from "@/lib/index-projection"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
@@ -190,6 +190,24 @@ function mapCategoryUniqueViolation(error: unknown): never {
   )
 }
 
+async function sousVerrouDeStructure<T>(
+  body: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await verrouillerStructure(tx)
+
+      try {
+        return await body(tx)
+      } catch (error) {
+        mapCategoryUniqueViolation(error)
+      }
+    })
+  } catch (error) {
+    mapCourseDeStructure(error)
+  }
+}
+
 async function assertUniqueCategorySlug(
   slug: string,
   client: Prisma.TransactionClient,
@@ -279,30 +297,19 @@ export async function createCategory(
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
 
-  let category: Category
-  try {
-    category = await prisma.$transaction(async (tx) => {
-      await verrouillerStructure(tx)
+  const category = await sousVerrouDeStructure(async (tx) => {
+    await assertUniqueCategorySlug(data.slug, tx)
+    await assertCategoryParent(data.parentId, tx)
 
-      await assertUniqueCategorySlug(data.slug, tx)
-      await assertCategoryParent(data.parentId, tx)
-
-      try {
-        return await tx.category.create({
-          data: {
-            name: data.name,
-            slug: data.slug,
-            parentId: data.parentId ?? null,
-            image: data.image ?? null,
-          },
-        })
-      } catch (error) {
-        mapCategoryUniqueViolation(error)
-      }
+    return tx.category.create({
+      data: {
+        name: data.name,
+        slug: data.slug,
+        parentId: data.parentId ?? null,
+        image: data.image ?? null,
+      },
     })
-  } catch (error) {
-    mapCourseDeStructure(error)
-  }
+  })
 
   await runEffect(
     "[structure] invalidation du cache non effectuée pour la création de catégorie",
@@ -319,36 +326,26 @@ export async function updateCategory(
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
 
-  let resultat: { category: Category; image: string | null }
-  try {
-    resultat = await prisma.$transaction(async (tx) => {
-      await verrouillerStructure(tx)
-
+  const { category, image: imagePrecedente } = await sousVerrouDeStructure(
+    async (tx) => {
       const existing = await tx.category.findUnique({ where: { id } })
       if (!existing) throw new CategoryNotFoundError()
 
       await assertUniqueCategorySlug(data.slug, tx, id)
       await assertAcyclicCategoryTree(id, data.parentId, tx)
 
-      try {
-        const category = await tx.category.update({
-          where: { id },
-          data: {
-            name: data.name,
-            slug: data.slug,
-            parentId: data.parentId ?? null,
-            image: data.image ?? null,
-          },
-        })
-        return { category, image: existing.image }
-      } catch (error) {
-        mapCategoryUniqueViolation(error)
-      }
-    })
-  } catch (error) {
-    mapCourseDeStructure(error)
-  }
-  const { category, image: imagePrecedente } = resultat
+      const category = await tx.category.update({
+        where: { id },
+        data: {
+          name: data.name,
+          slug: data.slug,
+          parentId: data.parentId ?? null,
+          image: data.image ?? null,
+        },
+      })
+      return { category, image: existing.image }
+    }
+  )
 
   const nextImage = data.image ?? null
   if (imagePrecedente && imagePrecedente !== nextImage) {
@@ -386,68 +383,60 @@ export async function deleteCategory(
   const laisseSansStructure =
     options.orphanProducts === true && !reassignToCategoryId
 
-  let resultat: { image: string | null; movedProducts: IndexableProduct[] }
-  try {
-    resultat = await prisma.$transaction(async (tx) => {
-      await verrouillerStructure(tx)
-
-      const category = await tx.category.findUnique({
-        where: { id },
-        include: {
-          children: { select: { id: true } },
-          products: { select: { id: true } },
-        },
-      })
-      if (!category) throw new CategoryNotFoundError()
-
-      if (category.children.length > 0) {
-        if (!reparentChildrenToCategoryId) throw new CategoryHasChildrenError()
-        await assertCategoryParent(reparentChildrenToCategoryId, tx)
-        await assertAcyclicCategoryTree(id, reparentChildrenToCategoryId, tx)
-        await tx.category.updateMany({
-          where: { parentId: id },
-          data: { parentId: reparentChildrenToCategoryId },
-        })
-      }
-
-      if (reassignToCategoryId) {
-        if (reassignToCategoryId === id) {
-          throw new CategoryValidationError([
-            "une catégorie ne peut pas être réassignée vers elle-même",
-          ])
-        }
-        await assertCategoryParent(reassignToCategoryId, tx)
-      }
-
-      let moved: IndexableProduct[] = []
-      if (category.products.length > 0) {
-        if (reassignToCategoryId) {
-          await tx.product.updateMany({
-            where: { categoryId: id },
-            data: { categoryId: reassignToCategoryId },
-          })
-        } else if (!laisseSansStructure) {
-          throw new CategoryHasProductsError(category.products.length)
-        } else {
-          await tx.product.updateMany({
-            where: { categoryId: id },
-            data: { categoryId: null },
-          })
-        }
-        const movedRows = await tx.product.findMany({
-          where: { id: { in: category.products.map((product) => product.id) } },
-          include: { variants: true, category: true },
-        })
-        moved = movedRows.map(toIndexableProduct)
-      }
-
-      await tx.category.delete({ where: { id } })
-      return { image: category.image, movedProducts: moved }
+  const { image, movedProducts } = await sousVerrouDeStructure(async (tx) => {
+    const category = await tx.category.findUnique({
+      where: { id },
+      include: {
+        children: { select: { id: true } },
+        products: { select: { id: true } },
+      },
     })
-  } catch (error) {
-    mapCourseDeStructure(error)
-  }
-  const { image, movedProducts } = resultat
+    if (!category) throw new CategoryNotFoundError()
+
+    if (category.children.length > 0) {
+      if (!reparentChildrenToCategoryId) throw new CategoryHasChildrenError()
+      await assertCategoryParent(reparentChildrenToCategoryId, tx)
+      await assertAcyclicCategoryTree(id, reparentChildrenToCategoryId, tx)
+      await tx.category.updateMany({
+        where: { parentId: id },
+        data: { parentId: reparentChildrenToCategoryId },
+      })
+    }
+
+    if (reassignToCategoryId) {
+      if (reassignToCategoryId === id) {
+        throw new CategoryValidationError([
+          "une catégorie ne peut pas être réassignée vers elle-même",
+        ])
+      }
+      await assertCategoryParent(reassignToCategoryId, tx)
+    }
+
+    let moved: IndexableProduct[] = []
+    if (category.products.length > 0) {
+      if (reassignToCategoryId) {
+        await tx.product.updateMany({
+          where: { categoryId: id },
+          data: { categoryId: reassignToCategoryId },
+        })
+      } else if (!laisseSansStructure) {
+        throw new CategoryHasProductsError(category.products.length)
+      } else {
+        await tx.product.updateMany({
+          where: { categoryId: id },
+          data: { categoryId: null },
+        })
+      }
+      const movedRows = await tx.product.findMany({
+        where: { id: { in: category.products.map((product) => product.id) } },
+        include: { variants: true, category: true },
+      })
+      moved = movedRows.map(toIndexableProduct)
+    }
+
+    await tx.category.delete({ where: { id } })
+    return { image: category.image, movedProducts: moved }
+  })
 
   if (movedProducts.length > 0) {
     await runEffect(
