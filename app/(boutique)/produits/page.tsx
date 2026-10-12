@@ -22,7 +22,7 @@ export default function CataloguePage({
   searchParams: Promise<SearchParams>
 }) {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
+    <div className="mx-auto max-w-7xl px-4 py-12 md:py-20">
       <Suspense fallback={<SearchSkeleton />}>
         <CatalogueContent searchParamsPromise={searchParams} />
       </Suspense>

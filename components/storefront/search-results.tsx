@@ -64,7 +64,7 @@ export function SearchResults({
         <section>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-bold">{heading}</h1>
+              <h1 className="text-titre-catalogue leading-[1.1]">{heading}</h1>
               <p className="text-sm text-muted-foreground">
                 {data.totalHits} produit{data.totalHits > 1 ? "s" : ""}
               </p>
@@ -87,7 +87,7 @@ export function SearchResults({
 
           {data.products.length > 0 ? (
             <SearchResultsPending>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 lg:gap-5">
                 {data.products.map((product) => (
                   <ProductCardItem key={product.id} product={product} />
                 ))}
@@ -175,14 +175,14 @@ function Pagination({
             <Link
               href={pageHref(currentPage - 1)}
               aria-label="Page précédente"
-              className="flex size-9 items-center justify-center rounded-lg text-sm transition-colors hover:bg-muted"
+              className="flex size-9 items-center justify-center text-sm text-link hover:underline"
             >
               ‹
             </Link>
           ) : (
             <span
               aria-disabled="true"
-              className="flex size-9 items-center justify-center rounded-lg text-sm text-muted-foreground"
+              className="flex size-9 items-center justify-center text-sm text-muted-foreground"
             >
               ‹
             </span>
@@ -202,7 +202,7 @@ function Pagination({
                 aria-current={page === currentPage ? "page" : undefined}
                 className={
                   page === currentPage
-                    ? "flex size-9 items-center justify-center rounded-lg bg-muted text-sm font-semibold"
+                    ? "flex size-9 items-center justify-center text-sm font-semibold"
                     : "flex size-9 items-center justify-center rounded-lg text-sm transition-colors hover:bg-muted"
                 }
               >
@@ -216,14 +216,14 @@ function Pagination({
             <Link
               href={pageHref(currentPage + 1)}
               aria-label="Page suivante"
-              className="flex size-9 items-center justify-center rounded-lg text-sm transition-colors hover:bg-muted"
+              className="flex size-9 items-center justify-center text-sm text-link hover:underline"
             >
               ›
             </Link>
           ) : (
             <span
               aria-disabled="true"
-              className="flex size-9 items-center justify-center rounded-lg text-sm text-muted-foreground"
+              className="flex size-9 items-center justify-center text-sm text-muted-foreground"
             >
               ›
             </span>
@@ -266,14 +266,14 @@ export function SearchSkeleton() {
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
       <div className="hidden flex-col gap-4 md:flex">
         {Array.from({ length: 3 }).map((_, index) => (
-          <Skeleton key={index} className="h-32 rounded-2xl" />
+          <Skeleton key={index} className="h-32 rounded-xl" />
         ))}
       </div>
       <div>
         <Skeleton className="mb-6 h-8 w-64 rounded-full" />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 lg:gap-5">
           {Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className="h-64 rounded-2xl" />
+            <Skeleton key={index} className="h-64 rounded-carte" />
           ))}
         </div>
       </div>
