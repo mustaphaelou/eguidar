@@ -12,47 +12,42 @@ export function ProductCardItem({ product }: { product: CarteProduit }) {
   return (
     <Link
       href={urlProduit(product.slug)}
-      className="group flex flex-col gap-2 rounded-2xl border p-3 transition-colors hover:border-ring"
+      className="group flex flex-col gap-5 active:scale-[0.99] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out"
     >
-      <div className="relative aspect-square overflow-hidden rounded-xl bg-muted">
+      <div className="relative aspect-square overflow-clip rounded-carte bg-muted">
         {product.image ? (
           <Image
             src={product.image}
             alt={product.name}
             fill
-            sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
-            className="object-cover transition-transform group-hover:scale-105"
+            sizes="(min-width: 1024px) 25vw, 50vw"
+            className="object-cover group-hover:scale-[1.0161] motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
             Aucune image
           </div>
         )}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {product.freeShipping && (
-            <Badge variant="secondary" className="gap-1">
-              <HugeiconsIcon
-                icon={DeliveryTruck02Icon}
-                strokeWidth={2}
-                className="size-3"
-              />
-              Livraison offerte
-            </Badge>
-          )}
-        </div>
+        {product.freeShipping ? (
+          <Badge
+            variant="secondary"
+            className="absolute inset-s-3 inset-bs-3 gap-1"
+          >
+            <HugeiconsIcon icon={DeliveryTruck02Icon} strokeWidth={2} />
+            Livraison offerte
+          </Badge>
+        ) : null}
       </div>
-      <div className="flex flex-col gap-1 px-0.5">
+      <div className="flex flex-col gap-1">
         <p className="text-xs text-muted-foreground">{product.brand}</p>
-        <p className="line-clamp-2 min-h-10 text-sm font-medium">
+        <p className="line-clamp-2 min-h-11 text-lg leading-tight font-semibold tracking-[0.007em]">
           {product.name}
         </p>
-        <p className="text-base font-bold">{formatPrice(product.minPrice)}</p>
+        <p className="text-base font-semibold tabular-nums">
+          {formatPrice(product.minPrice)}
+        </p>
         <p className="text-xs text-muted-foreground">
-          {product.totalStock > 0 ? (
-            <span className="text-emerald-600">En stock</span>
-          ) : (
-            <span className="text-destructive">Rupture de stock</span>
-          )}
+          {product.totalStock > 0 ? "En stock" : "Rupture de stock"}
         </p>
       </div>
     </Link>

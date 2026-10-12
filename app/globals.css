@@ -49,6 +49,13 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-carte: 28px;
+  --text-titre-catalogue: var(--text-titre-catalogue);
+}
+
+@theme {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 :root {
@@ -92,6 +99,7 @@
   --text-body: 1rem;
   --leading-body: 1.471;
   --text-titre-carte: clamp(1.647rem, 0.47rem + 2.9412vw, 2.353rem);
+  --text-titre-catalogue: clamp(1.75rem, 1.4rem + 1.4vw, 2.25rem);
 
   --hairline: color-mix(in oklch, black 16%, transparent);
   --voile-sombre: color-mix(

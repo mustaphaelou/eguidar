@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Drawer,
@@ -147,11 +146,9 @@ export function SearchResultsPending({
 export function FilterSidebar({ facets }: { facets: SearchFacets }) {
   return (
     <aside className="hidden md:block">
-      <Card className="sticky top-16 gap-0 py-0">
-        <CardContent className="px-0">
-          <FilterGroups facets={facets} />
-        </CardContent>
-      </Card>
+      <div className="sticky top-16">
+        <FilterGroups facets={facets} />
+      </div>
     </aside>
   )
 }
