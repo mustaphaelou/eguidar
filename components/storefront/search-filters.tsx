@@ -144,7 +144,7 @@ export function SearchResultsPending({
 export function FilterSidebar({ facets }: { facets: SearchFacets }) {
   return (
     <aside className="hidden md:block">
-      <div className="max-block-size-[calc(100svh-4.5rem)] sticky top-14 [scrollbar-width:thin] scrollbar-gutter-stable overflow-y-auto overscroll-contain">
+      <div className="sticky top-14 [scrollbar-width:thin] scrollbar-gutter-stable overflow-y-auto overscroll-contain max-block-[calc(100svh-4.5rem)]">
         <FilterGroups facets={facets} />
       </div>
     </aside>
