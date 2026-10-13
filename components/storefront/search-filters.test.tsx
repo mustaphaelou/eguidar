@@ -87,6 +87,16 @@ const OPTIONS_DE_FILTRE_DIX_CATEGORIES: OptionsDeFiltre = {
   })),
 }
 
+const OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
+  categories: [...NOMS_MARQUES, "Kilo", "Lima"].map((nom) => ({
+    value: nom.toLowerCase(),
+    label: nom,
+    count: 2,
+    selected: nom === "Lima",
+  })),
+}
+
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 
@@ -214,6 +224,20 @@ function rolesDuGroupe(intitule: string): (string | null)[] {
   )
 }
 
+function boutonVoirPlusDe(intitule: string): HTMLButtonElement | null {
+  return (
+    [...(groupePortant(intitule)?.querySelectorAll("button") ?? [])].find(
+      (bouton) => bouton.textContent?.startsWith("Voir ")
+    ) ?? null
+  )
+}
+
+function filetsDeGroupe(): HTMLElement[] {
+  return [
+    ...barreLaterale().querySelectorAll<HTMLElement>('[data-slot="separator"]'),
+  ]
+}
+
 describe("FilterSidebar — groupes de contrôle", () => {
   it("rend chaque groupe comme un vrai groupe, sa légende réservée aux lecteurs d'écran", () => {
     rendre({}, OPTIONS_DE_FILTRE)
@@ -306,6 +330,38 @@ describe("FilterSidebar — liste de texte", () => {
     expect(ligne("Juliett")).not.toBeNull()
   })
 
+  it("garde visible une Catégorie retenue au-delà des huit premières", () => {
+    rendre({ categorySlug: "lima" }, OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE)
+
+    expect(ligne("India")).toBeNull()
+    const retenue = ligne("Lima")
+    expect(retenue).not.toBeNull()
+    expect(
+      retenue?.querySelector('[role="radio"]')?.getAttribute("aria-checked")
+    ).toBe("true")
+  })
+
+  it("annonce le compte caché des Catégories et bascule aria-expanded", async () => {
+    rendre({ categorySlug: "lima" }, OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE)
+
+    expect(boutonVoirPlusDe("Catégorie")?.textContent).toBe("Voir plus (3)")
+    expect(boutonVoirPlusDe("Catégorie")?.getAttribute("aria-expanded")).toBe(
+      "false"
+    )
+
+    await act(async () => {
+      boutonVoirPlusDe("Catégorie")!.click()
+    })
+
+    expect(ligne("India")).not.toBeNull()
+    expect(ligne("Juliett")).not.toBeNull()
+    expect(ligne("Kilo")).not.toBeNull()
+    expect(boutonVoirPlusDe("Catégorie")?.textContent).toBe("Voir moins")
+    expect(boutonVoirPlusDe("Catégorie")?.getAttribute("aria-expanded")).toBe(
+      "true"
+    )
+  })
+
   it("n'affiche pas un groupe sans option", () => {
     rendre({}, { ...OPTIONS_DE_FILTRE, categories: [] })
 
@@ -337,6 +393,22 @@ describe("FilterSidebar — liste de texte", () => {
       "/recherche?q=casque&marque=acme&marque=beta&tri=prix-asc",
       undefined
     )
+  })
+})
+
+describe("FilterSidebar — groupes rendus et filets", () => {
+  it("ne pose qu'un filet de moins que de groupes rendus", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    expect(enTetesDeGroupe()).toHaveLength(3)
+    expect(filetsDeGroupe()).toHaveLength(enTetesDeGroupe().length - 1)
+  })
+
+  it("n'ajoute aucun filet pour un groupe disparu", () => {
+    rendre({}, { ...OPTIONS_DE_FILTRE, categories: [] })
+
+    expect(enTetesDeGroupe()).toHaveLength(2)
+    expect(filetsDeGroupe()).toHaveLength(1)
   })
 })
 
