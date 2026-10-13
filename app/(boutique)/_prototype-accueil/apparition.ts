@@ -13,7 +13,7 @@
  * porte l'état d'attente des panneaux que l'observateur surveille.
  */
 export const APPARITION = [
-  "[transition:opacity_900ms_cubic-bezier(0.455,0.03,0.515,0.955),transform_700ms_cubic-bezier(0.455,0.03,0.515,0.955)]",
+  "[transition:opacity_900ms_cubic-bezier(0.455,0.03,0.515,0.955),translate_700ms_cubic-bezier(0.455,0.03,0.515,0.955)]",
   "starting:opacity-0",
   "starting:translate-y-[30px]",
   "group-data-[reveal-etat=attente]/panneau:opacity-0",
