@@ -142,6 +142,18 @@ function declencheur(): HTMLElement | null {
   return container.querySelector('[data-slot="drawer-trigger"]')
 }
 
+function barreLaterale(): HTMLElement {
+  return container.querySelector("aside")!
+}
+
+function enTetesDeGroupe(): HTMLElement[] {
+  return [
+    ...barreLaterale().querySelectorAll<HTMLElement>(
+      '[data-slot="accordion-trigger"]'
+    ),
+  ]
+}
+
 function boutonNomme(nom: string): HTMLButtonElement | null {
   return (
     [...container.querySelectorAll("button")].find(
@@ -227,6 +239,36 @@ describe("FilterSidebar — liste de texte", () => {
       "/recherche?q=casque&marque=acme",
       undefined
     )
+  })
+})
+
+describe("FilterSidebar — en-têtes de groupe", () => {
+  it("ne donne qu'un seul chevron à chaque en-tête de groupe", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    const enTetes = enTetesDeGroupe()
+    expect(enTetes.map((enTete) => enTete.textContent)).toEqual([
+      "Marque",
+      "Catégorie",
+      "Prix",
+    ])
+    for (const enTete of enTetes) {
+      expect(
+        enTete.querySelectorAll('[data-slot="accordion-trigger-icon"]')
+      ).toHaveLength(1)
+    }
+  })
+
+  it("donne aux en-têtes de groupe le traitement petit et demi-gras de la page", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    for (const enTete of enTetesDeGroupe()) {
+      const classes = enTete.className.split(/\s+/)
+      expect(classes).toContain("text-xs")
+      expect(classes).toContain("font-semibold")
+      expect(classes).not.toContain("text-sm")
+      expect(classes).not.toContain("font-medium")
+    }
   })
 })
 
