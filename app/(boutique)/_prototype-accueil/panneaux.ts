@@ -92,24 +92,3 @@ export const BANDE_CATEGORIES = {
 export function decompte(noeud: NoeudAccueil): string {
   return `${noeud.productCount} produit${noeud.productCount > 1 ? "s" : ""}`
 }
-
-/** La bande de service : trois faits vérifiables, repris de la FAQ. */
-export const BANDE_SERVICE = {
-  titre: "Acheter chez eguidar",
-  surtitre: "Ce que la boutique promet, et qu'elle tient.",
-  items: [
-    {
-      titre: "Paiement à la livraison",
-      texte: "Vous réglez en espèces au livreur. Aucun paiement en ligne.",
-    },
-    {
-      titre: "Livraison partout au Maroc",
-      texte:
-        "Les frais dépendent de votre ville, et la livraison est offerte dès un certain montant.",
-    },
-    {
-      titre: "Prix en MAD, TVA 20 % incluse",
-      texte: "Le prix affiché est celui que vous payez, taxe comprise.",
-    },
-  ],
-} as const

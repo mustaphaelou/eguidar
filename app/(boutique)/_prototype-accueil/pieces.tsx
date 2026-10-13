@@ -46,7 +46,7 @@ export function PanneauHero({
       premier={premier}
       className={cn("flex w-full flex-col text-center", c.panneau, hauteur)}
     >
-      <div className="mx-auto flex w-full max-w-[860px] flex-col items-center px-6 pt-10 sm:pt-14">
+      <div className="mx-auto flex w-full flex-col items-center px-6 pt-10 sm:pt-14">
         <h2 className={cn(TITRE_HERO, "font-semibold", APPARITION)}>
           {histoire.titre}
         </h2>
@@ -54,7 +54,7 @@ export function PanneauHero({
           className={cn(
             SURTITRE_HERO,
             c.second,
-            "mt-3 max-w-[42ch]",
+            "mt-3 max-w-[760px]",
             APPARITION,
             retard(1)
           )}

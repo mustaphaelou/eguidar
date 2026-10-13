@@ -3,7 +3,7 @@ import Link from "next/link"
 import { formatPrice } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
-import { BandeService, EnteteDeBande } from "./bandes"
+import { EnteteDeBande } from "./bandes"
 import { CHAMP, GOUTTIERE, HAUTEUR_HERO_HAUT } from "./echelles"
 import { APPARITION, retard } from "./apparition"
 import { PanneauReveal } from "./mouvement"
@@ -46,7 +46,6 @@ export function VarianteC({ donnees }: { donnees: DonneesAccueil }) {
       ) : null}
       <IndexDesHistoires histoires={autres} />
       <BandeCategoriesRail categories={donnees.categories} />
-      <BandeService />
     </div>
   )
 }

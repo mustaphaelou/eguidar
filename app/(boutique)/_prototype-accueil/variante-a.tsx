@@ -2,7 +2,7 @@ import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 
-import { BandeService, EnteteDeBande } from "./bandes"
+import { EnteteDeBande } from "./bandes"
 import {
   CALLOUT,
   CHAMP,
@@ -24,12 +24,17 @@ import { ArtPanneau, BoutonPanneau, PanneauHero } from "./pieces"
 
 /**
  * Variante A — « La pile » : l'anatomie d'apple.com transposée sans la réduire — un panneau
- * pleine largeur, puis une tuile noire pleine largeur, puis deux rangées 2-up, la bande des
- * catégories et la bande de service. La copie pleine largeur tient l'échelle « hero » ; les
- * tuiles tiennent l'échelle « promo ».
+ * pleine largeur, puis une tuile noire pleine largeur, puis deux rangées 2-up, et la bande des
+ * catégories pour finir. La copie pleine largeur tient l'échelle « hero » ; les tuiles
+ * tiennent l'échelle « promo ».
  *
- * Le catalogue ne porte que six histoires : Apple en a neuf. La pile est donc un héros et cinq
- * tuiles, pas trois et six.
+ * **Retenue le 14 octobre 2026** (#641), sans la bande de service : le pied de page dit déjà le
+ * paiement à la livraison et la livraison partout au Maroc, et une troisième fois alourdissait
+ * la fin de page. L'art est pleine largeur, recadré par le bas — le « cadre centré » de B est
+ * refusé.
+ *
+ * Le catalogue ne porte que six histoires : Apple en a neuf. La pile est donc deux héros et
+ * quatre tuiles, pas trois et six.
  */
 
 export function VarianteA({ donnees }: { donnees: DonneesAccueil }) {
@@ -61,7 +66,6 @@ export function VarianteA({ donnees }: { donnees: DonneesAccueil }) {
         </div>
       ))}
       <BandeCategoriesTexte categories={donnees.categories} />
-      <BandeService />
     </div>
   )
 }
