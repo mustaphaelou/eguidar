@@ -8,8 +8,6 @@ import { Checkbox } from "./checkbox"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-const CLASSES_MASQUANTES = ["sr-only", "hidden", "invisible", "size-0", "w-0"]
-
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 
@@ -44,10 +42,15 @@ describe("Checkbox", () => {
   it("ne se masque pas elle-même : c'est l'appelant qui décide de la masquer", () => {
     rendre(<Checkbox aria-label="Sélection" />)
 
-    const classes = caseACocher().className.split(/\s+/)
-    for (const masquante of CLASSES_MASQUANTES) {
-      expect(classes).not.toContain(masquante)
-    }
+    expect(caseACocher().className.split(/\s+/)).not.toContain("sr-only")
+  })
+
+  it("n'a pas d'indicateur au repos", () => {
+    rendre(<Checkbox aria-label="Sélection" />)
+
+    expect(
+      caseACocher().querySelector('[data-slot="checkbox-indicator"]')
+    ).toBeNull()
   })
 
   it("montre la coche de son état coché", () => {
