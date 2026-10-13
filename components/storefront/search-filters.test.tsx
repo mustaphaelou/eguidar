@@ -11,8 +11,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => mockNextNavigation())
 
-import type { OptionsDeFiltre } from "@/lib/options-de-filtre"
-import type { SearchFilters } from "@/lib/search-params"
+import type { OptionDeFiltre, OptionsDeFiltre } from "@/lib/options-de-filtre"
+import {
+  buildSearchHref,
+  SEARCH_SORT_DEFAULT,
+  type SearchFilters,
+  type SearchView,
+} from "@/lib/search-params"
 
 import {
   ActiveFilters,
@@ -44,7 +49,7 @@ const OPTIONS_DE_FILTRE: OptionsDeFiltre = {
   ],
 }
 
-const NOMS_MARQUES = [
+const NOMS_D_OPTIONS = [
   "Alpha",
   "Bravo",
   "Charlie",
@@ -57,35 +62,76 @@ const NOMS_MARQUES = [
   "Juliett",
 ]
 
-const OPTIONS_DE_FILTRE_DIX_MARQUES: OptionsDeFiltre = {
-  ...OPTIONS_DE_FILTRE,
-  brands: NOMS_MARQUES.map((nom) => ({
+function optionsNommees(noms: string[], retenue?: string): OptionDeFiltre[] {
+  return noms.map((nom) => ({
     value: nom.toLowerCase(),
     label: nom,
     count: 2,
-    selected: false,
-  })),
+    selected: nom === retenue,
+  }))
+}
+
+const OPTIONS_DE_FILTRE_DIX_MARQUES: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
+  brands: optionsNommees(NOMS_D_OPTIONS),
 }
 
 const OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  brands: NOMS_MARQUES.map((nom) => ({
-    value: nom.toLowerCase(),
-    label: nom,
-    count: 2,
-    selected: nom === "Juliett",
-  })),
+  brands: optionsNommees(NOMS_D_OPTIONS, "Juliett"),
 }
 
 const OPTIONS_DE_FILTRE_DIX_CATEGORIES: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  categories: NOMS_MARQUES.map((nom) => ({
-    value: nom.toLowerCase(),
-    label: nom,
-    count: 2,
-    selected: false,
-  })),
+  categories: optionsNommees(NOMS_D_OPTIONS),
 }
+
+const OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
+  categories: optionsNommees([...NOMS_D_OPTIONS, "Kilo", "Lima"], "Lima"),
+}
+
+const OPTIONS_DE_FILTRE_CATEGORIES_A_ZERO: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
+  categories: [
+    { value: "mobilier", label: "Mobilier", count: 0, selected: false },
+    { value: "luminaires", label: "Luminaires", count: 0, selected: false },
+  ],
+}
+
+const OPTIONS_DE_FILTRE_CATEGORIE_RETENUE_A_ZERO: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
+  categories: [
+    { value: "mobilier", label: "Mobilier", count: 0, selected: true },
+    { value: "luminaires", label: "Luminaires", count: 0, selected: false },
+  ],
+}
+
+const FILTRES_ACTIFS: SearchFilters = {
+  brand: ["acme", "beta"],
+  categorySlug: "mobilier",
+  priceBucketId: "0-1000",
+}
+
+const VUE_EN_PAGE_TROIS: SearchView = { sort: "prix-asc", page: 3 }
+
+const RETRAITS_DE_PASTILLE = [
+  {
+    pastille: "la marque acme",
+    libelle: "Retirer la marque acme",
+    url: "/recherche?q=casque&marque=beta&categorie=mobilier&prix=0-1000&tri=prix-asc",
+  },
+  {
+    pastille: "la catégorie Mobilier",
+    libelle: "Retirer la catégorie Mobilier",
+    url: "/recherche?q=casque&marque=acme&marque=beta&prix=0-1000&tri=prix-asc",
+  },
+  {
+    pastille: "la tranche de prix Moins de 1 000 MAD",
+    libelle: "Retirer la tranche de prix Moins de 1 000 MAD",
+    url: "/recherche?q=casque&marque=acme&marque=beta&categorie=mobilier&tri=prix-asc",
+  },
+]
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
@@ -104,17 +150,22 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function rendre(filters: SearchFilters, facets: OptionsDeFiltre) {
+function rendre(
+  filters: SearchFilters,
+  options: OptionsDeFiltre,
+  view: SearchView = {}
+) {
+  resetNavigation(buildSearchHref("casque", filters, {}, view))
   const element: ReactElement = (
     <SearchNavigationProvider
       query="casque"
       filters={filters}
-      sort="pertinence"
+      sort={view.sort ?? SEARCH_SORT_DEFAULT}
       hrefBase="/recherche"
     >
-      <FilterSidebar facets={facets} />
-      <ActiveFilters facets={facets} />
-      <MobileFilterDrawer facets={facets} totalHits={42} />
+      <FilterSidebar facets={options} />
+      <ActiveFilters facets={options} />
+      <MobileFilterDrawer facets={options} totalHits={42} />
     </SearchNavigationProvider>
   )
   const root = createRoot(container)
@@ -130,9 +181,10 @@ function ligne(libelle: string): HTMLElement | null {
   )
 }
 
-function boutonVoirPlus(): HTMLButtonElement | null {
+function boutonVoirPlus(intitule?: string): HTMLButtonElement | null {
+  const racine = intitule ? groupePortant(intitule) : barreLaterale()
   return (
-    [...container.querySelectorAll("button")].find((bouton) =>
+    [...(racine?.querySelectorAll("button") ?? [])].find((bouton) =>
       bouton.textContent?.startsWith("Voir ")
     ) ?? null
   )
@@ -162,13 +214,137 @@ function boutonNomme(nom: string): HTMLButtonElement | null {
   )
 }
 
-function boutonPortant(texte: string): HTMLButtonElement | null {
+function controlePortant(texte: string): HTMLElement | null {
   return (
-    [...container.querySelectorAll("button")].find((bouton) =>
-      bouton.textContent?.includes(texte)
+    [...container.querySelectorAll<HTMLElement>("a, button")].find((controle) =>
+      controle.textContent?.includes(texte)
     ) ?? null
   )
 }
+
+function groupesDeFiltres(): HTMLElement[] {
+  return [
+    ...barreLaterale().querySelectorAll<HTMLElement>(
+      '[data-slot="accordion-item"]'
+    ),
+  ]
+}
+
+function groupePortant(intitule: string): HTMLElement | null {
+  return (
+    groupesDeFiltres().find((groupe) =>
+      groupe
+        .querySelector('[data-slot="accordion-trigger"]')
+        ?.textContent?.startsWith(intitule)
+    ) ?? null
+  )
+}
+
+function champsDeGroupe(): HTMLElement[] {
+  return [
+    ...barreLaterale().querySelectorAll<HTMLElement>('[data-slot="field-set"]'),
+  ]
+}
+
+function controlesDuGroupe(intitule: string): HTMLElement[] {
+  return [
+    ...(groupePortant(intitule)?.querySelectorAll<HTMLElement>(
+      '[role="checkbox"], [role="radio"]'
+    ) ?? []),
+  ]
+}
+
+function filetsDeGroupe(): HTMLElement[] {
+  return [
+    ...barreLaterale().querySelectorAll<HTMLElement>('[data-slot="separator"]'),
+  ]
+}
+
+function feuilleDeFiltres(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="drawer-content"]')
+}
+
+function boiteDeLaFeuille(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="drawer-popup"]')
+}
+
+function corpsDeLaFeuille(): HTMLElement | null {
+  const feuille = feuilleDeFiltres()
+  const enTete = feuille?.querySelector<HTMLElement>(
+    '[data-slot="drawer-header"]'
+  )
+  const pied = feuille?.querySelector<HTMLElement>(
+    '[data-slot="drawer-footer"]'
+  )
+  if (!feuille || !enTete || !pied) return null
+  const enfants = [...feuille.children]
+  const entre = enfants.slice(
+    enfants.indexOf(enTete) + 1,
+    enfants.indexOf(pied)
+  )
+  return entre.length === 1 ? (entre[0] as HTMLElement) : null
+}
+
+function cocheDeLigne(option: HTMLElement): Element | null {
+  return (
+    [...option.children].find(
+      (enfant) => enfant.tagName.toLowerCase() === "svg"
+    ) ?? null
+  )
+}
+
+async function ouvrirPanneau() {
+  await act(async () => {
+    declencheur()!.click()
+  })
+}
+
+describe("FilterSidebar — groupes de contrôle", () => {
+  it("rend chaque groupe comme un vrai groupe, sa légende réservée aux lecteurs d'écran", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    expect(
+      champsDeGroupe().map(
+        (champ) => champ.querySelector("legend")?.textContent
+      )
+    ).toEqual(["Marque", "Catégorie", "Tranche de prix"])
+    for (const champ of champsDeGroupe()) {
+      expect(champ.querySelector("legend")?.className.split(/\s+/)).toContain(
+        "sr-only"
+      )
+    }
+  })
+
+  it("garde une case à cocher par Marque et un bouton radio par Catégorie et Prix", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    expect(
+      controlesDuGroupe("Marque").map((controle) =>
+        controle.getAttribute("role")
+      )
+    ).toEqual(["checkbox", "checkbox", "checkbox"])
+    expect(
+      controlesDuGroupe("Catégorie").map((controle) =>
+        controle.getAttribute("role")
+      )
+    ).toEqual(["radio", "radio"])
+    expect(
+      controlesDuGroupe("Prix").map((controle) => controle.getAttribute("role"))
+    ).toEqual(["radio", "radio"])
+  })
+
+  it("masque les contrôles à l'œil sans les retirer du groupe", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    for (const intitule of ["Marque", "Catégorie", "Prix"]) {
+      const controles = controlesDuGroupe(intitule)
+      expect(controles).not.toHaveLength(0)
+      for (const controle of controles) {
+        expect(controle.className.split(/\s+/)).toContain("sr-only")
+      }
+    }
+  })
+})
 
 describe("FilterSidebar — liste de texte", () => {
   it("affiche le libellé et le compteur de chaque Option de filtre", () => {
@@ -187,6 +363,23 @@ describe("FilterSidebar — liste de texte", () => {
     expect(
       retenue?.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")
     ).toBe("true")
+  })
+
+  it("n'accorde le demi-gras et la coche qu'à l'Option retenue", () => {
+    rendre({ brand: ["juliett"] }, OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE)
+
+    const retenue = ligne("Juliett")!
+    expect(retenue.querySelector("[data-checked]")).not.toBeNull()
+    expect(retenue.className.split(/\s+/)).toContain(
+      "has-data-checked:font-semibold"
+    )
+
+    const coche = cocheDeLigne(retenue)!
+    const classesDeLaCoche = (coche.getAttribute("class") ?? "").split(/\s+/)
+    expect(classesDeLaCoche).toContain("hidden")
+    expect(classesDeLaCoche).toContain("group-has-data-checked/option:block")
+
+    expect(ligne("Alpha")?.querySelector("[data-checked]")).toBeNull()
   })
 
   it("tronque les Marques avec « Voir plus (n) » puis « Voir moins »", async () => {
@@ -221,11 +414,62 @@ describe("FilterSidebar — liste de texte", () => {
     expect(ligne("Juliett")).not.toBeNull()
   })
 
+  it("garde visible une Catégorie retenue au-delà des huit premières", () => {
+    rendre({ categorySlug: "lima" }, OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE)
+
+    expect(ligne("India")).toBeNull()
+    const retenue = ligne("Lima")
+    expect(retenue).not.toBeNull()
+    expect(
+      retenue?.querySelector('[role="radio"]')?.getAttribute("aria-checked")
+    ).toBe("true")
+  })
+
+  it("annonce le compte caché des Catégories et bascule aria-expanded", async () => {
+    rendre({ categorySlug: "lima" }, OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE)
+
+    expect(boutonVoirPlus("Catégorie")?.textContent).toBe("Voir plus (3)")
+    expect(boutonVoirPlus("Catégorie")?.getAttribute("aria-expanded")).toBe(
+      "false"
+    )
+
+    await act(async () => {
+      boutonVoirPlus("Catégorie")!.click()
+    })
+
+    expect(ligne("India")).not.toBeNull()
+    expect(ligne("Juliett")).not.toBeNull()
+    expect(ligne("Kilo")).not.toBeNull()
+    expect(boutonVoirPlus("Catégorie")?.textContent).toBe("Voir moins")
+    expect(boutonVoirPlus("Catégorie")?.getAttribute("aria-expanded")).toBe(
+      "true"
+    )
+  })
+
   it("n'affiche pas un groupe sans option", () => {
     rendre({}, { ...OPTIONS_DE_FILTRE, categories: [] })
 
     expect(container.textContent).toContain("Marque")
     expect(container.textContent).not.toContain("Catégorie")
+  })
+
+  it("n'affiche pas un groupe dont toutes les Options sont à zéro et non retenues", () => {
+    rendre({}, OPTIONS_DE_FILTRE_CATEGORIES_A_ZERO)
+
+    expect(container.textContent).toContain("Marque")
+    expect(container.textContent).not.toContain("Catégorie")
+    expect(ligne("Mobilier")).toBeNull()
+  })
+
+  it("garde le groupe et la ligne d'une Option à zéro retenue", () => {
+    rendre(
+      { categorySlug: "mobilier" },
+      OPTIONS_DE_FILTRE_CATEGORIE_RETENUE_A_ZERO
+    )
+
+    expect(groupePortant("Catégorie")).not.toBeNull()
+    expect(ligne("Mobilier")?.textContent).toContain("0")
+    expect(ligne("Luminaires")).toBeNull()
   })
 
   it("écrit l'URL attendue au clic sur la ligne d'une Option de filtre", async () => {
@@ -239,6 +483,35 @@ describe("FilterSidebar — liste de texte", () => {
       "/recherche?q=casque&marque=acme",
       undefined
     )
+  })
+
+  it("ramène à la page 1 et garde le tri au clic sur la ligne d'une Option de filtre", async () => {
+    rendre({ brand: ["acme"] }, OPTIONS_DE_FILTRE, VUE_EN_PAGE_TROIS)
+
+    await act(async () => {
+      ligne("Beta")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&marque=acme&marque=beta&tri=prix-asc",
+      undefined
+    )
+  })
+})
+
+describe("FilterSidebar — groupes rendus et filets", () => {
+  it("ne pose qu'un filet de moins que de groupes rendus", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    expect(enTetesDeGroupe()).toHaveLength(3)
+    expect(filetsDeGroupe()).toHaveLength(enTetesDeGroupe().length - 1)
+  })
+
+  it("n'ajoute aucun filet pour un groupe disparu", () => {
+    rendre({}, { ...OPTIONS_DE_FILTRE, categories: [] })
+
+    expect(enTetesDeGroupe()).toHaveLength(2)
+    expect(filetsDeGroupe()).toHaveLength(1)
   })
 })
 
@@ -285,11 +558,37 @@ describe("Filtres actifs", () => {
     )
 
     await act(async () => {
-      boutonPortant("Tout effacer")!.click()
+      controlePortant("Tout effacer")!.click()
     })
 
     expect(navigationSpies.push).toHaveBeenCalledWith(
       "/recherche?q=casque",
+      undefined
+    )
+  })
+
+  it.each(RETRAITS_DE_PASTILLE)(
+    "retire $pastille et garde les autres Filtres, page 1 et tri conservé",
+    async ({ libelle, url }) => {
+      rendre(FILTRES_ACTIFS, OPTIONS_DE_FILTRE, VUE_EN_PAGE_TROIS)
+
+      await act(async () => {
+        boutonNomme(libelle)!.click()
+      })
+
+      expect(navigationSpies.push).toHaveBeenCalledWith(url, undefined)
+    }
+  )
+
+  it("ramène à l'URL nue avec « Tout effacer », page 1 et tri conservé", async () => {
+    rendre(FILTRES_ACTIFS, OPTIONS_DE_FILTRE, VUE_EN_PAGE_TROIS)
+
+    await act(async () => {
+      controlePortant("Tout effacer")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&tri=prix-asc",
       undefined
     )
   })
@@ -308,12 +607,65 @@ describe("Panneau mobile", () => {
 
   it("annonce « Afficher les résultats (n) » dans le pied de la feuille", async () => {
     rendre({}, OPTIONS_DE_FILTRE)
-
-    await act(async () => {
-      declencheur()!.click()
-    })
+    await ouvrirPanneau()
 
     const pied = document.querySelector('[data-slot="drawer-footer"]')
     expect(pied?.textContent).toContain("Afficher les résultats (42)")
+  })
+
+  it("range l'en-tête, le corps défilant et le pied dans cet ordre", async () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+    await ouvrirPanneau()
+
+    const feuille = feuilleDeFiltres()!
+    const enfants = [...feuille.children]
+    const enTete = feuille.querySelector<HTMLElement>(
+      '[data-slot="drawer-header"]'
+    )!
+    const corps = corpsDeLaFeuille()!
+    const pied = feuille.querySelector<HTMLElement>(
+      '[data-slot="drawer-footer"]'
+    )!
+
+    expect(enTete.textContent).toContain("Filtrer")
+    expect(enTete.querySelector('[data-slot="drawer-close"]')).not.toBeNull()
+    expect(enfants).toContain(enTete)
+    expect(enfants).toContain(corps)
+    expect(enfants).toContain(pied)
+    expect(enfants.indexOf(enTete)).toBeLessThan(enfants.indexOf(corps))
+    expect(enfants.indexOf(corps)).toBeLessThan(enfants.indexOf(pied))
+  })
+
+  it("borne le corps dans une boîte défilante et tient le pied hors d'elle", async () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+    await ouvrirPanneau()
+
+    const corps = corpsDeLaFeuille()!
+    const classes = corps.className.split(/\s+/)
+    expect(classes).toContain("overflow-y-auto")
+    expect(classes).toContain("overscroll-contain")
+    expect(classes).toContain("min-h-0")
+    expect(classes).toContain("flex-1")
+    expect(
+      corps.contains(
+        feuilleDeFiltres()!.querySelector('[data-slot="drawer-header"]')
+      )
+    ).toBe(false)
+    expect(
+      corps.contains(
+        feuilleDeFiltres()!.querySelector('[data-slot="drawer-footer"]')
+      )
+    ).toBe(false)
+  })
+
+  it("donne à la boîte de la feuille une hauteur définie", async () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+    await ouvrirPanneau()
+
+    const boite = boiteDeLaFeuille()!
+    expect(boite.getAttribute("data-swipe-axis")).toBe("y")
+    expect(boite.className.split(/\s+/)).toContain(
+      "data-[swipe-axis=y]:[--drawer-content-height:100dvh]"
+    )
   })
 })
