@@ -64,14 +64,13 @@ function classesDesChevrons(): string[] {
   )
 }
 
-function panneau(): HTMLElement | null {
+function contenu(): HTMLElement | null {
   return container.querySelector<HTMLElement>('[data-slot="accordion-content"]')
 }
 
 async function basculer() {
   await act(async () => {
     declencheur().click()
-    await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
 
@@ -82,7 +81,7 @@ describe("AccordionTrigger", () => {
     expect(chevrons()).toHaveLength(1)
   })
 
-  it("n'écrit la rotation du chevron que sous prefers-reduced-motion: no-preference", () => {
+  it("n'écrit la rotation du chevron qu'à l'ouverture et sous prefers-reduced-motion: no-preference", () => {
     render(groupe())
 
     const rotations = classesDesChevrons().filter((classe) =>
@@ -91,21 +90,37 @@ describe("AccordionTrigger", () => {
     expect(rotations).not.toHaveLength(0)
     for (const classe of rotations) {
       const variantes = classe.split(":")
-      expect(variantes[variantes.length - 2]).toBe("motion-safe")
+      expect(variantes).toContain("motion-safe")
+      expect(
+        variantes.some((variante) => variante.includes("aria-expanded"))
+      ).toBe(true)
     }
   })
 
-  it("ouvre et ferme le groupe : aria-expanded bascule et le panneau suit", async () => {
+  it("n'anime la transition du chevron que sous prefers-reduced-motion: no-preference", () => {
+    render(groupe())
+
+    const mouvements = classesDesChevrons().filter(
+      (classe) =>
+        classe.includes("transition-transform") || classe.includes("duration")
+    )
+    expect(mouvements).not.toHaveLength(0)
+    for (const classe of mouvements) {
+      expect(classe.split(":")).toContain("motion-safe")
+    }
+  })
+
+  it("ouvre et ferme le groupe : aria-expanded bascule et le contenu suit", async () => {
     render(groupe())
     expect(declencheur().getAttribute("aria-expanded")).toBe("false")
-    expect(panneau()).toBeNull()
+    expect(contenu()).toBeNull()
 
     await basculer()
     expect(declencheur().getAttribute("aria-expanded")).toBe("true")
-    expect(panneau()?.textContent).toBe("Contenu du groupe")
+    expect(contenu()?.textContent).toBe("Contenu du groupe")
 
     await basculer()
     expect(declencheur().getAttribute("aria-expanded")).toBe("false")
-    expect(panneau()).toBeNull()
+    expect(contenu()).toBeNull()
   })
 })

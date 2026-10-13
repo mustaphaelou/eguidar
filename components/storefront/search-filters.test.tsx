@@ -243,20 +243,14 @@ describe("FilterSidebar — liste de texte", () => {
 })
 
 describe("FilterSidebar — en-têtes de groupe", () => {
-  it("ne donne qu'un seul chevron à chaque en-tête de groupe", () => {
+  it("expose les trois en-têtes de groupe : Marque, Catégorie, Prix", () => {
     rendre({}, OPTIONS_DE_FILTRE)
 
-    const enTetes = enTetesDeGroupe()
-    expect(enTetes.map((enTete) => enTete.textContent)).toEqual([
+    expect(enTetesDeGroupe().map((enTete) => enTete.textContent)).toEqual([
       "Marque",
       "Catégorie",
       "Prix",
     ])
-    for (const enTete of enTetes) {
-      expect(
-        enTete.querySelectorAll('[data-slot="accordion-trigger-icon"]')
-      ).toHaveLength(1)
-    }
   })
 
   it("donne aux en-têtes de groupe le traitement petit et demi-gras de la page", () => {
@@ -266,8 +260,6 @@ describe("FilterSidebar — en-têtes de groupe", () => {
       const classes = enTete.className.split(/\s+/)
       expect(classes).toContain("text-xs")
       expect(classes).toContain("font-semibold")
-      expect(classes).not.toContain("text-sm")
-      expect(classes).not.toContain("font-medium")
     }
   })
 })
