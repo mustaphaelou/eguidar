@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("next/navigation", () => mockNextNavigation())
 
 import type { OptionsDeFiltre } from "@/lib/options-de-filtre"
-import type { SearchFilters } from "@/lib/search-params"
+import type { SearchFilters, SearchSort } from "@/lib/search-params"
 
 import {
   ActiveFilters,
@@ -104,12 +104,18 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function rendre(filters: SearchFilters, facets: OptionsDeFiltre) {
+function rendre(
+  filters: SearchFilters,
+  facets: OptionsDeFiltre,
+  sort: SearchSort = "pertinence",
+  page = 1
+) {
+  resetNavigation(page > 1 ? `/recherche?q=casque&page=${page}` : "/recherche")
   const element: ReactElement = (
     <SearchNavigationProvider
       query="casque"
       filters={filters}
-      sort="pertinence"
+      sort={sort}
       hrefBase="/recherche"
     >
       <FilterSidebar facets={facets} />
@@ -169,6 +175,85 @@ function boutonPortant(texte: string): HTMLButtonElement | null {
     ) ?? null
   )
 }
+
+function groupesDeFiltres(): HTMLElement[] {
+  return [
+    ...barreLaterale().querySelectorAll<HTMLElement>(
+      '[data-slot="accordion-item"]'
+    ),
+  ]
+}
+
+function groupePortant(intitule: string): HTMLElement | null {
+  return (
+    groupesDeFiltres().find((groupe) =>
+      groupe
+        .querySelector('[data-slot="accordion-trigger"]')
+        ?.textContent?.startsWith(intitule)
+    ) ?? null
+  )
+}
+
+function champsDeGroupe(): HTMLElement[] {
+  return [
+    ...barreLaterale().querySelectorAll<HTMLElement>('[data-slot="field-set"]'),
+  ]
+}
+
+function controlesDuGroupe(intitule: string): HTMLElement[] {
+  return [
+    ...(groupePortant(intitule)?.querySelectorAll<HTMLElement>(
+      '[role="checkbox"], [role="radio"]'
+    ) ?? []),
+  ]
+}
+
+function rolesDuGroupe(intitule: string): (string | null)[] {
+  return controlesDuGroupe(intitule).map((controle) =>
+    controle.getAttribute("role")
+  )
+}
+
+describe("FilterSidebar — groupes de contrôle", () => {
+  it("rend chaque groupe comme un vrai groupe, sa légende réservée aux lecteurs d'écran", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    expect(
+      champsDeGroupe().map(
+        (champ) => champ.querySelector("legend")?.textContent
+      )
+    ).toEqual(["Marque", "Catégorie", "Tranche de prix"])
+    for (const champ of champsDeGroupe()) {
+      expect(champ.querySelector("legend")?.className.split(/\s+/)).toContain(
+        "sr-only"
+      )
+    }
+  })
+
+  it("garde une case à cocher par Marque et un bouton radio par Catégorie et Prix", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    expect(rolesDuGroupe("Marque")).toEqual([
+      "checkbox",
+      "checkbox",
+      "checkbox",
+    ])
+    expect(rolesDuGroupe("Catégorie")).toEqual(["radio", "radio"])
+    expect(rolesDuGroupe("Prix")).toEqual(["radio", "radio"])
+  })
+
+  it("masque les contrôles à l'œil sans les retirer du groupe", () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+
+    for (const intitule of ["Marque", "Catégorie", "Prix"]) {
+      const controles = controlesDuGroupe(intitule)
+      expect(controles).not.toHaveLength(0)
+      for (const controle of controles) {
+        expect(controle.className.split(/\s+/)).toContain("sr-only")
+      }
+    }
+  })
+})
 
 describe("FilterSidebar — liste de texte", () => {
   it("affiche le libellé et le compteur de chaque Option de filtre", () => {
@@ -237,6 +322,19 @@ describe("FilterSidebar — liste de texte", () => {
 
     expect(navigationSpies.push).toHaveBeenCalledWith(
       "/recherche?q=casque&marque=acme",
+      undefined
+    )
+  })
+
+  it("ramène à la page 1 et garde le tri au clic sur la ligne d'une Option de filtre", async () => {
+    rendre({ brand: ["acme"] }, OPTIONS_DE_FILTRE, "prix-asc", 3)
+
+    await act(async () => {
+      ligne("Beta")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&marque=acme&marque=beta&tri=prix-asc",
       undefined
     )
   })
