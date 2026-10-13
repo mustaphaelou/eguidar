@@ -97,6 +97,12 @@ const OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE: OptionsDeFiltre = {
   })),
 }
 
+const FILTRES_ACTIFS: SearchFilters = {
+  brand: ["acme", "beta"],
+  categorySlug: "mobilier",
+  priceBucketId: "0-1000",
+}
+
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 
@@ -478,6 +484,58 @@ describe("Filtres actifs", () => {
 
     expect(navigationSpies.push).toHaveBeenCalledWith(
       "/recherche?q=casque",
+      undefined
+    )
+  })
+
+  it("retire la pastille d'une marque et garde les autres Filtres, page 1 et tri conservé", async () => {
+    rendre(FILTRES_ACTIFS, OPTIONS_DE_FILTRE, "prix-asc", 3)
+
+    await act(async () => {
+      boutonNomme("Retirer la marque acme")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&marque=beta&categorie=mobilier&prix=0-1000&tri=prix-asc",
+      undefined
+    )
+  })
+
+  it("retire la pastille d'une Catégorie et garde les autres Filtres, page 1 et tri conservé", async () => {
+    rendre(FILTRES_ACTIFS, OPTIONS_DE_FILTRE, "prix-asc", 3)
+
+    await act(async () => {
+      boutonNomme("Retirer la catégorie Mobilier")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&marque=acme&marque=beta&prix=0-1000&tri=prix-asc",
+      undefined
+    )
+  })
+
+  it("retire la pastille d'une Tranche de prix et garde les autres Filtres, page 1 et tri conservé", async () => {
+    rendre(FILTRES_ACTIFS, OPTIONS_DE_FILTRE, "prix-asc", 3)
+
+    await act(async () => {
+      boutonNomme("Retirer la tranche de prix Moins de 1 000 MAD")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&marque=acme&marque=beta&categorie=mobilier&tri=prix-asc",
+      undefined
+    )
+  })
+
+  it("ramène à l'URL nue avec « Tout effacer », page 1 et tri conservé", async () => {
+    rendre(FILTRES_ACTIFS, OPTIONS_DE_FILTRE, "prix-asc", 3)
+
+    await act(async () => {
+      boutonPortant("Tout effacer")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&tri=prix-asc",
       undefined
     )
   })
