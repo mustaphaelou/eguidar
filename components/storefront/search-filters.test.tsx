@@ -238,6 +238,24 @@ function filetsDeGroupe(): HTMLElement[] {
   ]
 }
 
+function feuilleDeFiltres(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="drawer-content"]')
+}
+
+function corpsDefilant(): HTMLElement | null {
+  return (
+    feuilleDeFiltres()?.querySelector<HTMLElement>(
+      '[class~="overflow-y-auto"]'
+    ) ?? null
+  )
+}
+
+async function ouvrirPanneau() {
+  await act(async () => {
+    declencheur()!.click()
+  })
+}
+
 describe("FilterSidebar — groupes de contrôle", () => {
   it("rend chaque groupe comme un vrai groupe, sa légende réservée aux lecteurs d'écran", () => {
     rendre({}, OPTIONS_DE_FILTRE)
@@ -485,5 +503,49 @@ describe("Panneau mobile", () => {
 
     const pied = document.querySelector('[data-slot="drawer-footer"]')
     expect(pied?.textContent).toContain("Afficher les résultats (42)")
+  })
+
+  it("range l'en-tête, le corps défilant et le pied dans cet ordre", async () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+    await ouvrirPanneau()
+
+    const feuille = feuilleDeFiltres()!
+    const enfants = [...feuille.children]
+    const enTete = feuille.querySelector<HTMLElement>(
+      '[data-slot="drawer-header"]'
+    )!
+    const corps = corpsDefilant()!
+    const pied = feuille.querySelector<HTMLElement>(
+      '[data-slot="drawer-footer"]'
+    )!
+
+    expect(enTete.textContent).toContain("Filtrer")
+    expect(enTete.querySelector('[data-slot="drawer-close"]')).not.toBeNull()
+    expect(enfants).toContain(enTete)
+    expect(enfants).toContain(corps)
+    expect(enfants).toContain(pied)
+    expect(enfants.indexOf(enTete)).toBeLessThan(enfants.indexOf(corps))
+    expect(enfants.indexOf(corps)).toBeLessThan(enfants.indexOf(pied))
+  })
+
+  it("borne le corps dans une boîte défilante et tient le pied hors d'elle", async () => {
+    rendre({}, OPTIONS_DE_FILTRE)
+    await ouvrirPanneau()
+
+    const corps = corpsDefilant()!
+    const classes = corps.className.split(/\s+/)
+    expect(classes).toContain("overflow-y-auto")
+    expect(classes).toContain("min-h-0")
+    expect(classes).toContain("flex-1")
+    expect(
+      corps.contains(
+        feuilleDeFiltres()!.querySelector('[data-slot="drawer-header"]')
+      )
+    ).toBe(false)
+    expect(
+      corps.contains(
+        feuilleDeFiltres()!.querySelector('[data-slot="drawer-footer"]')
+      )
+    ).toBe(false)
   })
 })
