@@ -144,7 +144,7 @@ export function SearchResultsPending({
 export function FilterSidebar({ facets }: { facets: SearchFacets }) {
   return (
     <aside className="hidden md:block">
-      <div className="max-block-size-[calc(100svh-5rem)] sticky top-16 [scrollbar-width:thin] scrollbar-gutter-stable overflow-y-auto overscroll-contain">
+      <div className="max-block-size-[calc(100svh-4.5rem)] sticky top-14 [scrollbar-width:thin] scrollbar-gutter-stable overflow-y-auto overscroll-contain">
         <FilterGroups facets={facets} />
       </div>
     </aside>
@@ -172,7 +172,7 @@ export function MobileFilterDrawer({
           <Badge variant="secondary">{activeCount}</Badge>
         ) : null}
       </DrawerTrigger>
-      <DrawerContent className="rounded-none border-0 bg-background [--drawer-content-height:100dvh] [--drawer-content-max-height:100dvh] [--drawer-inset:0px]">
+      <DrawerContent className="rounded-none border-0 bg-background data-[swipe-axis=y]:max-h-dvh data-[swipe-axis=y]:[--drawer-content-height:100dvh] data-[swipe-axis=y]:[--drawer-inset:0px]">
         <DrawerHeader className="flex-row items-center justify-between border-b border-border px-4 py-3">
           <DrawerTitle>Filtrer</DrawerTitle>
           <DrawerClose
@@ -299,7 +299,7 @@ function LigneOption({ option, controle }: LigneOptionProps) {
         strokeWidth={2}
         className="hidden size-3.5 shrink-0 text-foreground group-has-data-checked/option:block"
       />
-      <span className="truncate">{option.label}</span>
+      <span className="min-w-0 truncate">{option.label}</span>
       <span className="ms-auto ps-2 text-xs text-muted-foreground tabular-nums">
         {option.count}
       </span>
@@ -330,14 +330,47 @@ function BoutonVoirPlus({
   )
 }
 
-interface GroupeDeFiltres {
+interface GroupeAOptions {
   valeur: string
   intitule: string
-  legende: string
+  legende?: string
   options: OptionDeFiltre[]
-  rendu: boolean
-  radio: boolean
   controle: (option: OptionDeFiltre) => React.ReactNode
+}
+
+interface GroupeDeFiltres extends GroupeAOptions {
+  radio?: false
+}
+
+interface GroupeRadio extends GroupeAOptions {
+  radio: true
+  filtreActif: string | null
+  onChoisir: (valeur: string) => void
+}
+
+interface GroupeDepliable extends GroupeAOptions {
+  voirPlus?: {
+    cachees: number
+    deplie: boolean
+    onBasculer: () => void
+  }
+}
+
+type Groupe = (GroupeDeFiltres | GroupeRadio) & GroupeDepliable
+
+function optionsVisibles(
+  options: OptionDeFiltre[],
+  plafond: number,
+  deplie: boolean
+): { visibles: OptionDeFiltre[]; cachees: number } {
+  const retenues = options.filter(
+    (option) => option.count > 0 || option.selected
+  )
+  if (deplie) return { visibles: retenues, cachees: 0 }
+  const visibles = retenues.filter(
+    (option, index) => index < plafond || option.selected
+  )
+  return { visibles, cachees: retenues.length - visibles.length }
 }
 
 function FilterGroups({ facets }: { facets: SearchFacets }) {
@@ -348,38 +381,31 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
 
   const activeBrands = filters.brand ?? []
 
-  const brandOptions = facets.brands.filter(
-    (option) => option.count > 0 || option.selected
+  const brandOptions = optionsVisibles(
+    facets.brands,
+    OPTIONS_VISIBLES,
+    marquesDepliees
   )
-  const visibleBrands = marquesDepliees
-    ? brandOptions
-    : brandOptions.filter(
-        (option, index) => index < OPTIONS_VISIBLES || option.selected
-      )
-  const hiddenBrandCount = brandOptions.length - visibleBrands.length
+  const visibleBrands = brandOptions.visibles
+  const hiddenBrandCount = brandOptions.cachees
 
-  const categoryOptions = facets.categories.filter(
-    (option) => option.count > 0 || option.selected
+  const categoryOptions = optionsVisibles(
+    facets.categories,
+    OPTIONS_VISIBLES,
+    categoriesDepliees
   )
-  const visibleCategories = categoriesDepliees
-    ? categoryOptions
-    : categoryOptions.filter(
-        (option, index) => index < OPTIONS_VISIBLES || option.selected
-      )
-  const hiddenCategoryCount = categoryOptions.length - visibleCategories.length
+  const visibleCategories = categoryOptions.visibles
+  const hiddenCategoryCount = categoryOptions.cachees
 
   const priceOptions = facets.priceBuckets.filter(
     (option) => option.count > 0 || option.selected
   )
 
-  const groupes: GroupeDeFiltres[] = [
+  const groupes: Groupe[] = [
     {
       valeur: "brand",
       intitule: "Marque",
-      legende: "Marque",
       options: visibleBrands,
-      rendu: brandOptions.length > 0,
-      radio: false,
       controle: (option: OptionDeFiltre) => (
         <Checkbox
           className="sr-only"
@@ -389,14 +415,19 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
           }
         />
       ),
+      voirPlus: {
+        cachees: hiddenBrandCount,
+        deplie: marquesDepliees,
+        onBasculer: () => setMarquesDepliees((deplie) => !deplie),
+      },
     },
     {
       valeur: "category",
       intitule: "Catégorie",
-      legende: "Catégorie",
       options: visibleCategories,
-      rendu: categoryOptions.length > 0,
       radio: true,
+      filtreActif: filters.categorySlug ?? null,
+      onChoisir: (valeur: string) => navigate({ categorySlug: valeur }),
       controle: (option: OptionDeFiltre) => (
         <RadioGroupItem
           value={option.value}
@@ -404,14 +435,20 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
           className="sr-only"
         />
       ),
+      voirPlus: {
+        cachees: hiddenCategoryCount,
+        deplie: categoriesDepliees,
+        onBasculer: () => setCategoriesDepliees((deplie) => !deplie),
+      },
     },
     {
       valeur: "price",
       intitule: "Prix",
       legende: "Tranche de prix",
       options: priceOptions,
-      rendu: priceOptions.length > 0,
       radio: true,
+      filtreActif: filters.priceBucketId ?? null,
+      onChoisir: (valeur: string) => navigate({ priceBucketId: valeur }),
       controle: (option: OptionDeFiltre) => (
         <RadioGroupItem
           value={option.value}
@@ -420,7 +457,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
         />
       ),
     },
-  ].filter((groupe: GroupeDeFiltres): boolean => groupe.rendu)
+  ].filter((groupe: Groupe): boolean => groupe.options.length > 0)
 
   return (
     <Accordion
@@ -440,21 +477,13 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
             </AccordionTrigger>
             <AccordionContent>
               <FieldSet>
-                <FieldLegend className="sr-only">{groupe.legende}</FieldLegend>
+                <FieldLegend className="sr-only">
+                  {groupe.legende ?? groupe.intitule}
+                </FieldLegend>
                 {groupe.radio ? (
                   <RadioGroup
-                    value={
-                      groupe.valeur === "category"
-                        ? (filters.categorySlug ?? null)
-                        : (filters.priceBucketId ?? null)
-                    }
-                    onValueChange={(value) =>
-                      navigate(
-                        groupe.valeur === "category"
-                          ? { categorySlug: String(value) }
-                          : { priceBucketId: String(value) }
-                      )
-                    }
+                    value={groupe.filtreActif}
+                    onValueChange={(valeur) => groupe.onChoisir(String(valeur))}
                     className="gap-0"
                   >
                     {groupe.options.map((option) => (
@@ -476,20 +505,11 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
                     ))}
                   </div>
                 )}
-                {groupe.valeur === "category" ? (
+                {groupe.voirPlus ? (
                   <BoutonVoirPlus
-                    cachees={hiddenCategoryCount}
-                    deplie={categoriesDepliees}
-                    onBasculer={() =>
-                      setCategoriesDepliees((deplie) => !deplie)
-                    }
-                  />
-                ) : null}
-                {groupe.valeur === "brand" ? (
-                  <BoutonVoirPlus
-                    cachees={hiddenBrandCount}
-                    deplie={marquesDepliees}
-                    onBasculer={() => setMarquesDepliees((deplie) => !deplie)}
+                    cachees={groupe.voirPlus.cachees}
+                    deplie={groupe.voirPlus.deplie}
+                    onBasculer={groupe.voirPlus.onBasculer}
                   />
                 ) : null}
               </FieldSet>

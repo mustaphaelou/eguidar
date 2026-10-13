@@ -23,7 +23,7 @@ import {
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-const FACETTES: OptionsDeFiltre = {
+const OPTIONS_DE_FILTRE: OptionsDeFiltre = {
   brands: [
     { value: "acme", label: "Acme", count: 12, selected: false },
     { value: "beta", label: "Beta", count: 7, selected: false },
@@ -57,8 +57,8 @@ const NOMS_MARQUES = [
   "Juliett",
 ]
 
-const FACETTES_DIX_MARQUES: OptionsDeFiltre = {
-  ...FACETTES,
+const OPTIONS_DE_FILTRE_DIX_MARQUES: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
   brands: NOMS_MARQUES.map((nom) => ({
     value: nom.toLowerCase(),
     label: nom,
@@ -67,8 +67,8 @@ const FACETTES_DIX_MARQUES: OptionsDeFiltre = {
   })),
 }
 
-const FACETTES_DIX_MARQUES_RETENUE: OptionsDeFiltre = {
-  ...FACETTES,
+const OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
   brands: NOMS_MARQUES.map((nom) => ({
     value: nom.toLowerCase(),
     label: nom,
@@ -77,8 +77,8 @@ const FACETTES_DIX_MARQUES_RETENUE: OptionsDeFiltre = {
   })),
 }
 
-const FACETTES_DIX_CATEGORIES: OptionsDeFiltre = {
-  ...FACETTES,
+const OPTIONS_DE_FILTRE_DIX_CATEGORIES: OptionsDeFiltre = {
+  ...OPTIONS_DE_FILTRE,
   categories: NOMS_MARQUES.map((nom) => ({
     value: nom.toLowerCase(),
     label: nom,
@@ -160,7 +160,7 @@ function boutonPortant(texte: string): HTMLButtonElement | null {
 
 describe("FilterSidebar — liste de texte", () => {
   it("affiche le libellé et le compteur de chaque Option de filtre", () => {
-    rendre({}, FACETTES)
+    rendre({}, OPTIONS_DE_FILTRE)
 
     expect(ligne("Acme")?.textContent).toContain("12")
     expect(ligne("Mobilier")?.textContent).toContain("9")
@@ -168,7 +168,7 @@ describe("FilterSidebar — liste de texte", () => {
   })
 
   it("marque l'Option de filtre retenue et la garde visible malgré la troncature", () => {
-    rendre({ brand: ["juliett"] }, FACETTES_DIX_MARQUES_RETENUE)
+    rendre({ brand: ["juliett"] }, OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE)
 
     const retenue = ligne("Juliett")
     expect(retenue).not.toBeNull()
@@ -178,7 +178,7 @@ describe("FilterSidebar — liste de texte", () => {
   })
 
   it("tronque les Marques avec « Voir plus (n) » puis « Voir moins »", async () => {
-    rendre({}, FACETTES_DIX_MARQUES)
+    rendre({}, OPTIONS_DE_FILTRE_DIX_MARQUES)
 
     expect(ligne("India")).toBeNull()
     const bouton = boutonVoirPlus()
@@ -196,7 +196,7 @@ describe("FilterSidebar — liste de texte", () => {
   })
 
   it("tronque les Catégories comme les Marques", async () => {
-    rendre({}, FACETTES_DIX_CATEGORIES)
+    rendre({}, OPTIONS_DE_FILTRE_DIX_CATEGORIES)
 
     expect(ligne("India")).toBeNull()
     const bouton = boutonVoirPlus()
@@ -210,14 +210,14 @@ describe("FilterSidebar — liste de texte", () => {
   })
 
   it("n'affiche pas un groupe sans option", () => {
-    rendre({}, { ...FACETTES, categories: [] })
+    rendre({}, { ...OPTIONS_DE_FILTRE, categories: [] })
 
     expect(container.textContent).toContain("Marque")
     expect(container.textContent).not.toContain("Catégorie")
   })
 
   it("écrit l'URL attendue au clic sur la ligne d'une Option de filtre", async () => {
-    rendre({}, FACETTES)
+    rendre({}, OPTIONS_DE_FILTRE)
 
     await act(async () => {
       ligne("Acme")!.click()
@@ -232,7 +232,7 @@ describe("FilterSidebar — liste de texte", () => {
 
 describe("Filtres actifs", () => {
   it("retire une pastille et ramène à l'URL attendue", async () => {
-    rendre({ brand: ["acme", "beta"] }, FACETTES)
+    rendre({ brand: ["acme", "beta"] }, OPTIONS_DE_FILTRE)
 
     await act(async () => {
       boutonNomme("Retirer la marque acme")!.click()
@@ -247,7 +247,7 @@ describe("Filtres actifs", () => {
   it("ramène à l'URL nue avec « Tout effacer »", async () => {
     rendre(
       { brand: ["acme"], categorySlug: "mobilier", priceBucketId: "0-1000" },
-      FACETTES
+      OPTIONS_DE_FILTRE
     )
 
     await act(async () => {
@@ -263,14 +263,17 @@ describe("Filtres actifs", () => {
 
 describe("Panneau mobile", () => {
   it("porte le nombre de Filtres de recherche actifs sur le déclencheur « Filtrer »", () => {
-    rendre({ brand: ["acme", "beta"], categorySlug: "mobilier" }, FACETTES)
+    rendre(
+      { brand: ["acme", "beta"], categorySlug: "mobilier" },
+      OPTIONS_DE_FILTRE
+    )
 
     expect(declencheur()?.textContent).toContain("Filtrer")
     expect(declencheur()?.textContent).toContain("3")
   })
 
   it("annonce « Afficher les résultats (n) » dans le pied de la feuille", async () => {
-    rendre({}, FACETTES)
+    rendre({}, OPTIONS_DE_FILTRE)
 
     await act(async () => {
       declencheur()!.click()
