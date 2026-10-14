@@ -405,7 +405,7 @@ describe("ArticleDuPanier", () => {
     const augmenter = bouton("Augmenter la quantité")
 
     const expectedClasses = [
-      "active:scale-[0.96]",
+      "motion-safe:active:scale-[0.96]",
       "motion-safe:transition-transform",
       "motion-safe:duration-150",
       "motion-safe:ease-out",

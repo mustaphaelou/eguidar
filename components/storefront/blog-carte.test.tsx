@@ -114,7 +114,7 @@ describe("BlogHeroCard", () => {
     const lien = container.querySelector("a")!
     expect(lien.className).toContain("overflow-clip")
     expect(lien.className).not.toContain("overflow-hidden")
-    expect(lien.className).toContain("active:scale-[0.99]")
+    expect(lien.className).toContain("motion-safe:active:scale-[0.99]")
     expect(lien.className).toContain("motion-safe:transition-transform")
     expect(lien.className).toContain("motion-safe:duration-150")
     expect(lien.className).toContain("motion-safe:ease-out")
@@ -131,7 +131,7 @@ describe("BlogHeroCard", () => {
     expect(img.className).toContain("motion-safe:ease-out")
     expect(img.className).toContain("motion-safe:transition-transform")
     expect(img.className).toContain(
-      "[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.03]"
+      "motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.03]"
     )
     expect(img.className).toContain("motion-reduce:transition-none")
     expect(img.className).toContain("motion-reduce:transform-none")
@@ -167,7 +167,7 @@ describe("BlogFeedCard", () => {
     const lien = container.querySelector("a")!
     expect(lien.className).toContain("overflow-clip")
     expect(lien.className).not.toContain("overflow-hidden")
-    expect(lien.className).toContain("active:scale-[0.99]")
+    expect(lien.className).toContain("motion-safe:active:scale-[0.99]")
     expect(lien.className).toContain("motion-safe:transition-transform")
     expect(lien.className).toContain("motion-safe:duration-150")
     expect(lien.className).toContain("motion-safe:ease-out")
@@ -184,7 +184,7 @@ describe("BlogFeedCard", () => {
     expect(img.className).toContain("motion-safe:ease-out")
     expect(img.className).toContain("motion-safe:transition-transform")
     expect(img.className).toContain(
-      "[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.03]"
+      "motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.03]"
     )
     expect(img.className).toContain("motion-reduce:transition-none")
     expect(img.className).toContain("motion-reduce:transform-none")

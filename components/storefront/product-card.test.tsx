@@ -131,7 +131,7 @@ describe("ProductCardItem", () => {
     render(<ProductCardItem product={produit()} />)
 
     const link = container.querySelector("a")
-    expect(link?.className).toContain("active:scale-[0.99]")
+    expect(link?.className).toContain("motion-safe:active:scale-[0.99]")
     expect(link?.className).toContain("motion-safe:transition-transform")
     expect(link?.className).toContain("motion-safe:duration-150")
     expect(link?.className).toContain("motion-safe:ease-out")
@@ -144,7 +144,7 @@ describe("ProductCardItem", () => {
 
     const image = container.querySelector("[data-testid='image-produit']")
     expect(image?.className).toContain(
-      "[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.0161]"
+      "motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.0161]"
     )
     expect(image?.className).toContain("motion-safe:duration-200")
     expect(image?.className).toContain("motion-safe:ease-out")

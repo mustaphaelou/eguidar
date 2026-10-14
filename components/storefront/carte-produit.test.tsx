@@ -176,7 +176,7 @@ describe("CarteProduit", () => {
     render(<CarteProduit product={carte()} />)
 
     const classesLien = lien().className
-    expect(classesLien).toContain("active:scale-[0.99]")
+    expect(classesLien).toContain("motion-safe:active:scale-[0.99]")
     expect(classesLien).toContain("motion-safe:transition-transform")
     expect(classesLien).toContain("motion-safe:duration-150")
     expect(classesLien).toContain("motion-safe:ease-out")
@@ -203,7 +203,7 @@ describe("CarteProduit", () => {
     expect(classesImage).toContain("motion-reduce:transition-none")
     expect(classesImage).toContain("motion-reduce:transform-none")
     expect(classesImage).toContain(
-      "[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.02]"
+      "motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.02]"
     )
   })
 })
