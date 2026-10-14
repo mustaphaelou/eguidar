@@ -395,4 +395,30 @@ describe("ArticleDuPanier", () => {
     )
     expect(bouton("Augmenter la quantité").disabled).toBe(false)
   })
+
+  it("equips stepper buttons with tactile press feedback and motion buffer classes without abrupt scale-90", async () => {
+    const port = creerPortPanierEnMemoire()
+    render(<ArticleDuPanier article={article()} port={port} />)
+    await rejouerTransition()
+
+    const diminuer = bouton("Diminuer la quantité")
+    const augmenter = bouton("Augmenter la quantité")
+
+    const expectedClasses = [
+      "active:scale-[0.96]",
+      "motion-safe:transition-transform",
+      "motion-safe:duration-150",
+      "motion-safe:ease-out",
+      "motion-reduce:transition-none",
+      "motion-reduce:transform-none",
+      "disabled:active:scale-100",
+    ]
+
+    for (const boutonElement of [diminuer, augmenter]) {
+      expect(boutonElement.className).not.toContain("active:scale-90")
+      for (const cls of expectedClasses) {
+        expect(boutonElement.className).toContain(cls)
+      }
+    }
+  })
 })

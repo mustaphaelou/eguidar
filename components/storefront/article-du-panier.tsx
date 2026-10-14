@@ -201,7 +201,7 @@ export function ArticleDuPanier({
           <Button
             variant="outline"
             size="icon"
-            className="size-8 rounded-full active:scale-90"
+            className="size-8 rounded-full active:scale-[0.96] disabled:active:scale-100 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-reduce:transform-none motion-reduce:transition-none"
             aria-label="Diminuer la quantité"
             disabled={partie || quantiteAffichee <= 1}
             onPointerDown={(event) => appuyer(event, -1)}
@@ -218,7 +218,7 @@ export function ArticleDuPanier({
           <Button
             variant="outline"
             size="icon"
-            className="size-8 rounded-full active:scale-90"
+            className="size-8 rounded-full active:scale-[0.96] disabled:active:scale-100 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-reduce:transform-none motion-reduce:transition-none"
             aria-label="Augmenter la quantité"
             disabled={partie}
             onPointerDown={(event) => appuyer(event, 1)}
