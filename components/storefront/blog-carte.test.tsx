@@ -33,10 +33,10 @@ vi.mock("next/image", () => ({
     sizes?: string
     fill?: boolean
   }) => (
-    <img
+    <div
       data-testid="image-fond"
-      src={src}
-      alt={alt}
+      data-src={src}
+      data-alt={alt}
       className={className}
       data-sizes={sizes}
       data-fill={fill ? "true" : undefined}
