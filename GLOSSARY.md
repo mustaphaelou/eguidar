@@ -277,10 +277,32 @@ Le prix affiché pour une Variante (prix de base plus écart de prix) et pour un
 _Avoid_: current price, prix effectif, prix calculé
 
 **Carte produit**:
-Un Produit présenté dans une liste — page d'accueil, catégorie, Produits liés, résultats de Recherche —
+Un Produit présenté dans une liste — page de catégorie, Produits liés, résultats de Recherche —
 sous la forme d'un bloc portant sa première image, son Prix courant, son stock total et son lien vers sa
 page Produit. C'est la seule forme sous laquelle ces faits s'affichent en liste.
 _Avoid_: product card, vignette produit, tuile
+
+**Mise en avant**:
+Le fait, pour l'Administration, de désigner les Produits que l'accueil met en avant, et dans quel ordre
+(`Product.isFeatured`, `Product.featuredOrder`). C'est la seule curation de l'accueil : ses Panneaux sont
+ces Produits, dans cet ordre. La copie d'un panneau, elle, est écrite dans le code
+(`lib/accueil-panneaux.ts`) ; un Produit mis en avant sans copie se replie sur son nom, sa marque et son
+Prix courant.
+_Avoid_: produit vedette, produit phare, featured
+
+**Panneau**:
+Le bloc de l'accueil : un champ (le blanc de la page, le gris du Catalogue, ou le presque noir de l'**Icône
+de site** comme accent), une copie — titre, surtitre, callout, une action — et une zone d'art ancrée sous
+la copie. Deux formats, deux échelles de type : le **Panneau pleine largeur**, un par rangée, et le
+**Panneau en duo**, deux par rangée. Un Produit sans Image produit n'a pas d'art : le panneau garde sa
+hauteur et sa copie tient le champ seule. Les Panneaux sont les Produits en **Mise en avant**, dans leur
+ordre ; six panneaux et une Bande font l'accueil d'aujourd'hui.
+_Avoid_: bloc, section, tuile, card, vignette
+
+**Bande**:
+Le Panneau sans art qui range un ensemble sur l'accueil : aujourd'hui la **Bande des catégories**, la seule
+porte de l'accueil vers les six Structures. Une Bande porte un titre, un surtitre et ses entrées.
+_Avoid_: bandeau (réservé au Bandeau de navigation), rubrique, strip
 
 **Compte client**:
 The registered customer entity (Better Auth user) with credentials, email verification, and optional Connexion sociale (Facebook, Google). Carries a `role` ("user" or "admin").
