@@ -243,4 +243,43 @@ describe("ListeArticlesDuPanier", () => {
 
     expect(bouton("Annuler le retrait de Plateau en cuivre")).toBeDefined()
   })
+
+  it("configures toast container with logical positioning and grounded motion tokens when hidden", () => {
+    render(<ListeArticlesDuPanier articles={[article()]} />)
+
+    const statusEl = annonce()
+    const classList = statusEl.className
+
+    expect(classList).toContain("inset-inline-0")
+    expect(classList).toContain("inset-block-end-0")
+    expect(classList).not.toContain("inset-x-0")
+    expect(classList).not.toContain("bottom-0")
+    expect(classList).toContain("duration-200")
+    expect(classList).toContain("ease-out")
+    expect(classList).toContain("motion-safe:transition-[opacity,transform]")
+    expect(classList).toContain("motion-reduce:transition-opacity")
+    expect(classList).toContain("motion-safe:translate-y-4")
+    expect(classList).toContain("motion-safe:scale-95")
+    expect(classList).toContain("motion-reduce:translate-y-0")
+    expect(classList).toContain("motion-reduce:scale-100")
+    expect(classList).toContain("opacity-0")
+    expect(classList).toContain("pointer-events-none")
+  })
+
+  it("applies grounded entrance transform and full opacity when visible", async () => {
+    const port = creerPortPanierEnMemoire()
+    render(<ListeArticlesDuPanier articles={[article()]} port={port} />)
+
+    cliquer(bouton("Retirer du panier"))
+    await rejouerTransition()
+
+    const statusEl = annonce()
+    const classList = statusEl.className
+
+    expect(classList).toContain("translate-y-0")
+    expect(classList).toContain("scale-100")
+    expect(classList).toContain("opacity-100")
+    expect(classList).not.toContain("opacity-0")
+    expect(classList).not.toContain("pointer-events-none")
+  })
 })
