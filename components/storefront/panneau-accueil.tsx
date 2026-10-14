@@ -90,10 +90,10 @@ export const CHAMP: Record<
 /**
  * La zone d'art : elle reste sous la copie, l'image est recadrée par le bas et centrée. Apple
  * fait traverser la sienne par la copie, parce que son art est composé autour du texte ; nos
- * photos sont des photos produit, elles tiennent sous la copie.
+ * images sont des images de produit, elles tiennent sous la copie.
  *
  * Un Produit sans Image produit n'a pas d'art : le panneau garde sa hauteur et se passe de la
- * zone. Le jour où la photo arrive, elle se pose sous la copie sans rien déplacer.
+ * zone. Le jour où l'Image produit arrive, elle se pose sous la copie sans rien déplacer.
  */
 function ArtDuPanneau({
   panneau,
@@ -205,7 +205,7 @@ export function PanneauPleineLargeur({
         c.panneau,
         HAUTEUR_PLEINE_LARGEUR,
         // Sans art, la copie tient le panneau seule : elle se centre au lieu de rester en
-        // haut d'une zone vide. Le jour où la photo arrive, elle remonte et l'art prend le bas.
+        // haut d'une zone vide. Le jour où l'Image produit arrive, elle remonte et l'art prend le bas.
         !panneau.produit.image && "justify-center"
       )}
     >
