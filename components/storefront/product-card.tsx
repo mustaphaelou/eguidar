@@ -12,7 +12,7 @@ export function ProductCardItem({ product }: { product: CarteProduit }) {
   return (
     <Link
       href={urlProduit(product.slug)}
-      className="group flex flex-col gap-5 active:scale-[0.99] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out"
+      className="group flex flex-col gap-5 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none"
     >
       <div className="relative aspect-square overflow-clip rounded-carte bg-muted">
         {product.image ? (
@@ -21,7 +21,7 @@ export function ProductCardItem({ product }: { product: CarteProduit }) {
             alt={product.name}
             fill
             sizes="(min-width: 1024px) 25vw, 50vw"
-            className="object-cover group-hover:scale-[1.0161] motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
+            className="object-cover motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-reduce:transform-none motion-reduce:transition-none motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.0161]"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">

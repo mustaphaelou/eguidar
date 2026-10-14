@@ -174,6 +174,7 @@ describe("ListeArticlesDuPanier", () => {
     })
 
     expect(annonceVisible()).toBe(false)
+    expect(annonce().firstElementChild).not.toBeNull()
   })
 
   it("withdraws the announcement when the removal is refused", async () => {
@@ -242,5 +243,73 @@ describe("ListeArticlesDuPanier", () => {
     await rejouerTransition()
 
     expect(bouton("Annuler le retrait de Plateau en cuivre")).toBeDefined()
+  })
+
+  it("configures toast container with logical positioning and grounded motion tokens when hidden", () => {
+    render(<ListeArticlesDuPanier articles={[article()]} />)
+
+    const statusEl = annonce()
+    const classList = statusEl.className
+
+    expect(classList).toContain("inset-inline-0")
+    expect(classList).toContain("inset-block-end-0")
+    expect(classList).not.toContain("inset-x-0")
+    expect(classList).not.toContain("bottom-0")
+    expect(classList).toContain("duration-200")
+    expect(classList).toContain("ease-out")
+    expect(classList).toContain("motion-safe:transition-[opacity,transform]")
+    expect(classList).toContain("motion-reduce:transition-opacity")
+    expect(classList).toContain("motion-safe:translate-y-4")
+    expect(classList).toContain("motion-safe:scale-95")
+    expect(classList).toContain("motion-reduce:translate-y-0")
+    expect(classList).toContain("motion-reduce:scale-100")
+    expect(classList).toContain("opacity-0")
+    expect(classList).toContain("pointer-events-none")
+  })
+
+  it("applies grounded entrance transform and full opacity when visible", async () => {
+    const port = creerPortPanierEnMemoire()
+    render(<ListeArticlesDuPanier articles={[article()]} port={port} />)
+
+    cliquer(bouton("Retirer du panier"))
+    await rejouerTransition()
+
+    const statusEl = annonce()
+    const classList = statusEl.className
+
+    expect(classList).toContain("translate-y-0")
+    expect(classList).toContain("scale-100")
+    expect(classList).toContain("opacity-100")
+    expect(classList).not.toContain("opacity-0")
+    expect(classList).not.toContain("pointer-events-none")
+  })
+
+  it("preserves banner markup during exit transition while gating interaction with inert and aria-hidden", async () => {
+    vi.useFakeTimers()
+    const port = creerPortPanierEnMemoire()
+    render(<ListeArticlesDuPanier articles={[article()]} port={port} />)
+
+    expect(annonce().firstElementChild).toBeNull()
+
+    cliquer(bouton("Retirer du panier"))
+    await rejouerTransition()
+
+    expect(annonce().firstElementChild).not.toBeNull()
+    expect(annonceVisible()).toBe(true)
+
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(annonceVisible()).toBe(false)
+    expect(annonce().hasAttribute("inert")).toBe(true)
+    expect(annonce().getAttribute("aria-hidden")).toBe("true")
+    expect(annonce().className).toContain("opacity-0")
+    expect(annonce().className).toContain("motion-safe:translate-y-4")
+    expect(annonce().className).toContain("motion-safe:scale-95")
+    expect(annonce().className).toContain("duration-200")
+    expect(annonce().className).toContain("ease-out")
+    expect(annonce().firstElementChild).not.toBeNull()
+    expect(annonce().textContent).toContain("Retiré du panier")
   })
 })
