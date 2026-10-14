@@ -71,7 +71,7 @@ async function HomeContent() {
             <PanneauDuo
               key={panneau.produit.id}
               panneau={panneau}
-              champ={champDeLaTuile(rang, index)}
+              champ={champDuPanneauDuo(rang, index)}
             />
           ))}
         </div>
@@ -82,10 +82,10 @@ async function HomeContent() {
 }
 
 /**
- * Le noir est une épice, pas un thème (#641) : le second panneau le porte, puis une tuile sur
- * deux rangées — la dernière — pour qu'il reste espacé quand le catalogue s'allonge.
+ * Le noir est une épice, pas un thème (#641) : le second panneau le porte, puis un panneau duo
+ * sur deux rangées — le second — pour qu'il reste espacé quand le catalogue s'allonge.
  */
-function champDeLaTuile(rang: number, index: number): Champ {
+function champDuPanneauDuo(rang: number, index: number): Champ {
   return rang % 2 === 1 && index === 1 ? "noir" : "muted"
 }
 
@@ -93,19 +93,23 @@ function HomeSkeleton() {
   return (
     <div className={cn("flex flex-col", GOUTTIERE_PANNEAUX)}>
       <div className={cn("animate-pulse bg-muted", HAUTEUR_PLEINE_LARGEUR)} />
-      <div
-        className={cn(
-          "grid grid-cols-1 px-3 sm:grid-cols-2",
-          GOUTTIERE_PANNEAUX
-        )}
-      >
-        {Array.from({ length: 2 }).map((_, index) => (
-          <div
-            key={index}
-            className={cn("animate-pulse bg-muted", HAUTEUR_DUO)}
-          />
-        ))}
-      </div>
+      <div className={cn("animate-pulse bg-muted", HAUTEUR_PLEINE_LARGEUR)} />
+      {Array.from({ length: 2 }).map((_, rang) => (
+        <div
+          key={rang}
+          className={cn(
+            "grid grid-cols-1 px-3 sm:grid-cols-2",
+            GOUTTIERE_PANNEAUX
+          )}
+        >
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div
+              key={index}
+              className={cn("animate-pulse bg-muted", HAUTEUR_DUO)}
+            />
+          ))}
+        </div>
+      ))}
       <div className="h-80 animate-pulse bg-muted" />
     </div>
   )
