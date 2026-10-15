@@ -11,7 +11,11 @@ const MODULE_CYCLE_VIE = "lib/cycle-vie-image-produit.ts"
 const MODULE_CATALOGUE = "lib/use-cases/admin-catalog.ts"
 const MODULE_STRUCTURE = "lib/use-cases/admin-structure.ts"
 const ROUTE_LIBERATION = "app/api/admin/uploads/delete/route.ts"
+const ROUTE_PRESIGNATION = "app/api/admin/uploads/presign/route.ts"
 const GALERIE_PRODUIT = "components/admin/image-gallery-upload.tsx"
+const MODULE_TELEVERSEMENT = "components/admin/televersement-brouillons.ts"
+const ADAPTATEUR_TELEVERSEMENT =
+  "components/admin/televersement-brouillons-http.ts"
 
 const SOURCES = sourcesDeProduction(
   import.meta.url,
@@ -32,7 +36,7 @@ const IMPORTATEURS_R2_AUTORISES = [
 const IMPORTATEURS_CYCLE_VIE_AUTORISES = [
   "app/admin/produits/actions.ts",
   "app/api/admin/uploads/delete/route.ts",
-  "app/api/admin/uploads/presign/route.ts",
+  ROUTE_PRESIGNATION,
   "infra/regle-cycle-vie-r2.ts",
   MODULE_CATALOGUE,
 ] as const
@@ -56,7 +60,9 @@ describe("Cycle de vie des Images produit — frontière", () => {
       expect.arrayContaining([
         GALERIE_PRODUIT,
         ROUTE_LIBERATION,
-        "app/api/admin/uploads/presign/route.ts",
+        ROUTE_PRESIGNATION,
+        MODULE_TELEVERSEMENT,
+        ADAPTATEUR_TELEVERSEMENT,
         MODULE_CATALOGUE,
         MODULE_STRUCTURE,
       ])
@@ -96,7 +102,7 @@ describe("Cycle de vie des Images produit — frontière", () => {
     const surfaces = [
       "app/admin/produits/actions.ts",
       "app/api/admin/uploads/delete/route.ts",
-      "app/api/admin/uploads/presign/route.ts",
+      ROUTE_PRESIGNATION,
     ]
 
     for (const chemin of surfaces) {
@@ -126,8 +132,43 @@ describe("Cycle de vie des Images produit — frontière", () => {
       contenu.includes("/api/admin/uploads/delete")
     ).map(({ chemin }) => chemin)
 
-    expect(appelants).toEqual([GALERIE_PRODUIT])
-    expect(source(GALERIE_PRODUIT)).toContain("JSON.stringify({ draftId })")
+    expect(appelants).toEqual([ADAPTATEUR_TELEVERSEMENT])
+    expect(source(ADAPTATEUR_TELEVERSEMENT)).toContain(
+      "JSON.stringify({ draftId })"
+    )
+  })
+
+  it("n'a qu'un appelant de la route de pré-signation et lui transmet le fichier à téléverser", () => {
+    const appelants = SOURCES.filter(({ source: contenu }) =>
+      contenu.includes("/api/admin/uploads/presign")
+    ).map(({ chemin }) => chemin)
+
+    expect(appelants).toEqual([ADAPTATEUR_TELEVERSEMENT])
+    expect(source(ADAPTATEUR_TELEVERSEMENT)).toContain(
+      "JSON.stringify({ contentType, size })"
+    )
+  })
+
+  it("ne laisse plus le composant de galerie parler HTTP : il consomme le module de téléversement", () => {
+    const galerie = source(GALERIE_PRODUIT)
+
+    expect(galerie).not.toContain("/api/admin/uploads")
+    expect(galerie).not.toMatch(/\bfetch\s*\(/)
+    expect(importeDe(galerie, MODULE_TELEVERSEMENT)).toBe(true)
+  })
+
+  it("confine le protocole client au module de téléversement et à son adaptateur, sans stockage ni cycle de vie", () => {
+    expect(importateursDe(MODULE_TELEVERSEMENT)).toEqual(
+      [ADAPTATEUR_TELEVERSEMENT, GALERIE_PRODUIT].sort()
+    )
+    expect(importateursDe(ADAPTATEUR_TELEVERSEMENT)).toEqual([
+      MODULE_TELEVERSEMENT,
+    ])
+    for (const chemin of [MODULE_TELEVERSEMENT, ADAPTATEUR_TELEVERSEMENT]) {
+      const atteints = atteignables(chemin, PAR_CHEMIN)
+      expect(atteints.has(MODULE_R2), chemin).toBe(false)
+      expect(atteints.has(MODULE_CYCLE_VIE), chemin).toBe(false)
+    }
   })
 
   it("partage les deux suppressions par URL entre le Catalogue et la Structure, sans les confondre", () => {

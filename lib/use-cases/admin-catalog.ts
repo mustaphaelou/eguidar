@@ -6,6 +6,7 @@ import {
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
+import { LIMITE_IMAGES_PRODUIT } from "@/lib/galerie-image-produit"
 import {
   LIBELLE_SANS_STRUCTURE,
   toIndexableProduct,
@@ -137,8 +138,6 @@ const variantInputSchema = z.object({
   priceDelta: z.number().int(),
   stock: z.number().int().min(0, "le stock doit être positif ou nul"),
 })
-
-const LIMITE_IMAGES_PRODUIT = 8
 
 const productInputSchema = z.object({
   name: z.string().min(1, "nom requis"),

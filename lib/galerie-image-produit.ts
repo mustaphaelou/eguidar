@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+export const LIMITE_IMAGES_PRODUIT = 8
+
 export const entreeImagePersisteeSchema = z.object({
   kind: z.literal("persistee"),
   url: z.string().url(),
