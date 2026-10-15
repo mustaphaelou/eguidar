@@ -141,11 +141,14 @@ async function attendreQuUneAttenteDeVerrou(): Promise<void> {
   const uneAttenteDeVerrou = async () => {
     const lignes = await prisma.$queryRawUnsafe<{ attendu: bigint }[]>(
       `SELECT count(*) AS attendu
-         FROM pg_stat_activity
-        WHERE datname = current_database()
-          AND state = 'active'
-          AND wait_event_type = 'Lock'
-          AND query LIKE '%FROM "Category" FOR UPDATE%'`
+         FROM pg_stat_activity AS activite
+         JOIN pg_locks AS verrou ON verrou.pid = activite.pid
+         JOIN pg_class AS relation ON relation.oid = verrou.relation
+        WHERE activite.datname = current_database()
+          AND activite.wait_event_type = 'Lock'
+          AND verrou.locktype = 'relation'
+          AND verrou.granted = false
+          AND relation.relname = 'Category'`
     )
     return Number(lignes[0]?.attendu ?? 0) > 0
   }
