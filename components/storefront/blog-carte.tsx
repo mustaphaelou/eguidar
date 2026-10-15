@@ -19,7 +19,7 @@ function BlogCarteFond({
           alt=""
           fill
           sizes={sizes}
-          className="object-cover transition-transform duration-500 [@media(hover:hover)]:group-hover:scale-[1.03]"
+          className="object-cover motion-safe:transition-transform motion-safe:duration-250 motion-safe:ease-out motion-reduce:transform-none motion-reduce:transition-none motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.03]"
         />
       ) : null}
       <div
@@ -72,7 +72,7 @@ export function BlogHeroCard({ article }: { article: CardBlog }) {
     <Link
       href={`/blog/${article.slug}`}
       aria-label={`Lire : ${article.titre}`}
-      className="group relative block aspect-video w-full overflow-hidden rounded-[32px] bg-[#1d1d1f]"
+      className="group relative block aspect-video w-full overflow-clip rounded-[32px] bg-[#1d1d1f] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none"
     >
       <BlogCarteFond
         couverture={article.couverture}
@@ -98,7 +98,7 @@ export function BlogFeedCard({ article }: { article: CardBlog }) {
     <Link
       href={`/blog/${article.slug}`}
       aria-label={`Lire : ${article.titre}`}
-      className="group relative flex min-h-[328px] flex-col justify-end overflow-hidden rounded-2xl bg-[#1d1d1f] sm:min-h-[332px] lg:min-h-[314px]"
+      className="group relative flex min-h-[328px] flex-col justify-end overflow-clip rounded-2xl bg-[#1d1d1f] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none sm:min-h-[332px] lg:min-h-[314px]"
     >
       <BlogCarteFond
         couverture={article.couverture}

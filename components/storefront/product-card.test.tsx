@@ -20,8 +20,21 @@ vi.mock("next/link", () => ({
 }))
 
 vi.mock("next/image", () => ({
-  default: ({ src, alt }: { src: string; alt: string }) => (
-    <div data-testid="image-produit" data-src={src} data-alt={alt} />
+  default: ({
+    src,
+    alt,
+    className,
+  }: {
+    src: string
+    alt: string
+    className?: string
+  }) => (
+    <div
+      data-testid="image-produit"
+      data-src={src}
+      data-alt={alt}
+      className={className}
+    />
   ),
 }))
 
@@ -41,7 +54,9 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const root of roots) root.unmount()
+  act(() => {
+    for (const root of roots) root.unmount()
+  })
   roots.length = 0
   container.remove()
 })
@@ -110,5 +125,30 @@ describe("ProductCardItem", () => {
     render(<ProductCardItem product={produit({ image: null })} />)
 
     expect(container.textContent).toContain("Aucune image")
+  })
+
+  it("configure les transitions et la réduction de mouvement sur le conteneur", () => {
+    render(<ProductCardItem product={produit()} />)
+
+    const link = container.querySelector("a")
+    expect(link?.className).toContain("motion-safe:active:scale-[0.99]")
+    expect(link?.className).toContain("motion-safe:transition-transform")
+    expect(link?.className).toContain("motion-safe:duration-150")
+    expect(link?.className).toContain("motion-safe:ease-out")
+    expect(link?.className).toContain("motion-reduce:transition-none")
+    expect(link?.className).toContain("motion-reduce:transform-none")
+  })
+
+  it("gâte le survol de l'image par fine-pointer, règle la durée à 200ms et neutralise le mouvement réduit", () => {
+    render(<ProductCardItem product={produit()} />)
+
+    const image = container.querySelector("[data-testid='image-produit']")
+    expect(image?.className).toContain(
+      "motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.0161]"
+    )
+    expect(image?.className).toContain("motion-safe:duration-200")
+    expect(image?.className).toContain("motion-safe:ease-out")
+    expect(image?.className).toContain("motion-reduce:transition-none")
+    expect(image?.className).toContain("motion-reduce:transform-none")
   })
 })

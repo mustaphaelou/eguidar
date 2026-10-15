@@ -20,8 +20,21 @@ vi.mock("next/link", () => ({
 }))
 
 vi.mock("next/image", () => ({
-  default: ({ src, alt }: { src: string; alt: string }) => (
-    <div data-testid="image-produit" data-src={src} data-alt={alt} />
+  default: ({
+    src,
+    alt,
+    className,
+  }: {
+    src: string
+    alt: string
+    className?: string
+  }) => (
+    <div
+      data-testid="image-produit"
+      data-src={src}
+      data-alt={alt}
+      className={className}
+    />
   ),
 }))
 
@@ -157,5 +170,40 @@ describe("CarteProduit", () => {
       "A",
       "BUTTON",
     ])
+  })
+
+  it("applique le retour tactile et la réduction de mouvement sur le lien conteneur", () => {
+    render(<CarteProduit product={carte()} />)
+
+    const classesLien = lien().className
+    expect(classesLien).toContain("motion-safe:active:scale-[0.99]")
+    expect(classesLien).toContain("motion-safe:transition-transform")
+    expect(classesLien).toContain("motion-safe:duration-150")
+    expect(classesLien).toContain("motion-safe:ease-out")
+    expect(classesLien).toContain("motion-reduce:transition-none")
+    expect(classesLien).toContain("motion-reduce:transform-none")
+  })
+
+  it("utilise overflow-clip sur le conteneur d'image", () => {
+    render(<CarteProduit product={carte()} />)
+
+    const conteneurImage = imageProduit()?.parentElement
+    expect(conteneurImage).not.toBeNull()
+    expect(conteneurImage?.className).toContain("overflow-clip")
+    expect(conteneurImage?.className).not.toContain("overflow-hidden")
+  })
+
+  it("configure l'image avec un zoom au survol réservé aux pointeurs fins et un amorti fluide", () => {
+    render(<CarteProduit product={carte()} />)
+
+    const classesImage = imageProduit()?.className
+    expect(classesImage).toContain("motion-safe:transition-transform")
+    expect(classesImage).toContain("motion-safe:duration-200")
+    expect(classesImage).toContain("motion-safe:ease-out")
+    expect(classesImage).toContain("motion-reduce:transition-none")
+    expect(classesImage).toContain("motion-reduce:transform-none")
+    expect(classesImage).toContain(
+      "motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.02]"
+    )
   })
 })
