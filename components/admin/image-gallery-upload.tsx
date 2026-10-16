@@ -10,21 +10,18 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import Image from "next/image"
 import { useRef, useState } from "react"
 
+import televersementBrouillons, {
+  type TeleversementBrouillons,
+} from "@/components/admin/televersement-brouillons"
 import { Button } from "@/components/ui/button"
 import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
+import { LIMITE_IMAGES_PRODUIT } from "@/lib/galerie-image-produit"
 import { cn } from "@/lib/utils"
 
 interface ImageGalleryUploadProps {
   images: EntreeImageProduitFormulaire[]
   onChange(images: EntreeImageProduitFormulaire[]): void
-}
-
-const MAX_FILES = 8
-
-type ReponsePresign = {
-  draftId?: unknown
-  uploadUrl?: unknown
-  previewUrl?: unknown
+  televersement?: TeleversementBrouillons
 }
 
 function entryKey(image: EntreeImageProduitFormulaire): string {
@@ -48,6 +45,7 @@ function imageEstActive(image: EntreeImageProduitFormulaire): boolean {
 export function ImageGalleryUpload({
   images,
   onChange,
+  televersement = televersementBrouillons,
 }: ImageGalleryUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -59,59 +57,14 @@ export function ImageGalleryUpload({
     setError(null)
     setUploading(true)
     try {
-      const uploaded: EntreeImageProduitFormulaire[] = []
-      const placesRestants = Math.max(
+      const places = Math.max(
         0,
-        MAX_FILES - images.filter(imageEstActive).length
+        LIMITE_IMAGES_PRODUIT - images.filter(imageEstActive).length
       )
-      for (const file of Array.from(files)) {
-        if (uploaded.length >= placesRestants) break
-        if (!file.type.startsWith("image/")) {
-          setError("Seuls les fichiers image sont acceptés")
-          continue
-        }
-
-        const response = await fetch("/api/admin/uploads/presign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contentType: file.type, size: file.size }),
-        })
-        if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as {
-            error?: string
-          } | null
-          setError(body?.error ?? "Échec de la pré-signature")
-          continue
-        }
-
-        const body = (await response
-          .json()
-          .catch(() => null)) as ReponsePresign | null
-        if (
-          !body ||
-          typeof body.draftId !== "string" ||
-          typeof body.uploadUrl !== "string" ||
-          typeof body.previewUrl !== "string"
-        ) {
-          setError("Réponse de téléversement invalide")
-          continue
-        }
-
-        const upload = await fetch(body.uploadUrl, {
-          method: "PUT",
-          body: file,
-        })
-        if (!upload.ok) {
-          setError("Échec de l'envoi vers le stockage")
-          continue
-        }
-        uploaded.push({
-          kind: "brouillon",
-          draftId: body.draftId,
-          previewUrl: body.previewUrl,
-        })
-      }
-      if (uploaded.length > 0) onChange([...images, ...uploaded])
+      const resultat = await televersement.ajouter([...files], places)
+      if (resultat.message !== undefined) setError(resultat.message)
+      if (resultat.ajoutees.length > 0)
+        onChange([...images, ...resultat.ajoutees])
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ""
@@ -137,20 +90,9 @@ export function ImageGalleryUpload({
     setError(null)
     setReleasingDraftId(draftId)
     try {
-      const response = await fetch("/api/admin/uploads/delete", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draftId }),
-      })
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as {
-          error?: unknown
-        } | null
-        setError(
-          typeof body?.error === "string"
-            ? body.error
-            : "Échec de la libération du Brouillon d'Image produit"
-        )
+      const resultat = await televersement.relacher(draftId)
+      if (!resultat.ok) {
+        setError(resultat.message)
         return
       }
       onChange(
@@ -158,8 +100,6 @@ export function ImageGalleryUpload({
           (image) => image.kind !== "brouillon" || image.draftId !== draftId
         )
       )
-    } catch {
-      setError("Échec de la libération du Brouillon d'Image produit")
     } finally {
       setReleasingDraftId(null)
     }
@@ -347,7 +287,7 @@ export function ImageGalleryUpload({
         disabled={
           uploading ||
           releasingDraftId !== null ||
-          entreesActives.length >= MAX_FILES
+          entreesActives.length >= LIMITE_IMAGES_PRODUIT
         }
         onClick={() => inputRef.current?.click()}
         className="w-fit"
@@ -355,8 +295,8 @@ export function ImageGalleryUpload({
         {uploading ? "Envoi en cours…" : "Ajouter des images"}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Envoyées vers Cloudflare R2, {entreesActives.length}/{MAX_FILES} images
-        (10 Mo max par image).
+        Envoyées vers Cloudflare R2, {entreesActives.length}/
+        {LIMITE_IMAGES_PRODUIT} images (10 Mo max par image).
       </p>
       {error ? (
         <p className={cn("text-sm", "text-destructive")}>{error}</p>

@@ -12,8 +12,16 @@ vi.mock("next/image", () => ({
 }))
 
 import { ImageGalleryUpload } from "@/components/admin/image-gallery-upload"
+import type {
+  FaitsAjoutBrouillons,
+  ResultatEnvoi,
+  TeleversementBrouillons,
+} from "@/components/admin/televersement-brouillons"
 import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import type {
+  EntreeBrouillonImage,
+  EntreeImageProduit,
+} from "@/lib/galerie-image-produit"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -41,12 +49,64 @@ function boutonAjouter(): HTMLButtonElement {
   return bouton
 }
 
+async function envoyerFichiers(files: File[]) {
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+  Object.defineProperty(input, "files", { value: files })
+  await act(async () => {
+    input.dispatchEvent(new Event("change", { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
+function brouillon(draftId: string): EntreeBrouillonImage {
+  return {
+    kind: "brouillon",
+    draftId,
+    previewUrl: `https://cdn.example.test/products/brouillons/${draftId}.png`,
+  }
+}
+
+interface TeleversementFactice extends TeleversementBrouillons {
+  appelsAjout: { fichiers: File[]; places: number }[]
+  appelsRelache: string[]
+}
+
+function creerTeleversementFactice(
+  options: {
+    ajouter?: (
+      fichiers: File[],
+      places: number
+    ) => FaitsAjoutBrouillons | Promise<FaitsAjoutBrouillons>
+    relacher?: (draftId: string) => ResultatEnvoi | Promise<ResultatEnvoi>
+  } = {}
+): TeleversementFactice {
+  const appelsAjout: { fichiers: File[]; places: number }[] = []
+  const appelsRelache: string[] = []
+
+  return {
+    appelsAjout,
+    appelsRelache,
+    async ajouter(fichiers, places) {
+      appelsAjout.push({ fichiers: [...fichiers], places })
+      return options.ajouter
+        ? options.ajouter([...fichiers], places)
+        : { ajoutees: [] }
+    },
+    async relacher(draftId) {
+      appelsRelache.push(draftId)
+      return options.relacher ? options.relacher(draftId) : { ok: true }
+    },
+  }
+}
+
 function GalerieTest({
   initialImages,
   onChange,
+  televersement,
 }: {
   initialImages: EntreeImageProduitFormulaire[]
   onChange(images: EntreeImageProduitFormulaire[]): void
+  televersement?: TeleversementBrouillons
 }) {
   const [images, setImages] = useState(initialImages)
   return (
@@ -56,6 +116,7 @@ function GalerieTest({
         setImages(suivantes)
         onChange(suivantes)
       }}
+      televersement={televersement}
     />
   )
 }
@@ -72,55 +133,32 @@ afterEach(() => {
   roots.length = 0
   container.remove()
   vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 describe("ImageGalleryUpload", () => {
-  it("transforme un envoi en entrée Brouillon et ne supprime pas une Image persistée", async () => {
+  it("envoie la place restante au téléversement et fusionne les entrées Brouillon", async () => {
     const onChange = vi.fn()
     const persisted: EntreeImageProduit = {
       kind: "persistee",
       url: "https://cdn.example.test/products/existing.png",
     }
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            draftId: "draft-1",
-            uploadUrl: "https://upload.example.test/signed",
-            previewUrl:
-              "https://cdn.example.test/products/brouillons/draft-1.png",
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))
-    vi.stubGlobal("fetch", fetchMock)
-
-    render(<ImageGalleryUpload images={[persisted]} onChange={onChange} />)
-    const input =
-      container.querySelector<HTMLInputElement>('input[type="file"]')!
-    const file = new File(["image"], "photo.png", { type: "image/png" })
-    Object.defineProperty(input, "files", { value: [file] })
-
-    await act(async () => {
-      input.dispatchEvent(new Event("change", { bubbles: true }))
-      await new Promise((resolve) => setTimeout(resolve, 0))
+    const televersement = creerTeleversementFactice({
+      ajouter: () => ({ ajoutees: [brouillon("draft-1")] }),
     })
+    const file = new File(["image"], "photo.png", { type: "image/png" })
 
-    expect(onChange).toHaveBeenCalledWith([
-      persisted,
-      {
-        kind: "brouillon",
-        draftId: "draft-1",
-        previewUrl: "https://cdn.example.test/products/brouillons/draft-1.png",
-      },
-    ])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(
-      fetchMock.mock.calls.some(([url]) => String(url).includes("/delete"))
-    ).toBe(false)
+    render(
+      <ImageGalleryUpload
+        images={[persisted]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
+    await envoyerFichiers([file])
+
+    expect(televersement.appelsAjout).toEqual([{ fichiers: [file], places: 7 }])
+    expect(televersement.appelsRelache).toEqual([])
+    expect(onChange).toHaveBeenCalledWith([persisted, brouillon("draft-1")])
   })
 
   it("garde le bouton d'ajout actif à pleine capacité tant qu'une suppression est en attente", async () => {
@@ -132,24 +170,16 @@ describe("ImageGalleryUpload", () => {
         url: `https://cdn.example.test/products/existing-${index}.png`,
       })
     )
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            draftId: "draft-remplacement",
-            uploadUrl: "https://upload.example.test/signed",
-            previewUrl:
-              "https://cdn.example.test/products/brouillons/draft-remplacement.png",
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))
-    vi.stubGlobal("fetch", fetchMock)
+    const televersement = creerTeleversementFactice({
+      ajouter: () => ({ ajoutees: [brouillon("draft-remplacement")] }),
+    })
 
     const root = render(
-      <GalerieTest initialImages={gallery} onChange={onChange} />
+      <GalerieTest
+        initialImages={gallery}
+        onChange={onChange}
+        televersement={televersement}
+      />
     )
 
     expect(boutonAjouter().disabled).toBe(true)
@@ -164,40 +194,34 @@ describe("ImageGalleryUpload", () => {
     expect(container.textContent).toContain("7/8 images")
     act(() => boutonAjouter().click())
 
-    const input =
-      container.querySelector<HTMLInputElement>('input[type="file"]')!
     const file = new File(["image"], "photo.png", { type: "image/png" })
-    Object.defineProperty(input, "files", { value: [file] })
-    await act(async () => {
-      input.dispatchEvent(new Event("change", { bubbles: true }))
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+    await envoyerFichiers([file])
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/admin/uploads/presign")
+    expect(televersement.appelsAjout).toEqual([{ fichiers: [file], places: 1 }])
     expect(onChange).toHaveBeenLastCalledWith([
       ...gallery.map((image, index) =>
         index === 0 ? { ...image, suppressionEnAttente: true } : image
       ),
-      {
-        kind: "brouillon",
-        draftId: "draft-remplacement",
-        previewUrl:
-          "https://cdn.example.test/products/brouillons/draft-remplacement.png",
-      },
+      brouillon("draft-remplacement"),
     ])
     unmount(root)
   })
 
-  it("marque une Image persistée pour suppression sans appeler la route de suppression R2", () => {
+  it("marque une Image persistée pour suppression sans appeler le téléversement", () => {
     const onChange = vi.fn()
     const persisted: EntreeImageProduit = {
       kind: "persistee",
       url: "https://cdn.example.test/products/existing.png",
     }
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
+    const televersement = creerTeleversementFactice()
 
-    render(<GalerieTest initialImages={[persisted]} onChange={onChange} />)
+    render(
+      <GalerieTest
+        initialImages={[persisted]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
     const remove = container.querySelector<HTMLButtonElement>(
       '[aria-label="Supprimer l\'image"]'
     )!
@@ -206,7 +230,8 @@ describe("ImageGalleryUpload", () => {
     expect(onChange).toHaveBeenLastCalledWith([
       { ...persisted, suppressionEnAttente: true },
     ])
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(televersement.appelsAjout).toEqual([])
+    expect(televersement.appelsRelache).toEqual([])
     expect(
       container.querySelector('[data-image-state="suppression-en-attente"]')
     ).not.toBeNull()
@@ -222,7 +247,7 @@ describe("ImageGalleryUpload", () => {
     expect(onChange).toHaveBeenLastCalledWith([
       { ...persisted, suppressionEnAttente: false },
     ])
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(televersement.appelsRelache).toEqual([])
   })
 
   it("conserve l'ordre soumis et rend la suppression persistée distincte d'une libération", () => {
@@ -231,11 +256,7 @@ describe("ImageGalleryUpload", () => {
       kind: "persistee",
       url: "https://cdn.example.test/products/first.png",
     }
-    const brouillon: EntreeImageProduit = {
-      kind: "brouillon",
-      draftId: "draft-1",
-      previewUrl: "https://cdn.example.test/products/brouillons/draft-1.png",
-    }
+    const brouillonActuel = brouillon("draft-1")
     const derniere: EntreeImageProduit = {
       kind: "persistee",
       url: "https://cdn.example.test/products/last.png",
@@ -243,8 +264,9 @@ describe("ImageGalleryUpload", () => {
 
     render(
       <GalerieTest
-        initialImages={[premiere, brouillon, derniere]}
+        initialImages={[premiere, brouillonActuel, derniere]}
         onChange={onChange}
+        televersement={creerTeleversementFactice()}
       />
     )
     act(() =>
@@ -255,7 +277,7 @@ describe("ImageGalleryUpload", () => {
 
     expect(onChange).toHaveBeenLastCalledWith([
       { ...premiere, suppressionEnAttente: true },
-      brouillon,
+      brouillonActuel,
       derniere,
     ])
     expect(
@@ -266,7 +288,7 @@ describe("ImageGalleryUpload", () => {
       ).map((image) =>
         image.querySelector("[data-image-src]")?.getAttribute("data-image-src")
       )
-    ).toEqual([brouillon.previewUrl, derniere.url])
+    ).toEqual([brouillonActuel.previewUrl, derniere.url])
     expect(
       container.querySelector('[data-image-state="suppression-en-attente"]')
     ).not.toBeNull()
@@ -278,26 +300,17 @@ describe("ImageGalleryUpload", () => {
       kind: "persistee",
       url: "https://cdn.example.test/products/first.png",
     }
-    const brouillon: EntreeImageProduit = {
-      kind: "brouillon",
-      draftId: "draft-1",
-      previewUrl: "https://cdn.example.test/products/brouillons/draft-1.png",
-    }
     const derniere: EntreeImageProduit = {
       kind: "persistee",
       url: "https://cdn.example.test/products/last.png",
     }
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ released: true, draftId: "draft-1" }), {
-        status: 200,
-      })
-    )
-    vi.stubGlobal("fetch", fetchMock)
+    const televersement = creerTeleversementFactice()
 
     render(
       <GalerieTest
-        initialImages={[premiere, brouillon, derniere]}
+        initialImages={[premiere, brouillon("draft-1"), derniere]}
         onChange={onChange}
+        televersement={televersement}
       />
     )
     const release = container.querySelector<HTMLButtonElement>(
@@ -308,32 +321,26 @@ describe("ImageGalleryUpload", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/admin/uploads/delete", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draftId: "draft-1" }),
-    })
+    expect(televersement.appelsRelache).toEqual(["draft-1"])
     expect(onChange).toHaveBeenCalledWith([premiere, derniere])
     expect(container.querySelectorAll("[data-image-src]")).toHaveLength(2)
   })
 
-  it("affiche un refus de stockage et garde le Brouillon d'Image produit dans les faits du formulaire", async () => {
+  it("affiche un refus de libération et garde le Brouillon d'Image produit dans les faits du formulaire", async () => {
     const onChange = vi.fn()
     const message =
       "Le Brouillon d'Image produit a été libéré, mais son objet n'a pas pu être supprimé du stockage pour le moment. Il sera récupéré automatiquement par la règle de cycle de vie R2."
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ error: message }), { status: 502 })
-      )
-    vi.stubGlobal("fetch", fetchMock)
-    const brouillon: EntreeImageProduit = {
-      kind: "brouillon",
-      draftId: "draft-1",
-      previewUrl: "https://cdn.example.test/products/brouillons/draft-1.png",
-    }
+    const televersement = creerTeleversementFactice({
+      relacher: () => ({ ok: false, message }),
+    })
 
-    render(<GalerieTest initialImages={[brouillon]} onChange={onChange} />)
+    render(
+      <GalerieTest
+        initialImages={[brouillon("draft-1")]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
     const release = container.querySelector<HTMLButtonElement>(
       '[aria-label="Libérer le Brouillon d\'Image produit"]'
     )!
@@ -351,17 +358,45 @@ describe("ImageGalleryUpload", () => {
     ).not.toBeNull()
   })
 
-  it("n'appelle aucune suppression lorsque le formulaire est abandonné", () => {
+  it("affiche le message d'un téléversement refusé sans ajouter d'entrée", async () => {
     const onChange = vi.fn()
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
+    const televersement = creerTeleversementFactice({
+      ajouter: () => ({
+        ajoutees: [],
+        message: "Échec de l'envoi vers le stockage",
+      }),
+    })
+
+    render(
+      <GalerieTest
+        initialImages={[]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
+    await envoyerFichiers([
+      new File(["image"], "photo.png", { type: "image/png" }),
+    ])
+
+    expect(container.textContent).toContain("Échec de l'envoi vers le stockage")
+    expect(onChange).not.toHaveBeenCalled()
+    expect(container.querySelectorAll("[data-image-src]")).toHaveLength(0)
+  })
+
+  it("n'appelle aucune libération lorsque le formulaire est abandonné", () => {
+    const onChange = vi.fn()
+    const televersement = creerTeleversementFactice()
     const persisted: EntreeImageProduit = {
       kind: "persistee",
       url: "https://cdn.example.test/products/existing.png",
     }
 
     const root = render(
-      <GalerieTest initialImages={[persisted]} onChange={onChange} />
+      <GalerieTest
+        initialImages={[persisted]}
+        onChange={onChange}
+        televersement={televersement}
+      />
     )
     act(() =>
       container
@@ -370,24 +405,27 @@ describe("ImageGalleryUpload", () => {
     )
     unmount(root)
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(televersement.appelsAjout).toEqual([])
+    expect(televersement.appelsRelache).toEqual([])
   })
 
   it("désactive la libération du Brouillon d'Image produit pendant son premier appel", async () => {
     const onChange = vi.fn()
-    let resolveFetch!: (response: Response) => void
-    const reponseEnAttente = new Promise<Response>((resolve) => {
-      resolveFetch = resolve
+    let resoudre!: (resultat: ResultatEnvoi) => void
+    const enAttente = new Promise<ResultatEnvoi>((resolve) => {
+      resoudre = resolve
     })
-    const fetchMock = vi.fn().mockReturnValue(reponseEnAttente)
-    vi.stubGlobal("fetch", fetchMock)
-    const brouillon: EntreeImageProduit = {
-      kind: "brouillon",
-      draftId: "draft-1",
-      previewUrl: "https://cdn.example.test/products/brouillons/draft-1.png",
-    }
+    const televersement = creerTeleversementFactice({
+      relacher: () => enAttente,
+    })
 
-    render(<GalerieTest initialImages={[brouillon]} onChange={onChange} />)
+    render(
+      <GalerieTest
+        initialImages={[brouillon("draft-1")]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
     const release = container.querySelector<HTMLButtonElement>(
       '[aria-label="Libérer le Brouillon d\'Image produit"]'
     )!
@@ -400,14 +438,10 @@ describe("ImageGalleryUpload", () => {
     expect(pending.getAttribute("aria-busy")).toBe("true")
     act(() => pending.click())
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(televersement.appelsRelache).toEqual(["draft-1"])
     await act(async () => {
-      resolveFetch(
-        new Response(JSON.stringify({ released: true, draftId: "draft-1" }), {
-          status: 200,
-        })
-      )
-      await reponseEnAttente
+      resoudre({ ok: true })
+      await enAttente
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 

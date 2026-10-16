@@ -413,13 +413,16 @@ describe("admin structure mutations — categories", () => {
     )
 
     const slug = categorySlug("create-enfant-disparu")
+    let tierceVerrouillee = false
     const { transaction, liberer } = retenirTransaction(
       async (tx, liberation) => {
         await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
         await tx.category.delete({ where: { id: parente.id } })
+        tierceVerrouillee = true
         await liberation
       }
     )
+    await attendreQue(() => tierceVerrouillee)
     try {
       const creation = createCategory(
         makeCategoryInput({ slug, parentId: parente.id }),
