@@ -141,14 +141,11 @@ async function attendreQuUneAttenteDeVerrou(): Promise<void> {
   const uneAttenteDeVerrou = async () => {
     const lignes = await prisma.$queryRawUnsafe<{ attendu: bigint }[]>(
       `SELECT count(*) AS attendu
-         FROM pg_stat_activity AS activite
-         JOIN pg_locks AS verrou ON verrou.pid = activite.pid
-         JOIN pg_class AS relation ON relation.oid = verrou.relation
-        WHERE activite.datname = current_database()
-          AND activite.wait_event_type = 'Lock'
-          AND verrou.locktype = 'relation'
-          AND verrou.granted = false
-          AND relation.relname = 'Category'`
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND state = 'active'
+          AND wait_event_type = 'Lock'
+          AND query LIKE '%FROM "Category" FOR UPDATE%'`
     )
     return Number(lignes[0]?.attendu ?? 0) > 0
   }
@@ -416,13 +413,16 @@ describe("admin structure mutations — categories", () => {
     )
 
     const slug = categorySlug("create-enfant-disparu")
+    let tierceVerrouillee = false
     const { transaction, liberer } = retenirTransaction(
       async (tx, liberation) => {
         await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
         await tx.category.delete({ where: { id: parente.id } })
+        tierceVerrouillee = true
         await liberation
       }
     )
+    await attendreQue(() => tierceVerrouillee)
     try {
       const creation = createCategory(
         makeCategoryInput({ slug, parentId: parente.id }),
