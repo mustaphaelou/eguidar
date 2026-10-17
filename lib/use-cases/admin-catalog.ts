@@ -9,7 +9,11 @@ import cycleVieImageProduitParDefaut, {
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
-import { LIMITE_IMAGES_PRODUIT } from "@/lib/galerie-image-produit"
+import {
+  entreeGalerieImageProduitSchema,
+  LIMITE_IMAGES_PRODUIT,
+  type EntreeImageProduit,
+} from "@/lib/galerie-image-produit"
 import {
   LIBELLE_SANS_STRUCTURE,
   toIndexableProduct,
@@ -49,7 +53,9 @@ export interface ProductInput {
   categoryId: string
   price: number
   specs: Record<string, string>
-  images: string[]
+  images: readonly (string | EntreeImageProduit)[]
+  tentativeId?: string
+  ownerId?: string
   isFeatured: boolean
   featuredOrder: number
   freeShipping: boolean
@@ -144,6 +150,15 @@ export class VariantNotFoundError extends Error {
   }
 }
 
+export class BrouillonImageProduitNonPromuError extends UserFacingError {
+  constructor() {
+    super(
+      "Un Brouillon d'Image produit ne peut pas encore entrer dans la Galerie du Produit"
+    )
+    this.name = "BrouillonImageProduitNonPromuError"
+  }
+}
+
 const variantInputSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "nom de variante requis"),
@@ -151,6 +166,22 @@ const variantInputSchema = z.object({
   priceDelta: z.number().int(),
   stock: z.number().int().min(0, "le stock doit être positif ou nul"),
 })
+
+function normaliserGalerie(
+  entrees: readonly (string | EntreeImageProduit)[]
+): EntreeImageProduit[] {
+  return entrees.map((entree) =>
+    typeof entree === "string" ? { kind: "persistee", url: entree } : entree
+  )
+}
+
+const galerieSoumiseSchema = z
+  .array(z.union([z.string(), entreeGalerieImageProduitSchema]))
+  .transform(normaliserGalerie)
+  .refine(
+    (galerie) => galerie.length <= LIMITE_IMAGES_PRODUIT,
+    `au maximum ${LIMITE_IMAGES_PRODUIT} images par produit`
+  )
 
 const productInputSchema = z.object({
   name: z.string().min(1, "nom requis"),
@@ -166,19 +197,23 @@ const productInputSchema = z.object({
   categoryId: z.string().min(1, "catégorie requise"),
   price: z.number().int().min(0, "le prix doit être positif ou nul"),
   specs: z.record(z.string(), z.string()),
-  images: z
-    .array(z.string())
-    .max(
-      LIMITE_IMAGES_PRODUIT,
-      `au maximum ${LIMITE_IMAGES_PRODUIT} images par produit`
-    ),
+  images: galerieSoumiseSchema,
+  tentativeId: z
+    .string()
+    .min(1, "identifiant de tentative invalide")
+    .optional(),
+  ownerId: z.string().min(1, "identifiant de propriétaire invalide").optional(),
   isFeatured: z.boolean(),
   featuredOrder: z.number().int().min(0),
   freeShipping: z.boolean(),
   variants: z.array(variantInputSchema),
 })
 
-function parseProductInput(input: ProductInput): ProductInput {
+interface ProduitValide extends Omit<ProductInput, "images"> {
+  images: EntreeImageProduit[]
+}
+
+function parseProductInput(input: ProductInput): ProduitValide {
   const result = productInputSchema.safeParse(input)
   if (!result.success) {
     throw new CatalogValidationError(
@@ -232,29 +267,55 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
-function assertPersistedImagesAreOwned(
-  storedImages: unknown,
-  submittedImages: readonly string[],
-  promues: readonly string[] = []
+function assertGalerieSansBrouillon(
+  galerie: readonly EntreeImageProduit[],
+  identifiants: { tentativeId?: string; ownerId?: string }
 ): void {
-  const autorisees = new Set([...imageUrls(storedImages), ...promues])
-  if (submittedImages.some((url) => !autorisees.has(url))) {
+  if (!galerie.some((entree) => entree.kind === "brouillon")) return
+  if (!identifiants.tentativeId || !identifiants.ownerId) {
     throw new CatalogValidationError([
-      "une Image produit persistée n'appartient pas à ce Produit",
+      "un Brouillon d'Image produit exige un identifiant de tentative et un identifiant de propriétaire",
     ])
   }
+  throw new BrouillonImageProduitNonPromuError()
 }
 
-function assertCreationImagesArePromoted(
-  imagesEcrites: readonly string[],
-  revendication?: RevendicationImagesProduit
-): void {
-  const promues = new Set(revendication?.promues ?? [])
-  if (imagesEcrites.some((url) => !promues.has(url))) {
-    throw new CatalogValidationError([
-      "une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit",
-    ])
-  }
+function urlDeLEntree(entree: EntreeImageProduit): string {
+  if (entree.kind === "brouillon")
+    throw new BrouillonImageProduitNonPromuError()
+  return entree.url
+}
+
+function urlsGalerie(galerie: readonly EntreeImageProduit[]): string[] {
+  return galerie.map(urlDeLEntree)
+}
+
+const MESSAGE_IMAGE_AUTRE_PRODUIT =
+  "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
+
+async function assertAucuneImageDAutreProduit(
+  galerie: readonly EntreeImageProduit[],
+  autorisees: readonly string[]
+): Promise<void> {
+  const connues = new Set(autorisees)
+  const candidates = [
+    ...new Set(
+      galerie.flatMap((entree) =>
+        entree.kind === "persistee" && !connues.has(entree.url)
+          ? [entree.url]
+          : []
+      )
+    ),
+  ]
+  if (candidates.length === 0) return
+
+  const autre = await prisma.product.findFirst({
+    where: {
+      OR: candidates.map((url) => ({ images: { array_contains: [url] } })),
+    },
+    select: { id: true },
+  })
+  if (autre) throw new CatalogValidationError([MESSAGE_IMAGE_AUTRE_PRODUIT])
 }
 
 function mapUniqueViolation(error: unknown): never {
@@ -274,7 +335,12 @@ export async function createProduct(
   revendication?: RevendicationImagesProduit
 ) {
   const data = parseProductInput(input)
-  assertCreationImagesArePromoted(data.images, revendication)
+  assertGalerieSansBrouillon(data.images, data)
+  const images = urlsGalerie(data.images)
+  await assertAucuneImageDAutreProduit(
+    data.images,
+    revendication?.promues ?? []
+  )
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug)
@@ -291,7 +357,7 @@ export async function createProduct(
           brand: data.brand,
           price: data.price,
           specs: data.specs,
-          images: data.images,
+          images,
           isFeatured: data.isFeatured,
           featuredOrder: data.featuredOrder,
           freeShipping: data.freeShipping,
@@ -342,11 +408,12 @@ export async function updateProduct(
   if (!existing) throw new ProductNotFoundError()
 
   const data = parseProductInput(input)
-  assertPersistedImagesAreOwned(
-    existing.images,
-    data.images,
-    revendication?.promues
-  )
+  assertGalerieSansBrouillon(data.images, data)
+  const images = urlsGalerie(data.images)
+  await assertAucuneImageDAutreProduit(data.images, [
+    ...imageUrls(existing.images),
+    ...(revendication?.promues ?? []),
+  ])
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug, id)
@@ -359,9 +426,7 @@ export async function updateProduct(
     variant.id ? [variant.id] : []
   )
   const existingImages = imageUrls(existing.images)
-  const removedImages = existingImages.filter(
-    (url) => !data.images.includes(url)
-  )
+  const removedImages = existingImages.filter((url) => !images.includes(url))
   const existingVariantIds = await prisma.productVariant.findMany({
     where: { productId: id },
     select: { id: true },
@@ -387,7 +452,7 @@ export async function updateProduct(
           brand: data.brand,
           price: data.price,
           specs: data.specs,
-          images: data.images,
+          images,
           isFeatured: data.isFeatured,
           featuredOrder: data.featuredOrder,
           freeShipping: data.freeShipping,

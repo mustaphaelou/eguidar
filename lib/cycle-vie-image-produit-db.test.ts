@@ -28,6 +28,7 @@ const categoryId = randomUUID()
 const categorySlug = `cat-brouillon-${categoryId.slice(0, 8)}`
 const now = new Date("2026-02-01T12:00:00.000Z")
 const productSlug = `produit-brouillon-${categoryId.slice(0, 8)}`
+const autreProductSlug = `${productSlug}-autre`
 
 describe("registre durable des Brouillons d'Image produit", () => {
   beforeAll(async () => {
@@ -54,12 +55,16 @@ describe("registre durable des Brouillons d'Image produit", () => {
 
   beforeEach(async () => {
     await prisma.brouillonImageProduit.deleteMany({ where: { ownerId } })
-    await prisma.product.deleteMany({ where: { slug: productSlug } })
+    await prisma.product.deleteMany({
+      where: { slug: { in: [productSlug, autreProductSlug] } },
+    })
   })
 
   afterAll(async () => {
     await prisma.brouillonImageProduit.deleteMany({ where: { ownerId } })
-    await prisma.product.deleteMany({ where: { slug: productSlug } })
+    await prisma.product.deleteMany({
+      where: { slug: { in: [productSlug, autreProductSlug] } },
+    })
     await prisma.category.deleteMany({ where: { id: categoryId } })
     await prisma.user.deleteMany({
       where: { id: { in: [ownerId, autreOwnerId] } },
@@ -509,9 +514,21 @@ describe("registre durable des Brouillons d'Image produit", () => {
     ])
   })
 
-  it("refuse une création dont la galerie ne porte que des Images produit persistées", async () => {
+  it("refuse une création dont la galerie nomme une Image produit d'un autre Produit", async () => {
     const { cycleVie, stockage } = creerCycleVie()
     const arbitraire = "https://cdn.test/produits/arbitraire.webp"
+    await prisma.product.create({
+      data: {
+        name: "Produit propriétaire",
+        slug: autreProductSlug,
+        description: "Description",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [arbitraire],
+        categoryId,
+      },
+    })
 
     const resultat = await cycleVie.revendiquerEtEnregistrer({
       tentativeId: "tentative-glissee",
@@ -524,7 +541,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
       ok: false,
       code: "catalogue-refuse",
       message:
-        "Données invalides : une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit",
+        "Données invalides : une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
     })
     expect(await prisma.product.count({ where: { slug: productSlug } })).toBe(0)
     expect(stockage.promotions).toEqual([])
