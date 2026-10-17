@@ -8,3 +8,7 @@ coverage
 *.tsbuildinfo
 npm-debug.log*
 README.md
+# Artefacts gitignorés : audit de sécurité, worktrees d’agents, notes
+.scratch
+.worktrees
+notes
