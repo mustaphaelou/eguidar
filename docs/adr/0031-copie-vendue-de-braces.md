@@ -91,3 +91,47 @@ production établie par #538 n'a pas bougé.
 
 *Mesures citées à l'alerte Dependabot #53 et à
 [`braces-patch.test.ts`](../../braces-patch.test.ts).*
+
+## Amendement — La construction de l'image porte la copie vendue, et la garde de texte est remplacée (#676, 2026-10-17)
+
+Comme le veut la convention du dépôt, aucune phrase de la décision n'est réécrite. Une phrase est
+devenue fausse, et c'est la fin de la dernière puce de la décision : « **L'image porte la copie
+avant son installation.** `Dockerfile` copie `vendor/` avant `npm ci` dans l'étape `deps`, et une
+garde l'exige : la CI ne construit pas l'image, seul le déploiement le fait. » Le fait reste vrai —
+la copie précède l'installation —, mais les deux membres qui suivent ne désignent plus ce qu'ils
+désignaient : la garde qui exige la copie est désormais la construction de l'image, et la CI
+construit les cibles `runner` et `migrate` du même `Dockerfile`, pour vérifier et non pour
+déployer. « La CI ne construit pas l'image, seul le déploiement le fait » est faux.
+
+### Ce que cet amendement décide
+
+- **La construction de l'image est la garde qui porte la copie.** `vendor/` est copié avant `npm ci`
+  dans l'étape `deps`, et c'est l'installation qui l'exige : `braces` est déclaré
+  `"file:vendor/braces"`, une dépendance `file:` absente fait échouer `npm ci`, et `runner` comme
+  `migrate` ne se construisent pas. La copie vendue est donc portée par l'artefact que le
+  déploiement construit — la même étape, le même `npm ci` —, et non plus par un test qui relit le
+  fichier.
+- **La garde qui lisait le `Dockerfile` est remplacée, non doublée.** Le test
+  `braces-patch.test.ts` — `the Dockerfile carries the local packages before installing` — lisait
+  le texte de l'étape `deps` pour vérifier que chaque dossier `file:` du manifeste y était copié
+  avant `npm ci`. Il disparaît avec l'implémentation de #676, parce que la construction le
+  subsume : une copie qui existe dans le fichier mais que l'installation n'atteint pas, ou une
+  étape qui la copierait trop tard, tombent au `npm ci` de la construction. Une garde de texte
+  n'éprouve qu'une imitation du `Dockerfile` ; l'installation, elle, se prouve.
+- **La CI construit l'image, et ne déploie toujours pas.** Les deux cibles sont chargées dans le
+  démon local du runner et jamais poussées ; aucun secret, aucune variable, aucun identifiant de
+  registre n'entre dans le flux, et Coolify reste seul propriétaire du déploiement. C'est
+  l'amendement d'ADR-0020 (#676) qui le décide ; la note « la CI ne construit pas l'image » est
+  donc supersédée, pas ignorée.
+
+### Ce que cet amendement ne change pas
+
+- **Le `Dockerfile` porte toujours `vendor/` avant `npm ci`.** La ligne `COPY vendor ./vendor` de
+  l'étape `deps` reste ; c'est elle que la construction éprouve désormais, et la copie précède
+  toujours l'installation.
+- **La copie reste une dépendance de développement, et chaque demandeur y est ramené.**
+  `"braces": "file:vendor/braces"` et `"overrides": { "braces": "$braces" }` ne bougent pas, et le
+  lockfile ne contient toujours aucune publication du registre. La garde de profondeur, `MAX_DEPTH`,
+  sa mesure et les motifs ordinaires restent ceux des sections précédentes.
+- **Rien de la décision n'est rouvert** : ni la borne 100, ni la version `3.0.4-patched.0`, ni le
+  re-diff contre amont le jour où le registre publiera un correctif.
