@@ -278,6 +278,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
 export type OperationRegistre =
   | "creer"
   | "lire"
+  | "lireParTentative"
   | "revendiquer"
   | "confirmerPromotion"
   | "annulerRevendication"
@@ -358,6 +359,18 @@ export function creerRegistreImageProduitMemoire(
         brouillon.state = "expiré"
       }
       return copieBrouillon(brouillon)
+    },
+
+    async lireParTentative(tentativeId) {
+      panne("lireParTentative")
+      return [...records.values()]
+        .filter((brouillon) => brouillon.tentativeId === tentativeId)
+        .sort(
+          (premier, second) =>
+            premier.createdAt.getTime() - second.createdAt.getTime() ||
+            (premier.id < second.id ? -1 : premier.id > second.id ? 1 : 0)
+        )
+        .map(copieBrouillon)
     },
 
     async revendiquer(input) {

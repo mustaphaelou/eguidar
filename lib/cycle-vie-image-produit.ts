@@ -106,11 +106,22 @@ export type ResultatDemandeBrouillonImageProduit =
 export type ResultatRelacherBrouillonImageProduit =
   { ok: true; draftId: string } | RefusCycleVieImageProduit
 
-interface ImageProduitPromue {
+export interface PreuvePromotion {
   draftId: string
   publicUrl: string
   contentType: ContentTypeImageProduit
+  tentativeId: string
 }
+
+export interface EntreePreparationPromotionBrouillons {
+  tentativeId: string
+  ownerId: string
+  galerie: readonly EntreeImageProduit[]
+}
+
+export type ResultatPreparationPromotionBrouillons =
+  | { ok: true; galerie: string[]; promotions: PreuvePromotion[] }
+  | RefusCycleVieImageProduit
 
 export interface ConfirmationPromotionBrouillonImageProduit {
   id: string
@@ -196,6 +207,7 @@ export interface PortRegistreBrouillonImageProduit {
     input: EntreeCreationBrouillonImageProduit
   ): Promise<BrouillonImageProduit>
   lire(id: string): Promise<BrouillonImageProduit | null>
+  lireParTentative(tentativeId: string): Promise<BrouillonImageProduit[]>
   revendiquer(input: {
     id: string
     ownerId: string
@@ -230,6 +242,18 @@ export interface CycleVieImageProduit {
     enregistrer: EnregistrerCatalogue
     resultatDejaPersiste?: (productId: string) => Promise<void>
   }): Promise<ResultatRevendiquerEtEnregistrer>
+  preparerPromotionBrouillons(
+    input: EntreePreparationPromotionBrouillons
+  ): Promise<ResultatPreparationPromotionBrouillons>
+  confirmerBrouillons(
+    productId: string,
+    promotions: readonly PreuvePromotion[],
+    transaction?: PortTransactionRegistreBrouillonImageProduit
+  ): Promise<void>
+  supprimerSources(promotions: readonly PreuvePromotion[]): Promise<void>
+  lireBrouillonsDeLaTentative(
+    tentativeId: string
+  ): Promise<BrouillonImageProduit[]>
   lireBrouillon(id: string): Promise<BrouillonImageProduit | null>
 }
 
@@ -339,14 +363,16 @@ function galerieOrdonnee(
   })
 }
 
-function imagePromue(
+function preuvePromotion(
   draft: BrouillonImageProduit,
-  publicUrl: string
-): ImageProduitPromue {
+  publicUrl: string,
+  tentativeId: string
+): PreuvePromotion {
   return {
     draftId: draft.id,
     publicUrl,
     contentType: draft.mimeType,
+    tentativeId,
   }
 }
 
@@ -367,6 +393,15 @@ function resultatRegistreRefus(
     case "non-vivant":
       return refus("brouillon-non-vivant", resultat.message)
   }
+}
+
+function estLieAuProduit(
+  brouillon: BrouillonImageProduit
+): brouillon is BrouillonImageProduit & {
+  productId: string
+  promotedPublicUrl: string
+} {
+  return brouillon.productId !== null && brouillon.promotedPublicUrl !== null
 }
 
 type LigneBrouillonImageProduit = {
@@ -603,6 +638,15 @@ export function creerRegistreBrouillonImageProduitPrisma(
       return versBrouillon(row)
     },
 
+    async lireParTentative(tentativeId) {
+      const rows = await prisma.brouillonImageProduit.findMany({
+        where: { tentativeId },
+        select: selectionBrouillon,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      })
+      return rows.map(versBrouillon)
+    },
+
     async revendiquer(input) {
       const lire = () =>
         prisma.brouillonImageProduit.findUnique({
@@ -804,13 +848,37 @@ export function creerCycleVieImageProduit(
     return { ok: true, draftId: draft.id }
   }
 
-  async function revendiquerEtEnregistrer(input: {
+  async function rendreRevendications(
+    draftIds: readonly string[],
     tentativeId: string
-    ownerId: string
-    galerie: readonly EntreeImageProduit[]
-    enregistrer: EnregistrerCatalogue
-    resultatDejaPersiste?: (productId: string) => Promise<void>
-  }): Promise<ResultatRevendiquerEtEnregistrer> {
+  ): Promise<void> {
+    await Promise.all(
+      draftIds.map((id) =>
+        registre
+          .annulerRevendication({ id, tentativeId })
+          .catch(() => undefined)
+      )
+    )
+  }
+
+  async function supprimerPromotionsCreees(
+    promotions: readonly PreuvePromotion[]
+  ): Promise<void> {
+    await Promise.all(
+      promotions.map((preuve) =>
+        stockage
+          .supprimerImagePromue({
+            draftId: preuve.draftId,
+            contentType: preuve.contentType,
+          })
+          .catch(() => undefined)
+      )
+    )
+  }
+
+  async function preparerPromotionBrouillons(
+    input: EntreePreparationPromotionBrouillons
+  ): Promise<ResultatPreparationPromotionBrouillons> {
     const tentativeId = input.tentativeId.trim()
     const ownerId = input.ownerId.trim()
     if (!tentativeId || !ownerId) {
@@ -819,125 +887,51 @@ export function creerCycleVieImageProduit(
         "Tentative d'édition ou propriétaire invalide"
       )
     }
-    const draftIds = brouillonsDeLaGalerie(input.galerie)
 
-    const revendiques: BrouillonImageProduit[] = []
     const now = horloge.maintenant()
+    const revendiques: BrouillonImageProduit[] = []
+    const promuesParLAppel: PreuvePromotion[] = []
 
-    async function restaurerRevendications(): Promise<void> {
-      await Promise.all(
-        revendiques.map((draft) =>
-          registre
-            .annulerRevendication({
-              id: draft.id,
-              tentativeId,
-            })
-            .catch(() => undefined)
-        )
+    async function compenser(): Promise<void> {
+      await supprimerPromotionsCreees(promuesParLAppel)
+      await rendreRevendications(
+        revendiques.map((brouillon) => brouillon.id),
+        tentativeId
       )
     }
 
-    for (const id of draftIds) {
-      let result: ResultatRevendicationRegistre
+    for (const id of brouillonsDeLaGalerie(input.galerie)) {
+      let resultat: ResultatRevendicationRegistre
       try {
-        result = await registre.revendiquer({
-          id,
-          ownerId,
-          tentativeId,
-          now,
-        })
+        resultat = await registre.revendiquer({ id, ownerId, tentativeId, now })
       } catch {
-        await restaurerRevendications()
+        await compenser()
         return refus("registre-indisponible", MESSAGE_REGISTRE_INDISPONIBLE)
       }
-      if (!result.ok) {
-        await restaurerRevendications()
-        return resultatRegistreRefus(result)
+      if (!resultat.ok) {
+        await compenser()
+        return resultatRegistreRefus(resultat)
       }
-      revendiques.push(result.value)
+      revendiques.push(resultat.value)
     }
 
-    const brouillonsLies = revendiques.filter(
-      (
-        draft
-      ): draft is BrouillonImageProduit & {
-        productId: string
-        promotedPublicUrl: string
-      } => draft.productId !== null && draft.promotedPublicUrl !== null
-    )
-    if (brouillonsLies.length > 0) {
-      const productIds = new Set(brouillonsLies.map((draft) => draft.productId))
-      if (
-        brouillonsLies.length !== revendiques.length ||
-        productIds.size !== 1
-      ) {
-        await restaurerRevendications()
-        return refus(
-          "revendication-refusee",
-          "Les Brouillons ne sont pas tous liés à la même tentative"
+    const promotions: PreuvePromotion[] = []
+    for (const brouillon of revendiques) {
+      if (brouillon.promotedPublicUrl) {
+        promotions.push(
+          preuvePromotion(brouillon, brouillon.promotedPublicUrl, tentativeId)
         )
-      }
-      if (input.resultatDejaPersiste) {
-        const productId = [...productIds][0]
-        try {
-          await input.resultatDejaPersiste(productId)
-          await libererSources()
-          return { ok: true, productId }
-        } catch {
-          return refus(
-            "catalogue-refuse",
-            "L'enregistrement du Catalogue a échoué"
-          )
-        }
-      }
-    }
-
-    async function supprimerPromotions(
-      images: readonly ImageProduitPromue[]
-    ): Promise<void> {
-      await Promise.all(
-        images.map((image) =>
-          stockage
-            .supprimerImagePromue({
-              draftId: image.draftId,
-              contentType: image.contentType,
-            })
-            .catch(() => undefined)
-        )
-      )
-    }
-
-    async function libererSources(): Promise<void> {
-      await Promise.all(
-        revendiques.map(async (brouillon) => {
-          try {
-            await stockage.supprimerBrouillon({
-              draftId: brouillon.id,
-              contentType: brouillon.mimeType,
-            })
-          } catch {}
-        })
-      )
-    }
-
-    const promues: ImageProduitPromue[] = []
-    const nouvellesPromotions: ImageProduitPromue[] = []
-    for (const draft of revendiques) {
-      if (draft.promotedPublicUrl) {
-        const image = imagePromue(draft, draft.promotedPublicUrl)
-        promues.push(image)
-        if (draft.productId === null) nouvellesPromotions.push(image)
         continue
       }
 
-      let result: ResultatStockageImageProduit<{ publicUrl: string }>
+      let resultat: ResultatStockageImageProduit<{ publicUrl: string }>
       try {
-        result = await stockage.promouvoirBrouillon({
-          draftId: draft.id,
-          contentType: draft.mimeType,
+        resultat = await stockage.promouvoirBrouillon({
+          draftId: brouillon.id,
+          contentType: brouillon.mimeType,
         })
       } catch {
-        result = {
+        resultat = {
           ok: false,
           erreur: {
             code: "erreur-stockage",
@@ -945,48 +939,160 @@ export function creerCycleVieImageProduit(
           },
         }
       }
-      if (!result.ok) {
-        await supprimerPromotions(nouvellesPromotions)
-        await restaurerRevendications()
-        return refusStockage(result)
+      if (!resultat.ok) {
+        await compenser()
+        return refusStockage(resultat)
       }
 
-      const image = imagePromue(draft, result.valeur.publicUrl)
-      promues.push(image)
-      nouvellesPromotions.push(image)
+      const preuve = preuvePromotion(
+        brouillon,
+        resultat.valeur.publicUrl,
+        tentativeId
+      )
+      promotions.push(preuve)
+      promuesParLAppel.push(preuve)
     }
 
-    const lier: LierBrouillonsImageProduit = async (productId, transaction) => {
-      for (const image of promues) {
-        const confirmation = {
-          id: image.draftId,
-          tentativeId,
-          productId,
-          publicUrl: image.publicUrl,
+    return {
+      ok: true,
+      galerie: galerieOrdonnee(
+        input.galerie,
+        new Map(promotions.map((preuve) => [preuve.draftId, preuve.publicUrl]))
+      ),
+      promotions,
+    }
+  }
+
+  async function confirmerBrouillons(
+    productId: string,
+    promotions: readonly PreuvePromotion[],
+    transaction?: PortTransactionRegistreBrouillonImageProduit
+  ): Promise<void> {
+    for (const preuve of promotions) {
+      const confirmation = {
+        id: preuve.draftId,
+        tentativeId: preuve.tentativeId,
+        productId,
+        publicUrl: preuve.publicUrl,
+      }
+      const confirme = transaction
+        ? await transaction.confirmerPromotion(confirmation)
+        : await registre.confirmerPromotion(confirmation)
+      if (!confirme) {
+        throw new Error("Le Brouillon n'a pas pu être associé au Produit")
+      }
+    }
+  }
+
+  async function supprimerSources(
+    promotions: readonly PreuvePromotion[]
+  ): Promise<void> {
+    await Promise.all(
+      promotions.map(async (preuve) => {
+        try {
+          await stockage.supprimerBrouillon({
+            draftId: preuve.draftId,
+            contentType: preuve.contentType,
+          })
+        } catch {}
+      })
+    )
+  }
+
+  async function lireBrouillonsDeLaTentative(
+    tentativeId: string
+  ): Promise<BrouillonImageProduit[]> {
+    const id = tentativeId.trim()
+    if (!id) return []
+    return registre.lireParTentative(id)
+  }
+
+  async function revendiquerEtEnregistrer(input: {
+    tentativeId: string
+    ownerId: string
+    galerie: readonly EntreeImageProduit[]
+    enregistrer: EnregistrerCatalogue
+    resultatDejaPersiste?: (productId: string) => Promise<void>
+  }): Promise<ResultatRevendiquerEtEnregistrer> {
+    const tentativeId = input.tentativeId.trim()
+    const preparation = await preparerPromotionBrouillons({
+      tentativeId: input.tentativeId,
+      ownerId: input.ownerId,
+      galerie: input.galerie,
+    })
+    if (!preparation.ok) return preparation
+
+    const preuves = preparation.promotions
+    const draftIds = preuves.map((preuve) => preuve.draftId)
+    let brouillonsRevendiques: BrouillonImageProduit[] = []
+
+    async function compenserPreparation(): Promise<void> {
+      const lies = new Set(
+        brouillonsRevendiques
+          .filter(estLieAuProduit)
+          .map((brouillon) => brouillon.id)
+      )
+      await supprimerPromotionsCreees(
+        preuves.filter((preuve) => !lies.has(preuve.draftId))
+      )
+      await rendreRevendications(draftIds, tentativeId)
+    }
+
+    if (preuves.length > 0) {
+      try {
+        const lus = await lireBrouillonsDeLaTentative(tentativeId)
+        const deLaGalerie = new Set(draftIds)
+        brouillonsRevendiques = lus.filter((brouillon) =>
+          deLaGalerie.has(brouillon.id)
+        )
+      } catch {
+        await rendreRevendications(draftIds, tentativeId)
+        return refus("registre-indisponible", MESSAGE_REGISTRE_INDISPONIBLE)
+      }
+
+      const brouillonsLies = brouillonsRevendiques.filter(estLieAuProduit)
+      if (brouillonsLies.length > 0) {
+        const productIds = new Set(
+          brouillonsLies.map((brouillon) => brouillon.productId)
+        )
+        if (
+          brouillonsLies.length !== draftIds.length ||
+          productIds.size !== 1
+        ) {
+          await compenserPreparation()
+          return refus(
+            "revendication-refusee",
+            "Les Brouillons ne sont pas tous liés à la même tentative"
+          )
         }
-        const confirmed = transaction
-          ? await transaction.confirmerPromotion(confirmation)
-          : await registre.confirmerPromotion(confirmation)
-        if (!confirmed) {
-          throw new Error("Le Brouillon n'a pas pu être associé au Produit")
+        if (input.resultatDejaPersiste) {
+          const productId = [...productIds][0]
+          try {
+            await input.resultatDejaPersiste(productId)
+          } catch {
+            return refus(
+              "catalogue-refuse",
+              "L'enregistrement du Catalogue a échoué"
+            )
+          }
+          await supprimerSources(preuves)
+          return { ok: true, productId }
         }
       }
     }
 
     let enregistre: Awaited<ReturnType<EnregistrerCatalogue>>
     try {
-      const revendication = RevendicationImagesProduit.creer({
-        galerie: galerieOrdonnee(
-          input.galerie,
-          new Map(promues.map((image) => [image.draftId, image.publicUrl]))
-        ),
-        promues: promues.map((image) => image.publicUrl),
-        lier,
-      })
-      enregistre = await input.enregistrer(revendication)
+      enregistre = await input.enregistrer(
+        RevendicationImagesProduit.creer({
+          galerie: preparation.galerie,
+          promues: preuves.map((preuve) => preuve.publicUrl),
+          lier: (productId, transaction) =>
+            confirmerBrouillons(productId, preuves, transaction),
+        })
+      )
     } catch (error) {
-      await supprimerPromotions(nouvellesPromotions)
-      await restaurerRevendications()
+      await compenserPreparation()
       return refus(
         "catalogue-refuse",
         error instanceof UserFacingError
@@ -995,7 +1101,7 @@ export function creerCycleVieImageProduit(
       )
     }
 
-    await libererSources()
+    await supprimerSources(preuves)
 
     return { ok: true, productId: enregistre.productId }
   }
@@ -1003,6 +1109,10 @@ export function creerCycleVieImageProduit(
   return {
     demanderBrouillon,
     relacherBrouillon,
+    preparerPromotionBrouillons,
+    confirmerBrouillons,
+    supprimerSources,
+    lireBrouillonsDeLaTentative,
     revendiquerEtEnregistrer,
     lireBrouillon: (id) => registre.lire(id),
   }
