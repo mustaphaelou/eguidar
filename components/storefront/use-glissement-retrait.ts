@@ -17,29 +17,21 @@ import {
   type EntraineurRessort,
 } from "./entraineur-ressort"
 
-/** Sous ce déplacement, l'axe du geste n'est pas décidé : c'est encore un tap. */
 const SEUIL_AXE_PX = 10
 
-/** Part de la largeur de la ligne au-delà de laquelle le point projeté commit. */
 const PART_RETRAIT = 0.4
 
-/** L'historique du relâchement : la fenêtre de la vitesse, avec sa marge. */
 const FENETRE_ECHANTILLONS_MS = 120
 
-/** Un appui sur un contrôle garde son geste : il ne balaie pas la ligne. */
 const CONTROLES =
   "button, a, input, textarea, select, [role='button'], [role='link']"
 
 export interface OptionsGlissementRetrait {
-  /** La décision est prise : la ligne part. */
   onRetirer(): void
-  /** La largeur de la ligne — injectable, happy-dom rend zéro. */
   largeur?(element: HTMLElement): number
-  /** L'entraîneur — injectable pour éprouver la décision sans poser d'images. */
   entraineur?(
     surImage: (position: number, vitesse: number) => void
   ): EntraineurRessort
-  /** L'instant des échantillons — injectable, une horloge de recette. */
   maintenant?(): number
 }
 
@@ -59,18 +51,6 @@ function mouvementReduit(): boolean {
   )
 }
 
-/**
- * Le glissement qui retire un Article du panier.
- *
- * Le doigt prend la ligne 1:1 depuis sa position de présentation, l'axe se
- * décide après ~10 px pour ne pas voler le défilement vertical, le doigt passé
- * l'origine résiste au lieu de s'arrêter net, et la décision se prend sur le
- * **point projeté** du relâchement — pas sur le point lâché : un flick rapide
- * qui finit près de l'origine part quand même.
- *
- * La valeur animée s'écrit par `transform` à travers l'entraîneur, jamais par
- * un rendu React.
- */
 export function useGlissementRetrait<E extends HTMLElement = HTMLElement>(
   options: OptionsGlissementRetrait
 ): {
@@ -81,9 +61,7 @@ export function useGlissementRetrait<E extends HTMLElement = HTMLElement>(
     onPointerUp(event: ReactPointerEvent<E>): void
     onPointerCancel(event: ReactPointerEvent<E>): void
   }
-  /** La sortie sans geste : le bouton Retirer emprunte la même trajectoire. */
   sortir(): void
-  /** Un refus ramène la ligne à sa place et rend le geste à nouveau possible. */
   restaurer(): void
 } {
   const ref = useRef<E>(null)
@@ -141,7 +119,6 @@ export function useGlissementRetrait<E extends HTMLElement = HTMLElement>(
     element.style.opacity = "0"
   }
 
-  /** La ligne part : elle quitte le chemin du geste, ou son chemin sans geste. */
   function partir(dimension: number, vitesse?: number) {
     const entraineur = obtenirEntraineur()
     if (mouvementReduit()) {

@@ -35,10 +35,6 @@ interface AppelAller extends OptionsAller {
   vers: number
 }
 
-/**
- * Un entraîneur de recette : il enregistre les poses et les allers au lieu de
- * poser des images. La décision du geste se borne ainsi à ce qu'elle demande.
- */
 function creerFauxEntraineur() {
   const poses: { position: number; vitesse: number }[] = []
   const allers: AppelAller[] = []
@@ -179,7 +175,6 @@ describe("useGlissementRetrait", () => {
     poserDoigt(ligne, 100, 100)
     expect(faux.poses).toEqual([{ position: 0, vitesse: 0 }])
 
-    // Sous le seuil d'axe, rien ne bouge : c'est encore un tap.
     bouger(ligne, 95, 100)
     expect(faux.poses).toHaveLength(1)
 

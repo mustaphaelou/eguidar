@@ -1,26 +1,9 @@
 #!/usr/bin/env bash
-#
-# Le crochet de commit.
-#
-# Il ne pose qu'une question — celle que `scripts/format.ts` laisse poser par
-# `--indexes` — et il rend la réponse à cette même porte. Le jeu de fichiers,
-# l'exécutable Prettier et le filtre ont donc une seule source : un crochet qui
-# garderait sa propre liste s'arrêterait de couvrir ce que la porte couvre dès
-# que le glob s'élargit, sans s'en apercevoir.
-#
-# Le silence est un retour attendu, pas un oubli : un commit qui ne touche que
-# du Markdown n'a rien à signaler, et le crochet n'a alors rien à dire. Une
-# lecture d'index qui échoue est tout le contraire — une plomberie défaillante
-# qui se tait passe pour une plomberie qui n'a rien trouvé.
 
 set -euo pipefail
 
-# Le dépôt est celui depuis lequel git a lancé ce crochet, et non le dossier
-# courant : git qualifie toujours ses chemins par la racine de son dépôt.
 cd -- "$(git rev-parse --show-toplevel)"
 
-# L'erreur de la porte n'est pas capturée : elle reste sur le terminal, et c'est
-# elle qui nomme la cause quand la lecture de l'index échoue.
 if ! COUVERTS="$(node --import tsx scripts/format.ts --indexes)"; then
   exit 1
 fi
@@ -29,9 +12,6 @@ if [ -z "$COUVERTS" ]; then
   exit 0
 fi
 
-# `printf '%s'` sans saut de ligne final : un here-string en ajouterait un, et
-# `mapfile` en ferait un chemin de plus — un nom que rien ne porte, que la porte
-# lirait comme une erreur.
 mapfile -t CHEMINS < <(printf '%s' "$COUVERTS")
 
 node --import tsx scripts/format.ts "${CHEMINS[@]}"

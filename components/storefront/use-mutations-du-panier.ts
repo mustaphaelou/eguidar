@@ -21,7 +21,6 @@ const portActionsPanier: PortMutationsDuPanier = {
   retirer: retirerArticleDuPanierAction,
 }
 
-/** La fin d'une opération, rendue à l'appelant qui l'a demandée. */
 type SurFin = (resultat: ResultatPanier) => void
 
 export function useMutationsDuPanier(

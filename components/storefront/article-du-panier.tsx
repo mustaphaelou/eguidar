@@ -16,20 +16,18 @@ import { Button } from "@/components/ui/button"
 import { urlProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 import type { ArticleDuPanier as ArticleDuPanierDonnees } from "@/lib/panier"
+import { useEcritureEnVol } from "./use-ecriture-en-vol"
 import { useGlissementRetrait } from "./use-glissement-retrait"
 import {
   useMutationsDuPanier,
   type PortMutationsDuPanier,
 } from "./use-mutations-du-panier"
 
-/** Sous ce déplacement, un appui sur un pas reste un appui. */
 const SEUIL_APPUI_PX = 10
 
 interface Appui {
   pointerId: number
-  /** La quantité visée par cet appui, déjà prévisualisée. */
   cible: number
-  /** La quantité affichée avant l'appui, à laquelle un appui annulé revient. */
   avant: number
   departX: number
   departY: number
@@ -44,21 +42,19 @@ export function ArticleDuPanier({
 }: {
   article: ArticleDuPanierDonnees
   port?: PortMutationsDuPanier
-  /** La ligne part : le panier peut annoncer le retrait. */
   onRetire?(article: ArticleDuPanierDonnees): void
-  /** Le retrait a été refusé : la ligne est revenue. */
   onRetour?(article: ArticleDuPanierDonnees): void
 }) {
   const { enAttente, messageRefus, modifier, retirer } =
     useMutationsDuPanier(port)
 
-  // La quantité affichée ne doit rien au serveur : elle suit l'appui. Les
-  // écritures sont absolues, donc elles se coalescent — une seule en vol,
-  // toujours la dernière voulue.
   const [quantiteVoulue, setQuantiteVoulue] = useState<number | null>(null)
   const quantiteAffichee = quantiteVoulue ?? article.quantity
-  const enVol = useRef(false)
-  const voulueEnAttente = useRef<number | null>(null)
+  const ecrire = useEcritureEnVol({
+    envoyer: (cible, surFin) =>
+      modifier(article.variantId, cible, (resultat) => surFin(resultat.ok)),
+    surRefus: () => setQuantiteVoulue(null),
+  })
   const appuiRef = useRef<Appui | null>(null)
 
   const [partie, setPartie] = useState(false)
@@ -72,33 +68,9 @@ export function ArticleDuPanier({
     onRetirer: () => lancerRetrait(),
   })
 
-  function ecrire(cible: number) {
-    enVol.current = true
-    modifier(article.variantId, cible, (resultat) => {
-      if (!resultat.ok) {
-        // Le refus a déjà sa voix dans le seam : le numéro revient au serveur.
-        enVol.current = false
-        voulueEnAttente.current = null
-        setQuantiteVoulue(null)
-        return
-      }
-      const suivante = voulueEnAttente.current
-      if (suivante !== null) {
-        voulueEnAttente.current = null
-        ecrire(suivante)
-        return
-      }
-      enVol.current = false
-    })
-  }
-
   function viser(cible: number) {
     if (cible < 1) return
     setQuantiteVoulue(cible)
-    if (enVol.current) {
-      voulueEnAttente.current = cible
-      return
-    }
     ecrire(cible)
   }
 
@@ -107,7 +79,6 @@ export function ArticleDuPanier({
     setPartie(true)
     retirer(article.variantId, (resultat) => {
       if (resultat.ok) return
-      // Le retrait est refusé : la ligne revient à sa place.
       setPartie(false)
       restaurer()
       onRetour?.(article)

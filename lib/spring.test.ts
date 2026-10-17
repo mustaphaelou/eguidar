@@ -11,10 +11,8 @@ import {
   type Ressort,
 } from "./spring"
 
-/** Au repos, le ressort est à moins d'un demi-pixel de sa cible. */
 const SEUIL_REPOS = 0.5
 
-/** Anime jusqu'au repos, en posant des pas de 1/60 s comme le fait rAF. */
 function animer(
   etat: EtatRessort,
   cible: number,
@@ -75,8 +73,6 @@ describe("avancerRessort", () => {
       1 / 60
     )
 
-    // Le geste entre dans l'animation : le ressort emporte son élan dans le sens
-    // du mouvement, là où un ressort lâché sur place ne bougerait pas.
     expect(lance.position).toBeGreaterThan(1)
     expect(immobile.position).toBe(0)
   })
@@ -225,8 +221,6 @@ describe("vitesseDepuis", () => {
   })
 
   it("reste muette quand le geste s'est arrêté avant la fenêtre", () => {
-    // Un doigt posé, un glissement rapide, puis une longue immobilité avant le
-    // relâchement : la vitesse du geste n'est plus celle du relâchement.
     const echantillons = [
       { position: 0, instant: 0 },
       { position: 300, instant: 50 },

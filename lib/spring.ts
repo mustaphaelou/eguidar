@@ -1,15 +1,3 @@
-/**
- * La physique du geste.
- *
- * Un ressort qu'une valeur anime vers sa cible, la projection qui dit où un
- * glissement va se poser, et l'élasticité qui résiste au doigt passé la borne.
- * Aucun DOM, aucun état, aucune horloge : le reste du module s'y branche et
- * reste éprouvable tout seul.
- *
- * Les paramètres sont ceux d'Apple — une réponse en secondes, et un ratio
- * d'amortissement où 1 est critique (aucun dépassement) et moins de 1 rebondit.
- */
-
 export interface Ressort {
   readonly rigidite: number
   readonly amortissement: number
@@ -26,7 +14,6 @@ export interface Echantillon {
   readonly instant: number
 }
 
-/** Sous-pas fixe : l'intégration semi-implicite tient stable à 240 Hz. */
 const SOUS_PAS_S = 1 / 240
 
 /**
@@ -36,7 +23,6 @@ const SOUS_PAS_S = 1 / 240
  */
 const DT_MAX_S = 1 / 15
 
-/** Assez petit pour jeter la poussière de virgule flottante du sous-pasage. */
 const EPS_TEMPS_S = 1e-9
 
 const SEUIL_POSITION = 0.5
@@ -51,10 +37,6 @@ export function ressortDepuisReponse(
 ): Ressort {
   const omega = (2 * Math.PI) / reponse
   return {
-    // `amortissement = 2 * ratio * omega * masse` est exactement la valeur
-    // critique `2 * racine(rigidité * masse)` quand le ratio vaut 1 — le ressort
-    // ne dépasse donc jamais sa cible pour le ratio critique, quelle que soit
-    // la masse.
     rigidite: omega * omega * masse,
     amortissement: 2 * (1 - rebond) * omega * masse,
     masse,
@@ -95,19 +77,10 @@ export function auRepos(
   )
 }
 
-/**
- * Où le glissement se pose. `taux` de décélération : 0.998 pour la sensation
- * d'un défilement, 0.99 pour quelque chose de plus vif.
- */
 export function projeterMomentum(vitesse: number, taux = 0.998): number {
   return (vitesse / 1000) * (taux / (1 - taux))
 }
 
-/**
- * La résistance du doigt passé une borne : l'écart réel croît moins vite que
- * l'écart demandé, et tend vers la dimension de la surface. Un arrêt net se
- * sent mort ; une résistance continue se sent vivante.
- */
 export function elastique(
   depassement: number,
   dimension: number,
@@ -119,10 +92,6 @@ export function elastique(
   )
 }
 
-/**
- * La vitesse du pointeur au relâchement, lue sur les derniers échantillons —
- * pas sur le dernier point, qui tremble.
- */
 export function vitesseDepuis(
   echantillons: readonly Echantillon[],
   fenetreMs = FENETRE_VITESSE_MS
@@ -130,8 +99,6 @@ export function vitesseDepuis(
   if (echantillons.length < 2) return 0
 
   const dernier = echantillons[echantillons.length - 1]!
-  // Le plus ancien point de la fenêtre : à défaut d'un point assez récent, le
-  // dernier seul — un geste arrêté depuis plus que la fenêtre n'a plus de vitesse.
   let premier = dernier
   for (let i = echantillons.length - 2; i >= 0; i--) {
     const candidat = echantillons[i]!
