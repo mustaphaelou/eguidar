@@ -33,6 +33,7 @@ const categories = [
   { name: "TV & Home Cinema", slug: "tv-home-cinema" },
   { name: "Gaming", slug: "gaming" },
   { name: "Accessoires", slug: "accessoires" },
+  { name: "Drones", slug: "drones" },
 ]
 
 const products = [
