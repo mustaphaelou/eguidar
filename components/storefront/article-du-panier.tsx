@@ -136,39 +136,57 @@ export function ArticleDuPanier({
       {...gestes}
       className="touch-pan-y border-b py-4 select-none last:border-b-0"
     >
-      <div className="flex items-center gap-4">
-        <Link href={urlProduit(article.productSlug)} className="shrink-0">
-          <div className="relative h-20 w-20 overflow-hidden rounded-xl bg-muted">
-            {article.image ? (
-              <Image
-                src={article.image}
-                alt={article.productName}
-                fill
-                sizes="80px"
-                className="object-cover"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                Aucune image
-              </div>
-            )}
-          </div>
-        </Link>
-
-        <div className="min-w-0 flex-1">
-          <Link
-            href={urlProduit(article.productSlug)}
-            className="line-clamp-2 text-sm font-medium transition-colors hover:text-primary"
-          >
-            {article.productName}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <Link href={urlProduit(article.productSlug)} className="shrink-0">
+            <div className="relative h-20 w-20 overflow-hidden rounded-xl bg-muted">
+              {article.image ? (
+                <Image
+                  src={article.image}
+                  alt={article.productName}
+                  fill
+                  sizes="80px"
+                  className="object-cover"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                  Aucune image
+                </div>
+              )}
+            </div>
           </Link>
-          <p className="text-xs text-muted-foreground">{article.variantName}</p>
-          <p className="text-xs text-muted-foreground">
-            {formatPrice(article.unitPrice)} / unité
-          </p>
+
+          <div className="min-w-0 flex-1">
+            <Link
+              href={urlProduit(article.productSlug)}
+              className="line-clamp-2 text-sm font-medium transition-colors hover:text-primary"
+            >
+              {article.productName}
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              {article.variantName}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatPrice(article.unitPrice)} / unité
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
+            aria-label="Retirer du panier"
+            disabled={enAttente || partie}
+            onClick={() => {
+              if (enAttente || partie) return
+              sortir()
+            }}
+          >
+            <HugeiconsIcon icon={DeleteThrowIcon} strokeWidth={2} />
+          </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:shrink-0">
           <Button
             variant="outline"
             size="icon"
@@ -200,25 +218,10 @@ export function ArticleDuPanier({
           >
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
           </Button>
+          <p className="ms-auto text-sm font-bold sm:ms-2 sm:w-28 sm:text-right">
+            {formatPrice(article.unitPrice * quantiteAffichee)}
+          </p>
         </div>
-
-        <p className="w-24 text-right text-sm font-bold">
-          {formatPrice(article.unitPrice * quantiteAffichee)}
-        </p>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8 rounded-full text-muted-foreground hover:text-destructive"
-          aria-label="Retirer du panier"
-          disabled={enAttente || partie}
-          onClick={() => {
-            if (enAttente || partie) return
-            sortir()
-          }}
-        >
-          <HugeiconsIcon icon={DeleteThrowIcon} strokeWidth={2} />
-        </Button>
       </div>
 
       {messageRefus ? (
