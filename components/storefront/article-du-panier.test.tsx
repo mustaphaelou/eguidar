@@ -29,6 +29,7 @@ import type {
   ArticleDuPanier as ArticleDuPanierDonnees,
   ResultatPanier,
 } from "@/lib/panier"
+import { formatPrice } from "@/lib/money"
 import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
 import { ArticleDuPanier } from "./article-du-panier"
@@ -420,5 +421,33 @@ describe("ArticleDuPanier", () => {
         expect(boutonElement.className).toContain(cls)
       }
     }
+  })
+
+  it("stacks the row on a phone, keeping the line total grouped with the stepper", () => {
+    const port = creerPortPanierEnMemoire()
+    render(<ArticleDuPanier article={article()} port={port} />)
+
+    const ligne = container.querySelector("li")!
+    const ligneDuHaut = ligne.querySelector("div.flex-col")!
+    const stepper = bouton("Diminuer la quantité").parentElement!
+    const prix = stepper.querySelector("p")!
+
+    expect(ligneDuHaut.className).toContain("flex-col")
+    expect(ligneDuHaut.className).toContain("sm:flex-row")
+    expect(stepper.contains(prix)).toBe(true)
+    expect(prix.className).toContain("ms-auto")
+    expect(prix.textContent).toBe(formatPrice(200000))
+
+    const image = ligne.querySelector("a .relative")!
+    const nom = ligne.querySelector("a.line-clamp-2")!
+    expect(ligneDuHaut.contains(image)).toBe(true)
+    expect(ligneDuHaut.contains(nom)).toBe(true)
+    expect(
+      image.closest("div.flex.min-w-0") === nom.closest("div.flex.min-w-0")
+    ).toBe(true)
+
+    const retirer = bouton("Retirer du panier")
+    expect(retirer.className).toContain("shrink-0")
+    expect(ligneDuHaut.contains(retirer)).toBe(true)
   })
 })
