@@ -92,6 +92,41 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eguidar
+          POSTGRES_PASSWORD: eguidar
+          POSTGRES_DB: eguidar_probe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eguidar -d eguidar_probe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.52
+        env:
+          MEILI_MASTER_KEY: eguidar-test-master-key
+        ports:
+          - 7700:7700
+        options: >-
+          --health-cmd "curl -fsS http://localhost:7700/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -111,3 +146,45 @@ jobs:
           DATABASE_URL: postgresql://build:build@localhost:5432/build
           NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      - run: docker compose --env-file .env.example config -q
+        if: github.event_name == 'push' || github.event.pull_request.draft == false
+      - uses: docker/setup-buildx-action@v4
+        if: github.event_name == 'push' || github.event.pull_request.draft == false
+      - uses: docker/build-push-action@v7
+        if: github.event_name == 'push' || github.event.pull_request.draft == false
+        with:
+          context: .
+          target: runner
+          tags: eguidar-runner:ci
+          load: true
+          build-args: |
+            NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: docker/build-push-action@v7
+        if: github.event_name == 'push' || github.event.pull_request.draft == false
+        with:
+          context: .
+          target: migrate
+          tags: eguidar-migrate:ci
+          load: true
+          build-args: |
+            NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: bash scripts/verifier-image-deploiement.sh
+        if: github.event_name == 'push' || github.event.pull_request.draft == false
+        env:
+          IMAGE_RUNNER: eguidar-runner:ci
+          IMAGE_MIGRATE: eguidar-migrate:ci
+          DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+          MEILI_URL: http://localhost:7700
+          MEILI_MASTER_KEY: eguidar-test-master-key
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_URL: http://localhost:3100
+          ADMIN_NAME: Administrateur
+          ADMIN_EMAIL: admin@eguidar.com
+          ADMIN_PASSWORD: change-me-admin-password
+          BETTER_AUTH_SECRET: replace-with-a-long-random-secret
