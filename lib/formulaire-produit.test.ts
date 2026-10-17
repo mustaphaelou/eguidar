@@ -224,7 +224,10 @@ describe("les faits du formulaire", () => {
     expectTypeOf<
       Omit<FaitsFormulaireProduit, "id" | "images" | "variants" | "categoryId">
     >().toEqualTypeOf<
-      Omit<ProductInput, "images" | "variants" | "categoryId">
+      Omit<
+        ProductInput,
+        "images" | "variants" | "categoryId" | "tentativeId" | "ownerId"
+      >
     >()
 
     expectTypeOf<FaitsFormulaireProduit["categoryId"]>().toEqualTypeOf<

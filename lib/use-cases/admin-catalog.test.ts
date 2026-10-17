@@ -13,6 +13,7 @@ import {
 import { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
+  BrouillonImageProduitNonPromuError,
   CatalogValidationError,
   createProduct,
   deleteProduct,
@@ -24,10 +25,12 @@ import {
   VariantNotFoundError,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   verifierFrontiereBestEffort,
   verifierRefusValidation,
 } from "@/test/mutation-squelette-recette"
+import { brouillon, persistee } from "@/test/cycle-vie-image-produit-memoire"
 
 const runId = randomUUID().slice(0, 8)
 const slug = (suffix: string) => `p-${runId}-${suffix}`
@@ -482,12 +485,27 @@ describe("admin catalog mutations", () => {
     expect(unchanged.images).toEqual([persistedImage])
   })
 
-  it("refuse une Image produit persistée qui n'appartient pas au Produit", async () => {
+  it("refuse une mise à jour qui nomme une Image produit d'un autre Produit", async () => {
     const proprietaire = "https://cdn.example.com/owned.jpg"
+    const dunAutreProduit = "https://cdn.example.com/dun-autre-produit.jpg"
     const product = await createProduct(
       makeInput({ slug: slug("img-owned"), images: [proprietaire] }),
       undefined,
       revendicationPromue(proprietaire)
+    )
+    await createProduct(
+      makeInput({
+        slug: slug("img-owned-autre"),
+        images: [dunAutreProduit],
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-owned-autre`,
+            priceDelta: 0,
+            stock: 5,
+          },
+        ],
+      })
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -498,16 +516,19 @@ describe("admin catalog mutations", () => {
     }))
     const deleteImages = vi.fn(async () => {})
 
-    await verifierRefusValidation(CatalogValidationError, () =>
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
       updateProduct(
         product.id,
         makeInput({
           slug: slug("img-owned"),
-          images: [proprietaire, "https://cdn.example.com/arbitrary.jpg"],
+          images: [proprietaire, dunAutreProduit],
           variants,
         }),
         { deleteImages }
       )
+    )
+    expect(refus.message).toBe(
+      "Données invalides : une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
     )
     expect(deleteImages).not.toHaveBeenCalled()
     const persisted = await prisma.product.findUniqueOrThrow({
@@ -553,22 +574,30 @@ describe("admin catalog mutations", () => {
     expect(horsPorte).toBeDefined()
   })
 
-  it("refuse une création dont la galerie porte une URL que l'opération n'a pas promue", async () => {
-    const promotee = "https://cdn.example.com/promue.jpg"
-    const glissee = "https://cdn.example.com/glissee.jpg"
+  it("refuse une création qui nomme une Image produit d'un autre Produit", async () => {
+    const dunAutreProduit = "https://cdn.example.com/dun-autre-produit.jpg"
+    await createProduct(
+      makeInput({
+        slug: slug("img-autre-proprietaire"),
+        images: [dunAutreProduit],
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-autre-proprietaire`,
+            priceDelta: 0,
+            stock: 5,
+          },
+        ],
+      })
+    )
+
     const refus = await verifierRefusValidation(CatalogValidationError, () =>
       createProduct(
-        makeInput({ slug: slug("img-glissee"), images: [promotee, glissee] }),
-        undefined,
-        RevendicationImagesProduit.creer({
-          galerie: [promotee, glissee],
-          promues: [promotee],
-          lier: async () => undefined,
-        })
+        makeInput({ slug: slug("img-glissee"), images: [dunAutreProduit] })
       )
     )
     expect(refus.message).toBe(
-      "Données invalides : une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit"
+      "Données invalides : une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
     )
     const ecrits = await prisma.product.count({
       where: { slug: slug("img-glissee") },
@@ -576,22 +605,37 @@ describe("admin catalog mutations", () => {
     expect(ecrits).toBe(0)
   })
 
-  it("refuse une création qui porte des images sans aucune revendication", async () => {
-    const refus = await verifierRefusValidation(CatalogValidationError, () =>
-      createProduct(
-        makeInput({
-          slug: slug("img-sans-revendication"),
-          images: ["https://cdn.example.com/arbitraire.jpg"],
-        })
-      )
+  it("accepte une création et une mise à jour dont la galerie porte une URL orpheline", async () => {
+    const orpheline = "https://cdn.example.com/orpheline.jpg"
+    const ajoutee = "https://cdn.example.com/ajoutee.jpg"
+    const product = await createProduct(
+      makeInput({ slug: slug("img-orpheline"), images: [orpheline] })
     )
-    expect(refus.message).toBe(
-      "Données invalides : une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit"
+    const variants = product.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const deleteImages = vi.fn(async () => {})
+
+    await updateProduct(
+      product.id,
+      makeInput({
+        slug: slug("img-orpheline"),
+        images: [orpheline, ajoutee],
+        variants,
+      }),
+      { deleteImages }
     )
-    const ecrits = await prisma.product.count({
-      where: { slug: slug("img-sans-revendication") },
+
+    expect(deleteImages).toHaveBeenCalledWith([])
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
     })
-    expect(ecrits).toBe(0)
+    expect(persisted.images).toEqual([orpheline, ajoutee])
   })
 
   it("accepte une création dont la galerie est faite des URL promues par la même opération", async () => {
@@ -609,6 +653,134 @@ describe("admin catalog mutations", () => {
       select: { images: true },
     })
     expect(persisted.images).toEqual(images)
+  })
+
+  it("accepte une galerie mêlant Entrées de Galerie et URLs nues, dans l'ordre soumis", async () => {
+    const premiereNue = "https://cdn.example.com/nue-1.jpg"
+    const urlEntree = "https://cdn.example.com/entree-2.jpg"
+    const derniereNue = "https://cdn.example.com/nue-3.jpg"
+    const product = await createProduct(
+      makeInput({
+        slug: slug("img-mixte"),
+        images: [premiereNue, persistee(urlEntree), derniereNue],
+      })
+    )
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(persisted.images).toEqual([premiereNue, urlEntree, derniereNue])
+  })
+
+  it("applique le plafond de huit à la galerie normalisée, Entrées et URLs confondues", async () => {
+    const refusees = [
+      ...galerie(5).map((url) => persistee(url)),
+      ...galerie(4).map((url) => `${url}?nue`),
+    ]
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(
+        makeInput({ slug: slug("img-mixte-limite"), images: refusees })
+      )
+    )
+    expect(refus.message).toBe(
+      "Données invalides : au maximum 8 images par produit"
+    )
+    const ecrits = await prisma.product.count({
+      where: { slug: slug("img-mixte-limite") },
+    })
+    expect(ecrits).toBe(0)
+
+    const aLaLimite = [
+      ...galerie(4).map((url) => persistee(url)),
+      ...galerie(4).map((url) => `${url}?nue`),
+    ]
+    const product = await createProduct(
+      makeInput({ slug: slug("img-mixte-limite-pile"), images: aLaLimite })
+    )
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { images: true },
+    })
+    expect(persisted.images).toEqual([
+      ...galerie(4),
+      ...galerie(4).map((url) => `${url}?nue`),
+    ])
+  })
+
+  it("refuse une galerie qui contient un Brouillon d'Image produit, même muni des deux identifiants", async () => {
+    const promesse = createProduct(
+      makeInput({
+        slug: slug("img-brouillon"),
+        images: [brouillon("brouillon-1")],
+        tentativeId: "tentative-1",
+        ownerId: "editeur-1",
+      })
+    )
+
+    await expect(promesse).rejects.toBeInstanceOf(
+      BrouillonImageProduitNonPromuError
+    )
+    await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
+    await expect(promesse).rejects.toThrow(
+      "Un Brouillon d'Image produit ne peut pas encore entrer dans la Galerie du Produit"
+    )
+    const ecrits = await prisma.product.count({
+      where: { slug: slug("img-brouillon") },
+    })
+    expect(ecrits).toBe(0)
+  })
+
+  it("refuse un Brouillon d'Image produit sans identifiant de tentative ni de propriétaire", async () => {
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(
+        makeInput({
+          slug: slug("img-brouillon-sans-identifiants"),
+          images: [brouillon("brouillon-2")],
+        })
+      )
+    )
+    expect(refus.message).toBe(
+      "Données invalides : un Brouillon d'Image produit exige un identifiant de tentative et un identifiant de propriétaire"
+    )
+    const ecrits = await prisma.product.count({
+      where: { slug: slug("img-brouillon-sans-identifiants") },
+    })
+    expect(ecrits).toBe(0)
+  })
+
+  it("accepte un identifiant de tentative et un identifiant de propriétaire", async () => {
+    const product = await createProduct(
+      makeInput({
+        slug: slug("identifiants"),
+        tentativeId: "tentative-1",
+        ownerId: "editeur-1",
+      })
+    )
+    const persisted = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: { slug: true },
+    })
+    expect(persisted.slug).toBe(slug("identifiants"))
+  })
+
+  it("refuse un identifiant de tentative vide", async () => {
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(
+        makeInput({ slug: slug("identifiant-vide"), tentativeId: "" })
+      )
+    )
+    expect(refus.message).toBe(
+      "Données invalides : identifiant de tentative invalide"
+    )
+  })
+
+  it("refuse un identifiant de propriétaire vide", async () => {
+    const refus = await verifierRefusValidation(CatalogValidationError, () =>
+      createProduct(makeInput({ slug: slug("proprietaire-vide"), ownerId: "" }))
+    )
+    expect(refus.message).toBe(
+      "Données invalides : identifiant de propriétaire invalide"
+    )
   })
 
   it("crée un Produit sans aucune image", async () => {
@@ -718,12 +890,27 @@ describe("admin catalog mutations", () => {
     expect(deleteImages).toHaveBeenCalledWith([])
   })
 
-  it("refuse une URL glissée même quand une revendication est fournie", async () => {
+  it("refuse une Image produit d'un autre Produit même quand une revendication est fournie", async () => {
     const proprietaire = "https://cdn.example.com/owned.jpg"
+    const dunAutreProduit = "https://cdn.example.com/smuggled.jpg"
     const product = await createProduct(
       makeInput({ slug: slug("img-claim"), images: [proprietaire] }),
       undefined,
       revendicationPromue(proprietaire)
+    )
+    await createProduct(
+      makeInput({
+        slug: slug("img-claim-autre"),
+        images: [dunAutreProduit],
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-claim-autre`,
+            priceDelta: 0,
+            stock: 5,
+          },
+        ],
+      })
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -738,7 +925,7 @@ describe("admin catalog mutations", () => {
         product.id,
         makeInput({
           slug: slug("img-claim"),
-          images: [proprietaire, "https://cdn.example.com/smuggled.jpg"],
+          images: [proprietaire, dunAutreProduit],
           variants,
         }),
         undefined,
@@ -750,7 +937,7 @@ describe("admin catalog mutations", () => {
       )
     )
     expect(refus.message).toBe(
-      "Données invalides : une Image produit persistée n'appartient pas à ce Produit"
+      "Données invalides : une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
     )
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },

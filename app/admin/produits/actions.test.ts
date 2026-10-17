@@ -92,12 +92,12 @@ const ADMIN: Client = {
 
 interface EcritureCatalogue {
   readonly produitId: string
-  readonly galerie: readonly string[]
+  readonly galerie: readonly (string | EntreeImageProduit)[]
 }
 
 interface ProduitRelu {
   readonly id: string
-  readonly images: readonly string[]
+  readonly images: readonly (string | EntreeImageProduit)[]
 }
 
 interface CatalogueFaux {
@@ -256,9 +256,9 @@ describe("createProductAction", () => {
     expect(registre.records.size).toBe(0)
   })
 
-  it("refuse une création qui porte une Image produit déjà enregistrée, sans rien écrire", async () => {
+  it("refuse une création qui nomme une Image produit d'un autre Produit, sans rien écrire", async () => {
     const messageRegle =
-      "une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit"
+      "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
     const draftId = await televerser()
     catalogue.refus = new CatalogValidationError([messageRegle])
 
@@ -377,10 +377,10 @@ describe("updateProductAction", () => {
     })
   })
 
-  it("laisse le Catalogue refuser une Image produit absente du stock du Produit, sans rien écrire", async () => {
+  it("laisse le Catalogue refuser une Image produit d'un autre Produit, sans rien écrire", async () => {
     const draftId = await televerser()
     catalogue.refus = new CatalogValidationError([
-      "une Image produit persistée n'appartient pas à ce Produit",
+      "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
     ])
 
     const resultat = await updateProductAction(
@@ -393,7 +393,7 @@ describe("updateProductAction", () => {
 
     expect(resultat).toEqual({
       error:
-        "Données invalides : une Image produit persistée n'appartient pas à ce Produit",
+        "Données invalides : une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
     })
     expect(catalogue.ecritures).toEqual([])
     expect(registre.records.get(draftId)).toMatchObject({
