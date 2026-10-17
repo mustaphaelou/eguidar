@@ -62,3 +62,81 @@ in GitHub Actions, while continuous deployment stays with the machinery that alr
   branch is up to date with `main`.
 - **Failures surface through GitHub's built-in notifications**; no external webhook or secret
   reports them.
+
+## Amendment — The `build` job builds the deploy image for verification, never for deployment (#676, 2026-10-17)
+
+No sentence of this ADR is rewritten; the amendment records a decision taken after it and names the
+earlier sentences it supersedes. Two of them claimed Actions never builds a deploy image. Those
+claims no longer hold, and everything that keeps deployment with Coolify still does.
+
+**The decision: the `build` job builds the artifact Coolify builds, and proves it.**
+
+- **Both deploy targets are built, under CI-local tags.** The job builds `runner` and `migrate` from
+  the same `Dockerfile` the deploy builds, tags them `eguidar-runner:ci` and `eguidar-migrate:ci`,
+  and loads them into the runner's local Docker daemon. Nothing else consumes them: the images are
+  the artifact under verification, and the layer cache is the GitHub Actions cache.
+- **The probe consumes the artifact, not the host build.** Three health-checked service containers
+  — PostgreSQL with database `eguidar_probe`, Redis, Meilisearch — serve it; the compose stack is
+  never started, only syntax-checked with `docker compose config -q`. The `migrate` image runs
+  twice against `eguidar_probe`: the seed's facts are asserted after the first run — the
+  administration account by `ADMIN_EMAIL`, and the six categories — and re-asserted unchanged after
+  the second. The Redis cache handler is imported inside the `runner` image, and the `runner` is
+  booted on port 3100 to answer the home page (200), one hashed `/_next/static/` asset (200) and
+  the admin redirect (307).
+- **Nothing is pushed and nothing is deployed.** The tags never leave the runner, no registry login
+  is performed, and the workflow keeps `contents: read` — no `packages: write`, no deploy
+  credential. No repository secret or variable is added: the two build arguments are the same
+  public placeholders (`NEXT_PUBLIC_BETTER_AUTH_URL`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`) the host
+  build already passes. No deploy trigger and no Coolify API call: the webhook still owns every
+  push to `main`, and Actions neither calls it nor gates it.
+- **The gate does not grow.** Five jobs and the five required status contexts remain — `lint`,
+  `format`, `typecheck`, `test`, `build` — one check per job, the same check list, the same
+  ruleset. No sixth job, no sixth context.
+- **The image steps are conditional, and drafts skip them.** They run on every push to `main` and
+  on every non-draft pull request; `ready_for_review` promotes a draft to the full proof. A draft
+  keeps today's host build, and its `build` status can be green without the artifact proof; that is
+  acceptable because a draft cannot merge.
+- **The job is bounded.** `timeout-minutes: 20`, no automatic retry, no path filters. A red
+  artifact check is investigated rather than retried away, and a required check cannot be silently
+  skipped into a pending state. Migrations and seed touch only the job-local `eguidar_probe`
+  database — never the `test` job's, never a deployed one.
+
+**The sentences this supersedes, and how.**
+
+- The last bullet of **Decision** — "Deployment stays with Coolify, unchanged. ... Actions never
+  triggers a deploy, **builds or pushes a deploy image**, runs migrations outside its ephemeral
+  test database, or calls the Coolify API." — is superseded on two phrases, and on those only.
+  "Builds or pushes a deploy image" splits: "builds" is superseded, because the `build` job now
+  builds it for verification; "pushes" still holds, because the images are loaded into the local
+  daemon and never pushed. "Runs migrations outside its ephemeral test database" is superseded
+  literally, since the probe migrates a second ephemeral, job-local database; what it protected
+  stands, as no deployed database is ever touched and the Coolify API is never called.
+- The first bullet of **Invariants** — "**No deploy workflow in Actions.** No workflow triggers
+  Coolify, **builds or pushes a deploy image**, runs migrations against a deployed database, or
+  requires a deployment secret." — is superseded on the same clause, "builds or pushes a deploy
+  image": a deploy image is now built, but never pushed, never deployed and never credentialed. The
+  rest stands word for word — no deploy workflow, no deployed database, no deployment secret.
+- The **`build`** bullet of **Decision** — "so a merge that would fail the Coolify image build is
+  caught at pull request time" — read as a promise while the job only ran `next build`, becomes
+  literal. Its bound is the draft: the catch happens on every non-draft pull request and every
+  `main` push, and at `ready_for_review` for a draft. It is completed, not contradicted.
+
+**What the amendment does not change.**
+
+- **Coolify's deploy behaviour** — webhook on every push to `main`, Dockerfile build, `migrate`
+  before the app — is untouched.
+- **The rejected considered option stays rejected.** Building the image to a registry and deploying
+  from Actions is not what happens: the image is built for verification, loaded locally, and
+  deployment keeps its owner. No registry credential, and no deploy trigger, is introduced.
+- **CI still requires no repository secret or variable and can only read the repository.**
+- **`main` still accepts changes only through a pull request** whose five checks are green and whose
+  branch is up to date with `main`.
+- **Failures still surface through GitHub's built-in notifications**, with no external webhook or
+  secret.
+
+**How the claim is proven.** The artifact is its own proof, and no unit seam can fake it: the
+`build` check is green only when both images build, both migrations and the seed run, and the
+booted server answers the three HTTP surfaces. A wiring guard in the workflow test pins the probe
+step, its draft condition and the job's timeout, so the step cannot disappear silently. The
+acceptance the spec requires is a green `build` on a non-draft pull request, and a red one when the
+artifact is deliberately broken.
