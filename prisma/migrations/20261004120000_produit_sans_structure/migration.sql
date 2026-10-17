@@ -1,12 +1,2 @@
 -- Un Produit survit à la suppression de sa Structure (ADR-0029, #522).
---
--- `categoryId` devient nullable : un Produit dont la Structure a été supprimée
--- reste en base, se vend, et n'appartient plus à aucune Structure.
---
--- **La contrainte n'est pas touchée.** `Product_categoryId_fkey` reste en
--- `ON DELETE RESTRICT`, et elle n'a pas besoin de l'être : `RESTRICT` ne considère
--- que les lignes dont la clé étrangère est non nulle, donc une ligne `NULL` ne
--- référence rien et n'a jamais compté. Rendre la colonne nullable n'affaiblit donc
--- rien — c'est ce qui rend l'orphelinat possible sans écrire contre la base :
--- `deleteCategory` efface lui-même la colonne avant de supprimer.
 ALTER TABLE "Product" ALTER COLUMN "categoryId" DROP NOT NULL;

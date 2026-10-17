@@ -43,10 +43,6 @@ function seCroisent(a: readonly string[], b: readonly string[]): boolean {
   return a.some((id) => b.includes(id))
 }
 
-/**
- * Les liens et la marche qu'une surface bâtit une fois, avant de demander la
- * partition de Structures à l'une après l'autre.
- */
 function partitionDepuisLesLiens(
   faits: readonly StructureLue[]
 ): (id: string) => PartitionStructure {

@@ -15,15 +15,6 @@ import { pageMetadata } from "@/lib/metadata"
 import { getHomeData } from "@/lib/use-cases/storefront"
 import { cn } from "@/lib/utils"
 
-/**
- * L'accueil : une pile de panneaux, à la manière d'apple.com (#639, #641).
- *
- * Deux panneaux pleine largeur ouvrent la page — le premier sur le fond gris, le second sur le
- * noir qui sert d'accent — puis deux rangées de deux, et la bande des catégories ferme. Les
- * panneaux sont les Produits que l'Administration met en avant, dans `featuredOrder` ; leur
- * dessin et leur copie appartiennent au code (`lib/accueil-panneaux.ts`).
- */
-
 export const metadata = pageMetadata({
   title: "Électronique au meilleur prix au Maroc",
   description:
@@ -81,10 +72,6 @@ async function HomeContent() {
   )
 }
 
-/**
- * Le noir est une épice, pas un thème (#641) : le second panneau le porte, puis un panneau duo
- * sur deux rangées — le second — pour qu'il reste espacé quand le catalogue s'allonge.
- */
 function champDuPanneauDuo(rang: number, index: number): Champ {
   return rang % 2 === 1 && index === 1 ? "noir" : "muted"
 }

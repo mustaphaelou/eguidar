@@ -103,10 +103,6 @@ model Product {
   isFeatured    Boolean          @default(false)
   featuredOrder Int              @default(0)
   freeShipping  Boolean          @default(false)
-  // `categoryId` est le seul fait nullable du Produit : il l'est parce que la
-  // suppression d'une Structure peut emporter ses Produits sans les supprimer
-  // (ADR-0029, « Produit sans Structure »). La contrainte `ON DELETE RESTRICT`
-  // n'est pas relâchée — une Structure encore visée reste non supprimable.
   categoryId    String?
   category      Category?        @relation(fields: [categoryId], references: [id])
   variants      ProductVariant[]

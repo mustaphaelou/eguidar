@@ -2,11 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import { creerEntraineur, type HorlogeAnimation } from "./entraineur-ressort"
 
-/**
- * Une horloge sans navigateur : `avancer` pose une image et pousse l'instant.
- * Le sous-pasage du ressort rend le résultat indépendant de la découpe, donc
- * l'horloge n'a qu'à être régulière.
- */
 function horlogeManuelle(depart = 0) {
   let instant = depart
   let planifie: ((instant: number) => void) | null = null
@@ -21,7 +16,6 @@ function horlogeManuelle(depart = 0) {
       planifie = null
     },
     maintenant: () => instant,
-    /** Pose la prochaine image, `ms` après la précédente. */
     avancer(ms: number): void {
       instant += ms
       const frame = planifie
@@ -117,7 +111,6 @@ describe("creerEntraineur", () => {
 
     entraineur.aller(0, { surFin: () => fins++ })
 
-    // Aucun saut synchrone : on repart de la valeur de présentation.
     expect(entraineur.lire().position).toBe(enVol)
     arriveAuRepos(horloge)
     expect(fins).toBe(1)
@@ -132,8 +125,6 @@ describe("creerEntraineur", () => {
       horloge
     )
 
-    // Une vitesse seule, sans écart de position : un ressort lâché sur place
-    // ne bougerait pas, un geste qui portait un élan doit bouger.
     entraineur.aller(0, { vitesse: 1000 })
     horloge.avancer(1000 / 60)
 
@@ -163,8 +154,6 @@ describe("creerEntraineur", () => {
 
     entraineur.aller(200, { surFin: () => fins.push("premier") })
     horloge.avancer(1000 / 60)
-    // Un nouvel aller sans `surFin` retire la fin du précédent : elle ne doit
-    // pas se déclencher plus tard sous un autre geste.
     entraineur.aller(0)
     arriveAuRepos(horloge)
 

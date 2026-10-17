@@ -11,13 +11,6 @@ import { APPARITION, retard } from "@/lib/apparition"
 import type { NoeudAccueil } from "@/lib/use-cases/lecture-structure"
 import { cn } from "@/lib/utils"
 
-/**
- * La bande des catégories : la seule porte de l'accueil vers les six Structures.
- *
- * C'est une bande, pas un panneau : elle n'a pas d'art, elle range un ensemble. Sa forme est la
- * plus économe qui garde le nom, le décompte et le lien — six entrées de texte sur une ligne au
- * large, deux colonnes sur téléphone.
- */
 export function BandeCategories({
   categories,
 }: {

@@ -259,7 +259,6 @@ const cas = {
   accolades: motif("{", "}", 4000),
   parentheses: motif("(", ")", 4000)
 }
-// Les trois parcoureurs que l'avis nomme : compile, expand, stringify.
 const modes = {
   compile: (pattern) => braces(pattern),
   expand: (pattern) => braces.expand(pattern),

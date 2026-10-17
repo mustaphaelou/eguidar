@@ -11,21 +11,14 @@ import {
   type PortMutationsDuPanier,
 } from "./use-mutations-du-panier"
 
-/** Le temps de l'annulation : au-delà, le retrait est définitif. */
 const DUREE_ANNULATION_MS = 5000
 
 interface Annonce {
   article: ArticleDuPanierDonnees
-  /** L'annulation est en vol : l'annonce ne s'efface pas tant qu'elle juge. */
   enCours: boolean
-  /** Le refus du serveur, relayé verbatim. */
   refus?: string
 }
 
-/**
- * La liste des Articles du panier, et l'annonce qui survit au départ d'une
- * ligne : le retrait est immédiat, l'annulation le rejoue à l'envers.
- */
 export function ListeArticlesDuPanier({
   articles,
   port,
@@ -58,7 +51,6 @@ export function ListeArticlesDuPanier({
         setAnnonce(null)
         return
       }
-      // Le refus a sa voix dans l'annonce : l'Article n'est pas rentré.
       setAnnonce((courante) =>
         courante
           ? { ...courante, enCours: false, refus: resultat.message }
@@ -68,8 +60,6 @@ export function ListeArticlesDuPanier({
     setAnnonce({ ...annonce, enCours: true, refus: undefined })
   }
 
-  // L'occasion d'annuler ne dure pas : elle s'efface seule, et pas tant que
-  // l'annulation est en vol — c'est elle qui juge l'annonce.
   useEffect(() => {
     if (!annonce || annonce.enCours) return
     const minuteur = setTimeout(() => setAnnonce(null), DUREE_ANNULATION_MS)
