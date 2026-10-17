@@ -140,3 +140,35 @@ describe("le job de format", () => {
     ).toBe(false)
   })
 })
+
+const COMMANDE_SONDE = "bash scripts/verifier-image-deploiement.sh"
+
+const CONDITION_BROUILLON =
+  "github.event_name == 'push' || github.event.pull_request.draft == false"
+
+function etapeSonde(): Record<string, unknown> | undefined {
+  return etapesDe("build").find((etape) => etape.run === COMMANDE_SONDE)
+}
+
+describe("le job de build éprouve l'artefact de déploiement", () => {
+  it("invoque la sonde directement, sans passer par npm", () => {
+    expect(
+      etapeSonde(),
+      `le job « build » n'invoque pas \`${COMMANDE_SONDE}\` : l'image que Coolify déploie ne serait plus éprouvée avant la fusion, et une cible cassée n'apparaîtrait qu'au déploiement.`
+    ).toBeDefined()
+  })
+
+  it("réserve la sonde aux pushes et aux pull requests non brouillons", () => {
+    expect(
+      etapeSonde()?.if,
+      `l'étape de sonde ne porte pas \`${CONDITION_BROUILLON}\` : un brouillon paierait la construction des deux images, ou les pushes sur \`main\` cesseraient d'être éprouvés.`
+    ).toBe(CONDITION_BROUILLON)
+  })
+
+  it("borne le job, pour qu'un Docker bloqué ne retienne pas le runner", () => {
+    expect(
+      JOBS.get("build")?.["timeout-minutes"],
+      "le job « build » ne porte pas de `timeout-minutes` : une couche Docker bloquée peut retenir le runner sans fin."
+    ).toBe(20)
+  })
+})

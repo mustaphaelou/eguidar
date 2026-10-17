@@ -55,6 +55,38 @@ npm test          # exécution unique (migrations appliquées automatiquement)
 npm run test:watch
 ```
 
+## Vérifier l’image de déploiement
+
+La CI construit les deux cibles que Coolify déploie — `runner` et `migrate` — puis sonde l’artefact. La même commande tourne en local, contre les images qu’on vient de construire :
+
+```bash
+# 1. Services (Postgres, Redis, Meilisearch)
+docker compose up -d postgres redis meilisearch
+
+# 2. Les deux cibles, chargées dans le démon local
+docker build --target runner -t eguidar-runner:local .
+docker build --target migrate -t eguidar-migrate:local .
+
+# 3. La sonde, pointée sur la base de test
+IMAGE_RUNNER=eguidar-runner:local \
+IMAGE_MIGRATE=eguidar-migrate:local \
+DATABASE_URL=postgresql://eguidar:eguidar@localhost:5433/eguidar_test \
+MEILI_URL=http://localhost:7700 \
+MEILI_MASTER_KEY=meili-dev-master-key \
+REDIS_URL=redis://localhost:6379 \
+ADMIN_NAME=Administrateur \
+ADMIN_EMAIL=admin@eguidar.com \
+ADMIN_PASSWORD=change-me-admin-password \
+BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
+bash scripts/verifier-image-deploiement.sh
+```
+
+**La sonde migre et sème la base que `DATABASE_URL` désigne** : pointez-la sur `eguidar_test`, jamais sur la base de développement. Elle ne construit aucune image et ne démarre aucun service ; elle exige les trois services et les deux images déjà là. Ses conteneurs sortent en réseau hôte et joignent les services par `localhost` (Docker Engine sous Linux ; le réseau hôte de macOS est hors périmètre). Le port de la sonde est 3100, pour ne pas croiser un `npm run dev` resté sur 3000.
+
+Les variables requises sont `IMAGE_RUNNER`, `IMAGE_MIGRATE`, `DATABASE_URL`, `MEILI_URL`, `MEILI_MASTER_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` et `BETTER_AUTH_SECRET` : la première absente est nommée, et la sonde s’arrête avant tout appel à Docker. Les optionnelles sont `REDIS_URL`, `BETTER_AUTH_URL` (défaut `http://localhost:3100`), `PROBE_PORT` (défaut 3100), `PROBE_TIMEOUT` (défaut 90 secondes) et `ADMIN_NAME`.
+
+Ses huit phases, dans l’ordre : preflight, migration, faits du seed, seconde migration, comptes inchangés, import du cache-handler dans l’image `runner`, mise en service, surface HTTP (accueil 200, un actif `/_next/static/` 200, `/admin` 307). Un échec s’annonce par `ECHEC : <phase> — <cause>`, suivi des dernières lignes du conteneur.
+
 ## Crochet pre-commit
 
 Le dépôt embarque un crochet qui refuse un commit dont **les fichiers indexés** ne respectent pas la configuration Prettier — et rien d'autre. Ni lint, ni types, ni tests, ni build. Il porte sur le format seul, et son refus ne réécrit rien : ni `git add`, ni fichier touché dans votre dos.
