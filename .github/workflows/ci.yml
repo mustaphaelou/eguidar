@@ -169,9 +169,6 @@ jobs:
           target: migrate
           tags: eguidar-migrate:ci
           load: true
-          build-args: |
-            NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
-            NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: bash scripts/verifier-image-deploiement.sh

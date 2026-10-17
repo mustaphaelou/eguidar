@@ -61,7 +61,7 @@ La CI construit les deux cibles que Coolify déploie — `runner` et `migrate` �
 
 ```bash
 # 1. Services (Postgres, Redis, Meilisearch)
-docker compose up -d
+docker compose up -d postgres redis meilisearch
 
 # 2. Les deux cibles, chargées dans le démon local
 docker build --target runner -t eguidar-runner:local .

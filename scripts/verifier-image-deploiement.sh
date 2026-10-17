@@ -1,27 +1,6 @@
 #!/usr/bin/env bash
-#
-# Sonde de l’artefact de déploiement — spec #676, ticket #678.
-#
-# Elle ne construit aucune image, ne démarre aucun service et ne suppose aucune
-# base : elle vérifie des images qui existent déjà et les services que son
-# environnement décrit. La même commande tourne en local et dans la CI.
-#
-# Variables requises : IMAGE_RUNNER, IMAGE_MIGRATE, DATABASE_URL, MEILI_URL,
-# MEILI_MASTER_KEY, ADMIN_EMAIL, ADMIN_PASSWORD, BETTER_AUTH_SECRET.
-# Variables optionnelles : REDIS_URL, BETTER_AUTH_URL (défaut
-# http://localhost:<PROBE_PORT>), PROBE_PORT (défaut 3100), PROBE_TIMEOUT
-# (défaut 90 secondes), ADMIN_NAME.
-#
-# Cible : Docker Engine sur Linux, réseau hôte. Les conteneurs joignent les
-# services par localhost ; le réseau hôte de macOS est hors périmètre.
 
 set -euo pipefail
-
-# --- Contrat d’environnement ------------------------------------------------
-#
-# Validé avant tout appel à Docker : la première variable requise absente est
-# nommée, et le script sort en 1. C’est le seul comportement qu’un test observe
-# sans Docker ni base.
 
 VARIABLES_REQUISES=(
   IMAGE_RUNNER
@@ -56,12 +35,6 @@ if [[ ! "$PROBE_TIMEOUT" =~ ^[0-9]+$ ]] || ((PROBE_TIMEOUT < 1)); then
   exit 1
 fi
 
-# --- Faits déterministes du seed --------------------------------------------
-#
-# Le seed crée exactement le compte d’administration (ADMIN_EMAIL, rôle
-# « admin ») et ces six catégories. Cette liste suit celle de prisma/seed.ts :
-# si elle change là-bas, elle change ici.
-
 ADMINISTRATEURS_ATTENDUS=1
 
 CATEGORIES_ATTENDUES=(
@@ -75,8 +48,6 @@ CATEGORIES_ATTENDUES=(
 
 CATEGORIES_ATTENDUES_TEXTE="$(printf '%s,' "${CATEGORIES_ATTENDUES[@]}")"
 CATEGORIES_ATTENDUES_TEXTE="${CATEGORIES_ATTENDUES_TEXTE%,}"
-
-# --- Machinerie --------------------------------------------------------------
 
 JOURNAL=""
 CONTENEUR="eguidar-sonde-artefact-${PROBE_PORT}"
@@ -275,10 +246,15 @@ function echec(cause) {
 const accueil = await fetch(`${base}/`, { redirect: "manual" })
 if (accueil.status !== 200) echec(`accueil : ${accueil.status}, attendu 200`)
 
-const actif = (await accueil.text()).match(
-  /\/_next\/static\/[^"'\s\\]+\.(?:js|css)/
-)
-if (!actif) echec("accueil : aucun actif /_next/static/ trouvé")
+const actifs = [
+  ...(await accueil.text()).matchAll(/\/_next\/static\/[^"'\s\\]+\.(?:js|css)/g),
+]
+const actif = actifs.find(([chemin]) => {
+  const nom = chemin.slice(chemin.lastIndexOf("/") + 1)
+  const tige = nom.slice(0, nom.lastIndexOf("."))
+  return /^[A-Za-z0-9_-]{8,}$/.test(tige)
+})
+if (!actif) echec("accueil : aucun actif /_next/static/ haché trouvé")
 
 const fichier = await fetch(`${base}${actif[0]}`, { redirect: "manual" })
 if (fichier.status !== 200) echec(`${actif[0]} : ${fichier.status}, attendu 200`)
@@ -306,8 +282,6 @@ verifier_que_le_serveur_tient() {
   fi
   printf '  conteneur toujours en marche, aucun échec de résolution de module\n'
 }
-
-# --- Les huit phases, dans l’ordre ------------------------------------------
 
 printf 'Sonde de l’artefact de déploiement\n'
 printf '  runner  : %s\n' "$IMAGE_RUNNER"
