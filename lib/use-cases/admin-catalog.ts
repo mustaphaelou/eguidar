@@ -1,8 +1,11 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import {
+import cycleVieImageProduitParDefaut, {
+  horlogeSysteme,
   portTransactionRegistreBrouillonImageProduit,
+  type CycleVieImageProduit,
+  type Horloge,
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
@@ -64,6 +67,10 @@ export interface CatalogEffects {
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): void
   deleteImages(urls: string[]): Promise<void>
+  preparerPromotion: CycleVieImageProduit["preparerPromotionBrouillons"]
+  confirmerPromotion: CycleVieImageProduit["confirmerBrouillons"]
+  compenserPromotion: CycleVieImageProduit["compenserPromotionBrouillons"]
+  horloge: Horloge
 }
 
 function journaliserEchecSuppressionImage(
@@ -77,7 +84,7 @@ function journaliserEchecSuppressionImage(
   )
 }
 
-function defaultCatalogEffects(productId: string): CatalogEffects {
+export function defaultCatalogEffects(productId: string): CatalogEffects {
   return {
     reindexProducts: indexProductDocuments,
     async removeProductFromIndex(id) {
@@ -99,6 +106,12 @@ function defaultCatalogEffects(productId: string): CatalogEffects {
         }
       }
     },
+    preparerPromotion:
+      cycleVieImageProduitParDefaut.preparerPromotionBrouillons,
+    confirmerPromotion: cycleVieImageProduitParDefaut.confirmerBrouillons,
+    compenserPromotion:
+      cycleVieImageProduitParDefaut.compenserPromotionBrouillons,
+    horloge: horlogeSysteme,
   }
 }
 

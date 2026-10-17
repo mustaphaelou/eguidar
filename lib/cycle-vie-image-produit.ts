@@ -250,6 +250,9 @@ export interface CycleVieImageProduit {
     promotions: readonly PreuvePromotion[],
     transaction?: PortTransactionRegistreBrouillonImageProduit
   ): Promise<void>
+  compenserPromotionBrouillons(
+    promotions: readonly PreuvePromotion[]
+  ): Promise<void>
   supprimerSources(promotions: readonly PreuvePromotion[]): Promise<void>
   lireBrouillonsDeLaTentative(
     tentativeId: string
@@ -450,7 +453,7 @@ const selectionBrouillon = {
   productId: true,
 } as const
 
-const horlogeSysteme: Horloge = {
+export const horlogeSysteme: Horloge = {
   maintenant: () => new Date(),
 }
 
@@ -984,6 +987,36 @@ export function creerCycleVieImageProduit(
     }
   }
 
+  async function promotionAPreserver(
+    preuve: PreuvePromotion
+  ): Promise<boolean> {
+    const brouillon = await registre
+      .lire(preuve.draftId)
+      .catch(() => "registre-muet" as const)
+    if (brouillon === "registre-muet") return true
+    return brouillon !== null && estLieAuProduit(brouillon)
+  }
+
+  async function compenserPromotionBrouillons(
+    promotions: readonly PreuvePromotion[]
+  ): Promise<void> {
+    const aSupprimer: PreuvePromotion[] = []
+    for (const preuve of promotions) {
+      if (!(await promotionAPreserver(preuve))) aSupprimer.push(preuve)
+    }
+    await supprimerPromotionsCreees(aSupprimer)
+
+    const idsParTentative = new Map<string, string[]>()
+    for (const preuve of promotions) {
+      const ids = idsParTentative.get(preuve.tentativeId)
+      if (ids) ids.push(preuve.draftId)
+      else idsParTentative.set(preuve.tentativeId, [preuve.draftId])
+    }
+    for (const [tentativeId, ids] of idsParTentative) {
+      await rendreRevendications(ids, tentativeId)
+    }
+  }
+
   async function supprimerSources(
     promotions: readonly PreuvePromotion[]
   ): Promise<void> {
@@ -1111,6 +1144,7 @@ export function creerCycleVieImageProduit(
     relacherBrouillon,
     preparerPromotionBrouillons,
     confirmerBrouillons,
+    compenserPromotionBrouillons,
     supprimerSources,
     lireBrouillonsDeLaTentative,
     revendiquerEtEnregistrer,
