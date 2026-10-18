@@ -1,6 +1,5 @@
 import {
   creerCycleVieImageProduit,
-  RevendicationImagesProduit,
   type BrouillonImageProduit,
   type CodeRefusRegistreBrouillon,
   type EntreeCreationBrouillonImageProduit,
@@ -504,16 +503,6 @@ export function brouillon(draftId: string): EntreeImageProduit {
     draftId,
     previewUrl: `https://preview.test/${draftId}`,
   }
-}
-
-export function sansTransaction(
-  revendication: RevendicationImagesProduit
-): RevendicationImagesProduit {
-  return RevendicationImagesProduit.creer({
-    galerie: revendication.galerie,
-    promues: revendication.promues,
-    lier: (productId) => revendication.lier(productId),
-  })
 }
 
 export function creerCycleVieTest(dateInitiale: Date) {

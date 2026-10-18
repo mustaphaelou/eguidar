@@ -14,7 +14,6 @@ import {
   type PortStockageImageProduit,
   type ResultatStockageImageProduit,
 } from "@/lib/r2"
-import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type {
   ContentTypeImageProduit,
@@ -136,44 +135,6 @@ export interface PortTransactionRegistreBrouillonImageProduit {
   ): Promise<boolean>
 }
 
-export type LierBrouillonsImageProduit = (
-  productId: string,
-  transaction?: PortTransactionRegistreBrouillonImageProduit
-) => Promise<void>
-
-export interface FaitsRevendicationImagesProduit {
-  readonly galerie: readonly string[]
-  readonly promues: readonly string[]
-  readonly lier: LierBrouillonsImageProduit
-}
-
-export class RevendicationImagesProduit {
-  readonly galerie: readonly string[]
-  readonly promues: readonly string[]
-  readonly lier: LierBrouillonsImageProduit
-  private readonly porte: true
-
-  private constructor(faits: FaitsRevendicationImagesProduit) {
-    this.galerie = [...faits.galerie]
-    this.promues = [...faits.promues]
-    this.lier = faits.lier
-    this.porte = true
-  }
-
-  static creer(
-    faits: FaitsRevendicationImagesProduit
-  ): RevendicationImagesProduit {
-    return new RevendicationImagesProduit(faits)
-  }
-}
-
-export type EnregistrerCatalogue = (
-  revendication: RevendicationImagesProduit
-) => Promise<{ productId: string }>
-
-export type ResultatRevendiquerEtEnregistrer =
-  { ok: true; productId: string } | RefusCycleVieImageProduit
-
 export interface Horloge {
   maintenant(): Date
 }
@@ -235,13 +196,6 @@ export interface CycleVieImageProduit {
     draftId: string
     ownerId: string
   }): Promise<ResultatRelacherBrouillonImageProduit>
-  revendiquerEtEnregistrer(input: {
-    tentativeId: string
-    ownerId: string
-    galerie: readonly EntreeImageProduit[]
-    enregistrer: EnregistrerCatalogue
-    resultatDejaPersiste?: (productId: string) => Promise<void>
-  }): Promise<ResultatRevendiquerEtEnregistrer>
   preparerPromotionBrouillons(
     input: EntreePreparationPromotionBrouillons
   ): Promise<ResultatPreparationPromotionBrouillons>
@@ -1041,105 +995,6 @@ export function creerCycleVieImageProduit(
     return registre.lireParTentative(id)
   }
 
-  async function revendiquerEtEnregistrer(input: {
-    tentativeId: string
-    ownerId: string
-    galerie: readonly EntreeImageProduit[]
-    enregistrer: EnregistrerCatalogue
-    resultatDejaPersiste?: (productId: string) => Promise<void>
-  }): Promise<ResultatRevendiquerEtEnregistrer> {
-    const tentativeId = input.tentativeId.trim()
-    const preparation = await preparerPromotionBrouillons({
-      tentativeId: input.tentativeId,
-      ownerId: input.ownerId,
-      galerie: input.galerie,
-    })
-    if (!preparation.ok) return preparation
-
-    const preuves = preparation.promotions
-    const draftIds = preuves.map((preuve) => preuve.draftId)
-    let brouillonsRevendiques: BrouillonImageProduit[] = []
-
-    async function compenserPreparation(): Promise<void> {
-      const lies = new Set(
-        brouillonsRevendiques
-          .filter(estLieAuProduit)
-          .map((brouillon) => brouillon.id)
-      )
-      await supprimerPromotionsCreees(
-        preuves.filter((preuve) => !lies.has(preuve.draftId))
-      )
-      await rendreRevendications(draftIds, tentativeId)
-    }
-
-    if (preuves.length > 0) {
-      try {
-        const lus = await lireBrouillonsDeLaTentative(tentativeId)
-        const deLaGalerie = new Set(draftIds)
-        brouillonsRevendiques = lus.filter((brouillon) =>
-          deLaGalerie.has(brouillon.id)
-        )
-      } catch {
-        await rendreRevendications(draftIds, tentativeId)
-        return refus("registre-indisponible", MESSAGE_REGISTRE_INDISPONIBLE)
-      }
-
-      const brouillonsLies = brouillonsRevendiques.filter(estLieAuProduit)
-      if (brouillonsLies.length > 0) {
-        const productIds = new Set(
-          brouillonsLies.map((brouillon) => brouillon.productId)
-        )
-        if (
-          brouillonsLies.length !== draftIds.length ||
-          productIds.size !== 1
-        ) {
-          await compenserPreparation()
-          return refus(
-            "revendication-refusee",
-            "Les Brouillons ne sont pas tous liés à la même tentative"
-          )
-        }
-        if (input.resultatDejaPersiste) {
-          const productId = [...productIds][0]
-          try {
-            await input.resultatDejaPersiste(productId)
-          } catch {
-            return refus(
-              "catalogue-refuse",
-              "L'enregistrement du Catalogue a échoué"
-            )
-          }
-          await supprimerSources(preuves)
-          return { ok: true, productId }
-        }
-      }
-    }
-
-    let enregistre: Awaited<ReturnType<EnregistrerCatalogue>>
-    try {
-      enregistre = await input.enregistrer(
-        RevendicationImagesProduit.creer({
-          galerie: preparation.galerie,
-          promues: preuves.map((preuve) => preuve.publicUrl),
-          lier: (productId, transaction) =>
-            confirmerBrouillons(productId, preuves, transaction),
-        })
-      )
-    } catch (error) {
-      await compenserPreparation()
-      return refus(
-        "catalogue-refuse",
-        error instanceof UserFacingError
-          ? error.message
-          : "L'enregistrement du Catalogue a échoué"
-      )
-    }
-
-    await supprimerSources(preuves)
-
-    return { ok: true, productId: enregistre.productId }
-  }
-
   return {
     demanderBrouillon,
     relacherBrouillon,
@@ -1148,7 +1003,6 @@ export function creerCycleVieImageProduit(
     compenserPromotionBrouillons,
     supprimerSources,
     lireBrouillonsDeLaTentative,
-    revendiquerEtEnregistrer,
     lireBrouillon: (id) => registre.lire(id),
   }
 }

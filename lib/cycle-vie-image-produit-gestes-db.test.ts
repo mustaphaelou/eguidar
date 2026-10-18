@@ -11,7 +11,7 @@ import {
 import { prisma } from "@/lib/db"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type { ContentTypeImageProduit } from "@/lib/r2"
-import { persistentObjectKey } from "@/lib/r2"
+import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import {
   creerStockageImageProduitMemoire,
   persistee,
@@ -23,6 +23,9 @@ const autreOwnerId = randomUUID()
 const categoryId = randomUUID()
 const categorySlug = `cat-gestes-${categoryId.slice(0, 8)}`
 const now = new Date("2026-06-03T10:00:00.000Z")
+
+const MESSAGE_BROUILLON_DEJA_LIBERE =
+  "Ce Brouillon d'Image produit a déjà été libéré : il n'existe plus et ne peut plus être revendiqué."
 
 function brouillon(draftId: string): EntreeImageProduit {
   return {
@@ -141,6 +144,110 @@ describe("gestes séquentiels du cycle de vie — registre durable", () => {
       },
     })
   }
+
+  it("enregistre la ligne durable d'un Brouillon demandé, vivante pour la rétention", async () => {
+    const { cycleVie } = creerCycleVie()
+    const demande = await demanderBrouillon(cycleVie, "image/webp")
+
+    const row = await prisma.brouillonImageProduit.findUniqueOrThrow({
+      where: { id: demande.draftId },
+    })
+
+    expect(row).toMatchObject({
+      id: demande.draftId,
+      storageKey: `products/brouillons/${demande.draftId}.webp`,
+      mimeType: "image/webp",
+      byteSize: 1024,
+      ownerId,
+      tentativeId: null,
+      state: "vivant",
+      promotedPublicUrl: null,
+      productId: null,
+    })
+    expect(row.expiresAt).toEqual(new Date(now.getTime() + 24 * 60 * 60 * 1000))
+    expect(demande.expiresAt).toEqual(row.expiresAt)
+  })
+
+  it("libère un Brouillon vivant du registre durable, que plus personne ne revendique", async () => {
+    const { cycleVie, stockage } = creerCycleVie()
+    const demande = await demanderBrouillon(cycleVie, "image/gif")
+
+    expect(
+      await cycleVie.relacherBrouillon({ draftId: demande.draftId, ownerId })
+    ).toEqual({ ok: true, draftId: demande.draftId })
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(demande.draftId, "image/gif"),
+    ])
+    expect(await etatPersiste(demande.draftId)).toEqual({
+      state: "libéré",
+      tentativeId: null,
+      productId: null,
+      promotedPublicUrl: null,
+    })
+
+    expect(
+      await cycleVie.preparerPromotionBrouillons({
+        tentativeId: "tentative-apres-liberation",
+        ownerId,
+        galerie: [brouillon(demande.draftId)],
+      })
+    ).toEqual({
+      ok: false,
+      code: "brouillon-non-vivant",
+      message: MESSAGE_BROUILLON_DEJA_LIBERE,
+    })
+    expect(stockage.promotions).toEqual([])
+    expect(await etatPersiste(demande.draftId)).toEqual({
+      state: "libéré",
+      tentativeId: null,
+      productId: null,
+      promotedPublicUrl: null,
+    })
+  })
+
+  it("refuse une rangée durable au type illisible sans promouvoir ni libérer", async () => {
+    const draftId = randomUUID()
+    await prisma.brouillonImageProduit.create({
+      data: {
+        id: draftId,
+        storageKey: `products/brouillons/${draftId}.svg`,
+        mimeType: "image/svg+xml",
+        byteSize: 2048,
+        ownerId,
+        expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
+      },
+    })
+    const { cycleVie, stockage } = creerCycleVie()
+
+    await expect(cycleVie.lireBrouillon(draftId)).rejects.toThrow(
+      "image/svg+xml"
+    )
+    expect(await cycleVie.relacherBrouillon({ draftId, ownerId })).toEqual({
+      ok: false,
+      code: "registre-indisponible",
+      message: "Registre des Brouillons indisponible",
+    })
+
+    expect(
+      await cycleVie.preparerPromotionBrouillons({
+        tentativeId: "tentative-illisible",
+        ownerId,
+        galerie: [brouillon(draftId)],
+      })
+    ).toEqual({
+      ok: false,
+      code: "registre-indisponible",
+      message: "Registre des Brouillons indisponible",
+    })
+    expect(stockage.promotions).toEqual([])
+    expect(stockage.suppressionsBrouillons).toEqual([])
+    expect(await etatPersiste(draftId)).toEqual({
+      state: "revendiqué",
+      tentativeId: "tentative-illisible",
+      productId: null,
+      promotedPublicUrl: null,
+    })
+  })
 
   it("prépare contre le registre durable et garde la place d'un Brouillon intercalé", async () => {
     const { cycleVie, stockage } = creerCycleVie()

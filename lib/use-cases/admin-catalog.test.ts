@@ -10,7 +10,6 @@ import {
   vi,
 } from "vitest"
 
-import { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
   CatalogValidationError,
@@ -519,43 +518,6 @@ describe("admin catalog mutations", () => {
       where: { id: product.id },
     })
     expect(persisted.images).toEqual([proprietaire])
-  })
-
-  it("reçoit la liaison et les URL promues dans une seule valeur, jamais séparément", () => {
-    const galerie = ["https://cdn.example.com/promoted.jpg"]
-    const revendication = RevendicationImagesProduit.creer({
-      galerie,
-      promues: galerie,
-      lier: async () => undefined,
-    })
-    expect(revendication.galerie).toEqual(galerie)
-    expect(revendication.promues).toEqual(galerie)
-
-    type FaitsExigesParLaPorte = Parameters<
-      typeof RevendicationImagesProduit.creer
-    >[0]
-    // @ts-expect-error — la porte exige les URL promues
-    const sansPromues: FaitsExigesParLaPorte = {
-      galerie,
-      lier: async () => undefined,
-    }
-    // @ts-expect-error — la porte exige la liaison
-    const sansLier: FaitsExigesParLaPorte = { galerie, promues: galerie }
-    // @ts-expect-error — la porte exige la galerie ordonnée
-    const sansGalerie: FaitsExigesParLaPorte = {
-      promues: galerie,
-      lier: async () => undefined,
-    }
-    expect([sansPromues, sansLier, sansGalerie]).toHaveLength(3)
-
-    // @ts-expect-error — une valeur complète ne se construit pas hors de la porte
-    const horsPorte: RevendicationImagesProduit = {
-      galerie,
-      promues: galerie,
-      lier: async () => undefined,
-    }
-
-    expect(horsPorte).toBeDefined()
   })
 
   it("refuse une création qui nomme une Image produit d'un autre Produit", async () => {
