@@ -495,9 +495,9 @@ describe("registre durable des Brouillons d'Image produit", () => {
             deleteImages: async () => {},
             reindexProducts: async () => {},
             revalidateCatalog: () => {},
-          },
-          revendication
+          }
         )
+        await revendication.lier(product.id)
         return { productId: product.id, result: product }
       },
     })

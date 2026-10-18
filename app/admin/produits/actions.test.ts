@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type {
   CatalogEffects,
@@ -63,9 +62,8 @@ vi.mock("@/lib/use-cases/admin-catalog", async (importOriginal) => ({
   updateProduct: (
     produitId: string,
     champs: ProductInput,
-    _effets: Partial<CatalogEffects> | undefined,
-    revendication: RevendicationImagesProduit | undefined
-  ) => catalogue.mettreAJour(produitId, champs, revendication),
+    _effets: Partial<CatalogEffects> | undefined
+  ) => catalogue.mettreAJour(produitId, champs),
   getAdminProduct: (produitId: string) =>
     Promise.resolve(catalogue.relire(produitId)),
 }))
@@ -103,11 +101,7 @@ interface CatalogueFaux {
   readonly ecritures: EcritureCatalogue[]
   refus: Error | null
   creer(champs: ProductInput): Promise<{ id: string }>
-  mettreAJour(
-    produitId: string,
-    champs: ProductInput,
-    revendication?: RevendicationImagesProduit
-  ): Promise<{ id: string }>
+  mettreAJour(produitId: string, champs: ProductInput): Promise<{ id: string }>
   relire(produitId: string): ProduitRelu | null
   oublier(): void
 }
@@ -118,11 +112,9 @@ function creerCatalogueFaux(): CatalogueFaux {
 
   async function ecrire(
     produitId: string,
-    champs: ProductInput,
-    revendication?: RevendicationImagesProduit
+    champs: ProductInput
   ): Promise<{ id: string }> {
     if (faux.refus) throw faux.refus
-    if (revendication) await revendication.lier(produitId)
     ecritures.push({ produitId, galerie: [...champs.images] })
     return { id: produitId }
   }
@@ -134,8 +126,8 @@ function creerCatalogueFaux(): CatalogueFaux {
       compteur += 1
       return ecrire(`produit-${compteur}`, champs)
     },
-    mettreAJour(produitId, champs, revendication) {
-      return ecrire(produitId, champs, revendication)
+    mettreAJour(produitId, champs) {
+      return ecrire(produitId, champs)
     },
     relire(produitId) {
       const ecriture = ecritures.find(

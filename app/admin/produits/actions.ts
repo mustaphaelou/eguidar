@@ -71,12 +71,11 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
       galerie: images,
       resultatDejaPersiste,
       enregistrer: async (revendication) => {
-        const product = await updateProduct(
-          productId,
-          { ...champsCatalogue, images: [...revendication.galerie] },
-          undefined,
-          revendication
-        )
+        const product = await updateProduct(productId, {
+          ...champsCatalogue,
+          images: [...revendication.galerie],
+        })
+        await revendication.lier(product.id)
         return { productId: product.id }
       },
     })

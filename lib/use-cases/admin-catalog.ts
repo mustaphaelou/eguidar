@@ -10,7 +10,6 @@ import cycleVieImageProduitParDefaut, {
   type Horloge,
   type PreuvePromotion,
   type RefusCycleVieImageProduit,
-  type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import {
@@ -311,19 +310,6 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
-function assertGalerieSansBrouillon(
-  galerie: readonly EntreeImageProduit[],
-  identifiants: { tentativeId?: string; ownerId?: string }
-): void {
-  if (!galerie.some((entree) => entree.kind === "brouillon")) return
-  if (!identifiants.tentativeId || !identifiants.ownerId) {
-    throw new CatalogValidationError([
-      "un Brouillon d'Image produit exige un identifiant de tentative et un identifiant de propriétaire",
-    ])
-  }
-  throw new BrouillonImageProduitNonPromuError()
-}
-
 function urlDeLEntree(entree: EntreeImageProduit): string {
   if (entree.kind === "brouillon")
     throw new BrouillonImageProduitNonPromuError()
@@ -375,6 +361,9 @@ function mapUniqueViolation(error: unknown): never {
 
 const MESSAGE_GALERIE_PARTIELLEMENT_LIEE =
   "Les Brouillons ne sont pas tous liés à la même tentative"
+
+const MESSAGE_REPRISE_AUTRE_PRODUIT =
+  "Cette Tentative d'édition a déjà été enregistrée pour un autre Produit"
 
 const MESSAGE_ENREGISTREMENT_ECHOUE = "L'enregistrement du Catalogue a échoué"
 
@@ -556,48 +545,60 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>,
-  revendication?: RevendicationImagesProduit
+  overrides?: Partial<CatalogEffects>
 ) {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
   const data = parseProductInput(input)
-  assertGalerieSansBrouillon(data.images, data)
-  const images = urlsGalerie(data.images)
-  await assertAucuneImageDAutreProduit(data.images, [
-    ...imageUrls(existing.images),
-    ...(revendication?.promues ?? []),
-  ])
-  assertNonNegativeVariantPrices(data)
-  assertUniqueSkusInInput(data.variants)
-  await assertUniqueSlug(data.slug, id)
-  await assertUniqueSkus(
-    data.variants.map((variant) => variant.sku),
-    id
+
+  const repris = await produitDeLaTentative(
+    data.tentativeId,
+    identifiantsDeBrouillons(data.images),
+    effects
   )
+  if (repris) {
+    if (repris.id !== id)
+      throw new DraftConflictError(MESSAGE_REPRISE_AUTRE_PRODUIT)
+    return repris
+  }
+
+  const { images, promotions } = await promouvoirBrouillons(data, effects)
 
   const keptVariantIds = data.variants.flatMap((variant) =>
     variant.id ? [variant.id] : []
   )
   const existingImages = imageUrls(existing.images)
   const removedImages = existingImages.filter((url) => !images.includes(url))
-  const existingVariantIds = await prisma.productVariant.findMany({
-    where: { productId: id },
-    select: { id: true },
-  })
-  const ownedVariantIds = new Set(
-    existingVariantIds.map((variant) => variant.id)
-  )
-  for (const variant of data.variants) {
-    if (variant.id && !ownedVariantIds.has(variant.id)) {
-      throw new CatalogValidationError(["variante inconnue pour ce produit"])
-    }
-  }
 
   let product
   try {
+    await assertAucuneImageDAutreProduit(data.images, [
+      ...existingImages,
+      ...promotions.map((preuve) => preuve.publicUrl),
+    ])
+    assertNonNegativeVariantPrices(data)
+    assertUniqueSkusInInput(data.variants)
+    await assertUniqueSlug(data.slug, id)
+    await assertUniqueSkus(
+      data.variants.map((variant) => variant.sku),
+      id
+    )
+
+    const existingVariantIds = await prisma.productVariant.findMany({
+      where: { productId: id },
+      select: { id: true },
+    })
+    const ownedVariantIds = new Set(
+      existingVariantIds.map((variant) => variant.id)
+    )
+    for (const variant of data.variants) {
+      if (variant.id && !ownedVariantIds.has(variant.id)) {
+        throw new CatalogValidationError(["variante inconnue pour ce produit"])
+      }
+    }
+
     product = await prisma.$transaction(async (tx) => {
       await tx.product.update({
         where: { id },
@@ -647,9 +648,10 @@ export async function updateProduct(
         await tx.productVariant.deleteMany({ where: { id: { in: toDelete } } })
       }
 
-      if (revendication) {
-        await revendication.lier(
+      if (promotions.length > 0) {
+        await effects.confirmerPromotion(
           id,
+          promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
@@ -660,9 +662,16 @@ export async function updateProduct(
       })
     })
   } catch (error) {
+    await compenserPromotions(promotions, effects)
     mapUniqueViolation(error)
   }
 
+  if (promotions.length > 0) {
+    await runEffect(
+      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${id}`,
+      () => effects.supprimerSources(promotions)
+    )
+  }
   await runEffect(
     `[catalog] suppression d'images R2 non effectuée pour ${id}`,
     () => effects.deleteImages(removedImages)
