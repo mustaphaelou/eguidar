@@ -79,10 +79,11 @@ export interface ScenarioRegistre {
 
 function creerBrouillon(
   registre: PortRegistreBrouillonImageProduit,
-  contexte: ContexteScenario
+  contexte: ContexteScenario,
+  draftId = contexte.draftId
 ): Promise<BrouillonImageProduit> {
   return registre.creer({
-    id: contexte.draftId,
+    id: draftId,
     ownerId: contexte.proprietaire,
     contentType: "image/png",
     byteSize: 1024,
@@ -468,6 +469,81 @@ export const SCENARIOS_REGISTRE: readonly ScenarioRegistre[] = [
         registre,
         contexte
       )
+    },
+  },
+  {
+    nom: "lire les Brouillons d'une tentative dans l'ordre de leur création",
+    async jouer(registre, contexte) {
+      const premier = randomUUID()
+      const second = randomUUID()
+      await creerBrouillon(registre, contexte, premier)
+      await revendiquer(
+        registre,
+        contexte,
+        TENTATIVE,
+        contexte.proprietaire,
+        premier
+      )
+      contexte.horloge.avancer(1)
+      await creerBrouillon(registre, contexte, second)
+      await revendiquer(
+        registre,
+        contexte,
+        TENTATIVE,
+        contexte.proprietaire,
+        second
+      )
+      return {
+        tentative: (await registre.lireParTentative(TENTATIVE)).map(projetEtat),
+        inconnue: (await registre.lireParTentative("tentative-inconnue")).map(
+          projetEtat
+        ),
+      }
+    },
+  },
+  {
+    nom: "ne pas rendre les Brouillons d'une autre tentative",
+    async jouer(registre, contexte) {
+      const mienne = randomUUID()
+      const autre = randomUUID()
+      await creerBrouillon(registre, contexte, mienne)
+      await creerBrouillon(registre, contexte, autre)
+      await revendiquer(
+        registre,
+        contexte,
+        TENTATIVE,
+        contexte.proprietaire,
+        mienne
+      )
+      await revendiquer(
+        registre,
+        contexte,
+        TENTATIVE_RIVALE,
+        contexte.proprietaire,
+        autre
+      )
+      return {
+        mienne: (await registre.lireParTentative(TENTATIVE)).map(projetEtat),
+        rivale: (await registre.lireParTentative(TENTATIVE_RIVALE)).map(
+          projetEtat
+        ),
+      }
+    },
+  },
+  {
+    nom: "ne plus rendre un Brouillon dont la revendication a été rendue",
+    async jouer(registre, contexte) {
+      await creerBrouillon(registre, contexte)
+      await revendiquer(registre, contexte, TENTATIVE)
+      const avant = (await registre.lireParTentative(TENTATIVE)).map(projetEtat)
+      await registre.annulerRevendication({
+        id: contexte.draftId,
+        tentativeId: TENTATIVE,
+      })
+      return {
+        avant,
+        apres: (await registre.lireParTentative(TENTATIVE)).map(projetEtat),
+      }
     },
   },
 ]

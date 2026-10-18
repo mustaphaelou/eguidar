@@ -1,12 +1,23 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import {
+import cycleVieImageProduitParDefaut, {
+  estLieAuProduit,
+  horlogeSysteme,
+  MESSAGE_REGISTRE_INDISPONIBLE,
   portTransactionRegistreBrouillonImageProduit,
-  type RevendicationImagesProduit,
+  type BrouillonImageProduit,
+  type CycleVieImageProduit,
+  type Horloge,
+  type PreuvePromotion,
+  type RefusCycleVieImageProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
-import { LIMITE_IMAGES_PRODUIT } from "@/lib/galerie-image-produit"
+import {
+  entreeGalerieImageProduitSchema,
+  LIMITE_IMAGES_PRODUIT,
+  type EntreeImageProduit,
+} from "@/lib/galerie-image-produit"
 import {
   LIBELLE_SANS_STRUCTURE,
   toIndexableProduct,
@@ -46,7 +57,9 @@ export interface ProductInput {
   categoryId: string
   price: number
   specs: Record<string, string>
-  images: string[]
+  images: readonly (string | EntreeImageProduit)[]
+  tentativeId?: string
+  ownerId?: string
   isFeatured: boolean
   featuredOrder: number
   freeShipping: boolean
@@ -58,6 +71,12 @@ export interface CatalogEffects {
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): void
   deleteImages(urls: string[]): Promise<void>
+  preparerPromotionBrouillons: CycleVieImageProduit["preparerPromotionBrouillons"]
+  confirmerBrouillons: CycleVieImageProduit["confirmerBrouillons"]
+  compenserPromotionBrouillons: CycleVieImageProduit["compenserPromotionBrouillons"]
+  supprimerSources: CycleVieImageProduit["supprimerSources"]
+  lireBrouillonsDeLaTentative: CycleVieImageProduit["lireBrouillonsDeLaTentative"]
+  horloge: Horloge
 }
 
 function journaliserEchecSuppressionImage(
@@ -71,7 +90,7 @@ function journaliserEchecSuppressionImage(
   )
 }
 
-function defaultCatalogEffects(productId: string): CatalogEffects {
+export function defaultCatalogEffects(productId: string): CatalogEffects {
   return {
     reindexProducts: indexProductDocuments,
     async removeProductFromIndex(id) {
@@ -93,6 +112,15 @@ function defaultCatalogEffects(productId: string): CatalogEffects {
         }
       }
     },
+    preparerPromotionBrouillons:
+      cycleVieImageProduitParDefaut.preparerPromotionBrouillons,
+    confirmerBrouillons: cycleVieImageProduitParDefaut.confirmerBrouillons,
+    compenserPromotionBrouillons:
+      cycleVieImageProduitParDefaut.compenserPromotionBrouillons,
+    supprimerSources: cycleVieImageProduitParDefaut.supprimerSources,
+    lireBrouillonsDeLaTentative:
+      cycleVieImageProduitParDefaut.lireBrouillonsDeLaTentative,
+    horloge: horlogeSysteme,
   }
 }
 
@@ -117,7 +145,7 @@ export class DuplicateSkuError extends UserFacingError {
   }
 }
 
-export class ProductNotFoundError extends Error {
+export class ProductNotFoundError extends UserFacingError {
   constructor() {
     super("Produit introuvable")
     this.name = "ProductNotFoundError"
@@ -131,6 +159,41 @@ export class VariantNotFoundError extends Error {
   }
 }
 
+export class DraftPromotionRefusedError extends UserFacingError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftPromotionRefusedError"
+  }
+}
+
+export class DraftExpiredError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftExpiredError"
+  }
+}
+
+export class DraftConflictError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftConflictError"
+  }
+}
+
+export class ImageStorageUnavailableError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "ImageStorageUnavailableError"
+  }
+}
+
+export class DraftRegistryUnavailableError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftRegistryUnavailableError"
+  }
+}
+
 const variantInputSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "nom de variante requis"),
@@ -138,6 +201,22 @@ const variantInputSchema = z.object({
   priceDelta: z.number().int(),
   stock: z.number().int().min(0, "le stock doit être positif ou nul"),
 })
+
+function normaliserGalerie(
+  entrees: readonly (string | EntreeImageProduit)[]
+): EntreeImageProduit[] {
+  return entrees.map((entree) =>
+    typeof entree === "string" ? { kind: "persistee", url: entree } : entree
+  )
+}
+
+const galerieSoumiseSchema = z
+  .array(z.union([z.string(), entreeGalerieImageProduitSchema]))
+  .transform(normaliserGalerie)
+  .refine(
+    (galerie) => galerie.length <= LIMITE_IMAGES_PRODUIT,
+    `au maximum ${LIMITE_IMAGES_PRODUIT} images par produit`
+  )
 
 const productInputSchema = z.object({
   name: z.string().min(1, "nom requis"),
@@ -153,19 +232,23 @@ const productInputSchema = z.object({
   categoryId: z.string().min(1, "catégorie requise"),
   price: z.number().int().min(0, "le prix doit être positif ou nul"),
   specs: z.record(z.string(), z.string()),
-  images: z
-    .array(z.string())
-    .max(
-      LIMITE_IMAGES_PRODUIT,
-      `au maximum ${LIMITE_IMAGES_PRODUIT} images par produit`
-    ),
+  images: galerieSoumiseSchema,
+  tentativeId: z
+    .string()
+    .min(1, "identifiant de tentative invalide")
+    .optional(),
+  ownerId: z.string().min(1, "identifiant de propriétaire invalide").optional(),
   isFeatured: z.boolean(),
   featuredOrder: z.number().int().min(0),
   freeShipping: z.boolean(),
   variants: z.array(variantInputSchema),
 })
 
-function parseProductInput(input: ProductInput): ProductInput {
+interface ProduitValide extends Omit<ProductInput, "images"> {
+  images: EntreeImageProduit[]
+}
+
+function parseProductInput(input: ProductInput): ProduitValide {
   const result = productInputSchema.safeParse(input)
   if (!result.success) {
     throw new CatalogValidationError(
@@ -219,29 +302,38 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
-function assertPersistedImagesAreOwned(
-  storedImages: unknown,
-  submittedImages: readonly string[],
-  promues: readonly string[] = []
-): void {
-  const autorisees = new Set([...imageUrls(storedImages), ...promues])
-  if (submittedImages.some((url) => !autorisees.has(url))) {
-    throw new CatalogValidationError([
-      "une Image produit persistée n'appartient pas à ce Produit",
-    ])
-  }
+function urlsGalerie(galerie: readonly EntreeImageProduit[]): string[] {
+  return galerie.flatMap((entree) =>
+    entree.kind === "persistee" ? [entree.url] : []
+  )
 }
 
-function assertCreationImagesArePromoted(
-  imagesEcrites: readonly string[],
-  revendication?: RevendicationImagesProduit
-): void {
-  const promues = new Set(revendication?.promues ?? [])
-  if (imagesEcrites.some((url) => !promues.has(url))) {
-    throw new CatalogValidationError([
-      "une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit",
-    ])
-  }
+const MESSAGE_IMAGE_AUTRE_PRODUIT =
+  "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
+
+async function assertAucuneImageDAutreProduit(
+  galerie: readonly EntreeImageProduit[],
+  autorisees: readonly string[]
+): Promise<void> {
+  const connues = new Set(autorisees)
+  const candidates = [
+    ...new Set(
+      galerie.flatMap((entree) =>
+        entree.kind === "persistee" && !connues.has(entree.url)
+          ? [entree.url]
+          : []
+      )
+    ),
+  ]
+  if (candidates.length === 0) return
+
+  const autre = await prisma.product.findFirst({
+    where: {
+      OR: candidates.map((url) => ({ images: { array_contains: [url] } })),
+    },
+    select: { id: true },
+  })
+  if (autre) throw new CatalogValidationError([MESSAGE_IMAGE_AUTRE_PRODUIT])
 }
 
 function mapUniqueViolation(error: unknown): never {
@@ -255,17 +347,124 @@ function mapUniqueViolation(error: unknown): never {
   )
 }
 
+const MESSAGE_BROUILLONS_PARTIELLEMENT_LIES =
+  "Les Brouillons ne sont pas tous liés à la même tentative"
+
+const MESSAGE_REPRISE_AUTRE_PRODUIT =
+  "Cette Tentative d'édition a déjà été enregistrée pour un autre Produit"
+
+const MESSAGE_ENREGISTREMENT_ECHOUE = "L'enregistrement du Catalogue a échoué"
+
+function identifiantsDeBrouillons(
+  galerie: readonly EntreeImageProduit[]
+): string[] {
+  return [
+    ...new Set(
+      galerie.flatMap((entree) =>
+        entree.kind === "brouillon" ? [entree.draftId] : []
+      )
+    ),
+  ]
+}
+
+function erreurDePreparation(
+  refus: RefusCycleVieImageProduit
+): UserFacingError {
+  switch (refus.code) {
+    case "brouillon-expire":
+      return new DraftExpiredError(refus.message)
+    case "brouillon-non-vivant":
+      return new DraftConflictError(refus.message)
+    case "stockage-indisponible":
+    case "stockage-refuse":
+      return new ImageStorageUnavailableError(refus.message)
+    case "registre-indisponible":
+      return new DraftRegistryUnavailableError(refus.message)
+    default:
+      return new DraftPromotionRefusedError(refus.message)
+  }
+}
+
+async function produitDeLaTentative(
+  tentativeId: string | undefined,
+  brouillonsSoumis: readonly string[],
+  effects: CatalogEffects
+) {
+  if (!tentativeId || brouillonsSoumis.length === 0) return null
+
+  let lus: BrouillonImageProduit[]
+  try {
+    lus = await effects.lireBrouillonsDeLaTentative(tentativeId)
+  } catch {
+    throw new DraftRegistryUnavailableError(MESSAGE_REGISTRE_INDISPONIBLE)
+  }
+
+  const soumis = new Set(brouillonsSoumis)
+  const lies = lus
+    .filter((brouillon) => soumis.has(brouillon.id))
+    .filter(estLieAuProduit)
+  if (lies.length === 0) return null
+  if (
+    lies.length !== brouillonsSoumis.length ||
+    new Set(lies.map((brouillon) => brouillon.productId)).size !== 1
+  ) {
+    throw new DraftConflictError(MESSAGE_BROUILLONS_PARTIELLEMENT_LIES)
+  }
+
+  const produit = await prisma.product.findUnique({
+    where: { id: lies[0].productId },
+    include: { variants: true, category: true },
+  })
+  if (!produit) throw new UserFacingError(MESSAGE_ENREGISTREMENT_ECHOUE)
+  return produit
+}
+
+async function promouvoirBrouillons(
+  data: ProduitValide,
+  effects: CatalogEffects
+): Promise<{ images: string[]; promotions: PreuvePromotion[] }> {
+  if (identifiantsDeBrouillons(data.images).length === 0) {
+    return { images: urlsGalerie(data.images), promotions: [] }
+  }
+
+  const preparation = await effects.preparerPromotionBrouillons({
+    tentativeId: data.tentativeId ?? "",
+    ownerId: data.ownerId ?? "",
+    galerie: data.images,
+  })
+  if (!preparation.ok) throw erreurDePreparation(preparation)
+  return { images: preparation.galerie, promotions: preparation.promotions }
+}
+
+async function compenserPromotions(
+  promotions: readonly PreuvePromotion[],
+  effects: CatalogEffects
+): Promise<void> {
+  if (promotions.length === 0) return
+  await effects.compenserPromotionBrouillons(promotions)
+}
+
 export async function createProduct(
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>,
-  revendication?: RevendicationImagesProduit
+  overrides?: Partial<CatalogEffects>
 ) {
   const data = parseProductInput(input)
-  assertCreationImagesArePromoted(data.images, revendication)
+  const effects = avecSurcharges(defaultCatalogEffects(data.slug), overrides)
+
+  const repris = await produitDeLaTentative(
+    data.tentativeId,
+    identifiantsDeBrouillons(data.images),
+    effects
+  )
+  if (repris) return repris
+
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
+  await assertAucuneImageDAutreProduit(data.images, [])
   await assertUniqueSlug(data.slug)
   await assertUniqueSkus(data.variants.map((variant) => variant.sku))
+
+  const { images, promotions } = await promouvoirBrouillons(data, effects)
 
   let product
   try {
@@ -278,7 +477,7 @@ export async function createProduct(
           brand: data.brand,
           price: data.price,
           specs: data.specs,
-          images: data.images,
+          images,
           isFeatured: data.isFeatured,
           featuredOrder: data.featuredOrder,
           freeShipping: data.freeShipping,
@@ -294,19 +493,26 @@ export async function createProduct(
         },
         include: { variants: true, category: true },
       })
-      if (revendication) {
-        await revendication.lier(
+      if (promotions.length > 0) {
+        await effects.confirmerBrouillons(
           created.id,
+          promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
       return created
     })
   } catch (error) {
+    await compenserPromotions(promotions, effects)
     mapUniqueViolation(error)
   }
 
-  const effects = avecSurcharges(defaultCatalogEffects(product.id), overrides)
+  if (promotions.length > 0) {
+    await runEffect(
+      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${product.id}`,
+      () => effects.supprimerSources(promotions)
+    )
+  }
   await runEffect(
     `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
     () => effects.reindexProducts([toIndexableProduct(product)])
@@ -321,19 +527,31 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>,
-  revendication?: RevendicationImagesProduit
+  overrides?: Partial<CatalogEffects>
 ) {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
   const existing = await prisma.product.findUnique({ where: { id } })
   if (!existing) throw new ProductNotFoundError()
 
   const data = parseProductInput(input)
-  assertPersistedImagesAreOwned(
-    existing.images,
-    data.images,
-    revendication?.promues
+
+  const repris = await produitDeLaTentative(
+    data.tentativeId,
+    identifiantsDeBrouillons(data.images),
+    effects
   )
+  if (repris) {
+    if (repris.id !== id)
+      throw new DraftConflictError(MESSAGE_REPRISE_AUTRE_PRODUIT)
+    return repris
+  }
+
+  const existingImages = imageUrls(existing.images)
+  const keptVariantIds = data.variants.flatMap((variant) =>
+    variant.id ? [variant.id] : []
+  )
+
+  await assertAucuneImageDAutreProduit(data.images, existingImages)
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
   await assertUniqueSlug(data.slug, id)
@@ -342,13 +560,6 @@ export async function updateProduct(
     id
   )
 
-  const keptVariantIds = data.variants.flatMap((variant) =>
-    variant.id ? [variant.id] : []
-  )
-  const existingImages = imageUrls(existing.images)
-  const removedImages = existingImages.filter(
-    (url) => !data.images.includes(url)
-  )
   const existingVariantIds = await prisma.productVariant.findMany({
     where: { productId: id },
     select: { id: true },
@@ -362,6 +573,9 @@ export async function updateProduct(
     }
   }
 
+  const { images, promotions } = await promouvoirBrouillons(data, effects)
+  const removedImages = existingImages.filter((url) => !images.includes(url))
+
   let product
   try {
     product = await prisma.$transaction(async (tx) => {
@@ -374,7 +588,7 @@ export async function updateProduct(
           brand: data.brand,
           price: data.price,
           specs: data.specs,
-          images: data.images,
+          images,
           isFeatured: data.isFeatured,
           featuredOrder: data.featuredOrder,
           freeShipping: data.freeShipping,
@@ -413,9 +627,10 @@ export async function updateProduct(
         await tx.productVariant.deleteMany({ where: { id: { in: toDelete } } })
       }
 
-      if (revendication) {
-        await revendication.lier(
+      if (promotions.length > 0) {
+        await effects.confirmerBrouillons(
           id,
+          promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
@@ -426,9 +641,16 @@ export async function updateProduct(
       })
     })
   } catch (error) {
+    await compenserPromotions(promotions, effects)
     mapUniqueViolation(error)
   }
 
+  if (promotions.length > 0) {
+    await runEffect(
+      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${id}`,
+      () => effects.supprimerSources(promotions)
+    )
+  }
   await runEffect(
     `[catalog] suppression d'images R2 non effectuée pour ${id}`,
     () => effects.deleteImages(removedImages)

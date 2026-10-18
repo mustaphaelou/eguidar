@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   CatalogValidationError,
+  DraftConflictError,
+  DraftExpiredError,
+  DraftPromotionRefusedError,
+  DraftRegistryUnavailableError,
   DuplicateSkuError,
+  ImageStorageUnavailableError,
   ProductNotFoundError,
   SlugConflictError,
   VariantNotFoundError,
@@ -13,6 +18,18 @@ const errorFactory: [string, () => unknown][] = [
   ["CatalogValidationError", () => new CatalogValidationError(["nom requis"])],
   ["SlugConflictError", () => new SlugConflictError()],
   ["DuplicateSkuError", () => new DuplicateSkuError()],
+  ["ProductNotFoundError", () => new ProductNotFoundError()],
+  ["DraftPromotionRefusedError", () => new DraftPromotionRefusedError("refus")],
+  ["DraftExpiredError", () => new DraftExpiredError("expiré")],
+  ["DraftConflictError", () => new DraftConflictError("conflit")],
+  [
+    "ImageStorageUnavailableError",
+    () => new ImageStorageUnavailableError("stockage indisponible"),
+  ],
+  [
+    "DraftRegistryUnavailableError",
+    () => new DraftRegistryUnavailableError("registre indisponible"),
+  ],
 ]
 
 describe.each(errorFactory)("%s", (_name, create) => {
@@ -21,11 +38,8 @@ describe.each(errorFactory)("%s", (_name, create) => {
   })
 })
 
-describe.each([
-  ["ProductNotFoundError", () => new ProductNotFoundError()],
-  ["VariantNotFoundError", () => new VariantNotFoundError()],
-])("%s", (_name, create) => {
+describe("VariantNotFoundError", () => {
   it("stays a plain error so it bubbles from task paths", () => {
-    expect(create()).not.toBeInstanceOf(UserFacingError)
+    expect(new VariantNotFoundError()).not.toBeInstanceOf(UserFacingError)
   })
 })

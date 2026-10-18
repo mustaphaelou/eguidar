@@ -1,6 +1,5 @@
 import {
   creerCycleVieImageProduit,
-  RevendicationImagesProduit,
   type BrouillonImageProduit,
   type CodeRefusRegistreBrouillon,
   type EntreeCreationBrouillonImageProduit,
@@ -278,6 +277,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
 export type OperationRegistre =
   | "creer"
   | "lire"
+  | "lireParTentative"
   | "revendiquer"
   | "confirmerPromotion"
   | "annulerRevendication"
@@ -358,6 +358,18 @@ export function creerRegistreImageProduitMemoire(
         brouillon.state = "expiré"
       }
       return copieBrouillon(brouillon)
+    },
+
+    async lireParTentative(tentativeId) {
+      panne("lireParTentative")
+      return [...records.values()]
+        .filter((brouillon) => brouillon.tentativeId === tentativeId)
+        .sort(
+          (premier, second) =>
+            premier.createdAt.getTime() - second.createdAt.getTime() ||
+            (premier.id < second.id ? -1 : premier.id > second.id ? 1 : 0)
+        )
+        .map(copieBrouillon)
     },
 
     async revendiquer(input) {
@@ -491,16 +503,6 @@ export function brouillon(draftId: string): EntreeImageProduit {
     draftId,
     previewUrl: `https://preview.test/${draftId}`,
   }
-}
-
-export function sansTransaction(
-  revendication: RevendicationImagesProduit
-): RevendicationImagesProduit {
-  return RevendicationImagesProduit.creer({
-    galerie: revendication.galerie,
-    promues: revendication.promues,
-    lier: (productId) => revendication.lier(productId),
-  })
 }
 
 export function creerCycleVieTest(dateInitiale: Date) {

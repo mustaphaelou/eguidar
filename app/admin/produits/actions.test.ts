@@ -1,44 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import type {
-  CatalogEffects,
-  ProductInput,
-} from "@/lib/use-cases/admin-catalog"
+import type { ProductInput } from "@/lib/use-cases/admin-catalog"
 import type { Client } from "@/lib/use-cases/session-courante"
-import {
-  brouillon,
-  persistee,
-  urlImagePersistee,
-} from "@/test/cycle-vie-image-produit-memoire"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
-
-const { cycleVie, horloge, instant, registre, stockage } = await vi.hoisted(
-  async () => {
-    const [module, adaptateurs] = await Promise.all([
-      import("@/lib/cycle-vie-image-produit"),
-      import("@/test/cycle-vie-image-produit-memoire"),
-    ])
-    const instant = new Date("2026-01-15T10:00:00.000Z")
-    const horloge = adaptateurs.creerHorlogeControllable(instant)
-    const stockage = adaptateurs.creerStockageImageProduitMemoire()
-    const registre = adaptateurs.creerRegistreImageProduitMemoire(() =>
-      horloge.horloge.maintenant()
-    )
-    return {
-      instant,
-      horloge,
-      stockage,
-      registre,
-      cycleVie: module.creerCycleVieImageProduit({
-        stockage,
-        registre,
-        horloge: horloge.horloge,
-      }),
-    }
-  }
-)
 
 const catalogue = vi.hoisted(creerCatalogueFaux)
 
@@ -56,32 +21,22 @@ vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => ({
 
 vi.mock("@/lib/use-cases/admin-catalog", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/use-cases/admin-catalog")>()),
-  createProduct: (
-    champs: ProductInput,
-    _effets: Partial<CatalogEffects> | undefined,
-    revendication: RevendicationImagesProduit | undefined
-  ) => catalogue.creer(champs, revendication),
-  updateProduct: (
-    produitId: string,
-    champs: ProductInput,
-    _effets: Partial<CatalogEffects> | undefined,
-    revendication: RevendicationImagesProduit | undefined
-  ) => catalogue.mettreAJour(produitId, champs, revendication),
-  getAdminProduct: (produitId: string) =>
-    Promise.resolve(catalogue.relire(produitId)),
+  createProduct: (champs: ProductInput) => catalogue.creer(champs),
+  updateProduct: (produitId: string, champs: ProductInput) =>
+    catalogue.mettreAJour(produitId, champs),
+  deleteProduct: (produitId: string) => catalogue.supprimer(produitId),
 }))
-
-vi.mock("@/lib/cycle-vie-image-produit", async (importOriginal) => {
-  const reel =
-    await importOriginal<typeof import("@/lib/cycle-vie-image-produit")>()
-  return { ...reel, default: cycleVie }
-})
 
 import {
   createProductAction,
+  deleteProductAction,
   updateProductAction,
 } from "@/app/admin/produits/actions"
-import { CatalogValidationError } from "@/lib/use-cases/admin-catalog"
+import {
+  CatalogValidationError,
+  ProductNotFoundError,
+} from "@/lib/use-cases/admin-catalog"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const ADMIN: Client = {
   id: "editeur-1",
@@ -90,66 +45,57 @@ const ADMIN: Client = {
   role: "admin",
 }
 
-interface EcritureCatalogue {
+interface AppelCatalogue {
   readonly produitId: string
-  readonly galerie: readonly string[]
-}
-
-interface ProduitRelu {
-  readonly id: string
-  readonly images: readonly string[]
+  readonly champs: ProductInput
 }
 
 interface CatalogueFaux {
-  readonly ecritures: EcritureCatalogue[]
+  readonly appels: AppelCatalogue[]
+  readonly suppressions: string[]
   refus: Error | null
-  creer(
-    champs: ProductInput,
-    revendication?: RevendicationImagesProduit
-  ): Promise<{ id: string }>
-  mettreAJour(
-    produitId: string,
-    champs: ProductInput,
-    revendication?: RevendicationImagesProduit
-  ): Promise<{ id: string }>
-  relire(produitId: string): ProduitRelu | null
+  creer(champs: ProductInput): Promise<{ id: string }>
+  mettreAJour(produitId: string, champs: ProductInput): Promise<{ id: string }>
+  supprimer(produitId: string): Promise<void>
   oublier(): void
 }
 
 function creerCatalogueFaux(): CatalogueFaux {
-  const ecritures: EcritureCatalogue[] = []
+  const appels: AppelCatalogue[] = []
+  const suppressions: string[] = []
   let compteur = 0
 
-  async function ecrire(
-    produitId: string,
-    champs: ProductInput,
-    revendication?: RevendicationImagesProduit
-  ): Promise<{ id: string }> {
+  async function refuser(): Promise<void> {
     if (faux.refus) throw faux.refus
-    if (revendication) await revendication.lier(produitId)
-    ecritures.push({ produitId, galerie: [...champs.images] })
+  }
+
+  async function enregistrer(
+    produitId: string,
+    champs: ProductInput
+  ): Promise<{ id: string }> {
+    await refuser()
+    appels.push({ produitId, champs })
     return { id: produitId }
   }
 
   const faux: CatalogueFaux = {
-    ecritures,
+    appels,
+    suppressions,
     refus: null,
-    creer(champs, revendication) {
+    creer(champs) {
       compteur += 1
-      return ecrire(`produit-${compteur}`, champs, revendication)
+      return enregistrer(`produit-${compteur}`, champs)
     },
-    mettreAJour(produitId, champs, revendication) {
-      return ecrire(produitId, champs, revendication)
+    mettreAJour(produitId, champs) {
+      return enregistrer(produitId, champs)
     },
-    relire(produitId) {
-      const ecriture = ecritures.find(
-        ({ produitId: ecrit }) => ecrit === produitId
-      )
-      if (!ecriture) return null
-      return { id: produitId, images: [...ecriture.galerie] }
+    async supprimer(produitId) {
+      await refuser()
+      suppressions.push(produitId)
     },
     oublier() {
-      ecritures.length = 0
+      appels.length = 0
+      suppressions.length = 0
       compteur = 0
       faux.refus = null
     },
@@ -158,30 +104,16 @@ function creerCatalogueFaux(): CatalogueFaux {
   return faux
 }
 
-beforeEach(() => {
-  sessionCouranteMock.mockResolvedValue(ADMIN)
-  redirectMock.mockClear()
-  catalogue.oublier()
-  registre.records.clear()
-  stockage.presignatures.length = 0
-  stockage.promotions.length = 0
-  stockage.suppressionsBrouillons.length = 0
-  stockage.suppressionsImagesPromues.length = 0
-  stockage.failPresign = false
-  stockage.failPromotion = false
-  stockage.failDelete = false
-  for (const pannes of Object.values(stockage.pannes)) pannes.clear()
-  horloge.fixer(instant)
-})
+function persistee(url: string): EntreeImageProduit {
+  return { kind: "persistee", url }
+}
 
-async function televerser(ownerId = ADMIN.id): Promise<string> {
-  const demande = await cycleVie.demanderBrouillon({
-    ownerId,
-    contentType: "image/webp",
-    size: 2048,
-  })
-  if (!demande.ok) throw new Error("La demande de Brouillon devait réussir")
-  return demande.draftId
+function brouillon(draftId: string): EntreeImageProduit {
+  return {
+    kind: "brouillon",
+    draftId,
+    previewUrl: `https://apercu.test/${draftId}`,
+  }
 }
 
 function formData(
@@ -215,33 +147,55 @@ function updateFormData(
   return data
 }
 
+function formulaireSuppression(): FormData {
+  const data = new FormData()
+  data.append("productId", "produit-1")
+  return data
+}
+
+beforeEach(() => {
+  sessionCouranteMock.mockResolvedValue(ADMIN)
+  redirectMock.mockClear()
+  catalogue.oublier()
+})
+
 describe("createProductAction", () => {
-  it("enregistre la galerie soumise dans l'ordre de l'éditeur, et lie le Produit au Brouillon promu", async () => {
-    const draftId = await televerser()
-    const existante = "https://cdn.test/produits/existante.webp"
+  it("décode le formulaire et confie au Catalogue la galerie brute, la Tentative et le Propriétaire", async () => {
+    const galerie = [
+      persistee("https://cdn.test/produits/existante.webp"),
+      brouillon("brouillon-1"),
+    ]
 
     await expect(
-      createProductAction(
-        {},
-        formData([persistee(existante), brouillon(draftId)])
-      )
+      createProductAction({}, formData(galerie))
     ).rejects.toMatchObject({
       name: "NEXT_REDIRECT",
       url: "/admin/produits/produit-1",
     })
 
-    expect(catalogue.ecritures).toEqual([
+    expect(catalogue.appels).toEqual([
       {
         produitId: "produit-1",
-        galerie: [existante, urlImagePersistee(draftId, "image/webp")],
+        champs: {
+          name: "Produit",
+          slug: "produit-de-test",
+          description: "Description",
+          brand: "Marque",
+          categoryId: "categorie-1",
+          price: 10000,
+          specs: {},
+          images: galerie,
+          tentativeId: "tentative-1",
+          ownerId: ADMIN.id,
+          isFeatured: false,
+          featuredOrder: 0,
+          freeShipping: false,
+          variants: [
+            { name: "Standard", sku: "SKU-1", priceDelta: 0, stock: 2 },
+          ],
+        },
       },
     ])
-    expect(registre.records.get(draftId)).toMatchObject({
-      state: "revendiqué",
-      tentativeId: "tentative-1",
-      productId: "produit-1",
-      promotedPublicUrl: urlImagePersistee(draftId, "image/webp"),
-    })
   })
 
   it("crée un Produit sans image, et lui en donnera par une mise à jour", async () => {
@@ -250,241 +204,138 @@ describe("createProductAction", () => {
       url: "/admin/produits/produit-1",
     })
 
-    expect(catalogue.ecritures).toEqual([
-      { produitId: "produit-1", galerie: [] },
-    ])
-    expect(registre.records.size).toBe(0)
+    expect(catalogue.appels).toHaveLength(1)
+    expect(catalogue.appels[0]?.champs.images).toEqual([])
   })
 
-  it("refuse une création qui porte une Image produit déjà enregistrée, sans rien écrire", async () => {
-    const messageRegle =
-      "une création ne peut écrire que des Images produit téléversées dans sa galerie ; une Image produit déjà enregistrée appartient à un autre Produit"
-    const draftId = await televerser()
-    catalogue.refus = new CatalogValidationError([messageRegle])
+  it("remet un refus du domaine à l'éditeur tel quel, sans rien enregistrer", async () => {
+    catalogue.refus = new UserFacingError("Ce brouillon ne vous appartient pas")
 
     const resultat = await createProductAction(
       {},
-      formData([
-        persistee("https://cdn.test/produits/dun-autre-produit.webp"),
-        brouillon(draftId),
-      ])
-    )
-
-    expect(resultat).toEqual({ error: `Données invalides : ${messageRegle}` })
-    expect(catalogue.ecritures).toEqual([])
-    expect(registre.records.get(draftId)).toMatchObject({
-      state: "vivant",
-      tentativeId: null,
-      productId: null,
-    })
-  })
-
-  it("remet un refus du cycle de vie à l'éditeur comme le sien, sans laisser de trace", async () => {
-    const mien = await televerser()
-    const autre = await televerser("editeur-2")
-
-    const resultat = await createProductAction(
-      {},
-      formData([brouillon(mien), brouillon(autre)])
+      formData([brouillon("brouillon-1")])
     )
 
     expect(resultat).toEqual({ error: "Ce brouillon ne vous appartient pas" })
-    expect(catalogue.ecritures).toEqual([])
-    expect(stockage.promotions).toEqual([])
-    expect(registre.records.get(mien)).toMatchObject({
-      state: "vivant",
-      tentativeId: null,
-      productId: null,
-    })
-    expect(registre.records.get(autre)).toMatchObject({
-      state: "vivant",
-      tentativeId: null,
-      productId: null,
-    })
+    expect(catalogue.appels).toEqual([])
   })
 
-  it("soumettre deux fois le même formulaire résout au même Produit, sans réécrire le Catalogue", async () => {
-    const draftId = await televerser()
-    const soumission = formData([brouillon(draftId)])
+  it("met en forme un refus de validation du Catalogue sans le réécrire", async () => {
+    const messageRegle =
+      "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
+    catalogue.refus = new CatalogValidationError([messageRegle])
 
-    await expect(createProductAction({}, soumission)).rejects.toMatchObject({
-      name: "NEXT_REDIRECT",
-      url: "/admin/produits/produit-1",
-    })
-    await expect(createProductAction({}, soumission)).rejects.toMatchObject({
-      name: "NEXT_REDIRECT",
-      url: "/admin/produits/produit-1",
-    })
+    const resultat = await createProductAction({}, formData([]))
 
-    expect(catalogue.ecritures).toEqual([
-      {
-        produitId: "produit-1",
-        galerie: [urlImagePersistee(draftId, "image/webp")],
-      },
-    ])
-    expect(registre.records.get(draftId)).toMatchObject({
-      state: "revendiqué",
-      tentativeId: "tentative-1",
-      productId: "produit-1",
-    })
+    expect(resultat).toEqual({ error: `Données invalides : ${messageRegle}` })
+    expect(catalogue.appels).toEqual([])
+  })
+
+  it("n'invente pas de message pour une panne du Catalogue : l'erreur remonte", async () => {
+    catalogue.refus = new Error("échec transactionnel")
+
+    await expect(createProductAction({}, formData([]))).rejects.toThrow(
+      "échec transactionnel"
+    )
+    expect(catalogue.appels).toEqual([])
+  })
+
+  it("refuse un formulaire illisible sans appeler le Catalogue", async () => {
+    const illisible = formData([])
+    illisible.set("price", "abc")
+
+    const resultat = await createProductAction({}, illisible)
+
+    expect(resultat).toEqual({ error: "Formulaire invalide" })
+    expect(catalogue.appels).toEqual([])
   })
 })
 
 describe("updateProductAction", () => {
-  it("enregistre la galerie soumise : un Brouillon intercalé atterrit entre les Images produit persistées", async () => {
-    const premier = await televerser()
-    const second = await televerser()
-    const premierePersistee = "https://cdn.test/produits/premiere.webp"
-    const secondePersistee = "https://cdn.test/produits/seconde.webp"
+  it("décode le formulaire et confie au Catalogue la galerie brute dans l'ordre de l'éditeur", async () => {
+    const galerie = [
+      persistee("https://cdn.test/produits/premiere.webp"),
+      brouillon("brouillon-1"),
+      persistee("https://cdn.test/produits/seconde.webp"),
+      brouillon("brouillon-2"),
+    ]
 
     await expect(
-      updateProductAction(
-        {},
-        updateFormData([
-          persistee(premierePersistee),
-          brouillon(premier),
-          persistee(secondePersistee),
-          brouillon(second),
-        ])
-      )
+      updateProductAction({}, updateFormData(galerie))
     ).rejects.toMatchObject({
       name: "NEXT_REDIRECT",
       url: "/admin/produits",
     })
 
-    expect(catalogue.ecritures).toEqual([
+    expect(catalogue.appels).toEqual([
       {
         produitId: "produit-1",
-        galerie: [
-          premierePersistee,
-          urlImagePersistee(premier, "image/webp"),
-          secondePersistee,
-          urlImagePersistee(second, "image/webp"),
-        ],
+        champs: {
+          name: "Produit",
+          slug: "produit-de-test",
+          description: "Description",
+          brand: "Marque",
+          categoryId: "categorie-1",
+          price: 10000,
+          specs: {},
+          images: galerie,
+          tentativeId: "tentative-update-1",
+          ownerId: ADMIN.id,
+          isFeatured: false,
+          featuredOrder: 0,
+          freeShipping: false,
+          variants: [
+            { name: "Standard", sku: "SKU-1", priceDelta: 0, stock: 2 },
+          ],
+        },
       },
     ])
-    expect(registre.records.get(premier)).toMatchObject({
-      state: "revendiqué",
-      tentativeId: "tentative-update-1",
-      productId: "produit-1",
-      promotedPublicUrl: urlImagePersistee(premier, "image/webp"),
-    })
-    expect(registre.records.get(second)).toMatchObject({
-      state: "revendiqué",
-      tentativeId: "tentative-update-1",
-      productId: "produit-1",
-      promotedPublicUrl: urlImagePersistee(second, "image/webp"),
-    })
   })
 
-  it("laisse le Catalogue refuser une Image produit absente du stock du Produit, sans rien écrire", async () => {
-    const draftId = await televerser()
+  it("laisse le refus du Catalogue remonter tel quel, sans rien enregistrer", async () => {
     catalogue.refus = new CatalogValidationError([
-      "une Image produit persistée n'appartient pas à ce Produit",
+      "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
     ])
 
     const resultat = await updateProductAction(
       {},
-      updateFormData([
-        persistee("https://cdn.test/produits/dun-autre-produit.webp"),
-        brouillon(draftId),
-      ])
+      updateFormData([persistee("https://cdn.test/produits/dun-autre.webp")])
     )
 
     expect(resultat).toEqual({
       error:
-        "Données invalides : une Image produit persistée n'appartient pas à ce Produit",
+        "Données invalides : une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
     })
-    expect(catalogue.ecritures).toEqual([])
-    expect(registre.records.get(draftId)).toMatchObject({
-      state: "vivant",
-      tentativeId: null,
-      productId: null,
-    })
+    expect(catalogue.appels).toEqual([])
   })
 
-  it("laisse chaque Brouillon revendicable après un échec de l'écriture, et le retry le promeut à nouveau", async () => {
-    const draftId = await televerser()
-    const soumission = updateFormData([brouillon(draftId)])
-    catalogue.refus = new Error("échec transactionnel")
+  it("refuse une mise à jour sans identifiant de Produit sans appeler le Catalogue", async () => {
+    const resultat = await updateProductAction({}, formData([]))
 
-    const echec = await updateProductAction({}, soumission)
+    expect(resultat).toEqual({ error: "Formulaire invalide" })
+    expect(catalogue.appels).toEqual([])
+  })
 
-    expect(echec).toEqual({ error: "L'enregistrement du Catalogue a échoué" })
-    expect(catalogue.ecritures).toEqual([])
-    expect(registre.records.get(draftId)).toMatchObject({
-      state: "vivant",
-      tentativeId: null,
-      productId: null,
-    })
-    expect(stockage.suppressionsBrouillons).toEqual([])
+  it("rend un refus formaté quand le Produit a disparu entre-temps, pas une page d'erreur", async () => {
+    catalogue.refus = new ProductNotFoundError()
 
-    catalogue.refus = null
-    await expect(updateProductAction({}, soumission)).rejects.toMatchObject({
+    const resultat = await updateProductAction({}, updateFormData([]))
+
+    expect(resultat).toEqual({ error: "Produit introuvable" })
+    expect(catalogue.appels).toEqual([])
+  })
+})
+
+describe("deleteProductAction", () => {
+  it("redirige vers la liste quand le Produit a déjà disparu, sans page d'erreur", async () => {
+    catalogue.refus = new ProductNotFoundError()
+
+    await expect(
+      deleteProductAction(formulaireSuppression())
+    ).rejects.toMatchObject({
       name: "NEXT_REDIRECT",
       url: "/admin/produits",
     })
-
-    expect(catalogue.ecritures).toEqual([
-      {
-        produitId: "produit-1",
-        galerie: [urlImagePersistee(draftId, "image/webp")],
-      },
-    ])
-    expect(stockage.promotions.map((promotion) => promotion.draftId)).toEqual([
-      draftId,
-      draftId,
-    ])
-  })
-
-  it("un retry de la même tentative relit le commit et ne réécrit pas le Catalogue", async () => {
-    const draftId = await televerser()
-    const soumission = updateFormData([brouillon(draftId)])
-
-    await expect(updateProductAction({}, soumission)).rejects.toMatchObject({
-      name: "NEXT_REDIRECT",
-      url: "/admin/produits",
-    })
-    await expect(updateProductAction({}, soumission)).rejects.toMatchObject({
-      name: "NEXT_REDIRECT",
-      url: "/admin/produits",
-    })
-
-    expect(catalogue.ecritures).toEqual([
-      {
-        produitId: "produit-1",
-        galerie: [urlImagePersistee(draftId, "image/webp")],
-      },
-    ])
-    expect(registre.records.get(draftId)).toMatchObject({
-      state: "revendiqué",
-      tentativeId: "tentative-update-1",
-      productId: "produit-1",
-    })
-  })
-
-  it("remonte le refus de la limite d'Images produit comme un refus de champ", async () => {
-    const galerieAuDelaDeLaLimite = Array.from({ length: 9 }, (_vide, i) =>
-      persistee(`https://cdn.test/produits/${i + 1}.webp`)
-    )
-    catalogue.refus = new CatalogValidationError([
-      "au maximum 8 images par produit",
-    ])
-
-    const resultat = await updateProductAction(
-      {},
-      updateFormData(galerieAuDelaDeLaLimite)
-    )
-
-    expect(resultat).toEqual({
-      error: "Données invalides : au maximum 8 images par produit",
-    })
-    expect(catalogue.ecritures).toEqual([])
-
-    const soumissionIllisible = updateFormData([])
-    soumissionIllisible.set("price", "abc")
-    const refusDeChamp = await updateProductAction({}, soumissionIllisible)
-    expect(Object.keys(refusDeChamp)).toEqual(Object.keys(resultat))
-    expect(refusDeChamp).toEqual({ error: "Formulaire invalide" })
+    expect(catalogue.suppressions).toEqual([])
   })
 })

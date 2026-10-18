@@ -25,7 +25,6 @@ vi.mock("@/lib/r2", async (importOriginal) => {
   }
 })
 
-import { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
   createProduct,
@@ -102,12 +101,7 @@ describe("suppression post-commit des Images produit persistées", () => {
         slug: productSlug("echec-r2"),
         images: [firstImage, secondImage],
       }),
-      effetsSilencieux(),
-      RevendicationImagesProduit.creer({
-        galerie: [firstImage, secondImage],
-        promues: [firstImage, secondImage],
-        lier: async () => undefined,
-      })
+      effetsSilencieux()
     )
     supprimerImagePersisteeMock
       .mockResolvedValueOnce({

@@ -2,32 +2,24 @@
 
 import { redirect } from "next/navigation"
 
-import cycleVieImageProduit from "@/lib/cycle-vie-image-produit"
 import {
   soumissionDepuisFormData,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
 import {
+  createProduct,
+  deleteProduct,
+  updateProduct,
+  updateVariantStock,
+} from "@/lib/use-cases/admin-catalog"
+import {
   adminFormAction,
   adminTaskAction,
   parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
-import { UserFacingError } from "@/lib/use-cases/user-facing-error"
-import {
-  createProduct,
-  deleteProduct,
-  getAdminProduct,
-  updateProduct,
-  updateVariantStock,
-} from "@/lib/use-cases/admin-catalog"
 
 interface ProductUpdateInput extends SoumissionFormulaireProduit {
   productId: string
-}
-
-const resultatDejaPersiste = async (productId: string) => {
-  const product = await getAdminProduct(productId)
-  if (!product) throw new Error("Produit enregistré introuvable")
 }
 
 export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
@@ -35,52 +27,31 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
     next: "/admin/produits",
     parse: soumissionDepuisFormData,
     run: async ({ champsCatalogue, images, tentativeId }, client) => {
-      const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+      const product = await createProduct({
+        ...champsCatalogue,
+        images,
         tentativeId,
         ownerId: client.id,
-        galerie: images,
-        resultatDejaPersiste,
-        enregistrer: async (revendication) => {
-          const product = await createProduct(
-            { ...champsCatalogue, images: [...revendication.galerie] },
-            undefined,
-            revendication
-          )
-          return { productId: product.id }
-        },
       })
-      if (!resultat.ok) throw new UserFacingError(resultat.message)
 
-      redirect(`/admin/produits/${resultat.productId}`)
+      redirect(`/admin/produits/${product.id}`)
     },
   }
 )
 
 export const updateProductAction = adminFormAction<ProductUpdateInput>({
   next: "/admin/produits",
-  parse: (formData) => {
-    return {
-      ...soumissionDepuisFormData(formData),
-      productId: parseRequiredId(formData, "productId"),
-    }
-  },
+  parse: (formData) => ({
+    ...soumissionDepuisFormData(formData),
+    productId: parseRequiredId(formData, "productId"),
+  }),
   run: async ({ productId, champsCatalogue, images, tentativeId }, client) => {
-    const resultat = await cycleVieImageProduit.revendiquerEtEnregistrer({
+    await updateProduct(productId, {
+      ...champsCatalogue,
+      images,
       tentativeId,
       ownerId: client.id,
-      galerie: images,
-      resultatDejaPersiste,
-      enregistrer: async (revendication) => {
-        const product = await updateProduct(
-          productId,
-          { ...champsCatalogue, images: [...revendication.galerie] },
-          undefined,
-          revendication
-        )
-        return { productId: product.id }
-      },
     })
-    if (!resultat.ok) throw new UserFacingError(resultat.message)
 
     redirect("/admin/produits")
   },
@@ -89,6 +60,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
 export const deleteProductAction = adminTaskAction<{ productId: string }>({
   next: "/admin/produits",
   parse: (formData) => ({ productId: parseRequiredId(formData, "productId") }),
+  refusalUrl: () => "/admin/produits",
   run: async ({ productId }) => {
     await deleteProduct(productId)
     redirect("/admin/produits")
