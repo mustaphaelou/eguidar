@@ -297,3 +297,64 @@ appliquée cette fois à l'intérieur de la lecture.
   [`lecture-structure.ts`](../../lib/use-cases/lecture-structure.ts), et la limite de son périmètre — il ne
   lit jamais sous une transaction — est consignée dans l'amendement d'ADR-0027.
 - **Le vocabulaire de refus** et **la couture des effets** restent intacts (ADR-0025, ADR-0014).
+
+## Amendement — L'enregistrement du Produit possède la promotion de ses Brouillons d'Image produit (#638, 2026-10-18)
+
+La décision tient : le module Catalogue reste le propriétaire des lectures **Produit** de
+l'Administration, l'interface de lecture répond en faits et jamais en rangées, et le module neutre du
+formulaire Produit ne bouge pas. Ce que cet amendement consigne est de l'autre côté du module : le
+côté écriture, que la décision déclarait immobile, a absorbé le cycle de vie des images.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Aucune ligne de la décision n'est changée ; une puce la décrit désormais à rebours, et un invariant la
+reprend. C'est le présent amendement qu'il faut y lire à côté :
+
+- la puce « **La mutation ne bouge pas.** L'implémentation, les validations, les classes d'erreur, la
+  transaction engagée, la comparaison d'images, la réindexation et l'invalidation du cache restent
+  derrière l'interface de la mutation ; l'interface de lecture grandit, le côté écriture ne se déplace
+  pas. » La première moitié est vraie — mêmes validations, mêmes classes d'erreur, même transaction,
+  même comparaison d'images, même réindexation, même invalidation — et l'interface d'écriture ne se
+  déplace pas pour ses appelants : `createProduct` et `updateProduct` gardent leurs paramètres et leur
+  surcharge d'effets facultative, l'entrée du **Produit** s'étant seulement élargie aux Entrées de
+  Galerie et aux identifiants de tentative (#686). La dernière phrase, elle, est fausse dès qu'on
+  l'entend de l'implémentation : le côté écriture s'est déplacé, et il possède désormais l'ordre du
+  cycle de vie des images — revendication et promotion avant la transaction, liaison des Brouillons
+  dedans, compensation inconditionnelle, suppression des sources après l'engagement (#685 à #690). Ce
+  n'est pas la lecture qui a hérité du cycle de vie : c'est l'enregistrement du **Produit** qui le
+  pilote, et la décision est écrite dans
+  [0034](0034-l-enregistrement-du-produit-possede-la-promotion-de-ses-brouillons.md).
+- l'invariant qui la reprend — « La couture d'effets du Catalogue reste celle d'ADR-0014, et le
+  mécanisme partagé reste celui d'ADR-0025, inchangés. L'interface de lecture grandit ; le côté
+  écriture ne se déplace pas. » — pour la même raison : les deux premières phrases restent vraies et
+  sont confirmées, la dernière ne l'est plus.
+
+### Ce que cet amendement décide
+
+- **L'enregistrement du Produit possède la promotion de ses Brouillons d'Image produit**, en trois
+  phases, avec une compensation inconditionnelle et une reprise par identifiant de tentative
+  (ADR-0034). La promotion est un effet **interne** à la mutation : `CatalogEffects`
+  (`lib/use-cases/admin-catalog.ts:68-79`) porte les gestes du cycle de vie et
+  `defaultCatalogEffects` (`:92-124`) les branche sur l'instance de production ; aucun appelant
+  n'injecte d'adaptateur, et la surcharge reste la couture de test d'ADR-0014.
+- **Les Server Actions d'Administration restent des adaptateurs minces** (#689) : elles passent
+  l'entrée du formulaire et n'injectent aucun effet, pas plus qu'elles ne connaissent une clé R2 ou un
+  état du registre.
+- **Le vocabulaire de refus des images a un seul propriétaire**, le module de cycle de vie : le
+  module Catalogue le traduit en refus typés pour le formulaire, il ne le réécrit pas.
+
+### Ce que cet amendement ne change pas
+
+- **La décision entière** : les deux lectures Produit du module Catalogue, l'approfondissement sur
+  place, la règle « répondre en faits, jamais en rangées », la frontière d'ADR-0028, le module neutre
+  du formulaire Produit et sa garde, et la forme étroite du sélecteur de Structure.
+- **L'option écartée « Réunir la lecture de l'édition et celle du cycle de vie des images »** reste
+  écartée, et pour la raison qu'elle donnait : le cycle de vie a son propre propriétaire — registre
+  durable, port de stockage, vocabulaire de refus — et la lecture d'un **Produit** n'y a pas sa place.
+  C'est l'enregistrement du **Produit** qui pilote les gestes du cycle de vie, pas la lecture qui
+  hérite du cycle de vie.
+- **« Cet ADR n'amende rien »** reste vrai du travail qu'il décrit : ADR-0022 est toujours la forme
+  que l'Administration étend, et ADR-0014 comme ADR-0025 sont toujours confirmés. Ce qu'il faut y lire
+  à côté, c'est le présent amendement.
+- **Aucun terme de glossaire nouveau** : le travail de vocabulaire reste celui du **Brouillon d'Image
+  produit**, dans le cycle de vie des images.
