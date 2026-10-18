@@ -60,6 +60,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
 export const deleteProductAction = adminTaskAction<{ productId: string }>({
   next: "/admin/produits",
   parse: (formData) => ({ productId: parseRequiredId(formData, "productId") }),
+  refusalUrl: () => "/admin/produits",
   run: async ({ productId }) => {
     await deleteProduct(productId)
     redirect("/admin/produits")

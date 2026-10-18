@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import type { CycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import {
+  MESSAGE_REGISTRE_INDISPONIBLE,
+  type CycleVieImageProduit,
+} from "@/lib/cycle-vie-image-produit"
 import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import type { ContentTypeImageProduit } from "@/lib/r2"
 import {
@@ -14,8 +17,6 @@ const DATE_INITIALE = new Date("2026-06-01T10:00:00.000Z")
 
 const MESSAGE_IDENTIFIANTS_INVALIDES =
   "Tentative d'édition ou propriétaire invalide"
-
-const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
 
 const MESSAGE_BROUILLON_EXPIRE =
   "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."

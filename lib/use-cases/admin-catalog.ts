@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/db"
 import cycleVieImageProduitParDefaut, {
+  estLieAuProduit,
   horlogeSysteme,
   MESSAGE_REGISTRE_INDISPONIBLE,
   portTransactionRegistreBrouillonImageProduit,
@@ -70,9 +71,9 @@ export interface CatalogEffects {
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): void
   deleteImages(urls: string[]): Promise<void>
-  preparerPromotion: CycleVieImageProduit["preparerPromotionBrouillons"]
-  confirmerPromotion: CycleVieImageProduit["confirmerBrouillons"]
-  compenserPromotion: CycleVieImageProduit["compenserPromotionBrouillons"]
+  preparerPromotionBrouillons: CycleVieImageProduit["preparerPromotionBrouillons"]
+  confirmerBrouillons: CycleVieImageProduit["confirmerBrouillons"]
+  compenserPromotionBrouillons: CycleVieImageProduit["compenserPromotionBrouillons"]
   supprimerSources: CycleVieImageProduit["supprimerSources"]
   lireBrouillonsDeLaTentative: CycleVieImageProduit["lireBrouillonsDeLaTentative"]
   horloge: Horloge
@@ -111,10 +112,10 @@ export function defaultCatalogEffects(productId: string): CatalogEffects {
         }
       }
     },
-    preparerPromotion:
+    preparerPromotionBrouillons:
       cycleVieImageProduitParDefaut.preparerPromotionBrouillons,
-    confirmerPromotion: cycleVieImageProduitParDefaut.confirmerBrouillons,
-    compenserPromotion:
+    confirmerBrouillons: cycleVieImageProduitParDefaut.confirmerBrouillons,
+    compenserPromotionBrouillons:
       cycleVieImageProduitParDefaut.compenserPromotionBrouillons,
     supprimerSources: cycleVieImageProduitParDefaut.supprimerSources,
     lireBrouillonsDeLaTentative:
@@ -144,7 +145,7 @@ export class DuplicateSkuError extends UserFacingError {
   }
 }
 
-export class ProductNotFoundError extends Error {
+export class ProductNotFoundError extends UserFacingError {
   constructor() {
     super("Produit introuvable")
     this.name = "ProductNotFoundError"
@@ -155,15 +156,6 @@ export class VariantNotFoundError extends Error {
   constructor() {
     super("Variante introuvable")
     this.name = "VariantNotFoundError"
-  }
-}
-
-export class BrouillonImageProduitNonPromuError extends UserFacingError {
-  constructor() {
-    super(
-      "Un Brouillon d'Image produit ne peut pas encore entrer dans la Galerie du Produit"
-    )
-    this.name = "BrouillonImageProduitNonPromuError"
   }
 }
 
@@ -310,14 +302,10 @@ function imageUrls(value: unknown): string[] {
     : []
 }
 
-function urlDeLEntree(entree: EntreeImageProduit): string {
-  if (entree.kind === "brouillon")
-    throw new BrouillonImageProduitNonPromuError()
-  return entree.url
-}
-
 function urlsGalerie(galerie: readonly EntreeImageProduit[]): string[] {
-  return galerie.map(urlDeLEntree)
+  return galerie.flatMap((entree) =>
+    entree.kind === "persistee" ? [entree.url] : []
+  )
 }
 
 const MESSAGE_IMAGE_AUTRE_PRODUIT =
@@ -359,7 +347,7 @@ function mapUniqueViolation(error: unknown): never {
   )
 }
 
-const MESSAGE_GALERIE_PARTIELLEMENT_LIEE =
+const MESSAGE_BROUILLONS_PARTIELLEMENT_LIES =
   "Les Brouillons ne sont pas tous liés à la même tentative"
 
 const MESSAGE_REPRISE_AUTRE_PRODUIT =
@@ -414,16 +402,13 @@ async function produitDeLaTentative(
   const soumis = new Set(brouillonsSoumis)
   const lies = lus
     .filter((brouillon) => soumis.has(brouillon.id))
-    .filter(
-      (brouillon): brouillon is BrouillonImageProduit & { productId: string } =>
-        brouillon.productId !== null && brouillon.promotedPublicUrl !== null
-    )
+    .filter(estLieAuProduit)
   if (lies.length === 0) return null
   if (
     lies.length !== brouillonsSoumis.length ||
     new Set(lies.map((brouillon) => brouillon.productId)).size !== 1
   ) {
-    throw new DraftConflictError(MESSAGE_GALERIE_PARTIELLEMENT_LIEE)
+    throw new DraftConflictError(MESSAGE_BROUILLONS_PARTIELLEMENT_LIES)
   }
 
   const produit = await prisma.product.findUnique({
@@ -442,7 +427,7 @@ async function promouvoirBrouillons(
     return { images: urlsGalerie(data.images), promotions: [] }
   }
 
-  const preparation = await effects.preparerPromotion({
+  const preparation = await effects.preparerPromotionBrouillons({
     tentativeId: data.tentativeId ?? "",
     ownerId: data.ownerId ?? "",
     galerie: data.images,
@@ -456,7 +441,7 @@ async function compenserPromotions(
   effects: CatalogEffects
 ): Promise<void> {
   if (promotions.length === 0) return
-  await effects.compenserPromotion(promotions)
+  await effects.compenserPromotionBrouillons(promotions)
 }
 
 export async function createProduct(
@@ -473,19 +458,16 @@ export async function createProduct(
   )
   if (repris) return repris
 
+  assertNonNegativeVariantPrices(data)
+  assertUniqueSkusInInput(data.variants)
+  await assertAucuneImageDAutreProduit(data.images, [])
+  await assertUniqueSlug(data.slug)
+  await assertUniqueSkus(data.variants.map((variant) => variant.sku))
+
   const { images, promotions } = await promouvoirBrouillons(data, effects)
 
   let product
   try {
-    assertNonNegativeVariantPrices(data)
-    assertUniqueSkusInInput(data.variants)
-    await assertAucuneImageDAutreProduit(
-      data.images,
-      promotions.map((preuve) => preuve.publicUrl)
-    )
-    await assertUniqueSlug(data.slug)
-    await assertUniqueSkus(data.variants.map((variant) => variant.sku))
-
     product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -512,7 +494,7 @@ export async function createProduct(
         include: { variants: true, category: true },
       })
       if (promotions.length > 0) {
-        await effects.confirmerPromotion(
+        await effects.confirmerBrouillons(
           created.id,
           promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
@@ -564,41 +546,38 @@ export async function updateProduct(
     return repris
   }
 
-  const { images, promotions } = await promouvoirBrouillons(data, effects)
-
+  const existingImages = imageUrls(existing.images)
   const keptVariantIds = data.variants.flatMap((variant) =>
     variant.id ? [variant.id] : []
   )
-  const existingImages = imageUrls(existing.images)
+
+  await assertAucuneImageDAutreProduit(data.images, existingImages)
+  assertNonNegativeVariantPrices(data)
+  assertUniqueSkusInInput(data.variants)
+  await assertUniqueSlug(data.slug, id)
+  await assertUniqueSkus(
+    data.variants.map((variant) => variant.sku),
+    id
+  )
+
+  const existingVariantIds = await prisma.productVariant.findMany({
+    where: { productId: id },
+    select: { id: true },
+  })
+  const ownedVariantIds = new Set(
+    existingVariantIds.map((variant) => variant.id)
+  )
+  for (const variant of data.variants) {
+    if (variant.id && !ownedVariantIds.has(variant.id)) {
+      throw new CatalogValidationError(["variante inconnue pour ce produit"])
+    }
+  }
+
+  const { images, promotions } = await promouvoirBrouillons(data, effects)
   const removedImages = existingImages.filter((url) => !images.includes(url))
 
   let product
   try {
-    await assertAucuneImageDAutreProduit(data.images, [
-      ...existingImages,
-      ...promotions.map((preuve) => preuve.publicUrl),
-    ])
-    assertNonNegativeVariantPrices(data)
-    assertUniqueSkusInInput(data.variants)
-    await assertUniqueSlug(data.slug, id)
-    await assertUniqueSkus(
-      data.variants.map((variant) => variant.sku),
-      id
-    )
-
-    const existingVariantIds = await prisma.productVariant.findMany({
-      where: { productId: id },
-      select: { id: true },
-    })
-    const ownedVariantIds = new Set(
-      existingVariantIds.map((variant) => variant.id)
-    )
-    for (const variant of data.variants) {
-      if (variant.id && !ownedVariantIds.has(variant.id)) {
-        throw new CatalogValidationError(["variante inconnue pour ce produit"])
-      }
-    }
-
     product = await prisma.$transaction(async (tx) => {
       await tx.product.update({
         where: { id },
@@ -649,7 +628,7 @@ export async function updateProduct(
       }
 
       if (promotions.length > 0) {
-        await effects.confirmerPromotion(
+        await effects.confirmerBrouillons(
           id,
           promotions,
           portTransactionRegistreBrouillonImageProduit(tx)

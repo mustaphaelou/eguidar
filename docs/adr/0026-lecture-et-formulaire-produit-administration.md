@@ -334,14 +334,20 @@ reprend. C'est le présent amendement qu'il faut y lire à côté :
 - **L'enregistrement du Produit possède la promotion de ses Brouillons d'Image produit**, en trois
   phases, avec une compensation inconditionnelle et une reprise par identifiant de tentative
   (ADR-0034). La promotion est un effet **interne** à la mutation : `CatalogEffects`
-  (`lib/use-cases/admin-catalog.ts:68-79`) porte les gestes du cycle de vie et
-  `defaultCatalogEffects` (`:92-124`) les branche sur l'instance de production ; aucun appelant
+  (`lib/use-cases/admin-catalog.ts:69-80`) porte les gestes du cycle de vie et
+  `defaultCatalogEffects` (`:93-125`) les branche sur l'instance de production ; aucun appelant
   n'injecte d'adaptateur, et la surcharge reste la couture de test d'ADR-0014.
 - **Les Server Actions d'Administration restent des adaptateurs minces** (#689) : elles passent
   l'entrée du formulaire et n'injectent aucun effet, pas plus qu'elles ne connaissent une clé R2 ou un
   état du registre.
-- **Le vocabulaire de refus des images a un seul propriétaire**, le module de cycle de vie : le
-  module Catalogue le traduit en refus typés pour le formulaire, il ne le réécrit pas.
+- **Le vocabulaire de refus des images a un seul propriétaire pour les gestes du cycle de vie**, et le
+  module Catalogue le traduit en refus typés pour le formulaire ; il ne le réécrit pas. Deux refus de
+  la reprise, eux, appartiennent désormais au **Catalogue**, qui les compose sans les traduire :
+  « Les Brouillons ne sont pas tous liés à la même tentative », un texte que le cycle de vie rendait
+  avant #690, et « L'enregistrement du Catalogue a échoué », qui nomme le **Produit** disparu sous
+  une reprise. Le cycle de vie n'a plus de maison pour ces deux textes, la reprise lisant le registre
+  depuis l'entrée du **Catalogue**
+  ([0034](0034-l-enregistrement-du-produit-possede-la-promotion-de-ses-brouillons.md)).
 
 ### Ce que cet amendement ne change pas
 

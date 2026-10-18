@@ -11,14 +11,10 @@ import {
 } from "vitest"
 
 import {
-  creerCycleVieImageProduit,
-  creerRegistreBrouillonImageProduitPrisma,
-  type BrouillonImageProduit,
-  type CycleVieImageProduit,
+  MESSAGE_REGISTRE_INDISPONIBLE,
   type PreuvePromotion,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import {
   CatalogValidationError,
@@ -30,17 +26,26 @@ import {
   ImageStorageUnavailableError,
   updateProduct,
   type CatalogEffects,
-  type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   brouillon,
-  creerHorlogeControllable,
-  creerRegistreImageProduitMemoire,
-  creerStockageImageProduitMemoire,
   persistee,
   urlImagePersistee,
 } from "@/test/cycle-vie-image-produit-memoire"
+import {
+  copieBrouillons,
+  creerDemandeurDeBrouillon,
+  creerEntreeProduit,
+  creerEnvironnementDurable,
+  creerEnvironnementMemoire,
+  effetsObservantLesJalons,
+  horlogeFixe,
+  MESSAGE_BROUILLON_EXPIRE,
+  MESSAGE_CONFLIT_REVENDICATION,
+  MESSAGE_IDENTIFIANTS_INVALIDES,
+  observerLesJalonsDeLaTransaction,
+} from "@/test/recette-catalogue-brouillons"
 
 const ownerId = randomUUID()
 const categoryId = randomUUID()
@@ -52,44 +57,16 @@ const existingImage = "https://cdn.test/produits/persistee-1.webp"
 const existingSecondImage = "https://cdn.test/produits/persistee-2.webp"
 const dateInitiale = new Date("2026-03-01T10:00:00.000Z")
 
-const MESSAGE_IDENTIFIANTS_INVALIDES =
-  "Tentative d'édition ou propriétaire invalide"
+const makeInput = creerEntreeProduit(categoryId, {
+  name: "Produit mis à jour",
+  description: "Description",
+  slug: () => productSlug,
+  variants: () => [
+    { name: "Standard", sku: `SKU-UPDATE-${runId}`, priceDelta: 0, stock: 2 },
+  ],
+})
 
-const MESSAGE_BROUILLON_EXPIRE =
-  "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."
-
-const MESSAGE_CONFLIT_REVENDICATION =
-  "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie."
-
-const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
-
-function makeInput(
-  images: readonly (string | EntreeImageProduit)[],
-  overrides: Partial<ProductInput> = {}
-): ProductInput {
-  return {
-    name: "Produit mis à jour",
-    slug: productSlug,
-    description: "Description",
-    brand: "Marque",
-    categoryId,
-    price: 10000,
-    specs: {},
-    images,
-    isFeatured: false,
-    featuredOrder: 0,
-    freeShipping: false,
-    variants: [
-      {
-        name: "Standard",
-        sku: `SKU-UPDATE-${runId}`,
-        priceDelta: 0,
-        stock: 2,
-      },
-    ],
-    ...overrides,
-  }
-}
+const demander = creerDemandeurDeBrouillon(ownerId)
 
 function effetsSilencieux() {
   return {
@@ -109,77 +86,6 @@ function variantesPersistees(
     priceDelta: variant.priceDelta,
     stock: variant.stock,
   }))
-}
-
-async function demander(
-  cycleVie: CycleVieImageProduit,
-  contentType = "image/webp"
-) {
-  const resultat = await cycleVie.demanderBrouillon({
-    ownerId,
-    contentType,
-    size: 2048,
-  })
-  if (!resultat.ok) throw new Error("La demande de Brouillon devait réussir")
-  return resultat
-}
-
-function creerEnvironnementMemoire() {
-  const horloge = creerHorlogeControllable(dateInitiale)
-  const stockage = creerStockageImageProduitMemoire()
-  const registre = creerRegistreImageProduitMemoire(() =>
-    horloge.horloge.maintenant()
-  )
-  const cycleVie = creerCycleVieImageProduit({
-    stockage,
-    registre,
-    horloge: horloge.horloge,
-  })
-  const effets: CatalogEffects = {
-    deleteImages: vi.fn(async () => {}),
-    reindexProducts: vi.fn(async () => {}),
-    revalidateCatalog: vi.fn(),
-    removeProductFromIndex: vi.fn(async () => {}),
-    preparerPromotion: cycleVie.preparerPromotionBrouillons,
-    confirmerPromotion: (productId, promotions) =>
-      cycleVie.confirmerBrouillons(productId, promotions),
-    compenserPromotion: cycleVie.compenserPromotionBrouillons,
-    supprimerSources: cycleVie.supprimerSources,
-    lireBrouillonsDeLaTentative: cycleVie.lireBrouillonsDeLaTentative,
-    horloge: horloge.horloge,
-  }
-  return { cycleVie, horloge, stockage, registre, effets }
-}
-
-function creerEnvironnementDurable() {
-  const stockage = creerStockageImageProduitMemoire()
-  const horloge = { maintenant: () => new Date(dateInitiale) }
-  const registre = creerRegistreBrouillonImageProduitPrisma(horloge)
-  const cycleVie = creerCycleVieImageProduit({ stockage, registre, horloge })
-  const effets: CatalogEffects = {
-    deleteImages: vi.fn(async () => {}),
-    reindexProducts: vi.fn(async () => {}),
-    revalidateCatalog: vi.fn(),
-    removeProductFromIndex: vi.fn(async () => {}),
-    preparerPromotion: cycleVie.preparerPromotionBrouillons,
-    confirmerPromotion: cycleVie.confirmerBrouillons,
-    compenserPromotion: cycleVie.compenserPromotionBrouillons,
-    supprimerSources: cycleVie.supprimerSources,
-    lireBrouillonsDeLaTentative: cycleVie.lireBrouillonsDeLaTentative,
-    horloge,
-  }
-  return { cycleVie, stockage, effets }
-}
-
-function copieBrouillons(
-  records: ReadonlyMap<string, BrouillonImageProduit>
-): Map<string, BrouillonImageProduit> {
-  return new Map(
-    [...records].map(([id, brouillonEnregistre]) => [
-      id,
-      { ...brouillonEnregistre },
-    ])
-  )
 }
 
 describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => {
@@ -223,7 +129,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage, existingSecondImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const premier = await demander(environnement.cycleVie)
     const second = await demander(environnement.cycleVie, "image/png")
     const urlPremier = urlImagePersistee(premier.draftId, "image/webp")
@@ -345,9 +251,9 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
         ownerId,
       }),
       {
-        preparerPromotion: couture,
-        confirmerPromotion: couture,
-        compenserPromotion: couture,
+        preparerPromotionBrouillons: couture,
+        confirmerBrouillons: couture,
+        compenserPromotionBrouillons: couture,
         supprimerSources: couture,
         lireBrouillonsDeLaTentative: couture,
         deleteImages,
@@ -366,7 +272,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([conservee, retiree]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const promue = urlImagePersistee(draft.draftId, "image/webp")
     const supprimees: string[] = []
@@ -401,7 +307,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
 
     const promesse = updateProduct(
@@ -442,7 +348,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const premier = await demander(environnement.cycleVie)
     const second = await demander(environnement.cycleVie)
     const confirmation = vi.fn(
@@ -451,7 +357,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     )
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerPromotion: confirmation,
+      confirmerBrouillons: confirmation,
     }
     const entree = makeInput(
       [
@@ -501,7 +407,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       }),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
 
     const engage = await updateProduct(
@@ -542,7 +448,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementDurable()
+    const environnement = creerEnvironnementDurable(horlogeFixe(dateInitiale))
     const draft = await demander(environnement.cycleVie)
     const promue = urlImagePersistee(draft.draftId, "image/webp")
 
@@ -568,16 +474,52 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     })
   })
 
+  it("prépare la promotion avant la transaction, y lie les Brouillons, puis supprime les sources après son engagement", async () => {
+    const product = await createProduct(
+      makeInput([existingImage]),
+      effetsSilencieux()
+    )
+    const environnement = creerEnvironnementMemoire(dateInitiale)
+    const draft = await demander(environnement.cycleVie)
+    const jalons = observerLesJalonsDeLaTransaction()
+
+    try {
+      const updated = await updateProduct(
+        product.id,
+        makeInput([persistee(existingImage), brouillon(draft.draftId)], {
+          variants: variantesPersistees(product),
+          tentativeId: "tentative-ordre-des-trois-phases",
+          ownerId,
+        }),
+        effetsObservantLesJalons(environnement.effets, jalons)
+      )
+      expect(updated.images).toEqual([
+        existingImage,
+        urlImagePersistee(draft.draftId, "image/webp"),
+      ])
+    } finally {
+      jalons.arreter()
+    }
+
+    expect(jalons.ordre).toEqual([
+      "preparation",
+      "transaction-ouverte",
+      "liaison",
+      "transaction-fermee",
+      "sources",
+    ])
+  })
+
   it("annule la liaison et la promotion si la transaction échoue après elle", async () => {
     const product = await createProduct(
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementDurable()
+    const environnement = creerEnvironnementDurable(horlogeFixe(dateInitiale))
     const draft = await demander(environnement.cycleVie)
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerPromotion: async (...confirmation) => {
+      confirmerBrouillons: async (...confirmation) => {
         await environnement.cycleVie.confirmerBrouillons(...confirmation)
         throw new Error("échec après la liaison")
       },
@@ -618,7 +560,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const galerie = [persistee(existingImage), brouillon(draft.draftId)]
 
@@ -678,7 +620,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     environnement.horloge.avancer(25 * 60 * 60)
 
@@ -711,7 +653,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     await environnement.registre.revendiquer({
       id: draft.draftId,
@@ -750,7 +692,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
 
     const promesse = updateProduct(
@@ -794,7 +736,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
         }),
         effetsSilencieux()
       )
-      const environnement = creerEnvironnementMemoire()
+      const environnement = creerEnvironnementMemoire(dateInitiale)
       const draft = await demander(environnement.cycleVie)
       if (panne === "indisponible") {
         environnement.stockage.pannes.promouvoirBrouillon.add("non-configure")
@@ -849,7 +791,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
         }),
         effetsSilencieux()
       )
-      const environnement = creerEnvironnementMemoire()
+      const environnement = creerEnvironnementMemoire(dateInitiale)
       const draft = await demander(environnement.cycleVie)
       environnement.registre.pannes.add(operation)
 
@@ -878,7 +820,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage]),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
 
     const promesse = updateProduct(
@@ -898,7 +840,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     )
   })
 
-  it("refuse une mise à jour qui nomme une Image produit d'un autre Produit, même quand la promotion aboutit", async () => {
+  it("refuse une mise à jour qui nomme une Image produit d'un autre Produit, sans rien promouvoir", async () => {
     const proprietaire = existingImage
     const dunAutreProduit = "https://cdn.test/produits/dun-autre-produit.webp"
     const product = await createProduct(
@@ -919,7 +861,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       }),
       effetsSilencieux()
     )
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
 
     const promesse = updateProduct(
@@ -938,9 +880,8 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit"
     )
     expect(environnement.effets.deleteImages).not.toHaveBeenCalled()
-    expect(environnement.stockage.suppressionsImagesPromues).toEqual([
-      persistentObjectKey(draft.draftId, "image/webp"),
-    ])
+    expect(environnement.stockage.promotions).toEqual([])
+    expect(environnement.stockage.suppressionsImagesPromues).toEqual([])
     expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
       state: "vivant",
       tentativeId: null,
