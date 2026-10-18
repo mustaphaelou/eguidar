@@ -45,6 +45,15 @@ const SITES_NOMMES: ExceptionLecture[] = [
     chemin: "lib/use-cases/admin-catalog.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
+    declaration: "produitDeLaTentative",
+    herite: false,
+    raison:
+      "le nom de la catégorie du Produit déjà enregistré que la tentative reprend : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+  },
+  {
+    chemin: "lib/use-cases/admin-catalog.ts",
+    voie: "relation",
+    extrait: `include: ${FORME.champ}`,
     declaration: "updateProduct",
     herite: false,
     raison:
@@ -230,7 +239,7 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
     }
   })
 
-  it("la liste s'élargit des douze entrées d'ici, chacune avec sa raison propre", () => {
+  it("la liste s'élargit des treize entrées d'ici, chacune avec sa raison propre", () => {
     const raisons = SITES_NOMMES.map(({ raison }) => raison)
     expect(raisons).toHaveLength(new Set(raisons).size)
 
@@ -252,13 +261,14 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
     expect(heritees.length).toBe(4)
-    expect(SITES_NOMMES).toHaveLength(heritees.length + 12)
+    expect(SITES_NOMMES).toHaveLength(heritees.length + 13)
 
+    const attenduesParVoie = { relation: 9, delegue: 8 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,
         voie
-      ).toBe(8)
+      ).toBe(attenduesParVoie[voie])
     }
   })
 

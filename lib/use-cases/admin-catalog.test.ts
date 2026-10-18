@@ -13,10 +13,10 @@ import {
 import { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
-  BrouillonImageProduitNonPromuError,
   CatalogValidationError,
   createProduct,
   deleteProduct,
+  DraftPromotionRefusedError,
   DuplicateSkuError,
   ProductNotFoundError,
   SlugConflictError,
@@ -53,14 +53,6 @@ function makeInput(overrides: Partial<ProductInput> = {}): ProductInput {
     ],
     ...overrides,
   }
-}
-
-function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
-  return RevendicationImagesProduit.creer({
-    galerie: urls,
-    promues: urls,
-    lier: async () => undefined,
-  })
 }
 
 let categoryId: string
@@ -371,9 +363,7 @@ describe("admin catalog mutations", () => {
     const keptImage = "https://cdn.example.com/keep.jpg"
     const removedImage = "https://cdn.example.com/remove.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-one"), images: [keptImage, removedImage] }),
-      undefined,
-      revendicationPromue(keptImage, removedImage)
+      makeInput({ slug: slug("img-one"), images: [keptImage, removedImage] })
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -412,9 +402,7 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/remove-2.jpg",
     ]
     const product = await createProduct(
-      makeInput({ slug: slug("img-update"), images }),
-      undefined,
-      revendicationPromue(...images)
+      makeInput({ slug: slug("img-update"), images })
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -451,9 +439,7 @@ describe("admin catalog mutations", () => {
   it("n'appelle aucune suppression d'image lorsque la transaction échoue", async () => {
     const persistedImage = "https://cdn.example.com/transaction.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-transaction"), images: [persistedImage] }),
-      undefined,
-      revendicationPromue(persistedImage)
+      makeInput({ slug: slug("img-transaction"), images: [persistedImage] })
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -489,9 +475,7 @@ describe("admin catalog mutations", () => {
     const proprietaire = "https://cdn.example.com/owned.jpg"
     const dunAutreProduit = "https://cdn.example.com/dun-autre-produit.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-owned"), images: [proprietaire] }),
-      undefined,
-      revendicationPromue(proprietaire)
+      makeInput({ slug: slug("img-owned"), images: [proprietaire] })
     )
     await createProduct(
       makeInput({
@@ -644,9 +628,7 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/promue-2.jpg",
     ]
     const product = await createProduct(
-      makeInput({ slug: slug("img-revendiquee"), images }),
-      undefined,
-      revendicationPromue(...images)
+      makeInput({ slug: slug("img-revendiquee"), images })
     )
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
@@ -707,23 +689,19 @@ describe("admin catalog mutations", () => {
     ])
   })
 
-  it("refuse une galerie qui contient un Brouillon d'Image produit, même muni des deux identifiants", async () => {
+  it("refuse un Brouillon d'Image produit inconnu du registre en refus typé", async () => {
     const promesse = createProduct(
       makeInput({
         slug: slug("img-brouillon"),
-        images: [brouillon("brouillon-1")],
-        tentativeId: "tentative-1",
+        images: [brouillon(`brouillon-inconnu-${runId}`)],
+        tentativeId: `tentative-${runId}-brouillon-inconnu`,
         ownerId: "editeur-1",
       })
     )
 
-    await expect(promesse).rejects.toBeInstanceOf(
-      BrouillonImageProduitNonPromuError
-    )
+    await expect(promesse).rejects.toBeInstanceOf(DraftPromotionRefusedError)
     await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
-    await expect(promesse).rejects.toThrow(
-      "Un Brouillon d'Image produit ne peut pas encore entrer dans la Galerie du Produit"
-    )
+    await expect(promesse).rejects.toThrow("Brouillon introuvable")
     const ecrits = await prisma.product.count({
       where: { slug: slug("img-brouillon") },
     })
@@ -731,16 +709,17 @@ describe("admin catalog mutations", () => {
   })
 
   it("refuse un Brouillon d'Image produit sans identifiant de tentative ni de propriétaire", async () => {
-    const refus = await verifierRefusValidation(CatalogValidationError, () =>
-      createProduct(
-        makeInput({
-          slug: slug("img-brouillon-sans-identifiants"),
-          images: [brouillon("brouillon-2")],
-        })
-      )
+    const promesse = createProduct(
+      makeInput({
+        slug: slug("img-brouillon-sans-identifiants"),
+        images: [brouillon("brouillon-2")],
+      })
     )
-    expect(refus.message).toBe(
-      "Données invalides : un Brouillon d'Image produit exige un identifiant de tentative et un identifiant de propriétaire"
+
+    await expect(promesse).rejects.toBeInstanceOf(DraftPromotionRefusedError)
+    await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
+    await expect(promesse).rejects.toThrow(
+      "Tentative d'édition ou propriétaire invalide"
     )
     const ecrits = await prisma.product.count({
       where: { slug: slug("img-brouillon-sans-identifiants") },
@@ -808,9 +787,7 @@ describe("admin catalog mutations", () => {
   it("accepte une galerie à la limite d'Images produit", async () => {
     const images = galerie(8)
     const product = await createProduct(
-      makeInput({ slug: slug("img-limite-pile"), images }),
-      undefined,
-      revendicationPromue(...images)
+      makeInput({ slug: slug("img-limite-pile"), images })
     )
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
@@ -822,9 +799,7 @@ describe("admin catalog mutations", () => {
   it("refuse une galerie au-delà de la limite et laisse la galerie enregistrée", async () => {
     const enregistree = "https://cdn.example.com/deja-enregistree.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-limite-maj"), images: [enregistree] }),
-      undefined,
-      revendicationPromue(enregistree)
+      makeInput({ slug: slug("img-limite-maj"), images: [enregistree] })
     )
     const variants = product.variants.map((v) => ({
       id: v.id,
@@ -894,9 +869,7 @@ describe("admin catalog mutations", () => {
     const proprietaire = "https://cdn.example.com/owned.jpg"
     const dunAutreProduit = "https://cdn.example.com/smuggled.jpg"
     const product = await createProduct(
-      makeInput({ slug: slug("img-claim"), images: [proprietaire] }),
-      undefined,
-      revendicationPromue(proprietaire)
+      makeInput({ slug: slug("img-claim"), images: [proprietaire] })
     )
     await createProduct(
       makeInput({
@@ -1047,9 +1020,7 @@ describe("admin catalog mutations", () => {
       "https://cdn.example.com/gallery-2.jpg",
     ]
     const product = await createProduct(
-      makeInput({ slug: slug("img-delete"), images }),
-      undefined,
-      revendicationPromue(...images)
+      makeInput({ slug: slug("img-delete"), images })
     )
 
     await deleteProduct(product.id, { deleteImages })

@@ -382,8 +382,8 @@ describe("Lecture de la Structure — la reconnaissance de la lecture", () => {
     expect(SOURCES.length).toBeGreaterThan(200)
 
     const trouves = sitesDeLecture(SOURCES, FORME)
-    expect(trouves).toHaveLength(16)
-    expect(trouves.filter(({ voie }) => voie === "relation")).toHaveLength(8)
+    expect(trouves).toHaveLength(17)
+    expect(trouves.filter(({ voie }) => voie === "relation")).toHaveLength(9)
     expect(trouves.filter(({ voie }) => voie === "delegue")).toHaveLength(8)
     expect(trouves.map(({ chemin }) => chemin)).toEqual(
       expect.arrayContaining([

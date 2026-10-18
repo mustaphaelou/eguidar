@@ -3,9 +3,13 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import cycleVieImageProduitParDefaut, {
   horlogeSysteme,
+  MESSAGE_REGISTRE_INDISPONIBLE,
   portTransactionRegistreBrouillonImageProduit,
+  type BrouillonImageProduit,
   type CycleVieImageProduit,
   type Horloge,
+  type PreuvePromotion,
+  type RefusCycleVieImageProduit,
   type RevendicationImagesProduit,
 } from "@/lib/cycle-vie-image-produit"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
@@ -70,6 +74,8 @@ export interface CatalogEffects {
   preparerPromotion: CycleVieImageProduit["preparerPromotionBrouillons"]
   confirmerPromotion: CycleVieImageProduit["confirmerBrouillons"]
   compenserPromotion: CycleVieImageProduit["compenserPromotionBrouillons"]
+  supprimerSources: CycleVieImageProduit["supprimerSources"]
+  lireBrouillonsDeLaTentative: CycleVieImageProduit["lireBrouillonsDeLaTentative"]
   horloge: Horloge
 }
 
@@ -111,6 +117,9 @@ export function defaultCatalogEffects(productId: string): CatalogEffects {
     confirmerPromotion: cycleVieImageProduitParDefaut.confirmerBrouillons,
     compenserPromotion:
       cycleVieImageProduitParDefaut.compenserPromotionBrouillons,
+    supprimerSources: cycleVieImageProduitParDefaut.supprimerSources,
+    lireBrouillonsDeLaTentative:
+      cycleVieImageProduitParDefaut.lireBrouillonsDeLaTentative,
     horloge: horlogeSysteme,
   }
 }
@@ -156,6 +165,41 @@ export class BrouillonImageProduitNonPromuError extends UserFacingError {
       "Un Brouillon d'Image produit ne peut pas encore entrer dans la Galerie du Produit"
     )
     this.name = "BrouillonImageProduitNonPromuError"
+  }
+}
+
+export class DraftPromotionRefusedError extends UserFacingError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftPromotionRefusedError"
+  }
+}
+
+export class DraftExpiredError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftExpiredError"
+  }
+}
+
+export class DraftConflictError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftConflictError"
+  }
+}
+
+export class ImageStorageUnavailableError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "ImageStorageUnavailableError"
+  }
+}
+
+export class DraftRegistryUnavailableError extends DraftPromotionRefusedError {
+  constructor(message: string) {
+    super(message)
+    this.name = "DraftRegistryUnavailableError"
   }
 }
 
@@ -329,25 +373,130 @@ function mapUniqueViolation(error: unknown): never {
   )
 }
 
+const MESSAGE_GALERIE_PARTIELLEMENT_LIEE =
+  "Les Brouillons ne sont pas tous liés à la même tentative"
+
+const MESSAGE_ENREGISTREMENT_ECHOUE = "L'enregistrement du Catalogue a échoué"
+
+function identifiantsDeBrouillons(
+  galerie: readonly EntreeImageProduit[]
+): string[] {
+  return [
+    ...new Set(
+      galerie.flatMap((entree) =>
+        entree.kind === "brouillon" ? [entree.draftId] : []
+      )
+    ),
+  ]
+}
+
+function erreurDePreparation(
+  refus: RefusCycleVieImageProduit
+): UserFacingError {
+  switch (refus.code) {
+    case "brouillon-expire":
+      return new DraftExpiredError(refus.message)
+    case "brouillon-non-vivant":
+      return new DraftConflictError(refus.message)
+    case "stockage-indisponible":
+    case "stockage-refuse":
+      return new ImageStorageUnavailableError(refus.message)
+    case "registre-indisponible":
+      return new DraftRegistryUnavailableError(refus.message)
+    default:
+      return new DraftPromotionRefusedError(refus.message)
+  }
+}
+
+async function produitDeLaTentative(
+  tentativeId: string | undefined,
+  brouillonsSoumis: readonly string[],
+  effects: CatalogEffects
+) {
+  if (!tentativeId || brouillonsSoumis.length === 0) return null
+
+  let lus: BrouillonImageProduit[]
+  try {
+    lus = await effects.lireBrouillonsDeLaTentative(tentativeId)
+  } catch {
+    throw new DraftRegistryUnavailableError(MESSAGE_REGISTRE_INDISPONIBLE)
+  }
+
+  const soumis = new Set(brouillonsSoumis)
+  const lies = lus
+    .filter((brouillon) => soumis.has(brouillon.id))
+    .filter(
+      (brouillon): brouillon is BrouillonImageProduit & { productId: string } =>
+        brouillon.productId !== null && brouillon.promotedPublicUrl !== null
+    )
+  if (lies.length === 0) return null
+  if (
+    lies.length !== brouillonsSoumis.length ||
+    new Set(lies.map((brouillon) => brouillon.productId)).size !== 1
+  ) {
+    throw new DraftConflictError(MESSAGE_GALERIE_PARTIELLEMENT_LIEE)
+  }
+
+  const produit = await prisma.product.findUnique({
+    where: { id: lies[0].productId },
+    include: { variants: true, category: true },
+  })
+  if (!produit) throw new UserFacingError(MESSAGE_ENREGISTREMENT_ECHOUE)
+  return produit
+}
+
+async function promouvoirBrouillons(
+  data: ProduitValide,
+  effects: CatalogEffects
+): Promise<{ images: string[]; promotions: PreuvePromotion[] }> {
+  if (identifiantsDeBrouillons(data.images).length === 0) {
+    return { images: urlsGalerie(data.images), promotions: [] }
+  }
+
+  const preparation = await effects.preparerPromotion({
+    tentativeId: data.tentativeId ?? "",
+    ownerId: data.ownerId ?? "",
+    galerie: data.images,
+  })
+  if (!preparation.ok) throw erreurDePreparation(preparation)
+  return { images: preparation.galerie, promotions: preparation.promotions }
+}
+
+async function compenserPromotions(
+  promotions: readonly PreuvePromotion[],
+  effects: CatalogEffects
+): Promise<void> {
+  if (promotions.length === 0) return
+  await effects.compenserPromotion(promotions)
+}
+
 export async function createProduct(
   input: ProductInput,
-  overrides?: Partial<CatalogEffects>,
-  revendication?: RevendicationImagesProduit
+  overrides?: Partial<CatalogEffects>
 ) {
   const data = parseProductInput(input)
-  assertGalerieSansBrouillon(data.images, data)
-  const images = urlsGalerie(data.images)
-  await assertAucuneImageDAutreProduit(
-    data.images,
-    revendication?.promues ?? []
+  const effects = avecSurcharges(defaultCatalogEffects(data.slug), overrides)
+
+  const repris = await produitDeLaTentative(
+    data.tentativeId,
+    identifiantsDeBrouillons(data.images),
+    effects
   )
-  assertNonNegativeVariantPrices(data)
-  assertUniqueSkusInInput(data.variants)
-  await assertUniqueSlug(data.slug)
-  await assertUniqueSkus(data.variants.map((variant) => variant.sku))
+  if (repris) return repris
+
+  const { images, promotions } = await promouvoirBrouillons(data, effects)
 
   let product
   try {
+    assertNonNegativeVariantPrices(data)
+    assertUniqueSkusInInput(data.variants)
+    await assertAucuneImageDAutreProduit(
+      data.images,
+      promotions.map((preuve) => preuve.publicUrl)
+    )
+    await assertUniqueSlug(data.slug)
+    await assertUniqueSkus(data.variants.map((variant) => variant.sku))
+
     product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -373,19 +522,26 @@ export async function createProduct(
         },
         include: { variants: true, category: true },
       })
-      if (revendication) {
-        await revendication.lier(
+      if (promotions.length > 0) {
+        await effects.confirmerPromotion(
           created.id,
+          promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
       return created
     })
   } catch (error) {
+    await compenserPromotions(promotions, effects)
     mapUniqueViolation(error)
   }
 
-  const effects = avecSurcharges(defaultCatalogEffects(product.id), overrides)
+  if (promotions.length > 0) {
+    await runEffect(
+      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${product.id}`,
+      () => effects.supprimerSources(promotions)
+    )
+  }
   await runEffect(
     `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
     () => effects.reindexProducts([toIndexableProduct(product)])

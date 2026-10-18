@@ -111,14 +111,11 @@ describe("registre durable des Brouillons d'Image produit", () => {
   }
 
   async function enregistrerProduit(revendication: RevendicationImagesProduit) {
-    const product = await createProduct(
-      makeInput([...revendication.galerie]),
-      {
-        reindexProducts: async () => {},
-        revalidateCatalog: () => {},
-      },
-      revendication
-    )
+    const product = await createProduct(makeInput([...revendication.galerie]), {
+      reindexProducts: async () => {},
+      revalidateCatalog: () => {},
+    })
+    await revendication.lier(product.id)
     return { productId: product.id }
   }
 
@@ -548,7 +545,7 @@ describe("registre durable des Brouillons d'Image produit", () => {
     expect(stockage.suppressionsImagesPromues).toEqual([])
   })
 
-  it("annule la revendication et nettoie la copie quand la transaction Catalogue échoue", async () => {
+  it("annule la revendication et nettoie la copie quand l'enregistrement Catalogue échoue", async () => {
     const { cycleVie, stockage } = creerCycleVie()
     const demande = await cycleVie.demanderBrouillon({
       ownerId,
@@ -561,22 +558,8 @@ describe("registre durable des Brouillons d'Image produit", () => {
       tentativeId: "tentative-échec",
       ownerId,
       galerie: galerie(demande),
-      enregistrer: async (revendication) => {
-        await createProduct(
-          makeInput([...revendication.galerie]),
-          {
-            reindexProducts: async () => {},
-            revalidateCatalog: () => {},
-          },
-          RevendicationImagesProduit.creer({
-            galerie: revendication.galerie,
-            promues: revendication.promues,
-            lier: async () => {
-              throw new Error("échec de commit simulé")
-            },
-          })
-        )
-        return { productId: "inutilisé" }
+      enregistrer: async () => {
+        throw new Error("échec de commit simulé")
       },
     })
 

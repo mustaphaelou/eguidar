@@ -287,7 +287,8 @@ const MESSAGE_BROUILLON_DEJA_LIBERE =
 const MESSAGE_CONFLIT_REVENDICATION =
   "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie."
 
-const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
+export const MESSAGE_REGISTRE_INDISPONIBLE =
+  "Registre des Brouillons indisponible"
 
 function raisonNonVivant(draft: BrouillonImageProduit): string {
   if (draft.state === "libéré") {
