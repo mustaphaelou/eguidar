@@ -16,13 +16,13 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
   it("branche les effets par défaut sur le cycle de vie R2 de production", () => {
     const effets = defaultCatalogEffects("produit-1")
 
-    expect(effets.preparerPromotion).toBe(
+    expect(effets.preparerPromotionBrouillons).toBe(
       cycleVieImageProduitParDefaut.preparerPromotionBrouillons
     )
-    expect(effets.confirmerPromotion).toBe(
+    expect(effets.confirmerBrouillons).toBe(
       cycleVieImageProduitParDefaut.confirmerBrouillons
     )
-    expect(effets.compenserPromotion).toBe(
+    expect(effets.compenserPromotionBrouillons).toBe(
       cycleVieImageProduitParDefaut.compenserPromotionBrouillons
     )
     expect(effets.supprimerSources).toBe(
@@ -45,16 +45,20 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
 
   it("laisse tous les autres membres aux valeurs par défaut quand une surcharge n'en nomme qu'un", () => {
     const defauts = defaultCatalogEffects("produit-1")
-    const confirmationSurchargee: CatalogEffects["confirmerPromotion"] =
+    const confirmationSurchargee: CatalogEffects["confirmerBrouillons"] =
       async () => {}
 
     const effets = avecSurcharges(defauts, {
-      confirmerPromotion: confirmationSurchargee,
+      confirmerBrouillons: confirmationSurchargee,
     })
 
-    expect(effets.confirmerPromotion).toBe(confirmationSurchargee)
-    expect(effets.preparerPromotion).toBe(defauts.preparerPromotion)
-    expect(effets.compenserPromotion).toBe(defauts.compenserPromotion)
+    expect(effets.confirmerBrouillons).toBe(confirmationSurchargee)
+    expect(effets.preparerPromotionBrouillons).toBe(
+      defauts.preparerPromotionBrouillons
+    )
+    expect(effets.compenserPromotionBrouillons).toBe(
+      defauts.compenserPromotionBrouillons
+    )
     expect(effets.supprimerSources).toBe(defauts.supprimerSources)
     expect(effets.lireBrouillonsDeLaTentative).toBe(
       defauts.lireBrouillonsDeLaTentative
@@ -72,13 +76,13 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
       maintenant: () => new Date(INSTANT_PARTAGE),
     }
     const surcharges: Partial<CatalogEffects> = {
-      preparerPromotion: async () => ({
+      preparerPromotionBrouillons: async () => ({
         ok: true,
         galerie: [],
         promotions: [],
       }),
-      confirmerPromotion: async () => {},
-      compenserPromotion: async () => {},
+      confirmerBrouillons: async () => {},
+      compenserPromotionBrouillons: async () => {},
       supprimerSources: async () => {},
       lireBrouillonsDeLaTentative: async () => [],
       horloge: horlogeSurchargee,
@@ -86,9 +90,13 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
 
     const effets = avecSurcharges(defauts, surcharges)
 
-    expect(effets.preparerPromotion).toBe(surcharges.preparerPromotion)
-    expect(effets.confirmerPromotion).toBe(surcharges.confirmerPromotion)
-    expect(effets.compenserPromotion).toBe(surcharges.compenserPromotion)
+    expect(effets.preparerPromotionBrouillons).toBe(
+      surcharges.preparerPromotionBrouillons
+    )
+    expect(effets.confirmerBrouillons).toBe(surcharges.confirmerBrouillons)
+    expect(effets.compenserPromotionBrouillons).toBe(
+      surcharges.compenserPromotionBrouillons
+    )
     expect(effets.supprimerSources).toBe(surcharges.supprimerSources)
     expect(effets.lireBrouillonsDeLaTentative).toBe(
       surcharges.lireBrouillonsDeLaTentative

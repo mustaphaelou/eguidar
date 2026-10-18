@@ -353,7 +353,7 @@ function resultatRegistreRefus(
   }
 }
 
-function estLieAuProduit(
+export function estLieAuProduit(
   brouillon: BrouillonImageProduit
 ): brouillon is BrouillonImageProduit & {
   productId: string
@@ -361,6 +361,9 @@ function estLieAuProduit(
 } {
   return brouillon.productId !== null && brouillon.promotedPublicUrl !== null
 }
+
+type LectureBrouillonPourCompensation =
+  { kind: "lu"; brouillon: BrouillonImageProduit | null } | { kind: "muet" }
 
 type LigneBrouillonImageProduit = {
   id: string
@@ -942,14 +945,22 @@ export function creerCycleVieImageProduit(
     }
   }
 
-  async function promotionAPreserver(
+  async function lireBrouillonPourCompensation(
+    draftId: string
+  ): Promise<LectureBrouillonPourCompensation> {
+    try {
+      return { kind: "lu", brouillon: await registre.lire(draftId) }
+    } catch {
+      return { kind: "muet" }
+    }
+  }
+
+  async function estPromotionAEpargner(
     preuve: PreuvePromotion
   ): Promise<boolean> {
-    const brouillon = await registre
-      .lire(preuve.draftId)
-      .catch(() => "registre-muet" as const)
-    if (brouillon === "registre-muet") return true
-    return brouillon !== null && estLieAuProduit(brouillon)
+    const lecture = await lireBrouillonPourCompensation(preuve.draftId)
+    if (lecture.kind === "muet") return true
+    return lecture.brouillon !== null && estLieAuProduit(lecture.brouillon)
   }
 
   async function compenserPromotionBrouillons(
@@ -957,7 +968,7 @@ export function creerCycleVieImageProduit(
   ): Promise<void> {
     const aSupprimer: PreuvePromotion[] = []
     for (const preuve of promotions) {
-      if (!(await promotionAPreserver(preuve))) aSupprimer.push(preuve)
+      if (!(await estPromotionAEpargner(preuve))) aSupprimer.push(preuve)
     }
     await supprimerPromotionsCreees(aSupprimer)
 

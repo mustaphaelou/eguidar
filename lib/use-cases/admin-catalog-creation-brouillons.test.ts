@@ -11,15 +11,10 @@ import {
 } from "vitest"
 
 import {
-  creerCycleVieImageProduit,
-  creerRegistreBrouillonImageProduitPrisma,
-  type BrouillonImageProduit,
-  type CycleVieImageProduit,
-  type Horloge,
+  MESSAGE_REGISTRE_INDISPONIBLE,
   type PreuvePromotion,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import {
   createProduct,
@@ -30,17 +25,29 @@ import {
   ImageStorageUnavailableError,
   SlugConflictError,
   type CatalogEffects,
-  type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   brouillon,
   creerHorlogeControllable,
-  creerRegistreImageProduitMemoire,
   creerStockageImageProduitMemoire,
   persistee,
   urlImagePersistee,
 } from "@/test/cycle-vie-image-produit-memoire"
+import {
+  copieBrouillons,
+  creerDemandeurDeBrouillon,
+  creerEntreeProduit,
+  creerEnvironnementDurable,
+  creerEnvironnementMemoire,
+  effetsObservantLesJalons,
+  horlogeFixe,
+  MESSAGE_BROUILLON_DEJA_LIBERE,
+  MESSAGE_BROUILLON_EXPIRE,
+  MESSAGE_CONFLIT_REVENDICATION,
+  MESSAGE_IDENTIFIANTS_INVALIDES,
+  observerLesJalonsDeLaTransaction,
+} from "@/test/recette-catalogue-brouillons"
 
 const ownerId = randomUUID()
 const categoryId = randomUUID()
@@ -49,115 +56,16 @@ const dateInitiale = new Date("2026-05-01T10:00:00.000Z")
 
 const slug = (suffix: string) => `p-creation-brouillons-${runId}-${suffix}`
 
-const MESSAGE_IDENTIFIANTS_INVALIDES =
-  "Tentative d'édition ou propriétaire invalide"
+const makeInput = creerEntreeProduit(categoryId, {
+  name: "Produit créé avec des Brouillons",
+  description: "Une description",
+  slug: () => slug("base"),
+  variants: (cible) => [
+    { name: "Standard", sku: `SKU-${cible}`, priceDelta: 0, stock: 2 },
+  ],
+})
 
-const MESSAGE_BROUILLON_EXPIRE =
-  "Ce Brouillon d'Image produit a expiré et son fichier peut déjà avoir été supprimé du stockage. Téléversez à nouveau l'image."
-
-const MESSAGE_CONFLIT_REVENDICATION =
-  "Ce Brouillon d'Image produit est déjà utilisé par une autre tentative d'enregistrement. Rechargez le formulaire ou retirez-le de la galerie."
-
-const MESSAGE_BROUILLON_DEJA_LIBERE =
-  "Ce Brouillon d'Image produit a déjà été libéré : il n'existe plus et ne peut plus être revendiqué."
-
-const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
-
-function makeInput(
-  images: readonly (string | EntreeImageProduit)[],
-  overrides: Partial<ProductInput> = {}
-): ProductInput {
-  const cible = overrides.slug ?? slug("base")
-  return {
-    name: "Produit créé avec des Brouillons",
-    slug: cible,
-    description: "Une description",
-    brand: "Marque",
-    categoryId,
-    price: 10000,
-    specs: {},
-    images,
-    isFeatured: false,
-    featuredOrder: 0,
-    freeShipping: false,
-    variants: [
-      { name: "Standard", sku: `SKU-${cible}`, priceDelta: 0, stock: 2 },
-    ],
-    ...overrides,
-  }
-}
-
-async function demander(
-  cycleVie: CycleVieImageProduit,
-  contentType = "image/webp"
-) {
-  const resultat = await cycleVie.demanderBrouillon({
-    ownerId,
-    contentType,
-    size: 2048,
-  })
-  if (!resultat.ok) throw new Error("La demande de Brouillon devait réussir")
-  return resultat
-}
-
-function creerEnvironnementMemoire() {
-  const horloge = creerHorlogeControllable(dateInitiale)
-  const stockage = creerStockageImageProduitMemoire()
-  const registre = creerRegistreImageProduitMemoire(() =>
-    horloge.horloge.maintenant()
-  )
-  const cycleVie = creerCycleVieImageProduit({
-    stockage,
-    registre,
-    horloge: horloge.horloge,
-  })
-  const effets: CatalogEffects = {
-    deleteImages: vi.fn(async () => {}),
-    reindexProducts: vi.fn(async () => {}),
-    revalidateCatalog: vi.fn(),
-    removeProductFromIndex: vi.fn(async () => {}),
-    preparerPromotion: cycleVie.preparerPromotionBrouillons,
-    confirmerPromotion: (productId, promotions) =>
-      cycleVie.confirmerBrouillons(productId, promotions),
-    compenserPromotion: cycleVie.compenserPromotionBrouillons,
-    supprimerSources: cycleVie.supprimerSources,
-    lireBrouillonsDeLaTentative: cycleVie.lireBrouillonsDeLaTentative,
-    horloge: horloge.horloge,
-  }
-  return { cycleVie, horloge, stockage, registre, effets }
-}
-
-function creerEnvironnementDurable(
-  horloge: Horloge = { maintenant: () => new Date(dateInitiale) }
-) {
-  const stockage = creerStockageImageProduitMemoire()
-  const registre = creerRegistreBrouillonImageProduitPrisma(horloge)
-  const cycleVie = creerCycleVieImageProduit({ stockage, registre, horloge })
-  const effets: CatalogEffects = {
-    deleteImages: vi.fn(async () => {}),
-    reindexProducts: vi.fn(async () => {}),
-    revalidateCatalog: vi.fn(),
-    removeProductFromIndex: vi.fn(async () => {}),
-    preparerPromotion: cycleVie.preparerPromotionBrouillons,
-    confirmerPromotion: cycleVie.confirmerBrouillons,
-    compenserPromotion: cycleVie.compenserPromotionBrouillons,
-    supprimerSources: cycleVie.supprimerSources,
-    lireBrouillonsDeLaTentative: cycleVie.lireBrouillonsDeLaTentative,
-    horloge,
-  }
-  return { cycleVie, stockage, effets }
-}
-
-function copieBrouillons(
-  records: ReadonlyMap<string, BrouillonImageProduit>
-): Map<string, BrouillonImageProduit> {
-  return new Map(
-    [...records].map(([id, brouillonEnregistre]) => [
-      id,
-      { ...brouillonEnregistre },
-    ])
-  )
-}
+const demander = creerDemandeurDeBrouillon(ownerId)
 
 describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   beforeAll(async () => {
@@ -196,7 +104,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("enregistre une Galerie mêlant Brouillons et URLs existantes dans l'ordre soumis", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const premier = await demander(environnement.cycleVie)
     const second = await demander(environnement.cycleVie, "image/png")
     const avant = "https://cdn.test/produits/persistee-1.webp"
@@ -260,12 +168,12 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("lie les Brouillons au Produit dans la transaction qui l'insère", async () => {
-    const environnement = creerEnvironnementDurable()
+    const environnement = creerEnvironnementDurable(horlogeFixe(dateInitiale))
     const draft = await demander(environnement.cycleVie)
     const cible = slug("liaison")
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerPromotion: async (...confirmation) => {
+      confirmerBrouillons: async (...confirmation) => {
         await environnement.cycleVie.confirmerBrouillons(...confirmation)
         throw new Error("échec après la liaison")
       },
@@ -300,7 +208,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("supprime les sources, puis réindexe et invalide le cache après l'engagement", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const cible = slug("apres-engagement")
     const ordre: string[] = []
@@ -339,8 +247,37 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
     expect(environnement.stockage.suppressionsImagesPromues).toEqual([])
   })
 
+  it("prépare la promotion avant la transaction, y lie les Brouillons, puis supprime les sources après son engagement", async () => {
+    const environnement = creerEnvironnementMemoire(dateInitiale)
+    const draft = await demander(environnement.cycleVie)
+    const jalons = observerLesJalonsDeLaTransaction()
+    const cible = slug("ordre-des-trois-phases")
+
+    try {
+      const product = await createProduct(
+        makeInput([brouillon(draft.draftId)], {
+          slug: cible,
+          tentativeId: "tentative-ordre-des-trois-phases",
+          ownerId,
+        }),
+        effetsObservantLesJalons(environnement.effets, jalons)
+      )
+      expect(product.slug).toBe(cible)
+    } finally {
+      jalons.arreter()
+    }
+
+    expect(jalons.ordre).toEqual([
+      "preparation",
+      "transaction-ouverte",
+      "liaison",
+      "transaction-fermee",
+      "sources",
+    ])
+  })
+
   it("rend le Produit existant à la resoumission du même identifiant de tentative", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const premier = await demander(environnement.cycleVie)
     const second = await demander(environnement.cycleVie)
     const confirmation = vi.fn(
@@ -349,7 +286,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
     )
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerPromotion: confirmation,
+      confirmerBrouillons: confirmation,
     }
     const entree = makeInput(
       [brouillon(premier.draftId), brouillon(second.draftId)],
@@ -380,7 +317,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("refuse de reprendre quand tous les Brouillons soumis ne sont pas liés", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const premier = await demander(environnement.cycleVie)
     const second = await demander(environnement.cycleVie)
     const cible = slug("reprise-partielle")
@@ -426,9 +363,9 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
       throw new Error("couture de Brouillon atteinte")
     })
     const effets: Partial<CatalogEffects> = {
-      preparerPromotion: couture,
-      confirmerPromotion: couture,
-      compenserPromotion: couture,
+      preparerPromotionBrouillons: couture,
+      confirmerBrouillons: couture,
+      compenserPromotionBrouillons: couture,
       supprimerSources: couture,
       lireBrouillonsDeLaTentative: couture,
       reindexProducts: vi.fn(async () => {}),
@@ -450,7 +387,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("compense la promotion quand la transaction échoue, sans laisser d'actif orphelin", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const cible = slug("transaction-echouee")
     const entree = makeInput([brouillon(draft.draftId)], {
@@ -480,8 +417,8 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
     })
   })
 
-  it("refuse un slug déjà pris en refus typé, sans laisser d'actif orphelin", async () => {
-    const environnement = creerEnvironnementMemoire()
+  it("refuse un slug déjà pris en refus typé, sans rien promouvoir", async () => {
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const cible = slug("slug-pris")
     await createProduct(makeInput([], { slug: cible }), environnement.effets)
     const draft = await demander(environnement.cycleVie)
@@ -503,9 +440,8 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
 
     await expect(promesse).rejects.toBeInstanceOf(SlugConflictError)
     expect(await prisma.product.count({ where: { slug: cible } })).toBe(1)
-    expect(environnement.stockage.suppressionsImagesPromues).toEqual([
-      persistentObjectKey(draft.draftId, "image/webp"),
-    ])
+    expect(environnement.stockage.promotions).toEqual([])
+    expect(environnement.stockage.suppressionsImagesPromues).toEqual([])
     expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
       state: "vivant",
       tentativeId: null,
@@ -514,7 +450,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("refuse un Brouillon expiré en refus typé, sans rien insérer", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     environnement.horloge.avancer(25 * 60 * 60)
     const cible = slug("expire")
@@ -538,7 +474,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("refuse un Brouillon revendiqué par une autre tentative en refus typé", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     await environnement.registre.revendiquer({
       id: draft.draftId,
@@ -570,7 +506,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
 
   it("remonte un stockage indisponible puis un stockage refusé en refus typés", async () => {
     for (const panne of ["indisponible", "refuse"] as const) {
-      const environnement = creerEnvironnementMemoire()
+      const environnement = creerEnvironnementMemoire(dateInitiale)
       const draft = await demander(environnement.cycleVie)
       if (panne === "indisponible") {
         environnement.stockage.pannes.promouvoirBrouillon.add("non-configure")
@@ -601,7 +537,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("remonte un registre indisponible au moment de revendiquer", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     environnement.registre.pannes.add("revendiquer")
     const cible = slug("registre-revendication")
@@ -622,7 +558,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("remonte un registre indisponible au moment de la reprise", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     environnement.registre.pannes.add("lireParTentative")
     const cible = slug("registre-reprise")
@@ -643,7 +579,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("refuse un Brouillon sans identifiants en refus typé, sans toucher à la couture", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const cible = slug("sans-identifiants")
     const promesse = createProduct(
@@ -662,7 +598,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("refuse un Brouillon libéré en conflit typé, avec la raison du relâchement", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     expect(
       await environnement.cycleVie.relacherBrouillon({
@@ -692,7 +628,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("laisse intact un Brouillon resté hors de la Galerie soumise", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const premier = await demander(environnement.cycleVie, "image/webp")
     const second = await demander(environnement.cycleVie, "image/png")
     const abandonne = await demander(environnement.cycleVie, "image/avif")
@@ -737,7 +673,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("ne laisse qu'une création concurrente gagner la revendication du même Brouillon", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const entree = (suffixe: string) =>
       makeInput([brouillon(draft.draftId)], {
@@ -870,7 +806,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("garde les liens du registre durable dans la transaction qui insère le Produit", async () => {
-    const environnement = creerEnvironnementDurable()
+    const environnement = creerEnvironnementDurable(horlogeFixe(dateInitiale))
     const premier = await demander(environnement.cycleVie, "image/jpeg")
     const second = await demander(environnement.cycleVie, "image/png")
     const cible = slug("liaison-durable")
@@ -910,7 +846,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("rend les revendications déjà posées quand le registre tombe, puis réussit à son retour", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const premier = await demander(environnement.cycleVie, "image/webp")
     const second = await demander(environnement.cycleVie, "image/png")
     const revendiquer = environnement.registre.revendiquer.bind(
@@ -956,7 +892,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("garde l'enregistrement acquis quand la suppression d'une source échoue", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const preuve = creerStockageImageProduitMemoire()
     preuve.pannes.supprimerBrouillon.add("leve")
@@ -989,7 +925,7 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("rend le refus typé même quand la compensation ne peut pas supprimer la copie promue", async () => {
-    const environnement = creerEnvironnementMemoire()
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const preuve = creerStockageImageProduitMemoire()
     preuve.pannes.supprimerImagePromue.add("leve")

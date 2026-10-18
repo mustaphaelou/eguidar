@@ -29,40 +29,44 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
 - **Une couture séquentielle, en ordre direct.** L'interface du cycle de vie
   (`lib/cycle-vie-image-produit.ts:191-215`) n'expose plus aucune opération qui prend une fonction :
   elle se lit dans l'ordre où l'enregistrement l'exécute — préparer la promotion, confirmer,
-  supprimer les sources — par `preparerPromotionBrouillons` (`lib/cycle-vie-image-produit.ts:837-922`),
-  `confirmerBrouillons` (`:924-943`), `compenserPromotionBrouillons` (`:955-973`) et
-  `supprimerSources` (`:975-988`), qui rendent la main à chaque geste et laissent l'appelant les
+  supprimer les sources — par `preparerPromotionBrouillons` (`lib/cycle-vie-image-produit.ts:840-925`),
+  `confirmerBrouillons` (`:927-946`), `compenserPromotionBrouillons` (`:966-984`) et
+  `supprimerSources` (`:986-999`), qui rendent la main à chaque geste et laissent l'appelant les
   enchaîner. Le **Catalogue** est cet appelant : `createProduct`
-  (`lib/use-cases/admin-catalog.ts:462-543`) et `updateProduct` (`:545-695`) possèdent l'ordre, et ils
-  le tiennent par leur couture d'effets (`CatalogEffects`, `lib/use-cases/admin-catalog.ts:68-79`),
+  (`lib/use-cases/admin-catalog.ts:447-525`) et `updateProduct` (`:527-674`) possèdent l'ordre, et ils
+  le tiennent par leur couture d'effets (`CatalogEffects`, `lib/use-cases/admin-catalog.ts:69-80`),
   dont les valeurs par défaut sont branchées sur l'instance de production du cycle de vie
-  (`:92-124`). Le rappel inversé n'a plus de maison : ni `revendiquerEtEnregistrer`, ni
-  `RevendicationImagesProduit` n'existent dans `app/`, `lib/` ou `components/`.
+  (`:93-125`). La couture porte aussi `horloge`, l'heure système par défaut : #685 l'exige comme
+  couture prévue, qu'aucun consommateur de l'enregistrement ne lit encore. Le rappel inversé n'a plus
+  de maison : ni `revendiquerEtEnregistrer`, ni `RevendicationImagesProduit` n'existent dans `app/`,
+  `lib/` ou `components/`.
 
 - **Trois phases, et la transaction base de données n'encadre que la deuxième.** *Avant* l'ouverture
   de la transaction, les opérations de stockage réseau : la revendication des Brouillons et la
-  promotion des objets (`promouvoirBrouillons`, `lib/use-cases/admin-catalog.ts:437-452`). *Dans* la
+  promotion des objets (`promouvoirBrouillons`, `lib/use-cases/admin-catalog.ts:422-437`). *Dans* la
   transaction : la rangée du **Produit**, ses Variantes, et la liaison des Brouillons au **Produit**
-  — `effects.confirmerPromotion(created.id, promotions, portTransactionRegistreBrouillonImageProduit(tx))`
-  (`:514-520`, `:651-657`), le port passé ne sachant que confirmer une promotion
-  (`lib/cycle-vie-image-produit.ts:132-136`, `:458-465`). *Après* l'engagement : la suppression des
+  — `effects.confirmerBrouillons(created.id, promotions, portTransactionRegistreBrouillonImageProduit(tx))`
+  (`:497-501`, `:631-635`), le port passé ne sachant que confirmer une promotion
+  (`lib/cycle-vie-image-produit.ts:132-136`, `:461-468`). *Après* l'engagement : la suppression des
   sources, en best-effort (`effects.supprimerSources`, ADR-0014), puis la suppression des Images
   produit retirées, la réindexation et l'invalidation du cache. Aucune opération de stockage ne
   s'exécute pendant que la transaction est ouverte, et aucune écriture de base ne s'exécute après
-  elle.
+  elle. Les refus bon marché — validations, unicité, appartenance des Images produit et des
+  Variantes — précèdent la promotion, pour qu'un refus ne paie jamais une promotion suivie d'une
+  compensation.
 
 - **La compensation est inconditionnelle, et elle épargne ce qui est engagé.** Tout échec de la
   transaction — validation, unicité, panne — passe par `compenserPromotions`
-  (`lib/use-cases/admin-catalog.ts:454-460`) puis `compenserPromotionBrouillons`
-  (`lib/cycle-vie-image-produit.ts:955-973`) : les copies promues qui ne sont liées à aucun
+  (`lib/use-cases/admin-catalog.ts:439-445`) puis `compenserPromotionBrouillons`
+  (`lib/cycle-vie-image-produit.ts:966-984`) : les copies promues qui ne sont liées à aucun
   **Produit** sont supprimées, et les revendications de la tentative sont rendues, Brouillon par
   Brouillon. L'appelant ne décide pas de compenser, et il ne peut pas l'oublier : la compensation
   appartient à la couture. Deux preuves sont épargnées par construction : une promotion déjà liée à
-  une rangée engagée n'est jamais détruite (`promotionAPreserver`, `:945-953`), et un registre muet
+  une rangée engagée n'est jamais détruite (`estPromotionAEpargner`, `:958-964`), et un registre muet
   fait conserver plutôt que détruire — la compensation ne supprime que ce qu'elle peut vérifier.
 
 - **La reprise par identifiant de tentative rend le Produit existant, sans réinsérer.**
-  `produitDeLaTentative` (`lib/use-cases/admin-catalog.ts:400-435`) lit les Brouillons de la
+  `produitDeLaTentative` (`lib/use-cases/admin-catalog.ts:388-420`) lit les Brouillons de la
   tentative au registre ; si tous ceux de la galerie soumise sont liés à un même **Produit**, elle le
   rend tel quel, et la création comme la mise à jour s'arrêtent là, sans réindexer ni promouvoir à
   nouveau. Une galerie partiellement liée, ou liée à plusieurs **Produits**, est refusée ; une mise à
@@ -70,13 +74,15 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
   resoumission d'un formulaire qui a déjà abouti, et elle ne doit rien produire de neuf.
 
 - **Un seul propriétaire de l'appartenance des Images produit.** `assertAucuneImageDAutreProduit`
-  (`lib/use-cases/admin-catalog.ts:326-349`) refuse toute URL de la galerie soumise qui appartient
-  déjà à un autre **Produit** ; les URL admises sont celles du **Produit** édité et les promotions de
-  la présente tentative. Une entrée de Galerie ne nomme donc jamais l'Image produit d'un autre
+  (`lib/use-cases/admin-catalog.ts:314-337`) refuse toute URL de la galerie soumise qui appartient
+  déjà à un autre **Produit** ; les URL admises sont celles du **Produit** édité, et la règle juge
+  avant toute promotion — une entrée `brouillon` n'est pas une `persistee`, et l'URL promue d'un
+  Brouillon ne figure jamais dans la galerie soumise, donc le refus ne paie ni promotion ni
+  compensation. Une entrée de Galerie ne nomme donc jamais l'Image produit d'un autre
   **Produit**, tandis qu'une URL orpheline reste acceptée : elle n'appartient à personne. La règle
   vit à l'entrée du **Catalogue**, pas dans un formulaire — l'entrée accepte les deux formes,
   `{ kind: "brouillon" }` et `{ kind: "persistee" }` comme la chaîne nue
-  (`galerieSoumiseSchema`, `lib/use-cases/admin-catalog.ts:213-227`), et c'est la même règle qui les
+  (`galerieSoumiseSchema`, `lib/use-cases/admin-catalog.ts:213-219`), et c'est la même règle qui les
   juge.
 
 - **La promotion du stockage n'a qu'un propriétaire, et le Catalogue garde son effet après
@@ -84,7 +90,7 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
   que par le port qui les implémente (`lib/r2.ts`) et par le module de cycle de vie qui les appelle
   (`lib/cycle-vie-image-produit.ts`) ; le **Catalogue** n'en nomme aucun, et son seul geste de
   stockage reste `stockageImageProduitR2.supprimerImagePersistee(url)`
-  (`lib/use-cases/admin-catalog.ts:101-113`), effet après engagement de sa propre mutation. La
+  (`lib/use-cases/admin-catalog.ts:102-114`), effet après engagement de sa propre mutation. La
   frontière d'imports l'épingle : `lib/cycle-vie-image-produit-frontiere.test.ts`.
 
 - **Ce qui ne change pas.** Les routes de téléversement (`app/api/admin/uploads/presign/route.ts`,
@@ -154,14 +160,18 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
   promotion la précèdent, la liaison des Brouillons s'y fait par le port de transaction, la
   suppression des sources et de la réindexation la suivent — éprouvé par
   `lib/use-cases/admin-catalog-creation-brouillons.test.ts` et
-  `lib/use-cases/admin-catalog-update-brouillons.test.ts`.
+  `lib/use-cases/admin-catalog-update-brouillons.test.ts`, qui consignent l'ordre des jalons autour
+  de la transaction.
 - Tout échec de la transaction supprime les copies promues non liées et rend les revendications de
   la tentative ; une promotion déjà liée à une rangée engagée n'est jamais détruite, et un registre
   muet fait conserver — éprouvé par `lib/cycle-vie-image-produit-compensation.test.ts`.
+- Les refus bon marché — validations, unicité, appartenance des Images produit et des Variantes —
+  précèdent la promotion : un refus ne paie ni promotion réseau ni compensation — éprouvé par les
+  mêmes suites d'enregistrement avec Brouillons.
 - La resoumission d'un identifiant de tentative rend le **Produit** existant sans réinsérer, quand
   tous les Brouillons soumis sont liés à un même **Produit** ; sinon elle refuse en conflit typé.
 - Une entrée de Galerie ne nomme jamais l'Image produit d'un autre **Produit** ; les URL admises sont
-  celles du **Produit** édité et les promotions de la tentative — éprouvé par
+  celles du **Produit** édité, jugées avant toute promotion — éprouvé par
   `lib/use-cases/admin-catalog.test.ts`.
 - Les routes de téléversement, le composant client de Galerie, la disposition du compartiment public
   et le hachage des URL restent ce qu'ADR-0004 et ADR-0033 ont décidé ; ADR-0014 et ADR-0025 restent

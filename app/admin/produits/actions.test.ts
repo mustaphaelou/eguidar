@@ -24,13 +24,18 @@ vi.mock("@/lib/use-cases/admin-catalog", async (importOriginal) => ({
   createProduct: (champs: ProductInput) => catalogue.creer(champs),
   updateProduct: (produitId: string, champs: ProductInput) =>
     catalogue.mettreAJour(produitId, champs),
+  deleteProduct: (produitId: string) => catalogue.supprimer(produitId),
 }))
 
 import {
   createProductAction,
+  deleteProductAction,
   updateProductAction,
 } from "@/app/admin/produits/actions"
-import { CatalogValidationError } from "@/lib/use-cases/admin-catalog"
+import {
+  CatalogValidationError,
+  ProductNotFoundError,
+} from "@/lib/use-cases/admin-catalog"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const ADMIN: Client = {
@@ -47,27 +52,35 @@ interface AppelCatalogue {
 
 interface CatalogueFaux {
   readonly appels: AppelCatalogue[]
+  readonly suppressions: string[]
   refus: Error | null
   creer(champs: ProductInput): Promise<{ id: string }>
   mettreAJour(produitId: string, champs: ProductInput): Promise<{ id: string }>
+  supprimer(produitId: string): Promise<void>
   oublier(): void
 }
 
 function creerCatalogueFaux(): CatalogueFaux {
   const appels: AppelCatalogue[] = []
+  const suppressions: string[] = []
   let compteur = 0
+
+  async function refuser(): Promise<void> {
+    if (faux.refus) throw faux.refus
+  }
 
   async function enregistrer(
     produitId: string,
     champs: ProductInput
   ): Promise<{ id: string }> {
-    if (faux.refus) throw faux.refus
+    await refuser()
     appels.push({ produitId, champs })
     return { id: produitId }
   }
 
   const faux: CatalogueFaux = {
     appels,
+    suppressions,
     refus: null,
     creer(champs) {
       compteur += 1
@@ -76,8 +89,13 @@ function creerCatalogueFaux(): CatalogueFaux {
     mettreAJour(produitId, champs) {
       return enregistrer(produitId, champs)
     },
+    async supprimer(produitId) {
+      await refuser()
+      suppressions.push(produitId)
+    },
     oublier() {
       appels.length = 0
+      suppressions.length = 0
       compteur = 0
       faux.refus = null
     },
@@ -125,6 +143,12 @@ function updateFormData(
   tentativeId = "tentative-update-1"
 ): FormData {
   const data = formData(galerie, tentativeId)
+  data.append("productId", "produit-1")
+  return data
+}
+
+function formulaireSuppression(): FormData {
+  const data = new FormData()
   data.append("productId", "produit-1")
   return data
 }
@@ -290,5 +314,28 @@ describe("updateProductAction", () => {
 
     expect(resultat).toEqual({ error: "Formulaire invalide" })
     expect(catalogue.appels).toEqual([])
+  })
+
+  it("rend un refus formaté quand le Produit a disparu entre-temps, pas une page d'erreur", async () => {
+    catalogue.refus = new ProductNotFoundError()
+
+    const resultat = await updateProductAction({}, updateFormData([]))
+
+    expect(resultat).toEqual({ error: "Produit introuvable" })
+    expect(catalogue.appels).toEqual([])
+  })
+})
+
+describe("deleteProductAction", () => {
+  it("redirige vers la liste quand le Produit a déjà disparu, sans page d'erreur", async () => {
+    catalogue.refus = new ProductNotFoundError()
+
+    await expect(
+      deleteProductAction(formulaireSuppression())
+    ).rejects.toMatchObject({
+      name: "NEXT_REDIRECT",
+      url: "/admin/produits",
+    })
+    expect(catalogue.suppressions).toEqual([])
   })
 })

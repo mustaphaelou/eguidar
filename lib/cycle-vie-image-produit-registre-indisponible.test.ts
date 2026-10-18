@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import type { CycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import {
+  MESSAGE_REGISTRE_INDISPONIBLE,
+  type CycleVieImageProduit,
+} from "@/lib/cycle-vie-image-produit"
 import { creerCycleVieTest } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-05-02T10:00:00.000Z")
@@ -14,8 +17,6 @@ async function demanderBrouillon(cycleVie: CycleVieImageProduit) {
   if (!resultat.ok) throw new Error("La demande devait réussir")
   return resultat
 }
-
-const MESSAGE_REGISTRE_INDISPONIBLE = "Registre des Brouillons indisponible"
 
 describe("refus « registre indisponible »", () => {
   it("refuse une demande de Brouillon quand la création du registre échoue", async () => {

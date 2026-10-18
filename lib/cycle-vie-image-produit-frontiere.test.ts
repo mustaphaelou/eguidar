@@ -307,9 +307,9 @@ describe("Cycle de vie des Images produit — le propriétaire de la promotion",
       operationsStockageNommees(
         [
           "async function promouvoirBrouillons(data: ProduitValide, effects: CatalogEffects) {",
-          "  const preparation = await effects.preparerPromotion({ tentativeId, ownerId, galerie })",
+          "  const preparation = await effects.preparerPromotionBrouillons({ tentativeId, ownerId, galerie })",
           "  if (!preparation.ok) throw erreurDePreparation(preparation)",
-          "  await effects.confirmerPromotion(id, promotions, port)",
+          "  await effects.confirmerBrouillons(id, promotions, port)",
           "  await effects.supprimerSources(promotions)",
           "  await stockageImageProduitR2.supprimerImagePersistee(url)",
           "}",
