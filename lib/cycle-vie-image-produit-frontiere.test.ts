@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   atteignables,
+  avecSource,
   importeDe,
+  sourceApres,
   sourcesDeProduction,
+  sourcesToutes,
+  type SourceProduction,
 } from "@/lib/use-cases/outils-frontiere"
 
 const MODULE_R2 = "lib/r2.ts"
@@ -17,7 +21,36 @@ const MODULE_TELEVERSEMENT = "components/admin/televersement-brouillons.ts"
 const ADAPTATEUR_TELEVERSEMENT =
   "components/admin/televersement-brouillons-http.ts"
 
+const CETTE_SUITE = "lib/cycle-vie-image-produit-frontiere.test.ts"
+
+const OPERATIONS_STOCKAGE = [
+  "presignerBrouillon",
+  "promouvoirBrouillon",
+  "supprimerBrouillon",
+  "supprimerImageCategorie",
+  "supprimerImagePersistee",
+  "supprimerImagePromue",
+] as const
+
+const OPERATIONS_PROMOTION = [
+  "promouvoirBrouillon",
+  "supprimerBrouillon",
+  "supprimerImagePromue",
+] as const
+
+const PROTOCOLE_INVERSE = [
+  "revendiquerEtEnregistrer",
+  "RevendicationImagesProduit",
+] as const
+
 const SOURCES = sourcesDeProduction(
+  import.meta.url,
+  "../app",
+  "../components",
+  "../infra",
+  "../lib"
+)
+const SOURCES_TOUTES = sourcesToutes(
   import.meta.url,
   "../app",
   "../components",
@@ -52,6 +85,35 @@ function source(chemin: string): string {
   const trouvee = PAR_CHEMIN.get(chemin)
   if (!trouvee) throw new Error(`Source de production absente : ${chemin}`)
   return trouvee.source
+}
+
+function gestesNommes(source: string, gestes: readonly string[]): string[] {
+  return gestes
+    .filter((geste) => new RegExp(`\\b${geste}\\b`).test(source))
+    .sort()
+}
+
+function operationsStockageNommees(source: string): string[] {
+  return gestesNommes(source, OPERATIONS_STOCKAGE)
+}
+
+function promoteurs(sources: readonly SourceProduction[]): string[] {
+  return sources
+    .filter(
+      ({ source }) => gestesNommes(source, OPERATIONS_PROMOTION).length > 0
+    )
+    .map(({ chemin }) => chemin)
+    .sort()
+}
+
+function mentionsDuProtocoleInverse(
+  sources: readonly SourceProduction[]
+): string[] {
+  return sources
+    .filter(({ chemin }) => chemin !== CETTE_SUITE)
+    .filter(({ source }) => gestesNommes(source, PROTOCOLE_INVERSE).length > 0)
+    .map(({ chemin }) => chemin)
+    .sort()
 }
 
 describe("Cycle de vie des Images produit — frontière", () => {
@@ -194,5 +256,125 @@ describe("Cycle de vie des Images produit — frontière", () => {
     ).map(({ chemin }) => chemin)
 
     expect(aliases).toEqual([])
+  })
+})
+
+describe("Cycle de vie des Images produit — le propriétaire de la promotion", () => {
+  it("n'a que deux maisons pour les gestes de promotion : le port qui les implémente et le cycle de vie qui les appelle", () => {
+    expect(SOURCES.length).toBeGreaterThan(200)
+    expect(promoteurs(SOURCES)).toEqual([MODULE_CYCLE_VIE, MODULE_R2].sort())
+    expect(operationsStockageNommees(source(MODULE_CYCLE_VIE))).toEqual(
+      ["presignerBrouillon", ...OPERATIONS_PROMOTION].sort()
+    )
+    expect(operationsStockageNommees(source(MODULE_R2))).toEqual(
+      [...OPERATIONS_STOCKAGE].sort()
+    )
+  })
+
+  it("ne laisse le Catalogue atteindre le stockage que par le cycle de vie et son effet après engagement", () => {
+    const catalogue = source(MODULE_CATALOGUE)
+
+    expect(importeDe(catalogue, MODULE_CYCLE_VIE)).toBe(true)
+    expect(gestesNommes(catalogue, OPERATIONS_PROMOTION)).toEqual([])
+    expect(operationsStockageNommees(catalogue)).toEqual([
+      "supprimerImagePersistee",
+    ])
+    expect(catalogue).toContain(
+      "stockageImageProduitR2.supprimerImagePersistee(url)"
+    )
+  })
+
+  it("la garde reconnaît un appel direct de promotion et épargne l'orchestrateur du propriétaire", () => {
+    expect(
+      gestesNommes(
+        [
+          "  await stockageImageProduitR2.promouvoirBrouillon({ draftId, contentType })",
+          "  await port.supprimerBrouillon({ draftId, contentType })",
+          "  await stockage.supprimerImagePromue({ draftId, contentType })",
+          "  await stockage.presignerBrouillon({ draftId, contentType, size })",
+          "  await stockageImageProduitR2.supprimerImagePersistee(url)",
+          "  await stockageImageProduitR2.supprimerImageCategorie(url)",
+        ].join("\n"),
+        OPERATIONS_PROMOTION
+      )
+    ).toEqual([
+      "promouvoirBrouillon",
+      "supprimerBrouillon",
+      "supprimerImagePromue",
+    ])
+
+    expect(
+      operationsStockageNommees(
+        [
+          "async function promouvoirBrouillons(data: ProduitValide, effects: CatalogEffects) {",
+          "  const preparation = await effects.preparerPromotion({ tentativeId, ownerId, galerie })",
+          "  if (!preparation.ok) throw erreurDePreparation(preparation)",
+          "  await effects.confirmerPromotion(id, promotions, port)",
+          "  await effects.supprimerSources(promotions)",
+          "  await stockageImageProduitR2.supprimerImagePersistee(url)",
+          "}",
+        ].join("\n")
+      )
+    ).toEqual(["supprimerImagePersistee"])
+  })
+
+  it("tombe sur un appel direct de promotion replanté dans le Catalogue", () => {
+    const reel = source(MODULE_CATALOGUE)
+    const plante = sourceApres(
+      reel,
+      "  await stockageImageProduitR2.promouvoirBrouillon({ draftId: identifiant, contentType })"
+    )
+    expect(plante).not.toBe(reel)
+
+    const maisons = [MODULE_CYCLE_VIE, MODULE_R2].sort()
+    expect(promoteurs(avecSource(SOURCES, MODULE_CATALOGUE, reel))).toEqual(
+      maisons
+    )
+    expect(promoteurs(avecSource(SOURCES, MODULE_CATALOGUE, plante))).toEqual(
+      [MODULE_CATALOGUE, ...maisons].sort()
+    )
+    expect(operationsStockageNommees(plante)).toEqual([
+      "promouvoirBrouillon",
+      "supprimerImagePersistee",
+    ])
+  })
+
+  it("ne laisse aucune trace du protocole inversé dans les sources, suites comprises", () => {
+    expect(SOURCES_TOUTES.length).toBeGreaterThan(SOURCES.length)
+    expect(SOURCES_TOUTES.map(({ chemin }) => chemin)).toEqual(
+      expect.arrayContaining([
+        CETTE_SUITE,
+        "lib/cycle-vie-image-produit.test.ts",
+      ])
+    )
+    expect(mentionsDuProtocoleInverse(SOURCES_TOUTES)).toEqual([])
+  })
+
+  it("tombe sur le protocole inversé replanté dans le cycle de vie comme dans le Catalogue", () => {
+    expect(
+      mentionsDuProtocoleInverse(
+        avecSource(
+          SOURCES_TOUTES,
+          MODULE_CYCLE_VIE,
+          sourceApres(
+            source(MODULE_CYCLE_VIE),
+            "  await revendiquerEtEnregistrer({ tentativeId, ownerId, galerie, enregistrer })"
+          )
+        )
+      )
+    ).toEqual([MODULE_CYCLE_VIE])
+
+    expect(
+      mentionsDuProtocoleInverse(
+        avecSource(
+          SOURCES_TOUTES,
+          MODULE_CATALOGUE,
+          sourceApres(
+            source(MODULE_CATALOGUE),
+            "type Faits = RevendicationImagesProduit"
+          )
+        )
+      )
+    ).toEqual([MODULE_CATALOGUE])
   })
 })
