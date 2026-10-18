@@ -58,9 +58,8 @@ vi.mock("@/lib/use-cases/admin-catalog", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/use-cases/admin-catalog")>()),
   createProduct: (
     champs: ProductInput,
-    _effets: Partial<CatalogEffects> | undefined,
-    revendication: RevendicationImagesProduit | undefined
-  ) => catalogue.creer(champs, revendication),
+    _effets: Partial<CatalogEffects> | undefined
+  ) => catalogue.creer(champs),
   updateProduct: (
     produitId: string,
     champs: ProductInput,
@@ -103,10 +102,7 @@ interface ProduitRelu {
 interface CatalogueFaux {
   readonly ecritures: EcritureCatalogue[]
   refus: Error | null
-  creer(
-    champs: ProductInput,
-    revendication?: RevendicationImagesProduit
-  ): Promise<{ id: string }>
+  creer(champs: ProductInput): Promise<{ id: string }>
   mettreAJour(
     produitId: string,
     champs: ProductInput,
@@ -134,9 +130,9 @@ function creerCatalogueFaux(): CatalogueFaux {
   const faux: CatalogueFaux = {
     ecritures,
     refus: null,
-    creer(champs, revendication) {
+    creer(champs) {
       compteur += 1
-      return ecrire(`produit-${compteur}`, champs, revendication)
+      return ecrire(`produit-${compteur}`, champs)
     },
     mettreAJour(produitId, champs, revendication) {
       return ecrire(produitId, champs, revendication)

@@ -25,6 +25,12 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
     expect(effets.compenserPromotion).toBe(
       cycleVieImageProduitParDefaut.compenserPromotionBrouillons
     )
+    expect(effets.supprimerSources).toBe(
+      cycleVieImageProduitParDefaut.supprimerSources
+    )
+    expect(effets.lireBrouillonsDeLaTentative).toBe(
+      cycleVieImageProduitParDefaut.lireBrouillonsDeLaTentative
+    )
   })
 
   it("rend l'heure système sans qu'aucun appelant n'ait à la passer", () => {
@@ -49,6 +55,10 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
     expect(effets.confirmerPromotion).toBe(confirmationSurchargee)
     expect(effets.preparerPromotion).toBe(defauts.preparerPromotion)
     expect(effets.compenserPromotion).toBe(defauts.compenserPromotion)
+    expect(effets.supprimerSources).toBe(defauts.supprimerSources)
+    expect(effets.lireBrouillonsDeLaTentative).toBe(
+      defauts.lireBrouillonsDeLaTentative
+    )
     expect(effets.horloge).toBe(defauts.horloge)
     expect(effets.deleteImages).toBe(defauts.deleteImages)
     expect(effets.reindexProducts).toBe(defauts.reindexProducts)
@@ -56,7 +66,7 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
     expect(effets.removeProductFromIndex).toBe(defauts.removeProductFromIndex)
   })
 
-  it("accepte en surcharge la préparation, la confirmation, la compensation et l'horloge", () => {
+  it("accepte en surcharge les gestes du cycle de vie des Brouillons et l'horloge", () => {
     const defauts = defaultCatalogEffects("produit-1")
     const horlogeSurchargee: Horloge = {
       maintenant: () => new Date(INSTANT_PARTAGE),
@@ -69,6 +79,8 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
       }),
       confirmerPromotion: async () => {},
       compenserPromotion: async () => {},
+      supprimerSources: async () => {},
+      lireBrouillonsDeLaTentative: async () => [],
       horloge: horlogeSurchargee,
     }
 
@@ -77,6 +89,10 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
     expect(effets.preparerPromotion).toBe(surcharges.preparerPromotion)
     expect(effets.confirmerPromotion).toBe(surcharges.confirmerPromotion)
     expect(effets.compenserPromotion).toBe(surcharges.compenserPromotion)
+    expect(effets.supprimerSources).toBe(surcharges.supprimerSources)
+    expect(effets.lireBrouillonsDeLaTentative).toBe(
+      surcharges.lireBrouillonsDeLaTentative
+    )
     expect(effets.horloge).toBe(horlogeSurchargee)
     expect(effets.horloge.maintenant()).toEqual(INSTANT_PARTAGE)
     expect(effets.deleteImages).toBe(defauts.deleteImages)

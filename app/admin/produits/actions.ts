@@ -41,11 +41,11 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
         galerie: images,
         resultatDejaPersiste,
         enregistrer: async (revendication) => {
-          const product = await createProduct(
-            { ...champsCatalogue, images: [...revendication.galerie] },
-            undefined,
-            revendication
-          )
+          const product = await createProduct({
+            ...champsCatalogue,
+            images: [...revendication.galerie],
+          })
+          await revendication.lier(product.id)
           return { productId: product.id }
         },
       })

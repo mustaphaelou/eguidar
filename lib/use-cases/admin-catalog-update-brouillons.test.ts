@@ -78,14 +78,6 @@ function effetsSilencieux() {
   }
 }
 
-function revendicationPromue(...urls: string[]): RevendicationImagesProduit {
-  return RevendicationImagesProduit.creer({
-    galerie: urls,
-    promues: urls,
-    lier: async () => undefined,
-  })
-}
-
 function variantesPersistees(
   product: Awaited<ReturnType<typeof createProduct>>
 ) {
@@ -200,8 +192,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   it("promet les nouveaux Brouillons et conserve l'ordre soumis", async () => {
     const product = await createProduct(
       makeInput([existingImage, existingSecondImage]),
-      effetsSilencieux(),
-      revendicationPromue(existingImage, existingSecondImage)
+      effetsSilencieux()
     )
     const environnement = creerCycleVieMemoire()
     const premierDraft = await demander(environnement.cycleVie)
@@ -272,8 +263,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   it("écrit le Catalogue une fois par soumission d'une galerie sans Brouillon", async () => {
     const product = await createProduct(
       makeInput([existingImage, existingSecondImage]),
-      effetsSilencieux(),
-      revendicationPromue(existingImage, existingSecondImage)
+      effetsSilencieux()
     )
     const environnement = creerCycleVieMemoire()
     const galerie = [persistee(existingImage), persistee(existingSecondImage)]
@@ -325,8 +315,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   it("ne demande aucune suppression persistée quand un Brouillon d'Image produit échoue avant l'enregistrement", async () => {
     const product = await createProduct(
       makeInput([existingImage]),
-      effetsSilencieux(),
-      revendicationPromue(existingImage)
+      effetsSilencieux()
     )
     const environnement = creerCycleVieMemoire()
     const draft = await demander(environnement.cycleVie)
@@ -353,8 +342,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   it("ne demande aucune suppression quand un Brouillon d'Image produit n'est jamais revendiqué", async () => {
     const product = await createProduct(
       makeInput([existingImage]),
-      effetsSilencieux(),
-      revendicationPromue(existingImage)
+      effetsSilencieux()
     )
     const environnement = creerCycleVieMemoire()
     const draft = await demander(environnement.cycleVie)
@@ -384,8 +372,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   it("laisse les Brouillons revendicables après un échec et réussit au retry", async () => {
     const product = await createProduct(
       makeInput([existingImage]),
-      effetsSilencieux(),
-      revendicationPromue(existingImage)
+      effetsSilencieux()
     )
     const environnement = creerCycleVieMemoire()
     const draft = await demander(environnement.cycleVie)
@@ -441,8 +428,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   it("lie les Brouillons dans la transaction du Produit avec le registre durable", async () => {
     const product = await createProduct(
       makeInput([existingImage]),
-      effetsSilencieux(),
-      revendicationPromue(existingImage)
+      effetsSilencieux()
     )
     const stockage = creerStockageImageProduitMemoire()
     const cycleVie = creerCycleVieImageProduit({
@@ -486,8 +472,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
   it("annule la liaison et la promotion si la transaction échoue après elle", async () => {
     const product = await createProduct(
       makeInput([existingImage]),
-      effetsSilencieux(),
-      revendicationPromue(existingImage)
+      effetsSilencieux()
     )
     const stockage = creerStockageImageProduitMemoire()
     const cycleVie = creerCycleVieImageProduit({

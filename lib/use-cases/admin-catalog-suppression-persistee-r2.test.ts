@@ -27,7 +27,6 @@ vi.mock("@aws-sdk/client-s3", () => {
   }
 })
 
-import { RevendicationImagesProduit } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import {
   createProduct,
@@ -138,12 +137,7 @@ describe("suppression post-commit des Images produit persistées, sans court-cir
         slug: productSlug("panne"),
         images: [...images],
       }),
-      effetsSilencieux(),
-      RevendicationImagesProduit.creer({
-        galerie: [...images],
-        promues: [...images],
-        lier: async () => undefined,
-      })
+      effetsSilencieux()
     )
     const variants = product.variants.map((variant) => ({
       id: variant.id,
