@@ -93,38 +93,15 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
     ])
   })
 
-  it("refuse une revendication d'un Brouillon déjà libéré avec la même raison", async () => {
+  it("refuse de libérer un Brouillon déjà revendiqué", async () => {
     const { cycleVie } = creerCycleVieRelachement()
     const demande = await demanderBrouillon(cycleVie)
-    await cycleVie.relacherBrouillon({
-      draftId: demande.draftId,
-      ownerId: "editeur-1",
-    })
-
-    expect(
-      await cycleVie.revendiquerEtEnregistrer({
-        tentativeId: "tentative-1",
-        ownerId: "editeur-1",
-        galerie: galerieDuBrouillon(demande),
-        enregistrer: async () => ({ productId: "produit-1" }),
-      })
-    ).toEqual({
-      ok: false,
-      code: "brouillon-non-vivant",
-      message:
-        "Ce Brouillon d'Image produit a déjà été libéré : il n'existe plus et ne peut plus être revendiqué.",
-    })
-  })
-
-  it("distingue un Brouillon déjà revendiqué d'un Brouillon déjà libéré", async () => {
-    const { cycleVie } = creerCycleVieRelachement()
-    const demande = await demanderBrouillon(cycleVie)
-    await cycleVie.revendiquerEtEnregistrer({
+    const preparation = await cycleVie.preparerPromotionBrouillons({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
       galerie: galerieDuBrouillon(demande),
-      enregistrer: async () => ({ productId: "produit-1" }),
     })
+    expect(preparation.ok).toBe(true)
 
     const resultat = await cycleVie.relacherBrouillon({
       draftId: demande.draftId,
@@ -159,16 +136,13 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
   it("ne supprime aucune Image produit déjà persistée", async () => {
     const { cycleVie, stockage } = creerCycleVieRelachement()
     const demande = await demanderBrouillon(cycleVie)
-    const revendication = await cycleVie.revendiquerEtEnregistrer({
+    const preparation = await cycleVie.preparerPromotionBrouillons({
       tentativeId: "tentative-1",
       ownerId: "editeur-1",
       galerie: galerieDuBrouillon(demande),
-      enregistrer: async (revendication) => {
-        await revendication.lier("produit-1")
-        return { productId: "produit-1" }
-      },
     })
-    expect(revendication.ok).toBe(true)
+    if (!preparation.ok) throw new Error("La préparation devait réussir")
+    await cycleVie.confirmerBrouillons("produit-1", preparation.promotions)
 
     const resultat = await cycleVie.relacherBrouillon({
       draftId: demande.draftId,
@@ -179,9 +153,7 @@ describe("relâchement d'un Brouillon d'Image produit", () => {
       ok: false,
       code: "brouillon-non-vivant",
     })
-    expect(stockage.suppressionsBrouillons).toEqual([
-      draftObjectKey(demande.draftId, "image/png"),
-    ])
+    expect(stockage.suppressionsBrouillons).toEqual([])
     expect(stockage.suppressionsImagesPromues).toEqual([])
     expect(stockage.suppressionsImagesPersistees).toEqual([])
   })

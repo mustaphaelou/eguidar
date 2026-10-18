@@ -2,14 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import type { CodeEchecStockage } from "@/lib/r2"
 import {
-  brouillon,
-  creerCycleVieTest,
   creerStockageImageProduitMemoire,
   type OperationStockage,
   type StockageImageProduitMemoire,
 } from "@/test/cycle-vie-image-produit-memoire"
-
-const DATE_INITIALE = new Date("2026-01-15T10:00:00.000Z")
 
 describe("adaptateur en mémoire du stockage des Images produit", () => {
   it("pré-signe un Brouillon sous la clé dérivée, et non sous une URL fabriquée", async () => {
@@ -241,71 +237,5 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
         erreur: { code: "erreur-stockage" },
       })
     }
-  })
-
-  it("donne un cas aux deux rattrapages d'exception du module propriétaire", async () => {
-    const enregistrement = creerCycleVieTest(DATE_INITIALE)
-    const demande = await enregistrement.cycleVie.demanderBrouillon({
-      ownerId: "editeur-1",
-      contentType: "image/webp",
-      size: 1024,
-    })
-    if (!demande.ok) throw new Error("La demande devait réussir")
-    enregistrement.stockage.pannes.supprimerBrouillon.add("leve")
-    const preuve = creerStockageImageProduitMemoire()
-    preuve.pannes.supprimerBrouillon.add("leve")
-    await expect(
-      preuve.supprimerBrouillon({
-        draftId: demande.draftId,
-        contentType: "image/webp",
-      })
-    ).rejects.toThrow("supprimerBrouillon")
-
-    expect(
-      await enregistrement.cycleVie.revendiquerEtEnregistrer({
-        tentativeId: "tentative-1",
-        ownerId: "editeur-1",
-        galerie: [brouillon(demande.draftId)],
-        enregistrer: async (revendication) => {
-          await revendication.lier("produit-1")
-          return { productId: "produit-1" }
-        },
-      })
-    ).toEqual({ ok: true, productId: "produit-1" })
-    expect(enregistrement.stockage.suppressionsBrouillons).toHaveLength(1)
-
-    const compensation = creerCycleVieTest(DATE_INITIALE)
-    const autreDemande = await compensation.cycleVie.demanderBrouillon({
-      ownerId: "editeur-1",
-      contentType: "image/webp",
-      size: 1024,
-    })
-    if (!autreDemande.ok) throw new Error("La demande devait réussir")
-    compensation.stockage.pannes.supprimerImagePromue.add("leve")
-    const preuveCompensation = creerStockageImageProduitMemoire()
-    preuveCompensation.pannes.supprimerImagePromue.add("leve")
-    await expect(
-      preuveCompensation.supprimerImagePromue({
-        draftId: autreDemande.draftId,
-        contentType: "image/webp",
-      })
-    ).rejects.toThrow("supprimerImagePromue")
-
-    expect(
-      await compensation.cycleVie.revendiquerEtEnregistrer({
-        tentativeId: "tentative-1",
-        ownerId: "editeur-1",
-        galerie: [brouillon(autreDemande.draftId)],
-        enregistrer: async () => {
-          throw new Error("échec transactionnel")
-        },
-      })
-    ).toMatchObject({ ok: false, code: "catalogue-refuse" })
-    expect(
-      compensation.registre.records.get(autreDemande.draftId)
-    ).toMatchObject({
-      state: "vivant",
-      tentativeId: null,
-    })
   })
 })

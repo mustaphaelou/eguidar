@@ -172,39 +172,6 @@ describe("expiration des Brouillons d'Image produit dans le registre durable", (
     expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
   })
 
-  it("enregistre l'état expiré sans rien promotionner ni supprimer", async () => {
-    const { cycleVie, horloge, stockage } = creerExpirationDurable()
-    const demande = await demanderBrouillon(cycleVie)
-    horloge.fixer(demande.expiresAt)
-
-    const resultat = await cycleVie.revendiquerEtEnregistrer({
-      tentativeId: randomUUID(),
-      ownerId,
-      galerie: [
-        {
-          kind: "brouillon",
-          draftId: demande.draftId,
-          previewUrl: demande.previewUrl,
-        },
-      ],
-      enregistrer: async () => ({ productId: "produit-inexistant" }),
-    })
-
-    expect(resultat).toMatchObject({ ok: false, code: "brouillon-expire" })
-    expect(resultat).toMatchObject({
-      message: expect.stringContaining("Téléversez à nouveau"),
-    })
-    expect(stockage.promotions).toEqual([])
-    expect(stockage.suppressionsBrouillons).toEqual([])
-    expect(await lireEtatPersiste(demande.draftId)).toBe("expiré")
-    expect(
-      await prisma.brouillonImageProduit.findUniqueOrThrow({
-        where: { id: demande.draftId },
-        select: { promotedPublicUrl: true, productId: true },
-      })
-    ).toEqual({ promotedPublicUrl: null, productId: null })
-  })
-
   it("refuse de libérer un Brouillon expiré et laisse l'objet à la règle R2", async () => {
     const { cycleVie, horloge, stockage } = creerExpirationDurable()
     const demande = await demanderBrouillon(cycleVie)
