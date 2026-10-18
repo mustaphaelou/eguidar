@@ -34,12 +34,13 @@ const IMPORTATEURS_R2_AUTORISES = [
 ] as const
 
 const IMPORTATEURS_CYCLE_VIE_AUTORISES = [
-  "app/admin/produits/actions.ts",
   "app/api/admin/uploads/delete/route.ts",
   ROUTE_PRESIGNATION,
   "infra/regle-cycle-vie-r2.ts",
   MODULE_CATALOGUE,
 ] as const
+
+const ACTION_ADMIN_PRODUITS = "app/admin/produits/actions.ts"
 
 function importateursDe(module: string): string[] {
   return SOURCES.filter(({ source }) => importeDe(source, module))
@@ -98,20 +99,20 @@ describe("Cycle de vie des Images produit — frontière", () => {
     }
   })
 
-  it("compose le cycle de vie aux routes et à la mutation Catalogue, jamais au port R2", () => {
-    const surfaces = [
-      "app/admin/produits/actions.ts",
-      "app/api/admin/uploads/delete/route.ts",
-      ROUTE_PRESIGNATION,
-    ]
+  it("compose le cycle de vie aux routes, jamais aux Server Actions ni au port R2", () => {
+    const routes = ["app/api/admin/uploads/delete/route.ts", ROUTE_PRESIGNATION]
 
-    for (const chemin of surfaces) {
+    for (const chemin of routes) {
       expect(importeDe(source(chemin), MODULE_CYCLE_VIE), chemin).toBe(true)
       expect(importeDe(source(chemin), MODULE_R2), chemin).toBe(false)
     }
-    expect(
-      importeDe(source("app/admin/produits/actions.ts"), MODULE_CATALOGUE)
-    ).toBe(true)
+    expect(importeDe(source(ACTION_ADMIN_PRODUITS), MODULE_CYCLE_VIE)).toBe(
+      false
+    )
+    expect(importeDe(source(ACTION_ADMIN_PRODUITS), MODULE_R2)).toBe(false)
+    expect(importeDe(source(ACTION_ADMIN_PRODUITS), MODULE_CATALOGUE)).toBe(
+      true
+    )
     expect(importateursDe(MODULE_CYCLE_VIE)).toEqual(
       [...IMPORTATEURS_CYCLE_VIE_AUTORISES].sort()
     )
