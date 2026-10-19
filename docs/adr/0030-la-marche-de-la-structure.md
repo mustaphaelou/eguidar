@@ -897,7 +897,7 @@ et la phrase qui donnait à la Recherche une lecture de la table.
 L'amendement de #604 écrit : « Le seuil trouve seize sites et la suite en nomme seize : huit par la
 relation, huit par le délégué — et parmi ces huit, **quatre par la poignée** […] Quatre entrées sont
 héritées du seuil précédent ». Ce compte n'était déjà plus celui du dépôt après #692, qui a ajouté
-`listAdminProducts` à la liste nommée — une lecture de la relation de plus, donc dix-sept sites. Ce
+`produitDeLaTentative` à la liste nommée — une lecture de la relation de plus, donc dix-sept sites. Ce
 ticket en retire une, l'entrée de `search.ts`. Le seuil trouve désormais **seize** sites : **neuf**
 par la relation, **sept** par le délégué — dont **quatre** par la poignée, deux `tx` et deux
 `client`, toutes dans [`admin-structure.ts`](../../lib/use-cases/admin-structure.ts) — et **trois**
