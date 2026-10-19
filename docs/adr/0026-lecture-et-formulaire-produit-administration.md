@@ -364,3 +364,100 @@ reprend. C'est le présent amendement qu'il faut y lire à côté :
   à côté, c'est le présent amendement.
 - **Aucun terme de glossaire nouveau** : le travail de vocabulaire reste celui du **Brouillon d'Image
   produit**, dans le cycle de vie des images.
+
+## Amendement — L'inventaire de la décision nomme les noms de champs et la projection de la galerie (#426, 2026-10-19)
+
+La décision tient : le module Catalogue reste le propriétaire des lectures **Produit** de
+l'Administration, l'interface de lecture répond en faits et jamais en rangées, et le module neutre du
+formulaire Produit ne bouge pas. Ce que cet amendement consigne est l'inventaire de ce que ce module
+neutre possède : la décision en nommait une partie et en laissait deux hors de ses mots — **les
+noms de champs du formulaire** et **la projection de la galerie** — et le code avait dérivé de la
+décision sur ces deux points.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Aucune ligne de la décision n'est changée ; l'une de ses énumérations n'est plus exhaustive. C'est le
+présent amendement qu'il faut y lire à côté :
+
+- la puce « **Un module neutre unique possède la langue du formulaire Produit** […] et **tout le
+  format de transport**, du `FormData` soumis jusqu'à l'entrée de la mutation : le JSON caché, les
+  deux encodages monétaires, la convention de case à cocher, le champ d'ordre, et le nom du champ
+  d'identification que le formulaire rend. » L'énumération n'était pas fausse : elle était
+  incomplète. Le module neutre possède aujourd'hui deux choses de plus — **les noms de champs du
+  formulaire**, écrits par le vocabulaire, et **la projection de la galerie** — et l'énumération
+  devait les dire.
+
+Le code, lui, avait déjà ces deux choses, et pas chez le propriétaire que la décision leur donnait.
+Les quatorze noms de champs étaient écrits en clair dans le module de rendu client et relus dans le
+module neutre, le même littéral de part et d'autre de la couture ; et la projection de la galerie
+vivait dans le module de rendu, en `.tsx`, là où aucune suite en Node nu ne l'atteignait. La décision
+ne le disait pas, et le code n'était pas à sa hauteur.
+
+### Ce que cet amendement décide
+
+- **L'inventaire est étendu en place** : ce que le module neutre possède comprend désormais **les
+  noms de champs du formulaire** — un vocabulaire, `CHAMPS_FORMULAIRE_PRODUIT` — et **la projection
+  de la galerie**, `galerieSoumiseHorsSuppressionsEnAttente`, tous deux dans
+  [`lib/formulaire-produit.ts`](../../lib/formulaire-produit.ts). Le module de rendu écrit par le
+  vocabulaire chaque nom de champ du transport, et les actions comme le contrôle de suppression
+  nomment l'identification par lui ; les noms de champs ne sont plus une correspondance tenue par
+  deux modules, et la projection n'est plus la dernière étape du transport logée dans un module de
+  rendu.
+
+- **Les clés du vocabulaire sont les termes du glossaire, et ses valeurs sont les littéraux du fil,
+  au caractère près.** La clé dit `structure` quand la valeur dit `categoryId`, `miseEnAvant` quand
+  la valeur dit `isFeatured`, `livraisonOfferte` quand la valeur dit `freeShipping`, `galerie` quand
+  la valeur dit `images`, `variantes` quand la valeur dit `variants`, `produit` quand la valeur dit
+  `productId`. Lire le vocabulaire, c'est donc lire le domaine ; le fil se lit à côté, et l'écart
+  entre les deux se voit sur une ligne. Les deux identités — l'identification tentative et
+  l'identification du Produit édité — sont de même les mots du domaine, que le glossaire ne pose
+  pas : la langue du transport n'y gagne pas d'entrée.
+
+- **La divergence entre le fil et le domaine sur l'identifiant de Structure est assumée, et elle est
+  ici.** Le glossaire dit **Structure** ; le fil dit `categoryId`. Le fil garde son nom : ni la
+  colonne stockée ni le champ d'entrée de la mutation ne sont renommés. Renommer le fil toucherait
+  la mutation et le schéma, pour un nom que le fil ne montre jamais à un éditeur ; et le glossaire
+  dit ce qu'est un concept, pas ce que le fil l'appelle.
+
+- **Le vocabulaire ne couvre que le transport du formulaire Produit.** Le formulaire de stock en
+  ligne d'une Variante garde ses propres noms de champs, et il en va de même des formulaires
+  Structure, Livraison, Ville de livraison et Blog. Le mot « formulaire » ne dit pas « tout
+  formulaire » : le module neutre est celui du formulaire Produit, et son vocabulaire ne déborde
+  pas.
+
+- **Les identifiants du DOM restent littéraux.** Un identifiant est un fait de rendu : il n'a pas
+  de correspondant de l'autre côté de la couture et ne la traverse pas. `id="name"`,
+  `id="specsText"`, et les `htmlFor` qui les pointent, restent écrits en clair dans
+  [`components/admin/product-form.tsx`](../../components/admin/product-form.tsx). C'est visible dans
+  le diff ; ce n'est pas un oubli.
+
+- **La convention de case à cocher a un propriétaire.** L'inventaire la nommait déjà ; il lui
+  manquait son propriétaire. Elle en a aujourd'hui un : un écrivain et un lecteur dans le module
+  neutre — `valeurCaseACocher` et `caseACocherDepuisValeur` — et le littéral qui l'encode est privé
+  à ce module.
+
+- **La projection de la galerie vit dans le module neutre, sous le nom du domaine** —
+  `galerieSoumiseHorsSuppressionsEnAttente`. Son type d'entrée — la galerie de l'éditeur — porte le
+  drapeau de **Suppression en attente** ; son type de sortie — la galerie soumise — ne le porte
+  pas. La différence entre les deux est désormais une partie de l'interface du module, et non une
+  conséquence d'un module de rendu.
+
+### Ce que cet amendement ne change pas
+
+- **La décision entière** : les deux lectures Produit du module Catalogue, l'approfondissement sur
+  place, la règle « répondre en faits, jamais en rangées », la frontière d'ADR-0028, le module neutre
+  du formulaire Produit et sa garde, et la forme étroite du sélecteur de Structure.
+- **Le Catalogue** : sa mutation, son type d'entrée, ses validations, ses classes d'erreur, sa
+  transaction et sa couture d'effets. La colonne stockée n'est pas touchée, et les littéraux du fil
+  sont ceux d'aujourd'hui, au caractère près.
+- **Le mécanisme partagé de mutation** : l'identification du Produit édité reste lue par
+  `parseRequiredId` ([`lib/use-cases/mutation-actions.ts`](../../lib/use-cases/mutation-actions.ts)),
+  et le module neutre ne nomme toujours que le champ — il ne le lit ni ne le juge.
+- **Le cycle de vie des images** : l'enregistrement du Produit garde la promotion de ses Brouillons
+  d'Image produit (ADR-0034), et la **Suppression en attente** garde le sens que le glossaire lui
+  donne.
+- **L'invariant « Aucun terme de glossaire n'est ajouté »** reste vrai pour le travail qu'il
+  décrit : c'est [#696](https://github.com/eloaurdi/eguidar/issues/696) qui ajoute un terme, et il
+  le nomme — la **Suppression en attente**.
+- **« Cet ADR n'amende rien »** reste vrai des autres ADR : ADR-0022, ADR-0014 et ADR-0025 sont
+  confirmés inchangés. Ce qu'il faut y lire à côté, c'est le présent amendement.
