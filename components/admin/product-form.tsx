@@ -25,9 +25,11 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
+  CHAMPS_FORMULAIRE_PRODUIT,
   ecartPrixDepuisTexte,
   texteEcartPrix,
   texteSpecifications,
+  valeurCaseACocher,
   type EntreeImageProduitFormulaire,
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
@@ -104,11 +106,15 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
         <input type="hidden" name="productId" value={product.id} />
       ) : null}
       <input type="hidden" name="categoryId" value={categoryId} />
-      <input type="hidden" name="isFeatured" value={isFeatured ? "on" : ""} />
       <input
         type="hidden"
-        name="freeShipping"
-        value={freeShipping ? "on" : ""}
+        name={CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant}
+        value={valeurCaseACocher(isFeatured)}
+      />
+      <input
+        type="hidden"
+        name={CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte}
+        value={valeurCaseACocher(freeShipping)}
       />
       <input type="hidden" name="tentativeId" value={tentativeId} />
       <input

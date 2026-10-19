@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest"
 
 import {
+  caseACocherDepuisValeur,
   CHAMPS_FORMULAIRE_PRODUIT,
   ecartPrixDepuisTexte,
   MESSAGE_FORMULAIRE_INVALIDE,
@@ -9,6 +10,7 @@ import {
   soumissionDepuisFormData,
   texteEcartPrix,
   texteSpecifications,
+  valeurCaseACocher,
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
   type SoumissionFormulaireProduit,
@@ -220,6 +222,55 @@ describe("ecartPrixDepuisTexte", () => {
   })
 })
 
+describe("la convention de case à cocher", () => {
+  it("écrit une bascule cochée, et la relit cochée", () => {
+    expect(caseACocherDepuisValeur(valeurCaseACocher(true))).toBe(true)
+
+    const soumission = soumissionLue({
+      misEnAvant: valeurCaseACocher(true),
+      livraisonOfferte: valeurCaseACocher(true),
+    })
+
+    expect(soumission.champsCatalogue.isFeatured).toBe(true)
+    expect(soumission.champsCatalogue.freeShipping).toBe(true)
+  })
+
+  it("écrit une bascule non cochée, et la relit non cochée", () => {
+    expect(caseACocherDepuisValeur(valeurCaseACocher(false))).toBe(false)
+
+    const soumission = soumissionLue({
+      misEnAvant: valeurCaseACocher(false),
+      livraisonOfferte: valeurCaseACocher(false),
+    })
+
+    expect(soumission.champsCatalogue.isFeatured).toBe(false)
+    expect(soumission.champsCatalogue.freeShipping).toBe(false)
+  })
+
+  it("relit toute autre valeur comme une bascule non cochée", () => {
+    for (const valeur of ["", "true", "1", "oui", "ON"]) {
+      expect(caseACocherDepuisValeur(valeur)).toBe(false)
+      expect(
+        soumissionLue({ misEnAvant: valeur }).champsCatalogue.isFeatured
+      ).toBe(false)
+      expect(
+        soumissionLue({ livraisonOfferte: valeur }).champsCatalogue.freeShipping
+      ).toBe(false)
+    }
+  })
+
+  it("relit une bascule absente des données soumises comme non cochée", () => {
+    const donnees = formulaireSoumis()
+    donnees.delete(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant)
+    donnees.delete(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte)
+
+    const soumission = soumissionDepuisFormData(donnees)
+
+    expect(soumission.champsCatalogue.isFeatured).toBe(false)
+    expect(soumission.champsCatalogue.freeShipping).toBe(false)
+  })
+})
+
 describe("les faits du formulaire", () => {
   it("décrivent le même Produit que l'entrée de la mutation, à la galerie et à la Structure près", () => {
     expectTypeOf<
@@ -253,8 +304,8 @@ describe("soumissionDepuisFormData", () => {
       prix: "1250,75",
       specsText: texteSpecifications(SPECS),
       ordre: "3",
-      misEnAvant: "on",
-      livraisonOfferte: "on",
+      misEnAvant: valeurCaseACocher(true),
+      livraisonOfferte: valeurCaseACocher(true),
       images: [
         { kind: "persistee", url: "https://cdn.test/p/1.webp" },
         {
@@ -324,8 +375,11 @@ describe("soumissionDepuisFormData", () => {
     )
   })
 
-  it("reconnaît les deux cases à cocher par la seule convention « on »", () => {
-    const cochees = soumissionLue({ misEnAvant: "on", livraisonOfferte: "on" })
+  it("reconnaît les deux cases à cocher par la seule convention du module neutre", () => {
+    const cochees = soumissionLue({
+      misEnAvant: valeurCaseACocher(true),
+      livraisonOfferte: valeurCaseACocher(true),
+    })
     const decochees = soumissionLue()
 
     expect(cochees.champsCatalogue.isFeatured).toBe(true)
@@ -340,8 +394,8 @@ describe("soumissionDepuisFormData", () => {
     ).toBe(false)
 
     const sansCases = formulaireSoumis()
-    sansCases.delete("isFeatured")
-    sansCases.delete("freeShipping")
+    sansCases.delete(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant)
+    sansCases.delete(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte)
     const sansCase = soumissionDepuisFormData(sansCases)
     expect(sansCase.champsCatalogue.isFeatured).toBe(false)
     expect(sansCase.champsCatalogue.freeShipping).toBe(false)

@@ -78,6 +78,8 @@ describe("Formulaire Produit — frontière client/serveur", () => {
       "texteSpecifications",
       "texteEcartPrix",
       "ecartPrixDepuisTexte",
+      "valeurCaseACocher",
+      "caseACocherDepuisValeur",
       "MESSAGE_FORMULAIRE_INVALIDE",
       "CHAMPS_FORMULAIRE_PRODUIT",
     ]) {
