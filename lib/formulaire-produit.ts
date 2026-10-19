@@ -7,6 +7,23 @@ import {
 import { centsToInputValue, parseMadToCents } from "@/lib/money"
 import type { ProductInput } from "@/lib/use-cases/admin-catalog"
 
+export const CHAMPS_FORMULAIRE_PRODUIT = {
+  nom: "name",
+  slug: "slug",
+  marque: "brand",
+  structure: "categoryId",
+  description: "description",
+  prix: "price",
+  specifications: "specsText",
+  miseEnAvant: "isFeatured",
+  livraisonOfferte: "freeShipping",
+  ordre: "featuredOrder",
+  galerie: "images",
+  variantes: "variants",
+  tentative: "tentativeId",
+  produit: "productId",
+} as const
+
 export interface FaitsVarianteFormulaire {
   id?: string
   name: string

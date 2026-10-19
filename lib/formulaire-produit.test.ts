@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest"
 
 import {
+  CHAMPS_FORMULAIRE_PRODUIT,
   ecartPrixDepuisTexte,
   MESSAGE_FORMULAIRE_INVALIDE,
   MESSAGE_SPECIFICATIONS_INVALIDE,
@@ -491,6 +492,47 @@ describe("les refus de la soumission", () => {
     )
 
     expect((refus as Error).message).toBe("Formulaire invalide")
+  })
+})
+
+describe("le vocabulaire des champs du formulaire Produit", () => {
+  it("nomme chaque champ par le terme du glossaire, et le lit comme le fil l'écrit", () => {
+    expect(CHAMPS_FORMULAIRE_PRODUIT).toEqual({
+      nom: "name",
+      slug: "slug",
+      marque: "brand",
+      structure: "categoryId",
+      description: "description",
+      prix: "price",
+      specifications: "specsText",
+      miseEnAvant: "isFeatured",
+      livraisonOfferte: "freeShipping",
+      ordre: "featuredOrder",
+      galerie: "images",
+      variantes: "variants",
+      tentative: "tentativeId",
+      produit: "productId",
+    })
+  })
+
+  it("couvre exactement les quatorze champs du formulaire, ni plus ni moins", () => {
+    expect(Object.keys(CHAMPS_FORMULAIRE_PRODUIT)).toHaveLength(14)
+    expect(Object.keys(CHAMPS_FORMULAIRE_PRODUIT).sort()).toEqual([
+      "description",
+      "galerie",
+      "livraisonOfferte",
+      "marque",
+      "miseEnAvant",
+      "nom",
+      "ordre",
+      "prix",
+      "produit",
+      "slug",
+      "specifications",
+      "structure",
+      "tentative",
+      "variantes",
+    ])
   })
 })
 

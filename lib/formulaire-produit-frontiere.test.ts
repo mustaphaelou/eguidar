@@ -79,6 +79,7 @@ describe("Formulaire Produit — frontière client/serveur", () => {
       "texteEcartPrix",
       "ecartPrixDepuisTexte",
       "MESSAGE_FORMULAIRE_INVALIDE",
+      "CHAMPS_FORMULAIRE_PRODUIT",
     ]) {
       expect(source, symbole).toContain(symbole)
     }
