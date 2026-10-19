@@ -179,3 +179,10 @@
     transparent
   );
 }
+
+/* Ne pas redéclarer la variante `hover` ici : dans Tailwind 4.3.3, cela ne pose
+   pas une condition, cela supprime la famille entière. `hover:`,
+   `group-hover:`, `group-hover/<nom>:` et `peer-hover:` cessent d'être émis
+   sans que la feuille cesse de compiler. Mesure sur cette feuille : 9 règles
+   `group-hover` émises avant la redéclaration, 0 après. Le survol fin reste
+   donc écrit site par site, jamais remonté dans cette feuille. */
