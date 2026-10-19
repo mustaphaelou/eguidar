@@ -95,6 +95,16 @@ export function ecartPrixDepuisTexte(texte: string): number {
   return parseMadToCents(texte) ?? 0
 }
 
+const VALEUR_CASE_A_COCHER = "on"
+
+export function valeurCaseACocher(cochee: boolean): string {
+  return cochee ? VALEUR_CASE_A_COCHER : ""
+}
+
+export function caseACocherDepuisValeur(valeur: string): boolean {
+  return valeur === VALEUR_CASE_A_COCHER
+}
+
 export function soumissionDepuisFormData(
   formData: FormData
 ): SoumissionFormulaireProduit {
@@ -124,9 +134,13 @@ export function soumissionDepuisFormData(
       categoryId: String(formData.get("categoryId") ?? ""),
       description: String(formData.get("description") ?? ""),
       price: prix,
-      isFeatured: formData.get("isFeatured") === "on",
+      isFeatured: caseACocherDepuisValeur(
+        String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant) ?? "")
+      ),
       featuredOrder: Number(formData.get("featuredOrder") ?? 0) || 0,
-      freeShipping: formData.get("freeShipping") === "on",
+      freeShipping: caseACocherDepuisValeur(
+        String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte) ?? "")
+      ),
       specs: specificationsDepuisTexte(String(formData.get("specsText") ?? "")),
       variants: variantes,
     },
