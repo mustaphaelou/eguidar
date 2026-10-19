@@ -1,9 +1,14 @@
+import type { Rule } from "postcss"
 import { beforeAll, describe, expect, it } from "vitest"
-import type { AnyNode, Rule } from "postcss"
 
 import {
   compilerLaFeuilleDeStyle,
+  estDansRequete,
+  estHorsRequete,
+  reglesDuSelecteur,
+  selecteursDe,
   type FeuilleDeStyleCompilee,
+  valeursDe,
 } from "./feuille-de-style"
 
 const REQUETE_MOUVEMENT_ACCEPTE = "(prefers-reduced-motion: no-preference)"
@@ -11,83 +16,26 @@ const REQUETE_MOUVEMENT_REFUSE = "(prefers-reduced-motion: reduce)"
 
 const SURFACES_QUI_S_OUVRENT = [
   "dialog-content",
-  "dialog-overlay",
   "popover-content",
   "dropdown-menu-content",
   "select-content",
   "tooltip-content",
   "sidebar",
-  "sidebar-overlay",
   "switch-thumb",
 ]
 
-function estDansRequete(regle: Rule, requete: string): boolean {
-  let parent: AnyNode | undefined = regle.parent
-
-  while (parent) {
-    if (
-      parent.type === "atrule" &&
-      parent.name === "media" &&
-      parent.params === requete
-    ) {
-      return true
-    }
-
-    parent = parent.parent
-  }
-
-  return false
-}
-
-function estHorsRequete(regle: Rule): boolean {
-  let parent: AnyNode | undefined = regle.parent
-
-  while (parent) {
-    if (parent.type === "atrule" && parent.name === "media") {
-      return false
-    }
-
-    parent = parent.parent
-  }
-
-  return true
-}
+const VOILES_QUI_FONDENT = ["dialog-overlay", "sidebar-overlay"]
 
 function reglesDuSlot(
   feuille: FeuilleDeStyleCompilee,
   slot: string,
   requete?: string
 ): Rule[] {
-  const selecteur = `[data-slot="${slot}"]`
-  const regles: Rule[] = []
-
-  feuille.racine.walkRules((regle) => {
-    if (!regle.selectors.includes(selecteur)) {
-      return
-    }
-
-    if (
-      requete === undefined
-        ? estHorsRequete(regle)
-        : estDansRequete(regle, requete)
-    ) {
-      regles.push(regle)
-    }
-  })
-
-  return regles
-}
-
-function valeursDe(regles: Rule[], propriete: string): string[] {
-  return regles.flatMap((regle) => {
-    const valeurs: string[] = []
-
-    regle.walkDecls(propriete, (declaration) => {
-      valeurs.push(declaration.value.trim())
-    })
-
-    return valeurs
-  })
+  return reglesDuSelecteur(feuille, `[data-slot="${slot}"]`).filter((regle) =>
+    requete === undefined
+      ? estHorsRequete(regle)
+      : estDansRequete(regle, requete)
+  )
 }
 
 function proprietesDe(regles: Rule[]): string[] {
@@ -134,5 +82,20 @@ describe("le mouvement des surfaces est opt-in", () => {
       expect(valeursDe(regles, "animation")).toEqual(["none"])
       expect(valeursDe(regles, "transition")).toEqual(["none"])
     }
+  })
+
+  it("laisse les voiles garder leur fondu quand le mouvement est refusé", () => {
+    for (const slot of VOILES_QUI_FONDENT) {
+      expect(reglesDuSlot(feuille, slot, REQUETE_MOUVEMENT_REFUSE)).toEqual([])
+    }
+
+    const selecteurs = selecteursDe(feuille)
+
+    expect(
+      selecteurs.some((selecteur) => selecteur.includes("fade-in-0"))
+    ).toBe(true)
+    expect(
+      selecteurs.some((selecteur) => selecteur.includes("fade-out-0"))
+    ).toBe(true)
   })
 })

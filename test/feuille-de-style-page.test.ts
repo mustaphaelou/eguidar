@@ -1,55 +1,20 @@
-import type { AtRule, Container, Document, Rule } from "postcss"
+import type { Rule } from "postcss"
 import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { viewport } from "../app/layout"
 import {
   compilerLaFeuilleDeStyle,
+  declarationsDe,
+  estDansLaCoucheBase,
+  regleDeBase,
   type FeuilleDeStyleCompilee,
+  valeurNormalisee,
+  valeursDe,
 } from "./feuille-de-style"
 
 vi.mock("next/font/google", () => ({
   Geist_Mono: () => ({ variable: "--font-mono" }),
 }))
-
-const SELECTEURS_DE_BASE = ["*", "*::before", "*::after"]
-
-function estDansLaCoucheBase(noeud: Container | Document): boolean {
-  let parent = noeud.parent
-
-  while (parent) {
-    if (parent.type === "atrule") {
-      const couche = parent as AtRule
-
-      if (couche.name === "layer" && couche.params === "base") {
-        return true
-      }
-    }
-
-    parent = parent.parent
-  }
-
-  return false
-}
-
-function regleDeBase(feuille: FeuilleDeStyleCompilee): Rule {
-  let trouvee: Rule | undefined
-
-  feuille.racine.walkRules((regle) => {
-    const selecteurs = regle.selector.split(",").map((s) => s.trim())
-
-    if (
-      selecteurs.length === SELECTEURS_DE_BASE.length &&
-      SELECTEURS_DE_BASE.every((s) => selecteurs.includes(s)) &&
-      estDansLaCoucheBase(regle)
-    ) {
-      trouvee = regle
-    }
-  })
-
-  if (!trouvee) throw new Error("la règle de base est absente du CSS émis")
-
-  return trouvee
-}
 
 function racineDeBase(feuille: FeuilleDeStyleCompilee): Rule {
   let trouvee: Rule | undefined
@@ -63,16 +28,6 @@ function racineDeBase(feuille: FeuilleDeStyleCompilee): Rule {
   if (!trouvee) throw new Error("la racine de base est absente du CSS émis")
 
   return trouvee
-}
-
-function valeursDe(regle: Rule, propriete: string): string[] {
-  const valeurs: string[] = []
-
-  regle.walkDecls(propriete, (declaration) => {
-    valeurs.push(declaration.value.trim())
-  })
-
-  return valeurs
 }
 
 describe("la base de la feuille de style", () => {
@@ -94,8 +49,32 @@ describe("la base de la feuille de style", () => {
     expect(valeursDe(racine, "scrollbar-gutter")).toContain("stable")
   })
 
-  it("laisse la Barre d'achat et les modales demander l'inset inférieur de la zone sûre", () => {
-    expect(feuille.css).toContain("env(safe-area-inset-bottom)")
+  it("laisse la Barre d'achat et les modales demander l'inset inférieur de la zone sûre dans deux règles distinctes", () => {
+    const porteurs = declarationsDe(feuille, "padding-bottom")
+      .filter((declaration) =>
+        declaration.value.includes("env(safe-area-inset-bottom)")
+      )
+      .map((declaration) => ({
+        selecteur:
+          declaration.parent?.type === "rule"
+            ? declaration.parent.selector
+            : undefined,
+        valeur: valeurNormalisee(declaration.value),
+      }))
+
+    const barre = porteurs.find(
+      (porteur) => porteur.valeur === "max(1rem, env(safe-area-inset-bottom))"
+    )
+    const modale = porteurs.find(
+      (porteur) => porteur.valeur === "max(1.5rem, env(safe-area-inset-bottom))"
+    )
+
+    expect(barre).toBeDefined()
+    expect(modale).toBeDefined()
+    expect(barre?.selecteur).not.toBe(modale?.selecteur)
+    expect(
+      new Set(porteurs.map((porteur) => porteur.selecteur)).size
+    ).toBeGreaterThanOrEqual(2)
   })
 })
 

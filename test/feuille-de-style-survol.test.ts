@@ -1,50 +1,35 @@
 import { beforeAll, describe, expect, it } from "vitest"
-import type { AtRule, Node, Rule } from "postcss"
+import type { Rule } from "postcss"
 
 import {
   compilerLaFeuilleDeStyle,
+  mediaDe,
+  selecteursDe,
   type FeuilleDeStyleCompilee,
 } from "./feuille-de-style"
+import { formeHorsLectureTailwind } from "./forme-hors-lecture-tailwind"
 
 const REQUETE_SURVOL = "[@media(hover:hover)]"
 const REQUETE_POINTEUR_FIN = "[@media(hover:hover)_and_(pointer:fine)]"
-const SURVOL_SOULIGNE = "group-hover" + ":underline"
+const SURVOL_SOULIGNE = formeHorsLectureTailwind("group-hover", ":underline")
 
-const DEMI_REQUETE = `${REQUETE_SURVOL}:${SURVOL_SOULIGNE}`
-const REQUETE_COMPLETE = `${REQUETE_POINTEUR_FIN}:${SURVOL_SOULIGNE}`
-
-function selecteurs(feuille: FeuilleDeStyleCompilee): string[] {
-  const liste: string[] = []
-
-  feuille.racine.walkRules((regle) => {
-    liste.push(regle.selector)
-  })
-
-  return liste
-}
+const DEMI_REQUETE = formeHorsLectureTailwind(
+  REQUETE_SURVOL,
+  ":",
+  SURVOL_SOULIGNE
+)
+const REQUETE_COMPLETE = formeHorsLectureTailwind(
+  REQUETE_POINTEUR_FIN,
+  ":",
+  SURVOL_SOULIGNE
+)
 
 function sansEchappement(selecteur: string): string {
   return selecteur.replaceAll("\\", "")
 }
 
 function dansLaRequeteDuPointeurFin(regle: Rule): boolean {
-  let parent: Node | undefined = regle.parent
-
-  while (parent) {
-    if (parent.type === "atrule") {
-      const requete = parent as AtRule
-      if (
-        requete.name === "media" &&
-        requete.params.includes("(pointer:fine)")
-      ) {
-        return true
-      }
-    }
-
-    parent = parent.parent
-  }
-
-  return false
+  return mediaDe(regle).some((requete) => requete.includes("(pointer:fine)"))
 }
 
 function reglesDuSurvolSouligne(feuille: FeuilleDeStyleCompilee): Rule[] {
@@ -73,7 +58,7 @@ describe("la famille du survol dans la feuille de style compilée", () => {
   })
 
   it("continue d'émettre le survol simple, le survol de groupe et le survol de groupe nommé", () => {
-    const liste = selecteurs(feuille).map(sansEchappement)
+    const liste = selecteursDe(feuille).map(sansEchappement)
 
     expect(liste.some((selecteur) => selecteur.startsWith(".hover:"))).toBe(
       true
@@ -106,7 +91,7 @@ describe("la famille du survol dans la feuille de style compilée", () => {
   })
 
   it("garde le soulignement du lien du Panneau et des catégories de la Bande", () => {
-    const liste = selecteurs(feuille).map(sansEchappement)
+    const liste = selecteursDe(feuille).map(sansEchappement)
 
     expect(
       liste.some((selecteur) =>
@@ -138,7 +123,7 @@ describe("la famille du survol dans la feuille de style compilée", () => {
   })
 
   it("n'émet le soulignement du titre de la carte de blog que sous la requête du pointeur fin", () => {
-    const liste = selecteurs(feuille).map(sansEchappement)
+    const liste = selecteursDe(feuille).map(sansEchappement)
 
     expect(liste.some((selecteur) => selecteur.includes(DEMI_REQUETE))).toBe(
       false

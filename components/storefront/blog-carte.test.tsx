@@ -45,14 +45,22 @@ vi.mock("next/image", () => ({
 }))
 
 import type { CardBlog } from "@/lib/use-cases/blog"
+import { formeHorsLectureTailwind } from "@/test/forme-hors-lecture-tailwind"
 
 import { BlogFeedCard, BlogHeroCard } from "./blog-carte"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-const REQUETE_POINTEUR_FIN =
-  "[@media(hover:hover)_and_(pointer:fine)]" + ":group-hover:underline"
-const ANCIENNE_REQUETE = "[@media(hover:hover)]" + ":group-hover:underline"
+const REQUETE_POINTEUR_FIN = formeHorsLectureTailwind(
+  "[@media(hover:hover)_and_(pointer:fine)]",
+  ":group-hover",
+  ":underline"
+)
+const ANCIENNE_REQUETE = formeHorsLectureTailwind(
+  "[@media(hover:hover)]",
+  ":group-hover",
+  ":underline"
+)
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []

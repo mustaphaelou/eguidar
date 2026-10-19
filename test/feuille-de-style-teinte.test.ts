@@ -1,45 +1,14 @@
+import type { Declaration } from "postcss"
 import { beforeAll, describe, expect, it } from "vitest"
-import type { Container, Declaration, Document, Rule } from "postcss"
 
 import {
   compilerLaFeuilleDeStyle,
+  declarationsDe,
+  estDansLaRacine,
+  regleDeBase,
   type FeuilleDeStyleCompilee,
+  valeurNormalisee,
 } from "./feuille-de-style"
-
-function valeurNormalisee(valeur: string): string {
-  return valeur
-    .replace(/\s+/g, " ")
-    .replace(/\(\s+/g, "(")
-    .replace(/\s+\)/g, ")")
-    .trim()
-}
-
-function estDansLaRacine(declaration: Declaration): boolean {
-  let parent: Container | Document | undefined = declaration.parent
-
-  while (parent) {
-    if (parent.type === "rule" && (parent as Rule).selector === ":root") {
-      return true
-    }
-
-    parent = parent.parent
-  }
-
-  return false
-}
-
-function declarationsDe(
-  feuille: FeuilleDeStyleCompilee,
-  propriete: string
-): Declaration[] {
-  const declarations: Declaration[] = []
-
-  feuille.racine.walkDecls(propriete, (declaration) => {
-    declarations.push(declaration)
-  })
-
-  return declarations
-}
 
 function melangesDe(
   feuille: FeuilleDeStyleCompilee,
@@ -48,29 +17,6 @@ function melangesDe(
   return declarationsDe(feuille, propriete).filter((declaration) =>
     valeurNormalisee(declaration.value).startsWith("color-mix(")
   )
-}
-
-function regleDeBase(feuille: FeuilleDeStyleCompilee): Rule {
-  let trouvee: Rule | undefined
-
-  feuille.racine.walkRules((regle) => {
-    const selecteurs = regle.selector
-      .split(",")
-      .map((selecteur) => selecteur.trim())
-
-    if (
-      selecteurs.length === 3 &&
-      selecteurs.includes("*") &&
-      selecteurs.includes("*::before") &&
-      selecteurs.includes("*::after")
-    ) {
-      trouvee = regle
-    }
-  })
-
-  if (!trouvee) throw new Error("la règle de base est absente du CSS émis")
-
-  return trouvee
 }
 
 describe("la teinte de l'anneau de focus", () => {
@@ -102,13 +48,9 @@ describe("la teinte de l'anneau de focus", () => {
   })
 
   it("n'est plus mélangée en oklab par la base", () => {
-    const contoursEnOklab: string[] = []
-
-    feuille.racine.walkDecls("outline-color", (declaration) => {
-      if (valeurNormalisee(declaration.value).includes("color-mix(in oklab")) {
-        contoursEnOklab.push(valeurNormalisee(declaration.value))
-      }
-    })
+    const contoursEnOklab = declarationsDe(feuille, "outline-color")
+      .map((declaration) => valeurNormalisee(declaration.value))
+      .filter((valeur) => valeur.includes("color-mix(in oklab"))
 
     expect(contoursEnOklab).toEqual([])
   })

@@ -1,21 +1,26 @@
 import assert from "node:assert/strict"
 
 import { beforeAll, describe, expect, it } from "vitest"
-import type { AtRule, Declaration, Node, Root, Rule } from "postcss"
+import type { ChildNode, Declaration, Node, Rule } from "postcss"
 
 import {
   compilerLaFeuilleDeStyle,
+  estHorsCouche,
   type FeuilleDeStyleCompilee,
+  reglesDuSelecteur,
+  requeteMedia,
 } from "./feuille-de-style"
 
-type Role = {
+type PrimitiveTransitee = {
   slot: string
+  nom: string
   proprietes: string[]
 }
 
-const roles: Role[] = [
+const PRIMITIVES_TRANSITEES: PrimitiveTransitee[] = [
   {
     slot: "button",
+    nom: "le bouton",
     proprietes: [
       "color",
       "background-color",
@@ -27,14 +32,17 @@ const roles: Role[] = [
   },
   {
     slot: "switch",
+    nom: "l'interrupteur",
     proprietes: ["background-color", "border-color", "box-shadow", "opacity"],
   },
   {
     slot: "accordion-trigger",
+    nom: "le déclencheur d'accordéon",
     proprietes: ["color", "text-decoration-color", "opacity"],
   },
   {
     slot: "badge",
+    nom: "le badge",
     proprietes: [
       "color",
       "background-color",
@@ -45,40 +53,6 @@ const roles: Role[] = [
     ],
   },
 ]
-
-function estAtRule(noeud: Node): noeud is AtRule {
-  return noeud.type === "atrule"
-}
-
-function estHorsCouche(regle: Rule): boolean {
-  let parent: Node | undefined = regle.parent
-  while (parent) {
-    if (estAtRule(parent) && parent.name === "layer") return false
-    parent = parent.parent
-  }
-  return true
-}
-
-function requeteMedia(regle: Rule): AtRule | undefined {
-  let parent: Node | undefined = regle.parent
-  while (parent) {
-    if (estAtRule(parent) && parent.name === "media") return parent
-    parent = parent.parent
-  }
-  return undefined
-}
-
-function reglesDuSelecteur(racine: Root, selecteur: string): Rule[] {
-  const regles: Rule[] = []
-  racine.walkRules((regle) => {
-    if (regle.selector === selecteur) regles.push(regle)
-  })
-  return regles
-}
-
-function reglesHorsCouche(regles: Rule[]): Rule[] {
-  return regles.filter(estHorsCouche)
-}
 
 function proprietesDeTransition(regle: Rule): string[] {
   const declaration = regle.nodes.find(
@@ -97,6 +71,35 @@ function regleSansRequete(regles: Rule[]): Rule | undefined {
   return regles.find((regle) => requeteMedia(regle) === undefined)
 }
 
+function positionDansLaFeuille(
+  feuille: FeuilleDeStyleCompilee,
+  noeud: Node
+): number {
+  let sommet = noeud
+
+  while (sommet.parent && sommet.parent !== feuille.racine) {
+    sommet = sommet.parent
+  }
+
+  return feuille.racine.index(sommet as ChildNode)
+}
+
+function derniereCoucheUtilities(feuille: FeuilleDeStyleCompilee): number {
+  let position = -1
+
+  feuille.racine.each((noeud, index) => {
+    if (
+      noeud.type === "atrule" &&
+      noeud.name === "layer" &&
+      noeud.params.trim() === "utilities"
+    ) {
+      position = index
+    }
+  })
+
+  return position
+}
+
 describe("les transitions nomment leurs propriétés", () => {
   let feuille: FeuilleDeStyleCompilee
 
@@ -104,18 +107,16 @@ describe("les transitions nomment leurs propriétés", () => {
     feuille = await compilerLaFeuilleDeStyle()
   })
 
-  for (const role of roles) {
-    it(`nomme, hors de toute couche, les propriétés animées par ${role.slot}`, () => {
-      const selecteur = `[data-slot="${role.slot}"]`
-      const regles = reglesHorsCouche(
-        reglesDuSelecteur(feuille.racine, selecteur)
-      )
+  for (const primitive of PRIMITIVES_TRANSITEES) {
+    it(`nomme, hors de toute couche, les propriétés animées par ${primitive.nom}`, () => {
+      const selecteur = `[data-slot="${primitive.slot}"]`
+      const regles = reglesDuSelecteur(feuille, selecteur).filter(estHorsCouche)
       const regle = regleSansRequete(regles)
       assert(regle, `${selecteur} n'a pas de règle hors couche`)
 
       const proprietes = proprietesDeTransition(regle)
       expect(proprietes).not.toContain("all")
-      for (const propriete of role.proprietes) {
+      for (const propriete of primitive.proprietes) {
         expect(proprietes).toContain(propriete)
       }
     })
@@ -123,9 +124,7 @@ describe("les transitions nomment leurs propriétés", () => {
 
   it("n'anime pas la pression du bouton quand le mouvement est refusé", () => {
     const selecteur = '[data-slot="button"]'
-    const regles = reglesHorsCouche(
-      reglesDuSelecteur(feuille.racine, selecteur)
-    )
+    const regles = reglesDuSelecteur(feuille, selecteur).filter(estHorsCouche)
     const regle = regleSansRequete(regles)
     assert(regle, `${selecteur} n'a pas de règle hors couche`)
 
@@ -134,18 +133,34 @@ describe("les transitions nomment leurs propriétés", () => {
 
   it("ajoute la pression du bouton quand le mouvement est accepté", () => {
     const selecteur = '[data-slot="button"]'
-    const regles = reglesHorsCouche(
-      reglesDuSelecteur(feuille.racine, selecteur)
-    )
+    const regles = reglesDuSelecteur(feuille, selecteur).filter(estHorsCouche)
     const requete = "(prefers-reduced-motion: no-preference)"
-    const regle = regles.find((candidate) => {
-      const media = requeteMedia(candidate)
-      return media?.params.replace(/\s+/g, " ").trim() === requete
-    })
+    const regle = regles.find(
+      (candidate) => requeteMedia(candidate)?.params.trim() === requete
+    )
     assert(regle, `${selecteur} n'a pas de règle dans ${requete}`)
 
     const proprietes = proprietesDeTransition(regle)
     expect(proprietes).not.toContain("all")
     expect(proprietes).toContain("translate")
+  })
+
+  it("place les règles nommées hors couche après la dernière @layer utilities pour qu'elles l'emportent", () => {
+    const coucheUtilities = derniereCoucheUtilities(feuille)
+    expect(coucheUtilities).toBeGreaterThanOrEqual(0)
+
+    const reglesNommees = PRIMITIVES_TRANSITEES.flatMap((primitive) =>
+      reglesDuSelecteur(feuille, `[data-slot="${primitive.slot}"]`).filter(
+        estHorsCouche
+      )
+    )
+
+    expect(reglesNommees.length).toBeGreaterThan(0)
+
+    for (const regle of reglesNommees) {
+      expect(positionDansLaFeuille(feuille, regle)).toBeGreaterThan(
+        coucheUtilities
+      )
+    }
   })
 })
