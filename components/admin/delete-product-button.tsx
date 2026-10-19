@@ -3,6 +3,7 @@
 import { useRef } from "react"
 
 import { Button } from "@/components/ui/button"
+import { CHAMPS_FORMULAIRE_PRODUIT } from "@/lib/formulaire-produit"
 
 interface DeleteProductButtonProps {
   productId: string
@@ -31,7 +32,11 @@ export function DeleteProductButton({
         }
       }}
     >
-      <input type="hidden" name="productId" value={productId} />
+      <input
+        type="hidden"
+        name={CHAMPS_FORMULAIRE_PRODUIT.produit}
+        value={productId}
+      />
       <Button type="submit" variant="destructive" size="sm">
         Supprimer
       </Button>

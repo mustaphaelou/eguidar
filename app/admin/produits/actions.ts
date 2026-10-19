@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation"
 
 import {
+  CHAMPS_FORMULAIRE_PRODUIT,
   soumissionDepuisFormData,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
@@ -43,7 +44,7 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
   next: "/admin/produits",
   parse: (formData) => ({
     ...soumissionDepuisFormData(formData),
-    productId: parseRequiredId(formData, "productId"),
+    productId: parseRequiredId(formData, CHAMPS_FORMULAIRE_PRODUIT.produit),
   }),
   run: async ({ productId, champsCatalogue, images, tentativeId }, client) => {
     await updateProduct(productId, {
@@ -59,7 +60,9 @@ export const updateProductAction = adminFormAction<ProductUpdateInput>({
 
 export const deleteProductAction = adminTaskAction<{ productId: string }>({
   next: "/admin/produits",
-  parse: (formData) => ({ productId: parseRequiredId(formData, "productId") }),
+  parse: (formData) => ({
+    productId: parseRequiredId(formData, CHAMPS_FORMULAIRE_PRODUIT.produit),
+  }),
   refusalUrl: () => "/admin/produits",
   run: async ({ productId }) => {
     await deleteProduct(productId)
