@@ -25,6 +25,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-ring-attenue: var(--ring-attenue);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -80,6 +81,7 @@
   --border: oklch(86.5% 0 none);
   --input: oklch(86.5% 0 none);
   --ring: var(--primary);
+  --ring-attenue: color-mix(in oklch, var(--primary) 50%, transparent);
   --link: oklch(52.2% 0.177 256);
   --chart-1: oklch(87.9% 0.169 91.6);
   --chart-2: oklch(76.9% 0.188 70.1);
@@ -113,7 +115,7 @@
   *,
   *::before,
   *::after {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring-attenue;
   }
 
   :root {
