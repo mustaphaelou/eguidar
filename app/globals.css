@@ -116,10 +116,12 @@
   *::before,
   *::after {
     @apply border-border outline-ring-attenue;
+    min-width: 0;
   }
 
   :root {
     color-scheme: light;
+    scrollbar-gutter: stable;
     text-wrap: pretty;
     overflow-wrap: break-word;
     font-synthesis: none;
