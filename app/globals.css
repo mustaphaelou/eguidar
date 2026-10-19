@@ -209,3 +209,14 @@
     color, background-color, border-color, text-decoration-color, box-shadow,
     opacity;
 }
+
+.outline-none {
+  outline-style: none;
+}
+
+@media (forced-colors: active) {
+  .outline-none {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+}
