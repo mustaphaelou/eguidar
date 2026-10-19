@@ -883,3 +883,56 @@ assertion sur un rendu n'est touchée.
 marche se bâtit **dans** la valeur, et ce dépôt ne simule pas ses propres modules. Ce qui est éprouvé,
 c'est que la lecture a lieu une fois par surface ; que la marche se bâtit **au plus** une fois est
 tenu par le code et énoncé ici, non affirmé par une épreuve.
+
+## Amendement — La Recherche ne lit plus la table, et le compte du seuil change (#693, 2026-10-19)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les
+lectures dégradent, une seule marche pour la Structure, une neutralité qui tient. Cet amendement
+consigne deux passages que ce ticket rend faux : le compte de l'[amendement de
+#604](#amendement--une-lecture-de-la-relation-est-une-exception-nommée-et-la-liste-est-la-règle-604)
+et la phrase qui donnait à la Recherche une lecture de la table.
+
+### Le compte du #604 n'est plus celui du dépôt
+
+L'amendement de #604 écrit : « Le seuil trouve seize sites et la suite en nomme seize : huit par la
+relation, huit par le délégué — et parmi ces huit, **quatre par la poignée** […] Quatre entrées sont
+héritées du seuil précédent ». Ce compte n'était déjà plus celui du dépôt après #692, qui a ajouté
+`listAdminProducts` à la liste nommée — une lecture de la relation de plus, donc dix-sept sites. Ce
+ticket en retire une, l'entrée de `search.ts`. Le seuil trouve désormais **seize** sites : **neuf**
+par la relation, **sept** par le délégué — dont **quatre** par la poignée, deux `tx` et deux
+`client`, toutes dans [`admin-structure.ts`](../../lib/use-cases/admin-structure.ts) — et **trois**
+entrées héritées.
+
+Le ticket #693, écrit avant #692, annonçait quinze sites, sept par le délégué et huit par la relation.
+C'est le compte mesuré qui fait foi, comme l'amendement de #604 l'avait déjà dit du spec : le compte à
+écrire n'est pas celui de ce qu'une décision décrit, c'est celui de ce que le dépôt écrit. Le seize
+tient donc toujours, mais un lecteur de l'amendement de #604 ne doit plus y lire huit par huit, ni
+quatre entrées héritées.
+
+### La nomenclature de la Recherche ne lit plus la table
+
+L'amendement de #604, dans « La facette garde son propriétaire », écrit que « la lecture que la
+Recherche fait pour sa nomenclature — [`search.ts:78`](../../lib/use-cases/search.ts#L78), un
+`findMany` par slug — n'est pas plus la topologie que les autres » et que « la facette ne traverse donc
+ni le cœur ni la Lecture ». Ce n'est plus le code : `fetchCategoryNames` et `fetchNomsDeFacette` sont
+supprimées, `search.ts` ne pose plus aucune lecture sur la table `Category`, et le module n'importe
+plus `@/lib/db` ni `prisma`. Les noms se résolvent par `structure.structureParSlug(slug)?.name`, avec
+la valeur `LectureStructure` que `searchProducts` et `searchSuggestions` reçoivent — une seule instance
+pour tous les slugs d'une Recherche, et `lireStructure()` seulement quand l'appelant n'en fournit pas.
+
+Ce que l'amendement de #604 voulait préserver reste vrai : la valeur réservée `_sans-structure` et son
+libellé gardent leur propriétaire, [`lib/index-projection.ts`](../../lib/index-projection.ts), et les
+producteurs nommés continuent de l'emprunter. Ce qui change est la voie de la nomenclature :
+`_sans-structure` rend `LIBELLE_SANS_STRUCTURE` sans dépendre de ce que la Structure connaît, un slug
+inconnu garde sa valeur brute, et le chemin d'un moteur indisponible ne lit pas la Structure du tout.
+L'entrée du seuil « les noms d'une facette, lus par slug (ADR-0029) » disparaît avec la lecture
+qu'elle nommait, et le seuil redescend à seize entrées.
+
+### Ce que cet amendement ne change pas
+
+- **La décision de #604 sur la facette tient** : la valeur réservée n'a qu'un propriétaire, et ce
+  n'est ni le cœur ni la Recherche.
+- **Le seuil garde sa forme** : la liste nommée est toujours comparée par égalité, dans les deux sens,
+  à ce que la reconnaissance trouve, et ses raisons restent des exceptions nommées.
+- **Rien d'autre ne bouge** : ni le schéma, ni la marche, ni les gardes de frontière, ni la règle de
+  terminaison, ni les lectures restantes de la relation.

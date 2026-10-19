@@ -148,14 +148,6 @@ const SITES_NOMMES: ExceptionLecture[] = [
     raison: "le propriétaire de la lecture (ADR-0030)",
   },
   {
-    chemin: "lib/use-cases/search.ts",
-    voie: "delegue",
-    extrait: `prisma.${FORME.delegue}.findMany`,
-    declaration: "fetchCategoryNames",
-    herite: true,
-    raison: "les noms d'une facette, lus par slug (ADR-0029)",
-  },
-  {
     chemin: "lib/use-cases/storefront.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
@@ -260,10 +252,11 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
     }
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
-    expect(heritees.length).toBe(4)
+    expect(heritees.length).toBe(3)
+    expect(SITES_NOMMES).toHaveLength(16)
     expect(SITES_NOMMES).toHaveLength(heritees.length + 13)
 
-    const attenduesParVoie = { relation: 9, delegue: 8 }
+    const attenduesParVoie = { relation: 9, delegue: 7 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,

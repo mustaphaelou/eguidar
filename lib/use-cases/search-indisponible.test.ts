@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
+import type { LectureStructure } from "@/lib/use-cases/lecture-structure"
 import {
   searchProducts,
   searchSuggestions,
@@ -25,6 +26,25 @@ function moteurCatalogueVide(): MoteurRecette {
     total: 0,
     repartitions: {},
   })
+}
+
+function structureJamaisLue(): LectureStructure {
+  const refuser = () => {
+    throw new Error(
+      "la Structure ne doit pas être lue quand le moteur ne rend rien"
+    )
+  }
+  return {
+    arbreAccueil: refuser,
+    lignesAdmin: refuser,
+    ciblesSuppression: refuser,
+    options: refuser,
+    structure: refuser,
+    structureParSlug: refuser,
+    filAriane: refuser,
+    enfants: refuser,
+    branche: refuser,
+  }
 }
 
 const BANDES_A_ZERO = PRICE_BUCKETS.map(({ id, label }) => ({
@@ -52,14 +72,19 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
         "casque",
         {},
         { page: 3, pageSize: 2 },
-        creerMoteurIndisponible()
+        creerMoteurIndisponible(),
+        structureJamaisLue()
       )
     ).resolves.toEqual(DTO_PAGE_VIDE)
   })
 
   it("searchSuggestions répond les deux listes vides", async () => {
     await expect(
-      searchSuggestions("casque", creerMoteurIndisponible())
+      searchSuggestions(
+        "casque",
+        creerMoteurIndisponible(),
+        structureJamaisLue()
+      )
     ).resolves.toEqual({ products: [], categories: [] })
   })
 
@@ -69,7 +94,8 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
         "casque",
         {},
         { page: 3, pageSize: 2 },
-        moteurCatalogueVide()
+        moteurCatalogueVide(),
+        structureJamaisLue()
       )
     ).resolves.toEqual(DTO_PAGE_VIDE)
   })
@@ -78,8 +104,20 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
     const indisponible = creerMoteurIndisponible()
     const catalogueVide = moteurCatalogueVide()
 
-    await searchProducts("casque", {}, { page: 3, pageSize: 2 }, indisponible)
-    await searchProducts("casque", {}, { page: 3, pageSize: 2 }, catalogueVide)
+    await searchProducts(
+      "casque",
+      {},
+      { page: 3, pageSize: 2 },
+      indisponible,
+      structureJamaisLue()
+    )
+    await searchProducts(
+      "casque",
+      {},
+      { page: 3, pageSize: 2 },
+      catalogueVide,
+      structureJamaisLue()
+    )
 
     expect(
       requetesPage(indisponible).map((requete) => requete.page ?? 1)
@@ -100,7 +138,8 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
         priceBucketId: "1000-2500",
       },
       { page: 1 },
-      indisponible
+      indisponible,
+      structureJamaisLue()
     )
 
     expect(resultat.facets.brands).toEqual([
@@ -128,7 +167,7 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
   it("searchSuggestions garde sa requête unique : six documents, les catégories comptées", async () => {
     const indisponible = creerMoteurIndisponible()
 
-    await searchSuggestions("casque", indisponible)
+    await searchSuggestions("casque", indisponible, structureJamaisLue())
 
     expect(indisponible.requetes).toHaveLength(1)
     expect(indisponible.requetes[0]).toMatchObject({

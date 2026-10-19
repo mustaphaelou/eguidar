@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import { prisma } from "@/lib/db"
 import {
   LIBELLE_SANS_STRUCTURE,
   SLUG_SANS_STRUCTURE,
@@ -11,6 +10,7 @@ import {
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import type { OptionDeFiltre } from "@/lib/options-de-filtre"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
+import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
 import {
   retirerFacette,
   searchProducts,
@@ -22,6 +22,7 @@ import {
   exigerCinqCategoriesDistinctes,
   exigerCategoriesSemees,
   exigerCategoriesSuggestion,
+  faitsSuggestionCategories,
   jeuSuggestionCategories,
   lesDeuxOrdres,
 } from "@/test/suggestion-categories-recherche"
@@ -120,6 +121,30 @@ const SMARTPHONES_ATTENDU = { value: smartphonesSlug, label: "Smartphones" }
 const suggestionCategories = jeuSuggestionCategories(randomUUID().slice(0, 8))
 const moteurSuggestions = creerMoteurEnMemoire(suggestionCategories.documents)
 
+const FAITS_RECHERCHE = [
+  {
+    id: "smartphones",
+    name: "Smartphones",
+    slug: smartphonesSlug,
+    image: null,
+    parentId: null,
+    produitsDirects: 3,
+  },
+  {
+    id: "audio",
+    name: "Audio & Hi-Fi",
+    slug: audioSlug,
+    image: null,
+    parentId: null,
+    produitsDirects: 2,
+  },
+]
+
+const structure = lectureDesStructures([
+  ...FAITS_RECHERCHE,
+  ...faitsSuggestionCategories(suggestionCategories),
+])
+
 const moteurSansStructure = creerMoteurEnMemoire([
   makeDoc("orphelin", {
     name: name("Produit sans Structure"),
@@ -170,38 +195,9 @@ function tranchesAttendues(
   }))
 }
 
-beforeAll(async () => {
-  await prisma.category.createMany({
-    data: [
-      { name: "Smartphones", slug: smartphonesSlug },
-      { name: "Audio & Hi-Fi", slug: audioSlug },
-      ...suggestionCategories.categories.map((category) => ({
-        name: category.name,
-        slug: category.slug,
-      })),
-    ],
-    skipDuplicates: true,
-  })
-})
-
-afterAll(async () => {
-  await prisma.category.deleteMany({
-    where: {
-      slug: {
-        in: [
-          smartphonesSlug,
-          audioSlug,
-          ...suggestionCategories.categories.map((category) => category.slug),
-        ],
-      },
-    },
-  })
-  await prisma.$disconnect()
-})
-
 describe("searchProducts sur le moteur en mémoire", () => {
   it("rend les facettes avec des décomptes qui suivent le jeu de résultats", async () => {
-    const result = await searchProducts(token, {}, {}, moteur)
+    const result = await searchProducts(token, {}, {}, moteur, structure)
 
     expect(result.totalHits).toBe(5)
     expect(result.facets.brands).toEqual(marquesAttendues())
@@ -213,7 +209,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
   })
 
   it("filtre par marque et garde chaque marque comptable", async () => {
-    const result = await searchProducts(token, { brand: ["Sony"] }, {}, moteur)
+    const result = await searchProducts(
+      token,
+      { brand: ["Sony"] },
+      {},
+      moteur,
+      structure
+    )
 
     expect(result.products.map((p) => p.name)).toEqual([
       name("Casque Sony WH-1000XM5"),
@@ -233,7 +235,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       token,
       { brand: ["Sony", "LG"] },
       {},
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.totalHits).toBe(2)
@@ -252,7 +255,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       token,
       { categorySlug: smartphonesSlug },
       {},
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.products.map((p) => p.name).sort()).toEqual(
@@ -274,7 +278,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
   })
 
   it("rang et filtre les Produits sans Structure sous la valeur réservée", async () => {
-    const result = await searchProducts(token, {}, {}, moteurSansStructure)
+    const result = await searchProducts(
+      token,
+      {},
+      {},
+      moteurSansStructure,
+      structure
+    )
 
     const option = result.facets.categories.find(
       (c) => c.value === SLUG_SANS_STRUCTURE
@@ -288,12 +298,60 @@ describe("searchProducts sur le moteur en mémoire", () => {
     expect(option?.label).not.toBe(SLUG_SANS_STRUCTURE)
   })
 
+  it("garde la valeur brute d'un slug que la Structure ne nomme pas", async () => {
+    const slugInconnu = `${token}-structure-inconnue`
+    const moteurInconnu = creerMoteurEnMemoire([
+      makeDoc("inconnu", { categorySlug: slugInconnu, description: token }),
+    ])
+
+    const result = await searchProducts(token, {}, {}, moteurInconnu, structure)
+
+    expect(result.facets.categories).toEqual([
+      {
+        value: slugInconnu,
+        label: slugInconnu,
+        count: 1,
+        selected: false,
+      },
+    ])
+  })
+
+  it("rend le libellé réservé même quand la Structure prétend connaître la valeur", async () => {
+    const structureTrompeuse = lectureDesStructures([
+      ...FAITS_RECHERCHE,
+      {
+        id: "valeur-reservee",
+        name: "Une Structure impossible",
+        slug: SLUG_SANS_STRUCTURE,
+        image: null,
+        parentId: null,
+        produitsDirects: 0,
+      },
+    ])
+
+    const result = await searchProducts(
+      token,
+      {},
+      {},
+      moteurSansStructure,
+      structureTrompeuse
+    )
+
+    expect(result.facets.categories).toContainEqual({
+      value: SLUG_SANS_STRUCTURE,
+      label: LIBELLE_SANS_STRUCTURE,
+      count: 1,
+      selected: false,
+    })
+  })
+
   it("filtre réellement sur la valeur réservée, et non sur une puce inerte", async () => {
     const result = await searchProducts(
       token,
       { categorySlug: SLUG_SANS_STRUCTURE },
       {},
-      moteurSansStructure
+      moteurSansStructure,
+      structure
     )
 
     expect(result.products.map((p) => p.name)).toEqual([
@@ -312,7 +370,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       token,
       { brand: ["Apple"], categorySlug: audioSlug },
       {},
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.totalHits).toBe(0)
@@ -334,7 +393,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       token,
       { priceBucketId: "0-1000" },
       {},
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.products.map((p) => p.name)).toEqual([
@@ -357,7 +417,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       `${token} sony`,
       { priceBucketId: "2500-5000" },
       {},
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.products.map((p) => p.name)).toEqual([
@@ -366,7 +427,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
   })
 
   it("rend l'état vide quand rien ne correspond", async () => {
-    const result = await searchProducts("zzzqqqq", {}, {}, moteur)
+    const result = await searchProducts("zzzqqqq", {}, {}, moteur, structure)
 
     expect(result.totalHits).toBe(0)
     expect(result.products).toEqual([])
@@ -376,7 +437,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
   })
 
   it("projette les Documents d'index en cartes de résultat", async () => {
-    const result = await searchProducts(`${token} casque`, {}, {}, moteur)
+    const result = await searchProducts(
+      `${token} casque`,
+      {},
+      {},
+      moteur,
+      structure
+    )
 
     expect(result.products[0]).toEqual({
       id: "casque",
@@ -395,7 +462,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       "ip15p",
       { categorySlug: smartphonesSlug },
       {},
-      moteur
+      moteur,
+      structure
     )
     expect(bySku.products.map((p) => p.name)).toEqual([name("iPhone 15 Pro")])
 
@@ -403,7 +471,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       "128 go",
       { categorySlug: smartphonesSlug },
       {},
-      moteur
+      moteur,
+      structure
     )
     expect(byVariant.products.map((p) => p.name)).toEqual([
       name("iPhone 15 Pro"),
@@ -413,13 +482,20 @@ describe("searchProducts sur le moteur en mémoire", () => {
       "a17 pro",
       { categorySlug: smartphonesSlug },
       {},
-      moteur
+      moteur,
+      structure
     )
     expect(bySpecs.products.map((p) => p.name)).toEqual([name("iPhone 15 Pro")])
   })
 
   it("trie par prix croissant et décroissant", async () => {
-    const asc = await searchProducts(token, {}, { sort: "prix-asc" }, moteur)
+    const asc = await searchProducts(
+      token,
+      {},
+      { sort: "prix-asc" },
+      moteur,
+      structure
+    )
     expect(asc.products.map((p) => p.name)).toEqual([
       name("Clavier mécanique"),
       name("Écran 27 pouces 4K"),
@@ -428,7 +504,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
       name("iPhone 15 Pro"),
     ])
 
-    const desc = await searchProducts(token, {}, { sort: "prix-desc" }, moteur)
+    const desc = await searchProducts(
+      token,
+      {},
+      { sort: "prix-desc" },
+      moteur,
+      structure
+    )
     expect(desc.products.map((p) => p.name)).toEqual([
       name("iPhone 15 Pro"),
       name("Samsung Galaxy S24"),
@@ -443,7 +525,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       token,
       {},
       { sort: "nouveautes" },
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.products.map((p) => p.name)).toEqual([
@@ -460,7 +543,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       token,
       {},
       { sort: "prix-asc", page: 2, pageSize: 2 },
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.currentPage).toBe(2)
@@ -475,7 +559,8 @@ describe("searchProducts sur le moteur en mémoire", () => {
       token,
       {},
       { sort: "prix-asc", page: 99, pageSize: 2 },
-      moteur
+      moteur,
+      structure
     )
 
     expect(result.currentPage).toBe(3)
@@ -484,7 +569,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
   })
 
   it("rapporte une seule page et la page 1 pour la taille par défaut", async () => {
-    const result = await searchProducts(token, {}, {}, moteur)
+    const result = await searchProducts(token, {}, {}, moteur, structure)
 
     expect(result.currentPage).toBe(1)
     expect(result.totalPages).toBe(1)
@@ -495,7 +580,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
 describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
   it("un décompte de facette ignore son propre filtre, avec deux marques", async () => {
     const brand = ["Sony", "LG"]
-    const result = await searchProducts(token, { brand }, {}, moteur)
+    const result = await searchProducts(token, { brand }, {}, moteur, structure)
 
     expect(result.totalHits).toBe(2)
     expect(result.facets.brands).toEqual(marquesAttendues(["Sony", "LG"]))
@@ -521,7 +606,8 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
   it("plafonne les suggestions à six produits", async () => {
     const suggestions = await searchSuggestions(
       suggestionCategories.token,
-      moteurSuggestions
+      moteurSuggestions,
+      structure
     )
 
     expect(suggestions.products).toHaveLength(6)
@@ -546,7 +632,11 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
     })
     const moteurDocument = creerMoteurEnMemoire([document])
 
-    const suggestions = await searchSuggestions(token, moteurDocument)
+    const suggestions = await searchSuggestions(
+      token,
+      moteurDocument,
+      structure
+    )
 
     expect(suggestions.products).toEqual([
       {
@@ -561,7 +651,7 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
   })
 
   it("rend la distribution des catégories du jeu principal", async () => {
-    const suggestions = await searchSuggestions(token, moteur)
+    const suggestions = await searchSuggestions(token, moteur, structure)
 
     expect(suggestions.categories.map((c) => c.name).sort()).toEqual([
       "Audio & Hi-Fi",
@@ -643,7 +733,8 @@ describe("les catégories que la Recherche propose, sur le moteur en mémoire", 
   it("ouvre sur les catégories que la requête concerne le plus, plafond compris", async () => {
     const suggestions = await exigerCategoriesSuggestion(
       suggestionCategories,
-      moteurSuggestions
+      moteurSuggestions,
+      structure
     )
 
     await exigerCinqCategoriesDistinctes(suggestions)
