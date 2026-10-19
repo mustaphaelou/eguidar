@@ -134,3 +134,22 @@ export function soumissionDepuisFormData(
     tentativeId: typeof tentativeBrut === "string" ? tentativeBrut.trim() : "",
   }
 }
+
+export function galerieSoumiseHorsSuppressionsEnAttente(
+  images: readonly EntreeImageProduitFormulaire[]
+): EntreeImageProduit[] {
+  const soumises: EntreeImageProduit[] = []
+  for (const image of images) {
+    if (image.kind === "persistee") {
+      if (image.suppressionEnAttente) continue
+      soumises.push({ kind: "persistee", url: image.url })
+      continue
+    }
+    soumises.push({
+      kind: "brouillon",
+      draftId: image.draftId,
+      previewUrl: image.previewUrl,
+    })
+  }
+  return soumises
+}

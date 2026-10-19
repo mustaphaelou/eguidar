@@ -78,6 +78,7 @@ describe("Formulaire Produit — frontière client/serveur", () => {
       "texteSpecifications",
       "texteEcartPrix",
       "ecartPrixDepuisTexte",
+      "galerieSoumiseHorsSuppressionsEnAttente",
       "MESSAGE_FORMULAIRE_INVALIDE",
       "CHAMPS_FORMULAIRE_PRODUIT",
     ]) {

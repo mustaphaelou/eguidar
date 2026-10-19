@@ -23,9 +23,9 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
   ecartPrixDepuisTexte,
+  galerieSoumiseHorsSuppressionsEnAttente,
   texteEcartPrix,
   texteSpecifications,
   type EntreeImageProduitFormulaire,
@@ -54,25 +54,6 @@ const emptyVariant = (): FaitsVarianteFormulaire => ({
   priceDelta: 0,
   stock: 0,
 })
-
-function imagesSoumises(
-  images: readonly EntreeImageProduitFormulaire[]
-): EntreeImageProduit[] {
-  const soumises: EntreeImageProduit[] = []
-  for (const image of images) {
-    if (image.kind === "persistee") {
-      if (image.suppressionEnAttente) continue
-      soumises.push({ kind: "persistee", url: image.url })
-      continue
-    }
-    soumises.push({
-      kind: "brouillon",
-      draftId: image.draftId,
-      previewUrl: image.previewUrl,
-    })
-  }
-  return soumises
-}
 
 export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
@@ -114,7 +95,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
       <input
         type="hidden"
         name="images"
-        value={JSON.stringify(imagesSoumises(images))}
+        value={JSON.stringify(galerieSoumiseHorsSuppressionsEnAttente(images))}
       />
       <input type="hidden" name="variants" value={JSON.stringify(variants)} />
 

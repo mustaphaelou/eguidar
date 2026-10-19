@@ -3,16 +3,19 @@ import { describe, expect, expectTypeOf, it } from "vitest"
 import {
   CHAMPS_FORMULAIRE_PRODUIT,
   ecartPrixDepuisTexte,
+  galerieSoumiseHorsSuppressionsEnAttente,
   MESSAGE_FORMULAIRE_INVALIDE,
   MESSAGE_SPECIFICATIONS_INVALIDE,
   specificationsDepuisTexte,
   soumissionDepuisFormData,
   texteEcartPrix,
   texteSpecifications,
+  type EntreeImageProduitFormulaire,
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type {
   ProductInput,
   ProductVariantInput,
@@ -555,5 +558,108 @@ describe("les messages de refus du module", () => {
     expect(MESSAGE_SPECIFICATIONS_INVALIDE).toBe(
       "Format de spécifications invalide (clé : valeur par ligne)"
     )
+  })
+})
+
+describe("la galerie soumise hors suppressions en attente", () => {
+  it("écarte l'Image produit marquée pour une suppression en attente", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+        suppressionEnAttente: true,
+      },
+    ])
+
+    expect(soumise).toEqual([])
+  })
+
+  it("garde l'Image produit qui n'est pas marquée pour une suppression en attente", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+    ])
+
+    expect(soumise).toEqual([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+    ])
+  })
+
+  it("garde le Brouillon d'Image produit", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "brouillon",
+        draftId: "draft-1",
+        previewUrl: "https://cdn.test/brouillons/1.webp",
+      },
+    ])
+
+    expect(soumise).toEqual([
+      {
+        kind: "brouillon",
+        draftId: "draft-1",
+        previewUrl: "https://cdn.test/brouillons/1.webp",
+      },
+    ])
+  })
+
+  it("garde l'ordre que l'éditeur a donné à la galerie", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+      {
+        kind: "brouillon",
+        draftId: "draft-2",
+        previewUrl: "https://cdn.test/brouillons/2.webp",
+      },
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/3.webp",
+        suppressionEnAttente: true,
+      },
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/4.webp",
+      },
+    ])
+
+    expect(soumise).toEqual([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+      {
+        kind: "brouillon",
+        draftId: "draft-2",
+        previewUrl: "https://cdn.test/brouillons/2.webp",
+      },
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/4.webp",
+      },
+    ])
+  })
+
+  it("lit une galerie qui porte le drapeau de suppression en attente, et rend une galerie qui ne le porte plus", () => {
+    expectTypeOf<
+      Parameters<typeof galerieSoumiseHorsSuppressionsEnAttente>[0]
+    >().toEqualTypeOf<readonly EntreeImageProduitFormulaire[]>()
+
+    expectTypeOf(
+      galerieSoumiseHorsSuppressionsEnAttente([
+        {
+          kind: "persistee",
+          url: "https://cdn.test/p/1.webp",
+          suppressionEnAttente: true,
+        },
+      ])
+    ).toEqualTypeOf<EntreeImageProduit[]>()
   })
 })
