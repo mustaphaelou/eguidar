@@ -1,17 +1,23 @@
 import { describe, expect, expectTypeOf, it } from "vitest"
 
 import {
+  caseACocherDepuisValeur,
+  CHAMPS_FORMULAIRE_PRODUIT,
   ecartPrixDepuisTexte,
+  galerieSoumiseHorsSuppressionsEnAttente,
   MESSAGE_FORMULAIRE_INVALIDE,
   MESSAGE_SPECIFICATIONS_INVALIDE,
   specificationsDepuisTexte,
   soumissionDepuisFormData,
   texteEcartPrix,
   texteSpecifications,
+  valeurCaseACocher,
+  type EntreeImageProduitFormulaire,
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
+import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type {
   ProductInput,
   ProductVariantInput,
@@ -219,6 +225,60 @@ describe("ecartPrixDepuisTexte", () => {
   })
 })
 
+describe("la convention de case à cocher", () => {
+  it("écrit la valeur de la convention à la main, « on » pour une bascule cochée, une chaîne vide pour une bascule non cochée", () => {
+    expect(valeurCaseACocher(true)).toBe("on")
+    expect(valeurCaseACocher(false)).toBe("")
+  })
+
+  it("écrit une bascule cochée, et la relit cochée", () => {
+    expect(caseACocherDepuisValeur(valeurCaseACocher(true))).toBe(true)
+
+    const soumission = soumissionLue({
+      misEnAvant: valeurCaseACocher(true),
+      livraisonOfferte: valeurCaseACocher(true),
+    })
+
+    expect(soumission.champsCatalogue.isFeatured).toBe(true)
+    expect(soumission.champsCatalogue.freeShipping).toBe(true)
+  })
+
+  it("écrit une bascule non cochée, et la relit non cochée", () => {
+    expect(caseACocherDepuisValeur(valeurCaseACocher(false))).toBe(false)
+
+    const soumission = soumissionLue({
+      misEnAvant: valeurCaseACocher(false),
+      livraisonOfferte: valeurCaseACocher(false),
+    })
+
+    expect(soumission.champsCatalogue.isFeatured).toBe(false)
+    expect(soumission.champsCatalogue.freeShipping).toBe(false)
+  })
+
+  it("relit toute autre valeur comme une bascule non cochée", () => {
+    for (const valeur of ["", "true", "1", "oui", "ON"]) {
+      expect(caseACocherDepuisValeur(valeur)).toBe(false)
+      expect(
+        soumissionLue({ misEnAvant: valeur }).champsCatalogue.isFeatured
+      ).toBe(false)
+      expect(
+        soumissionLue({ livraisonOfferte: valeur }).champsCatalogue.freeShipping
+      ).toBe(false)
+    }
+  })
+
+  it("relit une bascule absente des données soumises comme non cochée", () => {
+    const donnees = formulaireSoumis()
+    donnees.delete(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant)
+    donnees.delete(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte)
+
+    const soumission = soumissionDepuisFormData(donnees)
+
+    expect(soumission.champsCatalogue.isFeatured).toBe(false)
+    expect(soumission.champsCatalogue.freeShipping).toBe(false)
+  })
+})
+
 describe("les faits du formulaire", () => {
   it("décrivent le même Produit que l'entrée de la mutation, à la galerie et à la Structure près", () => {
     expectTypeOf<
@@ -252,8 +312,8 @@ describe("soumissionDepuisFormData", () => {
       prix: "1250,75",
       specsText: texteSpecifications(SPECS),
       ordre: "3",
-      misEnAvant: "on",
-      livraisonOfferte: "on",
+      misEnAvant: valeurCaseACocher(true),
+      livraisonOfferte: valeurCaseACocher(true),
       images: [
         { kind: "persistee", url: "https://cdn.test/p/1.webp" },
         {
@@ -323,8 +383,11 @@ describe("soumissionDepuisFormData", () => {
     )
   })
 
-  it("reconnaît les deux cases à cocher par la seule convention « on »", () => {
-    const cochees = soumissionLue({ misEnAvant: "on", livraisonOfferte: "on" })
+  it("reconnaît les deux cases à cocher par la seule convention du module neutre", () => {
+    const cochees = soumissionLue({
+      misEnAvant: valeurCaseACocher(true),
+      livraisonOfferte: valeurCaseACocher(true),
+    })
     const decochees = soumissionLue()
 
     expect(cochees.champsCatalogue.isFeatured).toBe(true)
@@ -339,8 +402,8 @@ describe("soumissionDepuisFormData", () => {
     ).toBe(false)
 
     const sansCases = formulaireSoumis()
-    sansCases.delete("isFeatured")
-    sansCases.delete("freeShipping")
+    sansCases.delete(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant)
+    sansCases.delete(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte)
     const sansCase = soumissionDepuisFormData(sansCases)
     expect(sansCase.champsCatalogue.isFeatured).toBe(false)
     expect(sansCase.champsCatalogue.freeShipping).toBe(false)
@@ -494,6 +557,47 @@ describe("les refus de la soumission", () => {
   })
 })
 
+describe("le vocabulaire des champs du formulaire Produit", () => {
+  it("nomme chaque champ par le terme du glossaire, et le lit comme le fil l'écrit", () => {
+    expect(CHAMPS_FORMULAIRE_PRODUIT).toEqual({
+      nom: "name",
+      slug: "slug",
+      marque: "brand",
+      structure: "categoryId",
+      description: "description",
+      prix: "price",
+      specifications: "specsText",
+      miseEnAvant: "isFeatured",
+      livraisonOfferte: "freeShipping",
+      ordre: "featuredOrder",
+      galerie: "images",
+      variantes: "variants",
+      tentative: "tentativeId",
+      produit: "productId",
+    })
+  })
+
+  it("couvre exactement les quatorze champs du formulaire, ni plus ni moins", () => {
+    expect(Object.keys(CHAMPS_FORMULAIRE_PRODUIT)).toHaveLength(14)
+    expect(Object.keys(CHAMPS_FORMULAIRE_PRODUIT).sort()).toEqual([
+      "description",
+      "galerie",
+      "livraisonOfferte",
+      "marque",
+      "miseEnAvant",
+      "nom",
+      "ordre",
+      "prix",
+      "produit",
+      "slug",
+      "specifications",
+      "structure",
+      "tentative",
+      "variantes",
+    ])
+  })
+})
+
 describe("les messages de refus du module", () => {
   it("épingle le message d'un formulaire illisible, au caractère près", () => {
     expect(MESSAGE_FORMULAIRE_INVALIDE).toBe("Formulaire invalide")
@@ -513,5 +617,108 @@ describe("les messages de refus du module", () => {
     expect(MESSAGE_SPECIFICATIONS_INVALIDE).toBe(
       "Format de spécifications invalide (clé : valeur par ligne)"
     )
+  })
+})
+
+describe("la galerie soumise hors suppressions en attente", () => {
+  it("écarte l'Image produit marquée pour une suppression en attente", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+        suppressionEnAttente: true,
+      },
+    ])
+
+    expect(soumise).toEqual([])
+  })
+
+  it("garde l'Image produit qui n'est pas marquée pour une suppression en attente", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+    ])
+
+    expect(soumise).toEqual([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+    ])
+  })
+
+  it("garde le Brouillon d'Image produit", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "brouillon",
+        draftId: "draft-1",
+        previewUrl: "https://cdn.test/brouillons/1.webp",
+      },
+    ])
+
+    expect(soumise).toEqual([
+      {
+        kind: "brouillon",
+        draftId: "draft-1",
+        previewUrl: "https://cdn.test/brouillons/1.webp",
+      },
+    ])
+  })
+
+  it("garde l'ordre que l'éditeur a donné à la galerie", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+      {
+        kind: "brouillon",
+        draftId: "draft-2",
+        previewUrl: "https://cdn.test/brouillons/2.webp",
+      },
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/3.webp",
+        suppressionEnAttente: true,
+      },
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/4.webp",
+      },
+    ])
+
+    expect(soumise).toEqual([
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/1.webp",
+      },
+      {
+        kind: "brouillon",
+        draftId: "draft-2",
+        previewUrl: "https://cdn.test/brouillons/2.webp",
+      },
+      {
+        kind: "persistee",
+        url: "https://cdn.test/p/4.webp",
+      },
+    ])
+  })
+
+  it("lit une galerie qui porte le drapeau de suppression en attente, et rend une galerie qui ne le porte plus", () => {
+    expectTypeOf<
+      Parameters<typeof galerieSoumiseHorsSuppressionsEnAttente>[0]
+    >().toEqualTypeOf<readonly EntreeImageProduitFormulaire[]>()
+
+    expectTypeOf(
+      galerieSoumiseHorsSuppressionsEnAttente([
+        {
+          kind: "persistee",
+          url: "https://cdn.test/p/1.webp",
+          suppressionEnAttente: true,
+        },
+      ])
+    ).toEqualTypeOf<EntreeImageProduit[]>()
   })
 })

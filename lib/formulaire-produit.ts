@@ -7,6 +7,23 @@ import {
 import { centsToInputValue, parseMadToCents } from "@/lib/money"
 import type { ProductInput } from "@/lib/use-cases/admin-catalog"
 
+export const CHAMPS_FORMULAIRE_PRODUIT = {
+  nom: "name",
+  slug: "slug",
+  marque: "brand",
+  structure: "categoryId",
+  description: "description",
+  prix: "price",
+  specifications: "specsText",
+  miseEnAvant: "isFeatured",
+  livraisonOfferte: "freeShipping",
+  ordre: "featuredOrder",
+  galerie: "images",
+  variantes: "variants",
+  tentative: "tentativeId",
+  produit: "productId",
+} as const
+
 export interface FaitsVarianteFormulaire {
   id?: string
   name: string
@@ -78,12 +95,22 @@ export function ecartPrixDepuisTexte(texte: string): number {
   return parseMadToCents(texte) ?? 0
 }
 
+const VALEUR_CASE_A_COCHER = "on"
+
+export function valeurCaseACocher(cochee: boolean): string {
+  return cochee ? VALEUR_CASE_A_COCHER : ""
+}
+
+export function caseACocherDepuisValeur(valeur: string): boolean {
+  return valeur === VALEUR_CASE_A_COCHER
+}
+
 export function soumissionDepuisFormData(
   formData: FormData
 ): SoumissionFormulaireProduit {
-  const imagesBrut = formData.get("images")
-  const variantesBrut = formData.get("variants")
-  const tentativeBrut = formData.get("tentativeId")
+  const imagesBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.galerie)
+  const variantesBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.variantes)
+  const tentativeBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.tentative)
 
   let images: EntreeImageProduit[]
   let variantes: ProductInput["variants"]
@@ -96,24 +123,56 @@ export function soumissionDepuisFormData(
     throw new Error(MESSAGE_FORMULAIRE_INVALIDE)
   }
 
-  const prix = parseMadToCents(String(formData.get("price") ?? ""))
+  const prix = parseMadToCents(
+    String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.prix) ?? "")
+  )
   if (prix === null) throw new Error(MESSAGE_FORMULAIRE_INVALIDE)
 
   return {
     champsCatalogue: {
-      name: String(formData.get("name") ?? ""),
-      slug: String(formData.get("slug") ?? ""),
-      brand: String(formData.get("brand") ?? ""),
-      categoryId: String(formData.get("categoryId") ?? ""),
-      description: String(formData.get("description") ?? ""),
+      name: String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.nom) ?? ""),
+      slug: String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.slug) ?? ""),
+      brand: String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.marque) ?? ""),
+      categoryId: String(
+        formData.get(CHAMPS_FORMULAIRE_PRODUIT.structure) ?? ""
+      ),
+      description: String(
+        formData.get(CHAMPS_FORMULAIRE_PRODUIT.description) ?? ""
+      ),
       price: prix,
-      isFeatured: formData.get("isFeatured") === "on",
-      featuredOrder: Number(formData.get("featuredOrder") ?? 0) || 0,
-      freeShipping: formData.get("freeShipping") === "on",
-      specs: specificationsDepuisTexte(String(formData.get("specsText") ?? "")),
+      isFeatured: caseACocherDepuisValeur(
+        String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant) ?? "")
+      ),
+      featuredOrder:
+        Number(formData.get(CHAMPS_FORMULAIRE_PRODUIT.ordre) ?? 0) || 0,
+      freeShipping: caseACocherDepuisValeur(
+        String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte) ?? "")
+      ),
+      specs: specificationsDepuisTexte(
+        String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.specifications) ?? "")
+      ),
       variants: variantes,
     },
     images,
     tentativeId: typeof tentativeBrut === "string" ? tentativeBrut.trim() : "",
   }
+}
+
+export function galerieSoumiseHorsSuppressionsEnAttente(
+  images: readonly EntreeImageProduitFormulaire[]
+): EntreeImageProduit[] {
+  const soumises: EntreeImageProduit[] = []
+  for (const image of images) {
+    if (image.kind === "persistee") {
+      if (image.suppressionEnAttente) continue
+      soumises.push({ kind: "persistee", url: image.url })
+      continue
+    }
+    soumises.push({
+      kind: "brouillon",
+      draftId: image.draftId,
+      previewUrl: image.previewUrl,
+    })
+  }
+  return soumises
 }

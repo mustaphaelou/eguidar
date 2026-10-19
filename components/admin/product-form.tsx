@@ -23,11 +23,13 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
+  CHAMPS_FORMULAIRE_PRODUIT,
   ecartPrixDepuisTexte,
+  galerieSoumiseHorsSuppressionsEnAttente,
   texteEcartPrix,
   texteSpecifications,
+  valeurCaseACocher,
   type EntreeImageProduitFormulaire,
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
@@ -54,25 +56,6 @@ const emptyVariant = (): FaitsVarianteFormulaire => ({
   priceDelta: 0,
   stock: 0,
 })
-
-function imagesSoumises(
-  images: readonly EntreeImageProduitFormulaire[]
-): EntreeImageProduit[] {
-  const soumises: EntreeImageProduit[] = []
-  for (const image of images) {
-    if (image.kind === "persistee") {
-      if (image.suppressionEnAttente) continue
-      soumises.push({ kind: "persistee", url: image.url })
-      continue
-    }
-    soumises.push({
-      kind: "brouillon",
-      draftId: image.draftId,
-      previewUrl: image.previewUrl,
-    })
-  }
-  return soumises
-}
 
 export function ProductForm({ product, categories, action }: ProductFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
@@ -101,22 +84,42 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {product?.id ? (
-        <input type="hidden" name="productId" value={product.id} />
+        <input
+          type="hidden"
+          name={CHAMPS_FORMULAIRE_PRODUIT.produit}
+          value={product.id}
+        />
       ) : null}
-      <input type="hidden" name="categoryId" value={categoryId} />
-      <input type="hidden" name="isFeatured" value={isFeatured ? "on" : ""} />
       <input
         type="hidden"
-        name="freeShipping"
-        value={freeShipping ? "on" : ""}
+        name={CHAMPS_FORMULAIRE_PRODUIT.structure}
+        value={categoryId}
       />
-      <input type="hidden" name="tentativeId" value={tentativeId} />
       <input
         type="hidden"
-        name="images"
-        value={JSON.stringify(imagesSoumises(images))}
+        name={CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant}
+        value={valeurCaseACocher(isFeatured)}
       />
-      <input type="hidden" name="variants" value={JSON.stringify(variants)} />
+      <input
+        type="hidden"
+        name={CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte}
+        value={valeurCaseACocher(freeShipping)}
+      />
+      <input
+        type="hidden"
+        name={CHAMPS_FORMULAIRE_PRODUIT.tentative}
+        value={tentativeId}
+      />
+      <input
+        type="hidden"
+        name={CHAMPS_FORMULAIRE_PRODUIT.galerie}
+        value={JSON.stringify(galerieSoumiseHorsSuppressionsEnAttente(images))}
+      />
+      <input
+        type="hidden"
+        name={CHAMPS_FORMULAIRE_PRODUIT.variantes}
+        value={JSON.stringify(variants)}
+      />
 
       {state.error ? (
         <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -134,7 +137,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
               <Label htmlFor="name">Nom</Label>
               <Input
                 id="name"
-                name="name"
+                name={CHAMPS_FORMULAIRE_PRODUIT.nom}
                 required
                 defaultValue={product?.name}
                 onChange={(event) => {
@@ -149,7 +152,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
                 <Input
                   ref={slugRef}
                   id="slug"
-                  name="slug"
+                  name={CHAMPS_FORMULAIRE_PRODUIT.slug}
                   required
                   defaultValue={product?.slug}
                   placeholder="mon-produit"
@@ -172,7 +175,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
               <Label htmlFor="brand">Marque</Label>
               <Input
                 id="brand"
-                name="brand"
+                name={CHAMPS_FORMULAIRE_PRODUIT.marque}
                 required
                 defaultValue={product?.brand}
               />
@@ -215,7 +218,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
               <Label htmlFor="price">Prix (MAD, TVA incluse)</Label>
               <Input
                 id="price"
-                name="price"
+                name={CHAMPS_FORMULAIRE_PRODUIT.prix}
                 type="number"
                 required
                 min="0"
@@ -227,7 +230,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                name="description"
+                name={CHAMPS_FORMULAIRE_PRODUIT.description}
                 defaultValue={product?.description}
               />
             </div>
@@ -238,7 +241,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
             </Label>
             <Textarea
               id="specsText"
-              name="specsText"
+              name={CHAMPS_FORMULAIRE_PRODUIT.specifications}
               placeholder={"Écran : 6,1 pouces\nPuce : A17 Pro"}
               defaultValue={product ? texteSpecifications(product.specs) : ""}
             />
@@ -273,7 +276,7 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
             <Label htmlFor="featuredOrder">Ordre de mise en avant</Label>
             <Input
               id="featuredOrder"
-              name="featuredOrder"
+              name={CHAMPS_FORMULAIRE_PRODUIT.ordre}
               type="number"
               min="0"
               step="1"

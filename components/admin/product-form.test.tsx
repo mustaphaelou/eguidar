@@ -15,12 +15,19 @@ import {
   ProductForm,
   type ProductFormState,
 } from "@/components/admin/product-form"
-import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
+import {
+  CHAMPS_FORMULAIRE_PRODUIT,
+  type FaitsFormulaireProduit,
+} from "@/lib/formulaire-produit"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
+
+const CHAMPS_LUS_PAR_LE_TRANSPORT_HORS_IDENTIFICATION = Object.values(
+  CHAMPS_FORMULAIRE_PRODUIT
+).filter((nom) => nom !== CHAMPS_FORMULAIRE_PRODUIT.produit)
 
 function render(element: ReactElement) {
   const root = createRoot(container)
@@ -65,6 +72,12 @@ function initialProduct(): FaitsFormulaireProduit {
   }
 }
 
+function nomsRendus(): string[] {
+  return [...container.querySelectorAll("input, select, textarea, button")]
+    .map((controle) => controle.getAttribute("name"))
+    .filter((nom): nom is string => nom !== null)
+}
+
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
@@ -81,7 +94,7 @@ afterEach(() => {
 })
 
 describe("ProductForm", () => {
-  it("omet une suppression persistée en attente des faits soumis sans appeler le stockage", () => {
+  it("signale la suppression en attente sans appeler le stockage", () => {
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
     const action = vi.fn(
@@ -105,10 +118,6 @@ describe("ProductForm", () => {
     )!
     act(() => remove.click())
 
-    const images = container.querySelector<HTMLInputElement>(
-      'input[name="images"]'
-    )!
-    expect(JSON.parse(images.value)).toEqual([secondImage])
     expect(fetchMock).not.toHaveBeenCalled()
     expect(
       container.querySelector('[data-image-state="suppression-en-attente"]')
@@ -124,11 +133,8 @@ describe("ProductForm", () => {
     const action = vi.fn(
       async (
         _previous: ProductFormState,
-        formData: FormData
-      ): Promise<ProductFormState> => {
-        expect(JSON.parse(String(formData.get("images")))).toEqual([])
-        return { error: "Refus de validation" }
-      }
+        _formData: FormData
+      ): Promise<ProductFormState> => ({ error: "Refus de validation" })
     )
     render(
       <ProductForm product={initialProduct()} categories={[]} action={action} />
@@ -151,11 +157,6 @@ describe("ProductForm", () => {
     expect(
       container.querySelector('[data-image-state="suppression-en-attente"]')
     ).not.toBeNull()
-    expect(
-      JSON.parse(
-        container.querySelector<HTMLInputElement>('input[name="images"]')!.value
-      )
-    ).toEqual([])
 
     await act(async () => {
       form.dispatchEvent(
@@ -168,16 +169,15 @@ describe("ProductForm", () => {
   })
 
   it("porte la même identité de tentative d'une soumission à l'autre", async () => {
-    const soumissions: { tentativeId: string; images: unknown }[] = []
+    const identites: string[] = []
     const action = vi.fn(
       async (
         _previous: ProductFormState,
         formData: FormData
       ): Promise<ProductFormState> => {
-        soumissions.push({
-          tentativeId: String(formData.get("tentativeId")),
-          images: JSON.parse(String(formData.get("images"))),
-        })
+        identites.push(
+          String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.tentative))
+        )
         return { error: "Refus de validation" }
       }
     )
@@ -186,7 +186,7 @@ describe("ProductForm", () => {
     )
 
     const champ = container.querySelector<HTMLInputElement>(
-      'input[name="tentativeId"]'
+      `input[name="${CHAMPS_FORMULAIRE_PRODUIT.tentative}"]`
     )!
     const identite = champ.value
     expect(identite).not.toBe("")
@@ -203,13 +203,34 @@ describe("ProductForm", () => {
 
     expect(action).toHaveBeenCalledTimes(2)
     expect(container.textContent).toContain("Refus de validation")
-    expect(soumissions).toEqual([
-      { tentativeId: identite, images: initialProduct().images },
-      { tentativeId: identite, images: initialProduct().images },
-    ])
+    expect(identites).toEqual([identite, identite])
     expect(
-      container.querySelector<HTMLInputElement>('input[name="tentativeId"]')!
-        .value
+      container.querySelector<HTMLInputElement>(
+        `input[name="${CHAMPS_FORMULAIRE_PRODUIT.tentative}"]`
+      )!.value
     ).toBe(identite)
+  })
+})
+
+describe("les noms de champs rendus", () => {
+  it("rend exactement les champs du vocabulaire, et rend tous les champs que le transport lit", () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        categories={[]}
+        action={async () => ({})}
+      />
+    )
+
+    const rendus = nomsRendus()
+
+    expect([...rendus].sort()).toEqual(
+      [...Object.values(CHAMPS_FORMULAIRE_PRODUIT)].sort()
+    )
+    expect(
+      CHAMPS_LUS_PAR_LE_TRANSPORT_HORS_IDENTIFICATION.filter(
+        (nom) => !rendus.includes(nom)
+      )
+    ).toEqual([])
   })
 })

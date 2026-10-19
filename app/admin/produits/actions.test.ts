@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { CHAMPS_FORMULAIRE_PRODUIT } from "@/lib/formulaire-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type { ProductInput } from "@/lib/use-cases/admin-catalog"
 import type { Client } from "@/lib/use-cases/session-courante"
@@ -121,20 +122,20 @@ function formData(
   tentativeId = "tentative-1"
 ): FormData {
   const data = new FormData()
-  data.append("name", "Produit")
-  data.append("slug", "produit-de-test")
-  data.append("brand", "Marque")
-  data.append("categoryId", "categorie-1")
-  data.append("description", "Description")
-  data.append("price", "100")
-  data.append("images", JSON.stringify(galerie))
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.nom, "Produit")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.slug, "produit-de-test")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.marque, "Marque")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.structure, "categorie-1")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.description, "Description")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.prix, "100")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.galerie, JSON.stringify(galerie))
   data.append(
-    "variants",
+    CHAMPS_FORMULAIRE_PRODUIT.variantes,
     JSON.stringify([
       { name: "Standard", sku: "SKU-1", priceDelta: 0, stock: 2 },
     ])
   )
-  data.append("tentativeId", tentativeId)
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.tentative, tentativeId)
   return data
 }
 
@@ -143,13 +144,13 @@ function updateFormData(
   tentativeId = "tentative-update-1"
 ): FormData {
   const data = formData(galerie, tentativeId)
-  data.append("productId", "produit-1")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.produit, "produit-1")
   return data
 }
 
 function formulaireSuppression(): FormData {
   const data = new FormData()
-  data.append("productId", "produit-1")
+  data.append(CHAMPS_FORMULAIRE_PRODUIT.produit, "produit-1")
   return data
 }
 
@@ -242,7 +243,7 @@ describe("createProductAction", () => {
 
   it("refuse un formulaire illisible sans appeler le Catalogue", async () => {
     const illisible = formData([])
-    illisible.set("price", "abc")
+    illisible.set(CHAMPS_FORMULAIRE_PRODUIT.prix, "abc")
 
     const resultat = await createProductAction({}, illisible)
 
@@ -336,6 +337,12 @@ describe("deleteProductAction", () => {
       name: "NEXT_REDIRECT",
       url: "/admin/produits",
     })
+    expect(catalogue.suppressions).toEqual([])
+  })
+
+  it("refuse une suppression sans identifiant de Produit sans appeler le Catalogue", async () => {
+    await expect(deleteProductAction(new FormData())).resolves.toBeUndefined()
+
     expect(catalogue.suppressions).toEqual([])
   })
 })
