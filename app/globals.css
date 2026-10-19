@@ -179,3 +179,31 @@
     transparent
   );
 }
+
+[data-slot="button"] {
+  transition-property:
+    color, background-color, border-color, text-decoration-color, box-shadow,
+    opacity;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="button"] {
+    transition-property:
+      color, background-color, border-color, text-decoration-color, box-shadow,
+      opacity, translate;
+  }
+}
+
+[data-slot="switch"] {
+  transition-property: background-color, border-color, box-shadow, opacity;
+}
+
+[data-slot="accordion-trigger"] {
+  transition-property: color, text-decoration-color, opacity;
+}
+
+[data-slot="badge"] {
+  transition-property:
+    color, background-color, border-color, text-decoration-color, box-shadow,
+    opacity;
+}
