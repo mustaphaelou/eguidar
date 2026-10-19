@@ -265,10 +265,10 @@ _Avoid_: gallery, collection d'images, liste d'images, galerie d'images produit
 
 **Suppression en attente**:
 Le fait, pour une Image produit déjà enregistrée, d'être marquée pour une suppression qui n'a pas
-encore eu lieu : elle reste dans la galerie de l'éditeur, y est signalée comme en attente, et n'en
-quitte la galerie qu'au prochain enregistrement réussi. Tant que cet enregistrement n'a pas
-réussi, l'Image produit reste dans le Catalogue et dans le stockage ; elle libère sa place dans la
-galerie dès l'édition, pour une autre image, et la suppression reste annulable.
+encore eu lieu : elle reste dans la Galerie produit, y est signalée comme en attente, et n'en
+quitte la Galerie produit qu'au prochain enregistrement réussi. Tant que cet enregistrement n'a
+pas réussi, l'Image produit reste dans le Catalogue et dans le stockage ; elle libère sa place
+dans la Galerie produit dès l'édition, pour une autre image, et la suppression reste annulable.
 _Avoid_: pending removal, pending deletion, marked for deletion, image en attente
 
 **Variante**:
