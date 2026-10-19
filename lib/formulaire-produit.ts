@@ -108,9 +108,9 @@ export function caseACocherDepuisValeur(valeur: string): boolean {
 export function soumissionDepuisFormData(
   formData: FormData
 ): SoumissionFormulaireProduit {
-  const imagesBrut = formData.get("images")
-  const variantesBrut = formData.get("variants")
-  const tentativeBrut = formData.get("tentativeId")
+  const imagesBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.galerie)
+  const variantesBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.variantes)
+  const tentativeBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.tentative)
 
   let images: EntreeImageProduit[]
   let variantes: ProductInput["variants"]
@@ -123,25 +123,34 @@ export function soumissionDepuisFormData(
     throw new Error(MESSAGE_FORMULAIRE_INVALIDE)
   }
 
-  const prix = parseMadToCents(String(formData.get("price") ?? ""))
+  const prix = parseMadToCents(
+    String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.prix) ?? "")
+  )
   if (prix === null) throw new Error(MESSAGE_FORMULAIRE_INVALIDE)
 
   return {
     champsCatalogue: {
-      name: String(formData.get("name") ?? ""),
-      slug: String(formData.get("slug") ?? ""),
-      brand: String(formData.get("brand") ?? ""),
-      categoryId: String(formData.get("categoryId") ?? ""),
-      description: String(formData.get("description") ?? ""),
+      name: String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.nom) ?? ""),
+      slug: String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.slug) ?? ""),
+      brand: String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.marque) ?? ""),
+      categoryId: String(
+        formData.get(CHAMPS_FORMULAIRE_PRODUIT.structure) ?? ""
+      ),
+      description: String(
+        formData.get(CHAMPS_FORMULAIRE_PRODUIT.description) ?? ""
+      ),
       price: prix,
       isFeatured: caseACocherDepuisValeur(
         String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant) ?? "")
       ),
-      featuredOrder: Number(formData.get("featuredOrder") ?? 0) || 0,
+      featuredOrder:
+        Number(formData.get(CHAMPS_FORMULAIRE_PRODUIT.ordre) ?? 0) || 0,
       freeShipping: caseACocherDepuisValeur(
         String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte) ?? "")
       ),
-      specs: specificationsDepuisTexte(String(formData.get("specsText") ?? "")),
+      specs: specificationsDepuisTexte(
+        String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.specifications) ?? "")
+      ),
       variants: variantes,
     },
     images,

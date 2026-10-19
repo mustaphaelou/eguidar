@@ -437,10 +437,10 @@ ne le disait pas, et le code n'était pas à sa hauteur.
   à ce module.
 
 - **La projection de la galerie vit dans le module neutre, sous le nom du domaine** —
-  `galerieSoumiseHorsSuppressionsEnAttente`. Son type d'entrée — la galerie de l'éditeur — porte le
-  drapeau de **Suppression en attente** ; son type de sortie — la galerie soumise — ne le porte
-  pas. La différence entre les deux est désormais une partie de l'interface du module, et non une
-  conséquence d'un module de rendu.
+  `galerieSoumiseHorsSuppressionsEnAttente`. Son type d'entrée — la **Galerie produit** — porte le
+  drapeau de **Suppression en attente** ; son type de sortie — la même **Galerie produit**, le
+  drapeau retiré — ne le porte pas. La différence entre les deux est désormais une partie de
+  l'interface du module, et non une conséquence d'un module de rendu.
 
 ### Ce que cet amendement ne change pas
 

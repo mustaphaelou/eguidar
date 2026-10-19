@@ -25,7 +25,7 @@ import {
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 
-const CHAMPS_LUS_PAR_LE_TRANSPORT = Object.values(
+const CHAMPS_LUS_PAR_LE_TRANSPORT_HORS_IDENTIFICATION = Object.values(
   CHAMPS_FORMULAIRE_PRODUIT
 ).filter((nom) => nom !== CHAMPS_FORMULAIRE_PRODUIT.produit)
 
@@ -175,7 +175,9 @@ describe("ProductForm", () => {
         _previous: ProductFormState,
         formData: FormData
       ): Promise<ProductFormState> => {
-        identites.push(String(formData.get("tentativeId")))
+        identites.push(
+          String(formData.get(CHAMPS_FORMULAIRE_PRODUIT.tentative))
+        )
         return { error: "Refus de validation" }
       }
     )
@@ -184,7 +186,7 @@ describe("ProductForm", () => {
     )
 
     const champ = container.querySelector<HTMLInputElement>(
-      'input[name="tentativeId"]'
+      `input[name="${CHAMPS_FORMULAIRE_PRODUIT.tentative}"]`
     )!
     const identite = champ.value
     expect(identite).not.toBe("")
@@ -203,14 +205,15 @@ describe("ProductForm", () => {
     expect(container.textContent).toContain("Refus de validation")
     expect(identites).toEqual([identite, identite])
     expect(
-      container.querySelector<HTMLInputElement>('input[name="tentativeId"]')!
-        .value
+      container.querySelector<HTMLInputElement>(
+        `input[name="${CHAMPS_FORMULAIRE_PRODUIT.tentative}"]`
+      )!.value
     ).toBe(identite)
   })
 })
 
 describe("les noms de champs rendus", () => {
-  it("rend exactement les champs du vocabulaire, ni plus ni moins", () => {
+  it("rend exactement les champs du vocabulaire, et rend tous les champs que le transport lit", () => {
     render(
       <ProductForm
         product={initialProduct()}
@@ -219,24 +222,15 @@ describe("les noms de champs rendus", () => {
       />
     )
 
-    expect(nomsRendus().sort()).toEqual(
+    const rendus = nomsRendus()
+
+    expect([...rendus].sort()).toEqual(
       [...Object.values(CHAMPS_FORMULAIRE_PRODUIT)].sort()
     )
-  })
-
-  it("rend tous les champs que le transport lit", () => {
-    render(
-      <ProductForm
-        product={initialProduct()}
-        categories={[]}
-        action={async () => ({})}
-      />
-    )
-
-    const rendus = new Set(nomsRendus())
-
     expect(
-      CHAMPS_LUS_PAR_LE_TRANSPORT.filter((nom) => !rendus.has(nom))
+      CHAMPS_LUS_PAR_LE_TRANSPORT_HORS_IDENTIFICATION.filter(
+        (nom) => !rendus.includes(nom)
+      )
     ).toEqual([])
   })
 })
