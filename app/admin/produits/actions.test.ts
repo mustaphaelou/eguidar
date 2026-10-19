@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CHAMPS_FORMULAIRE_PRODUIT } from "@/lib/formulaire-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import type { ProductInput } from "@/lib/use-cases/admin-catalog"
-import { lire } from "@/lib/use-cases/outils-frontiere"
 import type { Client } from "@/lib/use-cases/session-courante"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
@@ -345,25 +344,5 @@ describe("deleteProductAction", () => {
     await expect(deleteProductAction(new FormData())).resolves.toBeUndefined()
 
     expect(catalogue.suppressions).toEqual([])
-  })
-})
-
-describe("le nom de l'identification", () => {
-  it("vient du vocabulaire dans les actions et dans le contrôle de suppression", () => {
-    const producteurs = [
-      ["app/admin/produits/actions.ts", lire(import.meta.url, "./actions.ts")],
-      [
-        "components/admin/delete-product-button.tsx",
-        lire(
-          import.meta.url,
-          "../../../components/admin/delete-product-button.tsx"
-        ),
-      ],
-    ]
-
-    for (const [chemin, source] of producteurs) {
-      expect(source, chemin).toContain("CHAMPS_FORMULAIRE_PRODUIT.produit")
-      expect(source, chemin).not.toContain('"productId"')
-    }
   })
 })

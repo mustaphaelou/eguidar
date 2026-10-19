@@ -226,6 +226,11 @@ describe("ecartPrixDepuisTexte", () => {
 })
 
 describe("la convention de case à cocher", () => {
+  it("écrit la valeur de la convention à la main, « on » pour une bascule cochée, une chaîne vide pour une bascule non cochée", () => {
+    expect(valeurCaseACocher(true)).toBe("on")
+    expect(valeurCaseACocher(false)).toBe("")
+  })
+
   it("écrit une bascule cochée, et la relit cochée", () => {
     expect(caseACocherDepuisValeur(valeurCaseACocher(true))).toBe(true)
 
