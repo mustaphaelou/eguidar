@@ -8,7 +8,7 @@ import {
   type IndexableProduct,
 } from "@/lib/index-projection"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
-import type { OptionDeFiltre } from "@/lib/options-de-filtre"
+import type { OptionDeFiltre } from "@/lib/use-cases/search"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
 import {

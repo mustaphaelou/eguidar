@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => mockNextNavigation())
 
-import type { OptionDeFiltre, OptionsDeFiltre } from "@/lib/options-de-filtre"
+import type { OptionDeFiltre, OptionsDeFiltre } from "@/lib/use-cases/search"
 import {
   buildSearchHref,
   SEARCH_SORT_DEFAULT,

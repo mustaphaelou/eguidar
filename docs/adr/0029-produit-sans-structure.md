@@ -261,3 +261,18 @@ valeur brute, et le repli de la nomenclature n'est pas rouvert ici. Sur le chemi
 indisponible, la Structure n'est pas lue du tout et la catégorie active garde sa valeur brute. Le
 libellé et la valeur restent écrits une seule fois, dans `lib/index-projection.ts` — ce que la puce
 n'avait pas à changer.
+
+## Amendement — L'assemblage des options devient privé à la Recherche (#694, 2026-10-19)
+
+La décision ne bouge pas : la valeur réservée reste `_sans-structure`, sa puce se lit « Sans
+Structure » et filtre réellement. Cet amendement consigne ce que ce ticket rend faux dans la
+décision, et rien d'autre.
+
+La puce « **La Résolution des noms connaît la valeur réservée.** » cite
+[`assemblerCategories`](../../lib/options-de-filtre.ts#L81-L95). Le module `lib/options-de-filtre.ts`
+est supprimé : `assemblerCategories`, `assemblerMarques`, `assemblerTranches` et leur façade sont
+désormais des fonctions privées de `lib/use-cases/search.ts`, que plus personne n'importe. Le lien est
+donc mort, et la phrase ne désigne plus qu'une fonction interne. Les types `OptionDeFiltre`,
+`OptionsDeFiltre` et `RepartitionsDeFacettes` sont exportés par la Recherche, et les surfaces client ne
+les empruntent qu'en types. Ce que la puce garantit reste vrai par la même voie : l'assemblage applique
+toujours la valeur réservée avant la Structure, et un slug inconnu garde sa valeur brute.

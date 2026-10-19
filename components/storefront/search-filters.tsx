@@ -41,7 +41,7 @@ import {
 import { FieldLegend, FieldSet } from "@/components/ui/field"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
-import type { OptionDeFiltre, OptionsDeFiltre } from "@/lib/options-de-filtre"
+import type { OptionDeFiltre, OptionsDeFiltre } from "@/lib/use-cases/search"
 import {
   buildSearchHref,
   toggleBrand,
