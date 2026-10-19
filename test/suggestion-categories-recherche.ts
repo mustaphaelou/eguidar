@@ -1,6 +1,11 @@
 import { expect } from "vitest"
 
 import type { IndexableProduct } from "@/lib/index-projection"
+import {
+  lectureDesStructures,
+  type FaitStructure,
+  type LectureStructure,
+} from "@/lib/use-cases/lecture-structure"
 import type { MoteurRecherche, ReponseMoteur } from "@/lib/moteur-recherche"
 import {
   searchSuggestions,
@@ -96,6 +101,25 @@ export function jeuSuggestionCategories(
   return jeu
 }
 
+export function faitsSuggestionCategories(
+  identite: IdentiteSuggestionCategories
+): FaitStructure[] {
+  return identite.categories.map(({ slug, name }) => ({
+    id: `structure-${slug}`,
+    name,
+    slug,
+    image: null,
+    parentId: null,
+    produitsDirects: 0,
+  }))
+}
+
+export function lectureSuggestionCategories(
+  identite: IdentiteSuggestionCategories
+): LectureStructure {
+  return lectureDesStructures(faitsSuggestionCategories(identite))
+}
+
 export function lesDeuxOrdres(identite: IdentiteSuggestionCategories): {
   parAlphabet: readonly string[]
   parComptes: readonly string[]
@@ -159,9 +183,10 @@ export async function exigerCategoriesSemees(
 
 export async function exigerCategoriesSuggestion(
   identite: IdentiteSuggestionCategories,
-  moteur: MoteurRecherche
+  moteur: MoteurRecherche,
+  structure: LectureStructure = lectureSuggestionCategories(identite)
 ): Promise<SearchSuggestionsData> {
-  const suggestions = await searchSuggestions(identite.token, moteur)
+  const suggestions = await searchSuggestions(identite.token, moteur, structure)
   expect(
     suggestions.categories,
     "les suggestions ouvrent sur les catégories que la requête concerne le plus"

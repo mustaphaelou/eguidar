@@ -240,3 +240,24 @@ valeur réservée reste `_sans-structure` et hors de la grammaire. Une preuve de
 ajouter — **le Produit sans Structure se vend normalement** ([`lib/panier.test.ts`](../../lib/panier.test.ts)
 l'entre dans le Panier, s'y compte et se commande) — parce que cet invariant du glossaire ne
 tenait à rien d'autre qu'à l'absence de garde, et une absence ne se prouve pas en écrivant.
+
+## Amendement — La Résolution des noms passe par la Lecture de la Structure (#693, 2026-10-19)
+
+La décision ne bouge pas : la valeur réservée reste `_sans-structure`, hors de la grammaire, et sa
+puce continue de se lire « Sans Structure » et de filtrer réellement. Cet amendement consigne ce que
+ce ticket rend faux dans la décision, et rien d'autre.
+
+La puce « **La Résolution des noms connaît la valeur réservée.** » nomme `fetchCategoryNames` et
+décrit une lecture de la table `Category` par `search.ts`. Ce n'est plus le code : `fetchCategoryNames`
+et `fetchNomsDeFacette` ont disparu, et la Recherche n'importe plus `@/lib/db` ni `prisma`. Les noms se
+résolvent désormais par `structure.structureParSlug(slug)?.name`, avec la `Lecture de la Structure`
+que `searchProducts` et `searchSuggestions` reçoivent en dépendance — une seule instance pour tous les
+slugs d'une Recherche, et `lireStructure()` seulement quand l'appelant n'en fournit pas.
+
+Ce que la puce voulait garantir reste vrai, par une autre voie. La valeur réservée est toujours
+résolue en amont, mais sans consulter la Structure : `_sans-structure` rend `LIBELLE_SANS_STRUCTURE`
+quel que soit ce que la Structure prétend connaître. Un slug que la Structure ne nomme pas garde sa
+valeur brute, et le repli de la nomenclature n'est pas rouvert ici. Sur le chemin d'un moteur
+indisponible, la Structure n'est pas lue du tout et la catégorie active garde sa valeur brute. Le
+libellé et la valeur restent écrits une seule fois, dans `lib/index-projection.ts` — ce que la puce
+n'avait pas à changer.

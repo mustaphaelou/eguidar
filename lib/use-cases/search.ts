@@ -1,5 +1,4 @@
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
-import { prisma } from "@/lib/db"
 import { moteurMeili } from "@/lib/meili"
 import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
 import {
@@ -19,6 +18,10 @@ import {
   SLUG_SANS_STRUCTURE,
   type IndexableProduct,
 } from "@/lib/index-projection"
+import {
+  lireStructure,
+  type LectureStructure,
+} from "@/lib/use-cases/lecture-structure"
 
 export {
   buildSearchHref,
@@ -71,32 +74,30 @@ export interface SearchOptions {
   pageSize?: number
 }
 
-async function fetchCategoryNames(
-  slugs: string[]
+async function resoudreLesNomsDeCategories(
+  structure: LectureStructure | undefined,
+  slugs: Iterable<string>
 ): Promise<Map<string, string>> {
-  if (slugs.length === 0) return new Map()
-  const categories = await prisma.category.findMany({
-    where: { slug: { in: slugs } },
-    select: { slug: true, name: true },
-  })
-  return new Map(categories.map((category) => [category.slug, category.name]))
-}
+  const listeDesSlugs = [...slugs]
+  if (listeDesSlugs.length === 0) return new Map()
 
-async function fetchNomsDeFacette(
-  slugs: string[]
-): Promise<Map<string, string>> {
-  const noms = await fetchCategoryNames(slugs)
-  if (slugs.includes(SLUG_SANS_STRUCTURE)) {
-    noms.set(SLUG_SANS_STRUCTURE, LIBELLE_SANS_STRUCTURE)
-  }
-  return noms
+  const lecture = structure ?? (await lireStructure())
+  return new Map(
+    listeDesSlugs.map((slug) => [
+      slug,
+      slug === SLUG_SANS_STRUCTURE
+        ? LIBELLE_SANS_STRUCTURE
+        : (lecture.structureParSlug(slug)?.name ?? slug),
+    ])
+  )
 }
 
 export async function searchProducts(
   query: string,
   filters: SearchFilters = {},
   options: SearchOptions = {},
-  moteur: MoteurRecherche = moteurMeili()
+  moteur: MoteurRecherche = moteurMeili(),
+  structure?: LectureStructure
 ): Promise<SearchPageData> {
   const sort = options.sort ?? SEARCH_SORT_DEFAULT
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
@@ -173,7 +174,7 @@ export async function searchProducts(
 
   const slugs = new Set(Object.keys(repartitions.categories))
   if (filters.categorySlug) slugs.add(filters.categorySlug)
-  const categoryNames = await fetchNomsDeFacette([...slugs])
+  const categoryNames = await resoudreLesNomsDeCategories(structure, slugs)
 
   const facets = assemblerOptionsDeFiltre(repartitions, filters, categoryNames)
 
@@ -249,7 +250,8 @@ function comparerParComptePuisSlug(
 
 export async function searchSuggestions(
   query: string,
-  moteur: MoteurRecherche = moteurMeili()
+  moteur: MoteurRecherche = moteurMeili(),
+  structure?: LectureStructure
 ): Promise<SearchSuggestionsData> {
   const emptyResult: SearchSuggestionsData = { products: [], categories: [] }
 
@@ -266,7 +268,8 @@ export async function searchSuggestions(
   )
     .sort(comparerParComptePuisSlug)
     .slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
-  const categoryNames = await fetchNomsDeFacette(
+  const categoryNames = await resoudreLesNomsDeCategories(
+    structure,
     categorySlugCounts.map(([slug]) => slug)
   )
 
