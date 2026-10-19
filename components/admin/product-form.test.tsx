@@ -15,12 +15,19 @@ import {
   ProductForm,
   type ProductFormState,
 } from "@/components/admin/product-form"
-import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
+import {
+  CHAMPS_FORMULAIRE_PRODUIT,
+  type FaitsFormulaireProduit,
+} from "@/lib/formulaire-produit"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
+
+const CHAMPS_LUS_PAR_LE_TRANSPORT = Object.values(
+  CHAMPS_FORMULAIRE_PRODUIT
+).filter((nom) => nom !== CHAMPS_FORMULAIRE_PRODUIT.produit)
 
 function render(element: ReactElement) {
   const root = createRoot(container)
@@ -63,6 +70,12 @@ function initialProduct(): FaitsFormulaireProduit {
       },
     ],
   }
+}
+
+function nomsRendus(): string[] {
+  return [...container.querySelectorAll("input, select, textarea, button")]
+    .map((controle) => controle.getAttribute("name"))
+    .filter((nom): nom is string => nom !== null)
 }
 
 beforeEach(() => {
@@ -193,5 +206,37 @@ describe("ProductForm", () => {
       container.querySelector<HTMLInputElement>('input[name="tentativeId"]')!
         .value
     ).toBe(identite)
+  })
+})
+
+describe("les noms de champs rendus", () => {
+  it("rend exactement les champs du vocabulaire, ni plus ni moins", () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        categories={[]}
+        action={async () => ({})}
+      />
+    )
+
+    expect(nomsRendus().sort()).toEqual(
+      [...Object.values(CHAMPS_FORMULAIRE_PRODUIT)].sort()
+    )
+  })
+
+  it("rend tous les champs que le transport lit", () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        categories={[]}
+        action={async () => ({})}
+      />
+    )
+
+    const rendus = new Set(nomsRendus())
+
+    expect(
+      CHAMPS_LUS_PAR_LE_TRANSPORT.filter((nom) => !rendus.has(nom))
+    ).toEqual([])
   })
 })
