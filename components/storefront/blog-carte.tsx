@@ -51,7 +51,7 @@ function BlogCarteTexte({
     <>
       <p className={kickerClasse}>{article.theme.nom}</p>
       <Titre
-        className={`${titreClasse} ${titreLignes} mt-2 text-white [@media(hover:hover)]:group-hover:underline`}
+        className={`${titreClasse} ${titreLignes} mt-2 text-white [@media(hover:hover)_and_(pointer:fine)]:group-hover:underline`}
       >
         {article.titre}
       </Titre>

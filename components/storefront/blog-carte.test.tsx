@@ -45,10 +45,22 @@ vi.mock("next/image", () => ({
 }))
 
 import type { CardBlog } from "@/lib/use-cases/blog"
+import { formeHorsLectureTailwind } from "@/test/forme-hors-lecture-tailwind"
 
 import { BlogFeedCard, BlogHeroCard } from "./blog-carte"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+
+const REQUETE_POINTEUR_FIN = formeHorsLectureTailwind(
+  "[@media(hover:hover)_and_(pointer:fine)]",
+  ":group-hover",
+  ":underline"
+)
+const ANCIENNE_REQUETE = formeHorsLectureTailwind(
+  "[@media(hover:hover)]",
+  ":group-hover",
+  ":underline"
+)
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
@@ -108,6 +120,14 @@ describe("BlogHeroCard", () => {
     )
   })
 
+  it("n'applique le soulignement du titre que sur un pointeur fin", () => {
+    render(<BlogHeroCard article={article()} />)
+
+    const heading = container.querySelector("h2")!
+    expect(heading.className).toContain(REQUETE_POINTEUR_FIN)
+    expect(heading.className).not.toContain(ANCIENNE_REQUETE)
+  })
+
   it("utilise overflow-clip et applique le feedback tactile actif avec transition amortie sur le lien", () => {
     render(<BlogHeroCard article={article()} />)
 
@@ -159,6 +179,14 @@ describe("BlogFeedCard", () => {
     expect(container.textContent).toContain(
       "Découvrez les bienfaits et la préparation traditionnelle du thé matcha."
     )
+  })
+
+  it("n'applique le soulignement du titre que sur un pointeur fin", () => {
+    render(<BlogFeedCard article={article()} />)
+
+    const heading = container.querySelector("h3")!
+    expect(heading.className).toContain(REQUETE_POINTEUR_FIN)
+    expect(heading.className).not.toContain(ANCIENNE_REQUETE)
   })
 
   it("utilise overflow-clip et applique le feedback tactile actif avec transition amortie sur le lien", () => {
