@@ -1,28 +1,15 @@
 import { randomUUID } from "node:crypto"
 
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest"
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
-import {
-  MESSAGE_REGISTRE_INDISPONIBLE,
-  type PreuvePromotion,
-} from "@/lib/cycle-vie-image-produit"
+import { MESSAGE_REGISTRE_INDISPONIBLE } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import {
   createProduct,
   DraftConflictError,
   DraftExpiredError,
-  DraftPromotionRefusedError,
   DraftRegistryUnavailableError,
-  ImageStorageUnavailableError,
   SlugConflictError,
   type CatalogEffects,
 } from "@/lib/use-cases/admin-catalog"
@@ -35,18 +22,24 @@ import {
   urlImagePersistee,
 } from "@/test/cycle-vie-image-produit-memoire"
 import {
-  copieBrouillons,
   creerDemandeurDeBrouillon,
   creerEntreeProduit,
   creerEnvironnementDurable,
   creerEnvironnementMemoire,
-  effetsObservantLesJalons,
   horlogeFixe,
   MESSAGE_BROUILLON_DEJA_LIBERE,
   MESSAGE_BROUILLON_EXPIRE,
   MESSAGE_CONFLIT_REVENDICATION,
-  MESSAGE_IDENTIFIANTS_INVALIDES,
-  observerLesJalonsDeLaTransaction,
+  PANNES_DE_STOCKAGE,
+  verifierAucuneCoutureDeBrouillon,
+  verifierCompensationSurEchecDeTransaction,
+  verifierLOrdreDesTroisPhases,
+  verifierRefusBrouillonExpire,
+  verifierRefusRegistreIndisponible,
+  verifierRefusSansIdentifiants,
+  verifierRefusStockage,
+  verifierRepriseSansRejeu,
+  verifierRevendicationAilleurs,
 } from "@/test/recette-catalogue-brouillons"
 
 const ownerId = randomUUID()
@@ -256,73 +249,43 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   it("prépare la promotion avant la transaction, y lie les Brouillons, puis supprime les sources après son engagement", async () => {
     const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
-    const jalons = observerLesJalonsDeLaTransaction()
     const cible = slug("ordre-des-trois-phases")
 
-    try {
-      const product = await createProduct(
-        makeInput([brouillon(draft.draftId)], {
-          slug: cible,
-          tentativeId: "tentative-ordre-des-trois-phases",
-          ownerId,
-        }),
-        effetsObservantLesJalons(environnement.effets, jalons)
-      )
-      expect(product.slug).toBe(cible)
-    } finally {
-      jalons.arreter()
-    }
+    const produit = await verifierLOrdreDesTroisPhases(
+      environnement,
+      (effets) =>
+        createProduct(
+          makeInput([brouillon(draft.draftId)], {
+            slug: cible,
+            tentativeId: "tentative-ordre-des-trois-phases",
+            ownerId,
+          }),
+          effets
+        )
+    )
 
-    expect(jalons.ordre).toEqual([
-      "preparation",
-      "transaction-ouverte",
-      "liaison",
-      "transaction-fermee",
-      "sources",
-    ])
+    expect(produit.slug).toBe(cible)
   })
 
   it("rend le Produit existant à la resoumission du même identifiant de tentative", async () => {
     const environnement = creerEnvironnementMemoire(dateInitiale)
-    const premier = await demander(environnement.cycleVie)
-    const second = await demander(environnement.cycleVie)
-    const confirmation = vi.fn(
-      (productId: string, promotions: readonly PreuvePromotion[]) =>
-        environnement.cycleVie.confirmerBrouillons(productId, promotions)
-    )
-    const effets: CatalogEffects = {
-      ...environnement.effets,
-      cycleVie: {
-        ...environnement.effets.cycleVie,
-        confirmerBrouillons: confirmation,
-      },
-    }
+    const premierBrouillon = await demander(environnement.cycleVie)
+    const secondBrouillon = await demander(environnement.cycleVie)
     const entree = makeInput(
-      [brouillon(premier.draftId), brouillon(second.draftId)],
+      [brouillon(premierBrouillon.draftId), brouillon(secondBrouillon.draftId)],
       { slug: slug("reprise"), tentativeId: "tentative-reprise", ownerId }
     )
 
-    const product = await createProduct(entree, effets)
-    const promotions = [...environnement.stockage.promotions]
-    const sources = [...environnement.stockage.suppressionsBrouillons]
-    const brouillons = copieBrouillons(environnement.registre.records)
-    const ecrits = await prisma.product.count({ where: { slug: entree.slug } })
+    const { premier, reprise } = await verifierRepriseSansRejeu(
+      environnement,
+      (effets) => createProduct(entree, effets)
+    )
 
-    const reprise = await createProduct(entree, effets)
-
-    expect(reprise.id).toBe(product.id)
     expect(reprise.variants.map((variante) => variante.id)).toEqual(
-      product.variants.map((variante) => variante.id)
+      premier.variants.map((variante) => variante.id)
     )
     expect(reprise.category?.id).toBe(categoryId)
-    expect(await prisma.product.count({ where: { slug: entree.slug } })).toBe(
-      ecrits
-    )
-    expect(confirmation).toHaveBeenCalledOnce()
-    expect(environnement.stockage.promotions).toEqual(promotions)
-    expect(environnement.stockage.suppressionsBrouillons).toEqual(sources)
-    expect(environnement.stockage.suppressionsImagesPromues).toEqual([])
-    expect(copieBrouillons(environnement.registre.records)).toEqual(brouillons)
+    expect(await prisma.product.count({ where: { slug: entree.slug } })).toBe(1)
   })
 
   it("refuse de reprendre quand tous les Brouillons soumis ne sont pas liés", async () => {
@@ -368,35 +331,22 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   })
 
   it("ne touche à aucune couture de Brouillon quand la Galerie n'en porte aucun", async () => {
-    const couture = vi.fn(async (): Promise<never> => {
-      throw new Error("couture de Brouillon atteinte")
-    })
     const environnement = creerEnvironnementMemoire(dateInitiale)
-    const effets: Partial<CatalogEffects> = {
-      cycleVie: {
-        ...environnement.effets.cycleVie,
-        preparerPromotionBrouillons: couture,
-        confirmerBrouillons: couture,
-        compenserPromotionBrouillons: couture,
-        supprimerSources: couture,
-        lireBrouillonsDeLaTentative: couture,
-      },
-      reindexProducts: vi.fn(async () => {}),
-      revalidateCatalog: vi.fn(),
-    }
     const avant = "https://cdn.test/produits/nue-1.webp"
     const apres = persistee("https://cdn.test/produits/nue-2.webp")
 
-    const product = await createProduct(
-      makeInput([avant, apres], { slug: slug("sans-brouillon") }),
-      effets
+    await verifierAucuneCoutureDeBrouillon(
+      environnement,
+      [
+        "https://cdn.test/produits/nue-1.webp",
+        "https://cdn.test/produits/nue-2.webp",
+      ],
+      (effets) =>
+        createProduct(
+          makeInput([avant, apres], { slug: slug("sans-brouillon") }),
+          effets
+        )
     )
-
-    expect(couture).not.toHaveBeenCalled()
-    expect(product.images).toEqual([
-      "https://cdn.test/produits/nue-1.webp",
-      "https://cdn.test/produits/nue-2.webp",
-    ])
   })
 
   it("compense la promotion quand la transaction échoue, sans laisser d'actif orphelin", async () => {
@@ -410,24 +360,11 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
       categoryId: randomUUID(),
     })
 
-    const promesse = createProduct(entree, environnement.effets)
+    await verifierCompensationSurEchecDeTransaction(environnement, draft, () =>
+      createProduct(entree, environnement.effets)
+    )
 
-    await expect(promesse).rejects.toThrow()
-    await expect(promesse).rejects.not.toBeInstanceOf(UserFacingError)
     expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
-    expect(
-      environnement.stockage.promotions.map(({ draftId }) => draftId)
-    ).toEqual([draft.draftId])
-    expect(environnement.stockage.suppressionsImagesPromues).toEqual([
-      persistentObjectKey(draft.draftId, "image/webp"),
-    ])
-    expect(environnement.stockage.suppressionsBrouillons).toEqual([])
-    expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
-      state: "vivant",
-      tentativeId: null,
-      productId: null,
-      promotedPublicUrl: null,
-    })
   })
 
   it("refuse un slug déjà pris en refus typé, sans rien promouvoir", async () => {
@@ -465,149 +402,116 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
   it("refuse un Brouillon expiré en refus typé, sans rien insérer", async () => {
     const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
-    environnement.horloge.avancer(25 * 60 * 60)
     const cible = slug("expire")
-    const promesse = createProduct(
-      makeInput([brouillon(draft.draftId)], {
-        slug: cible,
-        tentativeId: "tentative-expiree",
-        ownerId,
-      }),
-      environnement.effets
+
+    await verifierRefusBrouillonExpire(environnement, draft, () =>
+      createProduct(
+        makeInput([brouillon(draft.draftId)], {
+          slug: cible,
+          tentativeId: "tentative-expiree",
+          ownerId,
+        }),
+        environnement.effets
+      )
     )
 
-    await expect(promesse).rejects.toBeInstanceOf(DraftExpiredError)
-    await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
-    await expect(promesse).rejects.toThrow(MESSAGE_BROUILLON_EXPIRE)
     expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
-    expect(environnement.stockage.promotions).toEqual([])
-    expect(environnement.registre.records.get(draft.draftId)?.state).toBe(
-      "expiré"
-    )
   })
 
   it("refuse un Brouillon revendiqué par une autre tentative en refus typé", async () => {
     const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
-    await environnement.registre.revendiquer({
-      id: draft.draftId,
-      ownerId,
-      tentativeId: "tentative-rivale",
-      now: dateInitiale,
-    })
     const cible = slug("conflit")
-    const promesse = createProduct(
-      makeInput([brouillon(draft.draftId)], {
-        slug: cible,
-        tentativeId: "tentative-conflit",
-        ownerId,
-      }),
-      environnement.effets
-    )
 
-    await expect(promesse).rejects.toBeInstanceOf(DraftConflictError)
-    await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
-    await expect(promesse).rejects.toThrow(MESSAGE_CONFLIT_REVENDICATION)
-    expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
-    expect(environnement.stockage.promotions).toEqual([])
-    expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
-      state: "revendiqué",
-      tentativeId: "tentative-rivale",
-      productId: null,
-    })
-  })
-
-  it("remonte un stockage indisponible puis un stockage refusé en refus typés", async () => {
-    for (const panne of ["indisponible", "refuse"] as const) {
-      const environnement = creerEnvironnementMemoire(dateInitiale)
-      const draft = await demander(environnement.cycleVie)
-      if (panne === "indisponible") {
-        environnement.stockage.pannes.promouvoirBrouillon.add("non-configure")
-      } else {
-        environnement.stockage.failPromotion = true
-      }
-      const cible = slug(`stockage-${panne}`)
-      const promesse = createProduct(
+    await verifierRevendicationAilleurs(environnement, ownerId, draft, () =>
+      createProduct(
         makeInput([brouillon(draft.draftId)], {
           slug: cible,
-          tentativeId: `tentative-stockage-${panne}`,
+          tentativeId: "tentative-conflit",
           ownerId,
         }),
         environnement.effets
       )
+    )
 
-      await expect(promesse).rejects.toBeInstanceOf(
-        ImageStorageUnavailableError
+    expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
+  })
+
+  it("remonte un stockage indisponible puis un stockage refusé en refus typés", async () => {
+    for (const panne of PANNES_DE_STOCKAGE) {
+      const environnement = creerEnvironnementMemoire(dateInitiale)
+      const draft = await demander(environnement.cycleVie)
+      const cible = slug(`stockage-${panne}`)
+
+      await verifierRefusStockage(environnement, draft, panne, () =>
+        createProduct(
+          makeInput([brouillon(draft.draftId)], {
+            slug: cible,
+            tentativeId: `tentative-stockage-${panne}`,
+            ownerId,
+          }),
+          environnement.effets
+        )
       )
-      await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
+
       expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
-      expect(environnement.registre.records.get(draft.draftId)).toMatchObject({
-        state: "vivant",
-        tentativeId: null,
-        productId: null,
-      })
     }
   })
 
   it("remonte un registre indisponible au moment de revendiquer", async () => {
     const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
-    environnement.registre.pannes.add("revendiquer")
     const cible = slug("registre-revendication")
-    const promesse = createProduct(
-      makeInput([brouillon(draft.draftId)], {
-        slug: cible,
-        tentativeId: "tentative-registre",
-        ownerId,
-      }),
-      environnement.effets
+
+    await verifierRefusRegistreIndisponible(environnement, "revendiquer", () =>
+      createProduct(
+        makeInput([brouillon(draft.draftId)], {
+          slug: cible,
+          tentativeId: "tentative-registre",
+          ownerId,
+        }),
+        environnement.effets
+      )
     )
 
-    await expect(promesse).rejects.toBeInstanceOf(DraftRegistryUnavailableError)
-    await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
-    await expect(promesse).rejects.toThrow(MESSAGE_REGISTRE_INDISPONIBLE)
     expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
-    expect(environnement.stockage.promotions).toEqual([])
   })
 
   it("remonte un registre indisponible au moment de la reprise", async () => {
     const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
-    environnement.registre.pannes.add("lireParTentative")
     const cible = slug("registre-reprise")
-    const promesse = createProduct(
-      makeInput([brouillon(draft.draftId)], {
-        slug: cible,
-        tentativeId: "tentative-registre-reprise",
-        ownerId,
-      }),
-      environnement.effets
+
+    await verifierRefusRegistreIndisponible(
+      environnement,
+      "lireParTentative",
+      () =>
+        createProduct(
+          makeInput([brouillon(draft.draftId)], {
+            slug: cible,
+            tentativeId: "tentative-registre-reprise",
+            ownerId,
+          }),
+          environnement.effets
+        )
     )
 
-    await expect(promesse).rejects.toBeInstanceOf(DraftRegistryUnavailableError)
-    await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
-    await expect(promesse).rejects.toThrow(MESSAGE_REGISTRE_INDISPONIBLE)
     expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
-    expect(environnement.stockage.promotions).toEqual([])
   })
 
   it("refuse un Brouillon sans identifiants en refus typé, sans toucher à la couture", async () => {
     const environnement = creerEnvironnementMemoire(dateInitiale)
     const draft = await demander(environnement.cycleVie)
     const cible = slug("sans-identifiants")
-    const promesse = createProduct(
-      makeInput([brouillon(draft.draftId)], { slug: cible }),
-      environnement.effets
+
+    await verifierRefusSansIdentifiants(environnement, draft, () =>
+      createProduct(
+        makeInput([brouillon(draft.draftId)], { slug: cible }),
+        environnement.effets
+      )
     )
 
-    await expect(promesse).rejects.toBeInstanceOf(DraftPromotionRefusedError)
-    await expect(promesse).rejects.toBeInstanceOf(UserFacingError)
-    await expect(promesse).rejects.toThrow(MESSAGE_IDENTIFIANTS_INVALIDES)
     expect(await prisma.product.count({ where: { slug: cible } })).toBe(0)
-    expect(environnement.stockage.promotions).toEqual([])
-    expect(environnement.registre.records.get(draft.draftId)?.state).toBe(
-      "vivant"
-    )
   })
 
   it("refuse un Brouillon libéré en conflit typé, avec la raison du relâchement", async () => {

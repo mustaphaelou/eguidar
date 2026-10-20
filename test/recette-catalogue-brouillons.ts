@@ -1,23 +1,35 @@
-import { vi } from "vitest"
+import { expect, vi } from "vitest"
 
 import {
   creerCycleVieImageProduit,
   creerRegistreBrouillonImageProduitPrisma,
+  MESSAGE_REGISTRE_INDISPONIBLE,
   type BrouillonImageProduit,
+  type ContentTypeImageProduit,
   type CycleVieImageProduit,
   type Horloge,
+  type PreuvePromotion,
 } from "@/lib/cycle-vie-image-produit"
 import { prisma } from "@/lib/db"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import type {
-  CatalogEffects,
-  ProductInput,
-  ProductVariantInput,
+import { persistentObjectKey } from "@/lib/r2"
+import {
+  DraftConflictError,
+  DraftExpiredError,
+  DraftPromotionRefusedError,
+  DraftRegistryUnavailableError,
+  ImageStorageUnavailableError,
+  type CatalogEffects,
+  type ProductInput,
+  type ProductVariantInput,
 } from "@/lib/use-cases/admin-catalog"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
   creerStockageImageProduitMemoire,
+  type OperationRegistre,
+  type StockageImageProduitMemoire,
 } from "@/test/cycle-vie-image-produit-memoire"
 
 export const MESSAGE_IDENTIFIANTS_INVALIDES =
@@ -89,6 +101,8 @@ export function creerEnvironnementDurable(horloge: Horloge) {
   }
   return { cycleVie, stockage, effets }
 }
+
+export type EnvironnementMemoire = ReturnType<typeof creerEnvironnementMemoire>
 
 export function copieBrouillons(
   records: ReadonlyMap<string, BrouillonImageProduit>
@@ -191,4 +205,270 @@ export function effetsObservantLesJalons(
       },
     },
   }
+}
+
+export interface BrouillonSoumis {
+  draftId: string
+  contentType?: ContentTypeImageProduit
+}
+
+export interface AttenteRefusCatalogue<E extends UserFacingError> {
+  classe: new (...args: never[]) => E
+  message?: string | RegExp
+}
+
+export async function verifierRefusCatalogue<E extends UserFacingError>(
+  soumettre: () => Promise<unknown>,
+  attente: AttenteRefusCatalogue<E>
+): Promise<E> {
+  const refus: unknown = await soumettre().then(
+    () => undefined,
+    (error: unknown) => error
+  )
+  if (!(refus instanceof attente.classe)) {
+    throw new Error(
+      `refus attendu : ${attente.classe.name} — reçu : ${
+        refus instanceof Error ? refus.name : String(refus)
+      }`
+    )
+  }
+  expect(refus).toBeInstanceOf(UserFacingError)
+  if (typeof attente.message === "string") {
+    expect(refus.message).toBe(attente.message)
+  } else if (attente.message !== undefined) {
+    expect(refus.message).toMatch(attente.message)
+  }
+  return refus
+}
+
+export const JALONS_DU_CYCLE_DE_PROMOTION = [
+  "preparation",
+  "transaction-ouverte",
+  "liaison",
+  "transaction-fermee",
+  "sources",
+] as const
+
+export async function verifierLOrdreDesTroisPhases<P>(
+  environnement: { effets: CatalogEffects },
+  soumettre: (effets: CatalogEffects) => Promise<P>
+): Promise<P> {
+  const jalons = observerLesJalonsDeLaTransaction()
+  try {
+    const produit = await soumettre(
+      effetsObservantLesJalons(environnement.effets, jalons)
+    )
+    expect(jalons.ordre).toEqual([...JALONS_DU_CYCLE_DE_PROMOTION])
+    return produit
+  } finally {
+    jalons.arreter()
+  }
+}
+
+export async function verifierAucuneCoutureDeBrouillon<
+  P extends { images: unknown },
+>(
+  environnement: { effets: CatalogEffects },
+  imagesAttendues: readonly string[],
+  soumettre: (effets: CatalogEffects) => Promise<P>
+): Promise<{ produit: P; effets: CatalogEffects }> {
+  const couture = vi.fn(async (): Promise<never> => {
+    throw new Error("couture de Brouillon atteinte")
+  })
+  const effets: CatalogEffects = {
+    ...environnement.effets,
+    cycleVie: {
+      ...environnement.effets.cycleVie,
+      preparerPromotionBrouillons: couture,
+      confirmerBrouillons: couture,
+      compenserPromotionBrouillons: couture,
+      supprimerSources: couture,
+      lireBrouillonsDeLaTentative: couture,
+    },
+    deleteImages: vi.fn(async () => {}),
+  }
+
+  const produit = await soumettre(effets)
+
+  expect(couture).not.toHaveBeenCalled()
+  expect(produit.images).toEqual([...imagesAttendues])
+  return { produit, effets }
+}
+
+export async function verifierRevendicationAilleurs(
+  environnement: EnvironnementMemoire,
+  ownerId: string,
+  brouillon: BrouillonSoumis,
+  soumettre: () => Promise<unknown>,
+  tentativeRivale = "tentative-rivale"
+): Promise<DraftConflictError> {
+  await environnement.registre.revendiquer({
+    id: brouillon.draftId,
+    ownerId,
+    tentativeId: tentativeRivale,
+    now: environnement.horloge.horloge.maintenant(),
+  })
+  const refus = await verifierRefusCatalogue(soumettre, {
+    classe: DraftConflictError,
+    message: MESSAGE_CONFLIT_REVENDICATION,
+  })
+
+  expect(environnement.stockage.promotions).toEqual([])
+  expect(environnement.registre.records.get(brouillon.draftId)).toMatchObject({
+    state: "revendiqué",
+    tentativeId: tentativeRivale,
+    productId: null,
+  })
+  return refus
+}
+
+export async function verifierRefusSansIdentifiants(
+  environnement: EnvironnementMemoire,
+  brouillon: BrouillonSoumis,
+  soumettre: () => Promise<unknown>
+): Promise<DraftPromotionRefusedError> {
+  const refus = await verifierRefusCatalogue(soumettre, {
+    classe: DraftPromotionRefusedError,
+    message: MESSAGE_IDENTIFIANTS_INVALIDES,
+  })
+
+  expect(environnement.stockage.promotions).toEqual([])
+  expect(environnement.registre.records.get(brouillon.draftId)?.state).toBe(
+    "vivant"
+  )
+  return refus
+}
+
+export const PANNES_DE_STOCKAGE = ["indisponible", "refuse"] as const
+
+export type PanneDeStockage = (typeof PANNES_DE_STOCKAGE)[number]
+
+function provoquerPanneDeStockage(
+  stockage: StockageImageProduitMemoire,
+  panne: PanneDeStockage
+): void {
+  if (panne === "indisponible") {
+    stockage.pannes.promouvoirBrouillon.add("non-configure")
+  } else {
+    stockage.failPromotion = true
+  }
+}
+
+export async function verifierRefusStockage(
+  environnement: EnvironnementMemoire,
+  brouillon: BrouillonSoumis,
+  panne: PanneDeStockage,
+  soumettre: () => Promise<unknown>
+): Promise<ImageStorageUnavailableError> {
+  provoquerPanneDeStockage(environnement.stockage, panne)
+  const refus = await verifierRefusCatalogue(soumettre, {
+    classe: ImageStorageUnavailableError,
+  })
+
+  expect(environnement.registre.records.get(brouillon.draftId)).toMatchObject({
+    state: "vivant",
+    tentativeId: null,
+    productId: null,
+  })
+  return refus
+}
+
+export async function verifierRefusBrouillonExpire(
+  environnement: EnvironnementMemoire,
+  brouillon: BrouillonSoumis,
+  soumettre: () => Promise<unknown>,
+  avancerSecondes = 25 * 60 * 60
+): Promise<DraftExpiredError> {
+  environnement.horloge.avancer(avancerSecondes)
+  const refus = await verifierRefusCatalogue(soumettre, {
+    classe: DraftExpiredError,
+    message: MESSAGE_BROUILLON_EXPIRE,
+  })
+
+  expect(environnement.stockage.promotions).toEqual([])
+  expect(environnement.registre.records.get(brouillon.draftId)?.state).toBe(
+    "expiré"
+  )
+  return refus
+}
+
+export async function verifierRefusRegistreIndisponible(
+  environnement: EnvironnementMemoire,
+  operation: OperationRegistre,
+  soumettre: () => Promise<unknown>
+): Promise<DraftRegistryUnavailableError> {
+  environnement.registre.pannes.add(operation)
+  const refus = await verifierRefusCatalogue(soumettre, {
+    classe: DraftRegistryUnavailableError,
+    message: MESSAGE_REGISTRE_INDISPONIBLE,
+  })
+
+  expect(environnement.stockage.promotions).toEqual([])
+  return refus
+}
+
+function typeDeContenu(brouillon: BrouillonSoumis): ContentTypeImageProduit {
+  return brouillon.contentType ?? "image/webp"
+}
+
+export async function verifierCompensationSurEchecDeTransaction(
+  environnement: EnvironnementMemoire,
+  brouillon: BrouillonSoumis,
+  soumettre: () => Promise<unknown>
+): Promise<unknown> {
+  const refus: unknown = await soumettre().then(
+    () => undefined,
+    (error: unknown) => error
+  )
+  if (refus === undefined) {
+    throw new Error("L'enregistrement devait échouer sur la transaction")
+  }
+  expect(refus).toBeInstanceOf(Error)
+  expect(refus).not.toBeInstanceOf(UserFacingError)
+  expect(
+    environnement.stockage.promotions.map(({ draftId }) => draftId)
+  ).toEqual([brouillon.draftId])
+  expect(environnement.stockage.suppressionsImagesPromues).toEqual([
+    persistentObjectKey(brouillon.draftId, typeDeContenu(brouillon)),
+  ])
+  expect(environnement.stockage.suppressionsBrouillons).toEqual([])
+  expect(environnement.registre.records.get(brouillon.draftId)).toMatchObject({
+    state: "vivant",
+    tentativeId: null,
+    productId: null,
+    promotedPublicUrl: null,
+  })
+  return refus
+}
+
+export async function verifierRepriseSansRejeu<P extends { id: string }>(
+  environnement: EnvironnementMemoire,
+  soumettre: (effets: CatalogEffects) => Promise<P>
+): Promise<{ premier: P; reprise: P }> {
+  const confirmation = vi.fn(
+    (productId: string, promotions: readonly PreuvePromotion[]) =>
+      environnement.cycleVie.confirmerBrouillons(productId, promotions)
+  )
+  const effets: CatalogEffects = {
+    ...environnement.effets,
+    cycleVie: {
+      ...environnement.effets.cycleVie,
+      confirmerBrouillons: confirmation,
+    },
+  }
+
+  const premier = await soumettre(effets)
+  const promotions = [...environnement.stockage.promotions]
+  const sources = [...environnement.stockage.suppressionsBrouillons]
+  const brouillons = copieBrouillons(environnement.registre.records)
+
+  const reprise = await soumettre(effets)
+
+  expect(reprise.id).toBe(premier.id)
+  expect(confirmation).toHaveBeenCalledOnce()
+  expect(environnement.stockage.promotions).toEqual(promotions)
+  expect(environnement.stockage.suppressionsBrouillons).toEqual(sources)
+  expect(environnement.stockage.suppressionsImagesPromues).toEqual([])
+  expect(copieBrouillons(environnement.registre.records)).toEqual(brouillons)
+  return { premier, reprise }
 }
