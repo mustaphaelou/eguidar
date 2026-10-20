@@ -112,3 +112,57 @@ lecture de la colonne d'un recalcul :
   valeur stockée ;
 - `lib/use-cases/orders.test.ts` : le snapshot d'e-mail de la commande, à la
   couture des effets injectés.
+
+## Amendement — Le Devis chiffre, la Commande copie (#656)
+
+Trois mentions de ce fichier sont périmées. Cet amendement les déclare telles,
+sans réécrire le corps ni les amendements #341 et #463 :
+
+- dans le corps, « through the canonical pure arithmetic
+  `money.totalPayable({ total, shippingFee })` » et « the shipped money rule
+  keeps its single arithmetic site » : `lib/money.ts` ne tient plus aucune
+  arithmétique d'argent, seulement le formatage d'affichage et l'encodage de
+  transport ;
+- dans l'amendement #341, « The write site remains the canonical pure arithmetic
+  `money.totalPayable({ total, shippingFee })` » : le site d'écriture ne
+  l'appelle plus ;
+- dans l'amendement #463, le paragraphe qui place l'arithmétique dans
+  `totalAPayerDeLaCommande`, **non exportée**, dans `lib/use-cases/orders.ts` —
+  « l'arithmétique vit à côté du site qui l'écrit, et l'absence d'export est ce
+  qui l'assure » : cette fonction n'existe plus, et `orders.ts` ne tient plus
+  aucune arithmétique d'argent.
+
+Ce qui est livré :
+
+- **Le site d'arithmétique unique est le chiffrage du Devis.** `chargerDevis`
+  (`lib/use-cases/devis.ts`) calcule `sousTotal + shippingFee` une fois par Ville
+  de livraison ; le Récapitulatif de paiement et la création de Commande lisent
+  tous deux cette même lecture.
+- **La Commande copie.** `montantsDeLaCommande`
+  (`lib/use-cases/montants-commande.ts`) rend `{ total, shippingFee, totalPayable }` :
+  `total` ← le Sous-total reçu, `shippingFee` et `totalPayable` ← le Devis de la
+  Sélection du Devis validée, copiés verbatim, jamais additionnés. `placeOrder`
+  étale ce mapping dans le create ; il n'additionne plus rien.
+- **Le refus.** `DevisPériméError` (`lib/use-cases/orders.ts`) : `placeOrder`
+  compare le `totalPayable` du mapping au Total à payer que le Client a lu
+  (`totalAffiche`), juste après la naissance des montants et **avant** le scan de
+  stock — si les deux refus s'appliquent, le Devis périmé gagne. Le message :
+  « Le Total à payer a changé depuis l'affichage — vérifiez le nouveau montant,
+  puis confirmez. » `totalAffiche` n'est qu'un fait de comparaison : le montant
+  écrit vient du Devis, jamais de l'entrée du Client. Une dérive qui change les
+  parties sans changer la somme passe : l'enjeu est le montant collecté.
+- **La garde.** `lib/use-cases/montants-commande.test.ts` épingle la copie avec
+  une fixture doctored — un `devisTruqué` dont le total (999) n'est pas la somme
+  de ses parties (500 + 222) : `totalPayable` se copie, jamais ne s'additionne.
+
+Les deux gardes de lecture d'ADR-0021 restent intactes et inchangées :
+`lib/use-cases/admin-dashboard.test.ts` (le Tableau de bord) et
+`lib/use-cases/orders.test.ts` (le snapshot d'e-mail).
+
+Le reste tient :
+
+- `Order.totalPayable`, sa colonne et sa migration ;
+- les lectures d'Administration — listing et détail — et le tri `tri === "total"` ;
+- `Order.total` garde le sens d'ADR-0009 : le Sous-total des Articles, sans les
+  Frais de livraison ;
+- aucune écriture ne touche `totalPayable` après la création d'une Commande.
