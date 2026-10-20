@@ -292,8 +292,8 @@ par l'amendement #716 sont ceux d'avant ce ticket ; c'est le présent amendement
 - **L'interface publique du Catalogue** : noms, signatures, surcharge d'effets facultative et **Produit**
   rendu avec ses `variants` et sa `category`.
 - **La couture d'effets** (#716, ADR-0014) : ses cinq membres, leurs défauts et la fusion superficielle
-  restent tels quels ; le paramètre de la fabrique reste le libellé de journal, pas un identifiant de
-  **Produit**.
+  restent tels quels ; le paramètre de la fabrique est un libellé de journal — le slug en création,
+  l'identifiant en mise à jour —, jamais lu comme un identifiant de **Produit**.
 - **L'interface du cycle de vie et le protocole de promotion** : préparer avant la transaction,
   confirmer dans la transaction par le port, compenser inconditionnellement, supprimer les sources
   après l'engagement, épargner une promotion déjà liée. Aucun geste n'y est ajouté, retiré ni renommé ;
