@@ -12,6 +12,8 @@ export type SearchSort = "pertinence" | "prix-asc" | "prix-desc" | "nouveautes"
 
 export const SEARCH_PAGE_SIZE = 24
 
+export const SEARCH_QUERY_MAX_LENGTH = 200
+
 export const SEARCH_SORT_DEFAULT: SearchSort = "pertinence"
 
 export const SEARCH_SORT_OPTIONS: { id: SearchSort; label: string }[] = [
@@ -69,7 +71,7 @@ export function parseSearchParams(
     return Array.isArray(value) ? value[0] : value
   }
 
-  const query = first("q")?.trim() ?? ""
+  const query = (first("q")?.trim() ?? "").slice(0, SEARCH_QUERY_MAX_LENGTH)
   const filters: SearchFilters = {}
 
   const brands = parseBrands(params.marque)
