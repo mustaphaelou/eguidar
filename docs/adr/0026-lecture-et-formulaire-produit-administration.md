@@ -334,9 +334,13 @@ reprend. C'est le présent amendement qu'il faut y lire à côté :
 - **L'enregistrement du Produit possède la promotion de ses Brouillons d'Image produit**, en trois
   phases, avec une compensation inconditionnelle et une reprise par identifiant de tentative
   (ADR-0034). La promotion est un effet **interne** à la mutation : `CatalogEffects`
-  (`lib/use-cases/admin-catalog.ts:69-80`) porte les gestes du cycle de vie et
-  `defaultCatalogEffects` (`:93-125`) les branche sur l'instance de production ; aucun appelant
-  n'injecte d'adaptateur, et la surcharge reste la couture de test d'ADR-0014.
+  (`lib/use-cases/admin-catalog.ts`) porte le cycle de vie des images comme une seule
+  dépendance — `CycleVieImageProduit`, le membre `cycleVie` — et les quatre effets post-commit
+  que le **Catalogue** possède : la réindexation, le retrait d'un document de l'index,
+  l'invalidation du cache et la suppression des images. L'horloge ne fait plus partie de la
+  couture : la fabrique du cycle de vie la possède. `defaultCatalogEffects` branche cette
+  dépendance sur l'instance de production ; aucun appelant n'injecte d'adaptateur, et la surcharge
+  reste la couture de test d'ADR-0014.
 - **Les Server Actions d'Administration restent des adaptateurs minces** (#689) : elles passent
   l'entrée du formulaire et n'injectent aucun effet, pas plus qu'elles ne connaissent une clé R2 ou un
   état du registre.
