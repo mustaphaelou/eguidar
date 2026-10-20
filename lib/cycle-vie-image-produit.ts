@@ -3,7 +3,10 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 
 import { prisma } from "@/lib/db"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import {
+  identifiantsBrouillonsGalerie,
+  type EntreeImageProduit,
+} from "@/lib/galerie-image-produit"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   isContentTypeImageProduit,
@@ -293,18 +296,6 @@ function dateDExpiration(now: Date): Date {
   return new Date(
     now.getTime() + retentionBrouillonImageProduitHeures() * 60 * 60 * 1000
   )
-}
-
-function brouillonsDeLaGalerie(
-  galerie: readonly EntreeImageProduit[]
-): string[] {
-  return [
-    ...new Set(
-      galerie.flatMap((entree) =>
-        entree.kind === "brouillon" ? [entree.draftId] : []
-      )
-    ),
-  ]
 }
 
 function galerieOrdonnee(
@@ -861,7 +852,7 @@ export function creerCycleVieImageProduit(
       )
     }
 
-    for (const id of brouillonsDeLaGalerie(input.galerie)) {
+    for (const id of identifiantsBrouillonsGalerie(input.galerie)) {
       let resultat: ResultatRevendicationRegistre
       try {
         resultat = await registre.revendiquer({ id, ownerId, tentativeId, now })

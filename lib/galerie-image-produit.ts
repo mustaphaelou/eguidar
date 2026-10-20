@@ -46,3 +46,15 @@ export function galerieImageProduitSchema(
 export type EntreeImageProduit = z.infer<typeof entreeGalerieImageProduitSchema>
 export type EntreeImagePersistee = z.infer<typeof entreeImagePersisteeSchema>
 export type EntreeBrouillonImage = z.infer<typeof entreeBrouillonImageSchema>
+
+export function identifiantsBrouillonsGalerie(
+  galerie: readonly EntreeImageProduit[]
+): string[] {
+  return [
+    ...new Set(
+      galerie.flatMap((entree) =>
+        entree.kind === "brouillon" ? [entree.draftId] : []
+      )
+    ),
+  ]
+}

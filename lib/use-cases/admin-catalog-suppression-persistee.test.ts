@@ -131,7 +131,9 @@ describe("suppression post-commit des Images produit persistées", () => {
         [secondImage],
       ])
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining(`produit ${product.id}`),
+        expect.stringContaining(
+          `suppression d'image R2 non effectuée pour ${product.id}`
+        ),
         expect.objectContaining({
           code: "erreur-stockage",
           message: "R2 indisponible",
