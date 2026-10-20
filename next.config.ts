@@ -1,5 +1,7 @@
 import type { NextConfig } from "next"
 
+const CDN_IMAGES_PRODUIT = "cdn.eguidar.com"
+
 const scriptSrc = [
   "'self'",
   "'unsafe-inline'",
@@ -11,7 +13,7 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src ${scriptSrc.join(" ")}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' https://cdn.eguidar.com",
+  `img-src 'self' https://${CDN_IMAGES_PRODUIT}`,
   "font-src 'self'",
   "connect-src 'self' https://challenges.cloudflare.com https://*.r2.cloudflarestorage.com",
   "frame-src https://challenges.cloudflare.com",
@@ -34,7 +36,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "cdn.eguidar.com",
+        hostname: CDN_IMAGES_PRODUIT,
         pathname: "/**",
         search: "",
       },

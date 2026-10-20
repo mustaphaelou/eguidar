@@ -52,4 +52,16 @@ describe("identifiantsCompteAdmin", () => {
       motDePasse: "mot-de-passe-explicite",
     })
   })
+
+  it("rend l'adresse e-mail rognée et le mot de passe exactement tel que fourni", () => {
+    expect(
+      identifiantsCompteAdmin({
+        ADMIN_EMAIL: "  chef@exemple.test  ",
+        ADMIN_PASSWORD: "  mot-de-passe-explicite  ",
+      })
+    ).toEqual({
+      email: "chef@exemple.test",
+      motDePasse: "  mot-de-passe-explicite  ",
+    })
+  })
 })

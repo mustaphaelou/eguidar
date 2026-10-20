@@ -1,9 +1,7 @@
 import { autoriserRecherche } from "@/lib/acces-recherche"
 import { MESSAGE_TROP_DE_RECHERCHES } from "@/lib/limiteur-recherche"
-import { parseSearchParams } from "@/lib/search-params"
+import { parseSearchParams, SEARCH_QUERY_MIN_LENGTH } from "@/lib/search-params"
 import { searchSuggestions } from "@/lib/use-cases/search"
-
-const MIN_QUERY_LENGTH = 2
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -11,7 +9,7 @@ export async function GET(request: Request) {
     q: url.searchParams.get("q") ?? undefined,
   })
 
-  if (query.length < MIN_QUERY_LENGTH) {
+  if (query.length < SEARCH_QUERY_MIN_LENGTH) {
     return Response.json({ products: [], categories: [] })
   }
 

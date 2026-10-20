@@ -25,7 +25,7 @@ describe("Accès à la Recherche", () => {
     const consommer = vi.fn().mockResolvedValue("autorise")
 
     await expect(autoriserRecherche(ENTETES, { consommer })).resolves.toBe(true)
-    expect(consommer).toHaveBeenCalledWith("203.0.113.7")
+    expect(consommer).toHaveBeenCalledWith("10.0.0.1")
   })
 
   it("refuse quand le limiteur refuse", async () => {

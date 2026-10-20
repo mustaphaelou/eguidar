@@ -19,5 +19,5 @@ export function identifiantsCompteAdmin(
     )
   }
 
-  return { email, motDePasse }
+  return { email: email.trim(), motDePasse }
 }

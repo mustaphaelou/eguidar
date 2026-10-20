@@ -1,20 +1,37 @@
 export const PREFIXE_IMAGES_PRODUIT = "products/"
 export const PREFIXE_BROUILLONS_IMAGE_PRODUIT = `${PREFIXE_IMAGES_PRODUIT}brouillons/`
 
+function cleEstSousLEspaceDeNoms(cle: string): boolean {
+  return cle
+    .split("/")
+    .every((segment) => segment !== "" && segment !== "." && segment !== "..")
+}
+
 export function cleDepuisUrlPublique(
   publicUrl: string,
   basePublique: string | null | undefined
 ): string | null {
   if (!basePublique) return null
-  const base = basePublique.replace(/\/$/, "")
-  if (!base || !publicUrl.startsWith(`${base}/`)) return null
-  const cleEncodee = publicUrl.slice(base.length + 1)
-  if (!cleEncodee) return null
+  let url: URL
+  let base: URL
   try {
-    return decodeURIComponent(cleEncodee)
+    url = new URL(publicUrl)
+    base = new URL(basePublique)
   } catch {
     return null
   }
+  if (url.origin !== base.origin) return null
+  const prefixe = base.pathname.replace(/\/$/, "")
+  if (!url.pathname.startsWith(`${prefixe}/`)) return null
+  const cleEncodee = url.pathname.slice(prefixe.length + 1)
+  if (!cleEncodee) return null
+  let cle: string
+  try {
+    cle = decodeURIComponent(cleEncodee)
+  } catch {
+    return null
+  }
+  return cleEstSousLEspaceDeNoms(cle) ? cle : null
 }
 
 function estCleImageProduitPersistee(cle: string): boolean {

@@ -3,7 +3,7 @@ const NEXT_PARAM = "next"
 
 const URL_BASE = "http://localhost"
 
-const FOLDED_DESTINATION_CHARS = /[\\\u0000-\u0020\u007f]/
+const UNSAFE_DESTINATION_CHARS = /[\\\u0000-\u001f\u007f]/
 const PERCENT_ESCAPE = /%([0-9a-f]{2})/gi
 
 export type AuthDialogName = "login" | "signup"
@@ -28,7 +28,7 @@ function decodePercentEscapes(value: string): string {
 function safeDestination(raw: string | null | undefined): string | null {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null
   const decoded = decodePercentEscapes(raw)
-  if (decoded.startsWith("//") || FOLDED_DESTINATION_CHARS.test(decoded)) {
+  if (decoded.startsWith("//") || UNSAFE_DESTINATION_CHARS.test(decoded)) {
     return null
   }
   return raw

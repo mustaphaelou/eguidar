@@ -30,7 +30,11 @@ export class LimiteurRechercheIndisponibleError extends Error {
 }
 
 export function adresseClient(entetes: EntetesRequete): string {
-  const transmise = entetes.get("x-forwarded-for")?.split(",")[0]?.trim()
+  const cloudflare = entetes.get("cf-connecting-ip")?.trim()
+  if (cloudflare) return cloudflare
+  const reelle = entetes.get("x-real-ip")?.trim()
+  if (reelle) return reelle
+  const transmise = entetes.get("x-forwarded-for")?.split(",").at(-1)?.trim()
   if (transmise) return transmise
-  return entetes.get("x-real-ip")?.trim() || ADRESSE_CLIENT_PARTAGEE
+  return ADRESSE_CLIENT_PARTAGEE
 }

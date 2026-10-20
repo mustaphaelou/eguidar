@@ -60,6 +60,36 @@ describe("l'espace de noms des Images produit", () => {
     ).toBeNull()
   })
 
+  it("refuse un segment de point qui normalise vers un Brouillon", () => {
+    expect(
+      cleImageProduitPersistee(
+        `${BASE}/products/a/../brouillons/brouillon-1.webp`,
+        BASE
+      )
+    ).toBeNull()
+    expect(
+      cleImageProduitPersistee(
+        `${BASE}/products/a/%2e%2e/brouillons/brouillon-1.webp`,
+        BASE
+      )
+    ).toBeNull()
+    expect(
+      cleImageProduitPersistee(
+        `${BASE}/products/a%2F..%2Fbrouillons%2Fbrouillon-1.webp`,
+        BASE
+      )
+    ).toBeNull()
+  })
+
+  it("refuse un segment vide ou une barre finale", () => {
+    expect(
+      cleImageProduitPersistee(`${BASE}/products//image-1.webp`, BASE)
+    ).toBeNull()
+    expect(
+      cleImageProduitPersistee(`${BASE}/products/image-1.webp/`, BASE)
+    ).toBeNull()
+  })
+
   it("refuse toute URL quand la base publique est absente", () => {
     expect(
       cleImageProduitPersistee(`${BASE}/products/image-1.webp`, null)
