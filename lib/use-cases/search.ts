@@ -63,19 +63,32 @@ export interface RepartitionsDeFacettes {
   priceBuckets: Record<string, number>
 }
 
+function assemblerOptions(
+  valeurs: Iterable<string>,
+  repartition: Record<string, number>,
+  estRetenue: (value: string) => boolean,
+  labelDe: (value: string) => string
+): OptionDeFiltre[] {
+  return [...valeurs]
+    .map((value) => ({
+      value,
+      label: labelDe(value),
+      count: repartition[value] ?? 0,
+      selected: estRetenue(value),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "fr"))
+}
+
 function assemblerMarques(
   repartition: Record<string, number>,
   retenues: readonly string[]
 ): OptionDeFiltre[] {
-  const valeurs = new Set([...Object.keys(repartition), ...retenues])
-  return [...valeurs]
-    .map((value) => ({
-      value,
-      label: value,
-      count: repartition[value] ?? 0,
-      selected: retenues.includes(value),
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, "fr"))
+  return assemblerOptions(
+    new Set([...Object.keys(repartition), ...retenues]),
+    repartition,
+    (value) => retenues.includes(value),
+    (value) => value
+  )
 }
 
 function assemblerCategories(
@@ -85,14 +98,12 @@ function assemblerCategories(
 ): OptionDeFiltre[] {
   const valeurs = new Set(Object.keys(repartition))
   if (retenue) valeurs.add(retenue)
-  return [...valeurs]
-    .map((value) => ({
-      value,
-      label: noms.get(value) ?? value,
-      count: repartition[value] ?? 0,
-      selected: value === retenue,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, "fr"))
+  return assemblerOptions(
+    valeurs,
+    repartition,
+    (value) => value === retenue,
+    (value) => noms.get(value) ?? value
+  )
 }
 
 function assemblerTranches(
@@ -232,7 +243,7 @@ export async function searchProducts(
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
-  const facetsVides = assemblerOptionsDeFiltre(
+  const optionsSansRepartition = assemblerOptionsDeFiltre(
     { brands: {}, categories: {}, priceBuckets: {} },
     filters,
     new Map<string, string>()
@@ -242,8 +253,8 @@ export async function searchProducts(
     query,
     totalHits: 0,
     products: [],
-    facets: facetsVides,
-    filtresActifs: projeterFiltresActifs(filters, facetsVides),
+    facets: optionsSansRepartition,
+    filtresActifs: projeterFiltresActifs(filters, optionsSansRepartition),
     sort,
     currentPage: 1,
     totalPages: 1,

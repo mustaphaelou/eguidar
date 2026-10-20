@@ -11,6 +11,7 @@ import {
 import type { IndexableProduct } from "@/lib/index-projection"
 import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
 import { searchProducts } from "@/lib/use-cases/search"
+import { faitsDesCategoriesRecherche } from "@/test/recherche-fixtures"
 
 const meili = getMeiliSearch()
 
@@ -24,24 +25,9 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
   const token = `recherchetest${runId}`
   const name = (label: string) => `RechercheTest${runId} ${label}`
 
-  const structure = lectureDesStructures([
-    {
-      id: "smartphones",
-      name: "Smartphones",
-      slug: smartphonesSlug,
-      image: null,
-      parentId: null,
-      produitsDirects: 3,
-    },
-    {
-      id: "audio",
-      name: "Audio & Hi-Fi",
-      slug: audioSlug,
-      image: null,
-      parentId: null,
-      produitsDirects: 2,
-    },
-  ])
+  const structure = lectureDesStructures(
+    faitsDesCategoriesRecherche({ smartphonesSlug, audioSlug })
+  )
 
   function makeDoc(
     id: string,
