@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { refresh } from "next/cache"
 
 import type { Client } from "@/lib/use-cases/session-courante"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
@@ -28,6 +29,7 @@ import { placeOrderAction } from "@/app/(boutique)/checkout/actions"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import {
   CheckoutValidationError,
+  DevisPériméError,
   EmptyCartError,
   OutOfStockError,
 } from "@/lib/use-cases/orders"
@@ -60,6 +62,7 @@ describe("placeOrderAction", () => {
     placeOrderMock.mockReset()
     updateProfileMock.mockReset()
     redirectMock.mockClear()
+    vi.mocked(refresh).mockClear()
   })
 
   it("refuses an anonymous Compte client with a typed result instead of a redirect, without placing an order", async () => {
@@ -97,6 +100,11 @@ describe("placeOrderAction", () => {
       () => new DeliveryCityNotFoundError(),
       "Ville de livraison introuvable",
     ],
+    [
+      "DevisPériméError",
+      () => new DevisPériméError(),
+      "Le Total à payer a changé depuis l'affichage — vérifiez le nouveau montant, puis confirmez.",
+    ],
   ])(
     "turns %s into { error } with its French message",
     async (_name, create, message) => {
@@ -108,6 +116,34 @@ describe("placeOrderAction", () => {
       })
     }
   )
+
+  it("demande le rafraîchissement de la page sur le refus de Devis périmé, pour montrer le montant courant", async () => {
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
+    placeOrderMock.mockRejectedValue(new DevisPériméError())
+
+    await expect(placeOrderAction({}, formData())).resolves.toEqual({
+      error:
+        "Le Total à payer a changé depuis l'affichage — vérifiez le nouveau montant, puis confirmez.",
+    })
+    expect(vi.mocked(refresh)).toHaveBeenCalledOnce()
+    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it("ne rafraîchit pas la page sur un autre refus ni sur un succès", async () => {
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
+    placeOrderMock.mockRejectedValue(new EmptyCartError())
+
+    await placeOrderAction({}, formData())
+    expect(vi.mocked(refresh)).not.toHaveBeenCalled()
+
+    placeOrderMock.mockResolvedValue({ id: "cmd-1" })
+    updateProfileMock.mockResolvedValue({})
+
+    await expect(placeOrderAction({}, formData())).rejects.toMatchObject({
+      name: "NEXT_REDIRECT",
+    })
+    expect(vi.mocked(refresh)).not.toHaveBeenCalled()
+  })
 
   it.each([
     ["absent", (fd: FormData) => fd.delete("totalAffiche")],

@@ -45,7 +45,7 @@ export interface CheckoutInput {
   cityId: string
   address: string
   phone: string
-  /** Total à payer lu par le Client, en centimes — transporté, jamais comparé ici (#658). */
+  /** Total à payer lu par le Client, en centimes — comparé au Devis à la naissance de la Commande (#659). */
   totalAffiche: number
 }
 
@@ -132,6 +132,15 @@ export class OutOfStockError extends UserFacingError {
     super(`Stock insuffisant : ${details}`)
     this.name = "OutOfStockError"
     this.items = items
+  }
+}
+
+export class DevisPériméError extends UserFacingError {
+  constructor() {
+    super(
+      "Le Total à payer a changé depuis l'affichage — vérifiez le nouveau montant, puis confirmez."
+    )
+    this.name = "DevisPériméError"
   }
 }
 
@@ -281,6 +290,8 @@ export async function placeOrder(
   const selection = selectionValidee(projet.selection)
   const city = selection.ville
   const montants = montantsDeLaCommande(cart.subtotal, selection)
+  // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
+  if (montants.totalPayable !== data.totalAffiche) throw new DevisPériméError()
 
   const outOfStock = cart.lines
     .filter((line) => line.quantity > line.stock)

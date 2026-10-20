@@ -28,6 +28,7 @@ vi.mock("@/lib/client", () => ({
 
 import { CheckoutForm } from "./checkout-form"
 import { parseAuthParams } from "@/lib/lien-de-connexion"
+import { formatPrice } from "@/lib/money"
 import {
   type DevisChargé,
   type SelectionDevis,
@@ -287,5 +288,37 @@ describe("CheckoutForm", () => {
     await choisirDansLeSelect(1)
     expect(selectedCityId()).toBe(RABAT_ID)
     expect(totalAfficheValue()).toBe("1040.00")
+  })
+
+  it("re-projette le Total à payer frais après un rafraîchissement, sans perdre la ville choisie", async () => {
+    placeOrderMock.mockResolvedValue({})
+
+    render(
+      formHarness({
+        quotes: { [CASA_ID]: QUOTE_CASA },
+        selection: { cas: "aucune" },
+      })
+    )
+
+    await choisirDansLeSelect(0)
+    expect(selectedCityId()).toBe(CASA_ID)
+    expect(totalAfficheValue()).toBe("1025.00")
+
+    const quoteFrais: ShippingQuote = {
+      subtotal: 100000,
+      shippingFee: 5000,
+      total: 105000,
+    }
+    rerender(
+      formHarness({
+        quotes: { [CASA_ID]: quoteFrais },
+        selection: { cas: "aucune" },
+      })
+    )
+
+    expect(container.textContent).toContain(formatPrice(105000))
+    expect(container.textContent).not.toContain(formatPrice(102500))
+    expect(totalAfficheValue()).toBe("1050.00")
+    expect(selectedCityId()).toBe(CASA_ID)
   })
 })
