@@ -425,7 +425,7 @@ async function compenserPromotions(
 
 interface ProduitExistant {
   slug: string
-  images: unknown
+  images: string[]
 }
 
 type ProduitEcrit = Product & {
@@ -433,26 +433,30 @@ type ProduitEcrit = Product & {
   category: Category | null
 }
 
-interface EcritureProduit {
+interface FaitsEcritureProduit {
   produit: ProduitEcrit
   imagesRetirees: string[]
   slugPrecedent?: string
 }
 
 type ModeEnregistrement =
-  { phase: "creation" } | { phase: "miseAJour"; id: string }
+  { kind: "creation" } | { kind: "miseAJour"; id: string }
 
 type ContexteEnregistrement =
-  | { phase: "creation" }
-  | { phase: "miseAJour"; id: string; existant: ProduitExistant }
+  | { kind: "creation" }
+  | { kind: "miseAJour"; id: string; existant: ProduitExistant }
 
 async function lireProduitExistant(id: string): Promise<ProduitExistant> {
-  const produit = await prisma.product.findUnique({
-    where: { id },
-    select: { slug: true, images: true },
-  })
+  const produit = await prisma.product.findUnique({ where: { id } })
   if (!produit) throw new ProductNotFoundError()
-  return produit
+  return { slug: produit.slug, images: urlsImagesProduit(produit.images) }
+}
+
+async function contexteDe(
+  mode: ModeEnregistrement
+): Promise<ContexteEnregistrement> {
+  if (mode.kind === "creation") return mode
+  return { ...mode, existant: await lireProduitExistant(mode.id) }
 }
 
 async function assertVariantesDuProduit(
@@ -471,31 +475,41 @@ async function assertVariantesDuProduit(
   }
 }
 
+function donneesProduit(data: ProduitValide, images: string[]) {
+  return {
+    name: data.name,
+    slug: data.slug,
+    description: data.description,
+    brand: data.brand,
+    price: data.price,
+    specs: data.specs,
+    images,
+    isFeatured: data.isFeatured,
+    featuredOrder: data.featuredOrder,
+    freeShipping: data.freeShipping,
+    categoryId: data.categoryId,
+  }
+}
+
+function donneesVariante(variant: ProductVariantInput) {
+  return {
+    name: variant.name,
+    sku: variant.sku,
+    priceDelta: variant.priceDelta,
+    stock: variant.stock,
+  }
+}
+
 async function ecrireCreation(
   tx: Prisma.TransactionClient,
   data: ProduitValide,
   images: string[]
-): Promise<EcritureProduit> {
+): Promise<FaitsEcritureProduit> {
   const produit = await tx.product.create({
     data: {
-      name: data.name,
-      slug: data.slug,
-      description: data.description,
-      brand: data.brand,
-      price: data.price,
-      specs: data.specs,
-      images,
-      isFeatured: data.isFeatured,
-      featuredOrder: data.featuredOrder,
-      freeShipping: data.freeShipping,
-      categoryId: data.categoryId,
+      ...donneesProduit(data, images),
       variants: {
-        create: data.variants.map((variant) => ({
-          name: variant.name,
-          sku: variant.sku,
-          priceDelta: variant.priceDelta,
-          stock: variant.stock,
-        })),
+        create: data.variants.map((variant) => donneesVariante(variant)),
       },
     },
     include: { variants: true, category: true },
@@ -509,7 +523,7 @@ async function ecrireMiseAJour(
   data: ProduitValide,
   images: string[],
   existant: ProduitExistant
-): Promise<EcritureProduit> {
+): Promise<FaitsEcritureProduit> {
   const variantesExistantes = await tx.productVariant.findMany({
     where: { productId: id },
     select: { id: true },
@@ -517,41 +531,18 @@ async function ecrireMiseAJour(
 
   await tx.product.update({
     where: { id },
-    data: {
-      name: data.name,
-      slug: data.slug,
-      description: data.description,
-      brand: data.brand,
-      price: data.price,
-      specs: data.specs,
-      images,
-      isFeatured: data.isFeatured,
-      featuredOrder: data.featuredOrder,
-      freeShipping: data.freeShipping,
-      categoryId: data.categoryId,
-    },
+    data: donneesProduit(data, images),
   })
 
   for (const variant of data.variants) {
     if (variant.id) {
       await tx.productVariant.update({
         where: { id: variant.id },
-        data: {
-          name: variant.name,
-          sku: variant.sku,
-          priceDelta: variant.priceDelta,
-          stock: variant.stock,
-        },
+        data: donneesVariante(variant),
       })
     } else {
       await tx.productVariant.create({
-        data: {
-          name: variant.name,
-          sku: variant.sku,
-          priceDelta: variant.priceDelta,
-          stock: variant.stock,
-          productId: id,
-        },
+        data: { ...donneesVariante(variant), productId: id },
       })
     }
   }
@@ -572,9 +563,7 @@ async function ecrireMiseAJour(
   })
   return {
     produit,
-    imagesRetirees: urlsImagesProduit(existant.images).filter(
-      (url) => !images.includes(url)
-    ),
+    imagesRetirees: existant.images.filter((url) => !images.includes(url)),
     slugPrecedent: existant.slug !== produit.slug ? existant.slug : undefined,
   }
 }
@@ -584,18 +573,11 @@ async function enregistrerProduit(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>
 ) {
-  const contexte: ContexteEnregistrement =
-    mode.phase === "creation"
-      ? { phase: "creation" }
-      : {
-          phase: "miseAJour",
-          id: mode.id,
-          existant: await lireProduitExistant(mode.id),
-        }
+  const contexte = await contexteDe(mode)
   const data = parseProductInput(input)
   const effects = avecSurcharges(
     defaultCatalogEffects(
-      contexte.phase === "creation" ? data.slug : contexte.id
+      contexte.kind === "creation" ? data.slug : contexte.id
     ),
     overrides
   )
@@ -606,17 +588,15 @@ async function enregistrerProduit(
     effects
   )
   if (repris) {
-    if (contexte.phase === "miseAJour" && repris.id !== contexte.id) {
+    if (contexte.kind === "miseAJour" && repris.id !== contexte.id) {
       throw new DraftConflictError(MESSAGE_REPRISE_AUTRE_PRODUIT)
     }
     return repris
   }
 
-  const idMiseAJour = contexte.phase === "miseAJour" ? contexte.id : undefined
+  const idMiseAJour = contexte.kind === "miseAJour" ? contexte.id : undefined
   const imagesExistantes =
-    contexte.phase === "miseAJour"
-      ? urlsImagesProduit(contexte.existant.images)
-      : []
+    contexte.kind === "miseAJour" ? contexte.existant.images : []
 
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
@@ -626,17 +606,17 @@ async function enregistrerProduit(
     data.variants.map((variant) => variant.sku),
     idMiseAJour
   )
-  if (contexte.phase === "miseAJour") {
+  if (contexte.kind === "miseAJour") {
     await assertVariantesDuProduit(contexte.id, data.variants)
   }
 
   const { images, promotions } = await promouvoirBrouillons(data, effects)
 
-  let ecriture: EcritureProduit
+  let ecriture: FaitsEcritureProduit
   try {
     ecriture = await prisma.$transaction(async (tx) => {
       const ecrit =
-        contexte.phase === "creation"
+        contexte.kind === "creation"
           ? await ecrireCreation(tx, data, images)
           : await ecrireMiseAJour(
               tx,
@@ -666,7 +646,7 @@ async function enregistrerProduit(
       () => effects.cycleVie.supprimerSources(promotions)
     )
   }
-  if (contexte.phase === "miseAJour") {
+  if (contexte.kind === "miseAJour") {
     await runEffect(
       `[catalog] suppression d'images R2 non effectuée pour ${ecriture.produit.id}`,
       () => effects.deleteImages(ecriture.imagesRetirees)
@@ -695,7 +675,7 @@ export async function createProduct(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>
 ) {
-  return enregistrerProduit({ phase: "creation" }, input, overrides)
+  return enregistrerProduit({ kind: "creation" }, input, overrides)
 }
 
 export async function updateProduct(
@@ -703,7 +683,7 @@ export async function updateProduct(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>
 ) {
-  return enregistrerProduit({ phase: "miseAJour", id }, input, overrides)
+  return enregistrerProduit({ kind: "miseAJour", id }, input, overrides)
 }
 
 export async function deleteProduct(

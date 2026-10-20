@@ -220,7 +220,7 @@ export interface AttenteRefusCatalogue<E extends UserFacingError> {
 export async function verifierRefusCatalogue<E extends UserFacingError>(
   soumettre: () => Promise<unknown>,
   attente: AttenteRefusCatalogue<E>
-): Promise<E> {
+): Promise<void> {
   const refus: unknown = await soumettre().then(
     () => undefined,
     (error: unknown) => error
@@ -238,7 +238,6 @@ export async function verifierRefusCatalogue<E extends UserFacingError>(
   } else if (attente.message !== undefined) {
     expect(refus.message).toMatch(attente.message)
   }
-  return refus
 }
 
 export const JALONS_DU_CYCLE_DE_PROMOTION = [
@@ -271,7 +270,7 @@ export async function verifierAucuneCoutureDeBrouillon<
   environnement: { effets: CatalogEffects },
   imagesAttendues: readonly string[],
   soumettre: (effets: CatalogEffects) => Promise<P>
-): Promise<{ produit: P; effets: CatalogEffects }> {
+): Promise<void> {
   const couture = vi.fn(async (): Promise<never> => {
     throw new Error("couture de Brouillon atteinte")
   })
@@ -285,14 +284,12 @@ export async function verifierAucuneCoutureDeBrouillon<
       supprimerSources: couture,
       lireBrouillonsDeLaTentative: couture,
     },
-    deleteImages: vi.fn(async () => {}),
   }
 
   const produit = await soumettre(effets)
 
   expect(couture).not.toHaveBeenCalled()
   expect(produit.images).toEqual([...imagesAttendues])
-  return { produit, effets }
 }
 
 export async function verifierRevendicationAilleurs(
@@ -301,14 +298,14 @@ export async function verifierRevendicationAilleurs(
   brouillon: BrouillonSoumis,
   soumettre: () => Promise<unknown>,
   tentativeRivale = "tentative-rivale"
-): Promise<DraftConflictError> {
+): Promise<void> {
   await environnement.registre.revendiquer({
     id: brouillon.draftId,
     ownerId,
     tentativeId: tentativeRivale,
     now: environnement.horloge.horloge.maintenant(),
   })
-  const refus = await verifierRefusCatalogue(soumettre, {
+  await verifierRefusCatalogue(soumettre, {
     classe: DraftConflictError,
     message: MESSAGE_CONFLIT_REVENDICATION,
   })
@@ -319,15 +316,14 @@ export async function verifierRevendicationAilleurs(
     tentativeId: tentativeRivale,
     productId: null,
   })
-  return refus
 }
 
 export async function verifierRefusSansIdentifiants(
   environnement: EnvironnementMemoire,
   brouillon: BrouillonSoumis,
   soumettre: () => Promise<unknown>
-): Promise<DraftPromotionRefusedError> {
-  const refus = await verifierRefusCatalogue(soumettre, {
+): Promise<void> {
+  await verifierRefusCatalogue(soumettre, {
     classe: DraftPromotionRefusedError,
     message: MESSAGE_IDENTIFIANTS_INVALIDES,
   })
@@ -336,7 +332,6 @@ export async function verifierRefusSansIdentifiants(
   expect(environnement.registre.records.get(brouillon.draftId)?.state).toBe(
     "vivant"
   )
-  return refus
 }
 
 export const PANNES_DE_STOCKAGE = ["indisponible", "refuse"] as const
@@ -359,9 +354,9 @@ export async function verifierRefusStockage(
   brouillon: BrouillonSoumis,
   panne: PanneDeStockage,
   soumettre: () => Promise<unknown>
-): Promise<ImageStorageUnavailableError> {
+): Promise<void> {
   provoquerPanneDeStockage(environnement.stockage, panne)
-  const refus = await verifierRefusCatalogue(soumettre, {
+  await verifierRefusCatalogue(soumettre, {
     classe: ImageStorageUnavailableError,
   })
 
@@ -370,7 +365,6 @@ export async function verifierRefusStockage(
     tentativeId: null,
     productId: null,
   })
-  return refus
 }
 
 export async function verifierRefusBrouillonExpire(
@@ -378,9 +372,9 @@ export async function verifierRefusBrouillonExpire(
   brouillon: BrouillonSoumis,
   soumettre: () => Promise<unknown>,
   avancerSecondes = 25 * 60 * 60
-): Promise<DraftExpiredError> {
+): Promise<void> {
   environnement.horloge.avancer(avancerSecondes)
-  const refus = await verifierRefusCatalogue(soumettre, {
+  await verifierRefusCatalogue(soumettre, {
     classe: DraftExpiredError,
     message: MESSAGE_BROUILLON_EXPIRE,
   })
@@ -389,22 +383,20 @@ export async function verifierRefusBrouillonExpire(
   expect(environnement.registre.records.get(brouillon.draftId)?.state).toBe(
     "expiré"
   )
-  return refus
 }
 
 export async function verifierRefusRegistreIndisponible(
   environnement: EnvironnementMemoire,
   operation: OperationRegistre,
   soumettre: () => Promise<unknown>
-): Promise<DraftRegistryUnavailableError> {
+): Promise<void> {
   environnement.registre.pannes.add(operation)
-  const refus = await verifierRefusCatalogue(soumettre, {
+  await verifierRefusCatalogue(soumettre, {
     classe: DraftRegistryUnavailableError,
     message: MESSAGE_REGISTRE_INDISPONIBLE,
   })
 
   expect(environnement.stockage.promotions).toEqual([])
-  return refus
 }
 
 function typeDeContenu(brouillon: BrouillonSoumis): ContentTypeImageProduit {
@@ -415,7 +407,7 @@ export async function verifierCompensationSurEchecDeTransaction(
   environnement: EnvironnementMemoire,
   brouillon: BrouillonSoumis,
   soumettre: () => Promise<unknown>
-): Promise<unknown> {
+): Promise<void> {
   const refus: unknown = await soumettre().then(
     () => undefined,
     (error: unknown) => error
@@ -438,7 +430,6 @@ export async function verifierCompensationSurEchecDeTransaction(
     productId: null,
     promotedPublicUrl: null,
   })
-  return refus
 }
 
 export async function verifierRepriseSansRejeu<P extends { id: string }>(

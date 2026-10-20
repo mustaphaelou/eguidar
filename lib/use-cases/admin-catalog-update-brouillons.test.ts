@@ -237,7 +237,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     )
     const environnement = creerEnvironnementMemoire(dateInitiale)
 
-    const { effets } = await verifierAucuneCoutureDeBrouillon(
+    await verifierAucuneCoutureDeBrouillon(
       environnement,
       [existingImage, existingSecondImage],
       (effets) =>
@@ -255,7 +255,9 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
         )
     )
 
-    expect(effets.deleteImages).toHaveBeenCalledExactlyOnceWith([])
+    expect(environnement.effets.deleteImages).toHaveBeenCalledExactlyOnceWith(
+      []
+    )
   })
 
   it("marque les Images produit retirées pour suppression après l'engagement, et jamais avant", async () => {
