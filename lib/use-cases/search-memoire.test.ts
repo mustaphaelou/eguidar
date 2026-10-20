@@ -577,6 +577,162 @@ describe("searchProducts sur le moteur en mémoire", () => {
   })
 })
 
+describe("la projection des Filtres actifs", () => {
+  it("ne projette aucune puce quand aucun Filtre n'est en force", async () => {
+    const result = await searchProducts(token, {}, {}, moteur, structure)
+
+    expect(result.filtresActifs).toEqual([])
+  })
+
+  it("projette les marques dans l'ordre de l'URL, puis la catégorie, puis la Tranche", async () => {
+    const result = await searchProducts(
+      token,
+      {
+        brand: ["Sony", "Apple"],
+        categorySlug: audioSlug,
+        priceBucketId: "2500-5000",
+      },
+      {},
+      moteur,
+      structure
+    )
+
+    expect(result.filtresActifs).toEqual([
+      {
+        cle: "brand",
+        valeur: "Sony",
+        label: "Sony",
+        ariaLabel: "Retirer la marque Sony",
+      },
+      {
+        cle: "brand",
+        valeur: "Apple",
+        label: "Apple",
+        ariaLabel: "Retirer la marque Apple",
+      },
+      {
+        cle: "categorySlug",
+        valeur: audioSlug,
+        label: "Audio & Hi-Fi",
+        ariaLabel: "Retirer la catégorie Audio & Hi-Fi",
+      },
+      {
+        cle: "priceBucketId",
+        valeur: "2500-5000",
+        label: "2 500 – 5 000 MAD",
+        ariaLabel: "Retirer la tranche de prix 2 500 – 5 000 MAD",
+      },
+    ])
+  })
+
+  it("nomme la catégorie exactement comme l'option de la barre latérale", async () => {
+    const result = await searchProducts(
+      token,
+      { categorySlug: audioSlug },
+      {},
+      moteur,
+      structure
+    )
+
+    const option = result.facets.categories.find(
+      ({ value }) => value === audioSlug
+    )
+    expect(option?.label).toBe("Audio & Hi-Fi")
+    expect(result.filtresActifs).toEqual([
+      {
+        cle: "categorySlug",
+        valeur: audioSlug,
+        label: option?.label,
+        ariaLabel: "Retirer la catégorie Audio & Hi-Fi",
+      },
+    ])
+  })
+
+  it("rend le libellé réservé pour la catégorie sans Structure", async () => {
+    const result = await searchProducts(
+      token,
+      { categorySlug: SLUG_SANS_STRUCTURE },
+      {},
+      moteurSansStructure,
+      structure
+    )
+
+    expect(result.filtresActifs).toEqual([
+      {
+        cle: "categorySlug",
+        valeur: SLUG_SANS_STRUCTURE,
+        label: LIBELLE_SANS_STRUCTURE,
+        ariaLabel: `Retirer la catégorie ${LIBELLE_SANS_STRUCTURE}`,
+      },
+    ])
+  })
+
+  it("retombe sur le slug brut quand la Structure ne nomme pas la catégorie", async () => {
+    const slugInconnu = `${token}-structure-inconnue`
+    const moteurInconnu = creerMoteurEnMemoire([
+      makeDoc("inconnu", { categorySlug: slugInconnu, description: token }),
+    ])
+
+    const result = await searchProducts(
+      token,
+      { categorySlug: slugInconnu },
+      {},
+      moteurInconnu,
+      structure
+    )
+
+    expect(result.filtresActifs).toEqual([
+      {
+        cle: "categorySlug",
+        valeur: slugInconnu,
+        label: slugInconnu,
+        ariaLabel: `Retirer la catégorie ${slugInconnu}`,
+      },
+    ])
+  })
+
+  it("garde une puce pour un Filtre retenu que les résultats ramènent à zéro", async () => {
+    const result = await searchProducts(
+      token,
+      { brand: ["Apple"], categorySlug: audioSlug },
+      {},
+      moteur,
+      structure
+    )
+
+    expect(result.totalHits).toBe(0)
+    expect(result.filtresActifs).toEqual([
+      {
+        cle: "brand",
+        valeur: "Apple",
+        label: "Apple",
+        ariaLabel: "Retirer la marque Apple",
+      },
+      {
+        cle: "categorySlug",
+        valeur: audioSlug,
+        label: "Audio & Hi-Fi",
+        ariaLabel: "Retirer la catégorie Audio & Hi-Fi",
+      },
+    ])
+  })
+
+  it("ne projette aucune puce pour une Tranche hors de l'univers connu", async () => {
+    const result = await searchProducts(
+      token,
+      { priceBucketId: "bande-obsolete" },
+      {},
+      moteur,
+      structure
+    )
+
+    expect(result.filtresActifs).toEqual([])
+    expect(
+      result.facets.priceBuckets.filter((option) => option.selected)
+    ).toEqual([])
+  })
+})
+
 describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
   it("un décompte de facette ignore son propre filtre, avec deux marques", async () => {
     const brand = ["Sony", "LG"]

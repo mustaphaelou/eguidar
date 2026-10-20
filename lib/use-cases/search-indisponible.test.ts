@@ -59,6 +59,7 @@ const DTO_PAGE_VIDE = {
   totalHits: 0,
   products: [],
   facets: { brands: [], categories: [], priceBuckets: BANDES_A_ZERO },
+  filtresActifs: [],
   sort: "pertinence",
   currentPage: 1,
   totalPages: 1,
@@ -162,6 +163,41 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
     expect(resultat.pageSize).toBe(SEARCH_PAGE_SIZE)
 
     expect(requetesPage(indisponible)).toHaveLength(1)
+  })
+
+  it("la panne projette les Filtres actifs depuis ses facettes brutes, sans lire la Structure", async () => {
+    const resultat = await searchProducts(
+      "casque",
+      {
+        brand: ["Sony"],
+        categorySlug: "audio-hifi",
+        priceBucketId: "1000-2500",
+      },
+      { page: 1 },
+      creerMoteurIndisponible(),
+      structureJamaisLue()
+    )
+
+    expect(resultat.filtresActifs).toEqual([
+      {
+        cle: "brand",
+        valeur: "Sony",
+        label: "Sony",
+        ariaLabel: "Retirer la marque Sony",
+      },
+      {
+        cle: "categorySlug",
+        valeur: "audio-hifi",
+        label: "audio-hifi",
+        ariaLabel: "Retirer la catégorie audio-hifi",
+      },
+      {
+        cle: "priceBucketId",
+        valeur: "1000-2500",
+        label: "1 000 – 2 500 MAD",
+        ariaLabel: "Retirer la tranche de prix 1 000 – 2 500 MAD",
+      },
+    ])
   })
 
   it("searchSuggestions garde sa requête unique : six documents, les catégories comptées", async () => {
