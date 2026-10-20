@@ -41,7 +41,11 @@ import {
 import { FieldLegend, FieldSet } from "@/components/ui/field"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
-import type { OptionDeFiltre, OptionsDeFiltre } from "@/lib/options-de-filtre"
+import type {
+  FiltreActif,
+  OptionDeFiltre,
+  OptionsDeFiltre,
+} from "@/lib/use-cases/search"
 import {
   buildSearchHref,
   toggleBrand,
@@ -202,71 +206,44 @@ export function MobileFilterDrawer({
   )
 }
 
-export function ActiveFilters({ facets }: { facets: SearchFacets }) {
+export function ActiveFilters({
+  filtresActifs,
+}: {
+  filtresActifs: readonly FiltreActif[]
+}) {
   const { filters, navigate } = useSearchNavigation()
-  const activeBrands = filters.brand ?? []
-  const categoryName = facets.categories.find(
-    (category) => category.value === filters.categorySlug
-  )?.label
-  const priceBucket = facets.priceBuckets.find(
-    (bucket) => bucket.value === filters.priceBucketId
-  )
 
   if (countActiveFilters(filters) === 0) return null
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      {activeBrands.map((brand) => (
+      {filtresActifs.map((filtre) => (
         <Badge
-          key={brand}
+          key={`${filtre.cle}-${filtre.valeur}`}
           variant="secondary"
           render={
             <button
               type="button"
-              aria-label={`Retirer la marque ${brand}`}
-              onClick={() =>
-                navigate({ brand: toggleBrand(activeBrands, brand) })
-              }
+              aria-label={filtre.ariaLabel}
+              onClick={() => {
+                if (filtre.cle === "brand") {
+                  navigate({
+                    brand: toggleBrand(filters.brand, filtre.valeur),
+                  })
+                } else if (filtre.cle === "categorySlug") {
+                  navigate({ categorySlug: undefined })
+                } else {
+                  navigate({ priceBucketId: undefined })
+                }
+              }}
             />
           }
           className="cursor-pointer active:opacity-70"
         >
-          {brand}
+          {filtre.label}
           <HugeiconsIcon icon={Cancel01Icon} data-icon="inline-end" />
         </Badge>
       ))}
-      {filters.categorySlug ? (
-        <Badge
-          variant="secondary"
-          render={
-            <button
-              type="button"
-              aria-label={`Retirer la catégorie ${categoryName ?? filters.categorySlug}`}
-              onClick={() => navigate({ categorySlug: undefined })}
-            />
-          }
-          className="cursor-pointer active:opacity-70"
-        >
-          {categoryName ?? filters.categorySlug}
-          <HugeiconsIcon icon={Cancel01Icon} data-icon="inline-end" />
-        </Badge>
-      ) : null}
-      {priceBucket ? (
-        <Badge
-          variant="secondary"
-          render={
-            <button
-              type="button"
-              aria-label={`Retirer la tranche de prix ${priceBucket.label}`}
-              onClick={() => navigate({ priceBucketId: undefined })}
-            />
-          }
-          className="cursor-pointer active:opacity-70"
-        >
-          {priceBucket.label}
-          <HugeiconsIcon icon={Cancel01Icon} data-icon="inline-end" />
-        </Badge>
-      ) : null}
       <Button
         variant="ghost"
         size="sm"

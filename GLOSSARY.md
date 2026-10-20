@@ -217,8 +217,8 @@ _Avoid_: facette, critère
 **Option de filtre**:
 Une entrée du panneau de la Recherche — une marque, une catégorie ou une Tranche de prix — avec son
 libellé d'affichage, le nombre de résultats qu'elle donnerait et si elle est retenue par les Filtres
-actifs. La Recherche les assemble une fois (`lib/options-de-filtre.ts`) et la barre latérale ne fait
-que les rendre : une option retenue reste visible même à zéro.
+actifs. La Recherche les assemble une fois et la barre latérale ne fait que les rendre : une option
+retenue reste visible même à zéro.
 _Avoid_: facette d'option, choix de filtre, filter option
 
 **Filtres actifs**:

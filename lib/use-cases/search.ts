@@ -1,12 +1,7 @@
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
-import { prisma } from "@/lib/db"
 import { moteurMeili } from "@/lib/meili"
 import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
-import {
-  assemblerOptionsDeFiltre,
-  type OptionsDeFiltre,
-  type RepartitionsDeFacettes,
-} from "@/lib/options-de-filtre"
+import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import {
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
@@ -19,6 +14,10 @@ import {
   SLUG_SANS_STRUCTURE,
   type IndexableProduct,
 } from "@/lib/index-projection"
+import {
+  lireStructure,
+  type LectureStructure,
+} from "@/lib/use-cases/lecture-structure"
 
 export {
   buildSearchHref,
@@ -37,6 +36,149 @@ export {
 } from "@/lib/search-params"
 
 export { retirerFacette }
+
+export interface OptionDeFiltre {
+  value: string
+  label: string
+  count: number
+  selected: boolean
+}
+
+export interface OptionsDeFiltre {
+  brands: OptionDeFiltre[]
+  categories: OptionDeFiltre[]
+  priceBuckets: OptionDeFiltre[]
+}
+
+export interface FiltreActif {
+  cle: "brand" | "categorySlug" | "priceBucketId"
+  valeur: string
+  label: string
+  ariaLabel: string
+}
+
+export interface RepartitionsDeFacettes {
+  brands: Record<string, number>
+  categories: Record<string, number>
+  priceBuckets: Record<string, number>
+}
+
+function assemblerOptions(
+  valeurs: Iterable<string>,
+  repartition: Record<string, number>,
+  estRetenue: (value: string) => boolean,
+  labelDe: (value: string) => string
+): OptionDeFiltre[] {
+  return [...valeurs]
+    .map((value) => ({
+      value,
+      label: labelDe(value),
+      count: repartition[value] ?? 0,
+      selected: estRetenue(value),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "fr"))
+}
+
+function assemblerMarques(
+  repartition: Record<string, number>,
+  retenues: readonly string[]
+): OptionDeFiltre[] {
+  return assemblerOptions(
+    new Set([...Object.keys(repartition), ...retenues]),
+    repartition,
+    (value) => retenues.includes(value),
+    (value) => value
+  )
+}
+
+function assemblerCategories(
+  repartition: Record<string, number>,
+  retenue: string | undefined,
+  noms: ReadonlyMap<string, string>
+): OptionDeFiltre[] {
+  const valeurs = new Set(Object.keys(repartition))
+  if (retenue) valeurs.add(retenue)
+  return assemblerOptions(
+    valeurs,
+    repartition,
+    (value) => value === retenue,
+    (value) => noms.get(value) ?? value
+  )
+}
+
+function assemblerTranches(
+  repartition: Record<string, number>,
+  retenue: string | undefined
+): OptionDeFiltre[] {
+  return PRICE_BUCKETS.map((bande) => ({
+    value: bande.id,
+    label: bande.label,
+    count: repartition[bande.id] ?? 0,
+    selected: bande.id === retenue,
+  }))
+}
+
+function assemblerOptionsDeFiltre(
+  repartitions: RepartitionsDeFacettes,
+  filtres: SearchFilters,
+  nomsDeCategories: ReadonlyMap<string, string>
+): OptionsDeFiltre {
+  return {
+    brands: assemblerMarques(repartitions.brands, filtres.brand ?? []),
+    categories: assemblerCategories(
+      repartitions.categories,
+      filtres.categorySlug,
+      nomsDeCategories
+    ),
+    priceBuckets: assemblerTranches(
+      repartitions.priceBuckets,
+      filtres.priceBucketId
+    ),
+  }
+}
+
+function projeterFiltresActifs(
+  filtres: SearchFilters,
+  options: OptionsDeFiltre
+): FiltreActif[] {
+  const marques: FiltreActif[] = (filtres.brand ?? []).map((valeur) => ({
+    cle: "brand",
+    valeur,
+    label: valeur,
+    ariaLabel: `Retirer la marque ${valeur}`,
+  }))
+
+  const categories: FiltreActif[] = []
+  if (filtres.categorySlug) {
+    const option = options.categories.find(
+      (candidate) => candidate.value === filtres.categorySlug
+    )
+    const label = option?.label ?? filtres.categorySlug
+    categories.push({
+      cle: "categorySlug",
+      valeur: filtres.categorySlug,
+      label,
+      ariaLabel: `Retirer la catégorie ${label}`,
+    })
+  }
+
+  const tranches: FiltreActif[] = []
+  if (filtres.priceBucketId) {
+    const option = options.priceBuckets.find(
+      (candidate) => candidate.value === filtres.priceBucketId
+    )
+    if (option) {
+      tranches.push({
+        cle: "priceBucketId",
+        valeur: filtres.priceBucketId,
+        label: option.label,
+        ariaLabel: `Retirer la tranche de prix ${option.label}`,
+      })
+    }
+  }
+
+  return [...marques, ...categories, ...tranches]
+}
 
 function carteDuHit(hit: IndexableProduct): CarteProduit {
   return projeterCarteProduit(
@@ -59,6 +201,7 @@ export interface SearchPageData {
   totalHits: number
   products: CarteProduit[]
   facets: OptionsDeFiltre
+  filtresActifs: readonly FiltreActif[]
   sort: SearchSort
   currentPage: number
   totalPages: number
@@ -71,46 +214,47 @@ export interface SearchOptions {
   pageSize?: number
 }
 
-async function fetchCategoryNames(
-  slugs: string[]
+async function resoudreLesNomsDeCategories(
+  structure: LectureStructure | undefined,
+  slugs: Iterable<string>
 ): Promise<Map<string, string>> {
-  if (slugs.length === 0) return new Map()
-  const categories = await prisma.category.findMany({
-    where: { slug: { in: slugs } },
-    select: { slug: true, name: true },
-  })
-  return new Map(categories.map((category) => [category.slug, category.name]))
-}
+  const listeDesSlugs = [...slugs]
+  if (listeDesSlugs.length === 0) return new Map()
 
-async function fetchNomsDeFacette(
-  slugs: string[]
-): Promise<Map<string, string>> {
-  const noms = await fetchCategoryNames(slugs)
-  if (slugs.includes(SLUG_SANS_STRUCTURE)) {
-    noms.set(SLUG_SANS_STRUCTURE, LIBELLE_SANS_STRUCTURE)
-  }
-  return noms
+  const lecture = structure ?? (await lireStructure())
+  return new Map(
+    listeDesSlugs.map((slug) => [
+      slug,
+      slug === SLUG_SANS_STRUCTURE
+        ? LIBELLE_SANS_STRUCTURE
+        : (lecture.structureParSlug(slug)?.name ?? slug),
+    ])
+  )
 }
 
 export async function searchProducts(
   query: string,
   filters: SearchFilters = {},
   options: SearchOptions = {},
-  moteur: MoteurRecherche = moteurMeili()
+  moteur: MoteurRecherche = moteurMeili(),
+  structure?: LectureStructure
 ): Promise<SearchPageData> {
   const sort = options.sort ?? SEARCH_SORT_DEFAULT
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
+  const optionsSansRepartition = assemblerOptionsDeFiltre(
+    { brands: {}, categories: {}, priceBuckets: {} },
+    filters,
+    new Map<string, string>()
+  )
+
   const emptyResult: SearchPageData = {
     query,
     totalHits: 0,
     products: [],
-    facets: assemblerOptionsDeFiltre(
-      { brands: {}, categories: {}, priceBuckets: {} },
-      filters,
-      new Map<string, string>()
-    ),
+    facets: optionsSansRepartition,
+    filtresActifs: projeterFiltresActifs(filters, optionsSansRepartition),
     sort,
     currentPage: 1,
     totalPages: 1,
@@ -173,7 +317,7 @@ export async function searchProducts(
 
   const slugs = new Set(Object.keys(repartitions.categories))
   if (filters.categorySlug) slugs.add(filters.categorySlug)
-  const categoryNames = await fetchNomsDeFacette([...slugs])
+  const categoryNames = await resoudreLesNomsDeCategories(structure, slugs)
 
   const facets = assemblerOptionsDeFiltre(repartitions, filters, categoryNames)
 
@@ -182,6 +326,7 @@ export async function searchProducts(
     totalHits,
     products: documents.map(carteDuHit),
     facets,
+    filtresActifs: projeterFiltresActifs(filters, facets),
     sort,
     currentPage,
     totalPages,
@@ -249,7 +394,8 @@ function comparerParComptePuisSlug(
 
 export async function searchSuggestions(
   query: string,
-  moteur: MoteurRecherche = moteurMeili()
+  moteur: MoteurRecherche = moteurMeili(),
+  structure?: LectureStructure
 ): Promise<SearchSuggestionsData> {
   const emptyResult: SearchSuggestionsData = { products: [], categories: [] }
 
@@ -266,7 +412,8 @@ export async function searchSuggestions(
   )
     .sort(comparerParComptePuisSlug)
     .slice(0, SEARCH_SUGGESTION_CATEGORY_LIMIT)
-  const categoryNames = await fetchNomsDeFacette(
+  const categoryNames = await resoudreLesNomsDeCategories(
+    structure,
     categorySlugCounts.map(([slug]) => slug)
   )
 

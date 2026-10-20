@@ -240,3 +240,41 @@ valeur réservée reste `_sans-structure` et hors de la grammaire. Une preuve de
 ajouter — **le Produit sans Structure se vend normalement** ([`lib/panier.test.ts`](../../lib/panier.test.ts)
 l'entre dans le Panier, s'y compte et se commande) — parce que cet invariant du glossaire ne
 tenait à rien d'autre qu'à l'absence de garde, et une absence ne se prouve pas en écrivant.
+
+## Amendement — La Résolution des noms passe par la Lecture de la Structure (#693, 2026-10-19)
+
+La décision ne bouge pas : la valeur réservée reste `_sans-structure`, hors de la grammaire, et sa
+puce continue de se lire « Sans Structure » et de filtrer réellement. Cet amendement consigne ce que
+ce ticket rend faux dans la décision, et rien d'autre.
+
+La puce « **La Résolution des noms connaît la valeur réservée.** » nomme `fetchCategoryNames` et
+décrit une lecture de la table `Category` par `search.ts`. Ce n'est plus le code : `fetchCategoryNames`
+et `fetchNomsDeFacette` ont disparu, et la Recherche n'importe plus `@/lib/db` ni `prisma`. Les noms se
+résolvent désormais par `structure.structureParSlug(slug)?.name`, avec la `Lecture de la Structure`
+que `searchProducts` et `searchSuggestions` reçoivent en dépendance — une seule instance pour tous les
+slugs d'une Recherche, et `lireStructure()` seulement quand l'appelant n'en fournit pas.
+
+Ce que la puce voulait garantir reste vrai, par une autre voie. **Quand la Recherche résout les
+noms**, `_sans-structure` rend `LIBELLE_SANS_STRUCTURE` sans consulter la Structure, quel que soit ce
+que celle-ci prétend connaître. Un slug que la Structure ne nomme pas garde sa valeur brute, et le
+repli de la nomenclature n'est pas rouvert ici. **Sur le chemin d'un moteur indisponible**, aucune
+Structure n'est lue et la catégorie active — `_sans-structure` comprise — garde sa valeur brute. Le
+libellé et la valeur restent écrits une seule fois, dans `lib/index-projection.ts` — ce que la puce
+n'avait pas à changer.
+
+## Amendement — L'assemblage des options devient privé à la Recherche (#694, 2026-10-19)
+
+La décision ne bouge pas : la valeur réservée reste `_sans-structure`, sa puce se lit « Sans
+Structure » et filtre réellement. Cet amendement consigne ce que ce ticket rend faux dans la
+décision, et rien d'autre.
+
+La puce « **La Résolution des noms connaît la valeur réservée.** » cite
+[`assemblerCategories`](../../lib/options-de-filtre.ts#L81-L95). Le module `lib/options-de-filtre.ts`
+est supprimé : `assemblerCategories`, `assemblerMarques`, `assemblerTranches` et leur façade sont
+désormais des fonctions privées de `lib/use-cases/search.ts`, que plus personne n'importe. Le lien est
+donc mort, et la phrase ne désigne plus qu'une fonction interne. Les types `OptionDeFiltre`,
+`OptionsDeFiltre` et `RepartitionsDeFacettes` sont exportés par la Recherche, et les surfaces client ne
+les empruntent qu'en types. Ce que la puce garantit reste vrai par la même voie : l'assembleur ne fait
+que `noms.get(value) ?? value` et retombe donc sur la valeur brute quand aucun libellé n'est résolu ;
+la valeur réservée, elle, est résolue en amont de l'assemblage, dans `resoudreLesNomsDeCategories`,
+exactement comme le dit l'amendement #693.

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto"
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { prisma } from "@/lib/db"
 import {
   ensureProductsIndex,
   getMeiliSearch,
@@ -30,13 +29,6 @@ describe.runIf(!!meili)(
 
     beforeAll(async () => {
       await ensureProductsIndex(client)
-      await prisma.category.createMany({
-        data: suggestionCategories.categories.map((category) => ({
-          name: category.name,
-          slug: category.slug,
-        })),
-        skipDuplicates: true,
-      })
       const ajout = await client
         .index(PRODUCTS_INDEX)
         .addDocuments(suggestionCategories.documents)
@@ -52,12 +44,6 @@ describe.runIf(!!meili)(
       await client.tasks.waitForTask(suppression.taskUid, {
         timeout: TASK_WAIT_TIMEOUT,
       })
-      await prisma.category.deleteMany({
-        where: {
-          slug: { in: suggestionCategories.categories.map((c) => c.slug) },
-        },
-      })
-      await prisma.$disconnect()
     }, TASK_WAIT_TIMEOUT)
 
     it("les sept catégories ont atterri, avec les comptes qu'elles déclarent", async () => {

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto"
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { prisma } from "@/lib/db"
 import {
   ensureProductsIndex,
   getMeiliSearch,
@@ -10,7 +9,9 @@ import {
   PRODUCTS_INDEX,
 } from "@/lib/meili"
 import type { IndexableProduct } from "@/lib/index-projection"
+import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
 import { searchProducts } from "@/lib/use-cases/search"
+import { faitsDesCategoriesRecherche } from "@/test/recherche-fixtures"
 
 const meili = getMeiliSearch()
 
@@ -23,6 +24,10 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
   const audioSlug = `srch-${runId}-audio`
   const token = `recherchetest${runId}`
   const name = (label: string) => `RechercheTest${runId} ${label}`
+
+  const structure = lectureDesStructures(
+    faitsDesCategoriesRecherche({ smartphonesSlug, audioSlug })
+  )
 
   function makeDoc(
     id: string,
@@ -106,13 +111,6 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
 
   beforeAll(async () => {
     await ensureProductsIndex(client)
-    await prisma.category.createMany({
-      data: [
-        { name: "Smartphones", slug: smartphonesSlug },
-        { name: "Audio & Hi-Fi", slug: audioSlug },
-      ],
-      skipDuplicates: true,
-    })
     const task = await client.index(PRODUCTS_INDEX).addDocuments(docs)
     await client.tasks.waitForTask(task.taskUid, {
       timeout: TASK_WAIT_TIMEOUT,
@@ -131,45 +129,71 @@ describe.runIf(!!meili)("search products against Meilisearch", () => {
         client.tasks.waitForTask(task.taskUid, { timeout: TASK_WAIT_TIMEOUT })
       )
     )
-    await prisma.category.deleteMany({
-      where: { slug: { in: [smartphonesSlug, audioSlug] } },
-    })
-    await prisma.$disconnect()
   }, TASK_WAIT_TIMEOUT)
 
   it("matches a French product name with a typo", async () => {
-    const iphone = await searchProducts("ipone", {
-      categorySlug: smartphonesSlug,
-    })
+    const iphone = await searchProducts(
+      "ipone",
+      {
+        categorySlug: smartphonesSlug,
+      },
+      {},
+      moteurMeili(),
+      structure
+    )
     expect(iphone.totalHits).toBe(1)
     expect(iphone.products[0].name).toBe(name("iPhone 15 Pro"))
 
-    const samsung = await searchProducts("samsng", {
-      categorySlug: smartphonesSlug,
-    })
+    const samsung = await searchProducts(
+      "samsng",
+      {
+        categorySlug: smartphonesSlug,
+      },
+      {},
+      moteurMeili(),
+      structure
+    )
     expect(samsung.products.map((p) => p.name)).toEqual([
       name("Samsung Galaxy S24"),
     ])
   })
 
   it("is case-insensitive and accent-insensitive", async () => {
-    const result = await searchProducts("ECRAN 27 POUCES", {
-      categorySlug: audioSlug,
-    })
+    const result = await searchProducts(
+      "ECRAN 27 POUCES",
+      {
+        categorySlug: audioSlug,
+      },
+      {},
+      moteurMeili(),
+      structure
+    )
     expect(result.products.map((p) => p.name)).toEqual([
       name("Écran 27 pouces 4K"),
     ])
 
-    const accent = await searchProducts("ecran 27 pouces 4k", {
-      categorySlug: audioSlug,
-    })
+    const accent = await searchProducts(
+      "ecran 27 pouces 4k",
+      {
+        categorySlug: audioSlug,
+      },
+      {},
+      moteurMeili(),
+      structure
+    )
     expect(accent.products.map((p) => p.name)).toEqual([
       name("Écran 27 pouces 4K"),
     ])
   })
 
   it("ranks all-terms matches first", async () => {
-    const result = await searchProducts(`${token} sony`)
+    const result = await searchProducts(
+      `${token} sony`,
+      {},
+      {},
+      moteurMeili(),
+      structure
+    )
 
     expect(result.products[0]).toMatchObject({
       slug: `srch-${runId}-casque`,
