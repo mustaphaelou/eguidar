@@ -41,13 +41,21 @@ function contexte(): ContexteLimiteur {
   }
 }
 
-describe("Limiteur de Recherche — contrat des deux adaptateurs", () => {
-  for (const scenario of SCENARIOS_LIMITEUR) {
-    it(`les deux adaptateurs s'accordent : ${scenario.nom}`, async () => {
-      await exigerAccordLimiteur(scenario, adaptateurs, contexte())
-    })
-  }
+// Le contrat compare l'adaptateur Redis à l'adaptateur mémoire : sans Redis, il n'y a rien à comparer.
+const redisDisponible = Boolean(process.env.REDIS_URL)
 
+describe.runIf(redisDisponible)(
+  "Limiteur de Recherche — contrat des deux adaptateurs",
+  () => {
+    for (const scenario of SCENARIOS_LIMITEUR) {
+      it(`les deux adaptateurs s'accordent : ${scenario.nom}`, async () => {
+        await exigerAccordLimiteur(scenario, adaptateurs, contexte())
+      })
+    }
+  }
+)
+
+describe("Limiteur de Recherche — le contrat aperçoit les divergences", () => {
   it("le contrat aperçoit une divergence que deux suites d'adaptateur laisseraient passer", async () => {
     const faux: AdaptateurLimiteur = () => ({
       async consommer() {
