@@ -23,10 +23,15 @@ interface ProductUpdateInput extends SoumissionFormulaireProduit {
   productId: string
 }
 
+function basePubliqueImageProduit(): string | null {
+  return process.env.R2_PUBLIC_URL ?? null
+}
+
 export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
   {
     next: "/admin/produits",
-    parse: soumissionDepuisFormData,
+    parse: (formData) =>
+      soumissionDepuisFormData(formData, basePubliqueImageProduit()),
     run: async ({ champsCatalogue, images, tentativeId }, client) => {
       const product = await createProduct({
         ...champsCatalogue,
@@ -43,7 +48,7 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
 export const updateProductAction = adminFormAction<ProductUpdateInput>({
   next: "/admin/produits",
   parse: (formData) => ({
-    ...soumissionDepuisFormData(formData),
+    ...soumissionDepuisFormData(formData, basePubliqueImageProduit()),
     productId: parseRequiredId(formData, CHAMPS_FORMULAIRE_PRODUIT.produit),
   }),
   run: async ({ productId, champsCatalogue, images, tentativeId }, client) => {

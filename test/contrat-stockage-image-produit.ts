@@ -1,11 +1,13 @@
 import { expect } from "vitest"
 
 import {
+  PREFIXE_BROUILLONS_IMAGE_PRODUIT,
+  PREFIXE_IMAGES_PRODUIT,
+  cleDepuisUrlPublique,
+} from "@/lib/espace-de-noms-image-produit"
+import {
   CONTENT_TYPES_IMAGE_PRODUIT,
-  DRAFT_PRODUCTS_PREFIX,
   MAX_UPLOAD_SIZE,
-  objectKeyFromPublicUrl,
-  PRODUCTS_PREFIX,
   type CodeEchecStockage,
   type ContentTypeImageProduit,
   type PortStockageImageProduit,
@@ -34,7 +36,7 @@ export type ReponseObservee =
   | { leve: true }
 
 function cleSous(url: string, base: string): string {
-  const cle = objectKeyFromPublicUrl(url, base)
+  const cle = cleDepuisUrlPublique(url, base)
   if (cle === null) {
     throw new Error(`Adresse publique hors de la base du rejeu : ${url}`)
   }
@@ -64,7 +66,7 @@ function demandeEnvoi(identite: IdentiteStockage, taille = TAILLE) {
 }
 
 function adresseReservee(identite: IdentiteStockage): string {
-  return `${identite.basePublique}/${DRAFT_PRODUCTS_PREFIX}interdit.webp`
+  return `${identite.basePublique}/${PREFIXE_BROUILLONS_IMAGE_PRODUIT}interdit.webp`
 }
 
 async function observerLesSix(
@@ -354,8 +356,8 @@ function clePersisteeAttendue(contentType: ContentTypeImageProduit): string {
 }
 
 function espaceAtteint(cle: string): "reserve" | "produits" | "ailleurs" {
-  if (cle.startsWith(DRAFT_PRODUCTS_PREFIX)) return "reserve"
-  if (cle.startsWith(PRODUCTS_PREFIX)) return "produits"
+  if (cle.startsWith(PREFIXE_BROUILLONS_IMAGE_PRODUIT)) return "reserve"
+  if (cle.startsWith(PREFIXE_IMAGES_PRODUIT)) return "produits"
   return "ailleurs"
 }
 
@@ -454,11 +456,12 @@ export const VALEURS_EPINGLEES: readonly ValeurEpingleeStockage[] = [
     etat: "sain",
     async jouer() {
       return {
-        produits: PRODUCTS_PREFIX,
-        brouillons: DRAFT_PRODUCTS_PREFIX,
+        produits: PREFIXE_IMAGES_PRODUIT,
+        brouillons: PREFIXE_BROUILLONS_IMAGE_PRODUIT,
         extensionStricte:
-          DRAFT_PRODUCTS_PREFIX.startsWith(PRODUCTS_PREFIX) &&
-          DRAFT_PRODUCTS_PREFIX.length > PRODUCTS_PREFIX.length,
+          PREFIXE_BROUILLONS_IMAGE_PRODUIT.startsWith(PREFIXE_IMAGES_PRODUIT) &&
+          PREFIXE_BROUILLONS_IMAGE_PRODUIT.length >
+            PREFIXE_IMAGES_PRODUIT.length,
       }
     },
     attendu: {

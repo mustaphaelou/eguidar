@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CHAMPS_FORMULAIRE_PRODUIT } from "@/lib/formulaire-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
@@ -38,6 +38,9 @@ import {
   ProductNotFoundError,
 } from "@/lib/use-cases/admin-catalog"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
+
+const BASE_CDN = "https://cdn.test"
+const BASE_CDN_INITIALE = process.env.R2_PUBLIC_URL
 
 const ADMIN: Client = {
   id: "editeur-1",
@@ -154,7 +157,13 @@ function formulaireSuppression(): FormData {
   return data
 }
 
+afterAll(() => {
+  if (BASE_CDN_INITIALE === undefined) delete process.env.R2_PUBLIC_URL
+  else process.env.R2_PUBLIC_URL = BASE_CDN_INITIALE
+})
+
 beforeEach(() => {
+  process.env.R2_PUBLIC_URL = BASE_CDN
   sessionCouranteMock.mockResolvedValue(ADMIN)
   redirectMock.mockClear()
   catalogue.oublier()
@@ -163,7 +172,7 @@ beforeEach(() => {
 describe("createProductAction", () => {
   it("décode le formulaire et confie au Catalogue la galerie brute, la Tentative et le Propriétaire", async () => {
     const galerie = [
-      persistee("https://cdn.test/produits/existante.webp"),
+      persistee("https://cdn.test/products/existante.webp"),
       brouillon("brouillon-1"),
     ]
 
@@ -255,9 +264,9 @@ describe("createProductAction", () => {
 describe("updateProductAction", () => {
   it("décode le formulaire et confie au Catalogue la galerie brute dans l'ordre de l'éditeur", async () => {
     const galerie = [
-      persistee("https://cdn.test/produits/premiere.webp"),
+      persistee("https://cdn.test/products/premiere.webp"),
       brouillon("brouillon-1"),
-      persistee("https://cdn.test/produits/seconde.webp"),
+      persistee("https://cdn.test/products/seconde.webp"),
       brouillon("brouillon-2"),
     ]
 
@@ -300,7 +309,7 @@ describe("updateProductAction", () => {
 
     const resultat = await updateProductAction(
       {},
-      updateFormData([persistee("https://cdn.test/produits/dun-autre.webp")])
+      updateFormData([persistee("https://cdn.test/products/dun-autre.webp")])
     )
 
     expect(resultat).toEqual({
