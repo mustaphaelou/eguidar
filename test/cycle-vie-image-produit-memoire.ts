@@ -6,13 +6,15 @@ import {
   type PortRegistreBrouillonImageProduit,
   type ResultatRevendicationRegistre,
 } from "@/lib/cycle-vie-image-produit"
+import {
+  PREFIXE_BROUILLONS_IMAGE_PRODUIT,
+  PREFIXE_IMAGES_PRODUIT,
+  cleDepuisUrlPublique,
+} from "@/lib/espace-de-noms-image-produit"
 import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
 import {
-  DRAFT_PRODUCTS_PREFIX,
   MAX_UPLOAD_SIZE,
-  PRODUCTS_PREFIX,
   draftObjectKey,
-  objectKeyFromPublicUrl,
   persistentObjectKey,
   publicUrlFromKey,
   type CodeEchecStockage,
@@ -62,7 +64,7 @@ function cleSupprimeeParUrl(
   publicUrl: string,
   dansEspaceDeNoms: (cle: string) => boolean
 ): ResultatStockageImageProduit<string> {
-  const cle = objectKeyFromPublicUrl(publicUrl, BASE_PUBLIQUE_MEMOIRE)
+  const cle = cleDepuisUrlPublique(publicUrl, BASE_PUBLIQUE_MEMOIRE)
   if (!cle || !dansEspaceDeNoms(cle)) {
     return echec(
       "parametre-invalide",
@@ -74,12 +76,13 @@ function cleSupprimeeParUrl(
 
 function estCleImageProduitPersistee(cle: string): boolean {
   return (
-    cle.startsWith(PRODUCTS_PREFIX) && !cle.startsWith(DRAFT_PRODUCTS_PREFIX)
+    cle.startsWith(PREFIXE_IMAGES_PRODUIT) &&
+    !cle.startsWith(PREFIXE_BROUILLONS_IMAGE_PRODUIT)
   )
 }
 
 function estCleImageCategorie(cle: string): boolean {
-  return !cle.startsWith(DRAFT_PRODUCTS_PREFIX)
+  return !cle.startsWith(PREFIXE_BROUILLONS_IMAGE_PRODUIT)
 }
 
 export interface StockageImageProduitMemoire extends PortStockageImageProduit {

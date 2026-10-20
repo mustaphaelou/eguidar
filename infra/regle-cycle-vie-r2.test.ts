@@ -7,9 +7,11 @@ import { describe, expect, it } from "vitest"
 import { artefactRegleCycleVieR2 } from "@/infra/regle-cycle-vie-r2"
 import { retentionBrouillonImageProduitHeures } from "@/lib/cycle-vie-image-produit"
 import {
+  PREFIXE_BROUILLONS_IMAGE_PRODUIT,
+  PREFIXE_IMAGES_PRODUIT,
+} from "@/lib/espace-de-noms-image-produit"
+import {
   CONTENT_TYPES_IMAGE_PRODUIT,
-  DRAFT_PRODUCTS_PREFIX,
-  PRODUCTS_PREFIX,
   draftObjectKey,
   persistentObjectKey,
 } from "@/lib/r2"
@@ -40,7 +42,7 @@ describe("règle de cycle de vie R2 des Brouillons d'Image produit", () => {
     expect(autres).toEqual([])
     expect(regle.enabled).toBe(true)
     expect(regle.id).toBe("brouillons-image-produit")
-    expect(regle.prefix).toBe(DRAFT_PRODUCTS_PREFIX)
+    expect(regle.prefix).toBe(PREFIXE_BROUILLONS_IMAGE_PRODUIT)
     expect(regle.expire.days).toBe(
       Math.ceil(retentionBrouillonImageProduitHeures() / 24)
     )
@@ -53,7 +55,9 @@ describe("règle de cycle de vie R2 des Brouillons d'Image produit", () => {
       expect(PREFIXES_GLOBAUX as readonly string[]).not.toContain(regle.prefix)
       expect(regle.expire.days).toBeGreaterThan(0)
     }
-    expect(regles.map((regle) => regle.prefix)).not.toContain(PRODUCTS_PREFIX)
+    expect(regles.map((regle) => regle.prefix)).not.toContain(
+      PREFIXE_IMAGES_PRODUIT
+    )
   })
 
   it("atteint les objets du préfixe réservé et jamais une clé d'Image produit persistée", () => {
@@ -66,13 +70,17 @@ describe("règle de cycle de vie R2 des Brouillons d'Image produit", () => {
       for (let essai = 0; essai < 50; essai += 1) {
         const clePersistee = persistentObjectKey(randomUUID(), contentType)
         expect(clePersistee.startsWith(regle.prefix)).toBe(false)
-        expect(clePersistee.startsWith(PRODUCTS_PREFIX)).toBe(true)
+        expect(clePersistee.startsWith(PREFIXE_IMAGES_PRODUIT)).toBe(true)
       }
     }
   })
 
   it("conserve le préfixe des brouillons strictement sous celui des images persistées", () => {
-    expect(DRAFT_PRODUCTS_PREFIX.startsWith(PRODUCTS_PREFIX)).toBe(true)
-    expect(DRAFT_PRODUCTS_PREFIX.length).toBeGreaterThan(PRODUCTS_PREFIX.length)
+    expect(
+      PREFIXE_BROUILLONS_IMAGE_PRODUIT.startsWith(PREFIXE_IMAGES_PRODUIT)
+    ).toBe(true)
+    expect(PREFIXE_BROUILLONS_IMAGE_PRODUIT.length).toBeGreaterThan(
+      PREFIXE_IMAGES_PRODUIT.length
+    )
   })
 })
