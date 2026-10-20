@@ -65,5 +65,6 @@ stock, validation, or transitions.
   still decides the UX for refusals.
 - No schema change, no queues/outbox. Phase 2 is complete: Administration structure (categories)
   and Livraison (shipping) mutations are contracted onto the encapsulated effects seam alongside
-  Commande and Catalogue. Blog mutations (`lib/use-cases/blog.ts`) remain caller-injected as an
-  exception, having no production Server Action caller today.
+  Commande and Catalogue. Blog mutations (`lib/use-cases/blog.ts`) had no production Server Action
+  caller and stayed caller-injected as an exception; they are now deleted outright, the module
+  exposing only public reads.

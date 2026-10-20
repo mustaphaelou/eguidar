@@ -13,12 +13,6 @@ export interface CatalogueEventProduct {
   previousSlug?: string
 }
 
-export interface BlogEventArticle {
-  id: string
-  slug: string
-  previousSlug?: string
-}
-
 export function invalidateCatalogue(product: CatalogueEventProduct): void {
   revalidateTag(PRODUCT_TAG, "max")
   revalidateTag(productDetailTag(product.slug), "max")
@@ -48,14 +42,4 @@ export function invalidateCommande(orderId: string): void {
   revalidatePath(`/admin/commandes/${orderId}`)
   revalidatePath("/commandes")
   revalidatePath(`/commande/confirmation/${orderId}`)
-}
-
-export function invalidateBlog(article: BlogEventArticle): void {
-  revalidateTag(BLOG_TAG, "max")
-  revalidateTag(blogDetailTag(article.slug), "max")
-  if (article.previousSlug && article.previousSlug !== article.slug) {
-    revalidateTag(blogDetailTag(article.previousSlug), "max")
-  }
-  revalidatePath("/blog")
-  revalidatePath(`/blog/${article.slug}`)
 }

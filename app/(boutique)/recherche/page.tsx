@@ -1,9 +1,12 @@
+import { headers } from "next/headers"
 import { Suspense } from "react"
 
 import {
   SearchResults,
   SearchSkeleton,
 } from "@/components/storefront/search-results"
+import { autoriserRecherche } from "@/lib/acces-recherche"
+import { MESSAGE_TROP_DE_RECHERCHES } from "@/lib/limiteur-recherche"
 import { pageMetadata } from "@/lib/metadata"
 import { parseSearchParams, searchProducts } from "@/lib/use-cases/search"
 
@@ -53,6 +56,17 @@ async function SearchContent({
       <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
         Recherchez un produit, une marque… Nous trouvons même ce que vous épelez
         mal.
+      </div>
+    )
+  }
+
+  if (!(await autoriserRecherche(await headers()))) {
+    return (
+      <div
+        role="status"
+        className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground"
+      >
+        {MESSAGE_TROP_DE_RECHERCHES}
       </div>
     )
   }
