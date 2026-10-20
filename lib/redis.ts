@@ -1,14 +1,28 @@
 import { createClient } from "redis"
 
-const globalForRedis = globalThis as unknown as {
-  redis?: ReturnType<typeof createClient>
+function creerClientRedis(url: string) {
+  return createClient({
+    url,
+    socket: {
+      connectTimeout: 1_000,
+      reconnectStrategy: (retries) => (retries > 1 ? false : 100),
+    },
+  })
 }
 
-export function getRedis() {
+type ClientRedis = ReturnType<typeof creerClientRedis>
+
+const globalForRedis = globalThis as unknown as {
+  redis?: ClientRedis
+}
+
+export function getRedis(): ClientRedis | null {
   const url = process.env.REDIS_URL
   if (!url) return null
   if (!globalForRedis.redis) {
-    globalForRedis.redis = createClient({ url })
+    const redis = creerClientRedis(url)
+    redis.on("error", () => {})
+    globalForRedis.redis = redis
   }
   return globalForRedis.redis
 }
