@@ -103,7 +103,7 @@ describe("GET /api/recherche/suggestions", () => {
       })
     )
 
-    expect(consommerMock).toHaveBeenCalledWith("203.0.113.7")
+    expect(consommerMock).toHaveBeenCalledWith("10.0.0.1")
   })
 
   it("laisse la Recherche ouverte et journalise quand le limiteur est en panne", async () => {
