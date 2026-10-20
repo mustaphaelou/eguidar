@@ -3,12 +3,10 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import cycleVieImageProduitParDefaut, {
   estLieAuProduit,
-  horlogeSysteme,
   MESSAGE_REGISTRE_INDISPONIBLE,
   portTransactionRegistreBrouillonImageProduit,
   type BrouillonImageProduit,
   type CycleVieImageProduit,
-  type Horloge,
   type PreuvePromotion,
   type RefusCycleVieImageProduit,
 } from "@/lib/cycle-vie-image-produit"
@@ -67,16 +65,11 @@ export interface ProductInput {
 }
 
 export interface CatalogEffects {
+  cycleVie: CycleVieImageProduit
   reindexProducts(products: IndexableProduct[]): Promise<void>
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): void
   deleteImages(urls: string[]): Promise<void>
-  preparerPromotionBrouillons: CycleVieImageProduit["preparerPromotionBrouillons"]
-  confirmerBrouillons: CycleVieImageProduit["confirmerBrouillons"]
-  compenserPromotionBrouillons: CycleVieImageProduit["compenserPromotionBrouillons"]
-  supprimerSources: CycleVieImageProduit["supprimerSources"]
-  lireBrouillonsDeLaTentative: CycleVieImageProduit["lireBrouillonsDeLaTentative"]
-  horloge: Horloge
 }
 
 function journaliserEchecSuppressionImage(
@@ -92,6 +85,7 @@ function journaliserEchecSuppressionImage(
 
 export function defaultCatalogEffects(productId: string): CatalogEffects {
   return {
+    cycleVie: cycleVieImageProduitParDefaut,
     reindexProducts: indexProductDocuments,
     async removeProductFromIndex(id) {
       await deleteProductDocument(id)
@@ -112,15 +106,6 @@ export function defaultCatalogEffects(productId: string): CatalogEffects {
         }
       }
     },
-    preparerPromotionBrouillons:
-      cycleVieImageProduitParDefaut.preparerPromotionBrouillons,
-    confirmerBrouillons: cycleVieImageProduitParDefaut.confirmerBrouillons,
-    compenserPromotionBrouillons:
-      cycleVieImageProduitParDefaut.compenserPromotionBrouillons,
-    supprimerSources: cycleVieImageProduitParDefaut.supprimerSources,
-    lireBrouillonsDeLaTentative:
-      cycleVieImageProduitParDefaut.lireBrouillonsDeLaTentative,
-    horloge: horlogeSysteme,
   }
 }
 
@@ -394,7 +379,7 @@ async function produitDeLaTentative(
 
   let lus: BrouillonImageProduit[]
   try {
-    lus = await effects.lireBrouillonsDeLaTentative(tentativeId)
+    lus = await effects.cycleVie.lireBrouillonsDeLaTentative(tentativeId)
   } catch {
     throw new DraftRegistryUnavailableError(MESSAGE_REGISTRE_INDISPONIBLE)
   }
@@ -427,7 +412,7 @@ async function promouvoirBrouillons(
     return { images: urlsGalerie(data.images), promotions: [] }
   }
 
-  const preparation = await effects.preparerPromotionBrouillons({
+  const preparation = await effects.cycleVie.preparerPromotionBrouillons({
     tentativeId: data.tentativeId ?? "",
     ownerId: data.ownerId ?? "",
     galerie: data.images,
@@ -441,7 +426,7 @@ async function compenserPromotions(
   effects: CatalogEffects
 ): Promise<void> {
   if (promotions.length === 0) return
-  await effects.compenserPromotionBrouillons(promotions)
+  await effects.cycleVie.compenserPromotionBrouillons(promotions)
 }
 
 export async function createProduct(
@@ -494,7 +479,7 @@ export async function createProduct(
         include: { variants: true, category: true },
       })
       if (promotions.length > 0) {
-        await effects.confirmerBrouillons(
+        await effects.cycleVie.confirmerBrouillons(
           created.id,
           promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
@@ -510,7 +495,7 @@ export async function createProduct(
   if (promotions.length > 0) {
     await runEffect(
       `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${product.id}`,
-      () => effects.supprimerSources(promotions)
+      () => effects.cycleVie.supprimerSources(promotions)
     )
   }
   await runEffect(
@@ -628,7 +613,7 @@ export async function updateProduct(
       }
 
       if (promotions.length > 0) {
-        await effects.confirmerBrouillons(
+        await effects.cycleVie.confirmerBrouillons(
           id,
           promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
@@ -648,7 +633,7 @@ export async function updateProduct(
   if (promotions.length > 0) {
     await runEffect(
       `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${id}`,
-      () => effects.supprimerSources(promotions)
+      () => effects.cycleVie.supprimerSources(promotions)
     )
   }
   await runEffect(

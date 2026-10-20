@@ -173,9 +173,12 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
     const cible = slug("liaison")
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerBrouillons: async (...confirmation) => {
-        await environnement.cycleVie.confirmerBrouillons(...confirmation)
-        throw new Error("échec après la liaison")
+      cycleVie: {
+        ...environnement.effets.cycleVie,
+        confirmerBrouillons: async (...confirmation) => {
+          await environnement.cycleVie.confirmerBrouillons(...confirmation)
+          throw new Error("échec après la liaison")
+        },
       },
     }
 
@@ -215,9 +218,12 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
     const observation = { produitVisible: false }
     const effets: CatalogEffects = {
       ...environnement.effets,
-      supprimerSources: async (promotions) => {
-        ordre.push("sources")
-        await environnement.cycleVie.supprimerSources(promotions)
+      cycleVie: {
+        ...environnement.effets.cycleVie,
+        supprimerSources: async (promotions) => {
+          ordre.push("sources")
+          await environnement.cycleVie.supprimerSources(promotions)
+        },
       },
       reindexProducts: async () => {
         ordre.push("index")
@@ -286,7 +292,10 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
     )
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerBrouillons: confirmation,
+      cycleVie: {
+        ...environnement.effets.cycleVie,
+        confirmerBrouillons: confirmation,
+      },
     }
     const entree = makeInput(
       [brouillon(premier.draftId), brouillon(second.draftId)],
@@ -362,12 +371,16 @@ describe("création d'un Produit avec des Brouillons d'Image produit", () => {
     const couture = vi.fn(async (): Promise<never> => {
       throw new Error("couture de Brouillon atteinte")
     })
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const effets: Partial<CatalogEffects> = {
-      preparerPromotionBrouillons: couture,
-      confirmerBrouillons: couture,
-      compenserPromotionBrouillons: couture,
-      supprimerSources: couture,
-      lireBrouillonsDeLaTentative: couture,
+      cycleVie: {
+        ...environnement.effets.cycleVie,
+        preparerPromotionBrouillons: couture,
+        confirmerBrouillons: couture,
+        compenserPromotionBrouillons: couture,
+        supprimerSources: couture,
+        lireBrouillonsDeLaTentative: couture,
+      },
       reindexProducts: vi.fn(async () => {}),
       revalidateCatalog: vi.fn(),
     }

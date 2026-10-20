@@ -63,17 +63,15 @@ export function creerEnvironnementMemoire(dateInitiale: Date) {
     horloge: horloge.horloge,
   })
   const effets: CatalogEffects = {
+    cycleVie: {
+      ...cycleVie,
+      confirmerBrouillons: (productId, promotions) =>
+        cycleVie.confirmerBrouillons(productId, promotions),
+    },
     deleteImages: vi.fn(async () => {}),
     reindexProducts: vi.fn(async () => {}),
     revalidateCatalog: vi.fn(),
     removeProductFromIndex: vi.fn(async () => {}),
-    preparerPromotionBrouillons: cycleVie.preparerPromotionBrouillons,
-    confirmerBrouillons: (productId, promotions) =>
-      cycleVie.confirmerBrouillons(productId, promotions),
-    compenserPromotionBrouillons: cycleVie.compenserPromotionBrouillons,
-    supprimerSources: cycleVie.supprimerSources,
-    lireBrouillonsDeLaTentative: cycleVie.lireBrouillonsDeLaTentative,
-    horloge: horloge.horloge,
   }
   return { cycleVie, horloge, stockage, registre, effets }
 }
@@ -83,16 +81,11 @@ export function creerEnvironnementDurable(horloge: Horloge) {
   const registre = creerRegistreBrouillonImageProduitPrisma(horloge)
   const cycleVie = creerCycleVieImageProduit({ stockage, registre, horloge })
   const effets: CatalogEffects = {
+    cycleVie,
     deleteImages: vi.fn(async () => {}),
     reindexProducts: vi.fn(async () => {}),
     revalidateCatalog: vi.fn(),
     removeProductFromIndex: vi.fn(async () => {}),
-    preparerPromotionBrouillons: cycleVie.preparerPromotionBrouillons,
-    confirmerBrouillons: cycleVie.confirmerBrouillons,
-    compenserPromotionBrouillons: cycleVie.compenserPromotionBrouillons,
-    supprimerSources: cycleVie.supprimerSources,
-    lireBrouillonsDeLaTentative: cycleVie.lireBrouillonsDeLaTentative,
-    horloge,
   }
   return { cycleVie, stockage, effets }
 }
@@ -178,21 +171,24 @@ export function effetsObservantLesJalons(
 ): CatalogEffects {
   return {
     ...effets,
-    preparerPromotionBrouillons: async (entree) => {
-      jalons.ordre.push("preparation")
-      return effets.preparerPromotionBrouillons(entree)
-    },
-    confirmerBrouillons: async (...confirmation) => {
-      jalons.ordre.push(
-        jalons.estOuverte() ? "liaison" : "liaison-hors-transaction"
-      )
-      return effets.confirmerBrouillons(...confirmation)
-    },
-    supprimerSources: async (promotions) => {
-      jalons.ordre.push(
-        jalons.estOuverte() ? "sources-dans-la-transaction" : "sources"
-      )
-      return effets.supprimerSources(promotions)
+    cycleVie: {
+      ...effets.cycleVie,
+      preparerPromotionBrouillons: async (entree) => {
+        jalons.ordre.push("preparation")
+        return effets.cycleVie.preparerPromotionBrouillons(entree)
+      },
+      confirmerBrouillons: async (...confirmation) => {
+        jalons.ordre.push(
+          jalons.estOuverte() ? "liaison" : "liaison-hors-transaction"
+        )
+        return effets.cycleVie.confirmerBrouillons(...confirmation)
+      },
+      supprimerSources: async (promotions) => {
+        jalons.ordre.push(
+          jalons.estOuverte() ? "sources-dans-la-transaction" : "sources"
+        )
+        return effets.cycleVie.supprimerSources(promotions)
+      },
     },
   }
 }
