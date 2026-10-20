@@ -19,12 +19,14 @@ export function useDevisSelection(devisChargé: DevisChargé): {
   choisir(villeId: string | null): void
   villeId: string | null
 } {
-  const [chargé] = useState(devisChargé)
   const [villeChoisie, setVilleChoisie] = useState<string | null>(
-    chargé.villeInitiale
+    devisChargé.villeInitiale
   )
 
-  const projet = projeterDevis(chargé, villeChoisie)
+  // Les faits suivent toujours le Devis courant : après un refus (Devis périmé),
+  // la page re-rend des faits frais et le récapitulatif comme le total caché
+  // s'y accordent. Seul le choix de Ville appartient au Client et survit.
+  const projet = projeterDevis(devisChargé, villeChoisie)
 
   return {
     villes: projet.villes,

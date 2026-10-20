@@ -279,14 +279,24 @@ describe("useDevisSelection", () => {
     })
   })
 
-  it("ignore un changement ultérieur du Devis chargé : faits et choix initiaux figés", () => {
+  it("re-projette les faits du Devis courant, sans perdre la Ville choisie localement", () => {
     const premier = devisValide()
+    const quoteFraisCasa: ShippingQuote = {
+      subtotal: 90000,
+      shippingFee: 3500,
+      total: 93500,
+    }
+    const quoteFraisRabat: ShippingQuote = {
+      subtotal: 90000,
+      shippingFee: 5000,
+      total: 95000,
+    }
     const second: DevisChargé = {
       cities: VILLES,
       threshold: 100000,
-      quotes: QUOTES,
-      sousTotal: 99900,
-      villeInitiale: "c2",
+      quotes: { c1: quoteFraisCasa, c2: quoteFraisRabat },
+      sousTotal: 90000,
+      villeInitiale: "c1",
     }
 
     let current!: ReturnType<typeof useDevisSelection>
@@ -299,21 +309,31 @@ describe("useDevisSelection", () => {
     roots.push(root)
     act(() => root.render(<Probe devis={premier} />))
 
-    expect(current.villeId).toBe("c1")
+    act(() => {
+      current.choisir("c2")
+    })
+    expect(current.villeId).toBe("c2")
 
     act(() => root.render(<Probe devis={second} />))
 
+    // Les faits suivent le Devis courant…
     expect(current.villes).toEqual(VILLES)
-    expect(current.villeId).toBe("c1")
     expect(current.selection).toStrictEqual({
       cas: "validée",
-      ville: CASA,
-      devis: QUOTE_CASA,
+      ville: RABAT,
+      devis: quoteFraisRabat,
+    })
+    expect(current.rows[1]).toMatchObject({
+      label: "Livraison (Rabat)",
+      value: formatPrice(5000),
+      kind: "detail",
     })
     expect(current.rows.find((row) => row.kind === "total")).toMatchObject({
       label: "Total à payer à la livraison",
-      value: formatPrice(53500),
+      value: formatPrice(95000),
     })
+    // …mais le choix local l'emporte sur la Ville initiale re-semée.
+    expect(current.villeId).toBe("c2")
   })
 
   it("choosing at Checkout never writes back to the link or window.history", () => {

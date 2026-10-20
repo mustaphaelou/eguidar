@@ -56,3 +56,18 @@ la colonne d'un recalcul :
   valeur stockée ;
 - `lib/use-cases/orders.test.ts` : le snapshot d'e-mail de la commande lit la
   valeur stockée, à la couture des effets injectés.
+
+## Amendement — Le Devis chiffre, la Commande copie (#656, 2026-10-20)
+
+Le paragraphe de l'amendement #463 qui nomme `totalAPayerDeLaCommande`,
+**non exportée**, dans `lib/use-cases/orders.ts` est périmé : cette fonction
+n'existe plus, et `orders.ts` ne tient plus aucune arithmétique d'argent.
+
+Le mécanisme courant est le chiffrage du Devis. `chargerDevis`
+(`lib/use-cases/devis.ts`) calcule `total = sousTotal + shippingFee` ;
+`montantsDeLaCommande` (`lib/use-cases/montants-commande.ts`) recopie ce total
+dans la Commande à sa création, et `placeOrder` refuse la Commande quand ce
+total ne correspond plus à celui que le Client a lu (`DevisPériméError`).
+L'arithmétique n'est donc plus inatteignable par import : elle vit dans le
+Devis, que l'affiché et l'écrit partagent. Le reste de l'amendement #463 tient,
+y compris ses deux gardes de lecture.

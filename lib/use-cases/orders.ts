@@ -18,6 +18,7 @@ import {
   projeterDevis,
   selectionValidee,
 } from "@/lib/use-cases/devis"
+import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
 import {
   avecSurcharges,
   messageDeValidation,
@@ -44,6 +45,8 @@ export interface CheckoutInput {
   cityId: string
   address: string
   phone: string
+  /** Total à payer lu par le Client, en centimes — comparé au Devis à la naissance de la Commande (#659). */
+  totalAffiche: number
 }
 
 export interface OutOfStockItem {
@@ -132,6 +135,15 @@ export class OutOfStockError extends UserFacingError {
   }
 }
 
+export class DevisPériméError extends UserFacingError {
+  constructor() {
+    super(
+      "Le Total à payer a changé depuis l'affichage — vérifiez le nouveau montant, puis confirmez."
+    )
+    this.name = "DevisPériméError"
+  }
+}
+
 export class OrderNotFoundError extends UserFacingError {
   constructor() {
     super("Commande introuvable")
@@ -157,6 +169,10 @@ const checkoutInputSchema = z.object({
   cityId: z.string().min(1, "ville de livraison requise"),
   address: deliveryAddressField,
   phone: deliveryPhoneField,
+  totalAffiche: z
+    .number()
+    .int("total affiché en centimes entiers")
+    .min(0, "total affiché invalide"),
 })
 
 function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
@@ -252,13 +268,6 @@ async function restockerArticles(
   }
 }
 
-function totalAPayerDeLaCommande(montants: {
-  total: number
-  shippingFee: number
-}): number {
-  return montants.total + montants.shippingFee
-}
-
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
@@ -280,7 +289,9 @@ export async function placeOrder(
   const projet = projeterDevis(chargé, data.cityId)
   const selection = selectionValidee(projet.selection)
   const city = selection.ville
-  const shippingFee = selection.devis.shippingFee
+  const montants = montantsDeLaCommande(cart.subtotal, selection)
+  // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
+  if (montants.totalPayable !== data.totalAffiche) throw new DevisPériméError()
 
   const outOfStock = cart.lines
     .filter((line) => line.quantity > line.stock)
@@ -301,12 +312,7 @@ export async function placeOrder(
         cityName: city.name,
         address: data.address,
         phone: data.phone,
-        total: cart.subtotal,
-        shippingFee,
-        totalPayable: totalAPayerDeLaCommande({
-          total: cart.subtotal,
-          shippingFee,
-        }),
+        ...montants,
         items: {
           create: cart.lines.map((line) => ({
             variantId: line.variantId,

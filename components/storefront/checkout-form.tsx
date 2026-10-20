@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select"
 import { cityOptions } from "@/components/storefront/city-options"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
+import { centsToInputValue } from "@/lib/money"
 import {
   useDevisSelection,
   type DevisChargé,
@@ -45,9 +46,11 @@ export function CheckoutForm({
     placeOrderAction,
     initialState
   )
-  const { villes, rows, choisir, villeId } = useDevisSelection(devis)
+  const { villes, rows, choisir, villeId, selection } = useDevisSelection(devis)
   const selectedCityId = villeId ?? ""
   const optionsVilles = cityOptions(villes)
+  const totalAffiche =
+    selection.cas === "validée" ? centsToInputValue(selection.devis.total) : ""
 
   useUnauthenticatedRefusal(state)
 
@@ -84,6 +87,7 @@ export function CheckoutForm({
             </SelectGroup>
           </SelectContent>
         </Select>
+        <input type="hidden" name="totalAffiche" value={totalAffiche} />
       </div>
 
       <div className="flex flex-col gap-2">

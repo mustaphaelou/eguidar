@@ -20,7 +20,11 @@ export {
   projeterDevis,
   selectionValidee,
 } from "@/lib/use-cases/devis-coeur"
-export type { DevisChargé, DevisProjeté } from "@/lib/use-cases/devis-coeur"
+export type {
+  DevisChargé,
+  DevisProjeté,
+  ValidatedSelectionDevis,
+} from "@/lib/use-cases/devis-coeur"
 
 export interface DevisPrecedenceFaitsBruts {
   villeParam?: string | null

@@ -65,6 +65,12 @@ n'est choisie ; jamais à moitié. Une sélection validée porte exactement deux
 livraison et son devis.
 _Avoid_: selected city, city selection, sélection de ville
 
+**Devis périmé**:
+L'état du Devis affiché quand les faits du Panier ou de la Livraison ont changé avant la
+confirmation : le Total à payer que le Client a lu ne vaut plus. La Commande refuse de naître sur
+un Devis périmé ; la page se repose sur les faits courants.
+_Avoid_: prix changé, montant obsolète, quote périmé
+
 **Précédence du Devis**:
 L'ordre dans lequel la Ville de livraison initiale d'un Devis est choisie : la Ville nommée dans
 l'URL (lien partagé) l'emporte ; à défaut la Ville sauvegardée dans le profil du Client ; sinon
@@ -406,9 +412,10 @@ Le retour au stock des Variantes d'une Commande lorsque celle-ci passe à Annul�
 _Avoid_: restock, remise en stock, réintégration de stock
 
 **Total à payer**:
-Le montant collecté auprès du Client lors de la livraison d'une Commande : le sous-total des
-Articles du panier plus les Frais de livraison. C'est un fait de la Commande, pas une vue dérivée :
-écrit une seule fois à sa création, lu partout ensuite.
+Le montant collecté auprès du Client lors de la livraison d'une Commande : le total chiffré par
+le Devis — le sous-total des Articles du panier plus les Frais de livraison — copié tel quel par
+la Commande à sa création. C'est un fait de la Commande, pas une vue dérivée : écrit une seule
+fois à sa création, lu partout ensuite.
 _Avoid_: montant total, grand total
 
 **Chiffre d'affaires encaissé**:
