@@ -20,7 +20,7 @@ export async function sendOtpEmail(
   const resend = getResend()
   if (!resend) {
     console.warn(
-      `[email] RESEND_API_KEY absent — OTP ${type} non envoyé à ${email} (code : ${otp})`
+      `[email] RESEND_API_KEY absent — code de vérification non envoyé à ${email}`
     )
     return
   }

@@ -8,9 +8,8 @@ import { prisma } from "../lib/db"
 import { indexProductDocuments } from "../lib/meili"
 import { toIndexableProduct } from "../lib/index-projection"
 import { slugify } from "../lib/slug"
+import { identifiantsCompteAdmin } from "./compte-admin"
 
-const adminEmail = process.env.ADMIN_EMAIL ?? "admin@eguidar.com"
-const adminPassword = process.env.ADMIN_PASSWORD ?? "admin-password-change-me"
 const adminName = process.env.ADMIN_NAME ?? "Administrateur"
 
 const cities = [
@@ -259,6 +258,9 @@ const products = [
 ]
 
 async function main() {
+  const { email: adminEmail, motDePasse: adminPassword } =
+    identifiantsCompteAdmin()
+
   await prisma.shippingSettings.upsert({
     where: { id: "default" },
     update: { freeShippingThreshold: 100000 },
