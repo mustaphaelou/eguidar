@@ -43,4 +43,21 @@ describe("montantsDeLaCommande", () => {
       totalPayable: 999,
     })
   })
+
+  it("lit le Total dans le Sous-total reçu, jamais dans celui que le Devis porte", () => {
+    const devisDiscordant = quote(400, 222)
+    const sélection: ValidatedSelectionDevis = {
+      cas: "validée",
+      ville: city("c1", "Casablanca", 222),
+      devis: devisDiscordant,
+    }
+
+    const montants = montantsDeLaCommande(500, sélection)
+
+    expect(montants.total).toBe(500)
+    expect(montants.total).not.toBe(devisDiscordant.subtotal)
+    expect(montants.total).not.toBe(
+      devisDiscordant.subtotal + devisDiscordant.shippingFee
+    )
+  })
 })
