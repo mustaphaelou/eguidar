@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import cycleVieImageProduitParDefaut, {
   type CycleVieImageProduit,
 } from "@/lib/cycle-vie-image-produit"
+import { indexProductDocuments } from "@/lib/meili"
 import { defaultCatalogEffects } from "@/lib/use-cases/admin-catalog"
 import { avecSurcharges } from "@/lib/use-cases/mutation-squelette"
 
@@ -11,11 +12,10 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
     const effets = defaultCatalogEffects("produit-1")
 
     expect(effets.cycleVie).toBe(cycleVieImageProduitParDefaut)
-    expect(effets.reindexProducts).toBeTypeOf("function")
+    expect(effets.reindexProducts).toBe(indexProductDocuments)
     expect(effets.removeProductFromIndex).toBeTypeOf("function")
     expect(effets.revalidateCatalog).toBeTypeOf("function")
     expect(effets.deleteImages).toBeTypeOf("function")
-    expect("horloge" in effets).toBe(false)
   })
 
   it("remplace la dépendance entière sans perdre les quatre effets par défaut", () => {
