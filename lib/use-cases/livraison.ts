@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import { slugify } from "@/lib/slug"
 import { invalidateLivraison } from "@/lib/use-cases/cache-invalidation"
 import {
@@ -66,15 +67,19 @@ export class ShippingValidationError extends UserFacingError {
   }
 }
 
-export async function getFreeShippingThreshold(): Promise<number> {
-  const settings = await prisma.shippingSettings.findUnique({
+export async function getFreeShippingThreshold(
+  client: Prisma.TransactionClient = prisma
+): Promise<number> {
+  const settings = await client.shippingSettings.findUnique({
     where: { id: "default" },
   })
   return settings?.freeShippingThreshold ?? DEFAULT_FREE_SHIPPING_THRESHOLD
 }
 
-export function listDeliveryCities(): Promise<DeliveryCityOption[]> {
-  return prisma.deliveryCity.findMany({
+export function listDeliveryCities(
+  client: Prisma.TransactionClient = prisma
+): Promise<DeliveryCityOption[]> {
+  return client.deliveryCity.findMany({
     orderBy: { name: "asc" },
     select: { id: true, slug: true, name: true, fee: true },
   })
