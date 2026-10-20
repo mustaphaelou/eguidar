@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { urlProduit } from "@/lib/carte-produit"
 import { SLUG_SANS_STRUCTURE } from "@/lib/index-projection"
 import { formatPrice } from "@/lib/money"
-import { buildSearchHref } from "@/lib/search-params"
+import { buildSearchHref, SEARCH_QUERY_MIN_LENGTH } from "@/lib/search-params"
 import type { SuggestionProduit } from "@/lib/use-cases/search"
 
 interface SuggestionCategory {
@@ -23,7 +23,6 @@ export function hrefDeSuggestion(slug: string): string {
 }
 
 const DEBOUNCE_MS = 300
-const MIN_QUERY_LENGTH = 2
 
 export function SearchSuggestions({
   inputRef,
@@ -45,7 +44,7 @@ export function SearchSuggestions({
 
   useEffect(() => {
     const trimmed = query.trim()
-    if (trimmed.length < MIN_QUERY_LENGTH) return
+    if (trimmed.length < SEARCH_QUERY_MIN_LENGTH) return
     const controller = new AbortController()
     const timer = setTimeout(async () => {
       try {

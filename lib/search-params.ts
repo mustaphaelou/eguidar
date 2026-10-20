@@ -14,6 +14,8 @@ export const SEARCH_PAGE_SIZE = 24
 
 export const SEARCH_QUERY_MAX_LENGTH = 200
 
+export const SEARCH_QUERY_MIN_LENGTH = 2
+
 export const SEARCH_SORT_DEFAULT: SearchSort = "pertinence"
 
 export const SEARCH_SORT_OPTIONS: { id: SearchSort; label: string }[] = [
