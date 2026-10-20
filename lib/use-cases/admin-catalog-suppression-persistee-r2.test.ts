@@ -162,7 +162,9 @@ describe("suppression post-commit des Images produit persistées, sans court-cir
       expect(journalDeSuppression(warnSpy)).toHaveLength(images.length)
       for (const image of images) {
         expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining(`produit ${product.id}, image ${image}`),
+          expect.stringContaining(
+            `suppression d'image R2 non effectuée pour ${product.id}, image ${image}`
+          ),
           expect.objectContaining({ code: "erreur-stockage" })
         )
       }

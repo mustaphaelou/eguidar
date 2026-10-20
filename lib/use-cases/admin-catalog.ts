@@ -13,6 +13,7 @@ import cycleVieImageProduitParDefaut, {
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import {
   entreeGalerieImageProduitSchema,
+  identifiantsBrouillonsGalerie,
   LIMITE_IMAGES_PRODUIT,
   type EntreeImageProduit,
 } from "@/lib/galerie-image-produit"
@@ -73,17 +74,17 @@ export interface CatalogEffects {
 }
 
 function journaliserEchecSuppressionImage(
-  productId: string,
+  libelleJournal: string,
   url: string,
   erreur: unknown
 ): void {
   console.warn(
-    `[catalog] suppression d'image R2 non effectuée pour le produit ${productId}, image ${url}`,
+    `[catalog] suppression d'image R2 non effectuée pour ${libelleJournal}, image ${url}`,
     erreur
   )
 }
 
-export function defaultCatalogEffects(productId: string): CatalogEffects {
+export function defaultCatalogEffects(libelleJournal: string): CatalogEffects {
   return {
     cycleVie: cycleVieImageProduitParDefaut,
     reindexProducts: indexProductDocuments,
@@ -99,10 +100,14 @@ export function defaultCatalogEffects(productId: string): CatalogEffects {
           const resultat =
             await stockageImageProduitR2.supprimerImagePersistee(url)
           if (!resultat.ok) {
-            journaliserEchecSuppressionImage(productId, url, resultat.erreur)
+            journaliserEchecSuppressionImage(
+              libelleJournal,
+              url,
+              resultat.erreur
+            )
           }
         } catch (error) {
-          journaliserEchecSuppressionImage(productId, url, error)
+          journaliserEchecSuppressionImage(libelleJournal, url, error)
         }
       }
     },
@@ -281,11 +286,6 @@ async function assertUniqueSkus(
   })
   if (existing.length > 0) throw new DuplicateSkuError()
 }
-function imageUrls(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : []
-}
 
 function urlsGalerie(galerie: readonly EntreeImageProduit[]): string[] {
   return galerie.flatMap((entree) =>
@@ -339,18 +339,6 @@ const MESSAGE_REPRISE_AUTRE_PRODUIT =
   "Cette Tentative d'édition a déjà été enregistrée pour un autre Produit"
 
 const MESSAGE_ENREGISTREMENT_ECHOUE = "L'enregistrement du Catalogue a échoué"
-
-function identifiantsDeBrouillons(
-  galerie: readonly EntreeImageProduit[]
-): string[] {
-  return [
-    ...new Set(
-      galerie.flatMap((entree) =>
-        entree.kind === "brouillon" ? [entree.draftId] : []
-      )
-    ),
-  ]
-}
 
 function erreurDePreparation(
   refus: RefusCycleVieImageProduit
@@ -408,7 +396,7 @@ async function promouvoirBrouillons(
   data: ProduitValide,
   effects: CatalogEffects
 ): Promise<{ images: string[]; promotions: PreuvePromotion[] }> {
-  if (identifiantsDeBrouillons(data.images).length === 0) {
+  if (identifiantsBrouillonsGalerie(data.images).length === 0) {
     return { images: urlsGalerie(data.images), promotions: [] }
   }
 
@@ -438,7 +426,7 @@ export async function createProduct(
 
   const repris = await produitDeLaTentative(
     data.tentativeId,
-    identifiantsDeBrouillons(data.images),
+    identifiantsBrouillonsGalerie(data.images),
     effects
   )
   if (repris) return repris
@@ -522,7 +510,7 @@ export async function updateProduct(
 
   const repris = await produitDeLaTentative(
     data.tentativeId,
-    identifiantsDeBrouillons(data.images),
+    identifiantsBrouillonsGalerie(data.images),
     effects
   )
   if (repris) {
@@ -531,7 +519,7 @@ export async function updateProduct(
     return repris
   }
 
-  const existingImages = imageUrls(existing.images)
+  const existingImages = urlsImagesProduit(existing.images)
   const keptVariantIds = data.variants.flatMap((variant) =>
     variant.id ? [variant.id] : []
   )
@@ -669,7 +657,7 @@ export async function deleteProduct(
   await prisma.product.delete({ where: { id } })
   await runEffect(
     `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-    () => effects.deleteImages(imageUrls(existing.images))
+    () => effects.deleteImages(urlsImagesProduit(existing.images))
   )
   await runEffect(
     `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
