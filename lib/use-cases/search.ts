@@ -50,6 +50,13 @@ export interface OptionsDeFiltre {
   priceBuckets: OptionDeFiltre[]
 }
 
+export interface FiltreActif {
+  cle: "brand" | "categorySlug" | "priceBucketId"
+  valeur: string
+  label: string
+  ariaLabel: string
+}
+
 export interface RepartitionsDeFacettes {
   brands: Record<string, number>
   categories: Record<string, number>
@@ -119,6 +126,49 @@ function assemblerOptionsDeFiltre(
   }
 }
 
+function projeterFiltresActifs(
+  filtres: SearchFilters,
+  options: OptionsDeFiltre
+): FiltreActif[] {
+  const marques: FiltreActif[] = (filtres.brand ?? []).map((valeur) => ({
+    cle: "brand",
+    valeur,
+    label: valeur,
+    ariaLabel: `Retirer la marque ${valeur}`,
+  }))
+
+  const categories: FiltreActif[] = []
+  if (filtres.categorySlug) {
+    const option = options.categories.find(
+      (candidate) => candidate.value === filtres.categorySlug
+    )
+    const label = option?.label ?? filtres.categorySlug
+    categories.push({
+      cle: "categorySlug",
+      valeur: filtres.categorySlug,
+      label,
+      ariaLabel: `Retirer la catégorie ${label}`,
+    })
+  }
+
+  const tranches: FiltreActif[] = []
+  if (filtres.priceBucketId) {
+    const option = options.priceBuckets.find(
+      (candidate) => candidate.value === filtres.priceBucketId
+    )
+    if (option) {
+      tranches.push({
+        cle: "priceBucketId",
+        valeur: filtres.priceBucketId,
+        label: option.label,
+        ariaLabel: `Retirer la tranche de prix ${option.label}`,
+      })
+    }
+  }
+
+  return [...marques, ...categories, ...tranches]
+}
+
 function carteDuHit(hit: IndexableProduct): CarteProduit {
   return projeterCarteProduit(
     {
@@ -140,6 +190,7 @@ export interface SearchPageData {
   totalHits: number
   products: CarteProduit[]
   facets: OptionsDeFiltre
+  filtresActifs: readonly FiltreActif[]
   sort: SearchSort
   currentPage: number
   totalPages: number
@@ -181,15 +232,18 @@ export async function searchProducts(
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
+  const facetsVides = assemblerOptionsDeFiltre(
+    { brands: {}, categories: {}, priceBuckets: {} },
+    filters,
+    new Map<string, string>()
+  )
+
   const emptyResult: SearchPageData = {
     query,
     totalHits: 0,
     products: [],
-    facets: assemblerOptionsDeFiltre(
-      { brands: {}, categories: {}, priceBuckets: {} },
-      filters,
-      new Map<string, string>()
-    ),
+    facets: facetsVides,
+    filtresActifs: projeterFiltresActifs(filters, facetsVides),
     sort,
     currentPage: 1,
     totalPages: 1,
@@ -261,6 +315,7 @@ export async function searchProducts(
     totalHits,
     products: documents.map(carteDuHit),
     facets,
+    filtresActifs: projeterFiltresActifs(filters, facets),
     sort,
     currentPage,
     totalPages,

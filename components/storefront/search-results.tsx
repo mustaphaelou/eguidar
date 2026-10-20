@@ -83,7 +83,7 @@ export function SearchResults({
             </div>
           </div>
 
-          <ActiveFilters facets={data.facets} />
+          <ActiveFilters filtresActifs={data.filtresActifs} />
 
           {data.products.length > 0 ? (
             <SearchResultsPending>
