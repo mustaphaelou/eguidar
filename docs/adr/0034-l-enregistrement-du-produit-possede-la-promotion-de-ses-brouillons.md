@@ -182,3 +182,64 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
 Cet ADR amende ADR-0004 et ADR-0026, aux endroits que la présente décision rend faux. Aucune phrase
 de leurs décisions n'est réécrite : les amendements sont ajoutés à leur fin, datés et signés du
 numéro d'issue #638.
+
+## Amendement — La couture d'effets du Catalogue porte le cycle de vie à cinq membres (#716, 2026-10-20)
+
+Aucune phrase de la décision n'est réécrite. La puce « Une couture séquentielle, en ordre direct »
+dit que la couture porte aussi `horloge`, « l'heure système par défaut : #685 l'exige comme couture
+prévue, qu'aucun consommateur de l'enregistrement ne lit encore ». Ce n'est plus le cas : la couture
+n'a plus d'horloge, et les gestes du cycle de vie s'y lisent d'un seul tenant. C'est le présent
+amendement qu'il faut lire à côté.
+
+### Ce que cet amendement décide
+
+- **La couture a cinq membres.** `CatalogEffects` déclare `cycleVie`, du type
+  `CycleVieImageProduit`, et les quatre effets après engagement que le **Catalogue** possède :
+  `reindexProducts`, `removeProductFromIndex`, `revalidateCatalog` et `deleteImages`. Aucun
+  alias par geste ne survit ; `defaultCatalogEffects` branche l'instance de production du cycle de
+  vie comme `cycleVie`, et les quatre effets restent indépendamment remplaçables par la surcharge
+  superficielle existante.
+
+- **L'accès passe par la dépendance.** `createProduct` et `updateProduct` tiennent la leur de
+  `defaultCatalogEffects` et ne nomment plus les gestes un par un : `produitDeLaTentative` lit les
+  Brouillons de la tentative par elle, `promouvoirBrouillons` prépare la promotion par elle,
+  `compenserPromotions` compense par elle, et la confirmation comme la suppression des sources se
+  lisent sur la même dépendance. L'ordre ne bouge pas — lire, valider, préparer, confirmer dans la
+  transaction avec son port, compenser inconditionnellement, supprimer les sources, puis réindexer
+  et révalider —, et les quatre effets après engagement restent en best-effort, dans le même ordre
+  et avec la même journalisation.
+
+- **L'horloge a quitté la couture, et elle est restée là où elle était déjà chez elle.** La fabrique
+  du cycle de vie la porte : le cycle de vie de production est bâti avec `horlogeSysteme`, et le
+  registre durable des Brouillons, `registreBrouillonImageProduitPrisma`, l'est aussi. Aucun test
+  d'heure ne change de couture : ceux du cycle de vie restent les seuls.
+
+- **Pourquoi la forme a changé.** La couture avait recopié l'interface du cycle de vie cinq fois —
+  cinq alias mot pour mot des cinq gestes qu'elle nommait — et son membre `horloge` n'avait aucun
+  lecteur : déclaré, pourvu d'un défaut, jamais lu. Elle était donc aussi large que les deux
+  interfaces qu'elle joint ; elle ne cachait pas le cycle de vie, elle le répétait. L'interface
+  et la fabrique du cycle de vie, elles, ne bougent pas : aucun geste n'y est ajouté, retiré ni
+  renommé.
+
+- **Deux surfaces de test le tiennent, et il n'y en a pas de troisième.** Les suites de mutation du
+  **Catalogue**, `lib/use-cases/admin-catalog-creation-brouillons.test.ts` et
+  `lib/use-cases/admin-catalog-update-brouillons.test.ts`, éprouvent l'ordre, la confirmation dans
+  la transaction, la compensation et les effets après engagement à travers la dépendance ; la
+  fabrique par défaut, `lib/use-cases/admin-catalog-couture-effets.test.ts`, éprouve que la
+  production est la dépendance, que les quatre effets sont les défauts, et qu'une surcharge de la
+  dépendance entière laisse les quatre en place. La recette partagée et l'observateur de jalons sont
+  migrés, pas testés.
+
+- **Les deux environnements de la recette ne confirment pas de la même façon.**
+  `creerEnvironnementDurable` passe la dépendance entière : sa confirmation reçoit le port de
+  transaction, donc la liaison des Brouillons s'exécute dans la transaction.
+  `creerEnvironnementMemoire` garde, lui, une confirmation liée à son propre registre : le port
+  Prisma n'atteint jamais un cycle de vie adossé à la mémoire.
+
+### Ce que cet amendement ne change pas
+
+- **La décision entière sur la promotion** : l'enregistrement du **Produit** possède toujours la
+  promotion de ses Brouillons d'Image produit, en trois phases, avec la confirmation
+  transactionnelle, la compensation inconditionnelle et la reprise par identifiant de tentative. La
+  couture nomme la dépendance, elle ne redistribue pas l'ordre.
+- **Aucun autre ADR** : cet amendement porte sur ADR-0034 seul ; il n'en amende aucun autre.
