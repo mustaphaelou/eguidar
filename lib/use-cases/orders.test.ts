@@ -27,6 +27,7 @@ import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import {
   CheckoutValidationError,
+  DevisPériméError,
   EmptyCartError,
   getAdminOrder,
   getOrder,
@@ -182,6 +183,10 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   sessionCouranteMock.mockReset()
+  await prisma.deliveryCity.update({
+    where: { id: cityId },
+    data: { fee: 3500 },
+  })
   await prisma.orderItem.deleteMany({
     where: { order: { user: { email: { startsWith: `orders-${runId}-` } } } },
   })
@@ -441,6 +446,91 @@ describe("order placement", () => {
     const order = await placeOrder(userIdA, await checkoutInput(userIdA))
     expect(order.total).toBe(80000)
     expect(order.shippingFee).toBe(0)
+  })
+
+  it("refuses a Commande on a stale Devis, creating nothing and touching no effect", async () => {
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
+    const input = await checkoutInput(userIdA)
+
+    // Le Panier bouge entre l'affichage du Total à payer et la confirmation.
+    await ajouterArticleAuPanier(variantP4, 1)
+
+    let refus: unknown
+    try {
+      await placeOrder(userIdA, input, {
+        sendOrderPlacedEmail,
+        sendOrderStatusEmail,
+        invalidateCommande,
+      })
+    } catch (error) {
+      refus = error
+    }
+
+    expect(refus).toBeInstanceOf(DevisPériméError)
+    expect(refus).toMatchObject({
+      name: "DevisPériméError",
+      message:
+        "Le Total à payer a changé depuis l'affichage — vérifiez le nouveau montant, puis confirmez.",
+    })
+    expect(await prisma.order.count({ where: { userId: userIdA } })).toBe(0)
+    const cart = await lirePanierClient(userIdA)
+    expect(cart.lines).toHaveLength(1)
+    expect(cart.lines[0].quantity).toBe(2)
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
+    expect(stock.stock).toBe(2)
+    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
+    expect(sendOrderStatusEmail).not.toHaveBeenCalled()
+    expect(invalidateCommande).not.toHaveBeenCalled()
+  })
+
+  it("accepts a drift that changes the parts without changing the Total à payer", async () => {
+    commeClient(userIdA)
+    // Affichage : B×1, article à livraison offerte → 50 000 + 0.
+    await ajouterArticleAuPanier(variantP3, 1)
+    const input = await checkoutInput(userIdA)
+    expect(input.totalAffiche).toBe(50000)
+
+    // Confirmation : C×1 et des Frais de livraison de 20 000 → 30 000 + 20 000.
+    await prisma.cartItem.deleteMany({ where: { userId: userIdA } })
+    await ajouterArticleAuPanier(variantP4, 1)
+    await prisma.deliveryCity.update({
+      where: { id: cityId },
+      data: { fee: 20000 },
+    })
+
+    const order = await placeOrder(userIdA, input)
+
+    expect(order.total).toBe(30000)
+    expect(order.shippingFee).toBe(20000)
+    expect(order.totalPayable).toBe(50000)
+  })
+
+  it("lets the Devis périmé refusal win over an out-of-stock refusal", async () => {
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP2, 2)
+    const input = await checkoutInput(userIdA)
+
+    await expect(
+      placeOrder(userIdA, { ...input, totalAffiche: input.totalAffiche - 1 })
+    ).rejects.toBeInstanceOf(DevisPériméError)
+
+    expect(await prisma.order.count({ where: { userId: userIdA } })).toBe(0)
+    const cart = await lirePanierClient(userIdA)
+    expect(cart.lines).toHaveLength(1)
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP2 },
+    })
+    expect(stock.stock).toBe(1)
   })
 
   it("blocks out-of-stock variants at checkout without creating anything", async () => {
