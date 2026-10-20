@@ -299,7 +299,7 @@ function catalogueProduction(): CataloguePanier {
 
 function creerStockagePanierClient(
   compteId: string,
-  client: Prisma.TransactionClient = prisma
+  client: Prisma.TransactionClient
 ): StockagePanier {
   return {
     async lire(): Promise<DonneesPanier> {
