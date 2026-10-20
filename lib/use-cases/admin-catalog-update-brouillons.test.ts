@@ -241,6 +241,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       makeInput([existingImage, existingSecondImage]),
       effetsSilencieux()
     )
+    const environnement = creerEnvironnementMemoire(dateInitiale)
     const deleteImages = vi.fn(async () => {})
 
     const updated = await updateProduct(
@@ -251,11 +252,14 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
         ownerId,
       }),
       {
-        preparerPromotionBrouillons: couture,
-        confirmerBrouillons: couture,
-        compenserPromotionBrouillons: couture,
-        supprimerSources: couture,
-        lireBrouillonsDeLaTentative: couture,
+        cycleVie: {
+          ...environnement.effets.cycleVie,
+          preparerPromotionBrouillons: couture,
+          confirmerBrouillons: couture,
+          compenserPromotionBrouillons: couture,
+          supprimerSources: couture,
+          lireBrouillonsDeLaTentative: couture,
+        },
         deleteImages,
       }
     )
@@ -357,7 +361,10 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     )
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerBrouillons: confirmation,
+      cycleVie: {
+        ...environnement.effets.cycleVie,
+        confirmerBrouillons: confirmation,
+      },
     }
     const entree = makeInput(
       [
@@ -519,9 +526,12 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
     const draft = await demander(environnement.cycleVie)
     const effets: CatalogEffects = {
       ...environnement.effets,
-      confirmerBrouillons: async (...confirmation) => {
-        await environnement.cycleVie.confirmerBrouillons(...confirmation)
-        throw new Error("échec après la liaison")
+      cycleVie: {
+        ...environnement.effets.cycleVie,
+        confirmerBrouillons: async (...confirmation) => {
+          await environnement.cycleVie.confirmerBrouillons(...confirmation)
+          throw new Error("échec après la liaison")
+        },
       },
     }
 
