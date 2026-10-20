@@ -17,6 +17,36 @@ const OPEN_REDIRECT_CASES = [
   "javascript:alert(1)",
 ]
 
+const UNSAFE_DESTINATION_CHARS_CASES = [
+  "/\\evil.example",
+  "/\\/evil.example",
+  "/produit\\atlas",
+  "/%5Cevil.example",
+  "/%5c/evil.example",
+  "/%5C%5Cevil.example",
+  "/\t/evil.example",
+  "/\n/evil.example",
+  "/\r/evil.example",
+  "/%09/evil.example",
+  "/%0A/evil.example",
+  "/%0D/evil.example",
+  "/\u0000/evil.example",
+  "/%00evil.example",
+  "/\u000b/evil.example",
+  "/%0B/evil.example",
+  "/\u000c/evil.example",
+  "/%0C/evil.example",
+  "/\u007f/evil.example",
+  "/%7Fevil.example",
+]
+
+const UNSAFE_DESTINATION_CASES = [
+  ...OPEN_REDIRECT_CASES,
+  ...UNSAFE_DESTINATION_CHARS_CASES,
+  "/%2Fevil.example",
+  "/%2f%2fevil.example",
+]
+
 describe("loginUrl", () => {
   it("emits the final-form URL without a destination", () => {
     expect(loginUrl()).toBe("/?open=login")
@@ -29,8 +59,17 @@ describe("loginUrl", () => {
     )
   })
 
+  it("keeps a destination carrying a legitimate space", () => {
+    expect(loginUrl("/recherche?q=deux%20mots")).toBe(
+      "/?open=login&next=%2Frecherche%3Fq%3Ddeux%2520mots"
+    )
+    expect(loginUrl("/recherche?q=deux mots")).toBe(
+      "/?open=login&next=%2Frecherche%3Fq%3Ddeux+mots"
+    )
+  })
+
   it("drops an unsafe destination", () => {
-    for (const unsafe of OPEN_REDIRECT_CASES) {
+    for (const unsafe of UNSAFE_DESTINATION_CASES) {
       expect(loginUrl(unsafe)).toBe("/?open=login")
     }
     expect(loginUrl("")).toBe("/?open=login")
@@ -44,7 +83,7 @@ describe("signupUrl", () => {
   })
 
   it("drops an unsafe destination", () => {
-    for (const unsafe of OPEN_REDIRECT_CASES) {
+    for (const unsafe of UNSAFE_DESTINATION_CASES) {
       expect(signupUrl(unsafe)).toBe("/?open=signup")
     }
     expect(signupUrl("")).toBe("/?open=signup")
@@ -84,6 +123,17 @@ describe("parseAuthParams", () => {
     })
   })
 
+  it("round-trips a destination carrying a literal percent sign", () => {
+    const url = loginUrl("/recherche?q=100%")
+
+    expect(url).toBe("/?open=login&next=%2Frecherche%3Fq%3D100%25")
+    expect(parseAuthParams(url.slice(url.indexOf("?")))).toEqual({
+      open: "login",
+      dialog: "login",
+      next: "/recherche?q=100%",
+    })
+  })
+
   it("yields nulls for absent parameters", () => {
     expect(parseAuthParams("")).toEqual({
       open: null,
@@ -111,7 +161,7 @@ describe("parseAuthParams", () => {
   })
 
   it("yields a null destination for unsafe values", () => {
-    for (const unsafe of OPEN_REDIRECT_CASES) {
+    for (const unsafe of UNSAFE_DESTINATION_CASES) {
       expect(parseAuthParams(`?open=login&next=${unsafe}`)).toEqual({
         open: "login",
         dialog: "login",
@@ -122,6 +172,23 @@ describe("parseAuthParams", () => {
       open: "login",
       dialog: "login",
       next: null,
+    })
+  })
+
+  it("keeps a destination carrying a legitimate space, raw or percent-encoded", () => {
+    expect(
+      parseAuthParams("?open=login&next=%2Frecherche%3Fq%3Ddeux%2520mots")
+    ).toEqual({
+      open: "login",
+      dialog: "login",
+      next: "/recherche?q=deux%20mots",
+    })
+    expect(
+      parseAuthParams("?open=login&next=%2Frecherche%3Fq%3Ddeux%20mots")
+    ).toEqual({
+      open: "login",
+      dialog: "login",
+      next: "/recherche?q=deux mots",
     })
   })
 })
@@ -165,7 +232,7 @@ describe("withAuthParams", () => {
   })
 
   it("fails closed on an unsafe destination", () => {
-    for (const unsafe of OPEN_REDIRECT_CASES) {
+    for (const unsafe of UNSAFE_DESTINATION_CASES) {
       expect(withAuthParams("/", { dialog: "login", next: unsafe })).toBe(
         "/?open=login"
       )
@@ -179,6 +246,30 @@ describe("withAuthParams", () => {
     expect(
       withAuthParams("/compte?next=%2Fpanier", { dialog: "login", next: "" })
     ).toBe("/compte?open=login")
+  })
+
+  it("keeps a legitimate destination exactly as written", () => {
+    expect(
+      withAuthParams("/", { dialog: "login", next: "/recherche?q=100%" })
+    ).toBe("/?open=login&next=%2Frecherche%3Fq%3D100%25")
+    expect(
+      withAuthParams("/", {
+        dialog: "login",
+        next: "/produit/tshirt-%C3%A9t%C3%A9",
+      })
+    ).toBe("/?open=login&next=%2Fproduit%2Ftshirt-%25C3%25A9t%25C3%25A9")
+  })
+
+  it("keeps a legitimate destination carrying a space", () => {
+    expect(
+      withAuthParams("/", {
+        dialog: "login",
+        next: "/recherche?q=deux%20mots",
+      })
+    ).toBe("/?open=login&next=%2Frecherche%3Fq%3Ddeux%2520mots")
+    expect(
+      withAuthParams("/", { dialog: "login", next: "/recherche?q=deux mots" })
+    ).toBe("/?open=login&next=%2Frecherche%3Fq%3Ddeux+mots")
   })
 
   it("matches builder output", () => {

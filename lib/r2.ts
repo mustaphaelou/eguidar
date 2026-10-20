@@ -6,6 +6,13 @@ import {
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
+import {
+  PREFIXE_BROUILLONS_IMAGE_PRODUIT,
+  PREFIXE_IMAGES_PRODUIT,
+  cleDepuisUrlPublique,
+  cleImageProduitPersistee,
+} from "@/lib/espace-de-noms-image-produit"
+
 export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
 export const DUREE_VIE_URL_ENVOI_PRESIGNEE_S = 300
@@ -20,9 +27,6 @@ export const CONTENT_TYPES_IMAGE_PRODUIT = [
 
 export type ContentTypeImageProduit =
   (typeof CONTENT_TYPES_IMAGE_PRODUIT)[number]
-
-export const PRODUCTS_PREFIX = "products/"
-export const DRAFT_PRODUCTS_PREFIX = `${PRODUCTS_PREFIX}brouillons/`
 
 const EXTENSIONS: Record<ContentTypeImageProduit, string> = {
   "image/jpeg": ".jpg",
@@ -118,14 +122,14 @@ function keyForImage(
 }
 
 export function draftObjectKey(draftId: string, contentType: string): string {
-  return keyForImage(DRAFT_PRODUCTS_PREFIX, draftId, contentType)
+  return keyForImage(PREFIXE_BROUILLONS_IMAGE_PRODUIT, draftId, contentType)
 }
 
 export function persistentObjectKey(
   imageId: string,
   contentType: string
 ): string {
-  return keyForImage(PRODUCTS_PREFIX, imageId, contentType)
+  return keyForImage(PREFIXE_IMAGES_PRODUIT, imageId, contentType)
 }
 
 export function publicUrlFromKey(
@@ -135,22 +139,6 @@ export function publicUrlFromKey(
   if (!publicBase) return null
   const base = publicBase.replace(/\/$/, "")
   return base ? `${base}/${key}` : null
-}
-
-export function objectKeyFromPublicUrl(
-  publicUrl: string,
-  publicBase = process.env.R2_PUBLIC_URL
-): string | null {
-  if (!publicBase) return null
-  const base = publicBase.replace(/\/$/, "")
-  if (!base || !publicUrl.startsWith(`${base}/`)) return null
-  const encodedKey = publicUrl.slice(base.length + 1)
-  if (!encodedKey) return null
-  try {
-    return decodeURIComponent(encodedKey)
-  } catch {
-    return null
-  }
 }
 
 export function getR2Client() {
@@ -210,25 +198,27 @@ function storageError(): {
   )
 }
 
-function estCleImageProduitPersistee(key: string): boolean {
-  return (
-    key.startsWith(PRODUCTS_PREFIX) && !key.startsWith(DRAFT_PRODUCTS_PREFIX)
-  )
+function estCleImageCategorie(key: string): boolean {
+  return !key.startsWith(PREFIXE_BROUILLONS_IMAGE_PRODUIT)
 }
 
-function estCleImageCategorie(key: string): boolean {
-  return !key.startsWith(DRAFT_PRODUCTS_PREFIX)
+function cleImageCategorie(
+  publicUrl: string,
+  publicBase: string
+): string | null {
+  const key = cleDepuisUrlPublique(publicUrl, publicBase)
+  return key !== null && estCleImageCategorie(key) ? key : null
 }
 
 async function supprimerImageParUrl(
   publicUrl: string,
-  dansEspaceDeNoms: (key: string) => boolean
+  cleDansLEspaceDeNoms: (publicUrl: string, publicBase: string) => string | null
 ): Promise<ResultatStockageImageProduit<null>> {
   const configuration = configurationR2()
   if (!configuration || !configuration.publicBase) return nonConfigure()
 
-  const key = objectKeyFromPublicUrl(publicUrl, configuration.publicBase)
-  if (!key || !dansEspaceDeNoms(key)) {
+  const key = cleDansLEspaceDeNoms(publicUrl, configuration.publicBase)
+  if (!key) {
     return invalidParameter("URL non gérée par le stockage R2")
   }
 
@@ -385,10 +375,10 @@ export const stockageImageProduitR2: PortStockageImageProduit = {
   },
 
   async supprimerImagePersistee(publicUrl) {
-    return supprimerImageParUrl(publicUrl, estCleImageProduitPersistee)
+    return supprimerImageParUrl(publicUrl, cleImageProduitPersistee)
   },
 
   async supprimerImageCategorie(publicUrl) {
-    return supprimerImageParUrl(publicUrl, estCleImageCategorie)
+    return supprimerImageParUrl(publicUrl, cleImageCategorie)
   },
 }

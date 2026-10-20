@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   calculerTotauxPanier,
   construireArticleDuPanier,
@@ -35,9 +36,12 @@ function composerStoreVisiteur(): PanierStore {
   return creerPanierStore(creerStockagePanierVisiteur(), catalogueProduction())
 }
 
-function composerStoreClientExplicite(compteId: string): PanierStore {
+function composerStoreClientExplicite(
+  compteId: string,
+  client: Prisma.TransactionClient = prisma
+): PanierStore {
   return creerPanierStore(
-    creerStockagePanierClient(compteId),
+    creerStockagePanierClient(compteId, client),
     catalogueProduction()
   )
 }
@@ -78,9 +82,10 @@ export async function retirerArticleDuPanier(
 }
 
 export async function lirePanierClient(
-  compteId: string
+  compteId: string,
+  client: Prisma.TransactionClient = prisma
 ): Promise<DonneesPanier> {
-  return composerStoreClientExplicite(compteId).lire()
+  return composerStoreClientExplicite(compteId, client).lire()
 }
 
 export async function rejouerPanierVisiteur(compteId: string): Promise<void> {
@@ -292,10 +297,13 @@ function catalogueProduction(): CataloguePanier {
   }
 }
 
-function creerStockagePanierClient(compteId: string): StockagePanier {
+function creerStockagePanierClient(
+  compteId: string,
+  client: Prisma.TransactionClient
+): StockagePanier {
   return {
     async lire(): Promise<DonneesPanier> {
-      const items = await prisma.cartItem.findMany({
+      const items = await client.cartItem.findMany({
         where: { userId: compteId },
         orderBy: { createdAt: "asc" },
         include: { variant: { include: { product: true } } },
@@ -312,7 +320,7 @@ function creerStockagePanierClient(compteId: string): StockagePanier {
     },
 
     async compter(): Promise<number> {
-      const aggregate = await prisma.cartItem.aggregate({
+      const aggregate = await client.cartItem.aggregate({
         where: { userId: compteId },
         _sum: { quantity: true },
       })
@@ -320,7 +328,7 @@ function creerStockagePanierClient(compteId: string): StockagePanier {
     },
 
     async lireArticlesStockes(): Promise<ArticleStockePanier[]> {
-      return prisma.cartItem.findMany({
+      return client.cartItem.findMany({
         where: { userId: compteId },
         select: { variantId: true, quantity: true },
         orderBy: { createdAt: "asc" },
@@ -328,14 +336,14 @@ function creerStockagePanierClient(compteId: string): StockagePanier {
     },
 
     async possedeArticle(variantId: string): Promise<boolean> {
-      const item = await prisma.cartItem.findUnique({
+      const item = await client.cartItem.findUnique({
         where: { userId_variantId: { userId: compteId, variantId } },
       })
       return item !== null
     },
 
     async ajouterQuantite(variantId: string, quantity: number): Promise<void> {
-      await prisma.cartItem.upsert({
+      await client.cartItem.upsert({
         where: { userId_variantId: { userId: compteId, variantId } },
         update: { quantity: { increment: quantity } },
         create: { userId: compteId, variantId, quantity },
@@ -343,14 +351,14 @@ function creerStockagePanierClient(compteId: string): StockagePanier {
     },
 
     async definirQuantite(variantId: string, quantity: number): Promise<void> {
-      await prisma.cartItem.update({
+      await client.cartItem.update({
         where: { userId_variantId: { userId: compteId, variantId } },
         data: { quantity },
       })
     },
 
     async retirerArticle(variantId: string): Promise<boolean> {
-      const supprimes = await prisma.cartItem.deleteMany({
+      const supprimes = await client.cartItem.deleteMany({
         where: { userId: compteId, variantId },
       })
       return supprimes.count > 0

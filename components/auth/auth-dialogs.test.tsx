@@ -732,6 +732,36 @@ describe("AuthDialogsProvider controller interface", () => {
     )
   })
 
+  it("replaces a Destination post-connexion carrying a backslash with the current page address", async () => {
+    window.history.replaceState(null, "", "/panier?next=/%5Cevil.example")
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+    await flush()
+
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
+      "/panier?next=%2Fpanier&open=login",
+      { scroll: false }
+    )
+  })
+
+  it("keeps a legitimate Destination post-connexion carrying an encoded space", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/panier?next=%2Frecherche%3Fq%3Ddeux%2520mots"
+    )
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+    await flush()
+
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
+      "/panier?next=%2Frecherche%3Fq%3Ddeux%2520mots&open=login",
+      { scroll: false }
+    )
+  })
+
   it("preserves the URL fragment when opening the Connexion modal", async () => {
     window.history.replaceState(null, "", "/panier?q=chaussures#avis")
     render(() => controllerHarness())

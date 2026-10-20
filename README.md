@@ -81,6 +81,8 @@ BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
 bash scripts/verifier-image-deploiement.sh
 ```
 
+**Un build `standalone` recopie les fichiers d’environnement dans sa sortie.** Next.js copie `.env` et `.env.production` dans `.next/standalone` : un build lancé sur une machine qui porte de vrais secrets les embarque, et la cible `runner` recopie ensuite tout `.next/standalone` (`COPY --from=builder /app/.next/standalone ./`). C’est pourquoi `.dockerignore` exclut `.env` et `.env.*` : l’image ne se construit qu’à partir d’un contexte sans secret. Un artefact `standalone` produit hors Docker ne doit donc voyager que depuis un environnement de construction **sans secret** — les secrets s’injectent à l’exécution — et `.next/standalone` reste jetable : ne le conservez pas et ne le copiez jamais hors de la machine de build.
+
 **La sonde migre et sème la base que `DATABASE_URL` désigne** : pointez-la sur `eguidar_test`, jamais sur la base de développement. Elle ne construit aucune image et ne démarre aucun service ; elle exige les trois services et les deux images déjà là. Ses conteneurs sortent en réseau hôte et joignent les services par `localhost` (Docker Engine sous Linux ; le réseau hôte de macOS est hors périmètre). Le port de la sonde est 3100, pour ne pas croiser un `npm run dev` resté sur 3000.
 
 Les variables requises sont `IMAGE_RUNNER`, `IMAGE_MIGRATE`, `DATABASE_URL`, `MEILI_URL`, `MEILI_MASTER_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` et `BETTER_AUTH_SECRET` : la première absente est nommée, et la sonde s’arrête avant tout appel à Docker. Les optionnelles sont `REDIS_URL`, `BETTER_AUTH_URL` (défaut `http://localhost:3100`), `PROBE_PORT` (défaut 3100), `PROBE_TIMEOUT` (défaut 90 secondes) et `ADMIN_NAME`.

@@ -13,6 +13,7 @@ const BASE = "lib/db.ts"
 const CATALOGUE = "lib/use-cases/admin-catalog.ts"
 
 const GRAPHE_ATTENDU = [
+  "lib/espace-de-noms-image-produit.ts",
   "lib/formulaire-produit.ts",
   "lib/galerie-image-produit.ts",
   "lib/money.ts",
@@ -100,6 +101,7 @@ describe("Formulaire Produit — frontière client/serveur", () => {
     expect(ATTEINTS.size).toBeGreaterThan(1)
     expect(ATTEINTS.has("lib/money.ts")).toBe(true)
     expect(ATTEINTS.has("lib/galerie-image-produit.ts")).toBe(true)
+    expect(ATTEINTS.has("lib/espace-de-noms-image-produit.ts")).toBe(true)
 
     for (const chemin of CHEMINS_INTERDITS) {
       expect(ATTEINTS.has(chemin), chemin).toBe(false)
@@ -112,7 +114,7 @@ describe("Formulaire Produit — frontière client/serveur", () => {
     }
   })
 
-  it("le graphe de valeur du module est exactement ses deux voisins annoncés", () => {
+  it("le graphe de valeur du module est exactement ses trois voisins annoncés", () => {
     expect([...ATTEINTS].sort()).toEqual(GRAPHE_ATTENDU)
   })
 

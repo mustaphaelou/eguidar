@@ -1,5 +1,5 @@
 import { retentionBrouillonImageProduitHeures } from "@/lib/cycle-vie-image-produit"
-import { DRAFT_PRODUCTS_PREFIX } from "@/lib/r2"
+import { PREFIXE_BROUILLONS_IMAGE_PRODUIT } from "@/lib/espace-de-noms-image-produit"
 
 const HEURES_PAR_JOUR = 24
 
@@ -34,7 +34,7 @@ export function artefactRegleCycleVieR2(): ArtefactRegleCycleVieR2 {
       {
         id: "brouillons-image-produit",
         enabled: true,
-        prefix: DRAFT_PRODUCTS_PREFIX,
+        prefix: PREFIXE_BROUILLONS_IMAGE_PRODUIT,
         expire: {
           days: joursPourExpiration(retentionBrouillonImageProduitHeures()),
         },

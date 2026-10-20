@@ -3,6 +3,9 @@ const NEXT_PARAM = "next"
 
 const URL_BASE = "http://localhost"
 
+const UNSAFE_DESTINATION_CHARS = /[\\\u0000-\u001f\u007f]/
+const PERCENT_ESCAPE = /%([0-9a-f]{2})/gi
+
 export type AuthDialogName = "login" | "signup"
 
 export interface AuthParams {
@@ -16,8 +19,19 @@ export interface AuthParamsOptions {
   next?: string
 }
 
+function decodePercentEscapes(value: string): string {
+  return value.replace(PERCENT_ESCAPE, (_, hex: string) =>
+    String.fromCharCode(Number.parseInt(hex, 16))
+  )
+}
+
 function safeDestination(raw: string | null | undefined): string | null {
-  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : null
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null
+  const decoded = decodePercentEscapes(raw)
+  if (decoded.startsWith("//") || UNSAFE_DESTINATION_CHARS.test(decoded)) {
+    return null
+  }
+  return raw
 }
 
 function deleteAuthParams(params: URLSearchParams): void {

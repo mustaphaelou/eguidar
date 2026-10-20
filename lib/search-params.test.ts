@@ -5,12 +5,30 @@ import {
   parsePage,
   parseSearchParams,
   parseSort,
+  SEARCH_QUERY_MAX_LENGTH,
   toggleBrand,
 } from "@/lib/search-params"
 
 describe("parseSearchParams", () => {
   it("extracts and trims the query", () => {
     expect(parseSearchParams({ q: "  casque  " }).query).toBe("casque")
+  })
+
+  it("borne la requête à la longueur maximale partagée", () => {
+    const terme = "a".repeat(10_000)
+
+    const { query } = parseSearchParams({ q: terme })
+
+    expect(query).toBe(terme.slice(0, SEARCH_QUERY_MAX_LENGTH))
+    expect(query).toHaveLength(SEARCH_QUERY_MAX_LENGTH)
+  })
+
+  it("borne après avoir rogné les espaces du terme", () => {
+    const terme = `  ${"a".repeat(SEARCH_QUERY_MAX_LENGTH)}b  `
+
+    expect(parseSearchParams({ q: terme }).query).toBe(
+      "a".repeat(SEARCH_QUERY_MAX_LENGTH)
+    )
   })
 
   it("takes the first value when a param is repeated", () => {

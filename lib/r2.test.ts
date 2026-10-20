@@ -57,10 +57,10 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: signedUrlMock,
 }))
 
+import { cleDepuisUrlPublique } from "@/lib/espace-de-noms-image-produit"
 import {
   DUREE_VIE_URL_ENVOI_PRESIGNEE_S,
   MAX_UPLOAD_SIZE,
-  objectKeyFromPublicUrl,
   publicUrlFromKey,
   stockageImageProduitR2,
 } from "@/lib/r2"
@@ -106,15 +106,15 @@ describe("adaptateur R2 des Images produit", () => {
     const url = publicUrlFromKey(key, "https://cdn.example.test/")
 
     expect(url).toBe("https://cdn.example.test/products/image-1.webp")
-    expect(objectKeyFromPublicUrl(url!, "https://cdn.example.test")).toBe(key)
+    expect(cleDepuisUrlPublique(url!, "https://cdn.example.test")).toBe(key)
     expect(
-      objectKeyFromPublicUrl(
+      cleDepuisUrlPublique(
         "https://cdn.example.test/products/image%20with%20space.webp",
         "https://cdn.example.test"
       )
     ).toBe("products/image with space.webp")
     expect(
-      objectKeyFromPublicUrl(
+      cleDepuisUrlPublique(
         "https://other.example.test/products/image-1.webp",
         "https://cdn.example.test"
       )
@@ -230,5 +230,20 @@ describe("adaptateur R2 des Images produit", () => {
     expect(
       deleteCommandInputs.map((input) => (input as { Key: string }).Key)
     ).toEqual(["categories/2026/vintage.jpg", "banners/accueil.png"])
+  })
+
+  it("ne supprime une Image persistée que sous l'espace du CDN de la boutique", async () => {
+    for (const url of [
+      "https://autre.example.test/products/image-1.webp",
+      "https://cdn.example.test/banners/image-1.webp",
+      "https://cdn.example.test/products/brouillons/image-1.webp",
+    ]) {
+      expect(
+        await stockageImageProduitR2.supprimerImagePersistee(url),
+        url
+      ).toMatchObject({ ok: false, erreur: { code: "parametre-invalide" } })
+    }
+
+    expect(deleteCommandInputs).toHaveLength(0)
   })
 })

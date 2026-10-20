@@ -31,6 +31,8 @@ const SPECS: Record<string, string> = {
   Ports: "USB-C, USB-C, USB-C",
 }
 
+const BASE_CDN = "https://cdn.eguidar.com"
+
 const VARIANTE_STANDARD = {
   name: "Standard",
   sku: "SKU-1",
@@ -101,12 +103,12 @@ function formulaireSoumis({
 function soumissionLue(
   rendue: SoumissionRendue = {}
 ): SoumissionFormulaireProduit {
-  return soumissionDepuisFormData(formulaireSoumis(rendue))
+  return soumissionDepuisFormData(formulaireSoumis(rendue), BASE_CDN)
 }
 
 function refusDeSoumission(donnees: FormData): unknown {
   try {
-    soumissionDepuisFormData(donnees)
+    soumissionDepuisFormData(donnees, BASE_CDN)
   } catch (erreur) {
     return erreur
   }
@@ -272,7 +274,7 @@ describe("la convention de case à cocher", () => {
     donnees.delete(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant)
     donnees.delete(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte)
 
-    const soumission = soumissionDepuisFormData(donnees)
+    const soumission = soumissionDepuisFormData(donnees, BASE_CDN)
 
     expect(soumission.champsCatalogue.isFeatured).toBe(false)
     expect(soumission.champsCatalogue.freeShipping).toBe(false)
@@ -315,11 +317,11 @@ describe("soumissionDepuisFormData", () => {
       misEnAvant: valeurCaseACocher(true),
       livraisonOfferte: valeurCaseACocher(true),
       images: [
-        { kind: "persistee", url: "https://cdn.test/p/1.webp" },
+        { kind: "persistee", url: "https://cdn.eguidar.com/products/1.webp" },
         {
           kind: "brouillon",
           draftId: "draft-1",
-          previewUrl: "https://cdn.test/brouillons/1.webp",
+          previewUrl: "https://cdn.eguidar.com/products/brouillons/1.webp",
         },
       ],
       variantes: [
@@ -359,11 +361,11 @@ describe("soumissionDepuisFormData", () => {
         ],
       },
       images: [
-        { kind: "persistee", url: "https://cdn.test/p/1.webp" },
+        { kind: "persistee", url: "https://cdn.eguidar.com/products/1.webp" },
         {
           kind: "brouillon",
           draftId: "draft-1",
-          previewUrl: "https://cdn.test/brouillons/1.webp",
+          previewUrl: "https://cdn.eguidar.com/products/brouillons/1.webp",
         },
       ],
       tentativeId: "tentative-1",
@@ -404,7 +406,7 @@ describe("soumissionDepuisFormData", () => {
     const sansCases = formulaireSoumis()
     sansCases.delete(CHAMPS_FORMULAIRE_PRODUIT.miseEnAvant)
     sansCases.delete(CHAMPS_FORMULAIRE_PRODUIT.livraisonOfferte)
-    const sansCase = soumissionDepuisFormData(sansCases)
+    const sansCase = soumissionDepuisFormData(sansCases, BASE_CDN)
     expect(sansCase.champsCatalogue.isFeatured).toBe(false)
     expect(sansCase.champsCatalogue.freeShipping).toBe(false)
   })
@@ -417,11 +419,13 @@ describe("soumissionDepuisFormData", () => {
 
   it("valide la galerie soumise par le schéma de la galerie", () => {
     const soumission = soumissionLue({
-      images: [{ kind: "persistee", url: "https://cdn.test/p/1.webp" }],
+      images: [
+        { kind: "persistee", url: "https://cdn.eguidar.com/products/1.webp" },
+      ],
     })
 
     expect(soumission.images).toEqual([
-      { kind: "persistee", url: "https://cdn.test/p/1.webp" },
+      { kind: "persistee", url: "https://cdn.eguidar.com/products/1.webp" },
     ])
   })
 
@@ -461,7 +465,7 @@ describe("soumissionDepuisFormData", () => {
     const absente = formulaireSoumis()
     absente.delete("tentativeId")
 
-    expect(soumissionDepuisFormData(absente).tentativeId).toBe("")
+    expect(soumissionDepuisFormData(absente, BASE_CDN).tentativeId).toBe("")
     expect(soumissionLue({ tentativeId: "   " }).tentativeId).toBe("")
   })
 
@@ -469,7 +473,7 @@ describe("soumissionDepuisFormData", () => {
     const donnees = formulaireSoumis()
     donnees.set("tentativeId", new File(["tentative-1"], "tentativeId"))
 
-    expect(soumissionDepuisFormData(donnees).tentativeId).toBe("")
+    expect(soumissionDepuisFormData(donnees, BASE_CDN).tentativeId).toBe("")
   })
 
   it("ignore le productId caché : l'identification reste à l'action", () => {
@@ -514,6 +518,39 @@ describe("les refus de la soumission", () => {
     expect((refusDeSoumission(donnees) as Error).message).toBe(
       "Formulaire invalide"
     )
+  })
+
+  it("refuse une Image produit persistée servie hors de l'espace du CDN de la boutique", () => {
+    for (const url of [
+      "https://ailleurs.example.test/products/image-1.webp",
+      "https://cdn.eguidar.com.ailleurs.example.test/products/image-1.webp",
+      "https://cdn.eguidar.com/categories/image-1.webp",
+      "https://cdn.eguidar.com/products/brouillons/brouillon-1.webp",
+    ]) {
+      const refus = refusDeSoumission(
+        formulaireSoumis({ images: [{ kind: "persistee", url }] })
+      )
+
+      expect((refus as Error).message, url).toBe(MESSAGE_FORMULAIRE_INVALIDE)
+    }
+  })
+
+  it("accepte une Image produit promue sous le CDN, à l'octet près", () => {
+    const url = "https://cdn.eguidar.com/products/image-promue.webp"
+
+    expect(
+      soumissionLue({ images: [{ kind: "persistee", url }] }).images
+    ).toEqual([{ kind: "persistee", url }])
+  })
+
+  it("garde un Brouillon d'Image produit quel que soit l'hôte de son aperçu", () => {
+    const brouillon = {
+      kind: "brouillon",
+      draftId: "brouillon-1",
+      previewUrl: "https://ailleurs.example.test/apercu.webp",
+    }
+
+    expect(soumissionLue({ images: [brouillon] }).images).toEqual([brouillon])
   })
 
   it("refuse un prix de base qu'il ne sait pas lire, avec le même message", () => {
@@ -625,7 +662,7 @@ describe("la galerie soumise hors suppressions en attente", () => {
     const soumise = galerieSoumiseHorsSuppressionsEnAttente([
       {
         kind: "persistee",
-        url: "https://cdn.test/p/1.webp",
+        url: "https://cdn.eguidar.com/products/1.webp",
         suppressionEnAttente: true,
       },
     ])
@@ -637,14 +674,14 @@ describe("la galerie soumise hors suppressions en attente", () => {
     const soumise = galerieSoumiseHorsSuppressionsEnAttente([
       {
         kind: "persistee",
-        url: "https://cdn.test/p/1.webp",
+        url: "https://cdn.eguidar.com/products/1.webp",
       },
     ])
 
     expect(soumise).toEqual([
       {
         kind: "persistee",
-        url: "https://cdn.test/p/1.webp",
+        url: "https://cdn.eguidar.com/products/1.webp",
       },
     ])
   })
@@ -654,7 +691,7 @@ describe("la galerie soumise hors suppressions en attente", () => {
       {
         kind: "brouillon",
         draftId: "draft-1",
-        previewUrl: "https://cdn.test/brouillons/1.webp",
+        previewUrl: "https://cdn.eguidar.com/products/brouillons/1.webp",
       },
     ])
 
@@ -662,7 +699,7 @@ describe("la galerie soumise hors suppressions en attente", () => {
       {
         kind: "brouillon",
         draftId: "draft-1",
-        previewUrl: "https://cdn.test/brouillons/1.webp",
+        previewUrl: "https://cdn.eguidar.com/products/brouillons/1.webp",
       },
     ])
   })
@@ -671,37 +708,37 @@ describe("la galerie soumise hors suppressions en attente", () => {
     const soumise = galerieSoumiseHorsSuppressionsEnAttente([
       {
         kind: "persistee",
-        url: "https://cdn.test/p/1.webp",
+        url: "https://cdn.eguidar.com/products/1.webp",
       },
       {
         kind: "brouillon",
         draftId: "draft-2",
-        previewUrl: "https://cdn.test/brouillons/2.webp",
+        previewUrl: "https://cdn.eguidar.com/products/brouillons/2.webp",
       },
       {
         kind: "persistee",
-        url: "https://cdn.test/p/3.webp",
+        url: "https://cdn.eguidar.com/products/3.webp",
         suppressionEnAttente: true,
       },
       {
         kind: "persistee",
-        url: "https://cdn.test/p/4.webp",
+        url: "https://cdn.eguidar.com/products/4.webp",
       },
     ])
 
     expect(soumise).toEqual([
       {
         kind: "persistee",
-        url: "https://cdn.test/p/1.webp",
+        url: "https://cdn.eguidar.com/products/1.webp",
       },
       {
         kind: "brouillon",
         draftId: "draft-2",
-        previewUrl: "https://cdn.test/brouillons/2.webp",
+        previewUrl: "https://cdn.eguidar.com/products/brouillons/2.webp",
       },
       {
         kind: "persistee",
-        url: "https://cdn.test/p/4.webp",
+        url: "https://cdn.eguidar.com/products/4.webp",
       },
     ])
   })
@@ -715,7 +752,7 @@ describe("la galerie soumise hors suppressions en attente", () => {
       galerieSoumiseHorsSuppressionsEnAttente([
         {
           kind: "persistee",
-          url: "https://cdn.test/p/1.webp",
+          url: "https://cdn.eguidar.com/products/1.webp",
           suppressionEnAttente: true,
         },
       ])

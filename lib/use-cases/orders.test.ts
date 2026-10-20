@@ -24,7 +24,7 @@ import {
 } from "@/lib/use-cases/devis"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import type { OrderEmailSnapshot } from "@/lib/emails"
-import type { OrderStatus } from "@/lib/generated/prisma/client"
+import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import {
   CheckoutValidationError,
   DevisPériméError,
@@ -251,6 +251,40 @@ async function checkoutInput(
     phone: PHONE,
     ...overrides,
     totalAffiche: selection.cas === "validée" ? selection.devis.total : 0,
+  }
+}
+
+type TransactionInteractive = (
+  callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  options?: unknown
+) => Promise<unknown>
+
+/**
+ * Fait atterrir une écriture administrative à l'ouverture de la transaction de
+ * Commande : le Total à payer est déjà affiché, les lectures de la prise en
+ * commande ne sont pas encore faites — la fenêtre que #671 ferme.
+ */
+async function avecEcritureÀLOuvertureDeLaTransaction<T>(
+  ecriture: () => Promise<unknown>,
+  action: () => Promise<T>
+): Promise<T> {
+  const transactionReelle = prisma.$transaction.bind(
+    prisma
+  ) as unknown as TransactionInteractive
+
+  const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+    callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+    options?: unknown
+  ) =>
+    transactionReelle(async (tx) => {
+      await ecriture()
+      return callback(tx)
+    }, options)) as unknown as typeof prisma.$transaction)
+
+  try {
+    return await action()
+  } finally {
+    espion.mockRestore()
   }
 }
 
@@ -513,6 +547,77 @@ describe("order placement", () => {
     expect(order.total).toBe(30000)
     expect(order.shippingFee).toBe(20000)
     expect(order.totalPayable).toBe(50000)
+  })
+
+  it("refuses Frais de livraison changed at transaction opening instead of storing the stale fee", async () => {
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
+    // Affichage : 30 000 + 3 500.
+    const input = await checkoutInput(userIdA)
+    expect(input.totalAffiche).toBe(33500)
+
+    await expect(
+      avecEcritureÀLOuvertureDeLaTransaction(
+        () =>
+          prisma.deliveryCity.update({
+            where: { id: cityId },
+            data: { fee: 9000 },
+          }),
+        () =>
+          placeOrder(userIdA, input, {
+            sendOrderPlacedEmail,
+            invalidateCommande,
+          })
+      )
+    ).rejects.toBeInstanceOf(DevisPériméError)
+
+    expect(await prisma.order.count({ where: { userId: userIdA } })).toBe(0)
+    const cart = await lirePanierClient(userIdA)
+    expect(cart.lines).toHaveLength(1)
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
+    expect(stock.stock).toBe(2)
+    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
+    expect(invalidateCommande).not.toHaveBeenCalled()
+  })
+
+  it("refuses a unit price changed at transaction opening instead of storing the stale price", async () => {
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
+    // Affichage : 30 000 + 3 500.
+    const input = await checkoutInput(userIdA)
+    expect(input.totalAffiche).toBe(33500)
+
+    try {
+      await expect(
+        avecEcritureÀLOuvertureDeLaTransaction(
+          () =>
+            prisma.product.update({
+              where: { slug: `orders-prod-c-${runId}` },
+              data: { price: 31000 },
+            }),
+          () => placeOrder(userIdA, input)
+        )
+      ).rejects.toBeInstanceOf(DevisPériméError)
+    } finally {
+      await prisma.product.update({
+        where: { slug: `orders-prod-c-${runId}` },
+        data: { price: 30000 },
+      })
+    }
+
+    expect(await prisma.order.count({ where: { userId: userIdA } })).toBe(0)
+    const cart = await lirePanierClient(userIdA)
+    expect(cart.lines).toHaveLength(1)
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
+    expect(stock.stock).toBe(2)
   })
 
   it("lets the Devis périmé refusal win over an out-of-stock refusal", async () => {

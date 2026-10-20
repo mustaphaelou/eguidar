@@ -60,7 +60,6 @@ const SOURCES_TOUTES = sourcesToutes(
 const PAR_CHEMIN = new Map(SOURCES.map((source) => [source.chemin, source]))
 
 const IMPORTATEURS_R2_AUTORISES = [
-  "infra/regle-cycle-vie-r2.ts",
   MODULE_CYCLE_VIE,
   MODULE_CATALOGUE,
   MODULE_STRUCTURE,

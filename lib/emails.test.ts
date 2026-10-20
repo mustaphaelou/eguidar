@@ -5,14 +5,16 @@ import {
   orderDetailsHtml,
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
+  sendOtpEmail,
 } from "./emails"
 import { formatPrice } from "./money"
 
-const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
-
-vi.mock("@/lib/email", () => ({
-  getResend: () => ({ emails: { send: sendMock } }),
+const { getResendMock, sendMock } = vi.hoisted(() => ({
+  getResendMock: vi.fn(),
+  sendMock: vi.fn(),
 }))
+
+vi.mock("@/lib/email", () => ({ getResend: getResendMock }))
 
 const baseSnapshot: OrderEmailSnapshot = {
   userEmail: "client@example.com",
@@ -97,8 +99,75 @@ describe("orderDetailsHtml", () => {
   })
 })
 
+function capturerJournal() {
+  const appels: unknown[][] = []
+  const noter = (message: unknown, ...rest: unknown[]) => {
+    appels.push([message, ...rest])
+  }
+  const espions = [
+    vi.spyOn(console, "log").mockImplementation(noter),
+    vi.spyOn(console, "info").mockImplementation(noter),
+    vi.spyOn(console, "warn").mockImplementation(noter),
+    vi.spyOn(console, "error").mockImplementation(noter),
+    vi.spyOn(console, "debug").mockImplementation(noter),
+  ]
+
+  return {
+    appels,
+    texte: () => appels.flat().join(" "),
+    restaurer: () => {
+      for (const espion of espions) espion.mockRestore()
+    },
+  }
+}
+
+describe("sendOtpEmail", () => {
+  const destinataire = "cliente-otp@example.com"
+  const code = "529174"
+
+  it("ne journalise jamais le code de vérification quand le fournisseur est absent", async () => {
+    getResendMock.mockReturnValue(null)
+    const journal = capturerJournal()
+
+    try {
+      await sendOtpEmail(destinataire, code, "email-verification")
+
+      expect(journal.appels).toHaveLength(1)
+      expect(journal.texte()).toContain(destinataire)
+      expect(journal.texte()).toContain("RESEND_API_KEY absent")
+      expect(journal.texte()).not.toContain(code)
+    } finally {
+      journal.restaurer()
+    }
+  })
+
+  it("envoie le code au fournisseur sans le journaliser quand le fournisseur est présent", async () => {
+    getResendMock.mockReturnValue({ emails: { send: sendMock } })
+    sendMock.mockReset()
+    sendMock.mockResolvedValue({ id: "mock-id" })
+    const journal = capturerJournal()
+
+    try {
+      await sendOtpEmail(destinataire, code, "email-verification")
+
+      expect(sendMock).toHaveBeenCalledTimes(1)
+      expect(sendMock.mock.calls[0][0]).toMatchObject({
+        to: destinataire,
+        subject: "Votre code de vérification Eguidar",
+      })
+      expect((sendMock.mock.calls[0][0] as { html: string }).html).toContain(
+        code
+      )
+      expect(journal.appels).toEqual([])
+    } finally {
+      journal.restaurer()
+    }
+  })
+})
+
 describe("sendOrderPlacedEmail / sendOrderStatusEmail", () => {
   beforeEach(() => {
+    getResendMock.mockReturnValue({ emails: { send: sendMock } })
     sendMock.mockReset()
     sendMock.mockResolvedValue({ id: "mock-id" })
   })

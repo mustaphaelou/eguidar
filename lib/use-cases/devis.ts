@@ -1,3 +1,4 @@
+import type { Prisma } from "@/lib/generated/prisma/client"
 import type { DonneesPanier } from "@/lib/panier"
 import {
   projeterDevis,
@@ -41,12 +42,13 @@ export async function lireDevis(
 
 export async function chargerDevis(
   panier: DonneesPanier,
-  faits?: DevisPrecedenceFaitsBruts
+  faits?: DevisPrecedenceFaitsBruts,
+  client?: Prisma.TransactionClient
 ): Promise<DevisChargé> {
   const sousTotal = panier.subtotal
   const [cities, threshold] = await Promise.all([
-    listDeliveryCities(),
-    getFreeShippingThreshold(),
+    listDeliveryCities(client),
+    getFreeShippingThreshold(client),
   ])
   const anyFreeShippingItem = panier.lines.some((line) => line.freeShipping)
   const quotes: Record<string, ShippingQuote> = {}

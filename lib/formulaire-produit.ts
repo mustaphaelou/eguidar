@@ -106,7 +106,8 @@ export function caseACocherDepuisValeur(valeur: string): boolean {
 }
 
 export function soumissionDepuisFormData(
-  formData: FormData
+  formData: FormData,
+  basePubliqueImageProduit: string | null
 ): SoumissionFormulaireProduit {
   const imagesBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.galerie)
   const variantesBrut = formData.get(CHAMPS_FORMULAIRE_PRODUIT.variantes)
@@ -115,7 +116,7 @@ export function soumissionDepuisFormData(
   let images: EntreeImageProduit[]
   let variantes: ProductInput["variants"]
   try {
-    images = galerieImageProduitSchema.parse(
+    images = galerieImageProduitSchema(basePubliqueImageProduit).parse(
       JSON.parse(String(imagesBrut ?? "[]"))
     )
     variantes = JSON.parse(String(variantesBrut ?? "[]"))

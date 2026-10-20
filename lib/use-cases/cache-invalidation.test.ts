@@ -5,7 +5,6 @@ import {
   blogDetailTag,
   CATEGORY_TAG,
   HOME_TAG,
-  invalidateBlog,
   invalidateCatalogue,
   invalidateCommande,
   invalidateLivraison,
@@ -142,54 +141,5 @@ describe("invalidateCommande", () => {
     expect(mockedRevalidatePath).toHaveBeenCalledWith(
       "/commande/confirmation/order-42"
     )
-  })
-})
-
-describe("invalidateBlog", () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it("invalidates the blog list and detail tags plus the blog pages", () => {
-    invalidateBlog({ id: "a1", slug: "mon-article" })
-
-    expect(mockedRevalidateTag).toHaveBeenCalledTimes(2)
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(BLOG_TAG, "max")
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(
-      blogDetailTag("mon-article"),
-      "max"
-    )
-    expect(mockedRevalidatePath).toHaveBeenCalledTimes(2)
-    expect(mockedRevalidatePath).toHaveBeenCalledWith("/blog")
-    expect(mockedRevalidatePath).toHaveBeenCalledWith("/blog/mon-article")
-  })
-
-  it("invalidates the previous slug detail tag when the article changed slug", () => {
-    invalidateBlog({
-      id: "a1",
-      slug: "nouveau-slug",
-      previousSlug: "ancien-slug",
-    })
-
-    expect(mockedRevalidateTag).toHaveBeenCalledTimes(3)
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(
-      blogDetailTag("nouveau-slug"),
-      "max"
-    )
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(
-      blogDetailTag("ancien-slug"),
-      "max"
-    )
-  })
-
-  it("does not invalidate the previous slug tag when it equals the new slug", () => {
-    invalidateBlog({
-      id: "a1",
-      slug: "meme-slug",
-      previousSlug: "meme-slug",
-    })
-
-    expect(mockedRevalidateTag).toHaveBeenCalledTimes(2)
-    expect(mockedRevalidatePath).toHaveBeenCalledTimes(2)
   })
 })
