@@ -2,9 +2,17 @@
 
 import { redirect } from "next/navigation"
 
+import { parseMadToCents } from "@/lib/money"
 import { updateProfile } from "@/lib/use-cases/account"
-import { formAction } from "@/lib/use-cases/mutation-actions"
-import { placeOrder, type CheckoutInput } from "@/lib/use-cases/orders"
+import {
+  formAction,
+  INVALID_FORM_MESSAGE,
+} from "@/lib/use-cases/mutation-actions"
+import {
+  CheckoutValidationError,
+  placeOrder,
+  type CheckoutInput,
+} from "@/lib/use-cases/orders"
 
 export interface CheckoutFormState {
   error?: string
@@ -12,10 +20,20 @@ export interface CheckoutFormState {
 }
 
 function parseCheckoutFormData(formData: FormData): CheckoutInput {
+  const totalAfficheTexte = String(formData.get("totalAffiche") ?? "")
+  // parseMadToCents("") rend 0 : la présence se vérifie sur le texte brut.
+  if (!totalAfficheTexte.trim()) throw new Error(INVALID_FORM_MESSAGE)
+
+  const totalAffiche = parseMadToCents(totalAfficheTexte)
+  if (totalAffiche === null) {
+    throw new CheckoutValidationError(["total affiché illisible"])
+  }
+
   return {
     cityId: String(formData.get("cityId") ?? ""),
     address: String(formData.get("address") ?? ""),
     phone: String(formData.get("phone") ?? ""),
+    totalAffiche,
   }
 }
 

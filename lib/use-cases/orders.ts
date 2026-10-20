@@ -45,6 +45,8 @@ export interface CheckoutInput {
   cityId: string
   address: string
   phone: string
+  /** Total à payer lu par le Client, en centimes — transporté, jamais comparé ici (#658). */
+  totalAffiche: number
 }
 
 export interface OutOfStockItem {
@@ -158,6 +160,10 @@ const checkoutInputSchema = z.object({
   cityId: z.string().min(1, "ville de livraison requise"),
   address: deliveryAddressField,
   phone: deliveryPhoneField,
+  totalAffiche: z
+    .number()
+    .int("total affiché en centimes entiers")
+    .min(0, "total affiché invalide"),
 })
 
 function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
