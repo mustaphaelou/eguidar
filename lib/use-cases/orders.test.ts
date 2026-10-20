@@ -227,12 +227,25 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-function checkoutInput(overrides: Partial<CheckoutInput> = {}): CheckoutInput {
+/**
+ * Le total affiché d'une Commande, calculé des mêmes faits que le serveur :
+ * le Devis du Panier du client, projeté sur la Ville soumise. Repli à 0 quand
+ * la Ville est volontairement invalide — ces refus partent avant toute comparaison.
+ */
+async function checkoutInput(
+  userId: string,
+  overrides: Partial<CheckoutInput> = {}
+): Promise<CheckoutInput> {
+  const villeChoisie = overrides.cityId ?? cityId
+  const chargé = await chargerDevis(await lirePanierClient(userId))
+  const selection = projeterDevis(chargé, villeChoisie).selection
+
   return {
-    cityId,
+    cityId: villeChoisie,
     address: ADDRESS,
     phone: PHONE,
     ...overrides,
+    totalAffiche: selection.cas === "validée" ? selection.devis.total : 0,
   }
 }
 
@@ -241,7 +254,7 @@ describe("order placement", () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 2)
 
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     expect(order.status).toBe("pending")
     expect(order.cityName).toBe(cityName)
@@ -272,7 +285,7 @@ describe("order placement", () => {
       data: { userId: userIdB, variantId: variantP4, quantity: 1 },
     })
 
-    await placeOrder(userIdA, checkoutInput())
+    await placeOrder(userIdA, await checkoutInput(userIdA))
 
     const cartA = await lirePanierClient(userIdA)
     expect(cartA.lines).toHaveLength(0)
@@ -300,7 +313,7 @@ describe("order placement", () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
-    const order = await placeOrder(userIdA, checkoutInput(), {
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
       sendOrderPlacedEmail,
       sendOrderStatusEmail,
       invalidateCommande,
@@ -333,7 +346,7 @@ describe("order placement", () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
-    const order = await placeOrder(userIdA, checkoutInput(), {
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
       invalidateCommande,
     })
 
@@ -348,8 +361,8 @@ describe("order placement", () => {
 
     const order = await verifierFrontiereBestEffort(
       "e-mail de confirmation",
-      (effetQuiEchoue) =>
-        placeOrder(userIdA, checkoutInput(), {
+      async (effetQuiEchoue) =>
+        placeOrder(userIdA, await checkoutInput(userIdA), {
           sendOrderPlacedEmail: effetQuiEchoue,
           invalidateCommande,
         })
@@ -372,8 +385,8 @@ describe("order placement", () => {
 
     const order = await verifierFrontiereBestEffort(
       "invalidation du cache",
-      (effetQuiEchoue) =>
-        placeOrder(userIdA, checkoutInput(), {
+      async (effetQuiEchoue) =>
+        placeOrder(userIdA, await checkoutInput(userIdA), {
           sendOrderPlacedEmail,
           invalidateCommande: effetQuiEchoue,
         })
@@ -386,7 +399,7 @@ describe("order placement", () => {
   it("charges the city fee below the free-shipping threshold", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
     expect(order.shippingFee).toBe(3500)
   })
 
@@ -397,7 +410,7 @@ describe("order placement", () => {
     const chargé = await chargerDevis(cart)
     const selection = selectionValidee(projeterDevis(chargé, cityId).selection)
 
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     expect(order.cityName).toBe(selection.ville.name)
     expect(order.shippingFee).toBe(selection.devis.shippingFee)
@@ -408,7 +421,7 @@ describe("order placement", () => {
   it("offers free shipping above the threshold", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 4)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
     expect(order.total).toBe(400000)
     expect(order.shippingFee).toBe(0)
   })
@@ -416,7 +429,7 @@ describe("order placement", () => {
   it("offers free shipping below the threshold when every item is flagged", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP3, 1)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
     expect(order.shippingFee).toBe(0)
   })
 
@@ -425,7 +438,7 @@ describe("order placement", () => {
     await ajouterArticleAuPanier(variantP3, 1)
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
     expect(order.total).toBe(80000)
     expect(order.shippingFee).toBe(0)
   })
@@ -435,7 +448,7 @@ describe("order placement", () => {
     await ajouterArticleAuPanier(variantP2, 2)
 
     try {
-      await placeOrder(userIdA, checkoutInput())
+      await placeOrder(userIdA, await checkoutInput(userIdA))
       throw new Error("placeOrder should have rejected")
     } catch (error) {
       expect(error).toBeInstanceOf(OutOfStockError)
@@ -472,9 +485,9 @@ describe("order placement", () => {
       data: { stock: { set: 1 } },
     })
 
-    await expect(placeOrder(userIdA, checkoutInput())).rejects.toThrow(
-      OutOfStockError
-    )
+    await expect(
+      placeOrder(userIdA, await checkoutInput(userIdA))
+    ).rejects.toThrow(OutOfStockError)
 
     const stockP1 = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantP1 },
@@ -495,11 +508,11 @@ describe("order placement", () => {
     await ajouterArticleAuPanier(variantP2, 1)
 
     const [first, second] = await Promise.allSettled([
-      placeOrder(userIdB, checkoutInput(), {
+      placeOrder(userIdB, await checkoutInput(userIdB), {
         sendOrderPlacedEmail,
         invalidateCommande,
       }),
-      placeOrder(userIdC, checkoutInput(), {
+      placeOrder(userIdC, await checkoutInput(userIdC), {
         sendOrderPlacedEmail,
         invalidateCommande,
       }),
@@ -526,16 +539,19 @@ describe("order placement", () => {
   })
 
   it("rejects an empty cart", async () => {
-    await expect(placeOrder(userIdA, checkoutInput())).rejects.toThrow(
-      EmptyCartError
-    )
+    await expect(
+      placeOrder(userIdA, await checkoutInput(userIdA))
+    ).rejects.toThrow(EmptyCartError)
   })
 
   it("rejects an unknown delivery city", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     await expect(
-      placeOrder(userIdA, checkoutInput({ cityId: "ville-inconnue" }))
+      placeOrder(
+        userIdA,
+        await checkoutInput(userIdA, { cityId: "ville-inconnue" })
+      )
     ).rejects.toThrow(DeliveryCityNotFoundError)
   })
 
@@ -554,14 +570,22 @@ describe("order placement", () => {
     }
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    await verifierRefusValidation(CheckoutValidationError, () =>
-      placeOrder(userIdA, checkoutInput({ address: "X" }), effects)
+    await verifierRefusValidation(CheckoutValidationError, async () =>
+      placeOrder(
+        userIdA,
+        await checkoutInput(userIdA, { address: "X" }),
+        effects
+      )
     )
-    await verifierRefusValidation(CheckoutValidationError, () =>
-      placeOrder(userIdA, checkoutInput({ phone: "123" }), effects)
+    await verifierRefusValidation(CheckoutValidationError, async () =>
+      placeOrder(
+        userIdA,
+        await checkoutInput(userIdA, { phone: "123" }),
+        effects
+      )
     )
-    await verifierRefusValidation(CheckoutValidationError, () =>
-      placeOrder(userIdA, checkoutInput({ cityId: "" }), effects)
+    await verifierRefusValidation(CheckoutValidationError, async () =>
+      placeOrder(userIdA, await checkoutInput(userIdA, { cityId: "" }), effects)
     )
 
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
@@ -574,7 +598,7 @@ describe("order reads", () => {
   it("returns an order with its items to its owner", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     const fetched = await getOrder(userIdA, order.id)
     expect(fetched).not.toBeNull()
@@ -586,7 +610,7 @@ describe("order reads", () => {
   it("hides an order from another user", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     await expect(getOrder(userIdB, order.id)).resolves.toBeNull()
   })
@@ -594,13 +618,13 @@ describe("order reads", () => {
   it("lists only the user's orders, newest first", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const first = await placeOrder(userIdA, checkoutInput())
+    const first = await placeOrder(userIdA, await checkoutInput(userIdA))
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const second = await placeOrder(userIdA, checkoutInput())
+    const second = await placeOrder(userIdA, await checkoutInput(userIdA))
     commeClient(userIdB)
     await ajouterArticleAuPanier(variantP3, 1)
-    await placeOrder(userIdB, checkoutInput())
+    await placeOrder(userIdB, await checkoutInput(userIdB))
 
     const orders = await listUserOrders(userIdA)
 
@@ -619,7 +643,7 @@ describe("order status transitions", () => {
   async function placeSmallOrder(userId: string): Promise<string> {
     commeClient(userId)
     await ajouterArticleAuPanier(variantP4, 2)
-    const order = await placeOrder(userId, checkoutInput())
+    const order = await placeOrder(userId, await checkoutInput(userId))
     return order.id
   }
 
@@ -638,7 +662,7 @@ describe("order status transitions", () => {
     })
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     const effects: OrderEffects = {
       sendOrderPlacedEmail,
@@ -997,7 +1021,7 @@ describe("admin lifecycle", () => {
   it("walks an order to delivered and reflects it in the admin reads", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     await updateOrderStatus(order.id, "confirmed")
     await updateOrderStatus(order.id, "shipped")
@@ -1017,7 +1041,7 @@ describe("admin lifecycle", () => {
     )
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     await updateOrderStatus(order.id, "confirmed", { sendOrderStatusEmail })
     await updateOrderStatus(order.id, "shipped", { sendOrderStatusEmail })
@@ -1039,7 +1063,7 @@ describe("admin lifecycle", () => {
     const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     await updateOrderStatus(order.id, "confirmed", { invalidateCommande })
 
@@ -1050,7 +1074,7 @@ describe("admin lifecycle", () => {
   it("cancels a pending order, restocks the variants and reflects it in admin reads", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
-    const order = await placeOrder(userIdA, checkoutInput())
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
     expect(
       (
         await prisma.productVariant.findUniqueOrThrow({

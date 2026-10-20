@@ -42,6 +42,7 @@ const INPUT = {
   cityId: "42",
   address: "12 rue des Orangers",
   phone: "+212600000000",
+  totalAffiche: 102500,
 }
 
 function formData(): FormData {
@@ -49,6 +50,7 @@ function formData(): FormData {
   fd.append("cityId", INPUT.cityId)
   fd.append("address", INPUT.address)
   fd.append("phone", INPUT.phone)
+  fd.append("totalAffiche", "1025.00")
   return fd
 }
 
@@ -106,6 +108,52 @@ describe("placeOrderAction", () => {
       })
     }
   )
+
+  it.each([
+    ["absent", (fd: FormData) => fd.delete("totalAffiche")],
+    ["vide", (fd: FormData) => fd.set("totalAffiche", "")],
+  ])(
+    "refuse un total affiché %s par « Formulaire invalide », avant tout parsing",
+    async (_cas, vider) => {
+      sessionCouranteMock.mockResolvedValue(SESSION_USER)
+      const fd = formData()
+      vider(fd)
+
+      await expect(placeOrderAction({}, fd)).resolves.toEqual({
+        error: "Formulaire invalide",
+      })
+      expect(placeOrderMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it("refuse un total affiché mal formé par la validation du checkout, jamais comme un formulaire invalide", async () => {
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
+    const fd = formData()
+    fd.set("totalAffiche", "douze euros")
+
+    const state = await placeOrderAction({}, fd)
+
+    expect(state.error).toMatch(/^Données invalides : /)
+    expect(state.error).not.toBe("Formulaire invalide")
+    expect(placeOrderMock).not.toHaveBeenCalled()
+  })
+
+  it("transporte le total affiché en MAD décimal jusqu'à l'entier de centimes de la commande", async () => {
+    sessionCouranteMock.mockResolvedValue(SESSION_USER)
+    placeOrderMock.mockResolvedValue({ id: "cmd-transport" })
+    updateProfileMock.mockResolvedValue({})
+    const fd = formData()
+    fd.set("totalAffiche", "1040.55")
+
+    await expect(placeOrderAction({}, fd)).rejects.toMatchObject({
+      url: "/commande/confirmation/cmd-transport",
+      name: "NEXT_REDIRECT",
+    })
+    expect(placeOrderMock).toHaveBeenCalledWith(SESSION_USER.id, {
+      ...INPUT,
+      totalAffiche: 104055,
+    })
+  })
 
   it("places the order, prefills the profile, and sends the Compte client to the confirmation destination", async () => {
     sessionCouranteMock.mockResolvedValue(SESSION_USER)

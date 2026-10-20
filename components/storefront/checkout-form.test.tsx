@@ -32,7 +32,10 @@ import {
   type DevisChargé,
   type SelectionDevis,
 } from "@/lib/use-cases/devis-selection"
-import type { ShippingQuote } from "@/lib/use-cases/livraison-prix"
+import type {
+  DeliveryCityOption,
+  ShippingQuote,
+} from "@/lib/use-cases/livraison-prix"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -81,16 +84,30 @@ const QUOTE_CASA: ShippingQuote = {
   shippingFee: 2500,
   total: 102500,
 }
+const RABAT_ID = "cmsp6pvbu000052p6o2m9o8zx"
+const RABAT = {
+  id: RABAT_ID,
+  slug: "rabat",
+  name: "Rabat",
+  fee: 4000,
+}
+const QUOTE_RABAT: ShippingQuote = {
+  subtotal: 100000,
+  shippingFee: 4000,
+  total: 104000,
+}
 
 function devisPourTest({
   selection,
   quotes,
+  cities = [CASA],
 }: {
   selection: SelectionDevis
   quotes: Record<string, ShippingQuote>
+  cities?: DeliveryCityOption[]
 }): DevisChargé {
   return {
-    cities: [CASA],
+    cities,
     threshold: 100000,
     quotes,
     sousTotal: 100000,
@@ -100,6 +117,11 @@ function devisPourTest({
 
 function selectedCityId() {
   return container.querySelector<HTMLInputElement>('input[name="cityId"]')
+    ?.value
+}
+
+function totalAfficheValue() {
+  return container.querySelector<HTMLInputElement>('input[name="totalAffiche"]')
     ?.value
 }
 
@@ -134,14 +156,16 @@ function checkoutHarness() {
 function formHarness({
   quotes,
   selection,
+  cities,
 }: {
   quotes: Record<string, ShippingQuote>
   selection: SelectionDevis
+  cities?: DeliveryCityOption[]
 }) {
   return (
     <AuthDialogsProvider>
       <CheckoutForm
-        devis={devisPourTest({ selection, quotes })}
+        devis={devisPourTest({ selection, quotes, cities })}
         initialAddress=""
         initialPhone=""
       />
@@ -241,5 +265,27 @@ describe("CheckoutForm", () => {
     expect(placeOrderMock).toHaveBeenCalledTimes(1)
     const formData = placeOrderMock.mock.calls[0][1] as FormData
     expect(formData.get("cityId")).toBe(CASA_ID)
+  })
+
+  it("porte le Total à payer de la Sélection courante, et le déplace avec la ville choisie", async () => {
+    placeOrderMock.mockResolvedValue({})
+
+    render(
+      formHarness({
+        cities: [CASA, RABAT],
+        quotes: { [CASA_ID]: QUOTE_CASA, [RABAT_ID]: QUOTE_RABAT },
+        selection: { cas: "aucune" },
+      })
+    )
+
+    expect(totalAfficheValue()).toBe("")
+
+    await choisirDansLeSelect(0)
+    expect(selectedCityId()).toBe(CASA_ID)
+    expect(totalAfficheValue()).toBe("1025.00")
+
+    await choisirDansLeSelect(1)
+    expect(selectedCityId()).toBe(RABAT_ID)
+    expect(totalAfficheValue()).toBe("1040.00")
   })
 })

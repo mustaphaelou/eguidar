@@ -29,9 +29,11 @@ import {
   ajouterArticleAuPanier,
   compterArticlesDuPanier,
   lirePanier,
+  lirePanierClient,
   modifierQuantiteArticlePanier,
   retirerArticleDuPanier,
 } from "./panier"
+import { chargerDevis, projeterDevis } from "@/lib/use-cases/devis"
 import { placeOrder } from "@/lib/use-cases/orders"
 
 const runId = randomUUID().slice(0, 8)
@@ -65,6 +67,15 @@ async function viderPanierCourant(): Promise<void> {
   for (const ligne of panier.lines) {
     await retirerArticleDuPanier(ligne.variantId)
   }
+}
+
+/** Le total affiché vient des mêmes faits que ceux que le serveur chiffre. */
+async function totalAfficheDuClient(clientId: string): Promise<number> {
+  const projet = projeterDevis(
+    await chargerDevis(await lirePanierClient(clientId)),
+    cityId
+  )
+  return projet.selection.cas === "validée" ? projet.selection.devis.total : 0
 }
 
 beforeAll(async () => {
@@ -628,6 +639,7 @@ describe("Commande — l'intake vide les bonnes lignes", () => {
       cityId,
       address: ADRESSE,
       phone: TELEPHONE,
+      totalAffiche: await totalAfficheDuClient(userIdA),
     })
 
     commeClient(userIdA)
@@ -693,6 +705,7 @@ describe("Commande — un Produit sans Structure se vend normalement", () => {
       cityId,
       address: ADRESSE,
       phone: TELEPHONE,
+      totalAffiche: await totalAfficheDuClient(userIdA),
     })
 
     const commande = await prisma.order.findFirstOrThrow({
