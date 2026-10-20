@@ -243,3 +243,62 @@ amendement qu'il faut lire à côté.
   transactionnelle, la compensation inconditionnelle et la reprise par identifiant de tentative. La
   couture nomme la dépendance, elle ne redistribue pas l'ordre.
 - **Aucun autre ADR** : cet amendement porte sur ADR-0034 seul ; il n'en amende aucun autre.
+
+## Amendement — Un seul squelette privé porte l'ordre de l'enregistrement (#721, 2026-10-20)
+
+Aucune phrase de la décision n'est réécrite. La puce « Une couture séquentielle, en ordre direct » dit que
+« Le **Catalogue** est cet appelant : `createProduct` et `updateProduct` possèdent l'ordre ». C'est
+toujours vrai du module, mais l'ordre n'est plus écrit deux fois : une seule fonction privée,
+`enregistrerProduit`, le porte derrière les deux entrées. Les numéros de ligne cités par la décision et
+par l'amendement #716 sont ceux d'avant ce ticket ; c'est le présent amendement qu'il faut lire à côté.
+
+### Ce que cet amendement décide
+
+- **Un seul squelette privé.** `enregistrerProduit(mode, input, overrides?)`
+  (`lib/use-cases/admin-catalog.ts`) reçoit un mode discriminé — `creation`, ou `miseAJour` avec
+  l'identifiant du **Produit** —, l'entrée et la surcharge d'effets facultative. Il possède le parse, la
+  tête propre au mode, la reprise par tentative, l'échelle de validation, la préparation de la
+  promotion, la transaction base de données, la compensation inconditionnelle et les effets après
+  engagement. `createProduct(input, overrides?)` et `updateProduct(id, input, overrides?)` gardent
+  leurs noms, leurs paramètres, leur surcharge et leur valeur de retour ; ce sont des adaptateurs
+  minces. Aucun export nouveau, aucun module nouveau.
+
+- **La tête de mise à jour précède le parse.** Une mise à jour lit d'abord le **Produit** existant et
+  refuse `ProductNotFoundError` s'il est absent ; les deux modes parsent ensuite, fusionnent les effets
+  (`defaultCatalogEffects` reçoit le slug en création et l'identifiant en mise à jour, #722), reprennent
+  par identifiant de tentative — une reprise qui nomme un autre **Produit** reste refusée en
+  `DraftConflictError` —, puis suivent la même échelle.
+
+- **Une seule échelle de validation.** Pour les deux modes : prix finaux des Variantes, SKU en double
+  dans l'entrée, appartenance des Images produit, unicité du slug, unicité des SKU ; la mise à jour
+  vérifie ensuite l'appartenance des Variantes. La préséance est donc normale, et c'est le seul
+  changement observable : une mise à jour qui porte à la fois une Image produit d'un autre **Produit**
+  et un prix final négatif reçoit désormais le refus de prix, comme la création. Un test le tient dans
+  `lib/use-cases/admin-catalog.test.ts`.
+
+- **Deux pas d'écriture, et aucun ne connaît l'ordre.** `ecrireCreation` insère la rangée avec ses
+  Variantes imbriquées. `ecrireMiseAJour` lit les identifiants de Variantes du **Produit**, met à jour
+  la rangée, met à jour, crée ou supprime ses Variantes, et rend la rangée relue avec les Images
+  retirées et le slug précédent — les faits dont la phase après engagement a besoin. La confirmation
+  des Brouillons par le port de transaction reste dans le squelette, entre l'écriture et la fermeture
+  de la transaction ; aucune des deux écritures ne connaît l'ordre des phases.
+
+- **L'ordre après engagement ne change pas** : sources, Images produit retirées (mise à jour
+  seulement), réindexation, invalidation du cache, chacune en best-effort. La révalidation ne porte le
+  slug précédent que si le slug a changé.
+
+### Ce que cet amendement ne change pas
+
+- **L'interface publique du Catalogue** : noms, signatures, surcharge d'effets facultative et **Produit**
+  rendu avec ses `variants` et sa `category`.
+- **La couture d'effets** (#716, ADR-0014) : ses cinq membres, leurs défauts et la fusion superficielle
+  restent tels quels ; le paramètre de la fabrique reste le libellé de journal, pas un identifiant de
+  **Produit**.
+- **L'interface du cycle de vie et le protocole de promotion** : préparer avant la transaction,
+  confirmer dans la transaction par le port, compenser inconditionnellement, supprimer les sources
+  après l'engagement, épargner une promotion déjà liée. Aucun geste n'y est ajouté, retiré ni renommé ;
+  aucune couture nouvelle n'apparaît.
+- **Le vocabulaire de refus** : les classes et leurs messages restent ceux d'ADR-0004 et de la décision ;
+  la préséance normalisée choisit lequel parle, elle n'en ajoute aucun.
+- **Aucun schéma, aucune dépendance, aucune surface** ; pas de nouvel ADR et pas de terme de glossaire,
+  le squelette restant privé.

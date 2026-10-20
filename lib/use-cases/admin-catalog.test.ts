@@ -551,6 +551,65 @@ describe("admin catalog mutations", () => {
     expect(ecrits).toBe(0)
   })
 
+  it("normalise la préséance des refus : le prix final négatif passe avant l'Image produit étrangère dans les deux modes", async () => {
+    const dunAutreProduit =
+      "https://cdn.example.com/preseance-image-etrangere.jpg"
+    await createProduct(
+      makeInput({
+        slug: slug("preseance-proprietaire"),
+        images: [dunAutreProduit],
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-preseance-proprietaire`,
+            priceDelta: 0,
+            stock: 5,
+          },
+        ],
+      })
+    )
+    const cible = await createProduct(
+      makeInput({ slug: slug("preseance-cible") })
+    )
+    const entree = (cibleSlug: string) =>
+      makeInput({
+        slug: cibleSlug,
+        images: [dunAutreProduit],
+        variants: [
+          {
+            name: "A",
+            sku: `SKU-${runId}-preseance`,
+            priceDelta: -200000,
+            stock: 1,
+          },
+        ],
+      })
+
+    const refusCreation = await verifierRefusValidation(
+      CatalogValidationError,
+      () => createProduct(entree(slug("preseance-creation")))
+    )
+    expect(refusCreation.message).toMatch(/prix final négatif/)
+    expect(refusCreation.message).not.toMatch(
+      /une entrée de Galerie ne peut pas nommer/
+    )
+
+    const refusMiseAJour = await verifierRefusValidation(
+      CatalogValidationError,
+      () => updateProduct(cible.id, entree(slug("preseance-cible")))
+    )
+    expect(refusMiseAJour.message).toMatch(/prix final négatif/)
+    expect(refusMiseAJour.message).not.toMatch(
+      /une entrée de Galerie ne peut pas nommer/
+    )
+
+    const inchange = await prisma.product.findUniqueOrThrow({
+      where: { id: cible.id },
+      select: { images: true },
+    })
+    expect(inchange.images).toEqual([])
+  })
+
   it("accepte une création et une mise à jour dont la galerie porte une URL orpheline", async () => {
     const orpheline = "https://cdn.example.com/orpheline.jpg"
     const ajoutee = "https://cdn.example.com/ajoutee.jpg"

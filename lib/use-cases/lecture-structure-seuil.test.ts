@@ -36,7 +36,7 @@ const SITES_NOMMES: ExceptionLecture[] = [
     chemin: "lib/use-cases/admin-catalog.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
-    declaration: "createProduct",
+    declaration: "ecrireCreation",
     herite: false,
     raison:
       "le nom de la catégorie dans le Document d'index du produit que la transaction vient d'écrire : le pointeur d'une seule rangée, pas sa place dans l'arbre",
@@ -54,7 +54,7 @@ const SITES_NOMMES: ExceptionLecture[] = [
     chemin: "lib/use-cases/admin-catalog.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
-    declaration: "updateProduct",
+    declaration: "ecrireMiseAJour",
     herite: false,
     raison:
       "le nom de la catégorie dans le Document d'index du produit relu après une suppression : le pointeur d'une seule rangée, pas sa place dans l'arbre",
