@@ -282,28 +282,29 @@ export async function placeOrder(
   })
   if (!user) throw new UserNotFoundError()
 
-  const cart = await lirePanierClient(userId)
-  if (cart.lines.length === 0) throw new EmptyCartError()
-
-  const chargé = await chargerDevis(cart)
-  const projet = projeterDevis(chargé, data.cityId)
-  const selection = selectionValidee(projet.selection)
-  const city = selection.ville
-  const montants = montantsDeLaCommande(cart.subtotal, selection)
-  // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
-  if (montants.totalPayable !== data.totalAffiche) throw new DevisPériméError()
-
-  const outOfStock = cart.lines
-    .filter((line) => line.quantity > line.stock)
-    .map((line) => ({
-      productName: line.productName,
-      variantName: line.variantName,
-      requested: line.quantity,
-      available: line.stock,
-    }))
-  if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
-
   const order = await prisma.$transaction(async (tx) => {
+    const cart = await lirePanierClient(userId, tx)
+    if (cart.lines.length === 0) throw new EmptyCartError()
+
+    const chargé = await chargerDevis(cart, undefined, tx)
+    const projet = projeterDevis(chargé, data.cityId)
+    const selection = selectionValidee(projet.selection)
+    const city = selection.ville
+    const montants = montantsDeLaCommande(cart.subtotal, selection)
+    // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
+    if (montants.totalPayable !== data.totalAffiche)
+      throw new DevisPériméError()
+
+    const outOfStock = cart.lines
+      .filter((line) => line.quantity > line.stock)
+      .map((line) => ({
+        productName: line.productName,
+        variantName: line.variantName,
+        requested: line.quantity,
+        available: line.stock,
+      }))
+    if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
+
     await reserverStock(tx, cart.lines)
 
     const created = await tx.order.create({
