@@ -18,6 +18,7 @@ import {
   projeterDevis,
   selectionValidee,
 } from "@/lib/use-cases/devis"
+import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
 import {
   avecSurcharges,
   messageDeValidation,
@@ -252,13 +253,6 @@ async function restockerArticles(
   }
 }
 
-function totalAPayerDeLaCommande(montants: {
-  total: number
-  shippingFee: number
-}): number {
-  return montants.total + montants.shippingFee
-}
-
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
@@ -280,7 +274,7 @@ export async function placeOrder(
   const projet = projeterDevis(chargé, data.cityId)
   const selection = selectionValidee(projet.selection)
   const city = selection.ville
-  const shippingFee = selection.devis.shippingFee
+  const montants = montantsDeLaCommande(cart.subtotal, selection)
 
   const outOfStock = cart.lines
     .filter((line) => line.quantity > line.stock)
@@ -301,12 +295,7 @@ export async function placeOrder(
         cityName: city.name,
         address: data.address,
         phone: data.phone,
-        total: cart.subtotal,
-        shippingFee,
-        totalPayable: totalAPayerDeLaCommande({
-          total: cart.subtotal,
-          shippingFee,
-        }),
+        ...montants,
         items: {
           create: cart.lines.map((line) => ({
             variantId: line.variantId,
