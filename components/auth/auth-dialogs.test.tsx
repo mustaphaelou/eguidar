@@ -745,6 +745,23 @@ describe("AuthDialogsProvider controller interface", () => {
     )
   })
 
+  it("keeps a legitimate Destination post-connexion carrying an encoded space", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/panier?next=%2Frecherche%3Fq%3Ddeux%2520mots"
+    )
+    render(() => controllerHarness())
+
+    controllerClick("open-login")
+    await flush()
+
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
+      "/panier?next=%2Frecherche%3Fq%3Ddeux%2520mots&open=login",
+      { scroll: false }
+    )
+  })
+
   it("preserves the URL fragment when opening the Connexion modal", async () => {
     window.history.replaceState(null, "", "/panier?q=chaussures#avis")
     render(() => controllerHarness())
