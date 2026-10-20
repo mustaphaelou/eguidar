@@ -209,6 +209,21 @@ describe("useSignInFlow", () => {
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
+  it("stays on the page when ?next= carries a backslash", async () => {
+    window.history.replaceState(null, "", "/?next=/%5Cevil.example")
+    mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
+    const onSuccess = vi.fn()
+
+    render(<Harness onSuccess={onSuccess} />)
+    setInputValue(emailInput(), "test@example.com")
+    setInputValue(passwordInput(), "secret123")
+
+    await clickAndFlush(signInButton())
+
+    expect(onSuccess).toHaveBeenCalled()
+    expect(window.location.pathname).toBe("/")
+  })
+
   it("calls onSuccess and stays on the page when there is no ?next=", async () => {
     window.history.replaceState(null, "", "/")
     mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
