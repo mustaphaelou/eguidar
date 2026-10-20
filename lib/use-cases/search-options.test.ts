@@ -7,13 +7,10 @@ import {
   lectureDesStructures,
   type FaitStructure,
 } from "@/lib/use-cases/lecture-structure"
-import {
-  searchProducts,
-  type OptionDeFiltre,
-  type OptionsDeFiltre,
-} from "@/lib/use-cases/search"
+import { searchProducts, type OptionsDeFiltre } from "@/lib/use-cases/search"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
 import { creerMoteurRecette } from "@/test/moteur-recherche-recette"
+import { tranchesAttendues } from "@/test/recherche-fixtures"
 
 const BANDES_ATTENDUES = PRICE_BUCKETS.map(({ id }) => id)
 const LIBELLES_ATTENDUS = PRICE_BUCKETS.map(({ label }) => label)
@@ -94,18 +91,6 @@ async function facettesPour(
     structure
   )
   return resultat.facets
-}
-
-function tranchesAttendues(
-  comptes: Record<string, number> = {},
-  retenue?: string
-): OptionDeFiltre[] {
-  return PRICE_BUCKETS.map(({ id, label }) => ({
-    value: id,
-    label,
-    count: comptes[id] ?? 0,
-    selected: id === retenue,
-  }))
 }
 
 describe("l'assemblage des Options de filtre, à la couture de la Recherche", () => {

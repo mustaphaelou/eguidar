@@ -9,7 +9,6 @@ import {
 } from "@/lib/index-projection"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import type { OptionDeFiltre } from "@/lib/use-cases/search"
-import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
 import {
   retirerFacette,
@@ -17,6 +16,10 @@ import {
   searchSuggestions,
 } from "@/lib/use-cases/search"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
+import {
+  faitsDesCategoriesRecherche,
+  tranchesAttendues,
+} from "@/test/recherche-fixtures"
 import {
   categoriesAttendues,
   exigerCinqCategoriesDistinctes,
@@ -121,24 +124,10 @@ const SMARTPHONES_ATTENDU = { value: smartphonesSlug, label: "Smartphones" }
 const suggestionCategories = jeuSuggestionCategories(randomUUID().slice(0, 8))
 const moteurSuggestions = creerMoteurEnMemoire(suggestionCategories.documents)
 
-const FAITS_RECHERCHE = [
-  {
-    id: "smartphones",
-    name: "Smartphones",
-    slug: smartphonesSlug,
-    image: null,
-    parentId: null,
-    produitsDirects: 3,
-  },
-  {
-    id: "audio",
-    name: "Audio & Hi-Fi",
-    slug: audioSlug,
-    image: null,
-    parentId: null,
-    produitsDirects: 2,
-  },
-]
+const FAITS_RECHERCHE = faitsDesCategoriesRecherche({
+  smartphonesSlug,
+  audioSlug,
+})
 
 const structure = lectureDesStructures([
   ...FAITS_RECHERCHE,
@@ -164,11 +153,6 @@ const CINQ_MARQUES = [
   { value: "Sony", label: "Sony", count: 1 },
 ]
 
-const CINQ_TRANCHES = PRICE_BUCKETS.map(({ id, label }) => ({
-  value: id,
-  label,
-}))
-
 const UNE_PAR_BANDE: Record<string, number> = {
   "0-1000": 1,
   "1000-2500": 1,
@@ -181,17 +165,6 @@ function marquesAttendues(retenues: string[] = []): OptionDeFiltre[] {
   return CINQ_MARQUES.map((marque) => ({
     ...marque,
     selected: retenues.includes(marque.value),
-  }))
-}
-
-function tranchesAttendues(
-  comptes: Record<string, number> = {},
-  retenue?: string
-): OptionDeFiltre[] {
-  return CINQ_TRANCHES.map((tranche) => ({
-    ...tranche,
-    count: comptes[tranche.value] ?? 0,
-    selected: tranche.value === retenue,
   }))
 }
 
@@ -578,7 +551,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
 })
 
 describe("la projection des Filtres actifs", () => {
-  it("ne projette aucune puce quand aucun Filtre n'est en force", async () => {
+  it("ne projette aucune pastille quand aucun Filtre n'est en vigueur", async () => {
     const result = await searchProducts(token, {}, {}, moteur, structure)
 
     expect(result.filtresActifs).toEqual([])
@@ -691,7 +664,7 @@ describe("la projection des Filtres actifs", () => {
     ])
   })
 
-  it("garde une puce pour un Filtre retenu que les résultats ramènent à zéro", async () => {
+  it("garde une pastille pour un Filtre retenu que les résultats ramènent à zéro", async () => {
     const result = await searchProducts(
       token,
       { brand: ["Apple"], categorySlug: audioSlug },
@@ -717,7 +690,7 @@ describe("la projection des Filtres actifs", () => {
     ])
   })
 
-  it("ne projette aucune puce pour une Tranche hors de l'univers connu", async () => {
+  it("ne projette aucune pastille pour une Tranche hors de l'univers connu", async () => {
     const result = await searchProducts(
       token,
       { priceBucketId: "bande-obsolete" },
@@ -816,6 +789,39 @@ describe("searchSuggestions sur le moteur en mémoire", () => {
     expect(suggestions.categories.map((c) => c.slug).sort()).toEqual(
       [audioSlug, smartphonesSlug].sort()
     )
+  })
+
+  it("nomme la valeur réservée dans les catégories proposées", async () => {
+    const moteurReserve = creerMoteurEnMemoire([
+      makeDoc("suggestion-reservee", {
+        name: name("Suggestion sans Structure"),
+        categorySlug: SLUG_SANS_STRUCTURE,
+        categoryName: LIBELLE_SANS_STRUCTURE,
+      }),
+    ])
+
+    const suggestions = await searchSuggestions(token, moteurReserve, structure)
+
+    expect(suggestions.categories).toEqual([
+      { slug: SLUG_SANS_STRUCTURE, name: LIBELLE_SANS_STRUCTURE },
+    ])
+  })
+
+  it("garde brut le slug inconnu dans les catégories proposées", async () => {
+    const slugInconnu = `${token}-suggestion-inconnue`
+    const moteurInconnu = creerMoteurEnMemoire([
+      makeDoc("suggestion-inconnue", {
+        name: name("Suggestion inconnue"),
+        categorySlug: slugInconnu,
+        categoryName: slugInconnu,
+      }),
+    ])
+
+    const suggestions = await searchSuggestions(token, moteurInconnu, structure)
+
+    expect(suggestions.categories).toEqual([
+      { slug: slugInconnu, name: slugInconnu },
+    ])
   })
 })
 

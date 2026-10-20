@@ -254,11 +254,11 @@ résolvent désormais par `structure.structureParSlug(slug)?.name`, avec la `Lec
 que `searchProducts` et `searchSuggestions` reçoivent en dépendance — une seule instance pour tous les
 slugs d'une Recherche, et `lireStructure()` seulement quand l'appelant n'en fournit pas.
 
-Ce que la puce voulait garantir reste vrai, par une autre voie. La valeur réservée est toujours
-résolue en amont, mais sans consulter la Structure : `_sans-structure` rend `LIBELLE_SANS_STRUCTURE`
-quel que soit ce que la Structure prétend connaître. Un slug que la Structure ne nomme pas garde sa
-valeur brute, et le repli de la nomenclature n'est pas rouvert ici. Sur le chemin d'un moteur
-indisponible, la Structure n'est pas lue du tout et la catégorie active garde sa valeur brute. Le
+Ce que la puce voulait garantir reste vrai, par une autre voie. **Quand la Recherche résout les
+noms**, `_sans-structure` rend `LIBELLE_SANS_STRUCTURE` sans consulter la Structure, quel que soit ce
+que celle-ci prétend connaître. Un slug que la Structure ne nomme pas garde sa valeur brute, et le
+repli de la nomenclature n'est pas rouvert ici. **Sur le chemin d'un moteur indisponible**, aucune
+Structure n'est lue et la catégorie active — `_sans-structure` comprise — garde sa valeur brute. Le
 libellé et la valeur restent écrits une seule fois, dans `lib/index-projection.ts` — ce que la puce
 n'avait pas à changer.
 
@@ -274,5 +274,7 @@ est supprimé : `assemblerCategories`, `assemblerMarques`, `assemblerTranches` e
 désormais des fonctions privées de `lib/use-cases/search.ts`, que plus personne n'importe. Le lien est
 donc mort, et la phrase ne désigne plus qu'une fonction interne. Les types `OptionDeFiltre`,
 `OptionsDeFiltre` et `RepartitionsDeFacettes` sont exportés par la Recherche, et les surfaces client ne
-les empruntent qu'en types. Ce que la puce garantit reste vrai par la même voie : l'assemblage applique
-toujours la valeur réservée avant la Structure, et un slug inconnu garde sa valeur brute.
+les empruntent qu'en types. Ce que la puce garantit reste vrai par la même voie : l'assembleur ne fait
+que `noms.get(value) ?? value` et retombe donc sur la valeur brute quand aucun libellé n'est résolu ;
+la valeur réservée, elle, est résolue en amont de l'assemblage, dans `resoudreLesNomsDeCategories`,
+exactement comme le dit l'amendement #693.

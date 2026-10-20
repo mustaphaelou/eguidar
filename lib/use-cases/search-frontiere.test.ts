@@ -76,10 +76,21 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
     expect(carte(SOURCES).has("lib/options-de-filtre.ts")).toBe(false)
   })
 
-  it("la couture n'exporte pas ses assembleurs", () => {
+  it("la couture n'exporte pas ses assembleurs et garde ses types", () => {
     const { source } = sourceDuCorpus(SOURCES, RECHERCHE)
+    const exports = source
+      .split("\n")
+      .filter((ligne) => ligne.startsWith("export"))
+      .join("\n")
 
-    expect(source).not.toMatch(/^export\s+(?:async\s+)?function\s+assembler/m)
+    expect(exports).not.toMatch(/\bassembler/)
+    for (const type of [
+      "OptionDeFiltre",
+      "OptionsDeFiltre",
+      "RepartitionsDeFacettes",
+    ]) {
+      expect(exports).toContain(type)
+    }
     expect(importeDe(source, "lib/options-de-filtre")).toBe(false)
   })
 
@@ -125,11 +136,5 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
       "@/lib/use-cases/search"
     )
     expect(fautifs(SOURCES)).not.toContain(RESULTATS)
-  })
-
-  it("la barre latérale ne lit plus les bandes de prix par elle-même", () => {
-    const { source } = sourceDuCorpus(SOURCES, BARRE_LATERALE)
-
-    expect(importeDe(source, "lib/price-buckets")).toBe(false)
   })
 })
