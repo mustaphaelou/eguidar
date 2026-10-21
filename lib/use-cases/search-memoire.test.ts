@@ -2,19 +2,15 @@ import { randomUUID } from "node:crypto"
 
 import { describe, expect, it } from "vitest"
 
+import { retirerFacette, type OptionDeFiltre } from "@/lib/filtre-de-recherche"
 import {
   LIBELLE_SANS_STRUCTURE,
   SLUG_SANS_STRUCTURE,
   type IndexableProduct,
 } from "@/lib/index-projection"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
-import type { OptionDeFiltre } from "@/lib/use-cases/search"
 import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
-import {
-  retirerFacette,
-  searchProducts,
-  searchSuggestions,
-} from "@/lib/use-cases/search"
+import { searchProducts, searchSuggestions } from "@/lib/use-cases/search"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
 import {
   faitsDesCategoriesRecherche,
@@ -173,12 +169,12 @@ describe("searchProducts sur le moteur en mémoire", () => {
     const result = await searchProducts(token, {}, {}, moteur, structure)
 
     expect(result.totalHits).toBe(5)
-    expect(result.facets.brands).toEqual(marquesAttendues())
-    expect(result.facets.categories).toEqual([
+    expect(result.options.marque).toEqual(marquesAttendues())
+    expect(result.options.categorie).toEqual([
       { ...AUDIO_ATTENDU, count: 2, selected: false },
       { ...SMARTPHONES_ATTENDU, count: 3, selected: false },
     ])
-    expect(result.facets.priceBuckets).toEqual(tranchesAttendues(UNE_PAR_BANDE))
+    expect(result.options.prix).toEqual(tranchesAttendues(UNE_PAR_BANDE))
   })
 
   it("filtre par marque et garde chaque marque comptable", async () => {
@@ -194,13 +190,11 @@ describe("searchProducts sur le moteur en mémoire", () => {
       name("Casque Sony WH-1000XM5"),
     ])
     expect(result.totalHits).toBe(1)
-    expect(result.facets.brands).toEqual(marquesAttendues(["Sony"]))
-    expect(result.facets.categories).toEqual([
+    expect(result.options.marque).toEqual(marquesAttendues(["Sony"]))
+    expect(result.options.categorie).toEqual([
       { ...AUDIO_ATTENDU, count: 1, selected: false },
     ])
-    expect(result.facets.priceBuckets).toEqual(
-      tranchesAttendues({ "2500-5000": 1 })
-    )
+    expect(result.options.prix).toEqual(tranchesAttendues({ "2500-5000": 1 }))
   })
 
   it("sélectionne plusieurs marques en union", async () => {
@@ -214,11 +208,11 @@ describe("searchProducts sur le moteur en mémoire", () => {
 
     expect(result.totalHits).toBe(2)
     expect(result.products.map((p) => p.brand).sort()).toEqual(["LG", "Sony"])
-    expect(result.facets.brands).toEqual(marquesAttendues(["Sony", "LG"]))
-    expect(result.facets.categories).toEqual([
+    expect(result.options.marque).toEqual(marquesAttendues(["Sony", "LG"]))
+    expect(result.options.categorie).toEqual([
       { ...AUDIO_ATTENDU, count: 2, selected: false },
     ])
-    expect(result.facets.priceBuckets).toEqual(
+    expect(result.options.prix).toEqual(
       tranchesAttendues({ "1000-2500": 1, "2500-5000": 1 })
     )
   })
@@ -239,12 +233,12 @@ describe("searchProducts sur le moteur en mémoire", () => {
         name("iPhone 15 Pro"),
       ].sort()
     )
-    expect(result.facets.brands).toEqual([
+    expect(result.options.marque).toEqual([
       { value: "Apple", label: "Apple", count: 1, selected: false },
       { value: "Logitech", label: "Logitech", count: 1, selected: false },
       { value: "Samsung", label: "Samsung", count: 1, selected: false },
     ])
-    expect(result.facets.categories).toEqual([
+    expect(result.options.categorie).toEqual([
       { ...AUDIO_ATTENDU, count: 2, selected: false },
       { ...SMARTPHONES_ATTENDU, count: 3, selected: true },
     ])
@@ -259,7 +253,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
       structure
     )
 
-    const option = result.facets.categories.find(
+    const option = result.options.categorie.find(
       (c) => c.value === SLUG_SANS_STRUCTURE
     )
     expect(option).toEqual({
@@ -279,7 +273,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
 
     const result = await searchProducts(token, {}, {}, moteurInconnu, structure)
 
-    expect(result.facets.categories).toEqual([
+    expect(result.options.categorie).toEqual([
       {
         value: slugInconnu,
         label: slugInconnu,
@@ -310,7 +304,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
       structureTrompeuse
     )
 
-    expect(result.facets.categories).toContainEqual({
+    expect(result.options.categorie).toContainEqual({
       value: SLUG_SANS_STRUCTURE,
       label: LIBELLE_SANS_STRUCTURE,
       count: 1,
@@ -330,7 +324,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
     expect(result.products.map((p) => p.name)).toEqual([
       name("Produit sans Structure"),
     ])
-    expect(result.facets.categories).toContainEqual({
+    expect(result.options.categorie).toContainEqual({
       value: SLUG_SANS_STRUCTURE,
       label: LIBELLE_SANS_STRUCTURE,
       count: 1,
@@ -348,13 +342,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
     )
 
     expect(result.totalHits).toBe(0)
-    expect(result.facets.categories).toHaveLength(2)
-    expect(result.facets.categories).toContainEqual({
+    expect(result.options.categorie).toHaveLength(2)
+    expect(result.options.categorie).toContainEqual({
       ...AUDIO_ATTENDU,
       count: 0,
       selected: true,
     })
-    expect(result.facets.categories).toContainEqual({
+    expect(result.options.categorie).toContainEqual({
       ...SMARTPHONES_ATTENDU,
       count: 1,
       selected: false,
@@ -374,13 +368,13 @@ describe("searchProducts sur le moteur en mémoire", () => {
       name("Clavier mécanique"),
     ])
     expect(result.totalHits).toBe(1)
-    expect(result.facets.priceBuckets).toEqual(
+    expect(result.options.prix).toEqual(
       tranchesAttendues(UNE_PAR_BANDE, "0-1000")
     )
-    expect(result.facets.brands).toEqual([
+    expect(result.options.marque).toEqual([
       { value: "Logitech", label: "Logitech", count: 1, selected: false },
     ])
-    expect(result.facets.categories).toEqual([
+    expect(result.options.categorie).toEqual([
       { ...SMARTPHONES_ATTENDU, count: 1, selected: false },
     ])
   })
@@ -404,9 +398,9 @@ describe("searchProducts sur le moteur en mémoire", () => {
 
     expect(result.totalHits).toBe(0)
     expect(result.products).toEqual([])
-    expect(result.facets.brands).toEqual([])
-    expect(result.facets.categories).toEqual([])
-    expect(result.facets.priceBuckets).toEqual(tranchesAttendues())
+    expect(result.options.marque).toEqual([])
+    expect(result.options.categorie).toEqual([])
+    expect(result.options.prix).toEqual(tranchesAttendues())
   })
 
   it("projette les Documents d'index en cartes de résultat", async () => {
@@ -572,25 +566,25 @@ describe("la projection des Filtres actifs", () => {
 
     expect(result.filtresActifs).toEqual([
       {
-        cle: "brand",
+        cle: "marque",
         valeur: "Sony",
         label: "Sony",
         ariaLabel: "Retirer la marque Sony",
       },
       {
-        cle: "brand",
+        cle: "marque",
         valeur: "Apple",
         label: "Apple",
         ariaLabel: "Retirer la marque Apple",
       },
       {
-        cle: "categorySlug",
+        cle: "categorie",
         valeur: audioSlug,
         label: "Audio & Hi-Fi",
         ariaLabel: "Retirer la catégorie Audio & Hi-Fi",
       },
       {
-        cle: "priceBucketId",
+        cle: "prix",
         valeur: "2500-5000",
         label: "2 500 – 5 000 MAD",
         ariaLabel: "Retirer la tranche de prix 2 500 – 5 000 MAD",
@@ -607,13 +601,13 @@ describe("la projection des Filtres actifs", () => {
       structure
     )
 
-    const option = result.facets.categories.find(
+    const option = result.options.categorie.find(
       ({ value }) => value === audioSlug
     )
     expect(option?.label).toBe("Audio & Hi-Fi")
     expect(result.filtresActifs).toEqual([
       {
-        cle: "categorySlug",
+        cle: "categorie",
         valeur: audioSlug,
         label: option?.label,
         ariaLabel: "Retirer la catégorie Audio & Hi-Fi",
@@ -632,7 +626,7 @@ describe("la projection des Filtres actifs", () => {
 
     expect(result.filtresActifs).toEqual([
       {
-        cle: "categorySlug",
+        cle: "categorie",
         valeur: SLUG_SANS_STRUCTURE,
         label: LIBELLE_SANS_STRUCTURE,
         ariaLabel: `Retirer la catégorie ${LIBELLE_SANS_STRUCTURE}`,
@@ -656,7 +650,7 @@ describe("la projection des Filtres actifs", () => {
 
     expect(result.filtresActifs).toEqual([
       {
-        cle: "categorySlug",
+        cle: "categorie",
         valeur: slugInconnu,
         label: slugInconnu,
         ariaLabel: `Retirer la catégorie ${slugInconnu}`,
@@ -676,13 +670,13 @@ describe("la projection des Filtres actifs", () => {
     expect(result.totalHits).toBe(0)
     expect(result.filtresActifs).toEqual([
       {
-        cle: "brand",
+        cle: "marque",
         valeur: "Apple",
         label: "Apple",
         ariaLabel: "Retirer la marque Apple",
       },
       {
-        cle: "categorySlug",
+        cle: "categorie",
         valeur: audioSlug,
         label: "Audio & Hi-Fi",
         ariaLabel: "Retirer la catégorie Audio & Hi-Fi",
@@ -690,7 +684,7 @@ describe("la projection des Filtres actifs", () => {
     ])
   })
 
-  it("ne projette aucune pastille pour une Tranche hors de l'univers connu", async () => {
+  it("garde une pastille pour une Tranche hors des bandes, libellée de son identifiant", async () => {
     const result = await searchProducts(
       token,
       { priceBucketId: "bande-obsolete" },
@@ -699,10 +693,20 @@ describe("la projection des Filtres actifs", () => {
       structure
     )
 
-    expect(result.filtresActifs).toEqual([])
-    expect(
-      result.facets.priceBuckets.filter((option) => option.selected)
-    ).toEqual([])
+    expect(result.filtresActifs).toEqual([
+      {
+        cle: "prix",
+        valeur: "bande-obsolete",
+        label: "bande-obsolete",
+        ariaLabel: "Retirer la tranche de prix bande-obsolete",
+      },
+    ])
+    expect(result.options.prix.at(-1)).toEqual({
+      value: "bande-obsolete",
+      label: "bande-obsolete",
+      count: 0,
+      selected: true,
+    })
   })
 })
 
@@ -712,11 +716,11 @@ describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
     const result = await searchProducts(token, { brand }, {}, moteur, structure)
 
     expect(result.totalHits).toBe(2)
-    expect(result.facets.brands).toEqual(marquesAttendues(["Sony", "LG"]))
+    expect(result.options.marque).toEqual(marquesAttendues(["Sony", "LG"]))
 
     const sansMarque = await moteur.chercher({
       query: token,
-      filtres: retirerFacette({ brand }, "brand"),
+      filtres: retirerFacette({ brand }, "marque"),
       taille: 0,
       facettes: ["brand"],
     })

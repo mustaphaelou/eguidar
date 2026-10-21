@@ -1,7 +1,15 @@
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
+import {
+  etatDesFiltres,
+  retirerFacette,
+  valeursRetenues,
+  type CleDeFiltre,
+  type FiltreActif,
+  type OptionsDeFiltre,
+  type RepartitionsDeFacettes,
+} from "@/lib/filtre-de-recherche"
 import { moteurMeili } from "@/lib/meili"
-import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
-import { PRICE_BUCKETS } from "@/lib/price-buckets"
+import type { MoteurRecherche } from "@/lib/moteur-recherche"
 import {
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
@@ -19,166 +27,11 @@ import {
   type LectureStructure,
 } from "@/lib/use-cases/lecture-structure"
 
-export {
-  buildSearchHref,
-  parsePage,
-  parseSearchParams,
-  parseSort,
-  SEARCH_PAGE_SIZE,
-  SEARCH_SORT_DEFAULT,
-  SEARCH_SORT_OPTIONS,
-  toggleBrand,
-  type ParsedSearchParams,
-  type SearchFacet,
-  type SearchFilters,
-  type SearchSort,
-  type SearchView,
-} from "@/lib/search-params"
-
-export { retirerFacette }
-
-export interface OptionDeFiltre {
-  value: string
-  label: string
-  count: number
-  selected: boolean
-}
-
-export interface OptionsDeFiltre {
-  brands: OptionDeFiltre[]
-  categories: OptionDeFiltre[]
-  priceBuckets: OptionDeFiltre[]
-}
-
-export interface FiltreActif {
-  cle: "brand" | "categorySlug" | "priceBucketId"
-  valeur: string
-  label: string
-  ariaLabel: string
-}
-
-export interface RepartitionsDeFacettes {
-  brands: Record<string, number>
-  categories: Record<string, number>
-  priceBuckets: Record<string, number>
-}
-
-function assemblerOptions(
-  valeurs: Iterable<string>,
-  repartition: Record<string, number>,
-  estRetenue: (value: string) => boolean,
-  labelDe: (value: string) => string
-): OptionDeFiltre[] {
-  return [...valeurs]
-    .map((value) => ({
-      value,
-      label: labelDe(value),
-      count: repartition[value] ?? 0,
-      selected: estRetenue(value),
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, "fr"))
-}
-
-function assemblerMarques(
-  repartition: Record<string, number>,
-  retenues: readonly string[]
-): OptionDeFiltre[] {
-  return assemblerOptions(
-    new Set([...Object.keys(repartition), ...retenues]),
-    repartition,
-    (value) => retenues.includes(value),
-    (value) => value
-  )
-}
-
-function assemblerCategories(
-  repartition: Record<string, number>,
-  retenue: string | undefined,
-  noms: ReadonlyMap<string, string>
-): OptionDeFiltre[] {
-  const valeurs = new Set(Object.keys(repartition))
-  if (retenue) valeurs.add(retenue)
-  return assemblerOptions(
-    valeurs,
-    repartition,
-    (value) => value === retenue,
-    (value) => noms.get(value) ?? value
-  )
-}
-
-function assemblerTranches(
-  repartition: Record<string, number>,
-  retenue: string | undefined
-): OptionDeFiltre[] {
-  return PRICE_BUCKETS.map((bande) => ({
-    value: bande.id,
-    label: bande.label,
-    count: repartition[bande.id] ?? 0,
-    selected: bande.id === retenue,
-  }))
-}
-
-function assemblerOptionsDeFiltre(
-  repartitions: RepartitionsDeFacettes,
-  filtres: SearchFilters,
-  nomsDeCategories: ReadonlyMap<string, string>
-): OptionsDeFiltre {
-  return {
-    brands: assemblerMarques(repartitions.brands, filtres.brand ?? []),
-    categories: assemblerCategories(
-      repartitions.categories,
-      filtres.categorySlug,
-      nomsDeCategories
-    ),
-    priceBuckets: assemblerTranches(
-      repartitions.priceBuckets,
-      filtres.priceBucketId
-    ),
-  }
-}
-
-function projeterFiltresActifs(
-  filtres: SearchFilters,
-  options: OptionsDeFiltre
-): FiltreActif[] {
-  const marques: FiltreActif[] = (filtres.brand ?? []).map((valeur) => ({
-    cle: "brand",
-    valeur,
-    label: valeur,
-    ariaLabel: `Retirer la marque ${valeur}`,
-  }))
-
-  const categories: FiltreActif[] = []
-  if (filtres.categorySlug) {
-    const option = options.categories.find(
-      (candidate) => candidate.value === filtres.categorySlug
-    )
-    const label = option?.label ?? filtres.categorySlug
-    categories.push({
-      cle: "categorySlug",
-      valeur: filtres.categorySlug,
-      label,
-      ariaLabel: `Retirer la catégorie ${label}`,
-    })
-  }
-
-  const tranches: FiltreActif[] = []
-  if (filtres.priceBucketId) {
-    const option = options.priceBuckets.find(
-      (candidate) => candidate.value === filtres.priceBucketId
-    )
-    if (option) {
-      tranches.push({
-        cle: "priceBucketId",
-        valeur: filtres.priceBucketId,
-        label: option.label,
-        ariaLabel: `Retirer la tranche de prix ${option.label}`,
-      })
-    }
-  }
-
-  return [...marques, ...categories, ...tranches]
-}
+const FACETTE_DU_MOTEUR = {
+  marque: "brand",
+  categorie: "categorySlug",
+  prix: "priceBucket",
+} as const satisfies Record<CleDeFiltre, SearchFacet>
 
 function carteDuHit(hit: IndexableProduct): CarteProduit {
   return projeterCarteProduit(
@@ -200,7 +53,7 @@ export interface SearchPageData {
   query: string
   totalHits: number
   products: CarteProduit[]
-  facets: OptionsDeFiltre
+  options: OptionsDeFiltre
   filtresActifs: readonly FiltreActif[]
   sort: SearchSort
   currentPage: number
@@ -243,8 +96,8 @@ export async function searchProducts(
   const pageSize = options.pageSize ?? SEARCH_PAGE_SIZE
   const requestedPage = options.page ?? 1
 
-  const optionsSansRepartition = assemblerOptionsDeFiltre(
-    { brands: {}, categories: {}, priceBuckets: {} },
+  const etatVide = etatDesFiltres(
+    { marque: {}, categorie: {}, prix: {} },
     filters,
     new Map<string, string>()
   )
@@ -253,24 +106,26 @@ export async function searchProducts(
     query,
     totalHits: 0,
     products: [],
-    facets: optionsSansRepartition,
-    filtresActifs: projeterFiltresActifs(filters, optionsSansRepartition),
+    options: etatVide.options,
+    filtresActifs: etatVide.filtresActifs,
     sort,
     currentPage: 1,
     totalPages: 1,
     pageSize,
   }
 
-  const requeteDeFacette = (facette: SearchFacet) =>
-    moteur.chercher({
+  const requeteDeFacette = (cle: CleDeFiltre) => {
+    const facette = FACETTE_DU_MOTEUR[cle]
+    return moteur.chercher({
       query,
-      filtres: retirerFacette(filters, facette),
+      filtres: retirerFacette(filters, cle),
       tri: sort,
       taille: 0,
       facettes: [facette],
     })
+  }
 
-  const [initialResult, brandFacets, categoryFacets, priceFacets] =
+  const [initialResult, reponseMarque, reponseCategorie, reponsePrix] =
     await Promise.all([
       moteur.chercher({
         query,
@@ -279,16 +134,16 @@ export async function searchProducts(
         page: requestedPage,
         taille: pageSize,
       }),
-      requeteDeFacette("brand"),
-      requeteDeFacette("categorySlug"),
-      requeteDeFacette("priceBucket"),
+      requeteDeFacette("marque"),
+      requeteDeFacette("categorie"),
+      requeteDeFacette("prix"),
     ])
 
   if (
     initialResult.statut === "indisponible" ||
-    brandFacets.statut === "indisponible" ||
-    categoryFacets.statut === "indisponible" ||
-    priceFacets.statut === "indisponible"
+    reponseMarque.statut === "indisponible" ||
+    reponseCategorie.statut === "indisponible" ||
+    reponsePrix.statut === "indisponible"
   ) {
     return emptyResult
   }
@@ -310,23 +165,23 @@ export async function searchProducts(
   }
 
   const repartitions: RepartitionsDeFacettes = {
-    brands: brandFacets.repartitions.brand ?? {},
-    categories: categoryFacets.repartitions.categorySlug ?? {},
-    priceBuckets: priceFacets.repartitions.priceBucket ?? {},
+    marque: reponseMarque.repartitions[FACETTE_DU_MOTEUR.marque] ?? {},
+    categorie: reponseCategorie.repartitions[FACETTE_DU_MOTEUR.categorie] ?? {},
+    prix: reponsePrix.repartitions[FACETTE_DU_MOTEUR.prix] ?? {},
   }
 
-  const slugs = new Set(Object.keys(repartitions.categories))
-  if (filters.categorySlug) slugs.add(filters.categorySlug)
+  const slugs = new Set(Object.keys(repartitions.categorie))
+  for (const slug of valeursRetenues(filters, "categorie")) slugs.add(slug)
   const categoryNames = await resoudreLesNomsDeCategories(structure, slugs)
 
-  const facets = assemblerOptionsDeFiltre(repartitions, filters, categoryNames)
+  const etat = etatDesFiltres(repartitions, filters, categoryNames)
 
   return {
     query,
     totalHits,
     products: documents.map(carteDuHit),
-    facets,
-    filtresActifs: projeterFiltresActifs(filters, facets),
+    options: etat.options,
+    filtresActifs: etat.filtresActifs,
     sort,
     currentPage,
     totalPages,

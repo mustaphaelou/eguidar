@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
+import { SEARCH_PAGE_SIZE } from "@/lib/search-params"
 import type { LectureStructure } from "@/lib/use-cases/lecture-structure"
-import {
-  searchProducts,
-  searchSuggestions,
-  SEARCH_PAGE_SIZE,
-} from "@/lib/use-cases/search"
+import { searchProducts, searchSuggestions } from "@/lib/use-cases/search"
 import {
   creerMoteurIndisponible,
   creerMoteurRecette,
@@ -58,7 +55,7 @@ const DTO_PAGE_VIDE = {
   query: "casque",
   totalHits: 0,
   products: [],
-  facets: { brands: [], categories: [], priceBuckets: BANDES_A_ZERO },
+  options: { marque: [], categorie: [], prix: BANDES_A_ZERO },
   filtresActifs: [],
   sort: "pertinence",
   currentPage: 1,
@@ -143,15 +140,13 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
       structureJamaisLue()
     )
 
-    expect(resultat.facets.brands).toEqual([
+    expect(resultat.options.marque).toEqual([
       { value: "Sony", label: "Sony", count: 0, selected: true },
     ])
-    expect(resultat.facets.categories).toEqual([
+    expect(resultat.options.categorie).toEqual([
       { value: "audio-hifi", label: "audio-hifi", count: 0, selected: true },
     ])
-    expect(
-      resultat.facets.priceBuckets.filter((option) => option.selected)
-    ).toEqual([
+    expect(resultat.options.prix.filter((option) => option.selected)).toEqual([
       {
         value: "1000-2500",
         label: "1 000 – 2 500 MAD",
@@ -180,19 +175,19 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
 
     expect(resultat.filtresActifs).toEqual([
       {
-        cle: "brand",
+        cle: "marque",
         valeur: "Sony",
         label: "Sony",
         ariaLabel: "Retirer la marque Sony",
       },
       {
-        cle: "categorySlug",
+        cle: "categorie",
         valeur: "audio-hifi",
         label: "audio-hifi",
         ariaLabel: "Retirer la catégorie audio-hifi",
       },
       {
-        cle: "priceBucketId",
+        cle: "prix",
         valeur: "1000-2500",
         label: "1 000 – 2 500 MAD",
         ariaLabel: "Retirer la tranche de prix 1 000 – 2 500 MAD",

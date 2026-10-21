@@ -8,7 +8,8 @@ import {
 import { autoriserRecherche } from "@/lib/acces-recherche"
 import { MESSAGE_TROP_DE_RECHERCHES } from "@/lib/limiteur-recherche"
 import { pageMetadata } from "@/lib/metadata"
-import { parseSearchParams, searchProducts } from "@/lib/use-cases/search"
+import { parseSearchParams } from "@/lib/search-params"
+import { searchProducts } from "@/lib/use-cases/search"
 
 type SearchParams = Record<string, string | string[] | undefined>
 

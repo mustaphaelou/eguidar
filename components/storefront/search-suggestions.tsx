@@ -9,12 +9,10 @@ import { urlProduit } from "@/lib/carte-produit"
 import { SLUG_SANS_STRUCTURE } from "@/lib/index-projection"
 import { formatPrice } from "@/lib/money"
 import { buildSearchHref, SEARCH_QUERY_MIN_LENGTH } from "@/lib/search-params"
-import type { SuggestionProduit } from "@/lib/use-cases/search"
-
-interface SuggestionCategory {
-  slug: string
-  name: string
-}
+import type {
+  SearchSuggestionCategory,
+  SuggestionProduit,
+} from "@/lib/use-cases/search"
 
 export function hrefDeSuggestion(slug: string): string {
   return slug === SLUG_SANS_STRUCTURE
@@ -36,7 +34,7 @@ export function SearchSuggestions({
   const [query, setQuery] = useState("")
   const [result, setResult] = useState<{
     products: SuggestionProduit[]
-    categories: SuggestionCategory[]
+    categories: SearchSuggestionCategory[]
   }>({ products: [], categories: [] })
   const [resultQuery, setResultQuery] = useState("")
   const [open, setOpen] = useState(false)
@@ -55,7 +53,7 @@ export function SearchSuggestions({
         if (!response.ok || controller.signal.aborted) return
         const data = (await response.json()) as {
           products: SuggestionProduit[]
-          categories: SuggestionCategory[]
+          categories: SearchSuggestionCategory[]
         }
         setResult(data)
         setResultQuery(trimmed)

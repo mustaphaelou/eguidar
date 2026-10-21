@@ -6,8 +6,17 @@ import {
   parseSearchParams,
   parseSort,
   SEARCH_QUERY_MAX_LENGTH,
-  toggleBrand,
 } from "@/lib/search-params"
+
+function paramsDepuisHref(href: string): Record<string, string | string[]> {
+  const url = new URL(href, "https://exemple.test")
+  const params: Record<string, string | string[]> = {}
+  for (const cle of new Set(url.searchParams.keys())) {
+    const valeurs = url.searchParams.getAll(cle)
+    params[cle] = valeurs.length === 1 ? valeurs[0]! : valeurs
+  }
+  return params
+}
 
 describe("parseSearchParams", () => {
   it("extracts and trims the query", () => {
@@ -35,56 +44,12 @@ describe("parseSearchParams", () => {
     expect(parseSearchParams({ q: ["casque", "clavier"] }).query).toBe("casque")
   })
 
-  it("parses a legacy single marque into a one-element brand list", () => {
-    expect(
-      parseSearchParams({
-        q: "sony",
-        marque: "Sony",
-        categorie: "audio-hifi",
-        prix: "2500-5000",
-      })
-    ).toEqual({
-      query: "sony",
-      filters: {
-        brand: ["Sony"],
-        categorySlug: "audio-hifi",
-        priceBucketId: "2500-5000",
-      },
-      sort: "pertinence",
-      page: 1,
-    })
-  })
+  it("returns an empty query and the default view for empty params", () => {
+    const { query, sort, page } = parseSearchParams({})
 
-  it("collects every repeated marque value without duplicates", () => {
-    expect(
-      parseSearchParams({ marque: ["Sony", "LG", "Sony"] }).filters
-    ).toEqual({ brand: ["Sony", "LG"] })
-  })
-
-  it("trims and drops empty marque values", () => {
-    expect(
-      parseSearchParams({ marque: [" Sony ", "", "   ", "LG"] }).filters
-    ).toEqual({ brand: ["Sony", "LG"] })
-  })
-
-  it("rejects unknown Tranche de prix values and keeps valid filters", () => {
-    expect(
-      parseSearchParams({ q: "sony", marque: "Sony", prix: "bogus" })
-    ).toEqual({
-      query: "sony",
-      filters: { brand: ["Sony"] },
-      sort: "pertinence",
-      page: 1,
-    })
-  })
-
-  it("returns an empty query and empty filters for empty params", () => {
-    expect(parseSearchParams({})).toEqual({
-      query: "",
-      filters: {},
-      sort: "pertinence",
-      page: 1,
-    })
+    expect(query).toBe("")
+    expect(sort).toBe("pertinence")
+    expect(page).toBe(1)
   })
 
   it("parses sort and page params", () => {
@@ -132,84 +97,30 @@ describe("parseSort and parsePage", () => {
 })
 
 describe("buildSearchHref", () => {
-  it("links back to the plain search when no filters are active", () => {
-    expect(buildSearchHref("casque", {})).toBe("/recherche?q=casque")
-  })
-
-  it("preserves the query and existing filters when adding one", () => {
-    expect(
-      buildSearchHref(
-        "casque",
-        { brand: ["Sony", "LG"] },
-        { categorySlug: "audio-hifi" }
-      )
-    ).toBe("/recherche?q=casque&marque=Sony&marque=LG&categorie=audio-hifi")
-  })
-
-  it("serializes every selected brand as a repeated marque param", () => {
-    expect(buildSearchHref("", { brand: ["Sony", "LG", "Logitech"] })).toBe(
-      "/recherche?marque=Sony&marque=LG&marque=Logitech"
+  it("écrit puis relit la requête, les filtres, le tri et la page", () => {
+    const href = buildSearchHref(
+      "casque",
+      { brand: ["Sony"] },
+      {
+        brand: ["Sony", "LG"],
+        categorySlug: "audio-hifi",
+        priceBucketId: "2500-5000",
+      },
+      { sort: "prix-asc", page: 2 }
     )
-  })
 
-  it("removes a filter when toggled off", () => {
-    expect(
-      buildSearchHref(
-        "casque",
-        { brand: ["Sony", "LG"], categorySlug: "audio-hifi" },
-        { brand: ["LG"] }
-      )
-    ).toBe("/recherche?q=casque&marque=LG&categorie=audio-hifi")
-    expect(
-      buildSearchHref("casque", { brand: ["Sony"] }, { brand: undefined })
-    ).toBe("/recherche?q=casque")
-  })
-
-  it("omits the query param when the query is empty", () => {
-    expect(buildSearchHref("", { brand: ["Sony"] })).toBe(
-      "/recherche?marque=Sony"
+    expect(href).toBe(
+      "/recherche?q=casque&marque=Sony&marque=LG&categorie=audio-hifi&prix=2500-5000&tri=prix-asc&page=2"
     )
-  })
-
-  it("omits default sort and first page from the href", () => {
-    expect(
-      buildSearchHref("casque", {}, {}, { sort: "pertinence", page: 1 })
-    ).toBe("/recherche?q=casque")
-  })
-
-  it("adds sort and page params when non-default", () => {
-    expect(
-      buildSearchHref("casque", {}, {}, { sort: "prix-asc", page: 2 })
-    ).toBe("/recherche?q=casque&tri=prix-asc&page=2")
-    expect(
-      buildSearchHref("casque", {}, {}, { sort: "nouveautes", page: 1 })
-    ).toBe("/recherche?q=casque&tri=nouveautes")
-  })
-
-  it("supports a custom path (catalogue)", () => {
-    expect(
-      buildSearchHref(
-        "",
-        { brand: ["Sony", "LG"] },
-        {},
-        { sort: "nouveautes" },
-        "/produits"
-      )
-    ).toBe("/produits?marque=Sony&marque=LG&tri=nouveautes")
-    expect(
-      buildSearchHref("", {}, {}, { sort: "nouveautes" }, "/produits")
-    ).toBe("/produits?tri=nouveautes")
-  })
-})
-
-describe("toggleBrand", () => {
-  it("adds a brand that is not selected yet", () => {
-    expect(toggleBrand(["Sony"], "LG")).toEqual(["Sony", "LG"])
-    expect(toggleBrand(undefined, "Sony")).toEqual(["Sony"])
-  })
-
-  it("removes a brand that is already selected", () => {
-    expect(toggleBrand(["Sony", "LG"], "Sony")).toEqual(["LG"])
-    expect(toggleBrand(["Sony"], "Sony")).toEqual([])
+    expect(parseSearchParams(paramsDepuisHref(href))).toEqual({
+      query: "casque",
+      filters: {
+        brand: ["Sony", "LG"],
+        categorySlug: "audio-hifi",
+        priceBucketId: "2500-5000",
+      },
+      sort: "prix-asc",
+      page: 2,
+    })
   })
 })

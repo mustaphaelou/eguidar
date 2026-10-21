@@ -22,11 +22,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  buildSearchHref,
-  type SearchFilters,
-  type SearchPageData,
-} from "@/lib/use-cases/search"
+import { nombreDeFiltres } from "@/lib/filtre-de-recherche"
+import { buildSearchHref, type SearchFilters } from "@/lib/search-params"
+import type { SearchPageData } from "@/lib/use-cases/search"
 
 export function SearchResults({
   data,
@@ -39,9 +37,7 @@ export function SearchResults({
   filters: SearchFilters
   hrefBase?: string
 }) {
-  const hasFilters = Boolean(
-    filters.brand?.length || filters.categorySlug || filters.priceBucketId
-  )
+  const hasFilters = nombreDeFiltres(filters) > 0
   const resetHref = buildSearchHref(
     query,
     {},
@@ -59,7 +55,7 @@ export function SearchResults({
       hrefBase={hrefBase}
     >
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
-        <FilterSidebar facets={data.facets} />
+        <FilterSidebar options={data.options} />
 
         <section>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -71,7 +67,7 @@ export function SearchResults({
             </div>
             <div className="flex items-center gap-2">
               <MobileFilterDrawer
-                facets={data.facets}
+                options={data.options}
                 totalHits={data.totalHits}
               />
               <SearchSort

@@ -41,28 +41,31 @@ import {
 import { FieldLegend, FieldSet } from "@/components/ui/field"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
-import type {
-  FiltreActif,
-  OptionDeFiltre,
-  OptionsDeFiltre,
-} from "@/lib/use-cases/search"
+import {
+  choisirValeur,
+  nombreDeFiltres,
+  optionsVisibles,
+  retirerValeur,
+  valeursRetenues,
+  type CleDeFiltre,
+  type FiltreActif,
+  type OptionDeFiltre,
+  type OptionsDeFiltre,
+} from "@/lib/filtre-de-recherche"
 import {
   buildSearchHref,
-  toggleBrand,
   type SearchFilters,
   type SearchSort,
 } from "@/lib/search-params"
 
 const OPTIONS_VISIBLES = 8
 
-const FILTER_GROUP_DEFAULT_OPEN = ["brand", "category", "price"]
-
-type SearchFacets = OptionsDeFiltre
+const FILTER_GROUP_DEFAULT_OPEN: CleDeFiltre[] = ["marque", "categorie", "prix"]
 
 interface SearchNavigationValue {
   filters: SearchFilters
   isPending: boolean
-  navigate: (patch: Partial<SearchFilters>) => void
+  navigate: (filters: SearchFilters) => void
 }
 
 const SearchNavigationContext = createContext<SearchNavigationValue | null>(
@@ -77,14 +80,6 @@ function useSearchNavigation(): SearchNavigationValue {
     )
   }
   return context
-}
-
-function countActiveFilters(filters: SearchFilters): number {
-  return (
-    (filters.brand?.length ?? 0) +
-    (filters.categorySlug ? 1 : 0) +
-    (filters.priceBucketId ? 1 : 0)
-  )
 }
 
 export function SearchNavigationProvider({
@@ -105,8 +100,7 @@ export function SearchNavigationProvider({
   const [optimisticFilters, setOptimisticFilters] = useOptimistic(filters)
 
   const navigate = useCallback(
-    (patch: Partial<SearchFilters>) => {
-      const next = { ...optimisticFilters, ...patch }
+    (next: SearchFilters) => {
       startTransition(() => {
         setOptimisticFilters(next)
         router.push(
@@ -114,7 +108,7 @@ export function SearchNavigationProvider({
         )
       })
     },
-    [optimisticFilters, query, sort, hrefBase, router, setOptimisticFilters]
+    [query, sort, hrefBase, router, setOptimisticFilters]
   )
 
   const value = useMemo(
@@ -145,25 +139,25 @@ export function SearchResultsPending({
   )
 }
 
-export function FilterSidebar({ facets }: { facets: SearchFacets }) {
+export function FilterSidebar({ options }: { options: OptionsDeFiltre }) {
   return (
     <aside className="hidden md:block">
       <div className="sticky top-14 [scrollbar-width:thin] scrollbar-gutter-stable overflow-y-auto overscroll-contain max-block-[calc(100svh-4.5rem)]">
-        <FilterGroups facets={facets} />
+        <FilterGroups options={options} />
       </div>
     </aside>
   )
 }
 
 export function MobileFilterDrawer({
-  facets,
+  options,
   totalHits,
 }: {
-  facets: SearchFacets
+  options: OptionsDeFiltre
   totalHits: number
 }) {
   const { filters } = useSearchNavigation()
-  const activeCount = countActiveFilters(filters)
+  const activeCount = nombreDeFiltres(filters)
 
   return (
     <Drawer showSwipeHandle>
@@ -193,7 +187,7 @@ export function MobileFilterDrawer({
         </DrawerHeader>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="px-4">
-            <FilterGroups facets={facets} />
+            <FilterGroups options={options} />
           </div>
         </div>
         <DrawerFooter className="mt-0 border-t border-border bg-background p-4">
@@ -213,7 +207,7 @@ export function ActiveFilters({
 }) {
   const { filters, navigate } = useSearchNavigation()
 
-  if (countActiveFilters(filters) === 0) return null
+  if (nombreDeFiltres(filters) === 0) return null
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -225,17 +219,9 @@ export function ActiveFilters({
             <button
               type="button"
               aria-label={filtre.ariaLabel}
-              onClick={() => {
-                if (filtre.cle === "brand") {
-                  navigate({
-                    brand: toggleBrand(filters.brand, filtre.valeur),
-                  })
-                } else if (filtre.cle === "categorySlug") {
-                  navigate({ categorySlug: undefined })
-                } else {
-                  navigate({ priceBucketId: undefined })
-                }
-              }}
+              onClick={() =>
+                navigate(retirerValeur(filters, filtre.cle, filtre.valeur))
+              }
             />
           }
           className="cursor-pointer active:opacity-70"
@@ -248,13 +234,7 @@ export function ActiveFilters({
         variant="ghost"
         size="sm"
         className="px-0 text-link hover:bg-transparent"
-        onClick={() =>
-          navigate({
-            brand: undefined,
-            categorySlug: undefined,
-            priceBucketId: undefined,
-          })
-        }
+        onClick={() => navigate({})}
       >
         Tout effacer
       </Button>
@@ -335,31 +315,16 @@ interface GroupeDepliable extends GroupeAOptions {
 
 type Groupe = (GroupeDeFiltres | GroupeRadio) & GroupeDepliable
 
-function optionsVisibles(
-  options: OptionDeFiltre[],
-  plafond: number,
-  deplie: boolean
-): { visibles: OptionDeFiltre[]; cachees: number } {
-  const retenues = options.filter(
-    (option) => option.count > 0 || option.selected
-  )
-  if (deplie) return { visibles: retenues, cachees: 0 }
-  const visibles = retenues.filter(
-    (option, index) => index < plafond || option.selected
-  )
-  return { visibles, cachees: retenues.length - visibles.length }
-}
-
-function FilterGroups({ facets }: { facets: SearchFacets }) {
+function FilterGroups({ options }: { options: OptionsDeFiltre }) {
   const { filters, navigate } = useSearchNavigation()
   const [marquesDepliees, setMarquesDepliees] = useState(false)
   const [categoriesDepliees, setCategoriesDepliees] = useState(false)
   const idPrefix = useId()
 
-  const activeBrands = filters.brand ?? []
+  const activeBrands = valeursRetenues(filters, "marque")
 
   const brandOptions = optionsVisibles(
-    facets.brands,
+    options.marque,
     OPTIONS_VISIBLES,
     marquesDepliees
   )
@@ -367,28 +332,30 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
   const hiddenBrandCount = brandOptions.cachees
 
   const categoryOptions = optionsVisibles(
-    facets.categories,
+    options.categorie,
     OPTIONS_VISIBLES,
     categoriesDepliees
   )
   const visibleCategories = categoryOptions.visibles
   const hiddenCategoryCount = categoryOptions.cachees
 
-  const priceOptions = facets.priceBuckets.filter(
-    (option) => option.count > 0 || option.selected
-  )
+  const priceOptions = optionsVisibles(options.prix).visibles
 
   const groupes: Groupe[] = [
     {
-      valeur: "brand",
+      valeur: "marque",
       intitule: "Marque",
       options: visibleBrands,
       controle: (option: OptionDeFiltre) => (
         <Checkbox
           className="sr-only"
           checked={activeBrands.includes(option.value)}
-          onCheckedChange={() =>
-            navigate({ brand: toggleBrand(activeBrands, option.value) })
+          onCheckedChange={(cochee) =>
+            navigate(
+              cochee
+                ? choisirValeur(filters, "marque", option.value)
+                : retirerValeur(filters, "marque", option.value)
+            )
           }
         />
       ),
@@ -399,12 +366,13 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
       },
     },
     {
-      valeur: "category",
+      valeur: "categorie",
       intitule: "Catégorie",
       options: visibleCategories,
       radio: true,
-      filtreActif: filters.categorySlug ?? null,
-      onChoisir: (valeur: string) => navigate({ categorySlug: valeur }),
+      filtreActif: valeursRetenues(filters, "categorie")[0] ?? null,
+      onChoisir: (valeur: string) =>
+        navigate(choisirValeur(filters, "categorie", valeur)),
       controle: (option: OptionDeFiltre) => (
         <RadioGroupItem
           value={option.value}
@@ -419,13 +387,14 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
       },
     },
     {
-      valeur: "price",
+      valeur: "prix",
       intitule: "Prix",
       legende: "Tranche de prix",
       options: priceOptions,
       radio: true,
-      filtreActif: filters.priceBucketId ?? null,
-      onChoisir: (valeur: string) => navigate({ priceBucketId: valeur }),
+      filtreActif: valeursRetenues(filters, "prix")[0] ?? null,
+      onChoisir: (valeur: string) =>
+        navigate(choisirValeur(filters, "prix", valeur)),
       controle: (option: OptionDeFiltre) => (
         <RadioGroupItem
           value={option.value}

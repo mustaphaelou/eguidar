@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { retirerFacette } from "@/lib/filtre-de-recherche"
 import type { IndexableProduct } from "@/lib/index-projection"
-import { retirerFacette } from "@/lib/moteur-recherche"
 import type {
   ReponseDocuments,
   ReponseMoteur,
@@ -348,7 +348,7 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
 
     const marques = await chercher({
       query: "",
-      filtres: retirerFacette(filtres, "brand"),
+      filtres: retirerFacette(filtres, "marque"),
       taille: 0,
       facettes: ["brand"],
     })
@@ -360,7 +360,7 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
 
     const categories = await chercher({
       query: "",
-      filtres: retirerFacette(filtres, "categorySlug"),
+      filtres: retirerFacette(filtres, "categorie"),
       taille: 0,
       facettes: ["categorySlug"],
     })
@@ -372,7 +372,7 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
 
     const tranches = await chercher({
       query: "",
-      filtres: retirerFacette(filtres, "priceBucket"),
+      filtres: retirerFacette(filtres, "prix"),
       taille: 0,
       facettes: ["priceBucket"],
     })
@@ -426,7 +426,7 @@ describe("creerMoteurEnMemoire — répartitions sous les filtres reçus", () =>
 
     const compteSousFiltreRetire = await chercher({
       query: "",
-      filtres: retirerFacette(filtres, "brand"),
+      filtres: retirerFacette(filtres, "marque"),
       taille: 0,
       facettes: ["brand"],
     })
