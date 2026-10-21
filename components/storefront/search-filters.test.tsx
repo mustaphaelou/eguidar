@@ -80,35 +80,9 @@ const OPTIONS_DE_FILTRE_DIX_MARQUES: OptionsDeFiltre = {
   marque: optionsNommees(NOMS_D_OPTIONS),
 }
 
-const OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE: OptionsDeFiltre = {
-  ...OPTIONS_DE_FILTRE,
-  marque: optionsNommees(NOMS_D_OPTIONS, "Juliett"),
-}
-
 const OPTIONS_DE_FILTRE_DIX_CATEGORIES: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
   categorie: optionsNommees(NOMS_D_OPTIONS),
-}
-
-const OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE: OptionsDeFiltre = {
-  ...OPTIONS_DE_FILTRE,
-  categorie: optionsNommees([...NOMS_D_OPTIONS, "Kilo", "Lima"], "Lima"),
-}
-
-const OPTIONS_DE_FILTRE_CATEGORIES_A_ZERO: OptionsDeFiltre = {
-  ...OPTIONS_DE_FILTRE,
-  categorie: [
-    { value: "mobilier", label: "Mobilier", count: 0, selected: false },
-    { value: "luminaires", label: "Luminaires", count: 0, selected: false },
-  ],
-}
-
-const OPTIONS_DE_FILTRE_CATEGORIE_RETENUE_A_ZERO: OptionsDeFiltre = {
-  ...OPTIONS_DE_FILTRE,
-  categorie: [
-    { value: "mobilier", label: "Mobilier", count: 0, selected: true },
-    { value: "luminaires", label: "Luminaires", count: 0, selected: false },
-  ],
 }
 
 const FILTRES_ACTIFS: SearchFilters = {
@@ -393,21 +367,14 @@ describe("FilterSidebar — liste de texte", () => {
     expect(ligne("Moins de 1 000 MAD")?.textContent).toContain("5")
   })
 
-  it("marque l'Option de filtre retenue et la garde visible malgré la troncature", () => {
-    rendre({ brand: ["juliett"] }, OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE)
-
-    const retenue = ligne("Juliett")
-    expect(retenue).not.toBeNull()
-    expect(
-      retenue?.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")
-    ).toBe("true")
-  })
-
   it("n'accorde le demi-gras et la coche qu'à l'Option retenue", () => {
-    rendre({ brand: ["juliett"] }, OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE)
+    rendre({ brand: ["acme"] }, OPTIONS_DE_FILTRE)
 
-    const retenue = ligne("Juliett")!
+    const retenue = ligne("Acme")!
     expect(retenue.querySelector("[data-checked]")).not.toBeNull()
+    expect(
+      retenue.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")
+    ).toBe("true")
     expect(retenue.className.split(/\s+/)).toContain(
       "has-data-checked:font-semibold"
     )
@@ -417,7 +384,7 @@ describe("FilterSidebar — liste de texte", () => {
     expect(classesDeLaCoche).toContain("hidden")
     expect(classesDeLaCoche).toContain("group-has-data-checked/option:block")
 
-    expect(ligne("Alpha")?.querySelector("[data-checked]")).toBeNull()
+    expect(ligne("Beta")?.querySelector("[data-checked]")).toBeNull()
   })
 
   it("tronque les Marques avec « Voir plus (n) » puis « Voir moins »", async () => {
@@ -444,44 +411,15 @@ describe("FilterSidebar — liste de texte", () => {
     expect(ligne("India")).toBeNull()
     const bouton = boutonVoirPlus()
     expect(bouton?.textContent).toBe("Voir plus (2)")
+    expect(bouton?.getAttribute("aria-expanded")).toBe("false")
 
     await act(async () => {
       bouton!.click()
     })
 
     expect(ligne("Juliett")).not.toBeNull()
-  })
-
-  it("garde visible une Catégorie retenue au-delà des huit premières", () => {
-    rendre({ categorySlug: "lima" }, OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE)
-
-    expect(ligne("India")).toBeNull()
-    const retenue = ligne("Lima")
-    expect(retenue).not.toBeNull()
-    expect(
-      retenue?.querySelector('[role="radio"]')?.getAttribute("aria-checked")
-    ).toBe("true")
-  })
-
-  it("annonce le compte caché des Catégories et bascule aria-expanded", async () => {
-    rendre({ categorySlug: "lima" }, OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE)
-
-    expect(boutonVoirPlus("Catégorie")?.textContent).toBe("Voir plus (3)")
-    expect(boutonVoirPlus("Catégorie")?.getAttribute("aria-expanded")).toBe(
-      "false"
-    )
-
-    await act(async () => {
-      boutonVoirPlus("Catégorie")!.click()
-    })
-
-    expect(ligne("India")).not.toBeNull()
-    expect(ligne("Juliett")).not.toBeNull()
-    expect(ligne("Kilo")).not.toBeNull()
-    expect(boutonVoirPlus("Catégorie")?.textContent).toBe("Voir moins")
-    expect(boutonVoirPlus("Catégorie")?.getAttribute("aria-expanded")).toBe(
-      "true"
-    )
+    expect(boutonVoirPlus()?.textContent).toBe("Voir moins")
+    expect(boutonVoirPlus()?.getAttribute("aria-expanded")).toBe("true")
   })
 
   it("n'affiche pas un groupe sans option", () => {
@@ -489,25 +427,6 @@ describe("FilterSidebar — liste de texte", () => {
 
     expect(container.textContent).toContain("Marque")
     expect(container.textContent).not.toContain("Catégorie")
-  })
-
-  it("n'affiche pas un groupe dont toutes les Options sont à zéro et non retenues", () => {
-    rendre({}, OPTIONS_DE_FILTRE_CATEGORIES_A_ZERO)
-
-    expect(container.textContent).toContain("Marque")
-    expect(container.textContent).not.toContain("Catégorie")
-    expect(ligne("Mobilier")).toBeNull()
-  })
-
-  it("garde le groupe et la ligne d'une Option à zéro retenue", () => {
-    rendre(
-      { categorySlug: "mobilier" },
-      OPTIONS_DE_FILTRE_CATEGORIE_RETENUE_A_ZERO
-    )
-
-    expect(groupePortant("Catégorie")).not.toBeNull()
-    expect(ligne("Mobilier")?.textContent).toContain("0")
-    expect(ligne("Luminaires")).toBeNull()
   })
 
   it("écrit l'URL attendue au clic sur la ligne d'une Option de filtre", async () => {

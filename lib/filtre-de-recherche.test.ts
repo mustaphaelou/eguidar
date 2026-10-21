@@ -5,6 +5,7 @@ import {
   etatDesFiltres,
   lireFiltres,
   nombreDeFiltres,
+  optionsVisibles,
   parametresDeFiltre,
   retirerFacette,
   retirerValeur,
@@ -611,5 +612,123 @@ describe("retirerValeur", () => {
       categorySlug: "audio",
       priceBucketId: "0-1000",
     })
+  })
+})
+
+describe("optionsVisibles", () => {
+  function option(
+    value: string,
+    count: number,
+    selected = false
+  ): OptionDeFiltre {
+    return { value, label: value, count, selected }
+  }
+
+  it("cache une Option à zéro non retenue et garde une Option à zéro retenue", () => {
+    const options = [
+      option("Sony", 2),
+      option("Teufel", 0),
+      option("LG", 0, true),
+    ]
+
+    expect(optionsVisibles(options)).toEqual({
+      visibles: [option("Sony", 2), option("LG", 0, true)],
+      cachees: 0,
+    })
+  })
+
+  it("garde les premières Options retenues sous le plafond et compte les autres cachées", () => {
+    const options = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"].map((nom) =>
+      option(nom, 1)
+    )
+
+    const { visibles, cachees } = optionsVisibles(options, 3)
+
+    expect(visibles.map(({ value }) => value)).toEqual([
+      "Alpha",
+      "Bravo",
+      "Charlie",
+    ])
+    expect(cachees).toBe(2)
+  })
+
+  it("garde une Option retenue au-delà du plafond et ne la compte pas dans cachees", () => {
+    const options = [
+      option("Alpha", 1),
+      option("Bravo", 1),
+      option("Charlie", 1),
+      option("Delta", 1),
+      option("Echo", 0, true),
+    ]
+
+    const { visibles, cachees } = optionsVisibles(options, 3)
+
+    expect(visibles.map(({ value }) => value)).toEqual([
+      "Alpha",
+      "Bravo",
+      "Charlie",
+      "Echo",
+    ])
+    expect(cachees).toBe(1)
+  })
+
+  it("ne compte dans cachees que ce que le plafond cache, pas les Options à zéro écartées", () => {
+    const options = [
+      option("Alpha", 1),
+      option("Bravo", 0),
+      option("Charlie", 1),
+      option("Delta", 1),
+      option("Echo", 1),
+      option("Foxtrot", 1),
+    ]
+
+    const { visibles, cachees } = optionsVisibles(options, 3)
+
+    expect(visibles.map(({ value }) => value)).toEqual([
+      "Alpha",
+      "Charlie",
+      "Delta",
+    ])
+    expect(cachees).toBe(2)
+  })
+
+  it("déplie toutes les Options retenues et ne cache rien", () => {
+    const options = Array.from({ length: 10 }, (_, index) =>
+      option(`Option ${index + 1}`, 1)
+    )
+
+    const { visibles, cachees } = optionsVisibles(options, 3, true)
+
+    expect(visibles).toEqual(options)
+    expect(cachees).toBe(0)
+  })
+
+  it("ne replie rien quand le plafond est omis, comme le groupe Prix", () => {
+    const options = Array.from({ length: 12 }, (_, index) =>
+      option(`Tranche ${index + 1}`, 1)
+    )
+
+    expect(optionsVisibles(options)).toEqual({ visibles: options, cachees: 0 })
+    expect(optionsVisibles(options, undefined, false)).toEqual({
+      visibles: options,
+      cachees: 0,
+    })
+  })
+
+  it("rend des tableaux neufs sans muter la liste ni ses Options", () => {
+    const options = [
+      option("Alpha", 1),
+      option("Bravo", 0),
+      option("Charlie", 0, true),
+    ]
+    const copie = options.map((option) => ({ ...option }))
+
+    const replie = optionsVisibles(options, 1)
+    const deplie = optionsVisibles(options, 1, true)
+
+    expect(options).toEqual(copie)
+    expect(replie.visibles).not.toBe(options)
+    expect(deplie.visibles).not.toBe(options)
+    expect(replie.visibles).not.toBe(deplie.visibles)
   })
 })

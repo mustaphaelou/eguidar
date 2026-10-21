@@ -289,3 +289,21 @@ export function etatDesFiltres(
 
   return { options, filtresActifs: projeterFiltresActifs(filtres, options) }
 }
+
+export function optionsVisibles(
+  options: readonly OptionDeFiltre[],
+  plafond?: number,
+  deplie = false
+): { visibles: OptionDeFiltre[]; cachees: number } {
+  const retenues = options.filter(
+    (option) => option.count > 0 || option.selected
+  )
+  if (deplie || plafond === undefined) {
+    return { visibles: retenues, cachees: 0 }
+  }
+
+  const visibles = retenues.filter(
+    (option, index) => index < plafond || option.selected
+  )
+  return { visibles, cachees: retenues.length - visibles.length }
+}

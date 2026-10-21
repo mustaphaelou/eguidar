@@ -44,6 +44,7 @@ import { Separator } from "@/components/ui/separator"
 import {
   choisirValeur,
   nombreDeFiltres,
+  optionsVisibles,
   retirerValeur,
   valeursRetenues,
   type FiltreActif,
@@ -315,21 +316,6 @@ interface GroupeDepliable extends GroupeAOptions {
 
 type Groupe = (GroupeDeFiltres | GroupeRadio) & GroupeDepliable
 
-function optionsVisibles(
-  options: OptionDeFiltre[],
-  plafond: number,
-  deplie: boolean
-): { visibles: OptionDeFiltre[]; cachees: number } {
-  const retenues = options.filter(
-    (option) => option.count > 0 || option.selected
-  )
-  if (deplie) return { visibles: retenues, cachees: 0 }
-  const visibles = retenues.filter(
-    (option, index) => index < plafond || option.selected
-  )
-  return { visibles, cachees: retenues.length - visibles.length }
-}
-
 function FilterGroups({ facets }: { facets: SearchFacets }) {
   const { filters, navigate } = useSearchNavigation()
   const [marquesDepliees, setMarquesDepliees] = useState(false)
@@ -354,9 +340,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
   const visibleCategories = categoryOptions.visibles
   const hiddenCategoryCount = categoryOptions.cachees
 
-  const priceOptions = facets.prix.filter(
-    (option) => option.count > 0 || option.selected
-  )
+  const priceOptions = optionsVisibles(facets.prix).visibles
 
   const groupes: Groupe[] = [
     {
