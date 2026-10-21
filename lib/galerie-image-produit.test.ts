@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { galerieImageProduitSchema } from "@/lib/galerie-image-produit"
+import {
+  galerieImageProduitSchema,
+  identifiantsBrouillonsGalerie,
+} from "@/lib/galerie-image-produit"
 
 const BASE_CDN = "https://cdn.eguidar.com"
 
@@ -68,5 +71,56 @@ describe("le schéma de la Galerie produit", () => {
 
   it("accepte une galerie vide", () => {
     expect(galerieImageProduitSchema(BASE_CDN).parse([])).toEqual([])
+  })
+})
+
+function brouillon(draftId: string) {
+  return {
+    kind: "brouillon" as const,
+    draftId,
+    previewUrl: `${BASE_CDN}/products/brouillons/${draftId}.webp`,
+  }
+}
+
+function persistee(url: string) {
+  return { kind: "persistee" as const, url }
+}
+
+describe("les identifiants de Brouillon d'une Galerie produit", () => {
+  it("extrait les Brouillons intercalés entre des Images persistées, dans l'ordre de la Galerie", () => {
+    const galerie = [
+      persistee(`${BASE_CDN}/products/image-1.webp`),
+      brouillon("brouillon-1"),
+      persistee(`${BASE_CDN}/products/image-2.webp`),
+      brouillon("brouillon-2"),
+    ]
+
+    expect(identifiantsBrouillonsGalerie(galerie)).toEqual([
+      "brouillon-1",
+      "brouillon-2",
+    ])
+  })
+
+  it("ne rend chaque identifiant qu'une fois, à sa première apparition", () => {
+    const galerie = [
+      brouillon("brouillon-2"),
+      brouillon("brouillon-1"),
+      brouillon("brouillon-2"),
+      brouillon("brouillon-1"),
+    ]
+
+    expect(identifiantsBrouillonsGalerie(galerie)).toEqual([
+      "brouillon-2",
+      "brouillon-1",
+    ])
+  })
+
+  it("ne rend aucun identifiant pour une Galerie entièrement persistée", () => {
+    const galerie = [
+      persistee(`${BASE_CDN}/products/image-1.webp`),
+      persistee(`${BASE_CDN}/products/image-2.webp`),
+    ]
+
+    expect(identifiantsBrouillonsGalerie(galerie)).toEqual([])
   })
 })

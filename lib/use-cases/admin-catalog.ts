@@ -1,6 +1,12 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import type {
+  Category,
+  Prisma,
+  Product,
+  ProductVariant,
+} from "@/lib/generated/prisma/client"
 import cycleVieImageProduitParDefaut, {
   estLieAuProduit,
   MESSAGE_REGISTRE_INDISPONIBLE,
@@ -13,6 +19,7 @@ import cycleVieImageProduitParDefaut, {
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import {
   entreeGalerieImageProduitSchema,
+  identifiantsBrouillonsGalerie,
   LIMITE_IMAGES_PRODUIT,
   type EntreeImageProduit,
 } from "@/lib/galerie-image-produit"
@@ -73,17 +80,17 @@ export interface CatalogEffects {
 }
 
 function journaliserEchecSuppressionImage(
-  productId: string,
+  libelleJournal: string,
   url: string,
   erreur: unknown
 ): void {
   console.warn(
-    `[catalog] suppression d'image R2 non effectuée pour le produit ${productId}, image ${url}`,
+    `[catalog] suppression d'image R2 non effectuée pour ${libelleJournal}, image ${url}`,
     erreur
   )
 }
 
-export function defaultCatalogEffects(productId: string): CatalogEffects {
+export function defaultCatalogEffects(libelleJournal: string): CatalogEffects {
   return {
     cycleVie: cycleVieImageProduitParDefaut,
     reindexProducts: indexProductDocuments,
@@ -99,10 +106,14 @@ export function defaultCatalogEffects(productId: string): CatalogEffects {
           const resultat =
             await stockageImageProduitR2.supprimerImagePersistee(url)
           if (!resultat.ok) {
-            journaliserEchecSuppressionImage(productId, url, resultat.erreur)
+            journaliserEchecSuppressionImage(
+              libelleJournal,
+              url,
+              resultat.erreur
+            )
           }
         } catch (error) {
-          journaliserEchecSuppressionImage(productId, url, error)
+          journaliserEchecSuppressionImage(libelleJournal, url, error)
         }
       }
     },
@@ -281,11 +292,6 @@ async function assertUniqueSkus(
   })
   if (existing.length > 0) throw new DuplicateSkuError()
 }
-function imageUrls(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : []
-}
 
 function urlsGalerie(galerie: readonly EntreeImageProduit[]): string[] {
   return galerie.flatMap((entree) =>
@@ -339,18 +345,6 @@ const MESSAGE_REPRISE_AUTRE_PRODUIT =
   "Cette Tentative d'édition a déjà été enregistrée pour un autre Produit"
 
 const MESSAGE_ENREGISTREMENT_ECHOUE = "L'enregistrement du Catalogue a échoué"
-
-function identifiantsDeBrouillons(
-  galerie: readonly EntreeImageProduit[]
-): string[] {
-  return [
-    ...new Set(
-      galerie.flatMap((entree) =>
-        entree.kind === "brouillon" ? [entree.draftId] : []
-      )
-    ),
-  ]
-}
 
 function erreurDePreparation(
   refus: RefusCycleVieImageProduit
@@ -408,7 +402,7 @@ async function promouvoirBrouillons(
   data: ProduitValide,
   effects: CatalogEffects
 ): Promise<{ images: string[]; promotions: PreuvePromotion[] }> {
-  if (identifiantsDeBrouillons(data.images).length === 0) {
+  if (identifiantsBrouillonsGalerie(data.images).length === 0) {
     return { images: urlsGalerie(data.images), promotions: [] }
   }
 
@@ -429,63 +423,217 @@ async function compenserPromotions(
   await effects.cycleVie.compenserPromotionBrouillons(promotions)
 }
 
-export async function createProduct(
+interface ProduitExistant {
+  slug: string
+  images: string[]
+}
+
+type ProduitEcrit = Product & {
+  variants: ProductVariant[]
+  category: Category | null
+}
+
+interface FaitsEcritureProduit {
+  produit: ProduitEcrit
+  imagesRetirees: string[]
+  slugPrecedent?: string
+}
+
+type ModeEnregistrement =
+  { kind: "creation" } | { kind: "miseAJour"; id: string }
+
+type ContexteEnregistrement =
+  | { kind: "creation" }
+  | { kind: "miseAJour"; id: string; existant: ProduitExistant }
+
+async function lireProduitExistant(id: string): Promise<ProduitExistant> {
+  const produit = await prisma.product.findUnique({ where: { id } })
+  if (!produit) throw new ProductNotFoundError()
+  return { slug: produit.slug, images: urlsImagesProduit(produit.images) }
+}
+
+async function contexteDe(
+  mode: ModeEnregistrement
+): Promise<ContexteEnregistrement> {
+  if (mode.kind === "creation") return mode
+  return { ...mode, existant: await lireProduitExistant(mode.id) }
+}
+
+async function assertVariantesDuProduit(
+  id: string,
+  variants: readonly ProductVariantInput[]
+): Promise<void> {
+  const existantes = await prisma.productVariant.findMany({
+    where: { productId: id },
+    select: { id: true },
+  })
+  const possedees = new Set(existantes.map((variant) => variant.id))
+  for (const variant of variants) {
+    if (variant.id && !possedees.has(variant.id)) {
+      throw new CatalogValidationError(["variante inconnue pour ce produit"])
+    }
+  }
+}
+
+function donneesProduit(data: ProduitValide, images: string[]) {
+  return {
+    name: data.name,
+    slug: data.slug,
+    description: data.description,
+    brand: data.brand,
+    price: data.price,
+    specs: data.specs,
+    images,
+    isFeatured: data.isFeatured,
+    featuredOrder: data.featuredOrder,
+    freeShipping: data.freeShipping,
+    categoryId: data.categoryId,
+  }
+}
+
+function donneesVariante(variant: ProductVariantInput) {
+  return {
+    name: variant.name,
+    sku: variant.sku,
+    priceDelta: variant.priceDelta,
+    stock: variant.stock,
+  }
+}
+
+async function ecrireCreation(
+  tx: Prisma.TransactionClient,
+  data: ProduitValide,
+  images: string[]
+): Promise<FaitsEcritureProduit> {
+  const produit = await tx.product.create({
+    data: {
+      ...donneesProduit(data, images),
+      variants: {
+        create: data.variants.map((variant) => donneesVariante(variant)),
+      },
+    },
+    include: { variants: true, category: true },
+  })
+  return { produit, imagesRetirees: [] }
+}
+
+async function ecrireMiseAJour(
+  tx: Prisma.TransactionClient,
+  id: string,
+  data: ProduitValide,
+  images: string[],
+  existant: ProduitExistant
+): Promise<FaitsEcritureProduit> {
+  const variantesExistantes = await tx.productVariant.findMany({
+    where: { productId: id },
+    select: { id: true },
+  })
+
+  await tx.product.update({
+    where: { id },
+    data: donneesProduit(data, images),
+  })
+
+  for (const variant of data.variants) {
+    if (variant.id) {
+      await tx.productVariant.update({
+        where: { id: variant.id },
+        data: donneesVariante(variant),
+      })
+    } else {
+      await tx.productVariant.create({
+        data: { ...donneesVariante(variant), productId: id },
+      })
+    }
+  }
+
+  const conservees = new Set(
+    data.variants.flatMap((variant) => (variant.id ? [variant.id] : []))
+  )
+  const supprimees = variantesExistantes
+    .map((variant) => variant.id)
+    .filter((variantId) => !conservees.has(variantId))
+  if (supprimees.length > 0) {
+    await tx.productVariant.deleteMany({ where: { id: { in: supprimees } } })
+  }
+
+  const produit = await tx.product.findUniqueOrThrow({
+    where: { id },
+    include: { variants: true, category: true },
+  })
+  return {
+    produit,
+    imagesRetirees: existant.images.filter((url) => !images.includes(url)),
+    slugPrecedent: existant.slug !== produit.slug ? existant.slug : undefined,
+  }
+}
+
+async function enregistrerProduit(
+  mode: ModeEnregistrement,
   input: ProductInput,
   overrides?: Partial<CatalogEffects>
 ) {
+  const contexte = await contexteDe(mode)
   const data = parseProductInput(input)
-  const effects = avecSurcharges(defaultCatalogEffects(data.slug), overrides)
+  const effects = avecSurcharges(
+    defaultCatalogEffects(
+      contexte.kind === "creation" ? data.slug : contexte.id
+    ),
+    overrides
+  )
 
   const repris = await produitDeLaTentative(
     data.tentativeId,
-    identifiantsDeBrouillons(data.images),
+    identifiantsBrouillonsGalerie(data.images),
     effects
   )
-  if (repris) return repris
+  if (repris) {
+    if (contexte.kind === "miseAJour" && repris.id !== contexte.id) {
+      throw new DraftConflictError(MESSAGE_REPRISE_AUTRE_PRODUIT)
+    }
+    return repris
+  }
+
+  const idMiseAJour = contexte.kind === "miseAJour" ? contexte.id : undefined
+  const imagesExistantes =
+    contexte.kind === "miseAJour" ? contexte.existant.images : []
 
   assertNonNegativeVariantPrices(data)
   assertUniqueSkusInInput(data.variants)
-  await assertAucuneImageDAutreProduit(data.images, [])
-  await assertUniqueSlug(data.slug)
-  await assertUniqueSkus(data.variants.map((variant) => variant.sku))
+  await assertAucuneImageDAutreProduit(data.images, imagesExistantes)
+  await assertUniqueSlug(data.slug, idMiseAJour)
+  await assertUniqueSkus(
+    data.variants.map((variant) => variant.sku),
+    idMiseAJour
+  )
+  if (contexte.kind === "miseAJour") {
+    await assertVariantesDuProduit(contexte.id, data.variants)
+  }
 
   const { images, promotions } = await promouvoirBrouillons(data, effects)
 
-  let product
+  let ecriture: FaitsEcritureProduit
   try {
-    product = await prisma.$transaction(async (tx) => {
-      const created = await tx.product.create({
-        data: {
-          name: data.name,
-          slug: data.slug,
-          description: data.description,
-          brand: data.brand,
-          price: data.price,
-          specs: data.specs,
-          images,
-          isFeatured: data.isFeatured,
-          featuredOrder: data.featuredOrder,
-          freeShipping: data.freeShipping,
-          categoryId: data.categoryId,
-          variants: {
-            create: data.variants.map((variant) => ({
-              name: variant.name,
-              sku: variant.sku,
-              priceDelta: variant.priceDelta,
-              stock: variant.stock,
-            })),
-          },
-        },
-        include: { variants: true, category: true },
-      })
+    ecriture = await prisma.$transaction(async (tx) => {
+      const ecrit =
+        contexte.kind === "creation"
+          ? await ecrireCreation(tx, data, images)
+          : await ecrireMiseAJour(
+              tx,
+              contexte.id,
+              data,
+              images,
+              contexte.existant
+            )
+
       if (promotions.length > 0) {
         await effects.cycleVie.confirmerBrouillons(
-          created.id,
+          ecrit.produit.id,
           promotions,
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
-      return created
+      return ecrit
     })
   } catch (error) {
     await compenserPromotions(promotions, effects)
@@ -494,19 +642,40 @@ export async function createProduct(
 
   if (promotions.length > 0) {
     await runEffect(
-      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${product.id}`,
+      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${ecriture.produit.id}`,
       () => effects.cycleVie.supprimerSources(promotions)
     )
   }
+  if (contexte.kind === "miseAJour") {
+    await runEffect(
+      `[catalog] suppression d'images R2 non effectuée pour ${ecriture.produit.id}`,
+      () => effects.deleteImages(ecriture.imagesRetirees)
+    )
+  }
   await runEffect(
-    `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-    () => effects.reindexProducts([toIndexableProduct(product)])
+    `[catalog] réindexation Meilisearch non effectuée pour ${ecriture.produit.id}`,
+    () => effects.reindexProducts([toIndexableProduct(ecriture.produit)])
   )
+  const evenementCatalogue =
+    ecriture.slugPrecedent === undefined
+      ? { id: ecriture.produit.id, slug: ecriture.produit.slug }
+      : {
+          id: ecriture.produit.id,
+          slug: ecriture.produit.slug,
+          previousSlug: ecriture.slugPrecedent,
+        }
   await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-    () => effects.revalidateCatalog({ id: product.id, slug: product.slug })
+    `[catalog] invalidation du cache non effectuée pour ${ecriture.produit.id}`,
+    () => effects.revalidateCatalog(evenementCatalogue)
   )
-  return product
+  return ecriture.produit
+}
+
+export async function createProduct(
+  input: ProductInput,
+  overrides?: Partial<CatalogEffects>
+) {
+  return enregistrerProduit({ kind: "creation" }, input, overrides)
 }
 
 export async function updateProduct(
@@ -514,148 +683,7 @@ export async function updateProduct(
   input: ProductInput,
   overrides?: Partial<CatalogEffects>
 ) {
-  const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
-  const existing = await prisma.product.findUnique({ where: { id } })
-  if (!existing) throw new ProductNotFoundError()
-
-  const data = parseProductInput(input)
-
-  const repris = await produitDeLaTentative(
-    data.tentativeId,
-    identifiantsDeBrouillons(data.images),
-    effects
-  )
-  if (repris) {
-    if (repris.id !== id)
-      throw new DraftConflictError(MESSAGE_REPRISE_AUTRE_PRODUIT)
-    return repris
-  }
-
-  const existingImages = imageUrls(existing.images)
-  const keptVariantIds = data.variants.flatMap((variant) =>
-    variant.id ? [variant.id] : []
-  )
-
-  await assertAucuneImageDAutreProduit(data.images, existingImages)
-  assertNonNegativeVariantPrices(data)
-  assertUniqueSkusInInput(data.variants)
-  await assertUniqueSlug(data.slug, id)
-  await assertUniqueSkus(
-    data.variants.map((variant) => variant.sku),
-    id
-  )
-
-  const existingVariantIds = await prisma.productVariant.findMany({
-    where: { productId: id },
-    select: { id: true },
-  })
-  const ownedVariantIds = new Set(
-    existingVariantIds.map((variant) => variant.id)
-  )
-  for (const variant of data.variants) {
-    if (variant.id && !ownedVariantIds.has(variant.id)) {
-      throw new CatalogValidationError(["variante inconnue pour ce produit"])
-    }
-  }
-
-  const { images, promotions } = await promouvoirBrouillons(data, effects)
-  const removedImages = existingImages.filter((url) => !images.includes(url))
-
-  let product
-  try {
-    product = await prisma.$transaction(async (tx) => {
-      await tx.product.update({
-        where: { id },
-        data: {
-          name: data.name,
-          slug: data.slug,
-          description: data.description,
-          brand: data.brand,
-          price: data.price,
-          specs: data.specs,
-          images,
-          isFeatured: data.isFeatured,
-          featuredOrder: data.featuredOrder,
-          freeShipping: data.freeShipping,
-          categoryId: data.categoryId,
-        },
-      })
-
-      for (const variant of data.variants) {
-        if (variant.id) {
-          await tx.productVariant.update({
-            where: { id: variant.id },
-            data: {
-              name: variant.name,
-              sku: variant.sku,
-              priceDelta: variant.priceDelta,
-              stock: variant.stock,
-            },
-          })
-        } else {
-          await tx.productVariant.create({
-            data: {
-              name: variant.name,
-              sku: variant.sku,
-              priceDelta: variant.priceDelta,
-              stock: variant.stock,
-              productId: id,
-            },
-          })
-        }
-      }
-
-      const toDelete = existingVariantIds
-        .map((variant) => variant.id)
-        .filter((variantId) => !keptVariantIds.includes(variantId))
-      if (toDelete.length > 0) {
-        await tx.productVariant.deleteMany({ where: { id: { in: toDelete } } })
-      }
-
-      if (promotions.length > 0) {
-        await effects.cycleVie.confirmerBrouillons(
-          id,
-          promotions,
-          portTransactionRegistreBrouillonImageProduit(tx)
-        )
-      }
-
-      return tx.product.findUniqueOrThrow({
-        where: { id },
-        include: { variants: true, category: true },
-      })
-    })
-  } catch (error) {
-    await compenserPromotions(promotions, effects)
-    mapUniqueViolation(error)
-  }
-
-  if (promotions.length > 0) {
-    await runEffect(
-      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${id}`,
-      () => effects.cycleVie.supprimerSources(promotions)
-    )
-  }
-  await runEffect(
-    `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-    () => effects.deleteImages(removedImages)
-  )
-
-  await runEffect(
-    `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-    () => effects.reindexProducts([toIndexableProduct(product)])
-  )
-  await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-    () =>
-      effects.revalidateCatalog({
-        id: product.id,
-        slug: product.slug,
-        previousSlug:
-          existing.slug !== product.slug ? existing.slug : undefined,
-      })
-  )
-  return product
+  return enregistrerProduit({ kind: "miseAJour", id }, input, overrides)
 }
 
 export async function deleteProduct(
@@ -669,7 +697,7 @@ export async function deleteProduct(
   await prisma.product.delete({ where: { id } })
   await runEffect(
     `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-    () => effects.deleteImages(imageUrls(existing.images))
+    () => effects.deleteImages(urlsImagesProduit(existing.images))
   )
   await runEffect(
     `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
