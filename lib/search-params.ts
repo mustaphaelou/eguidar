@@ -1,4 +1,4 @@
-import { getPriceBucket } from "@/lib/price-buckets"
+import { lireFiltres, parametresDeFiltre } from "@/lib/filtre-de-recherche"
 
 export type SearchFacet = "brand" | "categorySlug" | "priceBucket"
 
@@ -36,17 +36,6 @@ export function parsePage(value: string | undefined): number {
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1
 }
 
-function parseBrands(value: string | string[] | undefined): string[] {
-  const values =
-    value === undefined ? [] : Array.isArray(value) ? value : [value]
-  const brands: string[] = []
-  for (const raw of values) {
-    const brand = raw.trim()
-    if (brand && !brands.includes(brand)) brands.push(brand)
-  }
-  return brands
-}
-
 export function toggleBrand(
   current: string[] | undefined,
   brand: string
@@ -74,21 +63,16 @@ export function parseSearchParams(
   }
 
   const query = (first("q")?.trim() ?? "").slice(0, SEARCH_QUERY_MAX_LENGTH)
-  const filters: SearchFilters = {}
-
-  const brands = parseBrands(params.marque)
-  if (brands.length > 0) filters.brand = brands
-
-  const categorySlug = first("categorie")?.trim()
-  if (categorySlug) filters.categorySlug = categorySlug
-
-  const priceBucketId = first("prix")?.trim()
-  if (getPriceBucket(priceBucketId)) filters.priceBucketId = priceBucketId
 
   const rawSort = first("tri")
   const sort = rawSort === undefined ? defaultSort : parseSort(rawSort)
 
-  return { query, filters, sort, page: parsePage(first("page")) }
+  return {
+    query,
+    filters: lireFiltres(params),
+    sort,
+    page: parsePage(first("page")),
+  }
 }
 
 export interface SearchView {
@@ -106,9 +90,9 @@ export function buildSearchHref(
   const next: SearchFilters = { ...filters, ...overrides }
   const params = new URLSearchParams()
   if (query) params.set("q", query)
-  for (const brand of next.brand ?? []) params.append("marque", brand)
-  if (next.categorySlug) params.set("categorie", next.categorySlug)
-  if (next.priceBucketId) params.set("prix", next.priceBucketId)
+  for (const [cle, valeur] of parametresDeFiltre(next)) {
+    params.append(cle, valeur)
+  }
   const sort = view.sort ?? SEARCH_SORT_DEFAULT
   if (sort !== SEARCH_SORT_DEFAULT) params.set("tri", sort)
   const page = view.page ?? 1
