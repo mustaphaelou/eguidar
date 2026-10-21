@@ -50,7 +50,7 @@ function fautifs(sources: readonly SourceProduction[]): string[] {
 }
 
 describe("la couture de la Recherche — frontière client/serveur", () => {
-  it("le corpus est réel, et deux surfaces client atteignent la couture", () => {
+  it("le corpus est réel, et les deux surfaces client de la Recherche y figurent", () => {
     const corpus = carte(SOURCES)
 
     expect(SOURCES.length).toBeGreaterThan(200)
@@ -62,14 +62,30 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
     for (const chemin of [BARRE_LATERALE, SUGGESTIONS]) {
       const { source } = sourceDuCorpus(SOURCES, chemin)
       expect(directive(source), chemin).toBe("use client")
-      expect(importeDe(source, "lib/use-cases/search"), chemin).toBe(true)
       expect(
         empruntsVersRecherche(chemin, source, corpus),
-        `${chemin} n'emprunte que des types`
+        `${chemin} n'emprunte aucune valeur au serveur`
       ).toEqual([])
     }
 
     expect(fautifs(SOURCES)).toEqual([])
+  })
+
+  it("la barre latérale n'emprunte rien à la couture, ni valeur ni type", () => {
+    const { source } = sourceDuCorpus(SOURCES, BARRE_LATERALE)
+
+    expect(importeDe(source, "lib/use-cases/search")).toBe(false)
+    expect(importeDe(source, "lib/filtre-de-recherche")).toBe(true)
+    expect(importeDe(source, "lib/search-params")).toBe(true)
+  })
+
+  it("la suggestion n'emprunte à la couture que des types", () => {
+    const { source } = sourceDuCorpus(SOURCES, SUGGESTIONS)
+
+    expect(importeDe(source, "lib/use-cases/search")).toBe(true)
+    expect(empruntsVersRecherche(SUGGESTIONS, source, carte(SOURCES))).toEqual(
+      []
+    )
   })
 
   it("le module mince a disparu du corpus", () => {
@@ -105,23 +121,20 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
     expect(fautifs(modifie)).toEqual([BARRE_LATERALE])
   })
 
-  it("n'échoue ni sur un import type planté, ni sur la suggestion réelle", () => {
-    const barre = sourceDuCorpus(SOURCES, BARRE_LATERALE)
+  it("n'échoue pas sur un import type planté, et la suggestion n'emprunte que des types", () => {
+    const suggestions = sourceDuCorpus(SOURCES, SUGGESTIONS)
     const typeSeul = sourceApres(
-      barre.source,
+      suggestions.source,
       'import type { OptionsDeFiltre } from "@/lib/use-cases/search"'
     )
-    const modifie = avecSource(SOURCES, BARRE_LATERALE, typeSeul)
+    const modifie = avecSource(SOURCES, SUGGESTIONS, typeSeul)
 
     expect(importeDe(typeSeul, "lib/use-cases/search")).toBe(true)
     expect(
-      empruntsVersRecherche(BARRE_LATERALE, typeSeul, carte(modifie))
+      empruntsVersRecherche(SUGGESTIONS, typeSeul, carte(modifie))
     ).toEqual([])
     expect(fautifs(modifie)).toEqual([])
 
-    const suggestions = sourceDuCorpus(SOURCES, SUGGESTIONS)
-    expect(directive(suggestions.source)).toBe("use client")
-    expect(importeDe(suggestions.source, "lib/use-cases/search")).toBe(true)
     expect(
       empruntsVersRecherche(SUGGESTIONS, suggestions.source, carte(SOURCES))
     ).toEqual([])

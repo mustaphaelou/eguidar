@@ -34,7 +34,6 @@ export {
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
   SEARCH_SORT_OPTIONS,
-  toggleBrand,
   type ParsedSearchParams,
   type SearchFacet,
   type SearchFilters,

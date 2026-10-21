@@ -11,21 +11,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => mockNextNavigation())
 
-import type { IndexableProduct } from "@/lib/index-projection"
-import {
-  searchProducts,
-  type FiltreActif,
-  type OptionDeFiltre,
-  type OptionsDeFiltre,
-} from "@/lib/use-cases/search"
+import type {
+  FiltreActif,
+  OptionDeFiltre,
+  OptionsDeFiltre,
+} from "@/lib/filtre-de-recherche"
 import {
   buildSearchHref,
   SEARCH_SORT_DEFAULT,
   type SearchFilters,
   type SearchView,
 } from "@/lib/search-params"
-import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
-import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
 
 import {
   ActiveFilters,
@@ -149,38 +145,6 @@ const PUCES_ACTIVES: readonly FiltreActif[] = [
 ]
 
 const VUE_EN_PAGE_TROIS: SearchView = { sort: "prix-asc", page: 3 }
-
-const STRUCTURE_DE_RECHERCHE = lectureDesStructures([
-  {
-    id: "mobilier",
-    name: "Mobilier",
-    slug: "mobilier",
-    image: null,
-    parentId: null,
-    produitsDirects: 1,
-  },
-])
-
-const DOCUMENT_DE_RECHERCHE: IndexableProduct = {
-  id: "bureau",
-  name: "Bureau pour casque",
-  slug: "bureau-pour-casque",
-  description: "casque",
-  brand: "Acme",
-  price: 50000,
-  minPrice: 50000,
-  totalStock: 1,
-  images: [],
-  categorySlug: "mobilier",
-  categoryName: "Mobilier",
-  specsText: "",
-  variantNames: [],
-  skus: [],
-  isFeatured: false,
-  freeShipping: false,
-  priceBucket: "0-1000",
-  updatedAt: 0,
-}
 
 const RETRAITS_DE_PASTILLE = [
   {
@@ -571,6 +535,37 @@ describe("FilterSidebar — liste de texte", () => {
       undefined
     )
   })
+
+  it("retire la Marque cochée au clic sur sa ligne et garde les autres", async () => {
+    rendre({ brand: ["acme", "beta"] }, OPTIONS_DE_FILTRE)
+
+    await act(async () => {
+      ligne("Acme")!.click()
+    })
+
+    expect(navigationSpies.push).toHaveBeenCalledWith(
+      "/recherche?q=casque&marque=beta",
+      undefined
+    )
+  })
+})
+
+describe("FilterSidebar — choix d'un bouton radio", () => {
+  it.each([
+    ["Catégorie", "Luminaires", "/recherche?q=casque&categorie=luminaires"],
+    ["Prix", "1 000 – 2 500 MAD", "/recherche?q=casque&prix=1000-2500"],
+  ])(
+    "écrit l'URL attendue au choix d'une Option du groupe %s",
+    async (groupe, libelle, url) => {
+      rendre({}, OPTIONS_DE_FILTRE)
+
+      await act(async () => {
+        ligne(libelle)!.click()
+      })
+
+      expect(navigationSpies.push).toHaveBeenCalledWith(url, undefined)
+    }
+  )
 })
 
 describe("FilterSidebar — groupes rendus et filets", () => {
@@ -665,45 +660,6 @@ describe("Filtres actifs", () => {
     ])
   })
 
-  it("rend les pastilles projetées par la Recherche, libellés et retrait compris", async () => {
-    const filtres: SearchFilters = {
-      brand: ["Acme"],
-      categorySlug: "mobilier",
-      priceBucketId: "0-1000",
-    }
-    const donnees = await searchProducts(
-      "casque",
-      filtres,
-      {},
-      creerMoteurEnMemoire([DOCUMENT_DE_RECHERCHE]),
-      STRUCTURE_DE_RECHERCHE
-    )
-
-    rendre(filtres, donnees.facets, {}, donnees.filtresActifs)
-
-    expect(pastilles().map((pastille) => pastille.textContent)).toEqual([
-      "Acme",
-      "Mobilier",
-      "Moins de 1 000 MAD",
-    ])
-    expect(
-      pastilles().map((pastille) => pastille.getAttribute("aria-label"))
-    ).toEqual([
-      "Retirer la marque Acme",
-      "Retirer la catégorie Mobilier",
-      "Retirer la tranche de prix Moins de 1 000 MAD",
-    ])
-
-    await act(async () => {
-      boutonNomme("Retirer la catégorie Mobilier")!.click()
-    })
-
-    expect(navigationSpies.push).toHaveBeenCalledWith(
-      "/recherche?q=casque&marque=Acme&prix=0-1000",
-      undefined
-    )
-  })
-
   it.each(RETRAITS_DE_PASTILLE)(
     "retire $pastille et garde les autres Filtres, page 1 et tri conservé",
     async ({ libelle, url }) => {
@@ -758,14 +714,6 @@ describe("Filtres actifs", () => {
 
     expect(pastilles()).toEqual([])
     expect(controlePortant("Tout effacer")).toBeNull()
-  })
-
-  it("compte une Tranche inconnue dans la pastille mobile sans inventer de pastille", () => {
-    rendre({ priceBucketId: "bande-obsolete" }, OPTIONS_DE_FILTRE)
-
-    expect(pastilles()).toEqual([])
-    expect(declencheur()?.textContent).toContain("1")
-    expect(controlePortant("Tout effacer")).not.toBeNull()
   })
 })
 

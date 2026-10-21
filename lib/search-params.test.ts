@@ -6,7 +6,6 @@ import {
   parseSearchParams,
   parseSort,
   SEARCH_QUERY_MAX_LENGTH,
-  toggleBrand,
 } from "@/lib/search-params"
 
 function paramsDepuisHref(href: string): Record<string, string | string[]> {
@@ -123,17 +122,5 @@ describe("buildSearchHref", () => {
       sort: "prix-asc",
       page: 2,
     })
-  })
-})
-
-describe("toggleBrand", () => {
-  it("adds a brand that is not selected yet", () => {
-    expect(toggleBrand(["Sony"], "LG")).toEqual(["Sony", "LG"])
-    expect(toggleBrand(undefined, "Sony")).toEqual(["Sony"])
-  })
-
-  it("removes a brand that is already selected", () => {
-    expect(toggleBrand(["Sony", "LG"], "Sony")).toEqual(["LG"])
-    expect(toggleBrand(["Sony"], "Sony")).toEqual([])
   })
 })

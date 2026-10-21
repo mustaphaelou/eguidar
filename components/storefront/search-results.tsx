@@ -22,6 +22,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { nombreDeFiltres } from "@/lib/filtre-de-recherche"
 import {
   buildSearchHref,
   type SearchFilters,
@@ -39,9 +40,7 @@ export function SearchResults({
   filters: SearchFilters
   hrefBase?: string
 }) {
-  const hasFilters = Boolean(
-    filters.brand?.length || filters.categorySlug || filters.priceBucketId
-  )
+  const hasFilters = nombreDeFiltres(filters) > 0
   const resetHref = buildSearchHref(
     query,
     {},

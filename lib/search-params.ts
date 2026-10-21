@@ -36,16 +36,6 @@ export function parsePage(value: string | undefined): number {
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1
 }
 
-export function toggleBrand(
-  current: string[] | undefined,
-  brand: string
-): string[] {
-  const brands = current ?? []
-  return brands.includes(brand)
-    ? brands.filter((candidate) => candidate !== brand)
-    : [...brands, brand]
-}
-
 export interface ParsedSearchParams {
   query: string
   filters: SearchFilters
