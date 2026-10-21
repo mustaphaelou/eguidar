@@ -4,7 +4,12 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-const HONO_PATCH_FLOOR = "4.13.5"
+// Dependabot alerts #68 (GHSA-5r4p-p66f-jhc7, CVE-2026-111757) and its
+// predecessors GHSA-gqvv-2mrq-wpjv, GHSA-g6gw-c38x-mqfc and
+// GHSA-crvj-82cr-hjcx. Alert #68 is the highest floor: serveStatic decoded the
+// request path a second time, so a crafted request could route as one path and
+// be served as another, skipping the middleware mounted on the static prefix.
+const HONO_PATCH_FLOOR = "4.13.11"
 const MAX_PACKAGE_ROOT_WALK_DEPTH = 8
 
 function releaseParts(version: string): number[] {
@@ -49,29 +54,30 @@ function installedHonoVersion(): string | null {
 
 describe("satisfiesPatchFloor", () => {
   it("accepts the patch floor itself", () => {
-    expect(satisfiesPatchFloor("4.13.5", HONO_PATCH_FLOOR)).toBe(true)
+    expect(satisfiesPatchFloor("4.13.11", HONO_PATCH_FLOOR)).toBe(true)
   })
 
   it("accepts later patch, minor and major releases", () => {
-    expect(satisfiesPatchFloor("4.13.6", HONO_PATCH_FLOOR)).toBe(true)
+    expect(satisfiesPatchFloor("4.13.12", HONO_PATCH_FLOOR)).toBe(true)
     expect(satisfiesPatchFloor("4.14.0", HONO_PATCH_FLOOR)).toBe(true)
     expect(satisfiesPatchFloor("5.0.0", HONO_PATCH_FLOOR)).toBe(true)
   })
 
   it("rejects the vulnerable releases below the floor", () => {
+    expect(satisfiesPatchFloor("4.13.10", HONO_PATCH_FLOOR)).toBe(false)
+    expect(satisfiesPatchFloor("4.13.7", HONO_PATCH_FLOOR)).toBe(false)
     expect(satisfiesPatchFloor("4.13.4", HONO_PATCH_FLOOR)).toBe(false)
-    expect(satisfiesPatchFloor("4.13.1", HONO_PATCH_FLOOR)).toBe(false)
     expect(satisfiesPatchFloor("4.11.4", HONO_PATCH_FLOOR)).toBe(false)
   })
 
   it("rejects prereleases and malformed versions", () => {
-    expect(satisfiesPatchFloor("4.13.5-beta.1", HONO_PATCH_FLOOR)).toBe(false)
+    expect(satisfiesPatchFloor("4.13.11-beta.1", HONO_PATCH_FLOOR)).toBe(false)
     expect(satisfiesPatchFloor("", HONO_PATCH_FLOOR)).toBe(false)
     expect(satisfiesPatchFloor("garbage", HONO_PATCH_FLOOR)).toBe(false)
   })
 })
 
-describe("installed hono (GHSA-gqvv-2mrq-wpjv, GHSA-g6gw-c38x-mqfc, GHSA-crvj-82cr-hjcx)", () => {
+describe("installed hono (GHSA-5r4p-p66f-jhc7, GHSA-gqvv-2mrq-wpjv, GHSA-g6gw-c38x-mqfc, GHSA-crvj-82cr-hjcx)", () => {
   it("sits at or above the patch floor", () => {
     const version = installedHonoVersion()
     expect(version, "hono not resolvable in the installed tree").not.toBeNull()
