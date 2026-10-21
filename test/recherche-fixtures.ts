@@ -1,6 +1,6 @@
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
+import type { OptionDeFiltre } from "@/lib/filtre-de-recherche"
 import type { FaitStructure } from "@/lib/use-cases/lecture-structure"
-import type { OptionDeFiltre } from "@/lib/use-cases/search"
 
 export function faitsDesCategoriesRecherche({
   smartphonesSlug,

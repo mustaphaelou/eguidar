@@ -55,7 +55,7 @@ import {
 
 const OPTIONS_VISIBLES = 8
 
-const FILTER_GROUP_DEFAULT_OPEN = ["brand", "category", "price"]
+const FILTER_GROUP_DEFAULT_OPEN = ["marque", "categorie", "prix"]
 
 type SearchFacets = OptionsDeFiltre
 
@@ -226,11 +226,11 @@ export function ActiveFilters({
               type="button"
               aria-label={filtre.ariaLabel}
               onClick={() => {
-                if (filtre.cle === "brand") {
+                if (filtre.cle === "marque") {
                   navigate({
                     brand: toggleBrand(filters.brand, filtre.valeur),
                   })
-                } else if (filtre.cle === "categorySlug") {
+                } else if (filtre.cle === "categorie") {
                   navigate({ categorySlug: undefined })
                 } else {
                   navigate({ priceBucketId: undefined })
@@ -359,7 +359,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
   const activeBrands = filters.brand ?? []
 
   const brandOptions = optionsVisibles(
-    facets.brands,
+    facets.marque,
     OPTIONS_VISIBLES,
     marquesDepliees
   )
@@ -367,20 +367,20 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
   const hiddenBrandCount = brandOptions.cachees
 
   const categoryOptions = optionsVisibles(
-    facets.categories,
+    facets.categorie,
     OPTIONS_VISIBLES,
     categoriesDepliees
   )
   const visibleCategories = categoryOptions.visibles
   const hiddenCategoryCount = categoryOptions.cachees
 
-  const priceOptions = facets.priceBuckets.filter(
+  const priceOptions = facets.prix.filter(
     (option) => option.count > 0 || option.selected
   )
 
   const groupes: Groupe[] = [
     {
-      valeur: "brand",
+      valeur: "marque",
       intitule: "Marque",
       options: visibleBrands,
       controle: (option: OptionDeFiltre) => (
@@ -399,7 +399,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
       },
     },
     {
-      valeur: "category",
+      valeur: "categorie",
       intitule: "Catégorie",
       options: visibleCategories,
       radio: true,
@@ -419,7 +419,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
       },
     },
     {
-      valeur: "price",
+      valeur: "prix",
       intitule: "Prix",
       legende: "Tranche de prix",
       options: priceOptions,

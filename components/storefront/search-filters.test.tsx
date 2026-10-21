@@ -37,16 +37,16 @@ import {
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 const OPTIONS_DE_FILTRE: OptionsDeFiltre = {
-  brands: [
+  marque: [
     { value: "acme", label: "Acme", count: 12, selected: false },
     { value: "beta", label: "Beta", count: 7, selected: false },
     { value: "gamma", label: "Gamma", count: 3, selected: false },
   ],
-  categories: [
+  categorie: [
     { value: "mobilier", label: "Mobilier", count: 9, selected: false },
     { value: "luminaires", label: "Luminaires", count: 4, selected: false },
   ],
-  priceBuckets: [
+  prix: [
     { value: "0-1000", label: "Moins de 1 000 MAD", count: 5, selected: false },
     {
       value: "1000-2500",
@@ -81,27 +81,27 @@ function optionsNommees(noms: string[], retenue?: string): OptionDeFiltre[] {
 
 const OPTIONS_DE_FILTRE_DIX_MARQUES: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  brands: optionsNommees(NOMS_D_OPTIONS),
+  marque: optionsNommees(NOMS_D_OPTIONS),
 }
 
 const OPTIONS_DE_FILTRE_DIX_MARQUES_RETENUE: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  brands: optionsNommees(NOMS_D_OPTIONS, "Juliett"),
+  marque: optionsNommees(NOMS_D_OPTIONS, "Juliett"),
 }
 
 const OPTIONS_DE_FILTRE_DIX_CATEGORIES: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  categories: optionsNommees(NOMS_D_OPTIONS),
+  categorie: optionsNommees(NOMS_D_OPTIONS),
 }
 
 const OPTIONS_DE_FILTRE_DOUZE_CATEGORIES_RETENUE: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  categories: optionsNommees([...NOMS_D_OPTIONS, "Kilo", "Lima"], "Lima"),
+  categorie: optionsNommees([...NOMS_D_OPTIONS, "Kilo", "Lima"], "Lima"),
 }
 
 const OPTIONS_DE_FILTRE_CATEGORIES_A_ZERO: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  categories: [
+  categorie: [
     { value: "mobilier", label: "Mobilier", count: 0, selected: false },
     { value: "luminaires", label: "Luminaires", count: 0, selected: false },
   ],
@@ -109,7 +109,7 @@ const OPTIONS_DE_FILTRE_CATEGORIES_A_ZERO: OptionsDeFiltre = {
 
 const OPTIONS_DE_FILTRE_CATEGORIE_RETENUE_A_ZERO: OptionsDeFiltre = {
   ...OPTIONS_DE_FILTRE,
-  categories: [
+  categorie: [
     { value: "mobilier", label: "Mobilier", count: 0, selected: true },
     { value: "luminaires", label: "Luminaires", count: 0, selected: false },
   ],
@@ -123,25 +123,25 @@ const FILTRES_ACTIFS: SearchFilters = {
 
 const PUCES_ACTIVES: readonly FiltreActif[] = [
   {
-    cle: "brand",
+    cle: "marque",
     valeur: "acme",
     label: "Acme",
     ariaLabel: "Retirer la marque acme",
   },
   {
-    cle: "brand",
+    cle: "marque",
     valeur: "beta",
     label: "Beta",
     ariaLabel: "Retirer la marque beta",
   },
   {
-    cle: "categorySlug",
+    cle: "categorie",
     valeur: "mobilier",
     label: "Mobilier",
     ariaLabel: "Retirer la catégorie Mobilier",
   },
   {
-    cle: "priceBucketId",
+    cle: "prix",
     valeur: "0-1000",
     label: "Moins de 1 000 MAD",
     ariaLabel: "Retirer la tranche de prix Moins de 1 000 MAD",
@@ -521,7 +521,7 @@ describe("FilterSidebar — liste de texte", () => {
   })
 
   it("n'affiche pas un groupe sans option", () => {
-    rendre({}, { ...OPTIONS_DE_FILTRE, categories: [] })
+    rendre({}, { ...OPTIONS_DE_FILTRE, categorie: [] })
 
     expect(container.textContent).toContain("Marque")
     expect(container.textContent).not.toContain("Catégorie")
@@ -582,7 +582,7 @@ describe("FilterSidebar — groupes rendus et filets", () => {
   })
 
   it("n'ajoute aucun filet pour un groupe disparu", () => {
-    rendre({}, { ...OPTIONS_DE_FILTRE, categories: [] })
+    rendre({}, { ...OPTIONS_DE_FILTRE, categorie: [] })
 
     expect(enTetesDeGroupe()).toHaveLength(2)
     expect(filetsDeGroupe()).toHaveLength(1)
@@ -638,19 +638,19 @@ describe("Filtres actifs", () => {
       {},
       [
         {
-          cle: "brand",
+          cle: "marque",
           valeur: "acme",
           label: "Acme SAS",
           ariaLabel: "Retirer la marque Acme SAS",
         },
         {
-          cle: "categorySlug",
+          cle: "categorie",
           valeur: "mobilier",
           label: "Mobilier résolu",
           ariaLabel: "Retirer la catégorie Mobilier résolu",
         },
         {
-          cle: "priceBucketId",
+          cle: "prix",
           valeur: "0-1000",
           label: "Tranche fournie",
           ariaLabel: "Retirer la tranche de prix Tranche fournie",
@@ -760,7 +760,7 @@ describe("Filtres actifs", () => {
     expect(controlePortant("Tout effacer")).toBeNull()
   })
 
-  it("compte encore une Tranche inconnue dans la pastille mobile, sans rendre de pastille", () => {
+  it("compte une Tranche inconnue dans la pastille mobile sans inventer de pastille", () => {
     rendre({ priceBucketId: "bande-obsolete" }, OPTIONS_DE_FILTRE)
 
     expect(pastilles()).toEqual([])
