@@ -1,13 +1,14 @@
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import {
   etatDesFiltres,
+  retirerFacette,
   type CleDeFiltre,
   type FiltreActif,
   type OptionsDeFiltre,
   type RepartitionsDeFacettes,
 } from "@/lib/filtre-de-recherche"
 import { moteurMeili } from "@/lib/meili"
-import { retirerFacette, type MoteurRecherche } from "@/lib/moteur-recherche"
+import type { MoteurRecherche } from "@/lib/moteur-recherche"
 import {
   SEARCH_PAGE_SIZE,
   SEARCH_SORT_DEFAULT,
@@ -40,8 +41,6 @@ export {
   type SearchSort,
   type SearchView,
 } from "@/lib/search-params"
-
-export { retirerFacette }
 
 // Réexports temporaires du module neutre, que #732 supprime.
 export type { FiltreActif } from "@/lib/filtre-de-recherche"
@@ -136,14 +135,16 @@ export async function searchProducts(
     pageSize,
   }
 
-  const requeteDeFacette = (facette: SearchFacet) =>
-    moteur.chercher({
+  const requeteDeFacette = (cle: CleDeFiltre) => {
+    const facette = FACETTE_DU_MOTEUR[cle]
+    return moteur.chercher({
       query,
-      filtres: retirerFacette(filters, facette),
+      filtres: retirerFacette(filters, cle),
       tri: sort,
       taille: 0,
       facettes: [facette],
     })
+  }
 
   const [initialResult, reponseMarque, reponseCategorie, reponsePrix] =
     await Promise.all([
@@ -154,9 +155,9 @@ export async function searchProducts(
         page: requestedPage,
         taille: pageSize,
       }),
-      requeteDeFacette(FACETTE_DU_MOTEUR.marque),
-      requeteDeFacette(FACETTE_DU_MOTEUR.categorie),
-      requeteDeFacette(FACETTE_DU_MOTEUR.prix),
+      requeteDeFacette("marque"),
+      requeteDeFacette("categorie"),
+      requeteDeFacette("prix"),
     ])
 
   if (

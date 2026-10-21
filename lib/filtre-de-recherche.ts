@@ -27,6 +27,12 @@ const CHAMP_DE_FILTRE = {
   prix: "priceBucketId",
 } as const satisfies Record<CleDeFiltre, keyof SearchFilters>
 
+const CLES_DE_FILTRE = [
+  "marque",
+  "categorie",
+  "prix",
+] as const satisfies readonly CleDeFiltre[]
+
 function premierValeur(
   valeur: string | string[] | undefined
 ): string | undefined {
@@ -74,6 +80,81 @@ export function parametresDeFiltre(
   if (prix) parametres.push(["prix", prix])
 
   return parametres
+}
+
+export function choisirValeur(
+  filtres: SearchFilters,
+  cle: CleDeFiltre,
+  valeur: string
+): SearchFilters {
+  switch (cle) {
+    case "marque": {
+      const marques = filtres[CHAMP_DE_FILTRE.marque] ?? []
+      return {
+        ...filtres,
+        [CHAMP_DE_FILTRE.marque]: marques.includes(valeur)
+          ? [...marques]
+          : [...marques, valeur],
+      }
+    }
+    case "categorie":
+      return { ...filtres, [CHAMP_DE_FILTRE.categorie]: valeur }
+    case "prix":
+      return { ...filtres, [CHAMP_DE_FILTRE.prix]: valeur }
+  }
+}
+
+export function valeursRetenues(
+  filtres: SearchFilters,
+  cle: CleDeFiltre
+): readonly string[] {
+  switch (cle) {
+    case "marque":
+      return [...(filtres[CHAMP_DE_FILTRE.marque] ?? [])]
+    case "categorie":
+    case "prix": {
+      const valeur = filtres[CHAMP_DE_FILTRE[cle]]
+      return valeur === undefined ? [] : [valeur]
+    }
+  }
+}
+
+export function nombreDeFiltres(filtres: SearchFilters): number {
+  let nombre = 0
+  for (const cle of CLES_DE_FILTRE) {
+    nombre += valeursRetenues(filtres, cle).length
+  }
+  return nombre
+}
+
+export function retirerFacette(
+  filtres: SearchFilters,
+  cle: CleDeFiltre
+): SearchFilters {
+  const restants = { ...filtres }
+  delete restants[CHAMP_DE_FILTRE[cle]]
+  return restants
+}
+
+export function retirerValeur(
+  filtres: SearchFilters,
+  cle: CleDeFiltre,
+  valeur: string
+): SearchFilters {
+  switch (cle) {
+    case "marque": {
+      const marques = (filtres[CHAMP_DE_FILTRE.marque] ?? []).filter(
+        (marque) => marque !== valeur
+      )
+      if (marques.length === 0) return retirerFacette(filtres, cle)
+      return { ...filtres, [CHAMP_DE_FILTRE.marque]: marques }
+    }
+    case "categorie":
+    case "prix":
+      return filtres[CHAMP_DE_FILTRE[cle]] === valeur
+        ? retirerFacette(filtres, cle)
+        : { ...filtres }
+  }
 }
 
 function assemblerOptions(

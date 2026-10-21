@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 
 import { describe, expect, it } from "vitest"
 
+import { retirerFacette } from "@/lib/filtre-de-recherche"
 import {
   LIBELLE_SANS_STRUCTURE,
   SLUG_SANS_STRUCTURE,
@@ -10,11 +11,7 @@ import {
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import type { OptionDeFiltre } from "@/lib/use-cases/search"
 import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
-import {
-  retirerFacette,
-  searchProducts,
-  searchSuggestions,
-} from "@/lib/use-cases/search"
+import { searchProducts, searchSuggestions } from "@/lib/use-cases/search"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
 import {
   faitsDesCategoriesRecherche,
@@ -724,7 +721,7 @@ describe("ADR-0016 — retirerFacette sous l'orchestration", () => {
 
     const sansMarque = await moteur.chercher({
       query: token,
-      filtres: retirerFacette({ brand }, "brand"),
+      filtres: retirerFacette({ brand }, "marque"),
       taille: 0,
       facettes: ["brand"],
     })

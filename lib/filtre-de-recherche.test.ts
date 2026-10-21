@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  choisirValeur,
   etatDesFiltres,
   lireFiltres,
+  nombreDeFiltres,
   parametresDeFiltre,
+  retirerFacette,
+  retirerValeur,
+  valeursRetenues,
   type CleDeFiltre,
   type OptionDeFiltre,
   type RepartitionsDeFacettes,
@@ -373,5 +378,238 @@ describe("etatDesFiltres", () => {
         ariaLabel: "Retirer la tranche de prix 1 000 – 2 500 MAD",
       },
     ])
+  })
+})
+
+describe("choisirValeur", () => {
+  const filtres: SearchFilters = {
+    brand: ["Sony"],
+    categorySlug: "audio",
+    priceBucketId: "0-1000",
+  }
+
+  it("ajoute une marque à la suite des marques retenues", () => {
+    expect(choisirValeur(filtres, "marque", "LG")).toEqual({
+      brand: ["Sony", "LG"],
+      categorySlug: "audio",
+      priceBucketId: "0-1000",
+    })
+  })
+
+  it("n'ajoute pas une marque déjà retenue et rend une nouvelle valeur", () => {
+    const choisis = choisirValeur(filtres, "marque", "Sony")
+
+    expect(choisis).toEqual(filtres)
+    expect(choisis).not.toBe(filtres)
+  })
+
+  it("remplace la catégorie retenue", () => {
+    expect(choisirValeur(filtres, "categorie", "video")).toEqual({
+      brand: ["Sony"],
+      categorySlug: "video",
+      priceBucketId: "0-1000",
+    })
+  })
+
+  it("remplace la Tranche de prix retenue", () => {
+    expect(choisirValeur(filtres, "prix", "2500-5000")).toEqual({
+      brand: ["Sony"],
+      categorySlug: "audio",
+      priceBucketId: "2500-5000",
+    })
+  })
+
+  it("choisit sur des filtres vides sans muter son argument", () => {
+    const vides: SearchFilters = {}
+
+    const choisis = choisirValeur(vides, "marque", "Sony")
+
+    expect(choisis).toEqual({ brand: ["Sony"] })
+    expect(choisis).not.toBe(vides)
+    expect(vides).toEqual({})
+  })
+
+  it("ne mute jamais son argument", () => {
+    choisirValeur(filtres, "marque", "LG")
+    choisirValeur(filtres, "categorie", "video")
+    choisirValeur(filtres, "prix", "2500-5000")
+
+    expect(filtres).toEqual({
+      brand: ["Sony"],
+      categorySlug: "audio",
+      priceBucketId: "0-1000",
+    })
+  })
+})
+
+describe("valeursRetenues", () => {
+  it("rend les marques retenues dans leur ordre d'apparition", () => {
+    expect(valeursRetenues({ brand: ["LG", "Sony"] }, "marque")).toEqual([
+      "LG",
+      "Sony",
+    ])
+  })
+
+  it("rend zéro ou une valeur pour les clés uniques", () => {
+    expect(valeursRetenues({ categorySlug: "audio" }, "categorie")).toEqual([
+      "audio",
+    ])
+    expect(valeursRetenues({ priceBucketId: "0-1000" }, "prix")).toEqual([
+      "0-1000",
+    ])
+    expect(valeursRetenues({}, "categorie")).toEqual([])
+    expect(valeursRetenues({}, "prix")).toEqual([])
+  })
+
+  it("rend un tableau de marques neuf, détaché des filtres", () => {
+    const filtres: SearchFilters = { brand: ["Sony", "LG"] }
+
+    const retenues = valeursRetenues(filtres, "marque")
+
+    expect(retenues).toEqual(["Sony", "LG"])
+    expect(retenues).not.toBe(filtres.brand)
+    expect(valeursRetenues({}, "marque")).toEqual([])
+  })
+})
+
+describe("nombreDeFiltres", () => {
+  it("compte chaque marque individuellement et une par clé unique", () => {
+    expect(
+      nombreDeFiltres({
+        brand: ["Sony", "LG"],
+        categorySlug: "audio",
+        priceBucketId: "0-1000",
+      })
+    ).toBe(4)
+  })
+
+  it("compte zéro quand aucun filtre n'est retenu", () => {
+    expect(nombreDeFiltres({})).toBe(0)
+  })
+
+  it("compte les marques seules", () => {
+    expect(nombreDeFiltres({ brand: ["Sony", "LG", "Apple"] })).toBe(3)
+  })
+
+  it("compte une clé unique renseignée seule", () => {
+    expect(nombreDeFiltres({ categorySlug: "audio" })).toBe(1)
+    expect(nombreDeFiltres({ priceBucketId: "0-1000" })).toBe(1)
+  })
+})
+
+describe("retirerFacette", () => {
+  const filtres: SearchFilters = {
+    brand: ["Sony"],
+    categorySlug: "audio-hifi",
+    priceBucketId: "2500-5000",
+  }
+
+  it("retire la clause de la clé visée et garde les autres filtres", () => {
+    expect(retirerFacette(filtres, "marque")).toEqual({
+      categorySlug: "audio-hifi",
+      priceBucketId: "2500-5000",
+    })
+    expect(retirerFacette(filtres, "categorie")).toEqual({
+      brand: ["Sony"],
+      priceBucketId: "2500-5000",
+    })
+    expect(retirerFacette(filtres, "prix")).toEqual({
+      brand: ["Sony"],
+      categorySlug: "audio-hifi",
+    })
+  })
+
+  it("laisse des filtres vides vides", () => {
+    expect(retirerFacette({}, "marque")).toEqual({})
+    expect(retirerFacette({}, "categorie")).toEqual({})
+    expect(retirerFacette({}, "prix")).toEqual({})
+  })
+
+  it("supprime la clé au lieu de la vider et ne mute jamais son argument", () => {
+    expect("brand" in retirerFacette(filtres, "marque")).toBe(false)
+    expect("categorySlug" in retirerFacette(filtres, "categorie")).toBe(false)
+    expect("priceBucketId" in retirerFacette(filtres, "prix")).toBe(false)
+
+    const restants = retirerFacette(filtres, "marque")
+
+    expect(restants).not.toBe(filtres)
+    expect(filtres).toEqual({
+      brand: ["Sony"],
+      categorySlug: "audio-hifi",
+      priceBucketId: "2500-5000",
+    })
+  })
+})
+
+describe("retirerValeur", () => {
+  const filtres: SearchFilters = {
+    brand: ["Sony", "LG", "Apple"],
+    categorySlug: "audio",
+    priceBucketId: "0-1000",
+  }
+
+  it("retire une marque et laisse les autres sélectionnées", () => {
+    expect(retirerValeur(filtres, "marque", "LG")).toEqual({
+      brand: ["Sony", "Apple"],
+      categorySlug: "audio",
+      priceBucketId: "0-1000",
+    })
+  })
+
+  it("supprime le champ des marques quand la liste devient vide", () => {
+    const restants = retirerValeur({ brand: ["Sony"] }, "marque", "Sony")
+
+    expect(restants).toEqual({})
+    expect("brand" in restants).toBe(false)
+  })
+
+  it("ne retire pas une marque absente et rend une nouvelle valeur", () => {
+    const restants = retirerValeur(filtres, "marque", "Teufel")
+
+    expect(restants).toEqual(filtres)
+    expect(restants).not.toBe(filtres)
+  })
+
+  it("efface la catégorie seulement quand elle correspond", () => {
+    const restants = retirerValeur(filtres, "categorie", "audio")
+
+    expect(restants).toEqual({
+      brand: ["Sony", "LG", "Apple"],
+      priceBucketId: "0-1000",
+    })
+    expect("categorySlug" in restants).toBe(false)
+  })
+
+  it("efface la Tranche de prix seulement quand elle correspond", () => {
+    const restants = retirerValeur(filtres, "prix", "0-1000")
+
+    expect(restants).toEqual({
+      brand: ["Sony", "LG", "Apple"],
+      categorySlug: "audio",
+    })
+    expect("priceBucketId" in restants).toBe(false)
+  })
+
+  it("ne touche pas à une clé unique qui ne correspond pas", () => {
+    const sansCategorie = retirerValeur(filtres, "categorie", "video")
+    const sansPrix = retirerValeur(filtres, "prix", "2500-5000")
+
+    expect(sansCategorie).toEqual(filtres)
+    expect(sansPrix).toEqual(filtres)
+    expect(sansCategorie).not.toBe(filtres)
+    expect(sansPrix).not.toBe(filtres)
+  })
+
+  it("ne mute jamais son argument", () => {
+    retirerValeur(filtres, "marque", "LG")
+    retirerValeur(filtres, "marque", "Sony")
+    retirerValeur(filtres, "categorie", "audio")
+    retirerValeur(filtres, "prix", "0-1000")
+
+    expect(filtres).toEqual({
+      brand: ["Sony", "LG", "Apple"],
+      categorySlug: "audio",
+      priceBucketId: "0-1000",
+    })
   })
 })

@@ -36,14 +36,3 @@ export type ReponseMoteur = ReponseDocuments | ReponseIndisponible
 export interface MoteurRecherche {
   chercher(requete: RequeteMoteur): Promise<ReponseMoteur>
 }
-
-export function retirerFacette(
-  filtres: SearchFilters,
-  facette: SearchFacet
-): SearchFilters {
-  const restants: SearchFilters = { ...filtres }
-  if (facette === "brand") delete restants.brand
-  if (facette === "categorySlug") delete restants.categorySlug
-  if (facette === "priceBucket") delete restants.priceBucketId
-  return restants
-}
