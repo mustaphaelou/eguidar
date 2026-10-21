@@ -65,9 +65,24 @@ function correspondAuModule(specifieur: string, module: string): boolean {
   )
 }
 
-export function importeDe(source: string, module: string): boolean {
+function resoluDepuis(specifieur: string, depuis: string): string {
+  return path.posix.normalize(
+    path.posix.join(path.posix.dirname(depuis), specifieur)
+  )
+}
+
+export function importeDe(
+  source: string,
+  module: string,
+  depuis?: string
+): boolean {
   return referencesDeSource(source).some(({ specifieur }) =>
-    correspondAuModule(specifieur, module)
+    correspondAuModule(
+      depuis !== undefined && specifieur.startsWith(".")
+        ? resoluDepuis(specifieur, depuis)
+        : specifieur,
+      module
+    )
   )
 }
 

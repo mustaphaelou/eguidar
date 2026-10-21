@@ -282,26 +282,27 @@ exactement comme le dit l'amendement #693.
 ## Amendement — L'assemblage des options a quitté la Recherche (#726, 2026-10-21)
 
 La décision ne bouge pas : la valeur réservée reste `_sans-structure`, sa puce se lit « Sans
-Structure » et filtre réellement. Cet amendement consigne ce que #726 rend faux dans l'amendement
-#694, et rien d'autre.
+Structure » et filtre réellement. Cet amendement est le **second amendement** à l'amendement #694 :
+il consigne ce que #726 rend faux dans ses phrases, et rien d'autre.
 
 L'amendement #694 dit : « Le module `lib/options-de-filtre.ts` est supprimé : `assemblerCategories`,
 `assemblerMarques`, `assemblerTranches` et leur façade sont désormais des fonctions privées de
 `lib/use-cases/search.ts`, que plus personne n'importe. » C'est faux depuis #728 : les trois
 assembleurs et leur façade sont des fonctions privées
 de [`lib/filtre-de-recherche.ts`](../../lib/filtre-de-recherche.ts), derrière l'entrée
-[`etatDesFiltres`](../../lib/filtre-de-recherche.ts#L275-L291). L'amendement dit aussi : « Les types
+[`etatDesFiltres`](../../lib/filtre-de-recherche.ts#L288-L304). L'amendement dit aussi : « Les types
 `OptionDeFiltre`, `OptionsDeFiltre` et `RepartitionsDeFacettes` sont exportés par la Recherche, et les
 surfaces client ne les empruntent qu'en types. » C'est faux depuis #732 : les trois types sont
 déclarés et exportés par le module neutre
-([`:6-15`](../../lib/filtre-de-recherche.ts#L6-L15)), la Recherche les importe
-([`lib/use-cases/search.ts:2-9`](../../lib/use-cases/search.ts#L2-L9)) et ne les réexporte plus
+([`OptionDeFiltre`](../../lib/filtre-de-recherche.ts#L6-L11), `OptionsDeFiltre` `:43`,
+`RepartitionsDeFacettes` `:45`), la Recherche les importe
+([`lib/use-cases/search.ts:2-10`](../../lib/use-cases/search.ts#L2-L10)) et ne les réexporte plus
 ([`lib/use-cases/search-frontiere.test.ts:99-149`](../../lib/use-cases/search-frontiere.test.ts#L99-L149)).
 
 La décision de #694, elle, ne se déplace pas : **l'assembleur reste privé et inimportable.** Aucun
 appelant ne peut assembler les options et les puces séparément ; seule sa maison a changé, et le
 chemin d'export des types avec elle. Ce qui était vrai le reste : `resoudreLesNomsDeCategories`
-([`lib/use-cases/search.ts:69-85`](../../lib/use-cases/search.ts#L69-L85)) résout `_sans-structure`
+([`lib/use-cases/search.ts:70-86`](../../lib/use-cases/search.ts#L70-L86)) résout `_sans-structure`
 avant l'assemblage, et les garanties de libellé sont inchangées — le libellé d'une puce est celui de
 son option, et une catégorie que la Structure ne nomme pas garde son slug (`noms.get(valeur) ??
-valeur`, [`lib/filtre-de-recherche.ts:189-202`](../../lib/filtre-de-recherche.ts#L189-L202)).
+valeur`, [`lib/filtre-de-recherche.ts:224-237`](../../lib/filtre-de-recherche.ts#L224-L237)).

@@ -1,14 +1,44 @@
 import { getPriceBucket, PRICE_BUCKETS } from "@/lib/price-buckets"
 import type { SearchFilters } from "@/lib/search-params"
 
-export type CleDeFiltre = "marque" | "categorie" | "prix"
-
 export interface OptionDeFiltre {
   value: string
   label: string
   count: number
   selected: boolean
 }
+
+interface DefinitionDeFiltre {
+  champ: keyof SearchFilters
+  multiple: boolean
+  ariaLabel: (label: string) => string
+  accepte?: (valeur: string) => boolean
+}
+
+const DEFINITIONS_DE_FILTRE = {
+  marque: {
+    champ: "brand",
+    multiple: true,
+    ariaLabel: (label: string) => `Retirer la marque ${label}`,
+  },
+  categorie: {
+    champ: "categorySlug",
+    multiple: false,
+    ariaLabel: (label: string) => `Retirer la catégorie ${label}`,
+  },
+  prix: {
+    champ: "priceBucketId",
+    multiple: false,
+    ariaLabel: (label: string) => `Retirer la tranche de prix ${label}`,
+    accepte: (valeur: string) => getPriceBucket(valeur) !== undefined,
+  },
+} as const satisfies Record<string, DefinitionDeFiltre>
+
+export type CleDeFiltre = keyof typeof DEFINITIONS_DE_FILTRE
+
+export const CLES_DE_FILTRE = Object.keys(
+  DEFINITIONS_DE_FILTRE
+) as CleDeFiltre[]
 
 export type OptionsDeFiltre = Record<CleDeFiltre, OptionDeFiltre[]>
 
@@ -21,45 +51,66 @@ export interface FiltreActif {
   ariaLabel: string
 }
 
-const CHAMP_DE_FILTRE = {
-  marque: "brand",
-  categorie: "categorySlug",
-  prix: "priceBucketId",
-} as const satisfies Record<CleDeFiltre, keyof SearchFilters>
-
-const CLES_DE_FILTRE = [
-  "marque",
-  "categorie",
-  "prix",
-] as const satisfies readonly CleDeFiltre[]
-
-function premierValeur(
+function premiereValeur(
   valeur: string | string[] | undefined
 ): string | undefined {
   return Array.isArray(valeur) ? valeur[0] : valeur
 }
 
-function valeursDeMarque(valeur: string | string[] | undefined): string[] {
-  return valeur === undefined ? [] : Array.isArray(valeur) ? valeur : [valeur]
+function valeursDuParametre(
+  params: Record<string, string | string[] | undefined>,
+  cle: CleDeFiltre
+): string[] {
+  const valeur = params[cle]
+  if (valeur === undefined) return []
+  return Array.isArray(valeur) ? valeur : [valeur]
+}
+
+function valeursDuChamp(filtres: SearchFilters, cle: CleDeFiltre): string[] {
+  const valeur = filtres[DEFINITIONS_DE_FILTRE[cle].champ]
+  if (Array.isArray(valeur)) return valeur
+  return valeur ? [valeur] : []
+}
+
+function ecrireChamp<K extends keyof SearchFilters>(
+  filtres: SearchFilters,
+  champ: K,
+  valeur: SearchFilters[K]
+): SearchFilters {
+  const suivants: SearchFilters = { ...filtres }
+  suivants[champ] = valeur
+  return suivants
+}
+
+function accepte(definition: DefinitionDeFiltre, valeur: string): boolean {
+  return definition.accepte?.(valeur) ?? true
 }
 
 export function lireFiltres(
   params: Record<string, string | string[] | undefined>
 ): SearchFilters {
-  const filtres: SearchFilters = {}
+  let filtres: SearchFilters = {}
 
-  const marques: string[] = []
-  for (const brute of valeursDeMarque(params.marque)) {
-    const marque = brute.trim()
-    if (marque && !marques.includes(marque)) marques.push(marque)
+  for (const cle of CLES_DE_FILTRE) {
+    const definition = DEFINITIONS_DE_FILTRE[cle]
+
+    if (definition.multiple) {
+      const valeurs: string[] = []
+      for (const brute of valeursDuParametre(params, cle)) {
+        const valeur = brute.trim()
+        if (valeur && !valeurs.includes(valeur)) valeurs.push(valeur)
+      }
+      if (valeurs.length > 0) {
+        filtres = ecrireChamp(filtres, definition.champ, valeurs)
+      }
+      continue
+    }
+
+    const valeur = premiereValeur(params[cle])?.trim()
+    if (valeur && accepte(definition, valeur)) {
+      filtres = ecrireChamp(filtres, definition.champ, valeur)
+    }
   }
-  if (marques.length > 0) filtres[CHAMP_DE_FILTRE.marque] = marques
-
-  const categorie = premierValeur(params.categorie)?.trim()
-  if (categorie) filtres[CHAMP_DE_FILTRE.categorie] = categorie
-
-  const prix = premierValeur(params.prix)?.trim()
-  if (prix && getPriceBucket(prix)) filtres[CHAMP_DE_FILTRE.prix] = prix
 
   return filtres
 }
@@ -69,15 +120,11 @@ export function parametresDeFiltre(
 ): (readonly [CleDeFiltre, string])[] {
   const parametres: (readonly [CleDeFiltre, string])[] = []
 
-  for (const marque of filtres[CHAMP_DE_FILTRE.marque] ?? []) {
-    parametres.push(["marque", marque])
+  for (const cle of CLES_DE_FILTRE) {
+    for (const valeur of valeursRetenues(filtres, cle)) {
+      parametres.push([cle, valeur])
+    }
   }
-
-  const categorie = filtres[CHAMP_DE_FILTRE.categorie]
-  if (categorie) parametres.push(["categorie", categorie])
-
-  const prix = filtres[CHAMP_DE_FILTRE.prix]
-  if (prix) parametres.push(["prix", prix])
 
   return parametres
 }
@@ -87,36 +134,25 @@ export function choisirValeur(
   cle: CleDeFiltre,
   valeur: string
 ): SearchFilters {
-  switch (cle) {
-    case "marque": {
-      const marques = filtres[CHAMP_DE_FILTRE.marque] ?? []
-      return {
-        ...filtres,
-        [CHAMP_DE_FILTRE.marque]: marques.includes(valeur)
-          ? [...marques]
-          : [...marques, valeur],
-      }
-    }
-    case "categorie":
-      return { ...filtres, [CHAMP_DE_FILTRE.categorie]: valeur }
-    case "prix":
-      return { ...filtres, [CHAMP_DE_FILTRE.prix]: valeur }
+  const definition = DEFINITIONS_DE_FILTRE[cle]
+
+  if (!definition.multiple) {
+    return ecrireChamp(filtres, definition.champ, valeur)
   }
+
+  const valeurs = valeursDuChamp(filtres, cle)
+  return ecrireChamp(
+    filtres,
+    definition.champ,
+    valeurs.includes(valeur) ? [...valeurs] : [...valeurs, valeur]
+  )
 }
 
 export function valeursRetenues(
   filtres: SearchFilters,
   cle: CleDeFiltre
 ): readonly string[] {
-  switch (cle) {
-    case "marque":
-      return [...(filtres[CHAMP_DE_FILTRE.marque] ?? [])]
-    case "categorie":
-    case "prix": {
-      const valeur = filtres[CHAMP_DE_FILTRE[cle]]
-      return valeur === undefined ? [] : [valeur]
-    }
-  }
+  return [...valeursDuChamp(filtres, cle)]
 }
 
 export function nombreDeFiltres(filtres: SearchFilters): number {
@@ -132,7 +168,7 @@ export function retirerFacette(
   cle: CleDeFiltre
 ): SearchFilters {
   const restants = { ...filtres }
-  delete restants[CHAMP_DE_FILTRE[cle]]
+  delete restants[DEFINITIONS_DE_FILTRE[cle].champ]
   return restants
 }
 
@@ -141,20 +177,19 @@ export function retirerValeur(
   cle: CleDeFiltre,
   valeur: string
 ): SearchFilters {
-  switch (cle) {
-    case "marque": {
-      const marques = (filtres[CHAMP_DE_FILTRE.marque] ?? []).filter(
-        (marque) => marque !== valeur
-      )
-      if (marques.length === 0) return retirerFacette(filtres, cle)
-      return { ...filtres, [CHAMP_DE_FILTRE.marque]: marques }
-    }
-    case "categorie":
-    case "prix":
-      return filtres[CHAMP_DE_FILTRE[cle]] === valeur
-        ? retirerFacette(filtres, cle)
-        : { ...filtres }
+  const definition = DEFINITIONS_DE_FILTRE[cle]
+
+  if (definition.multiple) {
+    const valeurs = valeursDuChamp(filtres, cle).filter(
+      (candidate) => candidate !== valeur
+    )
+    if (valeurs.length === 0) return retirerFacette(filtres, cle)
+    return ecrireChamp(filtres, definition.champ, valeurs)
   }
+
+  return valeursRetenues(filtres, cle)[0] === valeur
+    ? retirerFacette(filtres, cle)
+    : { ...filtres }
 }
 
 function assemblerOptions(
@@ -237,36 +272,14 @@ function projeterFiltresActifs(
   filtres: SearchFilters,
   options: OptionsDeFiltre
 ): FiltreActif[] {
-  const filtresActifs: FiltreActif[] = (filtres.brand ?? []).map((valeur) => {
-    const { label } = optionDeValeur(options.marque, valeur)
-    return {
-      cle: "marque",
-      valeur,
-      label,
-      ariaLabel: `Retirer la marque ${label}`,
+  const filtresActifs: FiltreActif[] = []
+
+  for (const cle of CLES_DE_FILTRE) {
+    const { ariaLabel } = DEFINITIONS_DE_FILTRE[cle]
+    for (const valeur of valeursRetenues(filtres, cle)) {
+      const { label } = optionDeValeur(options[cle], valeur)
+      filtresActifs.push({ cle, valeur, label, ariaLabel: ariaLabel(label) })
     }
-  })
-
-  const categorie = filtres.categorySlug
-  if (categorie) {
-    const { label } = optionDeValeur(options.categorie, categorie)
-    filtresActifs.push({
-      cle: "categorie",
-      valeur: categorie,
-      label,
-      ariaLabel: `Retirer la catégorie ${label}`,
-    })
-  }
-
-  const tranche = filtres.priceBucketId
-  if (tranche) {
-    const { label } = optionDeValeur(options.prix, tranche)
-    filtresActifs.push({
-      cle: "prix",
-      valeur: tranche,
-      label,
-      ariaLabel: `Retirer la tranche de prix ${label}`,
-    })
   }
 
   return filtresActifs

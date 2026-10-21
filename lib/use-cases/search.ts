@@ -2,6 +2,7 @@ import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import {
   etatDesFiltres,
   retirerFacette,
+  valeursRetenues,
   type CleDeFiltre,
   type FiltreActif,
   type OptionsDeFiltre,
@@ -52,7 +53,7 @@ export interface SearchPageData {
   query: string
   totalHits: number
   products: CarteProduit[]
-  facets: OptionsDeFiltre
+  options: OptionsDeFiltre
   filtresActifs: readonly FiltreActif[]
   sort: SearchSort
   currentPage: number
@@ -105,7 +106,7 @@ export async function searchProducts(
     query,
     totalHits: 0,
     products: [],
-    facets: etatVide.options,
+    options: etatVide.options,
     filtresActifs: etatVide.filtresActifs,
     sort,
     currentPage: 1,
@@ -170,21 +171,17 @@ export async function searchProducts(
   }
 
   const slugs = new Set(Object.keys(repartitions.categorie))
-  if (filters.categorySlug) slugs.add(filters.categorySlug)
+  for (const slug of valeursRetenues(filters, "categorie")) slugs.add(slug)
   const categoryNames = await resoudreLesNomsDeCategories(structure, slugs)
 
-  const { options: facets, filtresActifs } = etatDesFiltres(
-    repartitions,
-    filters,
-    categoryNames
-  )
+  const etat = etatDesFiltres(repartitions, filters, categoryNames)
 
   return {
     query,
     totalHits,
     products: documents.map(carteDuHit),
-    facets,
-    filtresActifs,
+    options: etat.options,
+    filtresActifs: etat.filtresActifs,
     sort,
     currentPage,
     totalPages,

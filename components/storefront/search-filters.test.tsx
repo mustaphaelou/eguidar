@@ -169,9 +169,9 @@ function rendre(
       sort={view.sort ?? SEARCH_SORT_DEFAULT}
       hrefBase="/recherche"
     >
-      <FilterSidebar facets={options} />
+      <FilterSidebar options={options} />
       <ActiveFilters filtresActifs={filtresActifs} />
-      <MobileFilterDrawer facets={options} totalHits={42} />
+      <MobileFilterDrawer options={options} totalHits={42} />
     </SearchNavigationProvider>
   )
   const root = createRoot(container)
@@ -580,7 +580,7 @@ describe("Filtres actifs", () => {
   })
 
   it.each(RETRAITS_DE_PASTILLE)(
-    "retire $pastille et garde les autres Filtres, page 1 et tri conservé",
+    "retire $pastille et garde q, le tri, les autres Filtres et la règle de page 1",
     async ({ libelle, url }) => {
       rendre(
         FILTRES_ACTIFS,
@@ -597,7 +597,7 @@ describe("Filtres actifs", () => {
     }
   )
 
-  it("ramène à l'URL nue avec « Tout effacer », page 1 et tri conservé", async () => {
+  it("« Tout effacer » garde q et le tri, et applique la règle de page 1", async () => {
     rendre(FILTRES_ACTIFS, OPTIONS_DE_FILTRE, VUE_EN_PAGE_TROIS, PUCES_ACTIVES)
 
     await act(async () => {
@@ -610,7 +610,7 @@ describe("Filtres actifs", () => {
     )
   })
 
-  it("ramène à l'URL nue avec « Tout effacer », sans tri", async () => {
+  it("« Tout effacer » garde q sans tri", async () => {
     rendre(
       { brand: ["acme"], categorySlug: "mobilier", priceBucketId: "0-1000" },
       OPTIONS_DE_FILTRE,

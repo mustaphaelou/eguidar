@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   choisirValeur,
+  CLES_DE_FILTRE,
   etatDesFiltres,
   lireFiltres,
   nombreDeFiltres,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/filtre-de-recherche"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
 import type { SearchFilters } from "@/lib/search-params"
+import { tranchesAttendues } from "@/test/recherche-fixtures"
 
 const REPARTITIONS_VIDES: RepartitionsDeFacettes = {
   marque: {},
@@ -30,18 +32,6 @@ const NOMS_DE_CATEGORIES = new Map([
   ["e-slug", "Zoos"],
 ])
 
-function tranchesAttendues(
-  comptes: Readonly<Record<string, number>> = {},
-  retenue?: string
-): OptionDeFiltre[] {
-  return PRICE_BUCKETS.map(({ id, label }) => ({
-    value: id,
-    label,
-    count: comptes[id] ?? 0,
-    selected: id === retenue,
-  }))
-}
-
 function paramsDepuis(
   paires: readonly (readonly [CleDeFiltre, string])[]
 ): Record<string, string | string[]> {
@@ -55,6 +45,22 @@ function paramsDepuis(
   }
   return params
 }
+
+describe("la table des clés", () => {
+  it("sert chaque clé qu'elle déclare par toutes les opérations", () => {
+    for (const cle of CLES_DE_FILTRE) {
+      const choisis = choisirValeur({}, cle, "valeur")
+
+      expect(parametresDeFiltre(choisis)).toEqual([[cle, "valeur"]])
+      expect(valeursRetenues(choisis, cle)).toEqual(["valeur"])
+      expect(nombreDeFiltres(choisis)).toBe(1)
+      expect(valeursRetenues(retirerFacette(choisis, cle), cle)).toEqual([])
+      expect(
+        valeursRetenues(retirerValeur(choisis, cle, "valeur"), cle)
+      ).toEqual([])
+    }
+  })
+})
 
 describe("lireFiltres", () => {
   it("relit ce que parametresDeFiltre a écrit", () => {
@@ -470,6 +476,24 @@ describe("valeursRetenues", () => {
     expect(retenues).toEqual(["Sony", "LG"])
     expect(retenues).not.toBe(filtres.brand)
     expect(valeursRetenues({}, "marque")).toEqual([])
+  })
+
+  it("traite un champ unique vide comme absent : ni compte, ni puce, ni option sélectionnée", () => {
+    const filtres: SearchFilters = { categorySlug: "", priceBucketId: "" }
+
+    expect(valeursRetenues(filtres, "categorie")).toEqual([])
+    expect(valeursRetenues(filtres, "prix")).toEqual([])
+    expect(nombreDeFiltres(filtres)).toBe(0)
+
+    const { options, filtresActifs } = etatDesFiltres(
+      REPARTITIONS_VIDES,
+      filtres,
+      new Map()
+    )
+
+    expect(filtresActifs).toEqual([])
+    expect(options.categorie).toEqual([])
+    expect(options.prix.filter((option) => option.selected)).toEqual([])
   })
 })
 

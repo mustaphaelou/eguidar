@@ -15,9 +15,15 @@ const MODULES_INTERDITS = [
   "react-dom",
 ] as const
 
-function aucuneDependance(source: string, modules: readonly string[]): void {
+const CHEMIN_DU_MODULE = "lib/filtre-de-recherche.ts"
+
+function aucuneDependance(
+  source: string,
+  chemin: string,
+  modules: readonly string[]
+): void {
   for (const nom of modules) {
-    expect(importeDe(source, nom), nom).toBe(false)
+    expect(importeDe(source, nom, chemin), nom).toBe(false)
   }
 }
 
@@ -26,7 +32,7 @@ describe("Filtre de recherche — frontière", () => {
     const filtre = lire(import.meta.url, "./filtre-de-recherche.ts")
 
     expect(filtre).not.toMatch(/^["']use client["']/m)
-    aucuneDependance(filtre, MODULES_INTERDITS)
+    aucuneDependance(filtre, CHEMIN_DU_MODULE, MODULES_INTERDITS)
   })
 
   it("le module n'emprunte au langage d'URL que le type des filtres", () => {
@@ -61,5 +67,18 @@ describe("Filtre de recherche — frontière", () => {
       true
     )
     expect(importeDe('reimport("react")', "react")).toBe(false)
+  })
+
+  it("résout un import relatif depuis le chemin du module", () => {
+    const source = [
+      'import "./use-cases/search"',
+      'import "./db"',
+      'import "./meili"',
+    ].join("\n")
+
+    expect(importeDe(source, "lib/use-cases", CHEMIN_DU_MODULE)).toBe(true)
+    expect(importeDe(source, "lib/db", CHEMIN_DU_MODULE)).toBe(true)
+    expect(importeDe(source, "lib/meili", CHEMIN_DU_MODULE)).toBe(true)
+    expect(importeDe(source, "lib/autre", CHEMIN_DU_MODULE)).toBe(false)
   })
 })

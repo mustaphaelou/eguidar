@@ -75,10 +75,34 @@ describe("le câblage des Options de filtre, à la couture de la Recherche", () 
 
     const resultat = await searchProducts("", {}, {}, moteur, structure)
 
-    expect(resultat.facets.categorie).toEqual([
+    expect(resultat.options.categorie).toEqual([
       { value: "z-slug", label: "Éclairage", count: 1, selected: false },
       { value: "e-slug", label: "Zoos", count: 2, selected: false },
     ])
+  })
+
+  it("résout le nom d'une catégorie retenue absente des répartitions", async () => {
+    const moteur = creerMoteurRecette({
+      statut: "ok",
+      documents: [],
+      total: 0,
+      repartitions: { categorySlug: { "e-slug": 1 } },
+    })
+
+    const resultat = await searchProducts(
+      "",
+      { categorySlug: "z-slug" },
+      {},
+      moteur,
+      structure
+    )
+
+    expect(resultat.options.categorie).toContainEqual({
+      value: "z-slug",
+      label: "Éclairage",
+      count: 0,
+      selected: true,
+    })
   })
 
   it("fait atteindre la charge utile les répartitions des trois facettes du moteur", async () => {
@@ -95,13 +119,13 @@ describe("le câblage des Options de filtre, à la couture de la Recherche", () 
 
     const resultat = await searchProducts("", {}, {}, moteur, structure)
 
-    expect(resultat.facets.marque).toEqual([
+    expect(resultat.options.marque).toEqual([
       { value: "Sony", label: "Sony", count: 2, selected: false },
     ])
-    expect(resultat.facets.categorie).toEqual([
+    expect(resultat.options.categorie).toEqual([
       { value: "audio", label: "Audio & Hi-Fi", count: 1, selected: false },
     ])
-    expect(resultat.facets.prix).toEqual(tranchesAttendues({ "0-1000": 2 }))
+    expect(resultat.options.prix).toEqual(tranchesAttendues({ "0-1000": 2 }))
 
     const requetesDeFacette = moteur.requetes.filter(
       (requete) => (requete.taille ?? 0) === 0
@@ -129,7 +153,7 @@ describe("le câblage des Options de filtre, à la couture de la Recherche", () 
     )
 
     expect({
-      options: resultat.facets,
+      options: resultat.options,
       filtresActifs: resultat.filtresActifs,
     }).toEqual(etatDesFiltres(REPARTITIONS_VIDES, filtres, new Map()))
   })

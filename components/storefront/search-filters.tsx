@@ -47,6 +47,7 @@ import {
   optionsVisibles,
   retirerValeur,
   valeursRetenues,
+  type CleDeFiltre,
   type FiltreActif,
   type OptionDeFiltre,
   type OptionsDeFiltre,
@@ -59,9 +60,7 @@ import {
 
 const OPTIONS_VISIBLES = 8
 
-const FILTER_GROUP_DEFAULT_OPEN = ["marque", "categorie", "prix"]
-
-type SearchFacets = OptionsDeFiltre
+const FILTER_GROUP_DEFAULT_OPEN: CleDeFiltre[] = ["marque", "categorie", "prix"]
 
 interface SearchNavigationValue {
   filters: SearchFilters
@@ -140,21 +139,21 @@ export function SearchResultsPending({
   )
 }
 
-export function FilterSidebar({ facets }: { facets: SearchFacets }) {
+export function FilterSidebar({ options }: { options: OptionsDeFiltre }) {
   return (
     <aside className="hidden md:block">
       <div className="sticky top-14 [scrollbar-width:thin] scrollbar-gutter-stable overflow-y-auto overscroll-contain max-block-[calc(100svh-4.5rem)]">
-        <FilterGroups facets={facets} />
+        <FilterGroups options={options} />
       </div>
     </aside>
   )
 }
 
 export function MobileFilterDrawer({
-  facets,
+  options,
   totalHits,
 }: {
-  facets: SearchFacets
+  options: OptionsDeFiltre
   totalHits: number
 }) {
   const { filters } = useSearchNavigation()
@@ -188,7 +187,7 @@ export function MobileFilterDrawer({
         </DrawerHeader>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="px-4">
-            <FilterGroups facets={facets} />
+            <FilterGroups options={options} />
           </div>
         </div>
         <DrawerFooter className="mt-0 border-t border-border bg-background p-4">
@@ -316,7 +315,7 @@ interface GroupeDepliable extends GroupeAOptions {
 
 type Groupe = (GroupeDeFiltres | GroupeRadio) & GroupeDepliable
 
-function FilterGroups({ facets }: { facets: SearchFacets }) {
+function FilterGroups({ options }: { options: OptionsDeFiltre }) {
   const { filters, navigate } = useSearchNavigation()
   const [marquesDepliees, setMarquesDepliees] = useState(false)
   const [categoriesDepliees, setCategoriesDepliees] = useState(false)
@@ -325,7 +324,7 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
   const activeBrands = valeursRetenues(filters, "marque")
 
   const brandOptions = optionsVisibles(
-    facets.marque,
+    options.marque,
     OPTIONS_VISIBLES,
     marquesDepliees
   )
@@ -333,14 +332,14 @@ function FilterGroups({ facets }: { facets: SearchFacets }) {
   const hiddenBrandCount = brandOptions.cachees
 
   const categoryOptions = optionsVisibles(
-    facets.categorie,
+    options.categorie,
     OPTIONS_VISIBLES,
     categoriesDepliees
   )
   const visibleCategories = categoryOptions.visibles
   const hiddenCategoryCount = categoryOptions.cachees
 
-  const priceOptions = optionsVisibles(facets.prix).visibles
+  const priceOptions = optionsVisibles(options.prix).visibles
 
   const groupes: Groupe[] = [
     {

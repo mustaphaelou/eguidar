@@ -73,6 +73,20 @@ describe("outils de frontière — ce qu'un import est", () => {
     expect(importeDe('import { x } from "./autre"\n', "lib/meili")).toBe(false)
   })
 
+  it("résout un chemin relatif contre le fichier importateur quand il est donné", () => {
+    const depuis = "lib/filtre-de-recherche.ts"
+
+    expect(
+      importeDe('import "./use-cases/search"', "lib/use-cases", depuis)
+    ).toBe(true)
+    expect(importeDe('import "./db"', "lib/db", depuis)).toBe(true)
+    expect(importeDe('import "./meili"', "lib/meili", depuis)).toBe(true)
+    expect(importeDe('import "./autre"', "lib/db", depuis)).toBe(false)
+    expect(
+      importeDe('import "./db"', "lib/db", "app/(boutique)/page.tsx")
+    ).toBe(false)
+  })
+
   it("ne laisse passer un emprunt de valeur que pour ce qu'il en est", () => {
     const carte = carteDe(
       ["lib/emprunteur.ts", 'import type { Base } from "@/lib/base"'],

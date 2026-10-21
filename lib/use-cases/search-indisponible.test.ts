@@ -55,7 +55,7 @@ const DTO_PAGE_VIDE = {
   query: "casque",
   totalHits: 0,
   products: [],
-  facets: { marque: [], categorie: [], prix: BANDES_A_ZERO },
+  options: { marque: [], categorie: [], prix: BANDES_A_ZERO },
   filtresActifs: [],
   sort: "pertinence",
   currentPage: 1,
@@ -140,13 +140,13 @@ describe("les cas d'usage — un moteur indisponible rend l'écran d'aujourd'hui
       structureJamaisLue()
     )
 
-    expect(resultat.facets.marque).toEqual([
+    expect(resultat.options.marque).toEqual([
       { value: "Sony", label: "Sony", count: 0, selected: true },
     ])
-    expect(resultat.facets.categorie).toEqual([
+    expect(resultat.options.categorie).toEqual([
       { value: "audio-hifi", label: "audio-hifi", count: 0, selected: true },
     ])
-    expect(resultat.facets.prix.filter((option) => option.selected)).toEqual([
+    expect(resultat.options.prix.filter((option) => option.selected)).toEqual([
       {
         value: "1000-2500",
         label: "1 000 – 2 500 MAD",

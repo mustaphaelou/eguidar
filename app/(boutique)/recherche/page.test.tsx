@@ -47,7 +47,7 @@ beforeEach(() => {
     query: "casque",
     totalHits: 0,
     products: [],
-    facets: { marque: [], categorie: [], prix: [] },
+    options: { marque: [], categorie: [], prix: [] },
     filtresActifs: [],
     sort: "pertinence",
     currentPage: 1,
