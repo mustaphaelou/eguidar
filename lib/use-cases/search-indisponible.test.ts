@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
 import { PRICE_BUCKETS } from "@/lib/price-buckets"
+import { SEARCH_PAGE_SIZE } from "@/lib/search-params"
 import type { LectureStructure } from "@/lib/use-cases/lecture-structure"
-import {
-  searchProducts,
-  searchSuggestions,
-  SEARCH_PAGE_SIZE,
-} from "@/lib/use-cases/search"
+import { searchProducts, searchSuggestions } from "@/lib/use-cases/search"
 import {
   creerMoteurIndisponible,
   creerMoteurRecette,

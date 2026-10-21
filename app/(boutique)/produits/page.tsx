@@ -5,7 +5,8 @@ import {
   SearchSkeleton,
 } from "@/components/storefront/search-results"
 import { pageMetadata } from "@/lib/metadata"
-import { parseSearchParams, searchProducts } from "@/lib/use-cases/search"
+import { parseSearchParams } from "@/lib/search-params"
+import { searchProducts } from "@/lib/use-cases/search"
 
 export const metadata = pageMetadata({
   title: "Catalogue",

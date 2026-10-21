@@ -79,12 +79,16 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
     expect(importeDe(source, "lib/search-params")).toBe(true)
   })
 
-  it("la suggestion n'emprunte à la couture que des types", () => {
+  it("la suggestion n'emprunte à la couture que des types, et ne redéclare pas la catégorie", () => {
     const { source } = sourceDuCorpus(SOURCES, SUGGESTIONS)
 
     expect(importeDe(source, "lib/use-cases/search")).toBe(true)
     expect(empruntsVersRecherche(SUGGESTIONS, source, carte(SOURCES))).toEqual(
       []
+    )
+    expect(source).not.toMatch(/\binterface\s+SuggestionCategory\b/)
+    expect(source).toMatch(
+      /import\s+type\s*\{[^}]*\bSearchSuggestionCategory\b[^}]*\}\s*from\s*["']@\/lib\/use-cases\/search["']/
     )
   })
 
@@ -92,21 +96,55 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
     expect(carte(SOURCES).has("lib/options-de-filtre.ts")).toBe(false)
   })
 
-  it("la couture n'exporte pas ses assembleurs et garde ses types", () => {
+  it("la couture n'exporte que ses propres faits, et ne réexporte ni l'URL ni le module neutre", () => {
     const { source } = sourceDuCorpus(SOURCES, RECHERCHE)
     const exports = source
       .split("\n")
       .filter((ligne) => ligne.startsWith("export"))
       .join("\n")
 
-    expect(exports).not.toMatch(/\bassembler/)
-    for (const type of [
+    for (const fait of [
+      "SearchPageData",
+      "SearchOptions",
+      "SuggestionProduit",
+      "SearchSuggestionCategory",
+      "SearchSuggestionsData",
+      "searchProducts",
+      "searchSuggestions",
+    ]) {
+      expect(exports, fait).toContain(fait)
+    }
+
+    for (const reexporte of [
+      "buildSearchHref",
+      "parsePage",
+      "parseSearchParams",
+      "parseSort",
+      "SEARCH_PAGE_SIZE",
+      "SEARCH_SORT_DEFAULT",
+      "SEARCH_SORT_OPTIONS",
+      "ParsedSearchParams",
+      "SearchFacet",
+      "SearchFilters",
+      "SearchSort",
+      "SearchView",
+      "FiltreActif",
       "OptionDeFiltre",
       "OptionsDeFiltre",
       "RepartitionsDeFacettes",
     ]) {
-      expect(exports).toContain(type)
+      expect(exports, reexporte).not.toContain(reexporte)
     }
+
+    expect(exports).not.toMatch(/\bassembler/)
+    expect(source).not.toMatch(
+      /export\s+(?:type\s+)?(?:\{[^}]*\}|\*)\s+from\s+["']@\/lib\/search-params["']/
+    )
+    expect(source).not.toMatch(
+      /export\s+(?:type\s+)?(?:\{[^}]*\}|\*)\s+from\s+["']@\/lib\/filtre-de-recherche["']/
+    )
+    expect(importeDe(source, "lib/search-params")).toBe(true)
+    expect(importeDe(source, "lib/filtre-de-recherche")).toBe(true)
     expect(importeDe(source, "lib/options-de-filtre")).toBe(false)
   })
 
@@ -125,7 +163,7 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
     const suggestions = sourceDuCorpus(SOURCES, SUGGESTIONS)
     const typeSeul = sourceApres(
       suggestions.source,
-      'import type { OptionsDeFiltre } from "@/lib/use-cases/search"'
+      'import type { SearchPageData } from "@/lib/use-cases/search"'
     )
     const modifie = avecSource(SOURCES, SUGGESTIONS, typeSeul)
 
@@ -140,14 +178,22 @@ describe("la couture de la Recherche — frontière client/serveur", () => {
     ).toEqual([])
   })
 
-  it("laisse un composant serveur emprunter buildSearchHref", () => {
+  it("le composant de résultats emprunte buildSearchHref aux paramètres et le type à la couture", () => {
     const { source } = sourceDuCorpus(SOURCES, RESULTATS)
 
     expect(directive(source)).toBeNull()
+    expect(importeDe(source, "lib/search-params")).toBe(true)
     expect(importeDe(source, "lib/use-cases/search")).toBe(true)
-    expect(empruntsVersRecherche(RESULTATS, source, carte(SOURCES))).toContain(
-      "@/lib/use-cases/search"
+    expect(
+      source,
+      "buildSearchHref vient du module d'URL, comme une valeur"
+    ).toMatch(
+      /import\s*\{[^}]*\bbuildSearchHref\b[^}]*\}\s*from\s*["']@\/lib\/search-params["']/
     )
+    expect(source, "SearchPageData vient de la couture, comme un type").toMatch(
+      /import\s+type\s*\{[^}]*\bSearchPageData\b[^}]*\}\s*from\s*["']@\/lib\/use-cases\/search["']/
+    )
+    expect(empruntsVersRecherche(RESULTATS, source, carte(SOURCES))).toEqual([])
     expect(fautifs(SOURCES)).not.toContain(RESULTATS)
   })
 })

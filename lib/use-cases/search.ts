@@ -26,27 +26,6 @@ import {
   type LectureStructure,
 } from "@/lib/use-cases/lecture-structure"
 
-export {
-  buildSearchHref,
-  parsePage,
-  parseSearchParams,
-  parseSort,
-  SEARCH_PAGE_SIZE,
-  SEARCH_SORT_DEFAULT,
-  SEARCH_SORT_OPTIONS,
-  type ParsedSearchParams,
-  type SearchFacet,
-  type SearchFilters,
-  type SearchSort,
-  type SearchView,
-} from "@/lib/search-params"
-
-// Réexports temporaires du module neutre, que #732 supprime.
-export type { FiltreActif } from "@/lib/filtre-de-recherche"
-export type { OptionDeFiltre } from "@/lib/filtre-de-recherche"
-export type { OptionsDeFiltre } from "@/lib/filtre-de-recherche"
-export type { RepartitionsDeFacettes } from "@/lib/filtre-de-recherche"
-
 const FACETTE_DU_MOTEUR = {
   marque: "brand",
   categorie: "categorySlug",

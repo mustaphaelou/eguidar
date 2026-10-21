@@ -23,11 +23,8 @@ import {
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { nombreDeFiltres } from "@/lib/filtre-de-recherche"
-import {
-  buildSearchHref,
-  type SearchFilters,
-  type SearchPageData,
-} from "@/lib/use-cases/search"
+import { buildSearchHref, type SearchFilters } from "@/lib/search-params"
+import type { SearchPageData } from "@/lib/use-cases/search"
 
 export function SearchResults({
   data,

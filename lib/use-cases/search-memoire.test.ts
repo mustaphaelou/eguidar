@@ -2,14 +2,13 @@ import { randomUUID } from "node:crypto"
 
 import { describe, expect, it } from "vitest"
 
-import { retirerFacette } from "@/lib/filtre-de-recherche"
+import { retirerFacette, type OptionDeFiltre } from "@/lib/filtre-de-recherche"
 import {
   LIBELLE_SANS_STRUCTURE,
   SLUG_SANS_STRUCTURE,
   type IndexableProduct,
 } from "@/lib/index-projection"
 import type { MoteurRecherche, RequeteMoteur } from "@/lib/moteur-recherche"
-import type { OptionDeFiltre } from "@/lib/use-cases/search"
 import { lectureDesStructures } from "@/lib/use-cases/lecture-structure"
 import { searchProducts, searchSuggestions } from "@/lib/use-cases/search"
 import { creerMoteurEnMemoire } from "@/test/moteur-recherche-memoire"
