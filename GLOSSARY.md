@@ -7,7 +7,7 @@ L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile d
 ## Language
 
 **Bandeau de navigation**:
-La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche, le déclencheur de Connexion et le déclencheur du Panier, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration.
+La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et le déclencheur de l'**Aperçu du Panier**, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration. Il ne porte pas de déclencheur de Connexion : l'entrée du Compte appartient à l'Aperçu du Panier.
 _Avoid_: header, navbar, barre de navigation, barre du haut
 
 **Voile dépoli**:
@@ -15,7 +15,7 @@ Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une su
 _Avoid_: glass, glassmorphism, verre dépoli, frosted glass, backdrop blur
 
 **Voile sombre**:
-La couche qui ferme l'accès au contenu situé derrière une modale, un tiroir ou un menu. Elle n'assombrit rien elle-même : elle rend le voile dépoli d'une surface lisible par-dessus ce qu'elle recouvre. Une seule recette, seule son opacité varie.
+La couche qui ferme l'accès au contenu situé derrière une modale, un tiroir, un menu ou l'**Aperçu du Panier**. Elle n'assombrit rien elle-même : elle rend le voile dépoli d'une surface lisible par-dessus ce qu'elle recouvre. Une seule recette, seule son opacité varie.
 _Avoid_: overlay, backdrop, scrim, voile, fond noir
 
 **Livraison**:
@@ -106,6 +106,16 @@ _Avoid_: ligne de panier, line item
 **Page du Panier**:
 La page qui porte le Panier en entier : les Articles du panier, la Ville de livraison, le Devis et le Récapitulatif de paiement, puis le passage de commande. C'est le seul endroit où l'on commande.
 _Avoid_: panier (seul), checkout, panier page, page panier
+
+**Aperçu du Panier**:
+La surface que le déclencheur du Panier ouvre par-dessus la page, sans la quitter : l'aperçu des
+Articles du panier — ou l'état vide du Panier — puis les entrées du Compte (Commandes, Mon profil,
+et Connexion ou Déconnexion). Il montre, il ne mute rien : la Page du Panier reste le seul endroit
+où l'on modifie un Article du panier, et le seul où l'on commande. Une seule feuille, pleine largeur
+sous le Bandeau de navigation et posée sur le Voile sombre ; sur mobile elle prend tout l'écran, et
+c'est le menu du Bandeau qui la referme. Tant qu'il est ouvert, il fournit le fond du Bandeau de
+navigation, qui ne porte alors pas son Voile dépoli.
+_Avoid_: flyout, mini-panier, panier volant, tiroir du panier, bag, dropdown du panier
 
 **Propriétaire du panier**:
 The Visiteur or the Client whose Panier it is; resolved once per request from the session.
@@ -360,7 +370,7 @@ Un envoi qu'un Test de sécurité gate, et qui n'aboutit pas sans son jeton. Sa 
 _Avoid_: protected send, envoi sécurisé, appel protégé, requête protégée
 
 **Déconnexion**:
-The act by which a Client ends their own session via the « Déconnexion » button in the Bandeau de navigation, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
+The act by which a Client ends their own session via the « Déconnexion » entry of the **Aperçu du Panier**, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
 _Avoid_: logout, se déconnecter (as the screen name), déconnexion automatique (reserved for Session inactive)
 
 **Session inactive**:
