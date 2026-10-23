@@ -126,6 +126,24 @@ export async function invalidateCatalogue(
   await purgerEdge(demandeDePurge(tags), options.purgeEdge)
 }
 
+/**
+ * Invalide les documents des Produits qu'une écriture a touchés sans passer par
+ * l'enregistrement d'un seul Produit — la prise de Commande et son retour en
+ * stock. Mêmes tags qu'un enregistrement, sans les surfaces d'Administration :
+ * le catalogue et l'accueil sont purgés en un seul appel.
+ */
+export async function invalidateProduits(
+  produits: readonly CatalogueEventProduct[],
+  options: OptionsInvalidationCatalogue = {}
+): Promise<void> {
+  if (produits.length === 0) return
+  const tags = [
+    ...new Set(produits.flatMap((produit) => tagsCatalogue(produit))),
+  ]
+  for (const tag of tags) revalidateTag(tag, "max")
+  await purgerEdge(demandeDePurge(tags), options.purgeEdge)
+}
+
 export async function invalidateStructure(
   options: OptionsInvalidationStructure = {}
 ): Promise<void> {

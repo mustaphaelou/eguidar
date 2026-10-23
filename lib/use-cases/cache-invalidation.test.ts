@@ -14,6 +14,7 @@ import {
   invalidateCatalogue,
   invalidateCommande,
   invalidateLivraison,
+  invalidateProduits,
   invalidateStructure,
   demandeDePurge,
   PRODUCT_TAG,
@@ -383,6 +384,69 @@ describe("invalidateCatalogue", () => {
     } finally {
       warnSpy.mockRestore()
     }
+  })
+})
+
+describe("invalidateProduits", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("revalide les mêmes tags qu'un enregistrement et purge leurs documents en un appel", async () => {
+    const purgeEdge = fauxPurgeEdge()
+
+    await invalidateProduits(
+      [
+        {
+          id: "p1",
+          slug: "produit-a",
+          categoryChain: [{ slug: "racine" }],
+        },
+        {
+          id: "p2",
+          slug: "produit-b",
+          categoryChain: [{ slug: "racine" }],
+        },
+      ],
+      { purgeEdge }
+    )
+
+    expect(mockedRevalidateTag).toHaveBeenCalledTimes(5)
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(PRODUCT_TAG, "max")
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      productDetailTag("produit-a"),
+      "max"
+    )
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      productDetailTag("produit-b"),
+      "max"
+    )
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(HOME_TAG, "max")
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(
+      categoryDetailTag("racine"),
+      "max"
+    )
+    expect(mockedRevalidatePath).not.toHaveBeenCalled()
+    expect(purgeEdge.purger).toHaveBeenCalledOnce()
+    expect(purgeEdge.purger).toHaveBeenCalledWith({
+      kind: "urls",
+      urls: [
+        `${BASE}/produit/produit-a`,
+        `${BASE}/`,
+        `${BASE}/categorie/racine`,
+        `${BASE}/produit/produit-b`,
+      ],
+    })
+  })
+
+  it("ne revalide ni ne purge rien quand aucun Produit n'est touché", async () => {
+    const purgeEdge = fauxPurgeEdge()
+
+    await invalidateProduits([], { purgeEdge })
+
+    expect(mockedRevalidateTag).not.toHaveBeenCalled()
+    expect(mockedRevalidatePath).not.toHaveBeenCalled()
+    expect(purgeEdge.purger).not.toHaveBeenCalled()
   })
 })
 
