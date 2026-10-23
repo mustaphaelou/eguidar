@@ -157,8 +157,10 @@ job, the gate and the ruleset stands.
   instead of failing on a placeholder.
 - **The Docker image build receives the same URL as a BuildKit secret.**
   `docker/build-push-action` passes `database_url=postgresql://…/eguidar_probe` through its
-  `secrets` input, with `add-hosts: host.docker.internal:host-gateway` so the build container can
-  reach the job's service. The `Dockerfile` mounts it for the single build `RUN`
+  `secrets` input, and the builder shares the host's network (`driver-opts: network=host`, with
+  `network: host` on the build) so the build reaches the job's service on `127.0.0.1:5432`. The
+  `docker-container` driver cannot resolve `host-gateway`, hence the network mode rather than
+  `add-hosts`. The `Dockerfile` mounts the secret for the single build `RUN`
   (`--mount=type=secret,id=database_url,env=DATABASE_URL`), so the value is never a build argument,
   an image layer or an entry in `docker history`.
 - **No repository secret is added.** The URL names a job-local database with fixed, ephemeral

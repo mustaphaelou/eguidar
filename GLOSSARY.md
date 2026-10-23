@@ -101,6 +101,8 @@ _Avoid_: cart, caddie
 
 **Article du panier**:
 One product variant with its chosen quantity inside a Panier.
+Le contrat HTTP de #754 nomme `lignes` le tableau qui les porte : c'est le nom du fil, pas celui du
+domaine, et il ne remplace pas ce terme.
 _Avoid_: ligne de panier, line item
 
 **Page du Panier**:

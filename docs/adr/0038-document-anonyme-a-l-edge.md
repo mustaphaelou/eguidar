@@ -167,12 +167,14 @@ Elle n'ajoute aucun terme au glossaire.
   corollaire est assumé : avec des identifiants, un déploiement dépend de la disponibilité de
   Cloudflare, et `PURGE_EDGE=off` est la sortie de secours sans changement de code.
 
-- **La fenêtre résiduelle est dite.** Entre la purge réussie et le moment où le nouveau conteneur
-  reçoit le trafic, l'ancien conteneur peut repeupler l'edge avec des documents bâtis sur l'ancienne
-  image. Sa durée est celle de la réconciliation Compose (quelques secondes), pas celle du build.
-  La fermer demanderait une seconde purge après le démarrage de `app` ; elle n'est pas faite, et
-  c'est une décision, pas un oubli. Sans identifiants, il n'y a pas de purge du tout : la fenêtre
-  reste ouverte jusqu'à une purge manuelle ou un déploiement avec identifiants.
+- **La fenêtre résiduelle est réduite par l'ordre, pas fermée.** Entre la purge réussie et le moment
+  où le nouveau conteneur reçoit le trafic, l'ancien conteneur peut repeupler l'edge avec des
+  documents bâtis sur l'ancienne image. L'ordre — purge après migration, avant routage — réduit cette
+  fenêtre à la réconciliation Compose (quelques secondes), pas à la durée du build ; il ne la ferme
+  pas. La fermer demanderait une seconde purge après le démarrage de `app` ; elle n'est pas faite, et
+  c'est une décision, pas un oubli (#758 dit « réduite par l'ordre »). Sans identifiants, il n'y a
+  pas de purge du tout : la fenêtre reste ouverte jusqu'à une purge manuelle ou un déploiement avec
+  identifiants.
 
 ### Le build lit un Catalogue en lecture seule par un secret BuildKit
 
@@ -195,15 +197,17 @@ Elle n'ajoute aucun terme au glossaire.
 
 - **La CI prête un Catalogue au build, sans secret de dépôt.** Le job `build` migre et sème
   `eguidar_probe`, passe son URL au build hôte par `DATABASE_URL`, et livre la même valeur au build
-  Docker par l'input `secrets` sous l'identifiant `database_url`, avec
-  `add-hosts: host.docker.internal:host-gateway`. Aucun secret de dépôt n'est lu (ADR-0020).
+  Docker par l'input `secrets` sous l'identifiant `database_url`. Le constructeur partage le réseau
+  de l'hôte (`driver-opts: network=host`) et le `RUN` du build joint `127.0.0.1:5432` : le driver
+  `docker-container` ne résout pas `host-gateway`. Aucun secret de dépôt n'est lu (ADR-0020).
 
 - **Un Catalogue vide construit quand même.** Le preflight le journalise
   (`[catalogue] joignable mais vide`) et le build continue : les routes dynamiques rendent
-  `__placeholder__`, et le document de ce slug est celui observé au ticket #760 — un vrai 404
-  portant `s-maxage` à l'origine, mais exclu de l'éligibilité par la seconde règle, donc jamais
-  stocké à l'edge ; pas un document de Catalogue. Un premier déploiement ou un Catalogue effacé ne
-  fait pas échouer un build.
+  `__placeholder__`, et le document de ce slug est un vrai 404 portant `s-maxage` à l'origine, mais
+  exclu de l'éligibilité par la seconde règle, donc jamais stocké à l'edge ; pas un document de
+  Catalogue. La coquille soft-404 (200 + `noindex`) décrit les routes dynamiques réelles ; le repli
+  de build est un 404 assumé, et #759 a été amendé en ce sens. Un premier déploiement ou un Catalogue
+  effacé ne fait pas échouer un build.
 
 - **Le chemin choisi est le secret de build ; le repli est consigné, pas exercé.** #759 autorise un
   repli si la plateforme de déploiement ne peut pas livrer de secret de build : renoncer au prérendu
@@ -389,7 +393,8 @@ Elle n'ajoute aucun terme au glossaire.
   un seul vocabulaire de tags, un port avec une implémentation en mémoire et une implémentation
   Cloudflare, des lots de 100 URLs, et une purge en échec journalisée, jamais fatale à l'écriture.
 - Une Commande relève les Produits qu'elle draine dans la transaction ; aucune ligne de Commande ne
-  stocke de slug et aucune lecture ne suit le commit.
+  stocke de slug, et aucune recherche par article ne suit le commit — une seule Lecture de la
+  Structure résout la chaîne des Produits touchés.
 - Le comportement accessible de #746 reste celui de l'Aperçu : dialogue, focus, chemins de
   fermeture, trois états, pas de sélecteur de quantité. Seule sa décision de rendu serveur est
   remplacée.
