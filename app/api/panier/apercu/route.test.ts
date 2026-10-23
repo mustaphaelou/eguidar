@@ -192,6 +192,7 @@ describe("GET /api/panier/apercu", () => {
     expect(reponse.headers.get("cache-control")).toBe("private, no-store")
     await expect(reponse.json()).resolves.toEqual({
       etat: "plein",
+      connecte: true,
       lignes: [
         {
           productSlug: slugA,
@@ -225,6 +226,7 @@ describe("GET /api/panier/apercu", () => {
     expect(reponse.headers.get("cache-control")).toBe("private, no-store")
     await expect(reponse.json()).resolves.toEqual({
       etat: "plein",
+      connecte: false,
       lignes: [
         {
           productSlug: slugA,

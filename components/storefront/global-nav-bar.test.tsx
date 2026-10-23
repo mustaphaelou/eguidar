@@ -495,7 +495,7 @@ describe("GlobalNavBar", () => {
         apercuCorps={
           <div>
             <h2 id={ID_TITRE_APERCU_DU_PANIER}>Mon panier</h2>
-            <MonCompteDansLApercu client={null} />
+            <MonCompteDansLApercu connecte={false} />
           </div>
         }
       />
@@ -514,7 +514,7 @@ describe("GlobalNavBar", () => {
     expect(document.activeElement).not.toBe(panier)
   })
 
-  it("rend le badge du panier, servi par le serveur, dans le déclencheur", () => {
+  it("rend le badge du panier dans le déclencheur", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}

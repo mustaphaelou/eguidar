@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import { act } from "react"
 import { createRoot } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { MotifRefusPanier, ResultatPanier } from "@/lib/panier"
 import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
+import { sAbonnerAuxChangementsDuPanier } from "./panier-qui-change"
 import { useMutationsDuPanier } from "./use-mutations-du-panier"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -19,7 +20,9 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const root of roots) root.unmount()
+  act(() => {
+    for (const root of roots) root.unmount()
+  })
   roots.length = 0
   container.remove()
 })
@@ -255,5 +258,64 @@ describe("useMutationsDuPanier", () => {
     await rejouerTransition()
     expect(hook.current.messageRefus).toBeUndefined()
     expect(hook.current.ajoute).toBe(false)
+  })
+})
+
+describe("useMutationsDuPanier — les surfaces clientes relisent le Panier", () => {
+  it("signale un changement après un ajout, un modifier et un retirer réussis", async () => {
+    const port = creerPortPanierEnMemoire()
+    const hook = renderHook(() => useMutationsDuPanier(port))
+    const abonne = vi.fn()
+    const desabonner = sAbonnerAuxChangementsDuPanier(abonne)
+
+    act(() => {
+      hook.current.ajouter("variante-a", 1)
+    })
+    await rejouerTransition()
+    act(() => {
+      hook.current.modifier("variante-a", 2)
+    })
+    await rejouerTransition()
+    act(() => {
+      hook.current.retirer("variante-a")
+    })
+    await rejouerTransition()
+    desabonner()
+
+    expect(abonne).toHaveBeenCalledTimes(3)
+  })
+
+  it("ne signale rien quand la mutation est refusée", async () => {
+    const port = creerPortPanierEnMemoire(() => ({
+      ok: false,
+      motif: "variante-inconnue",
+      message: "Cet article n'est plus disponible.",
+    }))
+    const hook = renderHook(() => useMutationsDuPanier(port))
+    const abonne = vi.fn()
+    const desabonner = sAbonnerAuxChangementsDuPanier(abonne)
+
+    act(() => {
+      hook.current.ajouter("variante-a", 1)
+    })
+    await rejouerTransition()
+    desabonner()
+
+    expect(abonne).not.toHaveBeenCalled()
+  })
+
+  it("cesse de signaler après le désabonnement", async () => {
+    const port = creerPortPanierEnMemoire()
+    const hook = renderHook(() => useMutationsDuPanier(port))
+    const abonne = vi.fn()
+    const desabonner = sAbonnerAuxChangementsDuPanier(abonne)
+    desabonner()
+
+    act(() => {
+      hook.current.ajouter("variante-a", 1)
+    })
+    await rejouerTransition()
+
+    expect(abonne).not.toHaveBeenCalled()
   })
 })
