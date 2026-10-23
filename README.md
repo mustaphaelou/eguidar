@@ -55,6 +55,22 @@ npm test          # exécution unique (migrations appliquées automatiquement)
 npm run test:watch
 ```
 
+## Construire avec le catalogue
+
+Le build prérend des documents à partir du catalogue qu’il lit à la construction. `npm run build` commence donc par un preflight (`scripts/verifier-catalogue-de-build.ts`) : il ouvre `DATABASE_URL` avec un délai court, compte les produits, catégories et articles publiés, et s’arrête avec `ECHEC : catalogue — …` si la base est absente ou injoignable. Un catalogue joignable mais vide n’échoue pas : le build continue, et les routes dynamiques rendront le paramètre de repli de `lib/parametre-de-repli.ts`. En local, `DATABASE_URL` vient de `.env`.
+
+En Docker, la crédential est un secret BuildKit monté pour le seul `RUN` du build, jamais un `ARG` ni un `ENV` : elle n’entre dans aucune couche et n’apparaît pas dans `docker history`. Le contexte de construction exclut `.env` et `.env.*`, donc le secret ne peut pas non plus arriver par un fichier.
+
+| Build | Crédential | Où elle est définie |
+| --- | --- | --- |
+| Local | `DATABASE_URL` | `.env` |
+| CI (job `build`) | `DATABASE_URL` vers `eguidar_probe` | base éphémère du job, migrée et semée ; aucun secret de dépôt |
+| Coolify | `DATABASE_URL_BUILD`, en lecture seule | environnement du processus Compose, livré au build par `secrets: database_url` |
+
+La CI migre et sème `eguidar_probe`, puis passe son URL au build hôte par `DATABASE_URL`. L’image reçoit la même valeur par l’input `secrets` de `docker/build-push-action` — sous l’identifiant `database_url` — et `add-hosts: host.docker.internal:host-gateway` laisse le conteneur de build joindre la base publiée sur l’hôte. Rien de tout cela ne lit un secret de dépôt (ADR-0020).
+
+Pour Coolify, `docker-compose.yml` déclare `build.secrets: [database_url]`, dont la source est `database_url: environment: DATABASE_URL_BUILD` : la valeur n’est jamais écrite dans le fichier. `build.network: host` laisse le build joindre la base publiée sur `127.0.0.1:5433` par le service `postgres` ; renseignez donc `DATABASE_URL_BUILD` avec une crédential **en lecture seule** et une URL joignable depuis le réseau de l’hôte. L’injection des secrets de build Compose par Coolify reste à vérifier au premier déploiement : si elle manque, le build s’arrête en nommant le catalogue, et #763 inscrit alors le repli (pas de prérendu, génération à la demande) dans l’ADR.
+
 ## Vérifier l’image de déploiement
 
 La CI construit les deux cibles que Coolify déploie — `runner` et `migrate` — puis sonde l’artefact. La même commande tourne en local, contre les images qu’on vient de construire :
@@ -63,8 +79,12 @@ La CI construit les deux cibles que Coolify déploie — `runner` et `migrate` �
 # 1. Services (Postgres, Redis, Meilisearch)
 docker compose up -d postgres redis meilisearch
 
-# 2. Les deux cibles, chargées dans le démon local
-docker build --target runner -t eguidar-runner:local .
+# 2. Les deux cibles, chargées dans le démon local. Le build de la runner lit
+#    le catalogue : l'URL voyage en secret BuildKit, et --network host laisse
+#    le conteneur de build joindre la base publiée sur 127.0.0.1:5433.
+DATABASE_URL=postgresql://eguidar:eguidar@127.0.0.1:5433/eguidar_test \
+  docker build --network host --secret id=database_url,env=DATABASE_URL \
+    --target runner -t eguidar-runner:local .
 docker build --target migrate -t eguidar-migrate:local .
 
 # 3. La sonde, pointée sur la base de test
@@ -87,7 +107,7 @@ bash scripts/verifier-image-deploiement.sh
 
 Les variables requises sont `IMAGE_RUNNER`, `IMAGE_MIGRATE`, `DATABASE_URL`, `MEILI_URL`, `MEILI_MASTER_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` et `BETTER_AUTH_SECRET` : la première absente est nommée, et la sonde s’arrête avant tout appel à Docker. Les optionnelles sont `REDIS_URL`, `BETTER_AUTH_URL` (défaut `http://localhost:3100`), `PROBE_PORT` (défaut 3100), `PROBE_TIMEOUT` (défaut 90 secondes) et `ADMIN_NAME`.
 
-Ses huit phases, dans l’ordre : preflight, migration, faits du seed, seconde migration, comptes inchangés, import du cache-handler dans l’image `runner`, mise en service, surface HTTP (accueil 200, un actif `/_next/static/` 200, `/admin` 307). Un échec s’annonce par `ECHEC : <phase> — <cause>`, suivi des dernières lignes du conteneur.
+Ses neuf phases, dans l’ordre : preflight, secrets (ni `DATABASE_URL` dans l’historique de l’image, ni dans son environnement figé, ni dans son environnement d’exécution), migration, faits du seed, seconde migration, comptes inchangés, import du cache-handler dans l’image `runner`, mise en service, surface HTTP (accueil 200, un actif `/_next/static/` 200, `/admin` 307). Un échec s’annonce par `ECHEC : <phase> — <cause>`, suivi des dernières lignes du conteneur.
 
 ## Crochet pre-commit
 

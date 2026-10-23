@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 FROM node:22-alpine AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -15,10 +17,13 @@ ARG NEXT_PUBLIC_BETTER_AUTH_URL
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
-ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 COPY . .
 RUN npx prisma generate
-RUN npm run build
+# Le catalogue est lu au build, mais son URL reste un secret de BuildKit :
+# montée pour ce RUN seulement, elle n'apparaît ni dans `docker history` ni
+# dans une couche. Sans secret, le preflight de `npm run build` nomme le
+# catalogue et arrête le build ; il ne prérend jamais une base factice.
+RUN --mount=type=secret,id=database_url,env=DATABASE_URL npm run build
 
 FROM deps AS migrate
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"

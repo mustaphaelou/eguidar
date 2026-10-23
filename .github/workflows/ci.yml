@@ -151,9 +151,22 @@ jobs:
           restore-keys: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
       - run: npm ci
       - run: npx prisma generate
+      # Le catalogue que le build prérendra : la base locale du job, migrée et
+      # semée. Aucun secret de dépôt, la valeur reste éphémère (ADR-0020).
+      - run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+      - run: npx prisma db seed
+        env:
+          DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+          MEILI_URL: http://localhost:7700
+          MEILI_MASTER_KEY: eguidar-test-master-key
+          ADMIN_NAME: Administrateur
+          ADMIN_EMAIL: admin@eguidar.com
+          ADMIN_PASSWORD: change-me-admin-password
       - run: npm run build
         env:
-          DATABASE_URL: postgresql://build:build@localhost:5432/build
+          DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
           NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       - run: docker compose --env-file .env.example config -q
@@ -170,6 +183,13 @@ jobs:
           build-args: |
             NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+          # Le catalogue du job est joignable depuis le conteneur de build par
+          # la passerelle de l'hôte ; la valeur voyage en secret BuildKit, pas
+          # en build arg. Aucun secret de dépôt n'est lu.
+          add-hosts: |
+            host.docker.internal:host-gateway
+          secrets: |
+            database_url=postgresql://eguidar:eguidar@host.docker.internal:5432/eguidar_probe
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - uses: docker/build-push-action@v7
