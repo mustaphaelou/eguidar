@@ -2,6 +2,10 @@ import { cacheLife, cacheTag } from "next/cache"
 
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
+import {
+  parametresDeSlug,
+  type ParametresDeSlug,
+} from "@/lib/parametre-de-repli"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { BLOG_TAG, blogDetailTag } from "@/lib/use-cases/cache-invalidation"
 
@@ -150,6 +154,24 @@ export async function fetchBlogLanding(): Promise<BlogLanding> {
     .filter((carte): carte is CardBlog => carte !== null)
   const [hero, ...rest] = cartes
   return { hero: hero ?? null, articles: rest }
+}
+
+/**
+ * Les slugs d'Articles que le build prérend : ceux dont l'URL résout encore,
+ * c'est-à-dire les Publiés et les Archivés (un Brouillon n'a pas d'URL
+ * publique). Triés pour que deux builds produisent la même liste.
+ */
+export async function fetchArticleSlugs(): Promise<string[]> {
+  const articles = await prisma.articleBlog.findMany({
+    where: { statut: { in: ["publie", "archive"] } },
+    select: { slug: true },
+    orderBy: { slug: "asc" },
+  })
+  return articles.map((article) => article.slug)
+}
+
+export async function parametresDesArticles(): Promise<ParametresDeSlug[]> {
+  return parametresDeSlug(await fetchArticleSlugs())
 }
 
 const BLOG_CACHE_LIFE = { revalidate: 900, expire: 86400 }

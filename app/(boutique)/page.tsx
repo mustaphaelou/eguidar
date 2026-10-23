@@ -1,5 +1,4 @@
 import { Suspense } from "react"
-import { connection } from "next/server"
 
 import { BandeCategories } from "@/components/storefront/bande-categories"
 import {
@@ -31,7 +30,6 @@ export default function HomePage() {
 }
 
 async function HomeContent() {
-  await connection()
   const donnees = await getHomeData()
   const [premier, deuxieme, ...suite] = projeterPanneaux(donnees.featured)
   const rangees = parPaires(suite)

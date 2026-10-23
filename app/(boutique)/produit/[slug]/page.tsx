@@ -13,7 +13,14 @@ import {
 } from "@/lib/donnees-structurees"
 import { pageMetadata } from "@/lib/metadata"
 import { formatPrice } from "@/lib/money"
-import { getProductPageData } from "@/lib/use-cases/storefront"
+import {
+  getProductPageData,
+  parametresDesProduits,
+} from "@/lib/use-cases/storefront"
+
+export async function generateStaticParams() {
+  return parametresDesProduits()
+}
 
 export async function generateMetadata({
   params,
