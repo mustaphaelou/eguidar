@@ -1,23 +1,29 @@
 "use client"
 
-import { UserIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-
 import { useAuthDialogs } from "@/components/auth/auth-dialogs"
 import { Button } from "@/components/ui/button"
 
-export function SignInButton() {
+export function SignInButton({
+  className,
+  onAvant,
+}: {
+  className?: string
+  onAvant?: () => void
+}) {
   const { openLogin } = useAuthDialogs()
 
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="sm"
       aria-label="Connexion"
-      title="Connexion"
-      onClick={() => openLogin()}
+      className={className}
+      onClick={() => {
+        onAvant?.()
+        openLogin()
+      }}
     >
-      <HugeiconsIcon icon={UserIcon} strokeWidth={2} />
+      Connexion
     </Button>
   )
 }

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers"
+import { cache } from "react"
 
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
@@ -53,9 +54,9 @@ async function resoudreStore(): Promise<PanierStore> {
     : composerStoreVisiteur()
 }
 
-export async function lirePanier(): Promise<DonneesPanier> {
-  return (await resoudreStore()).lire()
-}
+export const lirePanier = cache(async (): Promise<DonneesPanier> =>
+  (await resoudreStore()).lire()
+)
 
 export async function compterArticlesDuPanier(): Promise<number> {
   return (await resoudreStore()).compter()

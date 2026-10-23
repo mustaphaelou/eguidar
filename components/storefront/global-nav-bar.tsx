@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 
 import {
@@ -16,22 +16,61 @@ import { Logo } from "@/components/storefront/logo"
 import { SearchSuggestions } from "@/components/storefront/search-suggestions"
 import { site } from "@/lib/site"
 import { cn } from "@/lib/utils"
+import { ID_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
+import { useApercuDuPanier } from "./apercu-du-panier-provider"
+import { ApercuDuPanierSurface } from "./apercu-du-panier-surface"
+import { useEstBureau } from "./use-est-bureau"
 
 export type GlobalNavLink = { href: string; label: string }
 
 export function GlobalNavBar({
   links,
-  actions,
   panierBadge,
+  apercuCorps,
 }: {
   links: GlobalNavLink[]
-  actions: React.ReactNode
   panierBadge?: React.ReactNode
+  apercuCorps?: React.ReactNode
 }) {
+  const { ouvert, basculer, fermer } = useApercuDuPanier()
+  const estBureau = useEstBureau()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const panierRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLButtonElement>(null)
+  const apercuMobileOuvert = ouvert && !estBureau
+
+  const fermerLApercu = useCallback(() => {
+    fermer()
+    const retour = estBureau ? panierRef.current : menuRef.current
+    retour?.focus({ preventScroll: true })
+  }, [fermer, estBureau])
+
+  function basculerLApercu() {
+    setSearchOpen(false)
+    setMenuOpen(false)
+    if (ouvert) {
+      fermerLApercu()
+      return
+    }
+    basculer()
+  }
+
+  function basculerLeMenu() {
+    if (apercuMobileOuvert) {
+      fermerLApercu()
+      return
+    }
+    if (menuOpen) {
+      setMenuOpen(false)
+      return
+    }
+    setMenuOpen(true)
+    setSearchOpen(false)
+    if (ouvert) fermer()
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 0)
@@ -47,12 +86,14 @@ export function GlobalNavBar({
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 transition-colors duration-300",
+        "sticky top-0 transition-colors duration-300",
+        ouvert ? "z-50" : "z-40",
         scrolled &&
+          !ouvert &&
           "voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]"
       )}
     >
-      <div className="mx-auto flex h-11 max-w-[1024px] items-center justify-between gap-4 px-4 sm:px-[22px]">
+      <div className="relative z-20 mx-auto flex h-11 max-w-[1024px] items-center justify-between gap-4 px-4 sm:px-[22px]">
         <Link
           href="/"
           className="shrink-0"
@@ -77,37 +118,48 @@ export function GlobalNavBar({
         </nav>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {actions}
           <Button
             variant="ghost"
             size="icon"
             aria-label="Rechercher"
             aria-expanded={searchOpen}
             className={cn(searchOpen && "text-link hover:text-link")}
-            onClick={() => setSearchOpen((open) => !open)}
+            onClick={() => {
+              if (!searchOpen) {
+                fermer()
+                setMenuOpen(false)
+              }
+              setSearchOpen(!searchOpen)
+            }}
           >
             <HugeiconsIcon
               icon={searchOpen ? Cancel01Icon : Search01Icon}
               strokeWidth={2}
             />
           </Button>
+          {apercuMobileOuvert ? null : (
+            <Button
+              ref={panierRef}
+              variant="ghost"
+              size="icon"
+              aria-label="Panier"
+              aria-expanded={ouvert}
+              aria-controls={ID_APERCU_DU_PANIER}
+              className="relative"
+              onClick={basculerLApercu}
+            >
+              <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
+              {panierBadge}
+            </Button>
+          )}
           <Button
-            render={<Link href="/panier" />}
+            ref={menuRef}
             variant="ghost"
             size="icon"
-            aria-label="Panier"
-            className="relative"
-          >
-            <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
-            {panierBadge}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Menu"
+            aria-label={apercuMobileOuvert ? "Fermer" : "Menu"}
             aria-expanded={menuOpen}
             className="lg:hidden"
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={basculerLeMenu}
           >
             <HugeiconsIcon
               icon={menuOpen ? Cancel01Icon : Menu01Icon}
@@ -160,6 +212,12 @@ export function GlobalNavBar({
             ))}
           </div>
         </nav>
+      ) : null}
+
+      {ouvert ? (
+        <ApercuDuPanierSurface onClose={fermerLApercu}>
+          {apercuCorps}
+        </ApercuDuPanierSurface>
       ) : null}
     </header>
   )

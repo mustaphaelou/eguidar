@@ -241,6 +241,85 @@
   }
 }
 
+/* L'Aperçu du Panier ouvre sur la hauteur de sa feuille et ses lignes montent
+   en s'estompant : le contenu est déjà posé, `overflow: clip` le révèle au lieu
+   de le faire refluer, et la feuille mobile vise la hauteur d'écran qu'elle
+   occupe ensuite, pour ne pas se poser sur la hauteur du contenu puis sauter.
+   Le Voile sombre ne déplace rien : son fondu d'opacité reste sous mouvement
+   réduit, où la hauteur, la montée et le décalage ne s'exécutent pas. */
+[data-slot="voile-sombre"] {
+  animation-name: apercu-voile;
+  animation-duration: 320ms;
+  animation-delay: 80ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="apercu-du-panier"] {
+    overflow: clip;
+    animation-name: apercu-hauteur;
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+
+  [data-slot="apercu-du-panier-ligne"] {
+    animation-name: apercu-ligne;
+    animation-duration: 320ms;
+    animation-delay: calc(var(--rang-ligne, 0) * 20ms);
+    animation-timing-function: ease-out;
+    animation-fill-mode: both;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (width < 64rem) {
+  [data-slot="apercu-du-panier"] {
+    animation-name: apercu-hauteur-mobile;
+  }
+}
+
+@keyframes apercu-voile {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes apercu-hauteur {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: auto;
+  }
+}
+
+@keyframes apercu-hauteur-mobile {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: 100dvh;
+  }
+}
+
+@keyframes apercu-ligne {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Ne pas redéclarer la variante `hover` ici : dans Tailwind 4.3.3, cela ne pose
    pas une condition, cela supprime la famille entière. `hover:`,
    `group-hover:`, `group-hover/<nom>:` et `peer-hover:` cessent d'être émis
