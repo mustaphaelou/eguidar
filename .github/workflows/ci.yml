@@ -201,6 +201,17 @@ jobs:
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Le global setup de Vitest tronque la base de test : cette étape vient
+      # donc après les constructions d'images, qui prérendent encore le
+      # catalogue semé, et avant la sonde, qui remigre et resème la base. Le
+      # `npx` laisse le fichier hors du registre des checks : le job `build`
+      # garde sa seule porte nommée.
+      - run: npx vitest run test/serveur-demarre-document-anonyme.test.ts
+        env:
+          DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+          TEST_DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+          TEST_DB_NAME: eguidar_probe
+          BETTER_AUTH_SECRET: replace-with-a-long-random-secret
       - run: bash scripts/verifier-image-deploiement.sh
         if: github.event_name == 'push' || github.event.pull_request.draft == false
         env:
