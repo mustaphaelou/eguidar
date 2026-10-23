@@ -10,7 +10,14 @@ import {
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
 import { pageMetadata } from "@/lib/metadata"
-import { getCategoryPageData } from "@/lib/use-cases/storefront"
+import {
+  getCategoryPageData,
+  parametresDesCategories,
+} from "@/lib/use-cases/storefront"
+
+export async function generateStaticParams() {
+  return parametresDesCategories()
+}
 
 export async function generateMetadata({
   params,

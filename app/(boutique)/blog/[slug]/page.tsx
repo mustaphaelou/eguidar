@@ -12,7 +12,11 @@ import {
 import { aDesSectionsArticle, decoupeContenuArticle } from "@/lib/blog-contenu"
 import { formatPublishedAt, publishedAtISO } from "@/lib/blog-dates"
 import { pageMetadata } from "@/lib/metadata"
-import { getArticleParSlug } from "@/lib/use-cases/blog"
+import { getArticleParSlug, parametresDesArticles } from "@/lib/use-cases/blog"
+
+export async function generateStaticParams() {
+  return parametresDesArticles()
+}
 
 export async function generateMetadata({
   params,
