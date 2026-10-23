@@ -1,7 +1,22 @@
-import { lirePanier } from "@/lib/panier"
+"use client"
 
-export async function PanierBadge() {
-  const { itemCount } = await lirePanier()
+import { useEffect, useState } from "react"
+
+import { lireLeCompteurDuPanier } from "./lecture-du-panier-http"
+import { usePanierQuiChange } from "./panier-qui-change"
+
+export function PanierBadge() {
+  const version = usePanierQuiChange()
+  const [itemCount, setItemCount] = useState(0)
+
+  useEffect(() => {
+    const controleur = new AbortController()
+    void lireLeCompteurDuPanier(controleur.signal).then((compte) => {
+      if (compte === null || controleur.signal.aborted) return
+      setItemCount(compte)
+    })
+    return () => controleur.abort()
+  }, [version])
 
   if (itemCount === 0) return null
 

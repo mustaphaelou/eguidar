@@ -1,203 +1,186 @@
-import { randomUUID } from "node:crypto"
+// @vitest-environment happy-dom
+import { act } from "react"
+import { createRoot } from "react-dom/client"
+import type { ReactElement } from "react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { renderToReadableStream } from "react-dom/server"
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest"
-
-import { sessionCouranteMock } from "@/test/navigation-mocks"
-
-vi.mock("next/headers", async () => {
-  const h = await import("@/test/cookie-store")
-  return { cookies: async () => h.cookieStoreMock }
-})
-
-vi.mock("@/lib/use-cases/session-courante", async () => {
-  const h = await import("@/test/navigation-mocks")
-  return { lireSession: h.sessionCouranteMock }
-})
-
-const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
-
-vi.mock("next/cache", () => ({ refresh: refreshMock }))
-
-import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
+import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
 import { PanierBadge } from "./panier-badge"
-import { prisma } from "@/lib/db"
-import { ajouterArticleAuPanierAction } from "@/app/(boutique)/actions"
+import {
+  useMutationsDuPanier,
+  type PortMutationsDuPanier,
+} from "./use-mutations-du-panier"
 
-const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
-const serializePanierVisiteur = (
-  articles: readonly { variantId: string; quantity: number }[]
-) => JSON.stringify(articles)
+;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-const runId = randomUUID().slice(0, 8)
+let container: HTMLDivElement
+const roots: ReturnType<typeof createRoot>[] = []
 
-let userIdA: string
-let variantA: string
-let variantB: string
-
-function commeClient(userId: string) {
-  sessionCouranteMock.mockResolvedValue({
-    id: userId,
-    name: "Client Test",
-    email: "client@example.ma",
-    role: "user",
-  })
-}
-
-function commeVisiteur() {
-  sessionCouranteMock.mockResolvedValue(null)
-}
-
-async function renderBadge() {
-  const stream = await renderToReadableStream(<PanierBadge />)
-  return new Response(stream).text()
-}
-
-beforeAll(async () => {
-  const user = await prisma.user.create({
-    data: {
-      id: randomUUID(),
-      email: `panier-badge-${runId}-a@test.ma`,
-      name: "Utilisateur A",
-    },
-  })
-  userIdA = user.id
-
-  const category = await prisma.category.create({
-    data: { name: `Catégorie ${runId}`, slug: `panier-badge-cat-${runId}` },
-  })
-  const product = await prisma.product.create({
-    data: {
-      name: "Produit Badge",
-      slug: `panier-badge-prod-${runId}`,
-      description: "Description",
-      brand: "Marque Badge",
-      categoryId: category.id,
-      price: 100000,
-      specs: {},
-      images: [],
-      freeShipping: false,
-      variants: {
-        create: [
-          {
-            name: "Standard",
-            sku: `PBD-${runId}-A1`,
-            priceDelta: 0,
-            stock: 10,
-          },
-          { name: "Premium", sku: `PBD-${runId}-A2`, priceDelta: 0, stock: 5 },
-        ],
-      },
-    },
-    include: { variants: true },
-  })
-  variantA = product.variants.find((v) => v.name === "Standard")!.id
-  variantB = product.variants.find((v) => v.name === "Premium")!.id
+beforeEach(() => {
+  container = document.createElement("div")
+  document.body.appendChild(container)
 })
 
-beforeEach(async () => {
-  resetCookieStoreMock()
-  sessionCouranteMock.mockReset()
-  refreshMock.mockClear()
-  await prisma.cartItem.deleteMany({
-    where: { user: { email: { startsWith: `panier-badge-${runId}-` } } },
+afterEach(() => {
+  act(() => {
+    for (const root of roots) root.unmount()
   })
+  roots.length = 0
+  container.remove()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
-afterAll(async () => {
-  await prisma.cartItem.deleteMany({
-    where: { user: { email: { startsWith: `panier-badge-${runId}-` } } },
+function reponseJson(corps: unknown): Response {
+  return new Response(JSON.stringify(corps), { status: 200 })
+}
+
+function differe<T>(): { promesse: Promise<T>; resoudre: (valeur: T) => void } {
+  let resoudre!: (valeur: T) => void
+  const promesse = new Promise<T>((resoudreLaPromesse) => {
+    resoudre = resoudreLaPromesse
   })
-  await prisma.user.deleteMany({
-    where: { email: { startsWith: `panier-badge-${runId}-` } },
-  })
-  await prisma.product.deleteMany({
-    where: { slug: `panier-badge-prod-${runId}` },
-  })
-  await prisma.category.deleteMany({
-    where: { slug: `panier-badge-cat-${runId}` },
-  })
-  await prisma.$disconnect()
-})
+  return { promesse, resoudre }
+}
+
+function rendreSansAttendre(element: ReactElement) {
+  const root = createRoot(container)
+  roots.push(root)
+  act(() => root.render(element))
+}
+
+async function rendreEtAttendre(element: ReactElement) {
+  const root = createRoot(container)
+  roots.push(root)
+  await act(async () => root.render(element))
+}
+
+async function rejouer() {
+  await act(async () => {})
+  await act(async () => {})
+}
+
+function boutonAjout(port: PortMutationsDuPanier) {
+  function AjoutDeTest() {
+    const { ajouter } = useMutationsDuPanier(port)
+    return (
+      <button type="button" onClick={() => ajouter("variante-a", 1)}>
+        Ajouter
+      </button>
+    )
+  }
+  return <AjoutDeTest />
+}
+
+function texteDuBadge(): string {
+  return container.querySelector("span")?.textContent ?? ""
+}
+
+function bouton(label: string) {
+  return [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+    (element) => element.textContent?.trim() === label
+  )!
+}
 
 describe("PanierBadge", () => {
-  it("renders nothing when a Visiteur holds no article", async () => {
-    commeVisiteur()
+  it("ne prend aucune place tant que le compteur n'est pas arrivé, puis pose le badge absolu", async () => {
+    const attente = differe<Response>()
+    const fetchMock = vi.fn(() => attente.promesse)
+    vi.stubGlobal("fetch", fetchMock)
 
-    expect((await renderBadge()).trim()).toBe("")
+    rendreSansAttendre(<PanierBadge />)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/panier",
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      })
+    )
+    expect(container.innerHTML).toBe("")
+
+    await act(async () => {
+      attente.resoudre(reponseJson({ itemCount: 5 }))
+    })
+
+    expect(texteDuBadge()).toBe("5")
+    const badge = container.querySelector("span")!
+    expect(badge.className).toContain("absolute")
+    expect(badge.className).toContain("-top-1")
+    expect(badge.className).toContain("-right-1")
   })
 
-  it("counts the Visiteur's Panier as summed quantities, like a Client's", async () => {
-    commeVisiteur()
-    setCookie(
-      NOM_COOKIE_PANIER_VISITEUR,
-      serializePanierVisiteur([
-        { variantId: variantA, quantity: 3 },
-        { variantId: variantB, quantity: 2 },
-      ])
+  it("reste absent pour un Panier vide", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => reponseJson({ itemCount: 0 }))
     )
 
-    const html = await renderBadge()
+    await rendreEtAttendre(<PanierBadge />)
 
-    expect(html).toContain(">5</span>")
-    expect(html).not.toContain(">2<")
+    expect(container.innerHTML).toBe("")
   })
 
-  it("skips a Visiteur article whose variant vanished, exactly like a Client's Panier", async () => {
-    commeVisiteur()
-    setCookie(
-      NOM_COOKIE_PANIER_VISITEUR,
-      serializePanierVisiteur([
-        { variantId: "variante-fantome", quantity: 4 },
-        { variantId: variantA, quantity: 3 },
-      ])
+  it("reste absent quand la lecture échoue, sans laisser de trace", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 500 }))
     )
 
-    const html = await renderBadge()
+    await rendreEtAttendre(<PanierBadge />)
 
-    expect(html).toContain(">3</span>")
-    expect(html).not.toContain(">7<")
+    expect(container.innerHTML).toBe("")
   })
 
-  it("counts the Client's persisted Panier item count", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantA, quantity: 2 },
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantB, quantity: 3 },
-    })
+  it("relit le compteur après un ajout réussi, sans rechargement de document", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reponseJson({ itemCount: 2 }))
+      .mockResolvedValueOnce(reponseJson({ itemCount: 3 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const port = creerPortPanierEnMemoire()
 
-    const html = await renderBadge()
+    await rendreEtAttendre(
+      <>
+        <PanierBadge />
+        {boutonAjout(port)}
+      </>
+    )
+    expect(texteDuBadge()).toBe("2")
 
-    expect(html).toContain(">5</span>")
+    await act(async () => {
+      bouton("Ajouter").click()
+    })
+    await rejouer()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(texteDuBadge()).toBe("3")
   })
 
-  it("renders nothing when a Client's Panier is empty", async () => {
-    commeClient(userIdA)
+  it("ne relit pas le compteur quand la mutation est refusée", async () => {
+    const fetchMock = vi.fn(async () => reponseJson({ itemCount: 2 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const port = creerPortPanierEnMemoire(() => ({
+      ok: false,
+      motif: "variante-inconnue",
+      message: "Cet article n'est plus disponible.",
+    }))
 
-    expect((await renderBadge()).trim()).toBe("")
-  })
+    await rendreEtAttendre(
+      <>
+        <PanierBadge />
+        {boutonAjout(port)}
+      </>
+    )
 
-  it("a mutation updates the badge deterministically through explicit revalidation", async () => {
-    commeClient(userIdA)
-
-    expect((await renderBadge()).trim()).toBe("")
-
-    await expect(ajouterArticleAuPanierAction(variantA, 2)).resolves.toEqual({
-      ok: true,
+    await act(async () => {
+      bouton("Ajouter").click()
     })
-    expect(refreshMock).toHaveBeenCalledTimes(1)
+    await rejouer()
 
-    expect(await renderBadge()).toContain(">2</span>")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(texteDuBadge()).toBe("2")
   })
 })
