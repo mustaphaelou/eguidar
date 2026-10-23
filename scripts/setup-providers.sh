@@ -148,7 +148,7 @@ finish() {
   printf '\n'
 }
 
-TOTAL_STAGES=3
+TOTAL_STAGES=4
 
 banner "Eguidar provider setup"
 
@@ -367,6 +367,302 @@ else
   note "(24 h by default). A shorter rule deletes the file of a draft the"
   note "application still considers claimable; a longer one only leaves orphan"
   note "bytes behind, because the registry refuses the claim either way."
+fi
+
+stage "Cache Rules (Documents à l'edge)"
+say "Cloudflare becomes eligible to store the anonymous documents at the edge."
+say "Two rules, in this order: an RSC or Next-Router-Prefetch request bypasses"
+say "the cache, then storefront HTML is cache-eligible. No /_next/image rule is"
+say "added: images are a separate ticket."
+
+RACINE="${RACINE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+CACHE_RULES_FILE="$RACINE/infra/regle-cache-edge.json"
+
+_cache_valeur() {
+  node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    const valeur = process.argv[2].split(".").reduce((noeud, cle) => noeud[cle], artefact)
+    process.stdout.write(String(valeur))
+  ' "$CACHE_RULES_FILE" "$1"
+}
+
+_cache_corps() {
+  node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    process.stdout.write(JSON.stringify({ rules: artefact.rules }))
+  ' "$CACHE_RULES_FILE"
+}
+
+_cache_erreurs() {
+  node -e '
+    let lu
+    try {
+      lu = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
+    } catch {
+      console.error("réponse illisible de l’API")
+      process.exit(1)
+    }
+    if (lu.success === false) {
+      const messages = (lu.errors ?? []).map((erreur) => erreur.message).filter(Boolean)
+      console.error(messages.join("; ") || JSON.stringify(lu))
+      process.exit(1)
+    }
+  '
+}
+
+_cache_lire() {
+  local reponse code
+  reponse="$(curl -sS -w $'\n%{http_code}' \
+    -H "Authorization: Bearer $CACHE_TOKEN" \
+    "$CACHE_ENTRYPOINT")" || return 1
+  code="${reponse##*$'\n'}"
+  CACHE_CODE="$code"
+  CACHE_CORPS="${reponse%$'\n'*}"
+  CACHE_ID="$(printf '%s' "$CACHE_CORPS" | node -e '
+    try {
+      const lu = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
+      const id = lu?.result?.id
+      if (typeof id === "string" && id !== "") process.stdout.write(id)
+    } catch {}
+  ')"
+}
+
+_cache_vide() {
+  [[ "$CACHE_CODE" =~ ^4[0-9][0-9]$ ]]
+}
+
+_cache_etrangeres() {
+  _cache_lire || return 1
+  if _cache_vide; then
+    printf '0'
+    return 0
+  fi
+  printf '%s' "$CACHE_CORPS" | node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    let lu
+    try {
+      lu = JSON.parse(fs.readFileSync(0, "utf8"))
+    } catch {
+      console.error("réponse illisible")
+      process.exit(1)
+    }
+    if (lu.success === false) {
+      console.error("lecture impossible : " + JSON.stringify(lu.errors ?? lu).slice(0, 200))
+      process.exit(1)
+    }
+    const regles = lu?.result?.rules
+    if (!Array.isArray(regles)) {
+      console.error("règles absentes de la réponse")
+      process.exit(1)
+    }
+    const projeter = (regle) => ({
+      ref: regle.ref,
+      description: regle.description,
+      enabled: regle.enabled,
+      expression: regle.expression,
+      action: regle.action,
+      action_parameters: regle.action_parameters,
+    })
+    const attendues = artefact.rules.map(projeter)
+    const etrangeres = regles.filter(
+      (regle) =>
+        !attendues.some(
+          (attendue) =>
+            JSON.stringify(attendue) === JSON.stringify(projeter(regle))
+        )
+    )
+    for (const regle of etrangeres) console.log("    " + JSON.stringify(regle))
+    process.stdout.write(String(etrangeres.length))
+  ' "$CACHE_RULES_FILE"
+}
+
+_cache_put() {
+  local url="$1" corps="$2"
+  curl -sS -X PUT "$url" \
+    -H "Authorization: Bearer $CACHE_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data-binary "$corps"
+}
+
+_cache_verifier() {
+  if ! _cache_lire; then
+    warn "could not read the live cache rules back"
+    return 1
+  fi
+  if _cache_vide; then
+    warn "the phase entrypoint still answers $CACHE_CODE after the PUT"
+    return 1
+  fi
+  printf '%s' "$CACHE_CORPS" | node -e '
+    const fs = require("node:fs")
+    const attendues = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).rules
+    let lu
+    try {
+      lu = JSON.parse(fs.readFileSync(0, "utf8"))
+    } catch {
+      console.error("réponse illisible")
+      process.exit(1)
+    }
+    if (lu.success === false) {
+      console.error("lecture impossible : " + JSON.stringify(lu.errors ?? lu).slice(0, 200))
+      process.exit(1)
+    }
+    const observees = (lu?.result?.rules ?? []).map((regle) => ({
+      ref: regle.ref,
+      description: regle.description,
+      enabled: regle.enabled,
+      expression: regle.expression,
+      action: regle.action,
+      action_parameters: regle.action_parameters,
+    }))
+    if (JSON.stringify(attendues) === JSON.stringify(observees)) {
+      console.log("  live cache rules match the artifact")
+    } else {
+      console.log("  live cache rules differ from the artifact")
+      console.log("  expected: " + JSON.stringify(attendues))
+      console.log("  observed: " + JSON.stringify(observees))
+      process.exitCode = 1
+    }
+  ' "$CACHE_RULES_FILE"
+}
+
+_cache_revert() {
+  local id="${CACHE_ID:-<ruleset-id>}"
+  note ""
+  note "Revert in one call — delete the phase ruleset (all versions):"
+  note "  curl -sS -X DELETE \"https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/rulesets/$id\" \\"
+  note "    -H \"Authorization: Bearer \$CLOUDFLARE_API_TOKEN\""
+  note "or keep it and empty it:"
+  note "  curl -sS -X PUT \"$CACHE_ENTRYPOINT\" \\"
+  note "    -H \"Authorization: Bearer \$CLOUDFLARE_API_TOKEN\" \\"
+  note "    -H \"Content-Type: application/json\" --data-binary '{\"rules\":[]}'"
+}
+
+_cache_appliquer() {
+  local corps reponse
+  corps="$(_cache_corps)"
+
+  note "Dry run: validating the ruleset without writing…"
+  reponse="$(_cache_put "$CACHE_ENTRYPOINT?dry_run=true" "$corps")" || {
+    warn "the dry-run call failed — check the token and zone ID"
+    SKIPPED+=("Cache Rules (dry run failed)")
+    return 0
+  }
+  if ! printf '%s' "$reponse" | _cache_erreurs; then
+    warn "the API rejected the ruleset — nothing was written"
+    SKIPPED+=("Cache Rules (dry run rejected)")
+    return 0
+  fi
+
+  note "Dry run accepted. Writing the ruleset…"
+  reponse="$(_cache_put "$CACHE_ENTRYPOINT" "$corps")" || {
+    warn "the PUT failed — check the token and zone ID"
+    SKIPPED+=("Cache Rules (PUT failed)")
+    return 0
+  }
+  if ! printf '%s' "$reponse" | _cache_erreurs; then
+    warn "the API rejected the ruleset — check the response above"
+    SKIPPED+=("Cache Rules (PUT rejected)")
+    return 0
+  fi
+
+  note "Reading the live ruleset back — the API adds id, version and last_updated."
+  if _cache_verifier; then
+    printf '  %s✓ Cache rules applied and verified%s\n' "$GREEN" "$RESET"
+  else
+    warn "live configuration still differs from the artifact"
+    SKIPPED+=("Cache Rules verification")
+  fi
+  _cache_revert
+  return 0
+}
+
+if [[ ! -f "$CACHE_RULES_FILE" ]] || ! command -v node >/dev/null 2>&1; then
+  warn "can't read the checked-in cache rules artifact ($CACHE_RULES_FILE)"
+  SKIPPED+=("Cache Rules — apply infra/regle-cache-edge.json by hand")
+else
+  CACHE_PHASE="$(_cache_valeur phase)"
+  CACHE_HOST="$(_cache_valeur zone)"
+  CACHE_REFS="$(node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    process.stdout.write(artefact.rules.map((regle) => regle.ref).join(", "))
+  ' "$CACHE_RULES_FILE")"
+
+  note ""
+  note "Artifact: infra/regle-cache-edge.json"
+  note "  phase : $CACHE_PHASE"
+  note "  zone  : $CACHE_HOST"
+  note "  rules : $CACHE_REFS"
+  warn "Cache Rules stack, and the LAST matching rule wins for a setting: the"
+  warn "bypass rule alone is not enough, so the eligible rule negates RSC and"
+  warn "Next-Router-Prefetch itself. The artifact and its test pin that."
+  warn "A PUT replaces the WHOLE phase ruleset: rules the artifact does not"
+  warn "describe are deleted. This step lists them and asks a second time."
+  note ""
+  note "The eligible rule uses edge_ttl 'bypass_by_default': s-maxage is"
+  note "honoured, and a response without Cache-Control is not stored. A"
+  note "response carrying Set-Cookie is kept and not cached, as long as the"
+  note "artifact never sets override_origin or status_code_ttl."
+  note ""
+  note "Prefer the dashboard? Create the two rules in this order, with the"
+  note "expressions from the artifact:"
+  open_url "https://dash.cloudflare.com/?to=/:account/$CACHE_HOST/caching/cache-rules"
+  step "Rule 1: bypass cache when RSC or Next-Router-Prefetch is present."
+  step "Rule 2: eligible for cache, Edge TTL 'Bypass cache by default',"
+  step "        excluding /api/, /_next/ and the two RSC/prefetch headers."
+  step "Do not add a /_next/image rule: images are a separate ticket."
+  note ""
+  note "The token needs 'Zone > Cache Rules > Edit'. The R2 token may only"
+  note "have 'Workers R2 Storage: Edit' — widen it, or use a second token."
+
+  CACHE_TOKEN="${CLOUDFLARE_API_TOKEN:-$(_existing CLOUDFLARE_API_TOKEN || true)}"
+  if [[ -z "$CACHE_TOKEN" ]]; then
+    step "Create a Cloudflare API token with 'Zone > Cache Rules > Edit' (widen"
+    step "the R2 token, or create a second token). It is stored only in"
+    step "$ENV_FILE and never leaves this machine."
+    ask_secret CLOUDFLARE_API_TOKEN "Paste the API token:"
+    _save CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
+    CACHE_TOKEN="$CLOUDFLARE_API_TOKEN"
+  fi
+  ask CLOUDFLARE_ZONE_ID "Cloudflare zone ID:"
+  _save CLOUDFLARE_ZONE_ID "$CLOUDFLARE_ZONE_ID"
+
+  CACHE_ENTRYPOINT="https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/rulesets/phases/$CACHE_PHASE/entrypoint"
+
+  if [[ -z "$CACHE_TOKEN" || -z "$CLOUDFLARE_ZONE_ID" ]]; then
+    warn "no CLOUDFLARE_API_TOKEN or CLOUDFLARE_ZONE_ID — nothing was sent to the zone"
+    SKIPPED+=("Cache Rules (needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID)")
+  elif ! command -v curl >/dev/null 2>&1; then
+    warn "curl is missing — apply the rules from the dashboard instead"
+    SKIPPED+=("Cache Rules (no curl)")
+  elif confirm "Apply the cache rules to zone $CLOUDFLARE_ZONE_ID now?"; then
+    CACHE_ETRANGERES="$(_cache_etrangeres 2>/dev/null || true)"
+    CACHE_NOMBRE="${CACHE_ETRANGERES##*$'\n'}"
+    if ! [[ "$CACHE_NOMBRE" =~ ^[0-9]+$ ]]; then
+      warn "could not read the live cache rules — nothing was applied. Check"
+      warn "the token (Zone > Cache Rules > Edit) and the zone ID."
+      SKIPPED+=("Cache Rules (live rules unreadable)")
+    elif [[ "$CACHE_NOMBRE" -gt 0 ]]; then
+      warn "This phase already has $CACHE_NOMBRE rule(s) the artifact does not"
+      warn "describe. A PUT replaces the whole set, so applying DELETES them:"
+      printf '%s\n' "${CACHE_ETRANGERES%$'\n'*}"
+      if confirm "Replace those foreign cache rules and leave only the artifact's rules?"; then
+        _cache_appliquer
+      else
+        warn "nothing was applied. Edit the artifact to describe them, or add"
+        warn "the rules from the dashboard so they survive."
+        SKIPPED+=("Cache Rules (would delete existing phase rules)")
+      fi
+    else
+      _cache_appliquer
+    fi
+  else
+    SKIPPED+=("Cache Rules not applied — re-run this stage")
+  fi
 fi
 
 finish
