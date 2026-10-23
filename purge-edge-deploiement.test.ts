@@ -140,6 +140,19 @@ describe("la composition purge la zone entre la migration et l'application", () 
     expect(brut).toContain("CLOUDFLARE_API_TOKEN")
     expect(brut).toContain("PURGE_EDGE")
   })
+
+  it("donne aussi les identifiants à l'application, qui purge à chaque écriture d'Administration", () => {
+    const environnement = service("app").environment
+    const brut = Array.isArray(environnement)
+      ? environnement.join("\n")
+      : JSON.stringify(environnement)
+
+    expect(
+      brut,
+      "sans ces deux variables, la purge des écritures d'Administration se tait et le bord garde un prix corrigé."
+    ).toContain("CLOUDFLARE_ZONE_ID")
+    expect(brut).toContain("CLOUDFLARE_API_TOKEN")
+  })
 })
 
 interface Capture {
