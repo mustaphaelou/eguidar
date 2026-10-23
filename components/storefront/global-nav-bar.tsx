@@ -132,10 +132,12 @@ export function GlobalNavBar({
               setSearchOpen(!searchOpen)
             }}
           >
-            <HugeiconsIcon
-              icon={searchOpen ? Cancel01Icon : Search01Icon}
-              strokeWidth={2}
-            />
+            <span className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90">
+              <HugeiconsIcon
+                icon={searchOpen ? Cancel01Icon : Search01Icon}
+                strokeWidth={2}
+              />
+            </span>
           </Button>
           {apercuMobileOuvert ? null : (
             <Button
@@ -148,7 +150,10 @@ export function GlobalNavBar({
               className="relative"
               onClick={basculerLApercu}
             >
-              <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
+              {/* Le badge reste hors du span : `scale` en fait le bloc conteneur du badge absolu. */}
+              <span className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90">
+                <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
+              </span>
               {panierBadge}
             </Button>
           )}
@@ -161,10 +166,12 @@ export function GlobalNavBar({
             className="lg:hidden"
             onClick={basculerLeMenu}
           >
-            <HugeiconsIcon
-              icon={menuOpen ? Cancel01Icon : Menu01Icon}
-              strokeWidth={2}
-            />
+            <span className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90">
+              <HugeiconsIcon
+                icon={menuOpen ? Cancel01Icon : Menu01Icon}
+                strokeWidth={2}
+              />
+            </span>
           </Button>
         </div>
       </div>
