@@ -3,6 +3,10 @@ import { cacheLife, cacheTag } from "next/cache"
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import {
+  parametresDeSlug,
+  type ParametresDeSlug,
+} from "@/lib/parametre-de-repli"
+import {
   minVariantPrice,
   prixVariante,
   specificationsProduit,
@@ -11,6 +15,7 @@ import {
 } from "@/lib/product-metrics"
 import {
   CATEGORY_TAG,
+  categoryDetailTag,
   HOME_TAG,
   PRODUCT_TAG,
   productDetailTag,
@@ -179,6 +184,40 @@ export async function fetchProductPageData(
   }
 }
 
+/**
+ * Les slugs que le build prérend, lus dans le Catalogue. Triés pour que deux
+ * builds du même Catalogue produisent la même liste.
+ */
+export async function fetchProductSlugs(): Promise<string[]> {
+  const produits = await prisma.product.findMany({
+    select: { slug: true },
+    orderBy: { slug: "asc" },
+  })
+  return produits.map((produit) => produit.slug)
+}
+
+// La Lecture possède les lectures de la Structure (ADR-0030) ; ses lignes
+// d'Administration portent toutes les rangées, hors arbre comprises, et c'est
+// exactement l'ensemble des slugs que la page de catégorie sait résoudre.
+export async function fetchCategorySlugs(): Promise<string[]> {
+  const lecture = await lireStructure()
+  return lecture
+    .lignesAdmin()
+    .map((structure) => structure.slug)
+    .sort()
+}
+
+// Les paramètres que les routes du catalogue rendent à `generateStaticParams`.
+// Un Catalogue vide donne le slug de repli : le build passe, et la page de ce
+// slug traite la route comme inconnue.
+export async function parametresDesProduits(): Promise<ParametresDeSlug[]> {
+  return parametresDeSlug(await fetchProductSlugs())
+}
+
+export async function parametresDesCategories(): Promise<ParametresDeSlug[]> {
+  return parametresDeSlug(await fetchCategorySlugs())
+}
+
 const STORE_CACHE_LIFE = { revalidate: 900, expire: 86400 }
 
 export async function getHomeData(): Promise<HomeData> {
@@ -192,7 +231,7 @@ export async function getCategoryPageData(
   slug: string
 ): Promise<CategoryPageData | null> {
   "use cache: remote"
-  cacheTag(CATEGORY_TAG, PRODUCT_TAG)
+  cacheTag(CATEGORY_TAG, PRODUCT_TAG, categoryDetailTag(slug))
   cacheLife(STORE_CACHE_LIFE)
   return fetchCategoryPageData(slug)
 }

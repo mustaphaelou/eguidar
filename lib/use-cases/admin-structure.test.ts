@@ -329,6 +329,39 @@ describe("admin structure mutations — categories", () => {
     expect(reindexProducts).not.toHaveBeenCalled()
   })
 
+  it("réussit une écriture de Structure sans identifiants Cloudflare et journalise la purge ignorée", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const zoneInitiale = process.env.CLOUDFLARE_ZONE_ID
+    const jetonInitial = process.env.CLOUDFLARE_API_TOKEN
+    delete process.env.CLOUDFLARE_ZONE_ID
+    delete process.env.CLOUDFLARE_API_TOKEN
+    try {
+      const category = await createCategory(
+        makeCategoryInput({ slug: categorySlug("sans-cloudflare") })
+      )
+
+      expect(category.id).toBeTruthy()
+      expect(
+        fetchSpy.mock.calls.filter(([url]) =>
+          String(url).includes("api.cloudflare.com")
+        )
+      ).toEqual([])
+      expect(
+        warnSpy.mock.calls.some(([message]) =>
+          String(message).includes("purge de l'edge non effectuée")
+        )
+      ).toBe(true)
+    } finally {
+      fetchSpy.mockRestore()
+      warnSpy.mockRestore()
+      if (zoneInitiale === undefined) delete process.env.CLOUDFLARE_ZONE_ID
+      else process.env.CLOUDFLARE_ZONE_ID = zoneInitiale
+      if (jetonInitial === undefined) delete process.env.CLOUDFLARE_API_TOKEN
+      else process.env.CLOUDFLARE_API_TOKEN = jetonInitial
+    }
+  })
+
   it("creates a nested category under an existing parent", async () => {
     const parent = await createCategory(
       makeCategoryInput({ slug: categorySlug("parent") })

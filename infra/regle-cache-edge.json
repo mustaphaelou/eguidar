@@ -1,0 +1,25 @@
+{
+  "zone": "eguidar.com",
+  "phase": "http_request_cache_settings",
+  "rules": [
+    {
+      "ref": "rsc-et-prefetch-hors-cache",
+      "description": "Un payload RSC n'est jamais un document : la clé de cache ignore RSC",
+      "enabled": true,
+      "expression": "(any(lower(http.request.headers.names[*])[*] eq \"rsc\") or any(lower(http.request.headers.names[*])[*] eq \"next-router-prefetch\"))",
+      "action": "set_cache_settings",
+      "action_parameters": { "cache": false }
+    },
+    {
+      "ref": "documents-anonymes-eguidar",
+      "description": "HTML cache-eligible pour l'hôte, TTL d'origine, Set-Cookie jamais stocké",
+      "enabled": true,
+      "expression": "(http.host eq \"eguidar.com\" and not starts_with(http.request.uri.path, \"/api/\") and not starts_with(http.request.uri.path, \"/_next/\") and not ends_with(http.request.uri.path, \"/__placeholder__\") and not any(lower(http.request.headers.names[*])[*] eq \"rsc\") and not any(lower(http.request.headers.names[*])[*] eq \"next-router-prefetch\"))",
+      "action": "set_cache_settings",
+      "action_parameters": {
+        "cache": true,
+        "edge_ttl": { "mode": "bypass_by_default" }
+      }
+    }
+  ]
+}

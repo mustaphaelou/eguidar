@@ -25,8 +25,6 @@ vi.mock("@/components/auth/auth-dialogs", () => ({
 
 vi.mock("@/lib/client", () => ({ signOut }))
 
-import type { Client } from "@/lib/use-cases/session-courante"
-
 import {
   ApercuDuPanierProvider,
   useApercuDuPanier,
@@ -34,13 +32,6 @@ import {
 import { MonCompteDansLApercu } from "./mon-compte-dans-l-apercu"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
-
-const CLIENT: Client = {
-  id: "client-1",
-  name: "Ada Lovelace",
-  email: "ada@example.com",
-  role: "user",
-}
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
@@ -62,7 +53,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function ApercuDeTest({ client }: { client: Client | null }) {
+function ApercuDeTest({ connecte }: { connecte: boolean }) {
   const { ouvert, basculer } = useApercuDuPanier()
 
   return (
@@ -73,20 +64,20 @@ function ApercuDeTest({ client }: { client: Client | null }) {
       {ouvert ? (
         <div role="dialog" aria-modal="true">
           <h2>Mon panier</h2>
-          <MonCompteDansLApercu client={client} />
+          <MonCompteDansLApercu connecte={connecte} />
         </div>
       ) : null}
     </>
   )
 }
 
-function render(client: Client | null) {
+function render(connecte: boolean) {
   const root = createRoot(container)
   roots.push(root)
   act(() =>
     root.render(
       <ApercuDuPanierProvider>
-        <ApercuDeTest client={client} />
+        <ApercuDeTest connecte={connecte} />
       </ApercuDuPanierProvider>
     )
   )
@@ -114,7 +105,7 @@ function ouvrirLApercu() {
 
 describe("MonCompteDansLApercu", () => {
   it("referme l'Aperçu avant d'ouvrir la Connexion", async () => {
-    render(null)
+    render(false)
     ouvrirLApercu()
     expect(dialogue()).not.toBeNull()
 
@@ -127,7 +118,7 @@ describe("MonCompteDansLApercu", () => {
   })
 
   it("referme l'Aperçu quand une entrée de navigation est activée", async () => {
-    render(null)
+    render(false)
     ouvrirLApercu()
     expect(dialogue()).not.toBeNull()
 
@@ -143,7 +134,7 @@ describe("MonCompteDansLApercu", () => {
   })
 
   it("referme l'Aperçu quand l'entrée Mon profil est activée", async () => {
-    render(null)
+    render(false)
     ouvrirLApercu()
 
     const profil = entree("Mon profil")
@@ -158,7 +149,7 @@ describe("MonCompteDansLApercu", () => {
 
   it("referme l'Aperçu avant de se déconnecter, puis navigue et rafraîchit", async () => {
     signOut.mockResolvedValue(undefined)
-    render(CLIENT)
+    render(true)
     ouvrirLApercu()
     expect(dialogue()).not.toBeNull()
 

@@ -140,3 +140,59 @@ booted server answers the three HTTP surfaces. A wiring guard in the workflow te
 step, its draft condition and the job's timeout, so the step cannot disappear silently. The
 acceptance the spec requires is a green `build` on a non-draft pull request, and a red one when the
 artifact is deliberately broken.
+
+## Amendment — The `build` job gives the build a real catalogue (#759, 2026-10-23)
+
+No sentence of this ADR is rewritten; the amendment records a decision taken after it and names the
+earlier sentence it supersedes. The `build` job no longer hands `next build` a placeholder
+`DATABASE_URL`; it builds against a catalog it migrated and seeded itself. Everything else about the
+job, the gate and the ruleset stands.
+
+**The decision: the build reads the catalogue it prerenders.**
+
+- **The job provisions its own catalogue.** The job's `postgres:16-alpine` service already owns the
+  job-local `eguidar_probe` database. The job now runs `prisma migrate deploy` and `prisma db seed`
+  against it, then runs `npm run build` with `DATABASE_URL` pointing at the same database. The
+  build preflight (`scripts/verifier-catalogue-de-build.ts`) therefore reads a real catalogue
+  instead of failing on a placeholder.
+- **The Docker image build receives the same URL as a BuildKit secret.**
+  `docker/build-push-action` passes `database_url=postgresql://…/eguidar_probe` through its
+  `secrets` input, and the builder shares the host's network (`driver-opts: network=host`, with
+  `network: host` on the build) so the build reaches the job's service on `127.0.0.1:5432`. The
+  `docker-container` driver cannot resolve `host-gateway`, hence the network mode rather than
+  `add-hosts`. The `Dockerfile` mounts the secret for the single build `RUN`
+  (`--mount=type=secret,id=database_url,env=DATABASE_URL`), so the value is never a build argument,
+  an image layer or an entry in `docker history`.
+- **No repository secret is added.** The URL names a job-local database with fixed, ephemeral
+  credentials; it is not a repository secret or variable, and the workflow keeps `contents: read`.
+- **The gate does not grow.** Five jobs and the five required status contexts remain — `lint`,
+  `format`, `typecheck`, `test`, `build`. No sixth job, no sixth context, and the ruleset is
+  unchanged.
+
+**The sentences this supersedes, and how.**
+
+- The **`build`** bullet of **Decision** — "The `build` job reproduces the production build contract
+  — Prisma client generated first, placeholder `DATABASE_URL` and placeholder public env vars — so a
+  merge that would fail the Coolify image build is caught at pull request time. Placeholders are
+  public values only; no secret is involved." — is superseded on **"placeholder `DATABASE_URL`"**
+  only. That URL is now the job-local `eguidar_probe` catalogue the job migrates and seeds before
+  building, for the host build and for the image build alike. The public env vars
+  (`NEXT_PUBLIC_BETTER_AUTH_URL`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`) remain public placeholders, and
+  "no secret is involved" still means no repository secret: the catalogue URL is not one. Prisma
+  client generation first, the reproduced production build contract and the pull-request catch all
+  stand.
+
+**What the amendment does not change.**
+
+- **Coolify's deploy behaviour** — webhook on every push to `main`, Dockerfile build, `migrate`
+  before the app — is untouched.
+- **CI still requires no repository secret or variable and can only read the repository.** The
+  catalogue URL is created and consumed inside the job.
+- **`main` still accepts changes only through a pull request** whose five checks are green and whose
+  branch is up to date with `main`; the five required status contexts are unchanged.
+- **The rejected considered option stays rejected.** Nothing is pushed to a registry, and no deploy
+  trigger or deploy credential is introduced.
+
+**How the claim is proven.** The `build` job fails before prerendering when the catalogue is
+unreachable, and the same job boots the built server and checks its HTTP surfaces. A workflow test
+pins the migrate, seed and secret wiring, so none of it can disappear silently.

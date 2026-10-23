@@ -1,7 +1,11 @@
-import { lirePanier } from "@/lib/panier"
+"use client"
 
-export async function PanierBadge() {
-  const { itemCount } = await lirePanier()
+import { lireLeCompteurDuPanier } from "./lecture-du-panier-http"
+import { useLectureDuPanier } from "./use-lecture-du-panier"
+
+export function PanierBadge() {
+  const compte = useLectureDuPanier(lireLeCompteurDuPanier)
+  const itemCount = compte ?? 0
 
   if (itemCount === 0) return null
 

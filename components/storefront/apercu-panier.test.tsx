@@ -1,31 +1,11 @@
-import { randomUUID } from "node:crypto"
+// @vitest-environment happy-dom
+import { act, useMemo } from "react"
+import { createRoot } from "react-dom/client"
+import type { ReactElement } from "react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { renderToReadableStream } from "react-dom/server"
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest"
-
-import { sessionCouranteMock } from "@/test/navigation-mocks"
-
-vi.mock("next/headers", async () => {
-  const h = await import("@/test/cookie-store")
-  return { cookies: async () => h.cookieStoreMock }
-})
-
-vi.mock("@/lib/use-cases/session-courante", async () => {
-  const h = await import("@/test/navigation-mocks")
-  return { lireSession: h.sessionCouranteMock }
-})
-
-const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
-
-vi.mock("next/cache", () => ({ refresh: refreshMock }))
+import type { ApercuDuPanier } from "@/lib/panier-transport"
+import { creerPortPanierEnMemoire } from "@/test/port-mutations-du-panier"
 
 vi.mock("next/link", () => ({
   default: ({
@@ -42,339 +22,455 @@ vi.mock("next/link", () => ({
   ),
 }))
 
-const { openLoginMock } = vi.hoisted(() => ({ openLoginMock: vi.fn() }))
-
-vi.mock("@/components/auth/auth-dialogs", () => ({
-  useAuthDialogs: () => ({ openLogin: openLoginMock }),
+vi.mock("next/image", () => ({
+  default: ({ src, alt }: { src: string; alt: string }) => (
+    <div data-testid="image-produit" data-src={src} data-alt={alt} />
+  ),
 }))
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }))
 
+const { openLoginMock } = vi.hoisted(() => ({ openLoginMock: vi.fn() }))
+
+vi.mock("@/components/auth/auth-dialogs", () => ({
+  useAuthDialogs: () => ({ openLogin: openLoginMock }),
+}))
+
 vi.mock("@/lib/client", () => ({ signOut: vi.fn() }))
 
-import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
-
+import { ID_TITRE_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
 import { ApercuPanier } from "./apercu-panier"
 import { ApercuDuPanierProvider } from "./apercu-du-panier-provider"
-import { PanierBadge } from "./panier-badge"
-import { prisma } from "@/lib/db"
+import { GlobalNavBar } from "./global-nav-bar"
+import {
+  useMutationsDuPanier,
+  type PortMutationsDuPanier,
+} from "./use-mutations-du-panier"
 
-const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
-const serializePanierVisiteur = (
-  articles: readonly { variantId: string; quantity: number }[]
-) => JSON.stringify(articles)
+;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-const runId = randomUUID().slice(0, 8)
+let container: HTMLDivElement
+const roots: ReturnType<typeof createRoot>[] = []
 
-let userIdA: string
-let variantStandard: string
-let variantPremium: string
+beforeEach(() => {
+  poserEcran(true)
+  openLoginMock.mockReset()
+  container = document.createElement("div")
+  document.body.appendChild(container)
+})
 
-function commeClient(userId: string) {
-  sessionCouranteMock.mockResolvedValue({
-    id: userId,
-    name: "Client Test",
-    email: "client@example.ma",
-    role: "user",
+afterEach(() => {
+  act(() => {
+    for (const root of roots) root.unmount()
   })
+  roots.length = 0
+  container.remove()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+function poserEcran(large: boolean) {
+  vi.spyOn(window, "matchMedia").mockImplementation(
+    (requete: string) =>
+      ({
+        matches: requete.includes("min-width: 1024px") ? large : false,
+        media: requete,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList
+  )
 }
 
-function commeVisiteur() {
-  sessionCouranteMock.mockResolvedValue(null)
+function reponseJson(corps: unknown): Response {
+  return new Response(JSON.stringify(corps), { status: 200 })
 }
 
-async function renderApercu() {
-  const stream = await renderToReadableStream(
+function differe<T>(): { promesse: Promise<T>; resoudre: (valeur: T) => void } {
+  let resoudre!: (valeur: T) => void
+  const promesse = new Promise<T>((resoudreLaPromesse) => {
+    resoudre = resoudreLaPromesse
+  })
+  return { promesse, resoudre }
+}
+
+function installerFetch(corps: ApercuDuPanier) {
+  const fetchMock = vi.fn(async () => reponseJson(corps))
+  vi.stubGlobal("fetch", fetchMock)
+  return fetchMock
+}
+
+async function rendreEtAttendre(element: ReactElement) {
+  const root = createRoot(container)
+  roots.push(root)
+  await act(async () => root.render(element))
+}
+
+async function rejouer() {
+  await act(async () => {})
+  await act(async () => {})
+}
+
+function BandeauAvecApercu() {
+  return (
     <ApercuDuPanierProvider>
-      <ApercuPanier />
+      <GlobalNavBar links={[]} apercuCorps={<ApercuPanier />} />
     </ApercuDuPanierProvider>
   )
-  return new Response(stream).text()
 }
 
-beforeAll(async () => {
-  const user = await prisma.user.create({
-    data: {
-      id: randomUUID(),
-      email: `apercu-panier-${runId}-a@test.ma`,
-      name: "Utilisateur A",
+function BoutonAjout({ port }: { port: PortMutationsDuPanier }) {
+  const { ajouter } = useMutationsDuPanier(port)
+  return (
+    <button type="button" onClick={() => ajouter("variante-a", 1)}>
+      Ajouter
+    </button>
+  )
+}
+
+function BandeauEtAjout() {
+  const port = useMemo(() => creerPortPanierEnMemoire(), [])
+  return (
+    <>
+      <BoutonAjout port={port} />
+      <BandeauAvecApercu />
+    </>
+  )
+}
+
+function declencheurDuPanier() {
+  return container.querySelector<HTMLButtonElement>(
+    "button[aria-label='Panier']"
+  )!
+}
+
+function dialogue() {
+  return container.querySelector<HTMLElement>("[role='dialog']")
+}
+
+function appelsApercu(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter(
+    ([adresse]) => adresse === "/api/panier/apercu"
+  )
+}
+
+async function ouvrirLApercu() {
+  act(() => declencheurDuPanier().click())
+  await rejouer()
+}
+
+/** Clique un lien sans laisser happy-dom tenter une navigation réelle. */
+async function cliquerSansNaviguer(lien: HTMLAnchorElement) {
+  const empecherLaNavigation = (evenement: Event) => evenement.preventDefault()
+  container.addEventListener("click", empecherLaNavigation)
+  try {
+    act(() => lien.click())
+    await rejouer()
+  } finally {
+    container.removeEventListener("click", empecherLaNavigation)
+  }
+}
+
+function entree(label: string) {
+  return [...container.querySelectorAll<HTMLElement>("a, button")].find(
+    (element) => element.textContent?.trim() === label
+  )!
+}
+
+const VIDE_VISITEUR: ApercuDuPanier = { etat: "vide", connecte: false }
+const VIDE_CLIENT: ApercuDuPanier = { etat: "vide", connecte: true }
+
+const PLEIN: ApercuDuPanier = {
+  etat: "plein",
+  connecte: false,
+  lignes: [
+    {
+      productSlug: "theiere-traditionnelle",
+      productName: "Théière traditionnelle",
+      variantName: "Standard",
+      image: "/images/theiere.jpg",
+      quantity: 2,
+      unitPrice: 129900,
     },
-  })
-  userIdA = user.id
-
-  const category = await prisma.category.create({
-    data: { name: `Catégorie ${runId}`, slug: `apercu-panier-cat-${runId}` },
-  })
-  const product = await prisma.product.create({
-    data: {
-      name: "Produit Aperçu",
-      slug: `apercu-panier-prod-${runId}`,
-      description: "Description",
-      brand: "Marque Aperçu",
-      categoryId: category.id,
-      price: 129900,
-      specs: {},
-      images: ["/images/produit-apercu.jpg"],
-      freeShipping: false,
-      variants: {
-        create: [
-          {
-            name: "Standard",
-            sku: `APR-${runId}-A1`,
-            priceDelta: 0,
-            stock: 10,
-          },
-          {
-            name: "Premium",
-            sku: `APR-${runId}-A2`,
-            priceDelta: 0,
-            stock: 5,
-          },
-        ],
-      },
+    {
+      productSlug: "theiere-traditionnelle",
+      productName: "Théière traditionnelle",
+      variantName: "Premium",
+      image: null,
+      quantity: 1,
+      unitPrice: 149900,
     },
-    include: { variants: true },
-  })
-  variantStandard = product.variants.find((v) => v.name === "Standard")!.id
-  variantPremium = product.variants.find((v) => v.name === "Premium")!.id
-})
-
-beforeEach(async () => {
-  resetCookieStoreMock()
-  sessionCouranteMock.mockReset()
-  refreshMock.mockClear()
-  await prisma.cartItem.deleteMany({
-    where: { user: { email: { startsWith: `apercu-panier-${runId}-` } } },
-  })
-})
-
-afterAll(async () => {
-  await prisma.cartItem.deleteMany({
-    where: { user: { email: { startsWith: `apercu-panier-${runId}-` } } },
-  })
-  await prisma.user.deleteMany({
-    where: { email: { startsWith: `apercu-panier-${runId}-` } },
-  })
-  await prisma.product.deleteMany({
-    where: { slug: `apercu-panier-prod-${runId}` },
-  })
-  await prisma.category.deleteMany({
-    where: { slug: `apercu-panier-cat-${runId}` },
-  })
-  await prisma.$disconnect()
-})
+  ],
+}
 
 describe("ApercuPanier", () => {
-  it("rend un état vide de Visiteur avec l'invitation à se connecter", async () => {
-    commeVisiteur()
+  it("ne lit rien avant l'ouverture : l'ouverture est sa première et unique lecture", async () => {
+    const fetchMock = installerFetch(VIDE_VISITEUR)
 
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauAvecApercu />)
 
-    expect(html).toContain(">Votre panier est vide</h2>")
-    expect(html).toContain('id="apercu-du-panier-titre"')
-    expect(html).toContain(
-      "Connectez-vous pour retrouver le panier de votre compte."
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(dialogue()).toBeNull()
+
+    await ouvrirLApercu()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(appelsApercu(fetchMock)).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/panier/apercu",
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      })
     )
-    expect(html).not.toContain("Découvrir les produits")
-    expect(html).not.toContain('href="/"')
+    expect(dialogue()).not.toBeNull()
+    expect(container.textContent).toContain("Votre panier est vide")
+
+    await rejouer()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it("rend un état vide de Client sans invitation à se connecter", async () => {
-    commeClient(userIdA)
+  it("montre un squelette tant que le corps n'est pas arrivé", async () => {
+    const attente = differe<Response>()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => attente.promesse)
+    )
 
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    act(() => declencheurDuPanier().click())
+    await rejouer()
 
-    expect(html).toContain("Votre panier est vide")
-    expect(html).not.toContain(
+    expect(
+      container.querySelector("[data-slot='apercu-du-panier-squelette']")
+    ).not.toBeNull()
+    expect(container.textContent).not.toContain("Votre panier est vide")
+
+    await act(async () => {
+      attente.resoudre(reponseJson(VIDE_VISITEUR))
+    })
+
+    expect(
+      container.querySelector("[data-slot='apercu-du-panier-squelette']")
+    ).toBeNull()
+    expect(container.textContent).toContain("Votre panier est vide")
+  })
+
+  it("rend l'état vide d'un Visiteur avec l'invitation à se connecter", async () => {
+    installerFetch(VIDE_VISITEUR)
+
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
+
+    expect(container.textContent).toContain("Votre panier est vide")
+    expect(
+      container.querySelector(`#${ID_TITRE_APERCU_DU_PANIER}`)
+    ).not.toBeNull()
+    expect(container.textContent).toContain(
       "Connectez-vous pour retrouver le panier de votre compte."
     )
-    expect(html).not.toContain("Découvrir les produits")
-    expect(html).not.toContain('href="/"')
+    expect(dialogue()!.querySelector("a[href='/']")).toBeNull()
+    expect(container.textContent).not.toContain("Découvrir les produits")
+    expect(entree("Connexion").tagName).toBe("BUTTON")
+    expect(container.textContent).not.toContain("Déconnexion")
+  })
+
+  it("rend l'état vide d'un Client sans invitation à se connecter", async () => {
+    installerFetch(VIDE_CLIENT)
+
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
+
+    expect(container.textContent).toContain("Votre panier est vide")
+    expect(container.textContent).not.toContain(
+      "Connectez-vous pour retrouver le panier de votre compte."
+    )
+    expect(dialogue()!.querySelector("a[href='/']")).toBeNull()
+    expect(container.textContent).not.toContain("Découvrir les produits")
+    expect(entree("Déconnexion").tagName).toBe("BUTTON")
+    expect(container.textContent).not.toContain("Connexion</button>")
   })
 
   it("rend une ligne par Article du panier avec vignette, produit lié et variante", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantPremium, quantity: 2 },
-    })
+    installerFetch(PLEIN)
 
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
 
-    expect(html).toContain(">Mon panier</h2>")
-    expect(html).toContain('id="apercu-du-panier-titre"')
-    expect(html).not.toContain("Votre panier est vide")
-    expect(html).toContain(`href="/produit/apercu-panier-prod-${runId}"`)
-    expect(html).toContain("Produit Aperçu")
-    expect(html).toContain("Standard")
-    expect(html).toContain("Premium")
-    expect(html).toContain("produit-apercu.jpg")
-    expect(html).toContain('alt="Produit Aperçu"')
-  })
-
-  it("rend les lignes d'un Panier de Visiteur, sans invitation à se connecter", async () => {
-    commeVisiteur()
-    setCookie(
-      NOM_COOKIE_PANIER_VISITEUR,
-      serializePanierVisiteur([{ variantId: variantStandard, quantity: 2 }])
-    )
-
-    const html = await renderApercu()
-
-    expect(html).toContain("Mon panier")
-    expect(html).toContain("Produit Aperçu")
-    expect(html).toContain("Standard")
-    expect(html).toContain("2 × 1.299,00\u00A0MAD")
-    expect(html).not.toContain(
-      "Connectez-vous pour retrouver le panier de votre compte."
-    )
+    expect(container.textContent).toContain("Mon panier")
+    expect(container.textContent).not.toContain("Votre panier est vide")
+    expect(
+      container.querySelectorAll("[data-slot='apercu-du-panier-ligne']")
+    ).toHaveLength(2)
+    expect(
+      container.querySelectorAll("a[href='/produit/theiere-traditionnelle']")
+    ).toHaveLength(4)
+    expect(container.textContent).toContain("Théière traditionnelle")
+    expect(container.textContent).toContain("Standard")
+    expect(container.textContent).toContain("Premium")
+    const vignette = container.querySelector<HTMLElement>(
+      "[data-testid='image-produit']"
+    )!
+    expect(vignette.getAttribute("data-src")).toBe("/images/theiere.jpg")
+    expect(vignette.getAttribute("data-alt")).toBe("Théière traditionnelle")
+    expect(container.textContent).toContain("Aucune image")
   })
 
   it("affiche « N × prix » seulement au-dessus d'une unité", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantPremium, quantity: 2 },
-    })
+    installerFetch(PLEIN)
 
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
 
-    expect(html).toContain("2 × 1.299,00\u00A0MAD")
-    expect(html).not.toContain("1 ×")
-    expect(html.match(/1\.299,00/g)).toHaveLength(1)
+    expect(container.textContent).toContain("2 × 1.299,00\u00A0MAD")
+    expect(container.textContent).not.toContain("1 ×")
+    expect(container.textContent?.match(/1\.299,00/g)).toHaveLength(1)
   })
 
-  it("n'offre qu'un seul « Voir le panier », vers la Page du Panier", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 2 },
-    })
+  it("n'offre qu'un seul « Voir le panier », sans stepper, retrait, total, Livraison ou Total à payer", async () => {
+    installerFetch(PLEIN)
 
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
 
-    expect(html.match(/Voir le panier/g)).toHaveLength(1)
-    expect(html).toContain('href="/panier"')
+    expect(container.textContent?.match(/Voir le panier/g)).toHaveLength(1)
+    expect(container.querySelector("a[href='/panier']")).not.toBeNull()
+    expect(container.textContent).not.toContain("Diminuer la quantité")
+    expect(container.textContent).not.toContain("Augmenter la quantité")
+    expect(container.textContent).not.toContain("Retirer du panier")
+    expect(container.textContent).not.toContain("Sous-total")
+    expect(container.textContent).not.toContain("Livraison")
+    expect(container.textContent).not.toContain("Total à payer")
+    expect(container.textContent).not.toContain("2.598,00")
   })
 
-  it("ne porte ni stepper, ni retrait, ni total de ligne, sous-total, Livraison ou Total à payer", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 2 },
-    })
+  it("referme l'Aperçu au clic d'un lien du corps, vers le document attendu", async () => {
+    installerFetch(PLEIN)
 
-    const html = await renderApercu()
-
-    expect(html).not.toContain("Diminuer la quantité")
-    expect(html).not.toContain("Augmenter la quantité")
-    expect(html).not.toContain("Retirer du panier")
-    expect(html).not.toContain("Sous-total")
-    expect(html).not.toContain("Livraison")
-    expect(html).not.toContain("Total à payer")
-    expect(html).not.toContain("2.598,00")
-  })
-
-  it("marque chaque lien du corps comme refermant l'Aperçu avant de naviguer", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantPremium, quantity: 2 },
-    })
-
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
 
     const liensProduit = [
-      ...html.matchAll(/<a[^>]*href="\/produit\/[^"]*"[^>]*>/g),
-    ].map((trouve) => trouve[0])
+      ...container.querySelectorAll<HTMLAnchorElement>(
+        "a[href='/produit/theiere-traditionnelle']"
+      ),
+    ]
     expect(liensProduit).toHaveLength(4)
-    for (const lien of liensProduit) {
-      expect(lien).toContain("data-ferme-l-apercu")
-    }
 
-    const liensPanier = [...html.matchAll(/<a[^>]*href="\/panier"[^>]*>/g)].map(
-      (trouve) => trouve[0]
+    await cliquerSansNaviguer(liensProduit[0]!)
+    expect(dialogue()).toBeNull()
+
+    await ouvrirLApercu()
+    const lienPanier =
+      container.querySelector<HTMLAnchorElement>("a[href='/panier']")!
+    await cliquerSansNaviguer(lienPanier)
+    expect(dialogue()).toBeNull()
+  })
+
+  it("rend les Articles dans l'ordre du Panier, de haut en bas", async () => {
+    installerFetch(PLEIN)
+
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
+
+    const articles = [...container.querySelectorAll<HTMLLIElement>("li")]
+      .filter((article) =>
+        article.querySelector("a[href='/produit/theiere-traditionnelle']")
+      )
+      .map((article) => article.textContent ?? "")
+
+    expect(articles).toHaveLength(2)
+    expect(articles[0]).toContain("Standard")
+    expect(articles[0]).not.toContain("Premium")
+    expect(articles[1]).toContain("Premium")
+  })
+
+  it("garde les entrées du Compte d'un Client sur un Panier plein", async () => {
+    installerFetch({ ...PLEIN, connecte: true })
+
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
+
+    expect(container.textContent).toContain("Mon panier")
+    expect(entree("Commandes").getAttribute("href")).toBe("/commandes")
+    expect(entree("Mon profil").getAttribute("href")).toBe("/profil")
+    expect(entree("Déconnexion").tagName).toBe("BUTTON")
+    expect(container.textContent).not.toContain("Connexion</button>")
+  })
+
+  it("garde les sémantiques de dialogue, et Escape referme en rendant le focus au panier", async () => {
+    installerFetch(VIDE_CLIENT)
+
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
+
+    const surface = dialogue()!
+    expect(surface.getAttribute("aria-modal")).toBe("true")
+    expect(surface.getAttribute("id")).toBe("apercu-du-panier")
+    expect(surface.getAttribute("data-slot")).toBe("apercu-du-panier")
+    expect(surface.getAttribute("aria-labelledby")).toBe(
+      ID_TITRE_APERCU_DU_PANIER
     )
-    expect(liensPanier).toHaveLength(1)
-    expect(liensPanier[0]).toContain("data-ferme-l-apercu")
-  })
+    expect(surface.contains(document.activeElement)).toBe(true)
 
-  it("compte dans le badge les quantités que le corps montre, pour le même Panier", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 2 },
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantPremium, quantity: 3 },
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
     })
 
-    const badgeHtml = await new Response(
-      await renderToReadableStream(<PanierBadge />)
-    ).text()
-    const corpsHtml = await renderApercu()
-
-    expect(badgeHtml).toContain(">5</span>")
-    expect(corpsHtml).toContain("2 × 1.299,00\u00A0MAD")
-    expect(corpsHtml).toContain("3 × 1.299,00\u00A0MAD")
+    expect(dialogue()).toBeNull()
+    expect(document.activeElement).toBe(declencheurDuPanier())
   })
 
-  it("donne à chaque ligne son rang, pour que la feuille les décale de 20 ms", async () => {
-    commeClient(userIdA)
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
-    })
-    await prisma.cartItem.create({
-      data: { userId: userIdA, variantId: variantPremium, quantity: 1 },
-    })
+  it("relit le corps quand une mutation réussit pendant que l'Aperçu est ouvert", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reponseJson(VIDE_VISITEUR))
+      .mockResolvedValueOnce(reponseJson(PLEIN))
+    vi.stubGlobal("fetch", fetchMock)
 
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauEtAjout />)
+    await ouvrirLApercu()
+    expect(container.textContent).toContain("Votre panier est vide")
 
-    const rangs = [...html.matchAll(/--rang-ligne:(\d+)/g)].map((trouve) =>
-      Number(trouve[1])
-    )
-    expect(rangs).toEqual([0, 1])
-    expect(html.match(/data-slot="apercu-du-panier-ligne"/g)).toHaveLength(2)
-  })
-})
+    act(() => entree("Ajouter").click())
+    await rejouer()
 
-describe("Mon compte dans l'Aperçu", () => {
-  it("rend le groupe Mon compte d'un Visiteur avec Commandes, Mon profil et Connexion", async () => {
-    commeVisiteur()
-
-    const html = await renderApercu()
-
-    expect(html).toContain('aria-labelledby="mon-compte-dans-l-apercu"')
-    expect(html).toContain(">Mon compte</h2>")
-    expect(html).toContain('href="/commandes"')
-    expect(html).toContain(">Commandes</a>")
-    expect(html).toContain('href="/profil"')
-    expect(html).toContain(">Mon profil</a>")
-    expect(html).toContain(">Connexion</button>")
-    expect(html).not.toContain("Déconnexion")
-    expect(html.indexOf("Mon compte")).toBeGreaterThan(
-      html.indexOf("Votre panier est vide")
-    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.map(([adresse]) => adresse)).toEqual([
+      "/api/panier/apercu",
+      "/api/panier/apercu",
+    ])
+    expect(container.textContent).toContain("Mon panier")
+    expect(container.textContent).toContain("Théière traditionnelle")
   })
 
-  it("rend le groupe d'un Client avec Commandes, Mon profil et Déconnexion", async () => {
-    commeClient(userIdA)
+  it("retrouve le squelette quand la relecture échoue après un corps affiché", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reponseJson(PLEIN))
+      .mockRejectedValueOnce(new Error("panne réseau"))
+    vi.stubGlobal("fetch", fetchMock)
 
-    const html = await renderApercu()
+    await rendreEtAttendre(<BandeauEtAjout />)
+    await ouvrirLApercu()
+    expect(container.textContent).toContain("Mon panier")
 
-    expect(html).toContain('aria-labelledby="mon-compte-dans-l-apercu"')
-    expect(html).toContain(">Mon compte</h2>")
-    expect(html).toContain('href="/commandes"')
-    expect(html).toContain(">Commandes</a>")
-    expect(html).toContain('href="/profil"')
-    expect(html).toContain(">Mon profil</a>")
-    expect(html).toContain(">Déconnexion</button>")
-    expect(html).not.toContain("Connexion</button>")
-    expect(html).not.toContain('aria-label="Connexion"')
+    act(() => entree("Ajouter").click())
+    await rejouer()
+
+    // ADR-0038 : une lecture en échec laisse le squelette en place, jamais les
+    // Articles de la lecture précédente.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(
+      container.querySelector("[data-slot='apercu-du-panier-squelette']")
+    ).not.toBeNull()
+    expect(container.textContent).not.toContain("Mon panier")
   })
 })

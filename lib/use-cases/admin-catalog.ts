@@ -35,8 +35,15 @@ import {
   urlsImagesProduit,
 } from "@/lib/product-metrics"
 import { stockageImageProduitR2 } from "@/lib/r2"
-import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
-import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
+import type {
+  CatalogueEventCategory,
+  CatalogueEventProduct,
+} from "@/lib/use-cases/cache-invalidation"
+import {
+  chaineDeLaStructure,
+  invalidateCatalogue,
+} from "@/lib/use-cases/cache-invalidation"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   leverConflitUnique,
@@ -75,7 +82,7 @@ export interface CatalogEffects {
   cycleVie: CycleVieImageProduit
   reindexProducts(products: IndexableProduct[]): Promise<void>
   removeProductFromIndex(productId: string): Promise<void>
-  revalidateCatalog(product: CatalogueEventProduct): void
+  revalidateCatalog(product: CatalogueEventProduct): Promise<void> | void
   deleteImages(urls: string[]): Promise<void>
 }
 
@@ -98,7 +105,7 @@ export function defaultCatalogEffects(libelleJournal: string): CatalogEffects {
       await deleteProductDocument(id)
     },
     revalidateCatalog(product) {
-      invalidateCatalogue(product)
+      return invalidateCatalogue(product)
     },
     async deleteImages(urls) {
       for (const url of urls) {
@@ -426,6 +433,7 @@ async function compenserPromotions(
 interface ProduitExistant {
   slug: string
   images: string[]
+  categoryId: string | null
 }
 
 type ProduitEcrit = Product & {
@@ -449,7 +457,11 @@ type ContexteEnregistrement =
 async function lireProduitExistant(id: string): Promise<ProduitExistant> {
   const produit = await prisma.product.findUnique({ where: { id } })
   if (!produit) throw new ProductNotFoundError()
-  return { slug: produit.slug, images: urlsImagesProduit(produit.images) }
+  return {
+    slug: produit.slug,
+    images: urlsImagesProduit(produit.images),
+    categoryId: produit.categoryId,
+  }
 }
 
 async function contexteDe(
@@ -457,6 +469,31 @@ async function contexteDe(
 ): Promise<ContexteEnregistrement> {
   if (mode.kind === "creation") return mode
   return { ...mode, existant: await lireProduitExistant(mode.id) }
+}
+
+async function chainesDuProduit(
+  courante: string | null | undefined,
+  precedente?: string | null
+): Promise<{
+  categoryChain: CatalogueEventCategory[]
+  previousCategoryChain?: CatalogueEventCategory[]
+}> {
+  const categories = [
+    ...new Set(
+      [courante, precedente].filter(
+        (id): id is string => id !== null && id !== undefined
+      )
+    ),
+  ]
+  if (categories.length === 0) return { categoryChain: [] }
+
+  const lecture = await lireStructure()
+  const categoryChain = chaineDeLaStructure(lecture, courante)
+  if (!precedente || precedente === courante) return { categoryChain }
+  return {
+    categoryChain,
+    previousCategoryChain: chaineDeLaStructure(lecture, precedente),
+  }
 }
 
 async function assertVariantesDuProduit(
@@ -666,7 +703,13 @@ async function enregistrerProduit(
         }
   await runEffect(
     `[catalog] invalidation du cache non effectuée pour ${ecriture.produit.id}`,
-    () => effects.revalidateCatalog(evenementCatalogue)
+    async () => {
+      const chaines = await chainesDuProduit(
+        ecriture.produit.categoryId,
+        contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
+      )
+      await effects.revalidateCatalog({ ...evenementCatalogue, ...chaines })
+    }
   )
   return ecriture.produit
 }
@@ -705,7 +748,10 @@ export async function deleteProduct(
   )
   await runEffect(
     `[catalog] invalidation du cache non effectuée pour ${id}`,
-    () => effects.revalidateCatalog({ id, slug: existing.slug })
+    async () => {
+      const chaines = await chainesDuProduit(existing.categoryId)
+      await effects.revalidateCatalog({ id, slug: existing.slug, ...chaines })
+    }
   )
 }
 
@@ -744,7 +790,14 @@ export async function updateVariantStock(
   )
   await runEffect(
     `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-    () => effects.revalidateCatalog({ id: product.id, slug: product.slug })
+    async () => {
+      const chaines = await chainesDuProduit(product.categoryId)
+      await effects.revalidateCatalog({
+        id: product.id,
+        slug: product.slug,
+        ...chaines,
+      })
+    }
   )
   return product
 }

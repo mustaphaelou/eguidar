@@ -1,20 +1,25 @@
+"use client"
+
 import Image from "next/image"
 import type { CSSProperties } from "react"
 
 import { Button } from "@/components/ui/button"
 import { urlProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
-import { lirePanier } from "@/lib/panier"
-import { lireSession } from "@/lib/use-cases/session-courante"
 
 import { ID_TITRE_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
+import { SqueletteDeLApercu } from "./apercu-du-panier-squelette"
 import { LienQuiFermeLApercu } from "./lien-qui-ferme-l-apercu"
+import { lireLApercuDuPanier } from "./lecture-du-panier-http"
 import { MonCompteDansLApercu } from "./mon-compte-dans-l-apercu"
+import { useLectureDuPanier } from "./use-lecture-du-panier"
 
-export async function ApercuPanier() {
-  const [panier, client] = await Promise.all([lirePanier(), lireSession()])
+export function ApercuPanier() {
+  const apercu = useLectureDuPanier(lireLApercuDuPanier)
 
-  if (panier.lines.length === 0) {
+  if (apercu === null) return <SqueletteDeLApercu />
+
+  if (apercu.etat === "vide") {
     return (
       <>
         <section>
@@ -24,16 +29,19 @@ export async function ApercuPanier() {
           >
             Votre panier est vide
           </h2>
-          {client === null ? (
+          {apercu.connecte ? null : (
             <p className="mt-2 text-sm text-muted-foreground">
               Connectez-vous pour retrouver le panier de votre compte.
             </p>
-          ) : null}
+          )}
         </section>
-        <MonCompteDansLApercu client={client} />
+        <MonCompteDansLApercu connecte={apercu.connecte} />
       </>
     )
   }
+
+  // `lignes` est le nom filaire du contrat #754 ; le code parle d'Articles.
+  const articles = apercu.lignes
 
   return (
     <>
@@ -46,9 +54,11 @@ export async function ApercuPanier() {
         </h2>
 
         <ul className="mt-4">
-          {panier.lines.map((article, rang) => (
+          {articles.map((article, rang) => (
             <li
-              key={article.variantId}
+              // La réponse HTTP ne porte pas de variantId : le couple
+              // produit + variante est le fait stable qui identifie l'Article.
+              key={`${article.productSlug}\u0000${article.variantName}`}
               data-slot="apercu-du-panier-ligne"
               style={{ "--rang-ligne": rang } as CSSProperties}
               className="flex items-center gap-4 border-b py-4 last:border-b-0"
@@ -100,7 +110,7 @@ export async function ApercuPanier() {
           Voir le panier
         </Button>
       </section>
-      <MonCompteDansLApercu client={client} />
+      <MonCompteDansLApercu connecte={apercu.connecte} />
     </>
   )
 }
