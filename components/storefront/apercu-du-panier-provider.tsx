@@ -5,13 +5,12 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useRef,
   useState,
 } from "react"
 
 type ApercuDuPanierContexte = {
   ouvert: boolean
-  basculer: (declencheur: HTMLElement | null) => void
+  basculer: () => void
   fermer: () => void
 }
 
@@ -23,28 +22,10 @@ export function ApercuDuPanierProvider({
   children: React.ReactNode
 }) {
   const [ouvert, setOuvert] = useState(false)
-  const declencheurRef = useRef<HTMLElement | null>(null)
 
-  const fermer = useCallback(() => {
-    if (!ouvert) return
-    setOuvert(false)
-    const declencheur = declencheurRef.current
-    if (declencheur?.isConnected) {
-      declencheur.focus({ preventScroll: true })
-    }
-  }, [ouvert])
+  const fermer = useCallback(() => setOuvert(false), [])
 
-  const basculer = useCallback(
-    (declencheur: HTMLElement | null) => {
-      if (declencheur) declencheurRef.current = declencheur
-      if (ouvert) {
-        fermer()
-        return
-      }
-      setOuvert(true)
-    },
-    [ouvert, fermer]
-  )
+  const basculer = useCallback(() => setOuvert((precedent) => !precedent), [])
 
   const valeur = useMemo(
     () => ({ ouvert, basculer, fermer }),

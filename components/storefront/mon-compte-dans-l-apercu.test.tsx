@@ -67,11 +67,7 @@ function ApercuDeTest({ client }: { client: Client | null }) {
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="Panier"
-        onClick={(event) => basculer(event.currentTarget)}
-      >
+      <button type="button" aria-label="Panier" onClick={() => basculer()}>
         Panier
       </button>
       {ouvert ? (

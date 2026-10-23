@@ -48,6 +48,16 @@ export function GlobalNavBar({
     retour?.focus({ preventScroll: true })
   }, [fermer, estBureau])
 
+  function basculerLApercu() {
+    setSearchOpen(false)
+    setMenuOpen(false)
+    if (ouvert) {
+      fermerLApercu()
+      return
+    }
+    basculer()
+  }
+
   function basculerLeMenu() {
     if (apercuMobileOuvert) {
       fermerLApercu()
@@ -76,7 +86,8 @@ export function GlobalNavBar({
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 transition-colors duration-300",
+        "sticky top-0 transition-colors duration-300",
+        ouvert ? "z-50" : "z-40",
         scrolled &&
           !ouvert &&
           "voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]"
@@ -135,11 +146,7 @@ export function GlobalNavBar({
               aria-expanded={ouvert}
               aria-controls={ID_APERCU_DU_PANIER}
               className="relative"
-              onClick={(event) => {
-                setSearchOpen(false)
-                setMenuOpen(false)
-                basculer(event.currentTarget)
-              }}
+              onClick={basculerLApercu}
             >
               <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
               {panierBadge}

@@ -9,6 +9,19 @@ import { ID_TITRE_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
 import { LienQuiFermeLApercu } from "./lien-qui-ferme-l-apercu"
 import { ApercuDuPanierProvider } from "./apercu-du-panier-provider"
 import { GlobalNavBar } from "./global-nav-bar"
+import { MonCompteDansLApercu } from "./mon-compte-dans-l-apercu"
+
+const { openLoginMock } = vi.hoisted(() => ({ openLoginMock: vi.fn() }))
+
+vi.mock("@/components/auth/auth-dialogs", () => ({
+  useAuthDialogs: () => ({ openLogin: openLoginMock }),
+}))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}))
+
+vi.mock("@/lib/client", () => ({ signOut: vi.fn() }))
 
 vi.mock("next/link", () => ({
   default: ({
@@ -34,6 +47,7 @@ const actWarnings = [
 ]
 
 beforeEach(() => {
+  openLoginMock.mockReset()
   container = document.createElement("div")
   document.body.appendChild(container)
 })
@@ -93,6 +107,10 @@ function dialogue() {
   return container.querySelector<HTMLElement>("[role='dialog']")
 }
 
+function bandeau() {
+  return container.querySelector<HTMLElement>("header")!
+}
+
 function boutonMenu() {
   return container.querySelector<HTMLButtonElement>("button[aria-label='Menu']")
 }
@@ -113,6 +131,12 @@ function champRecherche() {
 
 function voileSombre() {
   return container.querySelector<HTMLElement>("[data-slot='voile-sombre']")!
+}
+
+function entree(label: string) {
+  return [...container.querySelectorAll<HTMLElement>("a, button")].find(
+    (element) => element.textContent?.trim() === label
+  )!
 }
 
 function poserEcran(large: boolean) {
@@ -227,7 +251,7 @@ describe("GlobalNavBar", () => {
     expect(container.querySelector("nav[aria-label='Menu mobile']")).toBeNull()
   })
 
-  it("le panier est un bouton dépliant qui ne monte le corps qu’une fois ouvert", () => {
+  it("le panier est un bouton dépliant qui ne monte le corps qu'une fois ouvert", () => {
     const errors = renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -252,16 +276,19 @@ describe("GlobalNavBar", () => {
     expect(errors).toEqual([])
   })
 
-  it("ferme l’Aperçu sur Escape et rend le focus au déclencheur", () => {
+  it("garde le Bandeau au-dessus de la Barre d'achat tant que l'Aperçu est ouvert", () => {
     renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
 
-    const panier = declencheurDuPanier()
-    act(() => panier.click())
+    const header = bandeau()
+    expect(header.classList.contains("z-40")).toBe(true)
+    expect(header.classList.contains("z-50")).toBe(false)
 
-    const surface = dialogue()!
-    expect(surface.contains(document.activeElement)).toBe(true)
+    act(() => declencheurDuPanier().click())
+
+    expect(header.classList.contains("z-50")).toBe(true)
+    expect(header.classList.contains("z-40")).toBe(false)
 
     act(() => {
       document.dispatchEvent(
@@ -269,13 +296,45 @@ describe("GlobalNavBar", () => {
       )
     })
 
-    expect(dialogue()).toBeNull()
-    expect(container.querySelector("[data-slot='voile-sombre']")).toBeNull()
+    expect(header.classList.contains("z-40")).toBe(true)
+    expect(header.classList.contains("z-50")).toBe(false)
+  })
+
+  it("ferme l'Aperçu sur Escape sans en laisser de trace, et rend le focus au déclencheur", () => {
+    renderCapturingErrors(
+      <GlobalNavBar
+        links={links}
+        apercuCorps={
+          <div>
+            <h2 id={ID_TITRE_APERCU_DU_PANIER}>Mon panier</h2>
+            <p>Une ligne du panier</p>
+          </div>
+        }
+      />
+    )
+
+    const panier = declencheurDuPanier()
+    act(() => panier.click())
+
+    const surface = dialogue()!
+    expect(surface.contains(document.activeElement)).toBe(true)
+    expect(document.body.textContent).toContain("Une ligne du panier")
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+
+    expect(document.querySelector("[role='dialog']")).toBeNull()
+    expect(document.querySelector("[data-slot='apercu-du-panier']")).toBeNull()
+    expect(document.querySelector("[data-slot='voile-sombre']")).toBeNull()
+    expect(document.body.textContent).not.toContain("Une ligne du panier")
     expect(document.activeElement).toBe(panier)
     expect(panier.getAttribute("aria-expanded")).toBe("false")
   })
 
-  it("ferme l’Aperçu quand on clique le Voile sombre", () => {
+  it("ferme l'Aperçu quand on clique le Voile sombre", () => {
     const errors = renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -293,7 +352,7 @@ describe("GlobalNavBar", () => {
     expect(errors).toEqual([])
   })
 
-  it("referme l’Aperçu au second clic sur le panier", () => {
+  it("referme l'Aperçu au second clic sur le panier", () => {
     renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -308,7 +367,7 @@ describe("GlobalNavBar", () => {
     expect(panier.getAttribute("aria-expanded")).toBe("false")
   })
 
-  it("ferme l’Aperçu quand la page défile, pas quand sa propre liste défile", () => {
+  it("ferme l'Aperçu quand la page défile, pas quand sa propre liste défile", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}
@@ -341,7 +400,7 @@ describe("GlobalNavBar", () => {
     expect(dialogue()).toBeNull()
   })
 
-  it("la Recherche et l’Aperçu s’excluent : ouvrir l’un ferme l’autre", () => {
+  it("la Recherche et l'Aperçu s'excluent : ouvrir l'un ferme l'autre", () => {
     renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -364,7 +423,7 @@ describe("GlobalNavBar", () => {
     expect(container.querySelector("input[name='q']")).toBeNull()
   })
 
-  it("garde le focus dans l’Aperçu tant qu’il est ouvert", () => {
+  it("garde le focus dans l'Aperçu tant qu'il est ouvert", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}
@@ -404,7 +463,7 @@ describe("GlobalNavBar", () => {
     expect(document.activeElement).toBe(liens[0])
   })
 
-  it("ferme l’Aperçu quand un lien du corps est activé, avant de naviguer", () => {
+  it("ferme l'Aperçu quand un lien du corps est activé, avant de naviguer", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}
@@ -429,6 +488,32 @@ describe("GlobalNavBar", () => {
     expect(dialogue()).toBeNull()
   })
 
+  it("referme l'Aperçu et son Voile sombre avant d'ouvrir la Connexion", () => {
+    renderCapturingErrors(
+      <GlobalNavBar
+        links={links}
+        apercuCorps={
+          <div>
+            <h2 id={ID_TITRE_APERCU_DU_PANIER}>Mon panier</h2>
+            <MonCompteDansLApercu client={null} />
+          </div>
+        }
+      />
+    )
+
+    const panier = declencheurDuPanier()
+    act(() => panier.click())
+    expect(dialogue()).not.toBeNull()
+    expect(container.querySelector("[data-slot='voile-sombre']")).not.toBeNull()
+
+    act(() => entree("Connexion").click())
+
+    expect(openLoginMock).toHaveBeenCalledTimes(1)
+    expect(container.querySelector("[role='dialog']")).toBeNull()
+    expect(container.querySelector("[data-slot='voile-sombre']")).toBeNull()
+    expect(document.activeElement).not.toBe(panier)
+  })
+
   it("rend le badge du panier, servi par le serveur, dans le déclencheur", () => {
     renderCapturingErrors(
       <GlobalNavBar
@@ -447,7 +532,7 @@ describe("GlobalNavBar", () => {
 describe("GlobalNavBar sur mobile", () => {
   beforeEach(simulerEcranMobile)
 
-  it("cache le panier et fait du menu le seul « Fermer » de l’Aperçu", () => {
+  it("cache le panier et fait du menu le seul « Fermer » de l'Aperçu", () => {
     renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -475,7 +560,7 @@ describe("GlobalNavBar sur mobile", () => {
     expect(menu.getAttribute("aria-expanded")).toBe("false")
   })
 
-  it("rend le focus au menu quand son « Fermer » referme l’Aperçu", () => {
+  it("rend le focus au menu quand son « Fermer » referme l'Aperçu", () => {
     renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -491,7 +576,7 @@ describe("GlobalNavBar sur mobile", () => {
   })
 
   it.each(fermetures)(
-    "rend le focus au menu quand %s ferme l’Aperçu",
+    "rend le focus au menu quand %s ferme l'Aperçu",
     (_, fermer) => {
       renderCapturingErrors(
         <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
@@ -510,7 +595,7 @@ describe("GlobalNavBar sur mobile", () => {
     }
   )
 
-  it("la Recherche, le menu et l’Aperçu ne s’ouvrent jamais ensemble", () => {
+  it("la Recherche, le menu et l'Aperçu ne s'ouvrent jamais ensemble", () => {
     renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -557,7 +642,7 @@ describe("GlobalNavBar sur mobile", () => {
 describe("GlobalNavBar sur bureau", () => {
   beforeEach(simulerEcranBureau)
 
-  it("garde le panier et le menu « Menu » quand l’Aperçu est ouvert", () => {
+  it("garde le panier et le menu « Menu » quand l'Aperçu est ouvert", () => {
     renderCapturingErrors(
       <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
@@ -577,7 +662,7 @@ describe("GlobalNavBar sur bureau", () => {
   })
 
   it.each(fermetures)(
-    "rend le focus au panier quand %s ferme l’Aperçu",
+    "rend le focus au panier quand %s ferme l'Aperçu",
     (_, fermer) => {
       renderCapturingErrors(
         <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />

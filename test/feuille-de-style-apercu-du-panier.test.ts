@@ -69,14 +69,14 @@ describe("la feuille de l'Aperçu du Panier", () => {
     feuille = await compilerLaFeuilleDeStyle()
   })
 
-  it("ouvre sur sa hauteur en cubic-bezier(.4,0,.6,1), seulement quand le mouvement est accepté", () => {
+  it("ouvre sur sa hauteur en cubic-bezier(0.4, 0, 0.6, 1), seulement quand le mouvement est accepté", () => {
     const regles = reglesDe(feuille, SELECTEUR_FEUILLE)
     const acceptees = dansRequete(regles, REQUETE_MOUVEMENT_ACCEPTE)
 
     expect(valeursDe(acceptees, "animation-name")).toEqual(["apercu-hauteur"])
     expect(valeursDe(acceptees, "animation-duration")).toEqual(["320ms"])
     expect(valeursDe(acceptees, "animation-timing-function")).toEqual([
-      "cubic-bezier(.4,0,.6,1)",
+      "cubic-bezier(0.4, 0, 0.6, 1)",
     ])
 
     const images = imagesDe(feuille, "apercu-hauteur")

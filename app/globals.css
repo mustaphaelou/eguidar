@@ -260,7 +260,7 @@
     overflow: clip;
     animation-name: apercu-hauteur;
     animation-duration: 320ms;
-    animation-timing-function: cubic-bezier(.4,0,.6,1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
   }
 
   [data-slot="apercu-du-panier-ligne"] {

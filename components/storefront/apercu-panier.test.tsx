@@ -216,7 +216,7 @@ describe("ApercuPanier", () => {
     expect(html).toContain('alt="Produit Aperçu"')
   })
 
-  it("rend les lignes d’un Panier de Visiteur, sans invitation à se connecter", async () => {
+  it("rend les lignes d'un Panier de Visiteur, sans invitation à se connecter", async () => {
     commeVisiteur()
     setCookie(
       NOM_COOKIE_PANIER_VISITEUR,
@@ -277,6 +277,32 @@ describe("ApercuPanier", () => {
     expect(html).not.toContain("Livraison")
     expect(html).not.toContain("Total à payer")
     expect(html).not.toContain("2.598,00")
+  })
+
+  it("marque chaque lien du corps comme refermant l'Aperçu avant de naviguer", async () => {
+    commeClient(userIdA)
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
+    })
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantPremium, quantity: 2 },
+    })
+
+    const html = await renderApercu()
+
+    const liensProduit = [
+      ...html.matchAll(/<a[^>]*href="\/produit\/[^"]*"[^>]*>/g),
+    ].map((trouve) => trouve[0])
+    expect(liensProduit).toHaveLength(4)
+    for (const lien of liensProduit) {
+      expect(lien).toContain("data-ferme-l-apercu")
+    }
+
+    const liensPanier = [...html.matchAll(/<a[^>]*href="\/panier"[^>]*>/g)].map(
+      (trouve) => trouve[0]
+    )
+    expect(liensPanier).toHaveLength(1)
+    expect(liensPanier[0]).toContain("data-ferme-l-apercu")
   })
 
   it("compte dans le badge les quantités que le corps montre, pour le même Panier", async () => {

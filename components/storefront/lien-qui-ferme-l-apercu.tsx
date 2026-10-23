@@ -14,6 +14,7 @@ export function LienQuiFermeLApercu({
   return (
     <Link
       {...props}
+      data-ferme-l-apercu=""
       onClick={(event) => {
         onClick?.(event)
         fermer()

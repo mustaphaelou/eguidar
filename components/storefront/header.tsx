@@ -9,9 +9,9 @@ import { staticPages } from "@/lib/site"
 function ApercuSkeleton() {
   return (
     <div className="flex flex-col gap-4 py-2">
-      <div className="h-6 w-40 animate-pulse rounded-full bg-muted" />
-      <div className="h-16 w-full animate-pulse rounded-xl bg-muted" />
-      <div className="h-16 w-full animate-pulse rounded-xl bg-muted" />
+      <div className="h-6 w-40 rounded-full bg-muted" />
+      <div className="h-16 w-full rounded-xl bg-muted" />
+      <div className="h-16 w-full rounded-xl bg-muted" />
     </div>
   )
 }
