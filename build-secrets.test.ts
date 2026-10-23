@@ -270,9 +270,22 @@ describe("le job de build atteint un catalogue sans secret de dépôt", () => {
     expect(secrets).toContain(`${ID_DU_SECRET}=`)
     expect(secrets).toContain("eguidar_probe")
     expect(String(withImage["build-args"] ?? "")).not.toContain("DATABASE_URL")
-    expect(String(withImage["add-hosts"] ?? "")).toContain(
-      "host.docker.internal:host-gateway"
+    // Le build doit joindre le service `postgres` du job sur l'adresse de
+    // l'hôte ; le driver `docker-container` ne sait pas résoudre `host-gateway`.
+    expect(withImage["add-hosts"]).toBeUndefined()
+    expect(secrets).toContain("127.0.0.1:5432")
+    expect(String(withImage.network)).toBe("host")
+  })
+
+  it("donne au constructeur l'espace réseau de l'hôte", () => {
+    const buildx = etapeSous(
+      "build",
+      (etape) =>
+        typeof etape.uses === "string" &&
+        etape.uses.startsWith("docker/setup-buildx-action@")
     )
+
+    expect(String(avec(buildx)["driver-opts"] ?? "")).toContain("network=host")
   })
 })
 

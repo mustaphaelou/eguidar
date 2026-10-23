@@ -5,7 +5,14 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import type { Readable } from "node:stream"
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  type TestContext,
+} from "vitest"
 
 import { SLUG_DE_REPLI } from "@/lib/parametre-de-repli"
 
@@ -38,11 +45,27 @@ const ARTICLES_PRERENDUS = path.join(RACINE, ".next", "server", "app", "blog")
 const DELAI_DE_BOOT_MS = 90_000
 const INTERVALLE_DE_SONDE_MS = 250
 
+/**
+ * En CI, l'artefact est le sujet du test : son absence doit faire échouer la
+ * sonde, pas la sauter. En local, un `npm run build` peut manquer sans que le
+ * reste de la suite mente ; le saut reste alors visible.
+ */
+const BUILD_ATTENDU = process.env.CATALOGUE_DE_BUILD_ATTENDU === "1"
+
 /** La valeur que le cookie `panier-visiteur` porte : des articles, pas un identifiant. */
 const ARTICLE_DU_COOKIE = "variant-anonymat-761"
 const COOKIE_PANIER = JSON.stringify([
   { variantId: ARTICLE_DU_COOKIE, quantity: 2 },
 ])
+
+/**
+ * Un cookie de Session courante factice : better-auth rejette la signature,
+ * donc ce test prouve qu'un porteur de cookie de session reçoit le même
+ * document — pas qu'une Session *valide* ne fuit pas. Cette moitié est tenue
+ * par `components/storefront/header.test.tsx`, qui rend la coquille avec
+ * `cookies()` et `headers()` qui lèvent.
+ */
+const COOKIE_SESSION = "better-auth.session_token=jeton-de-test-761.signature"
 
 /** Les deux états vides de l'Aperçu, tels que #746 les a nommés. */
 const TEXTES_DU_PANIER = [
@@ -68,6 +91,11 @@ function raisonSansBuild(): string | null {
 const RAISON_SANS_BUILD = raisonSansBuild()
 
 if (RAISON_SANS_BUILD !== null) {
+  if (BUILD_ATTENDU) {
+    throw new Error(
+      `${RAISON_SANS_BUILD} ; CATALOGUE_DE_BUILD_ATTENDU=1 exige cet artefact`
+    )
+  }
   console.warn(`[serveur-document-anonyme] test ignoré : ${RAISON_SANS_BUILD}`)
 }
 
@@ -102,6 +130,32 @@ const ARTICLE_DE_BLOG =
 
 const ENTETE_DOCUMENT_CACHEABLE =
   /^s-maxage=900(?:, stale-while-revalidate=\d+)?$/
+
+const RAISON_SANS_PRODUIT =
+  "aucun produit prérendu dans .next/server/app/produit — la sous-assertion catalogue est ignorée"
+const RAISON_SANS_CATEGORIE =
+  "aucune catégorie prérendue dans .next/server/app/categorie — la sous-assertion catégorie est ignorée"
+const RAISON_SANS_ARTICLE =
+  "aucun Article de blog prérendu dans .next/server/app/blog — la sous-assertion blog est ignorée"
+const RAISON_ARTEFACT_PARTIEL =
+  "le build de CI doit prérendre au moins un produit et une catégorie"
+
+/**
+ * Un slug absent de l'artefact saute en local — visiblement — mais fait échouer
+ * la sonde en CI : une sous-assertion sautée ne prouve rien.
+ */
+function exigerLeSlug(
+  leContexte: TestContext,
+  slug: string | null,
+  raison: string
+): slug is string {
+  if (slug !== null) return true
+  if (BUILD_ATTENDU) {
+    throw new Error(`${raison} ; ${RAISON_ARTEFACT_PARTIEL}`)
+  }
+  leContexte.skip(raison)
+  return false
+}
 
 async function portLibre(): Promise<number> {
   const sonde = createServer()
@@ -289,67 +343,77 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
     })
 
     it("sert un produit prérendu comme un document partageable", async (leContexte) => {
-      if (PRODUIT === null) {
-        leContexte.skip(
-          "aucun produit prérendu dans .next/server/app/produit — la sous-assertion catalogue est ignorée"
-        )
-        return
-      }
+      if (!exigerLeSlug(leContexte, PRODUIT, RAISON_SANS_PRODUIT)) return
 
       attendreUnDocumentCacheable(await demander(`/produit/${PRODUIT}`))
     })
 
     it("sert une catégorie prérendue comme un document partageable, sans report", async (leContexte) => {
-      if (CATEGORIE === null) {
-        leContexte.skip(
-          "aucune catégorie prérendue dans .next/server/app/categorie — la sous-assertion catégorie est ignorée"
-        )
-        return
-      }
+      if (!exigerLeSlug(leContexte, CATEGORIE, RAISON_SANS_CATEGORIE)) return
 
       attendreUnDocumentCacheable(await demander(`/categorie/${CATEGORIE}`))
     })
 
     it("sert un Article de blog prérendu comme un document partageable, sans report", async (leContexte) => {
+      // Le catalogue de la CI ne sème aucun article publiable : cette
+      // sous-assertion reste un saut visible, même sous le drapeau de CI.
       if (ARTICLE_DE_BLOG === null) {
-        leContexte.skip(
-          "aucun Article de blog prérendu dans .next/server/app/blog — la sous-assertion blog est ignorée"
-        )
+        leContexte.skip(RAISON_SANS_ARTICLE)
         return
       }
 
       attendreUnDocumentCacheable(await demander(`/blog/${ARTICLE_DE_BLOG}`))
     })
 
-    it("sert le même document à un visiteur sans panier et à un cookie qui porte des articles", async (leContexte) => {
-      if (PRODUIT === null) {
-        leContexte.skip(
-          "aucun produit prérendu dans .next/server/app/produit — la sous-assertion catalogue est ignorée"
-        )
-        return
-      }
+    it("sert le même document à un visiteur sans panier, à un cookie qui porte des articles et à un porteur de cookie de session", async (leContexte) => {
+      if (!exigerLeSlug(leContexte, PRODUIT, RAISON_SANS_PRODUIT)) return
 
       const sansCookie = await demander(`/produit/${PRODUIT}`)
       const avecCookie = await demander(`/produit/${PRODUIT}`, {
         cookie: `panier-visiteur=${encodeURIComponent(COOKIE_PANIER)}`,
       })
+      const avecSession = await demander(`/produit/${PRODUIT}`, {
+        cookie: COOKIE_SESSION,
+      })
 
       expect(avecCookie.statut).toBe(200)
+      expect(avecSession.statut).toBe(200)
       // Un document constant par URL : ni compteur, ni texte de panier, ni
       // identité de Client ne peuvent y entrer.
       expect(avecCookie.corps).toBe(sansCookie.corps)
+      expect(avecSession.corps).toBe(sansCookie.corps)
 
-      for (const corps of [sansCookie.corps, avecCookie.corps]) {
+      for (const corps of [
+        sansCookie.corps,
+        avecCookie.corps,
+        avecSession.corps,
+      ]) {
         for (const texte of TEXTES_DU_PANIER) {
           expect(corps).not.toContain(texte)
         }
         expect(corps).not.toContain(ARTICLE_DU_COOKIE)
       }
 
-      expect(avecCookie.entetes.get("set-cookie")).toBeNull()
-      expect(
-        (avecCookie.entetes.get("vary") ?? "").toLowerCase()
-      ).not.toContain("cookie")
+      for (const reponse of [avecCookie, avecSession]) {
+        expect(reponse.entetes.get("set-cookie")).toBeNull()
+        expect((reponse.entetes.get("vary") ?? "").toLowerCase()).not.toContain(
+          "cookie"
+        )
+      }
+    })
+
+    it("sert un slug inconnu comme la coquille soft-404 de l'origine, hors cache", async () => {
+      const reponse = await demander("/produit/slug-inconnu-761")
+
+      // ADR-0011 : le document est déjà peint quand `notFound()` répond, donc
+      // le statut reste 200 et c'est `noindex` qui tient le slug hors de l'index.
+      expect(reponse.statut).toBe(200)
+      expect(reponse.entetes.get("content-type")).toMatch(/^text\/html/)
+      expect(reponse.corps).toMatch(/<meta name="robots" content="noindex"/)
+      expect(reponse.corps).toContain("Page introuvable")
+      // Un slug inconnu n'est pas prérendu : l'origine le rend à la demande,
+      // et l'edge ne doit pas le stocker.
+      expect(cacheControl(reponse)).not.toContain("s-maxage")
     })
 
     it("répond à une requête RSC par une charge utile, et sans l'en-tête par un document", async () => {
