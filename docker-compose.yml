@@ -64,6 +64,25 @@ services:
       meilisearch:
         condition: service_healthy
 
+  # Purge la zone Cloudflare avant que le nouveau conteneur ne prenne le trafic.
+  # One-shot : il sort 0 (purgé ou no-op journalisé) ou 1 (purge en échec), et
+  # l'application l'attend. Il tourne sur la cible `migrate`, qui copie tout le
+  # contexte : `scripts/purger-edge.mjs` y est présent sans toucher la `runner`.
+  purge-edge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrate
+    restart: "no"
+    command: ["node", "scripts/purger-edge.mjs"]
+    environment:
+      - PURGE_EDGE=${PURGE_EDGE:-}
+      - CLOUDFLARE_ZONE_ID=${CLOUDFLARE_ZONE_ID:-}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   app:
     build:
       context: .
@@ -108,7 +127,9 @@ services:
         condition: service_healthy
       meilisearch:
         condition: service_healthy
-      migrate:
+      # Pas de dépendance directe à `migrate` : ce serait un chemin qui
+      # contourne la purge. La migration est atteinte par `purge-edge`.
+      purge-edge:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]

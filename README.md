@@ -109,7 +109,47 @@ curl -sSI -H 'RSC: 1' https://eguidar.com/faq | grep -i cf-cache-status   # jama
 curl -sS  -H 'RSC: 1' https://eguidar.com/faq | head -c 120               # un payload RSC, jamais le HTML
 ```
 
-`/faq` et les slugs prérendus répondent `HIT` ; `/produits` (qui lit `searchParams`) et les slugs inconnus restent des rendus d'origine : leur réponse ne porte pas de `s-maxage`, donc l'edge ne les stocke pas. Cette étape rend la zone **éligible** : la purge (déploiement, écriture admin) est un autre mécanisme, et une réponse qui porte encore `Set-Cookie` ou `no-store` reste non stockée.
+`/faq` et les slugs prérendus répondent `HIT` ; `/produits` (qui lit `searchParams`) et les slugs inconnus restent des rendus d'origine : leur réponse ne porte pas de `s-maxage`, donc l'edge ne les stocke pas. Cette étape rend la zone **éligible** : la purge (déploiement, écriture admin) est un autre mécanisme, décrit dans la section suivante, et une réponse qui porte encore `Set-Cookie` ou `no-store` reste non stockée.
+
+## Purge de l'edge au déploiement
+
+Chaque déploiement change l'identifiant de build, donc les noms de chunks de `/_next/static/`. Un document encore stocké au PoP référence alors des actifs que la nouvelle image ne sert plus : il ne doit pas être servi. La zone est donc entièrement purgée **avant** que le nouveau conteneur ne prenne le trafic.
+
+L'ordre est porté par [`docker-compose.yml`](docker-compose.yml), pas par un champ de l'interface Coolify — pour un déploiement Docker Compose, seule la composition est honorée :
+
+1. `migrate` termine ;
+2. `purge-edge` s'exécute une fois et sort 0 ;
+3. `app` démarre.
+
+`purge-edge` est un service one-shot (`restart: "no"`) construit sur la cible `migrate` de l'image : elle copie tout le contexte, donc le script y est présent sans modifier la cible `runner`. Sa commande est `node scripts/purger-edge.mjs`, son `depends_on.migrate` porte `condition: service_completed_successfully`, et `app.depends_on.purge-edge` porte la même condition. L'application n'a **plus** de dépendance directe à `migrate` : ce serait une arête qui contourne la purge. [`purge-edge-deploiement.test.ts`](purge-edge-deploiement.test.ts) échoue si l'ordre change, si le service redevient facultatif, si la cible de build change, ou si une arête `app → migrate` réapparaît.
+
+[`scripts/purger-edge.mjs`](scripts/purger-edge.mjs) est du JavaScript nu, sans build ni dépendance : il envoie un seul `POST` à `…/purge_cache` avec `{"purge_everything": true}`. C'est idempotent et sans état — relancer la purge est sans danger, et un déploiement ne purge qu'une fois. Le jeton et la zone sont les mêmes noms que ceux de la purge des écritures d'administration : `CLOUDFLARE_ZONE_ID` et `CLOUDFLARE_API_TOKEN`, lus dans l'environnement du processus Compose (`.env` en local, variables Coolify en production).
+
+### Crédential et portée
+
+Créez un jeton d'API Cloudflare portant **Zone → Cache Purge → Purge** sur la zone `eguidar.com` (la portée s'appelle « Cache Purge »). Un même jeton peut aussi porter « Workers R2 Storage: Edit » si l'étape de cycle de vie R2 l'utilise (voir plus haut), mais un jeton dédié à la purge est plus sûr. `CLOUDFLARE_ZONE_ID` identifie la zone et se lit dans la console Cloudflare. Le plan gratuit autorise 5 purges globales par minute : un déploiement en fait une, c'est sans objet.
+
+Sans ces variables (ou avec `PURGE_EDGE=off`), la phase est un **no-op journalisé** : elle affiche `purge ignorée` et sort 0, le déploiement se poursuit. C'est l'état par défaut tant que le jeton n'est pas fourni.
+
+### Échec, compromis et retour arrière
+
+Avec les crédentials, une purge refusée (HTTP non-2xx, `success: false`, transport injoignable) fait sortir le script en 1 : le service échoue, donc `app` ne démarre pas. Le compromis est assumé : un déploiement retenu vaut mieux que des documents pointant vers des chunks inexistants. Contrepartie : une panne de l'API Cloudflare bloque les déploiements.
+
+Pour dégager ce verrou **sans changer le code** : `PURGE_EDGE=off` dans `.env` (ou dans l'environnement Coolify), ou retirez `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN`. La phase redevient un no-op journalisé et le déploiement passe. Ne déplacez pas la purge dans `pre_deployment_command` / `post_deployment_command` de Coolify : le premier tourne avant le build et n'a aucun conteneur au premier déploiement ; le second tourne après le routage du trafic et ses exceptions sont avalées. Les deux contredisent l'ordre que le test protège.
+
+### Fenêtre résiduelle, dite telle quelle
+
+Même avec cet ordre, une fenêtre subsiste : entre le moment où la purge réussit et celui où le nouveau conteneur reçoit le trafic, **l'ancien conteneur peut repeupler l'edge** avec des documents bâtis sur l'ancienne image. Sa durée est la réconciliation Compose (quelques secondes), pas la durée du build — c'est précisément pourquoi la purge ne tourne pas avant le build. La fermer entièrement demanderait une seconde purge une fois `app` en service (par exemple un `post_start` sur `app`), au prix d'un second appel ; elle n'est pas faite ici. `purge_everything` étant idempotent, cette seconde purge serait sans risque : c'est une décision explicite, pas un oubli.
+
+### Vérifier et purger à la main
+
+La CI n'a ni jeton ni zone : la vérification est manuelle. Après déploiement, la première requête doit manquer l'edge (`cf-cache-status: MISS`, ou `DYNAMIC` pour une route non cacheable), puis un second appel peut répondre `HIT` sur une URL prérendue. Pour purger à la main sans démarrer la pile, réutilisez le service — Compose lit `.env` :
+
+```bash
+docker compose run --rm --no-deps purge-edge
+```
+
+Le script journalise `zone … purgée (purge_everything)` et sort 0 ; sans crédential, il journalise `purge ignorée` et sort 0.
 
 ## Tests
 
