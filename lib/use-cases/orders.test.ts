@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto"
 
+import { revalidateTag } from "next/cache"
+
 import {
   afterAll,
   beforeAll,
@@ -10,6 +12,12 @@ import {
   vi,
 } from "vitest"
 
+import {
+  categoryDetailTag,
+  HOME_TAG,
+  PRODUCT_TAG,
+  productDetailTag,
+} from "@/lib/use-cases/cache-invalidation"
 import { prisma } from "@/lib/db"
 import { ajouterArticleAuPanier, lirePanierClient } from "@/lib/panier"
 import { sessionCouranteMock } from "@/test/navigation-mocks"
@@ -60,6 +68,9 @@ let variantP1: string
 let variantP2: string
 let variantP3: string
 let variantP4: string
+let productAId: string
+let productASlug: string
+let categorySlug: string
 let cityId: string
 
 async function createUser(suffix: string): Promise<string> {
@@ -90,6 +101,7 @@ beforeAll(async () => {
   const category = await prisma.category.create({
     data: { name: `Catégorie ${runId}`, slug: `orders-cat-${runId}` },
   })
+  categorySlug = category.slug
   const products = await Promise.all([
     prisma.product.create({
       data: {
@@ -174,6 +186,8 @@ beforeAll(async () => {
   variantP2 = products[0].variants.find((v) => v.name === "Premium")!.id
   variantP3 = products[1].variants[0].id
   variantP4 = products[2].variants[0].id
+  productAId = products[0].id
+  productASlug = products[0].slug
 
   const city = await prisma.deliveryCity.create({
     data: { name: cityName, slug: `ville-${runId}`, fee: 3500 },
@@ -391,6 +405,151 @@ describe("order placement", () => {
 
     expect(invalidateCommande).toHaveBeenCalledOnce()
     expect(invalidateCommande).toHaveBeenCalledWith(order.id)
+  })
+
+  it("purges the Produit whose last unit the order drains, with its Structure chain", async () => {
+    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+      async () => {}
+    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP2, 1)
+
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
+      invalidateProduits,
+    })
+
+    expect(order.id).toBeTruthy()
+    expect(invalidateProduits).toHaveBeenCalledOnce()
+    expect(invalidateProduits).toHaveBeenCalledWith([
+      {
+        id: productAId,
+        slug: productASlug,
+        categoryChain: [{ slug: categorySlug }],
+      },
+    ])
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP2 },
+    })
+    expect(stock.stock).toBe(0)
+  })
+
+  it("revalidates the catalogue origin tags of the Produit it drains", async () => {
+    const revalidateTagMock = vi.mocked(revalidateTag)
+    revalidateTagMock.mockClear()
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      commeClient(userIdA)
+      await ajouterArticleAuPanier(variantP2, 1)
+
+      await placeOrder(userIdA, await checkoutInput(userIdA), {
+        sendOrderPlacedEmail: async () => {},
+        invalidateCommande: () => {},
+      })
+
+      for (const tag of [
+        PRODUCT_TAG,
+        productDetailTag(productASlug),
+        HOME_TAG,
+        categoryDetailTag(categorySlug),
+      ]) {
+        expect(revalidateTagMock).toHaveBeenCalledWith(tag, "max")
+      }
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("dedupes the Produits drained by several lines of the same product", async () => {
+    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+      async () => {}
+    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 1)
+    await ajouterArticleAuPanier(variantP2, 1)
+
+    await placeOrder(userIdA, await checkoutInput(userIdA), {
+      invalidateProduits,
+    })
+
+    expect(invalidateProduits).toHaveBeenCalledOnce()
+    const produits = invalidateProduits.mock.calls[0]![0]
+    expect(produits).toHaveLength(1)
+    expect(produits[0]).toMatchObject({
+      id: productAId,
+      slug: productASlug,
+      categoryChain: [{ slug: categorySlug }],
+    })
+  })
+
+  it("carries an empty Structure chain for a Produit sans Structure", async () => {
+    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+      async () => {}
+    )
+    const produit = await prisma.product.create({
+      data: {
+        name: "Ordres Produit sans Structure",
+        slug: `orders-prod-sans-structure-${runId}`,
+        description: "Description sans Structure",
+        brand: "Marque Ordres",
+        categoryId: null,
+        price: 20000,
+        specs: {},
+        images: [],
+        freeShipping: false,
+        variants: {
+          create: [
+            {
+              name: "Standard",
+              sku: `ORD-${runId}-SANS-STRUCTURE`,
+              priceDelta: 0,
+              stock: 1,
+            },
+          ],
+        },
+      },
+      include: { variants: true },
+    })
+    try {
+      commeClient(userIdA)
+      await ajouterArticleAuPanier(produit.variants[0].id, 1)
+
+      await placeOrder(userIdA, await checkoutInput(userIdA), {
+        invalidateProduits,
+      })
+
+      expect(invalidateProduits).toHaveBeenCalledWith([
+        {
+          id: produit.id,
+          slug: produit.slug,
+          categoryChain: [],
+        },
+      ])
+    } finally {
+      await prisma.product.delete({ where: { id: produit.id } })
+    }
+  })
+
+  it("still places the order when the catalogue purge fails, like a failing confirmation e-mail", async () => {
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
+
+    const order = await verifierFrontiereBestEffort(
+      "purge des documents du catalogue",
+      async (effetQuiEchoue) =>
+        placeOrder(userIdA, await checkoutInput(userIdA), {
+          sendOrderPlacedEmail: async () => {},
+          invalidateProduits: effetQuiEchoue,
+          invalidateCommande,
+        })
+    )
+
+    expect(order.id).toBeTruthy()
+    expect(order.total).toBe(30000)
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
+    const cart = await lirePanierClient(userIdA)
+    expect(cart.lines).toHaveLength(0)
   })
 
   it("still places the order when email dispatch fails", async () => {
@@ -863,6 +1022,7 @@ describe("order status transitions", () => {
       sendOrderPlacedEmail,
       sendOrderStatusEmail,
       invalidateCommande,
+      invalidateProduits: async () => {},
     }
     await updateOrderStatus(order.id, "confirmed", effects)
     await updateOrderStatus(order.id, "shipped", effects)
@@ -948,6 +1108,38 @@ describe("order status transitions", () => {
 
     expect(invalidateCommande).toHaveBeenCalledOnce()
     expect(invalidateCommande).toHaveBeenCalledWith(orderId)
+  })
+
+  it("purges the Produits it restocks when a Commande moves back to a restocking Statut", async () => {
+    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+      async () => {}
+    )
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP2, 1)
+    const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
+      sendOrderPlacedEmail: async () => {},
+      invalidateCommande: () => {},
+      invalidateProduits: async () => {},
+    })
+
+    await updateOrderStatus(order.id, "cancelled", {
+      sendOrderStatusEmail: async () => {},
+      invalidateCommande: () => {},
+      invalidateProduits,
+    })
+
+    expect(invalidateProduits).toHaveBeenCalledOnce()
+    expect(invalidateProduits).toHaveBeenCalledWith([
+      {
+        id: productAId,
+        slug: productASlug,
+        categoryChain: [{ slug: categorySlug }],
+      },
+    ])
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP2 },
+    })
+    expect(stock.stock).toBe(1)
   })
 
   it("still updates the status when email dispatch fails", async () => {

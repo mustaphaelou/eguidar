@@ -8,7 +8,11 @@ import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import { peutTransitionner, réapprovisionne } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { lirePanierClient } from "@/lib/panier"
-import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
+import {
+  invalidateCommande,
+  invalidateProduits,
+  type CatalogueEventProduct,
+} from "@/lib/use-cases/cache-invalidation"
 import {
   deliveryAddressField,
   deliveryPhoneField,
@@ -19,6 +23,7 @@ import {
   selectionValidee,
 } from "@/lib/use-cases/devis"
 import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   messageDeValidation,
@@ -33,12 +38,14 @@ export type OrderEffects = {
     newStatus: OrderStatus
   ): Promise<void>
   invalidateCommande(orderId: string): void
+  invalidateProduits(produits: readonly CatalogueEventProduct[]): Promise<void>
 }
 
 const defaultOrderEffects: OrderEffects = {
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
   invalidateCommande,
+  invalidateProduits,
 }
 
 export interface CheckoutInput {
@@ -268,6 +275,43 @@ async function restockerArticles(
   }
 }
 
+/**
+ * Les Produits dont une Variante vient de bouger, avec la chaîne de Structures
+ * qu'un enregistrement de Produit nommerait. La lecture des Produits passe par
+ * la transaction de la Commande, la Lecture de la Structure par son module
+ * unique — les deux avant le commit, pour que les effets post-commit n'aient
+ * plus à chercher un Produit ligne par ligne.
+ */
+async function produitsTouches(
+  tx: Prisma.TransactionClient,
+  items: readonly { variantId: string | null }[]
+): Promise<CatalogueEventProduct[]> {
+  const variantes = [
+    ...new Set(
+      items
+        .map((item) => item.variantId)
+        .filter((variantId): variantId is string => variantId !== null)
+    ),
+  ]
+  if (variantes.length === 0) return []
+
+  const produits = await tx.product.findMany({
+    where: { variants: { some: { id: { in: variantes } } } },
+    select: { id: true, slug: true, categoryId: true },
+    orderBy: { id: "asc" },
+  })
+  if (produits.length === 0) return []
+
+  const lecture = await lireStructure()
+  return produits.map((produit) => ({
+    id: produit.id,
+    slug: produit.slug,
+    categoryChain: produit.categoryId
+      ? lecture.filAriane(produit.categoryId).map(({ slug }) => ({ slug }))
+      : [],
+  }))
+}
+
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
@@ -282,7 +326,7 @@ export async function placeOrder(
   })
   if (!user) throw new UserNotFoundError()
 
-  const order = await prisma.$transaction(async (tx) => {
+  const { order, produitsDrainés } = await prisma.$transaction(async (tx) => {
     const cart = await lirePanierClient(userId, tx)
     if (cart.lines.length === 0) throw new EmptyCartError()
 
@@ -306,6 +350,7 @@ export async function placeOrder(
     if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
 
     await reserverStock(tx, cart.lines)
+    const produitsDrainés = await produitsTouches(tx, cart.lines)
 
     const created = await tx.order.create({
       data: {
@@ -333,7 +378,7 @@ export async function placeOrder(
         variantId: { in: cart.lines.map((line) => line.variantId) },
       },
     })
-    return created
+    return { order: created, produitsDrainés }
   })
 
   await runOrderedEffects([
@@ -345,6 +390,10 @@ export async function placeOrder(
     {
       message: `[order] invalidation du cache non effectuée pour ${order.id}`,
       fn: () => effects.invalidateCommande(order.id),
+    },
+    {
+      message: `[order] purge des documents du catalogue non effectuée pour ${order.id}`,
+      fn: () => effects.invalidateProduits(produitsDrainés),
     },
   ])
   return order
@@ -413,35 +462,42 @@ export async function updateOrderStatus(
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const fresh = await tx.order.findUnique({
-      where: { id: orderId },
-      include: { items: true },
-    })
-    if (!fresh) throw new OrderNotFoundError()
-    if (!peutTransitionner(fresh.status, nextStatus)) {
-      throw new InvalidOrderTransitionError(fresh.status, nextStatus)
+  const { updated, produitsRestockés } = await prisma.$transaction(
+    async (tx) => {
+      const fresh = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      })
+      if (!fresh) throw new OrderNotFoundError()
+      if (!peutTransitionner(fresh.status, nextStatus)) {
+        throw new InvalidOrderTransitionError(fresh.status, nextStatus)
+      }
+
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, status: fresh.status },
+        data: { status: nextStatus },
+      })
+      if (claimed.count === 0) {
+        throw new InvalidOrderTransitionError(fresh.status, nextStatus)
+      }
+
+      let produitsRestockés: CatalogueEventProduct[] | null = null
+      if (réapprovisionne(nextStatus)) {
+        await restockerArticles(tx, fresh.items)
+        produitsRestockés = await produitsTouches(tx, fresh.items)
+      }
+
+      return {
+        updated: await tx.order.findUniqueOrThrow({
+          where: { id: orderId },
+          include: { items: true },
+        }),
+        produitsRestockés,
+      }
     }
+  )
 
-    const claimed = await tx.order.updateMany({
-      where: { id: orderId, status: fresh.status },
-      data: { status: nextStatus },
-    })
-    if (claimed.count === 0) {
-      throw new InvalidOrderTransitionError(fresh.status, nextStatus)
-    }
-
-    if (réapprovisionne(nextStatus)) {
-      await restockerArticles(tx, fresh.items)
-    }
-
-    return tx.order.findUniqueOrThrow({
-      where: { id: orderId },
-      include: { items: true },
-    })
-  })
-
-  await runOrderedEffects([
+  const effetsPostCommit = [
     {
       message: `[order] e-mail de statut non envoyé pour ${orderId}`,
       fn: () =>
@@ -454,7 +510,14 @@ export async function updateOrderStatus(
       message: `[order] invalidation du cache non effectuée pour ${orderId}`,
       fn: () => effects.invalidateCommande(orderId),
     },
-  ])
+  ]
+  if (produitsRestockés !== null) {
+    effetsPostCommit.push({
+      message: `[order] purge des documents du catalogue non effectuée pour ${orderId}`,
+      fn: () => effects.invalidateProduits(produitsRestockés),
+    })
+  }
+  await runOrderedEffects(effetsPostCommit)
   return updated
 }
 
