@@ -11,6 +11,7 @@ import {
 } from "@/lib/product-metrics"
 import {
   CATEGORY_TAG,
+  categoryDetailTag,
   HOME_TAG,
   PRODUCT_TAG,
   productDetailTag,
@@ -192,7 +193,7 @@ export async function getCategoryPageData(
   slug: string
 ): Promise<CategoryPageData | null> {
   "use cache: remote"
-  cacheTag(CATEGORY_TAG, PRODUCT_TAG)
+  cacheTag(CATEGORY_TAG, PRODUCT_TAG, categoryDetailTag(slug))
   cacheLife(STORE_CACHE_LIFE)
   return fetchCategoryPageData(slug)
 }
