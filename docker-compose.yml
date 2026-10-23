@@ -120,6 +120,11 @@ services:
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - RETENTION_BROUILLON_IMAGE_PRODUIT_H=${RETENTION_BROUILLON_IMAGE_PRODUIT_H:-24}
       - SERVICE_FQDN_APP_3000=${SERVICE_FQDN_APP_3000:-http://localhost:3000}
+      # La purge des écritures d'Administration lit les mêmes identifiants que
+      # le service one-shot de déploiement : sans eux, elle se tait et le bord
+      # ne serait jamais rafraîchi entre deux deploys.
+      - CLOUDFLARE_ZONE_ID=${CLOUDFLARE_ZONE_ID:-}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
