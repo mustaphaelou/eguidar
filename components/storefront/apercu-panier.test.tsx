@@ -450,4 +450,27 @@ describe("ApercuPanier", () => {
     expect(container.textContent).toContain("Mon panier")
     expect(container.textContent).toContain("Théière traditionnelle")
   })
+
+  it("retrouve le squelette quand la relecture échoue après un corps affiché", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reponseJson(PLEIN))
+      .mockRejectedValueOnce(new Error("panne réseau"))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await rendreEtAttendre(<BandeauEtAjout />)
+    await ouvrirLApercu()
+    expect(container.textContent).toContain("Mon panier")
+
+    act(() => entree("Ajouter").click())
+    await rejouer()
+
+    // ADR-0038 : une lecture en échec laisse le squelette en place, jamais les
+    // Articles de la lecture précédente.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(
+      container.querySelector("[data-slot='apercu-du-panier-squelette']")
+    ).not.toBeNull()
+    expect(container.textContent).not.toContain("Mon panier")
+  })
 })

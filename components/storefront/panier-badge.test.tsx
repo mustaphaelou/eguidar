@@ -170,6 +170,33 @@ describe("PanierBadge", () => {
     expect(badge()?.textContent).toBe("3")
   })
 
+  it("efface le compte quand la relecture échoue après un succès", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reponseJson({ itemCount: 2 }))
+      .mockRejectedValueOnce(new Error("panne réseau"))
+    vi.stubGlobal("fetch", fetchMock)
+    const port = creerPortPanierEnMemoire()
+
+    await rendreEtAttendre(
+      <>
+        <DeclencheurDuPanier />
+        {boutonAjout(port)}
+      </>
+    )
+    expect(badge()?.textContent).toBe("2")
+
+    await act(async () => {
+      bouton("Ajouter").click()
+    })
+    await rejouer()
+
+    // ADR-0038 : une lecture en échec laisse le badge absent, jamais le
+    // compte de la lecture précédente.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(badge()).toBeNull()
+  })
+
   it("ne relit pas le compteur quand la mutation est refusée", async () => {
     const fetchMock = vi.fn(async () => reponseJson({ itemCount: 2 }))
     vi.stubGlobal("fetch", fetchMock)
