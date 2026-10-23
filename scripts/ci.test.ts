@@ -19,10 +19,6 @@ const ENTREE_NON_CHECK = new Map([
   ["test:watch", "`test` sans sa fin : les mêmes tests, en boucle"],
   ["format", "le correctif, qui écrit dans l'arbre"],
   [
-    "build:check",
-    "`build` avec la base épinglée dans le manifeste, sans le `prisma generate` ni les deux autres variables du job `build`",
-  ],
-  [
     "prepare",
     "le branchement du crochet, qui écrit dans la configuration locale de git et se lance à l'installation",
   ],

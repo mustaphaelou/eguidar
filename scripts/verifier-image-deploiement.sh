@@ -283,6 +283,35 @@ verifier_que_le_serveur_tient() {
   printf '  conteneur toujours en marche, aucun échec de résolution de module\n'
 }
 
+verifier_que_le_secret_n_est_pas_dans_l_image() {
+  local code=0 historique="" environnement="" execution=""
+  historique="$(docker history --no-trunc --format '{{.CreatedBy}}' "$IMAGE_RUNNER" 2>&1)" || code=$?
+  if ((code != 0)); then
+    echec "secrets" "historique de l’image illisible (code ${code}) : ${historique}"
+  fi
+  if [[ "$historique" == *"DATABASE_URL="* ]]; then
+    echec "secrets" "l’historique de l’image runner porte une affectation DATABASE_URL"
+  fi
+
+  environnement="$(docker inspect --format '{{json .Config.Env}}' "$IMAGE_RUNNER" 2>&1)" || code=$?
+  if ((code != 0)); then
+    echec "secrets" "environnement de l’image illisible (code ${code}) : ${environnement}"
+  fi
+  if [[ "$environnement" == *"DATABASE_URL"* ]]; then
+    echec "secrets" "l’environnement figé de l’image runner porte DATABASE_URL"
+  fi
+
+  execution="$(docker run --rm --entrypoint sh "$IMAGE_RUNNER" -c 'env' 2>&1)" || code=$?
+  if ((code != 0)); then
+    echec "secrets" "environnement d’exécution illisible (code ${code}) : ${execution}"
+  fi
+  if [[ "$execution" == *"DATABASE_URL"* ]]; then
+    echec "secrets" "le conteneur runner reçoit DATABASE_URL depuis l’image, pas de son environnement"
+  fi
+
+  printf '  historique, environnement figé et environnement d’exécution : aucun DATABASE_URL\n'
+}
+
 printf 'Sonde de l’artefact de déploiement\n'
 printf '  runner  : %s\n' "$IMAGE_RUNNER"
 printf '  migrate : %s\n' "$IMAGE_MIGRATE"
@@ -306,6 +335,8 @@ fi
 
 JOURNAL="$(mktemp "${TMPDIR:-/tmp}/eguidar-sonde-XXXXXX")"
 
+etape "secrets"
+verifier_que_le_secret_n_est_pas_dans_l_image
 etape "migration (1/2)"
 executer_la_migration
 etape "seed (1/2)"

@@ -69,9 +69,14 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runner
+      # Le build lit le catalogue : réseau de l'hôte pour joindre la base
+      # publiée (127.0.0.1:5433), et secret BuildKit plutôt qu'un build arg.
+      network: host
       args:
         NEXT_PUBLIC_BETTER_AUTH_URL: ${NEXT_PUBLIC_BETTER_AUTH_URL:-}
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+      secrets:
+        - database_url
     restart: unless-stopped
     environment:
       - HOSTNAME=0.0.0.0
@@ -116,3 +121,10 @@ volumes:
   pgdata:
   redisdata:
   meilidata:
+
+# Le secret n'est jamais écrit ici : sa valeur vient de l'environnement du
+# processus Compose, que Coolify alimente. `DATABASE_URL_BUILD` porte une
+# crédential en lecture seule, distincte de la `DATABASE_URL` d'exécution.
+secrets:
+  database_url:
+    environment: DATABASE_URL_BUILD
