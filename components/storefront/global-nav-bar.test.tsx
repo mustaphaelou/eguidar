@@ -244,6 +244,7 @@ describe("GlobalNavBar", () => {
     const surface = dialogue()!
     expect(surface.getAttribute("aria-modal")).toBe("true")
     expect(surface.getAttribute("id")).toBe("apercu-du-panier")
+    expect(surface.getAttribute("data-slot")).toBe("apercu-du-panier")
     expect(surface.getAttribute("aria-labelledby")).toBe(
       ID_TITRE_APERCU_DU_PANIER
     )
@@ -269,6 +270,7 @@ describe("GlobalNavBar", () => {
     })
 
     expect(dialogue()).toBeNull()
+    expect(container.querySelector("[data-slot='voile-sombre']")).toBeNull()
     expect(document.activeElement).toBe(panier)
     expect(panier.getAttribute("aria-expanded")).toBe("false")
   })

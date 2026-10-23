@@ -96,6 +96,7 @@ export function ApercuDuPanierSurface({
       <div
         ref={surfaceRef}
         id={ID_APERCU_DU_PANIER}
+        data-slot="apercu-du-panier"
         role="dialog"
         aria-modal="true"
         aria-labelledby={ID_TITRE_APERCU_DU_PANIER}

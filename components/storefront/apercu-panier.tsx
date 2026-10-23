@@ -1,4 +1,5 @@
 import Image from "next/image"
+import type { CSSProperties } from "react"
 
 import { Button } from "@/components/ui/button"
 import { urlProduit } from "@/lib/carte-produit"
@@ -45,9 +46,11 @@ export async function ApercuPanier() {
         </h2>
 
         <ul className="mt-4">
-          {panier.lines.map((article) => (
+          {panier.lines.map((article, rang) => (
             <li
               key={article.variantId}
+              data-slot="apercu-du-panier-ligne"
+              style={{ "--rang-ligne": rang } as CSSProperties}
               className="flex items-center gap-4 border-b py-4 last:border-b-0"
             >
               <LienQuiFermeLApercu

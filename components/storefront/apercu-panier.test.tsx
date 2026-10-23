@@ -297,6 +297,24 @@ describe("ApercuPanier", () => {
     expect(corpsHtml).toContain("2 × 1.299,00\u00A0MAD")
     expect(corpsHtml).toContain("3 × 1.299,00\u00A0MAD")
   })
+
+  it("donne à chaque ligne son rang, pour que la feuille les décale de 20 ms", async () => {
+    commeClient(userIdA)
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantStandard, quantity: 1 },
+    })
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: variantPremium, quantity: 1 },
+    })
+
+    const html = await renderApercu()
+
+    const rangs = [...html.matchAll(/--rang-ligne:(\d+)/g)].map((trouve) =>
+      Number(trouve[1])
+    )
+    expect(rangs).toEqual([0, 1])
+    expect(html.match(/data-slot="apercu-du-panier-ligne"/g)).toHaveLength(2)
+  })
 })
 
 describe("Mon compte dans l'Aperçu", () => {
