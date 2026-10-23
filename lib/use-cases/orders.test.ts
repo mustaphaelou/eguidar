@@ -55,6 +55,21 @@ vi.mock("@/lib/use-cases/session-courante", async () => {
   return { lireSession: h.sessionCouranteMock }
 })
 
+const { lireStructureMock, lireStructureReelle } = vi.hoisted(() => ({
+  lireStructureMock: vi.fn(),
+  lireStructureReelle: {
+    courante: null as null | (() => Promise<unknown>),
+  },
+}))
+
+vi.mock("@/lib/use-cases/lecture-structure", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/lib/use-cases/lecture-structure")>()
+  lireStructureReelle.courante = original.lireStructure
+  lireStructureMock.mockImplementation(original.lireStructure)
+  return { ...original, lireStructure: lireStructureMock }
+})
+
 const runId = randomUUID().slice(0, 8)
 const email = (suffix: string) => `orders-${runId}-${suffix}@test.ma`
 const cityName = `Ville ${runId}`
@@ -197,6 +212,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   sessionCouranteMock.mockReset()
+  lireStructureMock.mockReset()
+  lireStructureMock.mockImplementation(lireStructureReelle.courante!)
   await prisma.deliveryCity.update({
     where: { id: cityId },
     data: { fee: 3500 },
@@ -407,7 +424,14 @@ describe("order placement", () => {
     expect(invalidateCommande).toHaveBeenCalledWith(order.id)
   })
 
-  it("purges the Produit whose last unit the order drains, with its Structure chain", async () => {
+  it("purge le Produit dont la dernière unité est drainée, avec sa chaîne de Structures", async () => {
+    const commandesAvant = await prisma.order.count()
+    lireStructureMock.mockImplementationOnce(async () => {
+      // Une lecture dans la transaction verrait encore le compte d'avant le
+      // commit : cette Commande n'existerait pas.
+      expect(await prisma.order.count()).toBe(commandesAvant + 1)
+      return lireStructureReelle.courante!()
+    })
     const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
       async () => {}
     )
@@ -419,6 +443,7 @@ describe("order placement", () => {
     })
 
     expect(order.id).toBeTruthy()
+    expect(lireStructureMock).toHaveBeenCalledOnce()
     expect(invalidateProduits).toHaveBeenCalledOnce()
     expect(invalidateProduits).toHaveBeenCalledWith([
       {
@@ -433,7 +458,7 @@ describe("order placement", () => {
     expect(stock.stock).toBe(0)
   })
 
-  it("revalidates the catalogue origin tags of the Produit it drains", async () => {
+  it("revalide les tags d'origine du catalogue du Produit drainé", async () => {
     const revalidateTagMock = vi.mocked(revalidateTag)
     revalidateTagMock.mockClear()
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
@@ -459,7 +484,8 @@ describe("order placement", () => {
     }
   })
 
-  it("dedupes the Produits drained by several lines of the same product", async () => {
+  it("dédoublonne les Produits drainés par plusieurs Articles du même Produit", async () => {
+    lireStructureMock.mockClear()
     const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
       async () => {}
     )
@@ -471,6 +497,7 @@ describe("order placement", () => {
       invalidateProduits,
     })
 
+    expect(lireStructureMock).toHaveBeenCalledOnce()
     expect(invalidateProduits).toHaveBeenCalledOnce()
     const produits = invalidateProduits.mock.calls[0]![0]
     expect(produits).toHaveLength(1)
@@ -481,7 +508,7 @@ describe("order placement", () => {
     })
   })
 
-  it("carries an empty Structure chain for a Produit sans Structure", async () => {
+  it("rend une chaîne de Structures vide pour un Produit sans Structure", async () => {
     const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
       async () => {}
     )
@@ -529,7 +556,7 @@ describe("order placement", () => {
     }
   })
 
-  it("still places the order when the catalogue purge fails, like a failing confirmation e-mail", async () => {
+  it("place la Commande malgré l'échec de la purge du catalogue, comme un e-mail de confirmation qui échoue", async () => {
     const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
@@ -550,6 +577,45 @@ describe("order placement", () => {
     expect(invalidateCommande).toHaveBeenCalledWith(order.id)
     const cart = await lirePanierClient(userIdA)
     expect(cart.lines).toHaveLength(0)
+  })
+
+  it("place la Commande quand la lecture de la Structure échoue, et journalise l'échec", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    lireStructureMock.mockRejectedValueOnce(new Error("Structure indisponible"))
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 2)
+
+    try {
+      const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
+        sendOrderPlacedEmail: async () => {},
+        invalidateCommande,
+        invalidateProduits,
+      })
+
+      // Le commit n'est pas défait : la Commande, le stock et le Panier
+      // observent l'écriture, seule la purge a manqué.
+      const commandeEnBase = await prisma.order.findUnique({
+        where: { id: order.id },
+      })
+      expect(commandeEnBase).not.toBeNull()
+      expect(commandeEnBase!.status).toBe("pending")
+      const stock = await prisma.productVariant.findUniqueOrThrow({
+        where: { id: variantP4 },
+      })
+      expect(stock.stock).toBe(0)
+      expect((await lirePanierClient(userIdA)).lines).toHaveLength(0)
+      expect(invalidateProduits).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(
+        `[order] purge des documents du catalogue non effectuée pour ${order.id}`,
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it("still places the order when email dispatch fails", async () => {
@@ -1110,7 +1176,7 @@ describe("order status transitions", () => {
     expect(invalidateCommande).toHaveBeenCalledWith(orderId)
   })
 
-  it("purges the Produits it restocks when a Commande moves back to a restocking Statut", async () => {
+  it("purge les Produits réapprovisionnés quand une Commande revient à un Statut qui restocke", async () => {
     const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
       async () => {}
     )
@@ -1121,6 +1187,7 @@ describe("order status transitions", () => {
       invalidateCommande: () => {},
       invalidateProduits: async () => {},
     })
+    lireStructureMock.mockClear()
 
     await updateOrderStatus(order.id, "cancelled", {
       sendOrderStatusEmail: async () => {},
@@ -1128,6 +1195,7 @@ describe("order status transitions", () => {
       invalidateProduits,
     })
 
+    expect(lireStructureMock).toHaveBeenCalledOnce()
     expect(invalidateProduits).toHaveBeenCalledOnce()
     expect(invalidateProduits).toHaveBeenCalledWith([
       {

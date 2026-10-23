@@ -71,7 +71,7 @@ describe("cache invalidation vocabulary", () => {
     expect(productDetailTag("mon-produit")).toBe("product:mon-produit")
   })
 
-  it("exposes the category detail tag builder", () => {
+  it("expose le constructeur de tag d'une Structure", () => {
     expect(categoryDetailTag("mon-telephone")).toBe("category:mon-telephone")
   })
 

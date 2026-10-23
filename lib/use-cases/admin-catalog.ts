@@ -39,7 +39,10 @@ import type {
   CatalogueEventCategory,
   CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
-import { invalidateCatalogue } from "@/lib/use-cases/cache-invalidation"
+import {
+  chaineDeLaStructure,
+  invalidateCatalogue,
+} from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
@@ -485,11 +488,12 @@ async function chainesDuProduit(
   if (categories.length === 0) return { categoryChain: [] }
 
   const lecture = await lireStructure()
-  const chaine = (id: string | null | undefined): CatalogueEventCategory[] =>
-    id ? lecture.filAriane(id).map(({ slug }) => ({ slug })) : []
-  const categoryChain = chaine(courante)
+  const categoryChain = chaineDeLaStructure(lecture, courante)
   if (!precedente || precedente === courante) return { categoryChain }
-  return { categoryChain, previousCategoryChain: chaine(precedente) }
+  return {
+    categoryChain,
+    previousCategoryChain: chaineDeLaStructure(lecture, precedente),
+  }
 }
 
 async function assertVariantesDuProduit(

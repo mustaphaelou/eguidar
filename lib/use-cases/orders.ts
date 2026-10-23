@@ -9,6 +9,7 @@ import { peutTransitionner, réapprovisionne } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { lirePanierClient } from "@/lib/panier"
 import {
+  chaineDeLaStructure,
   invalidateCommande,
   invalidateProduits,
   type CatalogueEventProduct,
@@ -275,17 +276,23 @@ async function restockerArticles(
   }
 }
 
+/** Les faits que la transaction possède d'un Produit touché, sans sa chaîne. */
+interface ProduitTouche {
+  id: string
+  slug: string
+  categoryId: string | null
+}
+
 /**
- * Les Produits dont une Variante vient de bouger, avec la chaîne de Structures
- * qu'un enregistrement de Produit nommerait. La lecture des Produits passe par
- * la transaction de la Commande, la Lecture de la Structure par son module
- * unique — les deux avant le commit, pour que les effets post-commit n'aient
- * plus à chercher un Produit ligne par ligne.
+ * Les Produits dont une Variante vient de bouger, lus dans la transaction de la
+ * Commande. La transaction ne capture que ce qu'elle possède — l'identité du
+ * Produit et la Structure à laquelle il appartenait — et ne lit jamais la
+ * Structure elle-même : ADR-0030 l'interdit dans une transaction.
  */
 async function produitsTouches(
   tx: Prisma.TransactionClient,
   items: readonly { variantId: string | null }[]
-): Promise<CatalogueEventProduct[]> {
+): Promise<ProduitTouche[]> {
   const variantes = [
     ...new Set(
       items
@@ -295,20 +302,28 @@ async function produitsTouches(
   ]
   if (variantes.length === 0) return []
 
-  const produits = await tx.product.findMany({
+  return tx.product.findMany({
     where: { variants: { some: { id: { in: variantes } } } },
     select: { id: true, slug: true, categoryId: true },
     orderBy: { id: "asc" },
   })
-  if (produits.length === 0) return []
+}
 
+/**
+ * Résout la chaîne de Structures des Produits touchés après le commit : une
+ * seule Lecture de la Structure pour l'ensemble, pas une recherche par article
+ * (#757). Un échec est attrapé par `runOrderedEffects` et ne défait donc pas la
+ * Commande, comme l'e-mail de confirmation ou la purge.
+ */
+async function produitsDuCatalogue(
+  produits: readonly ProduitTouche[]
+): Promise<CatalogueEventProduct[]> {
+  if (produits.length === 0) return []
   const lecture = await lireStructure()
   return produits.map((produit) => ({
     id: produit.id,
     slug: produit.slug,
-    categoryChain: produit.categoryId
-      ? lecture.filAriane(produit.categoryId).map(({ slug }) => ({ slug }))
-      : [],
+    categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
   }))
 }
 
@@ -393,7 +408,13 @@ export async function placeOrder(
     },
     {
       message: `[order] purge des documents du catalogue non effectuée pour ${order.id}`,
-      fn: () => effects.invalidateProduits(produitsDrainés),
+      fn: async () => {
+        // La résolution de la Structure suit le commit, une fois pour tous les
+        // Produits : ce n'est pas une recherche par article (#757).
+        await effects.invalidateProduits(
+          await produitsDuCatalogue(produitsDrainés)
+        )
+      },
     },
   ])
   return order
@@ -481,7 +502,7 @@ export async function updateOrderStatus(
         throw new InvalidOrderTransitionError(fresh.status, nextStatus)
       }
 
-      let produitsRestockés: CatalogueEventProduct[] | null = null
+      let produitsRestockés: ProduitTouche[] | null = null
       if (réapprovisionne(nextStatus)) {
         await restockerArticles(tx, fresh.items)
         produitsRestockés = await produitsTouches(tx, fresh.items)
@@ -512,9 +533,12 @@ export async function updateOrderStatus(
     },
   ]
   if (produitsRestockés !== null) {
+    const produits = produitsRestockés
     effetsPostCommit.push({
       message: `[order] purge des documents du catalogue non effectuée pour ${orderId}`,
-      fn: () => effects.invalidateProduits(produitsRestockés),
+      fn: async () => {
+        await effects.invalidateProduits(await produitsDuCatalogue(produits))
+      },
     })
   }
   await runOrderedEffects(effetsPostCommit)
