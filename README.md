@@ -23,7 +23,7 @@ npm run dev
 
 Le compte admin par défaut est créé par le seed (`ADMIN_EMAIL` / `ADMIN_PASSWORD` dans `.env`). Les fournisseurs Google et Facebook, Turnstile et Resend fonctionnent dès que leurs clés sont renseignées dans `.env` : `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` et `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` pour la Connexion sociale.
 
-Un assistant interactif complète l'étape 2 : `bash scripts/setup-providers.sh` guide la création du widget Cloudflare Turnstile, restaure les variables de base de test (`TEST_DB_NAME`, `TEST_DATABASE_URL`) dans `.env`, et applique la règle de cycle de vie R2 des Brouillons d'Image produit.
+Un assistant interactif complète l'étape 2 : `bash scripts/setup-providers.sh` guide la création du widget Cloudflare Turnstile, restaure les variables de base de test (`TEST_DB_NAME`, `TEST_DATABASE_URL`) dans `.env`, applique la règle de cycle de vie R2 des Brouillons d'Image produit, et rend les documents de la boutique éligibles au cache de l'edge.
 
 Les images produits sont envoyées vers Cloudflare R2 via des URLs pré-signées : renseigner `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` et `R2_PUBLIC_URL` dans `.env`. La recherche (Meilisearch) est ré-indexée automatiquement à chaque enregistrement ou suppression d'un produit.
 
@@ -45,6 +45,71 @@ curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buc
 ```
 
 **La règle doit porter la même rétention que l'application.** Une règle plus courte supprime le fichier d'un Brouillon que l'application juge encore revendicable : l'enregistrement du Produit échoue alors sur une image que l'éditeur croyait pouvoir sauvegarder. Une règle plus longue ne casse rien de fonctionnel — le registre refuse déjà la revendication au-delà de `RETENTION_BROUILLON_IMAGE_PRODUIT_H` — mais elle laisse des octets orphelins. R2 n'exprimant l'expiration qu'en jours entiers, la règle est toujours arrondie au jour supérieur.
+
+## Documents à l'edge (Cache Rules)
+
+Un document de la boutique est le même pour tous les Visiteurs : Cloudflare peut le stocker au PoP le plus proche. Il ne le fait pas par défaut — « The Cloudflare CDN does not cache HTML or JSON by default » ([default cache behavior](https://developers.cloudflare.com/cache/concepts/default-cache-behavior/)) — et la même URL répond pourtant deux choses différentes selon les en-têtes : un document HTML, ou un payload RSC pour la navigation client. La clé de cache de Cloudflare ignore `RSC` ; une entrée partagée entre les deux casserait la navigation d'une manière qui ressemble à un bug sans rapport.
+
+La configuration de zone est versionnée dans [`infra/regle-cache-edge.json`](infra/regle-cache-edge.json), et `infra/regle-cache-edge.ts` la dérive de `HOTE_EDGE` ([`lib/zone-edge.ts`](lib/zone-edge.ts)) — jamais d'une seconde écriture du domaine. Deux règles, dans cet ordre :
+
+1. **`rsc-et-prefetch-hors-cache`** contourne le cache dès que `RSC` ou `Next-Router-Prefetch` est présent.
+2. **`documents-anonymes-eguidar`** rend le HTML de `eguidar.com` éligible au cache, en excluant `/api/` et `/_next/`, et en niant les deux mêmes têtes.
+
+Le troisième point de la spécification est une absence : **aucune règle pour `/_next/image`**. Les images relèvent d'un autre ticket.
+
+Les [Cache Rules s'empilent](https://developers.cloudflare.com/cache/how-to/cache-rules/order/) et **la dernière règle qui fixe un réglage l'emporte** : le contournement en premier ne suffit donc pas, et la seconde règle répète la négation de `RSC` et `Next-Router-Prefetch` dans sa propre expression. [`infra/regle-cache-edge.test.ts`](infra/regle-cache-edge.test.ts) échoue si l'une des deux expressions perd une tête, si l'ordre change, ou si une règle `/_next/image` apparaît.
+
+Le TTL de la seconde règle vaut `bypass_by_default` : Cloudflare honore `s-maxage` quand l'origine l'envoie, et ne stocke rien quand elle n'envoie pas de `Cache-Control`. Un `Set-Cookie` ne peut pas être testé dans une expression de Cache Rules — ces expressions ne lisent que la requête. La sécurité vient du [mode de TTL](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/) : avec `bypass_by_default` (ou `respect_origin`) et **aucun** TTL explicite, Cloudflare conserve `Set-Cookie` et ne met pas la réponse en cache ([cache behavior](https://developers.cloudflare.com/cache/concepts/cache-behavior/)). `override_origin` ou un `status_code_ttl` retireraient le cookie et cacheraient la réponse : le test interdit ces deux clés.
+
+### Appliquer
+
+L'étape « Cache Rules (Documents à l'edge) » de `bash scripts/setup-providers.sh` fait le travail, après la règle R2 : elle lit le ruleset vivant, affiche toute règle que l'artefact ne décrit pas et demande une **seconde** confirmation explicite avant de la remplacer, valide le corps avec `?dry_run=true`, écrit l'entrypoint de la phase, puis relit et compare une projection des seuls champs rédigés (`id`, `version` et `last_updated` sont ajoutés par l'API). Il faut un jeton portant **Zone > Cache Rules > Edit** ; `CLOUDFLARE_API_TOKEN` et `CLOUDFLARE_ZONE_ID` sont lus dans `.env`. Sans l'un des deux, l'étape s'arrête **avant** le moindre appel à la zone.
+
+Un `PUT` remplace **tout** l'entrypoint de la phase `http_request_cache_settings` : il n'y a pas de création règle par règle, et les règles que l'artefact ne décrit pas sont supprimées. Le même appel, à la main, sans retaper l'artefact :
+
+```bash
+node -e 'const a = require("./infra/regle-cache-edge.json"); process.stdout.write(JSON.stringify({ rules: a.rules }))' \
+| curl -X PUT "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/rulesets/phases/http_request_cache_settings/entrypoint" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary @-
+```
+
+### Revenir en arrière
+
+Un seul appel suffit, et l'étape imprime la commande avec l'identifiant du ruleset :
+
+```bash
+# supprime toutes les versions du ruleset de la phase
+curl -X DELETE "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/rulesets/$RULESET_ID" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+
+# ou vide le ruleset sans le supprimer
+curl -X PUT "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/rulesets/phases/http_request_cache_settings/entrypoint" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary '{"rules":[]}'
+```
+
+### Vérifier à la main
+
+La vérification est **manuelle par nature** : la CI n'a ni jeton ni zone. Sur une URL prérendue, deux requêtes suffisent — la première remplit l'edge, la seconde doit répondre `cf-cache-status: HIT` :
+
+```bash
+curl -sSI https://eguidar.com/faq | grep -i cf-cache-status
+curl -sSI https://eguidar.com/faq | grep -i cf-cache-status   # HIT
+curl -sSI https://eguidar.com/produit/<slug-prérendu> | grep -i cf-cache-status
+curl -sSI https://eguidar.com/produit/<slug-prérendu> | grep -i cf-cache-status   # HIT
+```
+
+Un payload n'est jamais un document : une requête portant `RSC: 1` (ou `Next-Router-Prefetch`) doit contourner le cache et ne jamais recevoir le HTML stocké :
+
+```bash
+curl -sSI -H 'RSC: 1' https://eguidar.com/faq | grep -i cf-cache-status   # jamais HIT
+curl -sS  -H 'RSC: 1' https://eguidar.com/faq | head -c 120               # un payload RSC, jamais le HTML
+```
+
+`/faq` et les slugs prérendus répondent `HIT` ; `/produits` (qui lit `searchParams`) et les slugs inconnus restent des rendus d'origine : leur réponse ne porte pas de `s-maxage`, donc l'edge ne les stocke pas. Cette étape rend la zone **éligible** : la purge (déploiement, écriture admin) est un autre mécanisme, et une réponse qui porte encore `Set-Cookie` ou `no-store` reste non stockée.
 
 ## Tests
 
