@@ -93,6 +93,77 @@ function dialogue() {
   return container.querySelector<HTMLElement>("[role='dialog']")
 }
 
+function boutonMenu() {
+  return container.querySelector<HTMLButtonElement>("button[aria-label='Menu']")
+}
+
+function boutonFermer() {
+  return container.querySelector<HTMLButtonElement>(
+    "button[aria-label='Fermer']"
+  )
+}
+
+function menuMobile() {
+  return container.querySelector<HTMLElement>("nav[aria-label='Menu mobile']")
+}
+
+function champRecherche() {
+  return container.querySelector<HTMLInputElement>("input[name='q']")
+}
+
+function voileSombre() {
+  return container.querySelector<HTMLElement>("[data-slot='voile-sombre']")!
+}
+
+function poserEcran(large: boolean) {
+  vi.spyOn(window, "matchMedia").mockImplementation(
+    (requete: string) =>
+      ({
+        matches: requete.includes("min-width: 1024px") ? large : false,
+        media: requete,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList
+  )
+}
+
+function simulerEcranMobile() {
+  poserEcran(false)
+}
+
+function simulerEcranBureau() {
+  poserEcran(true)
+}
+
+const fermetures = [
+  [
+    "Escape",
+    () => {
+      act(() => {
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        )
+      })
+    },
+  ],
+  [
+    "le clic sur le Voile sombre",
+    () => {
+      act(() => voileSombre().click())
+    },
+  ],
+  [
+    "le défilement de la page",
+    () => {
+      act(() => window.dispatchEvent(new Event("scroll")))
+    },
+  ],
+] as const
+
 describe("GlobalNavBar", () => {
   it("rend le logo et les liens", () => {
     const errors = renderCapturingErrors(<GlobalNavBar links={links} />)
@@ -369,4 +440,155 @@ describe("GlobalNavBar", () => {
     )!
     expect(badge.textContent).toBe("3")
   })
+})
+
+describe("GlobalNavBar sur mobile", () => {
+  beforeEach(simulerEcranMobile)
+
+  it("cache le panier et fait du menu le seul « Fermer » de l’Aperçu", () => {
+    renderCapturingErrors(
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
+    )
+
+    const panier = declencheurDuPanier()
+    const menu = boutonMenu()!
+    expect(menu.getAttribute("aria-expanded")).toBe("false")
+
+    act(() => panier.click())
+
+    expect(dialogue()).not.toBeNull()
+    expect(menuMobile()).toBeNull()
+    expect(container.querySelector("button[aria-label='Panier']")).toBeNull()
+    expect(boutonFermer()).toBe(menu)
+    expect(
+      container.querySelectorAll("button[aria-label='Fermer']")
+    ).toHaveLength(1)
+
+    act(() => boutonFermer()!.click())
+
+    expect(dialogue()).toBeNull()
+    expect(menuMobile()).toBeNull()
+    expect(declencheurDuPanier()).not.toBeNull()
+    expect(boutonMenu()).toBe(menu)
+    expect(menu.getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("rend le focus au menu quand son « Fermer » referme l’Aperçu", () => {
+    renderCapturingErrors(
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
+    )
+
+    const panier = declencheurDuPanier()
+    const menu = boutonMenu()!
+
+    act(() => panier.click())
+    act(() => boutonFermer()!.click())
+
+    expect(dialogue()).toBeNull()
+    expect(document.activeElement).toBe(menu)
+  })
+
+  it.each(fermetures)(
+    "rend le focus au menu quand %s ferme l’Aperçu",
+    (_, fermer) => {
+      renderCapturingErrors(
+        <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
+      )
+
+      const panier = declencheurDuPanier()
+      const menu = boutonMenu()!
+
+      act(() => panier.click())
+      expect(dialogue()).not.toBeNull()
+
+      fermer()
+
+      expect(dialogue()).toBeNull()
+      expect(document.activeElement).toBe(menu)
+    }
+  )
+
+  it("la Recherche, le menu et l’Aperçu ne s’ouvrent jamais ensemble", () => {
+    renderCapturingErrors(
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
+    )
+
+    const menu = boutonMenu()!
+    const recherche = boutonRecherche()
+
+    act(() => menu.click())
+    expect(menuMobile()).not.toBeNull()
+    expect(champRecherche()).toBeNull()
+    expect(dialogue()).toBeNull()
+
+    act(() => recherche.click())
+    expect(champRecherche()).not.toBeNull()
+    expect(menuMobile()).toBeNull()
+    expect(dialogue()).toBeNull()
+
+    act(() => menu.click())
+    expect(menuMobile()).not.toBeNull()
+    expect(champRecherche()).toBeNull()
+    expect(dialogue()).toBeNull()
+
+    const panier = declencheurDuPanier()
+    act(() => panier.click())
+    expect(dialogue()).not.toBeNull()
+    expect(menuMobile()).toBeNull()
+    expect(champRecherche()).toBeNull()
+
+    act(() => boutonFermer()!.click())
+    expect(dialogue()).toBeNull()
+
+    act(() => recherche.click())
+    expect(champRecherche()).not.toBeNull()
+    expect(dialogue()).toBeNull()
+
+    const panierRouvert = declencheurDuPanier()
+    act(() => panierRouvert.click())
+    expect(dialogue()).not.toBeNull()
+    expect(champRecherche()).toBeNull()
+    expect(menuMobile()).toBeNull()
+  })
+})
+
+describe("GlobalNavBar sur bureau", () => {
+  beforeEach(simulerEcranBureau)
+
+  it("garde le panier et le menu « Menu » quand l’Aperçu est ouvert", () => {
+    renderCapturingErrors(
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
+    )
+
+    const panier = declencheurDuPanier()
+    act(() => panier.click())
+
+    expect(dialogue()).not.toBeNull()
+    expect(declencheurDuPanier()).toBe(panier)
+    expect(boutonMenu()).not.toBeNull()
+    expect(boutonFermer()).toBeNull()
+
+    act(() => panier.click())
+
+    expect(dialogue()).toBeNull()
+    expect(document.activeElement).toBe(panier)
+  })
+
+  it.each(fermetures)(
+    "rend le focus au panier quand %s ferme l’Aperçu",
+    (_, fermer) => {
+      renderCapturingErrors(
+        <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
+      )
+
+      const panier = declencheurDuPanier()
+      act(() => panier.click())
+      expect(dialogue()).not.toBeNull()
+
+      fermer()
+
+      expect(dialogue()).toBeNull()
+      expect(document.activeElement).toBe(panier)
+    }
+  )
 })

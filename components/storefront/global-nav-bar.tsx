@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 
 import {
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import { ID_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
 import { useApercuDuPanier } from "./apercu-du-panier-provider"
 import { ApercuDuPanierSurface } from "./apercu-du-panier-surface"
+import { useEstBureau } from "./use-est-bureau"
 
 export type GlobalNavLink = { href: string; label: string }
 
@@ -32,10 +33,34 @@ export function GlobalNavBar({
   apercuCorps?: React.ReactNode
 }) {
   const { ouvert, basculer, fermer } = useApercuDuPanier()
+  const estBureau = useEstBureau()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const panierRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLButtonElement>(null)
+  const apercuMobileOuvert = ouvert && !estBureau
+
+  const fermerLApercu = useCallback(() => {
+    fermer()
+    const retour = estBureau ? panierRef.current : menuRef.current
+    retour?.focus({ preventScroll: true })
+  }, [fermer, estBureau])
+
+  function basculerLeMenu() {
+    if (apercuMobileOuvert) {
+      fermerLApercu()
+      return
+    }
+    if (menuOpen) {
+      setMenuOpen(false)
+      return
+    }
+    setMenuOpen(true)
+    setSearchOpen(false)
+    if (ouvert) fermer()
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 0)
@@ -89,7 +114,10 @@ export function GlobalNavBar({
             aria-expanded={searchOpen}
             className={cn(searchOpen && "text-link hover:text-link")}
             onClick={() => {
-              if (!searchOpen) fermer()
+              if (!searchOpen) {
+                fermer()
+                setMenuOpen(false)
+              }
               setSearchOpen(!searchOpen)
             }}
           >
@@ -98,28 +126,33 @@ export function GlobalNavBar({
               strokeWidth={2}
             />
           </Button>
+          {apercuMobileOuvert ? null : (
+            <Button
+              ref={panierRef}
+              variant="ghost"
+              size="icon"
+              aria-label="Panier"
+              aria-expanded={ouvert}
+              aria-controls={ID_APERCU_DU_PANIER}
+              className="relative"
+              onClick={(event) => {
+                setSearchOpen(false)
+                setMenuOpen(false)
+                basculer(event.currentTarget)
+              }}
+            >
+              <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
+              {panierBadge}
+            </Button>
+          )}
           <Button
+            ref={menuRef}
             variant="ghost"
             size="icon"
-            aria-label="Panier"
-            aria-expanded={ouvert}
-            aria-controls={ID_APERCU_DU_PANIER}
-            className="relative"
-            onClick={(event) => {
-              setSearchOpen(false)
-              basculer(event.currentTarget)
-            }}
-          >
-            <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
-            {panierBadge}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Menu"
+            aria-label={apercuMobileOuvert ? "Fermer" : "Menu"}
             aria-expanded={menuOpen}
             className="lg:hidden"
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={basculerLeMenu}
           >
             <HugeiconsIcon
               icon={menuOpen ? Cancel01Icon : Menu01Icon}
@@ -175,7 +208,7 @@ export function GlobalNavBar({
       ) : null}
 
       {ouvert ? (
-        <ApercuDuPanierSurface onClose={fermer}>
+        <ApercuDuPanierSurface onClose={fermerLApercu}>
           {apercuCorps}
         </ApercuDuPanierSurface>
       ) : null}

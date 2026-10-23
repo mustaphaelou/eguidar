@@ -92,7 +92,7 @@ export async function ApercuPanier() {
 
         <Button
           render={<LienQuiFermeLApercu href="/panier" />}
-          className="mt-6 w-full sm:w-auto"
+          className="mt-6 w-full lg:w-auto"
         >
           Voir le panier
         </Button>

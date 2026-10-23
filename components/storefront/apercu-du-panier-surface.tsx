@@ -100,7 +100,7 @@ export function ApercuDuPanierSurface({
         aria-modal="true"
         aria-labelledby={ID_TITRE_APERCU_DU_PANIER}
         tabIndex={-1}
-        className="absolute inset-x-0 top-0 z-10 bg-background pt-11 outline-none"
+        className="absolute inset-x-0 top-0 z-10 bg-background pt-11 outline-none max-lg:h-dvh"
       >
         <div className="mx-auto max-h-[calc(100dvh-2.75rem)] max-w-[1024px] overflow-y-auto px-4 pt-6 pb-8 sm:px-[22px]">
           {children}
