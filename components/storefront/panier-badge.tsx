@@ -1,22 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
-
 import { lireLeCompteurDuPanier } from "./lecture-du-panier-http"
-import { usePanierQuiChange } from "./panier-qui-change"
+import { useLectureDuPanier } from "./use-lecture-du-panier"
 
 export function PanierBadge() {
-  const version = usePanierQuiChange()
-  const [itemCount, setItemCount] = useState(0)
-
-  useEffect(() => {
-    const controleur = new AbortController()
-    void lireLeCompteurDuPanier(controleur.signal).then((compte) => {
-      if (compte === null || controleur.signal.aborted) return
-      setItemCount(compte)
-    })
-    return () => controleur.abort()
-  }, [version])
+  const compte = useLectureDuPanier(lireLeCompteurDuPanier)
+  const itemCount = compte ?? 0
 
   if (itemCount === 0) return null
 

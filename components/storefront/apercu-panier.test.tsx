@@ -164,6 +164,18 @@ async function ouvrirLApercu() {
   await rejouer()
 }
 
+/** Clique un lien sans laisser happy-dom tenter une navigation réelle. */
+async function cliquerSansNaviguer(lien: HTMLAnchorElement) {
+  const empecherLaNavigation = (evenement: Event) => evenement.preventDefault()
+  container.addEventListener("click", empecherLaNavigation)
+  try {
+    act(() => lien.click())
+    await rejouer()
+  } finally {
+    container.removeEventListener("click", empecherLaNavigation)
+  }
+}
+
 function entree(label: string) {
   return [...container.querySelectorAll<HTMLElement>("a, button")].find(
     (element) => element.textContent?.trim() === label
@@ -337,7 +349,7 @@ describe("ApercuPanier", () => {
     expect(container.textContent).not.toContain("2.598,00")
   })
 
-  it("marque chaque lien du corps comme refermant l'Aperçu avant de naviguer", async () => {
+  it("referme l'Aperçu au clic d'un lien du corps, vers le document attendu", async () => {
     installerFetch(PLEIN)
 
     await rendreEtAttendre(<BandeauAvecApercu />)
@@ -349,29 +361,33 @@ describe("ApercuPanier", () => {
       ),
     ]
     expect(liensProduit).toHaveLength(4)
-    for (const lien of liensProduit) {
-      expect(lien.hasAttribute("data-ferme-l-apercu")).toBe(true)
-    }
 
+    await cliquerSansNaviguer(liensProduit[0]!)
+    expect(dialogue()).toBeNull()
+
+    await ouvrirLApercu()
     const lienPanier =
       container.querySelector<HTMLAnchorElement>("a[href='/panier']")!
-    expect(lienPanier.hasAttribute("data-ferme-l-apercu")).toBe(true)
+    await cliquerSansNaviguer(lienPanier)
+    expect(dialogue()).toBeNull()
   })
 
-  it("donne à chaque ligne son rang, pour que la feuille les décale de 20 ms", async () => {
+  it("rend les Articles dans l'ordre du Panier, de haut en bas", async () => {
     installerFetch(PLEIN)
 
     await rendreEtAttendre(<BandeauAvecApercu />)
     await ouvrirLApercu()
 
-    const lignes = [
-      ...container.querySelectorAll<HTMLElement>(
-        "[data-slot='apercu-du-panier-ligne']"
-      ),
-    ]
-    expect(
-      lignes.map((ligne) => ligne.style.getPropertyValue("--rang-ligne"))
-    ).toEqual(["0", "1"])
+    const articles = [...container.querySelectorAll<HTMLLIElement>("li")]
+      .filter((article) =>
+        article.querySelector("a[href='/produit/theiere-traditionnelle']")
+      )
+      .map((article) => article.textContent ?? "")
+
+    expect(articles).toHaveLength(2)
+    expect(articles[0]).toContain("Standard")
+    expect(articles[0]).not.toContain("Premium")
+    expect(articles[1]).toContain("Premium")
   })
 
   it("garde les entrées du Compte d'un Client sur un Panier plein", async () => {

@@ -1,32 +1,21 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useState, type CSSProperties } from "react"
+import type { CSSProperties } from "react"
 
 import { Button } from "@/components/ui/button"
 import { urlProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
-import type { ApercuDuPanier } from "@/lib/panier-transport"
 
 import { ID_TITRE_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
 import { SqueletteDeLApercu } from "./apercu-du-panier-squelette"
 import { LienQuiFermeLApercu } from "./lien-qui-ferme-l-apercu"
 import { lireLApercuDuPanier } from "./lecture-du-panier-http"
 import { MonCompteDansLApercu } from "./mon-compte-dans-l-apercu"
-import { usePanierQuiChange } from "./panier-qui-change"
+import { useLectureDuPanier } from "./use-lecture-du-panier"
 
 export function ApercuPanier() {
-  const version = usePanierQuiChange()
-  const [apercu, setApercu] = useState<ApercuDuPanier | null>(null)
-
-  useEffect(() => {
-    const controleur = new AbortController()
-    void lireLApercuDuPanier(controleur.signal).then((corps) => {
-      if (corps === null || controleur.signal.aborted) return
-      setApercu(corps)
-    })
-    return () => controleur.abort()
-  }, [version])
+  const apercu = useLectureDuPanier(lireLApercuDuPanier)
 
   if (apercu === null) return <SqueletteDeLApercu />
 
@@ -51,6 +40,9 @@ export function ApercuPanier() {
     )
   }
 
+  // `lignes` est le nom filaire du contrat #754 ; le code parle d'Articles.
+  const articles = apercu.lignes
+
   return (
     <>
       <section>
@@ -62,10 +54,10 @@ export function ApercuPanier() {
         </h2>
 
         <ul className="mt-4">
-          {apercu.lignes.map((article, rang) => (
+          {articles.map((article, rang) => (
             <li
               // La réponse HTTP ne porte pas de variantId : le couple
-              // produit + variante est le fait stable qui identifie la ligne.
+              // produit + variante est le fait stable qui identifie l'Article.
               key={`${article.productSlug}\u0000${article.variantName}`}
               data-slot="apercu-du-panier-ligne"
               style={{ "--rang-ligne": rang } as CSSProperties}

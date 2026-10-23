@@ -27,6 +27,7 @@ import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
 import { prisma } from "@/lib/db"
 
 import { GET } from "./route"
+import { GET as GET_Apercu } from "./apercu/route"
 
 const NOM_COOKIE_PANIER_VISITEUR = "panier-visiteur"
 const serializePanierVisiteur = (
@@ -37,6 +38,7 @@ const runId = randomUUID().slice(0, 8)
 const emailPrefix = `panier-http-${runId}-`
 
 let userIdA: string
+let produitId: string
 let variantStandard: string
 let variantPremium: string
 
@@ -102,7 +104,12 @@ beforeAll(async () => {
   })
   variantStandard = product.variants.find((v) => v.name === "Standard")!.id
   variantPremium = product.variants.find((v) => v.name === "Premium")!.id
+  produitId = product.id
 })
+
+async function demanderLApercu(): Promise<Response> {
+  return GET_Apercu(new Request("http://localhost/api/panier/apercu"))
+}
 
 beforeEach(async () => {
   resetCookieStoreMock()
@@ -207,5 +214,40 @@ describe("GET /api/panier", () => {
     const reponse = await demanderLeCompteur()
 
     await expect(reponse.json()).resolves.toEqual({ itemCount: 2 })
+  })
+
+  it("garde le compteur et l'Aperçu d'accord quand la Variante d'un Article du panier disparaît", async () => {
+    commeClient(userIdA)
+    const varianteEphemere = await prisma.productVariant.create({
+      data: {
+        name: "Éphémère",
+        sku: `PHT-${runId}-EPH`,
+        priceDelta: 0,
+        stock: 1,
+        productId: produitId,
+      },
+    })
+    await prisma.cartItem.create({
+      data: { userId: userIdA, variantId: varianteEphemere.id, quantity: 4 },
+    })
+
+    await expect((await demanderLeCompteur()).json()).resolves.toEqual({
+      itemCount: 4,
+    })
+    await expect((await demanderLApercu()).json()).resolves.toMatchObject({
+      etat: "plein",
+    })
+
+    // `CartItem.variant` est en `onDelete: Cascade` : supprimer la Variante
+    // supprime l'Article du panier, donc le compteur et l'Aperçu s'accordent.
+    await prisma.productVariant.delete({ where: { id: varianteEphemere.id } })
+
+    await expect((await demanderLeCompteur()).json()).resolves.toEqual({
+      itemCount: 0,
+    })
+    await expect((await demanderLApercu()).json()).resolves.toEqual({
+      etat: "vide",
+      connecte: true,
+    })
   })
 })

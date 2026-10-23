@@ -73,8 +73,23 @@ function boutonAjout(port: PortMutationsDuPanier) {
   return <AjoutDeTest />
 }
 
-function texteDuBadge(): string {
-  return container.querySelector("span")?.textContent ?? ""
+/** Le déclencheur du Bandeau, seul endroit où le badge est monté. */
+function DeclencheurDuPanier() {
+  return (
+    <button type="button" aria-label="Panier">
+      <PanierBadge />
+    </button>
+  )
+}
+
+function declencheurDuPanier(): HTMLButtonElement {
+  return container.querySelector<HTMLButtonElement>(
+    "button[aria-label='Panier']"
+  )!
+}
+
+function badge(): HTMLElement | null {
+  return declencheurDuPanier().querySelector("span")
 }
 
 function bouton(label: string) {
@@ -84,12 +99,12 @@ function bouton(label: string) {
 }
 
 describe("PanierBadge", () => {
-  it("ne prend aucune place tant que le compteur n'est pas arrivé, puis pose le badge absolu", async () => {
+  it("n'affiche le badge qu'une fois le compteur arrivé, dans le déclencheur du Panier", async () => {
     const attente = differe<Response>()
     const fetchMock = vi.fn(() => attente.promesse)
     vi.stubGlobal("fetch", fetchMock)
 
-    rendreSansAttendre(<PanierBadge />)
+    rendreSansAttendre(<DeclencheurDuPanier />)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
@@ -99,17 +114,13 @@ describe("PanierBadge", () => {
         signal: expect.any(AbortSignal),
       })
     )
-    expect(container.innerHTML).toBe("")
+    expect(badge()).toBeNull()
 
     await act(async () => {
       attente.resoudre(reponseJson({ itemCount: 5 }))
     })
 
-    expect(texteDuBadge()).toBe("5")
-    const badge = container.querySelector("span")!
-    expect(badge.className).toContain("absolute")
-    expect(badge.className).toContain("-top-1")
-    expect(badge.className).toContain("-right-1")
+    expect(badge()?.textContent).toBe("5")
   })
 
   it("reste absent pour un Panier vide", async () => {
@@ -118,9 +129,9 @@ describe("PanierBadge", () => {
       vi.fn(async () => reponseJson({ itemCount: 0 }))
     )
 
-    await rendreEtAttendre(<PanierBadge />)
+    await rendreEtAttendre(<DeclencheurDuPanier />)
 
-    expect(container.innerHTML).toBe("")
+    expect(badge()).toBeNull()
   })
 
   it("reste absent quand la lecture échoue, sans laisser de trace", async () => {
@@ -129,9 +140,9 @@ describe("PanierBadge", () => {
       vi.fn(async () => new Response(null, { status: 500 }))
     )
 
-    await rendreEtAttendre(<PanierBadge />)
+    await rendreEtAttendre(<DeclencheurDuPanier />)
 
-    expect(container.innerHTML).toBe("")
+    expect(badge()).toBeNull()
   })
 
   it("relit le compteur après un ajout réussi, sans rechargement de document", async () => {
@@ -144,11 +155,11 @@ describe("PanierBadge", () => {
 
     await rendreEtAttendre(
       <>
-        <PanierBadge />
+        <DeclencheurDuPanier />
         {boutonAjout(port)}
       </>
     )
-    expect(texteDuBadge()).toBe("2")
+    expect(badge()?.textContent).toBe("2")
 
     await act(async () => {
       bouton("Ajouter").click()
@@ -156,7 +167,7 @@ describe("PanierBadge", () => {
     await rejouer()
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(texteDuBadge()).toBe("3")
+    expect(badge()?.textContent).toBe("3")
   })
 
   it("ne relit pas le compteur quand la mutation est refusée", async () => {
@@ -170,7 +181,7 @@ describe("PanierBadge", () => {
 
     await rendreEtAttendre(
       <>
-        <PanierBadge />
+        <DeclencheurDuPanier />
         {boutonAjout(port)}
       </>
     )
@@ -181,6 +192,6 @@ describe("PanierBadge", () => {
     await rejouer()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(texteDuBadge()).toBe("2")
+    expect(badge()?.textContent).toBe("2")
   })
 })

@@ -7,7 +7,7 @@ export interface CompteurDuPanier {
   itemCount: number
 }
 
-export interface LigneDeLApercuDuPanier {
+export interface ArticleDeLApercuDuPanier {
   productSlug: string
   productName: string
   variantName: string
@@ -18,4 +18,5 @@ export interface LigneDeLApercuDuPanier {
 
 export type ApercuDuPanier =
   | { etat: "vide"; connecte: boolean }
-  | { etat: "plein"; connecte: boolean; lignes: LigneDeLApercuDuPanier[] }
+  // `lignes` est le nom filaire du contrat #754 : il ne se traduit pas.
+  | { etat: "plein"; connecte: boolean; lignes: ArticleDeLApercuDuPanier[] }

@@ -177,7 +177,7 @@ describe("GET /api/panier/apercu", () => {
     })
   })
 
-  it("répond les lignes du Panier d'un Client avec les faits que l'Aperçu rend", async () => {
+  it("répond les Articles du panier d'un Client avec les faits que l'Aperçu rend", async () => {
     commeClient(userIdA)
     await prisma.cartItem.create({
       data: { userId: userIdA, variantId: variantStandard, quantity: 2 },
@@ -214,7 +214,7 @@ describe("GET /api/panier/apercu", () => {
     })
   })
 
-  it("répond les lignes du Panier d'un Visiteur porteur du cookie, au prix de sa Variante", async () => {
+  it("répond les Articles du panier d'un Visiteur porteur du cookie, au prix de sa Variante", async () => {
     commeVisiteur()
     setCookie(
       NOM_COOKIE_PANIER_VISITEUR,
@@ -240,7 +240,7 @@ describe("GET /api/panier/apercu", () => {
     })
   })
 
-  it("ne laisse un Visiteur lire les lignes d'un Client, ni l'inverse", async () => {
+  it("ne laisse un Visiteur lire les Articles d'un Client, ni l'inverse", async () => {
     commeVisiteur()
     setCookie(
       NOM_COOKIE_PANIER_VISITEUR,
@@ -255,20 +255,20 @@ describe("GET /api/panier/apercu", () => {
     const panierVisiteur = (await (await demanderLApercu()).json()) as {
       lignes: { variantName: string }[]
     }
-    expect(panierVisiteur.lignes.map((ligne) => ligne.variantName)).toEqual([
-      "Premium",
-    ])
+    expect(panierVisiteur.lignes.map((article) => article.variantName)).toEqual(
+      ["Premium"]
+    )
 
     commeClient(userIdA)
     const panierClient = (await (await demanderLApercu()).json()) as {
       lignes: { variantName: string }[]
     }
-    expect(panierClient.lignes.map((ligne) => ligne.variantName)).toEqual([
+    expect(panierClient.lignes.map((article) => article.variantName)).toEqual([
       "Standard",
     ])
   })
 
-  it("ignore la ligne dont la Variante a disparu, et rend l'état vide si aucune ne survit", async () => {
+  it("ignore l'Article du panier dont la Variante a disparu, et rend l'état vide si aucun ne survit", async () => {
     commeVisiteur()
     setCookie(
       NOM_COOKIE_PANIER_VISITEUR,
