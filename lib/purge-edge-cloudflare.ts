@@ -74,7 +74,13 @@ async function echecDeLaReponse(
   }
 
   if (!reponse.ok) {
-    return { code: "erreur-purge", message: `HTTP ${reponse.status}` }
+    // Même message que `scripts/purger-edge.mjs` : un refus HTTP porte le
+    // message de Cloudflare quand la réponse en contient un.
+    const detail = charge === null ? "" : messageDesErreurs(charge)
+    return {
+      code: "erreur-purge",
+      message: `HTTP ${reponse.status}${detail === "" ? "" : ` — ${detail}`}`,
+    }
   }
   if (charge === null) {
     return { code: "erreur-purge", message: "réponse Cloudflare illisible" }

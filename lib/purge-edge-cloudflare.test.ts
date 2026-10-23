@@ -228,9 +228,16 @@ describe("adaptateur Cloudflare de purge de l'edge", () => {
     })
   })
 
-  it("répond erreur-purge sur un statut HTTP en échec", async () => {
+  it("répond erreur-purge sur un statut HTTP en échec, avec le message de Cloudflare", async () => {
     const transport = vi.fn(async () =>
-      reponseJson({ success: false, errors: [], result: null }, 503)
+      reponseJson(
+        {
+          success: false,
+          errors: [{ code: 1134, message: "Invalid zone" }],
+          result: null,
+        },
+        503
+      )
     )
     const purge = creerPurgeEdgeCloudflare({ env: ENV, transport })
 
@@ -238,7 +245,10 @@ describe("adaptateur Cloudflare de purge de l'edge", () => {
       purge.purger(demande(["https://eguidar.com/"]))
     ).resolves.toEqual({
       ok: false,
-      erreur: { code: "erreur-purge", message: "HTTP 503" },
+      erreur: {
+        code: "erreur-purge",
+        message: "HTTP 503 — Invalid zone",
+      },
     })
   })
 
