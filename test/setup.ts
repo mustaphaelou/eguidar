@@ -3,6 +3,9 @@ import { vi } from "vitest"
 
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
 
+delete process.env.CLOUDFLARE_ZONE_ID
+delete process.env.CLOUDFLARE_API_TOKEN
+
 vi.mock("next/cache", () => ({
   cacheLife: vi.fn(),
   cacheTag: vi.fn(),

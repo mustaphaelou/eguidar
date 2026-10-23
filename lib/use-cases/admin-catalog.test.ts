@@ -81,6 +81,12 @@ describe("admin catalog mutations", () => {
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `p-${runId}-` } },
     })
+    await prisma.category.deleteMany({
+      where: { slug: { startsWith: `branche-${runId}-enfant` } },
+    })
+    await prisma.category.deleteMany({
+      where: { slug: { startsWith: `branche-${runId}-racine` } },
+    })
     await prisma.category.deleteMany({ where: { slug: `categorie-${runId}` } })
     await prisma.$disconnect()
   })
@@ -134,6 +140,7 @@ describe("admin catalog mutations", () => {
     expect(revalidateCatalog).toHaveBeenCalledWith({
       id: product.id,
       slug: product.slug,
+      categoryChain: [{ slug: `categorie-${runId}` }],
     })
   })
 
@@ -355,7 +362,111 @@ describe("admin catalog mutations", () => {
       id: product.id,
       slug: slug("after-rename"),
       previousSlug: slug("before-rename"),
+      categoryChain: [{ slug: `categorie-${runId}` }],
     })
+  })
+
+  it("invalide la chaîne des Structures du Produit, parents compris", async () => {
+    const racineSlug = `branche-${runId}-racine-chaine`
+    const enfantSlug = `branche-${runId}-enfant-chaine`
+    const racine = await prisma.category.create({
+      data: { name: "Branche A", slug: racineSlug },
+    })
+    const enfant = await prisma.category.create({
+      data: { name: "Enfant A", slug: enfantSlug, parentId: racine.id },
+    })
+    const revalidateCatalog = vi.fn()
+
+    const produit = await createProduct(
+      makeInput({ slug: slug("chaine"), categoryId: enfant.id }),
+      { revalidateCatalog }
+    )
+
+    expect(revalidateCatalog).toHaveBeenCalledWith({
+      id: produit.id,
+      slug: slug("chaine"),
+      categoryChain: [{ slug: racineSlug }, { slug: enfantSlug }],
+    })
+  })
+
+  it("nomme l'ancienne branche du Produit quand il change de Structure", async () => {
+    const racineASlug = `branche-${runId}-racine-deplace-a`
+    const enfantASlug = `branche-${runId}-enfant-deplace-a`
+    const racineBSlug = `branche-${runId}-racine-deplace-b`
+    const enfantBSlug = `branche-${runId}-enfant-deplace-b`
+    const racineA = await prisma.category.create({
+      data: { name: "Branche A", slug: racineASlug },
+    })
+    const enfantA = await prisma.category.create({
+      data: { name: "Enfant A", slug: enfantASlug, parentId: racineA.id },
+    })
+    const racineB = await prisma.category.create({
+      data: { name: "Branche B", slug: racineBSlug },
+    })
+    const enfantB = await prisma.category.create({
+      data: { name: "Enfant B", slug: enfantBSlug, parentId: racineB.id },
+    })
+    const produit = await createProduct(
+      makeInput({ slug: slug("deplace"), categoryId: enfantA.id })
+    )
+    const variants = produit.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      priceDelta: v.priceDelta,
+      stock: v.stock,
+    }))
+    const revalidateCatalog = vi.fn()
+
+    await updateProduct(
+      produit.id,
+      makeInput({
+        slug: slug("deplace"),
+        categoryId: enfantB.id,
+        variants,
+      }),
+      { revalidateCatalog }
+    )
+
+    expect(revalidateCatalog).toHaveBeenLastCalledWith({
+      id: produit.id,
+      slug: slug("deplace"),
+      categoryChain: [{ slug: racineBSlug }, { slug: enfantBSlug }],
+      previousCategoryChain: [{ slug: racineASlug }, { slug: enfantASlug }],
+    })
+  })
+
+  it("réussit l'enregistrement sans identifiants Cloudflare et journalise la purge ignorée", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const zoneInitiale = process.env.CLOUDFLARE_ZONE_ID
+    const jetonInitial = process.env.CLOUDFLARE_API_TOKEN
+    delete process.env.CLOUDFLARE_ZONE_ID
+    delete process.env.CLOUDFLARE_API_TOKEN
+    try {
+      const produit = await createProduct(
+        makeInput({ slug: slug("sans-cloudflare") })
+      )
+
+      expect(produit.id).toBeTruthy()
+      expect(
+        fetchSpy.mock.calls.filter(([url]) =>
+          String(url).includes("api.cloudflare.com")
+        )
+      ).toEqual([])
+      expect(
+        warnSpy.mock.calls.some(([message]) =>
+          String(message).includes("purge de l'edge non effectuée")
+        )
+      ).toBe(true)
+    } finally {
+      fetchSpy.mockRestore()
+      warnSpy.mockRestore()
+      if (zoneInitiale === undefined) delete process.env.CLOUDFLARE_ZONE_ID
+      else process.env.CLOUDFLARE_ZONE_ID = zoneInitiale
+      if (jetonInitial === undefined) delete process.env.CLOUDFLARE_API_TOKEN
+      else process.env.CLOUDFLARE_API_TOKEN = jetonInitial
+    }
   })
 
   it("supprime une seule Image produit après le commit de la mise à jour", async () => {
@@ -944,6 +1055,7 @@ describe("admin catalog mutations", () => {
     expect(revalidateCatalog).toHaveBeenCalledWith({
       id: product.id,
       slug: product.slug,
+      categoryChain: [{ slug: `categorie-${runId}` }],
     })
   })
 
@@ -990,6 +1102,7 @@ describe("admin catalog mutations", () => {
     expect(revalidateCatalog).toHaveBeenCalledWith({
       id: product.id,
       slug: product.slug,
+      categoryChain: [{ slug: `categorie-${runId}` }],
     })
   })
 
