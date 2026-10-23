@@ -16,6 +16,9 @@ import { Logo } from "@/components/storefront/logo"
 import { SearchSuggestions } from "@/components/storefront/search-suggestions"
 import { site } from "@/lib/site"
 import { cn } from "@/lib/utils"
+import { ID_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
+import { useApercuDuPanier } from "./apercu-du-panier-provider"
+import { ApercuDuPanierSurface } from "./apercu-du-panier-surface"
 
 export type GlobalNavLink = { href: string; label: string }
 
@@ -23,11 +26,14 @@ export function GlobalNavBar({
   links,
   actions,
   panierBadge,
+  apercuCorps,
 }: {
   links: GlobalNavLink[]
   actions: React.ReactNode
   panierBadge?: React.ReactNode
+  apercuCorps?: React.ReactNode
 }) {
+  const { ouvert, basculer, fermer } = useApercuDuPanier()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -49,10 +55,11 @@ export function GlobalNavBar({
       className={cn(
         "sticky top-0 z-40 transition-colors duration-300",
         scrolled &&
+          !ouvert &&
           "voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]"
       )}
     >
-      <div className="mx-auto flex h-11 max-w-[1024px] items-center justify-between gap-4 px-4 sm:px-[22px]">
+      <div className="relative z-20 mx-auto flex h-11 max-w-[1024px] items-center justify-between gap-4 px-4 sm:px-[22px]">
         <Link
           href="/"
           className="shrink-0"
@@ -84,7 +91,10 @@ export function GlobalNavBar({
             aria-label="Rechercher"
             aria-expanded={searchOpen}
             className={cn(searchOpen && "text-link hover:text-link")}
-            onClick={() => setSearchOpen((open) => !open)}
+            onClick={() => {
+              if (!searchOpen) fermer()
+              setSearchOpen(!searchOpen)
+            }}
           >
             <HugeiconsIcon
               icon={searchOpen ? Cancel01Icon : Search01Icon}
@@ -92,11 +102,16 @@ export function GlobalNavBar({
             />
           </Button>
           <Button
-            render={<Link href="/panier" />}
             variant="ghost"
             size="icon"
             aria-label="Panier"
+            aria-expanded={ouvert}
+            aria-controls={ID_APERCU_DU_PANIER}
             className="relative"
+            onClick={(event) => {
+              setSearchOpen(false)
+              basculer(event.currentTarget)
+            }}
           >
             <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
             {panierBadge}
@@ -160,6 +175,12 @@ export function GlobalNavBar({
             ))}
           </div>
         </nav>
+      ) : null}
+
+      {ouvert ? (
+        <ApercuDuPanierSurface onClose={fermer}>
+          {apercuCorps}
+        </ApercuDuPanierSurface>
       ) : null}
     </header>
   )

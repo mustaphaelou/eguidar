@@ -1,0 +1,69 @@
+"use client"
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+
+type ApercuDuPanierContexte = {
+  ouvert: boolean
+  basculer: (declencheur: HTMLElement | null) => void
+  fermer: () => void
+}
+
+const ApercuDuPanierContext = createContext<ApercuDuPanierContexte | null>(null)
+
+export function ApercuDuPanierProvider({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const [ouvert, setOuvert] = useState(false)
+  const declencheurRef = useRef<HTMLElement | null>(null)
+
+  const fermer = useCallback(() => {
+    if (!ouvert) return
+    setOuvert(false)
+    const declencheur = declencheurRef.current
+    if (declencheur?.isConnected) {
+      declencheur.focus({ preventScroll: true })
+    }
+  }, [ouvert])
+
+  const basculer = useCallback(
+    (declencheur: HTMLElement | null) => {
+      if (declencheur) declencheurRef.current = declencheur
+      if (ouvert) {
+        fermer()
+        return
+      }
+      setOuvert(true)
+    },
+    [ouvert, fermer]
+  )
+
+  const valeur = useMemo(
+    () => ({ ouvert, basculer, fermer }),
+    [ouvert, basculer, fermer]
+  )
+
+  return (
+    <ApercuDuPanierContext.Provider value={valeur}>
+      {children}
+    </ApercuDuPanierContext.Provider>
+  )
+}
+
+export function useApercuDuPanier(): ApercuDuPanierContexte {
+  const contexte = useContext(ApercuDuPanierContext)
+  if (!contexte) {
+    throw new Error(
+      "useApercuDuPanier must be used within an ApercuDuPanierProvider"
+    )
+  }
+  return contexte
+}
