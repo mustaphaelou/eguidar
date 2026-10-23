@@ -56,6 +56,24 @@ describe("lireSession", () => {
     await expect(lireSession()).resolves.toBeNull()
   })
 
+  it("hors rendu, chaque appel relit la session au lieu de réutiliser la précédente", async () => {
+    getSession.mockResolvedValue(sessionDe("admin"))
+    await expect(lireSession()).resolves.toMatchObject({
+      id: "compte-1",
+      role: "admin",
+    })
+
+    getSession.mockResolvedValue({
+      user: { ...COMPTE, id: "compte-2", role: "user" },
+      session: {},
+    })
+
+    await expect(lireSession()).resolves.toMatchObject({
+      id: "compte-2",
+      role: "user",
+    })
+  })
+
   it("ramène le rôle dans l'union typée", async () => {
     getSession.mockResolvedValue(sessionDe("customer"))
 

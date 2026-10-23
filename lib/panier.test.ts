@@ -288,6 +288,25 @@ describe("lirePanier — lecture du Panier via l'interface", () => {
     })
   })
 
+  it("hors rendu, chaque lecture relit l'état : un ajout fait juste avant est visible", async () => {
+    commeClient(userIdA)
+    await expect(lirePanier()).resolves.toEqual({
+      lines: [],
+      subtotal: 0,
+      itemCount: 0,
+    })
+
+    await ajouterArticleAuPanier(variantStandard, 2)
+
+    const panier = await lirePanier()
+    expect(panier.lines).toHaveLength(1)
+    expect(panier.lines[0]).toMatchObject({
+      variantId: variantStandard,
+      quantity: 2,
+    })
+    expect(panier.itemCount).toBe(2)
+  })
+
   it("compose le Prix courant via la règle canonique pure sur une Variante avec écart", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantPremium, 1)
