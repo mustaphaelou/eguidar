@@ -90,7 +90,7 @@ export function GlobalNavBar({
         ouvert ? "z-50" : "z-40",
         scrolled &&
           !ouvert &&
-          "voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]"
+          "voile-depoli filet-bas [--voile-depoli-opacite:80%]"
       )}
     >
       <div className="relative z-20 mx-auto flex h-11 max-w-[1024px] items-center justify-between gap-4 px-4 sm:px-[22px]">
