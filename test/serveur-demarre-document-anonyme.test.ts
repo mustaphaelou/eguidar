@@ -7,6 +7,8 @@ import type { Readable } from "node:stream"
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
+import { SLUG_DE_REPLI } from "@/lib/parametre-de-repli"
+
 /**
  * Le serveur de production démarré pour de vrai, interrogé comme un opérateur :
  * un en-tête `cache-control`, un document rendu, une charge utile RSC. Aucun
@@ -24,6 +26,14 @@ const PRODUITS_PRERENDUS = path.join(
   "app",
   "produit"
 )
+const CATEGORIES_PRERENDUES = path.join(
+  RACINE,
+  ".next",
+  "server",
+  "app",
+  "categorie"
+)
+const ARTICLES_PRERENDUS = path.join(RACINE, ".next", "server", "app", "blog")
 
 const DELAI_DE_BOOT_MS = 90_000
 const INTERVALLE_DE_SONDE_MS = 250
@@ -62,16 +72,36 @@ if (RAISON_SANS_BUILD !== null) {
 }
 
 /** Le premier slug que le build a réellement prérendu, lu dans l'artefact. */
-function premierProduitPrerendu(): string | null {
-  if (!existsSync(PRODUITS_PRERENDUS)) return null
-  const slugs = readdirSync(PRODUITS_PRERENDUS)
-    .filter((fichier) => fichier.endsWith(".rsc") || fichier.endsWith(".html"))
+function premierSlugPrerendu(
+  dossier: string,
+  extensions: readonly string[]
+): string | null {
+  if (!existsSync(dossier)) return null
+  const slugs = readdirSync(dossier)
+    .filter((fichier) =>
+      extensions.some((extension) => fichier.endsWith(extension))
+    )
     .map((fichier) => fichier.slice(0, fichier.lastIndexOf(".")))
+    .filter((slug) => slug !== "[slug]" && slug !== SLUG_DE_REPLI)
     .filter((slug) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug))
   return slugs.sort()[0] ?? null
 }
 
-const PRODUIT = RAISON_SANS_BUILD === null ? premierProduitPrerendu() : null
+const PRODUIT =
+  RAISON_SANS_BUILD === null
+    ? premierSlugPrerendu(PRODUITS_PRERENDUS, [".rsc", ".html"])
+    : null
+const CATEGORIE =
+  RAISON_SANS_BUILD === null
+    ? premierSlugPrerendu(CATEGORIES_PRERENDUES, [".rsc", ".html"])
+    : null
+const ARTICLE_DE_BLOG =
+  RAISON_SANS_BUILD === null
+    ? premierSlugPrerendu(ARTICLES_PRERENDUS, [".rsc"])
+    : null
+
+const ENTETE_DOCUMENT_CACHEABLE =
+  /^s-maxage=900(?:, stale-while-revalidate=\d+)?$/
 
 async function portLibre(): Promise<number> {
   const sonde = createServer()
@@ -198,6 +228,17 @@ function cacheControl(reponse: ReponseLue): string {
   return reponse.entetes.get("cache-control") ?? ""
 }
 
+/** Un document que l'edge a le droit de stocker, rendu par l'origine sans report. */
+function attendreUnDocumentCacheable(reponse: ReponseLue): void {
+  expect(reponse.statut).toBe(200)
+  expect(reponse.entetes.get("content-type")).toMatch(/^text\/html/)
+  const entete = cacheControl(reponse)
+  expect(entete).toMatch(ENTETE_DOCUMENT_CACHEABLE)
+  expect(entete).not.toContain("no-store")
+  expect(entete).not.toContain("private")
+  expect(reponse.entetes.get("x-nextjs-postponed")).toBeNull()
+}
+
 describe.skipIf(RAISON_SANS_BUILD !== null)(
   "le serveur de production sert un document anonyme",
   () => {
@@ -241,6 +282,12 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
       expect(cacheControl(reponse)).toBe("s-maxage=31536000")
     })
 
+    it("sert / et /blog comme des documents partageables, sans report", async () => {
+      for (const chemin of ["/", "/blog"]) {
+        attendreUnDocumentCacheable(await demander(chemin))
+      }
+    })
+
     it("sert un produit prérendu comme un document partageable", async (leContexte) => {
       if (PRODUIT === null) {
         leContexte.skip(
@@ -249,14 +296,29 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
         return
       }
 
-      const reponse = await demander(`/produit/${PRODUIT}`)
-      const entete = cacheControl(reponse)
+      attendreUnDocumentCacheable(await demander(`/produit/${PRODUIT}`))
+    })
 
-      expect(reponse.statut).toBe(200)
-      expect(reponse.entetes.get("content-type")).toMatch(/^text\/html/)
-      expect(entete).toMatch(/^s-maxage=900(?:, stale-while-revalidate=\d+)?$/)
-      expect(entete).not.toContain("no-store")
-      expect(entete).not.toContain("private")
+    it("sert une catégorie prérendue comme un document partageable, sans report", async (leContexte) => {
+      if (CATEGORIE === null) {
+        leContexte.skip(
+          "aucune catégorie prérendue dans .next/server/app/categorie — la sous-assertion catégorie est ignorée"
+        )
+        return
+      }
+
+      attendreUnDocumentCacheable(await demander(`/categorie/${CATEGORIE}`))
+    })
+
+    it("sert un Article de blog prérendu comme un document partageable, sans report", async (leContexte) => {
+      if (ARTICLE_DE_BLOG === null) {
+        leContexte.skip(
+          "aucun Article de blog prérendu dans .next/server/app/blog — la sous-assertion blog est ignorée"
+        )
+        return
+      }
+
+      attendreUnDocumentCacheable(await demander(`/blog/${ARTICLE_DE_BLOG}`))
     })
 
     it("sert le même document à un visiteur sans panier et à un cookie qui porte des articles", async (leContexte) => {

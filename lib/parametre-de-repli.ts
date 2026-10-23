@@ -8,8 +8,9 @@
  * neutre — elle ne nomme ni un produit, ni une catégorie, ni un article — et
  * `slugify` ne peut pas la produire, donc aucun slug réel ne peut la percuter.
  *
- * `estLeSlugDeRepli` laisse #760 distinguer un repli d'un slug réellement
- * inconnu, s'il doit leur donner deux réponses différentes.
+ * `estLeSlugDeRepli` reste le contrat neutre documenté pour un appelant qui
+ * devrait distinguer un repli d'un slug réellement inconnu. #760 n'en a pas eu
+ * besoin : la page traite le repli comme un slug inconnu, sans branche dédiée.
  */
 export const SLUG_DE_REPLI = "__placeholder__"
 

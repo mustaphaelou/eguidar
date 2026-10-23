@@ -72,6 +72,17 @@ describe("règle de cache de la zone edge", () => {
     )
   })
 
+  it("exclut le repli d'un Catalogue vide sur les trois routes dynamiques", () => {
+    const documents = lireArtefact().rules[1]
+
+    expect(documents.expression).toContain(
+      `not ends_with(http.request.uri.path, "/__placeholder__")`
+    )
+    // Une négation de suffixe couvre /produit, /categorie et /blog sans
+    // énumérer les trois chemins.
+    expect(documents.expression.match(/__placeholder__/g)).toHaveLength(1)
+  })
+
   it("honore l'origine et échoue fermée quand elle n'envoie pas de Cache-Control", () => {
     const artefact = lireArtefact()
     const serialise = JSON.stringify(artefact)

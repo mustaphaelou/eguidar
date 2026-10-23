@@ -92,9 +92,11 @@ Elle n'ajoute aucun terme au glossaire.
   de slugs vide à `generateStaticParams` : le build échouerait. Chaque route rend donc
   `__placeholder__` (`lib/parametre-de-repli.ts`), que la page traite comme un slug inconnu.
   Conséquence observée au build de #760 : le repli d'un blog sans article cuit un vrai 404, et ce
-  404 porte `s-maxage` — un document 404 cacheable pour `__placeholder__`, qu'aucun slug réel ne
-  peut percuter puisque `slugify` ne le produit pas. `estLeSlugDeRepli` reste exporté et sans
-  appelant hors de son test : #760 n'a pas eu besoin de distinguer le repli d'un slug inconnu.
+  404 porte `s-maxage` à l'origine — mais la seconde règle de zone exclut tout chemin qui finit par
+  `/__placeholder__` (`/produit`, `/categorie`, `/blog`), donc il n'est jamais stocké à l'edge.
+  Aucun slug réel ne peut le percuter puisque `slugify` ne le produit pas. `estLeSlugDeRepli` reste
+  exporté et sans appelant hors de son test : #760 n'a pas eu besoin de distinguer le repli d'un
+  slug inconnu, et il demeure le contrat neutre documenté.
 
 - **`partialPrefetching` reste non activée.** L'option est absente de `next.config.ts` : elle change
   le comportement de navigation et n'a pas de mesure qui la réclame ici.
@@ -108,11 +110,12 @@ Elle n'ajoute aucun terme au glossaire.
 
 - **Deux règles, dans cet ordre.** `rsc-et-prefetch-hors-cache` contourne le cache dès que `RSC` ou
   `Next-Router-Prefetch` est présent ; `documents-anonymes-eguidar` rend le HTML de l'hôte éligible
-  au cache, exclut `/api/` et `/_next/`, et **répète la négation des deux mêmes têtes**. Ce
-  n'est pas une redondance : les Cache Rules s'empilent et la dernière règle qui fixe un réglage
-  l'emporte, donc le contournement placé en premier ne protège pas l'éligibilité qui le suit. Une
-  requête `RSC: 1` seule répond d'ailleurs un 307 vers `?_rsc` : le document et le payload ne sont
-  pas la même réponse, et une entrée partagée casserait la navigation client.
+  au cache, exclut `/api/`, `/_next/` et tout chemin qui finit par `/__placeholder__`, et **répète
+  la négation des deux mêmes têtes**. Ce n'est pas une redondance : les Cache Rules s'empilent et la
+  dernière règle qui fixe un réglage l'emporte, donc le contournement placé en premier ne protège
+  pas l'éligibilité qui le suit. Une requête `RSC: 1` seule répond d'ailleurs un 307 vers `?_rsc` :
+  le document et le payload ne sont pas la même réponse, et une entrée partagée casserait la
+  navigation client.
 
 - **La troisième décision est une absence.** Aucune règle pour `/_next/image` : les images sont
   l'autre moitié de la latence d'un Visiteur lointain, mais elles ont leur propre risque et leur
@@ -198,8 +201,9 @@ Elle n'ajoute aucun terme au glossaire.
 - **Un Catalogue vide construit quand même.** Le preflight le journalise
   (`[catalogue] joignable mais vide`) et le build continue : les routes dynamiques rendent
   `__placeholder__`, et le document de ce slug est celui observé au ticket #760 — un vrai 404
-  portant `s-maxage`, pas un document de Catalogue. Un premier déploiement ou un Catalogue effacé
-  ne fait pas échouer un build.
+  portant `s-maxage` à l'origine, mais exclu de l'éligibilité par la seconde règle, donc jamais
+  stocké à l'edge ; pas un document de Catalogue. Un premier déploiement ou un Catalogue effacé ne
+  fait pas échouer un build.
 
 - **Le chemin choisi est le secret de build ; le repli est consigné, pas exercé.** #759 autorise un
   repli si la plateforme de déploiement ne peut pas livrer de secret de build : renoncer au prérendu
@@ -232,12 +236,15 @@ Elle n'ajoute aucun terme au glossaire.
   La purge au déploiement, elle, est l'inverse et arrête le déploiement — deux moments, deux
   exigences.
 
-- **La Commande relève les Produits qu'elle draine dans la transaction.** `placeOrder` réserve le
-  stock puis relève les Produits touchés (`produitsTouches(tx, …)`) avant le commit ; aucune ligne
-  de Commande ne stocke de slug et aucune lecture ne suit le commit. Les effets post-commit
-  enchaînent l'e-mail, l'invalidation des surfaces de Commande, puis la purge des documents du
-  Catalogue. Un retour en stock (`updateOrderStatus`) relève de même les Produits réapprovisionnés
-  et purge leurs documents.
+- **La Commande relève les Produits qu'elle draine dans la transaction, pas leur chaîne.**
+  `placeOrder` réserve le stock puis relève les faits que la transaction possède — `{id, slug,
+  categoryId}` par Produit touché (`produitsTouches(tx, …)`) — avant le commit ; aucune ligne de
+  Commande ne stocke de slug et aucune Lecture de la Structure n'a lieu dans la transaction
+  (ADR-0030). Après le commit, une seule `lireStructure()` résout la chaîne de tous les Produits,
+  pas une recherche par article (#757). Les effets post-commit enchaînent l'e-mail, l'invalidation
+  des surfaces de Commande, puis la purge des documents du Catalogue ; un échec de résolution est
+  journalisé et ne défait pas la Commande. Un retour en stock (`updateOrderStatus`) relève de même
+  les Produits réapprovisionnés et purge leurs documents après le commit.
 
 ### #746 garde son comportement accessible ; seule sa décision de rendu est remplacée
 
@@ -321,7 +328,8 @@ Elle n'ajoute aucun terme au glossaire.
   demande à l'origine et n'est pas stockée à l'edge ; un redéploiement la rend prérendue et
   cacheable.
 - Un slug inconnu reste le soft-404 d'ADR-0011, rendu à l'origine et non caché. Le repli
-  `__placeholder__` peut cuire un 404 cacheable, sans effet sur un slug réel.
+  `__placeholder__` cuit un 404 qui porte `s-maxage` mais que la règle de zone exclut, sans effet
+  sur un slug réel.
 - Un déploiement purge la zone avant que le nouveau conteneur ne prenne le trafic. Avec des
   identifiants, une panne de Cloudflare retient le déploiement ; sans identifiants (ou avec
   `PURGE_EDGE=off`), le déploiement passe et ne purge pas.

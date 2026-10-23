@@ -53,7 +53,9 @@ Un document de la boutique est le même pour tous les Visiteurs : Cloudflare peu
 La configuration de zone est versionnée dans [`infra/regle-cache-edge.json`](infra/regle-cache-edge.json), et `infra/regle-cache-edge.ts` la dérive de `HOTE_EDGE` ([`lib/zone-edge.ts`](lib/zone-edge.ts)) — jamais d'une seconde écriture du domaine. Deux règles, dans cet ordre :
 
 1. **`rsc-et-prefetch-hors-cache`** contourne le cache dès que `RSC` ou `Next-Router-Prefetch` est présent.
-2. **`documents-anonymes-eguidar`** rend le HTML de `eguidar.com` éligible au cache, en excluant `/api/` et `/_next/`, et en niant les deux mêmes têtes.
+2. **`documents-anonymes-eguidar`** rend le HTML de `eguidar.com` éligible au cache, en excluant `/api/`, `/_next/` et le repli `/__placeholder__` des trois routes dynamiques, et en niant les deux mêmes têtes.
+
+Le repli `/__placeholder__` — le slug qu'une route dynamique rend quand le Catalogue est vide — répond un 404 qui porte `s-maxage`. La seconde règle nie explicitement tout chemin qui finit par ce segment, sur `/produit`, `/categorie` et `/blog` : ce 404 ne devient jamais une entrée partagée.
 
 Le troisième point de la spécification est une absence : **aucune règle pour `/_next/image`**. Les images relèvent d'un autre ticket.
 

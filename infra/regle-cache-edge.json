@@ -14,7 +14,7 @@
       "ref": "documents-anonymes-eguidar",
       "description": "HTML cache-eligible pour l'hôte, TTL d'origine, Set-Cookie jamais stocké",
       "enabled": true,
-      "expression": "(http.host eq \"eguidar.com\" and not starts_with(http.request.uri.path, \"/api/\") and not starts_with(http.request.uri.path, \"/_next/\") and not any(lower(http.request.headers.names[*])[*] eq \"rsc\") and not any(lower(http.request.headers.names[*])[*] eq \"next-router-prefetch\"))",
+      "expression": "(http.host eq \"eguidar.com\" and not starts_with(http.request.uri.path, \"/api/\") and not starts_with(http.request.uri.path, \"/_next/\") and not ends_with(http.request.uri.path, \"/__placeholder__\") and not any(lower(http.request.headers.names[*])[*] eq \"rsc\") and not any(lower(http.request.headers.names[*])[*] eq \"next-router-prefetch\"))",
       "action": "set_cache_settings",
       "action_parameters": {
         "cache": true,

@@ -1,3 +1,4 @@
+import { SLUG_DE_REPLI } from "@/lib/parametre-de-repli"
 import { HOTE_EDGE } from "@/lib/zone-edge"
 
 export const TETES_RSC = ["rsc", "next-router-prefetch"] as const
@@ -46,6 +47,15 @@ function gardeRscEtPrefetch(): string {
   return TETES_RSC.map((tete) => `not ${presence(tete)}`).join(" and ")
 }
 
+/**
+ * Le repli d'un Catalogue vide répond un 404 qui porte `s-maxage` ; il ne doit
+ * jamais devenir une entrée partagée. Les trois routes dynamiques finissent par
+ * le même segment, donc une seule négation de suffixe les couvre.
+ */
+function gardeSlugDeRepli(): string {
+  return `not ends_with(http.request.uri.path, "/${SLUG_DE_REPLI}")`
+}
+
 export function expressionDocumentsAnonymes(): string {
   return (
     "(" +
@@ -53,6 +63,7 @@ export function expressionDocumentsAnonymes(): string {
       `http.host eq "${HOTE_EDGE}"`,
       `not starts_with(http.request.uri.path, "/api/")`,
       `not starts_with(http.request.uri.path, "/_next/")`,
+      gardeSlugDeRepli(),
       gardeRscEtPrefetch(),
     ].join(" and ") +
     ")"
