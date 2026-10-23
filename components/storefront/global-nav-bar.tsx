@@ -24,12 +24,10 @@ export type GlobalNavLink = { href: string; label: string }
 
 export function GlobalNavBar({
   links,
-  actions,
   panierBadge,
   apercuCorps,
 }: {
   links: GlobalNavLink[]
-  actions: React.ReactNode
   panierBadge?: React.ReactNode
   apercuCorps?: React.ReactNode
 }) {
@@ -84,7 +82,6 @@ export function GlobalNavBar({
         </nav>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {actions}
           <Button
             variant="ghost"
             size="icon"

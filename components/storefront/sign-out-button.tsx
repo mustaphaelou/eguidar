@@ -3,13 +3,16 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Logout03Icon } from "@hugeicons/core-free-icons"
-
 import { signOut } from "@/lib/client"
 import { Button } from "@/components/ui/button"
 
-export function SignOutButton() {
+export function SignOutButton({
+  className,
+  onAvant,
+}: {
+  className?: string
+  onAvant?: () => void
+}) {
   const router = useRouter()
   const [pending, setPending] = React.useState(false)
 
@@ -31,15 +34,12 @@ export function SignOutButton() {
       aria-label="Déconnexion"
       title="Déconnexion"
       disabled={pending}
+      className={className}
       onClick={() => {
+        onAvant?.()
         void handleSignOut()
       }}
     >
-      <HugeiconsIcon
-        icon={Logout03Icon}
-        strokeWidth={2}
-        data-icon="inline-start"
-      />
       Déconnexion
     </Button>
   )

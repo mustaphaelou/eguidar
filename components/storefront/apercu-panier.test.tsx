@@ -42,6 +42,18 @@ vi.mock("next/link", () => ({
   ),
 }))
 
+const { openLoginMock } = vi.hoisted(() => ({ openLoginMock: vi.fn() }))
+
+vi.mock("@/components/auth/auth-dialogs", () => ({
+  useAuthDialogs: () => ({ openLogin: openLoginMock }),
+}))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}))
+
+vi.mock("@/lib/client", () => ({ signOut: vi.fn() }))
+
 import { resetCookieStoreMock, setCookie } from "@/test/cookie-store"
 
 import { ApercuPanier } from "./apercu-panier"
@@ -284,5 +296,41 @@ describe("ApercuPanier", () => {
     expect(badgeHtml).toContain(">5</span>")
     expect(corpsHtml).toContain("2 × 1.299,00\u00A0MAD")
     expect(corpsHtml).toContain("3 × 1.299,00\u00A0MAD")
+  })
+})
+
+describe("Mon compte dans l'Aperçu", () => {
+  it("rend le groupe Mon compte d'un Visiteur avec Commandes, Mon profil et Connexion", async () => {
+    commeVisiteur()
+
+    const html = await renderApercu()
+
+    expect(html).toContain('aria-labelledby="mon-compte-dans-l-apercu"')
+    expect(html).toContain(">Mon compte</h2>")
+    expect(html).toContain('href="/commandes"')
+    expect(html).toContain(">Commandes</a>")
+    expect(html).toContain('href="/profil"')
+    expect(html).toContain(">Mon profil</a>")
+    expect(html).toContain(">Connexion</button>")
+    expect(html).not.toContain("Déconnexion")
+    expect(html.indexOf("Mon compte")).toBeGreaterThan(
+      html.indexOf("Votre panier est vide")
+    )
+  })
+
+  it("rend le groupe d'un Client avec Commandes, Mon profil et Déconnexion", async () => {
+    commeClient(userIdA)
+
+    const html = await renderApercu()
+
+    expect(html).toContain('aria-labelledby="mon-compte-dans-l-apercu"')
+    expect(html).toContain(">Mon compte</h2>")
+    expect(html).toContain('href="/commandes"')
+    expect(html).toContain(">Commandes</a>")
+    expect(html).toContain('href="/profil"')
+    expect(html).toContain(">Mon profil</a>")
+    expect(html).toContain(">Déconnexion</button>")
+    expect(html).not.toContain("Connexion</button>")
+    expect(html).not.toContain('aria-label="Connexion"')
   })
 })

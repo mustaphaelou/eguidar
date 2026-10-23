@@ -94,10 +94,8 @@ function dialogue() {
 }
 
 describe("GlobalNavBar", () => {
-  it("rend le logo, les liens et les actions rendues par le serveur", () => {
-    const errors = renderCapturingErrors(
-      <GlobalNavBar links={links} actions={<span>actions</span>} />
-    )
+  it("rend le logo et les liens", () => {
+    const errors = renderCapturingErrors(<GlobalNavBar links={links} />)
 
     const home = container.querySelector<HTMLAnchorElement>("a[href='/']")!
     expect(home.getAttribute("aria-label")).toBe("eguidar.com — Accueil")
@@ -109,12 +107,23 @@ describe("GlobalNavBar", () => {
 
     expect(container.textContent).toContain("À propos")
     expect(container.textContent).toContain("Contact")
-    expect(container.textContent).toContain("actions")
     expect(errors).toEqual([])
   })
 
+  it("ne porte ni Connexion, ni profil, ni Déconnexion", () => {
+    renderCapturingErrors(<GlobalNavBar links={links} />)
+
+    expect(container.textContent).not.toContain("Connexion")
+    expect(container.textContent).not.toContain("Déconnexion")
+    expect(container.querySelector("a[href='/profil']")).toBeNull()
+    expect(container.querySelector("button[aria-label='Connexion']")).toBeNull()
+    expect(
+      container.querySelector("button[aria-label='Déconnexion']")
+    ).toBeNull()
+  })
+
   it("ouvre la Recherche avec son déclencheur et la referme sur Escape", () => {
-    renderCapturingErrors(<GlobalNavBar links={links} actions={null} />)
+    renderCapturingErrors(<GlobalNavBar links={links} />)
 
     const toggle = boutonRecherche()
     act(() => toggle.click())
@@ -133,7 +142,7 @@ describe("GlobalNavBar", () => {
   })
 
   it("ouvre et referme le menu mobile", () => {
-    renderCapturingErrors(<GlobalNavBar links={links} actions={null} />)
+    renderCapturingErrors(<GlobalNavBar links={links} />)
 
     const menu = container.querySelector<HTMLButtonElement>(
       "button[aria-label='Menu']"
@@ -149,7 +158,7 @@ describe("GlobalNavBar", () => {
 
   it("le panier est un bouton dépliant qui ne monte le corps qu’une fois ouvert", () => {
     const errors = renderCapturingErrors(
-      <GlobalNavBar links={links} actions={null} apercuCorps={corpsDeTest()} />
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
 
     const panier = declencheurDuPanier()
@@ -173,7 +182,7 @@ describe("GlobalNavBar", () => {
 
   it("ferme l’Aperçu sur Escape et rend le focus au déclencheur", () => {
     renderCapturingErrors(
-      <GlobalNavBar links={links} actions={null} apercuCorps={corpsDeTest()} />
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
 
     const panier = declencheurDuPanier()
@@ -195,7 +204,7 @@ describe("GlobalNavBar", () => {
 
   it("ferme l’Aperçu quand on clique le Voile sombre", () => {
     const errors = renderCapturingErrors(
-      <GlobalNavBar links={links} actions={null} apercuCorps={corpsDeTest()} />
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
 
     const panier = declencheurDuPanier()
@@ -213,7 +222,7 @@ describe("GlobalNavBar", () => {
 
   it("referme l’Aperçu au second clic sur le panier", () => {
     renderCapturingErrors(
-      <GlobalNavBar links={links} actions={null} apercuCorps={corpsDeTest()} />
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
 
     const panier = declencheurDuPanier()
@@ -230,7 +239,6 @@ describe("GlobalNavBar", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}
-        actions={null}
         apercuCorps={
           <div data-testid="corps">
             <h2 id={ID_TITRE_APERCU_DU_PANIER}>Mon panier</h2>
@@ -262,7 +270,7 @@ describe("GlobalNavBar", () => {
 
   it("la Recherche et l’Aperçu s’excluent : ouvrir l’un ferme l’autre", () => {
     renderCapturingErrors(
-      <GlobalNavBar links={links} actions={null} apercuCorps={corpsDeTest()} />
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
     )
 
     const panier = declencheurDuPanier()
@@ -287,7 +295,6 @@ describe("GlobalNavBar", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}
-        actions={null}
         apercuCorps={
           <div data-testid="corps">
             <h2 id={ID_TITRE_APERCU_DU_PANIER}>Mon panier</h2>
@@ -328,7 +335,6 @@ describe("GlobalNavBar", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}
-        actions={null}
         apercuCorps={
           <div data-testid="corps">
             <h2 id={ID_TITRE_APERCU_DU_PANIER}>Mon panier</h2>
@@ -354,7 +360,6 @@ describe("GlobalNavBar", () => {
     renderCapturingErrors(
       <GlobalNavBar
         links={links}
-        actions={null}
         panierBadge={<span data-testid="badge">3</span>}
       />
     )
