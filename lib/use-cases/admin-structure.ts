@@ -25,14 +25,14 @@ export interface CategoryInput {
 
 export interface StructureEffects {
   reindexProducts(products: IndexableProduct[]): Promise<void>
-  revalidateCategories(): void
+  revalidateCategories(): Promise<void> | void
   deleteImage(url: string): Promise<void>
 }
 
 const defaultStructureEffects: StructureEffects = {
   reindexProducts: indexProductDocuments,
   revalidateCategories() {
-    invalidateStructure()
+    return invalidateStructure()
   },
   async deleteImage(url) {
     try {
