@@ -175,13 +175,25 @@
 }
 
 .voile-depoli {
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(var(--voile-depoli-saturation, 180%))
+    blur(var(--voile-depoli-flou, 20px));
+  backdrop-filter: saturate(var(--voile-depoli-saturation, 180%))
+    blur(var(--voile-depoli-flou, 20px));
   background-color: color-mix(
     in oklch,
     var(--secondary) var(--voile-depoli-opacite, 72%),
     transparent
   );
+}
+
+/* Une grande feuille lit comme un matériau plus épais : le même voile, un
+   flou plus large. La transparence est une préférence, pas un décor. */
+@media (prefers-reduced-transparency: reduce) {
+  .voile-depoli {
+    background-color: var(--secondary);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* Le filet se peint, il ne se pose pas. La bordure que portait le Bandeau
@@ -258,9 +270,9 @@
    réduit, où la hauteur, la montée et le décalage ne s'exécutent pas. */
 [data-slot="voile-sombre"] {
   animation-name: apercu-voile;
-  animation-duration: 320ms;
-  animation-delay: 80ms;
-  animation-timing-function: ease-out;
+  animation-duration: 300ms;
+  animation-delay: 60ms;
+  animation-timing-function: var(--ease-out);
   animation-fill-mode: both;
 }
 
@@ -268,15 +280,15 @@
   [data-slot="apercu-du-panier"] {
     overflow: clip;
     animation-name: apercu-hauteur;
-    animation-duration: 320ms;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   [data-slot="apercu-du-panier-ligne"] {
     animation-name: apercu-ligne;
-    animation-duration: 320ms;
-    animation-delay: calc(var(--rang-ligne, 0) * 20ms);
-    animation-timing-function: ease-out;
+    animation-duration: 360ms;
+    animation-delay: calc(var(--rang-ligne, 0) * 24ms);
+    animation-timing-function: var(--ease-out);
     animation-fill-mode: both;
   }
 }
@@ -320,12 +332,99 @@
 @keyframes apercu-ligne {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-6px);
   }
 
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* L'icône du Panier répond au clic : elle s'enfonce, dépasse sa taille, puis se
+   pose. Les images sont échantillonnées d'un ressort amorti (réponse 0,35 s,
+   rebond 0,75) plutôt que d'une courbe unique, parce que l'aller-retour est le
+   mouvement. Le nœud est remonté à chaque clic, donc le ressort rejoue. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="icone-du-panier"][data-mouvement="ouverture"] {
+    animation-name: panier-ouverture;
+    animation-duration: 520ms;
+    animation-timing-function: linear;
+  }
+
+  [data-slot="icone-du-panier"][data-mouvement="fermeture"] {
+    animation-name: panier-fermeture;
+    animation-duration: 420ms;
+    animation-timing-function: linear;
+  }
+}
+
+@keyframes panier-ouverture {
+  0% {
+    scale: 0.86;
+    rotate: 0deg;
+  }
+
+  12% {
+    scale: 0.93;
+    rotate: -1deg;
+  }
+
+  23% {
+    scale: 1.027;
+    rotate: -3.5deg;
+  }
+
+  35% {
+    scale: 1.061;
+    rotate: -5deg;
+  }
+
+  52% {
+    scale: 1.007;
+    rotate: -1deg;
+  }
+
+  69% {
+    scale: 0.973;
+    rotate: 1.5deg;
+  }
+
+  86% {
+    scale: 0.998;
+    rotate: 0.4deg;
+  }
+
+  100% {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes panier-fermeture {
+  0% {
+    scale: 0.9;
+    rotate: 0deg;
+  }
+
+  28% {
+    scale: 1.045;
+    rotate: 3deg;
+  }
+
+  55% {
+    scale: 1.008;
+    rotate: -1deg;
+  }
+
+  78% {
+    scale: 0.994;
+    rotate: 0.4deg;
+  }
+
+  100% {
+    scale: 1;
+    rotate: 0deg;
   }
 }
 

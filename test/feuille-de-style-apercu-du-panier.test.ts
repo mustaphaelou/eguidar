@@ -69,14 +69,14 @@ describe("la feuille de l'Aperçu du Panier", () => {
     feuille = await compilerLaFeuilleDeStyle()
   })
 
-  it("ouvre sur sa hauteur en cubic-bezier(0.4, 0, 0.6, 1), seulement quand le mouvement est accepté", () => {
+  it("ouvre sur sa hauteur en cubic-bezier(0.32, 0.72, 0, 1), seulement quand le mouvement est accepté", () => {
     const regles = reglesDe(feuille, SELECTEUR_FEUILLE)
     const acceptees = dansRequete(regles, REQUETE_MOUVEMENT_ACCEPTE)
 
     expect(valeursDe(acceptees, "animation-name")).toEqual(["apercu-hauteur"])
-    expect(valeursDe(acceptees, "animation-duration")).toEqual(["320ms"])
+    expect(valeursDe(acceptees, "animation-duration")).toEqual(["380ms"])
     expect(valeursDe(acceptees, "animation-timing-function")).toEqual([
-      "cubic-bezier(0.4, 0, 0.6, 1)",
+      "cubic-bezier(0.32, 0.72, 0, 1)",
     ])
 
     const images = imagesDe(feuille, "apercu-hauteur")
@@ -109,7 +109,10 @@ describe("les lignes de l'Aperçu du Panier", () => {
     const acceptees = dansRequete(regles, REQUETE_MOUVEMENT_ACCEPTE)
 
     expect(valeursDe(acceptees, "animation-name")).toEqual(["apercu-ligne"])
-    expect(valeursDe(acceptees, "animation-duration")).toEqual(["320ms"])
+    expect(valeursDe(acceptees, "animation-duration")).toEqual(["360ms"])
+    expect(valeursDe(acceptees, "animation-timing-function")).toEqual([
+      "var(--ease-out)",
+    ])
     expect(valeursDe(acceptees, "animation-fill-mode")).toEqual(["both"])
 
     expect(valeursDe(horsRequete(regles), "animation-name")).toEqual([])
@@ -122,17 +125,17 @@ describe("les lignes de l'Aperçu du Panier", () => {
     const images = imagesDe(feuille, "apercu-ligne")
 
     expect(valeursDe(images, "opacity")).toEqual(["0", "1"])
-    expect(valeursDe(images, "transform")).toEqual(["translateY(-4px)", "none"])
+    expect(valeursDe(images, "transform")).toEqual(["translateY(-6px)", "none"])
   })
 
-  it("décale chaque ligne de 20 ms à partir de son rang", () => {
+  it("décale chaque ligne de 24 ms à partir de son rang", () => {
     const acceptees = dansRequete(
       reglesDe(feuille, SELECTEUR_LIGNE),
       REQUETE_MOUVEMENT_ACCEPTE
     )
 
     expect(valeursDe(acceptees, "animation-delay")).toEqual([
-      "calc(var(--rang-ligne, 0) * 20ms)",
+      "calc(var(--rang-ligne, 0) * 24ms)",
     ])
   })
 })
@@ -144,13 +147,16 @@ describe("le Voile sombre de l'Aperçu du Panier", () => {
     feuille = await compilerLaFeuilleDeStyle()
   })
 
-  it("fond sur son opacité en 320 ms après 80 ms", () => {
+  it("fond sur son opacité en 300 ms après 60 ms", () => {
     const regles = reglesDe(feuille, SELECTEUR_VOILE)
 
     expect(regles.length).toBeGreaterThan(0)
     expect(valeursDe(regles, "animation-name")).toEqual(["apercu-voile"])
-    expect(valeursDe(regles, "animation-duration")).toEqual(["320ms"])
-    expect(valeursDe(regles, "animation-delay")).toEqual(["80ms"])
+    expect(valeursDe(regles, "animation-duration")).toEqual(["300ms"])
+    expect(valeursDe(regles, "animation-delay")).toEqual(["60ms"])
+    expect(valeursDe(regles, "animation-timing-function")).toEqual([
+      "var(--ease-out)",
+    ])
     expect(valeursDe(regles, "animation-fill-mode")).toEqual(["both"])
 
     const images = imagesDe(feuille, "apercu-voile")

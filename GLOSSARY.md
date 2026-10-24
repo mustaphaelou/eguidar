@@ -11,7 +11,7 @@ La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et
 _Avoid_: header, navbar, barre de navigation, barre du haut
 
 **Voile dépoli**:
-Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation** et les modales de Connexion et d'Inscription. Un seul matériau et une seule recette : seule son opacité varie d'une surface à l'autre. Il ne porte aucun contenu, et le porter n'est jamais un choix de la surface — le **Bandeau de navigation** ne le porte qu'une fois la page défilée, les modales en permanence. Une feuille plein cadre qui recouvre la page, comme le panneau de Filtres sur mobile, ne le porte pas : elle a son propre fond.
+Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation** et les modales de Connexion et d'Inscription. Un seul matériau et une seule recette : son épaisseur varie d'une surface à l'autre — opacité, flou et saturation. Il ne porte aucun contenu, et le porter n'est jamais un choix de la surface — le **Bandeau de navigation** ne le porte qu'une fois la page défilée, les modales en permanence. Une feuille plein cadre qui recouvre la page, comme le panneau de Filtres sur mobile, ne le porte pas : elle a son propre fond. L'**Aperçu du Panier** fait exception : sa feuille porte le matériau, plus épais, parce qu'elle fournit le fond du **Bandeau de navigation**.
 _Avoid_: glass, glassmorphism, verre dépoli, frosted glass, backdrop blur
 
 **Voile sombre**:
@@ -116,7 +116,8 @@ et Connexion ou Déconnexion). Il montre, il ne mute rien : la Page du Panier re
 où l'on modifie un Article du panier, et le seul où l'on commande. Une seule feuille, pleine largeur
 sous le Bandeau de navigation et posée sur le Voile sombre ; sur mobile elle prend tout l'écran, et
 c'est le menu du Bandeau qui la referme. Tant qu'il est ouvert, il fournit le fond du Bandeau de
-navigation, qui ne porte alors pas son Voile dépoli.
+navigation, qui ne porte alors pas son Voile dépoli : la feuille porte elle-même le matériau, plus
+épais que celui du Bandeau.
 _Avoid_: flyout, mini-panier, panier volant, tiroir du panier, bag, dropdown du panier
 
 **Propriétaire du panier**:

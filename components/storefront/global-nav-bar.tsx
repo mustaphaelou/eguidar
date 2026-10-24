@@ -37,12 +37,20 @@ export function GlobalNavBar({
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [mouvementDuPanier, setMouvementDuPanier] = useState<{
+    sens: "ouverture" | "fermeture"
+    cle: number
+  } | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const panierRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLButtonElement>(null)
   const apercuMobileOuvert = ouvert && !estBureau
 
   const fermerLApercu = useCallback(() => {
+    setMouvementDuPanier((precedent) => ({
+      sens: "fermeture",
+      cle: (precedent?.cle ?? 0) + 1,
+    }))
     fermer()
     const retour = estBureau ? panierRef.current : menuRef.current
     retour?.focus({ preventScroll: true })
@@ -55,6 +63,10 @@ export function GlobalNavBar({
       fermerLApercu()
       return
     }
+    setMouvementDuPanier((precedent) => ({
+      sens: "ouverture",
+      cle: (precedent?.cle ?? 0) + 1,
+    }))
     basculer()
   }
 
@@ -151,7 +163,12 @@ export function GlobalNavBar({
               onClick={basculerLApercu}
             >
               {/* Le badge reste hors du span : `scale` en fait le bloc conteneur du badge absolu. */}
-              <span className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90">
+              <span
+                key={mouvementDuPanier?.cle ?? 0}
+                data-slot="icone-du-panier"
+                data-mouvement={mouvementDuPanier?.sens}
+                className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90"
+              >
                 <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
               </span>
               {panierBadge}

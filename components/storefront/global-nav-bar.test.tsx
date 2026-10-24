@@ -514,6 +514,35 @@ describe("GlobalNavBar", () => {
     expect(document.activeElement).not.toBe(panier)
   })
 
+  it("fait répondre l'icône du Panier à chaque bascule", () => {
+    renderCapturingErrors(
+      <GlobalNavBar links={links} apercuCorps={corpsDeTest()} />
+    )
+
+    const icone = () =>
+      declencheurDuPanier().querySelector<HTMLElement>(
+        "[data-slot='icone-du-panier']"
+      )!
+
+    expect(icone().hasAttribute("data-mouvement")).toBe(false)
+
+    act(() => declencheurDuPanier().click())
+    expect(icone().getAttribute("data-mouvement")).toBe("ouverture")
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+    expect(icone().getAttribute("data-mouvement")).toBe("fermeture")
+
+    act(() => declencheurDuPanier().click())
+    expect(icone().getAttribute("data-mouvement")).toBe("ouverture")
+
+    act(() => declencheurDuPanier().click())
+    expect(icone().getAttribute("data-mouvement")).toBe("fermeture")
+  })
+
   it("rend le badge du panier dans le déclencheur", () => {
     renderCapturingErrors(
       <GlobalNavBar
