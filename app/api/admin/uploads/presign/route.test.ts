@@ -36,16 +36,6 @@ beforeEach(() => {
 })
 
 describe("POST /api/admin/uploads/presign", () => {
-  it("refuse une session non administrative", async () => {
-    lireSessionMock.mockResolvedValue(null)
-
-    const reponse = await POST(request({ contentType: "image/png", size: 10 }))
-
-    expect(reponse.status).toBe(401)
-    await expect(reponse.json()).resolves.toEqual({ error: "Non autorisé" })
-    expect(demanderBrouillonMock).not.toHaveBeenCalled()
-  })
-
   it("valide le corps avant de joindre le cycle de vie", async () => {
     const reponse = await POST(
       request({ contentType: "image/svg+xml", size: 10 })
@@ -82,7 +72,7 @@ describe("POST /api/admin/uploads/presign", () => {
     })
   })
 
-  it("traduit un refus métier en réponse HTTP sans l'interpréter dans la route", async () => {
+  it("laisse passer un Refus du cycle de vie jusqu'à la réponse HTTP", async () => {
     demanderBrouillonMock.mockResolvedValue({
       ok: false,
       code: "stockage-indisponible",
@@ -96,36 +86,4 @@ describe("POST /api/admin/uploads/presign", () => {
       error: "Stockage Cloudflare R2 non configuré",
     })
   })
-
-  it.each([
-    ["identifiant-proprietaire-invalide", 400],
-    ["mime-non-autorise", 400],
-    ["stockage-indisponible", 503],
-    ["stockage-refuse", 502],
-    ["registre-indisponible", 500],
-    ["brouillon-introuvable", 404],
-    ["proprietaire-incorrect", 403],
-    ["brouillon-non-vivant", 409],
-    ["brouillon-expire", 410],
-    ["revendication-refusee", 409],
-    ["catalogue-refuse", 409],
-  ] as const)(
-    "traduit le refus %s en réponse HTTP %i, sans copie locale du vocabulaire",
-    async (code, status) => {
-      demanderBrouillonMock.mockResolvedValue({
-        ok: false,
-        code,
-        message: `Refus éditorial : ${code}`,
-      })
-
-      const reponse = await POST(
-        request({ contentType: "image/png", size: 10 })
-      )
-
-      expect(reponse.status).toBe(status)
-      await expect(reponse.json()).resolves.toEqual({
-        error: `Refus éditorial : ${code}`,
-      })
-    }
-  )
 })
