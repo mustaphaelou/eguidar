@@ -13,7 +13,7 @@ const presignSchema = z.object({
 
 export const POST = adminJsonRoute({
   schema: presignSchema,
-  label: "[uploads] presign",
+  logLabel: "[uploads] presign",
   failureMessage: "Échec de la préparation du téléversement",
   statuses: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
   run: async (input, client) => {
