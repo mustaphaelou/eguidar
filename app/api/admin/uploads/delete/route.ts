@@ -13,7 +13,7 @@ const relacherSchema = z
 
 export const DELETE = adminJsonRoute({
   schema: relacherSchema,
-  label: "[uploads] delete",
+  logLabel: "[uploads] delete",
   failureMessage: "Échec de la libération du Brouillon d'Image produit",
   statuses: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
   run: async (input, client) => {

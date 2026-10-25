@@ -60,14 +60,14 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   recopiée.
 
 - **L'interface tient en cinq faits, et la route les déclare.** `adminJsonRoute` prend `schema`,
-  `label`, `failureMessage`, `statuses` et `run`, et rend
+  `logLabel`, `failureMessage`, `statuses` et `run`, et rend
   `(request: Request) => Promise<Response>`. Le schéma est structurel (`safeParse`) : la porte
   n'importe pas Zod, et le langage du transport — le type de contenu et la taille de
-  pré-signation, le corps strict de libération — reste dans le module de route. `label` est
-  `[uploads] presign` ou `[uploads] delete`, `failureMessage` est la copie 500 de la route —
-  « Échec de la préparation du téléversement » ou « Échec de la libération du Brouillon d'Image
-  produit » —, et `statuses` est la table de statuts du cycle de vie,
-  `STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT`.
+  pré-signation, le corps strict de libération — reste dans le module de route. `logLabel` est le
+  libellé de la ligne de journal du 500 — `[uploads] presign` ou `[uploads] delete` —,
+  `failureMessage` est la copie 500 de la route — « Échec de la préparation du téléversement » ou
+  « Échec de la libération du Brouillon d'Image produit » —, et `statuses` est la table de statuts
+  du cycle de vie, `STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT`.
 
 - **L'opération reçoit l'entrée analysée et le Client, et rend un résultat typé.**
   `run(input, client)` rend `{ ok: true; body }` ou `{ ok: false; code; message }`. Le **Client**
@@ -80,7 +80,7 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   illisible → 400 `{ error: "Corps de requête invalide" }` ; corps qui échoue au schéma → 400
   `{ error: "Requête invalide" }`, sans jamais relayer les griefs de validation ; Refus de
   l'opération → le statut de `statuses[code]` avec `{ error: message }` ; succès → 200 avec le
-  corps de l'opération ; opération qui lève → une seule ligne `console.error(label, error)`, puis
+  corps de l'opération ; opération qui lève → une seule ligne `console.error(logLabel, error)`, puis
   500 `{ error: failureMessage }`. Le succès est fixe à 200 : les deux routes répondaient déjà
   200, et aucune option de statut n'est ajoutée.
 
@@ -99,7 +99,11 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   `CONTENT_TYPES_IMAGE_PRODUIT` (`lib/r2.ts`), la liste que le stockage possède déjà et dont le
   cycle de vie dérive son prédicat. Ajouter un format est une édition dans `lib/r2.ts` ; le
   schéma, le cycle de vie et le stockage le lisent ensemble. La liste littérale de la route
-  disparaît.
+  disparaît. La suite de frontière du cycle de vie,
+  `lib/cycle-vie-image-produit-frontiere.test.ts`, inscrit la pré-signation sur la liste blanche
+  des importateurs de `lib/r2.ts` pour ce seul vocabulaire : sa liaison nommée y est épinglée à
+  `CONTENT_TYPES_IMAGE_PRODUIT`, et `getR2Client` comme `stockageImageProduitR2` lui restent
+  interdits.
 
 - **L'enveloppe a une seule suite ; les routes gardent leur langage.**
   `lib/use-cases/admin-json-route.test.ts` épingle, avec un schéma et une opération factices et en
@@ -112,11 +116,11 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
 
 - **La porte est non optionnelle.** `app/api/admin/uploads/frontiere.test.ts` lit les sources de
   production et nomme le contournement : une route surveillée qui importe ou lit la **Session
-  courante**, vérifie le rôle, construit `Response.json(...)` ou `new Response(...)`, cesse
-  d'importer `adminJsonRoute`, ou n'exporte plus la valeur de la porte, échoue. La suite est non
-  vacuaire — elle voit les deux routes et ne signale rien sur le corpus réel —, et des sources
-  simulées prouvent qu'elle mord sur chaque forme. Une troisième route JSON d'Administration
-  rejoint la liste surveillée.
+  courante**, vérifie le rôle, construit `Response.json(...)`, `new Response(...)` ou une variante
+  `NextResponse`, cesse d'importer `adminJsonRoute`, ou n'exporte plus la valeur de la porte,
+  échoue. La suite est non vacuant : elle voit les deux routes et ne signale rien sur le corpus
+  réel, et des sources simulées prouvent qu'elle mord sur chaque forme. Une troisième route JSON
+  d'Administration rejoint la liste surveillée.
 
 - **Le contrat HTTP ne bouge pas.** Les chemins et méthodes
   (`POST /api/admin/uploads/presign`, `DELETE /api/admin/uploads/delete`), les corps de requête,
@@ -160,7 +164,7 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
 - L'ordre et la copie de l'enveloppe sont uniques : 401 `Non autorisé` ; 400 `Corps de requête
   invalide` ; 400 `Requête invalide`, sans griefs de validation ; Refus au statut de la table
   de la route avec `{ error: message }` ; 200 fixe avec le corps ; une ligne
-  `console.error(label, error)` puis 500 avec la copie de la route.
+  `console.error(logLabel, error)` puis 500 avec la copie de la route.
 - Le code de Refus est générique sur la table de statuts de la route ; un code sans statut ne
   compile pas.
 - La table de statuts reste celle du cycle de vie, `STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT` ;

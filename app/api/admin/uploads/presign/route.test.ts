@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const { demanderBrouillonMock, lireSessionMock } = vi.hoisted(() => ({
   demanderBrouillonMock: vi.fn(),
@@ -33,6 +33,10 @@ beforeEach(() => {
     role: "admin",
   })
   demanderBrouillonMock.mockReset()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe("POST /api/admin/uploads/presign", () => {
@@ -70,6 +74,20 @@ describe("POST /api/admin/uploads/presign", () => {
       contentType: "image/png",
       size: 10,
     })
+  })
+
+  it("répond 500 avec sa copie et journalise une fois quand le cycle de vie lève", async () => {
+    const journal = vi.spyOn(console, "error").mockImplementation(() => {})
+    demanderBrouillonMock.mockRejectedValue(new Error("panne de stockage"))
+
+    const reponse = await POST(request({ contentType: "image/png", size: 10 }))
+
+    expect(reponse.status).toBe(500)
+    await expect(reponse.json()).resolves.toEqual({
+      error: "Échec de la préparation du téléversement",
+    })
+    expect(journal).toHaveBeenCalledTimes(1)
+    expect(journal.mock.calls[0]?.[0]).toBe("[uploads] presign")
   })
 
   it("laisse passer un Refus du cycle de vie jusqu'à la réponse HTTP", async () => {

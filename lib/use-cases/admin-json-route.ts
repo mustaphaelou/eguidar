@@ -15,7 +15,7 @@ export type ResultatRouteAdmin<Body, Code extends string> =
 
 export interface AdminJsonRouteOptions<Input, Body, Code extends string> {
   schema: AdminJsonSchema<Input>
-  label: string
+  logLabel: string
   failureMessage: string
   statuses: Record<Code, number>
   run: (
@@ -24,17 +24,12 @@ export interface AdminJsonRouteOptions<Input, Body, Code extends string> {
   ) => ResultatRouteAdmin<Body, Code> | Promise<ResultatRouteAdmin<Body, Code>>
 }
 
-async function adminGate(): Promise<Client | null> {
-  const client = await lireSession()
-  return estAdmin(client) ? client : null
-}
-
 export function adminJsonRoute<Input, Body, Code extends string>(
   options: AdminJsonRouteOptions<Input, Body, Code>
 ): (request: Request) => Promise<Response> {
   return async (request) => {
-    const client = await adminGate()
-    if (!client) {
+    const client = await lireSession()
+    if (!estAdmin(client)) {
       return Response.json({ error: "Non autorisé" }, { status: 401 })
     }
 
@@ -48,21 +43,25 @@ export function adminJsonRoute<Input, Body, Code extends string>(
       )
     }
 
-    const parsed = options.schema.safeParse(body)
-    if (!parsed.success) {
-      return Response.json({ error: "Requête invalide" }, { status: 400 })
-    }
-
     try {
+      const parsed = options.schema.safeParse(body)
+      if (!parsed.success) {
+        return Response.json({ error: "Requête invalide" }, { status: 400 })
+      }
+
       const resultat = await options.run(parsed.data, client)
       if (resultat.ok) return Response.json(resultat.body, { status: 200 })
 
-      return Response.json(
-        { error: resultat.message },
-        { status: options.statuses[resultat.code] }
-      )
+      const statut: number | undefined = options.statuses[resultat.code]
+      if (statut === undefined) {
+        throw new Error(
+          `Aucun statut déclaré pour le Refus « ${resultat.code} »`
+        )
+      }
+
+      return Response.json({ error: resultat.message }, { status: statut })
     } catch (error) {
-      console.error(options.label, error)
+      console.error(options.logLabel, error)
       return Response.json({ error: options.failureMessage }, { status: 500 })
     }
   }

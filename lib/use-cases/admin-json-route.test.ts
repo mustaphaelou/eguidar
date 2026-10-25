@@ -20,7 +20,7 @@ vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => {
 
 import { adminJsonRoute } from "@/lib/use-cases/admin-json-route"
 
-const SCHEMA = z.object({ nom: z.string().min(1) })
+const SCHEMA = z.object({ nom: z.string().trim().min(1) })
 type Entree = z.infer<typeof SCHEMA>
 
 const ADMIN: Client = {
@@ -36,12 +36,27 @@ const UTILISATEUR: Client = {
   role: "user",
 }
 
-const LABEL = "[test] route"
+const LOG_LABEL = "[test] route"
 const MESSAGE_ECHEC = "Échec de l’opération"
 
-const REFUS: [CodeRefusCycleVieImageProduit, number][] = Object.entries(
-  STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT
-) as [CodeRefusCycleVieImageProduit, number][]
+// La table de Refus est épinglée en dur : un statut modifié dans le cycle de vie,
+// ou un code perdu ou ajouté, doit faire échouer la suite.
+const REFUS: [CodeRefusCycleVieImageProduit, number][] = [
+  ["identifiant-proprietaire-invalide", 400],
+  ["metadata-invalide", 400],
+  ["mime-non-autorise", 400],
+  ["taille-invalide", 400],
+  ["trop-volumineux", 400],
+  ["stockage-indisponible", 503],
+  ["stockage-refuse", 502],
+  ["registre-indisponible", 500],
+  ["brouillon-introuvable", 404],
+  ["proprietaire-incorrect", 403],
+  ["brouillon-non-vivant", 409],
+  ["brouillon-expire", 410],
+  ["revendication-refusee", 409],
+  ["catalogue-refuse", 409],
+]
 
 type ResultatTest =
   | { ok: true; body: { echo: string } }
@@ -56,7 +71,7 @@ function routeAvec(
 ) {
   return adminJsonRoute({
     schema: SCHEMA,
-    label: LABEL,
+    logLabel: LOG_LABEL,
     failureMessage: MESSAGE_ECHEC,
     statuses: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
     run,
@@ -88,6 +103,11 @@ afterEach(() => {
 })
 
 describe("adminJsonRoute", () => {
+  it("épingle les quatorze codes de Refus du cycle de vie et leurs statuts", () => {
+    expect(REFUS).toHaveLength(14)
+    expect(Object.entries(STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT)).toEqual(REFUS)
+  })
+
   it.each([
     ["absente", null],
     ["non administrative", UTILISATEUR],
@@ -131,18 +151,19 @@ describe("adminJsonRoute", () => {
     expect(run).not.toHaveBeenCalled()
   })
 
-  it("répond 200 avec le corps de l'opération, à laquelle il transmet l'entrée analysée et le Client", async () => {
+  it("transmet à l'opération l'entrée analysée et transformée, jamais le corps brut", async () => {
     sessionCouranteMock.mockResolvedValue(ADMIN)
     const run = vi.fn(async (entree: Entree) => ({
       ok: true as const,
       body: { echo: entree.nom },
     }))
 
-    const reponse = await routeAvec(run)(requete({ nom: "Rabat" }))
+    const reponse = await routeAvec(run)(requete({ nom: " Rabat " }))
 
     expect(reponse.status).toBe(200)
     await expect(reponse.json()).resolves.toEqual({ echo: "Rabat" })
     expect(run).toHaveBeenCalledWith({ nom: "Rabat" }, ADMIN)
+    expect(run).not.toHaveBeenCalledWith({ nom: " Rabat " }, ADMIN)
   })
 
   it.each(REFUS)(
@@ -159,6 +180,63 @@ describe("adminJsonRoute", () => {
     }
   )
 
+  it("répond 500 journalisé quand le Refus n'a pas de statut dans la table de la route", async () => {
+    sessionCouranteMock.mockResolvedValue(ADMIN)
+    const journal = vi.spyOn(console, "error").mockImplementation(() => {})
+    const statuts: Record<string, number> = {
+      ...STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
+    }
+    delete statuts["catalogue-refuse"]
+    const run = vi.fn(async () => ({
+      ok: false as const,
+      code: "catalogue-refuse" as CodeRefusCycleVieImageProduit,
+      message: "Refus sans statut",
+    }))
+
+    const reponse = await adminJsonRoute({
+      schema: SCHEMA,
+      logLabel: LOG_LABEL,
+      failureMessage: MESSAGE_ECHEC,
+      statuses: statuts,
+      run,
+    })(requete({ nom: "Rabat" }))
+
+    expect(reponse.status).toBe(500)
+    await expect(reponse.json()).resolves.toEqual({ error: MESSAGE_ECHEC })
+    expect(journal).toHaveBeenCalledTimes(1)
+    expect(journal).toHaveBeenCalledWith(LOG_LABEL, expect.any(Error))
+  })
+
+  it("répond 500 journalisé quand le schéma lève, sans divulguer la panne", async () => {
+    sessionCouranteMock.mockResolvedValue(ADMIN)
+    const erreur = new Error("schéma cassé")
+    const journal = vi.spyOn(console, "error").mockImplementation(() => {})
+    const schemaQuiLeve = {
+      safeParse: (): never => {
+        throw erreur
+      },
+    }
+    const run = vi.fn(async () => ({ ok: true as const, body: { echo: "" } }))
+
+    const reponse = await adminJsonRoute<
+      Entree,
+      { echo: string },
+      CodeRefusCycleVieImageProduit
+    >({
+      schema: schemaQuiLeve,
+      logLabel: LOG_LABEL,
+      failureMessage: MESSAGE_ECHEC,
+      statuses: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
+      run,
+    })(requete({ nom: "Rabat" }))
+
+    expect(reponse.status).toBe(500)
+    await expect(reponse.json()).resolves.toEqual({ error: MESSAGE_ECHEC })
+    expect(journal).toHaveBeenCalledTimes(1)
+    expect(journal).toHaveBeenCalledWith(LOG_LABEL, erreur)
+    expect(run).not.toHaveBeenCalled()
+  })
+
   it("répond 500 avec la copie de la route et journalise une fois quand l'opération lève", async () => {
     sessionCouranteMock.mockResolvedValue(ADMIN)
     const erreur = new Error("panne")
@@ -172,6 +250,6 @@ describe("adminJsonRoute", () => {
     expect(reponse.status).toBe(500)
     await expect(reponse.json()).resolves.toEqual({ error: MESSAGE_ECHEC })
     expect(journal).toHaveBeenCalledTimes(1)
-    expect(journal).toHaveBeenCalledWith(LABEL, erreur)
+    expect(journal).toHaveBeenCalledWith(LOG_LABEL, erreur)
   })
 })

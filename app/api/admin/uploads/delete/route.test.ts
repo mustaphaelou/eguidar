@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const { lireSessionMock, relacherBrouillonMock } = vi.hoisted(() => ({
   lireSessionMock: vi.fn(),
@@ -34,6 +34,10 @@ beforeEach(() => {
     role: "admin",
   })
   relacherBrouillonMock.mockReset()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe("DELETE /api/admin/uploads/delete", () => {
@@ -78,6 +82,20 @@ describe("DELETE /api/admin/uploads/delete", () => {
       draftId: "draft-1",
       ownerId: "editeur-1",
     })
+  })
+
+  it("répond 500 avec sa copie et journalise une fois quand le cycle de vie lève", async () => {
+    const journal = vi.spyOn(console, "error").mockImplementation(() => {})
+    relacherBrouillonMock.mockRejectedValue(new Error("panne de stockage"))
+
+    const reponse = await DELETE(request({ draftId: "draft-1" }))
+
+    expect(reponse.status).toBe(500)
+    await expect(reponse.json()).resolves.toEqual({
+      error: "Échec de la libération du Brouillon d'Image produit",
+    })
+    expect(journal).toHaveBeenCalledTimes(1)
+    expect(journal.mock.calls[0]?.[0]).toBe("[uploads] delete")
   })
 
   it("laisse passer un Refus du cycle de vie jusqu'à la réponse HTTP", async () => {
