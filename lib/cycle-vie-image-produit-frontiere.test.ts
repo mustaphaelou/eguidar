@@ -63,6 +63,9 @@ const IMPORTATEURS_R2_AUTORISES = [
   MODULE_CYCLE_VIE,
   MODULE_CATALOGUE,
   MODULE_STRUCTURE,
+  // La route de pré-signation n'emprunte au stockage que le vocabulaire des
+  // types de contenu, jamais une opération du port.
+  ROUTE_PRESIGNATION,
 ] as const
 
 const IMPORTATEURS_CYCLE_VIE_AUTORISES = [
@@ -116,7 +119,7 @@ function mentionsDuProtocoleInverse(
 }
 
 describe("Cycle de vie des Images produit — frontière", () => {
-  it("confine les imports R2 au propriétaire, à l'artefact et aux effets documentés", () => {
+  it("confine les imports R2 au propriétaire, à l'artefact, au vocabulaire des types de contenu et aux effets documentés", () => {
     expect(SOURCES.length).toBeGreaterThan(200)
     expect(SOURCES.map(({ chemin }) => chemin)).toEqual(
       expect.arrayContaining([
@@ -160,13 +163,18 @@ describe("Cycle de vie des Images produit — frontière", () => {
     }
   })
 
-  it("compose le cycle de vie aux routes, jamais aux Server Actions ni au port R2", () => {
+  it("compose le cycle de vie aux routes, jamais aux Server Actions, et n'y nomme aucune opération de stockage", () => {
     const routes = ["app/api/admin/uploads/delete/route.ts", ROUTE_PRESIGNATION]
 
     for (const chemin of routes) {
       expect(importeDe(source(chemin), MODULE_CYCLE_VIE), chemin).toBe(true)
-      expect(importeDe(source(chemin), MODULE_R2), chemin).toBe(false)
+      expect(operationsStockageNommees(source(chemin)), chemin).toEqual([])
+      expect(source(chemin), chemin).not.toContain("stockageImageProduitR2")
     }
+    expect(importeDe(source(ROUTE_LIBERATION), MODULE_R2)).toBe(false)
+    expect(source(ROUTE_PRESIGNATION)).toContain(
+      'import { CONTENT_TYPES_IMAGE_PRODUIT } from "@/lib/r2"'
+    )
     expect(importeDe(source(ACTION_ADMIN_PRODUITS), MODULE_CYCLE_VIE)).toBe(
       false
     )
