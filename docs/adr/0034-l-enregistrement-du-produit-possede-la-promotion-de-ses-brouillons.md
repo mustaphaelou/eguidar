@@ -302,3 +302,24 @@ par l'amendement #716 sont ceux d'avant ce ticket ; c'est le présent amendement
   la préséance normalisée choisit lequel parle, elle n'en ajoute aucun.
 - **Aucun schéma, aucune dépendance, aucune surface** ; pas de nouvel ADR et pas de terme de glossaire,
   le squelette restant privé.
+
+## Amendement — Les routes de téléversement traversent une porte JSON (#772, 2026-10-25)
+
+Aucune phrase de la décision n'est réécrite. La puce « Ce qui ne change pas » et l'invariant « Les
+routes de téléversement, le composant client de Galerie, la disposition du compartiment public et le
+hachage des URL restent ce qu'ADR-0004 et ADR-0033 ont décidé » disent que les deux routes restent
+telles qu'ADR-0033 les a laissées. C'est toujours vrai de leur contrat HTTP, mais plus de leur
+enveloppe : ADR-0039 les fait déclarer à `adminJsonRoute`, qui possède le 401, les deux 400, le Refus
+mappé, le 200 et la 500 journalisée une fois, et le schéma de pré-signation dérive sa liste MIME de
+`CONTENT_TYPES_IMAGE_PRODUIT` (`lib/r2.ts`). C'est le présent amendement qu'il faut lire à côté.
+
+### Ce que cet amendement ne change pas
+
+- **Le contrat HTTP des deux routes** : `POST /api/admin/uploads/presign` et
+  `DELETE /api/admin/uploads/delete` gardent leurs chemins, méthodes, corps de requête, corps de
+  succès, statuts de Refus, copies 400 et 500 et comportement de cache ; seule l'enveloppe qui les
+  produit a une maison.
+- **Le port client de téléversement et le composant de Galerie** : ADR-0033 reste la décision du
+  protocole client, et `components/admin/image-gallery-upload.tsx` ne bouge pas.
+- **Le reste de cet ADR** : la promotion des Brouillons, la couture d'effets et le squelette privé de
+  l'enregistrement restent tels que la décision et ses amendements #716 et #721 les ont laissés.

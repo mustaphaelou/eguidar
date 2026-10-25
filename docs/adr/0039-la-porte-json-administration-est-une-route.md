@@ -33,7 +33,9 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   ADR reprend l'enveloppe et cette liste ; il ne rouvre ni le port client, ni l'adaptateur HTTP,
   ni le composant de Galerie. L'invariant d'ADR-0033 — les routes ne changent pas sous *cette*
   décision — tient toujours : c'est une décision distincte qui les change, et leur contrat HTTP
-  ne bouge pas.
+  ne bouge pas. [0034](0034-l-enregistrement-du-produit-possede-la-promotion-de-ses-brouillons.md)
+  avait consigné ces routes comme restant telles qu'ADR-0033 les a laissées ; il reçoit un
+  amendement (#772), qui dit ce que le présent ADR change sans réécrire sa décision.
 
 - **Le raisonnement d'ADR-0025 change de rang, pas de nature.** [0025](0025-mutation-squelette-shared-mechanism.md)
   a partagé le squelette des mutations sans que le mécanisme apprenne une entité ou une base. La
@@ -86,7 +88,11 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
 
 - **La 500 muette devient diagnosable, sans changer sa réponse.** L'ancienne enveloppe répondait
   500 sans journaliser ; la porte journalise une fois, avec le libellé de la route. La copie et le
-  statut restent ceux d'avant : c'est le seul fait nouveau, et il ne change pas la réponse.
+  statut restent ceux d'avant : c'est le seul fait nouveau du contrat observable, et il ne change
+  pas la réponse. Deux cas défensifs suivent la même 500 — un Refus dont le code n'a pas de statut
+  dans la table de la route, que le type générique interdit d'écrire, et un schéma qui lève au lieu
+  de rendre un verdict — ; ils remplacent une panne silencieuse ou opaque par la même 500
+  journalisée, sans ajouter de cas au contrat.
 
 - **Les deux routes deviennent des déclarations.** `presign/route.ts` exporte
   `export const POST = adminJsonRoute({...})` et `delete/route.ts` exporte
@@ -112,7 +118,9 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   quatorze codes de Refus de la table, et la 500 journalisée une fois avec le bon libellé.
   Chaque suite de route garde son schéma et son opération — la pré-signation refuse un type
   non-image, la libération un corps strict qui refuse une clé étrangère —, un succès et un seul
-  Refus de bout en bout. Les tableaux dupliqués de onze et quatorze codes quittent les routes.
+  Refus de bout en bout. Les tableaux dupliqués de onze et quatorze codes quittent les routes. Les
+  deux copies 500 et leurs libellés de journal, que la porte ne connaît que par des valeurs
+  factices, sont épinglés sur les déclarations par la suite de frontière.
 
 - **La porte est non optionnelle.** `app/api/admin/uploads/frontiere.test.ts` lit les sources de
   production et nomme le contournement : une route surveillée qui importe ou lit la **Session

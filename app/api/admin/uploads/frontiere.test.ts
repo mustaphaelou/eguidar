@@ -32,6 +32,21 @@ const MODULES_INTERDITS_A_LA_PORTE = [
 const DECLARATION_STATUTS =
   /\bstatuses\s*:\s*STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT\b/
 
+// La suite de la porte n'a que des valeurs factices : les copies 500 et les
+// libellés de journal réels restent épinglés ici, sur les deux déclarations.
+const COPIES_500 = [
+  [
+    ROUTE_PRESIGNATION,
+    "[uploads] presign",
+    "Échec de la préparation du téléversement",
+  ],
+  [
+    ROUTE_LIBERATION,
+    "[uploads] delete",
+    "Échec de la libération du Brouillon d'Image produit",
+  ],
+] as const
+
 // Un import de valeur de next/server, même aliasé (`json as repondre`) : le
 // motif s'arrête à la déclaration d'import suivante, donc un `import type` de
 // `NextRequest` ne le déclenche pas.
@@ -131,6 +146,15 @@ describe("Administration — frontière des routes JSON", () => {
       expect(sourceDuCorpus(SOURCES, chemin).source, chemin).toMatch(
         DECLARATION_STATUTS
       )
+    }
+  })
+
+  it("les deux routes déclarent leur libellé de journal et leur copie 500", () => {
+    for (const [chemin, libelle, copie] of COPIES_500) {
+      const source = sourceDuCorpus(SOURCES, chemin).source
+
+      expect(source, chemin).toContain(`logLabel: "${libelle}"`)
+      expect(source, chemin).toContain(`failureMessage: "${copie}"`)
     }
   })
 })
