@@ -17,6 +17,7 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -28,6 +29,7 @@ jobs:
 
   format:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -39,6 +41,7 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -50,6 +53,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -196,8 +200,12 @@ jobs:
           allow: network.host
           secrets: |
             database_url=postgresql://eguidar:eguidar@127.0.0.1:5432/eguidar_probe
+          # Seuls les pushes sur `main` écrivent le cache ; les itérations de
+          # pull request ne font que le lire. Exporter `mode=max` à chaque
+          # passage payait deux fois l'écriture d'un cache que seul `main`
+          # fait grandir, alors que l'export est la moitié lente du build.
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max' || '' }}
       - uses: docker/build-push-action@v7
         if: github.event_name == 'push' || github.event.pull_request.draft == false
         with:
@@ -206,7 +214,7 @@ jobs:
           tags: eguidar-migrate:ci
           load: true
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max' || '' }}
       # Le global setup de Vitest tronque la base de test : cette étape vient
       # donc après les constructions d'images, qui prérendent encore le
       # catalogue semé, et avant la sonde, qui remigre et resème la base. Le
