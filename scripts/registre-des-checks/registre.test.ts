@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   comparerLesChecks,
   contextesDeclares,
+  ErreurDeLectureDuRuleset,
+  estRefusDeDroits,
   exigerLeRulesetDuDepot,
   jugerLeRuleset,
 } from "./registre"
@@ -210,5 +212,36 @@ describe("la lecture d'un ruleset", () => {
     expect(raisonDe({ message: "Not Found" })).toBe(
       `${SOURCE} : clé \`name\` absente ou illisible`
     )
+  })
+})
+
+describe("le refus de lire les rulesets", () => {
+  it("reconnaît un refus de droits et une ressource masquée", () => {
+    expect(
+      estRefusDeDroits(
+        new ErreurDeLectureDuRuleset(
+          `3 lectures du ruleset ont échoué, la dernière dit : ${SOURCE} : HTTP 403 Forbidden`
+        )
+      )
+    ).toBe(true)
+    expect(
+      estRefusDeDroits(
+        new ErreurDeLectureDuRuleset(`${SOURCE} : HTTP 404 Not Found`)
+      )
+    ).toBe(true)
+  })
+
+  it("ne confond ni une panne, ni une autre erreur avec un refus de droits", () => {
+    expect(
+      estRefusDeDroits(
+        new ErreurDeLectureDuRuleset(
+          `${SOURCE} : HTTP 500 Internal Server Error`
+        )
+      )
+    ).toBe(false)
+    expect(estRefusDeDroits(new Error(`${SOURCE} : HTTP 403 Forbidden`))).toBe(
+      false
+    )
+    expect(estRefusDeDroits(`${SOURCE} : HTTP 403 Forbidden`)).toBe(false)
   })
 })
