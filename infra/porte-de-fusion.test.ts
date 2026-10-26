@@ -5,9 +5,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   analyserLaPorteDeFusion,
+  comparerLaPorteAuxFaits,
   comparerLesContextesDeLaPorte,
   ErreurDePorteDeFusion,
   lireLaPorteDeFusion,
+  phraseDeLEcart,
+  type FaitsDuRuleset,
   type PorteDeFusion,
 } from "@/infra/porte-de-fusion"
 import { lireLesJobs } from "@/scripts/ci-liste"
@@ -192,6 +195,141 @@ describe("la comparaison des contextes aux jobs, sans réseau", () => {
       nonExigés: ["z", "y", "x"],
       sansJob: ["a", "b", "c"],
     })
+  })
+})
+
+const FAITS_CONFORMES: FaitsDuRuleset = {
+  nom: NOM_DU_CONTRAT,
+  branchesIncluses: ["refs/heads/main"],
+  branchesExclues: [],
+  contextes: [...CONTEXTES].reverse(),
+  exigeBrancheAJour: true,
+  suspendLExigenceALaCreation: false,
+  pullRequestRequise: true,
+  revueRequise: false,
+  contournement: [],
+}
+
+function faits(partiel: Partial<FaitsDuRuleset> = {}): FaitsDuRuleset {
+  return { ...FAITS_CONFORMES, ...partiel }
+}
+
+describe("la comparaison de la porte aux faits vivants", () => {
+  const porte = analyserLaPorteDeFusion(contrat(), SOURCE)
+
+  it("ne trouve aucun écart quand le ruleset vivant porte les faits du contrat", () => {
+    expect(comparerLaPorteAuxFaits(porte, faits())).toEqual([])
+  })
+
+  it("ignore le nom du ruleset vivant : il sélectionne, il ne se compare pas", () => {
+    expect(
+      comparerLaPorteAuxFaits(porte, faits({ nom: "un-autre-nom" }))
+    ).toEqual([])
+  })
+
+  it("compare les contextes comme un ensemble, sans dépendre de leur ordre", () => {
+    expect(
+      comparerLaPorteAuxFaits(porte, faits({ contextes: [...CONTEXTES] }))
+    ).toEqual([])
+  })
+
+  it("nomme les contextes qui diffèrent, dans l'ordre trié", () => {
+    expect(
+      comparerLaPorteAuxFaits(
+        porte,
+        faits({ contextes: ["build", "lint", "test", "typecheck"] })
+      )
+    ).toContainEqual({
+      fait: "contextes exigés",
+      attendu: "build, format, lint, test, typecheck",
+      trouve: "build, lint, test, typecheck",
+    })
+  })
+
+  it.each([
+    ["branche à jour exigée", { exigeBrancheAJour: false }],
+    ["exigence suspendue à la création", { suspendLExigenceALaCreation: true }],
+    ["pull request requise", { pullRequestRequise: false }],
+    ["revue requise", { revueRequise: true }],
+  ] satisfies [string, Partial<FaitsDuRuleset>][])(
+    "signale le fait « %s » quand le ruleset vivant le contredit",
+    (fait, partiel) => {
+      const ecarts = comparerLaPorteAuxFaits(porte, faits(partiel))
+
+      expect(ecarts.map((ecart) => ecart.fait)).toEqual([fait])
+      expect(ecarts[0]?.attendu).not.toBe(ecarts[0]?.trouve)
+    }
+  )
+
+  it("rend une phrase française qui nomme le fait, l'attendu et le trouvé", () => {
+    const [ecart] = comparerLaPorteAuxFaits(
+      porte,
+      faits({ exigeBrancheAJour: false })
+    )
+
+    expect(ecart).toEqual({
+      fait: "branche à jour exigée",
+      attendu: "oui",
+      trouve: "non",
+    })
+    expect(phraseDeLEcart(ecart!)).toBe(
+      "« branche à jour exigée » : attendu « oui », trouvé « non »."
+    )
+  })
+
+  it("signale une branche couverte en trop et une branche exclue", () => {
+    expect(
+      comparerLaPorteAuxFaits(
+        porte,
+        faits({
+          branchesIncluses: ["refs/heads/main", "refs/heads/release"],
+          branchesExclues: ["refs/heads/main"],
+        })
+      )
+    ).toEqual([
+      {
+        fait: "branches couvertes",
+        attendu: "refs/heads/main",
+        trouve: "refs/heads/main, refs/heads/release",
+      },
+      {
+        fait: "branches exclues",
+        attendu: "aucune",
+        trouve: "refs/heads/main",
+      },
+    ])
+  })
+
+  it("signale un contournement non vide", () => {
+    expect(
+      comparerLaPorteAuxFaits(
+        porte,
+        faits({ contournement: ["Team 42 always"] })
+      )
+    ).toEqual([
+      {
+        fait: "contournements",
+        attendu: "aucun",
+        trouve: "Team 42 always",
+      },
+    ])
+  })
+
+  it("rend les écarts dans un ordre stable, pour que la sortie se lise toujours pareil", () => {
+    const ecarts = comparerLaPorteAuxFaits(
+      porte,
+      faits({
+        contextes: ["build"],
+        pullRequestRequise: false,
+        revueRequise: true,
+      })
+    )
+
+    expect(ecarts.map((ecart) => ecart.fait)).toEqual([
+      "contextes exigés",
+      "pull request requise",
+      "revue requise",
+    ])
   })
 })
 

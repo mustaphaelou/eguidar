@@ -17,6 +17,10 @@ const ENTREE_NON_CHECK = new Map([
   ["dev", "le serveur de développement"],
   ["start", "le serveur de production"],
   ["test:watch", "`test` sans sa fin : les mêmes tests, en boucle"],
+  [
+    "porte:verifier",
+    "le docteur local, qui lit le ruleset vivant : la CI ne peut ni ne doit lire le ruleset, donc aucun job ne l'exécute",
+  ],
   ["format", "le correctif, qui écrit dans l'arbre"],
   [
     "prepare",
