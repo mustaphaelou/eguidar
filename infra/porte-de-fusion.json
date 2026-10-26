@@ -1,0 +1,10 @@
+{
+  "nom": "main-protection",
+  "branche": "refs/heads/main",
+  "contextes": ["build", "format", "lint", "test", "typecheck"],
+  "exigeBrancheAJour": true,
+  "suspendLExigenceALaCreation": false,
+  "pullRequestRequise": true,
+  "revueRequise": false,
+  "contournement": []
+}

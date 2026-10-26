@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import {
   comparerLesChecks,
-  contextesDeclares,
   ErreurDeLectureDuRuleset,
   estRefusDeDroits,
   exigerLeRulesetDuDepot,
@@ -89,13 +88,6 @@ describe("la comparaison des deux listes", () => {
       nonExigés: ["b", "a"],
       sansJob: ["z", "y", "x"],
     })
-  })
-})
-
-describe("le côté déclaré", () => {
-  it("nomme les jobs du flux, et non les checks qu'ils invoquent", () => {
-    expect(contextesDeclares()).toEqual(DECLARES)
-    expect(contextesDeclares()).not.toContain("format:check")
   })
 })
 

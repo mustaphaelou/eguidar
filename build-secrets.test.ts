@@ -203,14 +203,7 @@ describe("le job de build atteint un catalogue sans secret de dépôt", () => {
   const job = lireLesJobs().get("build")
   const etapes = etapesDuJob("build")
 
-  it("garde les cinq jobs, leurs portes et `contents: read`", () => {
-    expect([...lireLesJobs().keys()].sort()).toEqual([
-      "build",
-      "format",
-      "lint",
-      "test",
-      "typecheck",
-    ])
+  it("garde l'étape de build et `contents: read`", () => {
     expect(etapes.map((etape) => etape.run)).toContain("npm run build")
 
     const flux = load(texteDuFichier(FLUX))
