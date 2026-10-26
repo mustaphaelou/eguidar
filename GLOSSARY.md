@@ -485,7 +485,8 @@ _Avoid_: produit associé, related product
 
 **Porte de fusion**:
 L'ensemble des faits qui rendent une fusion sur `main` acceptable : une pull request, les cinq
-contextes requis — `lint`, `format`, `typecheck`, `test`, `build` —, une branche à jour avec `main`,
-aucune revue exigée et aucun contournement. Une porte non lisible n'est pas une porte absente :
-quand le plan GitHub ne porte pas de rulesets, le blocage est nommé.
+contextes requis — `build`, `format`, `lint`, `test`, `typecheck` —, une branche à jour avec `main`,
+aucune revue exigée et aucun contournement. Un contrat versionné les enregistre et fait foi, même
+quand GitHub ne peut pas l'appliquer. Une porte non lisible n'est pas une porte absente : quand le
+plan, la visibilité ou le jeton ne permet pas de lire le ruleset, le blocage est nommé.
 _Avoid_: branch protection, merge gate, règles de fusion
