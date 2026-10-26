@@ -5,7 +5,6 @@ import Link from "next/link"
 
 import {
   Cancel01Icon,
-  Menu01Icon,
   Search01Icon,
   ShoppingBag01Icon,
 } from "@hugeicons/core-free-icons"
@@ -19,32 +18,23 @@ import { cn } from "@/lib/utils"
 import { ID_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
 import { useApercuDuPanier } from "./apercu-du-panier-provider"
 import { ApercuDuPanierSurface } from "./apercu-du-panier-surface"
-import { useEstBureau } from "./use-est-bureau"
-
-export type GlobalNavLink = { href: string; label: string }
 
 export function GlobalNavBar({
-  links,
   panierBadge,
   apercuCorps,
 }: {
-  links: GlobalNavLink[]
   panierBadge?: React.ReactNode
   apercuCorps?: React.ReactNode
 }) {
   const { ouvert, basculer, fermer } = useApercuDuPanier()
-  const estBureau = useEstBureau()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [mouvementDuPanier, setMouvementDuPanier] = useState<{
     sens: "ouverture" | "fermeture"
     cle: number
   } | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const panierRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLButtonElement>(null)
-  const apercuMobileOuvert = ouvert && !estBureau
 
   const fermerLApercu = useCallback(() => {
     setMouvementDuPanier((precedent) => ({
@@ -52,13 +42,11 @@ export function GlobalNavBar({
       cle: (precedent?.cle ?? 0) + 1,
     }))
     fermer()
-    const retour = estBureau ? panierRef.current : menuRef.current
-    retour?.focus({ preventScroll: true })
-  }, [fermer, estBureau])
+    panierRef.current?.focus({ preventScroll: true })
+  }, [fermer])
 
   function basculerLApercu() {
     setSearchOpen(false)
-    setMenuOpen(false)
     if (ouvert) {
       fermerLApercu()
       return
@@ -68,20 +56,6 @@ export function GlobalNavBar({
       cle: (precedent?.cle ?? 0) + 1,
     }))
     basculer()
-  }
-
-  function basculerLeMenu() {
-    if (apercuMobileOuvert) {
-      fermerLApercu()
-      return
-    }
-    if (menuOpen) {
-      setMenuOpen(false)
-      return
-    }
-    setMenuOpen(true)
-    setSearchOpen(false)
-    if (ouvert) fermer()
   }
 
   useEffect(() => {
@@ -114,21 +88,6 @@ export function GlobalNavBar({
           <Logo />
         </Link>
 
-        <nav
-          className="hidden items-center gap-1 lg:flex"
-          aria-label="Navigation principale"
-        >
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="rounded-full px-3 py-1.5 text-xs text-foreground/80 transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost"
@@ -137,10 +96,7 @@ export function GlobalNavBar({
             aria-expanded={searchOpen}
             className={cn(searchOpen && "text-link hover:text-link")}
             onClick={() => {
-              if (!searchOpen) {
-                fermer()
-                setMenuOpen(false)
-              }
+              if (!searchOpen) fermer()
               setSearchOpen(!searchOpen)
             }}
           >
@@ -151,44 +107,26 @@ export function GlobalNavBar({
               />
             </span>
           </Button>
-          {apercuMobileOuvert ? null : (
-            <Button
-              ref={panierRef}
-              variant="ghost"
-              size="icon"
-              aria-label="Panier"
-              aria-expanded={ouvert}
-              aria-controls={ID_APERCU_DU_PANIER}
-              className="relative"
-              onClick={basculerLApercu}
-            >
-              {/* Le badge reste hors du span : `scale` en fait le bloc conteneur du badge absolu. */}
-              <span
-                key={mouvementDuPanier?.cle ?? 0}
-                data-slot="icone-du-panier"
-                data-mouvement={mouvementDuPanier?.sens}
-                className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90"
-              >
-                <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
-              </span>
-              {panierBadge}
-            </Button>
-          )}
           <Button
-            ref={menuRef}
+            ref={panierRef}
             variant="ghost"
             size="icon"
-            aria-label={apercuMobileOuvert ? "Fermer" : "Menu"}
-            aria-expanded={menuOpen}
-            className="lg:hidden"
-            onClick={basculerLeMenu}
+            aria-label="Panier"
+            aria-expanded={ouvert}
+            aria-controls={ID_APERCU_DU_PANIER}
+            className="relative"
+            onClick={basculerLApercu}
           >
-            <span className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90">
-              <HugeiconsIcon
-                icon={menuOpen ? Cancel01Icon : Menu01Icon}
-                strokeWidth={2}
-              />
+            {/* Le badge reste hors du span : `scale` en fait le bloc conteneur du badge absolu. */}
+            <span
+              key={mouvementDuPanier?.cle ?? 0}
+              data-slot="icone-du-panier"
+              data-mouvement={mouvementDuPanier?.sens}
+              className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90"
+            >
+              <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
             </span>
+            {panierBadge}
           </Button>
         </div>
       </div>
@@ -216,26 +154,6 @@ export function GlobalNavBar({
             </Button>
           </form>
         </div>
-      ) : null}
-
-      {menuOpen ? (
-        <nav
-          className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%] lg:hidden"
-          aria-label="Menu mobile"
-        >
-          <div className="mx-auto flex max-w-[1024px] flex-col gap-1 px-4 py-4 sm:px-[22px]">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-full px-2 py-1.5 text-[28px] font-semibold tracking-[0.007em] text-foreground/80 hover:bg-muted/60 hover:text-foreground"
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
       ) : null}
 
       {ouvert ? (

@@ -90,3 +90,14 @@ ADR n'ajoute aucun terme au glossaire ; les entrées **Bandeau de navigation**, 
 - L'Aperçu du Panier ne mute rien ; la Page du Panier reste le seul endroit où le Panier change et
   où l'on commande.
 - Cette décision ne crée ni route, ni schéma, ni requête, ni terme de glossaire.
+
+## Amendement — Le Bandeau ne porte plus de menu mobile (#782, 2026-10-26)
+
+Aucune phrase de la décision n'est réécrite ; un passage la décrit désormais à rebours, et c'est le
+présent amendement qu'il faut y lire à côté. #782 a retiré du Bandeau les entrées vers les pages de
+la boutique, et le menu mobile avec elles. L'option rejetée « Déplacer les trois contrôles dans le
+menu mobile » s'appuyait sur deux raisons : le Compte ne serait atteignable que sur les écrans
+étroits, et « le menu mobile est déjà ce qui referme l'Aperçu sur mobile ». La première tient
+toujours ; la seconde ne se lit plus, puisque c'est maintenant le déclencheur du Panier qui referme
+l'Aperçu, à toutes les tailles. La décision qui l'emporte est écrite dans
+[0039](0039-le-bandeau-ne-porte-plus-les-pages-de-la-boutique.md).

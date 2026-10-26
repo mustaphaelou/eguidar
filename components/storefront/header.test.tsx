@@ -23,7 +23,25 @@ describe("StorefrontHeader — coquille statique", () => {
 
     expect(html).toContain('aria-label="Panier"')
     expect(html).toContain('aria-expanded="false"')
-    expect(html).toContain("Navigation principale")
+    expect(html).not.toContain("Navigation principale")
+    expect(html).not.toContain("Menu mobile")
+  })
+
+  it("ne porte aucune entrée vers les pages de la boutique", async () => {
+    const flux = await renderToReadableStream(<StorefrontHeader />)
+    await flux.allReady
+    const html = await new Response(flux).text()
+
+    for (const page of [
+      "/a-propos",
+      "/contact",
+      "/faq",
+      "/blog",
+      "/conditions",
+    ]) {
+      expect(html).not.toContain(`href="${page}"`)
+    }
+    expect(html).toContain('href="/"')
   })
 
   it("ne porte ni compte, ni Panier, ni corps d'Aperçu dans son document", async () => {
