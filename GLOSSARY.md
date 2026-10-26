@@ -7,7 +7,7 @@ L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile d
 ## Language
 
 **Bandeau de navigation**:
-La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et le déclencheur de l'**Aperçu du Panier**, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration. Il ne porte pas de déclencheur de Connexion : l'entrée du Compte appartient à l'Aperçu du Panier.
+La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et le déclencheur de l'**Aperçu du Panier**, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration. Il ne porte aucune entrée vers les pages de la boutique — À propos, Contact, FAQ, Blog, Conditions & livraison — que seul le pied de page porte. Il ne porte pas de déclencheur de Connexion : l'entrée du Compte appartient à l'Aperçu du Panier.
 _Avoid_: header, navbar, barre de navigation, barre du haut
 
 **Voile dépoli**:
@@ -115,7 +115,7 @@ Articles du panier — ou l'état vide du Panier — puis les entrées du Compte
 et Connexion ou Déconnexion). Il montre, il ne mute rien : la Page du Panier reste le seul endroit
 où l'on modifie un Article du panier, et le seul où l'on commande. Une seule feuille, pleine largeur
 sous le Bandeau de navigation et posée sur le Voile sombre ; sur mobile elle prend tout l'écran, et
-c'est le menu du Bandeau qui la referme. Tant qu'il est ouvert, il fournit le fond du Bandeau de
+c'est le déclencheur du Panier qui la referme. Tant qu'il est ouvert, il fournit le fond du Bandeau de
 navigation, qui ne porte alors pas son Voile dépoli : la feuille porte elle-même le matériau, plus
 épais que celui du Bandeau.
 _Avoid_: flyout, mini-panier, panier volant, tiroir du panier, bag, dropdown du panier
@@ -451,7 +451,7 @@ sous-domaine s'arrête sur l'erreur 503 de l'origine.
 _Avoid_: domaine principal, canonical domain
 
 **Logo**:
-Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans l'en-tête et le pied de page.
+Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans le Bandeau de navigation et le pied de page.
 _Avoid_: logotype, symbole, marque (réservée aux marques de produits)
 
 **Icône de site**:

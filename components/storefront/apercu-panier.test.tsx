@@ -119,7 +119,7 @@ async function rejouer() {
 function BandeauAvecApercu() {
   return (
     <ApercuDuPanierProvider>
-      <GlobalNavBar links={[]} apercuCorps={<ApercuPanier />} />
+      <GlobalNavBar apercuCorps={<ApercuPanier />} />
     </ApercuDuPanierProvider>
   )
 }
