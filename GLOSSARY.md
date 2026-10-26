@@ -482,3 +482,10 @@ Un Produit du Catalogue attaché à un Article de blog, affiché en Carte produi
 vers sa page Produit. Un Produit lié indisponible (stock total nul) est masqué à la lecture : l'Article
 de blog reste publié, sa Carte produit disparaît.
 _Avoid_: produit associé, related product
+
+**Porte de fusion**:
+L'ensemble des faits qui rendent une fusion sur `main` acceptable : une pull request, les cinq
+contextes requis — `lint`, `format`, `typecheck`, `test`, `build` —, une branche à jour avec `main`,
+aucune revue exigée et aucun contournement. Une porte non lisible n'est pas une porte absente :
+quand le plan GitHub ne porte pas de rulesets, le blocage est nommé.
+_Avoid_: branch protection, merge gate, règles de fusion
