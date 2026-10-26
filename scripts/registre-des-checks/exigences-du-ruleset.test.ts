@@ -5,12 +5,16 @@ import {
   BUDGET_DE_LECTURE,
   comparerLesChecks,
   contextesDeclares,
+  estRefusDeDroits,
   jetonDuDepot,
   lireLesExigences,
   type Exigences,
 } from "./registre"
 
-let lue: Promise<Exigences> | null = null
+const INDISPONIBLE =
+  "les règles de protection de `main` ne sont pas lisibles avec ce jeton (HTTP 403 ou 404) : le contrôle est ignoré"
+
+let lue: Promise<Exigences | null> | null = null
 
 async function exigerLesExigences(leContexte: TestContext): Promise<Exigences> {
   const jeton = jetonDuDepot()
@@ -20,8 +24,16 @@ async function exigerLesExigences(leContexte: TestContext): Promise<Exigences> {
     )
   }
 
-  lue ??= lireLesExigences(jeton)
-  return lue
+  // Un refus de droits n'est pas une dérive du ruleset : la suite ne peut pas
+  // lire les réglages, elle s'ignore au lieu de faire échouer la CI.
+  lue ??= lireLesExigences(jeton).catch((erreur: unknown) => {
+    if (estRefusDeDroits(erreur)) return null
+    throw erreur
+  })
+
+  const exigences = await lue
+  if (exigences === null) return leContexte.skip(INDISPONIBLE)
+  return exigences
 }
 
 describe("le ruleset exige exactement les portes que la CI déclare", () => {

@@ -24,6 +24,17 @@ export class ErreurDeLectureDuRuleset extends Error {
   }
 }
 
+// 403 : le plan du dépôt ou les droits du jeton ne donnent pas accès aux
+// rulesets. 404 : GitHub masque une ressource privée au jeton qui n'y a pas
+// accès. Dans les deux cas, la suite ne peut pas lire les réglages ; elle le
+// dit et s'ignore, au lieu de faire échouer la CI pour un défaut de droits.
+export function estRefusDeDroits(erreur: unknown): boolean {
+  return (
+    erreur instanceof ErreurDeLectureDuRuleset &&
+    /\bHTTP (?:403|404)\b/.test(erreur.message)
+  )
+}
+
 export type Exigences = {
   nom: string
   contextes: string[]
