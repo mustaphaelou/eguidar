@@ -26,6 +26,7 @@ function request(body: unknown): Request {
 }
 
 beforeEach(() => {
+  lireSessionMock.mockReset()
   lireSessionMock.mockResolvedValue({
     id: "editeur-1",
     name: "Éditeur",
@@ -36,23 +37,24 @@ beforeEach(() => {
 })
 
 describe("DELETE /api/admin/uploads/delete", () => {
-  it("refuse une session non administrative", async () => {
-    lireSessionMock.mockResolvedValue(null)
-
-    const reponse = await DELETE(request({ draftId: "draft-1" }))
-
-    expect(reponse.status).toBe(401)
-    await expect(reponse.json()).resolves.toEqual({ error: "Non autorisé" })
-    expect(relacherBrouillonMock).not.toHaveBeenCalled()
-  })
-
-  it("refuse une URL et exige un identifiant de Brouillon strict", async () => {
+  it("refuse une clé étrangère et exige un identifiant de Brouillon strict", async () => {
     const reponse = await DELETE(
       request({
         draftId: "draft-1",
         url: "https://cdn.example.test/products/existing.png",
       })
     )
+
+    expect(reponse.status).toBe(400)
+    await expect(reponse.json()).resolves.toEqual({ error: "Requête invalide" })
+    expect(relacherBrouillonMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["sans identifiant de Brouillon", {}],
+    ["avec un identifiant de Brouillon vide", { draftId: "" }],
+  ])("refuse un corps %s", async (_cas, corps) => {
+    const reponse = await DELETE(request(corps))
 
     expect(reponse.status).toBe(400)
     await expect(reponse.json()).resolves.toEqual({ error: "Requête invalide" })
@@ -78,31 +80,18 @@ describe("DELETE /api/admin/uploads/delete", () => {
     })
   })
 
-  it.each([
-    ["identifiant-proprietaire-invalide", 400],
-    ["metadata-invalide", 400],
-    ["mime-non-autorise", 400],
-    ["taille-invalide", 400],
-    ["trop-volumineux", 400],
-    ["stockage-indisponible", 503],
-    ["stockage-refuse", 502],
-    ["registre-indisponible", 500],
-    ["brouillon-introuvable", 404],
-    ["proprietaire-incorrect", 403],
-    ["brouillon-non-vivant", 409],
-    ["brouillon-expire", 410],
-    ["revendication-refusee", 409],
-    ["catalogue-refuse", 409],
-  ] as const)(
-    "traduit le refus %s en réponse HTTP %i",
-    async (code, status) => {
-      const message = `Refus éditorial : ${code}`
-      relacherBrouillonMock.mockResolvedValue({ ok: false, code, message })
+  it("laisse passer un Refus du cycle de vie jusqu'à la réponse HTTP", async () => {
+    relacherBrouillonMock.mockResolvedValue({
+      ok: false,
+      code: "proprietaire-incorrect",
+      message: "Ce Brouillon d'Image produit ne vous appartient pas",
+    })
 
-      const reponse = await DELETE(request({ draftId: "draft-1" }))
+    const reponse = await DELETE(request({ draftId: "draft-1" }))
 
-      expect(reponse.status).toBe(status)
-      await expect(reponse.json()).resolves.toEqual({ error: message })
-    }
-  )
+    expect(reponse.status).toBe(403)
+    await expect(reponse.json()).resolves.toEqual({
+      error: "Ce Brouillon d'Image produit ne vous appartient pas",
+    })
+  })
 })

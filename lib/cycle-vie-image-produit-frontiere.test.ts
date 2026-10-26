@@ -63,6 +63,9 @@ const IMPORTATEURS_R2_AUTORISES = [
   MODULE_CYCLE_VIE,
   MODULE_CATALOGUE,
   MODULE_STRUCTURE,
+  // La route de pré-signation n'emprunte au stockage que le vocabulaire des
+  // types de contenu, jamais une opération du port.
+  ROUTE_PRESIGNATION,
 ] as const
 
 const IMPORTATEURS_CYCLE_VIE_AUTORISES = [
@@ -96,6 +99,27 @@ function operationsStockageNommees(source: string): string[] {
   return gestesNommes(source, OPERATIONS_STOCKAGE)
 }
 
+const DECLARATION_IMPORT =
+  /\bimport\s+(?!type\b)((?:(?!\b(?:import|export)\b)[\s\S])*?)\bfrom\s*(["'])([^"'`]+)\2/g
+
+const MODULE_R2_SPECIFIEUR = "@/lib/r2"
+
+function liaisonsNommees(clause: string): string[] | null {
+  const interieur = clause.match(/\{([\s\S]*?)\}/)?.[1]
+  if (interieur === undefined) return null
+  return interieur
+    .split(",")
+    .map((liaison) => liaison.trim())
+    .filter((liaison) => liaison.length > 0)
+    .map((liaison) => liaison.split(/\s+as\s+/)[0]!.trim())
+}
+
+function liaisonsImporteesDeR2(source: string): (string[] | null)[] {
+  return [...source.matchAll(DECLARATION_IMPORT)]
+    .filter(([, , , specifieur]) => specifieur === MODULE_R2_SPECIFIEUR)
+    .map(([, clause]) => liaisonsNommees(clause))
+}
+
 function promoteurs(sources: readonly SourceProduction[]): string[] {
   return sources
     .filter(
@@ -116,7 +140,7 @@ function mentionsDuProtocoleInverse(
 }
 
 describe("Cycle de vie des Images produit — frontière", () => {
-  it("confine les imports R2 au propriétaire, à l'artefact et aux effets documentés", () => {
+  it("confine les imports R2 au propriétaire, à l'artefact, au vocabulaire des types de contenu et aux effets documentés", () => {
     expect(SOURCES.length).toBeGreaterThan(200)
     expect(SOURCES.map(({ chemin }) => chemin)).toEqual(
       expect.arrayContaining([
@@ -160,13 +184,15 @@ describe("Cycle de vie des Images produit — frontière", () => {
     }
   })
 
-  it("compose le cycle de vie aux routes, jamais aux Server Actions ni au port R2", () => {
+  it("compose le cycle de vie aux routes, jamais aux Server Actions, et n'y nomme aucune opération de stockage", () => {
     const routes = ["app/api/admin/uploads/delete/route.ts", ROUTE_PRESIGNATION]
 
     for (const chemin of routes) {
       expect(importeDe(source(chemin), MODULE_CYCLE_VIE), chemin).toBe(true)
-      expect(importeDe(source(chemin), MODULE_R2), chemin).toBe(false)
+      expect(operationsStockageNommees(source(chemin)), chemin).toEqual([])
+      expect(source(chemin), chemin).not.toContain("stockageImageProduitR2")
     }
+    expect(importeDe(source(ROUTE_LIBERATION), MODULE_R2)).toBe(false)
     expect(importeDe(source(ACTION_ADMIN_PRODUITS), MODULE_CYCLE_VIE)).toBe(
       false
     )
@@ -177,6 +203,33 @@ describe("Cycle de vie des Images produit — frontière", () => {
     expect(importateursDe(MODULE_CYCLE_VIE)).toEqual(
       [...IMPORTATEURS_CYCLE_VIE_AUTORISES].sort()
     )
+  })
+
+  it("n'emprunte au stockage que le vocabulaire des types de contenu, et jamais une opération", () => {
+    const presignation = source(ROUTE_PRESIGNATION)
+    const imports = liaisonsImporteesDeR2(presignation)
+
+    expect(imports).toHaveLength(1)
+    expect(imports[0]).toEqual(["CONTENT_TYPES_IMAGE_PRODUIT"])
+    expect(presignation).not.toContain("getR2Client")
+    expect(presignation).not.toContain("stockageImageProduitR2")
+    expect(operationsStockageNommees(presignation)).toEqual([])
+    expect(importeDe(source(ROUTE_LIBERATION), MODULE_R2)).toBe(false)
+  })
+
+  it("tombe sur une liaison élargie à une fonction du stockage", () => {
+    const presignation = source(ROUTE_PRESIGNATION)
+    const elargie = presignation.replace(
+      'import { CONTENT_TYPES_IMAGE_PRODUIT } from "@/lib/r2"',
+      'import { CONTENT_TYPES_IMAGE_PRODUIT, getR2Client } from "@/lib/r2"'
+    )
+
+    expect(elargie).not.toBe(presignation)
+    expect(liaisonsImporteesDeR2(elargie)).toEqual([
+      ["CONTENT_TYPES_IMAGE_PRODUIT", "getR2Client"],
+    ])
+    expect(elargie).toContain("getR2Client")
+    expect(operationsStockageNommees(elargie)).toEqual([])
   })
 
   it("encode l'exception URL de Category.image sans l'ouvrir aux Images produit", () => {

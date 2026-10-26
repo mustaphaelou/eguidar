@@ -3,7 +3,7 @@ import { z } from "zod"
 import cycleVieImageProduit, {
   STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
 } from "@/lib/cycle-vie-image-produit"
-import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
+import { adminJsonRoute } from "@/lib/use-cases/admin-json-route"
 
 const relacherSchema = z
   .object({
@@ -11,42 +11,21 @@ const relacherSchema = z
   })
   .strict()
 
-export async function DELETE(request: Request) {
-  const client = await lireSession()
-  if (!estAdmin(client))
-    return Response.json({ error: "Non autorisé" }, { status: 401 })
-
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    return Response.json(
-      { error: "Corps de requête invalide" },
-      { status: 400 }
-    )
-  }
-
-  const parsed = relacherSchema.safeParse(body)
-  if (!parsed.success)
-    return Response.json({ error: "Requête invalide" }, { status: 400 })
-
-  try {
+export const DELETE = adminJsonRoute({
+  schema: relacherSchema,
+  logLabel: "[uploads] delete",
+  failureMessage: "Échec de la libération du Brouillon d'Image produit",
+  statuses: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
+  run: async (input, client) => {
     const resultat = await cycleVieImageProduit.relacherBrouillon({
-      draftId: parsed.data.draftId,
+      draftId: input.draftId,
       ownerId: client.id,
     })
-    if (!resultat.ok) {
-      return Response.json(
-        { error: resultat.message },
-        { status: STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT[resultat.code] }
-      )
-    }
+    if (!resultat.ok) return resultat
 
-    return Response.json({ released: true, draftId: resultat.draftId })
-  } catch {
-    return Response.json(
-      { error: "Échec de la libération du Brouillon d'Image produit" },
-      { status: 500 }
-    )
-  }
-}
+    return {
+      ok: true,
+      body: { released: true, draftId: resultat.draftId },
+    }
+  },
+})
