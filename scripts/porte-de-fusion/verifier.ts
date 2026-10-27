@@ -8,6 +8,7 @@ import {
   type EcartDeLaPorte,
   type PorteDeFusion,
 } from "@/infra/porte-de-fusion"
+import { messageDe } from "../../lib/valeur"
 
 import {
   lireLaPorteVivante,
@@ -53,11 +54,7 @@ export type DependancesDuVerificateur = {
   ecrireErreur: (texte: string) => void
 }
 
-function messageDe(erreur: unknown): string {
-  return erreur instanceof Error ? erreur.message : String(erreur)
-}
-
-export function dependancesParDefautDuVerificateur(): DependancesDuVerificateur {
+function dependancesParDefautDuVerificateur(): DependancesDuVerificateur {
   return {
     lireContrat: lireLaPorteDeFusion,
     lecture: {},
@@ -72,13 +69,15 @@ export function dependancesParDefautDuVerificateur(): DependancesDuVerificateur 
 
 function annoncerLIllisibilite(
   dependances: DependancesDuVerificateur,
-  raison: string
-): 2 {
-  dependances.ecrireErreur(`La Porte de fusion n'est pas lisible : ${raison}`)
+  verdict: Extract<VerdictDeLaPorte, { etat: "illisible" }>
+): 0 | 1 | 2 {
+  dependances.ecrireErreur(
+    `La Porte de fusion n'est pas lisible : ${verdict.raison}`
+  )
   dependances.ecrireErreur(
     "Le docteur ne peut pas conclure : ce n'est pas une dérive."
   )
-  return 2
+  return codeDeSortie(verdict)
 }
 
 export async function verifierLaPorte(
@@ -93,27 +92,33 @@ export async function verifierLaPorte(
   try {
     contrat = deps.lireContrat()
   } catch (erreur) {
-    return annoncerLIllisibilite(deps, messageDe(erreur))
+    return annoncerLIllisibilite(deps, {
+      etat: "illisible",
+      raison: messageDe(erreur),
+    })
   }
 
   let lecture: LectureDeLaPorte
   try {
     lecture = await lireLaPorteVivante(contrat, deps.lecture ?? {})
   } catch (erreur) {
-    return annoncerLIllisibilite(deps, messageDe(erreur))
+    return annoncerLIllisibilite(deps, {
+      etat: "illisible",
+      raison: messageDe(erreur),
+    })
   }
 
   const verdict = verdictDeLaLecture(contrat, lecture)
 
   if (verdict.etat === "illisible") {
-    return annoncerLIllisibilite(deps, verdict.raison)
+    return annoncerLIllisibilite(deps, verdict)
   }
 
   if (verdict.etat === "conforme") {
     deps.ecrire(
       `La Porte de fusion est conforme : le ruleset « ${verdict.nom} » porte tous les faits du contrat.`
     )
-    return 0
+    return codeDeSortie(verdict)
   }
 
   deps.ecrire(
@@ -125,7 +130,7 @@ export async function verifierLaPorte(
   deps.ecrire(
     "Corrigez le ruleset vivant ou le contrat, puis relancez « npm run porte:verifier »."
   )
-  return 1
+  return codeDeSortie(verdict)
 }
 
 if (

@@ -9,6 +9,7 @@ import {
   comparerLesContextesDeLaPorte,
   ErreurDePorteDeFusion,
   lireLaPorteDeFusion,
+  messagesDesEcartsDeContextes,
   phraseDeLEcart,
   type FaitsDuRuleset,
   type PorteDeFusion,
@@ -333,29 +334,8 @@ describe("la comparaison de la porte aux faits vivants", () => {
   })
 })
 
-function referenceDuContrat(porte: PorteDeFusion): string {
-  return `Le contrat « ${porte.nom} » (${SOURCE})`
-}
-
-function messagesDesEcarts(
-  porte: PorteDeFusion,
-  jobs: readonly string[]
-): string[] {
-  const { nonExigés, sansJob } = comparerLesContextesDeLaPorte(porte, jobs)
-  return [
-    ...nonExigés.map(
-      (job) =>
-        `${referenceDuContrat(porte)} n'exige pas le job « ${job} » : ajoutez « ${job} » à \`contextes\`, ou retirez le job du flux.`
-    ),
-    ...sansJob.map(
-      (contexte) =>
-        `${referenceDuContrat(porte)} exige le contexte « ${contexte} » qu'aucun job du flux ne fournit : retirez « ${contexte} » de \`contextes\`, ou ajoutez un job nommé « ${contexte} » au flux.`
-    ),
-  ]
-}
-
 function exigerLAccord(porte: PorteDeFusion, jobs: readonly string[]): void {
-  const messages = messagesDesEcarts(porte, jobs)
+  const messages = messagesDesEcartsDeContextes(porte, jobs)
   if (messages.length > 0) throw new Error(messages.join("\n"))
 }
 

@@ -490,3 +490,10 @@ aucune revue exigée et aucun contournement. Un contrat versionné les enregistr
 quand GitHub ne peut pas l'appliquer. Une porte non lisible n'est pas une porte absente : quand le
 plan, la visibilité ou le jeton ne permet pas de lire le ruleset, le blocage est nommé.
 _Avoid_: branch protection, merge gate, règles de fusion
+
+**Docteur de la Porte de fusion**:
+La commande locale `npm run porte:verifier`, qui lit le ruleset vivant du dépôt et le compare aux
+faits du contrat `infra/porte-de-fusion.json` sans jamais l'appliquer. Elle sort `0` quand le
+ruleset est conforme, `1` quand il dérive — chaque fait divergent est imprimé —, et `2` quand le
+ruleset ne peut pas être lu : un `2` n'est pas une porte absente et ne se traite pas comme un `0`.
+_Avoid_: live check, ruleset checker, vérification en direct

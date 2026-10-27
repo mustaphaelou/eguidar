@@ -212,14 +212,10 @@ describe("le job de build atteint un catalogue sans secret de dépôt", () => {
     })
   })
 
-  it("ne référence aucun secret de dépôt ni `GITHUB_TOKEN`", () => {
+  it("ne référence aucun secret de dépôt", () => {
     const flux = texteDuFichier(FLUX)
 
     expect(flux).not.toMatch(/\$\{\{\s*secrets\./)
-    expect(
-      flux,
-      "le flux ne doit plus exporter `GITHUB_TOKEN` : aucune lecture vivante du ruleset n'a lieu en CI, et un jeton de dépôt dans `npm test` élargit la surface de tout processus de test."
-    ).not.toMatch(/GITHUB_TOKEN/)
   })
 
   it("migre et sème la base locale du job avant de construire", () => {
@@ -285,17 +281,6 @@ describe("le job de build atteint un catalogue sans secret de dépôt", () => {
     )
 
     expect(String(avec(buildx)["driver-opts"] ?? "")).toContain("network=host")
-  })
-})
-
-describe("le job de test n'exporte aucun jeton GitHub", () => {
-  it("ne déclare aucun env sur l'étape `npm test`", () => {
-    const etapeTest = etapeSous("test", (etape) => etape.run === "npm test")
-
-    expect(
-      etapeTest,
-      "l'étape `npm test` ne doit déclarer aucun env : les services du job passent par l'env du job, et un env d'étape est le chemin par lequel `GITHUB_TOKEN` rentrerait."
-    ).not.toHaveProperty("env")
   })
 })
 

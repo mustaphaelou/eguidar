@@ -4,6 +4,7 @@ import {
   type FaitsDuRuleset,
   type PorteDeFusion,
 } from "@/infra/porte-de-fusion"
+import { estObjet, estTexteNonVide, messageDe } from "../../lib/valeur"
 
 const API = "https://api.github.com"
 
@@ -50,6 +51,8 @@ export type DependancesDeLecture = {
 export type LectureDeLaPorte =
   { lisible: true; faits: FaitsDuRuleset } | { lisible: false; raison: string }
 
+export type SelectionDeLaPorte = Pick<PorteDeFusion, "nom" | "branche">
+
 // Une panne de droits ou un choix impossible ne se répare pas en réessayant.
 class LectureDefinitive extends Error {}
 
@@ -64,14 +67,8 @@ type ResumeDeRuleset = {
 
 type Candidat = ResumeDeRuleset & {
   detail: Record<string, unknown>
-}
-
-function estObjet(valeur: unknown): valeur is Record<string, unknown> {
-  return typeof valeur === "object" && valeur !== null && !Array.isArray(valeur)
-}
-
-function estTexteNonVide(valeur: unknown): valeur is string {
-  return typeof valeur === "string" && valeur.trim() !== ""
+  incluses: string[]
+  exclues: string[]
 }
 
 function estTableauDeTextes(valeur: unknown): valeur is string[] {
@@ -79,10 +76,6 @@ function estTableauDeTextes(valeur: unknown): valeur is string[] {
     Array.isArray(valeur) &&
     valeur.every((entree) => typeof entree === "string" && entree.trim() !== "")
   )
-}
-
-function messageDe(erreur: unknown): string {
-  return erreur instanceof Error ? erreur.message : String(erreur)
 }
 
 function exigerUneBonneReponse(reponse: ReponseHttp, source: string): void {
@@ -159,6 +152,44 @@ function lireLesConditions(
   return { incluses: [...include], exclues: [...exclude] }
 }
 
+const REF_PAR_DEFAUT = "~DEFAULT_BRANCH"
+
+const REF_TOUTES = "~ALL"
+
+function estGlob(ref: string): boolean {
+  return ref.includes("*") || ref.includes("?")
+}
+
+function motifEnExpression(ref: string): RegExp {
+  const echappe = ref.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+  const motif = echappe.replace(/\*/g, ".*").replace(/\?/g, ".")
+  return new RegExp(`^${motif}$`)
+}
+
+function refCouvre(ref: string, branche: string): boolean {
+  if (ref === REF_TOUTES) return true
+  if (estGlob(ref)) return motifEnExpression(ref).test(branche)
+  return ref === branche
+}
+
+function normaliserLaBrancheParDefaut(
+  refs: readonly string[],
+  brancheParDefaut: string
+): string[] {
+  return refs.map((ref) =>
+    ref === REF_PAR_DEFAUT ? `refs/heads/${brancheParDefaut}` : ref
+  )
+}
+
+function exigerLaBrancheParDefaut(corps: unknown, source: string): string {
+  if (!estObjet(corps) || !estTexteNonVide(corps.default_branch)) {
+    throw new LectureTemporaire(
+      `${source} : clé \`default_branch\` absente ou illisible`
+    )
+  }
+  return corps.default_branch
+}
+
 function exigerUnBooleen(
   valeur: unknown,
   cle: string,
@@ -168,6 +199,57 @@ function exigerUnBooleen(
     throw new LectureTemporaire(`${source} : \`${cle}\` n'est pas un booléen`)
   }
   return valeur
+}
+
+function lireUneExigenceBooleenne(
+  valeur: unknown,
+  cle: string,
+  source: string
+): boolean {
+  return valeur === undefined ? false : exigerUnBooleen(valeur, cle, source)
+}
+
+function lireLaRevueRequise(
+  parameters: Record<string, unknown>,
+  source: string
+): boolean {
+  const revues = parameters.required_approving_review_count
+  if (typeof revues !== "number" || !Number.isInteger(revues) || revues < 0) {
+    throw new LectureTemporaire(
+      `${source}\`required_approving_review_count\` absent ou illisible`
+    )
+  }
+
+  const codeOwner = lireUneExigenceBooleenne(
+    parameters.require_code_owner_review,
+    "require_code_owner_review",
+    source
+  )
+  const dernierPush = lireUneExigenceBooleenne(
+    parameters.require_last_push_approval,
+    "require_last_push_approval",
+    source
+  )
+  const resolution = lireUneExigenceBooleenne(
+    parameters.required_review_thread_resolution,
+    "required_review_thread_resolution",
+    source
+  )
+
+  const reviewers = parameters.required_reviewers
+  if (reviewers !== undefined && !Array.isArray(reviewers)) {
+    throw new LectureTemporaire(
+      `${source}\`required_reviewers\` n'est pas une liste`
+    )
+  }
+
+  return (
+    revues > 0 ||
+    codeOwner ||
+    dernierPush ||
+    resolution ||
+    (Array.isArray(reviewers) && reviewers.length > 0)
+  )
 }
 
 function decrireUnActeur(acteur: unknown, source: string): string {
@@ -190,7 +272,8 @@ function decrireUnActeur(acteur: unknown, source: string): string {
 
 function analyserLesFaits(
   detail: Record<string, unknown>,
-  source: string
+  source: string,
+  conditions: { incluses: string[]; exclues: string[] }
 ): FaitsDuRuleset {
   const nom = detail.name
   if (!estTexteNonVide(nom)) {
@@ -198,7 +281,7 @@ function analyserLesFaits(
   }
   const dans = `${source} (ruleset « ${nom} ») : `
 
-  const { incluses, exclues } = lireLesConditions(detail, source)
+  const { incluses, exclues } = conditions
 
   const rules = detail.rules
   if (!Array.isArray(rules)) {
@@ -255,13 +338,7 @@ function analyserLesFaits(
         `${dans}la règle \`pull_request\` n'a pas de paramètres lisibles`
       )
     }
-    const revues = reglePull.parameters.required_approving_review_count
-    if (typeof revues !== "number" || !Number.isInteger(revues) || revues < 0) {
-      throw new LectureTemporaire(
-        `${dans}\`required_approving_review_count\` absent ou illisible`
-      )
-    }
-    revueRequise = revues > 0
+    revueRequise = lireLaRevueRequise(reglePull.parameters, dans)
   }
 
   const bypass = detail.bypass_actors
@@ -287,7 +364,7 @@ function analyserLesFaits(
 
 function choisirLeCandidat(
   candidats: ResumeDeRuleset[],
-  contrat: PorteDeFusion,
+  contrat: SelectionDeLaPorte,
   source: string
 ): ResumeDeRuleset {
   if (candidats.length === 1) return candidats[0]
@@ -304,11 +381,26 @@ function choisirLeCandidat(
 async function lireUneFois(
   depot: string,
   jeton: string,
-  contrat: PorteDeFusion,
+  contrat: SelectionDeLaPorte,
   dependances: DependancesDeLecture
 ): Promise<FaitsDuRuleset> {
   const urlListe = `${API}/repos/${depot}/rulesets`
   const sourceListe = `GET ${urlListe}`
+  const urlDepot = `${API}/repos/${depot}`
+
+  let brancheParDefaut: string | undefined
+
+  // La branche par défaut n'est lue que si une condition la nomme
+  // symboliquement : une lecture littérale n'a pas besoin du dépôt.
+  async function lireLaBrancheParDefaut(): Promise<string> {
+    if (brancheParDefaut !== undefined) return brancheParDefaut
+
+    const source = `GET ${urlDepot}`
+    const reponse = await dependances.recuperer(urlDepot, jeton)
+    exigerUneBonneReponse(reponse, source)
+    brancheParDefaut = exigerLaBrancheParDefaut(reponse.corps, source)
+    return brancheParDefaut
+  }
 
   const reponseListe = await dependances.recuperer(urlListe, jeton)
   exigerUneBonneReponse(reponseListe, sourceListe)
@@ -329,12 +421,20 @@ async function lireUneFois(
     const reponseDetail = await dependances.recuperer(urlDetail, jeton)
     exigerUneBonneReponse(reponseDetail, sourceDetail)
     const detail = exigerUnRuleset(reponseDetail.corps, sourceDetail)
-    const { incluses, exclues } = lireLesConditions(detail, sourceDetail)
+    const conditions = lireLesConditions(detail, sourceDetail)
 
-    if (!incluses.includes(contrat.branche)) continue
-    if (exclues.includes(contrat.branche)) continue
+    let { incluses, exclues } = conditions
+    if ([...incluses, ...exclues].includes(REF_PAR_DEFAUT)) {
+      const defaut = await lireLaBrancheParDefaut()
+      incluses = normaliserLaBrancheParDefaut(incluses, defaut)
+      exclues = normaliserLaBrancheParDefaut(exclues, defaut)
+    }
 
-    candidats.push({ id, nom, detail })
+    const couverte = incluses.some((ref) => refCouvre(ref, contrat.branche))
+    const exclue = exclues.some((ref) => refCouvre(ref, contrat.branche))
+    if (!couverte || exclue) continue
+
+    candidats.push({ id, nom, detail, incluses, exclues })
   }
 
   if (candidats.length === 0) {
@@ -355,7 +455,10 @@ async function lireUneFois(
     )
   }
 
-  return analyserLesFaits(selectionne.detail, `GET ${urlListe}/${choisi.id}`)
+  return analyserLesFaits(selectionne.detail, `GET ${urlListe}/${choisi.id}`, {
+    incluses: selectionne.incluses,
+    exclues: selectionne.exclues,
+  })
 }
 
 function resoudreLeDepot(dependances: DependancesDeLecture): string | null {
@@ -390,7 +493,7 @@ function resoudreLeJeton(dependances: DependancesDeLecture): string | null {
   }
 }
 
-export function dependancesParDefaut(): DependancesDeLecture {
+function dependancesParDefaut(): DependancesDeLecture {
   return {
     env: process.env,
     executer: (commande, arguments_) =>
@@ -425,7 +528,7 @@ export function dependancesParDefaut(): DependancesDeLecture {
 }
 
 export async function lireLaPorteVivante(
-  contrat: PorteDeFusion,
+  contrat: SelectionDeLaPorte,
   dependances: Partial<DependancesDeLecture> = {}
 ): Promise<LectureDeLaPorte> {
   const deps = { ...dependancesParDefaut(), ...dependances }

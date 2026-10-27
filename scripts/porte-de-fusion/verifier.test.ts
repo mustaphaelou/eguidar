@@ -5,17 +5,25 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import {
-  lireLaPorteDeFusion,
-  type FaitsDuRuleset,
-} from "@/infra/porte-de-fusion"
+import { type FaitsDuRuleset } from "@/infra/porte-de-fusion"
 import { checksDuFlux } from "@/scripts/ci-liste"
+import {
+  API,
+  CONTEXTES_VIVANTS,
+  CONTRAT,
+  DEPOT,
+  ok,
+  reglePull,
+  regleStatuts,
+  resume,
+  ruleset,
+  type ReponseHttp,
+} from "@/test/porte-de-fusion-fixtures"
 
 import {
   REMEDE_DU_JETON,
   REMEDE_PLAN_OU_VISIBILITE,
   type DependancesDeLecture,
-  type ReponseHttp,
 } from "./lecture-du-ruleset"
 import {
   codeDeSortie,
@@ -29,14 +37,6 @@ const RACINE = path.resolve(import.meta.dirname, "../..")
 const SCRIPT = path.join(import.meta.dirname, "verifier.ts")
 
 const LANCEUR = createRequire(import.meta.url).resolve("tsx/cli")
-
-const CONTRAT = lireLaPorteDeFusion()
-
-const DEPOT = "mustaphaelou/eguidar"
-
-const API = `https://api.github.com/repos/${DEPOT}/rulesets`
-
-const CONTEXTES_VIVANTS = ["lint", "format", "typecheck", "test", "build"]
 
 function environnement(valeurs: Record<string, string>): NodeJS.ProcessEnv {
   return { NODE_ENV: "test", ...valeurs }
@@ -57,67 +57,6 @@ const FAITS_CONFORMES: FaitsDuRuleset = {
   pullRequestRequise: true,
   revueRequise: false,
   contournement: [],
-}
-
-function ok(corps: unknown): ReponseHttp {
-  return { statut: 200, corps }
-}
-
-function resume(id: number, nom: string): Record<string, unknown> {
-  return {
-    id,
-    name: nom,
-    target: "branch",
-    source_type: "Repository",
-    source: DEPOT,
-    enforcement: "active",
-    created_at: "2026-09-14T00:03:44.667+01:00",
-    updated_at: "2026-09-30T10:01:36.440+01:00",
-  }
-}
-
-function reglePull(revues = 0): Record<string, unknown> {
-  return {
-    type: "pull_request",
-    parameters: { required_approving_review_count: revues },
-  }
-}
-
-function regleStatuts(
-  partiel: Record<string, unknown> = {}
-): Record<string, unknown> {
-  return {
-    type: "required_status_checks",
-    parameters: {
-      strict_required_status_checks_policy: true,
-      do_not_enforce_on_create: false,
-      required_status_checks: CONTEXTES_VIVANTS.map((context) => ({ context })),
-      ...partiel,
-    },
-  }
-}
-
-function ruleset(
-  partiel: Record<string, unknown> = {}
-): Record<string, unknown> {
-  return {
-    id: 23_223_443,
-    node_id: "RRS_exemple",
-    name: "main-protection",
-    target: "branch",
-    source_type: "Repository",
-    source: DEPOT,
-    enforcement: "active",
-    conditions: {
-      ref_name: { include: ["refs/heads/main"], exclude: [] },
-    },
-    bypass_actors: [],
-    rules: [reglePull(), regleStatuts()],
-    created_at: "2026-09-14T00:03:44.667+01:00",
-    updated_at: "2026-09-30T10:01:36.440+01:00",
-    _links: { self: { href: `${API}/${23_223_443}` } },
-    ...partiel,
-  }
 }
 
 type Route = ReponseHttp | (() => ReponseHttp)
