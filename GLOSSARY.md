@@ -468,6 +468,21 @@ Une page éditoriale du Blog (`/blog/[slug]`) avec titre, slug, extrait, couvert
 un Thème et un Statut de publication.
 _Avoid_: Article (seul, réservé à l'Article du panier), post, billet
 
+**Chapô**:
+La phrase d'accroche d'un Article de blog, affichée sous son titre pour donner envie de lire.
+L'Extrait reste la description destinée aux moteurs de recherche : un Article de blog sans Chapô
+affiche son Extrait à cette place.
+_Avoid_: deck, sous-titre, accroche, standfirst
+
+**Intertitre**:
+Le titre d'une section à l'intérieur du contenu d'un Article de blog, distinct du titre de la page.
+_Avoid_: titre de section, sous-titre, heading
+
+**Fragment d'article**:
+Une unité typée du contenu d'un Article de blog — paragraphe, intertitre, figure, liste ou citation —
+telle que le contenu la décrit.
+_Avoid_: bloc, section, élément, module
+
 **Thème**:
 Le regroupement éditorial d'un Article de blog (Guides, Annonces pour le MVP) ;
 liste fermée sans hiérarchie. Catégorie reste Catalogue-only.
@@ -482,3 +497,7 @@ Un Produit du Catalogue attaché à un Article de blog, affiché en Carte produi
 vers sa page Produit. Un Produit lié indisponible (stock total nul) est masqué à la lecture : l'Article
 de blog reste publié, sa Carte produit disparaît.
 _Avoid_: produit associé, related product
+
+**Article lié**:
+Un Article de blog proposé à la fin d'un autre Article de blog, choisi dans le même Thème d'abord.
+_Avoid_: article associé, article suggéré, related article
