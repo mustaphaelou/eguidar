@@ -58,12 +58,42 @@ async function rendre(contenu: string): Promise<string> {
   return new Response(flux).text()
 }
 
+async function rendreArticle({
+  contenu,
+  couverture = null,
+}: {
+  contenu: string
+  couverture?: string | null
+}): Promise<string> {
+  getArticleParSlugMock.mockResolvedValue({ ...article(contenu), couverture })
+  const flux = await renderToReadableStream(
+    <ArticleBlogPage params={Promise.resolve({ slug: "choisir-son-casque" })} />
+  )
+  return new Response(flux).text()
+}
+
 function classesDans(html: string, balise: string, texte: string): string[] {
   const motif = new RegExp(
     `<${balise}[^>]*\\sclass="([^"]*)"[^>]*>${texte}</${balise}>`
   )
   const classes = html.match(motif)?.[1]
   return classes ? classes.split(/\s+/) : []
+}
+
+function baliseOuverte(html: string, balise: string): string {
+  return html.match(new RegExp(`<${balise}[\\s>][^>]*>`))?.[0] ?? ""
+}
+
+function classesDeLaBalise(html: string, balise: string): string[] {
+  const classes = baliseOuverte(html, balise).match(/\sclass="([^"]*)"/)?.[1]
+  if (!classes) return []
+  return classes
+    .replaceAll("&amp;", "&")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#x27;", "'")
+    .split(/\s+/)
 }
 
 function attendreLOrdre(html: string, reperes: string[]) {
@@ -111,21 +141,27 @@ describe("Page Article de blog — Fragments d'article", () => {
     ])
   })
 
-  it("rend le corpus historique avec les classes d'avant", async () => {
+  it("gradue les Intertitres de 24 px à 21 px, jamais sous le corps, dans la colonne centrale", async () => {
     const html = await rendre(
       "Intro.\n\n## Choisir son écran\n\nUn paragraphe de conseils."
     )
 
     expect(classesDans(html, "h2", "Choisir son écran")).toEqual(
       expect.arrayContaining([
-        "mt-11",
-        "text-[21px]",
-        "leading-[1.1905]",
-        "sm:text-[24px]",
+        "text-[24px]",
+        "leading-[1.1667]",
+        "tracking-[0.009em]",
+        "max-[1068px]:text-[21px]",
+        "max-[1068px]:leading-[1.1905]",
+        "max-[1068px]:tracking-[0.011em]",
+        "md:col-start-2",
       ])
     )
     expect(classesDans(html, "p", "Un paragraphe de conseils.")).toEqual(
-      expect.arrayContaining(["mt-6", "whitespace-pre-line", "first:mt-0"])
+      expect.arrayContaining(["md:col-start-2"])
+    )
+    expect(classesDeLaBalise(html, "article")).toEqual(
+      expect.arrayContaining(["text-[19px]", "max-[1068px]:text-body"])
     )
   })
 
@@ -134,5 +170,122 @@ describe("Page Article de blog — Fragments d'article", () => {
 
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;")
     expect(html).not.toContain("<script>alert(1)</script>")
+  })
+})
+
+describe("Page Article de blog — grille de percée", () => {
+  it("pose le masthead dans la colonne centrale, dans l'ordre Thème, date, titre, Extrait", async () => {
+    const html = await rendre("Un paragraphe.")
+    const entete = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ""
+
+    attendreLOrdre(entete, [
+      "Guides",
+      "<time",
+      "Choisir son casque",
+      "L&#x27;extrait de l&#x27;article.",
+    ])
+    expect(entete).toContain('dateTime="2026-10-01T08:00:00.000Z"')
+    expect(classesDeLaBalise(html, "header")).toContain("md:col-start-2")
+    expect(classesDeLaBalise(entete, "span")).toEqual(
+      expect.arrayContaining(["block", "text-[12px]", "font-bold", "uppercase"])
+    )
+    expect(classesDeLaBalise(entete, "time")).toEqual(
+      expect.arrayContaining(["block", "text-[14px]", "font-semibold"])
+    )
+    expect(html.match(/<h1[\s>]/g) ?? []).toHaveLength(1)
+  })
+
+  it("découpe la page en 980 px avec une mesure de 653 px, des figures sur trois colonnes et le rythme 44/36/32", async () => {
+    const html = await rendre("Un paragraphe.")
+
+    const conteneur =
+      html.match(/<div class="([^"]*max-w-\[980px\][^"]*)"/)?.[1] ?? ""
+    expect(conteneur).toContain("mx-auto")
+    expect(conteneur).toContain("w-full")
+    expect(conteneur).not.toContain("px-4")
+
+    expect(classesDeLaBalise(html, "article")).toEqual(
+      expect.arrayContaining([
+        "px-4",
+        "sm:px-6",
+        "md:px-0",
+        "md:grid-cols-[1fr_min(653px,100%)_1fr]",
+        "[&>*+*]:mt-[44px]",
+        "max-[1068px]:[&>*+*]:mt-[36px]",
+        "max-[734px]:[&>*+*]:mt-[32px]",
+      ])
+    )
+  })
+
+  it("pose les paragraphes dans la colonne centrale et leur donne un interligne de paragraphe", async () => {
+    const html = await rendre("Un paragraphe.\n\nUn autre paragraphe.")
+
+    expect(classesDans(html, "p", "Un paragraphe.")).toEqual(
+      expect.arrayContaining(["md:col-start-2"])
+    )
+    expect(classesDeLaBalise(html, "article")).toEqual(
+      expect.arrayContaining([
+        "[&>p+p]:mt-[1.4211em]",
+        "max-[1068px]:[&>p+p]:mt-[1.471em]",
+      ])
+    )
+  })
+})
+
+describe("Page Article de blog — figures", () => {
+  it("rend une figure du corps avec son alt et sa légende revenue à la mesure", async () => {
+    const html = await rendreArticle({
+      contenu:
+        '![Un casque posé sur un bureau](/images/casque.webp "Le casque du guide")',
+    })
+
+    expect(html).toContain('data-image-src="/images/casque.webp"')
+    expect(html).toContain('aria-label="Un casque posé sur un bureau"')
+    expect(html).toMatch(/<figcaption[^>]*>Le casque du guide<\/figcaption>/)
+    const figure = baliseOuverte(html, "figure")
+    expect(figure).toContain("-mx-4")
+    expect(figure).toContain("sm:-mx-6")
+    expect(figure).toContain("md:col-span-3")
+    expect(figure).toContain("md:mx-0")
+
+    const cadre = html.match(/<div class="[^"]*aspect-video[^"]*"/)?.[0] ?? ""
+    expect(cadre).toContain("rounded-[10px]")
+    expect(cadre).toContain("bg-muted")
+
+    const legende = html.match(/<figcaption[^>]*>/)?.[0] ?? ""
+    expect(legende).toContain("w-[87.5%]")
+    expect(legende).toContain("md:max-w-[653px]")
+    expect(legende).toContain("text-[12px]")
+    expect(legende).toContain("font-semibold")
+    expect(legende).toContain("text-muted-foreground")
+  })
+
+  it("n'affiche pas de légende sous une figure sans titre Markdown", async () => {
+    const html = await rendreArticle({
+      contenu: "![Un casque sans titre](/images/casque.webp)",
+    })
+
+    expect(html).toContain('aria-label="Un casque sans titre"')
+    expect(html).not.toContain("<figcaption")
+  })
+
+  it("rend la couverture en première figure, à la largeur de la grille et avec un alt vide", async () => {
+    const html = await rendreArticle({
+      contenu:
+        'Un paragraphe.\n\n![Un casque](/images/casque.webp "Le casque")',
+      couverture: "/images/couverture.webp",
+    })
+    const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+    const figures = [...corps.matchAll(/<figure[\s\S]*?<\/figure>/g)].map(
+      ([figure]) => figure
+    )
+
+    expect(figures).toHaveLength(2)
+    expect(figures[0]).toContain("couverture.webp")
+    expect(figures[1]).toContain("casque.webp")
+    expect(figures[0]).toContain("md:col-span-3")
+    expect(figures[0]).toMatch(
+      /<span data-image-src="\/images\/couverture\.webp" aria-label=""><\/span>/
+    )
   })
 })
