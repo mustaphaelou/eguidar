@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 
+import { estObjet, estTexteNonVide } from "../lib/valeur"
+
 export type PorteDeFusion = {
   nom: string
   branche: string
@@ -17,14 +19,6 @@ export class ErreurDePorteDeFusion extends Error {
     super(raison)
     this.name = "ErreurDePorteDeFusion"
   }
-}
-
-function estObjet(valeur: unknown): valeur is Record<string, unknown> {
-  return typeof valeur === "object" && valeur !== null && !Array.isArray(valeur)
-}
-
-function estTexteNonVide(valeur: unknown): valeur is string {
-  return typeof valeur === "string" && valeur.trim() !== ""
 }
 
 function illisible(source: string, cle: string): ErreurDePorteDeFusion {
@@ -144,6 +138,27 @@ export function comparerLesContextesDeLaPorte(
   }
 }
 
+const REFERENCE_DU_CONTRAT = "infra/porte-de-fusion.json"
+
+export function messagesDesEcartsDeContextes(
+  porte: PorteDeFusion,
+  jobs: readonly string[]
+): string[] {
+  const { nonExigés, sansJob } = comparerLesContextesDeLaPorte(porte, jobs)
+  const reference = `Le contrat « ${porte.nom} » (${REFERENCE_DU_CONTRAT})`
+
+  return [
+    ...nonExigés.map(
+      (job) =>
+        `${reference} n'exige pas le job « ${job} » : ajoutez « ${job} » à \`contextes\`, ou retirez le job du flux.`
+    ),
+    ...sansJob.map(
+      (contexte) =>
+        `${reference} exige le contexte « ${contexte} » qu'aucun job du flux ne fournit : retirez « ${contexte} » de \`contextes\`, ou ajoutez un job nommé « ${contexte} » au flux.`
+    ),
+  ]
+}
+
 export type FaitsDuRuleset = {
   nom: string
   branchesIncluses: string[]
@@ -167,19 +182,6 @@ function listeTriee(valeurs: readonly string[], vide = "aucune"): string {
   return uniques.length === 0 ? vide : uniques.join(", ")
 }
 
-function memesEnsembles(
-  gauche: readonly string[],
-  droite: readonly string[]
-): boolean {
-  const vus = new Set(gauche)
-  const autres = new Set(droite)
-  if (vus.size !== autres.size) return false
-  for (const valeur of vus) {
-    if (!autres.has(valeur)) return false
-  }
-  return true
-}
-
 function ouiOuNon(valeur: boolean): string {
   return valeur ? "oui" : "non"
 }
@@ -190,63 +192,46 @@ export function comparerLaPorteAuxFaits(
 ): EcartDeLaPorte[] {
   const ecarts: EcartDeLaPorte[] = []
 
-  function comparer(
-    fait: string,
-    attendu: string,
-    trouve: string,
-    different: boolean
-  ): void {
-    if (different) ecarts.push({ fait, attendu, trouve })
+  function comparer(fait: string, attendu: string, trouve: string): void {
+    if (attendu !== trouve) ecarts.push({ fait, attendu, trouve })
   }
 
   const branchesAttendues = [contrat.branche]
   comparer(
     "branches couvertes",
     listeTriee(branchesAttendues),
-    listeTriee(faits.branchesIncluses),
-    !memesEnsembles(branchesAttendues, faits.branchesIncluses)
+    listeTriee(faits.branchesIncluses)
   )
-  comparer(
-    "branches exclues",
-    "aucune",
-    listeTriee(faits.branchesExclues),
-    faits.branchesExclues.length > 0
-  )
+  comparer("branches exclues", "aucune", listeTriee(faits.branchesExclues))
   comparer(
     "contextes exigés",
     listeTriee(contrat.contextes),
-    listeTriee(faits.contextes),
-    !memesEnsembles(contrat.contextes, faits.contextes)
+    listeTriee(faits.contextes)
   )
   comparer(
     "branche à jour exigée",
     ouiOuNon(contrat.exigeBrancheAJour),
-    ouiOuNon(faits.exigeBrancheAJour),
-    contrat.exigeBrancheAJour !== faits.exigeBrancheAJour
+    ouiOuNon(faits.exigeBrancheAJour)
   )
   comparer(
     "exigence suspendue à la création",
     ouiOuNon(contrat.suspendLExigenceALaCreation),
-    ouiOuNon(faits.suspendLExigenceALaCreation),
-    contrat.suspendLExigenceALaCreation !== faits.suspendLExigenceALaCreation
+    ouiOuNon(faits.suspendLExigenceALaCreation)
   )
   comparer(
     "pull request requise",
     ouiOuNon(contrat.pullRequestRequise),
-    ouiOuNon(faits.pullRequestRequise),
-    contrat.pullRequestRequise !== faits.pullRequestRequise
+    ouiOuNon(faits.pullRequestRequise)
   )
   comparer(
     "revue requise",
     ouiOuNon(contrat.revueRequise),
-    ouiOuNon(faits.revueRequise),
-    contrat.revueRequise !== faits.revueRequise
+    ouiOuNon(faits.revueRequise)
   )
   comparer(
     "contournements",
     listeTriee(contrat.contournement, "aucun"),
-    listeTriee(faits.contournement, "aucun"),
-    !memesEnsembles(contrat.contournement, faits.contournement)
+    listeTriee(faits.contournement, "aucun")
   )
 
   return ecarts

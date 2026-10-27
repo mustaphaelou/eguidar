@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest"
 
-import { lireLaPorteDeFusion } from "@/infra/porte-de-fusion"
+import { comparerLaPorteAuxFaits } from "@/infra/porte-de-fusion"
+import {
+  API,
+  CONTEXTES_VIVANTS,
+  CONTRAT,
+  DEPOT,
+  ok,
+  reglePull,
+  regleStatuts,
+  resume,
+  ruleset,
+  type ReponseHttp,
+} from "@/test/porte-de-fusion-fixtures"
 
 import {
   REMEDE_DU_DEPOT,
@@ -9,18 +21,7 @@ import {
   lireLaPorteVivante,
   type DependancesDeLecture,
   type LectureDeLaPorte,
-  type ReponseHttp,
 } from "./lecture-du-ruleset"
-
-const CONTRAT = lireLaPorteDeFusion()
-
-const DEPOT = "mustaphaelou/eguidar"
-
-const API = `https://api.github.com/repos/${DEPOT}/rulesets`
-
-// L'ordre que l'API rend aujourd'hui, différent du contrat trié : la lecture ne
-// réordonne rien, la comparaison traite les contextes comme un ensemble.
-const CONTEXTES_VIVANTS = ["lint", "format", "typecheck", "test", "build"]
 
 function environnement(valeurs: Record<string, string>): NodeJS.ProcessEnv {
   return { NODE_ENV: "test", ...valeurs }
@@ -31,90 +32,19 @@ const ENV_DE_TEST = environnement({
   GH_TOKEN: "jeton-de-test",
 })
 
+const URL_DU_DEPOT = `https://api.github.com/repos/${DEPOT}`
+
 type Route = ReponseHttp | ((appel: number) => ReponseHttp)
 
 type Routes = {
   liste: Route
+  depot?: Route
   details?: Record<number, Route>
 }
 
 type FauxGithub = {
   recuperer: DependancesDeLecture["recuperer"]
   urls: string[]
-}
-
-function ok(corps: unknown): ReponseHttp {
-  return { statut: 200, corps }
-}
-
-function resume(
-  id: number,
-  nom: string,
-  sourceType = "Repository"
-): Record<string, unknown> {
-  return {
-    id,
-    name: nom,
-    target: "branch",
-    source_type: sourceType,
-    source: DEPOT,
-    enforcement: "active",
-    created_at: "2026-09-14T00:03:44.667+01:00",
-    updated_at: "2026-09-30T10:01:36.440+01:00",
-  }
-}
-
-function reglePull(revues = 0): Record<string, unknown> {
-  return {
-    type: "pull_request",
-    parameters: {
-      required_approving_review_count: revues,
-      dismiss_stale_reviews_on_push: false,
-      require_code_owner_review: false,
-      require_last_push_approval: false,
-      required_review_thread_resolution: false,
-    },
-  }
-}
-
-function regleStatuts(
-  partiel: Record<string, unknown> = {}
-): Record<string, unknown> {
-  return {
-    type: "required_status_checks",
-    parameters: {
-      strict_required_status_checks_policy: true,
-      do_not_enforce_on_create: false,
-      required_status_checks: CONTEXTES_VIVANTS.map((context) => ({ context })),
-      ...partiel,
-    },
-  }
-}
-
-function ruleset(
-  partiel: Record<string, unknown> = {}
-): Record<string, unknown> {
-  return {
-    id: 23_223_443,
-    node_id: "RRS_exemple",
-    name: "main-protection",
-    target: "branch",
-    source_type: "Repository",
-    source: DEPOT,
-    enforcement: "active",
-    conditions: {
-      ref_name: { include: ["refs/heads/main"], exclude: [] },
-    },
-    bypass_actors: [],
-    rules: [reglePull(), regleStatuts()],
-    created_at: "2026-09-14T00:03:44.667+01:00",
-    updated_at: "2026-09-30T10:01:36.440+01:00",
-    _links: {
-      self: { href: `${API}/23223443` },
-      html: { href: "https://github.com/mustaphaelou/eguidar/rules/23223443" },
-    },
-    ...partiel,
-  }
 }
 
 function fauxGithub(routes: Routes): FauxGithub {
@@ -126,7 +56,11 @@ function fauxGithub(routes: Routes): FauxGithub {
       urls.push(url)
       const appels = urls.filter((vue) => vue === url).length
       const route =
-        url === API ? routes.liste : routes.details?.[identifiantDe(url)]
+        url === API
+          ? routes.liste
+          : url === URL_DU_DEPOT
+            ? routes.depot
+            : routes.details?.[identifiantDe(url)]
 
       if (route === undefined) {
         throw new Error(`aucune réponse prévue pour ${url}`)
@@ -244,7 +178,14 @@ describe("la lecture du ruleset vivant", () => {
     const github = fauxGithub({
       liste: ok([resume(23_223_443, "main-protection")]),
       details: {
-        23_223_443: ok(ruleset({ rules: [reglePull(1), regleStatuts()] })),
+        23_223_443: ok(
+          ruleset({
+            rules: [
+              reglePull({ required_approving_review_count: 1 }),
+              regleStatuts(),
+            ],
+          })
+        ),
       },
     })
 
@@ -336,6 +277,168 @@ describe("la lecture du ruleset vivant", () => {
     })
 
     expect(raison(await lecture(github))).toContain("refs/heads/main")
+  })
+})
+
+describe("les exigences de revue, champ par champ", () => {
+  function rulesetAvecRevue(
+    parameters: Record<string, unknown>
+  ): Record<string, unknown> {
+    return ruleset({ rules: [reglePull(parameters), regleStatuts()] })
+  }
+
+  it.each([
+    ["required_approving_review_count", 1],
+    ["require_code_owner_review", true],
+    ["require_last_push_approval", true],
+    ["required_review_thread_resolution", true],
+    ["required_reviewers", [{ id: 42 }]],
+  ] as const)("lit « %s » comme une revue requise", async (cle, valeur) => {
+    const github = fauxGithub({
+      liste: ok([resume(1, "main-protection")]),
+      details: { 1: ok(rulesetAvecRevue({ [cle]: valeur })) },
+    })
+
+    expect(await lecture(github)).toMatchObject({
+      lisible: true,
+      faits: { revueRequise: true },
+    })
+  })
+
+  it("ne lit pas `require_extra_approval_for_unattributed_changes` comme une revue requise", async () => {
+    const github = fauxGithub({
+      liste: ok([resume(1, "main-protection")]),
+      details: {
+        1: ok(
+          rulesetAvecRevue({
+            require_extra_approval_for_unattributed_changes: true,
+          })
+        ),
+      },
+    })
+
+    expect(await lecture(github)).toMatchObject({
+      lisible: true,
+      faits: { pullRequestRequise: true, revueRequise: false },
+    })
+  })
+
+  it("lit les champs de revue facultatifs absents comme aucune revue", async () => {
+    const github = fauxGithub({
+      liste: ok([resume(1, "main-protection")]),
+      details: {
+        1: ok(
+          ruleset({
+            rules: [
+              {
+                type: "pull_request",
+                parameters: { required_approving_review_count: 0 },
+              },
+              regleStatuts(),
+            ],
+          })
+        ),
+      },
+    })
+
+    expect(await lecture(github)).toMatchObject({
+      lisible: true,
+      faits: { revueRequise: false },
+    })
+  })
+
+  it.each([
+    ["required_approving_review_count", "1"],
+    ["require_code_owner_review", "true"],
+    ["require_last_push_approval", 1],
+    ["required_review_thread_resolution", null],
+    ["required_reviewers", "la revue"],
+  ] as const)(
+    "déclare illisible un `%s` du mauvais type",
+    async (cle, valeur) => {
+      const github = fauxGithub({
+        liste: ok([resume(1, "main-protection")]),
+        details: { 1: ok(rulesetAvecRevue({ [cle]: valeur })) },
+      })
+
+      expect(raison(await lecture(github))).toContain(cle)
+    }
+  )
+})
+
+describe("la sélection par les refs symboliques et les globs", () => {
+  function rulesetQuiInclut(ref: string): Record<string, unknown> {
+    return ruleset({
+      conditions: { ref_name: { include: [ref], exclude: [] } },
+    })
+  }
+
+  it("résout `~DEFAULT_BRANCH` pour sélectionner puis normaliser la branche", async () => {
+    const github = fauxGithub({
+      liste: ok([resume(1, "main-protection")]),
+      depot: ok({ default_branch: "main" }),
+      details: { 1: ok(rulesetQuiInclut("~DEFAULT_BRANCH")) },
+    })
+
+    const resultat = await lecture(github)
+
+    expect(resultat).toMatchObject({
+      lisible: true,
+      faits: { branchesIncluses: ["refs/heads/main"] },
+    })
+    expect(github.urls).toEqual([API, `${API}/1`, URL_DU_DEPOT])
+  })
+
+  it("sélectionne `~ALL` mais le garde brut, pour que la comparaison signale la dérive", async () => {
+    const github = fauxGithub({
+      liste: ok([resume(1, "main-protection")]),
+      details: { 1: ok(rulesetQuiInclut("~ALL")) },
+    })
+
+    const resultat = await lecture(github)
+
+    expect(resultat).toMatchObject({
+      lisible: true,
+      faits: { branchesIncluses: ["~ALL"] },
+    })
+    if (!resultat.lisible) {
+      throw new Error("le ruleset `~ALL` devait être lisible")
+    }
+    expect(comparerLaPorteAuxFaits(CONTRAT, resultat.faits)).toEqual([
+      {
+        fait: "branches couvertes",
+        attendu: "refs/heads/main",
+        trouve: "~ALL",
+      },
+    ])
+  })
+
+  it.each(["refs/heads/*", "refs/heads/mai?"])(
+    "sélectionne le glob « %s » et le garde brut dans les faits",
+    async (glob) => {
+      const github = fauxGithub({
+        liste: ok([resume(1, "main-protection")]),
+        details: { 1: ok(rulesetQuiInclut(glob)) },
+      })
+
+      expect(await lecture(github)).toMatchObject({
+        lisible: true,
+        faits: { branchesIncluses: [glob] },
+      })
+    }
+  )
+
+  it("déclare illisible quand la branche par défaut manque, sans deviner", async () => {
+    const github = fauxGithub({
+      liste: ok([resume(1, "main-protection")]),
+      depot: ok({}),
+      details: { 1: ok(rulesetQuiInclut("~DEFAULT_BRANCH")) },
+    })
+
+    const motif = raison(await lecture(github))
+
+    expect(motif).toContain("default_branch")
+    expect(motif).not.toContain("aucun ruleset")
   })
 })
 
