@@ -9,7 +9,7 @@ import {
   buildBreadcrumbListDonneesStructurees,
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
-import { aDesSectionsArticle, decoupeContenuArticle } from "@/lib/blog-contenu"
+import { decoupeContenuArticle, type FragmentArticle } from "@/lib/blog-contenu"
 import { formatPublishedAt, publishedAtISO } from "@/lib/blog-dates"
 import { pageMetadata } from "@/lib/metadata"
 import { getArticleParSlug, parametresDesArticles } from "@/lib/use-cases/blog"
@@ -69,8 +69,7 @@ async function ArticleContent({
     { name: data.titre },
   ]
 
-  const avecSections = aDesSectionsArticle(data.contenu)
-  const blocs = avecSections ? decoupeContenuArticle(data.contenu) : []
+  const fragments = decoupeContenuArticle(data.contenu)
 
   return (
     <>
@@ -131,28 +130,13 @@ async function ArticleContent({
           </div>
         ) : null}
 
-        {avecSections ? (
+        {fragments.length > 0 ? (
           <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] max-md:text-body max-md:leading-body max-md:tracking-[-0.022em]">
-            {blocs.map((bloc, index) =>
-              bloc.type === "titre-section" ? (
-                <h2
-                  key={index}
-                  className="mt-11 text-[21px] leading-[1.1905] font-bold tracking-[0.011em] sm:mt-12 sm:text-[24px] sm:leading-[1.1667] sm:tracking-[0.009em] lg:mt-[52px]"
-                >
-                  {bloc.texte}
-                </h2>
-              ) : (
-                <p key={index} className="mt-6 whitespace-pre-line first:mt-0">
-                  {bloc.texte}
-                </p>
-              )
-            )}
+            {fragments.map((fragment, index) => (
+              <FragmentDuContenu key={index} fragment={fragment} />
+            ))}
           </div>
-        ) : (
-          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] whitespace-pre-line max-md:text-body max-md:leading-body max-md:tracking-[-0.022em]">
-            {data.contenu}
-          </div>
-        )}
+        ) : null}
       </article>
 
       {data.produits.length > 0 ? (
@@ -171,6 +155,46 @@ async function ArticleContent({
       ) : null}
     </>
   )
+}
+
+function FragmentDuContenu({ fragment }: { fragment: FragmentArticle }) {
+  switch (fragment.type) {
+    case "intertitre":
+      return (
+        <h2 className="mt-11 text-[21px] leading-[1.1905] font-bold tracking-[0.011em] sm:mt-12 sm:text-[24px] sm:leading-[1.1667] sm:tracking-[0.009em] lg:mt-[52px]">
+          {fragment.texte}
+        </h2>
+      )
+    case "figure":
+      return (
+        <figure className="mt-6 first:mt-0">
+          <p className="whitespace-pre-line">{fragment.alt}</p>
+          {fragment.legende !== null ? (
+            <figcaption className="text-[14px] leading-[1.4286] text-muted-foreground">
+              {fragment.legende}
+            </figcaption>
+          ) : null}
+        </figure>
+      )
+    case "liste":
+      return (
+        <ul className="mt-6 list-disc pl-6 first:mt-0">
+          {fragment.items.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ul>
+      )
+    case "citation":
+      return (
+        <blockquote className="mt-6 whitespace-pre-line first:mt-0">
+          {fragment.texte}
+        </blockquote>
+      )
+    case "paragraphe":
+      return (
+        <p className="mt-6 whitespace-pre-line first:mt-0">{fragment.texte}</p>
+      )
+  }
 }
 
 function ArticleSkeleton() {

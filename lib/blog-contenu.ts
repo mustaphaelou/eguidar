@@ -1,37 +1,80 @@
-export type BlocContenuArticle =
-  | { type: "titre-section"; texte: string }
+export type FragmentArticle =
   | { type: "paragraphe"; texte: string }
+  | { type: "intertitre"; texte: string }
+  | { type: "figure"; alt: string; url: string; legende: string | null }
+  | { type: "liste"; items: string[] }
+  | { type: "citation"; texte: string }
 
-export function decoupeContenuArticle(contenu: string): BlocContenuArticle[] {
-  const blocs: BlocContenuArticle[] = []
-  const morceaux = contenu.split(/\n{2,}/)
-  for (const morceau of morceaux) {
-    const lignes = morceau.split("\n")
-    let paragrapheCourant: string[] = []
-    const viderParagraphe = () => {
-      const texte = paragrapheCourant.join("\n").trim()
-      if (texte.length > 0) blocs.push({ type: "paragraphe", texte })
-      paragrapheCourant = []
-    }
-    for (const ligne of lignes) {
-      const coupee = ligne.trim()
-      if (coupee === "##" || coupee.startsWith("## ")) {
-        viderParagraphe()
-        const texte = coupee === "##" ? "" : coupee.slice(3).trim()
-        if (texte.length > 0) blocs.push({ type: "titre-section", texte })
-      } else if (coupee.length === 0) {
-        viderParagraphe()
-      } else {
-        paragrapheCourant.push(ligne)
-      }
-    }
-    viderParagraphe()
+const FIGURE = /^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)$/
+
+export function decoupeContenuArticle(contenu: string): FragmentArticle[] {
+  const fragments: FragmentArticle[] = []
+  const lignes = contenu.replace(/\r\n?/g, "\n").split("\n")
+  let paragraphe: string[] = []
+  let listeCourante: { type: "liste"; items: string[] } | null = null
+
+  function viderParagraphe() {
+    const texte = paragraphe.join("\n").trim()
+    if (texte.length > 0) fragments.push({ type: "paragraphe", texte })
+    paragraphe = []
   }
-  return blocs
-}
 
-export function aDesSectionsArticle(contenu: string): boolean {
-  return decoupeContenuArticle(contenu).some(
-    (bloc) => bloc.type === "titre-section"
-  )
+  for (const ligne of lignes) {
+    const coupee = ligne.trim()
+
+    if (coupee.length === 0) {
+      viderParagraphe()
+      listeCourante = null
+      continue
+    }
+
+    if (coupee === "##" || coupee.startsWith("## ")) {
+      viderParagraphe()
+      listeCourante = null
+      const texte = coupee.slice(2).trim()
+      if (texte.length > 0) fragments.push({ type: "intertitre", texte })
+      continue
+    }
+
+    if (coupee.startsWith("- ")) {
+      viderParagraphe()
+      const item = coupee.slice(2).trim()
+      if (item.length > 0) {
+        if (listeCourante) {
+          listeCourante.items.push(item)
+        } else {
+          listeCourante = { type: "liste", items: [item] }
+          fragments.push(listeCourante)
+        }
+      }
+      continue
+    }
+
+    if (coupee.startsWith("> ")) {
+      viderParagraphe()
+      listeCourante = null
+      const texte = coupee.slice(2).trim()
+      if (texte.length > 0) fragments.push({ type: "citation", texte })
+      continue
+    }
+
+    const figure = coupee.match(FIGURE)
+    if (figure) {
+      viderParagraphe()
+      listeCourante = null
+      fragments.push({
+        type: "figure",
+        alt: figure[1],
+        url: figure[2],
+        legende: figure[3] ? figure[3] : null,
+      })
+      continue
+    }
+
+    listeCourante = null
+    paragraphe.push(ligne)
+  }
+
+  viderParagraphe()
+  return fragments
 }
