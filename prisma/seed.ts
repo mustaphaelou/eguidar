@@ -257,6 +257,80 @@ const products = [
   },
 ]
 
+interface ArticleDeDemo {
+  titre: string
+  slug: string
+  extrait: string
+  couverture: string | null
+  contenu: string
+  theme: "guides" | "annonces"
+  publishedAt: Date
+}
+
+const articlesDeBlog = [
+  {
+    titre: "Bien choisir son smartphone",
+    slug: "bien-choisir-son-smartphone",
+    extrait:
+      "Écran, autonomie, photo : les critères qui comptent vraiment au moment d'acheter un smartphone.",
+    couverture: "/blog/guide-smartphone-couverture.png",
+    theme: "guides",
+    publishedAt: new Date("2026-10-15T09:00:00.000Z"),
+    contenu: `Un smartphone se choisit sur trois axes : ce qu'on voit, ce qu'on touche et ce qui tient la journée. Le reste — les modes photo, les promesses d'intelligence artificielle — se découvre après l'achat.
+
+## L'écran et la prise en main
+
+La taille de l'écran ne dit rien du confort. Un format de 6,1 pouces bien proportionné se tient d'une main, là où un 6,8 pouces glisse des poches étroites.
+
+![Un smartphone tenu d'une main devant un fond clair](/blog/guide-smartphone-figure-1.png "La prise en main compte plus que les chiffres de la fiche technique.")
+
+- Privilégier un écran OLED pour la lisibilité en plein soleil.
+- Vérifier la fréquence de rafraîchissement, agréable au défilement.
+- Comparer l'autonomie annoncée à celle des tests indépendants.
+- Tenir compte du poids, surtout au-delà de 200 grammes.
+
+## L'autonomie et la recharge
+
+Une batterie de 5000 mAh ne garantit rien sans une puce économe. Les modèles récents tiennent la journée, mais la recharge rapide reste le vrai confort du quotidien.
+
+> Le meilleur smartphone est celui qu'on ne recharge pas deux fois par jour.
+
+![Un chargeur USB-C branché à un smartphone posé sur un bureau](/blog/guide-smartphone-figure-2.png "Une recharge rapide change l'usage plus qu'un gain de capacité.")
+
+## Le budget
+
+Fixez une enveloppe avant de regarder les modèles : le milieu de gamme couvre la plupart des usages, et la différence de prix se joue souvent sur la photo et la finition.`,
+  },
+  {
+    titre: "Ce que nous vérifions avant de mettre un produit en ligne",
+    slug: "nos-criteres-avant-de-mettre-un-produit-en-ligne",
+    extrait:
+      "Nos critères de sélection, du premier essai à la mise en rayon, pour ne vendre que ce qui tient ses promesses.",
+    couverture: null,
+    theme: "guides",
+    publishedAt: new Date("2026-10-08T09:00:00.000Z"),
+    contenu: `Un produit n'entre pas au catalogue parce qu'il est disponible chez un fournisseur. Il y entre parce que nous l'avons essayé, comparé et jugé digne de la place qu'il occupera dans la boutique.
+
+Nous commençons par les usages réels : un téléphone qui tient deux jours en usage courant, un ordinateur qui reste silencieux en visioconférence, un casque qu'on peut porter une heure sans gêne. Les fiches techniques servent à vérifier, pas à convaincre.
+
+Vient ensuite le service : disponibilité des pièces, durée de la garantie, sérieux du réseau de réparation. Un bon produit mal suivi devient un mauvais achat, et c'est souvent ce qui distingue deux modèles au même prix.
+
+Enfin, nous écoutons les retours de la boutique. Un modèle qui revient trop souvent est retiré, même s'il se vend bien : la confiance d'un client compte plus qu'une marge ponctuelle.`,
+  },
+  {
+    titre: "La boutique Eguidar ouvre ses portes",
+    slug: "la-boutique-eguidar-ouvre-ses-portes",
+    extrait:
+      "La boutique Eguidar ouvre ses portes à Casablanca : venez voir, comparer et repartir avec le bon produit.",
+    couverture: "/blog/annonce-boutique-couverture.png",
+    theme: "annonces",
+    publishedAt: new Date("2026-10-22T09:00:00.000Z"),
+    contenu: `La boutique Eguidar ouvre ses portes à Casablanca. Vous pouvez y voir les produits du catalogue, les prendre en main et comparer les modèles avant de commander.
+
+Nos conseillers sont sur place pour vous aider à choisir selon votre budget et vos usages. Les commandes passées en ligne peuvent être retirées sur place dès le lendemain.`,
+  },
+] satisfies ArticleDeDemo[]
+
 async function main() {
   const { email: adminEmail, motDePasse: adminPassword } =
     identifiantsCompteAdmin()
@@ -305,6 +379,34 @@ async function main() {
     }
   }
 
+  for (const theme of [
+    { slug: "guides", nom: "Guides" },
+    { slug: "annonces", nom: "Annonces" },
+  ] as const) {
+    await prisma.theme.upsert({
+      where: { slug: theme.slug },
+      update: { nom: theme.nom },
+      create: theme,
+    })
+  }
+
+  for (const article of articlesDeBlog) {
+    const { theme, ...articleData } = article
+    await prisma.articleBlog.upsert({
+      where: { slug: article.slug },
+      update: {
+        ...articleData,
+        statut: "publie",
+        theme: { connect: { slug: theme } },
+      },
+      create: {
+        ...articleData,
+        statut: "publie",
+        theme: { connect: { slug: theme } },
+      },
+    })
+  }
+
   const adminUser = await prisma.user.findUnique({
     where: { email: adminEmail },
   })
@@ -343,7 +445,7 @@ async function main() {
   )
 
   console.log(
-    "Seed terminé : villes, catégories, produits, variantes et compte admin créés."
+    "Seed terminé : villes, catégories, produits, variantes, Articles de blog et compte admin créés."
   )
 }
 
