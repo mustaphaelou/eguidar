@@ -15,6 +15,7 @@ import {
   decoupeContenuArticle,
   decoupeRenvoisDeNote,
   lignesDeNotes,
+  textesDuFragment,
   type FragmentArticle,
 } from "@/lib/blog-contenu"
 import { formatPublishedAt, publishedAtISO } from "@/lib/blog-dates"
@@ -91,6 +92,7 @@ async function ArticleContent({
     occurrences.set(numero, occurrence)
     return `renvoi-note-${numero}-${occurrence}`
   }
+  const renvois: RenvoisDeNote = { nombreDeNotes: notes.length, idDeRenvoi }
 
   return (
     <>
@@ -150,8 +152,7 @@ async function ArticleContent({
             <FragmentDuContenu
               key={index}
               fragment={fragment}
-              nombreDeNotes={notes.length}
-              idDeRenvoi={idDeRenvoi}
+              renvois={renvois}
             />
           ))}
 
@@ -219,14 +220,17 @@ async function ArticleContent({
   )
 }
 
-function FragmentDuContenu({
-  fragment,
-  nombreDeNotes,
-  idDeRenvoi,
-}: {
-  fragment: FragmentArticle
+interface RenvoisDeNote {
   nombreDeNotes: number
   idDeRenvoi: (numero: number) => string
+}
+
+function FragmentDuContenu({
+  fragment,
+  renvois,
+}: {
+  fragment: FragmentArticle
+  renvois: RenvoisDeNote
 }) {
   switch (fragment.type) {
     case "intertitre":
@@ -248,33 +252,21 @@ function FragmentDuContenu({
         <ul className="list-disc pl-6 md:col-start-2">
           {fragment.items.map((item, index) => (
             <li key={index}>
-              <TexteAvecRenvois
-                texte={item}
-                nombreDeNotes={nombreDeNotes}
-                idDeRenvoi={idDeRenvoi}
-              />
+              <TexteAvecRenvois texte={item} renvois={renvois} />
             </li>
           ))}
         </ul>
       )
     case "citation":
       return (
-        <blockquote className="!mt-[72px] text-center text-[40px] leading-[1.1] font-bold tracking-[0em] whitespace-pre-line max-[1068px]:!mt-[64px] max-[1068px]:text-[32px] max-[1068px]:leading-[1.125] max-[1068px]:tracking-[0.004em] max-[734px]:!mt-[52px] max-[734px]:text-[28px] max-[734px]:leading-[1.1429] max-[734px]:tracking-[0.007em] md:col-span-3">
-          <TexteAvecRenvois
-            texte={fragment.texte}
-            nombreDeNotes={nombreDeNotes}
-            idDeRenvoi={idDeRenvoi}
-          />
+        <blockquote className="!mt-[72px] !mb-[72px] text-center text-[40px] leading-[1.1] font-bold tracking-[0em] whitespace-pre-line max-[1068px]:!mt-[64px] max-[1068px]:!mb-[64px] max-[1068px]:text-[32px] max-[1068px]:leading-[1.125] max-[1068px]:tracking-[0.004em] max-[734px]:!mt-[52px] max-[734px]:!mb-[52px] max-[734px]:text-[28px] max-[734px]:leading-[1.1429] max-[734px]:tracking-[0.007em] md:col-span-3 [&+*]:!mt-0">
+          <TexteAvecRenvois texte={fragment.texte} renvois={renvois} />
         </blockquote>
       )
     case "paragraphe":
       return (
         <p className="whitespace-pre-line md:col-start-2">
-          <TexteAvecRenvois
-            texte={fragment.texte}
-            nombreDeNotes={nombreDeNotes}
-            idDeRenvoi={idDeRenvoi}
-          />
+          <TexteAvecRenvois texte={fragment.texte} renvois={renvois} />
         </p>
       )
   }
@@ -282,28 +274,27 @@ function FragmentDuContenu({
 
 function TexteAvecRenvois({
   texte,
-  nombreDeNotes,
-  idDeRenvoi,
+  renvois,
 }: {
   texte: string
-  nombreDeNotes: number
-  idDeRenvoi: (numero: number) => string
+  renvois: RenvoisDeNote
 }) {
-  return decoupeRenvoisDeNote(texte, nombreDeNotes).map((morceau, index) =>
-    morceau.type === "texte" ? (
-      <Fragment key={index}>{morceau.texte}</Fragment>
-    ) : (
-      <sup key={index}>
-        <a
-          id={idDeRenvoi(morceau.numero)}
-          href={`#note-${morceau.numero}`}
-          aria-label={`Renvoi vers la note ${morceau.numero}`}
-          className="underline"
-        >
-          {morceau.numero}
-        </a>
-      </sup>
-    )
+  return decoupeRenvoisDeNote(texte, renvois.nombreDeNotes).map(
+    (morceau, index) =>
+      morceau.type === "texte" ? (
+        <Fragment key={index}>{morceau.texte}</Fragment>
+      ) : (
+        <sup key={index}>
+          <a
+            id={renvois.idDeRenvoi(morceau.numero)}
+            href={`#note-${morceau.numero}`}
+            aria-label={`Renvoi vers la note ${morceau.numero}`}
+            className="underline"
+          >
+            {morceau.numero}
+          </a>
+        </sup>
+      )
   )
 }
 
@@ -314,14 +305,7 @@ function notesCiteesDans(
   const citees = new Set<number>()
 
   for (const fragment of fragments) {
-    const textes =
-      fragment.type === "paragraphe" || fragment.type === "citation"
-        ? [fragment.texte]
-        : fragment.type === "liste"
-          ? fragment.items
-          : []
-
-    for (const texte of textes) {
+    for (const texte of textesDuFragment(fragment)) {
       for (const morceau of decoupeRenvoisDeNote(texte, nombreDeNotes)) {
         if (morceau.type === "renvoi") citees.add(morceau.numero)
       }

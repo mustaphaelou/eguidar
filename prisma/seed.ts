@@ -281,7 +281,6 @@ const articlesDeBlog = [
     theme: "guides",
     publishedAt: new Date("2026-10-15T09:00:00.000Z"),
     notes: `Les autonomies citées proviennent de notre comparatif mené en septembre 2026.
-
 Prix TTC indicatif : il ne tient pas compte des promotions ni des options choisies.`,
     contenu: `Un smartphone se choisit sur trois axes : ce qu'on voit, ce qu'on touche et ce qui tient la journée. Le reste — les modes photo, les promesses d'intelligence artificielle — se découvre après l'achat.
 
@@ -314,7 +313,7 @@ Fixez une enveloppe avant de regarder les modèles : le milieu de gamme couvre l
     extrait:
       "Nos critères de sélection, du premier essai à la mise en rayon, pour ne vendre que ce qui tient ses promesses.",
     chapo: null,
-    couverture: null,
+    couverture: "/blog/guide-criteres-couverture.png",
     theme: "guides",
     publishedAt: new Date("2026-10-08T09:00:00.000Z"),
     notes: null,

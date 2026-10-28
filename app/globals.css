@@ -79,7 +79,7 @@
   --destructive: oklch(57.7% 0.245 27.3);
   --border: oklch(86.5% 0 none);
   --input: oklch(86.5% 0 none);
-  --ring: var(--primary);
+  --ring: #0071e3;
   --link: oklch(52.2% 0.177 256);
   --chart-1: oklch(87.9% 0.169 91.6);
   --chart-2: oklch(76.9% 0.188 70.1);
@@ -94,7 +94,7 @@
   --sidebar-accent: oklch(97% 0 none);
   --sidebar-accent-foreground: oklch(20.5% 0 none);
   --sidebar-border: oklch(92.2% 0 none);
-  --sidebar-ring: oklch(70.8% 0 none);
+  --sidebar-ring: #0071e3;
 
   --text-body: 1rem;
   --leading-body: 1.471;

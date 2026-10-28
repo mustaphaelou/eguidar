@@ -1,11 +1,28 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 
 import { site } from "@/lib/site"
 
-const ID_OPTIONS = "partage-article-options"
+const ID_DES_OPTIONS = "partage-article-options"
 const DELAI_CONFIRMATION_MS = 4000
+const ANNONCE_FEUILLE_DE_PARTAGE_OUVERTE = "Feuille de partage ouverte."
+const CLASSES_ACTION_DE_PARTAGE =
+  "text-[14px] leading-[1.2858] font-semibold tracking-[-0.016em] text-link hover:underline"
+
+function observerLePartageNatif() {
+  return () => {}
+}
+
+function partageNatifDisponible() {
+  return (
+    typeof navigator !== "undefined" && typeof navigator.share === "function"
+  )
+}
+
+function partageNatifCoteServeur() {
+  return false
+}
 
 export function PartageArticle({
   titre,
@@ -15,14 +32,13 @@ export function PartageArticle({
   slug: string
 }) {
   const url = `${site.url}/blog/${slug}`
-  const natifRef = useRef(false)
+  const natif = useSyncExternalStore(
+    observerLePartageNatif,
+    partageNatifDisponible,
+    partageNatifCoteServeur
+  )
   const [ouvert, setOuvert] = useState(false)
   const [annonce, setAnnonce] = useState("")
-
-  useEffect(() => {
-    natifRef.current =
-      typeof navigator !== "undefined" && typeof navigator.share === "function"
-  }, [])
 
   useEffect(() => {
     if (!annonce) return
@@ -34,7 +50,8 @@ export function PartageArticle({
   }, [annonce])
 
   function activer() {
-    if (natifRef.current) {
+    if (natif) {
+      setAnnonce(ANNONCE_FEUILLE_DE_PARTAGE_OUVERTE)
       void navigator.share({ title: titre, url }).catch(() => {})
       return
     }
@@ -54,8 +71,9 @@ export function PartageArticle({
     <div className="mt-[20px]">
       <button
         type="button"
+        aria-haspopup={natif ? "dialog" : undefined}
         aria-expanded={ouvert}
-        aria-controls={ID_OPTIONS}
+        aria-controls={ID_DES_OPTIONS}
         onClick={activer}
         className="inline-flex items-center gap-2 text-[14px] leading-[1.2858] font-semibold tracking-[-0.016em] text-muted-foreground hover:text-foreground"
       >
@@ -76,14 +94,14 @@ export function PartageArticle({
         Partager
       </button>
 
-      <div id={ID_OPTIONS} hidden={!ouvert} className="mt-[12px]">
+      <div id={ID_DES_OPTIONS} hidden={!ouvert} className="mt-[12px]">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <a
             href={`https://wa.me/?text=${encodeURIComponent(`${titre} ${url}`)}`}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Partager sur WhatsApp (ouvre une nouvelle fenêtre)"
-            className="text-[14px] leading-[1.2858] font-semibold tracking-[-0.016em] text-link hover:underline"
+            className={CLASSES_ACTION_DE_PARTAGE}
           >
             WhatsApp
           </a>
@@ -92,26 +110,27 @@ export function PartageArticle({
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Partager sur Facebook (ouvre une nouvelle fenêtre)"
-            className="text-[14px] leading-[1.2858] font-semibold tracking-[-0.016em] text-link hover:underline"
+            className={CLASSES_ACTION_DE_PARTAGE}
           >
             Facebook
           </a>
           <button
             type="button"
             onClick={() => void copier()}
-            className="text-[14px] leading-[1.2858] font-semibold tracking-[-0.016em] text-link hover:underline"
+            className={CLASSES_ACTION_DE_PARTAGE}
           >
             Copier le lien
           </button>
         </div>
-        <p
-          role="status"
-          aria-live="polite"
-          className="mt-[8px] text-[12px] leading-[1.3334] font-semibold tracking-[-0.01em] text-muted-foreground"
-        >
-          {annonce}
-        </p>
       </div>
+
+      <p
+        role="status"
+        aria-live="polite"
+        className="mt-[8px] text-[12px] leading-[1.3334] font-semibold tracking-[-0.01em] text-muted-foreground"
+      >
+        {annonce}
+      </p>
     </div>
   )
 }

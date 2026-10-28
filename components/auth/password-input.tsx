@@ -28,7 +28,7 @@ export function PasswordInput({
           visible ? "Masquer le mot de passe" : "Afficher le mot de passe"
         }
         onClick={() => setVisible((v) => !v)}
-        className="absolute inset-y-0 end-0 flex w-10 items-center justify-center rounded-e-4xl text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="absolute inset-y-0 end-0 flex w-10 items-center justify-center rounded-e-4xl text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         <HugeiconsIcon
           icon={visible ? ViewOffIcon : ViewIcon}

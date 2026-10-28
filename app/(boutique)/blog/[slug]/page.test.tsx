@@ -460,6 +460,10 @@ describe("Page Article de blog — liste et citation", () => {
         "!mt-[72px]",
         "max-[1068px]:!mt-[64px]",
         "max-[734px]:!mt-[52px]",
+        "!mb-[72px]",
+        "max-[1068px]:!mb-[64px]",
+        "max-[734px]:!mb-[52px]",
+        "[&+*]:!mt-0",
       ])
     )
     expect(classes).not.toContain("md:col-start-2")

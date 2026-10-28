@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   parametresDeSlug,
   type ParametresDeSlug,
@@ -110,22 +111,19 @@ export async function fetchArticleParSlug(
   }
 }
 
-export interface CardBlog {
+export interface ArticleBlogResume {
   slug: string
   titre: string
-  extrait: string
   couverture: string | null
   theme: ThemeRef
   publishedAt: Date
 }
 
-export interface ArticleLie {
-  slug: string
-  titre: string
-  couverture: string | null
-  theme: ThemeRef
-  publishedAt: Date
+export interface CardBlog extends ArticleBlogResume {
+  extrait: string
 }
+
+export type ArticleLie = ArticleBlogResume
 
 export interface BlogLanding {
   hero: CardBlog | null
@@ -185,12 +183,19 @@ function toArticleLie(article: {
   }
 }
 
+const LIMITE_ARTICLES_LIES = 3
+
+const INCLUSION_DU_THEME: Prisma.ArticleBlogInclude = { theme: true }
+
+const TRI_DE_PUBLICATION: Prisma.ArticleBlogOrderByWithRelationInput[] = [
+  { publishedAt: "desc" },
+  { createdAt: "desc" },
+]
+
 export async function fetchArticlesLies(
   slug: string,
-  themeSlug: string,
-  limite = 3
+  themeSlug: string
 ): Promise<ArticleLie[]> {
-  if (limite <= 0) return []
   const publies = {
     statut: "publie" as const,
     slug: { not: slug },
@@ -198,17 +203,17 @@ export async function fetchArticlesLies(
   }
   const memes = await prisma.articleBlog.findMany({
     where: { ...publies, theme: { is: { slug: themeSlug } } },
-    include: { theme: true },
-    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    take: limite,
+    include: INCLUSION_DU_THEME,
+    orderBy: TRI_DE_PUBLICATION,
+    take: LIMITE_ARTICLES_LIES,
   })
-  const restant = limite - memes.length
+  const restant = LIMITE_ARTICLES_LIES - memes.length
   const autres =
     restant > 0
       ? await prisma.articleBlog.findMany({
           where: { ...publies, theme: { isNot: { slug: themeSlug } } },
-          include: { theme: true },
-          orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+          include: INCLUSION_DU_THEME,
+          orderBy: TRI_DE_PUBLICATION,
           take: restant,
         })
       : []
