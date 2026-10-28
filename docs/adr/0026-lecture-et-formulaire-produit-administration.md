@@ -491,8 +491,8 @@ présent amendement qu'il faut y lire à côté :
   neuve, et la phrase « l'interface de lecture répond en faits » reste vraie à l'intérieur d'elle.
 - les deux amendements précédents confirment « la **forme étroite** du sélecteur de Structure ».
   Elle reste étroite au sens où le formulaire ne reçoit pas la rangée de Structure : il reçoit
-  exactement `{ id, nom, chemin }` par option. Le fait de plus — le **chemin** — est la seule
-  widening, et elle est décidée ici : deux branches peuvent porter la même feuille, et un
+  exactement `{ id, nom, chemin }` par option. Le fait de plus — le **chemin** — est le seul
+  élargissement, et il est décidé ici : deux branches peuvent porter la même feuille, et un
   sélecteur qui n'affiche que le nom ne peut pas les distinguer.
 
 ### Ce que cet amendement décide

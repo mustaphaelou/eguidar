@@ -22,8 +22,6 @@ import {
   updateVariantStock,
 } from "@/lib/use-cases/admin-catalog"
 import {
-  CHAMP_STRUCTURE_LOT,
-  CHAMP_VALEUR_LOT,
   parseIdentifiantsLot,
   parseStructureLot,
   parseValeurLot,
@@ -211,9 +209,3 @@ export const duplicateProductAction = adminFormAction<
     return { rapport: { succes: [copie.id], echecs: [] } }
   },
 })
-
-export const CHAMPS_LOT = {
-  ids: "ids",
-  valeur: CHAMP_VALEUR_LOT,
-  structure: CHAMP_STRUCTURE_LOT,
-} as const

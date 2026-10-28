@@ -482,9 +482,9 @@ export function ProduitsTable({
       {
         id: DATE_COLUMN_ID,
         accessorFn: (produit) => produit.createdAt.getTime(),
-        meta: { label: "Créée le" },
+        meta: { label: "Créé le" },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Créée le" />
+          <DataTableColumnHeader column={column} title="Créé le" />
         ),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
@@ -566,7 +566,6 @@ export function ProduitsTable({
       ],
       globalFilter: queryDraft,
       rowSelection,
-      columnVisibility: COLONNES_CACHEES,
     },
     onRowSelectionChange: setRowSelection,
     onSortingChange,
@@ -576,6 +575,7 @@ export function ProduitsTable({
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
+    initialState: { columnVisibility: COLONNES_CACHEES },
     getRowId: (produit) => produit.id,
     getCoreRowModel: getCoreRowModel(),
   })
@@ -829,7 +829,7 @@ export function ProduitsTable({
         aria-atomic="true"
         className="sr-only"
       >
-        {rapport ?? ""}
+        {erreur ? `Erreur : ${erreur}` : (rapport ?? "")}
       </p>
     </div>
   )
