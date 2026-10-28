@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg"
 
+import { filtreArticlePublic } from "@/lib/article-public"
 import { PrismaClient } from "@/lib/generated/prisma/client"
 
 /** Délai au-delà duquel le build considère que le catalogue ne répond pas. */
@@ -66,7 +67,7 @@ export async function lireLesFaitsDuCatalogue(
       prisma.product.count(),
       prisma.category.count(),
       prisma.articleBlog.count({
-        where: { statut: { in: ["publie", "archive"] } },
+        where: filtreArticlePublic(["publie", "archive"]),
       }),
     ])
     return { produits, categories, articles }

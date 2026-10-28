@@ -335,10 +335,13 @@ export async function createCategory(
     })
   })
 
-  await runEffect(
-    "[structure] invalidation du cache non effectuée pour la création de catégorie",
-    () => effects.revalidateCategories()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "categorie", id: category.id },
+    message:
+      "[structure] invalidation du cache non effectuée pour la création de catégorie",
+    fn: () => effects.revalidateCategories(),
+  })
   return category
 }
 
@@ -373,22 +376,28 @@ export async function updateCategory(
 
   const nextImage = data.image ?? null
   if (imagePrecedente && imagePrecedente !== nextImage) {
-    await runEffect(
-      `[structure] suppression d'image R2 non effectuée pour ${imagePrecedente}`,
-      () => effects.deleteImage(imagePrecedente!)
-    )
+    await runEffect({
+      effet: "suppression-images",
+      entite: { type: "categorie", id },
+      message: `[structure] suppression d'image R2 non effectuée pour ${imagePrecedente}`,
+      fn: () => effects.deleteImage(imagePrecedente!),
+    })
   }
   const products = await readIndexableCategoryProducts(id)
   if (products.length > 0) {
-    await runEffect(
-      `[structure] réindexation meilisearch non effectuée pour ${id}`,
-      () => effects.reindexProducts(products)
-    )
+    await runEffect({
+      effet: "reindexation",
+      entite: { type: "categorie", id },
+      message: `[structure] réindexation meilisearch non effectuée pour ${id}`,
+      fn: () => effects.reindexProducts(products),
+    })
   }
-  await runEffect(
-    `[structure] invalidation du cache non effectuée pour ${id}`,
-    () => effects.revalidateCategories()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "categorie", id },
+    message: `[structure] invalidation du cache non effectuée pour ${id}`,
+    fn: () => effects.revalidateCategories(),
+  })
   return category
 }
 
@@ -607,19 +616,25 @@ export async function deleteCategory(
   })
 
   if (movedProducts.length > 0) {
-    await runEffect(
-      `[structure] réindexation meilisearch non effectuée pour ${id}`,
-      () => effects.reindexProducts(movedProducts)
-    )
+    await runEffect({
+      effet: "reindexation",
+      entite: { type: "categorie", id },
+      message: `[structure] réindexation meilisearch non effectuée pour ${id}`,
+      fn: () => effects.reindexProducts(movedProducts),
+    })
   }
   if (image) {
-    await runEffect(
-      `[structure] suppression d'image R2 non effectuée pour ${image}`,
-      () => effects.deleteImage(image!)
-    )
+    await runEffect({
+      effet: "suppression-images",
+      entite: { type: "categorie", id },
+      message: `[structure] suppression d'image R2 non effectuée pour ${image}`,
+      fn: () => effects.deleteImage(image!),
+    })
   }
-  await runEffect(
-    `[structure] invalidation du cache non effectuée pour ${id}`,
-    () => effects.revalidateCategories()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "categorie", id },
+    message: `[structure] invalidation du cache non effectuée pour ${id}`,
+    fn: () => effects.revalidateCategories(),
+  })
 }

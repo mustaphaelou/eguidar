@@ -50,7 +50,11 @@ function DataTablePagination<TData>({
           value={String(table.getState().pagination.pageSize)}
           onValueChange={(value) => table.setPageSize(Number(value))}
         >
-          <SelectTrigger size="sm" className="w-16">
+          <SelectTrigger
+            size="sm"
+            className="w-16"
+            aria-label="Lignes par page"
+          >
             <SelectValue placeholder={String(pageSizeOptions[0])} />
           </SelectTrigger>
           <SelectContent align="center" side="top">
@@ -100,6 +104,7 @@ function DataTablePagination<TData>({
                 variant={pageNumber === currentPage ? "outline" : "ghost"}
                 size="icon-sm"
                 aria-label={`Page ${pageNumber}`}
+                aria-current={pageNumber === currentPage ? "page" : undefined}
                 onClick={() => table.setPageIndex(pageNumber - 1)}
               >
                 {pageNumber}
