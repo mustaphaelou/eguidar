@@ -174,6 +174,7 @@ describe("la lecture paginée du Catalogue", () => {
       freeShipping: false,
       image: "https://cdn.example.test/alpha.jpg",
       totalStock: 5,
+      createdAt: new Date("2026-01-01T10:00:00.000Z"),
     })
   })
 

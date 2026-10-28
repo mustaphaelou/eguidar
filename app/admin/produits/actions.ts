@@ -1,5 +1,6 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import {
@@ -8,11 +9,24 @@ import {
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
 import {
+  bulkDelete,
+  bulkSetFeatured,
+  bulkSetFreeShipping,
+  bulkSetStructure,
   createProduct,
   deleteProduct,
+  duplicateProduct,
   updateProduct,
   updateVariantStock,
 } from "@/lib/use-cases/admin-catalog"
+import {
+  CHAMP_STRUCTURE_LOT,
+  CHAMP_VALEUR_LOT,
+  parseIdentifiantsLot,
+  parseStructureLot,
+  parseValeurLot,
+  type RapportLot,
+} from "@/lib/produit-bulk"
 import {
   adminFormAction,
   adminTaskAction,
@@ -88,3 +102,94 @@ export const updateVariantStockAction = adminTaskAction<{
     await updateVariantStock(variantId, stock)
   },
 })
+
+export interface ProduitLotState {
+  error?: string
+  rapport?: RapportLot
+}
+
+const LISTE_PRODUITS = "/admin/produits"
+
+export const bulkSetStructureAction = adminFormAction<
+  { ids: string[]; structureId: string },
+  ProduitLotState
+>({
+  next: LISTE_PRODUITS,
+  parse: (formData) => ({
+    ids: parseIdentifiantsLot(formData),
+    structureId: parseStructureLot(formData),
+  }),
+  run: async ({ ids, structureId }) => {
+    const rapport = await bulkSetStructure(ids, structureId)
+    revalidatePath(LISTE_PRODUITS)
+    return { rapport }
+  },
+})
+
+export const bulkSetFeaturedAction = adminFormAction<
+  { ids: string[]; valeur: boolean },
+  ProduitLotState
+>({
+  next: LISTE_PRODUITS,
+  parse: (formData) => ({
+    ids: parseIdentifiantsLot(formData),
+    valeur: parseValeurLot(formData),
+  }),
+  run: async ({ ids, valeur }) => {
+    const rapport = await bulkSetFeatured(ids, valeur)
+    revalidatePath(LISTE_PRODUITS)
+    return { rapport }
+  },
+})
+
+export const bulkSetFreeShippingAction = adminFormAction<
+  { ids: string[]; valeur: boolean },
+  ProduitLotState
+>({
+  next: LISTE_PRODUITS,
+  parse: (formData) => ({
+    ids: parseIdentifiantsLot(formData),
+    valeur: parseValeurLot(formData),
+  }),
+  run: async ({ ids, valeur }) => {
+    const rapport = await bulkSetFreeShipping(ids, valeur)
+    revalidatePath(LISTE_PRODUITS)
+    return { rapport }
+  },
+})
+
+export const bulkDeleteAction = adminFormAction<
+  { ids: string[] },
+  ProduitLotState
+>({
+  next: LISTE_PRODUITS,
+  parse: (formData) => ({ ids: parseIdentifiantsLot(formData) }),
+  run: async ({ ids }) => {
+    const rapport = await bulkDelete(ids)
+    revalidatePath(LISTE_PRODUITS)
+    return { rapport }
+  },
+})
+
+export const duplicateProductAction = adminFormAction<
+  { ids: string[] },
+  ProduitLotState
+>({
+  next: LISTE_PRODUITS,
+  parse: (formData) => {
+    const ids = parseIdentifiantsLot(formData).slice(0, 1)
+    if (ids.length === 0) throw new Error("Formulaire invalide")
+    return { ids }
+  },
+  run: async ({ ids }) => {
+    const copie = await duplicateProduct(ids[0]!)
+    revalidatePath(LISTE_PRODUITS)
+    return { rapport: { succes: [copie.id], echecs: [] } }
+  },
+})
+
+export const CHAMPS_LOT = {
+  ids: "ids",
+  valeur: CHAMP_VALEUR_LOT,
+  structure: CHAMP_STRUCTURE_LOT,
+} as const

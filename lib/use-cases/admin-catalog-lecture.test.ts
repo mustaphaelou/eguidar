@@ -121,6 +121,7 @@ describe("liste des Produits de l'Administration", () => {
       freeShipping: true,
       image: "https://cdn.example.com/premiere.jpg",
       totalStock: 5,
+      createdAt: produit.createdAt,
     })
   })
 
