@@ -13,6 +13,7 @@ import {
 const MODULE_R2 = "lib/r2.ts"
 const MODULE_CYCLE_VIE = "lib/cycle-vie-image-produit.ts"
 const MODULE_CATALOGUE = "lib/use-cases/admin-catalog.ts"
+const MODULE_REGISTRE_IMAGES = "lib/use-cases/images-produit.ts"
 const MODULE_STRUCTURE = "lib/use-cases/admin-structure.ts"
 const ROUTE_LIBERATION = "app/api/admin/uploads/delete/route.ts"
 const ROUTE_PRESIGNATION = "app/api/admin/uploads/presign/route.ts"
@@ -63,6 +64,7 @@ const PAR_CHEMIN = new Map(SOURCES.map((source) => [source.chemin, source]))
 const IMPORTATEURS_R2_AUTORISES = [
   MODULE_CYCLE_VIE,
   MODULE_CATALOGUE,
+  MODULE_REGISTRE_IMAGES,
   MODULE_STRUCTURE,
   // La route de pré-signation n'emprunte au stockage que le vocabulaire des
   // types de contenu, jamais une opération du port.
@@ -299,7 +301,9 @@ describe("Cycle de vie des Images produit — frontière", () => {
       .map(({ chemin }) => chemin)
       .sort()
 
-    expect(persistees).toEqual([MODULE_CATALOGUE])
+    expect(persistees).toEqual(
+      [MODULE_CATALOGUE, MODULE_REGISTRE_IMAGES].sort()
+    )
     expect(categories).toEqual([MODULE_STRUCTURE])
   })
 
