@@ -267,8 +267,20 @@ Structure ; la seule façon de ne plus l'être est de lui en choisir une (ADR-00
 _Avoid_: produit orphelin, catégorie supprimée, produit sans catégorie
 
 **Image produit**:
-A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X.
+A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X. Une Image produit persistée est décrite par une ligne de son **Registre des Images produit**, qui porte son **Texte alternatif**.
 _Avoid_: photo, visuel, media
+
+**Registre des Images produit**:
+La table des faits durables d'une Image produit persistée, une ligne par URL publique : type MIME, taille, dimensions, **Texte alternatif**, créateur et date. Elle est écrite après l'engagement de l'enregistrement d'un **Produit**, jamais dans sa transaction, par un upsert idempotent sur l'URL. Une ligne manquante est un trou réparable par la réconciliation, jamais une image perdue ; le bucket n'est jamais l'autorité des usages.
+_Avoid_: table des médias, registre R2, média
+
+**Texte alternatif**:
+Le texte qu'une Image produit donne à sa place quand elle est rendue à une personne qui ne la voit pas : il décrit le visuel et ne répète pas le nom du **Produit**. Il appartient à l'Image produit (le **Registre des Images produit**), s'édite dans la **Bibliothèque des médias** et dans la **Galerie produit**, et un nouvel envoi ne peut pas être publié sans lui ; une Image produit ancienne sans Texte alternatif rend le nom du Produit.
+_Avoid_: alt, texte de remplacement, description d'image
+
+**Bibliothèque des médias**:
+La surface d'Administration qui liste le **Registre des Images produit** avec sa recherche, ses filtres « inutilisées » et « sans texte alternatif », sa sélection multiple et son tiroir de détail. Elle rend lisibles les usages d'une Image produit et refuse de supprimer celle qu'un **Produit** nomme encore ; elle ne remplace pas le stockage.
+_Avoid_: médiathèque, médias, file manager
 
 **Brouillon d'Image produit**:
 Une Image produit téléchargée pendant l'édition d'un Produit, mais pas encore enregistrée comme fait de ce Produit. Son propriétaire est l'éditeur d'Administration qui l'a téléchargée, jamais le Produit : elle porte un identifiant opaque plutôt qu'une URL, expire seule au bout de la rétention configurée, et disparaît si l'édition est abandonnée. Il se distingue d'une Image produit persistée, qui appartient à son Produit et dont la suppression n'intervient qu'après un enregistrement réussi.

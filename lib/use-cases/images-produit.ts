@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db"
-import { normaliserTexteAlternatif } from "@/lib/galerie-image-produit"
+import {
+  normaliserTexteAlternatif,
+  type EntreeBibliothequeImageProduit,
+} from "@/lib/galerie-image-produit"
 import { urlsImagesProduit } from "@/lib/product-metrics"
 import {
   stockageImageProduitR2,
@@ -221,6 +224,23 @@ export async function listerImagesProduit(
     inutiliseesCount: toutes.filter((image) => image.usageCount === 0).length,
     sansAltCount: toutes.filter((image) => image.alt === null).length,
   }
+}
+
+/**
+ * Le sélecteur de la Galerie produit ne lit que les faits qu'il affiche : une
+ * URL publique et son Texte alternatif. Il ne charge ni usages ni comptes.
+ */
+export async function listerImagesPourGalerie(): Promise<
+  EntreeBibliothequeImageProduit[]
+> {
+  const lignes = await prisma.imageProduit.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { publicUrl: true, alt: true },
+  })
+  return lignes.map((ligne) => ({
+    publicUrl: ligne.publicUrl,
+    alt: normaliserTexteAlternatif(ligne.alt),
+  }))
 }
 
 export async function mettreAJourTexteAlternatif(

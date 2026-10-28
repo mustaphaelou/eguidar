@@ -61,6 +61,11 @@ export interface ImageProduitGalerie {
   alt: string | null
 }
 
+export interface EntreeBibliothequeImageProduit {
+  publicUrl: string
+  alt: string | null
+}
+
 export function normaliserTexteAlternatif(
   valeur: string | null | undefined
 ): string | null {

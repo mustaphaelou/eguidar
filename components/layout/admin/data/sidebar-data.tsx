@@ -4,6 +4,7 @@ import {
   BoxIcon,
   DashboardSpeed02Icon,
   DeliveryTruck01Icon,
+  Image01Icon,
   MapsLocation01Icon,
   ShoppingBasket02Icon,
   StoreManagement02Icon,
@@ -29,6 +30,7 @@ export const navSections: NavSection[] = [
     title: "Catalogue",
     items: [
       { title: "Produits", url: "/admin/produits", icon: BoxIcon },
+      { title: "Médias", url: "/admin/medias", icon: Image01Icon },
       { title: "Catégories", url: "/admin/categories", icon: TagsIcon },
     ],
   },
