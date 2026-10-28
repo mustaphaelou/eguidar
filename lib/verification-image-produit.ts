@@ -1,5 +1,5 @@
 import sharp from "sharp"
-import type { Metadata, OutputInfo, Sharp } from "sharp"
+import type { Metadata, OutputInfo } from "sharp"
 
 export const FORMATS_IMAGE_PRODUIT = [
   "jpeg",

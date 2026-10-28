@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { act } from "react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 vi.mock("next/image", () => ({
   default: ({

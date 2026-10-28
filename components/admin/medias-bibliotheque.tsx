@@ -9,7 +9,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import Image from "next/image"
 import Link from "next/link"
-import { useActionState, useEffect, useState } from "react"
+import { useActionState, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -99,15 +99,10 @@ export function MediasBibliotheque({
   const [reconciliation, reconcilierAction, reconciliationEnCours] =
     useActionState(reconcilier, {})
 
-  useEffect(() => {
-    setSelection((courante) => {
-      const presentes = new Set(page.images.map((image) => image.publicUrl))
-      const suivante = new Set(
-        [...courante].filter((url) => presentes.has(url))
-      )
-      return suivante.size === courante.size ? courante : suivante
-    })
-  }, [page.images])
+  const selectionEffective = useMemo(() => {
+    const presentes = new Set(page.images.map((image) => image.publicUrl))
+    return new Set([...selection].filter((url) => presentes.has(url)))
+  }, [page.images, selection])
 
   const detail =
     page.images.find((image) => image.publicUrl === detailUrl) ?? null
@@ -253,15 +248,17 @@ export function MediasBibliotheque({
         {page.images.length} Image(s) produit affichée(s) sur {page.totalCount}{" "}
         au registre · {page.inutiliseesCount} inutilisée(s) ·{" "}
         {page.sansAltCount} sans texte alternatif
-        {selection.size > 0 ? ` · ${selection.size} sélectionnée(s)` : ""}
+        {selectionEffective.size > 0
+          ? ` · ${selectionEffective.size} sélectionnée(s)`
+          : ""}
       </p>
 
-      {selection.size > 0 ? (
+      {selectionEffective.size > 0 ? (
         <form
           action={supprimerAction}
           className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed p-3"
         >
-          {[...selection].map((publicUrl) => (
+          {[...selectionEffective].map((publicUrl) => (
             <input
               key={publicUrl}
               type="hidden"
@@ -269,7 +266,9 @@ export function MediasBibliotheque({
               value={publicUrl}
             />
           ))}
-          <span className="text-sm">{selection.size} sélectionnée(s)</span>
+          <span className="text-sm">
+            {selectionEffective.size} sélectionnée(s)
+          </span>
           <Button
             type="submit"
             variant="destructive"
@@ -313,7 +312,7 @@ export function MediasBibliotheque({
             >
               <div className="flex items-start justify-between gap-2">
                 <Checkbox
-                  checked={selection.has(image.publicUrl)}
+                  checked={selectionEffective.has(image.publicUrl)}
                   onCheckedChange={() => basculer(image.publicUrl)}
                   aria-label={`Sélectionner l'Image produit ${
                     image.alt ?? image.publicUrl
@@ -372,7 +371,7 @@ export function MediasBibliotheque({
               <TableRow key={image.publicUrl} data-image-url={image.publicUrl}>
                 <TableCell>
                   <Checkbox
-                    checked={selection.has(image.publicUrl)}
+                    checked={selectionEffective.has(image.publicUrl)}
                     onCheckedChange={() => basculer(image.publicUrl)}
                     aria-label={`Sélectionner l'Image produit ${
                       image.alt ?? image.publicUrl

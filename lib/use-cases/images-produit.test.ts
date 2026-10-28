@@ -14,7 +14,6 @@ import { prisma } from "@/lib/db"
 import {
   ImageProduitIntrouvableError,
   ImageProduitSuppressionImpossibleError,
-  ImageProduitUtiliseeError,
   enregistrerImagesProduit,
   listerImagesProduit,
   mettreAJourTexteAlternatif,
