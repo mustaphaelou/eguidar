@@ -1,8 +1,9 @@
 import { renderToReadableStream } from "react-dom/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { getArticleParSlugMock } = vi.hoisted(() => ({
+const { getArticleParSlugMock, getArticlesLiesMock } = vi.hoisted(() => ({
   getArticleParSlugMock: vi.fn(),
+  getArticlesLiesMock: vi.fn(),
 }))
 
 vi.mock("next/link", () => ({
@@ -28,10 +29,11 @@ vi.mock("next/image", () => ({
 
 vi.mock("@/lib/use-cases/blog", () => ({
   getArticleParSlug: getArticleParSlugMock,
+  getArticlesLies: getArticlesLiesMock,
   parametresDesArticles: vi.fn(async () => []),
 }))
 
-import type { ArticleBlogPublic } from "@/lib/use-cases/blog"
+import type { ArticleBlogPublic, ArticleLie } from "@/lib/use-cases/blog"
 
 import ArticleBlogPage from "./page"
 
@@ -66,6 +68,17 @@ async function rendreArticle({
   couverture?: string | null
 }): Promise<string> {
   getArticleParSlugMock.mockResolvedValue({ ...article(contenu), couverture })
+  const flux = await renderToReadableStream(
+    <ArticleBlogPage params={Promise.resolve({ slug: "choisir-son-casque" })} />
+  )
+  return new Response(flux).text()
+}
+
+async function rendreAvecArticlesLies(
+  articlesLies: ArticleLie[]
+): Promise<string> {
+  getArticleParSlugMock.mockResolvedValue(article("Un paragraphe."))
+  getArticlesLiesMock.mockResolvedValue(articlesLies)
   const flux = await renderToReadableStream(
     <ArticleBlogPage params={Promise.resolve({ slug: "choisir-son-casque" })} />
   )
@@ -108,6 +121,8 @@ function attendreLOrdre(html: string, reperes: string[]) {
 
 beforeEach(() => {
   getArticleParSlugMock.mockReset()
+  getArticlesLiesMock.mockReset()
+  getArticlesLiesMock.mockResolvedValue([])
 })
 
 describe("Page Article de blog — Fragments d'article", () => {
@@ -287,5 +302,112 @@ describe("Page Article de blog — figures", () => {
     expect(figures[0]).toMatch(
       /<span data-image-src="\/images\/couverture\.webp" aria-label=""><\/span>/
     )
+  })
+})
+
+describe("Page Article de blog — Articles liés", () => {
+  const lies: ArticleLie[] = [
+    {
+      slug: "choisir-son-ecran",
+      titre: "Choisir son écran",
+      couverture: "/images/ecran.webp",
+      theme: { slug: "guides", nom: "Guides" },
+      publishedAt: new Date("2026-09-10T12:00:00.000Z"),
+    },
+    {
+      slug: "casque-a-prix-doux",
+      titre: "Le casque à prix doux",
+      couverture: null,
+      theme: { slug: "annonces", nom: "Annonces" },
+      publishedAt: new Date("2026-09-05T12:00:00.000Z"),
+    },
+    {
+      slug: "batterie-tenace",
+      titre: "La batterie tient-elle ?",
+      couverture: "/images/batterie.webp",
+      theme: { slug: "guides", nom: "Guides" },
+      publishedAt: new Date("2026-09-01T12:00:00.000Z"),
+    },
+  ]
+
+  it("rend trois Articles liés en lignes réglées après l'article, chacune un seul lien", async () => {
+    const html = await rendreAvecArticlesLies(lies)
+    const section =
+      html.match(
+        /<section[^>]*aria-labelledby="articles-lies"[\s\S]*?<\/section>/
+      )?.[0] ?? ""
+
+    expect(getArticlesLiesMock).toHaveBeenCalledWith(
+      "choisir-son-casque",
+      "guides"
+    )
+    expect(classesDeLaBalise(html, "section")).toEqual(
+      expect.arrayContaining(["mx-auto", "max-w-[980px]"])
+    )
+    expect(classesDans(html, "h2", "Articles liés")).toEqual(
+      expect.arrayContaining([
+        "text-[24px]",
+        "leading-[1.1667]",
+        "font-bold",
+        "max-[1068px]:text-[21px]",
+      ])
+    )
+    expect(html.indexOf("</article>")).toBeLessThan(
+      html.indexOf("Articles liés")
+    )
+
+    const lignes = [...section.matchAll(/<li[\s\S]*?<\/li>/g)].map(
+      ([ligne]) => ligne
+    )
+    expect(lignes).toHaveLength(3)
+    attendreLOrdre(
+      section,
+      lies.map((article) => article.titre)
+    )
+    for (const [index, ligne] of lignes.entries()) {
+      const article = lies[index]
+      expect(ligne.match(/<a[\s>]/g) ?? []).toHaveLength(1)
+      expect(ligne).toContain(`href="/blog/${article.slug}"`)
+      expect(ligne).toContain(article.theme.nom)
+      expect(ligne).toMatch(
+        new RegExp(
+          `<time[^>]*datetime="${article.publishedAt.toISOString()}"`,
+          "i"
+        )
+      )
+      expect(ligne).toContain("border-b")
+    }
+
+    const liste = section.match(/<ul class="([^"]*)"/)?.[1] ?? ""
+    expect(liste).toEqual(expect.stringContaining("border-t"))
+    expect(liste).toEqual(expect.stringContaining("border-border"))
+
+    expect(section.match(/data-image-src=/g) ?? []).toHaveLength(2)
+    expect(lignes[0]).toContain('data-image-src="/images/ecran.webp"')
+    expect(lignes[1]).not.toContain("data-image-src")
+    expect(lignes[1]).toContain("bg-muted")
+
+    expect(classesDans(section, "h3", "Choisir son écran")).toEqual(
+      expect.arrayContaining([
+        "text-[19px]",
+        "leading-[1.2105]",
+        "font-bold",
+        "max-[1068px]:text-[17px]",
+      ])
+    )
+    const vignette =
+      lignes[0].match(/<div class="([^"]*aspect-video[^"]*)"/)?.[1] ?? ""
+    expect(vignette).toContain("w-[171px]")
+    expect(vignette).toContain("max-[734px]:w-[93px]")
+    expect(vignette).toContain("rounded-[10px]")
+    expect(vignette).toContain("bg-muted")
+    expect(lignes[0]).toContain("10 septembre 2026")
+  })
+
+  it("n'affiche ni la section ni son titre quand aucun Article lié ne qualifie", async () => {
+    const html = await rendreAvecArticlesLies([])
+
+    expect(html).not.toContain("Articles liés")
+    expect(html).not.toContain('aria-labelledby="articles-lies"')
   })
 })

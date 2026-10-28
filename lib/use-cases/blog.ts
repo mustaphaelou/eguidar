@@ -115,6 +115,14 @@ export interface CardBlog {
   publishedAt: Date
 }
 
+export interface ArticleLie {
+  slug: string
+  titre: string
+  couverture: string | null
+  theme: ThemeRef
+  publishedAt: Date
+}
+
 export interface BlogLanding {
   hero: CardBlog | null
   articles: CardBlog[]
@@ -156,6 +164,55 @@ export async function fetchBlogLanding(): Promise<BlogLanding> {
   return { hero: hero ?? null, articles: rest }
 }
 
+function toArticleLie(article: {
+  slug: string
+  titre: string
+  couverture: string | null
+  publishedAt: Date | null
+  theme: ThemeRef
+}): ArticleLie | null {
+  if (!article.publishedAt) return null
+  return {
+    slug: article.slug,
+    titre: article.titre,
+    couverture: article.couverture,
+    theme: { slug: article.theme.slug, nom: article.theme.nom },
+    publishedAt: article.publishedAt,
+  }
+}
+
+export async function fetchArticlesLies(
+  slug: string,
+  themeSlug: string,
+  limite = 3
+): Promise<ArticleLie[]> {
+  if (limite <= 0) return []
+  const publies = {
+    statut: "publie" as const,
+    slug: { not: slug },
+    publishedAt: { not: null },
+  }
+  const memes = await prisma.articleBlog.findMany({
+    where: { ...publies, theme: { is: { slug: themeSlug } } },
+    include: { theme: true },
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    take: limite,
+  })
+  const restant = limite - memes.length
+  const autres =
+    restant > 0
+      ? await prisma.articleBlog.findMany({
+          where: { ...publies, theme: { isNot: { slug: themeSlug } } },
+          include: { theme: true },
+          orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+          take: restant,
+        })
+      : []
+  return [...memes, ...autres]
+    .map(toArticleLie)
+    .filter((article): article is ArticleLie => article !== null)
+}
+
 /**
  * Les slugs d'Articles que le build prérend : ceux dont l'URL résout encore,
  * c'est-à-dire les Publiés et les Archivés (un Brouillon n'a pas d'URL
@@ -190,4 +247,14 @@ export async function getArticleParSlug(
   cacheTag(BLOG_TAG, blogDetailTag(slug))
   cacheLife(BLOG_CACHE_LIFE)
   return fetchArticleParSlug(slug)
+}
+
+export async function getArticlesLies(
+  slug: string,
+  themeSlug: string
+): Promise<ArticleLie[]> {
+  "use cache: remote"
+  cacheTag(BLOG_TAG, blogDetailTag(slug))
+  cacheLife(BLOG_CACHE_LIFE)
+  return fetchArticlesLies(slug, themeSlug)
 }

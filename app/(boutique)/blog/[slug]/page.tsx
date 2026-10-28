@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
+import { LigneArticleLie } from "@/components/storefront/ligne-article-lie"
 import { ProduitLieCarte } from "@/components/storefront/produit-lie-carte"
 import {
   buildArticleDonneesStructurees,
@@ -12,7 +13,11 @@ import {
 import { decoupeContenuArticle, type FragmentArticle } from "@/lib/blog-contenu"
 import { formatPublishedAt, publishedAtISO } from "@/lib/blog-dates"
 import { pageMetadata } from "@/lib/metadata"
-import { getArticleParSlug, parametresDesArticles } from "@/lib/use-cases/blog"
+import {
+  getArticleParSlug,
+  getArticlesLies,
+  parametresDesArticles,
+} from "@/lib/use-cases/blog"
 
 export async function generateStaticParams() {
   return parametresDesArticles()
@@ -62,6 +67,8 @@ async function ArticleContent({
   const { slug } = await paramsPromise
   const data = await getArticleParSlug(slug)
   if (!data) notFound()
+
+  const articlesLies = await getArticlesLies(slug, data.theme.slug)
 
   const crumbs = [
     { name: "Accueil", href: "/" },
@@ -142,6 +149,25 @@ async function ArticleContent({
               ))}
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {articlesLies.length > 0 ? (
+        <section
+          aria-labelledby="articles-lies"
+          className="mx-auto mt-12 w-full max-w-[980px] px-4 sm:px-6 md:px-0"
+        >
+          <h2
+            id="articles-lies"
+            className="text-[24px] leading-[1.1667] font-bold tracking-[0.009em] max-[1068px]:text-[21px] max-[1068px]:leading-[1.1905] max-[1068px]:tracking-[0.011em]"
+          >
+            Articles liés
+          </h2>
+          <ul className="mt-6 border-t border-border">
+            {articlesLies.map((article) => (
+              <LigneArticleLie key={article.slug} article={article} />
+            ))}
+          </ul>
         </section>
       ) : null}
     </>
