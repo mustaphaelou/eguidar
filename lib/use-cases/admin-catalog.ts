@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import {
   Prisma,
@@ -681,6 +682,19 @@ async function enregistrerProduit(
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
+      await enregistrerEvenement(tx, {
+        type: "produit.enregistre",
+        entityType: "produit",
+        entityId: ecrit.produit.id,
+        payload: {
+          produitId: ecrit.produit.id,
+          slug: ecrit.produit.slug,
+          slugPrecedent: ecrit.slugPrecedent ?? null,
+          categoryId: ecrit.produit.categoryId,
+          categoryIdPrecedent:
+            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null,
+        },
+      })
       return ecrit
     })
   } catch (error) {
@@ -753,10 +767,23 @@ export async function deleteProduct(
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
-  const existing = await prisma.product.findUnique({ where: { id } })
-  if (!existing) throw new ProductNotFoundError()
+  const existing = await prisma.$transaction(async (tx) => {
+    const produit = await tx.product.findUnique({ where: { id } })
+    if (!produit) throw new ProductNotFoundError()
 
-  await prisma.product.delete({ where: { id } })
+    await tx.product.delete({ where: { id } })
+    await enregistrerEvenement(tx, {
+      type: "produit.supprime",
+      entityType: "produit",
+      entityId: id,
+      payload: {
+        produitId: id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+      },
+    })
+    return produit
+  })
   await runEffect({
     effet: "suppression-images",
     entite: { type: "produit", id },
@@ -962,7 +989,23 @@ export async function bulkDelete(
   )
   if (partage.succes.length === 0) return partage
 
-  await prisma.product.deleteMany({ where: { id: { in: partage.succes } } })
+  const supprimes = new Set(partage.succes)
+  await prisma.$transaction(async (tx) => {
+    await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
+    for (const produit of existants) {
+      if (!supprimes.has(produit.id)) continue
+      await enregistrerEvenement(tx, {
+        type: "produit.supprime",
+        entityType: "produit",
+        entityId: produit.id,
+        payload: {
+          produitId: produit.id,
+          slug: produit.slug,
+          categoryId: produit.categoryId,
+        },
+      })
+    }
+  })
   const lecture = await lireStructure()
   for (const produit of existants) {
     await runEffect({
@@ -1036,22 +1079,37 @@ export async function duplicateProduct(
     })
   }
 
-  const copie = await prisma.product.create({
-    data: {
-      name: `${faits.name} (copie)`,
-      slug,
-      description: faits.description,
-      brand: faits.brand,
-      price: faits.price,
-      specs: faits.specs,
-      images: [],
-      isFeatured: faits.isFeatured,
-      featuredOrder: faits.featuredOrder,
-      freeShipping: faits.freeShipping,
-      categoryId: faits.categoryId,
-      variants: { create: variantes },
-    },
-    include: { variants: true },
+  const copie = await prisma.$transaction(async (tx) => {
+    const creee = await tx.product.create({
+      data: {
+        name: `${faits.name} (copie)`,
+        slug,
+        description: faits.description,
+        brand: faits.brand,
+        price: faits.price,
+        specs: faits.specs,
+        images: [],
+        isFeatured: faits.isFeatured,
+        featuredOrder: faits.featuredOrder,
+        freeShipping: faits.freeShipping,
+        categoryId: faits.categoryId,
+        variants: { create: variantes },
+      },
+      include: { variants: true },
+    })
+    await enregistrerEvenement(tx, {
+      type: "produit.enregistre",
+      entityType: "produit",
+      entityId: creee.id,
+      payload: {
+        produitId: creee.id,
+        slug: creee.slug,
+        slugPrecedent: null,
+        categoryId: creee.categoryId,
+        categoryIdPrecedent: null,
+      },
+    })
+    return creee
   })
 
   await reindexerLot([copie.id], effects)
@@ -1077,9 +1135,17 @@ export async function updateVariantStock(
     defaultCatalogEffects(variant.product.id),
     overrides
   )
-  await prisma.productVariant.update({
-    where: { id: variantId },
-    data: { stock },
+  await prisma.$transaction(async (tx) => {
+    await tx.productVariant.update({
+      where: { id: variantId },
+      data: { stock },
+    })
+    await enregistrerEvenement(tx, {
+      type: "variante.stock.changee",
+      entityType: "produit",
+      entityId: variant.product.id,
+      payload: { produitId: variant.product.id },
+    })
   })
   const product = {
     ...variant.product,

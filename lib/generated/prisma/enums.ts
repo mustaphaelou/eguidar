@@ -27,3 +27,24 @@ export const StatutPublication = {
 
 export type StatutPublication =
   (typeof StatutPublication)[keyof typeof StatutPublication]
+
+export const StatutAutomation = {
+  en_attente: "en_attente",
+  en_cours: "en_cours",
+  reussi: "reussi",
+  echoue: "echoue",
+  ignore: "ignore",
+  mort: "mort",
+} as const
+
+export type StatutAutomation =
+  (typeof StatutAutomation)[keyof typeof StatutAutomation]
+
+export const DeclencheurExecution = {
+  evenement: "evenement",
+  planification: "planification",
+  manuel: "manuel",
+} as const
+
+export type DeclencheurExecution =
+  (typeof DeclencheurExecution)[keyof typeof DeclencheurExecution]

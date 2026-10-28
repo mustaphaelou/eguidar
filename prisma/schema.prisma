@@ -10,23 +10,23 @@ datasource db {
 // --- Better Auth (core tables, generated from the auth config's schema) ---
 
 model user {
-  id            String    @id
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?
-  phone         String?
+  id              String   @id
+  name            String
+  email           String   @unique
+  emailVerified   Boolean  @default(false)
+  image           String?
+  phone           String?
   shippingAddress String?
-  shippingCityId String?
-  role          String    @default("user")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  shippingCityId  String?
+  role            String   @default("user")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  shippingCity DeliveryCity?   @relation(fields: [shippingCityId], references: [id])
-  accounts     account[]
-  sessions     session[]
-  cartItems    CartItem[]
-  orders       Order[]
+  shippingCity           DeliveryCity?           @relation(fields: [shippingCityId], references: [id])
+  accounts               account[]
+  sessions               session[]
+  cartItems              CartItem[]
+  orders                 Order[]
   brouillonsImageProduit BrouillonImageProduit[]
 }
 
@@ -46,19 +46,19 @@ model session {
 }
 
 model account {
-  id                   String    @id
-  accountId            String
-  providerId           String
-  userId               String
-  accessToken          String?
-  refreshToken         String?
-  idToken              String?
-  accessTokenExpiresAt DateTime?
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope                String?
-  password             String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -92,58 +92,58 @@ model Category {
 }
 
 model Product {
-  id            String           @id @default(cuid())
-  name          String
-  slug          String           @unique
-  description   String
-  brand         String
-  specs         Json
-  price         Int
-  images        Json
-  isFeatured    Boolean          @default(false)
-  featuredOrder Int              @default(0)
-  freeShipping  Boolean          @default(false)
-  categoryId    String?
-  category      Category?        @relation(fields: [categoryId], references: [id])
-  variants      ProductVariant[]
-  articlesBlog  ArticleBlogProduit[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  slug                   String                  @unique
+  description            String
+  brand                  String
+  specs                  Json
+  price                  Int
+  images                 Json
+  isFeatured             Boolean                 @default(false)
+  featuredOrder          Int                     @default(0)
+  freeShipping           Boolean                 @default(false)
+  categoryId             String?
+  category               Category?               @relation(fields: [categoryId], references: [id])
+  variants               ProductVariant[]
+  articlesBlog           ArticleBlogProduit[]
   brouillonsImageProduit BrouillonImageProduit[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 
   @@index([categoryId])
   @@index([isFeatured, featuredOrder])
 }
 
 model ProductVariant {
-  id         String   @id @default(cuid())
+  id         String     @id @default(cuid())
   name       String
-  sku        String   @unique
-  priceDelta Int      @default(0)
-  stock      Int      @default(0)
+  sku        String     @unique
+  priceDelta Int        @default(0)
+  stock      Int        @default(0)
   productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   cartItems  CartItem[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
   @@index([productId])
 }
 
 model BrouillonImageProduit {
-  id                String    @id
-  storageKey        String    @unique
+  id                String   @id
+  storageKey        String   @unique
   mimeType          String
   byteSize          Int
   ownerId           String
   tentativeId       String?
-  createdAt         DateTime  @default(now())
+  createdAt         DateTime @default(now())
   expiresAt         DateTime
-  state             String    @default("vivant")
+  state             String   @default("vivant")
   promotedPublicUrl String?
   productId         String?
 
-  owner   user    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner   user     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([ownerId])
@@ -195,15 +195,15 @@ model Order {
 }
 
 model OrderItem {
-  id          String        @id @default(cuid())
+  id          String   @id @default(cuid())
   orderId     String
-  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   variantId   String?
   productName String
   variantName String
   price       Int
   quantity    Int
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([orderId])
 }
@@ -219,7 +219,7 @@ model DeliveryCity {
 }
 
 model ShippingSettings {
-  id                    String @id @default("default")
+  id                    String   @id @default("default")
   freeShippingThreshold Int
   updatedAt             DateTime @updatedAt
 }
@@ -233,27 +233,27 @@ enum StatutPublication {
 }
 
 model Theme {
-  id        String       @id @default(cuid())
-  slug      String       @unique
-  nom       String       @unique
+  id        String        @id @default(cuid())
+  slug      String        @unique
+  nom       String        @unique
   articles  ArticleBlog[]
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 model ArticleBlog {
-  id          String            @id @default(cuid())
+  id          String               @id @default(cuid())
   titre       String
-  slug        String            @unique
+  slug        String               @unique
   extrait     String
   couverture  String?
   contenu     String
   themeId     String
-  theme       Theme             @relation(fields: [themeId], references: [id])
-  statut      StatutPublication @default(brouillon)
+  theme       Theme                @relation(fields: [themeId], references: [id])
+  statut      StatutPublication    @default(brouillon)
   publishedAt DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   produits    ArticleBlogProduit[]
 
   @@index([statut, publishedAt])
@@ -269,4 +269,95 @@ model ArticleBlogProduit {
 
   @@id([articleId, productId])
   @@index([productId])
+}
+
+// --- Automatisations durables (ADR-0041) ---
+
+enum StatutAutomation {
+  en_attente
+  en_cours
+  reussi
+  echoue
+  ignore
+  mort
+}
+
+enum DeclencheurExecution {
+  evenement
+  planification
+  manuel
+}
+
+model AutomationEvent {
+  id          String           @id @default(cuid())
+  type        String
+  entityType  String
+  entityId    String
+  seq         Int
+  attemptOf   Int
+  payload     Json
+  occurredAt  DateTime
+  expiresAt   DateTime
+  status      StatutAutomation @default(en_attente)
+  attempts    Int              @default(0)
+  lastError   String?
+  availableAt DateTime         @default(now())
+  lockedUntil DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  runs AutomationRun[]
+
+  @@unique([type, entityId, attemptOf])
+  @@unique([entityType, entityId, seq])
+  @@index([status, availableAt])
+}
+
+model AutomationRule {
+  id           String   @id
+  name         String
+  enabled      Boolean  @default(true)
+  trigger      String
+  condition    Json
+  action       String
+  actionConfig Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  revisions AutomationRuleRevision[]
+  runs      AutomationRun[]
+}
+
+model AutomationRuleRevision {
+  id        String   @id @default(cuid())
+  ruleId    String
+  snapshot  Json
+  author    String
+  createdAt DateTime @default(now())
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, createdAt])
+}
+
+model AutomationRun {
+  id         String               @id @default(cuid())
+  eventId    String?
+  ruleId     String?
+  action     String
+  status     StatutAutomation     @default(en_cours)
+  attempt    Int                  @default(1)
+  lastError  String?
+  durationMs Int?
+  startedAt  DateTime             @default(now())
+  finishedAt DateTime?
+  trigger    DeclencheurExecution @default(evenement)
+  createdAt  DateTime             @default(now())
+
+  event AutomationEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  rule  AutomationRule?  @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, ruleId, attempt])
+  @@index([startedAt])
+  @@index([status])
 }

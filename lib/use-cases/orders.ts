@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { enregistrerEvenement } from "@/lib/automations/evenements"
 import type { CommandeListingParams } from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
@@ -394,6 +395,12 @@ export async function placeOrder(
         variantId: { in: cart.lines.map((line) => line.variantId) },
       },
     })
+    await enregistrerEvenement(tx, {
+      type: "commande.creee",
+      entityType: "commande",
+      entityId: created.id,
+      payload: { snapshot: toOrderEmailSnapshot(created, user.email) },
+    })
     return { order: created, produitsDrainés }
   })
 
@@ -515,13 +522,21 @@ export async function updateOrderStatus(
         produitsRestockés = await produitsTouches(tx, fresh.items)
       }
 
-      return {
-        updated: await tx.order.findUniqueOrThrow({
-          where: { id: orderId },
-          include: { items: true },
-        }),
-        produitsRestockés,
-      }
+      const updated = await tx.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: { items: true },
+      })
+      await enregistrerEvenement(tx, {
+        type: "commande.statut.changee",
+        entityType: "commande",
+        entityId: orderId,
+        payload: {
+          snapshot: toOrderEmailSnapshot(updated, existing.user.email),
+          statut: nextStatus,
+        },
+      })
+
+      return { updated, produitsRestockés }
     }
   )
 
