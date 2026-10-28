@@ -9,6 +9,7 @@ import {
 import {
   createCategory,
   deleteCategory,
+  deplacerStructure,
   updateCategory,
   type CategoryInput,
 } from "@/lib/use-cases/admin-structure"
@@ -33,6 +34,17 @@ interface CategoryDeleteInput {
   reassignToCategoryId?: string
   reparentChildrenToCategoryId?: string
   orphanProducts?: boolean
+}
+
+interface CategoryMoveInput {
+  categoryId: string
+  nouvelleParenteId: string | null
+  avantId: string | null
+}
+
+export interface CategoryMoveState {
+  error?: string
+  message?: string
 }
 
 export const createCategoryAction = adminFormAction<CategoryInput>({
@@ -88,5 +100,30 @@ export const deleteCategoryAction = adminFormAction<CategoryDeleteInput>({
       ...(orphanProducts ? { orphanProducts } : {}),
     })
     return {}
+  },
+})
+
+export const deplacerStructureAction = adminFormAction<
+  CategoryMoveInput,
+  CategoryMoveState
+>({
+  next: "/admin/categories",
+  parse: (formData) => ({
+    categoryId: parseRequiredId(formData, "categoryId"),
+    nouvelleParenteId: String(formData.get("nouvelleParenteId") ?? "") || null,
+    avantId: String(formData.get("avantId") ?? "") || null,
+  }),
+  run: async ({ categoryId, nouvelleParenteId, avantId }) => {
+    const deplacement = await deplacerStructure({
+      id: categoryId,
+      nouvelleParenteId,
+      avantId,
+    })
+    return {
+      message:
+        deplacement.nomDestination === null
+          ? `Déplacée à la racine, position ${deplacement.position} sur ${deplacement.nombreFreres}`
+          : `Déplacée sous ${deplacement.nomDestination}, position ${deplacement.position} sur ${deplacement.nombreFreres}`,
+    }
   },
 })

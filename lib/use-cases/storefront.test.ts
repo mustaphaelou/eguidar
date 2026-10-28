@@ -266,6 +266,44 @@ describe("storefront browse", () => {
     expect(other!.productCount).toBe(1)
   })
 
+  it("home et page de catégorie rangent les enfants par position, comme l'Administration", async () => {
+    const root = await prisma.category.findUniqueOrThrow({
+      where: { slug: cSlug("root") },
+    })
+    const zebre = await prisma.category.create({
+      data: {
+        name: "Zèbre position",
+        slug: cSlug("ordre-z"),
+        parentId: root.id,
+        position: 10,
+      },
+    })
+    const alpha = await prisma.category.create({
+      data: {
+        name: "Alpha position",
+        slug: cSlug("ordre-a"),
+        parentId: root.id,
+        position: 20,
+      },
+    })
+
+    try {
+      const home = await fetchHomeData()
+      const noeud = home.categories.find(
+        (categorie) => categorie.slug === cSlug("root")
+      )!
+      const attendu = [cSlug("child"), zebre.slug, alpha.slug]
+
+      expect(noeud.children.map((enfant) => enfant.slug)).toEqual(attendu)
+      const page = await fetchCategoryPageData(cSlug("root"))
+      expect(page!.children.map((enfant) => enfant.slug)).toEqual(attendu)
+    } finally {
+      await prisma.category.deleteMany({
+        where: { id: { in: [zebre.id, alpha.id] } },
+      })
+    }
+  })
+
   it("category browse: includes products of descendant categories, excludes the rest", async () => {
     await createProduct(cSlug("root"), {
       name: "Produit racine",

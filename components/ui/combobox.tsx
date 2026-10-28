@@ -101,6 +101,31 @@ function ComboboxPopup({ className, ...props }: ComboboxPrimitive.Popup.Props) {
   )
 }
 
+function ComboboxContent({
+  className,
+  children,
+  side = "bottom",
+  sideOffset = 4,
+  align = "start",
+  ...props
+}: ComboboxPrimitive.Popup.Props &
+  Pick<ComboboxPrimitive.Positioner.Props, "align" | "side" | "sideOffset">) {
+  return (
+    <ComboboxPortal>
+      <ComboboxPositioner
+        side={side}
+        sideOffset={sideOffset}
+        align={align}
+        className="w-(--anchor-width)"
+      >
+        <ComboboxPopup className={className} {...props}>
+          {children}
+        </ComboboxPopup>
+      </ComboboxPositioner>
+    </ComboboxPortal>
+  )
+}
+
 function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
   return (
     <ComboboxPrimitive.List
@@ -152,6 +177,7 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
 export {
   Combobox,
   ComboboxClear,
+  ComboboxContent,
   ComboboxEmpty,
   ComboboxInput,
   ComboboxInputGroup,

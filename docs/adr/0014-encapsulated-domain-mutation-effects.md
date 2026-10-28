@@ -68,3 +68,13 @@ stock, validation, or transitions.
   Commande and Catalogue. Blog mutations (`lib/use-cases/blog.ts`) had no production Server Action
   caller and stayed caller-injected as an exception; they are now deleted outright, the module
   exposing only public reads.
+
+## Amendement — L'outbox et le travailleur sont pris (ADR-0041, 2026-10-28)
+
+Le seul invariant de cet ADR qui cesse d'être vrai est « No schema change, no queues/outbox ».
+[0041](0041-des-effets-post-commit-durables.md) le remplace : l'événement est écrit dans la
+transaction de la mutation, un travailleur pg-boss le réclame en `FOR UPDATE SKIP LOCKED`, et une
+exécution durable garde son statut, sa tentative et son erreur. Les ports `*Effects`, les adaptateurs
+de production, la surcharge partielle, la propriété de chaque module sur son vocabulaire de refus et
+la frontière best-effort des effets non critiques restent tels quels : la frontière décrite ici ne
+vaut plus que pour eux. La publication programmée reste un prédicat de lecture, jamais un job.

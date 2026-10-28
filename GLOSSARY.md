@@ -142,8 +142,17 @@ L'arborescence de catégories du Catalogue telle que l'Administration la gère :
 en base, la **Lecture de la Structure** qui la lit pour une page, et le module
 `lib/use-cases/admin-structure.ts` qui la mute. Une Structure est une catégorie de cet arbre, à
 laquelle les Produits se rattachent — sauf ceux dont elle a été supprimée, qui deviennent des
-**Produits sans Structure**.
+**Produits sans Structure**. Chaque Structure porte une **position** parmi ses sœurs, et le
+déplacement est une commande unique, jamais un ordre calculé par le navigateur (ADR-0030).
 _Avoid_: category tree, arborescence de catégories, catégorie d'administration
+
+**Position dans la Structure**:
+Le rang d'une Structure parmi celles qui partagent sa parente, un-based, dans l'ordre
+`(position, nom en français, identifiant)`. La colonne `Category.position` le stocke, la commande
+`deplacerStructure` seule le réécrit — par pas de 1024, sans contrainte d'unicité sur la fratrie —,
+et la **Lecture de la Structure** rend le rang, le nombre de sœurs et le chemin de la ligne. Une
+Structure laissée à zéro par la migration est départagée par son nom, comme avant l'ordre explicite.
+_Avoid_: ordre des catégories, index de tri, rank
 
 **Refus de la Structure**:
 Le refus par le serveur d'une opération sur la Structure : données invalides, slug déjà pris,
@@ -154,9 +163,11 @@ mutation may also be refused because the stored Structure is **corrupt** — it 
 somewhere in an ancestor chain (ADR-0027). That is a different fault from a bad request, and it is
 refused in its own voice rather than as invalid input, since retrying repairs nothing. Un délai de
 transaction dépassé a lui aussi sa propre voix : ce n'est pas la contention, que « réessayez »
-répare, et `CategoryBusyError` ne dit donc pas ce fait (ADR-0027). Une mutation de Structure ne
-produit jamais d'autre **refus** : tout défaut qu'elle sait nommer devient un Refus de la Structure,
-et un défaut qu'elle ne sait pas nommer est rendu tel quel, sans refus composé — la même partition
+répare, et `CategoryBusyError` ne dit donc pas ce fait (ADR-0027). Un cycle déjà présent nomme
+l'arête qui le ferme, pour que « Rattacher… » rende une action et non une panne (ADR-0030). Une
+mutation de Structure ne produit jamais d'autre **refus** : tout défaut qu'elle sait nommer devient
+un Refus de la Structure, et un défaut qu'elle ne sait pas nommer est rendu tel quel, sans refus
+composé — la même partition
 qu'ADR-0004 tient pour une rangée illisible. Le refus d'une Structure qui a des Produits **est le
 défaut** : l'éditeur peut le lever en choisissant de les réaffecter ou de les laisser sans
 Structure, jamais par inadvertance (ADR-0029).
@@ -186,8 +197,11 @@ d'Ariane, ses enfants, sa branche — et rien de plus : elle peut en demander un
 d'un coup, et la lecture reste la même. Les questions portent le nom de ces faits, jamais celui d'un
 écran : une page de plus n'ajoute aucun nom ici. Elle rend des faits, jamais des verdicts : ce qu'un
 cycle signifie reste à celui qui l'appelle — l'Administration le nomme, la boutique dégrade
-(ADR-0030). L'ordre qu'elle promet — le nom en français, départagé par l'identifiant — est écrit
-une fois, dans le cœur de la Marche, et toutes ses surfaces le rendent sans le refaire (ADR-0030).
+(ADR-0030). L'ordre qu'elle promet — la position, puis le nom en français, départagé par
+l'identifiant — est écrit une fois, dans le cœur de la Marche, et toutes ses surfaces le rendent sans
+le refaire (ADR-0030). Ses lignes d'Administration portent aussi la position parmi les sœurs, le
+nombre de sœurs, le cumul des Produits de la branche et le fil d'Ariane de la ligne ; la boutique
+suit le même ordre.
 Elle ne lit jamais dans une transaction : les lectures qu'une mutation doit juger sur des faits
 engagés restent avec elle, sous le verrou grossier (ADR-0027).
 _Avoid_: lecture de catégorie, category read, listAdminCategoriesWithCounts (comme nom du concept)
@@ -494,3 +508,32 @@ Un Produit du Catalogue attaché à un Article de blog, affiché en Carte produi
 vers sa page Produit. Un Produit lié indisponible (stock total nul) est masqué à la lecture : l'Article
 de blog reste publié, sa Carte produit disparaît.
 _Avoid_: produit associé, related product
+
+**Automatisation**:
+Un effet post-commit exécuté durablement par le travailleur, à partir d'un Événement
+d'automatisation et de la Règle d'automatisation qui le déclenche : e-mail de Commande,
+indexation ou retrait d'index, purge du bord, invalidation du cache, digest ou réconciliation.
+Le commit de la mutation reste autoritatif ; l'Automatisation est la reprise, pas la transaction.
+_Avoid_: workflow, job, tâche de fond, automatisme
+
+**Événement d'automatisation**:
+Le fait immuable écrit dans la transaction d'une mutation — type, entité, charge, séquence par
+entité, expiration — puis consommé par le travailleur. Un retour arrière de la mutation ne laisse
+aucun Événement d'automatisation.
+_Avoid_: message, job, tâche
+
+**Exécution d'automatisation**:
+La trace durable d'une Règle d'automatisation appliquée à un Événement d'automatisation : statut,
+tentative, erreur, début et fin. C'est elle que l'Administration affiche dans l'historique.
+_Avoid_: run, log, journal (réservé au journal console de la phase 0)
+
+**Règle d'automatisation**:
+Le couple fermé déclencheur → condition → action qui décide ce qu'un Événement d'automatisation
+exécute. Semée dans le code, révisée à chaque changement, éditable par le marchand en Phase 5.
+_Avoid_: workflow, scénario, trigger
+
+**File morte**:
+L'état d'un Événement d'automatisation dont les tentatives sont épuisées, avec sa dernière
+erreur ; un renvoi le remet en attente. À distinguer de la file morte de travaux pg-boss, qui
+porte les balayages du travailleur.
+_Avoid_: dead letter queue (comme nom du concept), DLQ
