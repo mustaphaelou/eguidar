@@ -409,6 +409,77 @@ describe("Page Article de blog — notes", () => {
   })
 })
 
+describe("Page Article de blog — liste et citation", () => {
+  it("rend une liste comme un seul <ul>, un <li> par item, dans la mesure", async () => {
+    const html = await rendre(
+      [
+        "Un paragraphe d'introduction.",
+        "",
+        "- Autonomie",
+        "- Poids",
+        "- Prix",
+        "",
+        "Un paragraphe de conclusion.",
+      ].join("\n")
+    )
+    const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+    const liste = corps.match(/<ul[\s\S]*?<\/ul>/)?.[0] ?? ""
+
+    expect(corps.match(/<ul[\s>]/g) ?? []).toHaveLength(1)
+    expect(liste.match(/<li>/g) ?? []).toHaveLength(3)
+    attendreLOrdre(liste, ["Autonomie", "Poids", "Prix"])
+    attendreLOrdre(html, ["Autonomie", "Prix", "Un paragraphe de conclusion."])
+
+    const baliseListe = baliseOuverte(corps, "ul")
+    expect(baliseListe).toContain("md:col-start-2")
+    expect(baliseListe).not.toContain("md:col-span-3")
+    expect(baliseListe).not.toContain("mt-[")
+  })
+
+  it("rend une citation en pull quote à la largeur média, centrée, sur l'échelle 40/32/28 et le retrait 72/64/52", async () => {
+    const html = await rendre(
+      "Un paragraphe d'introduction.\n\n> Un casque qui se fait oublier.\n\nUn paragraphe de conclusion."
+    )
+    const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+    const classes = classesDeLaBalise(corps, "blockquote")
+
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "md:col-span-3",
+        "text-center",
+        "font-bold",
+        "text-[40px]",
+        "leading-[1.1]",
+        "tracking-[0em]",
+        "max-[1068px]:text-[32px]",
+        "max-[1068px]:leading-[1.125]",
+        "max-[1068px]:tracking-[0.004em]",
+        "max-[734px]:text-[28px]",
+        "max-[734px]:leading-[1.1429]",
+        "max-[734px]:tracking-[0.007em]",
+        "!mt-[72px]",
+        "max-[1068px]:!mt-[64px]",
+        "max-[734px]:!mt-[52px]",
+      ])
+    )
+    expect(classes).not.toContain("md:col-start-2")
+    expect(corps).toMatch(
+      /<blockquote[^>]*>Un casque qui se fait oublier\.<\/blockquote>/
+    )
+  })
+
+  it("n'interprète pas le HTML d'une liste ni d'une citation", async () => {
+    const html = await rendre(
+      "- <b>Autonomie</b>\n\n> <script>alert(1)</script>"
+    )
+
+    expect(html).toContain("&lt;b&gt;Autonomie&lt;/b&gt;")
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;")
+    expect(html).not.toContain("<b>Autonomie</b>")
+    expect(html).not.toContain("<script>alert(1)</script>")
+  })
+})
+
 describe("Page Article de blog — partage", () => {
   const URL_ARTICLE = "https://eguidar.com/blog/choisir-son-casque"
 
