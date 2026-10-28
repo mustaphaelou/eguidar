@@ -466,7 +466,7 @@ describe("deplacerStructure — un déplacement, un propriétaire", () => {
 
   it("refuse une Structure d'insertion qui n'est pas une sœur de la destination", async () => {
     const effets = effectSpies()
-    const { racine, a, b } = await creerFratrie("mv-avant-inconnue")
+    const { racine, a } = await creerFratrie("mv-avant-inconnue")
 
     const refus: unknown = await refusDe(
       deplacerStructure(
