@@ -1,0 +1,19 @@
+{
+  "bucket": "eguidar",
+  "rules": [
+    {
+      "id": "televersement-administration",
+      "allowed": {
+        "origins": [
+          "https://eguidar.com",
+          "http://localhost:3000",
+          "http://127.0.0.1:3000"
+        ],
+        "methods": ["PUT"],
+        "headers": ["content-type"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}
