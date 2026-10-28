@@ -379,13 +379,15 @@ describe("deplacerStructure — un déplacement, un propriétaire", () => {
       { id: b.id, nouvelleParenteId: null, avantId: racine.id },
       effectSpies()
     )
-    expect(resultat).toMatchObject({
-      nomDestination: null,
-      position: 1,
-      nombreFreres: 2,
-    })
+    expect(resultat.nomDestination).toBeNull()
     expect(await parentDe(b.id)).toBeNull()
-    expect(await ordreDesEnfants(null)).toContain(b.id)
+    // La racine peut en porter d'autres, laissées par d'autres suites : on
+    // vérifie le rang relatif que la commande vient de produire, pas un compte
+    // absolu qui dépendrait de la table entière.
+    const ordreDesRacines = await ordreDesEnfants(null)
+    expect(ordreDesRacines[resultat.position - 1]).toBe(b.id)
+    expect(ordreDesRacines.length).toBe(resultat.nombreFreres)
+    expect(ordreDesRacines[resultat.position]).toBe(racine.id)
   })
 
   it("indente une Structure sous sa sœur précédente, en dernier enfant", async () => {
