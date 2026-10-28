@@ -246,6 +246,7 @@ model ArticleBlog {
   titre       String
   slug        String            @unique
   extrait     String
+  chapo       String?
   couverture  String?
   contenu     String
   themeId     String

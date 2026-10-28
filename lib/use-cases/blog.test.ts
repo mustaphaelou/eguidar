@@ -21,6 +21,7 @@ function makeInput(input: {
   publishedAt?: Date | null
   titre?: string
   extrait?: string
+  chapo?: string | null
   couverture?: string | null
   contenu?: string
   themeSlug?: string
@@ -30,6 +31,7 @@ function makeInput(input: {
     titre: input.titre ?? "Guide de test",
     slug: bSlug(input.suffix),
     extrait: input.extrait ?? "Un extrait de test",
+    chapo: input.chapo ?? null,
     couverture: input.couverture ?? null,
     contenu: input.contenu ?? "Un contenu de test",
     statut,
@@ -137,6 +139,7 @@ describe("blog lecture publique", () => {
         statut: "publie",
         titre: "Bien choisir son smartphone",
         extrait: "Nos conseils pour un achat serein.",
+        chapo: "Trois critères suffisent pour choisir sans se tromper.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
         themeSlug: "annonces",
@@ -148,6 +151,7 @@ describe("blog lecture publique", () => {
         titre: "Bien choisir son smartphone",
         slug: bSlug("detail"),
         extrait: "Nos conseils pour un achat serein.",
+        chapo: "Trois critères suffisent pour choisir sans se tromper.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
         theme: { slug: "annonces", nom: "Annonces" },
@@ -156,6 +160,21 @@ describe("blog lecture publique", () => {
       })
       expect(lu?.id).toBe(article.id)
       expect(lu?.publishedAt).toBeInstanceOf(Date)
+    })
+
+    it("renvoie chapo null pour un Article qui n'en a pas", async () => {
+      await creerArticle({
+        suffix: "detail-sans-chapo",
+        statut: "publie",
+        extrait: "L'extrait tient lieu de Chapô.",
+      })
+
+      const lu = await fetchArticleParSlug(bSlug("detail-sans-chapo"))
+
+      expect(lu).toMatchObject({
+        extrait: "L'extrait tient lieu de Chapô.",
+        chapo: null,
+      })
     })
 
     it("returns null for an unknown slug", async () => {
