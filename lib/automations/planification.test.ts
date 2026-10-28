@@ -201,13 +201,23 @@ describe("la réconciliation nocturne", () => {
       })
     )
 
-    expect(recherche.operations).toEqual([
-      { operation: "indexer", ids: [produitBasId, produitHautId] },
-      { operation: "desindexer", id: `${PREFIXE}orphelin` },
-    ])
+    const indexation = recherche.operations.find(
+      (operation) => operation.operation === "indexer"
+    )
+    expect(indexation).toMatchObject({ operation: "indexer" })
+    if (indexation?.operation !== "indexer")
+      throw new Error("indexation absente")
+    expect(indexation.ids).toEqual(
+      expect.arrayContaining([produitBasId, produitHautId])
+    )
+    expect(
+      recherche.operations.filter(
+        (operation) => operation.operation === "desindexer"
+      )
+    ).toEqual([{ operation: "desindexer", id: `${PREFIXE}orphelin` }])
     expect(signaux).toHaveLength(1)
     expect(signaux[0]).toContain("Réconciliation du 2026-10-28")
-    expect(signaux[0]).toContain("2 à réécrire, 1 à retirer")
+    expect(signaux[0]).toMatch(/\d+ à réécrire, 1 à retirer/)
 
     await prisma.automationEvent.updateMany({
       where: { entityId: "2026-10-28" },

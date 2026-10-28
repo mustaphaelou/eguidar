@@ -10,6 +10,11 @@ import {
   construireReconciliation,
   type LigneStockBas,
 } from "@/lib/automations/digests"
+import type {
+  ActionAutomation,
+  RegleAutomation,
+} from "@/lib/automations/regles"
+import { prisma } from "@/lib/db"
 import {
   cleIdempotenceEmailPlacee,
   cleIdempotenceEmailStatut,
@@ -23,13 +28,15 @@ import {
 import type { DemandePurge } from "@/lib/purge-edge"
 import { STATUTS_VALIDES } from "@/lib/statut-de-commande"
 import {
+  getDashboardStats,
+  LOW_STOCK_THRESHOLD,
+} from "@/lib/use-cases/admin-dashboard"
+import {
+  chaineDeLaStructure,
   demandeDePurgeCatalogue,
   type CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
-import type {
-  ActionAutomation,
-  RegleAutomation,
-} from "@/lib/automations/regles"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 
 export interface EntreeEmailDigest {
   destinataire: string
@@ -113,7 +120,7 @@ const payloadProduit = z.object({
   categoryId: z.string().nullish(),
   categoryIdPrecedent: z.string().nullish(),
 })
-const payloadVariante = z.object({ produitId: z.string().min(1) })
+const payloadProduitId = z.object({ produitId: z.string().min(1) })
 const payloadStructure = z.object({ categorieId: z.string().min(1) })
 const payloadJour = z.object({ jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 
@@ -123,35 +130,18 @@ function destinataireDuProprietaire(): string {
   return email
 }
 
-function chainesDepuis(
-  payload: z.infer<typeof payloadProduit>
-): CatalogueEventProduct {
-  return {
-    id: payload.produitId,
-    slug: payload.slug,
-    previousSlug:
-      payload.slugPrecedent && payload.slugPrecedent !== payload.slug
-        ? payload.slugPrecedent
-        : undefined,
-    categoryChain: [],
-    previousCategoryChain: [],
-  }
-}
-
-async function chargerLaStructure() {
-  const { lireStructure } = await import("@/lib/use-cases/lecture-structure")
-  const { chaineDeLaStructure } =
-    await import("@/lib/use-cases/cache-invalidation")
-  return { lecture: await lireStructure(), chaineDeLaStructure }
-}
-
 async function evenementCatalogue(
   payload: z.infer<typeof payloadProduit>
 ): Promise<CatalogueEventProduct> {
-  const { lecture, chaineDeLaStructure } = await chargerLaStructure()
-  const base = chainesDepuis(payload)
+  const lecture = await lireStructure()
+  const previousSlug =
+    payload.slugPrecedent && payload.slugPrecedent !== payload.slug
+      ? payload.slugPrecedent
+      : undefined
   return {
-    ...base,
+    id: payload.produitId,
+    slug: payload.slug,
+    previousSlug,
     categoryChain: chaineDeLaStructure(lecture, payload.categoryId),
     previousCategoryChain: chaineDeLaStructure(
       lecture,
@@ -161,7 +151,6 @@ async function evenementCatalogue(
 }
 
 async function chargerProduitIndexable(produitId: string) {
-  const { prisma } = await import("@/lib/db")
   return prisma.product.findUnique({
     where: { id: produitId },
     include: { variants: true, category: true },
@@ -190,19 +179,15 @@ async function envoyerStatutCommande(contexte: ContexteAction): Promise<void> {
 }
 
 async function indexerProduit(contexte: ContexteAction): Promise<void> {
-  const payload = payloadProduit
-    .pick({ produitId: true })
-    .parse(contexte.evenement.payload)
-  const produit = await chargerProduitIndexable(payload.produitId)
+  const { produitId } = payloadProduitId.parse(contexte.evenement.payload)
+  const produit = await chargerProduitIndexable(produitId)
   if (!produit) return
   await contexte.dependances.recherche.indexer([toIndexableProduct(produit)])
 }
 
 async function desindexerProduit(contexte: ContexteAction): Promise<void> {
-  const payload = payloadProduit
-    .pick({ produitId: true })
-    .parse(contexte.evenement.payload)
-  await contexte.dependances.recherche.desindexer(payload.produitId)
+  const { produitId } = payloadProduitId.parse(contexte.evenement.payload)
+  await contexte.dependances.recherche.desindexer(produitId)
 }
 
 async function invaliderCatalogue(contexte: ContexteAction): Promise<void> {
@@ -226,9 +211,6 @@ async function invaliderStructure(contexte: ContexteAction): Promise<void> {
 
 async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
   const { jour } = payloadJour.parse(contexte.evenement.payload)
-  const { prisma } = await import("@/lib/db")
-  const { LOW_STOCK_THRESHOLD } =
-    await import("@/lib/use-cases/admin-dashboard")
   const variantes = await prisma.productVariant.findMany({
     where: { stock: { lte: LOW_STOCK_THRESHOLD } },
     include: { product: { select: { name: true } } },
@@ -255,7 +237,6 @@ async function envoyerDigestProprietaire(
   contexte: ContexteAction
 ): Promise<void> {
   const { jour } = payloadJour.parse(contexte.evenement.payload)
-  const { getDashboardStats } = await import("@/lib/use-cases/admin-dashboard")
   const stats = await getDashboardStats()
   await contexte.dependances.emails.envoyerDigest({
     destinataire: destinataireDuProprietaire(),
@@ -273,7 +254,6 @@ async function envoyerDigestProprietaire(
 
 async function reconcilierRecherche(contexte: ContexteAction): Promise<void> {
   const { jour } = payloadJour.parse(contexte.evenement.payload)
-  const { prisma } = await import("@/lib/db")
   const produits = await prisma.product.findMany({
     include: { variants: true, category: true },
   })
