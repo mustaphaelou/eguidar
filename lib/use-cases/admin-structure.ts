@@ -3,6 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { toIndexableProduct } from "@/lib/index-projection"
+import { comparerStructures } from "@/lib/marche-structure"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
 import { stockageImageProduitR2 } from "@/lib/r2"
@@ -105,11 +106,20 @@ export class CategoryTransactionExpiredError extends UserFacingError {
 }
 
 export class CategoryAncestorCycleError extends UserFacingError {
-  constructor() {
+  readonly arete: string | null
+
+  constructor(cycle: readonly string[] = []) {
+    const arete =
+      cycle.length >= 2
+        ? `${cycle[cycle.length - 2]} → ${cycle[cycle.length - 1]}`
+        : null
     super(
-      "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
+      arete
+        ? `Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle (${cycle.join(" → ")}) ; l'arête « ${arete} » le ferme`
+        : "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
     )
     this.name = "CategoryAncestorCycleError"
+    this.arete = arete
   }
 }
 
@@ -230,33 +240,37 @@ async function assertCategoryParent(
   if (!parent) throw new CategoryValidationError(["catégorie parente inconnue"])
 }
 
+interface MaillonStructure {
+  id: string
+  name: string
+  parentId: string | null
+}
+
 async function lireChaineDesAncetres(
   parentId: string,
   client: Prisma.TransactionClient
-): Promise<Map<string, string | null>> {
-  const maillons = await client.$queryRaw<
-    { id: string; parentId: string | null }[]
-  >`
+): Promise<Map<string, MaillonStructure>> {
+  const maillons = await client.$queryRaw<MaillonStructure[]>`
     WITH RECURSIVE ancetres AS (
-      SELECT c.id, c."parentId"
+      SELECT c.id, c.name, c."parentId"
       FROM "Category" c
       WHERE c.id = ${parentId}
       UNION
-      SELECT p.id, p."parentId"
+      SELECT p.id, p.name, p."parentId"
       FROM "Category" p
       JOIN ancetres a ON p.id = a."parentId"
     )
-    SELECT id, "parentId" FROM ancetres
+    SELECT id, name, "parentId" FROM ancetres
   `
-  return new Map(maillons.map((maillon) => [maillon.id, maillon.parentId]))
+  return new Map(maillons.map((maillon) => [maillon.id, maillon]))
 }
 
 async function assertAcyclicCategoryTree(
   id: string,
   parentId: string | null | undefined,
   client: Prisma.TransactionClient = prisma
-): Promise<void> {
-  if (!parentId) return
+): Promise<{ nomDestination: string | null }> {
+  if (!parentId) return { nomDestination: null }
   if (parentId === id) {
     throw new CategoryValidationError([
       "une catégorie ne peut pas être sa propre parente",
@@ -264,6 +278,7 @@ async function assertAcyclicCategoryTree(
   }
   const liens = await lireChaineDesAncetres(parentId, client)
   const vus = new Set<string>()
+  const chemin: string[] = []
   let cursor: string | null = parentId
   while (cursor) {
     if (cursor === id) {
@@ -271,13 +286,22 @@ async function assertAcyclicCategoryTree(
         "une catégorie ne peut pas être déplacée sous l'une de ses propres descendantes",
       ])
     }
-    if (vus.has(cursor)) throw new CategoryAncestorCycleError()
+    if (vus.has(cursor)) {
+      const debut = chemin.indexOf(cursor)
+      const cycle = [...chemin.slice(debut), cursor].map(
+        (maillon) => liens.get(maillon)?.name ?? maillon
+      )
+      throw new CategoryAncestorCycleError(cycle)
+    }
     vus.add(cursor)
-    if (!liens.has(cursor)) {
+    chemin.push(cursor)
+    const maillon = liens.get(cursor)
+    if (!maillon) {
       throw new CategoryValidationError(["catégorie parente inconnue"])
     }
-    cursor = liens.get(cursor) ?? null
+    cursor = maillon.parentId
   }
+  return { nomDestination: liens.get(parentId)?.name ?? null }
 }
 
 async function readIndexableCategoryProducts(
@@ -366,6 +390,150 @@ export async function updateCategory(
     () => effects.revalidateCategories()
   )
   return category
+}
+
+export interface DeplacerStructureInput {
+  id: string
+  nouvelleParenteId: string | null
+  avantId: string | null
+}
+
+export interface DeplacementStructure {
+  nomDestination: string | null
+  position: number
+  nombreFreres: number
+}
+
+interface RangeeStructure {
+  id: string
+  name: string
+  parentId: string | null
+  position: number
+}
+
+const PAS_DE_POSITION = 1024
+
+const deplacementSchema = z.object({
+  id: z.string().min(1),
+  nouvelleParenteId: z.string().min(1).nullable(),
+  avantId: z.string().min(1).nullable(),
+})
+
+async function lireRangeeStructure(
+  tx: Prisma.TransactionClient,
+  id: string
+): Promise<RangeeStructure | null> {
+  const rangees = await tx.$queryRaw<RangeeStructure[]>`
+    SELECT id, name, "parentId", position
+    FROM "Category"
+    WHERE id = ${id}
+    LIMIT 1
+  `
+  return rangees[0] ?? null
+}
+
+async function lireFratrie(
+  tx: Prisma.TransactionClient,
+  parentId: string | null
+): Promise<RangeeStructure[]> {
+  if (parentId === null) {
+    return tx.$queryRaw<RangeeStructure[]>`
+      SELECT id, name, "parentId", position
+      FROM "Category"
+      WHERE "parentId" IS NULL
+    `
+  }
+  return tx.$queryRaw<RangeeStructure[]>`
+    SELECT id, name, "parentId", position
+    FROM "Category"
+    WHERE "parentId" = ${parentId}
+  `
+}
+
+export async function deplacerStructure(
+  input: DeplacerStructureInput,
+  overrides?: Partial<StructureEffects>
+): Promise<DeplacementStructure> {
+  const effects = avecSurcharges(defaultStructureEffects, overrides)
+  const parsed = deplacementSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new CategoryValidationError(
+      parsed.error.issues.map((issue) => issue.message)
+    )
+  }
+  const { id, nouvelleParenteId, avantId } = parsed.data
+
+  const deplacement = await sousVerrouDeStructure(async (tx) => {
+    if (avantId === id) {
+      throw new CategoryValidationError([
+        "une catégorie ne peut pas être insérée avant elle-même",
+      ])
+    }
+
+    const rangee = await lireRangeeStructure(tx, id)
+    if (!rangee) throw new CategoryNotFoundError()
+
+    const { nomDestination } = await assertAcyclicCategoryTree(
+      id,
+      nouvelleParenteId,
+      tx
+    )
+
+    const fratrie = (await lireFratrie(tx, nouvelleParenteId))
+      .filter((sœur) => sœur.id !== id)
+      .sort(comparerStructures)
+
+    let rang = fratrie.length
+    if (avantId !== null) {
+      const insertion = fratrie.findIndex((sœur) => sœur.id === avantId)
+      if (insertion === -1) {
+        throw new CategoryValidationError([
+          "la Structure d'insertion n'appartient pas aux sous-catégories de la destination",
+        ])
+      }
+      rang = insertion
+    }
+
+    const ordonnee: RangeeStructure[] = [
+      ...fratrie.slice(0, rang),
+      { ...rangee, parentId: nouvelleParenteId },
+      ...fratrie.slice(rang),
+    ]
+
+    for (const [index, sœur] of ordonnee.entries()) {
+      const position = (index + 1) * PAS_DE_POSITION
+      if (sœur.id === id) {
+        await tx.category.update({
+          where: { id },
+          data: { parentId: nouvelleParenteId, position },
+        })
+      } else if (sœur.position !== position) {
+        await tx.category.update({
+          where: { id: sœur.id },
+          data: { position },
+        })
+      }
+    }
+
+    return {
+      nomDestination,
+      position: rang + 1,
+      nombreFreres: ordonnee.length,
+    }
+  })
+
+  const products = await readIndexableCategoryProducts(id)
+  if (products.length > 0) {
+    await runEffect(
+      `[structure] réindexation meilisearch non effectuée pour ${id}`,
+      () => effects.reindexProducts(products)
+    )
+  }
+  await runEffect(
+    `[structure] invalidation du cache non effectuée pour ${id}`,
+    () => effects.revalidateCategories()
+  )
+  return deplacement
 }
 
 export async function deleteCategory(
