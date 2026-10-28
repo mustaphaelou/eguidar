@@ -258,6 +258,35 @@ function memesFaits(a: unknown, b: unknown): boolean {
 }
 
 /**
+ * Écrit une révision seulement si l'instantané a changé : le semis d'un
+ * redéploiement et un enregistrement sans modification ne gonflent pas
+ * l'audit. Le même écrivain sert le semis et l'éditeur.
+ */
+export async function ecrireRevisionRegle(
+  tx: Prisma.TransactionClient,
+  regle: RegleAutomation,
+  auteur: string,
+  maintenant?: Date
+): Promise<boolean> {
+  const instantaneRegle = instantane(regle)
+  const derniere = await tx.automationRuleRevision.findFirst({
+    where: { ruleId: regle.id },
+    orderBy: { createdAt: "desc" },
+  })
+  if (derniere && memesFaits(derniere.snapshot, instantaneRegle)) return false
+
+  await tx.automationRuleRevision.create({
+    data: {
+      ruleId: regle.id,
+      snapshot: instantaneRegle,
+      author: auteur,
+      ...(maintenant ? { createdAt: maintenant } : {}),
+    },
+  })
+  return true
+}
+
+/**
  * Écrit les règles du code dans la table, sans doublon. Une révision n'est
  * ajoutée que si l'instantané change : le semis d'un redéploiement ne gonfle
  * donc pas l'historique.
@@ -268,44 +297,28 @@ export async function semerLesRegles(
 ): Promise<void> {
   for (const regle of regles) {
     const verifiee = verifierRegle(regle)
-    const instantaneRegle = instantane(verifiee)
-
-    const existante = await prisma.automationRule.findUnique({
-      where: { id: verifiee.id },
-      include: {
-        revisions: { orderBy: { createdAt: "desc" }, take: 1 },
-      },
-    })
-
-    await prisma.automationRule.upsert({
-      where: { id: verifiee.id },
-      create: {
-        id: verifiee.id,
-        name: verifiee.nom,
-        enabled: verifiee.actif,
-        trigger: verifiee.declencheur,
-        condition: verifiee.condition,
-        action: verifiee.action,
-        actionConfig: verifiee.configuration ?? Prisma.DbNull,
-      },
-      update: {
-        name: verifiee.nom,
-        enabled: verifiee.actif,
-        trigger: verifiee.declencheur,
-        condition: verifiee.condition,
-        action: verifiee.action,
-        actionConfig: verifiee.configuration ?? Prisma.DbNull,
-      },
-    })
-
-    const derniere = existante?.revisions[0]
-    if (derniere && memesFaits(derniere.snapshot, instantaneRegle)) continue
-    await prisma.automationRuleRevision.create({
-      data: {
-        ruleId: verifiee.id,
-        snapshot: instantaneRegle,
-        author: auteur,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.automationRule.upsert({
+        where: { id: verifiee.id },
+        create: {
+          id: verifiee.id,
+          name: verifiee.nom,
+          enabled: verifiee.actif,
+          trigger: verifiee.declencheur,
+          condition: verifiee.condition,
+          action: verifiee.action,
+          actionConfig: verifiee.configuration ?? Prisma.DbNull,
+        },
+        update: {
+          name: verifiee.nom,
+          enabled: verifiee.actif,
+          trigger: verifiee.declencheur,
+          condition: verifiee.condition,
+          action: verifiee.action,
+          actionConfig: verifiee.configuration ?? Prisma.DbNull,
+        },
+      })
+      await ecrireRevisionRegle(tx, verifiee, auteur)
     })
   }
 }
