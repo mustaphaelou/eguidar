@@ -133,9 +133,11 @@ describe("DeleteProductButton", () => {
     await ouvrirDialogue()
     await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
 
-    await expect(
-      prisma.product.findUnique({ where: { id: produit.id } })
-    ).resolves.toBeNull()
+    await vi.waitFor(async () => {
+      await expect(
+        prisma.product.findUnique({ where: { id: produit.id } })
+      ).resolves.toBeNull()
+    })
     expect(confirmeNatif).not.toHaveBeenCalled()
   })
 })

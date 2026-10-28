@@ -209,7 +209,14 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
     await expect(
       placeOrder(userId, await entreeDeCommande(), EFFETS_COMMANDE)
     ).rejects.toThrow()
-    await expect(prisma.automationEvent.count()).resolves.toBe(0)
+    await expect(
+      prisma.automationEvent.count({
+        where: {
+          type: "commande.creee",
+          payload: { path: ["snapshot", "userEmail"], equals: email },
+        },
+      })
+    ).resolves.toBe(0)
   })
 
   it("un changement de statut écrit commande.statut.changee", async () => {

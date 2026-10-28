@@ -187,6 +187,18 @@ export async function invalidateStructure(
   await purgerEdge(demandeDePurge(tags), options.purgeEdge)
 }
 
+/**
+ * La purge du bord pour le travailleur durable : même adaptateur, même
+ * vocabulaire d'erreur, mais un échec remonte au lieu d'être avalé — c'est lui
+ * qui déclenche la reprise. Une purge non configurée n'est pas un échec.
+ */
+export async function purgerEdgeDurable(demande: DemandePurge): Promise<void> {
+  const resultat = await creerPurgeEdgeCloudflare().purger(demande)
+  if (!resultat.ok && resultat.erreur.code !== "non-configure") {
+    throw new Error(resultat.erreur.message)
+  }
+}
+
 export function invalidateLivraison(): void {
   revalidatePath("/admin/villes")
   revalidatePath("/admin/livraison")

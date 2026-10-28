@@ -9,9 +9,9 @@ import {
   indexProductDocuments,
   listProductDocuments,
 } from "@/lib/meili"
-import { creerPurgeEdgeCloudflare } from "@/lib/purge-edge-cloudflare"
 import {
   invalidateStructure,
+  purgerEdgeDurable,
   revaliderCatalogue,
 } from "@/lib/use-cases/cache-invalidation"
 
@@ -40,12 +40,7 @@ export function dependancesAutomations(
     catalogue: {
       revaliderCatalogue,
       revaliderStructure: invalidateStructure,
-      async purger(demande) {
-        const resultat = await creerPurgeEdgeCloudflare().purger(demande)
-        if (!resultat.ok && resultat.erreur.code !== "non-configure") {
-          throw new Error(resultat.erreur.message)
-        }
-      },
+      purger: purgerEdgeDurable,
     },
     maintenant,
     signaler: (message) => console.info(`[automatisations] ${message}`),
