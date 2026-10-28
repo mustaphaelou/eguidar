@@ -989,7 +989,23 @@ export async function bulkDelete(
   )
   if (partage.succes.length === 0) return partage
 
-  await prisma.product.deleteMany({ where: { id: { in: partage.succes } } })
+  const supprimes = new Set(partage.succes)
+  await prisma.$transaction(async (tx) => {
+    await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
+    for (const produit of existants) {
+      if (!supprimes.has(produit.id)) continue
+      await enregistrerEvenement(tx, {
+        type: "produit.supprime",
+        entityType: "produit",
+        entityId: produit.id,
+        payload: {
+          produitId: produit.id,
+          slug: produit.slug,
+          categoryId: produit.categoryId,
+        },
+      })
+    }
+  })
   const lecture = await lireStructure()
   for (const produit of existants) {
     await runEffect({
@@ -1063,22 +1079,37 @@ export async function duplicateProduct(
     })
   }
 
-  const copie = await prisma.product.create({
-    data: {
-      name: `${faits.name} (copie)`,
-      slug,
-      description: faits.description,
-      brand: faits.brand,
-      price: faits.price,
-      specs: faits.specs,
-      images: [],
-      isFeatured: faits.isFeatured,
-      featuredOrder: faits.featuredOrder,
-      freeShipping: faits.freeShipping,
-      categoryId: faits.categoryId,
-      variants: { create: variantes },
-    },
-    include: { variants: true },
+  const copie = await prisma.$transaction(async (tx) => {
+    const creee = await tx.product.create({
+      data: {
+        name: `${faits.name} (copie)`,
+        slug,
+        description: faits.description,
+        brand: faits.brand,
+        price: faits.price,
+        specs: faits.specs,
+        images: [],
+        isFeatured: faits.isFeatured,
+        featuredOrder: faits.featuredOrder,
+        freeShipping: faits.freeShipping,
+        categoryId: faits.categoryId,
+        variants: { create: variantes },
+      },
+      include: { variants: true },
+    })
+    await enregistrerEvenement(tx, {
+      type: "produit.enregistre",
+      entityType: "produit",
+      entityId: creee.id,
+      payload: {
+        produitId: creee.id,
+        slug: creee.slug,
+        slugPrecedent: null,
+        categoryId: creee.categoryId,
+        categoryIdPrecedent: null,
+      },
+    })
+    return creee
   })
 
   await reindexerLot([copie.id], effects)
