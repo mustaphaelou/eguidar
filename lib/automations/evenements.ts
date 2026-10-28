@@ -1,3 +1,5 @@
+import { z } from "zod"
+
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 
@@ -22,6 +24,8 @@ export const TYPES_EVENEMENT_AUTOMATION = Object.freeze([
 export type TypeEvenementAutomation =
   (typeof TYPES_EVENEMENT_AUTOMATION)[number]
 
+export const typeEvenementAutomationSchema = z.enum(TYPES_EVENEMENT_AUTOMATION)
+
 export const TYPES_ENTITE_AUTOMATION = Object.freeze([
   "commande",
   "produit",
@@ -30,6 +34,8 @@ export const TYPES_ENTITE_AUTOMATION = Object.freeze([
 ] as const)
 
 export type TypeEntiteAutomation = (typeof TYPES_ENTITE_AUTOMATION)[number]
+
+export const typeEntiteAutomationSchema = z.enum(TYPES_ENTITE_AUTOMATION)
 
 /**
  * La fenêtre pendant laquelle un événement peut être rejoué. Elle vaut la

@@ -133,15 +133,30 @@ export interface OptionsInvalidation {
 export type OptionsInvalidationCatalogue = OptionsInvalidation
 export type OptionsInvalidationStructure = OptionsInvalidation
 
+/**
+ * Les deux moitiés de l'invalidation d'un Produit, séparées pour que les
+ * automatisations durables puissent les confier à deux actions distinctes :
+ * le cache Next d'un côté, le bord de l'autre. `invalidateCatalogue` reste la
+ * porte unique des mutations qui font les deux d'un coup (ADR-0014).
+ */
+export function revaliderCatalogue(product: CatalogueEventProduct): void {
+  revaliderTags(tagsCatalogue(product))
+  revalidatePath("/admin/produits")
+  revalidatePath(`/admin/produits/${product.id}`)
+}
+
+export function demandeDePurgeCatalogue(
+  product: CatalogueEventProduct
+): DemandePurge {
+  return demandeDePurge(tagsCatalogue(product))
+}
+
 export async function invalidateCatalogue(
   product: CatalogueEventProduct,
   options: OptionsInvalidationCatalogue = {}
 ): Promise<void> {
-  const tags = tagsCatalogue(product)
-  revaliderTags(tags)
-  revalidatePath("/admin/produits")
-  revalidatePath(`/admin/produits/${product.id}`)
-  await purgerEdge(demandeDePurge(tags), options.purgeEdge)
+  revaliderCatalogue(product)
+  await purgerEdge(demandeDePurgeCatalogue(product), options.purgeEdge)
 }
 
 /**
