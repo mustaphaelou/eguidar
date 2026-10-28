@@ -56,6 +56,18 @@ export function galerieImageProduitSchema(
     })
 }
 
+export interface ImageProduitGalerie {
+  url: string
+  alt: string | null
+}
+
+export function normaliserTexteAlternatif(
+  valeur: string | null | undefined
+): string | null {
+  const rogne = valeur?.trim() ?? ""
+  return rogne.length > 0 ? rogne : null
+}
+
 export type EntreeImageProduit = z.infer<typeof entreeGalerieImageProduitSchema>
 export type EntreeImagePersistee = z.infer<typeof entreeImagePersisteeSchema>
 export type EntreeBrouillonImage = z.infer<typeof entreeBrouillonImageSchema>

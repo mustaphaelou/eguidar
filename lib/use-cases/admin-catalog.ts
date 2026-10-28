@@ -21,6 +21,7 @@ import {
   entreeGalerieImageProduitSchema,
   identifiantsBrouillonsGalerie,
   LIMITE_IMAGES_PRODUIT,
+  normaliserTexteAlternatif,
   type EntreeImageProduit,
 } from "@/lib/galerie-image-produit"
 import {
@@ -37,7 +38,6 @@ import {
 import { stockageImageProduitR2, type FaitImageProduitVerifiee } from "@/lib/r2"
 import {
   enregistrerImagesProduit,
-  normaliserTexteAlternatif,
   type EntreeRegistreImageProduit,
 } from "@/lib/use-cases/images-produit"
 import type {

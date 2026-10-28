@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { normaliserTexteAlternatif } from "@/lib/galerie-image-produit"
 import { urlsImagesProduit } from "@/lib/product-metrics"
 import {
   stockageImageProduitR2,
@@ -106,13 +107,6 @@ export function mimeTypeDepuisUrl(publicUrl: string): string {
   return (
     (extension && MIME_PAR_EXTENSION[extension.toLowerCase()]) || "image/jpeg"
   )
-}
-
-export function normaliserTexteAlternatif(
-  valeur: string | null | undefined
-): string | null {
-  const rogne = valeur?.trim() ?? ""
-  return rogne.length > 0 ? rogne : null
 }
 
 async function chargerLesUsages(): Promise<Map<string, ProduitQuiUtilise[]>> {

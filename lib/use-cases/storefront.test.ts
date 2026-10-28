@@ -117,11 +117,17 @@ describe("storefront browse", () => {
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `p-${runId}-` } },
     })
+    await prisma.imageProduit.deleteMany({
+      where: { publicUrl: { startsWith: `https://cdn.example.test/` } },
+    })
   })
 
   afterAll(async () => {
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `p-${runId}-` } },
+    })
+    await prisma.imageProduit.deleteMany({
+      where: { publicUrl: { startsWith: `https://cdn.example.test/` } },
     })
     await prisma.category.deleteMany({
       where: { slug: { startsWith: PREFIXE } },
@@ -364,8 +370,8 @@ describe("storefront browse", () => {
     expect(detail!.minPrice).toBe(100000)
     expect(detail!.freeShipping).toBe(true)
     expect(detail!.images).toEqual([
-      "https://example.com/a.jpg",
-      "https://example.com/b.jpg",
+      { url: "https://example.com/a.jpg", alt: null },
+      { url: "https://example.com/b.jpg", alt: null },
     ])
     expect(detail!.variants.map((v) => v.sku)).toEqual([
       `SKU-${runId}-d1`,
@@ -388,6 +394,38 @@ describe("storefront browse", () => {
       cSlug("root"),
       cSlug("child"),
       cSlug("grand"),
+    ])
+  })
+
+  it("product detail: chaque Image produit porte son Texte alternatif, ou le nom du Produit en repli", async () => {
+    const avecAlt = `https://cdn.example.test/products/sf-${runId}-avec-alt.webp`
+    const sansAlt = `https://cdn.example.test/products/sf-${runId}-sans-alt.webp`
+    await createProduct(cSlug("grand"), {
+      name: "Produit avec textes alternatifs",
+      slug: pSlug("detail-alt"),
+      brand: "Marque Test",
+      price: 100000,
+      images: [avecAlt, sansAlt],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-alt1`, priceDelta: 0, stock: 1 },
+      ],
+    })
+    await prisma.imageProduit.create({
+      data: {
+        publicUrl: avecAlt,
+        mimeType: "image/webp",
+        byteSize: 2048,
+        width: 800,
+        height: 600,
+        alt: "  Face avant du Produit  ",
+      },
+    })
+
+    const detail = await fetchProductPageData(pSlug("detail-alt"))
+
+    expect(detail!.images).toEqual([
+      { url: avecAlt, alt: "Face avant du Produit" },
+      { url: sansAlt, alt: null },
     ])
   })
 
@@ -498,7 +536,9 @@ describe("storefront browse", () => {
     expect(detail!.name).toBe("Produit aux spécifications à moitié crédibles")
     expect(detail!.slug).toBe(pSlug("detail-specs-a-moitie"))
     expect(detail!.minPrice).toBe(90000)
-    expect(detail!.images).toEqual(["https://example.com/moitie.jpg"])
+    expect(detail!.images).toEqual([
+      { url: "https://example.com/moitie.jpg", alt: null },
+    ])
     expect(detail!.variants.map((v) => v.sku)).toEqual([
       `SKU-${runId}-mc1`,
       `SKU-${runId}-mc2`,
@@ -532,7 +572,9 @@ describe("storefront browse", () => {
 
     const detail = await fetchProductPageData(pSlug("detail-galerie-partielle"))
 
-    expect(detail!.images).toEqual(["https://example.com/premiere.jpg"])
+    expect(detail!.images).toEqual([
+      { url: "https://example.com/premiere.jpg", alt: null },
+    ])
   })
 
   it("product cards expose the first image, the lowest price and the total stock", async () => {
