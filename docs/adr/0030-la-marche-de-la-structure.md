@@ -994,6 +994,11 @@ est **étendue**, non supprimée, d'un cas où la position contredit le nom, et 
 rejoue ; une épreuve de la boutique vérifie que l'accueil et la page de catégorie rendent le même
 ordre ([storefront.test.ts](../../lib/use-cases/storefront.test.ts)).
 
+Une conséquence de ce choix, et elle est assumée : les **options d'un sélecteur** — un ensemble
+plat qui ne porte aucune hiérarchie — se rangent désormais par position puis nom, comme le reste.
+C'est le prix d'une promesse unique ; une seconde promesse pour ce seul sélecteur serait exactement
+ce que l'amendement de #564 a fait disparaître.
+
 ### Une seule commande, et c'est le seul écrivain des positions
 
 `deplacerStructure({ id, nouvelleParenteId, avantId })` rejoint les mutations de Structure, dans le
