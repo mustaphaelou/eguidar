@@ -217,15 +217,18 @@ export function galerieSoumiseHorsSuppressionsEnAttente(
 ): EntreeImageProduit[] {
   const soumises: EntreeImageProduit[] = []
   for (const image of images) {
+    const alt = image.alt?.trim()
+    const texte = alt ? { alt } : {}
     if (image.kind === "persistee") {
       if (image.suppressionEnAttente) continue
-      soumises.push({ kind: "persistee", url: image.url })
+      soumises.push({ kind: "persistee", url: image.url, ...texte })
       continue
     }
     soumises.push({
       kind: "brouillon",
       draftId: image.draftId,
       previewUrl: image.previewUrl,
+      ...texte,
     })
   }
   return soumises

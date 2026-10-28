@@ -4,6 +4,7 @@ import {
   MESSAGE_REGISTRE_INDISPONIBLE,
   type CycleVieImageProduit,
 } from "@/lib/cycle-vie-image-produit"
+import { MESSAGE_IMAGE_ILLISIBLE } from "@/lib/verification-image-produit"
 import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
 import type { ContentTypeImageProduit } from "@/lib/r2"
 import {
@@ -70,12 +71,24 @@ describe("préparation de la promotion des Brouillons d'Image produit", () => {
           publicUrl: urlPremiere,
           contentType: "image/jpeg",
           tentativeId: "tentative-1",
+          faits: {
+            mimeType: "image/jpeg",
+            byteSize: 1024,
+            width: 640,
+            height: 480,
+          },
         },
         {
           draftId: seconde.draftId,
           publicUrl: urlSeconde,
           contentType: "image/png",
           tentativeId: "tentative-1",
+          faits: {
+            mimeType: "image/png",
+            byteSize: 1024,
+            width: 640,
+            height: 480,
+          },
         },
       ],
     })
@@ -150,6 +163,12 @@ describe("préparation de la promotion des Brouillons d'Image produit", () => {
           publicUrl: url,
           contentType: "image/webp",
           tentativeId: "tentative-1",
+          faits: {
+            mimeType: "image/webp",
+            byteSize: 1024,
+            width: 640,
+            height: 480,
+          },
         },
       ],
     })
@@ -181,6 +200,7 @@ describe("préparation de la promotion des Brouillons d'Image produit", () => {
           publicUrl: url,
           contentType: "image/webp",
           tentativeId: "tentative-1",
+          faits: null,
         },
       ],
     })
@@ -492,5 +512,51 @@ describe("préparation de la promotion des Brouillons d'Image produit", () => {
     })
 
     expect(stockage.suppressionsBrouillons).toEqual([])
+  })
+
+  it("refuse un Brouillon dont les octets ne décodent pas, compense les autres et libère le fichier refusé", async () => {
+    const { cycleVie, stockage, registre } = creerCycleVieTest(DATE_INITIALE)
+    const valide = await demanderBrouillon(cycleVie, "image/webp")
+    const refuse = await demanderBrouillon(cycleVie, "image/png")
+    stockage.contenus.set(
+      draftObjectKey(refuse.draftId, "image/png"),
+      Buffer.from("Ceci n'est pas une image.")
+    )
+
+    const resultat = await cycleVie.preparerPromotionBrouillons({
+      tentativeId: "tentative-1",
+      ownerId: "editeur-1",
+      galerie: [brouillon(valide.draftId), brouillon(refuse.draftId)],
+    })
+
+    expect(resultat).toEqual({
+      ok: false,
+      code: "contenu-refuse",
+      message: MESSAGE_IMAGE_ILLISIBLE,
+    })
+    expect(stockage.promotions).toEqual([
+      {
+        draftId: valide.draftId,
+        cleSource: draftObjectKey(valide.draftId, "image/webp"),
+        cle: persistentObjectKey(valide.draftId, "image/webp"),
+        publicUrl: urlImagePersistee(valide.draftId, "image/webp"),
+      },
+    ])
+    expect(stockage.suppressionsImagesPromues).toEqual([
+      persistentObjectKey(valide.draftId, "image/webp"),
+    ])
+    expect(stockage.suppressionsBrouillons).toEqual([
+      draftObjectKey(refuse.draftId, "image/png"),
+    ])
+    expect(registre.records.get(valide.draftId)).toMatchObject({
+      state: "vivant",
+      tentativeId: null,
+      promotedPublicUrl: null,
+    })
+    expect(registre.records.get(refuse.draftId)).toMatchObject({
+      state: "libéré",
+      tentativeId: null,
+      productId: null,
+    })
   })
 })

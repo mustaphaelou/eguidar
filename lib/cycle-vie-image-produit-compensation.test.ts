@@ -82,6 +82,12 @@ describe("compensation de la promotion des Brouillons d'Image produit", () => {
         publicUrl: urlImagePersistee(demande.draftId, "image/webp"),
         contentType: "image/webp",
         tentativeId: "tentative-1",
+        faits: {
+          mimeType: "image/webp",
+          byteSize: 1024,
+          width: 640,
+          height: 480,
+        },
       },
     ])
   })

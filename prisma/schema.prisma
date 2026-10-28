@@ -155,6 +155,18 @@ model BrouillonImageProduit {
   @@index([productId])
 }
 
+model ImageProduit {
+  id        String   @id @default(cuid())
+  publicUrl String   @unique
+  mimeType  String
+  byteSize  Int
+  width     Int
+  height    Int
+  alt       String?
+  createdBy String?
+  createdAt DateTime @default(now())
+}
+
 model CartItem {
   id        String         @id @default(cuid())
   userId    String
