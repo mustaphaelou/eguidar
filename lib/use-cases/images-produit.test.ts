@@ -76,21 +76,16 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  await prisma.product.deleteMany({
-    where: { slug: { startsWith: PREFIXE_SLUG } },
-  })
-  await prisma.imageProduit.deleteMany({
-    where: { publicUrl: { startsWith: PREFIXE } },
-  })
+  // Cette suite lit des comptes globaux (registre et usages) : elle part d'un
+  // Catalogue vide et d'un registre vide. Les suites sont séquentielles
+  // (`fileParallelism: false`) et chaque suite crée ses propres faits.
+  await prisma.product.deleteMany()
+  await prisma.imageProduit.deleteMany()
 })
 
 afterAll(async () => {
-  await prisma.product.deleteMany({
-    where: { slug: { startsWith: PREFIXE_SLUG } },
-  })
-  await prisma.imageProduit.deleteMany({
-    where: { publicUrl: { startsWith: PREFIXE } },
-  })
+  await prisma.product.deleteMany()
+  await prisma.imageProduit.deleteMany()
   await prisma.$disconnect()
 })
 

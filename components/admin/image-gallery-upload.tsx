@@ -14,8 +14,13 @@ import televersementBrouillons, {
   type TeleversementBrouillons,
 } from "@/components/admin/televersement-brouillons"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
-import { LIMITE_IMAGES_PRODUIT } from "@/lib/galerie-image-produit"
+import {
+  LIMITE_IMAGES_PRODUIT,
+  LONGUEUR_MAX_TEXTE_ALTERNATIF,
+} from "@/lib/galerie-image-produit"
 import { cn } from "@/lib/utils"
 
 interface ImageGalleryUploadProps {
@@ -69,6 +74,14 @@ export function ImageGalleryUpload({
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ""
     }
+  }
+
+  function setAlt(index: number, alt: string) {
+    onChange(
+      images.map((candidate, currentIndex) =>
+        currentIndex === index ? { ...candidate, alt } : candidate
+      )
+    )
   }
 
   function move(index: number, direction: -1 | 1) {
@@ -148,7 +161,7 @@ export function ImageGalleryUpload({
         {entreesActives.map(({ image, index }, position) => (
           <div
             key={entryKey(image)}
-            className="relative"
+            className="flex w-40 flex-col gap-1"
             data-image-kind={image.kind}
             data-image-state={
               image.kind === "persistee" ? "active" : "brouillon"
@@ -160,66 +173,92 @@ export function ImageGalleryUpload({
                 : "Brouillon d'Image produit"
             }
           >
-            <Image
-              src={imageSource(image)}
-              alt=""
-              width={96}
-              height={96}
-              className="size-24 rounded-xl border object-cover"
-            />
-            <span className="absolute start-1 top-1 rounded-full bg-background/80 px-1.5 text-xs">
-              {position + 1}
-            </span>
-            <span className="absolute start-1 top-7 rounded-full bg-background/80 px-1.5 text-[10px]">
-              {image.kind === "persistee"
-                ? "Image produit"
-                : "Brouillon d'Image produit"}
-            </span>
-            <div className="absolute inset-x-1 bottom-1 flex justify-between gap-1">
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="secondary"
-                disabled={position === 0 || releasingDraftId !== null}
-                onClick={() => move(index, -1)}
-                aria-label="Déplacer avant"
-              >
-                <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
-              </Button>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="secondary"
-                disabled={
-                  position === entreesActives.length - 1 ||
-                  releasingDraftId !== null
-                }
-                onClick={() => move(index, 1)}
-                aria-label="Déplacer après"
-              >
-                <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
-              </Button>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="destructive"
-                disabled={releasingDraftId !== null}
-                onClick={() => removeImage(index)}
-                aria-busy={
-                  image.kind === "brouillon" &&
-                  releasingDraftId === image.draftId
-                }
-                aria-label={
-                  image.kind === "persistee"
-                    ? "Supprimer l'image"
-                    : releasingDraftId === image.draftId
-                      ? "Libération du Brouillon d'Image produit en cours…"
-                      : "Libérer le Brouillon d'Image produit"
-                }
-              >
-                <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} />
-              </Button>
+            <div className="relative">
+              <Image
+                src={imageSource(image)}
+                alt=""
+                width={96}
+                height={96}
+                sizes="96px"
+                className="size-24 rounded-xl border object-cover"
+              />
+              <span className="absolute start-1 top-1 rounded-full bg-background/80 px-1.5 text-xs">
+                {position + 1}
+              </span>
+              <span className="absolute start-1 top-7 rounded-full bg-background/80 px-1.5 text-[10px]">
+                {image.kind === "persistee"
+                  ? "Image produit"
+                  : "Brouillon d'Image produit"}
+              </span>
+              <div className="absolute inset-x-1 bottom-1 flex justify-between gap-1">
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="secondary"
+                  disabled={position === 0 || releasingDraftId !== null}
+                  onClick={() => move(index, -1)}
+                  aria-label="Déplacer avant"
+                >
+                  <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="secondary"
+                  disabled={
+                    position === entreesActives.length - 1 ||
+                    releasingDraftId !== null
+                  }
+                  onClick={() => move(index, 1)}
+                  aria-label="Déplacer après"
+                >
+                  <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="destructive"
+                  disabled={releasingDraftId !== null}
+                  onClick={() => removeImage(index)}
+                  aria-busy={
+                    image.kind === "brouillon" &&
+                    releasingDraftId === image.draftId
+                  }
+                  aria-label={
+                    image.kind === "persistee"
+                      ? "Supprimer l'image"
+                      : releasingDraftId === image.draftId
+                        ? "Libération du Brouillon d'Image produit en cours…"
+                        : "Libérer le Brouillon d'Image produit"
+                  }
+                >
+                  <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} />
+                </Button>
+              </div>
             </div>
+            <Label
+              htmlFor={`alt-image-${index}`}
+              className="text-[11px] text-muted-foreground"
+            >
+              Texte alternatif
+            </Label>
+            <Input
+              id={`alt-image-${index}`}
+              value={image.alt ?? ""}
+              maxLength={LONGUEUR_MAX_TEXTE_ALTERNATIF}
+              placeholder={
+                image.kind === "brouillon"
+                  ? "Obligatoire pour publier"
+                  : "Décrivez l'image"
+              }
+              aria-invalid={
+                image.kind === "brouillon" && !image.alt?.trim()
+                  ? true
+                  : undefined
+              }
+              onChange={(event) => setAlt(index, event.target.value)}
+              className="h-7 px-2 text-xs"
+            />
           </div>
         ))}
       </div>
@@ -299,7 +338,9 @@ export function ImageGalleryUpload({
         {LIMITE_IMAGES_PRODUIT} images (10 Mo max par image).
       </p>
       {error ? (
-        <p className={cn("text-sm", "text-destructive")}>{error}</p>
+        <p role="alert" className={cn("text-sm", "text-destructive")}>
+          {error}
+        </p>
       ) : null}
     </div>
   )

@@ -743,6 +743,35 @@ describe("la galerie soumise hors suppressions en attente", () => {
     ])
   })
 
+  it("porte le Texte alternatif rogné, et n'invente rien quand il est vide", () => {
+    const soumise = galerieSoumiseHorsSuppressionsEnAttente([
+      {
+        kind: "persistee",
+        url: "https://cdn.eguidar.com/products/1.webp",
+        alt: "  Visuel principal  ",
+      },
+      {
+        kind: "brouillon",
+        draftId: "draft-2",
+        previewUrl: "https://cdn.eguidar.com/products/brouillons/2.webp",
+        alt: "   ",
+      },
+    ])
+
+    expect(soumise).toEqual([
+      {
+        kind: "persistee",
+        url: "https://cdn.eguidar.com/products/1.webp",
+        alt: "Visuel principal",
+      },
+      {
+        kind: "brouillon",
+        draftId: "draft-2",
+        previewUrl: "https://cdn.eguidar.com/products/brouillons/2.webp",
+      },
+    ])
+  })
+
   it("lit une galerie qui porte le drapeau de suppression en attente, et rend une galerie qui ne le porte plus", () => {
     expectTypeOf<
       Parameters<typeof galerieSoumiseHorsSuppressionsEnAttente>[0]

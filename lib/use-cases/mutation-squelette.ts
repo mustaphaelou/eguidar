@@ -6,6 +6,7 @@ export const TYPES_EFFET_POST_COMMIT = [
   "desindexation",
   "suppression-images",
   "suppression-brouillons",
+  "registre-images",
 ] as const
 
 export type TypeEffetPostCommit = (typeof TYPES_EFFET_POST_COMMIT)[number]

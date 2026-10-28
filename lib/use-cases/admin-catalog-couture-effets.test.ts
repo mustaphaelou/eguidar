@@ -8,7 +8,7 @@ import { defaultCatalogEffects } from "@/lib/use-cases/admin-catalog"
 import { avecSurcharges } from "@/lib/use-cases/mutation-squelette"
 
 describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
-  it("branche le cycle de vie de production comme dépendance et les quatre effets par défaut", () => {
+  it("branche le cycle de vie de production comme dépendance et les cinq effets par défaut", () => {
     const effets = defaultCatalogEffects("produit-1")
 
     expect(effets.cycleVie).toBe(cycleVieImageProduitParDefaut)
@@ -16,9 +16,10 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
     expect(effets.removeProductFromIndex).toBeTypeOf("function")
     expect(effets.revalidateCatalog).toBeTypeOf("function")
     expect(effets.deleteImages).toBeTypeOf("function")
+    expect(effets.enregistrerImages).toBeTypeOf("function")
   })
 
-  it("remplace la dépendance entière sans perdre les quatre effets par défaut", () => {
+  it("remplace la dépendance entière sans perdre les cinq effets par défaut", () => {
     const defauts = defaultCatalogEffects("produit-1")
     const cycleVieSurcharge: CycleVieImageProduit = {
       ...defauts.cycleVie,
@@ -32,5 +33,6 @@ describe("couture d'effets du Catalogue et cycle de vie des Brouillons", () => {
     expect(effets.reindexProducts).toBe(defauts.reindexProducts)
     expect(effets.revalidateCatalog).toBe(defauts.revalidateCatalog)
     expect(effets.removeProductFromIndex).toBe(defauts.removeProductFromIndex)
+    expect(effets.enregistrerImages).toBe(defauts.enregistrerImages)
   })
 })

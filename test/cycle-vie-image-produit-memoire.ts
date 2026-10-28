@@ -561,6 +561,7 @@ export function brouillon(draftId: string): EntreeImageProduit {
     kind: "brouillon",
     draftId,
     previewUrl: `https://preview.test/${draftId}`,
+    alt: "Texte alternatif du Brouillon",
   }
 }
 

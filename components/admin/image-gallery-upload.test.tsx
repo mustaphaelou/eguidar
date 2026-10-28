@@ -6,8 +6,26 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/image", () => ({
-  default: ({ src, alt }: { src: string; alt: string }) => (
-    <span data-image-src={src} aria-label={alt} />
+  default: ({
+    src,
+    alt,
+    width,
+    height,
+    sizes,
+  }: {
+    src: string
+    alt: string
+    width?: number
+    height?: number
+    sizes?: string
+  }) => (
+    <span
+      data-image-src={src}
+      data-image-width={width}
+      data-image-height={height}
+      data-image-sizes={sizes}
+      aria-label={alt}
+    />
   ),
 }))
 
@@ -446,5 +464,73 @@ describe("ImageGalleryUpload", () => {
     })
 
     expect(onChange).toHaveBeenCalledWith([])
+  })
+
+  it("préremplit le Texte alternatif d'une Image produit et le rend éditable sans changer l'ordre", () => {
+    const onChange = vi.fn()
+    const premiere: EntreeImageProduitFormulaire = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/first.png",
+      alt: "Premier visuel",
+    }
+    const seconde: EntreeImageProduitFormulaire = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/second.png",
+    }
+
+    render(
+      <GalerieTest
+        initialImages={[premiere, seconde]}
+        onChange={onChange}
+        televersement={creerTeleversementFactice()}
+      />
+    )
+
+    const champ = container.querySelector<HTMLInputElement>("#alt-image-0")!
+    expect(champ.value).toBe("Premier visuel")
+
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set
+    act(() => {
+      setter?.call(champ, "Écran principal")
+      champ.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...premiere, alt: "Écran principal" },
+      seconde,
+    ])
+  })
+
+  it("donne à chaque vignette des dimensions et un sizes de 96 px", () => {
+    render(
+      <GalerieTest
+        initialImages={[
+          { kind: "persistee", url: "https://cdn.example.test/products/a.png" },
+          {
+            kind: "brouillon",
+            draftId: "draft-1",
+            previewUrl: "https://cdn.example.test/products/brouillons/1.png",
+          },
+        ]}
+        onChange={vi.fn()}
+        televersement={creerTeleversementFactice()}
+      />
+    )
+
+    const vignettes = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        '[data-image-kind][data-image-state="active"], [data-image-kind][data-image-state="brouillon"]'
+      )
+    ).map((entree) => entree.querySelector("[data-image-src]"))
+
+    expect(vignettes).toHaveLength(2)
+    for (const vignette of vignettes) {
+      expect(vignette?.getAttribute("data-image-width")).toBe("96")
+      expect(vignette?.getAttribute("data-image-height")).toBe("96")
+      expect(vignette?.getAttribute("data-image-sizes")).toBe("96px")
+    }
   })
 })
