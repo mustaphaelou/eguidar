@@ -2,7 +2,14 @@ import { z } from "zod"
 
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
-import { typeEvenementAutomationSchema } from "@/lib/automations/evenements"
+import {
+  typeEntiteAutomationSchema,
+  typeEvenementAutomationSchema,
+} from "@/lib/automations/evenements"
+import {
+  executerLAction,
+  type DependancesAutomations,
+} from "@/lib/automations/actions"
 import {
   conditionAutomationSchema,
   configurationRegleSchema,
@@ -38,6 +45,20 @@ export class EvenementIntrouvableError extends UserFacingError {
   constructor() {
     super("Événement d'automatisation introuvable")
     this.name = "EvenementIntrouvableError"
+  }
+}
+
+export class ExecutionIntrouvableError extends UserFacingError {
+  constructor() {
+    super("Exécution d'automatisation introuvable")
+    this.name = "ExecutionIntrouvableError"
+  }
+}
+
+export class ReessaiRefuseError extends UserFacingError {
+  constructor(message: string) {
+    super(message)
+    this.name = "ReessaiRefuseError"
   }
 }
 
@@ -503,6 +524,144 @@ export async function simulerRegle(
     motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » est remplie : l'action ${action} serait exécutée.`,
     evenement: sujet,
   }
+}
+
+export interface ResultatReessai {
+  executionId: string
+  statut: "reussi" | "echoue"
+  erreur: string | null
+}
+
+/**
+ * Le réessai manuel (Flow : « Manual retry », n8n : l'exécution manuelle est
+ * distincte de la production). Il rejoue **la règle** sur l'Événement de
+ * l'Exécution, écrit une nouvelle Exécution `manuel` et laisse l'échec
+ * d'origine dans l'historique comme trace.
+ */
+export async function reessayerExecution(
+  executionId: string,
+  dependances: DependancesAutomations
+): Promise<ResultatReessai> {
+  const execution = await prisma.automationRun.findUnique({
+    where: { id: executionId },
+    include: { event: true, rule: true },
+  })
+  if (!execution) throw new ExecutionIntrouvableError()
+  if (execution.status !== "echoue") {
+    throw new ReessaiRefuseError(
+      "Seule une Exécution en échec peut être réessayée"
+    )
+  }
+  if (!execution.event) {
+    throw new ReessaiRefuseError(
+      "L'Événement de cette Exécution n'existe plus : rien à rejouer"
+    )
+  }
+  if (!execution.rule) {
+    throw new ReessaiRefuseError(
+      "La Règle de cette Exécution n'existe plus : rien à rejouer"
+    )
+  }
+
+  const regle = versRegle(execution.rule)
+  const evenement = execution.event
+  const maintenant = dependances.maintenant
+
+  const reessai = await prisma.$transaction(async (tx) => {
+    const agregat = await tx.automationRun.aggregate({
+      where: { eventId: evenement.id, ruleId: regle.id },
+      _max: { attempt: true },
+    })
+    return tx.automationRun.create({
+      data: {
+        eventId: evenement.id,
+        ruleId: regle.id,
+        action: regle.action,
+        status: "en_cours",
+        attempt: (agregat._max.attempt ?? 0) + 1,
+        startedAt: maintenant,
+        trigger: "manuel",
+      },
+    })
+  })
+
+  try {
+    await executerLAction({
+      evenement: {
+        type: typeEvenementAutomationSchema.parse(evenement.type),
+        entityType: typeEntiteAutomationSchema.parse(evenement.entityType),
+        entityId: evenement.entityId,
+        payload: evenement.payload,
+      },
+      regle: {
+        id: regle.id,
+        action: regle.action,
+        configuration: regle.configuration,
+      },
+      dependances,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    await prisma.automationRun.update({
+      where: { id: reessai.id },
+      data: {
+        status: "echoue",
+        lastError: message,
+        finishedAt: maintenant,
+        durationMs: Math.max(
+          0,
+          maintenant.getTime() - reessai.startedAt.getTime()
+        ),
+      },
+    })
+    return { executionId: reessai.id, statut: "echoue", erreur: message }
+  }
+
+  await prisma.automationRun.update({
+    where: { id: reessai.id },
+    data: {
+      status: "reussi",
+      lastError: null,
+      finishedAt: maintenant,
+      durationMs: Math.max(
+        0,
+        maintenant.getTime() - reessai.startedAt.getTime()
+      ),
+    },
+  })
+
+  if (await plusAucuneRegleEnEchec(evenement.id, regle.id)) {
+    await prisma.automationEvent.updateMany({
+      where: { id: evenement.id },
+      data: { status: "reussi", lastError: null, lockedUntil: null },
+    })
+  }
+
+  return { executionId: reessai.id, statut: "reussi", erreur: null }
+}
+
+/**
+ * L'Événement ne redevient « réussi » que si aucune **autre** règle n'a encore
+ * sa dernière Exécution en échec : un réessai ne masque pas l'échec du voisin.
+ */
+async function plusAucuneRegleEnEchec(
+  eventId: string,
+  regleReessayee: string
+): Promise<boolean> {
+  const executions = await prisma.automationRun.findMany({
+    where: { eventId },
+    orderBy: { startedAt: "desc" },
+    select: { ruleId: true, status: true },
+  })
+  const derniereParRegle = new Map<string, string>()
+  for (const execution of executions) {
+    if (!execution.ruleId) continue
+    if (derniereParRegle.has(execution.ruleId)) continue
+    derniereParRegle.set(execution.ruleId, execution.status)
+  }
+  return [...derniereParRegle.entries()].every(
+    ([ruleId, statut]) => ruleId === regleReessayee || statut !== "echoue"
+  )
 }
 
 export type { ActionAutomation, TypeConditionAutomation }

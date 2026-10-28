@@ -12,6 +12,7 @@ import {
   listerEvenementsSimulables,
   listerRegles,
   modifierRegle,
+  reessayerExecution,
   simulerRegle,
   type EntreeRegle,
 } from "@/lib/use-cases/automatisations"
@@ -19,6 +20,7 @@ import {
   creerPortCatalogueMemoire,
   dependancesDeTest,
 } from "@/test/automations-memoire"
+import { listerExecutions } from "@/lib/automations/historique"
 
 const runId = randomUUID().slice(0, 8)
 const AUTEUR = `proprietaire-${runId}@example.test`
@@ -381,6 +383,153 @@ describe("l'éditeur de Règles d'automatisation", () => {
       `categorie-${runId}-b`,
       `categorie-${runId}-a`,
     ])
+  })
+
+  it("réessaie une Exécution en échec et l'enregistre comme manuelle, distincte du balayage", async () => {
+    const id = await creerUneRegle({
+      nom: "Invalidation à réessayer",
+      declencheur: "structure.modifiee",
+      action: "invalidation.structure",
+    })
+    const entite = `categorie-${runId}-reessai`
+    const evenement = await prisma.automationEvent.create({
+      data: {
+        type: "structure.modifiee",
+        entityType: "categorie",
+        entityId: entite,
+        seq: 1,
+        attemptOf: 1,
+        payload: { categorieId: entite },
+        occurredAt: new Date(MAINTENANT.getTime() - 10_000),
+        expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+        status: "mort",
+        attempts: 3,
+        lastError: "cache indisponible",
+      },
+    })
+    const echec = await prisma.automationRun.create({
+      data: {
+        eventId: evenement.id,
+        ruleId: id,
+        action: "invalidation.structure",
+        status: "echoue",
+        attempt: 3,
+        lastError: "cache indisponible",
+        startedAt: new Date(MAINTENANT.getTime() - 10_000),
+        finishedAt: new Date(MAINTENANT.getTime() - 9_500),
+        trigger: "evenement",
+      },
+    })
+    const catalogue = creerPortCatalogueMemoire()
+
+    await expect(
+      reessayerExecution(
+        echec.id,
+        dependancesDeTest(MAINTENANT, { catalogue: catalogue.port })
+      )
+    ).resolves.toMatchObject({ statut: "reussi", erreur: null })
+    expect(catalogue.structures).toBe(1)
+
+    const executions = await prisma.automationRun.findMany({
+      where: { eventId: evenement.id },
+      orderBy: { attempt: "asc" },
+    })
+    expect(
+      executions.map((execution) => [
+        execution.attempt,
+        execution.status,
+        execution.trigger,
+      ])
+    ).toEqual([
+      [3, "echoue", "evenement"],
+      [4, "reussi", "manuel"],
+    ])
+
+    await expect(
+      prisma.automationEvent.findUniqueOrThrow({ where: { id: evenement.id } })
+    ).resolves.toMatchObject({ status: "reussi", lastError: null })
+
+    const historique = await listerExecutions({ regleId: id })
+    expect(historique[0]).toMatchObject({
+      declencheur: "manuel",
+      statut: "reussi",
+      tentative: 4,
+    })
+  })
+
+  it("refuse de réessayer une Exécution réussie, et garde le réessai raté en échec", async () => {
+    const id = await creerUneRegle({
+      nom: "Invalidation ratée",
+      declencheur: "structure.modifiee",
+      action: "invalidation.structure",
+    })
+    const entite = `categorie-${runId}-reessai-rate`
+    const evenement = await prisma.automationEvent.create({
+      data: {
+        type: "structure.modifiee",
+        entityType: "categorie",
+        entityId: entite,
+        seq: 1,
+        attemptOf: 1,
+        payload: { categorieId: entite },
+        occurredAt: new Date(MAINTENANT.getTime() - 10_000),
+        expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+        status: "mort",
+        attempts: 3,
+        lastError: "cache indisponible",
+      },
+    })
+    const reussie = await prisma.automationRun.create({
+      data: {
+        eventId: evenement.id,
+        ruleId: id,
+        action: "invalidation.structure",
+        status: "reussi",
+        attempt: 1,
+        startedAt: new Date(MAINTENANT.getTime() - 30_000),
+        finishedAt: new Date(MAINTENANT.getTime() - 29_000),
+      },
+    })
+    await expect(
+      reessayerExecution(reussie.id, dependancesDeTest(MAINTENANT))
+    ).rejects.toThrow("Seule une Exécution en échec peut être réessayée")
+
+    const echec = await prisma.automationRun.create({
+      data: {
+        eventId: evenement.id,
+        ruleId: id,
+        action: "invalidation.structure",
+        status: "echoue",
+        attempt: 3,
+        lastError: "cache indisponible",
+        startedAt: new Date(MAINTENANT.getTime() - 10_000),
+        finishedAt: new Date(MAINTENANT.getTime() - 9_500),
+      },
+    })
+    const catalogue = creerPortCatalogueMemoire({
+      panneStructure: new Error("cache toujours indisponible"),
+    })
+
+    await expect(
+      reessayerExecution(
+        echec.id,
+        dependancesDeTest(MAINTENANT, { catalogue: catalogue.port })
+      )
+    ).resolves.toMatchObject({
+      statut: "echoue",
+      erreur: "cache toujours indisponible",
+    })
+    const executions = await prisma.automationRun.findMany({
+      where: { eventId: evenement.id, trigger: "manuel" },
+    })
+    expect(executions).toHaveLength(1)
+    expect(executions[0]).toMatchObject({
+      status: "echoue",
+      lastError: "cache toujours indisponible",
+    })
+    await expect(
+      prisma.automationEvent.findUniqueOrThrow({ where: { id: evenement.id } })
+    ).resolves.toMatchObject({ status: "mort" })
   })
 
   it("liste les règles avec leur état et leur dernière exécution", async () => {
