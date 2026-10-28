@@ -678,21 +678,27 @@ async function enregistrerProduit(
   }
 
   if (promotions.length > 0) {
-    await runEffect(
-      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${ecriture.produit.id}`,
-      () => effects.cycleVie.supprimerSources(promotions)
-    )
+    await runEffect({
+      effet: "suppression-brouillons",
+      entite: { type: "produit", id: ecriture.produit.id },
+      message: `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${ecriture.produit.id}`,
+      fn: () => effects.cycleVie.supprimerSources(promotions),
+    })
   }
   if (contexte.kind === "miseAJour") {
-    await runEffect(
-      `[catalog] suppression d'images R2 non effectuée pour ${ecriture.produit.id}`,
-      () => effects.deleteImages(ecriture.imagesRetirees)
-    )
+    await runEffect({
+      effet: "suppression-images",
+      entite: { type: "produit", id: ecriture.produit.id },
+      message: `[catalog] suppression d'images R2 non effectuée pour ${ecriture.produit.id}`,
+      fn: () => effects.deleteImages(ecriture.imagesRetirees),
+    })
   }
-  await runEffect(
-    `[catalog] réindexation Meilisearch non effectuée pour ${ecriture.produit.id}`,
-    () => effects.reindexProducts([toIndexableProduct(ecriture.produit)])
-  )
+  await runEffect({
+    effet: "reindexation",
+    entite: { type: "produit", id: ecriture.produit.id },
+    message: `[catalog] réindexation Meilisearch non effectuée pour ${ecriture.produit.id}`,
+    fn: () => effects.reindexProducts([toIndexableProduct(ecriture.produit)]),
+  })
   const evenementCatalogue =
     ecriture.slugPrecedent === undefined
       ? { id: ecriture.produit.id, slug: ecriture.produit.slug }
@@ -701,16 +707,18 @@ async function enregistrerProduit(
           slug: ecriture.produit.slug,
           previousSlug: ecriture.slugPrecedent,
         }
-  await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${ecriture.produit.id}`,
-    async () => {
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "produit", id: ecriture.produit.id },
+    message: `[catalog] invalidation du cache non effectuée pour ${ecriture.produit.id}`,
+    fn: async () => {
       const chaines = await chainesDuProduit(
         ecriture.produit.categoryId,
         contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
       )
       await effects.revalidateCatalog({ ...evenementCatalogue, ...chaines })
-    }
-  )
+    },
+  })
   return ecriture.produit
 }
 
@@ -738,21 +746,27 @@ export async function deleteProduct(
   if (!existing) throw new ProductNotFoundError()
 
   await prisma.product.delete({ where: { id } })
-  await runEffect(
-    `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-    () => effects.deleteImages(urlsImagesProduit(existing.images))
-  )
-  await runEffect(
-    `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
-    () => effects.removeProductFromIndex(id)
-  )
-  await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${id}`,
-    async () => {
+  await runEffect({
+    effet: "suppression-images",
+    entite: { type: "produit", id },
+    message: `[catalog] suppression d'images R2 non effectuée pour ${id}`,
+    fn: () => effects.deleteImages(urlsImagesProduit(existing.images)),
+  })
+  await runEffect({
+    effet: "desindexation",
+    entite: { type: "produit", id },
+    message: `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
+    fn: () => effects.removeProductFromIndex(id),
+  })
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "produit", id },
+    message: `[catalog] invalidation du cache non effectuée pour ${id}`,
+    fn: async () => {
       const chaines = await chainesDuProduit(existing.categoryId)
       await effects.revalidateCatalog({ id, slug: existing.slug, ...chaines })
-    }
-  )
+    },
+  })
 }
 
 export async function updateVariantStock(
@@ -784,21 +798,25 @@ export async function updateVariantStock(
       v.id === variantId ? { ...v, stock } : v
     ),
   }
-  await runEffect(
-    `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-    () => effects.reindexProducts([toIndexableProduct(product)])
-  )
-  await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-    async () => {
+  await runEffect({
+    effet: "reindexation",
+    entite: { type: "produit", id: product.id },
+    message: `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+    fn: () => effects.reindexProducts([toIndexableProduct(product)]),
+  })
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "produit", id: product.id },
+    message: `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+    fn: async () => {
       const chaines = await chainesDuProduit(product.categoryId)
       await effects.revalidateCatalog({
         id: product.id,
         slug: product.slug,
         ...chaines,
       })
-    }
-  )
+    },
+  })
   return product
 }
 

@@ -29,6 +29,7 @@ import {
   avecSurcharges,
   messageDeValidation,
   runOrderedEffects,
+  type EffetPostCommit,
 } from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -398,15 +399,21 @@ export async function placeOrder(
 
   await runOrderedEffects([
     {
+      effet: "email",
+      entite: { type: "commande", id: order.id },
       message: `[order] e-mail de confirmation non envoyé pour ${order.id}`,
       fn: () =>
         effects.sendOrderPlacedEmail(toOrderEmailSnapshot(order, user.email)),
     },
     {
+      effet: "invalidation-cache",
+      entite: { type: "commande", id: order.id },
       message: `[order] invalidation du cache non effectuée pour ${order.id}`,
       fn: () => effects.invalidateCommande(order.id),
     },
     {
+      effet: "purge-catalogue",
+      entite: { type: "commande", id: order.id },
       message: `[order] purge des documents du catalogue non effectuée pour ${order.id}`,
       fn: async () => {
         // La résolution de la Structure suit le commit, une fois pour tous les
@@ -518,8 +525,10 @@ export async function updateOrderStatus(
     }
   )
 
-  const effetsPostCommit = [
+  const effetsPostCommit: EffetPostCommit[] = [
     {
+      effet: "email",
+      entite: { type: "commande", id: orderId },
       message: `[order] e-mail de statut non envoyé pour ${orderId}`,
       fn: () =>
         effects.sendOrderStatusEmail(
@@ -528,6 +537,8 @@ export async function updateOrderStatus(
         ),
     },
     {
+      effet: "invalidation-cache",
+      entite: { type: "commande", id: orderId },
       message: `[order] invalidation du cache non effectuée pour ${orderId}`,
       fn: () => effects.invalidateCommande(orderId),
     },
@@ -535,6 +546,8 @@ export async function updateOrderStatus(
   if (produitsRestockés !== null) {
     const produits = produitsRestockés
     effetsPostCommit.push({
+      effet: "purge-catalogue",
+      entite: { type: "commande", id: orderId },
       message: `[order] purge des documents du catalogue non effectuée pour ${orderId}`,
       fn: async () => {
         await effects.invalidateProduits(await produitsDuCatalogue(produits))

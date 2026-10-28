@@ -27,7 +27,15 @@ const REGLES_CACHE = (
   ) as { rules: unknown[] }
 ).rules
 
+const REGLES_CORS = (
+  JSON.parse(
+    readFileSync(path.join(RACINE, "infra", "cors-r2.json"), "utf8")
+  ) as { rules: unknown[] }
+).rules
+
 const CORPS_CACHE = JSON.stringify({ rules: REGLES_CACHE })
+
+const CORPS_CORS = JSON.stringify({ rules: REGLES_CORS })
 
 const QUESTION_SECONDE_CONFIRMATION_R2 =
   "Delete those rules and leave only the artifact's rule?"
@@ -35,21 +43,27 @@ const QUESTION_SECONDE_CONFIRMATION_R2 =
 const QUESTION_SECONDE_CONFIRMATION_CACHE =
   "Replace those foreign cache rules and leave only the artifact's rules?"
 
+const QUESTION_SECONDE_CONFIRMATION_CORS =
+  "Replace those foreign CORS rules and leave only the artifact's rules?"
+
 const REGLES_R2_VIVANTES = JSON.stringify({ result: { rules: REGLES_R2 } })
 
 const ENTETE = ["", "", "", "site-cle", "cle-secrete"]
 
-const AVANT_CACHE = [...ENTETE, "jeton-r2", "compte-r2", "y", ""]
+const AVANT_CACHE = [...ENTETE, "jeton-r2", "compte-r2", "y", "", "n"]
 
 const DOSSIER = mkdtempSync(path.join(tmpdir(), "setup-providers-"))
 const STUBS = path.join(DOSSIER, "bin")
 const MARQUEUR_PUT = path.join(DOSSIER, "put-effectue")
 const MARQUEUR_CACHE_PUT = path.join(DOSSIER, "cache-put-effectue")
+const MARQUEUR_CORS_PUT = path.join(DOSSIER, "cors-put-effectue")
 const MARQUEUR_DRY_RUN = path.join(DOSSIER, "cache-dry-run-effectue")
 const MARQUEUR_APPELS_CACHE = path.join(DOSSIER, "cache-appels")
 const CORPS_GET = path.join(DOSSIER, "reponse-get.json")
 const CACHE_AVANT = path.join(DOSSIER, "cache-avant.json")
 const CACHE_APRES = path.join(DOSSIER, "cache-apres.json")
+const CORS_AVANT = path.join(DOSSIER, "cors-avant.json")
+const CORS_APRES = path.join(DOSSIER, "cors-apres.json")
 const ENV_FILE = path.join(DOSSIER, "env")
 
 mkdirSync(STUBS, { recursive: true })
@@ -58,7 +72,24 @@ writeFileSync(
   path.join(STUBS, "curl"),
   `#!/usr/bin/env bash
 args=" $* "
-if [[ "$args" == *"/r2/buckets/"* ]]; then
+if [[ "$args" == *"/r2/buckets/"*"/cors"* ]]; then
+  if [[ "$args" == *" -X PUT "* ]]; then
+    printf '%s' "\${!#}" > "$CURL_MARQUEUR_CORS_PUT"
+    printf '{"success":true,"result":{}}'
+    exit 0
+  fi
+  if [[ -n "\${CURL_ECHEC_LECTURE_CORS:-}" ]]; then
+    echo "curl: (7) Failed to connect to api.cloudflare.com port 443" >&2
+    exit 7
+  fi
+  if [[ -f "$CURL_MARQUEUR_CORS_PUT" && -s "$CURL_CORS_APRES" ]]; then
+    printf '%s' "$(<"$CURL_CORS_APRES")"
+  else
+    printf '%s' "$(<"$CURL_CORS_AVANT")"
+  fi
+  exit 0
+fi
+if [[ "$args" == *"/r2/buckets/"*"/lifecycle"* ]]; then
   if [[ "$args" == *" -X PUT "* ]]; then
     printf '%s' "\${!#}" > "$CURL_MARQUEUR_PUT"
     printf '{"success":true,"result":{}}'
@@ -117,8 +148,11 @@ type Tour = {
   cacheAvant?: unknown
   cacheApres?: unknown
   codeCache?: string
+  corsAvant?: unknown
+  corsApres?: unknown
   echecLecture?: boolean
   echecLectureCache?: boolean
+  echecLectureCors?: boolean
   dryRunRefusee?: boolean
 }
 
@@ -128,8 +162,10 @@ type Resultat = {
   putEffectue: boolean
   dryRunEffectue: boolean
   cachePutEffectue: boolean
+  corsPutEffectue: boolean
   corpsDryRun: string
   corpsCachePut: string
+  corpsCorsPut: string
   appelsCache: string
 }
 
@@ -145,9 +181,21 @@ function lancer(leTour: Tour): Resultat {
   } else {
     rmSync(CACHE_APRES, { force: true })
   }
+  writeFileSync(
+    CORS_AVANT,
+    JSON.stringify(
+      leTour.corsAvant ?? { success: true, result: { rules: REGLES_CORS } }
+    )
+  )
+  if (leTour.corsApres !== undefined) {
+    writeFileSync(CORS_APRES, JSON.stringify(leTour.corsApres))
+  } else {
+    rmSync(CORS_APRES, { force: true })
+  }
   for (const marqueur of [
     MARQUEUR_PUT,
     MARQUEUR_CACHE_PUT,
+    MARQUEUR_CORS_PUT,
     MARQUEUR_DRY_RUN,
     MARQUEUR_APPELS_CACHE,
   ]) {
@@ -166,14 +214,18 @@ function lancer(leTour: Tour): Resultat {
       ENV_FILE,
       CURL_MARQUEUR_PUT: MARQUEUR_PUT,
       CURL_MARQUEUR_CACHE_PUT: MARQUEUR_CACHE_PUT,
+      CURL_MARQUEUR_CORS_PUT: MARQUEUR_CORS_PUT,
       CURL_MARQUEUR_DRY_RUN: MARQUEUR_DRY_RUN,
       CURL_MARQUEUR_APPELS_CACHE: MARQUEUR_APPELS_CACHE,
       CURL_CORPS_GET: CORPS_GET,
       CURL_CACHE_AVANT: CACHE_AVANT,
       CURL_CACHE_APRES: CACHE_APRES,
+      CURL_CORS_AVANT: CORS_AVANT,
+      CURL_CORS_APRES: CORS_APRES,
       CURL_CACHE_CODE: leTour.codeCache ?? "200",
       ...(leTour.echecLecture ? { CURL_ECHEC_LECTURE: "1" } : {}),
       ...(leTour.echecLectureCache ? { CURL_ECHEC_LECTURE_CACHE: "1" } : {}),
+      ...(leTour.echecLectureCors ? { CURL_ECHEC_LECTURE_CORS: "1" } : {}),
       ...(leTour.dryRunRefusee ? { CURL_DRY_RUN_REFUSEE: "1" } : {}),
     },
   })
@@ -187,8 +239,10 @@ function lancer(leTour: Tour): Resultat {
     putEffectue: existsSync(MARQUEUR_PUT),
     dryRunEffectue: existsSync(MARQUEUR_DRY_RUN),
     cachePutEffectue: existsSync(MARQUEUR_CACHE_PUT),
+    corsPutEffectue: existsSync(MARQUEUR_CORS_PUT),
     corpsDryRun: lire(MARQUEUR_DRY_RUN),
     corpsCachePut: lire(MARQUEUR_CACHE_PUT),
+    corpsCorsPut: lire(MARQUEUR_CORS_PUT),
     appelsCache: lire(MARQUEUR_APPELS_CACHE),
   }
 }
@@ -257,6 +311,82 @@ describe("scripts/setup-providers.sh — garde avant le PUT qui remplace l'ensem
     expect(putEffectue).toBe(true)
     expect(occurrences(sortie, QUESTION_SECONDE_CONFIRMATION_R2)).toBe(0)
     expect(sortie).toContain("live rules match the artifact")
+  })
+})
+
+describe("scripts/setup-providers.sh — politique CORS R2 de l'Administration", () => {
+  const AVANT_CORS = [...ENTETE, "jeton-r2", "compte-r2", "y", "", "y"]
+
+  it("applique le corps de l'artefact puis vérifie la politique vivante", () => {
+    const { sortie, corsPutEffectue, corpsCorsPut } = lancer({
+      reponses: [...AVANT_CORS, ""],
+      corsAvant: { success: true, result: { rules: REGLES_CORS } },
+      corsApres: { success: true, result: { rules: REGLES_CORS } },
+    })
+
+    expect(corsPutEffectue).toBe(true)
+    expect(corpsCorsPut).toBe(CORPS_CORS)
+    expect(sortie).toContain("live CORS rules match the artifact")
+  })
+
+  it("n'applique rien quand la lecture de la politique CORS échoue", () => {
+    const { sortie, corsPutEffectue } = lancer({
+      reponses: AVANT_CORS,
+      echecLectureCors: true,
+    })
+
+    expect(corsPutEffectue).toBe(false)
+    expect(sortie).toContain("could not read the live CORS rules")
+  })
+
+  it("liste une règle étrangère et n'écrit rien sans seconde confirmation", () => {
+    const etrangere = {
+      id: "cors-d-autre-equipe",
+      allowed: {
+        origins: ["https://ailleurs.example"],
+        methods: ["GET"],
+        headers: [],
+      },
+      exposeHeaders: [],
+      maxAgeSeconds: 60,
+    }
+    const { sortie, corsPutEffectue } = lancer({
+      reponses: [...AVANT_CORS, "n"],
+      corsAvant: {
+        success: true,
+        result: { rules: [...REGLES_CORS, etrangere] },
+      },
+    })
+
+    expect(corsPutEffectue).toBe(false)
+    expect(sortie).toContain("cors-d-autre-equipe")
+    expect(sortie).toContain("would delete existing bucket rules")
+    expect(occurrences(sortie, QUESTION_SECONDE_CONFIRMATION_CORS)).toBe(1)
+  })
+
+  it("applique après la seconde confirmation explicite", () => {
+    const etrangere = {
+      id: "cors-d-autre-equipe",
+      allowed: {
+        origins: ["https://ailleurs.example"],
+        methods: ["GET"],
+        headers: [],
+      },
+      exposeHeaders: [],
+      maxAgeSeconds: 60,
+    }
+    const { sortie, corsPutEffectue } = lancer({
+      reponses: [...AVANT_CORS, "y", ""],
+      corsAvant: {
+        success: true,
+        result: { rules: [...REGLES_CORS, etrangere] },
+      },
+      corsApres: { success: true, result: { rules: REGLES_CORS } },
+    })
+
+    expect(corsPutEffectue).toBe(true)
+    expect(occurrences(sortie, QUESTION_SECONDE_CONFIRMATION_CORS)).toBe(1)
+    expect(sortie).toContain("live CORS rules match the artifact")
   })
 })
 

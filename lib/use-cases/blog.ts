@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache"
 
+import { filtreArticlePublic } from "@/lib/article-public"
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import {
@@ -8,6 +9,8 @@ import {
 } from "@/lib/parametre-de-repli"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { BLOG_TAG, blogDetailTag } from "@/lib/use-cases/cache-invalidation"
+
+export { filtreArticlePublic } from "@/lib/article-public"
 
 export type StatutPublication = "brouillon" | "publie" | "archive"
 
@@ -64,8 +67,8 @@ function toProduitLieCard(product: {
 export async function fetchArticleParSlug(
   slug: string
 ): Promise<ArticleBlogPublic | null> {
-  const article = await prisma.articleBlog.findUnique({
-    where: { slug },
+  const article = await prisma.articleBlog.findFirst({
+    where: { slug, ...filtreArticlePublic(["publie", "archive"]) },
     include: {
       theme: true,
       produits: {
@@ -83,8 +86,7 @@ export async function fetchArticleParSlug(
       },
     },
   })
-  if (!article || (article.statut !== "publie" && article.statut !== "archive"))
-    return null
+  if (!article) return null
   const produits: ProduitLie[] = []
   for (const lien of article.produits) {
     const produit = lien.produit
@@ -129,10 +131,7 @@ function toCardBlog(article: {
   createdAt: Date
   theme: ThemeRef
 }): CardBlog | null {
-  if (!article.publishedAt) {
-    console.warn(`[blog] article publié sans date ignoré : ${article.slug}`)
-    return null
-  }
+  if (!article.publishedAt) return null
   return {
     slug: article.slug,
     titre: article.titre,
@@ -145,7 +144,7 @@ function toCardBlog(article: {
 
 export async function fetchBlogLanding(): Promise<BlogLanding> {
   const articles = await prisma.articleBlog.findMany({
-    where: { statut: "publie" },
+    where: filtreArticlePublic(),
     include: { theme: true },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
   })
@@ -163,7 +162,7 @@ export async function fetchBlogLanding(): Promise<BlogLanding> {
  */
 export async function fetchArticleSlugs(): Promise<string[]> {
   const articles = await prisma.articleBlog.findMany({
-    where: { statut: { in: ["publie", "archive"] } },
+    where: filtreArticlePublic(["publie", "archive"]),
     select: { slug: true },
     orderBy: { slug: "asc" },
   })

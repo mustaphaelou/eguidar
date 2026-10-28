@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { fetchArticleParSlug, fetchBlogLanding } from "@/lib/use-cases/blog"
+import {
+  fetchArticleParSlug,
+  fetchArticleSlugs,
+  fetchBlogLanding,
+} from "@/lib/use-cases/blog"
 
 const runId = randomUUID().slice(0, 8)
 const bSlug = (suffix: string) => `b-${runId}-${suffix}`
@@ -168,6 +172,50 @@ describe("blog lecture publique", () => {
       await expect(
         fetchArticleParSlug(bSlug("detail-brouillon"))
       ).resolves.toBeNull()
+    })
+  })
+
+  describe("l'horloge de publication", () => {
+    it("ne rend un Article qu'entre sa date de publication et maintenant", async () => {
+      const moinsUneMinute = new Date(Date.now() - 60_000)
+      const demain = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      const passe = await creerArticle({
+        suffix: "horloge-passe",
+        statut: "publie",
+        publishedAt: moinsUneMinute,
+      })
+      const futur = await creerArticle({
+        suffix: "horloge-futur",
+        statut: "publie",
+        publishedAt: demain,
+      })
+      const sansDate = await creerArticle({
+        suffix: "horloge-sans-date",
+        statut: "publie",
+        publishedAt: null,
+      })
+
+      const landing = await fetchBlogLanding()
+      const slugsDeLaLanding = [
+        landing.hero?.slug,
+        ...landing.articles.map((article) => article.slug),
+      ]
+
+      expect(slugsDeLaLanding).toContain(passe.slug)
+      expect(slugsDeLaLanding).not.toContain(futur.slug)
+      expect(slugsDeLaLanding).not.toContain(sansDate.slug)
+
+      await expect(fetchArticleParSlug(passe.slug)).resolves.toMatchObject({
+        slug: passe.slug,
+      })
+      await expect(fetchArticleParSlug(futur.slug)).resolves.toBeNull()
+      await expect(fetchArticleParSlug(sansDate.slug)).resolves.toBeNull()
+
+      const slugsPrets = await fetchArticleSlugs()
+
+      expect(slugsPrets).toContain(passe.slug)
+      expect(slugsPrets).not.toContain(futur.slug)
+      expect(slugsPrets).not.toContain(sansDate.slug)
     })
   })
 

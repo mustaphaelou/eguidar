@@ -64,19 +64,38 @@ export function creerTeleversementBrouillons(
           continue
         }
 
-        const presignation = await port.presigner({
+        const premierePresignation = await port.presigner({
           contentType: fichier.type,
           size: fichier.size,
         })
-        if (!presignation.ok) {
-          message = presignation.message
+        if (!premierePresignation.ok) {
+          message = premierePresignation.message
           continue
         }
 
-        const envoi = await port.envoyer({
+        let presignation = premierePresignation
+        let envoi = await port.envoyer({
           uploadUrl: presignation.uploadUrl,
           fichier,
         })
+        if (!envoi.ok) {
+          // Un lien expiré répond 403 sans en-têtes CORS : JavaScript ne peut
+          // pas lire la cause. On renouvelle donc le lien une fois, puis on
+          // garde le refus générique si la seconde tentative échoue aussi.
+          const secondePresignation = await port.presigner({
+            contentType: fichier.type,
+            size: fichier.size,
+          })
+          if (!secondePresignation.ok) {
+            message = secondePresignation.message
+            continue
+          }
+          presignation = secondePresignation
+          envoi = await port.envoyer({
+            uploadUrl: presignation.uploadUrl,
+            fichier,
+          })
+        }
         if (!envoi.ok) {
           message = envoi.message
           continue
