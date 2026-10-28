@@ -289,3 +289,62 @@ describe("Page Article de blog — figures", () => {
     )
   })
 })
+
+describe("Page Article de blog — partage", () => {
+  const URL_ARTICLE = "https://eguidar.com/blog/choisir-son-casque"
+
+  function lienDePartage(entete: string, reseau: string): string {
+    return (
+      entete.match(
+        new RegExp(`<a[^>]*aria-label="[^"]*${reseau}[^"]*"[^>]*>`)
+      )?.[0] ?? ""
+    )
+  }
+
+  it("rend le déclencheur replié qui pilote une région d'options présente dans le DOM", async () => {
+    const html = await rendre("Un paragraphe.")
+    const entete = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ""
+    const declencheur =
+      entete.match(
+        /<button[^>]*aria-controls="[^"]*"[^>]*>[\s\S]*?<\/button>/
+      )?.[0] ?? ""
+    const idOptions = declencheur.match(/aria-controls="([^"]+)"/)?.[1] ?? ""
+
+    expect(declencheur.replace(/<[^>]*>/g, "")).toBe("Partager")
+    expect(declencheur).toContain('type="button"')
+    expect(declencheur).toContain('aria-expanded="false"')
+    expect(idOptions).not.toBe("")
+
+    const region =
+      entete.match(new RegExp(`<div[^>]*id="${idOptions}"[^>]*>`))?.[0] ?? ""
+    expect(region).toMatch(/\shidden(=""|[\s>])/)
+    expect(entete).toMatch(/<p[^>]*aria-live="polite"[^>]*>/)
+
+    expect(entete.indexOf("Partager")).toBeGreaterThan(
+      entete.indexOf("L&#x27;extrait de l&#x27;article.")
+    )
+  })
+
+  it("construit les destinations absolues de WhatsApp et Facebook, annoncées en nouvelle fenêtre", async () => {
+    const html = await rendre("Un paragraphe.")
+    const entete = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ""
+    const whatsapp = lienDePartage(entete, "WhatsApp")
+    const facebook = lienDePartage(entete, "Facebook")
+
+    expect(whatsapp).toContain(
+      `href="https://wa.me/?text=${encodeURIComponent(`Choisir son casque ${URL_ARTICLE}`)}"`
+    )
+    expect(whatsapp).toContain('target="_blank"')
+    expect(whatsapp).toContain('rel="noopener noreferrer"')
+    expect(whatsapp).toContain("ouvre une nouvelle fenêtre")
+
+    expect(facebook).toContain(
+      `href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(URL_ARTICLE)}"`
+    )
+    expect(facebook).toContain('target="_blank"')
+    expect(facebook).toContain('rel="noopener noreferrer"')
+    expect(facebook).toContain("ouvre une nouvelle fenêtre")
+
+    expect(entete).toMatch(/<button[^>]*>Copier le lien<\/button>/)
+  })
+})
