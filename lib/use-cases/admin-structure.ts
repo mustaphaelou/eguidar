@@ -533,15 +533,19 @@ export async function deplacerStructure(
 
   const products = await readIndexableCategoryProducts(id)
   if (products.length > 0) {
-    await runEffect(
-      `[structure] réindexation meilisearch non effectuée pour ${id}`,
-      () => effects.reindexProducts(products)
-    )
+    await runEffect({
+      effet: "reindexation",
+      entite: { type: "categorie", id },
+      message: `[structure] réindexation meilisearch non effectuée pour ${id}`,
+      fn: () => effects.reindexProducts(products),
+    })
   }
-  await runEffect(
-    `[structure] invalidation du cache non effectuée pour ${id}`,
-    () => effects.revalidateCategories()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "categorie", id },
+    message: `[structure] invalidation du cache non effectuée pour ${id}`,
+    fn: () => effects.revalidateCategories(),
+  })
   return deplacement
 }
 
