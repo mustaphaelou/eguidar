@@ -1,10 +1,20 @@
 "use client"
 
-import { useActionState, useId, useState } from "react"
+import { useActionState, useId, useRef, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Alert02Icon } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogClose,
@@ -78,6 +88,7 @@ export function DeleteCategoryButton({
   const [reassignTo, setReassignTo] = useState<string | null>(null)
   const [reparentTo, setReparentTo] = useState<string | null>(null)
   const [orphelinats, setOrphelinats] = useState(false)
+  const annulerRef = useRef<HTMLButtonElement>(null)
   const idProduits = useId()
   const idSousCategories = useId()
   const idOrphelins = useId()
@@ -249,30 +260,45 @@ export function DeleteCategoryButton({
           </Dialog>
         </div>
       ) : (
-        <form
-          action={formAction}
-          onSubmit={(event) => {
-            if (
-              !confirm(
-                `Supprimer « ${categoryName} » ? Cette action est définitive.`
-              )
-            ) {
-              event.preventDefault()
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={
+              <Button variant="destructive" size="sm" disabled={isPending} />
             }
-          }}
-          className="flex flex-col items-end gap-1.5"
-        >
-          <input type="hidden" name="categoryId" value={categoryId} />
-          {state.error ? <p className={BOITE_ERREUR}>{state.error}</p> : null}
-          <Button
-            type="submit"
-            variant="destructive"
-            size="sm"
-            disabled={isPending}
           >
             {isPending ? "Suppression…" : "Supprimer"}
-          </Button>
-        </form>
+          </AlertDialogTrigger>
+          <AlertDialogContent initialFocus={annulerRef}>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-lg">
+                Supprimer « {categoryName} »
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est définitive.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form action={formAction} className="flex flex-col gap-4">
+              <input type="hidden" name="categoryId" value={categoryId} />
+              {state.error ? (
+                <p className={BOITE_ERREUR}>{state.error}</p>
+              ) : null}
+              <AlertDialogFooter>
+                <AlertDialogClose
+                  render={<Button ref={annulerRef} variant="outline" />}
+                >
+                  Annuler
+                </AlertDialogClose>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={isPending}
+                >
+                  {isPending ? "Suppression…" : "Supprimer définitivement"}
+                </Button>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   )
