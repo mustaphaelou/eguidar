@@ -80,6 +80,7 @@ async function rendreLaListe(): Promise<{ html: string; journal: string[] }> {
 
 interface LigneRendue {
   nom: string
+  html: string
   premiereCellule: string
   cellules: string[]
   ciblesProduits: string[]
@@ -112,6 +113,7 @@ function lignesDuRendu(html: string): LigneRendue[] {
     .slice(1)
     .map((ligne) => ({
       nom: /<span class="font-medium">([^<]*)<\/span>/.exec(ligne)?.[1] ?? "",
+      html: ligne,
       premiereCellule: sansBalises(ligne.split("</td>")[0] ?? ""),
       cellules: ligne
         .split("</td>")
@@ -381,6 +383,37 @@ describe("AdminCategoriesPage — arbre propre", () => {
     expect(html).toContain('aria-live="polite"')
     expect(html).not.toContain('role="treegrid"')
     expect(html).not.toContain('draggable="true"')
+  })
+
+  it("envoie une intention par geste, jamais une position ni une fratrie", async () => {
+    const { html } = await rendreLaListe()
+    const ligne = lignesDuRendu(html).find(
+      (candidate) => candidate.nom === arbre.enfantB.name
+    )!
+
+    expect(html).not.toContain('name="position"')
+    const formulaires = ligne.html.split("<form").slice(1)
+    const intentionDe = (geste: string) => {
+      const formulaire = formulaires.find((candidate) =>
+        candidate.includes(`aria-label="${geste} ${arbre.enfantB.name}"`)
+      )
+      expect(formulaire, `${geste} de « ${arbre.enfantB.name} »`).toBeDefined()
+      return {
+        nouvelleParenteId:
+          /name="nouvelleParenteId" value="([^"]*)"/.exec(formulaire!)?.[1] ??
+          "",
+        avantId: /name="avantId" value="([^"]*)"/.exec(formulaire!)?.[1] ?? "",
+      }
+    }
+
+    expect(intentionDe("Monter")).toEqual({
+      nouvelleParenteId: arbre.racine.id,
+      avantId: arbre.enfantA.id,
+    })
+    expect(intentionDe("Indenter")).toEqual({
+      nouvelleParenteId: arbre.enfantA.id,
+      avantId: "",
+    })
   })
 
   it("offre « Rattacher… » sur une Structure hors arbre, et « Déplacer sous… » sur une saine", async () => {
