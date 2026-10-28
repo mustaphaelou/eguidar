@@ -10,6 +10,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import Image from "next/image"
 import { useRef, useState } from "react"
 
+import { ImageLibraryPicker } from "@/components/admin/image-library-picker"
 import televersementBrouillons, {
   type TeleversementBrouillons,
 } from "@/components/admin/televersement-brouillons"
@@ -20,6 +21,8 @@ import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
 import {
   LIMITE_IMAGES_PRODUIT,
   LONGUEUR_MAX_TEXTE_ALTERNATIF,
+  type EntreeBibliothequeImageProduit,
+  type ImageProduitGalerie,
 } from "@/lib/galerie-image-produit"
 import { cn } from "@/lib/utils"
 
@@ -27,6 +30,7 @@ interface ImageGalleryUploadProps {
   images: EntreeImageProduitFormulaire[]
   onChange(images: EntreeImageProduitFormulaire[]): void
   televersement?: TeleversementBrouillons
+  bibliotheque?: readonly EntreeBibliothequeImageProduit[]
 }
 
 function entryKey(image: EntreeImageProduitFormulaire): string {
@@ -51,6 +55,7 @@ export function ImageGalleryUpload({
   images,
   onChange,
   televersement = televersementBrouillons,
+  bibliotheque = [],
 }: ImageGalleryUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -116,6 +121,17 @@ export function ImageGalleryUpload({
     } finally {
       setReleasingDraftId(null)
     }
+  }
+
+  function ajouterDepuisLaBibliotheque(image: ImageProduitGalerie) {
+    onChange([
+      ...images,
+      {
+        kind: "persistee",
+        url: image.url,
+        ...(image.alt ? { alt: image.alt } : {}),
+      },
+    ])
   }
 
   function removeImage(index: number) {
@@ -319,20 +335,37 @@ export function ImageGalleryUpload({
         onChange={(event) => handleFiles(event.target.files)}
       />
       {}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={
-          uploading ||
-          releasingDraftId !== null ||
-          entreesActives.length >= LIMITE_IMAGES_PRODUIT
-        }
-        onClick={() => inputRef.current?.click()}
-        className="w-fit"
-      >
-        {uploading ? "Envoi en cours…" : "Ajouter des images"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={
+            uploading ||
+            releasingDraftId !== null ||
+            entreesActives.length >= LIMITE_IMAGES_PRODUIT
+          }
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading ? "Envoi en cours…" : "Ajouter des images"}
+        </Button>
+        <ImageLibraryPicker
+          bibliotheque={bibliotheque}
+          dejaPresentes={
+            new Set(
+              images.flatMap((image) =>
+                image.kind === "persistee" ? [image.url] : []
+              )
+            )
+          }
+          desactivee={
+            uploading ||
+            releasingDraftId !== null ||
+            entreesActives.length >= LIMITE_IMAGES_PRODUIT
+          }
+          onChoisir={ajouterDepuisLaBibliotheque}
+        />
+      </div>
       <p className="text-xs text-muted-foreground">
         Envoyées vers Cloudflare R2, {entreesActives.length}/
         {LIMITE_IMAGES_PRODUIT} images (10 Mo max par image).

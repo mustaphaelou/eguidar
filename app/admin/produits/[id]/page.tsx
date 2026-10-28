@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getAdminProduct } from "@/lib/use-cases/admin-catalog"
+import { listerImagesPourGalerie } from "@/lib/use-cases/images-produit"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   updateProductAction,
@@ -31,9 +32,10 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [product, lecture] = await Promise.all([
+  const [product, lecture, bibliotheque] = await Promise.all([
     getAdminProduct(id),
     lireStructure(),
+    listerImagesPourGalerie(),
   ])
   if (!product) notFound()
   const categories = lecture.options()
@@ -98,6 +100,7 @@ export default async function EditProductPage({
       <ProductForm
         product={product}
         categories={categories}
+        bibliotheque={bibliotheque}
         action={updateProductAction}
       />
     </div>

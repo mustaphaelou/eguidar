@@ -34,6 +34,7 @@ import {
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
 } from "@/lib/formulaire-produit"
+import type { EntreeBibliothequeImageProduit } from "@/lib/galerie-image-produit"
 import { centsToInputValue } from "@/lib/money"
 import { slugify } from "@/lib/slug"
 
@@ -44,6 +45,7 @@ export interface ProductFormState {
 interface ProductFormProps {
   product?: FaitsFormulaireProduit
   categories: { id: string; name: string }[]
+  bibliotheque?: readonly EntreeBibliothequeImageProduit[]
   action: (
     prevState: ProductFormState,
     formData: FormData
@@ -57,7 +59,12 @@ const emptyVariant = (): FaitsVarianteFormulaire => ({
   stock: 0,
 })
 
-export function ProductForm({ product, categories, action }: ProductFormProps) {
+export function ProductForm({
+  product,
+  categories,
+  bibliotheque,
+  action,
+}: ProductFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const slugRef = useRef<HTMLInputElement>(null)
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "")
@@ -291,7 +298,11 @@ export function ProductForm({ product, categories, action }: ProductFormProps) {
           <CardTitle>Images</CardTitle>
         </CardHeader>
         <CardContent>
-          <ImageGalleryUpload images={images} onChange={setImages} />
+          <ImageGalleryUpload
+            images={images}
+            onChange={setImages}
+            bibliotheque={bibliotheque}
+          />
         </CardContent>
       </Card>
 

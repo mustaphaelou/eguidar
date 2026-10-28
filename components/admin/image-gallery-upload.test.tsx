@@ -37,6 +37,7 @@ import type {
 } from "@/components/admin/televersement-brouillons"
 import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
 import type {
+  EntreeBibliothequeImageProduit,
   EntreeBrouillonImage,
   EntreeImageProduit,
 } from "@/lib/galerie-image-produit"
@@ -121,10 +122,12 @@ function GalerieTest({
   initialImages,
   onChange,
   televersement,
+  bibliotheque,
 }: {
   initialImages: EntreeImageProduitFormulaire[]
   onChange(images: EntreeImageProduitFormulaire[]): void
   televersement?: TeleversementBrouillons
+  bibliotheque?: readonly EntreeBibliothequeImageProduit[]
 }) {
   const [images, setImages] = useState(initialImages)
   return (
@@ -135,6 +138,7 @@ function GalerieTest({
         onChange(suivantes)
       }}
       televersement={televersement}
+      bibliotheque={bibliotheque}
     />
   )
 }
@@ -532,5 +536,61 @@ describe("ImageGalleryUpload", () => {
       expect(vignette?.getAttribute("data-image-height")).toBe("96")
       expect(vignette?.getAttribute("data-image-sizes")).toBe("96px")
     }
+  })
+
+  it("insère une Image produit de la bibliothèque à la position courante, sans nouvel envoi", async () => {
+    const onChange = vi.fn()
+    const televersement = creerTeleversementFactice()
+    const existante: EntreeImageProduitFormulaire = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/premiere.webp",
+      alt: "Première",
+    }
+    const choisie = {
+      publicUrl: "https://cdn.example.test/products/bibliotheque.jpg",
+      alt: "Depuis la bibliothèque",
+    }
+    const sansAlt = {
+      publicUrl: "https://cdn.example.test/products/sans-alt.jpg",
+      alt: null,
+    }
+
+    render(
+      <GalerieTest
+        initialImages={[existante]}
+        onChange={onChange}
+        televersement={televersement}
+        bibliotheque={[choisie, sansAlt]}
+      />
+    )
+
+    const declencheur = [...container.querySelectorAll("button")].find(
+      (bouton) => bouton.textContent?.includes("Choisir dans la bibliothèque")
+    )!
+    await act(async () => {
+      declencheur.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const choix = document.querySelector<HTMLElement>(
+      '[aria-label="Choisir l\'Image produit Depuis la bibliothèque"]'
+    )!
+    await act(async () => {
+      choix.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(televersement.appelsAjout).toEqual([])
+    expect(onChange).toHaveBeenLastCalledWith([
+      existante,
+      {
+        kind: "persistee",
+        url: choisie.publicUrl,
+        alt: choisie.alt,
+      },
+    ])
+    expect(
+      container.querySelector<HTMLInputElement>("#alt-image-1")?.value
+    ).toBe("Depuis la bibliothèque")
   })
 })
