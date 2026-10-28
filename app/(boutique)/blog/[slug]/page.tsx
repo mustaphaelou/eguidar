@@ -136,8 +136,8 @@ async function ArticleContent({
             <h1 className="mt-[20px] text-[48px] leading-[1.0835] font-bold tracking-[-0.003em] max-[1068px]:text-[40px] max-[1068px]:leading-[1.1] max-[1068px]:tracking-[0em] max-[734px]:text-[32px] max-[734px]:leading-[1.125] max-[734px]:tracking-[0.004em]">
               {data.titre}
             </h1>
-            <p className="mt-[20px] text-[19px] leading-[1.4211] tracking-[0.012em] max-[1068px]:text-body max-[1068px]:leading-body max-[1068px]:tracking-[-0.022em]">
-              {data.extrait}
+            <p className="mt-[20px] text-[24px] leading-[1.1667] font-medium tracking-[0.009em] text-foreground max-[1068px]:text-[21px] max-[1068px]:leading-[1.1905] max-[1068px]:tracking-[0.011em]">
+              {data.chapo ?? data.extrait}
             </p>
             <PartageArticle titre={data.titre} slug={data.slug} />
           </header>

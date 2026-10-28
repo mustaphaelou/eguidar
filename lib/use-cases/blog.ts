@@ -25,6 +25,7 @@ export interface ArticleBlogPublic {
   titre: string
   slug: string
   extrait: string
+  chapo: string | null
   couverture: string | null
   contenu: string
   notes: string | null
@@ -98,6 +99,7 @@ export async function fetchArticleParSlug(
     titre: article.titre,
     slug: article.slug,
     extrait: article.extrait,
+    chapo: article.chapo,
     couverture: article.couverture,
     contenu: article.contenu,
     notes: article.notes,

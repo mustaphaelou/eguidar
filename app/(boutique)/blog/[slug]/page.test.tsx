@@ -35,10 +35,11 @@ vi.mock("@/lib/use-cases/blog", () => ({
 
 import type { ArticleBlogPublic, ArticleLie } from "@/lib/use-cases/blog"
 
-import ArticleBlogPage from "./page"
+import ArticleBlogPage, { generateMetadata } from "./page"
 
 function article(
   contenu: string,
+  chapo: string | null = null,
   notes: string | null = null
 ): ArticleBlogPublic {
   return {
@@ -46,6 +47,7 @@ function article(
     titre: "Choisir son casque",
     slug: "choisir-son-casque",
     extrait: "L'extrait de l'article.",
+    chapo,
     couverture: null,
     contenu,
     notes,
@@ -58,9 +60,10 @@ function article(
 
 async function rendre(
   contenu: string,
+  chapo: string | null = null,
   notes: string | null = null
 ): Promise<string> {
-  getArticleParSlugMock.mockResolvedValue(article(contenu, notes))
+  getArticleParSlugMock.mockResolvedValue(article(contenu, chapo, notes))
   const flux = await renderToReadableStream(
     <ArticleBlogPage params={Promise.resolve({ slug: "choisir-son-casque" })} />
   )
@@ -69,15 +72,17 @@ async function rendre(
 
 async function rendreArticle({
   contenu,
+  chapo = null,
   notes = null,
   couverture = null,
 }: {
   contenu: string
+  chapo?: string | null
   notes?: string | null
   couverture?: string | null
 }): Promise<string> {
   getArticleParSlugMock.mockResolvedValue({
-    ...article(contenu, notes),
+    ...article(contenu, chapo, notes),
     couverture,
   })
   const flux = await renderToReadableStream(
@@ -321,6 +326,7 @@ describe("Page Article de blog — notes", () => {
   it("rend le renvoi dans le texte, le bloc de notes et son retour", async () => {
     const html = await rendre(
       "Le prix varie selon la ville^1.\n\nLa disponibilité se confirme^2.",
+      null,
       "Prix TTC indicatif.\nDisponibilité confirmée à la commande."
     )
     const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
@@ -357,6 +363,7 @@ describe("Page Article de blog — notes", () => {
   it("laisse un renvoi ^9 sans note en texte littéral et sans lien", async () => {
     const html = await rendre(
       "Le prix peut varier^9 selon la ville.",
+      null,
       "Prix TTC indicatif.\nDisponibilité confirmée à la commande."
     )
     const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
@@ -368,7 +375,7 @@ describe("Page Article de blog — notes", () => {
 
   it("n'affiche pas de bloc de notes quand l'Article n'en a pas", async () => {
     const sansNotes = await rendre("Un paragraphe.")
-    const notesVides = await rendre("Un paragraphe.", " \n\n\t\n")
+    const notesVides = await rendre("Un paragraphe.", null, " \n\n\t\n")
     const corpsSansNotes =
       sansNotes.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
     const corpsNotesVides =
@@ -379,7 +386,7 @@ describe("Page Article de blog — notes", () => {
   })
 
   it("donne un identifiant unique à chaque renvoi et revient au premier", async () => {
-    const html = await rendre("^1 puis ^1.", "La note unique.")
+    const html = await rendre("^1 puis ^1.", null, "La note unique.")
     const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
 
     expect(corps).toContain('id="renvoi-note-1-1"')
@@ -390,6 +397,7 @@ describe("Page Article de blog — notes", () => {
   it("rend aussi les renvois dans les listes et les citations", async () => {
     const html = await rendre(
       "- Autonomie^1\n\n> Une phrase^2.",
+      null,
       "Note de liste.\nNote de citation."
     )
     const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
@@ -564,5 +572,59 @@ describe("Page Article de blog — Articles liés", () => {
 
     expect(html).not.toContain("Articles liés")
     expect(html).not.toContain('aria-labelledby="articles-lies"')
+  })
+})
+
+describe("Page Article de blog — Chapô", () => {
+  const chapo = "Le bon choix tient à trois questions."
+  const extrait = "L&#x27;extrait de l&#x27;article."
+  const classesDuChapo = [
+    "text-[24px]",
+    "leading-[1.1667]",
+    "font-medium",
+    "tracking-[0.009em]",
+    "text-foreground",
+    "max-[1068px]:text-[21px]",
+    "max-[1068px]:leading-[1.1905]",
+    "max-[1068px]:tracking-[0.011em]",
+  ]
+
+  it("affiche le Chapô sous le titre, à la place de l'Extrait", async () => {
+    const html = await rendre("Un paragraphe.", chapo)
+    const entete = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ""
+
+    attendreLOrdre(entete, ["Choisir son casque", chapo])
+    expect(classesDans(html, "p", chapo)).toEqual(
+      expect.arrayContaining(classesDuChapo)
+    )
+    expect(classesDans(html, "p", chapo)).not.toContain("text-muted-foreground")
+    expect(entete).not.toContain(extrait)
+  })
+
+  it("affiche l'Extrait à la même place quand l'Article n'a pas de Chapô", async () => {
+    const html = await rendre("Un paragraphe.")
+    const entete = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ""
+
+    attendreLOrdre(entete, ["Choisir son casque", extrait])
+    expect(classesDans(html, "p", extrait)).toEqual(
+      expect.arrayContaining(classesDuChapo)
+    )
+  })
+
+  it("garde l'Extrait comme description de la page dans les deux cas", async () => {
+    getArticleParSlugMock.mockResolvedValue(article("Un paragraphe.", chapo))
+    const avecChapo = await generateMetadata({
+      params: Promise.resolve({ slug: "choisir-son-casque" }),
+    })
+
+    getArticleParSlugMock.mockResolvedValue(article("Un paragraphe."))
+    const sansChapo = await generateMetadata({
+      params: Promise.resolve({ slug: "choisir-son-casque" }),
+    })
+
+    expect(avecChapo.description).toBe("L'extrait de l'article.")
+    expect(sansChapo.description).toBe("L'extrait de l'article.")
+    expect(avecChapo.openGraph?.description).toBe("L'extrait de l'article.")
+    expect(sansChapo.openGraph?.description).toBe("L'extrait de l'article.")
   })
 })

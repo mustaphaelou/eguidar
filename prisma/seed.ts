@@ -261,6 +261,7 @@ interface ArticleDeDemo {
   titre: string
   slug: string
   extrait: string
+  chapo: string | null
   couverture: string | null
   contenu: string
   notes: string | null
@@ -274,6 +275,8 @@ const articlesDeBlog = [
     slug: "bien-choisir-son-smartphone",
     extrait:
       "Écran, autonomie, photo : les critères qui comptent vraiment au moment d'acheter un smartphone.",
+    chapo:
+      "Trois questions suffisent pour choisir un smartphone qui tient ses promesses : ce qu'on voit, ce qu'on touche et ce qui tient la journée.",
     couverture: "/blog/guide-smartphone-couverture.png",
     theme: "guides",
     publishedAt: new Date("2026-10-15T09:00:00.000Z"),
@@ -310,6 +313,7 @@ Fixez une enveloppe avant de regarder les modèles : le milieu de gamme couvre l
     slug: "nos-criteres-avant-de-mettre-un-produit-en-ligne",
     extrait:
       "Nos critères de sélection, du premier essai à la mise en rayon, pour ne vendre que ce qui tient ses promesses.",
+    chapo: null,
     couverture: null,
     theme: "guides",
     publishedAt: new Date("2026-10-08T09:00:00.000Z"),
@@ -327,6 +331,7 @@ Enfin, nous écoutons les retours de la boutique. Un modèle qui revient trop so
     slug: "la-boutique-eguidar-ouvre-ses-portes",
     extrait:
       "La boutique Eguidar ouvre ses portes à Casablanca : venez voir, comparer et repartir avec le bon produit.",
+    chapo: null,
     couverture: "/blog/annonce-boutique-couverture.png",
     theme: "annonces",
     publishedAt: new Date("2026-10-22T09:00:00.000Z"),
