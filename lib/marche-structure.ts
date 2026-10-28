@@ -2,11 +2,13 @@ export interface StructureLue {
   id: string
   name: string
   parentId: string | null
+  position?: number
 }
 
 export interface LiensStructure {
   parentParId: ReadonlyMap<string, string | null>
   noms?: ReadonlyMap<string, string>
+  positions?: ReadonlyMap<string, number>
 }
 
 export interface MarcheStructure {
@@ -69,7 +71,7 @@ function atteindre(
 }
 
 export function marcheStructure(liens: LiensStructure): MarcheStructure {
-  const { parentParId, noms } = liens
+  const { parentParId, noms, positions } = liens
   const cyclesSignales = new Set<string>()
 
   const { enfants, racines: racinesDesLiens } = indexDesLiens(parentParId)
@@ -161,11 +163,11 @@ export function marcheStructure(liens: LiensStructure): MarcheStructure {
   }
 
   function racines(): string[] {
-    return dansLOrdreDuModule(racinesDesLiens, noms)
+    return dansLOrdreDuModule(racinesDesLiens, noms, positions)
   }
 
   function enfantsDe(id: string): string[] {
-    return dansLOrdreDuModule(enfants.get(id) ?? [], noms)
+    return dansLOrdreDuModule(enfants.get(id) ?? [], noms, positions)
   }
 
   return { ancetres, descendance, horsArbre, racines, enfantsDe }
@@ -185,6 +187,7 @@ export function liensDesStructures(
       structures.map((structure) => [structure.id, structure.parentId])
     ),
     noms: nomsDesStructures(structures),
+    positions: positionsDesStructures(structures),
   }
 }
 
@@ -194,38 +197,58 @@ function nomsDesStructures(
   return new Map(structures.map((structure) => [structure.id, structure.name]))
 }
 
+function positionsDesStructures(
+  structures: readonly StructureLue[]
+): ReadonlyMap<string, number> {
+  return new Map(
+    structures.map((structure) => [structure.id, structure.position ?? 0])
+  )
+}
+
 export interface StructureOrdonnee {
   id: string
   name: string
+  position: number
 }
 
-export function comparerParNom(
+export function comparerStructures(
   a: StructureOrdonnee,
   b: StructureOrdonnee
 ): number {
-  return a.name.localeCompare(b.name, "fr") || a.id.localeCompare(b.id, "fr")
+  return (
+    a.position - b.position ||
+    a.name.localeCompare(b.name, "fr") ||
+    a.id.localeCompare(b.id, "fr")
+  )
 }
 
 function dansLOrdreDuModule(
   ids: readonly string[],
-  noms: ReadonlyMap<string, string> | undefined
+  noms: ReadonlyMap<string, string> | undefined,
+  positions: ReadonlyMap<string, number> | undefined
 ): string[] {
   return ids
-    .map((id) => ({ id, name: nommer(id, noms) }))
-    .sort(comparerParNom)
+    .map((id) => ({
+      id,
+      name: nommer(id, noms),
+      position: positions?.get(id) ?? 0,
+    }))
+    .sort(comparerStructures)
     .map((ordonne) => ordonne.id)
 }
 
 function brancheDansLOrdre(
   marche: MarcheStructure,
   noms: ReadonlyMap<string, string> | undefined,
+  positions: ReadonlyMap<string, number> | undefined,
   id: string
 ): string[] {
   return [
     id,
     ...dansLOrdreDuModule(
       marche.descendance(id).filter((atteinte) => atteinte !== id),
-      noms
+      noms,
+      positions
     ),
   ]
 }
@@ -242,7 +265,8 @@ export function complementDepuis(
   id: string
 ): PartitionStructure {
   const noms = liens.noms
-  const descendance = brancheDansLOrdre(marche, noms, id)
+  const positions = liens.positions
+  const descendance = brancheDansLOrdre(marche, noms, positions, id)
   const dansLaDescendance = new Set(descendance)
   const tous = [...liens.parentParId.keys()]
 
@@ -250,11 +274,13 @@ export function complementDepuis(
     descendance,
     horsSoi: dansLOrdreDuModule(
       tous.filter((autre) => autre !== id),
-      noms
+      noms,
+      positions
     ),
     horsDescendance: dansLOrdreDuModule(
       tous.filter((autre) => !dansLaDescendance.has(autre)),
-      noms
+      noms,
+      positions
     ),
   }
 }

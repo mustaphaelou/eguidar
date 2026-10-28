@@ -33,7 +33,7 @@ export const QUESTIONS = [
 ] as const
 
 export const NOMS_EMPRUNTES = [
-  "comparerParNom",
+  "comparerStructures",
   "liensDesStructures",
   "marcheStructure",
   "complementDepuis",

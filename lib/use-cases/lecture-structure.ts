@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db"
 import {
   complementDepuis,
-  comparerParNom,
+  comparerStructures,
   liensDesStructures,
   marcheStructure,
 } from "@/lib/marche-structure"
@@ -12,6 +12,7 @@ export interface FaitStructure {
   slug: string
   image: string | null
   parentId: string | null
+  position: number
   produitsDirects: number
 }
 
@@ -40,8 +41,12 @@ interface LigneStructureAdmin {
   parentId: string | null
   nomParente: string | null
   nombreProduits: number
+  nombreProduitsCumules: number
   nombreEnfants: number
   profondeur: number
+  position: number
+  nombreFreres: number
+  chemin: MaillonAriane[]
   horsArbre: boolean
 }
 
@@ -119,8 +124,15 @@ export function lectureDesStructures(
 
   function dansLOrdre(ids: readonly string[]): string[] {
     return ids
-      .map((id) => ({ id, name: parId().get(id)?.name ?? id }))
-      .sort(comparerParNom)
+      .map((id) => {
+        const fait = parId().get(id)
+        return {
+          id,
+          name: fait?.name ?? id,
+          position: fait?.position ?? 0,
+        }
+      })
+      .sort(comparerStructures)
       .map((ordonne) => ordonne.id)
   }
 
@@ -174,6 +186,34 @@ export function lectureDesStructures(
     const courant = marche()
     const horsArbre = new Set(courant.horsArbre())
     const index = parId()
+    const cumuls = new Map<string, number>()
+
+    const cumulDe = (id: string): number => {
+      const memorise = cumuls.get(id)
+      if (memorise !== undefined) return memorise
+      let total = 0
+      for (const atteinte of courant.descendance(id)) {
+        total += index.get(atteinte)?.produitsDirects ?? 0
+      }
+      cumuls.set(id, total)
+      return total
+    }
+
+    const rangDe = (
+      fait: FaitStructure
+    ): {
+      position: number
+      nombreFreres: number
+    } => {
+      const fratrie =
+        fait.parentId === null
+          ? courant.racines()
+          : courant.enfantsDe(fait.parentId)
+      return {
+        position: fratrie.indexOf(fait.id) + 1,
+        nombreFreres: fratrie.length,
+      }
+    }
 
     const ligneDe = (
       fait: FaitStructure,
@@ -191,8 +231,11 @@ export function lectureDesStructures(
           ? null
           : (index.get(fait.parentId)?.name ?? null),
       nombreProduits: fait.produitsDirects,
+      nombreProduitsCumules: cumulDe(fait.id),
       nombreEnfants,
       profondeur,
+      ...rangDe(fait),
+      chemin: filAriane(fait.id),
       horsArbre: hors,
     })
 
@@ -216,7 +259,7 @@ export function lectureDesStructures(
 
     const horsLignes = faits
       .filter((fait) => horsArbre.has(fait.id))
-      .sort(comparerParNom)
+      .sort(comparerStructures)
       .map((fait) => ligneDe(fait, 0, true, courant.enfantsDe(fait.id).length))
 
     return [...lignes, ...horsLignes]
@@ -234,7 +277,7 @@ export function lectureDesStructures(
   }
 
   function options(): OptionStructure[] {
-    return [...faits].sort(comparerParNom).map((fait) => ({
+    return [...faits].sort(comparerStructures).map((fait) => ({
       id: fait.id,
       name: fait.name,
     }))
@@ -298,6 +341,7 @@ async function lireToutesLesStructures(): Promise<FaitStructure[]> {
       slug: true,
       image: true,
       parentId: true,
+      position: true,
       _count: { select: { products: true } },
     },
   })
@@ -307,6 +351,7 @@ async function lireToutesLesStructures(): Promise<FaitStructure[]> {
     slug: rangee.slug,
     image: rangee.image,
     parentId: rangee.parentId,
+    position: rangee.position,
     produitsDirects: rangee._count.products,
   }))
 }

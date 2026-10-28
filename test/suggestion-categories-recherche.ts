@@ -111,6 +111,7 @@ export function faitsSuggestionCategories(
     image: null,
     parentId: null,
     produitsDirects: 0,
+    position: 0,
   }))
 }
 
