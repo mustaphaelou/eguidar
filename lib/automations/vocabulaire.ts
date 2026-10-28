@@ -2,6 +2,12 @@ import type {
   TypeEntiteAutomation,
   TypeEvenementAutomation,
 } from "@/lib/automations/evenements"
+
+export type { TypeEntiteAutomation, TypeEvenementAutomation }
+import type {
+  DeclencheurExecution,
+  StatutAutomation,
+} from "@/lib/generated/prisma/client"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 /**
@@ -72,6 +78,33 @@ export const LIBELLES_DECLENCHEUR: Readonly<
   "planification.digest-stock-bas": "Planification du digest du stock bas",
   "planification.reconciliation-recherche":
     "Planification de la réconciliation de la recherche",
+})
+
+/**
+ * La liste complète des déclencheurs pour le formulaire client. Elle dérive
+ * des libellés — un déclencheur sans libellé ne compilerait pas — pour que le
+ * module reste pur (aucun import de la base ni du travailleur).
+ */
+export const DECLENCHEURS_AUTOMATION: readonly TypeEvenementAutomation[] =
+  Object.freeze(Object.keys(LIBELLES_DECLENCHEUR) as TypeEvenementAutomation[])
+
+export const LIBELLES_STATUT_EXECUTION: Readonly<
+  Record<StatutAutomation, string>
+> = Object.freeze({
+  en_attente: "En attente",
+  en_cours: "En cours",
+  reussi: "Réussi",
+  echoue: "Échoué",
+  ignore: "Ignoré",
+  mort: "File morte",
+})
+
+export const LIBELLES_DECLENCHEUR_EXECUTION: Readonly<
+  Record<DeclencheurExecution, string>
+> = Object.freeze({
+  evenement: "Événement",
+  planification: "Planification",
+  manuel: "Manuel",
 })
 
 export const LIBELLES_ACTION: Readonly<Record<ActionAutomation, string>> =

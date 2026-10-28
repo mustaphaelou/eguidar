@@ -6,6 +6,7 @@ import {
   actionsOffertes,
   CombinaisonRefusee,
   conditionsOffertes,
+  DECLENCHEURS_AUTOMATION,
   declencheursOfferts,
   ENTITE_OBSERVEE_PAR_DECLENCHEUR,
   ENTITES_ECRITES_PAR_ACTION,
@@ -116,6 +117,12 @@ describe("le vocabulaire fermé de l'éditeur de Règles", () => {
       false
     )
     expect(estNomDeVariableEnvironnement("DESTINATAIRE SECRET")).toBe(false)
+  })
+
+  it("couvre exactement les déclencheurs que le travailleur connaît", () => {
+    expect([...DECLENCHEURS_AUTOMATION].sort()).toEqual(
+      [...TYPES_EVENEMENT_AUTOMATION].sort()
+    )
   })
 
   it("n'offre que des déclencheurs connus pour une action", () => {
