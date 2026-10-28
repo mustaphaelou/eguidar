@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import type {
   Category,
@@ -670,6 +671,19 @@ async function enregistrerProduit(
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
+      await enregistrerEvenement(tx, {
+        type: "produit.enregistre",
+        entityType: "produit",
+        entityId: ecrit.produit.id,
+        payload: {
+          produitId: ecrit.produit.id,
+          slug: ecrit.produit.slug,
+          slugPrecedent: ecrit.slugPrecedent ?? null,
+          categoryId: ecrit.produit.categoryId,
+          categoryIdPrecedent:
+            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null,
+        },
+      })
       return ecrit
     })
   } catch (error) {
@@ -742,10 +756,23 @@ export async function deleteProduct(
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
-  const existing = await prisma.product.findUnique({ where: { id } })
-  if (!existing) throw new ProductNotFoundError()
+  const existing = await prisma.$transaction(async (tx) => {
+    const produit = await tx.product.findUnique({ where: { id } })
+    if (!produit) throw new ProductNotFoundError()
 
-  await prisma.product.delete({ where: { id } })
+    await tx.product.delete({ where: { id } })
+    await enregistrerEvenement(tx, {
+      type: "produit.supprime",
+      entityType: "produit",
+      entityId: id,
+      payload: {
+        produitId: id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+      },
+    })
+    return produit
+  })
   await runEffect({
     effet: "suppression-images",
     entite: { type: "produit", id },
@@ -788,9 +815,17 @@ export async function updateVariantStock(
     defaultCatalogEffects(variant.product.id),
     overrides
   )
-  await prisma.productVariant.update({
-    where: { id: variantId },
-    data: { stock },
+  await prisma.$transaction(async (tx) => {
+    await tx.productVariant.update({
+      where: { id: variantId },
+      data: { stock },
+    })
+    await enregistrerEvenement(tx, {
+      type: "variante.stock.changee",
+      entityType: "produit",
+      entityId: variant.product.id,
+      payload: { produitId: variant.product.id },
+    })
   })
   const product = {
     ...variant.product,

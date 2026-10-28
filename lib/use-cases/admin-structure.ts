@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { toIndexableProduct } from "@/lib/index-projection"
@@ -301,7 +302,7 @@ export async function createCategory(
     await assertUniqueCategorySlug(data.slug, tx)
     await assertCategoryParent(data.parentId, tx)
 
-    return tx.category.create({
+    const created = await tx.category.create({
       data: {
         name: data.name,
         slug: data.slug,
@@ -309,6 +310,13 @@ export async function createCategory(
         image: data.image ?? null,
       },
     })
+    await enregistrerEvenement(tx, {
+      type: "structure.creee",
+      entityType: "categorie",
+      entityId: created.id,
+      payload: { categorieId: created.id },
+    })
+    return created
   })
 
   await runEffect({
@@ -345,6 +353,12 @@ export async function updateCategory(
           parentId: data.parentId ?? null,
           image: data.image ?? null,
         },
+      })
+      await enregistrerEvenement(tx, {
+        type: "structure.modifiee",
+        entityType: "categorie",
+        entityId: id,
+        payload: { categorieId: id },
       })
       return { category, image: existing.image }
     }
@@ -444,6 +458,12 @@ export async function deleteCategory(
     }
 
     await tx.category.delete({ where: { id } })
+    await enregistrerEvenement(tx, {
+      type: "structure.supprimee",
+      entityType: "categorie",
+      entityId: id,
+      payload: { categorieId: id },
+    })
     return { image: category.image, movedProducts: moved }
   })
 
