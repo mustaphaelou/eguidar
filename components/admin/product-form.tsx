@@ -43,6 +43,7 @@ import {
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
 } from "@/lib/formulaire-produit"
+import type { EntreeBibliothequeImageProduit } from "@/lib/galerie-image-produit"
 import { centsToInputValue } from "@/lib/money"
 import { slugify } from "@/lib/slug"
 
@@ -51,6 +52,7 @@ export type ProductFormState = EtatFormulaireProduit
 interface ProductFormProps {
   product?: FaitsFormulaireProduit
   structures: StructureAvecChemin[]
+  bibliotheque?: readonly EntreeBibliothequeImageProduit[]
   action: (
     prevState: ProductFormState,
     formData: FormData
@@ -64,7 +66,12 @@ const emptyVariant = (): FaitsVarianteFormulaire => ({
   stock: 0,
 })
 
-export function ProductForm({ product, structures, action }: ProductFormProps) {
+export function ProductForm({
+  product,
+  structures,
+  bibliotheque,
+  action,
+}: ProductFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const router = useRouter()
   const annulerNavigationRef = useRef<HTMLButtonElement>(null)
@@ -384,6 +391,7 @@ export function ProductForm({ product, structures, action }: ProductFormProps) {
               marquerModifie()
               setImages(suivantes)
             }}
+            bibliotheque={bibliotheque}
           />
         </CardContent>
       </Card>

@@ -22,6 +22,7 @@ import {
   entreeGalerieImageProduitSchema,
   identifiantsBrouillonsGalerie,
   LIMITE_IMAGES_PRODUIT,
+  normaliserTexteAlternatif,
   type EntreeImageProduit,
 } from "@/lib/galerie-image-produit"
 import {
@@ -35,7 +36,6 @@ import {
   totalVariantStock,
   urlsImagesProduit,
 } from "@/lib/product-metrics"
-import { stockageImageProduitR2 } from "@/lib/r2"
 import {
   PRODUIT_LISTING_PAGE_DEFAULT,
   PRODUIT_LISTING_PAGE_SIZE_DEFAULT,
@@ -47,6 +47,11 @@ import {
   type ProduitListingParams,
   type ProduitTri,
 } from "@/lib/produit-listing"
+import { stockageImageProduitR2, type FaitImageProduitVerifiee } from "@/lib/r2"
+import {
+  enregistrerImagesProduit,
+  type EntreeRegistreImageProduit,
+} from "@/lib/use-cases/images-produit"
 import type {
   CatalogueEventCategory,
   CatalogueEventProduct,
@@ -96,6 +101,10 @@ export interface CatalogEffects {
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): Promise<void> | void
   deleteImages(urls: string[]): Promise<void>
+  enregistrerImages(
+    entrees: readonly EntreeRegistreImageProduit[],
+    createdBy: string | null
+  ): Promise<void>
 }
 
 function journaliserEchecSuppressionImage(
@@ -136,6 +145,7 @@ export function defaultCatalogEffects(libelleJournal: string): CatalogEffects {
         }
       }
     },
+    enregistrerImages: enregistrerImagesProduit,
   }
 }
 
@@ -209,6 +219,16 @@ export class DraftRegistryUnavailableError extends DraftPromotionRefusedError {
   }
 }
 
+export class MissingImageAltError extends UserFacingError {
+  constructor(positions: readonly number[]) {
+    const images = positions.map((position) => `l'image ${position}`).join(", ")
+    super(
+      `Texte alternatif manquant pour ${images} : un Brouillon d'Image produit doit en avoir un avant d'être publié`
+    )
+    this.name = "MissingImageAltError"
+  }
+}
+
 const variantInputSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "nom de variante requis"),
@@ -278,6 +298,17 @@ function assertNonNegativeVariantPrices(input: ProductInput): void {
     .filter((variant) => variant.priceDelta + input.price < 0)
     .map((variant) => `prix final négatif pour le SKU ${variant.sku}`)
   if (problems.length > 0) throw new CatalogValidationError(problems)
+}
+
+function assertTextesAlternatifsDesNouvellesImages(
+  galerie: readonly EntreeImageProduit[]
+): void {
+  const manquantes = galerie.flatMap((entree, index) =>
+    entree.kind === "brouillon" && !normaliserTexteAlternatif(entree.alt)
+      ? [index + 1]
+      : []
+  )
+  if (manquantes.length > 0) throw new MissingImageAltError(manquantes)
 }
 
 function assertUniqueSkusInInput(variants: ProductVariantInput[]): void {
@@ -432,6 +463,33 @@ async function promouvoirBrouillons(
   })
   if (!preparation.ok) throw erreurDePreparation(preparation)
   return { images: preparation.galerie, promotions: preparation.promotions }
+}
+
+function entreesRegistreImagesProduit(
+  galerie: readonly EntreeImageProduit[],
+  promotions: readonly PreuvePromotion[],
+  urls: readonly string[]
+): EntreeRegistreImageProduit[] {
+  const preuveParBrouillon = new Map(
+    promotions.map((preuve) => [preuve.draftId, preuve])
+  )
+  const altParUrl = new Map<string, string | null>()
+  const faitsParUrl = new Map<string, FaitImageProduitVerifiee>()
+  for (const entree of galerie) {
+    if (entree.kind === "persistee") {
+      altParUrl.set(entree.url, normaliserTexteAlternatif(entree.alt))
+      continue
+    }
+    const preuve = preuveParBrouillon.get(entree.draftId)
+    if (!preuve) continue
+    altParUrl.set(preuve.publicUrl, normaliserTexteAlternatif(entree.alt))
+    if (preuve.faits) faitsParUrl.set(preuve.publicUrl, preuve.faits)
+  }
+  return urls.map((publicUrl) => ({
+    publicUrl,
+    alt: altParUrl.get(publicUrl) ?? null,
+    faits: faitsParUrl.get(publicUrl) ?? null,
+  }))
 }
 
 async function compenserPromotions(
@@ -658,6 +716,7 @@ async function enregistrerProduit(
   if (contexte.kind === "miseAJour") {
     await assertVariantesDuProduit(contexte.id, data.variants)
   }
+  assertTextesAlternatifsDesNouvellesImages(data.images)
 
   const { images, promotions } = await promouvoirBrouillons(data, effects)
 
@@ -702,6 +761,20 @@ async function enregistrerProduit(
     mapUniqueViolation(error)
   }
 
+  const entreesRegistre = entreesRegistreImagesProduit(
+    data.images,
+    promotions,
+    images
+  )
+  if (entreesRegistre.length > 0) {
+    await runEffect({
+      effet: "registre-images",
+      entite: { type: "produit", id: ecriture.produit.id },
+      message: `[catalog] écriture du registre des Images produit non effectuée pour ${ecriture.produit.id}`,
+      fn: () =>
+        effects.enregistrerImages(entreesRegistre, data.ownerId ?? null),
+    })
+  }
   if (promotions.length > 0) {
     await runEffect({
       effet: "suppression-brouillons",
@@ -1380,6 +1453,18 @@ export async function getAdminProduct(
   })
   if (!produit) return null
 
+  const urls = urlsImagesProduit(produit.images)
+  const registre =
+    urls.length > 0
+      ? await prisma.imageProduit.findMany({
+          where: { publicUrl: { in: urls } },
+          select: { publicUrl: true, alt: true },
+        })
+      : []
+  const altParUrl = new Map(
+    registre.map((ligne) => [ligne.publicUrl, ligne.alt])
+  )
+
   return {
     id: produit.id,
     name: produit.name,
@@ -1392,10 +1477,12 @@ export async function getAdminProduct(
     featuredOrder: produit.featuredOrder,
     freeShipping: produit.freeShipping,
     specs: specificationsProduit(produit.specs),
-    images: urlsImagesProduit(produit.images).map((url) => ({
-      kind: "persistee",
-      url,
-    })),
+    images: urls.map((url) => {
+      const alt = normaliserTexteAlternatif(altParUrl.get(url))
+      return alt
+        ? { kind: "persistee" as const, url, alt }
+        : { kind: "persistee" as const, url }
+    }),
     variants: produit.variants.map((variante) => ({
       id: variante.id,
       name: variante.name,

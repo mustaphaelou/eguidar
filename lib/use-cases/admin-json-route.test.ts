@@ -56,6 +56,7 @@ const REFUS: [CodeRefusCycleVieImageProduit, number][] = [
   ["brouillon-expire", 410],
   ["revendication-refusee", 409],
   ["catalogue-refuse", 409],
+  ["contenu-refuse", 422],
 ]
 
 type ResultatTest =
@@ -103,8 +104,8 @@ afterEach(() => {
 })
 
 describe("adminJsonRoute", () => {
-  it("épingle les quatorze codes de Refus du cycle de vie et leurs statuts", () => {
-    expect(REFUS).toHaveLength(14)
+  it("épingle les quinze codes de Refus du cycle de vie et leurs statuts", () => {
+    expect(REFUS).toHaveLength(15)
     expect(Object.entries(STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT)).toEqual(REFUS)
   })
 

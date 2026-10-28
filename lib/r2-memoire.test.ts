@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { CodeEchecStockage } from "@/lib/r2"
+import { draftObjectKey } from "@/lib/r2"
+import { MESSAGE_IMAGE_ILLISIBLE } from "@/lib/verification-image-produit"
 import {
   creerStockageImageProduitMemoire,
   type OperationStockage,
@@ -153,6 +154,14 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
           }),
       ],
       [
+        "verifierBrouillon",
+        (s: StockageImageProduitMemoire) =>
+          s.verifierBrouillon({
+            draftId: "draft-1",
+            contentType: "image/webp",
+          }),
+      ],
+      [
         "supprimerImagePromue",
         (s: StockageImageProduitMemoire) =>
           s.supprimerImagePromue({
@@ -178,11 +187,11 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
       OperationStockage,
       (s: StockageImageProduitMemoire) => Promise<unknown>,
     ][]
-    const codes = {
-      "non-configure": "non-configure",
-      "parametre-invalide": "parametre-invalide",
-      "erreur-stockage": "erreur-stockage",
-    } as const satisfies Record<CodeEchecStockage, CodeEchecStockage>
+    const codes = [
+      "non-configure",
+      "parametre-invalide",
+      "erreur-stockage",
+    ] as const
 
     for (const [operation, appeler] of operations) {
       for (const code of Object.values(codes)) {
@@ -200,6 +209,39 @@ describe("adaptateur en mémoire du stockage des Images produit", () => {
         ok: true,
       })
     }
+  })
+
+  it("vérifie un Brouillon : des faits synthétiques par défaut, un refus sur des octets réels invalides", async () => {
+    const stockage = creerStockageImageProduitMemoire()
+    await expect(
+      stockage.verifierBrouillon({
+        draftId: "draft-1",
+        contentType: "image/webp",
+      })
+    ).resolves.toEqual({
+      ok: true,
+      valeur: {
+        mimeType: "image/webp",
+        byteSize: 1024,
+        width: 640,
+        height: 480,
+      },
+    })
+    expect(stockage.verifications).toHaveLength(1)
+
+    stockage.contenus.set(
+      draftObjectKey("draft-1", "image/webp"),
+      Buffer.from("Ceci n'est pas une image.")
+    )
+    await expect(
+      stockage.verifierBrouillon({
+        draftId: "draft-1",
+        contentType: "image/webp",
+      })
+    ).resolves.toEqual({
+      ok: false,
+      erreur: { code: "contenu-refuse", message: MESSAGE_IMAGE_ILLISIBLE },
+    })
   })
 
   it("lève là où les trois indicateurs ne savent que répondre", async () => {

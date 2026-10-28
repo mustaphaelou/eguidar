@@ -21,6 +21,7 @@ const ACTIONS_SURVEILLEES = [
   "app/admin/categories/actions.ts",
   "app/admin/commandes/actions.ts",
   "app/admin/livraison/actions.ts",
+  "app/admin/medias/actions.ts",
   "app/admin/produits/actions.ts",
   "app/admin/villes/actions.ts",
 ]

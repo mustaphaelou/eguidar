@@ -34,7 +34,7 @@ export async function generateMetadata({
     title: data.name,
     description: `${data.brand} ${data.name}. Prix ${formatPrice(data.minPrice)} (TVA 20% incluse), paiement à la livraison.`,
     path: urlProduit(data.slug),
-    images: data.images[0] ? [data.images[0]] : undefined,
+    images: data.images[0] ? [data.images[0].url] : undefined,
   })
 }
 
@@ -77,7 +77,17 @@ async function ProductContent({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: serializeJsonLd(buildProductDonneesStructurees(data)),
+          __html: serializeJsonLd(
+            buildProductDonneesStructurees({
+              name: data.name,
+              description: data.description,
+              images: data.images.map((image) => image.url),
+              brand: data.brand,
+              slug: data.slug,
+              minPrice: data.minPrice,
+              variants: data.variants,
+            })
+          ),
         }}
       />
       <script

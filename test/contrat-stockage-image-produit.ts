@@ -1,3 +1,4 @@
+import sharp from "sharp"
 import { expect } from "vitest"
 
 import {
@@ -16,10 +17,27 @@ import {
 
 const TAILLE = 2048
 
+/** Un PNG réel : la vérification décode les octets, elle ne croit aucun type. */
+export const IMAGE_CONTRAT = await sharp({
+  create: {
+    width: 3,
+    height: 2,
+    channels: 3,
+    background: { r: 20, g: 120, b: 220 },
+  },
+})
+  .png()
+  .toBuffer()
+
+export const CONTENU_NON_IMAGE = Buffer.from(
+  "Ceci n'est pas une image, seulement du texte."
+)
+
 export type EtatStockageRejoue = "sain" | "non-configure" | "mort"
 
 export type AdaptateurStockage = (
-  etat: EtatStockageRejoue
+  etat: EtatStockageRejoue,
+  contenu?: Buffer
 ) => PortStockageImageProduit
 
 export interface IdentiteStockage {
@@ -69,7 +87,7 @@ function adresseReservee(identite: IdentiteStockage): string {
   return `${identite.basePublique}/${PREFIXE_BROUILLONS_IMAGE_PRODUIT}interdit.webp`
 }
 
-async function observerLesSix(
+async function observerLesSept(
   stockage: PortStockageImageProduit,
   identite: IdentiteStockage
 ): Promise<Record<keyof PortStockageImageProduit, ReponseObservee>> {
@@ -77,6 +95,11 @@ async function observerLesSix(
     presignerBrouillon: await observer(
       () => stockage.presignerBrouillon(demandeEnvoi(identite)),
       (valeur) => cleSous(valeur.previewUrl, identite.basePublique)
+    ),
+    verifierBrouillon: await observer(
+      () => stockage.verifierBrouillon(demandeBrouillon(identite)),
+      (valeur) =>
+        `${valeur.mimeType}:${valeur.width}x${valeur.height}:${valeur.byteSize}`
     ),
     supprimerBrouillon: await observer(() =>
       stockage.supprimerBrouillon(demandeBrouillon(identite))
@@ -101,6 +124,7 @@ export interface ScenarioStockage {
   readonly nom: string
   readonly etat: EtatStockageRejoue
   readonly interditLaLevee?: true
+  readonly contenu?: Buffer
   jouer(
     stockage: PortStockageImageProduit,
     identite: IdentiteStockage
@@ -128,6 +152,32 @@ export const SCENARIOS_STOCKAGE: readonly ScenarioStockage[] = [
         image: await observer(
           () => stockage.promouvoirBrouillon(demandeBrouillon(identite)),
           (valeur) => cleSous(valeur.publicUrl, identite.basePublique)
+        ),
+      }
+    },
+  },
+  {
+    nom: "vérifier un Brouillon téléversé et rendre ses faits réels",
+    etat: "sain",
+    contenu: IMAGE_CONTRAT,
+    async jouer(stockage, identite) {
+      return {
+        verification: await observer(
+          () => stockage.verifierBrouillon(demandeBrouillon(identite)),
+          (valeur) =>
+            `${valeur.mimeType}:${valeur.width}x${valeur.height}:${valeur.byteSize}`
+        ),
+      }
+    },
+  },
+  {
+    nom: "refuser un Brouillon dont les octets ne décodent pas",
+    etat: "sain",
+    contenu: CONTENU_NON_IMAGE,
+    async jouer(stockage, identite) {
+      return {
+        verification: await observer(() =>
+          stockage.verifierBrouillon(demandeBrouillon(identite))
         ),
       }
     },
@@ -205,6 +255,7 @@ export const SCENARIOS_STOCKAGE: readonly ScenarioStockage[] = [
           stockage.presignerBrouillon({ ...demande, size: TAILLE })
         ),
         liberation: await observer(() => stockage.supprimerBrouillon(demande)),
+        verification: await observer(() => stockage.verifierBrouillon(demande)),
         promotion: await observer(() => stockage.promouvoirBrouillon(demande)),
         copie: await observer(() => stockage.supprimerImagePromue(demande)),
       }
@@ -249,10 +300,10 @@ export const SCENARIOS_STOCKAGE: readonly ScenarioStockage[] = [
     },
   },
   {
-    nom: "un stockage non configuré répond aux six opérations qu'on lui demande",
+    nom: "un stockage non configuré répond aux sept opérations qu'on lui demande",
     etat: "non-configure",
     async jouer(stockage, identite) {
-      return await observerLesSix(stockage, identite)
+      return await observerLesSept(stockage, identite)
     },
   },
   {
@@ -260,7 +311,7 @@ export const SCENARIOS_STOCKAGE: readonly ScenarioStockage[] = [
     etat: "mort",
     interditLaLevee: true,
     async jouer(stockage, identite) {
-      return await observerLesSix(stockage, identite)
+      return await observerLesSept(stockage, identite)
     },
   },
 ]
@@ -269,6 +320,7 @@ export const CODES_ECHEC_CONTRAT: Record<CodeEchecStockage, true> = {
   "non-configure": true,
   "parametre-invalide": true,
   "erreur-stockage": true,
+  "contenu-refuse": true,
 }
 
 async function rejouer(
@@ -276,7 +328,7 @@ async function rejouer(
   adaptateur: AdaptateurStockage,
   identite: IdentiteStockage
 ): Promise<unknown> {
-  return scenario.jouer(adaptateur(scenario.etat), identite)
+  return scenario.jouer(adaptateur(scenario.etat, scenario.contenu), identite)
 }
 
 export async function exigerEnteteStockage(

@@ -11,6 +11,7 @@ const TEST_TABLES = [
   "Product",
   "ProductVariant",
   "BrouillonImageProduit",
+  "ImageProduit",
   "CartItem",
   "Order",
   "OrderItem",
