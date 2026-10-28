@@ -3,6 +3,7 @@ import Link from "next/link"
 import type { Metadata } from "next"
 
 import { DeleteProductButton } from "@/components/admin/delete-product-button"
+import { DataTableStatus } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,6 +33,11 @@ export default async function AdminProductsPage() {
           Nouveau produit
         </Button>
       </div>
+
+      <DataTableStatus
+        resultCount={products.length}
+        labels={{ singulier: "produit", pluriel: "produits" }}
+      />
 
       {products.length === 0 ? (
         <p className="text-muted-foreground">
