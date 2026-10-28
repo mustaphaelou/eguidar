@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Client } from "@/lib/use-cases/session-courante"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 
-const { supprimerImagesMock, mettreAJourAltMock } = vi.hoisted(() => ({
-  supprimerImagesMock: vi.fn(),
-  mettreAJourAltMock: vi.fn(),
-}))
+const { supprimerImagesMock, mettreAJourAltMock, reconstituerRegistreMock } =
+  vi.hoisted(() => ({
+    supprimerImagesMock: vi.fn(),
+    mettreAJourAltMock: vi.fn(),
+    reconstituerRegistreMock: vi.fn(),
+  }))
 
 vi.mock("next/navigation", async () => {
   const mocks = await import("@/test/navigation-mocks")
@@ -24,10 +26,12 @@ vi.mock("@/lib/use-cases/images-produit", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/use-cases/images-produit")>()),
   supprimerImagesProduit: supprimerImagesMock,
   mettreAJourTexteAlternatif: mettreAJourAltMock,
+  reconstituerRegistreImagesProduit: reconstituerRegistreMock,
 }))
 
 import {
   mettreAJourAltImageAction,
+  reconcilierImagesAction,
   supprimerImagesAction,
 } from "@/app/admin/medias/actions"
 import { revalidatePath } from "next/cache"
@@ -58,6 +62,7 @@ beforeEach(() => {
   redirectMock.mockClear()
   supprimerImagesMock.mockReset()
   mettreAJourAltMock.mockReset()
+  reconstituerRegistreMock.mockReset()
   vi.mocked(revalidatePath).mockClear()
 })
 
@@ -132,6 +137,21 @@ describe("actions de la Bibliothèque des médias", () => {
       "https://cdn.example.test/products/a.webp",
       "  Nouveau texte  "
     )
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/medias")
+  })
+
+  it("réconcilie le registre et révalide", async () => {
+    sessionCouranteMock.mockResolvedValue(ADMIN)
+    reconstituerRegistreMock.mockResolvedValue({
+      ajoutees: 1,
+      supprimees: 0,
+    })
+
+    await expect(reconcilierImagesAction({}, new FormData())).resolves.toEqual(
+      {}
+    )
+
+    expect(reconstituerRegistreMock).toHaveBeenCalledOnce()
     expect(revalidatePath).toHaveBeenCalledWith("/admin/medias")
   })
 })

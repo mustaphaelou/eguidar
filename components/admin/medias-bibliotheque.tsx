@@ -56,6 +56,7 @@ interface MediasBibliothequeProps {
   page: PageImagesProduit
   supprimerImages: MediasAction
   mettreAJourAlt: MediasAction
+  reconcilier: MediasAction
 }
 
 function dimensions(image: FaitsImageProduit): string {
@@ -84,6 +85,7 @@ export function MediasBibliotheque({
   page,
   supprimerImages,
   mettreAJourAlt,
+  reconcilier,
 }: MediasBibliothequeProps) {
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set())
   const [detailUrl, setDetailUrl] = useState<string | null>(null)
@@ -94,6 +96,8 @@ export function MediasBibliotheque({
     {}
   )
   const [altState, altAction, altEnCours] = useActionState(mettreAJourAlt, {})
+  const [reconciliation, reconcilierAction, reconciliationEnCours] =
+    useActionState(reconcilier, {})
 
   useEffect(() => {
     setSelection((courante) => {
@@ -200,6 +204,23 @@ export function MediasBibliotheque({
         >
           Sans texte alternatif ({page.sansAltCount})
         </Button>
+        <form action={reconcilierAction} className="flex items-center gap-2">
+          <Button
+            type="submit"
+            variant="ghost"
+            size="sm"
+            disabled={reconciliationEnCours}
+          >
+            {reconciliationEnCours
+              ? "Réconciliation…"
+              : "Réconcilier le registre"}
+          </Button>
+          {reconciliation.error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {reconciliation.error}
+            </p>
+          ) : null}
+        </form>
         <div className="ms-auto flex items-center gap-1">
           <Button
             type="button"

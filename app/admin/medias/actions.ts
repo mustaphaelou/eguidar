@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import {
   mettreAJourTexteAlternatif,
+  reconstituerRegistreImagesProduit,
   supprimerImagesProduit,
 } from "@/lib/use-cases/images-produit"
 import { adminFormAction } from "@/lib/use-cases/mutation-actions"
@@ -47,6 +48,19 @@ export const mettreAJourAltImageAction = adminFormAction<
   }),
   run: async ({ publicUrl, alt }) => {
     await mettreAJourTexteAlternatif(publicUrl, alt)
+    revalidatePath("/admin/medias")
+    return {}
+  },
+})
+
+export const reconcilierImagesAction = adminFormAction<
+  Record<string, never>,
+  MediasActionState
+>({
+  next: "/admin/medias",
+  parse: () => ({}),
+  run: async () => {
+    await reconstituerRegistreImagesProduit()
     revalidatePath("/admin/medias")
     return {}
   },

@@ -7,6 +7,7 @@ import { parseMediasListingParams } from "@/lib/medias-listing"
 import { listerImagesProduit } from "@/lib/use-cases/images-produit"
 import {
   mettreAJourAltImageAction,
+  reconcilierImagesAction,
   supprimerImagesAction,
 } from "@/app/admin/medias/actions"
 
@@ -54,6 +55,7 @@ async function MediasContent({
       page={page}
       supprimerImages={supprimerImagesAction}
       mettreAJourAlt={mettreAJourAltImageAction}
+      reconcilier={reconcilierImagesAction}
     />
   )
 }

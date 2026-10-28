@@ -85,15 +85,17 @@ function afficher(
 ) {
   const suppression = actionQuiCapture<{ error?: string }>()
   const alt = actionQuiCapture<{ error?: string }>()
+  const reconciliation = actionQuiCapture<{ error?: string }>()
   rendu.render(
     <MediasBibliotheque
       params={options.params ?? {}}
       page={options.page ?? PAGE}
       supprimerImages={options.supprimerImages ?? suppression.action}
       mettreAJourAlt={options.mettreAJourAlt ?? alt.action}
+      reconcilier={reconciliation.action}
     />
   )
-  return { suppression, alt }
+  return { suppression, alt, reconciliation }
 }
 
 async function cliquer(element: HTMLElement) {
@@ -145,6 +147,7 @@ describe("MediasBibliotheque", () => {
         page={PAGE}
         supprimerImages={suppression.action}
         mettreAJourAlt={actionQuiCapture<{ error?: string }>().action}
+        reconcilier={actionQuiCapture<{ error?: string }>().action}
       />
     )
 
@@ -202,6 +205,7 @@ describe("MediasBibliotheque", () => {
         page={PAGE}
         supprimerImages={actionQuiCapture<{ error?: string }>().action}
         mettreAJourAlt={alt.action}
+        reconcilier={actionQuiCapture<{ error?: string }>().action}
       />
     )
 
@@ -268,6 +272,7 @@ describe("MediasBibliotheque", () => {
         page={PAGE}
         supprimerImages={supprimerImages}
         mettreAJourAlt={actionQuiCapture<{ error?: string }>().action}
+        reconcilier={actionQuiCapture<{ error?: string }>().action}
       />
     )
 
@@ -305,5 +310,17 @@ describe("MediasBibliotheque", () => {
 
     expect(rendu.container.querySelector("table")).not.toBeNull()
     expect(rendu.container.textContent).toContain("Sans texte alternatif")
+  })
+
+  it("envoie une réconciliation du registre", async () => {
+    const { reconciliation } = afficher()
+
+    const bouton = [
+      ...rendu.container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((candidat) => candidat.textContent === "Réconcilier le registre")!
+    expect(bouton).toBeDefined()
+    await rendu.soumettre(bouton.closest("form")!)
+
+    expect(reconciliation.soumissions).toHaveLength(1)
   })
 })
