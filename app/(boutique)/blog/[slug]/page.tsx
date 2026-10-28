@@ -98,46 +98,37 @@ async function ArticleContent({
       />
       <AppleBreadcrumb crumbs={crumbs} />
 
-      <article className="mx-auto w-[653px] pt-8 max-md:w-[576px] max-sm:w-[87.5%]">
-        <p className="text-[12px] leading-[1.3334] font-bold tracking-[-0.01em] text-muted-foreground uppercase sm:text-[14px]">
-          {data.theme.nom}
-          {data.publishedAt ? (
-            <>
-              {" · "}
-              <time dateTime={publishedAtISO(data.publishedAt)}>
+      <div className="mx-auto w-full max-w-[980px]">
+        <article className="grid grid-cols-1 px-4 text-[19px] leading-[1.4211] tracking-[0.012em] max-[1068px]:text-body max-[1068px]:leading-body max-[1068px]:tracking-[-0.022em] sm:px-6 md:grid-cols-[1fr_min(653px,100%)_1fr] md:px-0 [&>*+*]:mt-[44px] max-[1068px]:[&>*+*]:mt-[36px] max-[734px]:[&>*+*]:mt-[32px] [&>p+p]:mt-[1.4211em] max-[1068px]:[&>p+p]:mt-[1.471em]">
+          <header className="pt-[52px] max-[1068px]:pt-[40px] max-[734px]:pt-[32px] md:col-start-2">
+            <span className="block text-[12px] leading-[1.3334] font-bold tracking-[-0.01em] text-muted-foreground uppercase">
+              {data.theme.nom}
+            </span>
+            {data.publishedAt ? (
+              <time
+                dateTime={publishedAtISO(data.publishedAt)}
+                className="mt-[4px] block text-[14px] leading-[1.2858] font-semibold tracking-[-0.016em] text-muted-foreground"
+              >
                 {formatPublishedAt(data.publishedAt)}
               </time>
-            </>
+            ) : null}
+            <h1 className="mt-[20px] text-[48px] leading-[1.0835] font-bold tracking-[-0.003em] max-[1068px]:text-[40px] max-[1068px]:leading-[1.1] max-[1068px]:tracking-[0em] max-[734px]:text-[32px] max-[734px]:leading-[1.125] max-[734px]:tracking-[0.004em]">
+              {data.titre}
+            </h1>
+            <p className="mt-[20px] text-[19px] leading-[1.4211] tracking-[0.012em] max-[1068px]:text-body max-[1068px]:leading-body max-[1068px]:tracking-[-0.022em]">
+              {data.extrait}
+            </p>
+          </header>
+
+          {data.couverture ? (
+            <FigureArticle url={data.couverture} alt="" priorite />
           ) : null}
-        </p>
-        <h1 className="mt-3 text-[48px] leading-[1.0835] font-bold tracking-[-0.003em] max-md:text-[40px] max-md:leading-[1.1] max-md:tracking-[0em] max-sm:text-[32px] max-sm:leading-[1.125] max-sm:tracking-[0.004em]">
-          {data.titre}
-        </h1>
-        <p className="mt-4 text-[19px] leading-[1.4211] tracking-[0.012em] text-muted-foreground">
-          {data.extrait}
-        </p>
 
-        {data.couverture ? (
-          <div className="relative mt-8 aspect-video overflow-hidden rounded-[10px] bg-muted">
-            <Image
-              src={data.couverture}
-              alt=""
-              fill
-              sizes="(min-width: 1069px) 653px, 100vw"
-              className="object-cover"
-              priority
-            />
-          </div>
-        ) : null}
-
-        {fragments.length > 0 ? (
-          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] max-md:text-body max-md:leading-body max-md:tracking-[-0.022em]">
-            {fragments.map((fragment, index) => (
-              <FragmentDuContenu key={index} fragment={fragment} />
-            ))}
-          </div>
-        ) : null}
-      </article>
+          {fragments.map((fragment, index) => (
+            <FragmentDuContenu key={index} fragment={fragment} />
+          ))}
+        </article>
+      </div>
 
       {data.produits.length > 0 ? (
         <section className="mt-12 bg-muted">
@@ -161,24 +152,21 @@ function FragmentDuContenu({ fragment }: { fragment: FragmentArticle }) {
   switch (fragment.type) {
     case "intertitre":
       return (
-        <h2 className="mt-11 text-[21px] leading-[1.1905] font-bold tracking-[0.011em] sm:mt-12 sm:text-[24px] sm:leading-[1.1667] sm:tracking-[0.009em] lg:mt-[52px]">
+        <h2 className="text-[24px] leading-[1.1667] font-bold tracking-[0.009em] max-[1068px]:text-[21px] max-[1068px]:leading-[1.1905] max-[1068px]:tracking-[0.011em] md:col-start-2">
           {fragment.texte}
         </h2>
       )
     case "figure":
       return (
-        <figure className="mt-6 first:mt-0">
-          <p className="whitespace-pre-line">{fragment.alt}</p>
-          {fragment.legende !== null ? (
-            <figcaption className="text-[14px] leading-[1.4286] text-muted-foreground">
-              {fragment.legende}
-            </figcaption>
-          ) : null}
-        </figure>
+        <FigureArticle
+          url={fragment.url}
+          alt={fragment.alt}
+          legende={fragment.legende}
+        />
       )
     case "liste":
       return (
-        <ul className="mt-6 list-disc pl-6 first:mt-0">
+        <ul className="list-disc pl-6 md:col-start-2">
           {fragment.items.map((item, index) => (
             <li key={index}>{item}</li>
           ))}
@@ -186,30 +174,68 @@ function FragmentDuContenu({ fragment }: { fragment: FragmentArticle }) {
       )
     case "citation":
       return (
-        <blockquote className="mt-6 whitespace-pre-line first:mt-0">
+        <blockquote className="whitespace-pre-line md:col-start-2">
           {fragment.texte}
         </blockquote>
       )
     case "paragraphe":
       return (
-        <p className="mt-6 whitespace-pre-line first:mt-0">{fragment.texte}</p>
+        <p className="whitespace-pre-line md:col-start-2">{fragment.texte}</p>
       )
   }
+}
+
+function FigureArticle({
+  url,
+  alt,
+  legende,
+  priorite = false,
+}: {
+  url: string
+  alt: string
+  legende?: string | null
+  priorite?: boolean
+}) {
+  return (
+    <figure className="-mx-4 sm:-mx-6 md:col-span-3 md:mx-0">
+      <div className="relative aspect-video overflow-hidden rounded-[10px] bg-muted">
+        <Image
+          src={url}
+          alt={alt}
+          fill
+          sizes="(min-width: 1069px) 980px, 100vw"
+          className="object-cover"
+          priority={priorite}
+        />
+      </div>
+      {legende != null ? (
+        <figcaption className="mx-auto mt-[16px] w-[87.5%] text-[12px] leading-[1.3334] font-semibold tracking-[-0.01em] text-muted-foreground max-[1068px]:mt-[12px] md:w-full md:max-w-[653px]">
+          {legende}
+        </figcaption>
+      ) : null}
+    </figure>
+  )
 }
 
 function ArticleSkeleton() {
   return (
     <>
       <div className="h-11 animate-pulse bg-muted" />
-      <div className="mx-auto flex w-[653px] flex-col gap-4 pt-8 max-md:w-[576px] max-sm:w-[87.5%]">
-        <div className="h-4 w-48 animate-pulse rounded-full bg-muted" />
-        <div className="h-12 w-full animate-pulse rounded-2xl bg-muted" />
-        <div className="h-6 w-5/6 animate-pulse rounded-full bg-muted" />
-        <div className="mt-4 aspect-video w-full animate-pulse rounded-[10px] bg-muted" />
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
-          <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
-          <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
+      <div className="mx-auto w-full max-w-[980px]">
+        <div className="grid grid-cols-1 px-4 sm:px-6 md:grid-cols-[1fr_min(653px,100%)_1fr] md:px-0">
+          <div className="flex flex-col gap-4 pt-[52px] max-[1068px]:pt-[40px] max-[734px]:pt-[32px] md:col-start-2">
+            <div className="h-4 w-48 animate-pulse rounded-full bg-muted" />
+            <div className="h-12 w-full animate-pulse rounded-2xl bg-muted" />
+            <div className="h-6 w-5/6 animate-pulse rounded-full bg-muted" />
+          </div>
+          <div className="-mx-4 mt-[44px] max-[1068px]:mt-[36px] max-[734px]:mt-[32px] sm:-mx-6 md:col-span-3 md:mx-0">
+            <div className="aspect-video w-full animate-pulse rounded-[10px] bg-muted" />
+          </div>
+          <div className="mt-[44px] flex flex-col gap-3 max-[1068px]:mt-[36px] max-[734px]:mt-[32px] md:col-start-2">
+            <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
+          </div>
         </div>
       </div>
     </>
