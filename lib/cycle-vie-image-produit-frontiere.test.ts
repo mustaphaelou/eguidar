@@ -25,6 +25,7 @@ const CETTE_SUITE = "lib/cycle-vie-image-produit-frontiere.test.ts"
 
 const OPERATIONS_STOCKAGE = [
   "presignerBrouillon",
+  "verifierBrouillon",
   "promouvoirBrouillon",
   "supprimerBrouillon",
   "supprimerImageCategorie",
@@ -316,7 +317,11 @@ describe("Cycle de vie des Images produit — le propriétaire de la promotion",
     expect(SOURCES.length).toBeGreaterThan(200)
     expect(promoteurs(SOURCES)).toEqual([MODULE_CYCLE_VIE, MODULE_R2].sort())
     expect(operationsStockageNommees(source(MODULE_CYCLE_VIE))).toEqual(
-      ["presignerBrouillon", ...OPERATIONS_PROMOTION].sort()
+      [
+        "presignerBrouillon",
+        "verifierBrouillon",
+        ...OPERATIONS_PROMOTION,
+      ].sort()
     )
     expect(operationsStockageNommees(source(MODULE_R2))).toEqual(
       [...OPERATIONS_STOCKAGE].sort()
