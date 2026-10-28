@@ -1,11 +1,11 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import type {
-  Category,
+import {
   Prisma,
-  Product,
-  ProductVariant,
+  type Category,
+  type Product,
+  type ProductVariant,
 } from "@/lib/generated/prisma/client"
 import cycleVieImageProduitParDefaut, {
   estLieAuProduit,
@@ -35,6 +35,17 @@ import {
   urlsImagesProduit,
 } from "@/lib/product-metrics"
 import { stockageImageProduitR2 } from "@/lib/r2"
+import {
+  PRODUIT_LISTING_PAGE_DEFAULT,
+  PRODUIT_LISTING_PAGE_SIZE_DEFAULT,
+  PRODUIT_LISTING_SENS_DEFAULT,
+  PRODUIT_LISTING_TRI_DEFAULT,
+  PRODUIT_STRUCTURE_SANS,
+  PRODUIT_STOCK_NON_NUL,
+  PRODUIT_STOCK_ZERO,
+  type ProduitListingParams,
+  type ProduitTri,
+} from "@/lib/produit-listing"
 import type {
   CatalogueEventCategory,
   CatalogueEventProduct,
@@ -832,23 +843,92 @@ export interface FaitsProduitListe {
   totalStock: number
 }
 
-export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
-  const produits = await prisma.product.findMany({
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      brand: true,
-      price: true,
-      images: true,
-      isFeatured: true,
-      freeShipping: true,
-      category: { select: { name: true } },
-      variants: { select: { stock: true } },
-    },
-  })
+export interface AdminProductsPage {
+  produits: FaitsProduitListe[]
+  totalCount: number
+  pageCount: number
+}
 
-  return produits.map((produit) => ({
+type FiltreStructure =
+  { kind: "toutes" } | { kind: "sans" } | { kind: "ids"; ids: string[] }
+
+const COLONNE_DE_TRI: Record<ProduitTri, Prisma.Sql> = {
+  nom: Prisma.raw(`p."name"`),
+  prix: Prisma.raw(`p."price"`),
+  stock: Prisma.raw(
+    `COALESCE((SELECT SUM(sv."stock") FROM "ProductVariant" sv WHERE sv."productId" = p."id"), 0)`
+  ),
+  date: Prisma.raw(`p."createdAt"`),
+}
+
+const STOCK_TOTAL = Prisma.raw(
+  `COALESCE((SELECT SUM(sv."stock") FROM "ProductVariant" sv WHERE sv."productId" = p."id"), 0)`
+)
+
+async function filtreStructureDe(
+  structure: string | undefined
+): Promise<FiltreStructure> {
+  if (!structure) return { kind: "toutes" }
+  if (structure === PRODUIT_STRUCTURE_SANS) return { kind: "sans" }
+
+  const lecture = await lireStructure()
+  if (lecture.structure(structure) === null) return { kind: "toutes" }
+  return { kind: "ids", ids: lecture.branche(structure) }
+}
+
+function whereDesProduits(
+  params: ProduitListingParams,
+  filtre: FiltreStructure
+): Prisma.Sql {
+  const conditions: Prisma.Sql[] = []
+  if (filtre.kind === "sans") {
+    conditions.push(Prisma.sql`p."categoryId" IS NULL`)
+  } else if (filtre.kind === "ids") {
+    conditions.push(Prisma.sql`p."categoryId" IN (${Prisma.join(filtre.ids)})`)
+  }
+  if (params.q) {
+    const motif = `%${params.q}%`
+    conditions.push(Prisma.sql`(
+      p."name" ILIKE ${motif}
+      OR p."brand" ILIKE ${motif}
+      OR p."slug" ILIKE ${motif}
+      OR EXISTS (
+        SELECT 1 FROM "ProductVariant" recherche
+        WHERE recherche."productId" = p."id" AND recherche."sku" ILIKE ${motif}
+      )
+    )`)
+  }
+  if (params.misEnAvant) conditions.push(Prisma.sql`p."isFeatured" = TRUE`)
+  if (params.livraisonOfferte)
+    conditions.push(Prisma.sql`p."freeShipping" = TRUE`)
+  if (params.stock === PRODUIT_STOCK_ZERO)
+    conditions.push(Prisma.sql`${STOCK_TOTAL} = 0`)
+  if (params.stock === PRODUIT_STOCK_NON_NUL)
+    conditions.push(Prisma.sql`${STOCK_TOTAL} > 0`)
+
+  if (conditions.length === 0) return Prisma.empty
+  return Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+}
+
+function orderDesProduits(params: ProduitListingParams): Prisma.Sql {
+  const tri = params.tri ?? PRODUIT_LISTING_TRI_DEFAULT
+  const sens = params.sens ?? PRODUIT_LISTING_SENS_DEFAULT
+  const direction = sens === "asc" ? Prisma.raw("ASC") : Prisma.raw("DESC")
+  return Prisma.sql`ORDER BY ${COLONNE_DE_TRI[tri]} ${direction}, p."id" ${direction}`
+}
+
+function faitDeListe(produit: {
+  id: string
+  name: string
+  brand: string
+  price: number
+  images: unknown
+  isFeatured: boolean
+  freeShipping: boolean
+  category: { name: string } | null
+  variants: { stock: number }[]
+}): FaitsProduitListe {
+  return {
     id: produit.id,
     name: produit.name,
     brand: produit.brand,
@@ -858,7 +938,61 @@ export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
     freeShipping: produit.freeShipping,
     image: urlsImagesProduit(produit.images)[0] ?? null,
     totalStock: totalVariantStock(produit.variants),
-  }))
+  }
+}
+
+export async function listAdminProducts(
+  params: ProduitListingParams
+): Promise<AdminProductsPage> {
+  const page = params.page ?? PRODUIT_LISTING_PAGE_DEFAULT
+  const pageSize = params.pageSize ?? PRODUIT_LISTING_PAGE_SIZE_DEFAULT
+  const filtre = await filtreStructureDe(params.structure)
+  const where = whereDesProduits(params, filtre)
+  const orderBy = orderDesProduits(params)
+  const offset = (page - 1) * pageSize
+
+  const resultat = await prisma.$transaction(async (tx) => {
+    const lignes = await tx.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT p."id" FROM "Product" p ${where} ${orderBy} LIMIT ${pageSize} OFFSET ${offset}`
+    )
+    const [compte] = await tx.$queryRaw<{ total: number }[]>(
+      Prisma.sql`SELECT COUNT(*)::int AS total FROM "Product" p ${where}`
+    )
+    const ids = lignes.map((ligne) => ligne.id)
+    const produits =
+      ids.length === 0
+        ? []
+        : await tx.product.findMany({
+            where: { id: { in: ids } },
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              price: true,
+              images: true,
+              isFeatured: true,
+              freeShipping: true,
+              category: { select: { name: true } },
+              variants: { select: { stock: true } },
+            },
+          })
+    return { ids, produits, total: compte?.total ?? 0 }
+  })
+
+  const parId = new Map(
+    resultat.produits.map((produit) => [produit.id, produit])
+  )
+  const produits = resultat.ids.flatMap((id) => {
+    const produit = parId.get(id)
+    return produit === undefined ? [] : [faitDeListe(produit)]
+  })
+  const totalCount = resultat.total
+
+  return {
+    produits,
+    totalCount,
+    pageCount: Math.ceil(totalCount / pageSize),
+  }
 }
 
 export async function getAdminProduct(

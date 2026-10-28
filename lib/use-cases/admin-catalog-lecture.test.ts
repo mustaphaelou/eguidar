@@ -30,6 +30,7 @@ interface RecetteProduit {
   freeShipping?: boolean
   images?: Prisma.InputJsonValue
   specs?: Prisma.InputJsonValue
+  creeLe?: string
   variants?: { name: string; stock: number; priceDelta?: number }[]
 }
 
@@ -47,6 +48,7 @@ function creerProduit(suffix: string, recette: RecetteProduit = {}) {
       price: recette.price ?? 100000,
       specs: recette.specs ?? { Écran: "6 pouces" },
       images: recette.images ?? ["https://cdn.example.com/une.jpg"],
+      createdAt: recette.creeLe ? new Date(recette.creeLe) : undefined,
       isFeatured: recette.isFeatured ?? false,
       featuredOrder: 0,
       freeShipping: recette.freeShipping ?? false,
@@ -64,7 +66,9 @@ function creerProduit(suffix: string, recette: RecetteProduit = {}) {
 }
 
 async function faitProduit(id: string) {
-  return (await listAdminProducts()).find((produit) => produit.id === id)
+  return (await listAdminProducts({ q: runId })).produits.find(
+    (produit) => produit.id === id
+  )
 }
 
 beforeAll(async () => {
@@ -120,19 +124,23 @@ describe("liste des Produits de l'Administration", () => {
     })
   })
 
-  it("liste les Produits du plus récemment modifié au plus ancien", async () => {
-    const ancien = await creerProduit("ordre-1")
-    const recent = await creerProduit("ordre-2")
+  it("liste les Produits de la création la plus récente à la plus ancienne", async () => {
+    const ancien = await creerProduit("ordre-1", {
+      creeLe: "2026-01-01T10:00:00.000Z",
+    })
+    const recent = await creerProduit("ordre-2", {
+      creeLe: "2026-02-01T10:00:00.000Z",
+    })
     await prisma.product.update({
       where: { id: ancien.id },
       data: { name: "Touche" },
     })
 
-    const ids = (await listAdminProducts())
+    const ids = (await listAdminProducts({ q: runId, tri: "date" })).produits
       .map((produit) => produit.id)
       .filter((id) => id === ancien.id || id === recent.id)
 
-    expect(ids).toEqual([ancien.id, recent.id])
+    expect(ids).toEqual([recent.id, ancien.id])
   })
 
   it("compose le stock total depuis le fait canonique des Variantes", async () => {
