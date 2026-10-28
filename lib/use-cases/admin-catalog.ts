@@ -1,11 +1,11 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
-import type {
-  Category,
+import {
   Prisma,
-  Product,
-  ProductVariant,
+  type Category,
+  type Product,
+  type ProductVariant,
 } from "@/lib/generated/prisma/client"
 import cycleVieImageProduitParDefaut, {
   estLieAuProduit,
@@ -35,6 +35,17 @@ import {
   urlsImagesProduit,
 } from "@/lib/product-metrics"
 import { stockageImageProduitR2 } from "@/lib/r2"
+import {
+  PRODUIT_LISTING_PAGE_DEFAULT,
+  PRODUIT_LISTING_PAGE_SIZE_DEFAULT,
+  PRODUIT_LISTING_SENS_DEFAULT,
+  PRODUIT_LISTING_TRI_DEFAULT,
+  PRODUIT_STRUCTURE_SANS,
+  PRODUIT_STOCK_NON_NUL,
+  PRODUIT_STOCK_ZERO,
+  type ProduitListingParams,
+  type ProduitTri,
+} from "@/lib/produit-listing"
 import type {
   CatalogueEventCategory,
   CatalogueEventProduct,
@@ -769,6 +780,284 @@ export async function deleteProduct(
   })
 }
 
+export interface RapportLot {
+  succes: string[]
+  echecs: { id: string; raison: string }[]
+}
+
+const MESSAGE_PRODUIT_INTROUVABLE = "Produit introuvable"
+const MESSAGE_STRUCTURE_INTROUVABLE = "Structure introuvable"
+
+interface DocumentDeLot {
+  indexable: IndexableProduct
+  evenement: CatalogueEventProduct
+}
+
+async function documentsDeLot(
+  ids: readonly string[]
+): Promise<DocumentDeLot[]> {
+  if (ids.length === 0) return []
+  const produits = await prisma.product.findMany({
+    where: { id: { in: [...ids] } },
+    include: { variants: true },
+  })
+  const lecture = await lireStructure()
+  return produits.map((produit) => {
+    const fiche =
+      produit.categoryId === null ? null : lecture.structure(produit.categoryId)
+    return {
+      indexable: toIndexableProduct({
+        ...produit,
+        category:
+          fiche === null
+            ? null
+            : { id: fiche.id, slug: fiche.slug, name: fiche.name },
+      }),
+      evenement: {
+        id: produit.id,
+        slug: produit.slug,
+        categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+      },
+    }
+  })
+}
+
+async function reindexerLot(
+  ids: readonly string[],
+  effects: CatalogEffects
+): Promise<void> {
+  const documents = await documentsDeLot(ids)
+  if (documents.length === 0) return
+
+  await runEffect({
+    effet: "reindexation",
+    entite: { type: "produit", id: ids[0]! },
+    message:
+      "[catalog] réindexation Meilisearch non effectuée pour un geste en lot",
+    fn: () =>
+      effects.reindexProducts(documents.map(({ indexable }) => indexable)),
+  })
+  for (const { indexable, evenement } of documents) {
+    await runEffect({
+      effet: "invalidation-cache",
+      entite: { type: "produit", id: indexable.id },
+      message: `[catalog] invalidation du cache non effectuée pour ${indexable.id}`,
+      fn: () => effects.revalidateCatalog(evenement),
+    })
+  }
+}
+
+function partitionDesIdentifiants(
+  ids: readonly string[],
+  existants: ReadonlySet<string>,
+  raisonAbsence: string
+): RapportLot {
+  return {
+    succes: ids.filter((id) => existants.has(id)),
+    echecs: ids
+      .filter((id) => !existants.has(id))
+      .map((id) => ({ id, raison: raisonAbsence })),
+  }
+}
+
+async function mettreAJourLot(
+  ids: readonly string[],
+  data: Prisma.ProductUncheckedUpdateManyInput,
+  effects: CatalogEffects,
+  raisonAbsence = MESSAGE_PRODUIT_INTROUVABLE
+): Promise<RapportLot> {
+  const uniques = [...new Set(ids)]
+  if (uniques.length === 0) return { succes: [], echecs: [] }
+
+  const existants = await prisma.product.findMany({
+    where: { id: { in: uniques } },
+    select: { id: true },
+  })
+  const partage = partitionDesIdentifiants(
+    uniques,
+    new Set(existants.map((produit) => produit.id)),
+    raisonAbsence
+  )
+  if (partage.succes.length > 0) {
+    await prisma.product.updateMany({
+      where: { id: { in: partage.succes } },
+      data,
+    })
+    await reindexerLot(partage.succes, effects)
+  }
+  return partage
+}
+
+export async function bulkSetFeatured(
+  ids: readonly string[],
+  valeur: boolean,
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  return mettreAJourLot(ids, { isFeatured: valeur }, effects)
+}
+
+export async function bulkSetFreeShipping(
+  ids: readonly string[],
+  valeur: boolean,
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  return mettreAJourLot(ids, { freeShipping: valeur }, effects)
+}
+
+export async function bulkSetStructure(
+  ids: readonly string[],
+  structureId: string,
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const uniques = [...new Set(ids)]
+  const lecture = await lireStructure()
+  if (lecture.structure(structureId) === null) {
+    return {
+      succes: [],
+      echecs: uniques.map((id) => ({
+        id,
+        raison: MESSAGE_STRUCTURE_INTROUVABLE,
+      })),
+    }
+  }
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  return mettreAJourLot(
+    uniques,
+    { categoryId: structureId },
+    effects,
+    MESSAGE_PRODUIT_INTROUVABLE
+  )
+}
+
+export async function bulkDelete(
+  ids: readonly string[],
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  const uniques = [...new Set(ids)]
+  if (uniques.length === 0) return { succes: [], echecs: [] }
+
+  const existants = await prisma.product.findMany({
+    where: { id: { in: uniques } },
+    select: { id: true, slug: true, images: true, categoryId: true },
+  })
+  const partage = partitionDesIdentifiants(
+    uniques,
+    new Set(existants.map((produit) => produit.id)),
+    MESSAGE_PRODUIT_INTROUVABLE
+  )
+  if (partage.succes.length === 0) return partage
+
+  await prisma.product.deleteMany({ where: { id: { in: partage.succes } } })
+  const lecture = await lireStructure()
+  for (const produit of existants) {
+    await runEffect({
+      effet: "suppression-images",
+      entite: { type: "produit", id: produit.id },
+      message: `[catalog] suppression d'images R2 non effectuée pour ${produit.id}`,
+      fn: () => effects.deleteImages(urlsImagesProduit(produit.images)),
+    })
+    await runEffect({
+      effet: "desindexation",
+      entite: { type: "produit", id: produit.id },
+      message: `[catalog] suppression de l'index Meilisearch non effectuée pour ${produit.id}`,
+      fn: () => effects.removeProductFromIndex(produit.id),
+    })
+    await runEffect({
+      effet: "invalidation-cache",
+      entite: { type: "produit", id: produit.id },
+      message: `[catalog] invalidation du cache non effectuée pour ${produit.id}`,
+      fn: () =>
+        effects.revalidateCatalog({
+          id: produit.id,
+          slug: produit.slug,
+          categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+        }),
+    })
+  }
+  return partage
+}
+
+async function nomDeCopie(
+  base: string,
+  estLibre: (candidat: string) => Promise<boolean>
+): Promise<string> {
+  for (let rang = 1; rang < 100; rang += 1) {
+    const candidat = rang === 1 ? base : `${base}-${rang}`
+    if (await estLibre(candidat)) return candidat
+  }
+  throw new CatalogValidationError(["impossible de nommer la copie"])
+}
+
+export async function duplicateProduct(
+  id: string,
+  overrides?: Partial<CatalogEffects>
+) {
+  const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
+  const faits = await getAdminProduct(id)
+  if (faits === null) throw new ProductNotFoundError()
+
+  const slug = await nomDeCopie(`${faits.slug}-copie`, async (candidat) => {
+    const existant = await prisma.product.findUnique({
+      where: { slug: candidat },
+      select: { id: true },
+    })
+    return existant === null
+  })
+
+  const variantes: ProductVariantInput[] = []
+  for (const variante of faits.variants) {
+    const sku = await nomDeCopie(`${variante.sku}-copie`, async (candidat) => {
+      const existant = await prisma.productVariant.findUnique({
+        where: { sku: candidat },
+        select: { id: true },
+      })
+      return existant === null
+    })
+    variantes.push({
+      name: variante.name,
+      sku,
+      priceDelta: variante.priceDelta,
+      stock: variante.stock,
+    })
+  }
+
+  const copie = await prisma.product.create({
+    data: {
+      name: `${faits.name} (copie)`,
+      slug,
+      description: faits.description,
+      brand: faits.brand,
+      price: faits.price,
+      specs: faits.specs,
+      images: [],
+      isFeatured: faits.isFeatured,
+      featuredOrder: faits.featuredOrder,
+      freeShipping: faits.freeShipping,
+      categoryId: faits.categoryId,
+      variants: { create: variantes },
+    },
+    include: { variants: true },
+  })
+
+  await reindexerLot([copie.id], effects)
+  return copie
+}
+
 export async function updateVariantStock(
   variantId: string,
   stock: number,
@@ -830,25 +1119,96 @@ export interface FaitsProduitListe {
   freeShipping: boolean
   image: string | null
   totalStock: number
+  createdAt: Date
 }
 
-export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
-  const produits = await prisma.product.findMany({
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      brand: true,
-      price: true,
-      images: true,
-      isFeatured: true,
-      freeShipping: true,
-      category: { select: { name: true } },
-      variants: { select: { stock: true } },
-    },
-  })
+export interface AdminProductsPage {
+  produits: FaitsProduitListe[]
+  totalCount: number
+  pageCount: number
+}
 
-  return produits.map((produit) => ({
+type FiltreStructure =
+  { kind: "toutes" } | { kind: "sans" } | { kind: "ids"; ids: string[] }
+
+const COLONNE_DE_TRI: Record<ProduitTri, Prisma.Sql> = {
+  nom: Prisma.raw(`p."name"`),
+  prix: Prisma.raw(`p."price"`),
+  stock: Prisma.raw(
+    `COALESCE((SELECT SUM(sv."stock") FROM "ProductVariant" sv WHERE sv."productId" = p."id"), 0)`
+  ),
+  date: Prisma.raw(`p."createdAt"`),
+}
+
+const STOCK_TOTAL = Prisma.raw(
+  `COALESCE((SELECT SUM(sv."stock") FROM "ProductVariant" sv WHERE sv."productId" = p."id"), 0)`
+)
+
+async function filtreStructureDe(
+  structure: string | undefined
+): Promise<FiltreStructure> {
+  if (!structure) return { kind: "toutes" }
+  if (structure === PRODUIT_STRUCTURE_SANS) return { kind: "sans" }
+
+  const lecture = await lireStructure()
+  if (lecture.structure(structure) === null) return { kind: "toutes" }
+  return { kind: "ids", ids: lecture.branche(structure) }
+}
+
+function whereDesProduits(
+  params: ProduitListingParams,
+  filtre: FiltreStructure
+): Prisma.Sql {
+  const conditions: Prisma.Sql[] = []
+  if (filtre.kind === "sans") {
+    conditions.push(Prisma.sql`p."categoryId" IS NULL`)
+  } else if (filtre.kind === "ids") {
+    conditions.push(Prisma.sql`p."categoryId" IN (${Prisma.join(filtre.ids)})`)
+  }
+  if (params.q) {
+    const motif = `%${params.q}%`
+    conditions.push(Prisma.sql`(
+      p."name" ILIKE ${motif}
+      OR p."brand" ILIKE ${motif}
+      OR p."slug" ILIKE ${motif}
+      OR EXISTS (
+        SELECT 1 FROM "ProductVariant" recherche
+        WHERE recherche."productId" = p."id" AND recherche."sku" ILIKE ${motif}
+      )
+    )`)
+  }
+  if (params.misEnAvant) conditions.push(Prisma.sql`p."isFeatured" = TRUE`)
+  if (params.livraisonOfferte)
+    conditions.push(Prisma.sql`p."freeShipping" = TRUE`)
+  if (params.stock === PRODUIT_STOCK_ZERO)
+    conditions.push(Prisma.sql`${STOCK_TOTAL} = 0`)
+  if (params.stock === PRODUIT_STOCK_NON_NUL)
+    conditions.push(Prisma.sql`${STOCK_TOTAL} > 0`)
+
+  if (conditions.length === 0) return Prisma.empty
+  return Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+}
+
+function orderDesProduits(params: ProduitListingParams): Prisma.Sql {
+  const tri = params.tri ?? PRODUIT_LISTING_TRI_DEFAULT
+  const sens = params.sens ?? PRODUIT_LISTING_SENS_DEFAULT
+  const direction = sens === "asc" ? Prisma.raw("ASC") : Prisma.raw("DESC")
+  return Prisma.sql`ORDER BY ${COLONNE_DE_TRI[tri]} ${direction}, p."id" ${direction}`
+}
+
+function faitDeListe(produit: {
+  id: string
+  name: string
+  brand: string
+  price: number
+  images: unknown
+  isFeatured: boolean
+  freeShipping: boolean
+  category: { name: string } | null
+  variants: { stock: number }[]
+  createdAt: Date
+}): FaitsProduitListe {
+  return {
     id: produit.id,
     name: produit.name,
     brand: produit.brand,
@@ -858,7 +1218,68 @@ export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
     freeShipping: produit.freeShipping,
     image: urlsImagesProduit(produit.images)[0] ?? null,
     totalStock: totalVariantStock(produit.variants),
-  }))
+    createdAt: produit.createdAt,
+  }
+}
+
+export async function listAdminProducts(
+  params: ProduitListingParams
+): Promise<AdminProductsPage> {
+  const page = params.page ?? PRODUIT_LISTING_PAGE_DEFAULT
+  const pageSize = params.pageSize ?? PRODUIT_LISTING_PAGE_SIZE_DEFAULT
+  const filtre = await filtreStructureDe(params.structure)
+  const where = whereDesProduits(params, filtre)
+  const orderBy = orderDesProduits(params)
+  const offset = (page - 1) * pageSize
+
+  const resultat = await prisma.$transaction(async (tx) => {
+    const lignes = await tx.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT p."id" FROM "Product" p ${where} ${orderBy} LIMIT ${pageSize} OFFSET ${offset}`
+    )
+    const [compte] = await tx.$queryRaw<{ total: number }[]>(
+      Prisma.sql`SELECT COUNT(*)::int AS total FROM "Product" p ${where}`
+    )
+    const ids = lignes.map((ligne) => ligne.id)
+    const produits =
+      ids.length === 0
+        ? []
+        : await tx.product.findMany({
+            where: { id: { in: ids } },
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              price: true,
+              images: true,
+              isFeatured: true,
+              freeShipping: true,
+              createdAt: true,
+              category: { select: { name: true } },
+              variants: { select: { stock: true } },
+            },
+          })
+    return { ids, produits, total: compte?.total ?? 0 }
+  })
+
+  const parId = new Map(
+    resultat.produits.map((produit) => [produit.id, produit])
+  )
+  const produits = resultat.ids.flatMap((id) => {
+    const produit = parId.get(id)
+    return produit === undefined ? [] : [faitDeListe(produit)]
+  })
+  const totalCount = resultat.total
+
+  return {
+    produits,
+    totalCount,
+    pageCount: Math.ceil(totalCount / pageSize),
+  }
+}
+
+/** Le libellé d'un Produit sans Structure, pour la facette de la liste. */
+export function libelleSansStructure(): string {
+  return LIBELLE_SANS_STRUCTURE
 }
 
 export async function getAdminProduct(

@@ -1,30 +1,34 @@
-import Image from "next/image"
 import Link from "next/link"
 import type { Metadata } from "next"
+import { Suspense } from "react"
 
-import { DeleteProductButton } from "@/components/admin/delete-product-button"
-import { DataTableStatus } from "@/components/data-table"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { parseProduitListingParams } from "@/lib/produit-listing"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { formatPrice } from "@/lib/money"
-import { listAdminProducts } from "@/lib/use-cases/admin-catalog"
-import { deleteProductAction } from "@/app/admin/produits/actions"
+  libelleSansStructure,
+  listAdminProducts,
+} from "@/lib/use-cases/admin-catalog"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
+import {
+  bulkDeleteAction,
+  bulkSetFeaturedAction,
+  bulkSetFreeShippingAction,
+  bulkSetStructureAction,
+  duplicateProductAction,
+} from "@/app/admin/produits/actions"
+import { ProduitsSkeleton, ProduitsTable } from "./produits-table"
 
 export const metadata: Metadata = {
   title: "Produits",
 }
 
-export default async function AdminProductsPage() {
-  const products = await listAdminProducts()
+type RawSearchParams = Record<string, string | string[] | undefined>
 
+export default function AdminProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<RawSearchParams>
+}) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -34,89 +38,45 @@ export default async function AdminProductsPage() {
         </Button>
       </div>
 
-      <DataTableStatus
-        resultCount={products.length}
-        labels={{ singulier: "produit", pluriel: "produits" }}
-      />
-
-      {products.length === 0 ? (
-        <p className="text-muted-foreground">
-          Aucun produit pour le moment. Créez votre premier produit.
-        </p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Produit</TableHead>
-              <TableHead>Catégorie</TableHead>
-              <TableHead>Prix</TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead className="text-end">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {products.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    {product.image ? (
-                      <Image
-                        src={product.image}
-                        alt=""
-                        width={40}
-                        height={40}
-                        className="size-10 rounded-lg border object-cover"
-                      />
-                    ) : null}
-                    <div className="flex flex-col">
-                      <span className="font-medium">{product.name}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {product.brand}
-                      </span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>{product.categoryName}</TableCell>
-                <TableCell>{formatPrice(product.price)}</TableCell>
-                <TableCell>
-                  <span
-                    className={
-                      product.totalStock === 0 ? "text-destructive" : undefined
-                    }
-                  >
-                    {product.totalStock}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {product.isFeatured ? <Badge>Mis en avant</Badge> : null}
-                    {product.freeShipping ? (
-                      <Badge variant="secondary">Livraison offerte</Badge>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      render={<Link href={`/admin/produits/${product.id}`} />}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Modifier
-                    </Button>
-                    <DeleteProductButton
-                      productId={product.id}
-                      productName={product.name}
-                      action={deleteProductAction}
-                    />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      <Suspense fallback={<ProduitsSkeleton />}>
+        <ProduitsContent searchParamsPromise={searchParams} />
+      </Suspense>
     </div>
+  )
+}
+
+async function ProduitsContent({
+  searchParamsPromise,
+}: {
+  searchParamsPromise: Promise<RawSearchParams>
+}) {
+  const raw = await searchParamsPromise
+  const params = parseProduitListingParams(raw)
+  const [page, lecture] = await Promise.all([
+    listAdminProducts(params),
+    lireStructure(),
+  ])
+  const structures = lecture.options().map((option) => ({
+    id: option.id,
+    chemin: lecture
+      .filAriane(option.id)
+      .map((maillon) => maillon.name)
+      .join(" › "),
+  }))
+
+  return (
+    <ProduitsTable
+      params={params}
+      page={page}
+      structures={structures}
+      sansStructureLabel={libelleSansStructure()}
+      actions={{
+        setStructure: bulkSetStructureAction,
+        setFeatured: bulkSetFeaturedAction,
+        setFreeShipping: bulkSetFreeShippingAction,
+        delete: bulkDeleteAction,
+        duplicate: duplicateProductAction,
+      }}
+    />
   )
 }
