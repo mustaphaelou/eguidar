@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+/* eslint-disable react-hooks/incompatible-library -- TanStack Table dans un banc de test. */
 
 import * as React from "react"
 import { act } from "react"
