@@ -1,8 +1,8 @@
 import { cacheLife, cacheTag } from "next/cache"
 
+import { filtreArticlePublic } from "@/lib/article-public"
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
-import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   parametresDeSlug,
   type ParametresDeSlug,
@@ -10,23 +10,9 @@ import {
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { BLOG_TAG, blogDetailTag } from "@/lib/use-cases/cache-invalidation"
 
-export type StatutPublication = "brouillon" | "publie" | "archive"
+export { filtreArticlePublic } from "@/lib/article-public"
 
-/**
- * La condition de lecture publique d'un Article : un statut public et une
- * date de publication au plus tard maintenant. Une date nulle ou future
- * n'ouvre aucune URL publique — la publication programmée est une lecture,
- * pas un travail de fond.
- */
-export function filtreArticlePublic(
-  statuts: readonly StatutPublication[] = ["publie"],
-  maintenant: Date = new Date()
-): Prisma.ArticleBlogWhereInput {
-  return {
-    statut: { in: [...statuts] },
-    publishedAt: { lte: maintenant },
-  }
-}
+export type StatutPublication = "brouillon" | "publie" | "archive"
 
 export interface ThemeRef {
   slug: string
