@@ -4,6 +4,7 @@ import {
   decoupeContenuArticle,
   decoupeRenvoisDeNote,
   lignesDeNotes,
+  textesDuFragment,
 } from "@/lib/blog-contenu"
 
 describe("decoupeContenuArticle", () => {
@@ -175,6 +176,32 @@ describe("lignesDeNotes", () => {
     expect(lignesDeNotes(null)).toEqual([])
     expect(lignesDeNotes("")).toEqual([])
     expect(lignesDeNotes(" \n\n\t\n")).toEqual([])
+  })
+})
+
+describe("textesDuFragment", () => {
+  it("rend les textes qui peuvent porter un renvoi de note", () => {
+    expect(
+      textesDuFragment({ type: "paragraphe", texte: "Le prix varie^1." })
+    ).toEqual(["Le prix varie^1."])
+    expect(
+      textesDuFragment({ type: "citation", texte: "Une phrase^2." })
+    ).toEqual(["Une phrase^2."])
+    expect(
+      textesDuFragment({ type: "liste", items: ["Autonomie^1", "Poids"] })
+    ).toEqual(["Autonomie^1", "Poids"])
+  })
+
+  it("rend aucun texte pour un Intertitre ou une figure", () => {
+    expect(textesDuFragment({ type: "intertitre", texte: "Titre" })).toEqual([])
+    expect(
+      textesDuFragment({
+        type: "figure",
+        alt: "Un casque",
+        url: "/images/casque.webp",
+        legende: null,
+      })
+    ).toEqual([])
   })
 })
 

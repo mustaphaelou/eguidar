@@ -36,7 +36,8 @@ glossaire avec elle.
 - **Le renvoi de note est une marque dans le texte**, `^1`, et les notes elles-mêmes ne sont pas dans
   la grammaire. `contenu` se lit ligne à ligne ; une note de bas de page est une unité de page, pas
   un **Fragment d'article** : elle vit dans sa propre colonne, hors du flux, et se rend en bloc de
-  fin de page. Le renvoi `^n` désigne la n-ième ligne de cette colonne.
+  fin de page. Le renvoi `^n` désigne la n-ième **note** de cette colonne ; une ligne vide sépare
+  deux notes et ne se compte pas.
 
 - **Le parseur est total.** `decoupeContenuArticle` ne lève jamais : une ligne qui n'est aucune des
   cinq formes est du texte, un contenu vide rend zéro fragment, et un renvoi qui ne désigne aucune

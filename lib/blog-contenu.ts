@@ -91,6 +91,19 @@ export function lignesDeNotes(notes: string | null): string[] {
 export type MorceauDeTexte =
   { type: "texte"; texte: string } | { type: "renvoi"; numero: number }
 
+export function textesDuFragment(fragment: FragmentArticle): string[] {
+  switch (fragment.type) {
+    case "paragraphe":
+    case "citation":
+      return [fragment.texte]
+    case "liste":
+      return fragment.items
+    case "intertitre":
+    case "figure":
+      return []
+  }
+}
+
 const RENVOI = /\^([1-9]\d*)/g
 
 export function decoupeRenvoisDeNote(
