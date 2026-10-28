@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto"
 
 import { hashPassword } from "better-auth/crypto"
 
+import { semerLesRegles } from "../lib/automations/regles"
 import { prisma } from "../lib/db"
 import { indexProductDocuments } from "../lib/meili"
 import { toIndexableProduct } from "../lib/index-projection"
@@ -341,6 +342,8 @@ async function main() {
       })
     ).map(toIndexableProduct)
   )
+
+  await semerLesRegles()
 
   console.log(
     "Seed terminé : villes, catégories, produits, variantes et compte admin créés."
