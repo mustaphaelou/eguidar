@@ -263,6 +263,7 @@ interface ArticleDeDemo {
   extrait: string
   couverture: string | null
   contenu: string
+  notes: string | null
   theme: "guides" | "annonces"
   publishedAt: Date
 }
@@ -276,6 +277,9 @@ const articlesDeBlog = [
     couverture: "/blog/guide-smartphone-couverture.png",
     theme: "guides",
     publishedAt: new Date("2026-10-15T09:00:00.000Z"),
+    notes: `Les autonomies citées proviennent de notre comparatif mené en septembre 2026.
+
+Prix TTC indicatif : il ne tient pas compte des promotions ni des options choisies.`,
     contenu: `Un smartphone se choisit sur trois axes : ce qu'on voit, ce qu'on touche et ce qui tient la journée. Le reste — les modes photo, les promesses d'intelligence artificielle — se découvre après l'achat.
 
 ## L'écran et la prise en main
@@ -286,7 +290,7 @@ La taille de l'écran ne dit rien du confort. Un format de 6,1 pouces bien propo
 
 - Privilégier un écran OLED pour la lisibilité en plein soleil.
 - Vérifier la fréquence de rafraîchissement, agréable au défilement.
-- Comparer l'autonomie annoncée à celle des tests indépendants.
+- Comparer l'autonomie annoncée à celle des tests indépendants.^1
 - Tenir compte du poids, surtout au-delà de 200 grammes.
 
 ## L'autonomie et la recharge
@@ -299,7 +303,7 @@ Une batterie de 5000 mAh ne garantit rien sans une puce économe. Les modèles r
 
 ## Le budget
 
-Fixez une enveloppe avant de regarder les modèles : le milieu de gamme couvre la plupart des usages, et la différence de prix se joue souvent sur la photo et la finition.`,
+Fixez une enveloppe avant de regarder les modèles : le milieu de gamme couvre la plupart des usages, et la différence de prix se joue souvent sur la photo et la finition.^2`,
   },
   {
     titre: "Ce que nous vérifions avant de mettre un produit en ligne",
@@ -309,6 +313,7 @@ Fixez une enveloppe avant de regarder les modèles : le milieu de gamme couvre l
     couverture: null,
     theme: "guides",
     publishedAt: new Date("2026-10-08T09:00:00.000Z"),
+    notes: null,
     contenu: `Un produit n'entre pas au catalogue parce qu'il est disponible chez un fournisseur. Il y entre parce que nous l'avons essayé, comparé et jugé digne de la place qu'il occupera dans la boutique.
 
 Nous commençons par les usages réels : un téléphone qui tient deux jours en usage courant, un ordinateur qui reste silencieux en visioconférence, un casque qu'on peut porter une heure sans gêne. Les fiches techniques servent à vérifier, pas à convaincre.
@@ -325,6 +330,7 @@ Enfin, nous écoutons les retours de la boutique. Un modèle qui revient trop so
     couverture: "/blog/annonce-boutique-couverture.png",
     theme: "annonces",
     publishedAt: new Date("2026-10-22T09:00:00.000Z"),
+    notes: null,
     contenu: `La boutique Eguidar ouvre ses portes à Casablanca. Vous pouvez y voir les produits du catalogue, les prendre en main et comparer les modèles avant de commander.
 
 Nos conseillers sont sur place pour vous aider à choisir selon votre budget et vos usages. Les commandes passées en ligne peuvent être retirées sur place dès le lendemain.`,

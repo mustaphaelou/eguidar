@@ -296,6 +296,7 @@ export const ArticleBlogScalarFieldEnum = {
   extrait: "extrait",
   couverture: "couverture",
   contenu: "contenu",
+  notes: "notes",
   themeId: "themeId",
   statut: "statut",
   publishedAt: "publishedAt",

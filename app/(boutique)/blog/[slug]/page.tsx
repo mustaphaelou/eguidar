@@ -1,6 +1,6 @@
 import Image from "next/image"
 import { notFound } from "next/navigation"
-import { Suspense } from "react"
+import { Fragment, Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
 import { ProduitLieCarte } from "@/components/storefront/produit-lie-carte"
@@ -9,7 +9,12 @@ import {
   buildBreadcrumbListDonneesStructurees,
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
-import { decoupeContenuArticle, type FragmentArticle } from "@/lib/blog-contenu"
+import {
+  decoupeContenuArticle,
+  decoupeRenvoisDeNote,
+  lignesDeNotes,
+  type FragmentArticle,
+} from "@/lib/blog-contenu"
 import { formatPublishedAt, publishedAtISO } from "@/lib/blog-dates"
 import { pageMetadata } from "@/lib/metadata"
 import { getArticleParSlug, parametresDesArticles } from "@/lib/use-cases/blog"
@@ -70,6 +75,14 @@ async function ArticleContent({
   ]
 
   const fragments = decoupeContenuArticle(data.contenu)
+  const notes = lignesDeNotes(data.notes)
+  const notesCitees = notesCiteesDans(fragments, notes.length)
+  const occurrences = new Map<number, number>()
+  const idDeRenvoi = (numero: number) => {
+    const occurrence = (occurrences.get(numero) ?? 0) + 1
+    occurrences.set(numero, occurrence)
+    return `renvoi-note-${numero}-${occurrence}`
+  }
 
   return (
     <>
@@ -125,8 +138,38 @@ async function ArticleContent({
           ) : null}
 
           {fragments.map((fragment, index) => (
-            <FragmentDuContenu key={index} fragment={fragment} />
+            <FragmentDuContenu
+              key={index}
+              fragment={fragment}
+              nombreDeNotes={notes.length}
+              idDeRenvoi={idDeRenvoi}
+            />
           ))}
+
+          {notes.length > 0 ? (
+            <ol className="list-decimal pl-6 text-[12px] leading-[1.3334] tracking-[-0.01em] text-muted-foreground md:col-start-2">
+              {notes.map((note, index) => {
+                const numero = index + 1
+                return (
+                  <li key={numero} id={`note-${numero}`}>
+                    {note}
+                    {notesCitees.has(numero) ? (
+                      <>
+                        {" "}
+                        <a
+                          href={`#renvoi-note-${numero}-1`}
+                          aria-label={`Retour au renvoi de la note ${numero}`}
+                          className="underline"
+                        >
+                          ↩
+                        </a>
+                      </>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ol>
+          ) : null}
         </article>
       </div>
 
@@ -148,7 +191,15 @@ async function ArticleContent({
   )
 }
 
-function FragmentDuContenu({ fragment }: { fragment: FragmentArticle }) {
+function FragmentDuContenu({
+  fragment,
+  nombreDeNotes,
+  idDeRenvoi,
+}: {
+  fragment: FragmentArticle
+  nombreDeNotes: number
+  idDeRenvoi: (numero: number) => string
+}) {
   switch (fragment.type) {
     case "intertitre":
       return (
@@ -168,21 +219,88 @@ function FragmentDuContenu({ fragment }: { fragment: FragmentArticle }) {
       return (
         <ul className="list-disc pl-6 md:col-start-2">
           {fragment.items.map((item, index) => (
-            <li key={index}>{item}</li>
+            <li key={index}>
+              <TexteAvecRenvois
+                texte={item}
+                nombreDeNotes={nombreDeNotes}
+                idDeRenvoi={idDeRenvoi}
+              />
+            </li>
           ))}
         </ul>
       )
     case "citation":
       return (
         <blockquote className="whitespace-pre-line md:col-start-2">
-          {fragment.texte}
+          <TexteAvecRenvois
+            texte={fragment.texte}
+            nombreDeNotes={nombreDeNotes}
+            idDeRenvoi={idDeRenvoi}
+          />
         </blockquote>
       )
     case "paragraphe":
       return (
-        <p className="whitespace-pre-line md:col-start-2">{fragment.texte}</p>
+        <p className="whitespace-pre-line md:col-start-2">
+          <TexteAvecRenvois
+            texte={fragment.texte}
+            nombreDeNotes={nombreDeNotes}
+            idDeRenvoi={idDeRenvoi}
+          />
+        </p>
       )
   }
+}
+
+function TexteAvecRenvois({
+  texte,
+  nombreDeNotes,
+  idDeRenvoi,
+}: {
+  texte: string
+  nombreDeNotes: number
+  idDeRenvoi: (numero: number) => string
+}) {
+  return decoupeRenvoisDeNote(texte, nombreDeNotes).map((morceau, index) =>
+    morceau.type === "texte" ? (
+      <Fragment key={index}>{morceau.texte}</Fragment>
+    ) : (
+      <sup key={index}>
+        <a
+          id={idDeRenvoi(morceau.numero)}
+          href={`#note-${morceau.numero}`}
+          aria-label={`Renvoi vers la note ${morceau.numero}`}
+          className="underline"
+        >
+          {morceau.numero}
+        </a>
+      </sup>
+    )
+  )
+}
+
+function notesCiteesDans(
+  fragments: FragmentArticle[],
+  nombreDeNotes: number
+): Set<number> {
+  const citees = new Set<number>()
+
+  for (const fragment of fragments) {
+    const textes =
+      fragment.type === "paragraphe" || fragment.type === "citation"
+        ? [fragment.texte]
+        : fragment.type === "liste"
+          ? fragment.items
+          : []
+
+    for (const texte of textes) {
+      for (const morceau of decoupeRenvoisDeNote(texte, nombreDeNotes)) {
+        if (morceau.type === "renvoi") citees.add(morceau.numero)
+      }
+    }
+  }
+
+  return citees
 }
 
 function FigureArticle({

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { decoupeContenuArticle } from "@/lib/blog-contenu"
+import {
+  decoupeContenuArticle,
+  decoupeRenvoisDeNote,
+  lignesDeNotes,
+} from "@/lib/blog-contenu"
 
 describe("decoupeContenuArticle", () => {
   it("rend chaque bloc de texte séparé par une ligne vide en paragraphe", () => {
@@ -156,6 +160,46 @@ describe("decoupeContenuArticle", () => {
     ])
     expect(decoupeContenuArticle("## \n\n<script>alert(1)</script>")).toEqual([
       { type: "paragraphe", texte: "<script>alert(1)</script>" },
+    ])
+  })
+})
+
+describe("lignesDeNotes", () => {
+  it("numérote les notes par ligne et ignore les lignes vides", () => {
+    expect(
+      lignesDeNotes("Prix TTC indicatif.\n\n  \nDisponibilité à la commande.")
+    ).toEqual(["Prix TTC indicatif.", "Disponibilité à la commande."])
+  })
+
+  it("rend zéro note quand la colonne est nulle ou vide", () => {
+    expect(lignesDeNotes(null)).toEqual([])
+    expect(lignesDeNotes("")).toEqual([])
+    expect(lignesDeNotes(" \n\n\t\n")).toEqual([])
+  })
+})
+
+describe("decoupeRenvoisDeNote", () => {
+  it("découpe le texte autour des renvois qui désignent une note", () => {
+    expect(
+      decoupeRenvoisDeNote("Le prix varie^1, la dispo suit^2.", 2)
+    ).toEqual([
+      { type: "texte", texte: "Le prix varie" },
+      { type: "renvoi", numero: 1 },
+      { type: "texte", texte: ", la dispo suit" },
+      { type: "renvoi", numero: 2 },
+      { type: "texte", texte: "." },
+    ])
+  })
+
+  it("laisse un renvoi ^9 sans note dans le texte", () => {
+    const texte = "Le prix peut varier^9 selon la ville."
+
+    expect(decoupeRenvoisDeNote(texte, 2)).toEqual([{ type: "texte", texte }])
+  })
+
+  it("laisse ^1 littéral quand l'Article n'a aucune note", () => {
+    expect(decoupeRenvoisDeNote("Une ligne^1.", 0)).toEqual([
+      { type: "texte", texte: "Une ligne^1." },
     ])
   })
 })

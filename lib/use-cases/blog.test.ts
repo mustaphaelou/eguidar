@@ -23,6 +23,7 @@ function makeInput(input: {
   extrait?: string
   couverture?: string | null
   contenu?: string
+  notes?: string | null
   themeSlug?: string
 }) {
   const statut = input.statut ?? "brouillon"
@@ -32,6 +33,7 @@ function makeInput(input: {
     extrait: input.extrait ?? "Un extrait de test",
     couverture: input.couverture ?? null,
     contenu: input.contenu ?? "Un contenu de test",
+    notes: input.notes ?? null,
     statut,
     publishedAt:
       input.publishedAt === undefined
@@ -139,6 +141,7 @@ describe("blog lecture publique", () => {
         extrait: "Nos conseils pour un achat serein.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+        notes: "Prix TTC indicatif.\nDisponibilité confirmée à la commande.",
         themeSlug: "annonces",
       })
 
@@ -150,6 +153,7 @@ describe("blog lecture publique", () => {
         extrait: "Nos conseils pour un achat serein.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+        notes: "Prix TTC indicatif.\nDisponibilité confirmée à la commande.",
         theme: { slug: "annonces", nom: "Annonces" },
         statut: "publie",
         produits: [],

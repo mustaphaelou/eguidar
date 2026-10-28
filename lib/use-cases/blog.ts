@@ -27,6 +27,7 @@ export interface ArticleBlogPublic {
   extrait: string
   couverture: string | null
   contenu: string
+  notes: string | null
   theme: ThemeRef
   publishedAt: Date | null
   statut: StatutPublication
@@ -99,6 +100,7 @@ export async function fetchArticleParSlug(
     extrait: article.extrait,
     couverture: article.couverture,
     contenu: article.contenu,
+    notes: article.notes,
     theme: { slug: article.theme.slug, nom: article.theme.nom },
     publishedAt: article.publishedAt,
     statut: article.statut,
