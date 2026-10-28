@@ -165,6 +165,29 @@ describe("admin dashboard stats", () => {
     expect(stats.lowStockVariants.length).toBeGreaterThanOrEqual(2)
   })
 
+  it("compte les Produits en rupture, y compris ceux qui n'ont aucune Variante", async () => {
+    const avant = (await getDashboardStats()).outOfStockCount
+    const sansVariante = await prisma.product.create({
+      data: {
+        name: "Produit sans variante",
+        slug: `dashboard-sans-variante-${runId}`,
+        description: "",
+        brand: "Test",
+        price: 1000,
+        specs: {},
+        images: [],
+      },
+    })
+
+    try {
+      expect((await getDashboardStats()).outOfStockCount).toBe(avant + 1)
+    } finally {
+      await prisma.product.delete({ where: { id: sansVariante.id } })
+    }
+
+    expect((await getDashboardStats()).outOfStockCount).toBe(avant)
+  })
+
   it("lists variants at or below the low-stock threshold with product info", async () => {
     const stats = await getDashboardStats()
     const low = stats.lowStockVariants.filter(
