@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
+import { PartageArticle } from "@/components/storefront/partage-article"
 import { ProduitLieCarte } from "@/components/storefront/produit-lie-carte"
 import {
   buildArticleDonneesStructurees,
@@ -118,6 +119,7 @@ async function ArticleContent({
             <p className="mt-[20px] text-[19px] leading-[1.4211] tracking-[0.012em] max-[1068px]:text-body max-[1068px]:leading-body max-[1068px]:tracking-[-0.022em]">
               {data.extrait}
             </p>
+            <PartageArticle titre={data.titre} slug={data.slug} />
           </header>
 
           {data.couverture ? (
