@@ -936,3 +936,165 @@ qu'elle nommait, et le seuil redescend à seize entrées.
   à ce que la reconnaissance trouve, et ses raisons restent des exceptions nommées.
 - **Rien d'autre ne bouge** : ni le schéma, ni la marche, ni les gardes de frontière, ni la règle de
   terminaison, ni les lectures restantes de la relation.
+
+## Amendement — La Structure a une position, et le déplacement n'a qu'une commande (#808, 2026-10-28)
+
+La décision ne bouge pas : des faits et non des verdicts, la mutation qui refuse pendant que les
+lectures dégradent, une seule marche pour toute la Structure, une neutralité qui tient, et le
+comparateur écrit une fois dans le cœur. Cet amendement consigne une décision prise après que les
+six précédents eurent été écrits : **la Structure a un ordre explicite, le déplacement est une
+commande unique, et la boutique suit le même ordre que l'Administration**.
+
+### La position, et l'index que ce document refusait
+
+`Category` gagne `position Int @default(0)` et `@@index([parentId, position])`
+([schema.prisma](../../prisma/schema.prisma)). La migration est **additive** : une colonne
+`INTEGER NOT NULL DEFAULT 0`, puis l'index de la fratrie. Toutes les rangées existantes démarrent à
+zéro, et le nom en français départage encore, donc **l'ordre visible ne change pas avant le premier
+déplacement**. Un second `prisma migrate deploy` ne fait rien, et l'épreuve le rejoue
+([position-des-structures.test.ts](../../prisma/migrations/position-des-structures.test.ts)).
+
+Aucune contrainte d'unicité sur `(parentId, position)` n'est posée en v1. Les racines y échapperaient
+— SQL tient les `NULL` pour distincts, et `NULLS NOT DISTINCT` demanderait un SQL hors schéma — et une
+unicité immédiate exigerait une contrainte `DEFERRABLE` ou une réécriture par décalages négatifs,
+pour une garantie que la commande unique fournit déjà. Les positions sont **clairsemées** : un
+déplacement réécrit sa fratrie d'accueil par pas de 1024, et les rangées laissées à zéro restent
+départagées par le nom. Ce n'est pas un ordre dense, c'est un ordre total.
+
+**Ce passage du document cesse d'être vrai** : « **`@@index([parentId])` reste absent.** Le schéma n'a
+ni index sur `parentId` ni garde de cycle » — la première moitié tombe, la seconde reste.
+`@@index([parentId, position])` **est** cet index, élargi de la clé d'ordre ; il répond à la fois à la
+descente par parente et au rangement d'une fratrie. La puce « Rien n'est rouvert : […] l'index absent
+sur `parentId` » des [amendements de #564](#amendement--une-seule-promesse-dordre-et-elle-est-écrite-dans-le-cœur-564),
+[#585](#amendement--la-topologie-de-la-structure-a-un-seul-propriétaire-et-une-structure-hors-arbre-se-rend-une-fois-585),
+[#604](#amendement--une-lecture-de-la-relation-est-une-exception-nommée-et-la-liste-est-la-règle-604)
+et [#618](#amendement--une-seule-lecture-de-la-structure-et-des-questions-qui-sont-ses-faits-618)
+devient donc fausse pour cette moitié, et c'est le présent amendement qu'il faut y lire. Le piège
+`Category_parentId_fkey` en `ON DELETE SET NULL` reste vrai : une promotion silencieuse emporterait
+désormais la position de l'enfant, et le réattribut explicite reste la seule voie (ADR-0027).
+
+### Le comparateur : `(position, nom, identifiant)`, une fois
+
+`comparerParNom` devient `comparerStructures`
+([marche-structure.ts](../../lib/marche-structure.ts)) et compare **la position d'abord**, puis le nom
+en français, puis l'identifiant. `StructureOrdonnee` porte les trois faits, `LiensStructure` gagne
+`positions`, et `dansLOrdreDuModule` la transmet. Toutes les projections de la Lecture qui classent
+empruntent le comparateur du cœur : l'arbre d'accueil, les lignes, les cibles de suppression, les
+options, les enfants et la branche
+([lecture-structure.ts](../../lib/use-cases/lecture-structure.ts)). La promesse d'ordre reste donc
+**écrite une fois**, et le départage par l'identifiant reste ce qui la rend totale.
+
+**La boutique suit le même ordre, et c'est une décision, non une conséquence laissée ouverte.**
+`arbreAccueil()` et `enfants()` viennent de la même Lecture, donc l'accueil et les puces d'une page de
+catégorie se rangent par `(position, nom, identifiant)`, comme la liste d'Administration. Le spec
+laissait la question ouverte ; le défaut — un seul comparateur partout — est tenu, et **aucune
+divergence boutique/Administration n'est consignée, parce qu'il n'y en a pas**. La recette partagée
+([ordre-structures-recette.ts](../../test/ordre-structures-recette.ts)) pinçait l'ancien ordre : elle
+est **étendue**, non supprimée, d'un cas où la position contredit le nom, et chaque projection le
+rejoue ; une épreuve de la boutique vérifie que l'accueil et la page de catégorie rendent le même
+ordre ([storefront.test.ts](../../lib/use-cases/storefront.test.ts)).
+
+Une conséquence de ce choix, et elle est assumée : les **options d'un sélecteur** — un ensemble
+plat qui ne porte aucune hiérarchie — se rangent désormais par position puis nom, comme le reste.
+C'est le prix d'une promesse unique ; une seconde promesse pour ce seul sélecteur serait exactement
+ce que l'amendement de #564 a fait disparaître.
+
+### Une seule commande, et c'est le seul écrivain des positions
+
+`deplacerStructure({ id, nouvelleParenteId, avantId })` rejoint les mutations de Structure, dans le
+même `sousVerrouDeStructure` — le verrou grossier, le `lock_timeout` et les deux échelles de refus
+d'ADR-0027, sans second verrou ni seconde transaction
+([admin-structure.ts](../../lib/use-cases/admin-structure.ts)). La commande :
+
+- refuse une destination **dans la sous-structure déplacée** (`CategoryValidationError`, la même
+  chaîne d'ancêtres que `updateCategory`) ;
+- refuse un résultat **cyclique** avec `CategoryAncestorCycleError`, et la destination inconnue ou
+  l'insertion hors de la fratrie avec `CategoryValidationError` ;
+- range la fratrie d'accueil par le comparateur, retire la Structure déplacée, l'insère **avant
+  `avantId`** — `avantId: null` veut dire « en dernier » —, puis réécrit les positions par pas de
+  1024 et le `parentId` de la seule Structure déplacée ;
+- rend un **fait nommé** : `{ nomDestination, position, nombreFreres }`. C'est ce que la page
+  annonce, et c'est aussi ce qu'une réparation rend quand elle réussit.
+
+Le client **ne calcule jamais** une position ni une fratrie : les quatre boutons « Monter »,
+« Descendre », « Indenter » et « Désindenter », et le sélecteur « Déplacer sous… » / « Rattacher… »,
+envoient chacun **une intention** — `categoryId`, `nouvelleParenteId`, `avantId` — et rien d'autre.
+La page lit l'ordre que la Lecture a déjà rendu et le traduit en intentions
+([intentions-de-deplacement.ts](../../app/admin/categories/intentions-de-deplacement.ts)) ; elle ne
+trie rien et n'écrit aucune position. Les quatre gestes ne sont donc pas quatre commandes : c'est la
+même, avec ses trois faits.
+
+**`updateCategory` reste un chemin de rattachement, et il ne devient pas un second propriétaire.**
+Le formulaire d'édition écrit `parentId` comme hier, sous le même verrou ; il **n'écrit pas**
+`position`, donc la rangée déplacée par le formulaire garde son ancienne position, que le comparateur
+départage par le nom puis l'identifiant. C'est une conséquence assumée : la seule écriture de
+position est celle de la commande de déplacement — la création la laisse au défaut zéro —, et le
+formulaire ne fait que raccorder une arête. Passer le formulaire par la commande serait un autre
+travail, avec sa propre surface de refus.
+
+### Une Structure hors arbre se répare, et le refus nomme l'arête
+
+Le refus d'un cycle ne disait rien d'actionnable. `CategoryAncestorCycleError` porte désormais
+l'**arête qui ferme le cycle**, et son message la nomme — « (Cycle A → Cycle B → Cycle A) ; l'arête
+« Cycle B → Cycle A » le ferme » —, avec la propriété `arete` pour une épreuve. La liste
+d'Administration offre « Rattacher… » sur une Structure hors arbre : le sélecteur de destination
+envoie la même intention, et le refus nommé s'affiche sur la ligne et dans la région polie. L'éditeur
+peut donc rattacher la Structure à une racine saine, ou lire l'arête qui l'empêche. La divergence
+boutique/mutation tient en entier : la boutique dégrade, la mutation refuse, et c'est toujours la
+même Lecture qui nomme ce que la marche a parcouru.
+
+### La Lecture montre ce que la ligne taisait
+
+`FaitStructure` gagne `position`, lue dans la colonne. `LigneStructureAdmin` gagne `position` (le
+**rang** parmi les sœurs, un-based), `nombreFreres`, `nombreProduitsCumules` et `chemin`, le fil
+d'Ariane que `filAriane()` rendait déjà. Le cumul est calculé **dans la projection de la
+ligne**, à partir de la descendance que la marche a déjà bornée — la page ne le recompte pas, comme
+elle ne recompte pas les cibles de suppression. Le compte direct reste `nombreProduits`, et les deux
+chiffres s'affichent côte à côte.
+
+L'interface de la valeur **ne grandit pas** : les neuf questions et les cinq exports restent ceux de
+l'amendement de #618 ; `position`, le cumul et le chemin sont des **faits d'une ligne**, pas des
+questions. Le seuil des lectures ne gagne aucun site : la commande de déplacement lit sa fratrie sous
+le verrou par le même SQL brut que la chaîne d'ancêtres, et la seule lecture complète de la table
+reste `lireStructure()`, qui ne lit jamais dans une transaction (ADR-0027, amendement de #564).
+
+### L'écran : la table plate, quatre boutons, une région polie
+
+La liste garde sa table plate. Elle ajoute le repli/dépli, une recherche qui **garde visibles les
+ancêtres** de la ligne trouvée, les quatre boutons de déplacement — cibles de 24 × 24 px, noms
+accessibles « Monter Bottes », « Indenter Bottes », etc. —, un sélecteur de destination dont les
+libellés sont les **chemins complets**, et **une seule** région `role="status"` `aria-live="polite"`
+qui annonce le résultat sans prendre le focus. La ligne montre le fil d'Ariane, le compte direct, le
+cumul et la position (« 2 sur 5 »), avec le niveau et la position aussi en texte pour
+l'accessibilité ; la sémantique de table suffit, et **`role="treegrid"` reste absent**. Pas de
+glisser-déposer, pas de tableau de bord : les quatre boutons sont la voie unique, ce que WCAG 2.5.7
+demande de toute façon.
+
+### Ce que cet amendement ne change pas
+
+- **ADR-0027 n'est pas rouvert** : le verrou grossier, le `lock_timeout`, les deux échelles de refus,
+  `assertAcyclicCategoryTree` lié à sa transaction et le piège `Product_categoryId_fkey` restent ce
+  qu'ils étaient.
+- **Aucune profondeur maximale**, aucune contrainte d'unicité sur la fratrie, aucun second
+  propriétaire de la topologie.
+- **La règle de terminaison** de la marche ne change pas : toute revisite arrête.
+- **La divergence boutique/mutation** tient, et `CategoryAncestorCycleError` reste le seul refus de
+  cycle.
+- **La lecture complète** reste une, et la page continue de ne pas la multiplier : une lecture par
+  rendu, les cibles de suppression et les nouvelles lignes dans la même valeur.
+- **Le formulaire d'édition** garde son sélecteur de parente ; il ne devient pas un second écrivain
+  d'ordre.
+
+### Ce que l'épreuve montre aujourd'hui
+
+La migration se prouve sur le fichier et sur la base : colonne additive, index, défaut zéro, second
+déploiement sans effet, ordre visible identique tant que les positions se valent. Le comparateur se
+prouve dans le cœur (position prioritaire, puis nom, puis identifiant), et chaque projection de la
+Lecture rejoue l'ordre positionné de la recette. La commande se prouve sur la vraie base : monter,
+descendre, indenter et désindenter persistent et se relisent dans l'ordre produit ; une destination
+dans la sous-structure est refusée et l'arbre ne bouge pas ; deux déplacements concurrents attendent
+le même verrou grossier ; un dépassement de transaction garde sa propre voix, pas celle de la
+contention ; un cycle est refusé en nommant son arête, et une Structure hors arbre se rattache. La
+page se prouve au rendu : position, cumul, fil d'Ariane, une seule région polie, « Rattacher… » sur
+le hors arbre, aucun `treegrid`. Les quatre boutons se prouvent au clavier, à 24 px, et la charge
+envoyée ne porte que l'intention.

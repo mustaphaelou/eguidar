@@ -222,9 +222,12 @@ describe("Administration — ce que la frontière autorise", () => {
   it("ne s'allume pas sur un composant serveur qui rend un composant client", () => {
     const page = lire(import.meta.url, "./categories/page.tsx")
     expect(directive(page)).toBeNull()
-    expect(importeDe(page, "components/admin/delete-category-button")).toBe(
-      true
-    )
+    expect(importeDe(page, "components/admin/tableau-structure")).toBe(true)
+    expect(
+      directive(
+        lire(import.meta.url, "../../components/admin/tableau-structure.tsx")
+      )
+    ).toBe("use client")
     expect(empruntsClients(SOURCES)).toEqual([])
   })
 

@@ -17,6 +17,7 @@ export function faitsDesCategoriesRecherche({
       image: null,
       parentId: null,
       produitsDirects: 3,
+      position: 0,
     },
     {
       id: "audio",
@@ -25,6 +26,7 @@ export function faitsDesCategoriesRecherche({
       image: null,
       parentId: null,
       produitsDirects: 2,
+      position: 0,
     },
   ]
 }
