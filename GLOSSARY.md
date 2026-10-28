@@ -503,8 +503,20 @@ _Avoid_: run, log, journal (réservé au journal console de la phase 0)
 
 **Règle d'automatisation**:
 Le couple fermé déclencheur → condition → action qui décide ce qu'un Événement d'automatisation
-exécute. Semée dans le code, révisée à chaque changement, éditable par le marchand en Phase 5.
+exécute. Semée dans le code, révisée à chaque changement, éditable par le propriétaire depuis
+l'Administration.
 _Avoid_: workflow, scénario, trigger
+
+**Simulation d'automatisation**:
+L'évaluation d'une Règle d'automatisation contre un Événement d'automatisation réel, qui rend
+« enverrait » ou « ignorerait » avec son motif, sans écrire d'Exécution d'automatisation et sans
+rien envoyer.
+_Avoid_: test, dry run, prévisualisation
+
+**Réessai manuel**:
+L'Exécution d'une Règle d'automatisation rejouée à la demande sur l'Événement d'une Exécution en
+échec. Elle porte le déclencheur « manuel » et se distingue ainsi d'un balayage du travailleur.
+_Avoid_: retry, relance automatique, redrive (réservé au renvoi des Événements morts)
 
 **File morte**:
 L'état d'un Événement d'automatisation dont les tentatives sont épuisées, avec sa dernière
