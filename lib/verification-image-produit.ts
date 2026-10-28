@@ -1,4 +1,5 @@
 import sharp from "sharp"
+import type { Metadata, OutputInfo, Sharp } from "sharp"
 
 export const FORMATS_IMAGE_PRODUIT = [
   "jpeg",
@@ -49,9 +50,7 @@ function refus(message: string): RefusInspectionImageProduit {
   return { ok: false, code: "contenu-refuse", message }
 }
 
-function formatDepuisMetadata(
-  metadata: sharp.Metadata
-): FormatImageProduit | null {
+function formatDepuisMetadata(metadata: Metadata): FormatImageProduit | null {
   if (metadata.format === "heif") {
     return metadata.compression === "av1" ? "avif" : null
   }
@@ -63,7 +62,7 @@ function formatDepuisMetadata(
 async function reecrire(
   octets: Buffer,
   format: FormatImageProduit
-): Promise<{ data: Buffer; info: sharp.OutputInfo }> {
+): Promise<{ data: Buffer; info: OutputInfo }> {
   const source = sharp(octets, {
     animated: format === "gif",
     failOn: "warning",
@@ -97,7 +96,7 @@ export async function inspecterImageProduit(
   const source = Buffer.isBuffer(octets) ? octets : Buffer.from(octets)
   if (source.length === 0) return refus(MESSAGE_IMAGE_VIDE)
 
-  let metadata: sharp.Metadata
+  let metadata: Metadata
   try {
     metadata = await sharp(source, { failOn: "warning" }).metadata()
   } catch {

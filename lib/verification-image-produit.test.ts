@@ -1,4 +1,5 @@
 import sharp from "sharp"
+import type { Sharp } from "sharp"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -12,7 +13,7 @@ import {
 
 const DIMENSIONS = { width: 4, height: 2 }
 
-function fond(): sharp.Sharp {
+function fond(): Sharp {
   return sharp({
     create: {
       ...DIMENSIONS,
