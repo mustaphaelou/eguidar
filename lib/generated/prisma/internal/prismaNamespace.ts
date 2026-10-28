@@ -435,6 +435,7 @@ export const ModelName = {
   Product: "Product",
   ProductVariant: "ProductVariant",
   BrouillonImageProduit: "BrouillonImageProduit",
+  ImageProduit: "ImageProduit",
   CartItem: "CartItem",
   Order: "Order",
   OrderItem: "OrderItem",
@@ -473,6 +474,7 @@ export type TypeMap<
       | "product"
       | "productVariant"
       | "brouillonImageProduit"
+      | "imageProduit"
       | "cartItem"
       | "order"
       | "orderItem"
@@ -1088,6 +1090,82 @@ export type TypeMap<
           args: Prisma.BrouillonImageProduitCountArgs<ExtArgs>
           result:
             | runtime.Types.Utils.Optional<Prisma.BrouillonImageProduitCountAggregateOutputType>
+            | number
+        }
+      }
+    }
+    ImageProduit: {
+      payload: Prisma.$ImageProduitPayload<ExtArgs>
+      fields: Prisma.ImageProduitFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ImageProduitFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ImageProduitFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>
+        }
+        findFirst: {
+          args: Prisma.ImageProduitFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ImageProduitFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>
+        }
+        findMany: {
+          args: Prisma.ImageProduitFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>[]
+        }
+        create: {
+          args: Prisma.ImageProduitCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>
+        }
+        createMany: {
+          args: Prisma.ImageProduitCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ImageProduitCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>[]
+        }
+        delete: {
+          args: Prisma.ImageProduitDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>
+        }
+        update: {
+          args: Prisma.ImageProduitUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>
+        }
+        deleteMany: {
+          args: Prisma.ImageProduitDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ImageProduitUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ImageProduitUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>[]
+        }
+        upsert: {
+          args: Prisma.ImageProduitUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageProduitPayload>
+        }
+        aggregate: {
+          args: Prisma.ImageProduitAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateImageProduit>
+        }
+        groupBy: {
+          args: Prisma.ImageProduitGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ImageProduitGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ImageProduitCountArgs<ExtArgs>
+          result:
+            | runtime.Types.Utils.Optional<Prisma.ImageProduitCountAggregateOutputType>
             | number
         }
       }
@@ -1865,6 +1943,21 @@ export const BrouillonImageProduitScalarFieldEnum = {
 export type BrouillonImageProduitScalarFieldEnum =
   (typeof BrouillonImageProduitScalarFieldEnum)[keyof typeof BrouillonImageProduitScalarFieldEnum]
 
+export const ImageProduitScalarFieldEnum = {
+  id: "id",
+  publicUrl: "publicUrl",
+  mimeType: "mimeType",
+  byteSize: "byteSize",
+  width: "width",
+  height: "height",
+  alt: "alt",
+  createdBy: "createdBy",
+  createdAt: "createdAt",
+} as const
+
+export type ImageProduitScalarFieldEnum =
+  (typeof ImageProduitScalarFieldEnum)[keyof typeof ImageProduitScalarFieldEnum]
+
 export const CartItemScalarFieldEnum = {
   id: "id",
   userId: "userId",
@@ -2288,6 +2381,7 @@ export type GlobalOmitConfig = {
   product?: Prisma.ProductOmit
   productVariant?: Prisma.ProductVariantOmit
   brouillonImageProduit?: Prisma.BrouillonImageProduitOmit
+  imageProduit?: Prisma.ImageProduitOmit
   cartItem?: Prisma.CartItemOmit
   order?: Prisma.OrderOmit
   orderItem?: Prisma.OrderItemOmit
