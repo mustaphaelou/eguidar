@@ -7,6 +7,7 @@ import {
 } from "@/lib/use-cases/lecture-structure"
 import { structure, tousLesNoeuds } from "@/test/lecture-structure-recette"
 import {
+  FAITS_POSITIONNES,
   dansLOrdreEprouve,
   exigerLeMemeOrdre,
   eprouverLOrdreDuModule,
@@ -77,6 +78,7 @@ describe("l'ordre du module — les rendus s'accordent entre eux", () => {
         image: null,
         parentId: null,
         produitsDirects: 0,
+        position: 0,
       },
       {
         id: "zebre",
@@ -85,6 +87,7 @@ describe("l'ordre du module — les rendus s'accordent entre eux", () => {
         image: null,
         parentId: "racine",
         produitsDirects: 0,
+        position: 0,
       },
       {
         id: "ecran",
@@ -93,6 +96,7 @@ describe("l'ordre du module — les rendus s'accordent entre eux", () => {
         image: null,
         parentId: "racine",
         produitsDirects: 0,
+        position: 0,
       },
       {
         id: "jumeau-b",
@@ -101,6 +105,7 @@ describe("l'ordre du module — les rendus s'accordent entre eux", () => {
         image: null,
         parentId: "racine",
         produitsDirects: 0,
+        position: 0,
       },
       {
         id: "jumeau-a",
@@ -109,6 +114,7 @@ describe("l'ordre du module — les rendus s'accordent entre eux", () => {
         image: null,
         parentId: "racine",
         produitsDirects: 0,
+        position: 0,
       },
     ]
     const lecture = lectureDesStructures(faits)
@@ -474,6 +480,112 @@ describe("lignesAdmin — sur un arbre sain", () => {
     } finally {
       warn.mockRestore()
     }
+  })
+})
+
+describe("lignesAdmin — la position, le cumul et le fil d'Ariane", () => {
+  it("donne à chaque ligne sa position parmi ses sœurs, et leur nombre", () => {
+    const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()
+    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+
+    expect(parId.get("isolee")).toMatchObject({ position: 1, nombreFreres: 2 })
+    expect(parId.get("racine")).toMatchObject({ position: 2, nombreFreres: 2 })
+    expect(parId.get("enfant-a")).toMatchObject({
+      position: 1,
+      nombreFreres: 2,
+    })
+    expect(parId.get("enfant-b")).toMatchObject({
+      position: 2,
+      nombreFreres: 2,
+    })
+    expect(parId.get("petit-a")).toMatchObject({ position: 1, nombreFreres: 1 })
+  })
+
+  it("cumule les Produits de la branche entière à côté du compte direct", () => {
+    const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()
+    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+
+    expect(parId.get("racine")).toMatchObject({
+      nombreProduits: 1,
+      nombreProduitsCumules: 6,
+    })
+    expect(parId.get("enfant-a")).toMatchObject({
+      nombreProduits: 0,
+      nombreProduitsCumules: 2,
+    })
+    expect(parId.get("petit-a")).toMatchObject({
+      nombreProduits: 2,
+      nombreProduitsCumules: 2,
+    })
+    expect(parId.get("enfant-b")).toMatchObject({
+      nombreProduits: 3,
+      nombreProduitsCumules: 3,
+    })
+    expect(parId.get("isolee")).toMatchObject({
+      nombreProduits: 4,
+      nombreProduitsCumules: 4,
+    })
+  })
+
+  it("porte le fil d'Ariane de chaque ligne, la racine d'abord", () => {
+    const lignes = lectureDesStructures(ARBRE_SAIN).lignesAdmin()
+    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+
+    expect(parId.get("petit-a")!.chemin).toEqual([
+      { name: "Racine", slug: "racine" },
+      { name: "Enfant A", slug: "enfant-a" },
+      { name: "Petit A", slug: "petit-a" },
+    ])
+    expect(parId.get("racine")!.chemin).toEqual([
+      { name: "Racine", slug: "racine" },
+    ])
+  })
+
+  it("cumule les Produits d'une Structure hors arbre sans boucler", () => {
+    const lignes = lectureDesStructures([
+      structure("racine", "Racine", null, 1),
+      structure("amont", "Amont", "boucle-a", 2),
+      structure("boucle-a", "Boucle A", "boucle-b", 3),
+      structure("boucle-b", "Boucle B", "boucle-a", 4),
+    ]).lignesAdmin()
+    const parId = new Map(lignes.map((ligne) => [ligne.id, ligne]))
+
+    expect(parId.get("boucle-a")!.nombreProduitsCumules).toBe(9)
+    expect(parId.get("boucle-b")!.nombreProduitsCumules).toBe(9)
+    expect(parId.get("amont")!.nombreProduitsCumules).toBe(2)
+  })
+
+  it("range les lignes, l'arbre, les options et la branche par position, pas par nom", () => {
+    const lecture = lectureDesStructures(FAITS_POSITIONNES)
+    const ids = (noms: string[]) => noms
+
+    expect(lecture.lignesAdmin().map((ligne) => ligne.id)).toEqual([
+      "racine",
+      "zebre",
+      "alpha",
+      "ecran",
+    ])
+    expect(
+      lecture.arbreAccueil()[0]!.children.map((noeud) => noeud.id)
+    ).toEqual(ids(["zebre", "alpha", "ecran"]))
+    expect(lecture.enfants("racine").map((enfant) => enfant.id)).toEqual(
+      ids(["zebre", "alpha", "ecran"])
+    )
+    expect(lecture.options().map((option) => option.id)).toEqual([
+      "racine",
+      "zebre",
+      "alpha",
+      "ecran",
+    ])
+    expect(lecture.branche("racine")).toEqual([
+      "racine",
+      "zebre",
+      "alpha",
+      "ecran",
+    ])
+    expect(
+      lecture.ciblesSuppression().find((c) => c.id === "racine")!.produits
+    ).toEqual(["zebre", "alpha", "ecran"])
   })
 })
 
