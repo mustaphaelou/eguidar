@@ -29,6 +29,7 @@ export type ArticleBlogMinAggregateOutputType = {
   titre: string | null
   slug: string | null
   extrait: string | null
+  chapo: string | null
   couverture: string | null
   contenu: string | null
   themeId: string | null
@@ -43,6 +44,7 @@ export type ArticleBlogMaxAggregateOutputType = {
   titre: string | null
   slug: string | null
   extrait: string | null
+  chapo: string | null
   couverture: string | null
   contenu: string | null
   themeId: string | null
@@ -57,6 +59,7 @@ export type ArticleBlogCountAggregateOutputType = {
   titre: number
   slug: number
   extrait: number
+  chapo: number
   couverture: number
   contenu: number
   themeId: number
@@ -72,6 +75,7 @@ export type ArticleBlogMinAggregateInputType = {
   titre?: true
   slug?: true
   extrait?: true
+  chapo?: true
   couverture?: true
   contenu?: true
   themeId?: true
@@ -86,6 +90,7 @@ export type ArticleBlogMaxAggregateInputType = {
   titre?: true
   slug?: true
   extrait?: true
+  chapo?: true
   couverture?: true
   contenu?: true
   themeId?: true
@@ -100,6 +105,7 @@ export type ArticleBlogCountAggregateInputType = {
   titre?: true
   slug?: true
   extrait?: true
+  chapo?: true
   couverture?: true
   contenu?: true
   themeId?: true
@@ -194,6 +200,7 @@ export type ArticleBlogGroupByOutputType = {
   titre: string
   slug: string
   extrait: string
+  chapo: string | null
   couverture: string | null
   contenu: string
   themeId: string
@@ -227,6 +234,7 @@ export type ArticleBlogWhereInput = {
   titre?: Prisma.StringFilter<"ArticleBlog"> | string
   slug?: Prisma.StringFilter<"ArticleBlog"> | string
   extrait?: Prisma.StringFilter<"ArticleBlog"> | string
+  chapo?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   couverture?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   contenu?: Prisma.StringFilter<"ArticleBlog"> | string
   themeId?: Prisma.StringFilter<"ArticleBlog"> | string
@@ -245,6 +253,7 @@ export type ArticleBlogOrderByWithRelationInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrderInput | Prisma.SortOrder
   couverture?: Prisma.SortOrderInput | Prisma.SortOrder
   contenu?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
@@ -265,6 +274,7 @@ export type ArticleBlogWhereUniqueInput = Prisma.AtLeast<
     NOT?: Prisma.ArticleBlogWhereInput | Prisma.ArticleBlogWhereInput[]
     titre?: Prisma.StringFilter<"ArticleBlog"> | string
     extrait?: Prisma.StringFilter<"ArticleBlog"> | string
+    chapo?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
     couverture?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
     contenu?: Prisma.StringFilter<"ArticleBlog"> | string
     themeId?: Prisma.StringFilter<"ArticleBlog"> | string
@@ -286,6 +296,7 @@ export type ArticleBlogOrderByWithAggregationInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrderInput | Prisma.SortOrder
   couverture?: Prisma.SortOrderInput | Prisma.SortOrder
   contenu?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
@@ -310,6 +321,8 @@ export type ArticleBlogScalarWhereWithAggregatesInput = {
   titre?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
   slug?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
   extrait?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
+  chapo?:
+    Prisma.StringNullableWithAggregatesFilter<"ArticleBlog"> | string | null
   couverture?:
     Prisma.StringNullableWithAggregatesFilter<"ArticleBlog"> | string | null
   contenu?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
@@ -331,6 +344,7 @@ export type ArticleBlogCreateInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   statut?: $Enums.StatutPublication
@@ -346,6 +360,7 @@ export type ArticleBlogUncheckedCreateInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   themeId: string
@@ -361,6 +376,7 @@ export type ArticleBlogUpdateInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
@@ -379,6 +395,7 @@ export type ArticleBlogUncheckedUpdateInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   themeId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -397,6 +414,7 @@ export type ArticleBlogCreateManyInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   themeId: string
@@ -411,6 +429,7 @@ export type ArticleBlogUpdateManyMutationInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
@@ -427,6 +446,7 @@ export type ArticleBlogUncheckedUpdateManyInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   themeId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -454,6 +474,7 @@ export type ArticleBlogCountOrderByAggregateInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrder
   couverture?: Prisma.SortOrder
   contenu?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
@@ -468,6 +489,7 @@ export type ArticleBlogMaxOrderByAggregateInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrder
   couverture?: Prisma.SortOrder
   contenu?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
@@ -482,6 +504,7 @@ export type ArticleBlogMinOrderByAggregateInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrder
   couverture?: Prisma.SortOrder
   contenu?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
@@ -629,6 +652,7 @@ export type ArticleBlogCreateWithoutThemeInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   statut?: $Enums.StatutPublication
@@ -643,6 +667,7 @@ export type ArticleBlogUncheckedCreateWithoutThemeInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   statut?: $Enums.StatutPublication
@@ -705,6 +730,7 @@ export type ArticleBlogScalarWhereInput = {
   titre?: Prisma.StringFilter<"ArticleBlog"> | string
   slug?: Prisma.StringFilter<"ArticleBlog"> | string
   extrait?: Prisma.StringFilter<"ArticleBlog"> | string
+  chapo?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   couverture?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   contenu?: Prisma.StringFilter<"ArticleBlog"> | string
   themeId?: Prisma.StringFilter<"ArticleBlog"> | string
@@ -721,6 +747,7 @@ export type ArticleBlogCreateWithoutProduitsInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   statut?: $Enums.StatutPublication
@@ -735,6 +762,7 @@ export type ArticleBlogUncheckedCreateWithoutProduitsInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   themeId: string
@@ -777,6 +805,7 @@ export type ArticleBlogUpdateWithoutProduitsInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
@@ -794,6 +823,7 @@ export type ArticleBlogUncheckedUpdateWithoutProduitsInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   themeId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -811,6 +841,7 @@ export type ArticleBlogCreateManyThemeInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
   statut?: $Enums.StatutPublication
@@ -824,6 +855,7 @@ export type ArticleBlogUpdateWithoutThemeInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
@@ -841,6 +873,7 @@ export type ArticleBlogUncheckedUpdateWithoutThemeInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
@@ -858,6 +891,7 @@ export type ArticleBlogUncheckedUpdateManyWithoutThemeInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
@@ -916,6 +950,7 @@ export type ArticleBlogSelect<
     titre?: boolean
     slug?: boolean
     extrait?: boolean
+    chapo?: boolean
     couverture?: boolean
     contenu?: boolean
     themeId?: boolean
@@ -939,6 +974,7 @@ export type ArticleBlogSelectCreateManyAndReturn<
     titre?: boolean
     slug?: boolean
     extrait?: boolean
+    chapo?: boolean
     couverture?: boolean
     contenu?: boolean
     themeId?: boolean
@@ -960,6 +996,7 @@ export type ArticleBlogSelectUpdateManyAndReturn<
     titre?: boolean
     slug?: boolean
     extrait?: boolean
+    chapo?: boolean
     couverture?: boolean
     contenu?: boolean
     themeId?: boolean
@@ -977,6 +1014,7 @@ export type ArticleBlogSelectScalar = {
   titre?: boolean
   slug?: boolean
   extrait?: boolean
+  chapo?: boolean
   couverture?: boolean
   contenu?: boolean
   themeId?: boolean
@@ -994,6 +1032,7 @@ export type ArticleBlogOmit<
   | "titre"
   | "slug"
   | "extrait"
+  | "chapo"
   | "couverture"
   | "contenu"
   | "themeId"
@@ -1039,6 +1078,7 @@ export type $ArticleBlogPayload<
       titre: string
       slug: string
       extrait: string
+      chapo: string | null
       couverture: string | null
       contenu: string
       themeId: string
@@ -1664,6 +1704,7 @@ export interface ArticleBlogFieldRefs {
   readonly titre: Prisma.FieldRef<"ArticleBlog", "String">
   readonly slug: Prisma.FieldRef<"ArticleBlog", "String">
   readonly extrait: Prisma.FieldRef<"ArticleBlog", "String">
+  readonly chapo: Prisma.FieldRef<"ArticleBlog", "String">
   readonly couverture: Prisma.FieldRef<"ArticleBlog", "String">
   readonly contenu: Prisma.FieldRef<"ArticleBlog", "String">
   readonly themeId: Prisma.FieldRef<"ArticleBlog", "String">

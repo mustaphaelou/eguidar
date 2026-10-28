@@ -35,14 +35,18 @@ vi.mock("@/lib/use-cases/blog", () => ({
 
 import type { ArticleBlogPublic, ArticleLie } from "@/lib/use-cases/blog"
 
-import ArticleBlogPage from "./page"
+import ArticleBlogPage, { generateMetadata } from "./page"
 
-function article(contenu: string): ArticleBlogPublic {
+function article(
+  contenu: string,
+  chapo: string | null = null
+): ArticleBlogPublic {
   return {
     id: "article-795",
     titre: "Choisir son casque",
     slug: "choisir-son-casque",
     extrait: "L'extrait de l'article.",
+    chapo,
     couverture: null,
     contenu,
     theme: { slug: "guides", nom: "Guides" },
@@ -52,8 +56,11 @@ function article(contenu: string): ArticleBlogPublic {
   }
 }
 
-async function rendre(contenu: string): Promise<string> {
-  getArticleParSlugMock.mockResolvedValue(article(contenu))
+async function rendre(
+  contenu: string,
+  chapo: string | null = null
+): Promise<string> {
+  getArticleParSlugMock.mockResolvedValue(article(contenu, chapo))
   const flux = await renderToReadableStream(
     <ArticleBlogPage params={Promise.resolve({ slug: "choisir-son-casque" })} />
   )
@@ -468,5 +475,59 @@ describe("Page Article de blog — Articles liés", () => {
 
     expect(html).not.toContain("Articles liés")
     expect(html).not.toContain('aria-labelledby="articles-lies"')
+  })
+})
+
+describe("Page Article de blog — Chapô", () => {
+  const chapo = "Le bon choix tient à trois questions."
+  const extrait = "L&#x27;extrait de l&#x27;article."
+  const classesDuChapo = [
+    "text-[24px]",
+    "leading-[1.1667]",
+    "font-medium",
+    "tracking-[0.009em]",
+    "text-foreground",
+    "max-[1068px]:text-[21px]",
+    "max-[1068px]:leading-[1.1905]",
+    "max-[1068px]:tracking-[0.011em]",
+  ]
+
+  it("affiche le Chapô sous le titre, à la place de l'Extrait", async () => {
+    const html = await rendre("Un paragraphe.", chapo)
+    const entete = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ""
+
+    attendreLOrdre(entete, ["Choisir son casque", chapo])
+    expect(classesDans(html, "p", chapo)).toEqual(
+      expect.arrayContaining(classesDuChapo)
+    )
+    expect(classesDans(html, "p", chapo)).not.toContain("text-muted-foreground")
+    expect(entete).not.toContain(extrait)
+  })
+
+  it("affiche l'Extrait à la même place quand l'Article n'a pas de Chapô", async () => {
+    const html = await rendre("Un paragraphe.")
+    const entete = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ""
+
+    attendreLOrdre(entete, ["Choisir son casque", extrait])
+    expect(classesDans(html, "p", extrait)).toEqual(
+      expect.arrayContaining(classesDuChapo)
+    )
+  })
+
+  it("garde l'Extrait comme description de la page dans les deux cas", async () => {
+    getArticleParSlugMock.mockResolvedValue(article("Un paragraphe.", chapo))
+    const avecChapo = await generateMetadata({
+      params: Promise.resolve({ slug: "choisir-son-casque" }),
+    })
+
+    getArticleParSlugMock.mockResolvedValue(article("Un paragraphe."))
+    const sansChapo = await generateMetadata({
+      params: Promise.resolve({ slug: "choisir-son-casque" }),
+    })
+
+    expect(avecChapo.description).toBe("L'extrait de l'article.")
+    expect(sansChapo.description).toBe("L'extrait de l'article.")
+    expect(avecChapo.openGraph?.description).toBe("L'extrait de l'article.")
+    expect(sansChapo.openGraph?.description).toBe("L'extrait de l'article.")
   })
 })
