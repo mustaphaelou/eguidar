@@ -482,3 +482,32 @@ Un Produit du Catalogue attaché à un Article de blog, affiché en Carte produi
 vers sa page Produit. Un Produit lié indisponible (stock total nul) est masqué à la lecture : l'Article
 de blog reste publié, sa Carte produit disparaît.
 _Avoid_: produit associé, related product
+
+**Automatisation**:
+Un effet post-commit exécuté durablement par le travailleur, à partir d'un Événement
+d'automatisation et de la Règle d'automatisation qui le déclenche : e-mail de Commande,
+indexation ou retrait d'index, purge du bord, invalidation du cache, digest ou réconciliation.
+Le commit de la mutation reste autoritatif ; l'Automatisation est la reprise, pas la transaction.
+_Avoid_: workflow, job, tâche de fond, automatisme
+
+**Événement d'automatisation**:
+Le fait immuable écrit dans la transaction d'une mutation — type, entité, charge, séquence par
+entité, expiration — puis consommé par le travailleur. Un retour arrière de la mutation ne laisse
+aucun Événement d'automatisation.
+_Avoid_: message, job, tâche
+
+**Exécution d'automatisation**:
+La trace durable d'une Règle d'automatisation appliquée à un Événement d'automatisation : statut,
+tentative, erreur, début et fin. C'est elle que l'Administration affiche dans l'historique.
+_Avoid_: run, log, journal (réservé au journal console de la phase 0)
+
+**Règle d'automatisation**:
+Le couple fermé déclencheur → condition → action qui décide ce qu'un Événement d'automatisation
+exécute. Semée dans le code, révisée à chaque changement, éditable par le marchand en Phase 5.
+_Avoid_: workflow, scénario, trigger
+
+**File morte**:
+L'état d'un Événement d'automatisation dont les tentatives sont épuisées, avec sa dernière
+erreur ; un renvoi le remet en attente. À distinguer de la file morte de travaux pg-boss, qui
+porte les balayages du travailleur.
+_Avoid_: dead letter queue (comme nom du concept), DLQ

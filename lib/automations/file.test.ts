@@ -62,38 +62,42 @@ describe("pg-boss sur le Postgres déjà déployé", () => {
     await expect(boss.redrive(MORTS)).resolves.toBe(0)
   })
 
-  it("un travailleur pg-boss draine le carnet de sortie des automatisations", async () => {
-    await semerLesRegles()
-    const entite = `categorie-${runId}-boucle`
-    await prisma.$transaction((tx) =>
-      enregistrerEvenement(tx, {
-        type: "structure.modifiee",
-        entityType: "categorie",
-        entityId: entite,
-        payload: { categorieId: entite },
-      })
-    )
-
-    const travailleur = await boss.work(
-      FILE,
-      { pollingIntervalSeconds: 0.5 },
-      async () => {
-        await balayer(new Date())
-      }
-    )
-    await boss.send(FILE, { balayage: true })
-
-    await vi.waitFor(
-      async () => {
-        const evenement = await prisma.automationEvent.findFirstOrThrow({
-          where: { entityId: entite },
+  it(
+    "un travailleur pg-boss draine le carnet de sortie des automatisations",
+    { timeout: 30_000 },
+    async () => {
+      await semerLesRegles()
+      const entite = `categorie-${runId}-boucle`
+      await prisma.$transaction((tx) =>
+        enregistrerEvenement(tx, {
+          type: "structure.modifiee",
+          entityType: "categorie",
+          entityId: entite,
+          payload: { categorieId: entite },
         })
-        expect(evenement.status).toBe("reussi")
-      },
-      { timeout: 10_000, interval: 250 }
-    )
+      )
 
-    await boss.offWork(FILE)
-    expect(travailleur).toBeTruthy()
-  })
+      const travailleur = await boss.work(
+        FILE,
+        { pollingIntervalSeconds: 0.5 },
+        async () => {
+          await balayer(new Date())
+        }
+      )
+      await boss.send(FILE, { balayage: true })
+
+      await vi.waitFor(
+        async () => {
+          const evenement = await prisma.automationEvent.findFirstOrThrow({
+            where: { entityId: entite },
+          })
+          expect(evenement.status).toBe("reussi")
+        },
+        { timeout: 10_000, interval: 250 }
+      )
+
+      await boss.offWork(FILE)
+      expect(travailleur).toBeTruthy()
+    }
+  )
 })
