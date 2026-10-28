@@ -465,3 +465,100 @@ ne le disait pas, et le code n'était pas à sa hauteur.
   le nomme — la **Suppression en attente**.
 - **« Cet ADR n'amende rien »** reste vrai des autres ADR : ADR-0022, ADR-0014 et ADR-0025 sont
   confirmés inchangés. Ce qu'il faut y lire à côté, c'est le présent amendement.
+
+## Amendement — La lecture du Catalogue gagne sa page, son tri par stock et le chemin de sa Structure (#806, 2026-10-28)
+
+La décision tient : le module Catalogue reste le propriétaire des lectures **Produit** de
+l'Administration, l'interface de lecture répond en faits et jamais en rangées, et le module neutre
+du formulaire Produit garde sa neutralité. Ce que cet amendement consigne est ce que la Liste des
+Produits est devenue en devenant une surface paginée : un **enveloppe de lecture** autour des mêmes
+faits, **un seul moteur de filtre** qui rend aussi le tri par stock, et **un fait de plus par option**
+dans le sélecteur de Structure de l'éditeur.
+
+### Ce que cet amendement rend faux, et où le lire
+
+Aucune ligne de la décision n'est changée ; trois passages la décrivent désormais à rebours. C'est le
+présent amendement qu'il faut y lire à côté :
+
+- la puce « **La lecture de liste répond par un petit fait de liste.** Identité, marque, nom de
+  catégorie, prix, mis en avant, livraison offerte, une seule vignette, et le **stock total** […] »
+  énumère ce que le fait porte, et n'énumérait pas la date de création. La liste paginée trie par
+  date de création : la ligne affiche cette date et son en-tête la trie, donc le fait la porte. Le
+  reste de l'énumération tient — et le fait ne gagne rien d'autre : ni la galerie, ni les Variantes.
+- la même puce décrit une lecture qui **répond un tableau** de faits. `listAdminProducts` répond
+  désormais une **enveloppe** `{ produits, totalCount, pageCount }` : un tableau de faits ne peut pas
+  dire combien de pages il y a. Le fait de liste, lui, ne bouge pas ; c'est l'enveloppe qui est
+  neuve, et la phrase « l'interface de lecture répond en faits » reste vraie à l'intérieur d'elle.
+- les deux amendements précédents confirment « la **forme étroite** du sélecteur de Structure ».
+  Elle reste étroite au sens où le formulaire ne reçoit pas la rangée de Structure : il reçoit
+  exactement `{ id, nom, chemin }` par option. Le fait de plus — le **chemin** — est la seule
+  widening, et elle est décidée ici : deux branches peuvent porter la même feuille, et un
+  sélecteur qui n'affiche que le nom ne peut pas les distinguer.
+
+### Ce que cet amendement décide
+
+- **L'enveloppe paginée du Catalogue.** `listAdminProducts` prend un objet de paramètres typé
+  (`lib/produit-listing.ts`) et répond `{ produits, totalCount, pageCount }` depuis **une seule
+  transaction interactive** : la lecture de la page, le compte et l'hydratation de la page y
+  tournent ensemble. La route de la Liste des Produits ne sélectionne jamais tout le Catalogue, et
+  la lecture sans argument qui rendait toutes les rangées disparaît : ses deux appelants de test
+  lisent l'enveloppe. La taille de page par défaut est **50** pour les Produits — les Commandes
+  gardent la leur, 10 ; le jeu fermé reste 10/20/50.
+
+- **Un seul moteur de filtre, et le SQL brut pour tous les tris.** Prisma ne sait pas ordonner sur
+  une `SUM` d'une relation (`_count` seulement). Le tri par stock total ne charge donc pas le
+  Catalogue pour le trier : **une** lecture paramétrée (`Prisma.sql` / `Prisma.join`, jamais
+  d'interpolation de chaîne) rend le `WHERE`, l'`ORDER BY` — avec la **rupture d'égalité par
+  identifiant** —, le `LIMIT` et l'`OFFSET` ; le compte relit **le même `WHERE`** ; et une
+  hydratation `findMany({ where: { id: { in: pageIds } }, select })` rend exactement la page, dans
+  l'ordre de la lecture brute. Il n'y a pas de second renderer de filtre, donc pas de parité à
+  tenir entre deux vocabulaires. La recherche est un `ILIKE` sur le nom, la marque et le slug, plus
+  un `EXISTS` sur le SKU de Variante : insensible à la casse, **pas** aux accents — `unaccent()`
+  reste non prouvé immuable —, sans index d'expression. Le stock nul / non nul est
+  `COALESCE(SUM(stock des Variantes), 0) = 0` ou `> 0` : un Produit sans Variante est à zéro.
+
+- **La Structure se demande à la Lecture, jamais en remontant les parents dans le Catalogue.** Le
+  filtre Structure appelle `lireStructure().branche(id)` pour obtenir l'ensemble des identifiants —
+  descendants compris — et la Lecture garde le seul `prisma.category.findMany` du dépôt. Le jeton
+  réservé du filtre vaut `categoryId IS NULL` ; c'est le jeton **de la grammaire d'URL**
+  (`sans-structure`), pas `SLUG_SANS_STRUCTURE`, qui reste un sentinelle de route de la Boutique. Une
+  Structure inconnue retombe sur l'absence de filtre : le paramètre inconnu ne lève pas et ne rend
+  pas une page mensongèrement vide.
+
+- **Le site de relation de la Structure reste unique dans la fonction de liste.**
+  `listAdminProducts` garde exactement un `select` contenant `category` : celui de l'hydratation de
+  la page. Les gestes en lot construisent leur Document d'index depuis la Lecture et un `findMany`
+  sans relation, pour ne pas ajouter un second site.
+
+- **Le chemin du sélecteur de Structure.** Le module Catalogue ne change pas la forme de
+  `options()` : deux faits, l'identifiant et le nom. C'est l'écran d'édition qui compose, pour
+  chaque option, `{ id, nom, chemin }` à partir de `options()` et `filAriane(id)` ; le Combobox
+  affiche le chemin entier et ne rend que l'identifiant. Le formulaire reçoit donc un fait de plus
+  par option, et rien de plus.
+
+- **Deux écritures neuves qui ne passent pas par la mutation d'un seul Produit.** La duplication et
+  les quatre gestes en lot — définir la Structure, mettre en avant, livrer offert, supprimer — sont
+  des gestes de la Liste, pas des éditions de fiche. `duplicateProduct` copie la fiche et ses
+  Variantes avec un slug et des SKU suffixés, et **aucune** Image produit : ces URL sont des clefs
+  R2 du cycle de vie des Brouillons. Elle écrit directement, et fonctionne donc pour un Produit
+  sans Structure, là où l'entrée de `createProduct` exige un `categoryId`. Les gestes en lot
+  reçoivent **des identifiants** et rendent un **rapport par ligne** : les lignes qui existent
+  s'engagent, les absentes sont nommées avec leur raison ; les effets post-commit restent la couture
+  d'ADR-0014 (réindexation et invalidation), et la validation par Produit de la mutation d'un seul
+  Produit n'est pas rouverte. C'est l'exception étroite à « le côté écriture ne se déplace pas » :
+  elle ne touche ni les validations, ni la transaction, ni la promotion des Brouillons de
+  l'enregistrement d'un Produit.
+
+### Ce que cet amendement ne change pas
+
+- **La décision entière** : les deux lectures Produit du module Catalogue, l'approfondissement sur
+  place, la règle « répondre en faits, jamais en rangées », la frontière d'ADR-0028, le module neutre
+  du formulaire Produit et sa garde.
+- **La Lecture de la Structure** garde son propriétaire et son périmètre (ADR-0030) : le Catalogue
+  lui demande une branche, il ne lit pas `Category` lui-même.
+- **Le mécanisme partagé de mutation** (ADR-0025), la **couture d'effets** (ADR-0014) et la
+  **promotion des Brouillons** (ADR-0034) restent intacts.
+- **La grammaire d'URL** reste dans un module neutre, à côté de celle des Commandes : même forme
+  pour `page`, `pageSize`, `q`, `tri` et `sens`, un jeu fermé de filtres Produit et une valeur sûre
+  par champ. Aucun terme de glossaire nouveau : la Liste des Produits réemploie *Produit*,
+  *Structure*, *Produit sans Structure* et *Catalogue*.

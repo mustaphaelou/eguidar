@@ -5,7 +5,9 @@ import { redirect } from "next/navigation"
 
 import {
   CHAMPS_FORMULAIRE_PRODUIT,
+  sectionsDerreurProduit,
   soumissionDepuisFormData,
+  type EtatFormulaireProduit,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
 import {
@@ -32,6 +34,7 @@ import {
   adminTaskAction,
   parseRequiredId,
 } from "@/lib/use-cases/mutation-actions"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 interface ProductUpdateInput extends SoumissionFormulaireProduit {
   productId: string
@@ -41,12 +44,22 @@ function basePubliqueImageProduit(): string | null {
   return process.env.R2_PUBLIC_URL ?? null
 }
 
-export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
-  {
-    next: "/admin/produits",
-    parse: (formData) =>
-      soumissionDepuisFormData(formData, basePubliqueImageProduit()),
-    run: async ({ champsCatalogue, images, tentativeId }, client) => {
+function etatDerreurProduit(error: UserFacingError): EtatFormulaireProduit {
+  return {
+    error: error.message,
+    sections: sectionsDerreurProduit(error.message),
+  }
+}
+
+export const createProductAction = adminFormAction<
+  SoumissionFormulaireProduit,
+  EtatFormulaireProduit
+>({
+  next: "/admin/produits",
+  parse: (formData) =>
+    soumissionDepuisFormData(formData, basePubliqueImageProduit()),
+  run: async ({ champsCatalogue, images, tentativeId }, client) => {
+    try {
       const product = await createProduct({
         ...champsCatalogue,
         images,
@@ -55,25 +68,36 @@ export const createProductAction = adminFormAction<SoumissionFormulaireProduit>(
       })
 
       redirect(`/admin/produits/${product.id}`)
-    },
-  }
-)
+    } catch (error) {
+      if (error instanceof UserFacingError) return etatDerreurProduit(error)
+      throw error
+    }
+  },
+})
 
-export const updateProductAction = adminFormAction<ProductUpdateInput>({
+export const updateProductAction = adminFormAction<
+  ProductUpdateInput,
+  EtatFormulaireProduit
+>({
   next: "/admin/produits",
   parse: (formData) => ({
     ...soumissionDepuisFormData(formData, basePubliqueImageProduit()),
     productId: parseRequiredId(formData, CHAMPS_FORMULAIRE_PRODUIT.produit),
   }),
   run: async ({ productId, champsCatalogue, images, tentativeId }, client) => {
-    await updateProduct(productId, {
-      ...champsCatalogue,
-      images,
-      tentativeId,
-      ownerId: client.id,
-    })
+    try {
+      await updateProduct(productId, {
+        ...champsCatalogue,
+        images,
+        tentativeId,
+        ownerId: client.id,
+      })
 
-    redirect("/admin/produits")
+      redirect("/admin/produits")
+    } catch (error) {
+      if (error instanceof UserFacingError) return etatDerreurProduit(error)
+      throw error
+    }
   },
 })
 

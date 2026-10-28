@@ -275,7 +275,10 @@ describe("createProductAction", () => {
       formData([brouillon("brouillon-1")])
     )
 
-    expect(resultat).toEqual({ error: "Ce brouillon ne vous appartient pas" })
+    expect(resultat).toEqual({
+      error: "Ce brouillon ne vous appartient pas",
+      sections: { images: "Ce brouillon ne vous appartient pas" },
+    })
     expect(catalogue.appels).toEqual([])
   })
 
@@ -286,7 +289,10 @@ describe("createProductAction", () => {
 
     const resultat = await createProductAction({}, formData([]))
 
-    expect(resultat).toEqual({ error: `Données invalides : ${messageRegle}` })
+    expect(resultat).toEqual({
+      error: `Données invalides : ${messageRegle}`,
+      sections: { images: messageRegle },
+    })
     expect(catalogue.appels).toEqual([])
   })
 
@@ -364,6 +370,10 @@ describe("updateProductAction", () => {
     expect(resultat).toEqual({
       error:
         "Données invalides : une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
+      sections: {
+        images:
+          "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
+      },
     })
     expect(catalogue.appels).toEqual([])
   })
@@ -380,7 +390,7 @@ describe("updateProductAction", () => {
 
     const resultat = await updateProductAction({}, updateFormData([]))
 
-    expect(resultat).toEqual({ error: "Produit introuvable" })
+    expect(resultat).toEqual({ error: "Produit introuvable", sections: {} })
     expect(catalogue.appels).toEqual([])
   })
 })
