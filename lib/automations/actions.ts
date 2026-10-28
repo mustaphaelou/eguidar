@@ -12,6 +12,7 @@ import {
 } from "@/lib/automations/digests"
 import type {
   ActionAutomation,
+  ConfigurationRegle,
   RegleAutomation,
 } from "@/lib/automations/regles"
 import { prisma } from "@/lib/db"
@@ -86,7 +87,9 @@ export interface ContexteAction {
     entityId: string
     payload: unknown
   }
-  regle: Pick<RegleAutomation, "id" | "action">
+  regle: Pick<RegleAutomation, "id" | "action"> & {
+    configuration?: ConfigurationRegle
+  }
   dependances: DependancesAutomations
 }
 
@@ -124,10 +127,31 @@ const payloadProduitId = z.object({ produitId: z.string().min(1) })
 const payloadStructure = z.object({ categorieId: z.string().min(1) })
 const payloadJour = z.object({ jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 
-function destinataireDuProprietaire(): string {
-  const email = (process.env.ADMIN_EMAIL ?? "").trim()
-  if (!email) throw new Error("ADMIN_EMAIL absent : digest non envoyé")
-  return email
+/**
+ * Le destinataire d'un digest est nommé par une variable d'environnement
+ * (ADR-0041) : la valeur est lue ici, jamais écrite en base ni affichée. Une
+ * variable absente ou invalide est une panne nommée — sans sa valeur.
+ */
+export const VARIABLE_DESTINATAIRE_PAR_DEFAUT = "ADMIN_EMAIL"
+
+const ADRESSE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
+function destinataireDuProprietaire(contexte: ContexteAction): string {
+  const variable =
+    contexte.regle.configuration?.destinataireVariable ??
+    VARIABLE_DESTINATAIRE_PAR_DEFAUT
+  const valeur = (process.env[variable] ?? "").trim()
+  if (!valeur) {
+    throw new Error(
+      `variable d'environnement ${variable} absente ou vide : digest non envoyé`
+    )
+  }
+  if (!ADRESSE_EMAIL.test(valeur)) {
+    throw new Error(
+      `variable d'environnement ${variable} ne contient pas une adresse valide : digest non envoyé`
+    )
+  }
+  return valeur
 }
 
 async function evenementCatalogue(
@@ -222,7 +246,7 @@ async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
     stock: variante.stock,
   }))
   await contexte.dependances.emails.envoyerDigest({
-    destinataire: destinataireDuProprietaire(),
+    destinataire: destinataireDuProprietaire(contexte),
     sujet: `Eguidar — stock bas du ${jour}`,
     texte: construireDigestStockBas({
       jour,
@@ -239,7 +263,7 @@ async function envoyerDigestProprietaire(
   const { jour } = payloadJour.parse(contexte.evenement.payload)
   const stats = await getDashboardStats()
   await contexte.dependances.emails.envoyerDigest({
-    destinataire: destinataireDuProprietaire(),
+    destinataire: destinataireDuProprietaire(contexte),
     sujet: `Eguidar — tableau de bord du ${jour}`,
     texte: construireDigestProprietaire({
       jour,

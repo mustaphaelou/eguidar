@@ -8,6 +8,7 @@ import {
 import {
   actionAutomationSchema,
   conditionAutomationSchema,
+  configurationRegleSchema,
   laConditionEstRemplie,
   type ActionAutomation,
 } from "@/lib/automations/regles"
@@ -213,7 +214,12 @@ export async function executerEvenement(
   const regles = await prisma.automationRule.findMany({
     where: { enabled: true, trigger: evenement.type },
     orderBy: { id: "asc" },
-    select: { id: true, action: true, condition: true },
+    select: {
+      id: true,
+      action: true,
+      condition: true,
+      actionConfig: true,
+    },
   })
 
   if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
@@ -232,6 +238,9 @@ export async function executerEvenement(
   for (const regle of regles) {
     const condition = conditionAutomationSchema.parse(regle.condition)
     const action: ActionAutomation = actionAutomationSchema.parse(regle.action)
+    const configuration = configurationRegleSchema
+      .optional()
+      .parse(regle.actionConfig ?? undefined)
     const run = await demarrerRun({
       eventId: evenement.id,
       ruleId: regle.id,
@@ -254,7 +263,7 @@ export async function executerEvenement(
           entityId: evenement.entityId,
           payload: evenement.payload,
         },
-        regle: { id: regle.id, action },
+        regle: { id: regle.id, action, configuration },
         dependances,
       })
       await terminerRun(run.id, "reussi", maintenant)

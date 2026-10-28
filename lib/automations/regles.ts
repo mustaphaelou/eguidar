@@ -1,43 +1,38 @@
 import { z } from "zod"
 
 import { prisma } from "@/lib/db"
+import { Prisma } from "@/lib/generated/prisma/client"
 import {
   TYPES_EVENEMENT_AUTOMATION,
   type TypeEvenementAutomation,
 } from "@/lib/automations/evenements"
+import {
+  ACTIONS_AUTOMATION,
+  CONDITIONS_AUTOMATION,
+  NOM_DE_VARIABLE_ENVIRONNEMENT,
+  verifierCombinaison,
+  type ActionAutomation,
+  type CompositionRegle,
+  type ConditionAutomation,
+  type ConfigurationRegle,
+  type TypeConditionAutomation,
+} from "@/lib/automations/vocabulaire"
 import { STATUTS_VALIDES } from "@/lib/statut-de-commande"
 
 /**
- * Les actions sont un vocabulaire fermé (ADR-0041) : une règle nomme une
- * action connue, jamais du code, une URL libre ou un secret. Chaque action
- * enveloppe un adaptateur qui existe déjà.
+ * Le vocabulaire fermé vit dans `vocabulaire.ts`, sans base ni travailleur,
+ * pour que le formulaire client et l'éditeur serveur lisent la même liste. Il
+ * est ré-exporté ici pour les appelants de la phase 4.
  */
-export const ACTIONS_AUTOMATION = Object.freeze([
-  "email.commande-creee",
-  "email.commande-statut",
-  "index.produit",
-  "desindex.produit",
-  "invalidation.catalogue",
-  "invalidation.structure",
-  "purge.catalogue",
-  "digest.stock-bas",
-  "digest.proprietaire",
-  "reconciliation.recherche",
-] as const)
-
-export type ActionAutomation = (typeof ACTIONS_AUTOMATION)[number]
+export { ACTIONS_AUTOMATION, CONDITIONS_AUTOMATION }
+export type {
+  ActionAutomation,
+  ConditionAutomation,
+  ConfigurationRegle,
+  TypeConditionAutomation,
+}
 
 export const actionAutomationSchema = z.enum(ACTIONS_AUTOMATION)
-
-export const CONDITIONS_AUTOMATION = Object.freeze([
-  "toujours",
-  "statut-commande",
-] as const)
-
-export type TypeConditionAutomation = (typeof CONDITIONS_AUTOMATION)[number]
-
-export type ConditionAutomation =
-  { type: "toujours" } | { type: "statut-commande"; statuts: readonly string[] }
 
 export const conditionAutomationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("toujours") }).strict(),
@@ -49,6 +44,23 @@ export const conditionAutomationSchema = z.discriminatedUnion("type", [
     .strict(),
 ])
 
+/**
+ * Le destinataire d'un digest est un **nom** de variable d'environnement. La
+ * valeur est lue à l'exécution et ne touche jamais la base, l'instantané ni
+ * l'interface.
+ */
+export const configurationRegleSchema = z
+  .object({
+    destinataireVariable: z
+      .string()
+      .trim()
+      .regex(
+        NOM_DE_VARIABLE_ENVIRONNEMENT,
+        "nom de variable d'environnement invalide : majuscules, chiffres et « _ » seulement"
+      ),
+  })
+  .strict()
+
 export const regleAutomationSchema = z.object({
   id: z
     .string()
@@ -58,13 +70,20 @@ export const regleAutomationSchema = z.object({
   declencheur: z.enum(TYPES_EVENEMENT_AUTOMATION),
   condition: conditionAutomationSchema,
   action: z.enum(ACTIONS_AUTOMATION),
+  configuration: configurationRegleSchema.optional(),
   actif: z.boolean(),
 })
 
 export type RegleAutomation = z.infer<typeof regleAutomationSchema>
 
+/**
+ * La validation d'une règle a deux étages : la forme (Zod) puis la
+ * combinaison (vocabulaire). Un couple impossible est refusé en le nommant.
+ */
 export function verifierRegle(regle: unknown): RegleAutomation {
-  return regleAutomationSchema.parse(regle)
+  const verifiee = regleAutomationSchema.parse(regle)
+  verifierCombinaison(verifiee as unknown as CompositionRegle)
+  return verifiee
 }
 
 /**
@@ -213,6 +232,7 @@ function instantane(regle: RegleAutomation) {
     declencheur: regle.declencheur,
     condition: regle.condition,
     action: regle.action,
+    ...(regle.configuration ? { configuration: regle.configuration } : {}),
     actif: regle.actif,
   }
 }
@@ -266,6 +286,7 @@ export async function semerLesRegles(
         trigger: verifiee.declencheur,
         condition: verifiee.condition,
         action: verifiee.action,
+        actionConfig: verifiee.configuration ?? Prisma.DbNull,
       },
       update: {
         name: verifiee.nom,
@@ -273,6 +294,7 @@ export async function semerLesRegles(
         trigger: verifiee.declencheur,
         condition: verifiee.condition,
         action: verifiee.action,
+        actionConfig: verifiee.configuration ?? Prisma.DbNull,
       },
     })
 
