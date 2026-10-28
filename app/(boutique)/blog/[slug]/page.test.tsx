@@ -39,7 +39,8 @@ import ArticleBlogPage, { generateMetadata } from "./page"
 
 function article(
   contenu: string,
-  chapo: string | null = null
+  chapo: string | null = null,
+  notes: string | null = null
 ): ArticleBlogPublic {
   return {
     id: "article-795",
@@ -49,6 +50,7 @@ function article(
     chapo,
     couverture: null,
     contenu,
+    notes,
     theme: { slug: "guides", nom: "Guides" },
     publishedAt: new Date("2026-10-01T08:00:00.000Z"),
     statut: "publie",
@@ -58,9 +60,10 @@ function article(
 
 async function rendre(
   contenu: string,
-  chapo: string | null = null
+  chapo: string | null = null,
+  notes: string | null = null
 ): Promise<string> {
-  getArticleParSlugMock.mockResolvedValue(article(contenu, chapo))
+  getArticleParSlugMock.mockResolvedValue(article(contenu, chapo, notes))
   const flux = await renderToReadableStream(
     <ArticleBlogPage params={Promise.resolve({ slug: "choisir-son-casque" })} />
   )
@@ -69,12 +72,19 @@ async function rendre(
 
 async function rendreArticle({
   contenu,
+  chapo = null,
+  notes = null,
   couverture = null,
 }: {
   contenu: string
+  chapo?: string | null
+  notes?: string | null
   couverture?: string | null
 }): Promise<string> {
-  getArticleParSlugMock.mockResolvedValue({ ...article(contenu), couverture })
+  getArticleParSlugMock.mockResolvedValue({
+    ...article(contenu, chapo, notes),
+    couverture,
+  })
   const flux = await renderToReadableStream(
     <ArticleBlogPage params={Promise.resolve({ slug: "choisir-son-casque" })} />
   )
@@ -309,6 +319,93 @@ describe("Page Article de blog — figures", () => {
     expect(figures[0]).toMatch(
       /<span data-image-src="\/images\/couverture\.webp" aria-label=""><\/span>/
     )
+  })
+})
+
+describe("Page Article de blog — notes", () => {
+  it("rend le renvoi dans le texte, le bloc de notes et son retour", async () => {
+    const html = await rendre(
+      "Le prix varie selon la ville^1.\n\nLa disponibilité se confirme^2.",
+      null,
+      "Prix TTC indicatif.\nDisponibilité confirmée à la commande."
+    )
+    const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+
+    expect(corps).toMatch(/<sup[^>]*><a[^>]*href="#note-1"/)
+    expect(corps).toContain('id="renvoi-note-1-1"')
+    expect(corps).toContain('aria-label="Renvoi vers la note 1"')
+    expect(corps).toMatch(/<sup[^>]*><a[^>]*href="#note-2"/)
+
+    const notes = corps.match(/<ol[\s\S]*?<\/ol>/)?.[0] ?? ""
+    const ouverture = notes.match(/<ol[^>]*>/)?.[0] ?? ""
+    expect(ouverture).toContain("list-decimal")
+    expect(ouverture).toContain("md:col-start-2")
+    expect(ouverture).toContain("text-[12px]")
+    expect(ouverture).toContain("text-muted-foreground")
+    expect(notes).toContain('id="note-1"')
+    expect(notes).toContain("Prix TTC indicatif.")
+    expect(notes).toContain('id="note-2"')
+    expect(notes).toContain("Disponibilité confirmée à la commande.")
+    expect(notes).toContain('href="#renvoi-note-1-1"')
+    expect(notes).toContain('aria-label="Retour au renvoi de la note 1"')
+    expect(notes).toContain('href="#renvoi-note-2-1"')
+
+    attendreLOrdre(corps, [
+      "La disponibilité se confirme",
+      "Prix TTC indicatif.",
+    ])
+    expect(corps.slice(corps.indexOf(notes) + notes.length)).toMatch(
+      /^\s*<\/article>/
+    )
+    expect(corps.split("Prix TTC indicatif.")).toHaveLength(2)
+  })
+
+  it("laisse un renvoi ^9 sans note en texte littéral et sans lien", async () => {
+    const html = await rendre(
+      "Le prix peut varier^9 selon la ville.",
+      null,
+      "Prix TTC indicatif.\nDisponibilité confirmée à la commande."
+    )
+    const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+
+    expect(corps).toContain("Le prix peut varier^9 selon la ville.")
+    expect(corps).not.toContain('href="#note-9"')
+    expect(corps).not.toContain('id="renvoi-note-9')
+  })
+
+  it("n'affiche pas de bloc de notes quand l'Article n'en a pas", async () => {
+    const sansNotes = await rendre("Un paragraphe.")
+    const notesVides = await rendre("Un paragraphe.", null, " \n\n\t\n")
+    const corpsSansNotes =
+      sansNotes.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+    const corpsNotesVides =
+      notesVides.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+
+    expect(corpsSansNotes).not.toContain("<ol")
+    expect(corpsNotesVides).not.toContain("<ol")
+  })
+
+  it("donne un identifiant unique à chaque renvoi et revient au premier", async () => {
+    const html = await rendre("^1 puis ^1.", null, "La note unique.")
+    const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+
+    expect(corps).toContain('id="renvoi-note-1-1"')
+    expect(corps).toContain('id="renvoi-note-1-2"')
+    expect(corps).toContain('href="#renvoi-note-1-1"')
+  })
+
+  it("rend aussi les renvois dans les listes et les citations", async () => {
+    const html = await rendre(
+      "- Autonomie^1\n\n> Une phrase^2.",
+      null,
+      "Note de liste.\nNote de citation."
+    )
+    const corps = html.match(/<article[\s\S]*?<\/article>/)?.[0] ?? ""
+    const liste = corps.match(/<ul[\s\S]*?<\/ul>/)?.[0] ?? ""
+    const citation = corps.match(/<blockquote[\s\S]*?<\/blockquote>/)?.[0] ?? ""
+
+    expect(liste).toContain('href="#note-1"')
+    expect(citation).toContain('href="#note-2"')
   })
 })
 

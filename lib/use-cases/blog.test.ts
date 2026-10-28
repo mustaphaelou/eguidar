@@ -28,6 +28,7 @@ function makeInput(input: {
   chapo?: string | null
   couverture?: string | null
   contenu?: string
+  notes?: string | null
   themeSlug?: string
 }) {
   const statut = input.statut ?? "brouillon"
@@ -38,6 +39,7 @@ function makeInput(input: {
     chapo: input.chapo ?? null,
     couverture: input.couverture ?? null,
     contenu: input.contenu ?? "Un contenu de test",
+    notes: input.notes ?? null,
     statut,
     publishedAt:
       input.publishedAt === undefined
@@ -146,6 +148,7 @@ describe("blog lecture publique", () => {
         chapo: "Trois critères suffisent pour choisir sans se tromper.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+        notes: "Prix TTC indicatif.\nDisponibilité confirmée à la commande.",
         themeSlug: "annonces",
       })
 
@@ -158,6 +161,7 @@ describe("blog lecture publique", () => {
         chapo: "Trois critères suffisent pour choisir sans se tromper.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+        notes: "Prix TTC indicatif.\nDisponibilité confirmée à la commande.",
         theme: { slug: "annonces", nom: "Annonces" },
         statut: "publie",
         produits: [],

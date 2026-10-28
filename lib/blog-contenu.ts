@@ -78,3 +78,41 @@ export function decoupeContenuArticle(contenu: string): FragmentArticle[] {
   viderParagraphe()
   return fragments
 }
+
+export function lignesDeNotes(notes: string | null): string[] {
+  if (notes === null) return []
+  return notes
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((ligne) => ligne.trim())
+    .filter((ligne) => ligne.length > 0)
+}
+
+export type MorceauDeTexte =
+  { type: "texte"; texte: string } | { type: "renvoi"; numero: number }
+
+const RENVOI = /\^([1-9]\d*)/g
+
+export function decoupeRenvoisDeNote(
+  texte: string,
+  nombreDeNotes: number
+): MorceauDeTexte[] {
+  const morceaux: MorceauDeTexte[] = []
+  let dernier = 0
+
+  for (const correspondance of texte.matchAll(RENVOI)) {
+    const numero = Number(correspondance[1])
+    if (numero > nombreDeNotes) continue
+
+    const debut = correspondance.index
+    if (debut > dernier)
+      morceaux.push({ type: "texte", texte: texte.slice(dernier, debut) })
+    morceaux.push({ type: "renvoi", numero })
+    dernier = debut + correspondance[0].length
+  }
+
+  if (dernier < texte.length)
+    morceaux.push({ type: "texte", texte: texte.slice(dernier) })
+
+  return morceaux.length > 0 ? morceaux : [{ type: "texte", texte }]
+}
