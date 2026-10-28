@@ -174,7 +174,7 @@ function FragmentDuContenu({ fragment }: { fragment: FragmentArticle }) {
       )
     case "citation":
       return (
-        <blockquote className="whitespace-pre-line md:col-start-2">
+        <blockquote className="!mt-[72px] text-center text-[40px] leading-[1.1] font-bold tracking-[0em] whitespace-pre-line max-[1068px]:!mt-[64px] max-[1068px]:text-[32px] max-[1068px]:leading-[1.125] max-[1068px]:tracking-[0.004em] max-[734px]:!mt-[52px] max-[734px]:text-[28px] max-[734px]:leading-[1.1429] max-[734px]:tracking-[0.007em] md:col-span-3">
           {fragment.texte}
         </blockquote>
       )
