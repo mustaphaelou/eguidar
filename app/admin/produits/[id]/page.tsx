@@ -38,7 +38,14 @@ export default async function EditProductPage({
     listerImagesPourGalerie(),
   ])
   if (!product) notFound()
-  const categories = lecture.options()
+  const structures = lecture.options().map((option) => ({
+    id: option.id,
+    nom: option.name,
+    chemin: lecture
+      .filAriane(option.id)
+      .map((maillon) => maillon.name)
+      .join(" › "),
+  }))
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,7 +106,7 @@ export default async function EditProductPage({
 
       <ProductForm
         product={product}
-        categories={categories}
+        structures={structures}
         bibliotheque={bibliotheque}
         action={updateProductAction}
       />

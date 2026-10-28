@@ -52,6 +52,59 @@ export type EntreeImageProduitFormulaire =
   | (EntreeImagePersistee & { suppressionEnAttente?: boolean })
   | EntreeBrouillonImage
 
+export const SECTIONS_FORMULAIRE_PRODUIT = [
+  "informations",
+  "miseEnAvant",
+  "images",
+  "variantes",
+  "structure",
+] as const
+
+export type SectionFormulaireProduit =
+  (typeof SECTIONS_FORMULAIRE_PRODUIT)[number]
+
+export type SectionsErreurProduit = Partial<
+  Record<SectionFormulaireProduit, string>
+>
+
+export interface EtatFormulaireProduit {
+  error?: string
+  sections?: SectionsErreurProduit
+}
+
+function sectionDuProbleme(probleme: string): SectionFormulaireProduit | null {
+  if (/variante|sku|stock/i.test(probleme)) return "variantes"
+  if (/image|galerie|brouillon/i.test(probleme)) return "images"
+  if (/catégorie|structure/i.test(probleme)) return "structure"
+  if (/mise en avant|mis en avant|ordre de mise/i.test(probleme))
+    return "miseEnAvant"
+  if (/nom|slug|marque|prix|spécification|description/i.test(probleme))
+    return "informations"
+  return null
+}
+
+/**
+ * La carte des sections qu'un refus du Catalogue met en cause. Elle lit les
+ * messages du Catalogue sans les réécrire : chaque problème reste cité tel
+ * quel dans la section qui le porte, et un refus inclassable n'est affecté à
+ * aucune section — il reste le message global du formulaire.
+ */
+export function sectionsDerreurProduit(message: string): SectionsErreurProduit {
+  const interieur = message.replace(/^Données invalides\s*:\s*/, "")
+  const sections: SectionsErreurProduit = {}
+  for (const probleme of interieur.split(/\s*;\s*/)) {
+    const section = sectionDuProbleme(probleme)
+    if (section === null) continue
+    sections[section] = sections[section]
+      ? `${sections[section]} ; ${probleme}`
+      : probleme
+  }
+  return sections
+}
+
+export const MESSAGE_SECTIONS_INVALIDES =
+  "Certaines sections sont invalides : corrigez les champs signalés."
+
 export const MESSAGE_SPECIFICATIONS_INVALIDE =
   "Format de spécifications invalide (clé : valeur par ligne)"
 

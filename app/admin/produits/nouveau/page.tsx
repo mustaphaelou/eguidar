@@ -10,16 +10,24 @@ export const metadata: Metadata = {
 }
 
 export default async function NewProductPage() {
-  const [categories, bibliotheque] = await Promise.all([
-    lireStructure().then((lecture) => lecture.options()),
+  const [lecture, bibliotheque] = await Promise.all([
+    lireStructure(),
     listerImagesPourGalerie(),
   ])
+  const structures = lecture.options().map((option) => ({
+    id: option.id,
+    nom: option.name,
+    chemin: lecture
+      .filAriane(option.id)
+      .map((maillon) => maillon.name)
+      .join(" › "),
+  }))
 
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">Nouveau produit</h1>
       <ProductForm
-        categories={categories}
+        structures={structures}
         bibliotheque={bibliotheque}
         action={createProductAction}
       />

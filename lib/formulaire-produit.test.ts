@@ -7,6 +7,7 @@ import {
   galerieSoumiseHorsSuppressionsEnAttente,
   MESSAGE_FORMULAIRE_INVALIDE,
   MESSAGE_SPECIFICATIONS_INVALIDE,
+  sectionsDerreurProduit,
   specificationsDepuisTexte,
   soumissionDepuisFormData,
   texteEcartPrix,
@@ -786,5 +787,81 @@ describe("la galerie soumise hors suppressions en attente", () => {
         },
       ])
     ).toEqualTypeOf<EntreeImageProduit[]>()
+  })
+})
+
+describe("la carte des sections en erreur d'un refus du Catalogue", () => {
+  it("nomme la section Structure quand la Structure manque", () => {
+    expect(
+      sectionsDerreurProduit("Données invalides : catégorie requise")
+    ).toEqual({ structure: "catégorie requise" })
+  })
+
+  it("nomme Informations pour le nom, le slug, la marque, le prix ou les spécifications", () => {
+    for (const probleme of [
+      "nom requis",
+      "slug invalide (minuscules, chiffres et tirets uniquement)",
+      "marque requise",
+      "le prix doit être positif ou nul",
+      "Format de spécifications invalide (clé : valeur par ligne)",
+    ]) {
+      expect(sectionsDerreurProduit(`Données invalides : ${probleme}`)).toEqual(
+        {
+          informations: probleme,
+        }
+      )
+    }
+  })
+
+  it("nomme Variantes pour une Variante ou un SKU, sans confondre le prix final avec le prix de base", () => {
+    expect(
+      sectionsDerreurProduit(
+        "Données invalides : prix final négatif pour le SKU SKU-1"
+      )
+    ).toEqual({ variantes: "prix final négatif pour le SKU SKU-1" })
+
+    expect(
+      sectionsDerreurProduit("Données invalides : nom de variante requis")
+    ).toEqual({ variantes: "nom de variante requis" })
+  })
+
+  it("nomme Images pour une Image produit ou un Brouillon", () => {
+    for (const probleme of [
+      "une entrée de Galerie ne peut pas nommer une Image produit qui appartient à un autre Produit",
+      "Les Brouillons ne sont pas tous liés à la même tentative",
+    ]) {
+      expect(sectionsDerreurProduit(`Données invalides : ${probleme}`)).toEqual(
+        {
+          images: probleme,
+        }
+      )
+    }
+  })
+
+  it("répartit plusieurs problèmes entre leurs sections et garde l'ordre", () => {
+    expect(
+      sectionsDerreurProduit(
+        "Données invalides : nom requis ; catégorie requise ; nom de variante requis"
+      )
+    ).toEqual({
+      informations: "nom requis",
+      structure: "catégorie requise",
+      variantes: "nom de variante requis",
+    })
+  })
+
+  it("laisse un refus inclassable hors des sections, pour qu'il reste un message global", () => {
+    for (const message of [
+      "L'enregistrement du Catalogue a échoué",
+      "Produit introuvable",
+      "Un produit avec ce slug existe déjà",
+    ]) {
+      const sections = sectionsDerreurProduit(message)
+      if (message === "Un produit avec ce slug existe déjà") {
+        expect(sections).toEqual({ informations: message })
+      } else {
+        expect(sections).toEqual({})
+      }
+    }
   })
 })

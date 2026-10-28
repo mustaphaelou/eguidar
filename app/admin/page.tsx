@@ -5,6 +5,7 @@ import { connection } from "next/server"
 import {
   ClockIcon,
   PackageIcon,
+  PackageOutOfStockIcon,
   ShoppingBasket02Icon,
   Wallet01Icon,
 } from "@hugeicons/core-free-icons"
@@ -22,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { buildCommandeListingUrl } from "@/lib/commande-listing"
+import { buildProduitListingUrl } from "@/lib/produit-listing"
 import { formatPrice } from "@/lib/money"
 import { ORDER_STATUS_LABELS } from "@/lib/statut-de-commande"
 import {
@@ -53,6 +55,7 @@ export default async function AdminDashboardPage() {
     revenue: bucket.revenue,
   }))
   const enAttenteUrl = buildCommandeListingUrl({ statuses: ["pending"] })
+  const enRuptureUrl = buildProduitListingUrl({ stock: "zero" })
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,7 +66,7 @@ export default async function AdminDashboardPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card size="sm">
           <CardHeader>
             <CardTitle className="text-sm font-medium">CA encaissé</CardTitle>
@@ -127,7 +130,7 @@ export default async function AdminDashboardPage() {
 
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Stock faible</CardTitle>
+            <CardTitle className="text-sm font-medium">Produits</CardTitle>
             <CardAction>
               <HugeiconsIcon
                 icon={PackageIcon}
@@ -139,12 +142,33 @@ export default async function AdminDashboardPage() {
           <CardContent>
             <p className="text-2xl font-bold">
               <Link href="/admin/produits" className="hover:underline">
-                {stats.lowStockVariants.length}
+                {stats.productCount}
               </Link>
             </p>
             <p className="text-xs text-muted-foreground">
-              ≤ {LOW_STOCK_THRESHOLD} unités
+              Tous les Produits du Catalogue
             </p>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">En rupture</CardTitle>
+            <CardAction>
+              <HugeiconsIcon
+                icon={PackageOutOfStockIcon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              <Link href={enRuptureUrl} className="hover:underline">
+                {stats.outOfStockCount}
+              </Link>
+            </p>
+            <p className="text-xs text-muted-foreground">Stock total à zéro</p>
           </CardContent>
         </Card>
       </div>

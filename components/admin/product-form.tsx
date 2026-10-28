@@ -6,31 +6,40 @@ import {
   PlusSignIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useActionState, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useActionState, useEffect, useRef, useState } from "react"
 
 import { ImageGalleryUpload } from "@/components/admin/image-gallery-upload"
+import {
+  StructurePicker,
+  type StructureAvecChemin,
+} from "@/components/admin/structure-picker"
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
   CHAMPS_FORMULAIRE_PRODUIT,
   ecartPrixDepuisTexte,
   galerieSoumiseHorsSuppressionsEnAttente,
+  MESSAGE_SECTIONS_INVALIDES,
   texteEcartPrix,
   texteSpecifications,
   valeurCaseACocher,
   type EntreeImageProduitFormulaire,
+  type EtatFormulaireProduit,
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
 } from "@/lib/formulaire-produit"
@@ -38,13 +47,11 @@ import type { EntreeBibliothequeImageProduit } from "@/lib/galerie-image-produit
 import { centsToInputValue } from "@/lib/money"
 import { slugify } from "@/lib/slug"
 
-export interface ProductFormState {
-  error?: string
-}
+export type ProductFormState = EtatFormulaireProduit
 
 interface ProductFormProps {
   product?: FaitsFormulaireProduit
-  categories: { id: string; name: string }[]
+  structures: StructureAvecChemin[]
   bibliotheque?: readonly EntreeBibliothequeImageProduit[]
   action: (
     prevState: ProductFormState,
@@ -61,12 +68,21 @@ const emptyVariant = (): FaitsVarianteFormulaire => ({
 
 export function ProductForm({
   product,
-  categories,
+  structures,
   bibliotheque,
   action,
 }: ProductFormProps) {
   const [state, formAction, isPending] = useActionState(action, {})
+  const router = useRouter()
+  const annulerNavigationRef = useRef<HTMLButtonElement>(null)
   const slugRef = useRef<HTMLInputElement>(null)
+  const [modifie, setModifie] = useState(false)
+  const [lienEnAttente, setLienEnAttente] = useState<string | null>(null)
+
+  const sectionsEnErreur =
+    state.sections && Object.keys(state.sections).length > 0
+      ? state.sections
+      : undefined
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "")
   const [isFeatured, setIsFeatured] = useState(product?.isFeatured ?? false)
   const [freeShipping, setFreeShipping] = useState(
@@ -80,7 +96,12 @@ export function ProductForm({
     product?.variants ?? [emptyVariant()]
   )
 
+  function marquerModifie() {
+    setModifie(true)
+  }
+
   function setVariant(index: number, patch: Partial<FaitsVarianteFormulaire>) {
+    marquerModifie()
     setVariants((current) =>
       current.map((variant, i) =>
         i === index ? { ...variant, ...patch } : variant
@@ -88,8 +109,58 @@ export function ProductForm({
     )
   }
 
+  useEffect(() => {
+    if (!modifie) return
+
+    const surAvantDechargement = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+
+    const surClic = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return
+      }
+      const cible =
+        event.target instanceof Element ? event.target.closest("a[href]") : null
+      if (!(cible instanceof HTMLAnchorElement)) return
+      if (cible.target !== "" && cible.target !== "_self") return
+
+      const url = new URL(cible.href, window.location.href)
+      if (url.origin !== window.location.origin) return
+      if (
+        url.pathname === window.location.pathname &&
+        url.search === window.location.search
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      setLienEnAttente(`${url.pathname}${url.search}${url.hash}`)
+    }
+
+    window.addEventListener("beforeunload", surAvantDechargement)
+    document.addEventListener("click", surClic, true)
+    return () => {
+      window.removeEventListener("beforeunload", surAvantDechargement)
+      document.removeEventListener("click", surClic, true)
+    }
+  }, [modifie])
+
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <form
+      action={formAction}
+      className="flex flex-col gap-6"
+      onChange={marquerModifie}
+      onInput={marquerModifie}
+    >
       {product?.id ? (
         <input
           type="hidden"
@@ -128,9 +199,21 @@ export function ProductForm({
         value={JSON.stringify(variants)}
       />
 
-      {state.error ? (
-        <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+      {state.error && !sectionsEnErreur ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
           {state.error}
+        </p>
+      ) : null}
+
+      {sectionsEnErreur ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {MESSAGE_SECTIONS_INVALIDES}
         </p>
       ) : null}
 
@@ -139,6 +222,7 @@ export function ProductForm({
           <CardTitle>Informations</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <FieldError>{state.sections?.informations}</FieldError>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="name">Nom</Label>
@@ -188,27 +272,21 @@ export function ProductForm({
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="categoryId">Catégorie</Label>
-              <Select
-                value={categoryId}
-                onValueChange={(value) => setCategoryId(value ?? "")}
-              >
-                <SelectTrigger id="categoryId" className="w-full">
-                  <SelectValue placeholder="Choisir une catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              {}
+              <StructurePicker
+                id="categoryId"
+                valeur={categoryId}
+                structures={structures}
+                onChange={(valeur) => {
+                  marquerModifie()
+                  setCategoryId(valeur)
+                }}
+              />
+              <FieldError>{state.sections?.structure}</FieldError>
               {product && product.categoryId === null ? (
-                <p className="flex items-start gap-1.5 text-sm text-destructive">
+                <p
+                  role="status"
+                  className="flex items-start gap-1.5 text-sm text-destructive"
+                >
                   <HugeiconsIcon
                     icon={Alert02Icon}
                     strokeWidth={2}
@@ -216,7 +294,8 @@ export function ProductForm({
                   />
                   <span>
                     Ce Produit est sans Structure : sa Structure a été
-                    supprimée. Choisissez-en une pour l&apos;enregistrer.
+                    supprimée, il n&apos;apparaît donc sur aucune page de
+                    catégorie. Choisissez-en une pour l&apos;enregistrer.
                   </span>
                 </p>
               ) : null}
@@ -261,6 +340,7 @@ export function ProductForm({
           <CardTitle>Mise en avant</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <FieldError>{state.sections?.miseEnAvant}</FieldError>
           <div className="flex items-center justify-between">
             <Label htmlFor="isFeatured">
               Produit mis en avant (page d&apos;accueil)
@@ -268,7 +348,10 @@ export function ProductForm({
             <Switch
               id="isFeatured"
               checked={isFeatured}
-              onCheckedChange={(checked) => setIsFeatured(checked)}
+              onCheckedChange={(checked) => {
+                marquerModifie()
+                setIsFeatured(checked)
+              }}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -276,7 +359,10 @@ export function ProductForm({
             <Switch
               id="freeShipping"
               checked={freeShipping}
-              onCheckedChange={(checked) => setFreeShipping(checked)}
+              onCheckedChange={(checked) => {
+                marquerModifie()
+                setFreeShipping(checked)
+              }}
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -297,10 +383,14 @@ export function ProductForm({
         <CardHeader>
           <CardTitle>Images</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
+          <FieldError>{state.sections?.images}</FieldError>
           <ImageGalleryUpload
             images={images}
-            onChange={setImages}
+            onChange={(suivantes) => {
+              marquerModifie()
+              setImages(suivantes)
+            }}
             bibliotheque={bibliotheque}
           />
         </CardContent>
@@ -311,6 +401,7 @@ export function ProductForm({
           <CardTitle>Variantes (tailles, couleurs, SKU…)</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <FieldError>{state.sections?.variantes}</FieldError>
           <div className="flex flex-col gap-3">
             {variants.map((variant, index) => (
               <div
@@ -411,11 +502,59 @@ export function ProductForm({
         </CardContent>
       </Card>
 
-      <div className="flex gap-2">
+      <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 border-t bg-background/95 px-1 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
         <Button type="submit" disabled={isPending}>
           {isPending ? "Enregistrement…" : "Enregistrer le produit"}
         </Button>
+        <p
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="text-sm text-muted-foreground"
+        >
+          {isPending
+            ? "Enregistrement en cours…"
+            : modifie
+              ? "Modifications non enregistrées"
+              : ""}
+        </p>
       </div>
+
+      <AlertDialog
+        open={lienEnAttente !== null}
+        onOpenChange={(ouvert) => {
+          if (!ouvert) setLienEnAttente(null)
+        }}
+      >
+        <AlertDialogContent initialFocus={annulerNavigationRef}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg">
+              Quitter sans enregistrer ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Les modifications de ce Produit ne seront pas enregistrées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogClose
+              render={<Button ref={annulerNavigationRef} variant="outline" />}
+            >
+              Rester sur la page
+            </AlertDialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const href = lienEnAttente
+                setLienEnAttente(null)
+                setModifie(false)
+                if (href) router.push(href)
+              }}
+            >
+              Quitter sans enregistrer
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   )
 }
