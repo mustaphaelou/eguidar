@@ -9,8 +9,10 @@ import {
   basculerRegle,
   creerRegle,
   lireRegle,
+  listerEvenementsSimulables,
   listerRegles,
   modifierRegle,
+  simulerRegle,
   type EntreeRegle,
 } from "@/lib/use-cases/automatisations"
 import {
@@ -250,6 +252,135 @@ describe("l'éditeur de Règles d'automatisation", () => {
     await expect(
       prisma.automationRun.count({ where: { ruleId: id } })
     ).resolves.toBe(0)
+  })
+
+  it("simule une règle sur un Événement réel sans écrire d'exécution ni rien envoyer", async () => {
+    const id = await creerUneRegle({
+      nom: "Statut expédié",
+      declencheur: "commande.statut.changee",
+      condition: { type: "statut-commande", statuts: ["shipped"] },
+      action: "email.commande-statut",
+    })
+    const evenement = await prisma.automationEvent.create({
+      data: {
+        type: "commande.statut.changee",
+        entityType: "commande",
+        entityId: `commande-${runId}-simulee`,
+        seq: 1,
+        attemptOf: 1,
+        payload: {
+          statut: "shipped",
+          snapshot: { orderId: `commande-${runId}-simulee` },
+        },
+        occurredAt: MAINTENANT,
+        expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+      },
+    })
+
+    await expect(
+      simulerRegle({ regleId: id, evenementId: evenement.id }, MAINTENANT)
+    ).resolves.toMatchObject({
+      decision: "enverrait",
+      motif:
+        "La condition « Statut de Commande » retient le statut « shipped » : l'action « E-mail de statut de Commande » serait exécutée.",
+      evenement: { id: evenement.id, entityId: `commande-${runId}-simulee` },
+    })
+
+    await expect(prisma.automationRun.count()).resolves.toBe(0)
+    await expect(
+      prisma.automationEvent.findUniqueOrThrow({ where: { id: evenement.id } })
+    ).resolves.toMatchObject({ status: "en_attente", attempts: 0 })
+  })
+
+  it("rend le motif d'un refus de simulation : statut non retenu, règle désactivée, Événement expiré", async () => {
+    const id = await creerUneRegle({
+      nom: "Statut retenu",
+      declencheur: "commande.statut.changee",
+      condition: { type: "statut-commande", statuts: ["shipped"] },
+      action: "email.commande-statut",
+      actif: true,
+    })
+    const evenement = await prisma.automationEvent.create({
+      data: {
+        type: "commande.statut.changee",
+        entityType: "commande",
+        entityId: `commande-${runId}-refus`,
+        seq: 1,
+        attemptOf: 1,
+        payload: { statut: "pending", snapshot: {} },
+        occurredAt: MAINTENANT,
+        expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+      },
+    })
+
+    await expect(
+      simulerRegle({ regleId: id, evenementId: evenement.id }, MAINTENANT)
+    ).resolves.toMatchObject({
+      decision: "ignorerait",
+      motif:
+        "La condition « Statut de Commande » ne retient pas le statut « pending » : l'action « E-mail de statut de Commande » serait ignorée.",
+    })
+
+    await basculerRegle(id, false, AUTEUR, MAINTENANT)
+    await expect(
+      simulerRegle({ regleId: id, evenementId: evenement.id }, MAINTENANT)
+    ).resolves.toMatchObject({
+      decision: "ignorerait",
+      motif: "La règle est désactivée : l'action ne serait pas exécutée.",
+    })
+
+    await prisma.automationEvent.update({
+      where: { id: evenement.id },
+      data: { expiresAt: new Date(MAINTENANT.getTime() - 1_000) },
+    })
+    await basculerRegle(id, true, AUTEUR, MAINTENANT)
+    await expect(
+      simulerRegle({ regleId: id, evenementId: evenement.id }, MAINTENANT)
+    ).resolves.toMatchObject({
+      decision: "ignorerait",
+      motif:
+        "L'Événement a expiré le 2026-10-28T08:59:59.000Z : l'action ne serait pas exécutée.",
+    })
+  })
+
+  it("liste les Événements réels qui peuvent servir de sujet à une simulation", async () => {
+    const id = await creerUneRegle({
+      nom: "Simulation listée",
+      declencheur: "structure.modifiee",
+      action: "invalidation.structure",
+    })
+    for (const [index, entite] of ["a", "b"].entries()) {
+      await prisma.automationEvent.create({
+        data: {
+          type: "structure.modifiee",
+          entityType: "categorie",
+          entityId: `categorie-${runId}-${entite}`,
+          seq: index + 1,
+          attemptOf: index + 1,
+          payload: { categorieId: `categorie-${runId}-${entite}` },
+          occurredAt: new Date(MAINTENANT.getTime() + index * 1_000),
+          expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+        },
+      })
+    }
+    await prisma.automationEvent.create({
+      data: {
+        type: "produit.enregistre",
+        entityType: "produit",
+        entityId: `produit-${runId}-autre`,
+        seq: 1,
+        attemptOf: 1,
+        payload: {},
+        occurredAt: MAINTENANT,
+        expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+      },
+    })
+
+    const evenements = await listerEvenementsSimulables(id)
+    expect(evenements.map((evenement) => evenement.entityId)).toEqual([
+      `categorie-${runId}-b`,
+      `categorie-${runId}-a`,
+    ])
   })
 
   it("liste les règles avec leur état et leur dernière exécution", async () => {

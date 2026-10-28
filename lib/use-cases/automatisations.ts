@@ -7,13 +7,17 @@ import {
   conditionAutomationSchema,
   configurationRegleSchema,
   ecrireRevisionRegle,
+  laConditionEstRemplie,
   verifierRegle,
   type RegleAutomation,
 } from "@/lib/automations/regles"
-import type {
-  ActionAutomation,
-  ConfigurationRegle,
-  TypeConditionAutomation,
+import {
+  LIBELLES_ACTION,
+  LIBELLES_DECLENCHEUR,
+  libelleDeLaCondition,
+  type ActionAutomation,
+  type ConfigurationRegle,
+  type TypeConditionAutomation,
 } from "@/lib/automations/vocabulaire"
 import type {
   DeclencheurExecution,
@@ -27,6 +31,13 @@ export class RegleIntrouvableError extends UserFacingError {
   constructor() {
     super("Règle d'automatisation introuvable")
     this.name = "RegleIntrouvableError"
+  }
+}
+
+export class EvenementIntrouvableError extends UserFacingError {
+  constructor() {
+    super("Événement d'automatisation introuvable")
+    this.name = "EvenementIntrouvableError"
   }
 }
 
@@ -352,6 +363,146 @@ async function annulerExecutionsEnCours(
   }
 
   return executions.length
+}
+
+export interface EvenementSimulable {
+  id: string
+  type: string
+  entityType: string
+  entityId: string
+  occurredAt: Date
+  expiresAt: Date
+  statut: StatutAutomation
+}
+
+export interface DecisionSimulation {
+  decision: "enverrait" | "ignorerait"
+  motif: string
+  evenement: EvenementSimulable
+}
+
+function libelleDeLAction(action: ActionAutomation): string {
+  return `« ${LIBELLES_ACTION[action]} »`
+}
+
+/**
+ * Les Événements réels qui peuvent servir de sujet à une simulation : ceux du
+ * déclencheur de la règle, du plus récent au plus ancien.
+ */
+export async function listerEvenementsSimulables(
+  regleId: string,
+  limite = 10
+): Promise<EvenementSimulable[]> {
+  const regle = await prisma.automationRule.findUnique({
+    where: { id: regleId },
+    select: { trigger: true },
+  })
+  if (!regle) throw new RegleIntrouvableError()
+
+  const evenements = await prisma.automationEvent.findMany({
+    where: { type: regle.trigger },
+    orderBy: { occurredAt: "desc" },
+    take: limite,
+    select: {
+      id: true,
+      type: true,
+      entityType: true,
+      entityId: true,
+      occurredAt: true,
+      expiresAt: true,
+      status: true,
+    },
+  })
+
+  return evenements.map((evenement) => ({
+    id: evenement.id,
+    type: evenement.type,
+    entityType: evenement.entityType,
+    entityId: evenement.entityId,
+    occurredAt: evenement.occurredAt,
+    expiresAt: evenement.expiresAt,
+    statut: evenement.status,
+  }))
+}
+
+/**
+ * Évalue une règle contre un Événement **réel** — sa charge, son expiration,
+ * son entité. Rien n'est écrit et rien n'est envoyé : la simulation ne prend
+ * même pas les ports du travailleur, elle ne peut donc pas envoyer.
+ */
+export async function simulerRegle(
+  options: { regleId: string; evenementId: string },
+  maintenant = new Date()
+): Promise<DecisionSimulation> {
+  const ligne = await prisma.automationRule.findUnique({
+    where: { id: options.regleId },
+  })
+  if (!ligne) throw new RegleIntrouvableError()
+  const regle = versRegle(ligne)
+
+  const evenement = await prisma.automationEvent.findUnique({
+    where: { id: options.evenementId },
+  })
+  if (!evenement) throw new EvenementIntrouvableError()
+
+  const sujet: EvenementSimulable = {
+    id: evenement.id,
+    type: evenement.type,
+    entityType: evenement.entityType,
+    entityId: evenement.entityId,
+    occurredAt: evenement.occurredAt,
+    expiresAt: evenement.expiresAt,
+    statut: evenement.status,
+  }
+  const action = libelleDeLAction(regle.action)
+
+  if (evenement.type !== regle.declencheur) {
+    return {
+      decision: "ignorerait",
+      motif: `Le déclencheur de la règle ne correspond pas : « ${LIBELLES_DECLENCHEUR[evenement.type as keyof typeof LIBELLES_DECLENCHEUR] ?? evenement.type} » (${evenement.type}) au lieu de « ${LIBELLES_DECLENCHEUR[regle.declencheur]} » (${regle.declencheur}) : l'action ${action} serait ignorée.`,
+      evenement: sujet,
+    }
+  }
+
+  if (!regle.actif) {
+    return {
+      decision: "ignorerait",
+      motif: "La règle est désactivée : l'action ne serait pas exécutée.",
+      evenement: sujet,
+    }
+  }
+
+  if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
+    return {
+      decision: "ignorerait",
+      motif: `L'Événement a expiré le ${evenement.expiresAt.toISOString()} : l'action ne serait pas exécutée.`,
+      evenement: sujet,
+    }
+  }
+
+  if (!laConditionEstRemplie(regle.condition, evenement.payload)) {
+    const statut = (evenement.payload as { statut?: unknown } | null)?.statut
+    return {
+      decision: "ignorerait",
+      motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » ne retient pas le statut « ${String(statut)} » : l'action ${action} serait ignorée.`,
+      evenement: sujet,
+    }
+  }
+
+  if (regle.condition.type === "statut-commande") {
+    const statut = (evenement.payload as { statut?: unknown }).statut
+    return {
+      decision: "enverrait",
+      motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » retient le statut « ${String(statut)} » : l'action ${action} serait exécutée.`,
+      evenement: sujet,
+    }
+  }
+
+  return {
+    decision: "enverrait",
+    motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » est remplie : l'action ${action} serait exécutée.`,
+    evenement: sujet,
+  }
 }
 
 export type { ActionAutomation, TypeConditionAutomation }
