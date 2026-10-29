@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { nextCookies } from "better-auth/next-js"
-import { captcha, emailOTP } from "better-auth/plugins"
+import { captcha, emailOTP, haveIBeenPwned } from "better-auth/plugins"
 
 import { prisma } from "@/lib/db"
 import { sendOtpEmail } from "@/lib/emails"
@@ -57,10 +57,12 @@ export const auth = betterAuth({
   },
   plugins: [
     emailOTP({
+      storeOTP: "hashed",
       async sendVerificationOTP({ email, otp, type }) {
         await sendOtpEmail(email, otp, type)
       },
     }),
+    haveIBeenPwned(),
     ...(process.env.TURNSTILE_SECRET_KEY
       ? [
           captcha({
