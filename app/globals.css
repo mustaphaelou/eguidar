@@ -122,6 +122,9 @@
   :root {
     color-scheme: light;
     scrollbar-gutter: stable;
+    /* La hauteur que la barre d'enregistrement du Produit occupe : la réserve
+       basse de la fenêtre et la marge du contrôle focalisé la lisent ensemble. */
+    --hauteur-barre-enregistrement: 4rem;
     text-wrap: pretty;
     overflow-wrap: break-word;
     font-synthesis: none;
@@ -143,6 +146,7 @@
   html {
     @apply font-sans;
     font-size: 106.25%;
+    scroll-padding-bottom: var(--hauteur-barre-enregistrement);
   }
 
   h1,
@@ -226,6 +230,19 @@
 
 [data-slot="accordion-trigger"] {
   transition-property: color, text-decoration-color, opacity;
+}
+
+/* La barre d'enregistrement reste collée au bas de la fenêtre : un contrôle
+   qui reçoit le focus ne doit donc jamais s'arrêter dessous. La réserve de
+   défilement de la fenêtre et la marge du contrôle lisent la même hauteur,
+   donc changer la barre change les deux. */
+.barre-enregistrement {
+  min-height: var(--hauteur-barre-enregistrement);
+}
+
+:where(.formulaire-produit)
+  :is(a, button, input, select, textarea, [tabindex]):focus-visible {
+  scroll-margin-bottom: calc(var(--hauteur-barre-enregistrement) + 0.75rem);
 }
 
 .outline-none {
