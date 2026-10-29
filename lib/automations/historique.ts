@@ -6,6 +6,7 @@ import type {
 
 export interface ExecutionAutomatisation {
   id: string
+  regleId: string | null
   regle: string | null
   action: string
   statut: StatutAutomation
@@ -22,17 +23,29 @@ export interface ExecutionAutomatisation {
   } | null
 }
 
+export interface FiltresHistorique {
+  statut?: StatutAutomation | null
+  regleId?: string | null
+  depuis?: Date | null
+  limite?: number
+}
+
 /**
- * La lecture minimale de l'historique : les dernières exécutions, avec leur
- * statut, leur tentative, leur erreur et leurs horodatages. Un échec doit être
- * visible dans l'Administration (ADR-0041) ; Phase 5 étendra la surface.
+ * La lecture de l'historique : statut, tentative, erreur, horodatages, avec
+ * les filtres de Flow (statut, règle, fenêtre de temps). Une exécution en
+ * échec doit rester visible et réessayable dans l'Administration (ADR-0041).
  */
 export async function listerExecutions(
-  options: { limite?: number } = {}
+  filtres: FiltresHistorique = {}
 ): Promise<ExecutionAutomatisation[]> {
   const executions = await prisma.automationRun.findMany({
+    where: {
+      ...(filtres.statut ? { status: filtres.statut } : {}),
+      ...(filtres.regleId ? { ruleId: filtres.regleId } : {}),
+      ...(filtres.depuis ? { startedAt: { gte: filtres.depuis } } : {}),
+    },
     orderBy: { startedAt: "desc" },
-    take: options.limite ?? 25,
+    take: filtres.limite ?? 25,
     include: {
       rule: { select: { name: true } },
       event: { select: { type: true, entityType: true, entityId: true } },
@@ -41,6 +54,7 @@ export async function listerExecutions(
 
   return executions.map((execution) => ({
     id: execution.id,
+    regleId: execution.ruleId,
     regle: execution.rule?.name ?? null,
     action: execution.action,
     statut: execution.status,
@@ -52,4 +66,11 @@ export async function listerExecutions(
     declencheur: execution.trigger,
     evenement: execution.event,
   }))
+}
+
+/** Le bandeau de l'Administration : un échec ne reste pas invisible. */
+export async function compterExecutionsEnEchec(): Promise<number> {
+  return prisma.automationRun.count({
+    where: { status: { in: ["echoue", "mort"] } },
+  })
 }

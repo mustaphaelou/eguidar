@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { Prisma } from "@/lib/generated/prisma/client"
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import {
   compterEvenementsMorts,
@@ -333,5 +334,54 @@ describe("le travailleur des automatisations", () => {
       where: { entityId: entite },
     })
     expect(evenement.status).toBe("reussi")
+  })
+
+  it("résout le destinataire d'un digest par un nom de variable, jamais par sa valeur", async () => {
+    const variable = `DESTINATAIRE_DIGEST_${runId.toUpperCase().replace(/-/g, "_")}`
+    await prisma.automationRule.update({
+      where: { id: "digest-stock-bas" },
+      data: { actionConfig: { destinataireVariable: variable } },
+    })
+    const entite = `planification-${runId}`
+    await ecrire({
+      type: "planification.digest-stock-bas",
+      entityType: "planification",
+      entityId: entite,
+      occurredAt: MAINTENANT,
+      payload: { jour: "2026-10-28" },
+    })
+
+    const valeurInvalide = "ceci-n-est-pas-une-adresse"
+    process.env[variable] = valeurInvalide
+    const emails = creerPortEmailsMemoire()
+    const dependances = dependancesDeTest(MAINTENANT, { emails: emails.port })
+
+    try {
+      await executerLesEvenements(options(), dependances)
+
+      const echec = await prisma.automationRun.findFirstOrThrow({
+        where: { ruleId: "digest-stock-bas" },
+      })
+      expect(echec.status).toBe("echoue")
+      expect(echec.lastError).toContain(variable)
+      expect(echec.lastError).not.toContain(valeurInvalide)
+      expect(emails.appels).toHaveLength(0)
+
+      process.env[variable] = "proprietaire@example.test"
+      await prisma.automationEvent.updateMany({
+        where: { entityId: entite },
+        data: { status: "en_attente", attempts: 0, lockedUntil: null },
+      })
+      await executerLesEvenements(options(), dependances)
+
+      expect(emails.envoyes).toHaveLength(1)
+      expect(emails.envoyes[0]!.destinataire).toBe("proprietaire@example.test")
+    } finally {
+      delete process.env[variable]
+      await prisma.automationRule.update({
+        where: { id: "digest-stock-bas" },
+        data: { actionConfig: Prisma.DbNull },
+      })
+    }
   })
 })

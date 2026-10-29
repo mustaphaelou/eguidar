@@ -12,6 +12,7 @@ import {
   planifierLeDigestStockBas,
 } from "@/lib/automations/planification"
 import { semerLesRegles } from "@/lib/automations/regles"
+import { prunerLesExecutions } from "@/lib/automations/retention"
 
 /**
  * Le travailleur tient sur le Postgres déjà déployé : pg-boss n'ajoute ni
@@ -55,6 +56,7 @@ async function assurerLesFiles(boss: PgBoss): Promise<void> {
 }
 
 export async function balayer(maintenant: Date): Promise<BilanExecution> {
+  await prunerLesExecutions(maintenant)
   return executerLesEvenements(
     { maintenant },
     dependancesAutomations(maintenant)

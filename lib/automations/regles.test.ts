@@ -85,7 +85,7 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
     await semerLesRegles()
 
     const modifiees = REGLES_AUTOMATION.map((regle) =>
-      regle.id === "confirmation-commande"
+      regle.id === "statut-commande"
         ? {
             ...regle,
             condition: { type: "statut-commande" as const, statuts: [] },
@@ -95,12 +95,12 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
     await semerLesRegles(modifiees, "proprietaire")
 
     const regle = await prisma.automationRule.findUniqueOrThrow({
-      where: { id: "confirmation-commande" },
+      where: { id: "statut-commande" },
     })
     expect(regle.condition).toEqual({ type: "statut-commande", statuts: [] })
 
     const revisions = await prisma.automationRuleRevision.findMany({
-      where: { ruleId: "confirmation-commande" },
+      where: { ruleId: "statut-commande" },
       orderBy: { createdAt: "asc" },
     })
     expect(revisions).toHaveLength(2)
@@ -115,5 +115,70 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
       expect(regle.declencheur).toMatch(/^[a-z-]+(\.[a-z-]+)+$/)
       expect(ACTIONS_AUTOMATION).toContain(regle.action)
     }
+  })
+
+  it("refuse une combinaison non prise en charge en la nommant", () => {
+    expect(() =>
+      verifierRegle({
+        id: "boucle-interdite",
+        nom: "Boucle interdite",
+        declencheur: "produit.enregistre",
+        condition: { type: "toujours" },
+        action: "email.commande-statut",
+        actif: true,
+      })
+    ).toThrow(
+      "Combinaison non prise en charge : « Produit enregistré » (produit.enregistre) ne déclenche pas « E-mail de statut de Commande » (email.commande-statut)."
+    )
+  })
+
+  it("n'admet qu'un nom de variable d'environnement comme destinataire", () => {
+    const digest = verifierRegle({
+      id: "digest-configure",
+      nom: "Digest configuré",
+      declencheur: "planification.digest-stock-bas",
+      condition: { type: "toujours" },
+      action: "digest.stock-bas",
+      configuration: { destinataireVariable: "ADMIN_EMAIL" },
+      actif: true,
+    })
+    expect(digest.configuration).toEqual({
+      destinataireVariable: "ADMIN_EMAIL",
+    })
+
+    expect(() =>
+      verifierRegle({
+        id: "digest-url",
+        nom: "Digest URL",
+        declencheur: "planification.digest-stock-bas",
+        condition: { type: "toujours" },
+        action: "digest.stock-bas",
+        configuration: { destinataireVariable: "https://exfiltration.example" },
+        actif: true,
+      })
+    ).toThrow(/variable d'environnement/)
+  })
+
+  it("conserve le nom de la variable, jamais sa valeur, dans l'instantané semé", async () => {
+    await semerLesRegles([
+      {
+        id: "digest-configure",
+        nom: "Digest configuré",
+        declencheur: "planification.digest-stock-bas",
+        condition: { type: "toujours" },
+        action: "digest.stock-bas",
+        configuration: { destinataireVariable: "ADMIN_EMAIL" },
+        actif: true,
+      },
+    ])
+
+    const regle = await prisma.automationRule.findUniqueOrThrow({
+      where: { id: "digest-configure" },
+    })
+    expect(regle.actionConfig).toEqual({ destinataireVariable: "ADMIN_EMAIL" })
+    const revision = await prisma.automationRuleRevision.findFirstOrThrow({
+      where: { ruleId: "digest-configure" },
+    })
+    expect(JSON.stringify(revision.snapshot)).toContain("ADMIN_EMAIL")
   })
 })

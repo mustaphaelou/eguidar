@@ -177,3 +177,91 @@ et l'outbox.
   présente décision, et par elle seule. Les autres points de la même liste restent vrais.
 - ADR-0014, « Options envisagées », « Outbox / background worker — différé » : la sortie différée est
   prise ici.
+
+## Addendum — la surface des Règles, phase 5
+
+La phase 4 avait taillé les modèles et laissé le marchand devant une page de lecture seule. La
+phase 5 ouvre l'édition **dans le vocabulaire fermé** : elle n'ajoute ni déclencheur, ni condition,
+ni action, et elle ne touche pas au travailleur. Ce qu'elle ajoute, ce sont les gardes et les gestes
+qui manquaient.
+
+- **Le propriétaire est le rôle `admin`.** Le dépôt n'a qu'un modèle de rôles (`"admin"` ou
+  `"user"`, `estAdmin`) : « le propriétaire » est donc l'administrateur semé, et la bascule passe par
+  `adminFormAction`, exactement la garde de l'Administration. Toute session de l'Administration lit
+  la liste, l'éditeur, la simulation et l'historique — c'est la garde de `app/admin/layout.tsx` qui
+  l'assure — mais seule une session `estAdmin` peut créer, modifier, basculer ou réessayer. Un modèle
+  multi-rôles pourra resserrer cette garde sans changer les modèles : rien ne dépend d'un rôle nommé
+  au-delà de `estAdmin`.
+
+- **Le vocabulaire reste fermé, et une combinaison impossible se refuse en la nommant.**
+  `lib/automations/vocabulaire.ts` porte la table de compatibilité déclencheur → action
+  (`DECLENCHEURS_PAR_ACTION`), les conditions admises par déclencheur (`statut-commande` n'a de sens
+  que sur `commande.statut.changee`, dont la charge porte ce champ), et la table des entités que
+  chaque action écrit (`ENTITES_ECRITES_PAR_ACTION`, vide aujourd'hui — la frontière du travailleur
+  interdit déjà les modules de mutation). `actionsOffertes` filtre les actions qui écriraient la table
+  observée par leur propre déclencheur : une boucle ne peut donc pas être exprimée, plutôt que d'être
+  détectée après coup. Le refus est un `CombinaisonRefusee`, un `UserFacingError` dont le message
+  nomme les deux valeurs et leurs libellés : « Combinaison non prise en charge : « Produit
+  enregistré » (produit.enregistre) ne déclenche pas « E-mail de statut de Commande »
+  (email.commande-statut). » Le module est pur : le formulaire client et l'éditeur serveur lisent la
+  même liste.
+
+- **L'éditeur écrit une révision attribuée, jamais une révision vide.** L'identifiant d'une règle
+  créée est dérivé de son nom (`slugify`), puisqu'il est la clé que l'historique des exécutions
+  référence ; un identifiant déjà pris est refusé en le nommant. `ecrireRevisionRegle` compare
+  l'instantané stable (mêmes clés, triées) à la dernière révision : un enregistrement qui ne change
+  rien n'ajoute pas d'audit, et le semis d'un redéploiement non plus. Chaque révision porte
+  l'instantané complet, `caller.email` comme auteur et l'horodatage.
+
+- **Basculer prend effet au balayage suivant, sans redéploiement.** L'exécuteur lit `enabled` en base
+  à chaque passe : il n'y a ni cache de règle ni redémarrage. Désactiver annule les exécutions en
+  cours de la règle (`en_cours` → `ignore`, motif « annulée : règle désactivée ») et libère le bail
+  de leur Événement. Réactiver ne rejoue rien : les Événements arrivés pendant la désactivation ont
+  déjà été consommés par le balayage (un Événement dont aucune règle ne s'applique est `reussi`, pas
+  en attente). L'acceptation « désactiver puis réactiver n'envoie pas deux fois » tient donc par la
+  consommation, pas par une file de rejeu.
+
+- **La simulation juge sur un Événement réel et ne peut rien écrire.** `simulerRegle` lit la règle et
+  un `AutomationEvent` existant, puis rend `enverrait` ou `ignorerait` avec le motif : déclencheur
+  différent, règle désactivée, Événement expiré, condition non remplie (le statut est nommé), ou
+  condition remplie. Elle **ne prend pas les ports du travailleur** : elle ne peut donc ni envoyer ni
+  écrire une Exécution, et le test l'épingle en comptant les Exécutions et en laissant les ports
+  mémoire intacts. La page choisit le dernier Événement du déclencheur par défaut, et `?simuler=<id>`
+  en choisit un autre — c'est une lecture, pas une action.
+
+- **L'historique se filtre et se réessaie.** `listerExecutions` prend un statut, une règle et une
+  date de départ (même grammaire d'URL que la liste des Commandes : parse, rebuild, valeur inconnue
+  ignorée), rend `regleId` et les horodatages, et `compterExecutionsEnEchec` alimente le bandeau.
+  `reessayerExecution` ne réessaie qu'une Exécution `echoue`, rejoue **la règle** sur l'Événement de
+  l'Exécution, écrit une nouvelle Exécution `manuel` avec la tentative suivante et laisse l'échec
+  d'origine dans l'histoire. L'Événement ne redevient `reussi` que si aucune autre règle n'a encore sa
+  dernière Exécution en échec — un réessai ne masque pas l'échec du voisin. C'est la distinction
+  « manual retry » de Flow et « manuel contre production » de n8n.
+
+- **La rétention est celle de l'historique, et c'est le même balayage.** Flow documente 14 jours :
+  `DUREE_RETENTION_EXECUTIONS_MS` vaut quatorze jours et `prunerLesExecutions` supprime les Exécutions
+  terminées dont le début sort de la fenêtre. L'appel est dans `balayer`, à côté de
+  `executerLesEvenements` : pas de seconde tâche planifiée, pas de second ordonnanceur. Une Exécution
+  `en_cours` n'est jamais purgée — elle porte le bail d'un Événement.
+
+- **Un secret est un nom, jamais une valeur.** Le seul secret du vocabulaire est le destinataire d'un
+  digest : `actionConfig` ne stocke que `{ "destinataireVariable": "ADMIN_EMAIL" }`, validé par une
+  expression qui n'admet que des majuscules, des chiffres et « _ » (une URL ou une adresse est donc
+  refusée). La valeur est lue par `process.env[nom]` à l'exécution, et une variable absente ou
+  invalide produit une erreur qui nomme la variable **sans sa valeur** ; l'instantané de révision, la
+  liste, l'éditeur et l'historique n'affichent que le nom. Aucun champ de règle n'admet de code, d'URL
+  ou de texte libre au-delà du nom de la règle.
+
+- **« Exécuter maintenant » n'est pas offert.** Le vocabulaire ne le permet pas sans second
+  écrivain : les actions lisent toutes la charge d'un Événement, et l'invariant « l'outbox est écrit
+  dans la transaction de la mutation » interdit de fabriquer un Événement depuis un bouton. Le réessai
+  manuel couvre le besoin réel (« rejouer cette action qui a échoué ») ; le reste attend le prochain
+  balayage.
+
+- Ce que l'addendum épingle, en plus des invariants de la phase 4 :
+  `lib/automations/vocabulaire.test.ts` (offre par déclencheur, combinaison refusée nommée, boucle
+  impossible, nom de variable), `lib/use-cases/automatisations.test.ts` (création et révision
+  attribuée, refus, bascule et annulation, pas de rejeu, simulation sans écriture, réessai manuel),
+  `lib/automations/historique.test.ts` (filtres), `lib/automations/retention.test.ts` (fenêtre et
+  purge par `balayer`), `app/admin/automatisations/**/*.test.tsx` (la liste, l'éditeur, la
+  simulation, l'historique et le refus d'une session non propriétaire).
