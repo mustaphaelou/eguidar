@@ -2,7 +2,14 @@ import { PAGE_SIZES } from "@/lib/table-config"
 
 const PRODUIT_LISTING_PATH = "/admin/produits"
 
-export const PRODUIT_STRUCTURE_SANS = "sans-structure"
+/**
+ * Le jeton du filtre « sans Structure ». Les identifiants de Structure sont
+ * des CUID — lettres et chiffres — et la grammaire d'un slug n'admet pas `_`
+ * non plus : ce jeton ne peut donc nommer ni l'un ni l'autre. Il reste
+ * distinct de la valeur réservée de l'index, qui appartient à un autre
+ * vocabulaire (ADR-0029).
+ */
+export const PRODUIT_STRUCTURE_SANS = "sans_structure"
 export const PRODUIT_STOCK_ZERO = "zero"
 export const PRODUIT_STOCK_NON_NUL = "non-zero"
 

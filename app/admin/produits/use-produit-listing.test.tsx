@@ -240,7 +240,7 @@ describe("useProduitListing", () => {
       ])
     )
     expect(pushedHrefs).toEqual([
-      "/admin/produits?q=chaise&structure=sans-structure&misEnAvant=1&livraisonOfferte=1",
+      "/admin/produits?q=chaise&structure=sans_structure&misEnAvant=1&livraisonOfferte=1",
     ])
     expect(latest!.view.structure).toBe(PRODUIT_STRUCTURE_SANS)
     expect(latest!.view.misEnAvant).toBe(true)

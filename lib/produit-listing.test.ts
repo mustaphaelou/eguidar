@@ -174,8 +174,13 @@ describe("buildProduitListingUrl", () => {
       "/admin/produits?stock=non-zero"
     )
     expect(buildProduitListingUrl({ structure: PRODUIT_STRUCTURE_SANS })).toBe(
-      "/admin/produits?structure=sans-structure"
+      "/admin/produits?structure=sans_structure"
     )
+  })
+
+  it("réserve un jeton qu'aucun slug ni identifiant de Structure ne peut porter", () => {
+    expect(PRODUIT_STRUCTURE_SANS).toMatch(/_/)
+    expect(PRODUIT_STRUCTURE_SANS).not.toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   })
 
   it("never emits a false flag, and trims q or omits it when blank", () => {
