@@ -219,6 +219,39 @@ describe("la recherche, dans Postgres, sans replier les accents", () => {
     expect(page.totalCount).toBe(0)
     expect(page.pageCount).toBe(0)
   })
+
+  it("traite % et _ comme des caractères littéraux, jamais comme des jokers", async () => {
+    const pourcent = await creerProduit({
+      cle: "pourcent",
+      nom: `Promo 50% ${runId}`,
+      marque: `Marque Pourcent ${runId}`,
+      prix: 1000,
+      structure: racine.id,
+      stocks: [1],
+      creeLe: "2026-01-06T10:00:00.000Z",
+    })
+    const souligne = await creerProduit({
+      cle: "souligne",
+      nom: `Gamme_Pro ${runId}`,
+      marque: `Marque Souligne ${runId}`,
+      prix: 1000,
+      structure: racine.id,
+      stocks: [1],
+      creeLe: "2026-01-07T10:00:00.000Z",
+    })
+
+    try {
+      const parPourcent = await listAdminProducts({ q: "%" })
+      expect(idsDe(parPourcent.produits)).toEqual([pourcent.id])
+
+      const parSouligne = await listAdminProducts({ q: "_" })
+      expect(idsDe(parSouligne.produits)).toEqual([souligne.id])
+    } finally {
+      await prisma.product.deleteMany({
+        where: { id: { in: [pourcent.id, souligne.id] } },
+      })
+    }
+  })
 })
 
 describe("les filtres du Catalogue", () => {

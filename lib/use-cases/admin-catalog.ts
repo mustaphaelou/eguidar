@@ -1294,6 +1294,14 @@ async function filtreStructureDe(
   return { kind: "ids", ids: lecture.branche(structure) }
 }
 
+/**
+ * Le terme cherché est une donnée, pas un motif : `%` et `_` sont des
+ * caractères littéraux, et l'anti-slash échappe l'anti-slash lui-même.
+ */
+function motifIlike(terme: string): string {
+  return `%${terme.replace(/[\\%_]/g, "\\$&")}%`
+}
+
 function whereDesProduits(
   params: ProduitListingParams,
   filtre: FiltreStructure
@@ -1305,14 +1313,15 @@ function whereDesProduits(
     conditions.push(Prisma.sql`p."categoryId" IN (${Prisma.join(filtre.ids)})`)
   }
   if (params.q) {
-    const motif = `%${params.q}%`
+    const motif = motifIlike(params.q)
     conditions.push(Prisma.sql`(
-      p."name" ILIKE ${motif}
-      OR p."brand" ILIKE ${motif}
-      OR p."slug" ILIKE ${motif}
+      p."name" ILIKE ${motif} ESCAPE '\\'
+      OR p."brand" ILIKE ${motif} ESCAPE '\\'
+      OR p."slug" ILIKE ${motif} ESCAPE '\\'
       OR EXISTS (
         SELECT 1 FROM "ProductVariant" recherche
-        WHERE recherche."productId" = p."id" AND recherche."sku" ILIKE ${motif}
+        WHERE recherche."productId" = p."id"
+          AND recherche."sku" ILIKE ${motif} ESCAPE '\\'
       )
     )`)
   }
