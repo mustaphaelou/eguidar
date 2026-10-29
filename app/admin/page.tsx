@@ -4,8 +4,10 @@ import { connection } from "next/server"
 
 import {
   ClockIcon,
+  Image01Icon,
   PackageIcon,
   PackageOutOfStockIcon,
+  Robot01Icon,
   ShoppingBasket02Icon,
   Wallet01Icon,
 } from "@hugeicons/core-free-icons"
@@ -25,11 +27,13 @@ import {
 import { buildCommandeListingUrl } from "@/lib/commande-listing"
 import { buildProduitListingUrl } from "@/lib/produit-listing"
 import { formatPrice } from "@/lib/money"
+import { compterExecutionsEnEchec } from "@/lib/automations/historique"
 import { ORDER_STATUS_LABELS } from "@/lib/statut-de-commande"
 import {
   getDashboardStats,
   LOW_STOCK_THRESHOLD,
 } from "@/lib/use-cases/admin-dashboard"
+import { listerImagesProduit } from "@/lib/use-cases/images-produit"
 import { shortOrderId } from "@/lib/utils"
 
 export const metadata: Metadata = {
@@ -49,7 +53,11 @@ function frenchMonthLabel(key: string): string {
 
 export default async function AdminDashboardPage() {
   await connection()
-  const stats = await getDashboardStats()
+  const [stats, imagesSansAlt, executionsEnEchec] = await Promise.all([
+    getDashboardStats(),
+    listerImagesProduit({ sansAlt: true }),
+    compterExecutionsEnEchec(),
+  ])
   const revenueByMonth = stats.revenueByMonth.map((bucket) => ({
     month: frenchMonthLabel(bucket.month),
     revenue: bucket.revenue,
@@ -66,7 +74,7 @@ export default async function AdminDashboardPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card size="sm">
           <CardHeader>
             <CardTitle className="text-sm font-medium">CA encaissé</CardTitle>
@@ -102,7 +110,11 @@ export default async function AdminDashboardPage() {
             </CardAction>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{stats.ordersLast30}</p>
+            <p className="text-2xl font-bold">
+              <Link href="/admin/commandes" className="hover:underline">
+                {stats.ordersLast30}
+              </Link>
+            </p>
             <p className="text-xs text-muted-foreground">30 derniers jours</p>
           </CardContent>
         </Card>
@@ -171,6 +183,82 @@ export default async function AdminDashboardPage() {
             <p className="text-xs text-muted-foreground">Stock total à zéro</p>
           </CardContent>
         </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Stock faible</CardTitle>
+            <CardAction>
+              <HugeiconsIcon
+                icon={PackageIcon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              <Link href="#stock-faible" className="hover:underline">
+                {stats.lowStockVariants.length}
+              </Link>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              ≤ {LOW_STOCK_THRESHOLD} unités
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Images produit sans texte alternatif
+            </CardTitle>
+            <CardAction>
+              <HugeiconsIcon
+                icon={Image01Icon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              <Link href="/admin/medias?sans-alt=1" className="hover:underline">
+                {imagesSansAlt.sansAltCount}
+              </Link>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Dans la Bibliothèque des médias
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Automatisations en échec
+            </CardTitle>
+            <CardAction>
+              <HugeiconsIcon
+                icon={Robot01Icon}
+                strokeWidth={2}
+                className="size-5 text-muted-foreground"
+              />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              <Link
+                href="/admin/automatisations/executions?statut=echoue"
+                className="hover:underline"
+              >
+                {executionsEnEchec}
+              </Link>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Exécutions à réessayer
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-7">
@@ -225,7 +313,7 @@ export default async function AdminDashboardPage() {
         </Card>
       </div>
 
-      <Card>
+      <Card id="stock-faible" className="scroll-mt-6">
         <CardHeader>
           <CardTitle>Stock faible (≤ {LOW_STOCK_THRESHOLD})</CardTitle>
           <CardDescription>

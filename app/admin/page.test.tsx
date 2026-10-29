@@ -31,6 +31,9 @@ import { prisma } from "@/lib/db"
 
 const runId = randomUUID().slice(0, 8)
 const prefixe = `dashboard-route-${runId}-`
+const URL_IMAGE_SANS_ALT = `https://cdn.example.test/products/${prefixe}sans-alt.webp`
+const URL_IMAGE_AVEC_ALT = `https://cdn.example.test/products/${prefixe}avec-alt.webp`
+const REGLE_EN_ECHEC = `dashboard-${runId}`
 
 async function creerProduit(cle: string, stocks: number[]) {
   return prisma.product.create({
@@ -78,12 +81,59 @@ beforeAll(async () => {
   await creerProduit("en-stock", [3, 2])
   await creerProduit("rupture", [0])
   await creerProduit("sans-variante", [])
+  await prisma.imageProduit.createMany({
+    data: [
+      {
+        publicUrl: URL_IMAGE_SANS_ALT,
+        mimeType: "image/webp",
+        byteSize: 1024,
+        width: 800,
+        height: 600,
+        alt: null,
+      },
+      {
+        publicUrl: URL_IMAGE_AVEC_ALT,
+        mimeType: "image/webp",
+        byteSize: 1024,
+        width: 800,
+        height: 600,
+        alt: "Déjà décrite",
+      },
+    ],
+  })
+  await prisma.automationRule.create({
+    data: {
+      id: REGLE_EN_ECHEC,
+      name: "Règle du tableau de bord",
+      trigger: "structure.modifiee",
+      condition: { type: "toujours" },
+      action: "invalidation.structure",
+    },
+  })
+  await prisma.automationRun.create({
+    data: {
+      ruleId: REGLE_EN_ECHEC,
+      action: "invalidation.structure",
+      status: "echoue",
+      attempt: 2,
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      lastError: "cache indisponible",
+    },
+  })
 })
 
 afterAll(async () => {
   await prisma.product.deleteMany({
     where: { slug: { startsWith: prefixe } },
   })
+  await prisma.imageProduit.deleteMany({
+    where: {
+      publicUrl: { startsWith: `https://cdn.example.test/products/${prefixe}` },
+    },
+  })
+  await prisma.automationRun.deleteMany({ where: { ruleId: REGLE_EN_ECHEC } })
+  await prisma.automationRule.deleteMany({ where: { id: REGLE_EN_ECHEC } })
   await prisma.$disconnect()
 })
 
@@ -115,10 +165,36 @@ describe("le Tableau de bord rend ses comptes actionnables", () => {
     expect(liensRupture[0]![1]!.replace(/<[^>]*>/g, "").trim()).toMatch(/^\d+$/)
   })
 
-  it("ne fabrique pas les comptes qui appartiennent aux phases suivantes", async () => {
+  it("rend le compte du stock faible et l'ouvre sur sa liste", async () => {
     const html = await rendreLeTableauDeBord()
 
-    expect(html).not.toContain("sans texte alternatif")
-    expect(html).not.toContain("automatisations en échec")
+    expect(html).toContain(">Stock faible<")
+    expect(html).toContain('id="stock-faible"')
+    expect(lienDontLeTexteEst(html, "#stock-faible")?.texte).toMatch(/^\d+$/)
+  })
+
+  it("ouvre la Bibliothèque filtrée sur les Images produit sans Texte alternatif", async () => {
+    const sansAlt = await prisma.imageProduit.count({ where: { alt: null } })
+    const html = await rendreLeTableauDeBord()
+
+    expect(html).toContain("Images produit sans texte alternatif")
+    expect(lienDontLeTexteEst(html, "/admin/medias?sans-alt=1")?.texte).toBe(
+      String(sansAlt)
+    )
+  })
+
+  it("ouvre l'historique filtré sur les automatisations en échec", async () => {
+    const enEchec = await prisma.automationRun.count({
+      where: { status: "echoue" },
+    })
+    const html = await rendreLeTableauDeBord()
+
+    expect(html).toContain("Automatisations en échec")
+    expect(
+      lienDontLeTexteEst(
+        html,
+        "/admin/automatisations/executions?statut=echoue"
+      )?.texte
+    ).toBe(String(enEchec))
   })
 })
