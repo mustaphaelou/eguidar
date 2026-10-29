@@ -63,7 +63,12 @@ export const auth = betterAuth({
         await sendOtpEmail(email, otp, type)
       },
     }),
-    haveIBeenPwned(),
+    // Le contrôle couvre l'Inscription et la réinitialisation du mot de passe ;
+    // les routes de changement de mot de passe et d'administration restent hors
+    // de cette phase (voir ADR-0043).
+    haveIBeenPwned({
+      paths: ["/sign-up/email", "/reset-password", "/email-otp/reset-password"],
+    }),
     ...(process.env.TURNSTILE_SECRET_KEY
       ? [
           captcha({

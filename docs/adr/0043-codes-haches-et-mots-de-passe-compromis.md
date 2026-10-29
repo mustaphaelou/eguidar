@@ -25,13 +25,17 @@ la Vérification de l'e-mail, et « code » désigne le secret échangé, jamais
   stockage haché ; le test d'intégration s'appuie sur ce refus plutôt que de relire la valeur en
   base pour la rejouer.
 
-- **`haveIBeenPwned()` est enregistré dans la liste des plugins.** Il couvre l'Inscription
-  (`/sign-up/email`) et les routes de réinitialisation du mot de passe (`/reset-password`,
-  `/email-otp/reset-password`), avec le comportement par défaut de la bibliothèque.
+- **`haveIBeenPwned({ paths: [...] })` est enregistré dans la liste des plugins, avec la portée
+  de cette phase.** Les chemins déclarés sont exactement l'Inscription (`/sign-up/email`) et la
+  réinitialisation du mot de passe (`/reset-password`, `/email-otp/reset-password`). Les chemins
+  par défaut du plugin couvriraient aussi `/change-password` et les routes d'administration
+  (`/admin/create-user`, `/admin/set-user-password`) ; ils restent volontairement hors de cette
+  phase, qui n'ajoute aucune dépendance tierce à ces flux.
 
-- **Le mode d'échec reste fermé.** Sans option, une panne du service de fuites fait échouer
-  l'envoi : l'Inscription rend une erreur 500 et aucune ligne `user` n'est créée. Un service
-  indisponible n'est pas une autorisation ; l'erreur est visible plutôt que contournée.
+- **Le mode d'échec reste fermé.** Aucune option d'échec ouvert n'est activée : une panne du
+  service de fuites fait échouer l'envoi, l'Inscription rend une erreur 500 et aucune ligne `user`
+  n'est créée. Un service indisponible n'est pas une autorisation ; l'erreur est visible plutôt que
+  contournée.
 
 - **Le refus est distinct d'un mauvais mot de passe.** Un mot de passe compromis rend
   `PASSWORD_COMPROMISED` (400) à l'Inscription comme à la réinitialisation du mot de passe ; un
@@ -54,6 +58,11 @@ la Vérification de l'e-mail, et « code » désigne le secret échangé, jamais
   accepter silencieusement un mot de passe compromis est précisément ce que le contrôle doit
   empêcher. La dépendance à un tiers est assumée et rendue visible par une erreur.
 
+- **Laisser le plugin couvrir tous ses chemins par défaut** — rejeté dans cette phase :
+  `/change-password` et les routes d'administration n'ont pas été demandés par la spec, et une
+  panne de Have I Been Pwned les bloquerait à leur tour. Le contrôle s'en tiendra à la portée
+  demandée ; l'étendre sera une décision distincte.
+
 - **Une liste locale de mots de passe compromis** — rejeté : elle vieillit et pèse lourd. Le
   protocole de k-anonymat de Have I Been Pwned n'envoie que les cinq premiers caractères du SHA-1
   du mot de passe ; le mot de passe lui-même ne quitte jamais le serveur.
@@ -65,6 +74,9 @@ la Vérification de l'e-mail, et « code » désigne le secret échangé, jamais
   temps constant.
 - Un mot de passe connu comme compromis est refusé à l'Inscription et à la réinitialisation du mot
   de passe ; après le refus de réinitialisation, l'ancien mot de passe reste en vigueur.
+- Le contrôle des fuites ne s'exécute que sur les chemins déclarés (`/sign-up/email`,
+  `/reset-password`, `/email-otp/reset-password`) ; `/change-password` et les routes d'administration
+  restent hors de cette phase.
 - Une panne du service de fuites refuse l'Inscription : l'échec est fermé, jamais une acceptation.
 - Aucune modification de schéma, aucune migration, aucune surface rendue modifiée. La Connexion par
   mot de passe, la Connexion sociale et la Vérification de l'e-mail gardent leurs contrôles.
