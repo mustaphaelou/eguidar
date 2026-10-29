@@ -239,6 +239,15 @@ describe("la recherche, dans Postgres, sans replier les accents", () => {
       stocks: [1],
       creeLe: "2026-01-07T10:00:00.000Z",
     })
+    const barre = await creerProduit({
+      cle: "barre",
+      nom: `Barre \\ ${runId}`,
+      marque: `Marque Barre ${runId}`,
+      prix: 1000,
+      structure: racine.id,
+      stocks: [1],
+      creeLe: "2026-01-08T10:00:00.000Z",
+    })
 
     try {
       const parPourcent = await listAdminProducts({ q: "%" })
@@ -246,9 +255,12 @@ describe("la recherche, dans Postgres, sans replier les accents", () => {
 
       const parSouligne = await listAdminProducts({ q: "_" })
       expect(idsDe(parSouligne.produits)).toEqual([souligne.id])
+
+      const parBarre = await listAdminProducts({ q: "\\" })
+      expect(idsDe(parBarre.produits)).toEqual([barre.id])
     } finally {
       await prisma.product.deleteMany({
-        where: { id: { in: [pourcent.id, souligne.id] } },
+        where: { id: { in: [pourcent.id, souligne.id, barre.id] } },
       })
     }
   })
