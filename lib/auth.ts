@@ -10,10 +10,6 @@ import {
 import { prisma } from "@/lib/db"
 import { sendOtpEmail } from "@/lib/emails"
 import {
-  accesCompteClientPrisma,
-  revoquerAccesNonProuve,
-} from "@/lib/revocation-acces-non-prouve"
-import {
   SESSION_INACTIVE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "@/lib/session-constants"
@@ -48,13 +44,6 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: true,
     minPasswordLength: 8,
-  },
-  emailVerification: {
-    beforeEmailVerification: async (compteClient) => {
-      await revoquerAccesNonProuve(accesCompteClientPrisma, compteClient.id, {
-        emailVerified: true,
-      })
-    },
   },
   socialProviders: {
     google: {
