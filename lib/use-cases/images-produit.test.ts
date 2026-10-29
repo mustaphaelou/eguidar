@@ -10,6 +10,8 @@ import {
   vi,
 } from "vitest"
 
+import { revalidatePath, revalidateTag } from "next/cache"
+
 import { prisma } from "@/lib/db"
 import {
   ImageProduitIntrouvableError,
@@ -234,6 +236,28 @@ describe("Bibliothèque des médias — lecture, filtres et comptes", () => {
     await expect(
       mettreAJourTexteAlternatif(url("inconnue.webp"), "texte")
     ).rejects.toBeInstanceOf(ImageProduitIntrouvableError)
+  })
+
+  it("révalide la fiche du Produit qui utilise l'Image, et rien pour une Image inutilisée", async () => {
+    const alpha = await prisma.product.findFirstOrThrow({
+      where: { images: { array_contains: URL_A } },
+    })
+    vi.mocked(revalidatePath).mockClear()
+    vi.mocked(revalidateTag).mockClear()
+
+    await mettreAJourTexteAlternatif(URL_A, "Écran rénové")
+
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/produits")
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/produits/${alpha.id}`)
+    expect(revalidateTag).toHaveBeenCalledWith(`product:${alpha.slug}`, "max")
+
+    vi.mocked(revalidatePath).mockClear()
+    vi.mocked(revalidateTag).mockClear()
+
+    await mettreAJourTexteAlternatif(URL_C, "Clavier rénové")
+
+    expect(revalidatePath).not.toHaveBeenCalled()
+    expect(revalidateTag).not.toHaveBeenCalled()
   })
 })
 

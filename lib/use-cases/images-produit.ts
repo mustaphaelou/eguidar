@@ -9,6 +9,13 @@ import {
   type FaitImageProduitVerifiee,
   type ResultatStockageImageProduit,
 } from "@/lib/r2"
+import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
+import {
+  chaineDeLaStructure,
+  invalidateCatalogue,
+} from "@/lib/use-cases/cache-invalidation"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
+import { avecSurcharges, runEffect } from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface EntreeRegistreImageProduit {
@@ -50,12 +57,14 @@ export interface PageImagesProduit {
 
 export interface ImagesProduitEffects {
   supprimerImage(publicUrl: string): Promise<ResultatStockageImageProduit<null>>
+  revaliderCatalogue(produit: CatalogueEventProduct): Promise<void> | void
 }
 
 export function defaultImagesProduitEffects(): ImagesProduitEffects {
   return {
     supprimerImage: (url) =>
       stockageImageProduitR2.supprimerImagePersistee(url),
+    revaliderCatalogue: (produit) => invalidateCatalogue(produit),
   }
 }
 
@@ -243,20 +252,50 @@ export async function listerImagesPourGalerie(): Promise<
   }))
 }
 
+/**
+ * Le Texte alternatif d'une Image produit est rendu par la fiche de chaque
+ * Produit qui la nomme : l'écrire invalide donc ces fiches, côté boutique
+ * comme côté Administration. Une Image produit que personne ne nomme ne
+ * révalide rien.
+ */
 export async function mettreAJourTexteAlternatif(
   publicUrl: string,
-  alt: string | null
+  alt: string | null,
+  overrides?: Partial<ImagesProduitEffects>
 ): Promise<string | null> {
-  const ligne = await prisma.imageProduit.findUnique({
-    where: { publicUrl },
-    select: { publicUrl: true },
-  })
+  const [ligne, produits] = await Promise.all([
+    prisma.imageProduit.findUnique({
+      where: { publicUrl },
+      select: { publicUrl: true },
+    }),
+    prisma.product.findMany({
+      where: { images: { array_contains: publicUrl } },
+      select: { id: true, slug: true, categoryId: true },
+    }),
+  ])
   if (!ligne) throw new ImageProduitIntrouvableError()
   const normalise = normaliserTexteAlternatif(alt)
   await prisma.imageProduit.update({
     where: { publicUrl },
     data: { alt: normalise },
   })
+  if (produits.length === 0) return normalise
+
+  const effects = avecSurcharges(defaultImagesProduitEffects(), overrides)
+  const lecture = await lireStructure()
+  for (const produit of produits) {
+    const evenement: CatalogueEventProduct = {
+      id: produit.id,
+      slug: produit.slug,
+      categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+    }
+    await runEffect({
+      effet: "invalidation-cache",
+      entite: { type: "produit", id: produit.id },
+      message: `[médias] invalidation du cache non effectuée pour le Produit ${produit.id} après modification du Texte alternatif`,
+      fn: () => effects.revaliderCatalogue(evenement),
+    })
+  }
   return normalise
 }
 
