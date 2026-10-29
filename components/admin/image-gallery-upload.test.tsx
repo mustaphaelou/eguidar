@@ -538,6 +538,101 @@ describe("ImageGalleryUpload", () => {
     }
   })
 
+  it("garde l'état de chaque fichier et ne réessaie que celui qui a échoué", async () => {
+    const onChange = vi.fn()
+    const un = new File(["a"], "un.png", { type: "image/png" })
+    const deux = new File(["b"], "deux.png", { type: "image/png" })
+    let essaisDeux = 0
+    const televersement = creerTeleversementFactice({
+      ajouter: (fichiers) => {
+        if (fichiers[0] === un) return { ajoutees: [brouillon("draft-un")] }
+        essaisDeux += 1
+        return essaisDeux === 1
+          ? { ajoutees: [], message: "Échec réseau" }
+          : { ajoutees: [brouillon("draft-deux")] }
+      },
+    })
+
+    render(
+      <GalerieTest
+        initialImages={[]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
+    await envoyerFichiers([un, deux])
+
+    expect(televersement.appelsAjout).toEqual([
+      { fichiers: [un], places: 8 },
+      { fichiers: [deux], places: 7 },
+    ])
+    expect(onChange).toHaveBeenCalledWith([brouillon("draft-un")])
+    const echec = container.querySelector<HTMLElement>(
+      '[data-envoi-etat="echoue"]'
+    )!
+    expect(echec.textContent).toContain("deux.png")
+    expect(echec.textContent).toContain("Échec réseau")
+
+    await act(async () => {
+      echec.querySelector<HTMLButtonElement>("button")!.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(televersement.appelsAjout[2]).toEqual({
+      fichiers: [deux],
+      places: 7,
+    })
+    expect(onChange).toHaveBeenLastCalledWith([
+      brouillon("draft-un"),
+      brouillon("draft-deux"),
+    ])
+    expect(container.querySelector('[data-envoi-etat="echoue"]')).toBeNull()
+  })
+
+  it("montre l'état de chaque fichier pendant l'envoi, dans l'ordre", async () => {
+    const onChange = vi.fn()
+    const un = new File(["a"], "un.png", { type: "image/png" })
+    const deux = new File(["b"], "deux.png", { type: "image/png" })
+    let resoudre!: (resultat: FaitsAjoutBrouillons) => void
+    const premier = new Promise<FaitsAjoutBrouillons>((resolve) => {
+      resoudre = resolve
+    })
+    const televersement = creerTeleversementFactice({
+      ajouter: (fichiers) =>
+        fichiers[0] === un ? premier : { ajoutees: [brouillon("draft-deux")] },
+    })
+
+    render(
+      <GalerieTest
+        initialImages={[]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
+    await envoyerFichiers([un, deux])
+
+    const enCours = [
+      ...container.querySelectorAll<HTMLElement>("[data-envoi-etat]"),
+    ].map((ligne) => ligne.getAttribute("data-envoi-etat"))
+    expect(enCours).toEqual(["envoi", "en_attente"])
+
+    await act(async () => {
+      resoudre({ ajoutees: [brouillon("draft-un")] })
+      await premier
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith([
+      brouillon("draft-un"),
+      brouillon("draft-deux"),
+    ])
+    expect(
+      container.querySelector(
+        '[data-envoi-etat="en_attente"], [data-envoi-etat="envoi"]'
+      )
+    ).toBeNull()
+  })
+
   it("insère une Image produit de la bibliothèque à la position courante, sans nouvel envoi", async () => {
     const onChange = vi.fn()
     const televersement = creerTeleversementFactice()
