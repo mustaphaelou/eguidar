@@ -17,6 +17,7 @@ import {
   ImageProduitIntrouvableError,
   ImageProduitSuppressionImpossibleError,
   enregistrerImagesProduit,
+  listerImagesPourGalerie,
   listerImagesProduit,
   mettreAJourTexteAlternatif,
   reconstituerRegistreImagesProduit,
@@ -236,6 +237,20 @@ describe("Bibliothèque des médias — lecture, filtres et comptes", () => {
     await expect(
       mettreAJourTexteAlternatif(url("inconnue.webp"), "texte")
     ).rejects.toBeInstanceOf(ImageProduitIntrouvableError)
+  })
+
+  it("n'offre au sélecteur de la Galerie que les Images produit qu'aucun autre Produit ne possède", async () => {
+    const alpha = await prisma.product.findFirstOrThrow({
+      where: { images: { array_contains: URL_A } },
+    })
+
+    const pourUnNouveau = await listerImagesPourGalerie()
+    expect(pourUnNouveau.map((image) => image.publicUrl)).toEqual([URL_C])
+
+    const pourAlpha = await listerImagesPourGalerie(alpha.id)
+    expect(pourAlpha.map((image) => image.publicUrl).sort()).toEqual(
+      [URL_A, URL_C].sort()
+    )
   })
 
   it("révalide la fiche du Produit qui utilise l'Image, et rien pour une Image inutilisée", async () => {

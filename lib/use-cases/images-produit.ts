@@ -238,18 +238,35 @@ export async function listerImagesProduit(
 /**
  * Le sélecteur de la Galerie produit ne lit que les faits qu'il affiche : une
  * URL publique et son Texte alternatif. Il ne charge ni usages ni comptes.
+ *
+ * Il n'offre pas une Image produit qu'un autre Produit possède : une Image
+ * produit a un seul propriétaire, parce qu'en retirer une de sa Galerie la
+ * supprime du stockage à l'enregistrement. La proposition éviterait au
+ * marchand de choisir une image que l'enregistrement refuserait.
  */
-export async function listerImagesPourGalerie(): Promise<
-  EntreeBibliothequeImageProduit[]
-> {
-  const lignes = await prisma.imageProduit.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { publicUrl: true, alt: true },
-  })
-  return lignes.map((ligne) => ({
-    publicUrl: ligne.publicUrl,
-    alt: normaliserTexteAlternatif(ligne.alt),
-  }))
+export async function listerImagesPourGalerie(
+  produitId: string | null = null
+): Promise<EntreeBibliothequeImageProduit[]> {
+  const [lignes, autresProduits] = await Promise.all([
+    prisma.imageProduit.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { publicUrl: true, alt: true },
+    }),
+    prisma.product.findMany({
+      where: produitId === null ? {} : { id: { not: produitId } },
+      select: { images: true },
+    }),
+  ])
+  const possedees = new Set<string>()
+  for (const produit of autresProduits) {
+    for (const url of urlsImagesProduit(produit.images)) possedees.add(url)
+  }
+  return lignes
+    .filter((ligne) => !possedees.has(ligne.publicUrl))
+    .map((ligne) => ({
+      publicUrl: ligne.publicUrl,
+      alt: normaliserTexteAlternatif(ligne.alt),
+    }))
 }
 
 /**

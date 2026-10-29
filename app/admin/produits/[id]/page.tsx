@@ -35,7 +35,7 @@ export default async function EditProductPage({
   const [product, lecture, bibliotheque] = await Promise.all([
     getAdminProduct(id),
     lireStructure(),
-    listerImagesPourGalerie(),
+    listerImagesPourGalerie(id),
   ])
   if (!product) notFound()
   const structures = lecture.options().map((option) => ({
