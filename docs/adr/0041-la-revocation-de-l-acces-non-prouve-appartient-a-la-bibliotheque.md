@@ -49,7 +49,7 @@ prouve l'adresse est celle qui vient de choisir le mot de passe.
   `/verify-email?token=…` n'est jamais atteint. **La réinitialisation par code reste dehors elle
   aussi** : elle remplace le secret dans le même geste, il n'y a rien à révoquer.
 
-## Options considérées
+## Options envisagées
 
 - **Garder la couture en excluant les inscriptions légitimes** — rejetée : la ligne ne porte aucun
   signal permettant de distinguer « le mot de passe que je viens de choisir » de « le mot de passe

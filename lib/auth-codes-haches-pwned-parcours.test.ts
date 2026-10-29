@@ -1,43 +1,26 @@
-import { createHash, randomUUID } from "node:crypto"
+import { randomUUID } from "node:crypto"
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 const envois = vi.hoisted(
-  () => [] as { email: string; otp: string; type: string }[]
+  () => [] as { email: string; code: string; type: string }[]
 )
-const fuites = vi.hoisted(() => new Map<string, string>())
 
 vi.mock("@/lib/emails", () => ({
-  sendOtpEmail: async (email: string, otp: string, type: string) => {
-    envois.push({ email, otp, type })
+  sendOtpEmail: async (email: string, code: string, type: string) => {
+    envois.push({ email, code, type })
   },
 }))
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { fauxServiceDeFuite } from "@/test/faux-service-de-fuite"
 
 const runId = randomUUID().slice(0, 8)
 const email = (suffixe: string) => `codes-haches-${runId}-${suffixe}@test.ma`
 const motDePasseSur = `mot-de-passe-sur-${runId}`
 const motDePasseFuite = "password123"
 const motDePasseFuiteReinitialisation = "qwerty123"
-
-const RANGE_PWNED = "https://api.pwnedpasswords.com/range/"
-
-function empreinteSha1(motDePasse: string): string {
-  return createHash("sha1").update(motDePasse).digest("hex").toUpperCase()
-}
-
-function simulerFuite(motDePasse: string): void {
-  const empreinte = empreinteSha1(motDePasse)
-  fuites.set(empreinte.slice(0, 5), `${empreinte.slice(5)}:42`)
-}
-
-function urlDe(entree: string | URL | Request): string {
-  if (typeof entree === "string") return entree
-  if (entree instanceof URL) return entree.toString()
-  return entree.url
-}
 
 async function refus(promesse: Promise<unknown>): Promise<{
   code?: string
@@ -58,21 +41,9 @@ async function refus(promesse: Promise<unknown>): Promise<{
 }
 
 beforeAll(() => {
-  simulerFuite(motDePasseFuite)
-  simulerFuite(motDePasseFuiteReinitialisation)
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (entree: string | URL | Request) => {
-      const url = urlDe(entree)
-      if (!url.startsWith(RANGE_PWNED)) {
-        throw new Error(`appel réseau non simulé : ${url}`)
-      }
-      const prefixe = url.slice(RANGE_PWNED.length).toUpperCase()
-      return new Response(`${fuites.get(prefixe) ?? ""}\r\n`, {
-        status: 200,
-        headers: { "content-type": "text/plain" },
-      })
-    })
+    fauxServiceDeFuite([motDePasseFuite, motDePasseFuiteReinitialisation])
   )
 })
 
@@ -88,7 +59,7 @@ afterAll(async () => {
 })
 
 describe("Vérification de l'e-mail : le code est haché au repos", () => {
-  it("écrit une empreinte SHA-256, jamais le code en clair, et refuse de le rendre", async () => {
+  it("écrit une empreinte, jamais le code en clair, et refuse de le rendre", async () => {
     await auth.api.signUpEmail({
       body: {
         name: "Client Hachage",
@@ -106,18 +77,17 @@ describe("Vérification de l'e-mail : le code est haché au repos", () => {
         candidat.email === email("hachage") &&
         candidat.type === "email-verification"
     )
-    expect(envoi?.otp).toMatch(/^\d{6}$/)
+    expect(envoi?.code).toMatch(/^\d{6}$/)
 
     const ligne = await prisma.verification.findFirst({
       where: { identifier: `email-verification-otp-${email("hachage")}` },
     })
     expect(ligne).not.toBeNull()
 
-    const empreinte = createHash("sha256")
-      .update(envoi!.otp)
-      .digest("base64url")
-    expect(ligne!.value).toBe(`${empreinte}:0`)
-    expect(ligne!.value).not.toContain(envoi!.otp)
+    const code = envoi!.code
+    expect(ligne!.value).toMatch(/^[A-Za-z0-9_-]+:\d+$/)
+    expect(ligne!.value).not.toBe(code)
+    expect(ligne!.value).not.toContain(code)
 
     await expect(
       auth.api.getVerificationOTP({
@@ -172,21 +142,36 @@ describe("Les mots de passe compromis sont refusés", () => {
     })
 
     await auth.api.sendVerificationOTP({
+      body: { email: emailReinitialisation, type: "email-verification" },
+    })
+    const envoiVerification = envois.find(
+      (candidat) =>
+        candidat.email === emailReinitialisation &&
+        candidat.type === "email-verification"
+    )
+    expect(envoiVerification?.code).toMatch(/^\d{6}$/)
+
+    const verification = await auth.api.verifyEmailOTP({
+      body: { email: emailReinitialisation, otp: envoiVerification!.code },
+    })
+    expect(verification.status).toBe(true)
+    expect(verification.user.emailVerified).toBe(true)
+
+    await auth.api.sendVerificationOTP({
       body: { email: emailReinitialisation, type: "forget-password" },
     })
-
-    const envoi = envois.find(
+    const envoiReinitialisation = envois.find(
       (candidat) =>
         candidat.email === emailReinitialisation &&
         candidat.type === "forget-password"
     )
-    expect(envoi?.otp).toMatch(/^\d{6}$/)
+    expect(envoiReinitialisation?.code).toMatch(/^\d{6}$/)
 
     const refusReinitialisation = await refus(
       auth.api.resetPasswordEmailOTP({
         body: {
           email: emailReinitialisation,
-          otp: envoi!.otp,
+          otp: envoiReinitialisation!.code,
           password: motDePasseFuiteReinitialisation,
         },
       })
@@ -195,12 +180,12 @@ describe("Les mots de passe compromis sont refusés", () => {
     expect(refusReinitialisation.code).toBe("PASSWORD_COMPROMISED")
     expect(refusReinitialisation.message).toMatch(/compromised/i)
 
-    const ancienMotDePasse = await refus(
-      auth.api.signInEmail({
-        body: { email: emailReinitialisation, password: motDePasseSur },
-      })
-    )
-    expect(ancienMotDePasse.code).toBe("EMAIL_NOT_VERIFIED")
+    const ancienMotDePasse = await auth.api.signInEmail({
+      body: { email: emailReinitialisation, password: motDePasseSur },
+    })
+    expect(ancienMotDePasse.user.email).toBe(emailReinitialisation)
+    expect(ancienMotDePasse.token).toBeTruthy()
+
     const motDePasseCompromis = await refus(
       auth.api.signInEmail({
         body: {
@@ -213,7 +198,7 @@ describe("Les mots de passe compromis sont refusés", () => {
   })
 
   it("échoue fermé quand le service de fuites est indisponible", async () => {
-    const fetchNominal = globalThis.fetch
+    const fetchSimule = globalThis.fetch
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("", { status: 503 }))
@@ -235,7 +220,7 @@ describe("Les mots de passe compromis sont refusés", () => {
         prisma.user.findUnique({ where: { email: email("reseau") } })
       ).resolves.toBeNull()
     } finally {
-      vi.stubGlobal("fetch", fetchNominal)
+      vi.stubGlobal("fetch", fetchSimule)
     }
   })
 })

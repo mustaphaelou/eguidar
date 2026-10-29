@@ -1,3 +1,4 @@
+import { getIp } from "@better-auth/core/utils/ip"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -5,6 +6,12 @@ import {
   PROXIES_DE_CONFIANCE,
 } from "@/lib/adresse-client"
 import { auth } from "@/lib/auth"
+
+function requeteAvec(entetes: Record<string, string>): Request {
+  return new Request("http://localhost:3000/api/auth/sign-in/email", {
+    headers: entetes,
+  })
+}
 
 describe("Limiteur d'authentification — adresse du client", () => {
   it("lit les en-têtes dans l'ordre du résolveur, Cloudflare d'abord", () => {
@@ -14,27 +21,24 @@ describe("Limiteur d'authentification — adresse du client", () => {
     expect(adresse?.ipAddressHeaders?.[0]).toBe("cf-connecting-ip")
   })
 
-  it("déclare la chaîne de proxies observée comme fiable", () => {
+  it("déclare les plages de proxies de confiance sur les options d'authentification", () => {
     const adresse = auth.options.advanced?.ipAddress
 
     expect(adresse?.trustedProxies).toEqual([...PROXIES_DE_CONFIANCE])
   })
-})
 
-describe("Chaîne de proxies de l'authentification", () => {
-  it("couvre les plages publiées de Cloudflare et les proxys privés", () => {
-    expect(PROXIES_DE_CONFIANCE).toEqual(
-      expect.arrayContaining([
-        "173.245.48.0/20",
-        "104.16.0.0/13",
-        "2400:cb00::/32",
-        "2606:4700::/32",
-        "10.0.0.0/8",
-        "172.16.0.0/12",
-        "192.168.0.0/16",
-        "127.0.0.0/8",
-        "::1/128",
-      ])
-    )
+  it("résout le client réel derrière un x-forwarded-for multi-relais", () => {
+    const requete = requeteAvec({ "x-forwarded-for": "203.0.113.7, 10.0.0.2" })
+
+    expect(getIp(requete, auth.options)).toBe("203.0.113.7")
+  })
+
+  it("préfère cf-connecting-ip au relais de transmission", () => {
+    const requete = requeteAvec({
+      "cf-connecting-ip": "203.0.113.7",
+      "x-forwarded-for": "198.51.100.99, 10.0.0.2",
+    })
+
+    expect(getIp(requete, auth.options)).toBe("203.0.113.7")
   })
 })

@@ -12,32 +12,14 @@ vi.mock("@/lib/emails", () => ({
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { fauxServiceDeFuite } from "@/test/faux-service-de-fuite"
 
 const runId = randomUUID().slice(0, 8)
 const email = `auth-parcours-${runId}@test.ma`
 const motDePasse = "MotDePasse!818"
 
-const RANGE_PWNED = "api.pwnedpasswords.com/range/"
-
 beforeAll(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (entree: RequestInfo | URL) => {
-      const url =
-        typeof entree === "string"
-          ? entree
-          : entree instanceof URL
-            ? entree.href
-            : entree.url
-      if (url.includes(RANGE_PWNED)) {
-        return new Response("0000000000000000000000000000000000:1\n", {
-          status: 200,
-          headers: { "content-type": "text/plain" },
-        })
-      }
-      throw new Error(`Appel réseau interdit pendant le test : ${url}`)
-    })
-  )
+  vi.stubGlobal("fetch", fauxServiceDeFuite([]))
 })
 
 afterAll(async () => {

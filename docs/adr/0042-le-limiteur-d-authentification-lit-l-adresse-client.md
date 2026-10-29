@@ -1,15 +1,17 @@
 # Le limiteur d'authentification lit l'adresse client derrière Cloudflare
 
 Le limiteur de Better Auth ne lit que `x-forwarded-for`, et refuse de conclure quand cet en-tête
-porte plus d'un relais. Derrière Cloudflare puis le proxy Coolify, il en porte deux : le limiteur
-retombe alors sur un compartiment unique, `no-trusted-ip|chemin`, partagé par tous les visiteurs.
+porte plus d'un relais. Le déploiement visé est Cloudflare devant Coolify, dont la topologie
+documentée produit un `x-forwarded-for` multi-relais : le limiteur retombe alors sur un
+compartiment unique, `no-trusted-ip|chemin`, partagé par tous les visiteurs.
 La règle « trois connexions par dix secondes » devient un plafond pour le site entier, tout en
 supprimant toute protection par client. Le défaut est lu dans `better-auth@1.6.26` :
 `DEFAULT_IP_HEADERS` vaut `["x-forwarded-for"]`, et sans `trustedProxies` une valeur multi-relais
 rend `null` (`node_modules/@better-auth/core/dist/utils/ip.mjs:188-194`). La Recherche, elle, lit
 déjà `cf-connecting-ip`, puis `x-real-ip`, puis le dernier relais de `x-forwarded-for` : deux
 chemins, deux règles, et la protection que le dépôt croit tenir n'est pas celle qu'il tient
-(ticket #819, spec #811).
+(ticket #819, spec #811). La chaîne exacte du déploiement réel n'a pas été observée ; c'est la
+topologie documentée qui fonde la décision.
 
 ## Décision
 
@@ -20,13 +22,16 @@ chemins, deux règles, et la protection que le dépôt croit tenir n'est pas cel
   Recherche lit la même fonction pure, `adresseClient()`, et `lib/limiteur-recherche.ts` n'en
   porte plus de copie.
 
-- **`advanced.ipAddress.trustedProxies` est renseigné** avec la chaîne observée : les plages
-  publiées de Cloudflare — IPv4 selon
+- **`advanced.ipAddress.trustedProxies` est renseigné avec les plages des proxies qui peuvent
+  précéder l'origine** : les plages publiées de Cloudflare — IPv4 selon
   [ips-v4](https://www.cloudflare.com/ips-v4), IPv6 selon
   [ips-v6](https://www.cloudflare.com/ips-v6), relevées le 29 octobre 2026 — puis les plages
   privées et de boucle d'un proxy d'hébergement (`10.0.0.0/8`, `172.16.0.0/12`,
-  `192.168.0.0/16`, `127.0.0.0/8`, `::1/128`). La constante `PROXIES_DE_CONFIANCE` porte la
-  liste, et un test de conformité l'épingle sur les options d'authentification.
+  `192.168.0.0/16`, `127.0.0.0/8`, `::1/128`). Le déploiement visé étant Cloudflare devant
+  Coolify, la topologie documentée produit un `x-forwarded-for` multi-relais : le chemin à valeur
+  unique ne suffit donc pas, et ces plages sont déclarées fiables. La constante
+  `PROXIES_DE_CONFIANCE` porte la liste, et un test de conformité l'épingle sur les options
+  d'authentification. Si la topologie d'hébergement change, la constante doit changer.
 
 - **La remontée se fait de droite à gauche, et retient le premier relais non fiable.**
   `better-auth@1.6.26` parcourt la chaîne depuis le dernier relais, saute les plages déclarées
@@ -43,7 +48,7 @@ chemins, deux règles, et la protection que le dépôt croit tenir n'est pas cel
   utilisable ne reste. C'est la même constante partagée que les deux limiteurs utilisent
   lorsqu'aucune adresse n'est résolue.
 
-## Options considérées
+## Options envisagées
 
 - **Laisser le défaut et désactiver le limiteur** — rejetée : on perdrait la seule protection
   contre le bourrage d'identifiants.
