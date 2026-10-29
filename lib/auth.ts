@@ -3,6 +3,10 @@ import { prismaAdapter } from "better-auth/adapters/prisma"
 import { nextCookies } from "better-auth/next-js"
 import { captcha, emailOTP } from "better-auth/plugins"
 
+import {
+  ORDRE_ENTETES_ADRESSE_CLIENT,
+  PROXIES_DE_CONFIANCE,
+} from "@/lib/adresse-client"
 import { prisma } from "@/lib/db"
 import { sendOtpEmail } from "@/lib/emails"
 import {
@@ -15,6 +19,14 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
+  advanced: {
+    ipAddress: {
+      // L'ordre vit dans le résolveur partagé avec la Recherche : la
+      // bibliothèque et le dépôt ne peuvent pas diverger.
+      ipAddressHeaders: [...ORDRE_ENTETES_ADRESSE_CLIENT],
+      trustedProxies: [...PROXIES_DE_CONFIANCE],
+    },
+  },
   session: {
     expiresIn: SESSION_INACTIVE_SECONDS,
     updateAge: SESSION_UPDATE_AGE_SECONDS,
