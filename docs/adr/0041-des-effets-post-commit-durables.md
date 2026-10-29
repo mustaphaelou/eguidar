@@ -265,3 +265,35 @@ qui manquaient.
   `lib/automations/historique.test.ts` (filtres), `lib/automations/retention.test.ts` (fenêtre et
   purge par `balayer`), `app/admin/automatisations/**/*.test.tsx` (la liste, l'éditeur, la
   simulation, l'historique et le refus d'une session non propriétaire).
+
+## Addendum — ce que la bascule arrête, et deux décisions de la phase 2
+
+- **La bascule gouverne le travailleur durable ; elle n'éteint pas les effets synchrones.** Le
+  balayage relit `enabled` à chaque passe : une Règle désactivée n'ouvre plus d'Exécution, et les
+  Exécutions `en_cours` qu'elle portait passent `ignore` avec le motif « annulée : règle
+  désactivée ». Réactiver ne rejoue rien, parce que les Événements arrivés entre-temps ont déjà été
+  consommés. Mais `runEffect` (ADR-0014) reste dans la mutation : la réindexation, l'invalidation de
+  cache et la purge continuent d'être tentées après le commit, exactement comme avant la phase 4.
+  Désactiver une Règle ne rend donc pas le Catalogue incohérent : la bascule retire la reprise,
+  l'historique et le réessai de ce chemin-là, pas l'effet lui-même. C'est ce qui empêche une Règle
+  désactivée d'être un mensonge — le marchand coupe la voie durable, pas la seule voie qui répare un
+  index en retard. Elle ne touche ni à l'outbox écrite par les mutations, ni aux Événements déjà
+  consommés : couper une Règle n'est pas annuler un effet. Et un statut d'Exécution n'est pas un
+  statut d'Événement : les filtres de l'historique n'offrent que `en_cours`, `reussi`, `echoue` et
+  `ignore`, tandis que `en_attente` et `mort` restent ceux de la machine à états de l'Événement.
+
+- **La vérification d'une Image produit a lieu à la promotion, pas à l'envoi.** Le navigateur envoie
+  les octets directement au stockage (ADR-0033) : le premier moment où le serveur les voit est
+  `confirmerBrouillons`, à l'enregistrement du Produit. C'est là que `verifierBrouillon` fait un
+  `HeadObject` (type et taille réelle), décode les octets (format, dimensions, taille réelle, EXIF
+  retiré) et refuse un fichier qui ne décode pas en l'un des cinq formats autorisés. Un envoi n'est
+  donc jamais cru sur parole — le type déclaré par le client n'est qu'une intention —, et un
+  Brouillon refusé est libéré. ADR-0034 reste la porte de cette promotion.
+
+- **Une Image produit n'a qu'un propriétaire, et le sélecteur de la Galerie produit n'offre que les
+  Images produit qu'aucun autre Produit ne possède.** Le sélecteur reçoit l'identifiant du Produit
+  édité et écarte les URL que d'autres Produits nomment ; `assertAucuneImageDAutreProduit` reste la
+  garde de l'enregistrement. La raison est le cycle de vie : retirer une Image produit d'une Galerie
+  la supprime du stockage à l'enregistrement réussi, donc une URL partagée entre deux Produits
+  ferait disparaître l'image du second. C'est une décision du produit, pas un effet de bord de la
+  lecture.
