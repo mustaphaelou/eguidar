@@ -922,6 +922,12 @@ async function documentsDeLot(
   })
 }
 
+/**
+ * Les effets d'un geste en lot restent après engagement, comme ceux d'une
+ * écriture unitaire : la mutation a déjà écrit ses Événements dans sa
+ * transaction (`mettreAJourLot`, `duplicateProduct`), et ce qui suit ne peut
+ * que manquer sans jamais décider du commit.
+ */
 async function reindexerLot(
   ids: readonly string[],
   effects: CatalogEffects
@@ -960,6 +966,12 @@ function partitionDesIdentifiants(
   }
 }
 
+/**
+ * Le lot écrit ses Événements dans la même transaction que son `updateMany` :
+ * un retour arrière ne laisse donc ni changement ni Événement, et chaque
+ * Produit touché reçoit le sien — les règles semées réindexent et invalident
+ * par Produit, pas par geste.
+ */
 async function mettreAJourLot(
   ids: readonly string[],
   data: Prisma.ProductUncheckedUpdateManyInput,
@@ -971,17 +983,39 @@ async function mettreAJourLot(
 
   const existants = await prisma.product.findMany({
     where: { id: { in: uniques } },
-    select: { id: true },
+    select: { id: true, slug: true, categoryId: true },
   })
+  const parId = new Map(existants.map((produit) => [produit.id, produit]))
   const partage = partitionDesIdentifiants(
     uniques,
-    new Set(existants.map((produit) => produit.id)),
+    new Set(parId.keys()),
     raisonAbsence
   )
   if (partage.succes.length > 0) {
-    await prisma.product.updateMany({
-      where: { id: { in: partage.succes } },
-      data,
+    const categorieCiblee =
+      typeof data.categoryId === "string" ? data.categoryId : null
+    await prisma.$transaction(async (tx) => {
+      await tx.product.updateMany({
+        where: { id: { in: partage.succes } },
+        data,
+      })
+      for (const id of partage.succes) {
+        const produit = parId.get(id)!
+        const categoryId = categorieCiblee ?? produit.categoryId
+        await enregistrerEvenement(tx, {
+          type: "produit.enregistre",
+          entityType: "produit",
+          entityId: id,
+          payload: {
+            produitId: id,
+            slug: produit.slug,
+            slugPrecedent: null,
+            categoryId,
+            categoryIdPrecedent:
+              categoryId === produit.categoryId ? null : produit.categoryId,
+          },
+        })
+      }
     })
     await reindexerLot(partage.succes, effects)
   }

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { prisma } from "@/lib/db"
-import type { Product } from "@/lib/generated/prisma/client"
+import type { Prisma, Product } from "@/lib/generated/prisma/client"
 import type { IndexableProduct } from "@/lib/index-projection"
 import {
   bulkDelete,
@@ -187,6 +187,95 @@ describe("les gestes en lot du Catalogue", () => {
     expect(await bulkDelete([], effets)).toEqual({ succes: [], echecs: [] })
     expect(effets.reindexProducts).not.toHaveBeenCalled()
     expect(effets.deleteImages).not.toHaveBeenCalled()
+  })
+
+  it("écrit un Événement produit.enregistre par Produit touché, dans la transaction du lot", async () => {
+    const premiere = await creerProduit("evenement-1")
+    const seconde = await creerProduit("evenement-2")
+
+    await bulkSetFeatured(
+      [premiere.id, seconde.id, randomUUID()],
+      true,
+      effetsSilencieux()
+    )
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: {
+        type: "produit.enregistre",
+        entityType: "produit",
+        entityId: { in: [premiere.id, seconde.id] },
+      },
+    })
+    expect(evenements).toHaveLength(2)
+    for (const produit of [premiere, seconde]) {
+      const evenement = evenements.find(
+        (candidat) => candidat.entityId === produit.id
+      )
+      expect(evenement?.payload).toEqual({
+        produitId: produit.id,
+        slug: produit.slug,
+        slugPrecedent: null,
+        categoryId: racine.id,
+        categoryIdPrecedent: null,
+      })
+    }
+  })
+
+  it("nomme la Structure d'arrivée et la précédente dans l'Événement d'un déplacement en lot", async () => {
+    const cible = await creerProduit("evenement-structure")
+
+    await bulkSetStructure([cible.id], enfant.id, effetsSilencieux())
+
+    const evenement = await prisma.automationEvent.findFirst({
+      where: {
+        type: "produit.enregistre",
+        entityType: "produit",
+        entityId: cible.id,
+      },
+    })
+    expect(evenement?.payload).toEqual({
+      produitId: cible.id,
+      slug: cible.slug,
+      slugPrecedent: null,
+      categoryId: enfant.id,
+      categoryIdPrecedent: racine.id,
+    })
+  })
+
+  it("n'écrit aucun Événement quand la transaction du lot est annulée", async () => {
+    const premiere = await creerProduit("annule-1")
+    const seconde = await creerProduit("annule-2")
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+      options?: unknown
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après les Événements du lot")
+      }, options)) as unknown as typeof prisma.$transaction)
+
+    try {
+      await expect(
+        bulkSetFeatured([premiere.id, seconde.id], true, effetsSilencieux())
+      ).rejects.toThrow("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(
+      await prisma.automationEvent.count({
+        where: {
+          type: "produit.enregistre",
+          entityId: { in: [premiere.id, seconde.id] },
+        },
+      })
+    ).toBe(0)
+    const relues = await prisma.product.findMany({
+      where: { id: { in: [premiere.id, seconde.id] } },
+      select: { isFeatured: true },
+    })
+    expect(relues.every((produit) => !produit.isFeatured)).toBe(true)
   })
 })
 
