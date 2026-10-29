@@ -235,12 +235,11 @@ async function invaliderStructure(contexte: ContexteAction): Promise<void> {
 
 async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
   const { jour } = payloadJour.parse(contexte.evenement.payload)
-  const variantes = await prisma.productVariant.findMany({
-    where: { stock: { lte: LOW_STOCK_THRESHOLD } },
-    include: { product: { select: { name: true } } },
-  })
-  const lignes: LigneStockBas[] = variantes.map((variante) => ({
-    produit: variante.product.name,
+  // Le Tableau de bord est la seule définition du stock bas : le digest relit
+  // ses variantes au lieu de rejouer le seuil et l'agrégat une seconde fois.
+  const stats = await getDashboardStats()
+  const lignes: LigneStockBas[] = stats.lowStockVariants.map((variante) => ({
+    produit: variante.productName,
     variante: variante.name,
     sku: variante.sku,
     stock: variante.stock,

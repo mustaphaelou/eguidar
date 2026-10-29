@@ -31,6 +31,7 @@ import type {
   StatutAutomation,
 } from "@/lib/generated/prisma/client"
 import { slugify } from "@/lib/slug"
+import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -71,7 +72,7 @@ export class IdentifiantRegleExisteError extends UserFacingError {
 
 export class RegleValidationError extends UserFacingError {
   constructor(issues: string[]) {
-    super(`Données invalides : ${issues.join(" ; ")}`)
+    super(messageDeValidation(issues))
     this.name = "RegleValidationError"
   }
 }

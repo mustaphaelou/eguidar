@@ -290,7 +290,9 @@ _Avoid_: table des médias, registre R2, média
 
 **Texte alternatif**:
 Le texte qu'une Image produit donne à sa place quand elle est rendue à une personne qui ne la voit pas : il décrit le visuel et ne répète pas le nom du **Produit**. Il appartient à l'Image produit (le **Registre des Images produit**), s'édite dans la **Bibliothèque des médias** et dans la **Galerie produit**, et un nouvel envoi ne peut pas être publié sans lui ; une Image produit ancienne sans Texte alternatif rend le nom du Produit.
-_Avoid_: alt, texte de remplacement, description d'image
+_Avoid_: texte de remplacement, description d'image
+
+Le champ s'appelle `alt` dans le code et dans la colonne Prisma : c'est le nom du champ, pas un synonyme du Texte alternatif. « Texte alternatif » reste le libellé montré à l'utilisateur, et le renommer n'apporterait rien qu'un diff de cinquante-quatre sites.
 
 **Bibliothèque des médias**:
 La surface d'Administration qui liste le **Registre des Images produit** avec sa recherche, ses filtres « inutilisées » et « sans texte alternatif », sa sélection multiple et son tiroir de détail. Elle rend lisibles les usages d'une Image produit et refuse de supprimer celle qu'un **Produit** nomme encore ; elle ne remplace pas le stockage.

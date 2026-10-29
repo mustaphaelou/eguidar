@@ -308,7 +308,7 @@ export async function supprimerImagesProduit(
   publicUrls: readonly string[],
   overrides?: Partial<ImagesProduitEffects>
 ): Promise<{ supprimees: string[] }> {
-  const effects = { ...defaultImagesProduitEffects(), ...overrides }
+  const effects = avecSurcharges(defaultImagesProduitEffects(), overrides)
   const urls = [...new Set(publicUrls)]
   if (urls.length === 0) return { supprimees: [] }
 
