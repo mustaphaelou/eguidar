@@ -251,4 +251,17 @@ describe("la page de l'historique des exécutions", () => {
       depuis: "2026-10-21",
     })
   })
+
+  it("n'offre que les statuts qu'une Exécution peut prendre", async () => {
+    const html = await rendreLaPage()
+    const valeurs = [
+      ...html.matchAll(/<option[^>]*value="([^"]*)"[^>]*>/g),
+    ].map((correspondance) => correspondance[1])
+
+    expect(valeurs).toEqual(
+      expect.arrayContaining(["en_cours", "reussi", "echoue", "ignore"])
+    )
+    expect(valeurs).not.toContain("en_attente")
+    expect(valeurs).not.toContain("mort")
+  })
 })

@@ -68,7 +68,7 @@ export default async function AdminAutomatisationsPage() {
 
       {enEchec > 0 ? (
         <p className="text-sm font-medium" role="status">
-          {enEchec} exécution(s) en échec ou en file morte.{" "}
+          {enEchec} exécution(s) en échec.{" "}
           <Link
             href="/admin/automatisations/executions?statut=echoue"
             className="underline"

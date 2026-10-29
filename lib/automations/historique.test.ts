@@ -131,12 +131,12 @@ describe("la lecture de l'historique des exécutions", () => {
     expect(combinees[0]!.regleId).toBe(premiere)
   })
 
-  it("compte les exécutions en échec ou en file morte", async () => {
+  it("compte les exécutions en échec, jamais un statut qui n'appartient qu'aux Événements", async () => {
     const regleId = await creerRegle("compte")
     await creerExecution({ regleId, statut: "reussi", debut: JOUR })
     await creerExecution({ regleId, statut: "echoue", debut: JOUR })
     await creerExecution({ regleId, statut: "mort", debut: JOUR })
 
-    await expect(compterExecutionsEnEchec()).resolves.toBe(2)
+    await expect(compterExecutionsEnEchec()).resolves.toBe(1)
   })
 })

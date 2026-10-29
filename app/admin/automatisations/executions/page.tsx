@@ -175,8 +175,7 @@ async function ExecutionsContent({
                 <TableCell>
                   <Badge
                     variant={
-                      execution.statut === "echoue" ||
-                      execution.statut === "mort"
+                      execution.statut === "echoue"
                         ? "destructive"
                         : "secondary"
                     }

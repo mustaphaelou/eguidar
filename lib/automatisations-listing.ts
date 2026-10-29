@@ -1,12 +1,16 @@
 import type { StatutAutomation } from "@/lib/generated/prisma/client"
 
+/**
+ * Les statuts qu'une Exécution peut prendre (ADR-0041). `en_attente` et `mort`
+ * appartiennent à la machine à états de l'Événement, pas à celle de
+ * l'Exécution : les offrir dans le filtre promettrait des lignes qui
+ * n'existent jamais.
+ */
 export const STATUTS_EXECUTION = Object.freeze([
-  "en_attente",
   "en_cours",
   "reussi",
   "echoue",
   "ignore",
-  "mort",
 ] as const)
 
 export interface FiltresExecutions {

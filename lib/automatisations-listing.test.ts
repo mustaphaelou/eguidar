@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  STATUTS_EXECUTION,
   construireUrlExecutions,
   parseFiltresExecutions,
 } from "@/lib/automatisations-listing"
@@ -38,10 +39,26 @@ describe("la grammaire d'URL de l'historique des exécutions", () => {
   it("accepte plusieurs valeurs et retient la première", () => {
     expect(
       parseFiltresExecutions({
-        statut: ["mort", "echoue"],
+        statut: ["ignore", "echoue"],
         regle: ["a", "b"],
       })
-    ).toEqual({ statut: "mort", regleId: "a", depuis: null })
+    ).toEqual({ statut: "ignore", regleId: "a", depuis: null })
+  })
+
+  it("n'admet que les statuts qu'une Exécution peut prendre", () => {
+    expect([...STATUTS_EXECUTION]).toEqual([
+      "en_cours",
+      "reussi",
+      "echoue",
+      "ignore",
+    ])
+    for (const statut of ["en_attente", "mort"]) {
+      expect(parseFiltresExecutions({ statut })).toEqual({
+        statut: null,
+        regleId: null,
+        depuis: null,
+      })
+    }
   })
 
   it("se reconstruit à l'identique, et n'écrit rien quand rien n'est filtré", () => {

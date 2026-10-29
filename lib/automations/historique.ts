@@ -68,9 +68,11 @@ export async function listerExecutions(
   }))
 }
 
-/** Le bandeau de l'Administration : un échec ne reste pas invisible. */
+/**
+ * Le bandeau de l'Administration : un échec ne reste pas invisible. Seul
+ * `echoue` est un statut d'Exécution ; `mort` est un statut d'Événement et ne
+ * peut pas compter ici (ADR-0041).
+ */
 export async function compterExecutionsEnEchec(): Promise<number> {
-  return prisma.automationRun.count({
-    where: { status: { in: ["echoue", "mort"] } },
-  })
+  return prisma.automationRun.count({ where: { status: "echoue" } })
 }
