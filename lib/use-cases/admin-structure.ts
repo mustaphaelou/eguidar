@@ -538,6 +538,13 @@ export async function deplacerStructure(
       }
     }
 
+    await enregistrerEvenement(tx, {
+      type: "structure.modifiee",
+      entityType: "categorie",
+      entityId: id,
+      payload: { categorieId: id },
+    })
+
     return {
       nomDestination,
       position: rang + 1,

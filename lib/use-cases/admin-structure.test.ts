@@ -572,6 +572,56 @@ describe("deplacerStructure — un déplacement, un propriétaire", () => {
     await expect(deplacement).resolves.toMatchObject({ position: 1 })
     expect(await ordreDesEnfants(racine.id)).toEqual([b.id, a.id, c.id])
   })
+
+  it("écrit un Événement structure.modifiee dans la transaction du déplacement", async () => {
+    const { racine, a, c } = await creerFratrie("mv-evenement")
+
+    await deplacerStructure(
+      { id: c.id, nouvelleParenteId: racine.id, avantId: a.id },
+      effectSpies()
+    )
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: { type: "structure.modifiee", entityId: c.id },
+    })
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]).toMatchObject({
+      entityType: "categorie",
+      payload: { categorieId: c.id },
+    })
+  })
+
+  it("n'écrit aucun Événement quand la transaction du déplacement est annulée", async () => {
+    const { racine, a, b, c } = await creerFratrie("mv-evenement-annule")
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+      options?: unknown
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après l'écriture de l'Événement")
+      }, options)) as unknown as typeof prisma.$transaction)
+
+    try {
+      const refus = await refusDe(
+        deplacerStructure(
+          { id: c.id, nouvelleParenteId: racine.id, avantId: a.id },
+          effectSpies()
+        )
+      )
+      expect((refus as Error).message).toContain("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(
+      await prisma.automationEvent.count({
+        where: { type: "structure.modifiee", entityId: c.id },
+      })
+    ).toBe(0)
+    expect(await ordreDesEnfants(racine.id)).toEqual([a.id, b.id, c.id])
+  })
 })
 
 describe("admin structure mutations — categories", () => {
