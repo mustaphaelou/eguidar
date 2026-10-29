@@ -595,13 +595,12 @@ describe("deplacerStructure — un déplacement, un propriétaire", () => {
     const { racine, a, b, c } = await creerFratrie("mv-evenement-annule")
     const reelle = prisma.$transaction.bind(prisma)
     const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
-      callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
-      options?: unknown
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
     ) =>
       reelle(async (tx) => {
         await callback(tx)
         throw new Error("annulation simulée après l'écriture de l'Événement")
-      }, options)) as unknown as typeof prisma.$transaction)
+      })) as unknown as typeof prisma.$transaction)
 
     try {
       const refus = await refusDe(

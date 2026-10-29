@@ -247,13 +247,12 @@ describe("les gestes en lot du Catalogue", () => {
     const seconde = await creerProduit("annule-2")
     const reelle = prisma.$transaction.bind(prisma)
     const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
-      callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
-      options?: unknown
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
     ) =>
       reelle(async (tx) => {
         await callback(tx)
         throw new Error("annulation simulée après les Événements du lot")
-      }, options)) as unknown as typeof prisma.$transaction)
+      })) as unknown as typeof prisma.$transaction)
 
     try {
       await expect(
