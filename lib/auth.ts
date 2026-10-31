@@ -1,14 +1,14 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { nextCookies } from "better-auth/next-js"
-import { captcha, emailOTP } from "better-auth/plugins"
+import { captcha, emailOTP, haveIBeenPwned } from "better-auth/plugins"
 
+import {
+  ORDRE_ENTETES_ADRESSE_CLIENT,
+  PROXIES_DE_CONFIANCE,
+} from "@/lib/adresse-client"
 import { prisma } from "@/lib/db"
 import { sendOtpEmail } from "@/lib/emails"
-import {
-  accesCompteClientPrisma,
-  revoquerAccesNonProuve,
-} from "@/lib/revocation-acces-non-prouve"
 import {
   SESSION_INACTIVE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
@@ -19,6 +19,14 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
+  advanced: {
+    ipAddress: {
+      // L'ordre vit dans le résolveur partagé avec la Recherche : la
+      // bibliothèque et le dépôt ne peuvent pas diverger.
+      ipAddressHeaders: [...ORDRE_ENTETES_ADRESSE_CLIENT],
+      trustedProxies: [...PROXIES_DE_CONFIANCE],
+    },
+  },
   session: {
     expiresIn: SESSION_INACTIVE_SECONDS,
     updateAge: SESSION_UPDATE_AGE_SECONDS,
@@ -37,13 +45,6 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     minPasswordLength: 8,
   },
-  emailVerification: {
-    beforeEmailVerification: async (compteClient) => {
-      await revoquerAccesNonProuve(accesCompteClientPrisma, compteClient.id, {
-        emailVerified: true,
-      })
-    },
-  },
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
@@ -57,9 +58,16 @@ export const auth = betterAuth({
   },
   plugins: [
     emailOTP({
+      storeOTP: "hashed",
       async sendVerificationOTP({ email, otp, type }) {
         await sendOtpEmail(email, otp, type)
       },
+    }),
+    // Le contrôle couvre l'Inscription et la réinitialisation du mot de passe ;
+    // les routes de changement de mot de passe et d'administration restent hors
+    // de cette phase (voir ADR-0043).
+    haveIBeenPwned({
+      paths: ["/sign-up/email", "/reset-password", "/email-otp/reset-password"],
     }),
     ...(process.env.TURNSTILE_SECRET_KEY
       ? [
