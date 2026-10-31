@@ -85,7 +85,18 @@ export function StorefrontFooter() {
             </p>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-x-2">
-            <span>© {site.name} — Tous droits réservés.</span>
+            <span>
+              © {site.name} — Le code est sous{" "}
+              <a
+                href={site.licenseUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-link hover:underline"
+              >
+                licence MIT
+              </a>
+              .
+            </span>
             {staticPages.map((link, index) => (
               <span key={link.href} className="flex items-center gap-x-2">
                 {index > 0 ? (
