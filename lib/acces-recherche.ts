@@ -1,10 +1,7 @@
 import "server-only"
 
-import {
-  adresseClient,
-  type EntetesRequete,
-  type PortLimiteurRecherche,
-} from "@/lib/limiteur-recherche"
+import { adresseClient, type EntetesRequete } from "@/lib/adresse-client"
+import { type PortLimiteurRecherche } from "@/lib/limiteur-recherche"
 import { creerLimiteurRechercheRedis } from "@/lib/limiteur-recherche-redis"
 
 export const MESSAGE_LIMITEUR_INDISPONIBLE =
