@@ -31,7 +31,7 @@ const STATUTS = (Object.keys(REGISTRE_STATUTS) as OrderStatus[]).map(
 )
 
 const BORDURE_CHAMP =
-  "h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+  "h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
 
 function premier(valeur: string | string[] | undefined): string | undefined {
   return Array.isArray(valeur) ? valeur[0] : valeur
