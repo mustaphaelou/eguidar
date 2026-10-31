@@ -74,7 +74,7 @@ export function UserMenu({
             <span
               tabIndex={0}
               role="button"
-              className="inline-flex cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="inline-flex cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Avatar className="border">
                 <AvatarFallback>{initials}</AvatarFallback>

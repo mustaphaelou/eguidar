@@ -1,13 +1,17 @@
 import { cacheLife, cacheTag } from "next/cache"
 
+import { filtreArticlePublic } from "@/lib/article-public"
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   parametresDeSlug,
   type ParametresDeSlug,
 } from "@/lib/parametre-de-repli"
 import { minVariantPrice, totalVariantStock } from "@/lib/product-metrics"
 import { BLOG_TAG, blogDetailTag } from "@/lib/use-cases/cache-invalidation"
+
+export { filtreArticlePublic } from "@/lib/article-public"
 
 export type StatutPublication = "brouillon" | "publie" | "archive"
 
@@ -25,8 +29,10 @@ export interface ArticleBlogPublic {
   titre: string
   slug: string
   extrait: string
+  chapo: string | null
   couverture: string | null
   contenu: string
+  notes: string | null
   theme: ThemeRef
   publishedAt: Date | null
   statut: StatutPublication
@@ -64,8 +70,8 @@ function toProduitLieCard(product: {
 export async function fetchArticleParSlug(
   slug: string
 ): Promise<ArticleBlogPublic | null> {
-  const article = await prisma.articleBlog.findUnique({
-    where: { slug },
+  const article = await prisma.articleBlog.findFirst({
+    where: { slug, ...filtreArticlePublic(["publie", "archive"]) },
     include: {
       theme: true,
       produits: {
@@ -83,8 +89,7 @@ export async function fetchArticleParSlug(
       },
     },
   })
-  if (!article || (article.statut !== "publie" && article.statut !== "archive"))
-    return null
+  if (!article) return null
   const produits: ProduitLie[] = []
   for (const lien of article.produits) {
     const produit = lien.produit
@@ -97,8 +102,10 @@ export async function fetchArticleParSlug(
     titre: article.titre,
     slug: article.slug,
     extrait: article.extrait,
+    chapo: article.chapo,
     couverture: article.couverture,
     contenu: article.contenu,
+    notes: article.notes,
     theme: { slug: article.theme.slug, nom: article.theme.nom },
     publishedAt: article.publishedAt,
     statut: article.statut,
@@ -106,14 +113,19 @@ export async function fetchArticleParSlug(
   }
 }
 
-export interface CardBlog {
+export interface ArticleBlogResume {
   slug: string
   titre: string
-  extrait: string
   couverture: string | null
   theme: ThemeRef
   publishedAt: Date
 }
+
+export interface CardBlog extends ArticleBlogResume {
+  extrait: string
+}
+
+export type ArticleLie = ArticleBlogResume
 
 export interface BlogLanding {
   hero: CardBlog | null
@@ -129,10 +141,7 @@ function toCardBlog(article: {
   createdAt: Date
   theme: ThemeRef
 }): CardBlog | null {
-  if (!article.publishedAt) {
-    console.warn(`[blog] article publié sans date ignoré : ${article.slug}`)
-    return null
-  }
+  if (!article.publishedAt) return null
   return {
     slug: article.slug,
     titre: article.titre,
@@ -145,7 +154,7 @@ function toCardBlog(article: {
 
 export async function fetchBlogLanding(): Promise<BlogLanding> {
   const articles = await prisma.articleBlog.findMany({
-    where: { statut: "publie" },
+    where: filtreArticlePublic(),
     include: { theme: true },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
   })
@@ -156,6 +165,61 @@ export async function fetchBlogLanding(): Promise<BlogLanding> {
   return { hero: hero ?? null, articles: rest }
 }
 
+function toArticleLie(article: {
+  slug: string
+  titre: string
+  couverture: string | null
+  publishedAt: Date | null
+  theme: ThemeRef
+}): ArticleLie | null {
+  if (!article.publishedAt) return null
+  return {
+    slug: article.slug,
+    titre: article.titre,
+    couverture: article.couverture,
+    theme: { slug: article.theme.slug, nom: article.theme.nom },
+    publishedAt: article.publishedAt,
+  }
+}
+
+const LIMITE_ARTICLES_LIES = 3
+
+const INCLUSION_DU_THEME: Prisma.ArticleBlogInclude = { theme: true }
+
+const TRI_DE_PUBLICATION: Prisma.ArticleBlogOrderByWithRelationInput[] = [
+  { publishedAt: "desc" },
+  { createdAt: "desc" },
+]
+
+export async function fetchArticlesLies(
+  slug: string,
+  themeSlug: string
+): Promise<ArticleLie[]> {
+  const publies = {
+    ...filtreArticlePublic(),
+    slug: { not: slug },
+  }
+  const memes = await prisma.articleBlog.findMany({
+    where: { ...publies, theme: { is: { slug: themeSlug } } },
+    include: INCLUSION_DU_THEME,
+    orderBy: TRI_DE_PUBLICATION,
+    take: LIMITE_ARTICLES_LIES,
+  })
+  const restant = LIMITE_ARTICLES_LIES - memes.length
+  const autres =
+    restant > 0
+      ? await prisma.articleBlog.findMany({
+          where: { ...publies, theme: { isNot: { slug: themeSlug } } },
+          include: INCLUSION_DU_THEME,
+          orderBy: TRI_DE_PUBLICATION,
+          take: restant,
+        })
+      : []
+  return [...memes, ...autres]
+    .map(toArticleLie)
+    .filter((article): article is ArticleLie => article !== null)
+}
+
 /**
  * Les slugs d'Articles que le build prérend : ceux dont l'URL résout encore,
  * c'est-à-dire les Publiés et les Archivés (un Brouillon n'a pas d'URL
@@ -163,7 +227,7 @@ export async function fetchBlogLanding(): Promise<BlogLanding> {
  */
 export async function fetchArticleSlugs(): Promise<string[]> {
   const articles = await prisma.articleBlog.findMany({
-    where: { statut: { in: ["publie", "archive"] } },
+    where: filtreArticlePublic(["publie", "archive"]),
     select: { slug: true },
     orderBy: { slug: "asc" },
   })
@@ -190,4 +254,14 @@ export async function getArticleParSlug(
   cacheTag(BLOG_TAG, blogDetailTag(slug))
   cacheLife(BLOG_CACHE_LIFE)
   return fetchArticleParSlug(slug)
+}
+
+export async function getArticlesLies(
+  slug: string,
+  themeSlug: string
+): Promise<ArticleLie[]> {
+  "use cache: remote"
+  cacheTag(BLOG_TAG, blogDetailTag(slug))
+  cacheLife(BLOG_CACHE_LIFE)
+  return fetchArticlesLies(slug, themeSlug)
 }

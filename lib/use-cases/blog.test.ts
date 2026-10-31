@@ -3,7 +3,12 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { fetchArticleParSlug, fetchBlogLanding } from "@/lib/use-cases/blog"
+import {
+  fetchArticleParSlug,
+  fetchArticleSlugs,
+  fetchArticlesLies,
+  fetchBlogLanding,
+} from "@/lib/use-cases/blog"
 
 const runId = randomUUID().slice(0, 8)
 const bSlug = (suffix: string) => `b-${runId}-${suffix}`
@@ -21,8 +26,10 @@ function makeInput(input: {
   publishedAt?: Date | null
   titre?: string
   extrait?: string
+  chapo?: string | null
   couverture?: string | null
   contenu?: string
+  notes?: string | null
   themeSlug?: string
 }) {
   const statut = input.statut ?? "brouillon"
@@ -30,8 +37,10 @@ function makeInput(input: {
     titre: input.titre ?? "Guide de test",
     slug: bSlug(input.suffix),
     extrait: input.extrait ?? "Un extrait de test",
+    chapo: input.chapo ?? null,
     couverture: input.couverture ?? null,
     contenu: input.contenu ?? "Un contenu de test",
+    notes: input.notes ?? null,
     statut,
     publishedAt:
       input.publishedAt === undefined
@@ -137,8 +146,10 @@ describe("blog lecture publique", () => {
         statut: "publie",
         titre: "Bien choisir son smartphone",
         extrait: "Nos conseils pour un achat serein.",
+        chapo: "Trois critères suffisent pour choisir sans se tromper.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+        notes: "Prix TTC indicatif.\nDisponibilité confirmée à la commande.",
         themeSlug: "annonces",
       })
 
@@ -148,14 +159,31 @@ describe("blog lecture publique", () => {
         titre: "Bien choisir son smartphone",
         slug: bSlug("detail"),
         extrait: "Nos conseils pour un achat serein.",
+        chapo: "Trois critères suffisent pour choisir sans se tromper.",
         couverture: "https://example.com/smartphone.jpg",
         contenu: "Premier paragraphe.\n\nDeuxième paragraphe.",
+        notes: "Prix TTC indicatif.\nDisponibilité confirmée à la commande.",
         theme: { slug: "annonces", nom: "Annonces" },
         statut: "publie",
         produits: [],
       })
       expect(lu?.id).toBe(article.id)
       expect(lu?.publishedAt).toBeInstanceOf(Date)
+    })
+
+    it("renvoie chapo null pour un Article qui n'en a pas", async () => {
+      await creerArticle({
+        suffix: "detail-sans-chapo",
+        statut: "publie",
+        extrait: "L'extrait tient lieu de Chapô.",
+      })
+
+      const lu = await fetchArticleParSlug(bSlug("detail-sans-chapo"))
+
+      expect(lu).toMatchObject({
+        extrait: "L'extrait tient lieu de Chapô.",
+        chapo: null,
+      })
     })
 
     it("returns null for an unknown slug", async () => {
@@ -168,6 +196,50 @@ describe("blog lecture publique", () => {
       await expect(
         fetchArticleParSlug(bSlug("detail-brouillon"))
       ).resolves.toBeNull()
+    })
+  })
+
+  describe("l'horloge de publication", () => {
+    it("ne rend un Article qu'entre sa date de publication et maintenant", async () => {
+      const moinsUneMinute = new Date(Date.now() - 60_000)
+      const demain = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      const passe = await creerArticle({
+        suffix: "horloge-passe",
+        statut: "publie",
+        publishedAt: moinsUneMinute,
+      })
+      const futur = await creerArticle({
+        suffix: "horloge-futur",
+        statut: "publie",
+        publishedAt: demain,
+      })
+      const sansDate = await creerArticle({
+        suffix: "horloge-sans-date",
+        statut: "publie",
+        publishedAt: null,
+      })
+
+      const landing = await fetchBlogLanding()
+      const slugsDeLaLanding = [
+        landing.hero?.slug,
+        ...landing.articles.map((article) => article.slug),
+      ]
+
+      expect(slugsDeLaLanding).toContain(passe.slug)
+      expect(slugsDeLaLanding).not.toContain(futur.slug)
+      expect(slugsDeLaLanding).not.toContain(sansDate.slug)
+
+      await expect(fetchArticleParSlug(passe.slug)).resolves.toMatchObject({
+        slug: passe.slug,
+      })
+      await expect(fetchArticleParSlug(futur.slug)).resolves.toBeNull()
+      await expect(fetchArticleParSlug(sansDate.slug)).resolves.toBeNull()
+
+      const slugsPrets = await fetchArticleSlugs()
+
+      expect(slugsPrets).toContain(passe.slug)
+      expect(slugsPrets).not.toContain(futur.slug)
+      expect(slugsPrets).not.toContain(sansDate.slug)
     })
   })
 
@@ -363,6 +435,196 @@ describe("blog lecture publique", () => {
       expect(lu?.produits.map((produit) => produit.slug)).toEqual([
         disponible.slug,
       ])
+    })
+  })
+
+  describe("articles liés", () => {
+    it("sert d'abord les Articles du même Thème, du plus récent au plus ancien, sans dépasser trois", async () => {
+      await creerArticle({
+        suffix: "lies-courant",
+        statut: "publie",
+        publishedAt: new Date("2026-01-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-guides-recent",
+        statut: "publie",
+        titre: "Le guide le plus récent",
+        publishedAt: new Date("2026-03-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-guides-moyen",
+        statut: "publie",
+        publishedAt: new Date("2026-02-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-guides-ancien",
+        statut: "publie",
+        publishedAt: new Date("2026-01-15T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-annonces-recent",
+        statut: "publie",
+        publishedAt: new Date("2026-04-01T10:00:00Z"),
+        themeSlug: "annonces",
+      })
+
+      const lies = await fetchArticlesLies(bSlug("lies-courant"), "guides")
+
+      expect(lies.map((article) => article.slug)).toEqual([
+        bSlug("lies-guides-recent"),
+        bSlug("lies-guides-moyen"),
+        bSlug("lies-guides-ancien"),
+      ])
+      expect(lies[0]).toMatchObject({
+        titre: "Le guide le plus récent",
+        couverture: null,
+        theme: { slug: "guides", nom: "Guides" },
+      })
+      expect(lies[0].publishedAt).toBeInstanceOf(Date)
+    })
+
+    it("complète avec d'autres Thèmes quand le Thème de l'Article est trop mince", async () => {
+      await creerArticle({
+        suffix: "lies-courant-thin",
+        statut: "publie",
+        publishedAt: new Date("2026-01-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-guides-seul",
+        statut: "publie",
+        publishedAt: new Date("2026-02-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-annonces-recent",
+        statut: "publie",
+        publishedAt: new Date("2026-04-01T10:00:00Z"),
+        themeSlug: "annonces",
+      })
+      await creerArticle({
+        suffix: "lies-annonces-ancien",
+        statut: "publie",
+        publishedAt: new Date("2026-03-01T10:00:00Z"),
+        themeSlug: "annonces",
+      })
+
+      const lies = await fetchArticlesLies(bSlug("lies-courant-thin"), "guides")
+
+      expect(lies.map((article) => [article.slug, article.theme.slug])).toEqual(
+        [
+          [bSlug("lies-guides-seul"), "guides"],
+          [bSlug("lies-annonces-recent"), "annonces"],
+          [bSlug("lies-annonces-ancien"), "annonces"],
+        ]
+      )
+    })
+
+    it("exclut l'Article courant de la sélection", async () => {
+      await creerArticle({
+        suffix: "lies-courant-exclu",
+        statut: "publie",
+        publishedAt: new Date("2026-04-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-guides-autre",
+        statut: "publie",
+        publishedAt: new Date("2026-03-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+
+      const lies = await fetchArticlesLies(
+        bSlug("lies-courant-exclu"),
+        "guides"
+      )
+
+      expect(lies.map((article) => article.slug)).toEqual([
+        bSlug("lies-guides-autre"),
+      ])
+    })
+
+    it("n'offre jamais un Brouillon ni un Archivé", async () => {
+      await creerArticle({
+        suffix: "lies-courant-statuts",
+        statut: "publie",
+        publishedAt: new Date("2026-01-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-brouillon-recent",
+        statut: "brouillon",
+        publishedAt: new Date("2026-05-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-archive-recent",
+        statut: "archive",
+        publishedAt: new Date("2026-04-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-publie",
+        statut: "publie",
+        publishedAt: new Date("2026-02-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+
+      const lies = await fetchArticlesLies(
+        bSlug("lies-courant-statuts"),
+        "guides"
+      )
+
+      expect(lies.map((article) => article.slug)).toEqual([
+        bSlug("lies-publie"),
+      ])
+    })
+
+    it("n'offre jamais un Article dont la date de publication est future", async () => {
+      await creerArticle({
+        suffix: "lies-courant-horloge",
+        statut: "publie",
+        publishedAt: new Date("2026-01-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-passe-horloge",
+        statut: "publie",
+        publishedAt: new Date("2026-02-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-futur-horloge",
+        statut: "publie",
+        publishedAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        themeSlug: "guides",
+      })
+
+      const lies = await fetchArticlesLies(
+        bSlug("lies-courant-horloge"),
+        "guides"
+      )
+
+      expect(lies.map((article) => article.slug)).toEqual([
+        bSlug("lies-passe-horloge"),
+      ])
+    })
+
+    it("retourne une liste vide quand l'Article est seul", async () => {
+      await creerArticle({
+        suffix: "lies-courant-seul",
+        statut: "publie",
+        publishedAt: new Date("2026-01-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+
+      await expect(
+        fetchArticlesLies(bSlug("lies-courant-seul"), "guides")
+      ).resolves.toEqual([])
     })
   })
 })

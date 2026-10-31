@@ -30,6 +30,7 @@ vi.mock("@/lib/meili", async (importOriginal) => ({
 import {
   createCategoryAction,
   deleteCategoryAction,
+  deplacerStructureAction,
   updateCategoryAction,
 } from "@/app/admin/categories/actions"
 import { prisma } from "@/lib/db"
@@ -205,21 +206,114 @@ describe("updateCategoryAction", () => {
       })
     })
 
-    await expect(
-      updateCategoryAction(
-        {},
-        categoryFormData("cycle-deja-base-hote", {
-          categoryId: structure.id,
-          parentId: a.id,
-        })
-      )
-    ).resolves.toEqual({
-      error:
-        "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle",
-    })
+    const issue = await updateCategoryAction(
+      {},
+      categoryFormData("cycle-deja-base-hote", {
+        categoryId: structure.id,
+        parentId: a.id,
+      })
+    )
+    expect(issue.error).toContain(
+      "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
+    )
+    expect(issue.error).toContain("l'arête")
 
     await expect(
       prisma.category.findUnique({ where: { id: structure.id } })
+    ).resolves.toMatchObject({ parentId: null })
+  })
+})
+
+describe("deplacerStructureAction", () => {
+  beforeEach(reinitialiser)
+  afterAll(balayer)
+
+  async function faireStructure(
+    name: string,
+    suffixe: string,
+    parentId?: string
+  ) {
+    return prisma.category.create({
+      data: {
+        name,
+        slug: categorySlug(suffixe),
+        ...(parentId ? { parentId } : {}),
+      },
+    })
+  }
+
+  function deplacementFormData(
+    categoryId: string,
+    nouvelleParenteId: string | null,
+    avantId: string | null
+  ): FormData {
+    const data = new FormData()
+    data.append("categoryId", categoryId)
+    if (nouvelleParenteId) data.append("nouvelleParenteId", nouvelleParenteId)
+    if (avantId) data.append("avantId", avantId)
+    return data
+  }
+
+  it("déplace et rend le message que la région polie annonce", async () => {
+    const racine = await faireStructure("Chaussures", "mv-annonce-racine")
+    const a = await faireStructure("Bottes", "mv-annonce-a", racine.id)
+    const b = await faireStructure("Sandales", "mv-annonce-b", racine.id)
+
+    await expect(
+      deplacerStructureAction({}, deplacementFormData(b.id, racine.id, a.id))
+    ).resolves.toEqual({
+      message: "Déplacée sous Chaussures, position 1 sur 2",
+    })
+
+    const ordre = await prisma.category.findMany({
+      where: { parentId: racine.id },
+      orderBy: { position: "asc" },
+      select: { id: true },
+    })
+    expect(ordre.map((sœur) => sœur.id)).toEqual([b.id, a.id])
+  })
+
+  it("rend le refus nommé d'une destination dans la sous-structure déplacée", async () => {
+    const racine = await faireStructure("Racine refus", "mv-refus-racine")
+    const a = await faireStructure("Enfant refus", "mv-refus-a", racine.id)
+    const petit = await faireStructure("Petit refus", "mv-refus-petit", a.id)
+
+    const issue = await deplacerStructureAction(
+      {},
+      deplacementFormData(a.id, petit.id, null)
+    )
+
+    expect(issue.error).toContain("descendantes")
+    await expect(
+      prisma.category.findUnique({ where: { id: a.id } })
+    ).resolves.toMatchObject({ parentId: racine.id })
+  })
+
+  it("rend le refus d'un cycle en nommant l'arête qui le ferme", async () => {
+    const deplacee = await faireStructure("À rattacher", "mv-cycle-deplacee")
+    const a = await faireStructure("Cycle A", "mv-cycle-a")
+    const b = await faireStructure("Cycle B", "mv-cycle-b")
+    await prisma.$transaction(async (tx) => {
+      await tx.category.update({
+        where: { id: a.id },
+        data: { parentId: b.id },
+      })
+      await tx.category.update({
+        where: { id: b.id },
+        data: { parentId: a.id },
+      })
+    })
+
+    const issue = await deplacerStructureAction(
+      {},
+      deplacementFormData(deplacee.id, a.id, null)
+    )
+
+    expect(issue.error).toContain("Cycle A")
+    expect(issue.error).toContain("Cycle B")
+    expect(issue.error).toContain("l'arête")
+    await expect(
+      prisma.category.findUnique({ where: { id: deplacee.id } })
     ).resolves.toMatchObject({ parentId: null })
   })
 })

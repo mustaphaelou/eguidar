@@ -22,6 +22,7 @@ const FAITS: FaitStructure[] = [
     image: null,
     parentId: null,
     produitsDirects: 0,
+    position: 0,
   },
   {
     id: "z-slug",
@@ -30,6 +31,7 @@ const FAITS: FaitStructure[] = [
     image: null,
     parentId: null,
     produitsDirects: 0,
+    position: 0,
   },
   {
     id: "e-slug",
@@ -38,6 +40,7 @@ const FAITS: FaitStructure[] = [
     image: null,
     parentId: null,
     produitsDirects: 0,
+    position: 0,
   },
 ]
 

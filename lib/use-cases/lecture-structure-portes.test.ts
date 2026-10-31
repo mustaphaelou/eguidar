@@ -75,7 +75,7 @@ describe("Lecture de la Structure — la liste figée, comparée par égalité d
     expect(avecUneDixieme).not.toBe(SOURCE_DU_MODULE)
     expect(membresDeLaValeur(avecUneDixieme)).not.toEqual([...QUESTIONS].sort())
 
-    const sansEmprunt = SOURCE_DU_MODULE.replace("  comparerParNom,\n", "")
+    const sansEmprunt = SOURCE_DU_MODULE.replace("  comparerStructures,\n", "")
     expect(sansEmprunt).not.toBe(SOURCE_DU_MODULE)
     expect(importsEmpruntes(sansEmprunt)).not.toEqual(
       [...NOMS_EMPRUNTES].sort()
@@ -101,8 +101,8 @@ describe("Lecture de la Structure — la liste figée, comparée par égalité d
     )
 
     const avecUnTypeEnLigne = SOURCE_DU_MODULE.replace(
-      "  comparerParNom,\n",
-      "  comparerParNom,\n  type Fait,\n"
+      "  comparerStructures,\n",
+      "  comparerStructures,\n  type Fait,\n"
     )
     expect(avecUnTypeEnLigne).not.toBe(SOURCE_DU_MODULE)
     expect(importsEmpruntes(avecUnTypeEnLigne)).toContain("Fait")
@@ -337,6 +337,7 @@ function faitDe(
     image: plantee.image,
     parentId,
     produitsDirects: 0,
+    position: 0,
   }
 }
 

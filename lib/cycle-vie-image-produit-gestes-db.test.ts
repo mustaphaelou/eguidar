@@ -277,12 +277,24 @@ describe("gestes séquentiels du cycle de vie — registre durable", () => {
           publicUrl: urlImagePersistee(premiere.draftId, "image/jpeg"),
           contentType: "image/jpeg",
           tentativeId: "tentative-durable",
+          faits: {
+            mimeType: "image/jpeg",
+            byteSize: 1024,
+            width: 640,
+            height: 480,
+          },
         },
         {
           draftId: seconde.draftId,
           publicUrl: urlImagePersistee(seconde.draftId, "image/png"),
           contentType: "image/png",
           tentativeId: "tentative-durable",
+          faits: {
+            mimeType: "image/png",
+            byteSize: 1024,
+            width: 640,
+            height: 480,
+          },
         },
       ],
     })

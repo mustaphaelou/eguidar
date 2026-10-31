@@ -36,12 +36,21 @@ function DataTableFacetedFilter<TData, TValue>({
   const selectedOptions = options.filter((option) =>
     selectedValues.has(option.value)
   )
+  const resumeSelection =
+    selectedOptions.length === 0
+      ? "aucune valeur sélectionnée"
+      : `${selectedOptions.map((option) => option.label).join(", ")} sélectionné${selectedOptions.length > 1 ? "s" : ""}`
 
   return (
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="outline" size="sm" className="border-dashed">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-dashed"
+            aria-label={`${title ?? "Filtre"} — ${resumeSelection}`}
+          >
             <HugeiconsIcon
               icon={CirclePlusIcon}
               strokeWidth={2}
@@ -79,6 +88,7 @@ function DataTableFacetedFilter<TData, TValue>({
             <button
               key={option.value}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => {
                 if (isSelected) {
                   selectedValues.delete(option.value)

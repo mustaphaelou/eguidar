@@ -217,3 +217,16 @@ export function moteurMeili(): MoteurRecherche {
     chercher: (requete) => chercherAvecMeili(getMeiliSearch(), requete),
   }
 }
+
+/**
+ * La lecture complète de l'index, pour la réconciliation nocturne : c'est la
+ * seule surface qui sait ce que Meilisearch contient réellement.
+ */
+export async function listProductDocuments(): Promise<IndexableProduct[]> {
+  const meili = getMeiliSearch()
+  if (!meili) return []
+  const reponse = await meili.index(PRODUCTS_INDEX).getDocuments({
+    limit: 100_000,
+  })
+  return reponse.results as IndexableProduct[]
+}

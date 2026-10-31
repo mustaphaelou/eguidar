@@ -1,11 +1,12 @@
 import { z } from "zod"
 
+import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
-import type {
-  Category,
+import {
   Prisma,
-  Product,
-  ProductVariant,
+  type Category,
+  type Product,
+  type ProductVariant,
 } from "@/lib/generated/prisma/client"
 import cycleVieImageProduitParDefaut, {
   estLieAuProduit,
@@ -21,6 +22,7 @@ import {
   entreeGalerieImageProduitSchema,
   identifiantsBrouillonsGalerie,
   LIMITE_IMAGES_PRODUIT,
+  normaliserTexteAlternatif,
   type EntreeImageProduit,
 } from "@/lib/galerie-image-produit"
 import {
@@ -34,7 +36,22 @@ import {
   totalVariantStock,
   urlsImagesProduit,
 } from "@/lib/product-metrics"
-import { stockageImageProduitR2 } from "@/lib/r2"
+import {
+  PRODUIT_LISTING_PAGE_DEFAULT,
+  PRODUIT_LISTING_PAGE_SIZE_DEFAULT,
+  PRODUIT_LISTING_SENS_DEFAULT,
+  PRODUIT_LISTING_TRI_DEFAULT,
+  PRODUIT_STRUCTURE_SANS,
+  PRODUIT_STOCK_NON_NUL,
+  PRODUIT_STOCK_ZERO,
+  type ProduitListingParams,
+  type ProduitTri,
+} from "@/lib/produit-listing"
+import { stockageImageProduitR2, type FaitImageProduitVerifiee } from "@/lib/r2"
+import {
+  enregistrerImagesProduit,
+  type EntreeRegistreImageProduit,
+} from "@/lib/use-cases/images-produit"
 import type {
   CatalogueEventCategory,
   CatalogueEventProduct,
@@ -84,6 +101,10 @@ export interface CatalogEffects {
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): Promise<void> | void
   deleteImages(urls: string[]): Promise<void>
+  enregistrerImages(
+    entrees: readonly EntreeRegistreImageProduit[],
+    createdBy: string | null
+  ): Promise<void>
 }
 
 function journaliserEchecSuppressionImage(
@@ -124,6 +145,7 @@ export function defaultCatalogEffects(libelleJournal: string): CatalogEffects {
         }
       }
     },
+    enregistrerImages: enregistrerImagesProduit,
   }
 }
 
@@ -197,6 +219,16 @@ export class DraftRegistryUnavailableError extends DraftPromotionRefusedError {
   }
 }
 
+export class MissingImageAltError extends UserFacingError {
+  constructor(positions: readonly number[]) {
+    const images = positions.map((position) => `l'image ${position}`).join(", ")
+    super(
+      `Texte alternatif manquant pour ${images} : un Brouillon d'Image produit doit en avoir un avant d'être publié`
+    )
+    this.name = "MissingImageAltError"
+  }
+}
+
 const variantInputSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "nom de variante requis"),
@@ -266,6 +298,17 @@ function assertNonNegativeVariantPrices(input: ProductInput): void {
     .filter((variant) => variant.priceDelta + input.price < 0)
     .map((variant) => `prix final négatif pour le SKU ${variant.sku}`)
   if (problems.length > 0) throw new CatalogValidationError(problems)
+}
+
+function assertTextesAlternatifsDesNouvellesImages(
+  galerie: readonly EntreeImageProduit[]
+): void {
+  const manquantes = galerie.flatMap((entree, index) =>
+    entree.kind === "brouillon" && !normaliserTexteAlternatif(entree.alt)
+      ? [index + 1]
+      : []
+  )
+  if (manquantes.length > 0) throw new MissingImageAltError(manquantes)
 }
 
 function assertUniqueSkusInInput(variants: ProductVariantInput[]): void {
@@ -420,6 +463,33 @@ async function promouvoirBrouillons(
   })
   if (!preparation.ok) throw erreurDePreparation(preparation)
   return { images: preparation.galerie, promotions: preparation.promotions }
+}
+
+function entreesRegistreImagesProduit(
+  galerie: readonly EntreeImageProduit[],
+  promotions: readonly PreuvePromotion[],
+  urls: readonly string[]
+): EntreeRegistreImageProduit[] {
+  const preuveParBrouillon = new Map(
+    promotions.map((preuve) => [preuve.draftId, preuve])
+  )
+  const altParUrl = new Map<string, string | null>()
+  const faitsParUrl = new Map<string, FaitImageProduitVerifiee>()
+  for (const entree of galerie) {
+    if (entree.kind === "persistee") {
+      altParUrl.set(entree.url, normaliserTexteAlternatif(entree.alt))
+      continue
+    }
+    const preuve = preuveParBrouillon.get(entree.draftId)
+    if (!preuve) continue
+    altParUrl.set(preuve.publicUrl, normaliserTexteAlternatif(entree.alt))
+    if (preuve.faits) faitsParUrl.set(preuve.publicUrl, preuve.faits)
+  }
+  return urls.map((publicUrl) => ({
+    publicUrl,
+    alt: altParUrl.get(publicUrl) ?? null,
+    faits: faitsParUrl.get(publicUrl) ?? null,
+  }))
 }
 
 async function compenserPromotions(
@@ -646,6 +716,7 @@ async function enregistrerProduit(
   if (contexte.kind === "miseAJour") {
     await assertVariantesDuProduit(contexte.id, data.variants)
   }
+  assertTextesAlternatifsDesNouvellesImages(data.images)
 
   const { images, promotions } = await promouvoirBrouillons(data, effects)
 
@@ -670,6 +741,19 @@ async function enregistrerProduit(
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
+      await enregistrerEvenement(tx, {
+        type: "produit.enregistre",
+        entityType: "produit",
+        entityId: ecrit.produit.id,
+        payload: {
+          produitId: ecrit.produit.id,
+          slug: ecrit.produit.slug,
+          slugPrecedent: ecrit.slugPrecedent ?? null,
+          categoryId: ecrit.produit.categoryId,
+          categoryIdPrecedent:
+            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null,
+        },
+      })
       return ecrit
     })
   } catch (error) {
@@ -677,22 +761,42 @@ async function enregistrerProduit(
     mapUniqueViolation(error)
   }
 
+  const entreesRegistre = entreesRegistreImagesProduit(
+    data.images,
+    promotions,
+    images
+  )
+  if (entreesRegistre.length > 0) {
+    await runEffect({
+      effet: "registre-images",
+      entite: { type: "produit", id: ecriture.produit.id },
+      message: `[catalog] écriture du registre des Images produit non effectuée pour ${ecriture.produit.id}`,
+      fn: () =>
+        effects.enregistrerImages(entreesRegistre, data.ownerId ?? null),
+    })
+  }
   if (promotions.length > 0) {
-    await runEffect(
-      `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${ecriture.produit.id}`,
-      () => effects.cycleVie.supprimerSources(promotions)
-    )
+    await runEffect({
+      effet: "suppression-brouillons",
+      entite: { type: "produit", id: ecriture.produit.id },
+      message: `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${ecriture.produit.id}`,
+      fn: () => effects.cycleVie.supprimerSources(promotions),
+    })
   }
   if (contexte.kind === "miseAJour") {
-    await runEffect(
-      `[catalog] suppression d'images R2 non effectuée pour ${ecriture.produit.id}`,
-      () => effects.deleteImages(ecriture.imagesRetirees)
-    )
+    await runEffect({
+      effet: "suppression-images",
+      entite: { type: "produit", id: ecriture.produit.id },
+      message: `[catalog] suppression d'images R2 non effectuée pour ${ecriture.produit.id}`,
+      fn: () => effects.deleteImages(ecriture.imagesRetirees),
+    })
   }
-  await runEffect(
-    `[catalog] réindexation Meilisearch non effectuée pour ${ecriture.produit.id}`,
-    () => effects.reindexProducts([toIndexableProduct(ecriture.produit)])
-  )
+  await runEffect({
+    effet: "reindexation",
+    entite: { type: "produit", id: ecriture.produit.id },
+    message: `[catalog] réindexation Meilisearch non effectuée pour ${ecriture.produit.id}`,
+    fn: () => effects.reindexProducts([toIndexableProduct(ecriture.produit)]),
+  })
   const evenementCatalogue =
     ecriture.slugPrecedent === undefined
       ? { id: ecriture.produit.id, slug: ecriture.produit.slug }
@@ -701,16 +805,18 @@ async function enregistrerProduit(
           slug: ecriture.produit.slug,
           previousSlug: ecriture.slugPrecedent,
         }
-  await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${ecriture.produit.id}`,
-    async () => {
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "produit", id: ecriture.produit.id },
+    message: `[catalog] invalidation du cache non effectuée pour ${ecriture.produit.id}`,
+    fn: async () => {
       const chaines = await chainesDuProduit(
         ecriture.produit.categoryId,
         contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
       )
       await effects.revalidateCatalog({ ...evenementCatalogue, ...chaines })
-    }
-  )
+    },
+  })
   return ecriture.produit
 }
 
@@ -734,25 +840,387 @@ export async function deleteProduct(
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
-  const existing = await prisma.product.findUnique({ where: { id } })
-  if (!existing) throw new ProductNotFoundError()
+  const existing = await prisma.$transaction(async (tx) => {
+    const produit = await tx.product.findUnique({ where: { id } })
+    if (!produit) throw new ProductNotFoundError()
 
-  await prisma.product.delete({ where: { id } })
-  await runEffect(
-    `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-    () => effects.deleteImages(urlsImagesProduit(existing.images))
-  )
-  await runEffect(
-    `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
-    () => effects.removeProductFromIndex(id)
-  )
-  await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${id}`,
-    async () => {
+    await tx.product.delete({ where: { id } })
+    await enregistrerEvenement(tx, {
+      type: "produit.supprime",
+      entityType: "produit",
+      entityId: id,
+      payload: {
+        produitId: id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+      },
+    })
+    return produit
+  })
+  await runEffect({
+    effet: "suppression-images",
+    entite: { type: "produit", id },
+    message: `[catalog] suppression d'images R2 non effectuée pour ${id}`,
+    fn: () => effects.deleteImages(urlsImagesProduit(existing.images)),
+  })
+  await runEffect({
+    effet: "desindexation",
+    entite: { type: "produit", id },
+    message: `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
+    fn: () => effects.removeProductFromIndex(id),
+  })
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "produit", id },
+    message: `[catalog] invalidation du cache non effectuée pour ${id}`,
+    fn: async () => {
       const chaines = await chainesDuProduit(existing.categoryId)
       await effects.revalidateCatalog({ id, slug: existing.slug, ...chaines })
+    },
+  })
+}
+
+export interface RapportLot {
+  succes: string[]
+  echecs: { id: string; raison: string }[]
+}
+
+const MESSAGE_PRODUIT_INTROUVABLE = "Produit introuvable"
+const MESSAGE_STRUCTURE_INTROUVABLE = "Structure introuvable"
+
+interface DocumentDeLot {
+  indexable: IndexableProduct
+  evenement: CatalogueEventProduct
+}
+
+async function documentsDeLot(
+  ids: readonly string[]
+): Promise<DocumentDeLot[]> {
+  if (ids.length === 0) return []
+  const produits = await prisma.product.findMany({
+    where: { id: { in: [...ids] } },
+    include: { variants: true },
+  })
+  const lecture = await lireStructure()
+  return produits.map((produit) => {
+    const fiche =
+      produit.categoryId === null ? null : lecture.structure(produit.categoryId)
+    return {
+      indexable: toIndexableProduct({
+        ...produit,
+        category:
+          fiche === null
+            ? null
+            : { id: fiche.id, slug: fiche.slug, name: fiche.name },
+      }),
+      evenement: {
+        id: produit.id,
+        slug: produit.slug,
+        categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+      },
     }
+  })
+}
+
+/**
+ * Les effets d'un geste en lot restent après engagement, comme ceux d'une
+ * écriture unitaire : la mutation a déjà écrit ses Événements dans sa
+ * transaction (`mettreAJourLot`, `duplicateProduct`), et ce qui suit ne peut
+ * que manquer sans jamais décider du commit.
+ */
+async function reindexerLot(
+  ids: readonly string[],
+  effects: CatalogEffects
+): Promise<void> {
+  const documents = await documentsDeLot(ids)
+  if (documents.length === 0) return
+
+  await runEffect({
+    effet: "reindexation",
+    entite: { type: "produit", id: ids[0]! },
+    message:
+      "[catalog] réindexation Meilisearch non effectuée pour un geste en lot",
+    fn: () =>
+      effects.reindexProducts(documents.map(({ indexable }) => indexable)),
+  })
+  for (const { indexable, evenement } of documents) {
+    await runEffect({
+      effet: "invalidation-cache",
+      entite: { type: "produit", id: indexable.id },
+      message: `[catalog] invalidation du cache non effectuée pour ${indexable.id}`,
+      fn: () => effects.revalidateCatalog(evenement),
+    })
+  }
+}
+
+function partitionDesIdentifiants(
+  ids: readonly string[],
+  existants: ReadonlySet<string>,
+  raisonAbsence: string
+): RapportLot {
+  return {
+    succes: ids.filter((id) => existants.has(id)),
+    echecs: ids
+      .filter((id) => !existants.has(id))
+      .map((id) => ({ id, raison: raisonAbsence })),
+  }
+}
+
+/**
+ * Le lot écrit ses Événements dans la même transaction que son `updateMany` :
+ * un retour arrière ne laisse donc ni changement ni Événement, et chaque
+ * Produit touché reçoit le sien — les règles semées réindexent et invalident
+ * par Produit, pas par geste.
+ */
+async function mettreAJourLot(
+  ids: readonly string[],
+  data: Prisma.ProductUncheckedUpdateManyInput,
+  effects: CatalogEffects,
+  raisonAbsence = MESSAGE_PRODUIT_INTROUVABLE
+): Promise<RapportLot> {
+  const uniques = [...new Set(ids)]
+  if (uniques.length === 0) return { succes: [], echecs: [] }
+
+  const existants = await prisma.product.findMany({
+    where: { id: { in: uniques } },
+    select: { id: true, slug: true, categoryId: true },
+  })
+  const parId = new Map(existants.map((produit) => [produit.id, produit]))
+  const partage = partitionDesIdentifiants(
+    uniques,
+    new Set(parId.keys()),
+    raisonAbsence
   )
+  if (partage.succes.length > 0) {
+    const categorieCiblee =
+      typeof data.categoryId === "string" ? data.categoryId : null
+    await prisma.$transaction(async (tx) => {
+      await tx.product.updateMany({
+        where: { id: { in: partage.succes } },
+        data,
+      })
+      for (const id of partage.succes) {
+        const produit = parId.get(id)!
+        const categoryId = categorieCiblee ?? produit.categoryId
+        await enregistrerEvenement(tx, {
+          type: "produit.enregistre",
+          entityType: "produit",
+          entityId: id,
+          payload: {
+            produitId: id,
+            slug: produit.slug,
+            slugPrecedent: null,
+            categoryId,
+            categoryIdPrecedent:
+              categoryId === produit.categoryId ? null : produit.categoryId,
+          },
+        })
+      }
+    })
+    await reindexerLot(partage.succes, effects)
+  }
+  return partage
+}
+
+export async function bulkSetFeatured(
+  ids: readonly string[],
+  valeur: boolean,
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  return mettreAJourLot(ids, { isFeatured: valeur }, effects)
+}
+
+export async function bulkSetFreeShipping(
+  ids: readonly string[],
+  valeur: boolean,
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  return mettreAJourLot(ids, { freeShipping: valeur }, effects)
+}
+
+export async function bulkSetStructure(
+  ids: readonly string[],
+  structureId: string,
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const uniques = [...new Set(ids)]
+  const lecture = await lireStructure()
+  if (lecture.structure(structureId) === null) {
+    return {
+      succes: [],
+      echecs: uniques.map((id) => ({
+        id,
+        raison: MESSAGE_STRUCTURE_INTROUVABLE,
+      })),
+    }
+  }
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  return mettreAJourLot(
+    uniques,
+    { categoryId: structureId },
+    effects,
+    MESSAGE_PRODUIT_INTROUVABLE
+  )
+}
+
+export async function bulkDelete(
+  ids: readonly string[],
+  overrides?: Partial<CatalogEffects>
+): Promise<RapportLot> {
+  const effects = avecSurcharges(
+    defaultCatalogEffects("lot-produits"),
+    overrides
+  )
+  const uniques = [...new Set(ids)]
+  if (uniques.length === 0) return { succes: [], echecs: [] }
+
+  const existants = await prisma.product.findMany({
+    where: { id: { in: uniques } },
+    select: { id: true, slug: true, images: true, categoryId: true },
+  })
+  const partage = partitionDesIdentifiants(
+    uniques,
+    new Set(existants.map((produit) => produit.id)),
+    MESSAGE_PRODUIT_INTROUVABLE
+  )
+  if (partage.succes.length === 0) return partage
+
+  const supprimes = new Set(partage.succes)
+  await prisma.$transaction(async (tx) => {
+    await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
+    for (const produit of existants) {
+      if (!supprimes.has(produit.id)) continue
+      await enregistrerEvenement(tx, {
+        type: "produit.supprime",
+        entityType: "produit",
+        entityId: produit.id,
+        payload: {
+          produitId: produit.id,
+          slug: produit.slug,
+          categoryId: produit.categoryId,
+        },
+      })
+    }
+  })
+  const lecture = await lireStructure()
+  for (const produit of existants) {
+    await runEffect({
+      effet: "suppression-images",
+      entite: { type: "produit", id: produit.id },
+      message: `[catalog] suppression d'images R2 non effectuée pour ${produit.id}`,
+      fn: () => effects.deleteImages(urlsImagesProduit(produit.images)),
+    })
+    await runEffect({
+      effet: "desindexation",
+      entite: { type: "produit", id: produit.id },
+      message: `[catalog] suppression de l'index Meilisearch non effectuée pour ${produit.id}`,
+      fn: () => effects.removeProductFromIndex(produit.id),
+    })
+    await runEffect({
+      effet: "invalidation-cache",
+      entite: { type: "produit", id: produit.id },
+      message: `[catalog] invalidation du cache non effectuée pour ${produit.id}`,
+      fn: () =>
+        effects.revalidateCatalog({
+          id: produit.id,
+          slug: produit.slug,
+          categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+        }),
+    })
+  }
+  return partage
+}
+
+async function nomDeCopie(
+  base: string,
+  estLibre: (candidat: string) => Promise<boolean>
+): Promise<string> {
+  for (let rang = 1; rang < 100; rang += 1) {
+    const candidat = rang === 1 ? base : `${base}-${rang}`
+    if (await estLibre(candidat)) return candidat
+  }
+  throw new CatalogValidationError(["impossible de nommer la copie"])
+}
+
+export async function duplicateProduct(
+  id: string,
+  overrides?: Partial<CatalogEffects>
+) {
+  const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
+  const faits = await getAdminProduct(id)
+  if (faits === null) throw new ProductNotFoundError()
+
+  const slug = await nomDeCopie(`${faits.slug}-copie`, async (candidat) => {
+    const existant = await prisma.product.findUnique({
+      where: { slug: candidat },
+      select: { id: true },
+    })
+    return existant === null
+  })
+
+  const variantes: ProductVariantInput[] = []
+  for (const variante of faits.variants) {
+    const sku = await nomDeCopie(`${variante.sku}-copie`, async (candidat) => {
+      const existant = await prisma.productVariant.findUnique({
+        where: { sku: candidat },
+        select: { id: true },
+      })
+      return existant === null
+    })
+    variantes.push({
+      name: variante.name,
+      sku,
+      priceDelta: variante.priceDelta,
+      stock: variante.stock,
+    })
+  }
+
+  const copie = await prisma.$transaction(async (tx) => {
+    const creee = await tx.product.create({
+      data: {
+        name: `${faits.name} (copie)`,
+        slug,
+        description: faits.description,
+        brand: faits.brand,
+        price: faits.price,
+        specs: faits.specs,
+        images: [],
+        isFeatured: faits.isFeatured,
+        featuredOrder: faits.featuredOrder,
+        freeShipping: faits.freeShipping,
+        categoryId: faits.categoryId,
+        variants: { create: variantes },
+      },
+      include: { variants: true },
+    })
+    await enregistrerEvenement(tx, {
+      type: "produit.enregistre",
+      entityType: "produit",
+      entityId: creee.id,
+      payload: {
+        produitId: creee.id,
+        slug: creee.slug,
+        slugPrecedent: null,
+        categoryId: creee.categoryId,
+        categoryIdPrecedent: null,
+      },
+    })
+    return creee
+  })
+
+  await reindexerLot([copie.id], effects)
+  return copie
 }
 
 export async function updateVariantStock(
@@ -774,9 +1242,17 @@ export async function updateVariantStock(
     defaultCatalogEffects(variant.product.id),
     overrides
   )
-  await prisma.productVariant.update({
-    where: { id: variantId },
-    data: { stock },
+  await prisma.$transaction(async (tx) => {
+    await tx.productVariant.update({
+      where: { id: variantId },
+      data: { stock },
+    })
+    await enregistrerEvenement(tx, {
+      type: "variante.stock.changee",
+      entityType: "produit",
+      entityId: variant.product.id,
+      payload: { produitId: variant.product.id },
+    })
   })
   const product = {
     ...variant.product,
@@ -784,21 +1260,25 @@ export async function updateVariantStock(
       v.id === variantId ? { ...v, stock } : v
     ),
   }
-  await runEffect(
-    `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-    () => effects.reindexProducts([toIndexableProduct(product)])
-  )
-  await runEffect(
-    `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-    async () => {
+  await runEffect({
+    effet: "reindexation",
+    entite: { type: "produit", id: product.id },
+    message: `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
+    fn: () => effects.reindexProducts([toIndexableProduct(product)]),
+  })
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "produit", id: product.id },
+    message: `[catalog] invalidation du cache non effectuée pour ${product.id}`,
+    fn: async () => {
       const chaines = await chainesDuProduit(product.categoryId)
       await effects.revalidateCatalog({
         id: product.id,
         slug: product.slug,
         ...chaines,
       })
-    }
-  )
+    },
+  })
   return product
 }
 
@@ -812,25 +1292,105 @@ export interface FaitsProduitListe {
   freeShipping: boolean
   image: string | null
   totalStock: number
+  createdAt: Date
 }
 
-export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
-  const produits = await prisma.product.findMany({
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      brand: true,
-      price: true,
-      images: true,
-      isFeatured: true,
-      freeShipping: true,
-      category: { select: { name: true } },
-      variants: { select: { stock: true } },
-    },
-  })
+export interface AdminProductsPage {
+  produits: FaitsProduitListe[]
+  totalCount: number
+  pageCount: number
+}
 
-  return produits.map((produit) => ({
+type FiltreStructure =
+  { kind: "toutes" } | { kind: "sans" } | { kind: "ids"; ids: string[] }
+
+const COLONNE_DE_TRI: Record<ProduitTri, Prisma.Sql> = {
+  nom: Prisma.raw(`p."name"`),
+  prix: Prisma.raw(`p."price"`),
+  stock: Prisma.raw(
+    `COALESCE((SELECT SUM(sv."stock") FROM "ProductVariant" sv WHERE sv."productId" = p."id"), 0)`
+  ),
+  date: Prisma.raw(`p."createdAt"`),
+}
+
+const STOCK_TOTAL = Prisma.raw(
+  `COALESCE((SELECT SUM(sv."stock") FROM "ProductVariant" sv WHERE sv."productId" = p."id"), 0)`
+)
+
+async function filtreStructureDe(
+  structure: string | undefined
+): Promise<FiltreStructure> {
+  if (!structure) return { kind: "toutes" }
+  if (structure === PRODUIT_STRUCTURE_SANS) return { kind: "sans" }
+
+  const lecture = await lireStructure()
+  if (lecture.structure(structure) === null) return { kind: "toutes" }
+  return { kind: "ids", ids: lecture.branche(structure) }
+}
+
+/**
+ * Le terme cherché est une donnée, pas un motif : `%` et `_` sont des
+ * caractères littéraux, et l'anti-slash échappe l'anti-slash lui-même.
+ */
+function motifIlike(terme: string): string {
+  return `%${terme.replace(/[\\%_]/g, "\\$&")}%`
+}
+
+function whereDesProduits(
+  params: ProduitListingParams,
+  filtre: FiltreStructure
+): Prisma.Sql {
+  const conditions: Prisma.Sql[] = []
+  if (filtre.kind === "sans") {
+    conditions.push(Prisma.sql`p."categoryId" IS NULL`)
+  } else if (filtre.kind === "ids") {
+    conditions.push(Prisma.sql`p."categoryId" IN (${Prisma.join(filtre.ids)})`)
+  }
+  if (params.q) {
+    const motif = motifIlike(params.q)
+    conditions.push(Prisma.sql`(
+      p."name" ILIKE ${motif} ESCAPE '\\'
+      OR p."brand" ILIKE ${motif} ESCAPE '\\'
+      OR p."slug" ILIKE ${motif} ESCAPE '\\'
+      OR EXISTS (
+        SELECT 1 FROM "ProductVariant" recherche
+        WHERE recherche."productId" = p."id"
+          AND recherche."sku" ILIKE ${motif} ESCAPE '\\'
+      )
+    )`)
+  }
+  if (params.misEnAvant) conditions.push(Prisma.sql`p."isFeatured" = TRUE`)
+  if (params.livraisonOfferte)
+    conditions.push(Prisma.sql`p."freeShipping" = TRUE`)
+  if (params.stock === PRODUIT_STOCK_ZERO)
+    conditions.push(Prisma.sql`${STOCK_TOTAL} = 0`)
+  if (params.stock === PRODUIT_STOCK_NON_NUL)
+    conditions.push(Prisma.sql`${STOCK_TOTAL} > 0`)
+
+  if (conditions.length === 0) return Prisma.empty
+  return Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+}
+
+function orderDesProduits(params: ProduitListingParams): Prisma.Sql {
+  const tri = params.tri ?? PRODUIT_LISTING_TRI_DEFAULT
+  const sens = params.sens ?? PRODUIT_LISTING_SENS_DEFAULT
+  const direction = sens === "asc" ? Prisma.raw("ASC") : Prisma.raw("DESC")
+  return Prisma.sql`ORDER BY ${COLONNE_DE_TRI[tri]} ${direction}, p."id" ${direction}`
+}
+
+function faitDeListe(produit: {
+  id: string
+  name: string
+  brand: string
+  price: number
+  images: unknown
+  isFeatured: boolean
+  freeShipping: boolean
+  category: { name: string } | null
+  variants: { stock: number }[]
+  createdAt: Date
+}): FaitsProduitListe {
+  return {
     id: produit.id,
     name: produit.name,
     brand: produit.brand,
@@ -840,7 +1400,68 @@ export async function listAdminProducts(): Promise<FaitsProduitListe[]> {
     freeShipping: produit.freeShipping,
     image: urlsImagesProduit(produit.images)[0] ?? null,
     totalStock: totalVariantStock(produit.variants),
-  }))
+    createdAt: produit.createdAt,
+  }
+}
+
+export async function listAdminProducts(
+  params: ProduitListingParams
+): Promise<AdminProductsPage> {
+  const page = params.page ?? PRODUIT_LISTING_PAGE_DEFAULT
+  const pageSize = params.pageSize ?? PRODUIT_LISTING_PAGE_SIZE_DEFAULT
+  const filtre = await filtreStructureDe(params.structure)
+  const where = whereDesProduits(params, filtre)
+  const orderBy = orderDesProduits(params)
+  const offset = (page - 1) * pageSize
+
+  const resultat = await prisma.$transaction(async (tx) => {
+    const lignes = await tx.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT p."id" FROM "Product" p ${where} ${orderBy} LIMIT ${pageSize} OFFSET ${offset}`
+    )
+    const [compte] = await tx.$queryRaw<{ total: number }[]>(
+      Prisma.sql`SELECT COUNT(*)::int AS total FROM "Product" p ${where}`
+    )
+    const ids = lignes.map((ligne) => ligne.id)
+    const produits =
+      ids.length === 0
+        ? []
+        : await tx.product.findMany({
+            where: { id: { in: ids } },
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              price: true,
+              images: true,
+              isFeatured: true,
+              freeShipping: true,
+              createdAt: true,
+              category: { select: { name: true } },
+              variants: { select: { stock: true } },
+            },
+          })
+    return { ids, produits, total: compte?.total ?? 0 }
+  })
+
+  const parId = new Map(
+    resultat.produits.map((produit) => [produit.id, produit])
+  )
+  const produits = resultat.ids.flatMap((id) => {
+    const produit = parId.get(id)
+    return produit === undefined ? [] : [faitDeListe(produit)]
+  })
+  const totalCount = resultat.total
+
+  return {
+    produits,
+    totalCount,
+    pageCount: Math.ceil(totalCount / pageSize),
+  }
+}
+
+/** Le libellé d'un Produit sans Structure, pour la facette de la liste. */
+export function libelleSansStructure(): string {
+  return LIBELLE_SANS_STRUCTURE
 }
 
 export async function getAdminProduct(
@@ -875,6 +1496,18 @@ export async function getAdminProduct(
   })
   if (!produit) return null
 
+  const urls = urlsImagesProduit(produit.images)
+  const registre =
+    urls.length > 0
+      ? await prisma.imageProduit.findMany({
+          where: { publicUrl: { in: urls } },
+          select: { publicUrl: true, alt: true },
+        })
+      : []
+  const altParUrl = new Map(
+    registre.map((ligne) => [ligne.publicUrl, ligne.alt])
+  )
+
   return {
     id: produit.id,
     name: produit.name,
@@ -887,10 +1520,12 @@ export async function getAdminProduct(
     featuredOrder: produit.featuredOrder,
     freeShipping: produit.freeShipping,
     specs: specificationsProduit(produit.specs),
-    images: urlsImagesProduit(produit.images).map((url) => ({
-      kind: "persistee",
-      url,
-    })),
+    images: urls.map((url) => {
+      const alt = normaliserTexteAlternatif(altParUrl.get(url))
+      return alt
+        ? { kind: "persistee" as const, url, alt }
+        : { kind: "persistee" as const, url }
+    }),
     variants: produit.variants.map((variante) => ({
       id: variante.id,
       name: variante.name,

@@ -117,11 +117,17 @@ describe("storefront browse", () => {
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `p-${runId}-` } },
     })
+    await prisma.imageProduit.deleteMany({
+      where: { publicUrl: { startsWith: `https://cdn.example.test/` } },
+    })
   })
 
   afterAll(async () => {
     await prisma.product.deleteMany({
       where: { slug: { startsWith: `p-${runId}-` } },
+    })
+    await prisma.imageProduit.deleteMany({
+      where: { publicUrl: { startsWith: `https://cdn.example.test/` } },
     })
     await prisma.category.deleteMany({
       where: { slug: { startsWith: PREFIXE } },
@@ -260,6 +266,44 @@ describe("storefront browse", () => {
     expect(other!.productCount).toBe(1)
   })
 
+  it("home et page de catégorie rangent les enfants par position, comme l'Administration", async () => {
+    const root = await prisma.category.findUniqueOrThrow({
+      where: { slug: cSlug("root") },
+    })
+    const zebre = await prisma.category.create({
+      data: {
+        name: "Zèbre position",
+        slug: cSlug("ordre-z"),
+        parentId: root.id,
+        position: 10,
+      },
+    })
+    const alpha = await prisma.category.create({
+      data: {
+        name: "Alpha position",
+        slug: cSlug("ordre-a"),
+        parentId: root.id,
+        position: 20,
+      },
+    })
+
+    try {
+      const home = await fetchHomeData()
+      const noeud = home.categories.find(
+        (categorie) => categorie.slug === cSlug("root")
+      )!
+      const attendu = [cSlug("child"), zebre.slug, alpha.slug]
+
+      expect(noeud.children.map((enfant) => enfant.slug)).toEqual(attendu)
+      const page = await fetchCategoryPageData(cSlug("root"))
+      expect(page!.children.map((enfant) => enfant.slug)).toEqual(attendu)
+    } finally {
+      await prisma.category.deleteMany({
+        where: { id: { in: [zebre.id, alpha.id] } },
+      })
+    }
+  })
+
   it("category browse: includes products of descendant categories, excludes the rest", async () => {
     await createProduct(cSlug("root"), {
       name: "Produit racine",
@@ -364,8 +408,8 @@ describe("storefront browse", () => {
     expect(detail!.minPrice).toBe(100000)
     expect(detail!.freeShipping).toBe(true)
     expect(detail!.images).toEqual([
-      "https://example.com/a.jpg",
-      "https://example.com/b.jpg",
+      { url: "https://example.com/a.jpg", alt: null },
+      { url: "https://example.com/b.jpg", alt: null },
     ])
     expect(detail!.variants.map((v) => v.sku)).toEqual([
       `SKU-${runId}-d1`,
@@ -388,6 +432,38 @@ describe("storefront browse", () => {
       cSlug("root"),
       cSlug("child"),
       cSlug("grand"),
+    ])
+  })
+
+  it("product detail: chaque Image produit porte son Texte alternatif, ou le nom du Produit en repli", async () => {
+    const avecAlt = `https://cdn.example.test/products/sf-${runId}-avec-alt.webp`
+    const sansAlt = `https://cdn.example.test/products/sf-${runId}-sans-alt.webp`
+    await createProduct(cSlug("grand"), {
+      name: "Produit avec textes alternatifs",
+      slug: pSlug("detail-alt"),
+      brand: "Marque Test",
+      price: 100000,
+      images: [avecAlt, sansAlt],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-alt1`, priceDelta: 0, stock: 1 },
+      ],
+    })
+    await prisma.imageProduit.create({
+      data: {
+        publicUrl: avecAlt,
+        mimeType: "image/webp",
+        byteSize: 2048,
+        width: 800,
+        height: 600,
+        alt: "  Face avant du Produit  ",
+      },
+    })
+
+    const detail = await fetchProductPageData(pSlug("detail-alt"))
+
+    expect(detail!.images).toEqual([
+      { url: avecAlt, alt: "Face avant du Produit" },
+      { url: sansAlt, alt: null },
     ])
   })
 
@@ -498,7 +574,9 @@ describe("storefront browse", () => {
     expect(detail!.name).toBe("Produit aux spécifications à moitié crédibles")
     expect(detail!.slug).toBe(pSlug("detail-specs-a-moitie"))
     expect(detail!.minPrice).toBe(90000)
-    expect(detail!.images).toEqual(["https://example.com/moitie.jpg"])
+    expect(detail!.images).toEqual([
+      { url: "https://example.com/moitie.jpg", alt: null },
+    ])
     expect(detail!.variants.map((v) => v.sku)).toEqual([
       `SKU-${runId}-mc1`,
       `SKU-${runId}-mc2`,
@@ -532,7 +610,9 @@ describe("storefront browse", () => {
 
     const detail = await fetchProductPageData(pSlug("detail-galerie-partielle"))
 
-    expect(detail!.images).toEqual(["https://example.com/premiere.jpg"])
+    expect(detail!.images).toEqual([
+      { url: "https://example.com/premiere.jpg", alt: null },
+    ])
   })
 
   it("product cards expose the first image, the lowest price and the total stock", async () => {

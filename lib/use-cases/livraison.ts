@@ -152,10 +152,13 @@ export async function createCity(
     mapCityUniqueViolation(error)
   }
 
-  await runEffect(
-    "[livraison] invalidation du cache non effectuée pour la création de ville",
-    () => effects.revalidateShipping()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "ville", id: city.id },
+    message:
+      "[livraison] invalidation du cache non effectuée pour la création de ville",
+    fn: () => effects.revalidateShipping(),
+  })
   return city
 }
 
@@ -178,10 +181,12 @@ export async function updateCity(
     mapCityUniqueViolation(error)
   }
 
-  await runEffect(
-    `[livraison] invalidation du cache non effectuée pour ${id}`,
-    () => effects.revalidateShipping()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "ville", id },
+    message: `[livraison] invalidation du cache non effectuée pour ${id}`,
+    fn: () => effects.revalidateShipping(),
+  })
   return city
 }
 
@@ -194,10 +199,12 @@ export async function deleteCity(
   if (!existing) throw new CityNotFoundError()
 
   await prisma.deliveryCity.delete({ where: { id } })
-  await runEffect(
-    `[livraison] invalidation du cache non effectuée pour ${id}`,
-    () => effects.revalidateShipping()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "ville", id },
+    message: `[livraison] invalidation du cache non effectuée pour ${id}`,
+    fn: () => effects.revalidateShipping(),
+  })
 }
 
 export function listAdminCities() {
@@ -229,9 +236,12 @@ export async function updateShippingSettings(
     },
   })
 
-  await runEffect(
-    "[livraison] invalidation du cache non effectuée pour le seuil de livraison",
-    () => effects.revalidateShipping()
-  )
+  await runEffect({
+    effet: "invalidation-cache",
+    entite: { type: "livraison", id: "default" },
+    message:
+      "[livraison] invalidation du cache non effectuée pour le seuil de livraison",
+    fn: () => effects.revalidateShipping(),
+  })
   return settings
 }

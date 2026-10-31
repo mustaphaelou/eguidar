@@ -29,8 +29,10 @@ export type ArticleBlogMinAggregateOutputType = {
   titre: string | null
   slug: string | null
   extrait: string | null
+  chapo: string | null
   couverture: string | null
   contenu: string | null
+  notes: string | null
   themeId: string | null
   statut: $Enums.StatutPublication | null
   publishedAt: Date | null
@@ -43,8 +45,10 @@ export type ArticleBlogMaxAggregateOutputType = {
   titre: string | null
   slug: string | null
   extrait: string | null
+  chapo: string | null
   couverture: string | null
   contenu: string | null
+  notes: string | null
   themeId: string | null
   statut: $Enums.StatutPublication | null
   publishedAt: Date | null
@@ -57,8 +61,10 @@ export type ArticleBlogCountAggregateOutputType = {
   titre: number
   slug: number
   extrait: number
+  chapo: number
   couverture: number
   contenu: number
+  notes: number
   themeId: number
   statut: number
   publishedAt: number
@@ -72,8 +78,10 @@ export type ArticleBlogMinAggregateInputType = {
   titre?: true
   slug?: true
   extrait?: true
+  chapo?: true
   couverture?: true
   contenu?: true
+  notes?: true
   themeId?: true
   statut?: true
   publishedAt?: true
@@ -86,8 +94,10 @@ export type ArticleBlogMaxAggregateInputType = {
   titre?: true
   slug?: true
   extrait?: true
+  chapo?: true
   couverture?: true
   contenu?: true
+  notes?: true
   themeId?: true
   statut?: true
   publishedAt?: true
@@ -100,8 +110,10 @@ export type ArticleBlogCountAggregateInputType = {
   titre?: true
   slug?: true
   extrait?: true
+  chapo?: true
   couverture?: true
   contenu?: true
+  notes?: true
   themeId?: true
   statut?: true
   publishedAt?: true
@@ -194,8 +206,10 @@ export type ArticleBlogGroupByOutputType = {
   titre: string
   slug: string
   extrait: string
+  chapo: string | null
   couverture: string | null
   contenu: string
+  notes: string | null
   themeId: string
   statut: $Enums.StatutPublication
   publishedAt: Date | null
@@ -227,8 +241,10 @@ export type ArticleBlogWhereInput = {
   titre?: Prisma.StringFilter<"ArticleBlog"> | string
   slug?: Prisma.StringFilter<"ArticleBlog"> | string
   extrait?: Prisma.StringFilter<"ArticleBlog"> | string
+  chapo?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   couverture?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   contenu?: Prisma.StringFilter<"ArticleBlog"> | string
+  notes?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   themeId?: Prisma.StringFilter<"ArticleBlog"> | string
   statut?:
     Prisma.EnumStatutPublicationFilter<"ArticleBlog"> | $Enums.StatutPublication
@@ -245,8 +261,10 @@ export type ArticleBlogOrderByWithRelationInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrderInput | Prisma.SortOrder
   couverture?: Prisma.SortOrderInput | Prisma.SortOrder
   contenu?: Prisma.SortOrder
+  notes?: Prisma.SortOrderInput | Prisma.SortOrder
   themeId?: Prisma.SortOrder
   statut?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -265,8 +283,10 @@ export type ArticleBlogWhereUniqueInput = Prisma.AtLeast<
     NOT?: Prisma.ArticleBlogWhereInput | Prisma.ArticleBlogWhereInput[]
     titre?: Prisma.StringFilter<"ArticleBlog"> | string
     extrait?: Prisma.StringFilter<"ArticleBlog"> | string
+    chapo?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
     couverture?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
     contenu?: Prisma.StringFilter<"ArticleBlog"> | string
+    notes?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
     themeId?: Prisma.StringFilter<"ArticleBlog"> | string
     statut?:
       | Prisma.EnumStatutPublicationFilter<"ArticleBlog">
@@ -286,8 +306,10 @@ export type ArticleBlogOrderByWithAggregationInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrderInput | Prisma.SortOrder
   couverture?: Prisma.SortOrderInput | Prisma.SortOrder
   contenu?: Prisma.SortOrder
+  notes?: Prisma.SortOrderInput | Prisma.SortOrder
   themeId?: Prisma.SortOrder
   statut?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -310,9 +332,13 @@ export type ArticleBlogScalarWhereWithAggregatesInput = {
   titre?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
   slug?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
   extrait?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
+  chapo?:
+    Prisma.StringNullableWithAggregatesFilter<"ArticleBlog"> | string | null
   couverture?:
     Prisma.StringNullableWithAggregatesFilter<"ArticleBlog"> | string | null
   contenu?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
+  notes?:
+    Prisma.StringNullableWithAggregatesFilter<"ArticleBlog"> | string | null
   themeId?: Prisma.StringWithAggregatesFilter<"ArticleBlog"> | string
   statut?:
     | Prisma.EnumStatutPublicationWithAggregatesFilter<"ArticleBlog">
@@ -331,8 +357,10 @@ export type ArticleBlogCreateInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
   createdAt?: Date | string
@@ -346,8 +374,10 @@ export type ArticleBlogUncheckedCreateInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   themeId: string
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
@@ -361,8 +391,10 @@ export type ArticleBlogUpdateInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
     | $Enums.StatutPublication
@@ -379,8 +411,10 @@ export type ArticleBlogUncheckedUpdateInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   themeId?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
@@ -397,8 +431,10 @@ export type ArticleBlogCreateManyInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   themeId: string
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
@@ -411,8 +447,10 @@ export type ArticleBlogUpdateManyMutationInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
     | $Enums.StatutPublication
@@ -427,8 +465,10 @@ export type ArticleBlogUncheckedUpdateManyInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   themeId?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
@@ -454,8 +494,10 @@ export type ArticleBlogCountOrderByAggregateInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrder
   couverture?: Prisma.SortOrder
   contenu?: Prisma.SortOrder
+  notes?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
   statut?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
@@ -468,8 +510,10 @@ export type ArticleBlogMaxOrderByAggregateInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrder
   couverture?: Prisma.SortOrder
   contenu?: Prisma.SortOrder
+  notes?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
   statut?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
@@ -482,8 +526,10 @@ export type ArticleBlogMinOrderByAggregateInput = {
   titre?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   extrait?: Prisma.SortOrder
+  chapo?: Prisma.SortOrder
   couverture?: Prisma.SortOrder
   contenu?: Prisma.SortOrder
+  notes?: Prisma.SortOrder
   themeId?: Prisma.SortOrder
   statut?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
@@ -629,8 +675,10 @@ export type ArticleBlogCreateWithoutThemeInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
   createdAt?: Date | string
@@ -643,8 +691,10 @@ export type ArticleBlogUncheckedCreateWithoutThemeInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
   createdAt?: Date | string
@@ -705,8 +755,10 @@ export type ArticleBlogScalarWhereInput = {
   titre?: Prisma.StringFilter<"ArticleBlog"> | string
   slug?: Prisma.StringFilter<"ArticleBlog"> | string
   extrait?: Prisma.StringFilter<"ArticleBlog"> | string
+  chapo?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   couverture?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   contenu?: Prisma.StringFilter<"ArticleBlog"> | string
+  notes?: Prisma.StringNullableFilter<"ArticleBlog"> | string | null
   themeId?: Prisma.StringFilter<"ArticleBlog"> | string
   statut?:
     Prisma.EnumStatutPublicationFilter<"ArticleBlog"> | $Enums.StatutPublication
@@ -721,8 +773,10 @@ export type ArticleBlogCreateWithoutProduitsInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
   createdAt?: Date | string
@@ -735,8 +789,10 @@ export type ArticleBlogUncheckedCreateWithoutProduitsInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   themeId: string
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
@@ -777,8 +833,10 @@ export type ArticleBlogUpdateWithoutProduitsInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
     | $Enums.StatutPublication
@@ -794,8 +852,10 @@ export type ArticleBlogUncheckedUpdateWithoutProduitsInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   themeId?: Prisma.StringFieldUpdateOperationsInput | string
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
@@ -811,8 +871,10 @@ export type ArticleBlogCreateManyThemeInput = {
   titre: string
   slug: string
   extrait: string
+  chapo?: string | null
   couverture?: string | null
   contenu: string
+  notes?: string | null
   statut?: $Enums.StatutPublication
   publishedAt?: Date | string | null
   createdAt?: Date | string
@@ -824,8 +886,10 @@ export type ArticleBlogUpdateWithoutThemeInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
     | $Enums.StatutPublication
@@ -841,8 +905,10 @@ export type ArticleBlogUncheckedUpdateWithoutThemeInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
     | $Enums.StatutPublication
@@ -858,8 +924,10 @@ export type ArticleBlogUncheckedUpdateManyWithoutThemeInput = {
   titre?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   extrait?: Prisma.StringFieldUpdateOperationsInput | string
+  chapo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   couverture?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contenu?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   statut?:
     | Prisma.EnumStatutPublicationFieldUpdateOperationsInput
     | $Enums.StatutPublication
@@ -916,8 +984,10 @@ export type ArticleBlogSelect<
     titre?: boolean
     slug?: boolean
     extrait?: boolean
+    chapo?: boolean
     couverture?: boolean
     contenu?: boolean
+    notes?: boolean
     themeId?: boolean
     statut?: boolean
     publishedAt?: boolean
@@ -939,8 +1009,10 @@ export type ArticleBlogSelectCreateManyAndReturn<
     titre?: boolean
     slug?: boolean
     extrait?: boolean
+    chapo?: boolean
     couverture?: boolean
     contenu?: boolean
+    notes?: boolean
     themeId?: boolean
     statut?: boolean
     publishedAt?: boolean
@@ -960,8 +1032,10 @@ export type ArticleBlogSelectUpdateManyAndReturn<
     titre?: boolean
     slug?: boolean
     extrait?: boolean
+    chapo?: boolean
     couverture?: boolean
     contenu?: boolean
+    notes?: boolean
     themeId?: boolean
     statut?: boolean
     publishedAt?: boolean
@@ -977,8 +1051,10 @@ export type ArticleBlogSelectScalar = {
   titre?: boolean
   slug?: boolean
   extrait?: boolean
+  chapo?: boolean
   couverture?: boolean
   contenu?: boolean
+  notes?: boolean
   themeId?: boolean
   statut?: boolean
   publishedAt?: boolean
@@ -994,8 +1070,10 @@ export type ArticleBlogOmit<
   | "titre"
   | "slug"
   | "extrait"
+  | "chapo"
   | "couverture"
   | "contenu"
+  | "notes"
   | "themeId"
   | "statut"
   | "publishedAt"
@@ -1039,8 +1117,10 @@ export type $ArticleBlogPayload<
       titre: string
       slug: string
       extrait: string
+      chapo: string | null
       couverture: string | null
       contenu: string
+      notes: string | null
       themeId: string
       statut: $Enums.StatutPublication
       publishedAt: Date | null
@@ -1664,8 +1744,10 @@ export interface ArticleBlogFieldRefs {
   readonly titre: Prisma.FieldRef<"ArticleBlog", "String">
   readonly slug: Prisma.FieldRef<"ArticleBlog", "String">
   readonly extrait: Prisma.FieldRef<"ArticleBlog", "String">
+  readonly chapo: Prisma.FieldRef<"ArticleBlog", "String">
   readonly couverture: Prisma.FieldRef<"ArticleBlog", "String">
   readonly contenu: Prisma.FieldRef<"ArticleBlog", "String">
+  readonly notes: Prisma.FieldRef<"ArticleBlog", "String">
   readonly themeId: Prisma.FieldRef<"ArticleBlog", "String">
   readonly statut: Prisma.FieldRef<"ArticleBlog", "StatutPublication">
   readonly publishedAt: Prisma.FieldRef<"ArticleBlog", "DateTime">

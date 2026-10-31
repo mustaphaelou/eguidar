@@ -39,6 +39,7 @@ export interface RevenueMonth {
 
 export interface DashboardStats {
   productCount: number
+  outOfStockCount: number
   categoryCount: number
   orderCount: number
   pendingOrderCount: number
@@ -88,6 +89,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   const [
     productCount,
+    outOfStockCount,
     categoryCount,
     orderCount,
     pendingOrderCount,
@@ -100,6 +102,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     twelveMonthRows,
   ] = await Promise.all([
     prisma.product.count(),
+    prisma.product.count({ where: { variants: { every: { stock: 0 } } } }),
     prisma.category.count(),
     prisma.order.count(),
     prisma.order.count({ where: { status: "pending" } }),
@@ -175,6 +178,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   return {
     productCount,
+    outOfStockCount,
     categoryCount,
     orderCount,
     pendingOrderCount,

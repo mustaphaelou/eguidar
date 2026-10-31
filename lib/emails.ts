@@ -49,6 +49,41 @@ export interface OrderEmailItem {
   price: number
 }
 
+/**
+ * La clé d'idempotence du fournisseur (ADR-0044) : la même Commande et le même
+ * fait donnent la même clé, que l'e-mail parte tout de suite après le commit
+ * ou qu'un travailleur le rejoue. Resend la mémorise 24 h — c'est la durée de
+ * vie d'un événement.
+ */
+export function cleIdempotenceEmailPlacee(orderId: string): string {
+  return `commande.creee/${orderId}/1`
+}
+
+export function cleIdempotenceEmailStatut(
+  orderId: string,
+  newStatus: OrderStatus
+): string {
+  return `commande.statut/${orderId}/${newStatus}`
+}
+
+/**
+ * Le sous-ensemble du client Resend dont l'envoi de Commande a besoin : il
+ * permet de prouver la clé d'idempotence sur un double sans mocker le module.
+ */
+export interface ClientEmails {
+  emails: {
+    send(
+      payload: {
+        from: string
+        to: string
+        subject: string
+        html: string
+      },
+      options?: { idempotencyKey?: string }
+    ): Promise<unknown>
+  }
+}
+
 export interface OrderEmailSnapshot {
   userEmail: string
   orderId: string
@@ -105,16 +140,17 @@ export function orderDetailsHtml(snapshot: OrderEmailSnapshot): string {
 async function sendOrderEmail(
   snapshot: OrderEmailSnapshot,
   subject: string,
-  intro: string
+  intro: string,
+  cleIdempotence: string,
+  client: ClientEmails | null
 ): Promise<void> {
-  const resend = getResend()
-  if (!resend) {
+  if (!client) {
     console.warn(
       `[email] RESEND_API_KEY absent — e-mail de commande non envoyé à ${snapshot.userEmail}`
     )
     return
   }
-  await resend.emails.send({
+  await client.emails.send({
     from: process.env.EMAIL_FROM ?? "Eguidar <onboarding@resend.dev>",
     to: snapshot.userEmail,
     subject,
@@ -133,22 +169,58 @@ async function sendOrderEmail(
 }
 
 export async function sendOrderPlacedEmail(
-  snapshot: OrderEmailSnapshot
+  snapshot: OrderEmailSnapshot,
+  cleIdempotence = cleIdempotenceEmailPlacee(snapshot.orderId),
+  client: ClientEmails | null = getResend()
 ): Promise<void> {
   await sendOrderEmail(
     snapshot,
     `Commande ${shortOrderId(snapshot.orderId)} reçue — Eguidar`,
-    "Merci pour votre commande ! Nous l'avons bien reçue."
+    "Merci pour votre commande ! Nous l'avons bien reçue.",
+    cleIdempotence,
+    client
   )
 }
 
 export async function sendOrderStatusEmail(
   snapshot: OrderEmailSnapshot,
-  newStatus: OrderStatus
+  newStatus: OrderStatus,
+  cleIdempotence = cleIdempotenceEmailStatut(snapshot.orderId, newStatus),
+  client: ClientEmails | null = getResend()
 ): Promise<void> {
   await sendOrderEmail(
     snapshot,
     `Votre commande ${shortOrderId(snapshot.orderId)} : ${ORDER_STATUS_LABELS[newStatus]} — Eguidar`,
-    `Votre commande est maintenant : <strong>${ORDER_STATUS_LABELS[newStatus]}</strong>.`
+    `Votre commande est maintenant : <strong>${ORDER_STATUS_LABELS[newStatus]}</strong>.`,
+    cleIdempotence,
+    client
+  )
+}
+
+export interface EntreeDigestEmail {
+  destinataire: string
+  sujet: string
+  texte: string
+  cleIdempotence: string
+}
+
+export async function sendDigestEmail(
+  entree: EntreeDigestEmail,
+  client: ClientEmails | null = getResend()
+): Promise<void> {
+  if (!client) {
+    console.warn(
+      `[email] RESEND_API_KEY absent — digest non envoyé à ${entree.destinataire}`
+    )
+    return
+  }
+  await client.emails.send(
+    {
+      from: process.env.EMAIL_FROM ?? "Eguidar <onboarding@resend.dev>",
+      to: entree.destinataire,
+      subject: entree.sujet,
+      html: `<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${escapeHtml(entree.texte)}</pre>`,
+    },
+    { idempotencyKey: entree.cleIdempotence }
   )
 }
