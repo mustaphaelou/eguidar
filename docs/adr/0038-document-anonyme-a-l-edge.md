@@ -190,17 +190,23 @@ Elle n'ajoute aucun terme au glossaire.
   pour ce `RUN` seulement, jamais en `ARG` ni en `ENV`, donc ni dans une couche ni dans
   `docker history` ; le contexte exclut `.env` et `.env.*`. `docker-compose.yml` déclare
   `build.secrets: [database_url]`, dont la source est
-  `database_url: environment: DATABASE_URL_BUILD` ; `build.network: host` laisse le build joindre
-  la base publiée sur `127.0.0.1:5433`. Pour Coolify, la lecture seule est une exigence
-  d'exploitation, pas une garantie du code : l'opérateur fournit une crédential qui ne peut pas
-  écrire.
+  `database_url: environment: DATABASE_URL_BUILD` ; le build reste sur le réseau bridge par défaut et
+  joint la base publiée sur `POSTGRES_HOST_BIND:5433` par le gateway de l'hôte
+  (`build.extra_hosts: host.docker.internal:host-gateway`). Pour Coolify, la lecture seule est une
+  exigence d'exploitation, pas une garantie du code : l'opérateur fournit une crédential qui ne peut
+  pas écrire.
 
-- **Docker 29 exige que le privilège réseau soit accordé, pas seulement demandé.** `build.network:
-  host` fait demander `network.host` au constructeur ; depuis Docker 29, BuildKit refuse une demande
-  que le déploiement n'a pas accordée, et `docker compose build` s'arrête avant le premier stage sur
-  `additional privileges requested: pass "--allow=network.host"`. `docker-compose.yml` porte donc
-  `build.entitlements: [network.host]`, que Compose transmet au bake comme privilège accordé ; la CI
-  accorde le même privilège par l'input `allow: network.host` de `docker/build-push-action`.
+- **Le build ne demande pas le réseau de l'hôte, parce que personne ne peut le lui accorder.** Un
+  target bake ne fait que *demander* un privilège : `build.entitlements: [network.host]` ne le
+  accorde pas, et Buildx 0.37.2+ refuse `network: host` si l'appelant ne passe pas
+  `--allow=network.host`. Or `docker compose build` — la commande que Coolify exécute, sans terminal
+  — n'a pas ce drapeau, et Compose ne l'ajoute pour `build.network: host` qu'à partir du correctif
+  docker/compose#14325, absent de Compose 5.6.1. Le build joint donc Postgres par le gateway du
+  bridge, et le service `postgres` publie `5433` sur `POSTGRES_HOST_BIND` : `127.0.0.1` en local,
+  `172.17.0.1` sous Coolify, valeur que l'opérateur pose dans les variables d'environnement de
+  l'application, buildtime comprises. Le conteneur `postgres` doit être recréé une fois pour publier
+  cette adresse ; avant, le build ne joint que le loopback. La CI garde `network: host` :
+  `docker/build-push-action` sait passer `allow: network.host`.
 
 - **La CI prête un Catalogue au build, sans secret de dépôt.** Le job `build` migre et sème
   `eguidar_probe`, passe son URL au build hôte par `DATABASE_URL`, et livre la même valeur au build
