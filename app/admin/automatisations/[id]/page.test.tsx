@@ -224,6 +224,8 @@ describe("la page d'une Règle d'automatisation", () => {
     expect(texte).toContain(
       "La condition « Statut de Commande » retient le statut « shipped »"
     )
+    expect(texte).toContain("En attente")
+    expect(attribut(html, "decision")).toBe("enverrait")
     await expect(prisma.automationRun.count()).resolves.toBe(0)
   })
 

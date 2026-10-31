@@ -345,6 +345,37 @@ describe("l'éditeur de Règles d'automatisation", () => {
     })
   })
 
+  it("ignore une simulation dont le déclencheur ne correspond pas, en nommant les deux valeurs", async () => {
+    const id = await creerUneRegle({
+      nom: "Statut expédié",
+      declencheur: "commande.statut.changee",
+      condition: { type: "statut-commande", statuts: ["shipped"] },
+      action: "email.commande-statut",
+    })
+    const evenement = await prisma.automationEvent.create({
+      data: {
+        type: "produit.inconnu",
+        entityType: "produit",
+        entityId: `produit-${runId}-mismatch`,
+        seq: 1,
+        attemptOf: 1,
+        payload: { statut: "shipped" },
+        occurredAt: MAINTENANT,
+        expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+      },
+    })
+
+    await expect(
+      simulerRegle({ regleId: id, evenementId: evenement.id }, MAINTENANT)
+    ).resolves.toMatchObject({
+      decision: "ignorerait",
+      motif:
+        "Le déclencheur de la règle ne correspond pas : « produit.inconnu » (produit.inconnu) au lieu de « Statut de Commande changé » (commande.statut.changee) : l'action « E-mail de statut de Commande » serait ignorée.",
+      evenement: { id: evenement.id },
+    })
+    await expect(prisma.automationRun.count()).resolves.toBe(0)
+  })
+
   it("liste les Événements réels qui peuvent servir de sujet à une simulation", async () => {
     const id = await creerUneRegle({
       nom: "Simulation listée",

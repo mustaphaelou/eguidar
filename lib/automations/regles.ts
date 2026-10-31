@@ -207,24 +207,6 @@ export const REGLES_AUTOMATION: readonly RegleAutomation[] = Object.freeze(
   ].map((regle) => verifierRegle(regle))
 )
 
-/**
- * Évalue la condition d'une règle sur la charge d'un événement. Une condition
- * inconnue ou une charge qui ne porte pas le champ demandé vaut « non » : la
- * règle ne s'exécute pas, plutôt que de s'exécuter à l'aveugle.
- */
-export function laConditionEstRemplie(
-  condition: ConditionAutomation,
-  payload: unknown
-): boolean {
-  if (condition.type === "toujours") return true
-  if (condition.type === "statut-commande") {
-    if (!payload || typeof payload !== "object") return false
-    const statut = (payload as { statut?: unknown }).statut
-    return typeof statut === "string" && condition.statuts.includes(statut)
-  }
-  return false
-}
-
 function instantane(regle: RegleAutomation) {
   return {
     id: regle.id,

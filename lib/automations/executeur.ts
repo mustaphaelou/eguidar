@@ -9,13 +9,13 @@ import {
   actionAutomationSchema,
   conditionAutomationSchema,
   configurationRegleSchema,
-  laConditionEstRemplie,
   type ActionAutomation,
 } from "@/lib/automations/regles"
 import {
   typeEntiteAutomationSchema,
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
+import { laConditionEstRemplie } from "@/lib/automations/vocabulaire"
 
 export const LIMITE_PAR_BALAYAGE = 20
 export const BAIL_EXECUTION_MS = 60_000
