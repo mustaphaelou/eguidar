@@ -203,7 +203,7 @@ Elle n'ajoute aucun terme au glossaire.
   — n'a pas ce drapeau, et Compose ne l'ajoute pour `build.network: host` qu'à partir du correctif
   docker/compose#14325, absent de Compose 5.6.1. Le build joint donc Postgres par le gateway du
   bridge, et le service `postgres` publie `5433` sur `POSTGRES_HOST_BIND` : `127.0.0.1` en local,
-  `172.17.0.1` sous Coolify, valeur que l'opérateur pose dans les variables d'environnement de
+  `10.0.1.1` sous Coolify, valeur que l'opérateur pose dans les variables d'environnement de
   l'application, buildtime comprises. Le conteneur `postgres` doit être recréé une fois pour publier
   cette adresse ; avant, le build ne joint que le loopback. La CI garde `network: host` :
   `docker/build-push-action` sait passer `allow: network.host`.

@@ -323,7 +323,7 @@ describe("l'exploitant sait quelle crédential chaque build utilise", () => {
 
     expect(notes).toContain("host.docker.internal")
     expect(notes).toContain("POSTGRES_HOST_BIND")
-    expect(notes).toContain("172.17.0.1")
+    expect(notes).toContain("10.0.1.1")
     expect(exemple).toContain("POSTGRES_HOST_BIND=")
     expect(exemple).toContain("host.docker.internal")
   })

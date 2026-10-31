@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-eguidar}
       POSTGRES_TEST_DB: ${TEST_DB_NAME:-eguidar_test}
     ports:
-      # Loopback en local. Sous Coolify, POSTGRES_HOST_BIND=172.17.0.1 : le
+      # Loopback en local. Sous Coolify, POSTGRES_HOST_BIND=10.0.1.1 : le
       # conteneur de build atteint alors la base par `host.docker.internal`.
       - "${POSTGRES_HOST_BIND:-127.0.0.1}:5433:5432"
     volumes:
