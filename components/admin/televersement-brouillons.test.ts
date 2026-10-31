@@ -114,6 +114,65 @@ describe("Téléversement des Brouillons d'Image produit", () => {
     })
   })
 
+  it("re-présigne une fois quand l'envoi échoue, puis réessaie", async () => {
+    let envois = 0
+    const port = creerPortTeleversementEnMemoire({
+      envoyer: () => {
+        envois += 1
+        return envois === 1
+          ? { ok: false, message: "Échec de l'envoi vers le stockage" }
+          : { ok: true }
+      },
+    })
+
+    const resultat = await creerTeleversementBrouillons(port).ajouter(
+      [image("a.png")],
+      8
+    )
+
+    expect(resultat).toEqual({
+      ajoutees: [
+        {
+          kind: "brouillon",
+          draftId: "brouillon-2",
+          previewUrl:
+            "https://cdn.example.test/products/brouillons/brouillon-2.png",
+        },
+      ],
+    })
+    expect(operations(port.appels)).toEqual([
+      "presigner",
+      "envoyer",
+      "presigner",
+      "envoyer",
+    ])
+  })
+
+  it("s'arrête après une seconde tentative refusée, avec le refus générique", async () => {
+    const port = creerPortTeleversementEnMemoire({
+      envoyer: () => ({
+        ok: false,
+        message: "Échec de l'envoi vers le stockage",
+      }),
+    })
+
+    const resultat = await creerTeleversementBrouillons(port).ajouter(
+      [image("a.png")],
+      8
+    )
+
+    expect(resultat).toEqual({
+      ajoutees: [],
+      message: "Échec de l'envoi vers le stockage",
+    })
+    expect(operations(port.appels)).toEqual([
+      "presigner",
+      "envoyer",
+      "presigner",
+      "envoyer",
+    ])
+  })
+
   it("n'arrête pas le lot après un envoi refusé", async () => {
     const port = creerPortTeleversementEnMemoire({
       envoyer: ({ fichier }) =>

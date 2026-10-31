@@ -11,6 +11,7 @@ const TEST_TABLES = [
   "Product",
   "ProductVariant",
   "BrouillonImageProduit",
+  "ImageProduit",
   "CartItem",
   "Order",
   "OrderItem",
@@ -19,6 +20,10 @@ const TEST_TABLES = [
   "Theme",
   "ArticleBlog",
   "ArticleBlogProduit",
+  "AutomationEvent",
+  "AutomationRule",
+  "AutomationRuleRevision",
+  "AutomationRun",
 ] as const
 
 export default async function globalSetup() {

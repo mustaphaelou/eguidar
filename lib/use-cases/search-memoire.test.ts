@@ -293,6 +293,7 @@ describe("searchProducts sur le moteur en mémoire", () => {
         image: null,
         parentId: null,
         produitsDirects: 0,
+        position: 0,
       },
     ])
 

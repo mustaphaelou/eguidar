@@ -20,11 +20,13 @@ import {
   type CodeEchecStockage,
   type ContentTypeImageProduit,
   type EchecStockageImageProduit,
+  type FaitImageProduitVerifiee,
   type PortStockageImageProduit,
   type ResultatStockageImageProduit,
   type ValeurPromotionBrouillon,
   type ValeurPresignBrouillon,
 } from "@/lib/r2"
+import { inspecterImageProduit } from "@/lib/verification-image-produit"
 
 export const BASE_PUBLIQUE_MEMOIRE = "https://cdn.example.test"
 
@@ -92,6 +94,13 @@ export interface StockageImageProduitMemoire extends PortStockageImageProduit {
     size: number
     cle: string
   }>
+  readonly verifications: Array<{
+    draftId: string
+    contentType: ContentTypeImageProduit
+    cle: string
+  }>
+  readonly contenus: Map<string, Buffer>
+  contenuParDefaut: Buffer | null
   readonly promotions: Array<{
     draftId: string
     cleSource: string
@@ -136,6 +145,8 @@ export function urlEnvoiBrouillon(
 
 export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire {
   const presignatures: StockageImageProduitMemoire["presignatures"] = []
+  const verifications: StockageImageProduitMemoire["verifications"] = []
+  const contenus: Map<string, Buffer> = new Map()
   const promotions: StockageImageProduitMemoire["promotions"] = []
   const suppressionsBrouillons: string[] = []
   const suppressionsImagesPromues: string[] = []
@@ -143,6 +154,7 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
   const suppressionsImagesCategorie: string[] = []
   const pannes: Record<OperationStockage, Set<PanneStockage>> = {
     presignerBrouillon: new Set(),
+    verifierBrouillon: new Set(),
     supprimerBrouillon: new Set(),
     promouvoirBrouillon: new Set(),
     supprimerImagePromue: new Set(),
@@ -172,6 +184,9 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
 
   const stockage: StockageImageProduitMemoire = {
     presignatures,
+    verifications,
+    contenus,
+    contenuParDefaut: null,
     promotions,
     suppressionsBrouillons,
     suppressionsImagesPromues,
@@ -208,6 +223,47 @@ export function creerStockageImageProduitMemoire(): StockageImageProduitMemoire 
         previewUrl: urlPublique(cle),
       }
       return { ok: true, valeur }
+    },
+
+    async verifierBrouillon(input) {
+      const resolue = cleOuRefus(() =>
+        draftObjectKey(input.draftId, input.contentType)
+      )
+      if (!resolue.ok) return resolue
+      const cle = resolue.valeur
+      verifications.push({
+        draftId: input.draftId,
+        contentType: input.contentType,
+        cle,
+      })
+      const refus = panne("verifierBrouillon", false)
+      if (refus) return refus
+
+      const octets = contenus.get(cle) ?? stockage.contenuParDefaut
+      if (!octets) {
+        const valeur: FaitImageProduitVerifiee = {
+          mimeType: input.contentType,
+          byteSize: 1024,
+          width: 640,
+          height: 480,
+        }
+        return { ok: true, valeur }
+      }
+
+      const inspection = await inspecterImageProduit(octets)
+      if (!inspection.ok) {
+        return echec(inspection.code, inspection.message)
+      }
+      contenus.set(cle, inspection.image.bytes)
+      return {
+        ok: true,
+        valeur: {
+          mimeType: inspection.image.mimeType,
+          byteSize: inspection.image.byteSize,
+          width: inspection.image.width,
+          height: inspection.image.height,
+        },
+      }
     },
 
     async supprimerBrouillon(input) {
@@ -505,6 +561,7 @@ export function brouillon(draftId: string): EntreeImageProduit {
     kind: "brouillon",
     draftId,
     previewUrl: `https://preview.test/${draftId}`,
+    alt: "Texte alternatif du Brouillon",
   }
 }
 

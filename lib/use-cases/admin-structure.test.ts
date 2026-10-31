@@ -35,9 +35,11 @@ import {
   DELAI_VERROU_STRUCTURE_MS,
   createCategory,
   deleteCategory,
+  deplacerStructure,
   updateCategory,
   type CategoryInput,
 } from "@/lib/use-cases/admin-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
   verifierFrontiereBestEffort,
@@ -288,6 +290,338 @@ async function compterLesLecturesDeChaine(
     espion.mockRestore()
   }
 }
+
+describe("deplacerStructure — un déplacement, un propriétaire", () => {
+  beforeEach(async () => {
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `struc-${runId}-` } },
+    })
+    await prisma.category.deleteMany({
+      where: { slug: { startsWith: `cat-${runId}-` } },
+    })
+  })
+
+  async function creerFratrie(prefixe: string) {
+    const racine = await createCategory(
+      makeCategoryInput({
+        name: `Racine ${prefixe}`,
+        slug: categorySlug(`${prefixe}-racine`),
+      })
+    )
+    const a = await createCategory(
+      makeCategoryInput({
+        name: `Alpha ${prefixe}`,
+        slug: categorySlug(`${prefixe}-a`),
+        parentId: racine.id,
+      })
+    )
+    const b = await createCategory(
+      makeCategoryInput({
+        name: `Bêta ${prefixe}`,
+        slug: categorySlug(`${prefixe}-b`),
+        parentId: racine.id,
+      })
+    )
+    const c = await createCategory(
+      makeCategoryInput({
+        name: `Gamma ${prefixe}`,
+        slug: categorySlug(`${prefixe}-c`),
+        parentId: racine.id,
+      })
+    )
+    return { racine, a, b, c }
+  }
+
+  async function ordreDesEnfants(parentId: string | null): Promise<string[]> {
+    return (await lireStructure())
+      .lignesAdmin()
+      .filter((ligne) => ligne.parentId === parentId && !ligne.horsArbre)
+      .map((ligne) => ligne.id)
+  }
+
+  async function parentDe(id: string): Promise<string | null> {
+    return (
+      await prisma.category.findUniqueOrThrow({
+        where: { id },
+        select: { parentId: true },
+      })
+    ).parentId
+  }
+
+  it("déplace une Structure avant une sœur et persiste le nouvel ordre", async () => {
+    const effets = effectSpies()
+    const { racine, a, b, c } = await creerFratrie("mv-monter")
+
+    const resultat = await deplacerStructure(
+      { id: c.id, nouvelleParenteId: racine.id, avantId: a.id },
+      effets
+    )
+
+    expect(resultat).toMatchObject({
+      nomDestination: racine.name,
+      position: 1,
+      nombreFreres: 3,
+    })
+    expect(await ordreDesEnfants(racine.id)).toEqual([c.id, a.id, b.id])
+    expect(effets.revalidateCategories).toHaveBeenCalledOnce()
+  })
+
+  it("déplace une Structure après une sœur, et une destination nulle la met à la racine", async () => {
+    const { racine, a, b, c } = await creerFratrie("mv-descendre")
+
+    await deplacerStructure(
+      { id: a.id, nouvelleParenteId: racine.id, avantId: null },
+      effectSpies()
+    )
+    expect(await ordreDesEnfants(racine.id)).toEqual([b.id, c.id, a.id])
+
+    const resultat = await deplacerStructure(
+      { id: b.id, nouvelleParenteId: null, avantId: racine.id },
+      effectSpies()
+    )
+    expect(resultat.nomDestination).toBeNull()
+    expect(await parentDe(b.id)).toBeNull()
+    // La racine peut en porter d'autres, laissées par d'autres suites : on
+    // vérifie le rang relatif que la commande vient de produire, pas un compte
+    // absolu qui dépendrait de la table entière.
+    const ordreDesRacines = await ordreDesEnfants(null)
+    expect(ordreDesRacines[resultat.position - 1]).toBe(b.id)
+    expect(ordreDesRacines.length).toBe(resultat.nombreFreres)
+    expect(ordreDesRacines[resultat.position]).toBe(racine.id)
+  })
+
+  it("indente une Structure sous sa sœur précédente, en dernier enfant", async () => {
+    const { racine, a, b, c } = await creerFratrie("mv-indenter")
+
+    await deplacerStructure(
+      { id: b.id, nouvelleParenteId: a.id, avantId: null },
+      effectSpies()
+    )
+
+    expect(await parentDe(b.id)).toBe(a.id)
+    expect(await ordreDesEnfants(a.id)).toEqual([b.id])
+    expect(await ordreDesEnfants(racine.id)).toEqual([a.id, c.id])
+  })
+
+  it("désindente une Structure sous la grand-mère, avant la sœur suivante de sa parente", async () => {
+    const { racine, a, b, c } = await creerFratrie("mv-desindenter")
+
+    await deplacerStructure(
+      { id: c.id, nouvelleParenteId: a.id, avantId: null },
+      effectSpies()
+    )
+    await deplacerStructure(
+      { id: c.id, nouvelleParenteId: racine.id, avantId: b.id },
+      effectSpies()
+    )
+
+    expect(await parentDe(c.id)).toBe(racine.id)
+    expect(await ordreDesEnfants(racine.id)).toEqual([a.id, c.id, b.id])
+    expect(await ordreDesEnfants(a.id)).toEqual([])
+  })
+
+  it("refuse une destination dans la sous-structure déplacée, sans toucher à l'arbre", async () => {
+    const effets = effectSpies()
+    const { racine, a, petit } = await creerFratrie("mv-descendante").then(
+      async (fratrie) => {
+        const petit = await createCategory(
+          makeCategoryInput({
+            name: "Petit déplacé",
+            slug: categorySlug("mv-descendante-petit"),
+            parentId: fratrie.a.id,
+          })
+        )
+        return { ...fratrie, petit }
+      }
+    )
+    const avant = await ordreDesEnfants(racine.id)
+
+    const refus: unknown = await refusDe(
+      deplacerStructure(
+        { id: a.id, nouvelleParenteId: petit.id, avantId: null },
+        effets
+      )
+    )
+
+    expect(refus).toBeInstanceOf(CategoryValidationError)
+    expect((refus as Error).message).toContain("descendantes")
+    expect(await ordreDesEnfants(racine.id)).toEqual(avant)
+    expect(await parentDe(a.id)).toBe(racine.id)
+    expect(await parentDe(petit.id)).toBe(a.id)
+    expectNoEffects(effets)
+  })
+
+  it("refuse une Structure insérée avant elle-même", async () => {
+    const effets = effectSpies()
+    const { racine, a } = await creerFratrie("mv-soi")
+
+    const refus: unknown = await refusDe(
+      deplacerStructure(
+        { id: a.id, nouvelleParenteId: racine.id, avantId: a.id },
+        effets
+      )
+    )
+
+    expect(refus).toBeInstanceOf(CategoryValidationError)
+    expectNoEffects(effets)
+  })
+
+  it("refuse une Structure d'insertion qui n'est pas une sœur de la destination", async () => {
+    const effets = effectSpies()
+    const { racine, a } = await creerFratrie("mv-avant-inconnue")
+
+    const refus: unknown = await refusDe(
+      deplacerStructure(
+        { id: a.id, nouvelleParenteId: racine.id, avantId: "inconnue" },
+        effets
+      )
+    )
+
+    expect(refus).toBeInstanceOf(CategoryValidationError)
+    expect((refus as Error).message).toContain("insertion")
+    expectNoEffects(effets)
+  })
+
+  it("nomme l'arête qui ferme le cycle quand la destination est corrompue", async () => {
+    const effets = effectSpies()
+    const deplacee = await createCategory(
+      makeCategoryInput({
+        name: "À rattacher",
+        slug: categorySlug("mv-cycle-deplacee"),
+      })
+    )
+    const a = await createCategory(
+      makeCategoryInput({ name: "Cycle A", slug: categorySlug("mv-cycle-a") })
+    )
+    const b = await createCategory(
+      makeCategoryInput({ name: "Cycle B", slug: categorySlug("mv-cycle-b") })
+    )
+    await planterUnCycleEnBase([a.id, b.id])
+
+    const refus: unknown = await refusDe(
+      deplacerStructure(
+        { id: deplacee.id, nouvelleParenteId: a.id, avantId: null },
+        effets
+      )
+    )
+
+    expect(refus).toBeInstanceOf(CategoryAncestorCycleError)
+    const message = (refus as Error).message
+    expect(message).toContain("Cycle A")
+    expect(message).toContain("Cycle B")
+    expect(message).toContain("l'arête")
+    expect(await parentDe(deplacee.id)).toBeNull()
+    expectNoEffects(effets)
+  })
+
+  it("traduit l'expiration de la transaction en Refus de la Structure, pas en contention", async () => {
+    const effets = effectSpies()
+    const { racine, a } = await creerFratrie("mv-p2028")
+    const { tenues, liberer } = await saturerLePoolDeConnexions()
+
+    let refus: unknown
+    try {
+      refus = await refusDe(
+        deplacerStructure(
+          { id: a.id, nouvelleParenteId: racine.id, avantId: null },
+          effets
+        )
+      )
+    } finally {
+      liberer()
+      await Promise.all(tenues)
+    }
+
+    expect(refus).toBeInstanceOf(CategoryTransactionExpiredError)
+    expect(refus).not.toBeInstanceOf(CategoryBusyError)
+    expect((refus as Error).message).toBe(
+      "Refus de la Structure : la transaction a dépassé son délai"
+    )
+    expectNoEffects(effets)
+  })
+
+  it("attend le verrou grossier d'une transaction tierce, puis committe", async () => {
+    const { racine, a, b, c } = await creerFratrie("mv-verrou")
+    let tierceVerrouillee = false
+    const { transaction, liberer } = retenirTransaction(
+      async (tx, liberation) => {
+        await tx.$queryRawUnsafe(`SELECT id FROM "Category" FOR UPDATE`)
+        tierceVerrouillee = true
+        await liberation
+      }
+    )
+    await attendreQue(() => tierceVerrouillee)
+
+    const deplacement = deplacerStructure({
+      id: b.id,
+      nouvelleParenteId: racine.id,
+      avantId: a.id,
+    })
+    deplacement.catch(() => {})
+    try {
+      const avantLiberation = await Promise.race([
+        deplacement.then(() => "committe"),
+        attendre(150).then(() => "attend"),
+      ])
+      expect(avantLiberation).toBe("attend")
+    } finally {
+      liberer()
+      await transaction
+    }
+
+    await expect(deplacement).resolves.toMatchObject({ position: 1 })
+    expect(await ordreDesEnfants(racine.id)).toEqual([b.id, a.id, c.id])
+  })
+
+  it("écrit un Événement structure.modifiee dans la transaction du déplacement", async () => {
+    const { racine, a, c } = await creerFratrie("mv-evenement")
+
+    await deplacerStructure(
+      { id: c.id, nouvelleParenteId: racine.id, avantId: a.id },
+      effectSpies()
+    )
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: { type: "structure.modifiee", entityId: c.id },
+    })
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]).toMatchObject({
+      entityType: "categorie",
+      payload: { categorieId: c.id },
+    })
+  })
+
+  it("n'écrit aucun Événement quand la transaction du déplacement est annulée", async () => {
+    const { racine, a, b, c } = await creerFratrie("mv-evenement-annule")
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après l'écriture de l'Événement")
+      })) as unknown as typeof prisma.$transaction)
+
+    try {
+      const refus = await refusDe(
+        deplacerStructure(
+          { id: c.id, nouvelleParenteId: racine.id, avantId: a.id },
+          effectSpies()
+        )
+      )
+      expect((refus as Error).message).toContain("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(
+      await prisma.automationEvent.count({
+        where: { type: "structure.modifiee", entityId: c.id },
+      })
+    ).toBe(0)
+    expect(await ordreDesEnfants(racine.id)).toEqual([a.id, b.id, c.id])
+  })
+})
 
 describe("admin structure mutations — categories", () => {
   beforeEach(async () => {
@@ -878,9 +1212,10 @@ describe("admin structure mutations — categories", () => {
     expect(refus).toBeInstanceOf(UserFacingError)
     expect(refus).not.toBeInstanceOf(CategoryValidationError)
     expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
-    expect((refus as Error).message).toBe(
+    expect((refus as Error).message).toContain(
       "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
     )
+    expect((refus as Error).message).toContain("l'arête")
     expect((refus as Error).message).not.toMatch(/^Données invalides :/)
     expect(Date.now() - avant).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
 
@@ -1413,9 +1748,10 @@ describe("admin structure mutations — categories", () => {
     expect(refus).toBeInstanceOf(CategoryAncestorCycleError)
     expect(refus).toBeInstanceOf(UserFacingError)
     expect(refus).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
-    expect((refus as Error).message).toBe(
+    expect((refus as Error).message).toContain(
       "Refus de la Structure : la chaîne d'ancêtres choisie porte déjà un cycle"
     )
+    expect((refus as Error).message).toContain("l'arête")
     expect(Date.now() - avant).toBeLessThan(DELAI_VERROU_STRUCTURE_MS)
 
     await expect(

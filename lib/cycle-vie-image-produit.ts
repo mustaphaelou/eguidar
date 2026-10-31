@@ -14,6 +14,7 @@ import {
   draftObjectKey,
   stockageImageProduitR2,
   type ContentTypeImageProduit,
+  type FaitImageProduitVerifiee,
   type PortStockageImageProduit,
   type ResultatStockageImageProduit,
 } from "@/lib/r2"
@@ -68,6 +69,7 @@ export type CodeRefusCycleVieImageProduit =
   | "brouillon-expire"
   | "revendication-refusee"
   | "catalogue-refuse"
+  | "contenu-refuse"
 
 export interface RefusCycleVieImageProduit {
   ok: false
@@ -93,6 +95,7 @@ export const STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT: Record<
   "brouillon-expire": 410,
   "revendication-refusee": 409,
   "catalogue-refuse": 409,
+  "contenu-refuse": 422,
 }
 
 export interface BrouillonImageProduitDemande {
@@ -113,6 +116,7 @@ export interface PreuvePromotion {
   publicUrl: string
   contentType: ContentTypeImageProduit
   tentativeId: string
+  faits: FaitImageProduitVerifiee | null
 }
 
 export interface EntreePreparationPromotionBrouillons {
@@ -263,6 +267,9 @@ function refusStockage(
   if (resultat.erreur.code === "non-configure") {
     return refus("stockage-indisponible", resultat.erreur.message)
   }
+  if (resultat.erreur.code === "contenu-refuse") {
+    return refus("contenu-refuse", resultat.erreur.message)
+  }
   return refus("stockage-refuse", resultat.erreur.message)
 }
 
@@ -315,13 +322,15 @@ function galerieOrdonnee(
 function preuvePromotion(
   draft: BrouillonImageProduit,
   publicUrl: string,
-  tentativeId: string
+  tentativeId: string,
+  faits: FaitImageProduitVerifiee | null
 ): PreuvePromotion {
   return {
     draftId: draft.id,
     publicUrl,
     contentType: draft.mimeType,
     tentativeId,
+    faits,
   }
 }
 
@@ -828,6 +837,17 @@ export function creerCycleVieImageProduit(
     )
   }
 
+  async function libererBrouillonRefuse(
+    brouillon: BrouillonImageProduit
+  ): Promise<void> {
+    try {
+      await relacherBrouillon({
+        draftId: brouillon.id,
+        ownerId: brouillon.ownerId,
+      })
+    } catch {}
+  }
+
   async function preparerPromotionBrouillons(
     input: EntreePreparationPromotionBrouillons
   ): Promise<ResultatPreparationPromotionBrouillons> {
@@ -871,9 +891,35 @@ export function creerCycleVieImageProduit(
     for (const brouillon of revendiques) {
       if (brouillon.promotedPublicUrl) {
         promotions.push(
-          preuvePromotion(brouillon, brouillon.promotedPublicUrl, tentativeId)
+          preuvePromotion(
+            brouillon,
+            brouillon.promotedPublicUrl,
+            tentativeId,
+            null
+          )
         )
         continue
+      }
+
+      let verification: ResultatStockageImageProduit<FaitImageProduitVerifiee>
+      try {
+        verification = await stockage.verifierBrouillon({
+          draftId: brouillon.id,
+          contentType: brouillon.mimeType,
+        })
+      } catch {
+        verification = {
+          ok: false,
+          erreur: {
+            code: "erreur-stockage",
+            message: "Échec de la vérification du Brouillon",
+          },
+        }
+      }
+      if (!verification.ok) {
+        await compenser()
+        await libererBrouillonRefuse(brouillon)
+        return refusStockage(verification)
       }
 
       let resultat: ResultatStockageImageProduit<{ publicUrl: string }>
@@ -899,7 +945,8 @@ export function creerCycleVieImageProduit(
       const preuve = preuvePromotion(
         brouillon,
         resultat.valeur.publicUrl,
-        tentativeId
+        tentativeId,
+        verification.valeur
       )
       promotions.push(preuve)
       promuesParLAppel.push(preuve)

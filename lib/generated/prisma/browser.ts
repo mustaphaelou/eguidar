@@ -57,6 +57,11 @@ export type ProductVariant = Prisma.ProductVariantModel
  */
 export type BrouillonImageProduit = Prisma.BrouillonImageProduitModel
 /**
+ * Model ImageProduit
+ *
+ */
+export type ImageProduit = Prisma.ImageProduitModel
+/**
  * Model CartItem
  *
  */
@@ -96,3 +101,23 @@ export type ArticleBlog = Prisma.ArticleBlogModel
  *
  */
 export type ArticleBlogProduit = Prisma.ArticleBlogProduitModel
+/**
+ * Model AutomationEvent
+ *
+ */
+export type AutomationEvent = Prisma.AutomationEventModel
+/**
+ * Model AutomationRule
+ *
+ */
+export type AutomationRule = Prisma.AutomationRuleModel
+/**
+ * Model AutomationRuleRevision
+ *
+ */
+export type AutomationRuleRevision = Prisma.AutomationRuleRevisionModel
+/**
+ * Model AutomationRun
+ *
+ */
+export type AutomationRun = Prisma.AutomationRunModel

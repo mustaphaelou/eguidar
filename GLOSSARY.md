@@ -142,8 +142,17 @@ L'arborescence de catégories du Catalogue telle que l'Administration la gère :
 en base, la **Lecture de la Structure** qui la lit pour une page, et le module
 `lib/use-cases/admin-structure.ts` qui la mute. Une Structure est une catégorie de cet arbre, à
 laquelle les Produits se rattachent — sauf ceux dont elle a été supprimée, qui deviennent des
-**Produits sans Structure**.
+**Produits sans Structure**. Chaque Structure porte une **position** parmi ses sœurs, et le
+déplacement est une commande unique, jamais un ordre calculé par le navigateur (ADR-0030).
 _Avoid_: category tree, arborescence de catégories, catégorie d'administration
+
+**Position dans la Structure**:
+Le rang d'une Structure parmi celles qui partagent sa parente, un-based, dans l'ordre
+`(position, nom en français, identifiant)`. La colonne `Category.position` le stocke, la commande
+`deplacerStructure` seule le réécrit — par pas de 1024, sans contrainte d'unicité sur la fratrie —,
+et la **Lecture de la Structure** rend le rang, le nombre de sœurs et le chemin de la ligne. Une
+Structure laissée à zéro par la migration est départagée par son nom, comme avant l'ordre explicite.
+_Avoid_: ordre des catégories, index de tri, rank
 
 **Refus de la Structure**:
 Le refus par le serveur d'une opération sur la Structure : données invalides, slug déjà pris,
@@ -154,9 +163,11 @@ mutation may also be refused because the stored Structure is **corrupt** — it 
 somewhere in an ancestor chain (ADR-0027). That is a different fault from a bad request, and it is
 refused in its own voice rather than as invalid input, since retrying repairs nothing. Un délai de
 transaction dépassé a lui aussi sa propre voix : ce n'est pas la contention, que « réessayez »
-répare, et `CategoryBusyError` ne dit donc pas ce fait (ADR-0027). Une mutation de Structure ne
-produit jamais d'autre **refus** : tout défaut qu'elle sait nommer devient un Refus de la Structure,
-et un défaut qu'elle ne sait pas nommer est rendu tel quel, sans refus composé — la même partition
+répare, et `CategoryBusyError` ne dit donc pas ce fait (ADR-0027). Un cycle déjà présent nomme
+l'arête qui le ferme, pour que « Rattacher… » rende une action et non une panne (ADR-0030). Une
+mutation de Structure ne produit jamais d'autre **refus** : tout défaut qu'elle sait nommer devient
+un Refus de la Structure, et un défaut qu'elle ne sait pas nommer est rendu tel quel, sans refus
+composé — la même partition
 qu'ADR-0004 tient pour une rangée illisible. Le refus d'une Structure qui a des Produits **est le
 défaut** : l'éditeur peut le lever en choisissant de les réaffecter ou de les laisser sans
 Structure, jamais par inadvertance (ADR-0029).
@@ -186,8 +197,11 @@ d'Ariane, ses enfants, sa branche — et rien de plus : elle peut en demander un
 d'un coup, et la lecture reste la même. Les questions portent le nom de ces faits, jamais celui d'un
 écran : une page de plus n'ajoute aucun nom ici. Elle rend des faits, jamais des verdicts : ce qu'un
 cycle signifie reste à celui qui l'appelle — l'Administration le nomme, la boutique dégrade
-(ADR-0030). L'ordre qu'elle promet — le nom en français, départagé par l'identifiant — est écrit
-une fois, dans le cœur de la Marche, et toutes ses surfaces le rendent sans le refaire (ADR-0030).
+(ADR-0030). L'ordre qu'elle promet — la position, puis le nom en français, départagé par
+l'identifiant — est écrit une fois, dans le cœur de la Marche, et toutes ses surfaces le rendent sans
+le refaire (ADR-0030). Ses lignes d'Administration portent aussi la position parmi les sœurs, le
+nombre de sœurs, le cumul des Produits de la branche et le fil d'Ariane de la ligne ; la boutique
+suit le même ordre.
 Elle ne lit jamais dans une transaction : les lectures qu'une mutation doit juger sur des faits
 engagés restent avec elle, sous le verrou grossier (ADR-0027).
 _Avoid_: lecture de catégorie, category read, listAdminCategoriesWithCounts (comme nom du concept)
@@ -267,8 +281,22 @@ Structure ; la seule façon de ne plus l'être est de lui en choisir une (ADR-00
 _Avoid_: produit orphelin, catégorie supprimée, produit sans catégorie
 
 **Image produit**:
-A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X.
+A visual asset belonging to a product in the catalogue, displayed in the product gallery. The first image of a product's gallery is its thumbnail in lists and the cart, and its illustration in share previews (Open Graph) when the product is shared on WhatsApp, Facebook or X. Une Image produit persistée est décrite par une ligne de son **Registre des Images produit**, qui porte son **Texte alternatif**.
 _Avoid_: photo, visuel, media
+
+**Registre des Images produit**:
+La table des faits durables d'une Image produit persistée, une ligne par URL publique : type MIME, taille, dimensions, **Texte alternatif**, créateur et date. Elle est écrite après l'engagement de l'enregistrement d'un **Produit**, jamais dans sa transaction, par un upsert idempotent sur l'URL. Une ligne manquante est un trou réparable par la réconciliation, jamais une image perdue ; le bucket n'est jamais l'autorité des usages.
+_Avoid_: table des médias, registre R2, média
+
+**Texte alternatif**:
+Le texte qu'une Image produit donne à sa place quand elle est rendue à une personne qui ne la voit pas : il décrit le visuel et ne répète pas le nom du **Produit**. Il appartient à l'Image produit (le **Registre des Images produit**), s'édite dans la **Bibliothèque des médias** et dans la **Galerie produit**, et un nouvel envoi ne peut pas être publié sans lui ; une Image produit ancienne sans Texte alternatif rend le nom du Produit.
+_Avoid_: texte de remplacement, description d'image
+
+Le champ s'appelle `alt` dans le code et dans la colonne Prisma : c'est le nom du champ, pas un synonyme du Texte alternatif. « Texte alternatif » reste le libellé montré à l'utilisateur, et le renommer n'apporterait rien qu'un diff de cinquante-quatre sites.
+
+**Bibliothèque des médias**:
+La surface d'Administration qui liste le **Registre des Images produit** avec sa recherche, ses filtres « inutilisées » et « sans texte alternatif », sa sélection multiple et son tiroir de détail. Elle rend lisibles les usages d'une Image produit et refuse de supprimer celle qu'un **Produit** nomme encore ; elle ne remplace pas le stockage.
+_Avoid_: médiathèque, médias, file manager
 
 **Brouillon d'Image produit**:
 Une Image produit téléchargée pendant l'édition d'un Produit, mais pas encore enregistrée comme fait de ce Produit. Son propriétaire est l'éditeur d'Administration qui l'a téléchargée, jamais le Produit : elle porte un identifiant opaque plutôt qu'une URL, expire seule au bout de la rétention configurée, et disparaît si l'édition est abandonnée. Il se distingue d'une Image produit persistée, qui appartient à son Produit et dont la suppression n'intervient qu'après un enregistrement réussi.
@@ -501,3 +529,44 @@ _Avoid_: produit associé, related product
 **Article lié**:
 Un Article de blog proposé à la fin d'un autre Article de blog, choisi dans le même Thème d'abord.
 _Avoid_: article associé, article suggéré, related article
+
+**Automatisation**:
+Un effet post-commit exécuté durablement par le travailleur, à partir d'un Événement
+d'automatisation et de la Règle d'automatisation qui le déclenche : e-mail de Commande,
+indexation ou retrait d'index, purge du bord, invalidation du cache, digest ou réconciliation.
+Le commit de la mutation reste autoritatif ; l'Automatisation est la reprise, pas la transaction.
+_Avoid_: workflow, job, tâche de fond, automatisme
+
+**Événement d'automatisation**:
+Le fait immuable écrit dans la transaction d'une mutation — type, entité, charge, séquence par
+entité, expiration — puis consommé par le travailleur. Un retour arrière de la mutation ne laisse
+aucun Événement d'automatisation.
+_Avoid_: message, job, tâche
+
+**Exécution d'automatisation**:
+La trace durable d'une Règle d'automatisation appliquée à un Événement d'automatisation : statut,
+tentative, erreur, début et fin. C'est elle que l'Administration affiche dans l'historique.
+_Avoid_: run, log, journal (réservé au journal console de la phase 0)
+
+**Règle d'automatisation**:
+Le couple fermé déclencheur → condition → action qui décide ce qu'un Événement d'automatisation
+exécute. Semée dans le code, révisée à chaque changement, éditable par le propriétaire depuis
+l'Administration.
+_Avoid_: workflow, scénario, trigger
+
+**Simulation d'automatisation**:
+L'évaluation d'une Règle d'automatisation contre un Événement d'automatisation réel, qui rend
+« enverrait » ou « ignorerait » avec son motif, sans écrire d'Exécution d'automatisation et sans
+rien envoyer.
+_Avoid_: test, dry run, prévisualisation
+
+**Réessai manuel**:
+L'Exécution d'une Règle d'automatisation rejouée à la demande sur l'Événement d'une Exécution en
+échec. Elle porte le déclencheur « manuel » et se distingue ainsi d'un balayage du travailleur.
+_Avoid_: retry, relance automatique, redrive (réservé au renvoi des Événements morts)
+
+**File morte**:
+L'état d'un Événement d'automatisation dont les tentatives sont épuisées, avec sa dernière
+erreur ; un renvoi le remet en attente. À distinguer de la file morte de travaux pg-boss, qui
+porte les balayages du travailleur.
+_Avoid_: dead letter queue (comme nom du concept), DLQ

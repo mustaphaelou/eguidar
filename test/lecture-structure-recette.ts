@@ -11,9 +11,10 @@ export function structure(
   name: string,
   parentId: string | null,
   produitsDirects = 0,
-  image: string | null = null
+  image: string | null = null,
+  position = 0
 ): FaitStructure {
-  return { id, name, slug: id, image, parentId, produitsDirects }
+  return { id, name, slug: id, image, parentId, produitsDirects, position }
 }
 
 export function tousLesNoeuds(noeuds: readonly NoeudAccueil[]): NoeudAccueil[] {

@@ -133,15 +133,30 @@ export interface OptionsInvalidation {
 export type OptionsInvalidationCatalogue = OptionsInvalidation
 export type OptionsInvalidationStructure = OptionsInvalidation
 
+/**
+ * Les deux moitiés de l'invalidation d'un Produit, séparées pour que les
+ * automatisations durables puissent les confier à deux actions distinctes :
+ * le cache Next d'un côté, le bord de l'autre. `invalidateCatalogue` reste la
+ * porte unique des mutations qui font les deux d'un coup (ADR-0014).
+ */
+export function revaliderCatalogue(product: CatalogueEventProduct): void {
+  revaliderTags(tagsCatalogue(product))
+  revalidatePath("/admin/produits")
+  revalidatePath(`/admin/produits/${product.id}`)
+}
+
+export function demandeDePurgeCatalogue(
+  product: CatalogueEventProduct
+): DemandePurge {
+  return demandeDePurge(tagsCatalogue(product))
+}
+
 export async function invalidateCatalogue(
   product: CatalogueEventProduct,
   options: OptionsInvalidationCatalogue = {}
 ): Promise<void> {
-  const tags = tagsCatalogue(product)
-  revaliderTags(tags)
-  revalidatePath("/admin/produits")
-  revalidatePath(`/admin/produits/${product.id}`)
-  await purgerEdge(demandeDePurge(tags), options.purgeEdge)
+  revaliderCatalogue(product)
+  await purgerEdge(demandeDePurgeCatalogue(product), options.purgeEdge)
 }
 
 /**
@@ -170,6 +185,18 @@ export async function invalidateStructure(
   revaliderTags(tags)
   revalidatePath("/admin/categories")
   await purgerEdge(demandeDePurge(tags), options.purgeEdge)
+}
+
+/**
+ * La purge du bord pour le travailleur durable : même adaptateur, même
+ * vocabulaire d'erreur, mais un échec remonte au lieu d'être avalé — c'est lui
+ * qui déclenche la reprise. Une purge non configurée n'est pas un échec.
+ */
+export async function purgerEdgeDurable(demande: DemandePurge): Promise<void> {
+  const resultat = await creerPurgeEdgeCloudflare().purger(demande)
+  if (!resultat.ok && resultat.erreur.code !== "non-configure") {
+    throw new Error(resultat.erreur.message)
+  }
 }
 
 export function invalidateLivraison(): void {

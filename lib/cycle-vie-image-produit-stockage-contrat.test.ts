@@ -26,11 +26,21 @@ vi.mock("@aws-sdk/client-s3", () => {
     constructor(readonly input: unknown) {}
   }
 
+  class MockHeadObjectCommand {
+    constructor(readonly input: unknown) {}
+  }
+
+  class MockGetObjectCommand {
+    constructor(readonly input: unknown) {}
+  }
+
   return {
     S3Client: MockS3Client,
     PutObjectCommand: MockPutObjectCommand,
     CopyObjectCommand: MockCopyObjectCommand,
     DeleteObjectCommand: MockDeleteObjectCommand,
+    HeadObjectCommand: MockHeadObjectCommand,
+    GetObjectCommand: MockGetObjectCommand,
   }
 })
 
@@ -44,6 +54,7 @@ import {
   codesEchec,
   exigerEnteteStockage,
   exigerValeurEpingleeStockage,
+  IMAGE_CONTRAT,
   SCENARIOS_STOCKAGE,
   VALEURS_EPINGLEES,
   type AdaptateurStockage,
@@ -127,14 +138,38 @@ function appliquerIncidentMemoire(
   }
 }
 
-const stockageProduction: AdaptateurStockage = (etat) => {
+function contenuDuScenario(contenu: Buffer | undefined): Buffer {
+  return contenu ?? IMAGE_CONTRAT
+}
+
+const stockageProduction: AdaptateurStockage = (etat, contenu) => {
   reinitialiserRejeu()
+  const octets = contenuDuScenario(contenu)
+  sendMock.mockImplementation(async (command: unknown) => {
+    const nom = (command as { constructor?: { name?: string } })?.constructor
+      ?.name
+    if (nom === "MockHeadObjectCommand") {
+      return {
+        ContentLength: octets.length,
+        ContentType: "image/png",
+      }
+    }
+    if (nom === "MockGetObjectCommand") {
+      return {
+        Body: {
+          transformToByteArray: async () => new Uint8Array(octets),
+        },
+      }
+    }
+    return undefined
+  })
   appliquerIncidentR2(etat)
   return stockageImageProduitR2
 }
 
-const stockageMemoire: AdaptateurStockage = (etat) => {
+const stockageMemoire: AdaptateurStockage = (etat, contenu) => {
   const stockage = creerStockageImageProduitMemoire()
+  stockage.contenuParDefaut = contenuDuScenario(contenu)
   appliquerIncidentMemoire(stockage, etat)
   return stockage
 }

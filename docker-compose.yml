@@ -91,6 +91,12 @@ services:
       # Le build lit le catalogue : réseau de l'hôte pour joindre la base
       # publiée (127.0.0.1:5433), et secret BuildKit plutôt qu'un build arg.
       network: host
+      # Docker 29 refuse une demande de privilège que le déploiement n'a pas
+      # accordée : sans cette ligne, `docker compose build` s'arrête avant le
+      # premier stage sur « additional privileges requested ». La CI accorde le
+      # même privilège par `allow: network.host`.
+      entitlements:
+        - network.host
       args:
         NEXT_PUBLIC_BETTER_AUTH_URL: ${NEXT_PUBLIC_BETTER_AUTH_URL:-}
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}

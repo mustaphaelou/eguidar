@@ -63,7 +63,7 @@ method and the consolidated list of unverified items.
   was removed in v6), and reject n8n / Activepieces / Windmill / Trigger.dev / Inngest / Temporal
   self-hosted for roughly six automations.
 - **Three ADR amendments, one ADR untouched.** ADR-0026 (catalogue read gains the category path),
-  ADR-0030 (the core ordering comparator gains `position`), and a successor **ADR-0041** that
+  ADR-0030 (the core ordering comparator gains `position`), and a successor **ADR-0044** that
   supersedes only ADR-0014's "no queues/outbox" invariant. ADR-0027's serialisation of Structure
   mutations is not reopened.
 - **Accessibility is a delivery constraint, not a polish pass.** Six criteria bite immediately:
@@ -165,11 +165,12 @@ design:
 | **0026** — product administration read/form | The Catalogue owns product reads "in facts, not rows" | The list gains a paged envelope; the category picker needs the category *path* | Yes — a named amendment, not a quiet widening |
 | **0027** — Structure mutations are serialised | Every Structure mutation runs under one lock/owner | Nothing. `position` and the move command run *inside* the existing lock | No |
 | **0030** — the Structure's marché has one owner | Topology and the single ordering promise | The core comparator becomes `(position, name, id)`; the admin gains *move* commands, never topology computation | Yes — amend the ordering promise deliberately |
-| **0014** — encapsulated mutation effects | Best-effort post-commit effects; explicitly no queues/outbox | A durable outbox, run records and retries | Yes — **ADR-0041** supersedes only the "no queues/outbox" invariant |
+| **0014** — encapsulated mutation effects | Best-effort post-commit effects; explicitly no queues/outbox | A durable outbox, run records and retries | Yes — **ADR-0044** supersedes only the "no queues/outbox" invariant |
 
-Allocate **0041**: the highest number in use is 0040, and 0036 is absent from the directory (it may
-be reserved, so 0041 is the safe choice). The successor should keep ADR-0014's encapsulation
-(`*Effects` ports, injected adapters) and replace only the "warning is enough" boundary.
+The successor is **0044**: at research time 0041 was the next free number, but the auth programme
+took 0041–0043 while this branch was open, so the integration renumbered it. The successor should
+keep ADR-0014's encapsulation (`*Effects` ports, injected adapters) and replace only the "warning is
+enough" boundary.
 
 ### 2.4 The WCAG 2.2 AA floor
 
@@ -1000,7 +1001,7 @@ The decisive argument is transactional: `placeOrder` and `updateOrderStatus` alr
 
 **v0 — repair the seam, no new infrastructure.** Keep `runOrderedEffects`; make each effect return an outcome, and log it as a row. Fix the two defects the current code makes inevitable: a lost email leaves no trace [2], and a future `publishedAt` publishes immediately [11] — add `publishedAt: { lte: new Date() }` to each public blog read path. Then ship the two automations that need no machinery — a nightly low-stock digest (query and `LOW_STOCK_THRESHOLD = 5` exist [12]) and a Meilisearch reconciliation [7] — on a Coolify task or a `register` loop.
 
-**v1 — declarative rules, outbox, one worker loop.** Amend ADR-0014 with a successor (`docs/adr/0041-des-effets-post-commit-durables.md` — 0041 because the highest number in use is 0040) that supersedes only the "no queues/outbox" invariant; the per-entity `*Effects` types and the best-effort boundary for non-critical effects stay. Entities: `AutomationEvent` (outbox), `AutomationRun` (`ruleId`, `eventId`, `status`, `attempt`, `lastError`, `startedAt`, `finishedAt`), `AutomationRule` (`nom`, `actif`, `declencheur`, `condition Json`, `action`, `actionConfig Json`). Files: `lib/automations/outbox.ts` (`enregistrerEvenement(tx, …)`), `regles.ts` (closed Zod vocabulary), `executeur.ts` (claim, execute, record), `actions/{email,index,digest,webhook}.ts` wrapping existing adapters [3][6][8], `app/api/automations/tick/route.ts` behind a bearer secret, `scripts/automations-tick.mjs`. Rules are seeded in code.
+**v1 — declarative rules, outbox, one worker loop.** Amend ADR-0014 with a successor (`docs/adr/0044-des-effets-post-commit-durables.md`, renumbered from 0041 when the auth ADRs took 0041–0043) that supersedes only the "no queues/outbox" invariant; the per-entity `*Effects` types and the best-effort boundary for non-critical effects stay. Entities: `AutomationEvent` (outbox), `AutomationRun` (`ruleId`, `eventId`, `status`, `attempt`, `lastError`, `startedAt`, `finishedAt`), `AutomationRule` (`nom`, `actif`, `declencheur`, `condition Json`, `action`, `actionConfig Json`). Files: `lib/automations/outbox.ts` (`enregistrerEvenement(tx, …)`), `regles.ts` (closed Zod vocabulary), `executeur.ts` (claim, execute, record), `actions/{email,index,digest,webhook}.ts` wrapping existing adapters [3][6][8], `app/api/automations/tick/route.ts` behind a bearer secret, `scripts/automations-tick.mjs`. Rules are seeded in code.
 
 **v2 — merchant-editable rules.** `app/admin/automatisations/page.tsx` (list: déclencheur → condition → action, `Activer`/`Désactiver`), `app/admin/automatisations/[id]/page.tsx` (editor, `Exécuter maintenant`, `Simulation`), `app/admin/automatisations/executions/page.tsx` (statut, erreur, `Réessayer`, filters). Add `AutomationRuleRevision` (snapshot JSON, author, timestamp) for the audit trail, and a `Simulation` that evaluates the condition on a real entity and renders "would send / would skip" without writing a run. Copy Flow's statuses and retention [22], and n8n's manual-versus-production split so a test run is visibly not production [35].
 
@@ -1155,7 +1156,7 @@ promise or explicitly documented as two; the delete-with-children tests remain g
 Meilisearch reconciliation (the incremental path drifts silently), and optionally a daily owner
 digest, run from a Coolify scheduled task or a loop started in `instrumentation.register`.
 
-**v1, durable:** ADR-0041 supersedes ADR-0014's no-outbox invariant; add `AutomationEvent` (outbox,
+**v1, durable:** ADR-0044 supersedes ADR-0014's no-outbox invariant; add `AutomationEvent` (outbox,
 inserted **inside** the mutation's transaction), `AutomationRun` (status, attempt, last error,
 timestamps) and a closed rule vocabulary. Drain with **pg-boss** on the existing Postgres, either
 from a worker command on the same image or from the tick loop; per-entity ordering, `SKIP LOCKED`,

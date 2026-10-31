@@ -185,7 +185,14 @@ export function CommandesTable({
     <div className="flex flex-col gap-4">
       <DataTableToolbar
         table={table}
+        searchLabel="Rechercher une commande par nom ou email"
         searchPlaceholder="Rechercher par nom ou email…"
+        resultCount={page.totalCount}
+        statusLabels={{
+          singulier: "commande",
+          pluriel: "commandes",
+          feminin: true,
+        }}
         filters={[
           {
             columnId: STATUT_COLUMN_ID,

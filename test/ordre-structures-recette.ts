@@ -12,6 +12,7 @@ const FAITS: readonly FaitStructure[] = [
     image: null,
     parentId: null,
     produitsDirects: 0,
+    position: 0,
   },
   {
     id: "zebre",
@@ -20,6 +21,7 @@ const FAITS: readonly FaitStructure[] = [
     image: null,
     parentId: "racine",
     produitsDirects: 0,
+    position: 0,
   },
   {
     id: "ecran",
@@ -28,6 +30,7 @@ const FAITS: readonly FaitStructure[] = [
     image: null,
     parentId: "racine",
     produitsDirects: 0,
+    position: 0,
   },
   {
     id: "jumeau-b",
@@ -36,6 +39,7 @@ const FAITS: readonly FaitStructure[] = [
     image: null,
     parentId: "racine",
     produitsDirects: 0,
+    position: 0,
   },
   {
     id: "jumeau-a",
@@ -44,11 +48,57 @@ const FAITS: readonly FaitStructure[] = [
     image: null,
     parentId: "racine",
     produitsDirects: 0,
+    position: 0,
   },
 ]
 
 export function dansLOrdreEprouve(ids: readonly string[]): string[] {
   return ids.filter((id) => (ORDRE_ATTENDU as readonly string[]).includes(id))
+}
+
+export const ORDRE_POSITION = ["zebre", "alpha", "ecran"] as const
+
+export const FAITS_POSITIONNES: readonly FaitStructure[] = [
+  {
+    id: "racine",
+    name: "Racine",
+    slug: "racine",
+    image: null,
+    parentId: null,
+    produitsDirects: 0,
+    position: 0,
+  },
+  {
+    id: "zebre",
+    name: "Zèbre",
+    slug: "zebre",
+    image: null,
+    parentId: "racine",
+    produitsDirects: 0,
+    position: 10,
+  },
+  {
+    id: "alpha",
+    name: "Alpha",
+    slug: "alpha",
+    image: null,
+    parentId: "racine",
+    produitsDirects: 0,
+    position: 20,
+  },
+  {
+    id: "ecran",
+    name: "Écran",
+    slug: "ecran",
+    image: null,
+    parentId: "racine",
+    produitsDirects: 0,
+    position: 30,
+  },
+]
+
+export function dansLOrdrePosition(ids: readonly string[]): string[] {
+  return ids.filter((id) => (ORDRE_POSITION as readonly string[]).includes(id))
 }
 
 export type ProjeterDansLOrdre = (
@@ -64,6 +114,12 @@ export function eprouverLOrdreDuModule({ nom, projeter }: RecetteOrdre): void {
   describe(`${nom} — l'ordre que le module promet`, () => {
     it("départage les Structures de même nom par leur identifiant, et lit les accents en français", () => {
       expect(dansLOrdreEprouve(projeter(FAITS))).toEqual([...ORDRE_ATTENDU])
+    })
+
+    it("donne la priorité à la position, puis au nom, puis à l'identifiant", () => {
+      expect(dansLOrdrePosition(projeter(FAITS_POSITIONNES))).toEqual([
+        ...ORDRE_POSITION,
+      ])
     })
   })
 }

@@ -3,6 +3,16 @@
 import { useRef } from "react"
 
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface DeleteCityButtonProps {
   cityId: string
@@ -15,24 +25,36 @@ export function DeleteCityButton({
   cityName,
   action,
 }: DeleteCityButtonProps) {
-  const formRef = useRef<HTMLFormElement>(null)
+  const annulerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <form
-      ref={formRef}
-      action={action}
-      onSubmit={(event) => {
-        if (
-          !confirm(`Supprimer « ${cityName} » ? Cette action est définitive.`)
-        ) {
-          event.preventDefault()
-        }
-      }}
-    >
-      <input type="hidden" name="cityId" value={cityId} />
-      <Button type="submit" variant="destructive" size="sm">
+    <AlertDialog>
+      <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
         Supprimer
-      </Button>
-    </form>
+      </AlertDialogTrigger>
+      <AlertDialogContent initialFocus={annulerRef}>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-lg">
+            Supprimer « {cityName} »
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Cette action est définitive.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <form action={action} className="flex flex-col gap-4">
+          <input type="hidden" name="cityId" value={cityId} />
+          <AlertDialogFooter>
+            <AlertDialogClose
+              render={<Button ref={annulerRef} variant="outline" />}
+            >
+              Annuler
+            </AlertDialogClose>
+            <Button type="submit" variant="destructive">
+              Supprimer définitivement
+            </Button>
+          </AlertDialogFooter>
+        </form>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

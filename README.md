@@ -23,7 +23,7 @@ npm run dev
 
 Le compte admin par défaut est créé par le seed (`ADMIN_EMAIL` / `ADMIN_PASSWORD` dans `.env`). Les fournisseurs Google et Facebook, Turnstile et Resend fonctionnent dès que leurs clés sont renseignées dans `.env` : `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` et `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` pour la Connexion sociale.
 
-Un assistant interactif complète l'étape 2 : `bash scripts/setup-providers.sh` guide la création du widget Cloudflare Turnstile, restaure les variables de base de test (`TEST_DB_NAME`, `TEST_DATABASE_URL`) dans `.env`, applique la règle de cycle de vie R2 des Brouillons d'Image produit, et rend les documents de la boutique éligibles au cache de l'edge.
+Un assistant interactif complète l'étape 2 : `bash scripts/setup-providers.sh` guide la création du widget Cloudflare Turnstile, restaure les variables de base de test (`TEST_DB_NAME`, `TEST_DATABASE_URL`) dans `.env`, applique la règle de cycle de vie R2 des Brouillons d'Image produit, applique la politique CORS qui autorise le téléversement depuis l'Administration, et rend les documents de la boutique éligibles au cache de l'edge.
 
 Les images produits sont envoyées vers Cloudflare R2 via des URLs pré-signées : renseigner `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` et `R2_PUBLIC_URL` dans `.env`. La recherche (Meilisearch) est ré-indexée automatiquement à chaque enregistrement ou suppression d'un produit.
 
@@ -45,6 +45,23 @@ curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buc
 ```
 
 **La règle doit porter la même rétention que l'application.** Une règle plus courte supprime le fichier d'un Brouillon que l'application juge encore revendicable : l'enregistrement du Produit échoue alors sur une image que l'éditeur croyait pouvoir sauvegarder. Une règle plus longue ne casse rien de fonctionnel — le registre refuse déjà la revendication au-delà de `RETENTION_BROUILLON_IMAGE_PRODUIT_H` — mais elle laisse des octets orphelins. R2 n'exprimant l'expiration qu'en jours entiers, la règle est toujours arrondie au jour supérieur.
+
+## CORS du téléversement depuis l'Administration
+
+Le PUT d'une Image produit est pré-signé : le navigateur envoie les octets directement à `<compte>.r2.cloudflarestorage.com`, une origine différente de celle de l'Administration. Le bucket doit donc répondre à la pré-vol CORS, sinon le navigateur bloque le PUT **sans aucune trace côté serveur** — un bucket neuf échoue à l'upload alors que tout le reste fonctionne.
+
+La politique est versionnée dans [`infra/cors-r2.json`](infra/cors-r2.json) : une seule règle, les origines exactes de l'Administration (production et développement local), la seule méthode `PUT`, l'en-tête `content-type` et `ETag` exposé. [`infra/cors-r2.ts`](infra/cors-r2.ts) dérive ces origines de `site.url` et de la liste de développement, et [`infra/cors-r2.test.ts`](infra/cors-r2.test.ts) échoue si le JSON ne correspond plus, si une méthode ou un en-tête s'élargit, ou si une origine joker apparaissait.
+
+L'étape « R2 CORS » de `bash scripts/setup-providers.sh` fait le `PUT` du corps `rules` de l'artefact, puis relit la politique vivante et la compare au fichier. Comme pour le cycle de vie, elle affiche les règles que l'artefact ne décrit pas et demande une seconde confirmation avant de les remplacer. Le même appel, à la main :
+
+```bash
+curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buckets/$R2_BUCKET/cors" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary '{"rules":[{"id":"televersement-administration","allowed":{"origins":["https://eguidar.com"],"methods":["PUT"],"headers":["content-type"]},"exposeHeaders":["ETag"],"maxAgeSeconds":3600}]}'
+```
+
+Un lien pré-signé expiré répond `403 ExpiredRequest` **sans en-têtes CORS** : le JavaScript ne peut pas lire la cause et voit un échec réseau. Le client renouvelle donc le lien une fois, puis rend le refus générique si la seconde tentative échoue aussi ; il ne tente jamais d'afficher un refus typé que le navigateur n'a pas pu lire.
 
 ## Documents à l'edge (Cache Rules)
 
@@ -176,7 +193,7 @@ En Docker, la crédential est un secret BuildKit monté pour le seul `RUN` du bu
 
 La CI migre et sème `eguidar_probe`, puis passe son URL au build hôte par `DATABASE_URL`. L’image reçoit la même valeur par l’input `secrets` de `docker/build-push-action` — sous l’identifiant `database_url` — et le constructeur partage le réseau de l’hôte (`driver-opts: network=host`), ce qui laisse le `RUN` du build joindre `127.0.0.1:5432` ; le driver `docker-container` ne sait pas résoudre `host-gateway`. Rien de tout cela ne lit un secret de dépôt (ADR-0020).
 
-Pour Coolify, `docker-compose.yml` déclare `build.secrets: [database_url]`, dont la source est `database_url: environment: DATABASE_URL_BUILD` : la valeur n’est jamais écrite dans le fichier. `build.network: host` laisse le build joindre la base publiée sur `127.0.0.1:5433` par le service `postgres` ; renseignez donc `DATABASE_URL_BUILD` avec une crédential **en lecture seule** et une URL joignable depuis le réseau de l’hôte. L’injection des secrets de build Compose par Coolify reste à vérifier au premier déploiement : si elle manque, le build s’arrête en nommant le catalogue, et #763 inscrit alors le repli (pas de prérendu, génération à la demande) dans l’ADR.
+Pour Coolify, `docker-compose.yml` déclare `build.secrets: [database_url]`, dont la source est `database_url: environment: DATABASE_URL_BUILD` : la valeur n’est jamais écrite dans le fichier. `build.network: host` laisse le build joindre la base publiée sur `127.0.0.1:5433` par le service `postgres`, et `build.entitlements: [network.host]` accorde le privilège que Docker 29 exige pour ce réseau : sans lui, `docker compose build` s’arrête avant le premier stage sur `additional privileges requested`. Renseignez donc `DATABASE_URL_BUILD` avec une crédential **en lecture seule** et une URL joignable depuis le réseau de l’hôte. L’injection des secrets de build Compose par Coolify reste à vérifier au premier déploiement : si elle manque, le build s’arrête en nommant le catalogue, et #763 inscrit alors le repli (pas de prérendu, génération à la demande) dans l’ADR.
 
 ## Vérifier l’image de déploiement
 

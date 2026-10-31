@@ -6,8 +6,26 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/image", () => ({
-  default: ({ src, alt }: { src: string; alt: string }) => (
-    <span data-image-src={src} aria-label={alt} />
+  default: ({
+    src,
+    alt,
+    width,
+    height,
+    sizes,
+  }: {
+    src: string
+    alt: string
+    width?: number
+    height?: number
+    sizes?: string
+  }) => (
+    <span
+      data-image-src={src}
+      data-image-width={width}
+      data-image-height={height}
+      data-image-sizes={sizes}
+      aria-label={alt}
+    />
   ),
 }))
 
@@ -19,6 +37,7 @@ import type {
 } from "@/components/admin/televersement-brouillons"
 import type { EntreeImageProduitFormulaire } from "@/lib/formulaire-produit"
 import type {
+  EntreeBibliothequeImageProduit,
   EntreeBrouillonImage,
   EntreeImageProduit,
 } from "@/lib/galerie-image-produit"
@@ -103,10 +122,12 @@ function GalerieTest({
   initialImages,
   onChange,
   televersement,
+  bibliotheque,
 }: {
   initialImages: EntreeImageProduitFormulaire[]
   onChange(images: EntreeImageProduitFormulaire[]): void
   televersement?: TeleversementBrouillons
+  bibliotheque?: readonly EntreeBibliothequeImageProduit[]
 }) {
   const [images, setImages] = useState(initialImages)
   return (
@@ -117,6 +138,7 @@ function GalerieTest({
         onChange(suivantes)
       }}
       televersement={televersement}
+      bibliotheque={bibliotheque}
     />
   )
 }
@@ -446,5 +468,224 @@ describe("ImageGalleryUpload", () => {
     })
 
     expect(onChange).toHaveBeenCalledWith([])
+  })
+
+  it("préremplit le Texte alternatif d'une Image produit et le rend éditable sans changer l'ordre", () => {
+    const onChange = vi.fn()
+    const premiere: EntreeImageProduitFormulaire = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/first.png",
+      alt: "Premier visuel",
+    }
+    const seconde: EntreeImageProduitFormulaire = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/second.png",
+    }
+
+    render(
+      <GalerieTest
+        initialImages={[premiere, seconde]}
+        onChange={onChange}
+        televersement={creerTeleversementFactice()}
+      />
+    )
+
+    const champ = container.querySelector<HTMLInputElement>("#alt-image-0")!
+    expect(champ.value).toBe("Premier visuel")
+
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set
+    act(() => {
+      setter?.call(champ, "Écran principal")
+      champ.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...premiere, alt: "Écran principal" },
+      seconde,
+    ])
+  })
+
+  it("donne à chaque vignette des dimensions et un sizes de 96 px", () => {
+    render(
+      <GalerieTest
+        initialImages={[
+          { kind: "persistee", url: "https://cdn.example.test/products/a.png" },
+          {
+            kind: "brouillon",
+            draftId: "draft-1",
+            previewUrl: "https://cdn.example.test/products/brouillons/1.png",
+          },
+        ]}
+        onChange={vi.fn()}
+        televersement={creerTeleversementFactice()}
+      />
+    )
+
+    const vignettes = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        '[data-image-kind][data-image-state="active"], [data-image-kind][data-image-state="brouillon"]'
+      )
+    ).map((entree) => entree.querySelector("[data-image-src]"))
+
+    expect(vignettes).toHaveLength(2)
+    for (const vignette of vignettes) {
+      expect(vignette?.getAttribute("data-image-width")).toBe("96")
+      expect(vignette?.getAttribute("data-image-height")).toBe("96")
+      expect(vignette?.getAttribute("data-image-sizes")).toBe("96px")
+    }
+  })
+
+  it("garde l'état de chaque fichier et ne réessaie que celui qui a échoué", async () => {
+    const onChange = vi.fn()
+    const un = new File(["a"], "un.png", { type: "image/png" })
+    const deux = new File(["b"], "deux.png", { type: "image/png" })
+    let essaisDeux = 0
+    const televersement = creerTeleversementFactice({
+      ajouter: (fichiers) => {
+        if (fichiers[0] === un) return { ajoutees: [brouillon("draft-un")] }
+        essaisDeux += 1
+        return essaisDeux === 1
+          ? { ajoutees: [], message: "Échec réseau" }
+          : { ajoutees: [brouillon("draft-deux")] }
+      },
+    })
+
+    render(
+      <GalerieTest
+        initialImages={[]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
+    await envoyerFichiers([un, deux])
+
+    expect(televersement.appelsAjout).toEqual([
+      { fichiers: [un], places: 8 },
+      { fichiers: [deux], places: 7 },
+    ])
+    expect(onChange).toHaveBeenCalledWith([brouillon("draft-un")])
+    const echec = container.querySelector<HTMLElement>(
+      '[data-envoi-etat="echoue"]'
+    )!
+    expect(echec.textContent).toContain("deux.png")
+    expect(echec.textContent).toContain("Échec réseau")
+
+    await act(async () => {
+      echec.querySelector<HTMLButtonElement>("button")!.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(televersement.appelsAjout[2]).toEqual({
+      fichiers: [deux],
+      places: 7,
+    })
+    expect(onChange).toHaveBeenLastCalledWith([
+      brouillon("draft-un"),
+      brouillon("draft-deux"),
+    ])
+    expect(container.querySelector('[data-envoi-etat="echoue"]')).toBeNull()
+  })
+
+  it("montre l'état de chaque fichier pendant l'envoi, dans l'ordre", async () => {
+    const onChange = vi.fn()
+    const un = new File(["a"], "un.png", { type: "image/png" })
+    const deux = new File(["b"], "deux.png", { type: "image/png" })
+    let resoudre!: (resultat: FaitsAjoutBrouillons) => void
+    const premier = new Promise<FaitsAjoutBrouillons>((resolve) => {
+      resoudre = resolve
+    })
+    const televersement = creerTeleversementFactice({
+      ajouter: (fichiers) =>
+        fichiers[0] === un ? premier : { ajoutees: [brouillon("draft-deux")] },
+    })
+
+    render(
+      <GalerieTest
+        initialImages={[]}
+        onChange={onChange}
+        televersement={televersement}
+      />
+    )
+    await envoyerFichiers([un, deux])
+
+    const enCours = [
+      ...container.querySelectorAll<HTMLElement>("[data-envoi-etat]"),
+    ].map((ligne) => ligne.getAttribute("data-envoi-etat"))
+    expect(enCours).toEqual(["envoi", "en_attente"])
+
+    await act(async () => {
+      resoudre({ ajoutees: [brouillon("draft-un")] })
+      await premier
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith([
+      brouillon("draft-un"),
+      brouillon("draft-deux"),
+    ])
+    expect(
+      container.querySelector(
+        '[data-envoi-etat="en_attente"], [data-envoi-etat="envoi"]'
+      )
+    ).toBeNull()
+  })
+
+  it("insère une Image produit de la bibliothèque à la position courante, sans nouvel envoi", async () => {
+    const onChange = vi.fn()
+    const televersement = creerTeleversementFactice()
+    const existante: EntreeImageProduitFormulaire = {
+      kind: "persistee",
+      url: "https://cdn.example.test/products/premiere.webp",
+      alt: "Première",
+    }
+    const choisie = {
+      publicUrl: "https://cdn.example.test/products/bibliotheque.jpg",
+      alt: "Depuis la bibliothèque",
+    }
+    const sansAlt = {
+      publicUrl: "https://cdn.example.test/products/sans-alt.jpg",
+      alt: null,
+    }
+
+    render(
+      <GalerieTest
+        initialImages={[existante]}
+        onChange={onChange}
+        televersement={televersement}
+        bibliotheque={[choisie, sansAlt]}
+      />
+    )
+
+    const declencheur = [...container.querySelectorAll("button")].find(
+      (bouton) => bouton.textContent?.includes("Choisir dans la bibliothèque")
+    )!
+    await act(async () => {
+      declencheur.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const choix = document.querySelector<HTMLElement>(
+      '[aria-label="Choisir l\'Image produit Depuis la bibliothèque"]'
+    )!
+    await act(async () => {
+      choix.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(televersement.appelsAjout).toEqual([])
+    expect(onChange).toHaveBeenLastCalledWith([
+      existante,
+      {
+        kind: "persistee",
+        url: choisie.publicUrl,
+        alt: choisie.alt,
+      },
+    ])
+    expect(
+      container.querySelector<HTMLInputElement>("#alt-image-1")?.value
+    ).toBe("Depuis la bibliothèque")
   })
 })

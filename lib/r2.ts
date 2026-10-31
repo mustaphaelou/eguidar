@@ -1,10 +1,17 @@
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+
+import {
+  MESSAGE_FORMAT_NON_AUTORISE,
+  inspecterImageProduit,
+} from "@/lib/verification-image-produit"
 
 import {
   PREFIXE_BROUILLONS_IMAGE_PRODUIT,
@@ -37,7 +44,7 @@ const EXTENSIONS: Record<ContentTypeImageProduit, string> = {
 }
 
 export type CodeEchecStockage =
-  "non-configure" | "parametre-invalide" | "erreur-stockage"
+  "non-configure" | "parametre-invalide" | "erreur-stockage" | "contenu-refuse"
 
 export interface EchecStockageImageProduit {
   code: CodeEchecStockage
@@ -56,12 +63,23 @@ export interface ValeurPromotionBrouillon {
   publicUrl: string
 }
 
+export interface FaitImageProduitVerifiee {
+  mimeType: string
+  byteSize: number
+  width: number
+  height: number
+}
+
 export interface PortStockageImageProduit {
   presignerBrouillon(input: {
     draftId: string
     contentType: ContentTypeImageProduit
     size: number
   }): Promise<ResultatStockageImageProduit<ValeurPresignBrouillon>>
+  verifierBrouillon(input: {
+    draftId: string
+    contentType: ContentTypeImageProduit
+  }): Promise<ResultatStockageImageProduit<FaitImageProduitVerifiee>>
   supprimerBrouillon(input: {
     draftId: string
     contentType: ContentTypeImageProduit
@@ -235,6 +253,18 @@ async function supprimerImageParUrl(
   }
 }
 
+async function octetsDuCorps(body: unknown): Promise<Buffer | null> {
+  const transform = (
+    body as { transformToByteArray?: () => Promise<Uint8Array> } | null
+  )?.transformToByteArray
+  if (typeof transform !== "function") return null
+  try {
+    return Buffer.from(await transform.call(body))
+  } catch {
+    return null
+  }
+}
+
 export const stockageImageProduitR2: PortStockageImageProduit = {
   async presignerBrouillon(input) {
     const configuration = configurationR2()
@@ -275,6 +305,81 @@ export const stockageImageProduitR2: PortStockageImageProduit = {
       const previewUrl = publicUrlFromKey(key, configuration.publicBase)
       if (!previewUrl) return nonConfigure()
       return { ok: true, valeur: { uploadUrl, previewUrl } }
+    } catch {
+      return storageError()
+    }
+  },
+
+  async verifierBrouillon(input) {
+    const configuration = configurationR2()
+    if (!configuration) return nonConfigure()
+
+    let key: string
+    try {
+      key = draftObjectKey(input.draftId, input.contentType)
+    } catch (error) {
+      return invalidParameter(
+        error instanceof Error
+          ? error.message
+          : "Paramètre de stockage invalide"
+      )
+    }
+
+    try {
+      const head = await configuration.client.send(
+        new HeadObjectCommand({
+          Bucket: configuration.bucket,
+          Key: key,
+        })
+      )
+      if (!isContentTypeImageProduit(head.ContentType ?? "")) {
+        return storageFailure("contenu-refuse", MESSAGE_FORMAT_NON_AUTORISE)
+      }
+      if (
+        head.ContentLength === undefined ||
+        !Number.isInteger(head.ContentLength) ||
+        head.ContentLength <= 0
+      ) {
+        return invalidParameter("Taille de fichier invalide")
+      }
+      if (head.ContentLength > MAX_UPLOAD_SIZE) {
+        return invalidParameter("Fichier trop volumineux (10 Mo maximum)")
+      }
+
+      const objet = await configuration.client.send(
+        new GetObjectCommand({ Bucket: configuration.bucket, Key: key })
+      )
+      const octets = await octetsDuCorps(objet.Body)
+      if (!octets) return storageError()
+
+      const inspection = await inspecterImageProduit(octets)
+      if (!inspection.ok) {
+        return storageFailure(inspection.code, inspection.message)
+      }
+      if (inspection.image.byteSize > MAX_UPLOAD_SIZE) {
+        return storageFailure(
+          "contenu-refuse",
+          "Le fichier envoyé est trop volumineux (10 Mo maximum)"
+        )
+      }
+
+      await configuration.client.send(
+        new PutObjectCommand({
+          Bucket: configuration.bucket,
+          Key: key,
+          Body: inspection.image.bytes,
+          ContentType: inspection.image.mimeType,
+        })
+      )
+      return {
+        ok: true,
+        valeur: {
+          mimeType: inspection.image.mimeType,
+          byteSize: inspection.image.byteSize,
+          width: inspection.image.width,
+          height: inspection.image.height,
+        },
+      }
     } catch {
       return storageError()
     }

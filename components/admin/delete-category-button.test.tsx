@@ -17,12 +17,14 @@ const ENFANT = "cat-enfant"
 const rendu = monterFormulaire()
 
 function dialogue() {
-  return document.querySelector<HTMLElement>('[data-slot="dialog-content"]')
+  return document.querySelector<HTMLElement>(
+    '[data-slot="dialog-content"], [data-slot="alert-dialog-content"]'
+  )
 }
 
 function declencheur() {
   return rendu.container.querySelector<HTMLElement>(
-    '[data-slot="dialog-trigger"]'
+    '[data-slot="dialog-trigger"], [data-slot="alert-dialog-trigger"]'
   )
 }
 
@@ -138,10 +140,8 @@ describe("DeleteCategoryButton", () => {
     ).not.toBeNull()
   })
 
-  it("confirme une feuille vide, sans quitter la page ni passer par une boîte", async () => {
+  it("confirme une feuille vide dans une boîte qui nomme la Structure, sans quitter la page", async () => {
     const { soumissions, action } = actionQuiCapture<DeleteCategoryState>()
-    const confirme = vi.fn(() => false)
-    vi.stubGlobal("confirm", confirme)
     rendu.render(
       <DeleteCategoryButton
         categoryId={SUPPRIMEE}
@@ -153,22 +153,21 @@ describe("DeleteCategoryButton", () => {
       />
     )
 
-    expect(declencheur()).toBeNull()
-    expect(rendu.boutonDontLeLibelleEst("Supprimer").disabled).toBe(false)
+    await ouvrirDialogue()
 
-    await rendu.soumettre(
-      rendu.container.querySelector<HTMLFormElement>("form")!
+    expect(dialogue()).not.toBeNull()
+    expect(dialogue()!.textContent).toContain(
+      "Supprimer « Structure à supprimer »"
     )
-
-    expect(confirme).toHaveBeenCalledWith(
-      "Supprimer « Structure à supprimer » ? Cette action est définitive."
+    expect(dialogue()!.textContent).toContain("définitive")
+    expect(document.activeElement).toBe(
+      [...dialogue()!.querySelectorAll("button")].find(
+        (bouton) => bouton.textContent === "Annuler"
+      )
     )
     expect(soumissions).toHaveLength(0)
 
-    confirme.mockReturnValue(true)
-    await rendu.soumettre(
-      rendu.container.querySelector<HTMLFormElement>("form")!
-    )
+    await rendu.soumettre(dialogue()!.querySelector<HTMLFormElement>("form")!)
 
     expect(soumissions).toHaveLength(1)
     expect(soumissions[0]!.get("categoryId")).toBe(SUPPRIMEE)
