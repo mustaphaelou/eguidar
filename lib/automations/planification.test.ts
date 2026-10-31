@@ -24,9 +24,13 @@ const runId = randomUUID().slice(0, 8)
 const PREFIXE = `plan-${runId}-`
 const JOUR = new Date("2026-10-28T07:00:00.000Z")
 const LENDEMAIN = new Date("2026-10-29T07:00:00.000Z")
+// Le digest nomme son destinataire par variable d'environnement (ADR-0041) :
+// le test la pose lui-même, sans dépendre du `.env` de la machine.
+const ADRESSE_DIGEST = `digest-${runId}@example.test`
 
 let produitBasId = ""
 let produitHautId = ""
+let adresseDigestInitiale: string | undefined
 
 function options(maintenant: Date): OptionsExecution {
   return { maintenant, delaiDeReprise: () => 0 }
@@ -37,6 +41,9 @@ async function reinitialiserLesExecutions(): Promise<void> {
 }
 
 beforeAll(async () => {
+  adresseDigestInitiale = process.env.ADMIN_EMAIL
+  process.env.ADMIN_EMAIL = ADRESSE_DIGEST
+
   const bas = await prisma.product.create({
     data: {
       name: `${PREFIXE}Écran bas`,
@@ -98,6 +105,8 @@ afterAll(async () => {
   await prisma.automationRuleRevision.deleteMany()
   await prisma.automationRule.deleteMany()
   await prisma.product.deleteMany({ where: { slug: { startsWith: PREFIXE } } })
+  if (adresseDigestInitiale === undefined) delete process.env.ADMIN_EMAIL
+  else process.env.ADMIN_EMAIL = adresseDigestInitiale
   await prisma.$disconnect()
 })
 
@@ -132,6 +141,7 @@ describe("le digest du stock bas, sur une horloge", () => {
     expect(emails.envoyes).toHaveLength(1)
     const premier = emails.envoyes[0]!
     expect(premier.cleIdempotence).toBe("digest.stock-bas/2026-10-28")
+    expect(premier.destinataire).toBe(ADRESSE_DIGEST)
     expect(premier.texte).toContain("Stock bas du 2026-10-28 (seuil 5)")
     expect(premier.texte).toContain("« plan-")
     expect(premier.texte).toContain("Écran bas")
