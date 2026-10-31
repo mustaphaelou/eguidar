@@ -217,7 +217,9 @@ En Docker, la crédential est un secret BuildKit monté pour le seul `RUN` du bu
 
 La CI migre et sème `eguidar_probe`, puis passe son URL au build hôte par `DATABASE_URL`. L’image reçoit la même valeur par l’input `secrets` de `docker/build-push-action` — sous l’identifiant `database_url` — et le constructeur partage le réseau de l’hôte (`driver-opts: network=host`), ce qui laisse le `RUN` du build joindre `127.0.0.1:5432` ; le driver `docker-container` ne sait pas résoudre `host-gateway`. Rien de tout cela ne lit un secret de dépôt (ADR-0020).
 
-Pour Coolify, `docker-compose.yml` déclare `build.secrets: [database_url]`, dont la source est `database_url: environment: DATABASE_URL_BUILD` : la valeur n’est jamais écrite dans le fichier. `build.network: host` laisse le build joindre la base publiée sur `127.0.0.1:5433` par le service `postgres`, et `build.entitlements: [network.host]` accorde le privilège que Docker 29 exige pour ce réseau : sans lui, `docker compose build` s’arrête avant le premier stage sur `additional privileges requested`. Renseignez donc `DATABASE_URL_BUILD` avec une crédential **en lecture seule** et une URL joignable depuis le réseau de l’hôte. L’injection des secrets de build Compose par Coolify reste à vérifier au premier déploiement : si elle manque, le build s’arrête en nommant le catalogue, et #763 inscrit alors le repli (pas de prérendu, génération à la demande) dans l’ADR.
+Pour Coolify, `docker-compose.yml` déclare `build.secrets: [database_url]`, dont la source est `database_url: environment: DATABASE_URL_BUILD` : la valeur n’est jamais écrite dans le fichier. Le build reste sur le réseau bridge par défaut et joint la base par le gateway de l’hôte (`build.extra_hosts: host.docker.internal:host-gateway`), que `postgres` publie sur `POSTGRES_HOST_BIND` — `127.0.0.1:5433` en local, et `10.0.1.1:5433` sous Coolify, où l’on pose `10.0.1.1` (l’IP de `docker0`) dans les variables d’environnement de l’application, buildtime comprises. Pas de `build.network: host` : Buildx 0.37.2+ refuse ce réseau si l’appelant ne passe pas `--allow=network.host`, et `docker compose build` — la commande que Coolify exécute — n’a pas ce drapeau ; `build.entitlements` ne l’accorde pas, un target bake ne fait que *demander* le privilège. Renseignez donc `DATABASE_URL_BUILD` avec une crédential **en lecture seule** et une URL en `host.docker.internal`.
+
+La nouvelle adresse de publication ne prend effet qu’à la recréation du service `postgres`. Avant le premier build qui suit ce réglage, recréez-le une fois (`docker compose up -d postgres` depuis le répertoire de déploiement, ou `docker compose -p <projet> up -d postgres` avec le fichier courant) : tant qu’il publie encore `127.0.0.1`, le build ne joint que le loopback et s’arrête en nommant le catalogue. L’injection des secrets de build Compose par Coolify reste à vérifier au premier déploiement : si elle manque, le build s’arrête de la même façon, et #763 inscrit alors le repli (pas de prérendu, génération à la demande) dans l’ADR.
 
 ## Vérifier l’image de déploiement
 
@@ -228,10 +230,13 @@ La CI construit les deux cibles que Coolify déploie — `runner` et `migrate` �
 docker compose up -d postgres redis meilisearch
 
 # 2. Les deux cibles, chargées dans le démon local. Le build de la runner lit
-#    le catalogue : l'URL voyage en secret BuildKit, et --network host laisse
-#    le conteneur de build joindre la base publiée sur 127.0.0.1:5433.
+#    le catalogue : l'URL voyage en secret BuildKit, et --network host +
+#    --allow=network.host laissent le conteneur de build joindre la base
+#    publiée sur 127.0.0.1:5433 (docker compose build ne sait pas passer
+#    --allow, d'où le bridge dans docker-compose.yml).
 DATABASE_URL=postgresql://eguidar:eguidar@127.0.0.1:5433/eguidar_test \
-  docker build --network host --secret id=database_url,env=DATABASE_URL \
+  docker build --allow=network.host --network host \
+    --secret id=database_url,env=DATABASE_URL \
     --target runner -t eguidar-runner:local .
 docker build --target migrate -t eguidar-migrate:local .
 
