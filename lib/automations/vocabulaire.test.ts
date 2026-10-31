@@ -12,6 +12,7 @@ import {
   ENTITES_ECRITES_PAR_ACTION,
   estNomDeVariableEnvironnement,
   filtrerSansBoucle,
+  laConditionEstRemplie,
   verifierCombinaison,
 } from "@/lib/automations/vocabulaire"
 
@@ -132,5 +133,29 @@ describe("le vocabulaire fermé de l'éditeur de Règles", () => {
     expect(declencheursOfferts("email.commande-creee")).toEqual([
       "commande.creee",
     ])
+  })
+})
+
+describe("la condition d'une Règle", () => {
+  it("s'évalue sur la charge de l'événement", () => {
+    expect(laConditionEstRemplie({ type: "toujours" }, {})).toBe(true)
+    expect(
+      laConditionEstRemplie(
+        { type: "statut-commande", statuts: ["expediee"] },
+        { statut: "expediee" }
+      )
+    ).toBe(true)
+    expect(
+      laConditionEstRemplie(
+        { type: "statut-commande", statuts: ["expediee"] },
+        { statut: "annulee" }
+      )
+    ).toBe(false)
+    expect(
+      laConditionEstRemplie(
+        { type: "statut-commande", statuts: ["expediee"] },
+        {}
+      )
+    ).toBe(false)
   })
 })

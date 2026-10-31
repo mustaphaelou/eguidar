@@ -233,6 +233,33 @@ export function conditionsOffertes(
     : ["toujours"]
 }
 
+/**
+ * Évalue la condition d'une règle sur la charge d'un événement. Une condition
+ * inconnue ou une charge qui ne porte pas le champ demandé vaut « non » : la
+ * règle ne s'exécute pas, plutôt que de s'exécuter à l'aveugle. La condition
+ * est reçue brute, telle que la ligne Prisma la porte, pour que la Décision
+ * n'ait besoin ni de Zod ni de la base.
+ */
+export function laConditionEstRemplie(
+  condition: unknown,
+  payload: unknown
+): boolean {
+  if (!condition || typeof condition !== "object") return false
+  const type = (condition as { type?: unknown }).type
+  if (type === "toujours") return true
+  if (type === "statut-commande") {
+    if (!payload || typeof payload !== "object") return false
+    const statut = (payload as { statut?: unknown }).statut
+    const statuts = (condition as { statuts?: unknown }).statuts
+    return (
+      typeof statut === "string" &&
+      Array.isArray(statuts) &&
+      statuts.includes(statut)
+    )
+  }
+  return false
+}
+
 function libelleDuDeclencheur(declencheur: string): string {
   const libelle =
     LIBELLES_DECLENCHEUR[declencheur as TypeEvenementAutomation] ?? declencheur

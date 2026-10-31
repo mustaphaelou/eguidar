@@ -7,6 +7,10 @@ import {
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
 import {
+  deciderAutomation,
+  type DecisionAutomation,
+} from "@/lib/automations/decision"
+import {
   executerLAction,
   type DependancesAutomations,
 } from "@/lib/automations/actions"
@@ -14,7 +18,6 @@ import {
   conditionAutomationSchema,
   configurationRegleSchema,
   ecrireRevisionRegle,
-  laConditionEstRemplie,
   verifierRegle,
   type RegleAutomation,
 } from "@/lib/automations/regles"
@@ -408,6 +411,41 @@ function libelleDeLAction(action: ActionAutomation): string {
 }
 
 /**
+ * La Simulation garde ses phrases et son affichage à deux valeurs ; seule la
+ * Décision juge. Le rendu reste privé pour que les trois consommateurs ne
+ * partagent jamais une prose.
+ */
+function motifDeLaSimulation(
+  decision: DecisionAutomation,
+  regle: RegleAutomation,
+  action: string
+): string {
+  if (decision.decision === "executer") {
+    if (decision.condition === "statut-commande") {
+      return `La condition « ${libelleDeLaCondition(decision.condition)} » retient le statut « ${String(decision.statut)} » : l'action ${action} serait exécutée.`
+    }
+    return `La condition « ${libelleDeLaCondition(decision.condition)} » est remplie : l'action ${action} serait exécutée.`
+  }
+
+  const raison = decision.raison
+  switch (raison.type) {
+    case "declencheur-different": {
+      const libelleRecu =
+        LIBELLES_DECLENCHEUR[
+          raison.recu as keyof typeof LIBELLES_DECLENCHEUR
+        ] ?? raison.recu
+      return `Le déclencheur de la règle ne correspond pas : « ${libelleRecu} » (${raison.recu}) au lieu de « ${LIBELLES_DECLENCHEUR[regle.declencheur]} » (${regle.declencheur}) : l'action ${action} serait ignorée.`
+    }
+    case "regle-desactivee":
+      return "La règle est désactivée : l'action ne serait pas exécutée."
+    case "evenement-expire":
+      return `L'Événement a expiré le ${raison.expireLe.toISOString()} : l'action ne serait pas exécutée.`
+    case "condition-non-remplie":
+      return `La condition « ${libelleDeLaCondition(regle.condition.type)} » ne retient pas le statut « ${String(raison.statut)} » : l'action ${action} serait ignorée.`
+  }
+}
+
+/**
  * Les Événements réels qui peuvent servir de sujet à une simulation : ceux du
  * déclencheur de la règle, du plus récent au plus ancien.
  */
@@ -476,53 +514,11 @@ export async function simulerRegle(
     expiresAt: evenement.expiresAt,
     statut: evenement.status,
   }
-  const action = libelleDeLAction(regle.action)
-
-  if (evenement.type !== regle.declencheur) {
-    return {
-      decision: "ignorerait",
-      motif: `Le déclencheur de la règle ne correspond pas : « ${LIBELLES_DECLENCHEUR[evenement.type as keyof typeof LIBELLES_DECLENCHEUR] ?? evenement.type} » (${evenement.type}) au lieu de « ${LIBELLES_DECLENCHEUR[regle.declencheur]} » (${regle.declencheur}) : l'action ${action} serait ignorée.`,
-      evenement: sujet,
-    }
-  }
-
-  if (!regle.actif) {
-    return {
-      decision: "ignorerait",
-      motif: "La règle est désactivée : l'action ne serait pas exécutée.",
-      evenement: sujet,
-    }
-  }
-
-  if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
-    return {
-      decision: "ignorerait",
-      motif: `L'Événement a expiré le ${evenement.expiresAt.toISOString()} : l'action ne serait pas exécutée.`,
-      evenement: sujet,
-    }
-  }
-
-  if (!laConditionEstRemplie(regle.condition, evenement.payload)) {
-    const statut = (evenement.payload as { statut?: unknown } | null)?.statut
-    return {
-      decision: "ignorerait",
-      motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » ne retient pas le statut « ${String(statut)} » : l'action ${action} serait ignorée.`,
-      evenement: sujet,
-    }
-  }
-
-  if (regle.condition.type === "statut-commande") {
-    const statut = (evenement.payload as { statut?: unknown }).statut
-    return {
-      decision: "enverrait",
-      motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » retient le statut « ${String(statut)} » : l'action ${action} serait exécutée.`,
-      evenement: sujet,
-    }
-  }
+  const decision = deciderAutomation(ligne, evenement, maintenant)
 
   return {
-    decision: "enverrait",
-    motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » est remplie : l'action ${action} serait exécutée.`,
+    decision: decision.decision === "executer" ? "enverrait" : "ignorerait",
+    motif: motifDeLaSimulation(decision, regle, libelleDeLAction(regle.action)),
     evenement: sujet,
   }
 }
