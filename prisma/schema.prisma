@@ -246,8 +246,10 @@ model ArticleBlog {
   titre       String
   slug        String            @unique
   extrait     String
+  chapo       String?
   couverture  String?
   contenu     String
+  notes       String?
   themeId     String
   theme       Theme             @relation(fields: [themeId], references: [id])
   statut      StatutPublication @default(brouillon)
