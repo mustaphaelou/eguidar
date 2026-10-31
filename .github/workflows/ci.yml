@@ -101,8 +101,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
 
   build:
     runs-on: ubuntu-latest

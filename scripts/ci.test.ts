@@ -12,11 +12,16 @@ import {
 
 const RACINE = path.resolve(import.meta.dirname, "..")
 const MANIFESTE = path.join(RACINE, "package.json")
+const FLUX = path.join(RACINE, ".github", "workflows", "ci.yml")
 
 const ENTREE_NON_CHECK = new Map([
   ["dev", "le serveur de développement"],
   ["start", "le serveur de production"],
   ["test:watch", "`test` sans sa fin : les mêmes tests, en boucle"],
+  [
+    "porte:verifier",
+    "le docteur local, qui lit le ruleset vivant : la CI ne peut ni ne doit lire le ruleset, donc aucun job ne l'exécute",
+  ],
   ["format", "le correctif, qui écrit dans l'arbre"],
   [
     "prepare",
@@ -134,6 +139,26 @@ describe("le job de format", () => {
     expect(
       etapesDe("format").some((etape) => utiliseAction(etape, "actions/cache"))
     ).toBe(false)
+  })
+})
+
+describe("le job de test n'exporte aucun jeton GitHub", () => {
+  it("ne met pas `GITHUB_TOKEN` dans l'environnement de l'étape `npm test`", () => {
+    const etapeTest = etapesDe("test").find((etape) => etape.run === "npm test")
+    const env = estObjet(etapeTest?.env) ? etapeTest.env : {}
+
+    expect(
+      etapeTest,
+      "le job « test » n'a aucune étape `npm test` : le jeton pourrait y être exporté sans que rien ne le voie."
+    ).toBeDefined()
+    expect(
+      env,
+      "l'étape `npm test` ne doit pas exporter `GITHUB_TOKEN` : aucune lecture vivante du ruleset n'a lieu en CI, et un jeton de dépôt élargit la surface de tout processus de test."
+    ).not.toHaveProperty("GITHUB_TOKEN")
+  })
+
+  it("ne déclare `GITHUB_TOKEN` nulle part dans le flux", () => {
+    expect(readFileSync(FLUX, "utf8")).not.toMatch(/GITHUB_TOKEN/)
   })
 })
 

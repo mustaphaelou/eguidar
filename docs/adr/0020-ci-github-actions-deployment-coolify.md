@@ -196,3 +196,85 @@ job, the gate and the ruleset stands.
 **How the claim is proven.** The `build` job fails before prerendering when the catalogue is
 unreachable, and the same job boots the built server and checks its HTTP surfaces. A workflow test
 pins the migrate, seed and secret wiring, so none of it can disappear silently.
+
+## Amendment — The Porte de fusion is a versioned contract, and the live ruleset is read by a local doctor (#785, 2026-10-26)
+
+No sentence of this ADR is rewritten; the amendment records a decision taken after it and names the
+sentences it supersedes. The live ruleset is no longer compared to the workflow from the `test`
+job: the contract lives in the repository, the comparison is pure, and the live read becomes a
+local doctor that is honest about its limits.
+
+**The decision: the contract is the source of truth, and the live read is a doctor.**
+
+- **The contract is a checked-in artifact.** `infra/porte-de-fusion.json` records the expected
+  ruleset name, the branch it must cover (`refs/heads/main`), the five required contexts —
+  `build`, `format`, `lint`, `test`, `typecheck`, sorted — and the policy facts that make them a
+  gate: pull request required, branch required up to date, do-not-enforce-on-create off, no review
+  requirement, empty bypass. The keys are domain terms; GitHub's English API names stay in the
+  adapter. `infra/porte-de-fusion.ts` owns the type and the parser: a missing or mistyped field is
+  refused by name, never filled with a default.
+- **The comparison to the workflow is pure and runs in the `test` job.**
+  `infra/porte-de-fusion.test.ts` reads the contract and the workflow's job names, compares them
+  in both directions, and fails with a message naming the contract, the context and the mechanical
+  fix. The contract test is the single owner of the five-job list; `build-secrets.test.ts` keeps
+  its build-wiring and `contents: read` assertions and drops its exact five-job-set assertion.
+- **The live read is a local doctor, never a CI guard.** `npm run porte:verifier` selects the
+  single repository ruleset whose condition covers `refs/heads/main`; the contract's name is a
+  selector and tiebreaker, never a compared gate fact. It compares only the contract-owned facts —
+  the five contexts as a set, strict up-to-date, do-not-enforce-on-create, the pull-request rule,
+  zero required reviews, an empty bypass list and the branch condition — and ignores unrelated
+  rules (`deletion`, `non_fast_forward`, `creation`), IDs, versions and timestamps. It exits `0`
+  on a match, `1` on drift while printing the differing facts, and `2` when the ruleset cannot be
+  read: a `403`/`404` plan, visibility or token block, a missing repository or token, exhausted
+  retries, or several qualifying rulesets that the contract's name cannot separate. It is
+  verify-only: no `PUT`, no automatic reconciliation. The doctor resolves the repository from
+  `GITHUB_REPOSITORY` or the `gh` session and its token from `GH_TOKEN` or `gh auth token`; it
+  never reads the CI `GITHUB_TOKEN`.
+- **The `test` job no longer exports `GITHUB_TOKEN`.** The workflow keeps `contents: read`, no
+  repository secret, variable or PAT is added, and no sixth job appears. The skipped live-read
+  suite and the old live reader are deleted; no green run contains a skipped gate check and no
+  code path outside the doctor reads the live ruleset.
+- **The historical drift is recorded.** The live ruleset once required four contexts — `lint`,
+  `typecheck`, `test`, `build` — while the workflow already declared five, because `format` was
+  added later. A pull request with a red `test` job was merged, and the live-read suite skipped
+  instead of failing, so a green CI hid a gate that did not match the workflow. The contract now
+  records the correct five.
+- **The plan block is named, never skipped.** A `2` is not drift and not an implementation
+  failure: it is the honest outcome when the plan, the repository visibility or the token makes
+  the ruleset unreadable, and the doctor prints the plan-or-visibility remedy. On a session that
+  can read the ruleset, the same command exits `0`; both paths are proven (the readable one by the
+  local run, the blocked one by fixtures). When a plan, visibility or token change is what blocks
+  the read, closing that block is what makes the doctor the live proof; the contract already
+  records the correct five contexts.
+
+**The sentences this amendment supersedes, and how.**
+
+- The **Decision** bullet "The ruleset requires exactly the checks the workflow declares, and a
+  test says so. `scripts/registre-des-checks/` reads the live ruleset from inside the `test` job,
+  compares it to the workflow's job names in both directions, and fails when the two diverge.
+  Adding a job is therefore not enough on its own: its status has to be required by the ruleset
+  too, or the `test` job goes red on the very pull request that adds it." — is superseded on its
+  mechanism, and on that only. The live comparison is no longer a CI guard, and
+  `scripts/registre-des-checks/` no longer exists. The invariant stands: adding a job is not
+  enough on its own, because a workflow job that the contract does not require still fails the
+  contract test on the pull request that adds it. What changes is where the proof lives: a pure
+  test owns the contract-to-workflow comparison, and the live ruleset is read by the local doctor,
+  never by CI.
+
+**What the amendment does not change.**
+
+- **Five jobs and five required status contexts remain** — `lint`, `format`, `typecheck`, `test`,
+  `build`. No sixth job and no sixth context.
+- **CI requires no repository secret or variable and can only read the repository.**
+- **Coolify's deploy behaviour** — webhook on every push to `main`, Dockerfile build, `migrate`
+  before the app — is untouched.
+- **`main` still accepts changes only through a pull request** whose five checks are green and
+  whose branch is up to date with `main`.
+- **Applying the contract to GitHub remains a separate, explicit action.** No `PUT`, no
+  `porte:appliquer`, no automatic reconciliation is built by this amendment.
+
+**How the claim is proven.** `bash scripts/checks.sh` is green, including the pure contract test.
+Deliberately adding a sixth job or flipping a policy fact fails that test with the contract named
+in the message. `npm run porte:verifier` exits `0` when the live ruleset matches; the `2` path is
+fixture-tested for `403`/`404`, exhausted retries, a missing token and several candidates, and
+names the plan-or-visibility remedy.

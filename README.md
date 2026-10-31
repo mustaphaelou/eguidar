@@ -179,17 +179,41 @@ npm test          # exécution unique (migrations appliquées automatiquement)
 npm run test:watch
 ```
 
+## La Porte de fusion
+
+`main` n'accepte une fusion que par une pull request dont les cinq contextes requis sont verts et dont la branche est à jour. Cette **Porte de fusion** est un contrat versionné, `infra/porte-de-fusion.json` : les contextes `build`, `format`, `lint`, `test`, `typecheck` — triés —, une pull request exigée, une branche à jour avec `main`, aucune revue exigée et aucun contournement. Le contrat est la source de vérité, même quand GitHub ne peut pas l'appliquer.
+
+Un test pur compare ce contrat aux noms de jobs de `.github/workflows/ci.yml`, dans les deux sens, à chaque passage de `npm test` : ajouter un job sans l'exiger, ou exiger un contexte qu'aucun job ne fournit, rend la CI rouge en nommant le contrat, le contexte et le correctif.
+
+La lecture du ruleset vivant est un **docteur local**, jamais une garde de CI :
+
+```bash
+npm run porte:verifier
+```
+
+Il lit le ruleset du dépôt qui couvre `refs/heads/main` et le compare aux seuls faits du contrat ; les règles non liées, identifiants, versions et horodatages sont ignorés. Il est **vérificateur seul** : il n'applique jamais le contrat et n'écrit rien dans GitHub.
+
+| Code | Sens                                              |
+| ---- | ------------------------------------------------- |
+| `0`  | le ruleset vivant est conforme au contrat         |
+| `1`  | dérive : le docteur imprime chaque fait divergent |
+| `2`  | ruleset illisible : ce n'est pas une dérive       |
+
+Un `2` est le résultat honnête quand le plan GitHub, la visibilité du dépôt ou les droits du jeton ne permettent pas de lire les rulesets (`403`/`404`), ou quand aucun dépôt ou jeton n'est disponible : dans ces cas, le docteur nomme le remède — rendre le dépôt public, passer à un plan qui autorise les rulesets, fournir un jeton qui peut les lire (`GH_TOKEN`, ou une session `gh`), ou définir `GITHUB_REPOSITORY`. Les autres causes d'illisibilité — tentatives épuisées, réponse malformée, plusieurs rulesets couvrant `main` sans départage par le nom du contrat — sortent aussi `2` et impriment leur cause, sans promettre de remède. Un `2` n'est pas une porte absente et ne doit pas être traité comme un `0`.
+
+Le docteur n'est pas dans `bash scripts/checks.sh` et aucun job de la CI ne l'appelle : la CI reste en `contents: read`, sans secret ni jeton d'administration. Il résout le dépôt par `GITHUB_REPOSITORY` ou la session `gh`, et le jeton par `GH_TOKEN` ou `gh auth token` — jamais le `GITHUB_TOKEN` de la CI. Le chemin `403`/`404` est prouvé par les tests à fixtures ; un poste dont la session `gh` lit un ruleset conforme sort `0`.
+
 ## Construire avec le catalogue
 
 Le build prérend des documents à partir du catalogue qu’il lit à la construction. `npm run build` commence donc par un preflight (`scripts/verifier-catalogue-de-build.ts`) : il ouvre `DATABASE_URL` avec un délai court, compte les produits, catégories et articles publiés, et s’arrête avec `ECHEC : catalogue — …` si la base est absente ou injoignable. Un catalogue joignable mais vide n’échoue pas : le build continue, et les routes dynamiques rendront le paramètre de repli de `lib/parametre-de-repli.ts`. En local, `DATABASE_URL` vient de `.env`.
 
 En Docker, la crédential est un secret BuildKit monté pour le seul `RUN` du build, jamais un `ARG` ni un `ENV` : elle n’entre dans aucune couche et n’apparaît pas dans `docker history`. Le contexte de construction exclut `.env` et `.env.*`, donc le secret ne peut pas non plus arriver par un fichier.
 
-| Build | Crédential | Où elle est définie |
-| --- | --- | --- |
-| Local | `DATABASE_URL` | `.env` |
-| CI (job `build`) | `DATABASE_URL` vers `eguidar_probe` | base éphémère du job, migrée et semée ; aucun secret de dépôt |
-| Coolify | `DATABASE_URL_BUILD`, en lecture seule | environnement du processus Compose, livré au build par `secrets: database_url` |
+| Build            | Crédential                             | Où elle est définie                                                            |
+| ---------------- | -------------------------------------- | ------------------------------------------------------------------------------ |
+| Local            | `DATABASE_URL`                         | `.env`                                                                         |
+| CI (job `build`) | `DATABASE_URL` vers `eguidar_probe`    | base éphémère du job, migrée et semée ; aucun secret de dépôt                  |
+| Coolify          | `DATABASE_URL_BUILD`, en lecture seule | environnement du processus Compose, livré au build par `secrets: database_url` |
 
 La CI migre et sème `eguidar_probe`, puis passe son URL au build hôte par `DATABASE_URL`. L’image reçoit la même valeur par l’input `secrets` de `docker/build-push-action` — sous l’identifiant `database_url` — et le constructeur partage le réseau de l’hôte (`driver-opts: network=host`), ce qui laisse le `RUN` du build joindre `127.0.0.1:5432` ; le driver `docker-container` ne sait pas résoudre `host-gateway`. Rien de tout cela ne lit un secret de dépôt (ADR-0020).
 
@@ -259,16 +283,17 @@ git add -u       # on réindexe
 
 ## Scripts
 
-| Commande | Description |
-| --- | --- |
-| `npm run dev` | Serveur de développement |
-| `npm run build` / `start` | Build et serveur de production |
-| `npm run typecheck` | Vérification TypeScript |
-| `npm run lint` | ESLint |
-| `npm test` | Tests vitest (unitaires + intégration) |
-| `npm run format` | Met le code TypeScript et TSX en forme (écriture) |
-| `npm run format:check` | Signale les fichiers mal formés, sans les toucher (lecture) |
-| `npx prisma db seed` | Données de démo (idempotent) |
+| Commande                  | Description                                                             |
+| ------------------------- | ----------------------------------------------------------------------- |
+| `npm run dev`             | Serveur de développement                                                |
+| `npm run build` / `start` | Build et serveur de production                                          |
+| `npm run typecheck`       | Vérification TypeScript                                                 |
+| `npm run lint`            | ESLint                                                                  |
+| `npm test`                | Tests vitest (unitaires + intégration)                                  |
+| `npm run porte:verifier`  | Docteur local de la Porte de fusion (0 conforme, 1 dérive, 2 illisible) |
+| `npm run format`          | Met le code TypeScript et TSX en forme (écriture)                       |
+| `npm run format:check`    | Signale les fichiers mal formés, sans les toucher (lecture)             |
+| `npx prisma db seed`      | Données de démo (idempotent)                                            |
 
 ## Licence
 

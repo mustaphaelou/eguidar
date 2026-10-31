@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "porte:verifier": "tsx scripts/porte-de-fusion/verifier.ts",
     "format": "tsx scripts/format.ts --ecrire",
     "format:check": "tsx scripts/format.ts",
     "typecheck": "tsc --noEmit",
