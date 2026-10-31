@@ -8,7 +8,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-eguidar}
       POSTGRES_TEST_DB: ${TEST_DB_NAME:-eguidar_test}
     ports:
-      - "127.0.0.1:5433:5432"
+      # Loopback en local. Sous Coolify, POSTGRES_HOST_BIND=10.0.1.1 : le
+      # conteneur de build atteint alors la base par `host.docker.internal`.
+      - "${POSTGRES_HOST_BIND:-127.0.0.1}:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -88,15 +90,14 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runner
-      # Le build lit le catalogue : réseau de l'hôte pour joindre la base
-      # publiée (127.0.0.1:5433), et secret BuildKit plutôt qu'un build arg.
-      network: host
-      # Docker 29 refuse une demande de privilège que le déploiement n'a pas
-      # accordée : sans cette ligne, `docker compose build` s'arrête avant le
-      # premier stage sur « additional privileges requested ». La CI accorde le
-      # même privilège par `allow: network.host`.
-      entitlements:
-        - network.host
+      # Le build lit le catalogue publié par le service `postgres`. Il reste sur
+      # le réseau bridge par défaut et joint la base par le gateway de l'hôte.
+      # Pas de `network: host` : Buildx 0.37.2+ refuse ce réseau si l'appelant ne
+      # passe pas `--allow=network.host`, et `docker compose build` — celui que
+      # Coolify exécute — n'a pas ce drapeau. `build.entitlements` ne l'accorde
+      # pas : un target bake ne fait que *demander* le privilège.
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
       args:
         NEXT_PUBLIC_BETTER_AUTH_URL: ${NEXT_PUBLIC_BETTER_AUTH_URL:-}
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}

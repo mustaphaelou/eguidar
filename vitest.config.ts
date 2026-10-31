@@ -13,7 +13,12 @@ export default defineConfig({
     environment: "node",
     fileParallelism: false,
     include: ["**/*.test.{ts,tsx}"],
-    exclude: ["**/node_modules/**", "**/.git/**", ".worktrees/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/.git/**",
+      ".worktrees/**",
+      ".agents/**",
+    ],
     setupFiles: ["test/setup.ts"],
     globalSetup: ["test/global-setup.ts"],
   },

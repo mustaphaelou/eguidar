@@ -194,16 +194,22 @@ describe("la composition livre le secret de build sans l'écrire", () => {
     expect(JSON.stringify(build)).not.toMatch(/postgresql:\/\//)
   })
 
-  it("donne au build le réseau de l'hôte, pour joindre le catalogue publié", () => {
-    expect(build.network).toBe("host")
+  it("joint le catalogue par le gateway du bridge, sans réseau de l'hôte", () => {
+    // Buildx 0.37.2+ refuse `network: host` si l'appelant ne passe pas
+    // `--allow=network.host`. `docker compose build`, celui que Coolify
+    // exécute, n'a pas ce drapeau ; `build.entitlements` ne l'accorde pas, un
+    // target bake ne fait que *demander* le privilège. Le build reste donc sur
+    // le bridge et joint la base par le gateway.
+    expect(build.network).toBeUndefined()
+    expect(build.entitlements).toBeUndefined()
+    expect(build.extra_hosts).toContain("host.docker.internal:host-gateway")
   })
 
-  it("accorde le privilège réseau que Docker 29 exige, sous peine d'arrêt du build", () => {
-    // `network: host` fait demander `network.host` au constructeur ; Docker 29
-    // refuse la demande si le déploiement ne l'a pas accordée, et le build
-    // s'arrête avant le premier stage. La CI passe le même privilège par
-    // `allow: network.host` sur `docker/build-push-action`.
-    expect(build.entitlements).toContain("network.host")
+  it("rend l'adresse de publication réglable pour le build", () => {
+    const ports = service("postgres").ports
+    expect(Array.isArray(ports) ? ports : []).toContain(
+      "${POSTGRES_HOST_BIND:-127.0.0.1}:5433:5432"
+    )
   })
 })
 
@@ -306,6 +312,20 @@ describe("l'exploitant sait quelle crédential chaque build utilise", () => {
     expect(notes).toContain(VARIABLE_DE_BUILD)
     expect(notes).toContain(`--secret id=${ID_DU_SECRET}`)
     expect(exemple).toContain(`${VARIABLE_DE_BUILD}=`)
+  })
+
+  it("documente les deux profils de build, loopback local et gateway Coolify", () => {
+    // Le build local du README partage le réseau de l'hôte et lit le loopback ;
+    // celui de Coolify reste sur le bridge, d'où `host.docker.internal` et
+    // `POSTGRES_HOST_BIND`.
+    const notes = texteDuFichier(NOTES)
+    const exemple = texteDuFichier(EXEMPLE_ENV)
+
+    expect(notes).toContain("host.docker.internal")
+    expect(notes).toContain("POSTGRES_HOST_BIND")
+    expect(notes).toContain("10.0.1.1")
+    expect(exemple).toContain("POSTGRES_HOST_BIND=")
+    expect(exemple).toContain("host.docker.internal")
   })
 })
 
