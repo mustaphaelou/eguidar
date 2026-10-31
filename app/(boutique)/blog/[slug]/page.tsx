@@ -1,18 +1,30 @@
 import Image from "next/image"
 import { notFound } from "next/navigation"
-import { Suspense } from "react"
+import { Fragment, Suspense } from "react"
 
 import { AppleBreadcrumb } from "@/components/storefront/apple-breadcrumb"
+import { LigneArticleLie } from "@/components/storefront/ligne-article-lie"
+import { PartageArticle } from "@/components/storefront/partage-article"
 import { ProduitLieCarte } from "@/components/storefront/produit-lie-carte"
 import {
   buildArticleDonneesStructurees,
   buildBreadcrumbListDonneesStructurees,
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
-import { aDesSectionsArticle, decoupeContenuArticle } from "@/lib/blog-contenu"
+import {
+  decoupeContenuArticle,
+  decoupeRenvoisDeNote,
+  lignesDeNotes,
+  textesDuFragment,
+  type FragmentArticle,
+} from "@/lib/blog-contenu"
 import { formatPublishedAt, publishedAtISO } from "@/lib/blog-dates"
 import { pageMetadata } from "@/lib/metadata"
-import { getArticleParSlug, parametresDesArticles } from "@/lib/use-cases/blog"
+import {
+  getArticleParSlug,
+  getArticlesLies,
+  parametresDesArticles,
+} from "@/lib/use-cases/blog"
 
 export async function generateStaticParams() {
   return parametresDesArticles()
@@ -63,14 +75,24 @@ async function ArticleContent({
   const data = await getArticleParSlug(slug)
   if (!data) notFound()
 
+  const articlesLies = await getArticlesLies(slug, data.theme.slug)
+
   const crumbs = [
     { name: "Accueil", href: "/" },
     { name: "Blog", href: "/blog" },
     { name: data.titre },
   ]
 
-  const avecSections = aDesSectionsArticle(data.contenu)
-  const blocs = avecSections ? decoupeContenuArticle(data.contenu) : []
+  const fragments = decoupeContenuArticle(data.contenu)
+  const notes = lignesDeNotes(data.notes)
+  const notesCitees = notesCiteesDans(fragments, notes.length)
+  const occurrences = new Map<number, number>()
+  const idDeRenvoi = (numero: number) => {
+    const occurrence = (occurrences.get(numero) ?? 0) + 1
+    occurrences.set(numero, occurrence)
+    return `renvoi-note-${numero}-${occurrence}`
+  }
+  const renvois: RenvoisDeNote = { nombreDeNotes: notes.length, idDeRenvoi }
 
   return (
     <>
@@ -99,61 +121,67 @@ async function ArticleContent({
       />
       <AppleBreadcrumb crumbs={crumbs} />
 
-      <article className="mx-auto w-[653px] pt-8 max-md:w-[576px] max-sm:w-[87.5%]">
-        <p className="text-[12px] leading-[1.3334] font-bold tracking-[-0.01em] text-muted-foreground uppercase sm:text-[14px]">
-          {data.theme.nom}
-          {data.publishedAt ? (
-            <>
-              {" · "}
-              <time dateTime={publishedAtISO(data.publishedAt)}>
+      <div className="mx-auto w-full max-w-[980px]">
+        <article className="grid grid-cols-1 px-4 text-[19px] leading-[1.4211] tracking-[0.012em] max-[1068px]:text-body max-[1068px]:leading-body max-[1068px]:tracking-[-0.022em] sm:px-6 md:grid-cols-[1fr_min(653px,100%)_1fr] md:px-0 [&>*+*]:mt-[44px] max-[1068px]:[&>*+*]:mt-[36px] max-[734px]:[&>*+*]:mt-[32px] [&>p+p]:mt-[1.4211em] max-[1068px]:[&>p+p]:mt-[1.471em]">
+          <header className="pt-[52px] max-[1068px]:pt-[40px] max-[734px]:pt-[32px] md:col-start-2">
+            <span className="block text-[12px] leading-[1.3334] font-bold tracking-[-0.01em] text-muted-foreground uppercase">
+              {data.theme.nom}
+            </span>
+            {data.publishedAt ? (
+              <time
+                dateTime={publishedAtISO(data.publishedAt)}
+                className="mt-[4px] block text-[14px] leading-[1.2858] font-semibold tracking-[-0.016em] text-muted-foreground"
+              >
                 {formatPublishedAt(data.publishedAt)}
               </time>
-            </>
+            ) : null}
+            <h1 className="mt-[20px] text-[48px] leading-[1.0835] font-bold tracking-[-0.003em] max-[1068px]:text-[40px] max-[1068px]:leading-[1.1] max-[1068px]:tracking-[0em] max-[734px]:text-[32px] max-[734px]:leading-[1.125] max-[734px]:tracking-[0.004em]">
+              {data.titre}
+            </h1>
+            <p className="mt-[20px] text-[24px] leading-[1.1667] font-medium tracking-[0.009em] text-foreground max-[1068px]:text-[21px] max-[1068px]:leading-[1.1905] max-[1068px]:tracking-[0.011em]">
+              {data.chapo ?? data.extrait}
+            </p>
+            <PartageArticle titre={data.titre} slug={data.slug} />
+          </header>
+
+          {data.couverture ? (
+            <FigureArticle url={data.couverture} alt="" priorite />
           ) : null}
-        </p>
-        <h1 className="mt-3 text-[48px] leading-[1.0835] font-bold tracking-[-0.003em] max-md:text-[40px] max-md:leading-[1.1] max-md:tracking-[0em] max-sm:text-[32px] max-sm:leading-[1.125] max-sm:tracking-[0.004em]">
-          {data.titre}
-        </h1>
-        <p className="mt-4 text-[19px] leading-[1.4211] tracking-[0.012em] text-muted-foreground">
-          {data.extrait}
-        </p>
 
-        {data.couverture ? (
-          <div className="relative mt-8 aspect-video overflow-hidden rounded-[10px] bg-muted">
-            <Image
-              src={data.couverture}
-              alt=""
-              fill
-              sizes="(min-width: 1069px) 653px, 100vw"
-              className="object-cover"
-              priority
+          {fragments.map((fragment, index) => (
+            <FragmentDuContenu
+              key={index}
+              fragment={fragment}
+              renvois={renvois}
             />
-          </div>
-        ) : null}
+          ))}
 
-        {avecSections ? (
-          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] max-md:text-body max-md:leading-body max-md:tracking-[-0.022em]">
-            {blocs.map((bloc, index) =>
-              bloc.type === "titre-section" ? (
-                <h2
-                  key={index}
-                  className="mt-11 text-[21px] leading-[1.1905] font-bold tracking-[0.011em] sm:mt-12 sm:text-[24px] sm:leading-[1.1667] sm:tracking-[0.009em] lg:mt-[52px]"
-                >
-                  {bloc.texte}
-                </h2>
-              ) : (
-                <p key={index} className="mt-6 whitespace-pre-line first:mt-0">
-                  {bloc.texte}
-                </p>
-              )
-            )}
-          </div>
-        ) : (
-          <div className="mt-8 text-[19px] leading-[1.4211] tracking-[0.012em] whitespace-pre-line max-md:text-body max-md:leading-body max-md:tracking-[-0.022em]">
-            {data.contenu}
-          </div>
-        )}
-      </article>
+          {notes.length > 0 ? (
+            <ol className="list-decimal pl-6 text-[12px] leading-[1.3334] tracking-[-0.01em] text-muted-foreground md:col-start-2">
+              {notes.map((note, index) => {
+                const numero = index + 1
+                return (
+                  <li key={numero} id={`note-${numero}`}>
+                    {note}
+                    {notesCitees.has(numero) ? (
+                      <>
+                        {" "}
+                        <a
+                          href={`#renvoi-note-${numero}-1`}
+                          aria-label={`Retour au renvoi de la note ${numero}`}
+                          className="underline"
+                        >
+                          ↩
+                        </a>
+                      </>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ol>
+          ) : null}
+        </article>
+      </div>
 
       {data.produits.length > 0 ? (
         <section className="mt-12 bg-muted">
@@ -169,7 +197,153 @@ async function ArticleContent({
           </div>
         </section>
       ) : null}
+
+      {articlesLies.length > 0 ? (
+        <section
+          aria-labelledby="articles-lies"
+          className="mx-auto mt-12 w-full max-w-[980px] px-4 sm:px-6 md:px-0"
+        >
+          <h2
+            id="articles-lies"
+            className="text-[24px] leading-[1.1667] font-bold tracking-[0.009em] max-[1068px]:text-[21px] max-[1068px]:leading-[1.1905] max-[1068px]:tracking-[0.011em]"
+          >
+            Articles liés
+          </h2>
+          <ul className="mt-6 border-t border-border">
+            {articlesLies.map((article) => (
+              <LigneArticleLie key={article.slug} article={article} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </>
+  )
+}
+
+interface RenvoisDeNote {
+  nombreDeNotes: number
+  idDeRenvoi: (numero: number) => string
+}
+
+function FragmentDuContenu({
+  fragment,
+  renvois,
+}: {
+  fragment: FragmentArticle
+  renvois: RenvoisDeNote
+}) {
+  switch (fragment.type) {
+    case "intertitre":
+      return (
+        <h2 className="text-[24px] leading-[1.1667] font-bold tracking-[0.009em] max-[1068px]:text-[21px] max-[1068px]:leading-[1.1905] max-[1068px]:tracking-[0.011em] md:col-start-2">
+          {fragment.texte}
+        </h2>
+      )
+    case "figure":
+      return (
+        <FigureArticle
+          url={fragment.url}
+          alt={fragment.alt}
+          legende={fragment.legende}
+        />
+      )
+    case "liste":
+      return (
+        <ul className="list-disc pl-6 md:col-start-2">
+          {fragment.items.map((item, index) => (
+            <li key={index}>
+              <TexteAvecRenvois texte={item} renvois={renvois} />
+            </li>
+          ))}
+        </ul>
+      )
+    case "citation":
+      return (
+        <blockquote className="!mt-[72px] !mb-[72px] text-center text-[40px] leading-[1.1] font-bold tracking-[0em] whitespace-pre-line max-[1068px]:!mt-[64px] max-[1068px]:!mb-[64px] max-[1068px]:text-[32px] max-[1068px]:leading-[1.125] max-[1068px]:tracking-[0.004em] max-[734px]:!mt-[52px] max-[734px]:!mb-[52px] max-[734px]:text-[28px] max-[734px]:leading-[1.1429] max-[734px]:tracking-[0.007em] md:col-span-3 [&+*]:!mt-0">
+          <TexteAvecRenvois texte={fragment.texte} renvois={renvois} />
+        </blockquote>
+      )
+    case "paragraphe":
+      return (
+        <p className="whitespace-pre-line md:col-start-2">
+          <TexteAvecRenvois texte={fragment.texte} renvois={renvois} />
+        </p>
+      )
+  }
+}
+
+function TexteAvecRenvois({
+  texte,
+  renvois,
+}: {
+  texte: string
+  renvois: RenvoisDeNote
+}) {
+  return decoupeRenvoisDeNote(texte, renvois.nombreDeNotes).map(
+    (morceau, index) =>
+      morceau.type === "texte" ? (
+        <Fragment key={index}>{morceau.texte}</Fragment>
+      ) : (
+        <sup key={index}>
+          <a
+            id={renvois.idDeRenvoi(morceau.numero)}
+            href={`#note-${morceau.numero}`}
+            aria-label={`Renvoi vers la note ${morceau.numero}`}
+            className="underline"
+          >
+            {morceau.numero}
+          </a>
+        </sup>
+      )
+  )
+}
+
+function notesCiteesDans(
+  fragments: FragmentArticle[],
+  nombreDeNotes: number
+): Set<number> {
+  const citees = new Set<number>()
+
+  for (const fragment of fragments) {
+    for (const texte of textesDuFragment(fragment)) {
+      for (const morceau of decoupeRenvoisDeNote(texte, nombreDeNotes)) {
+        if (morceau.type === "renvoi") citees.add(morceau.numero)
+      }
+    }
+  }
+
+  return citees
+}
+
+function FigureArticle({
+  url,
+  alt,
+  legende,
+  priorite = false,
+}: {
+  url: string
+  alt: string
+  legende?: string | null
+  priorite?: boolean
+}) {
+  return (
+    <figure className="-mx-4 sm:-mx-6 md:col-span-3 md:mx-0">
+      <div className="relative aspect-video overflow-hidden rounded-[10px] bg-muted">
+        <Image
+          src={url}
+          alt={alt}
+          fill
+          sizes="(min-width: 1069px) 980px, 100vw"
+          className="object-cover"
+          priority={priorite}
+        />
+      </div>
+      {legende != null ? (
+        <figcaption className="mx-auto mt-[16px] w-[87.5%] text-[12px] leading-[1.3334] font-semibold tracking-[-0.01em] text-muted-foreground max-[1068px]:mt-[12px] md:w-full md:max-w-[653px]">
+          {legende}
+        </figcaption>
+      ) : null}
+    </figure>
   )
 }
 
@@ -177,15 +351,21 @@ function ArticleSkeleton() {
   return (
     <>
       <div className="h-11 animate-pulse bg-muted" />
-      <div className="mx-auto flex w-[653px] flex-col gap-4 pt-8 max-md:w-[576px] max-sm:w-[87.5%]">
-        <div className="h-4 w-48 animate-pulse rounded-full bg-muted" />
-        <div className="h-12 w-full animate-pulse rounded-2xl bg-muted" />
-        <div className="h-6 w-5/6 animate-pulse rounded-full bg-muted" />
-        <div className="mt-4 aspect-video w-full animate-pulse rounded-[10px] bg-muted" />
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
-          <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
-          <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
+      <div className="mx-auto w-full max-w-[980px]">
+        <div className="grid grid-cols-1 px-4 sm:px-6 md:grid-cols-[1fr_min(653px,100%)_1fr] md:px-0">
+          <div className="flex flex-col gap-4 pt-[52px] max-[1068px]:pt-[40px] max-[734px]:pt-[32px] md:col-start-2">
+            <div className="h-4 w-48 animate-pulse rounded-full bg-muted" />
+            <div className="h-12 w-full animate-pulse rounded-2xl bg-muted" />
+            <div className="h-6 w-5/6 animate-pulse rounded-full bg-muted" />
+          </div>
+          <div className="-mx-4 mt-[44px] max-[1068px]:mt-[36px] max-[734px]:mt-[32px] sm:-mx-6 md:col-span-3 md:mx-0">
+            <div className="aspect-video w-full animate-pulse rounded-[10px] bg-muted" />
+          </div>
+          <div className="mt-[44px] flex flex-col gap-3 max-[1068px]:mt-[36px] max-[734px]:mt-[32px] md:col-start-2">
+            <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
+          </div>
         </div>
       </div>
     </>
