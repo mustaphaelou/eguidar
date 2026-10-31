@@ -197,6 +197,14 @@ describe("la composition livre le secret de build sans l'écrire", () => {
   it("donne au build le réseau de l'hôte, pour joindre le catalogue publié", () => {
     expect(build.network).toBe("host")
   })
+
+  it("accorde le privilège réseau que Docker 29 exige, sous peine d'arrêt du build", () => {
+    // `network: host` fait demander `network.host` au constructeur ; Docker 29
+    // refuse la demande si le déploiement ne l'a pas accordée, et le build
+    // s'arrête avant le premier stage. La CI passe le même privilège par
+    // `allow: network.host` sur `docker/build-push-action`.
+    expect(build.entitlements).toContain("network.host")
+  })
 })
 
 describe("le job de build atteint un catalogue sans secret de dépôt", () => {
