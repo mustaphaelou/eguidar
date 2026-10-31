@@ -247,3 +247,17 @@ git add -u       # on réindexe
 | `npm run format` | Met le code TypeScript et TSX en forme (écriture) |
 | `npm run format:check` | Signale les fichiers mal formés, sans les toucher (lecture) |
 | `npx prisma db seed` | Données de démo (idempotent) |
+
+## Licence
+
+Le code est publié sous **licence MIT** — [`LICENSE`](LICENSE). `package.json` porte `"license": "MIT"`, et GitHub lit l'un comme l'autre.
+
+Elle autorise sans rien demander : l'usage, la copie, la modification, la fusion, la publication, la distribution, la sous-licence et la vente, **usage commercial compris**. Une seule contrepartie, celle de la MIT : conserver l'avis de copyright et le texte de la licence dans toute copie ou partie substantielle. Le logiciel vient sans garantie.
+
+Trois choses restent hors de la concession :
+
+- **Le nom et le logo « Eguidar »**. Un fork peut reprendre le code ; il ne peut pas se présenter comme la boutique eguidar.com, ni laisser croire qu'il en est l'émetteur.
+- **Le contenu de la boutique** — textes, photos produits, descriptions —, que la MIT ne concède pas. Le code qui l'affiche est libre ; les visuels qu'il affiche ne le sont pas.
+- **Les ressources tierces** — `vendor/`, polices, icônes, dépendances de `node_modules` —, qui gardent leurs propres licences, dans leurs fichiers respectifs.
+
+`"private": true` ne restreint rien : il empêche seulement une publication accidentelle du paquet sur npm. Le code se reprend depuis GitHub ou depuis un clone, aux conditions ci-dessus.
