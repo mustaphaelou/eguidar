@@ -15,6 +15,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Copy01Icon,
   Delete01Icon,
+  Image01Icon,
   MoreHorizontalIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons"
@@ -34,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { EmptyState } from "@/components/admin/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -70,6 +72,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
+import { cn } from "@/lib/utils"
 import {
   CHAMP_IDS_LOT,
   CHAMP_STRUCTURE_LOT,
@@ -125,6 +128,9 @@ export interface StructureDuFiltre {
 }
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
+
+/** Même seuil que le Tableau de bord ; dupliqué pour rester hors du bundle serveur. */
+const SEUIL_STOCK_FAIBLE = 5
 
 const COLONNES_CACHEES = {
   [MISE_EN_AVANT_COLUMN_ID]: false,
@@ -324,224 +330,240 @@ export function ProduitsTable({
 
   const idsSelectionnes = Object.keys(rowSelection)
 
-  const columns: ColumnDef<FaitsProduitListe>[] = (() => {
-    const actionsDeLigne = (produit: FaitsProduitListe) => (
-      <div className="flex justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Actions pour ${produit.name}`}
-              />
+  const actionsDeLigne = (produit: FaitsProduitListe) => (
+    <div className="flex justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Actions pour ${produit.name}`}
+            />
+          }
+        >
+          <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            render={<Link href={`/admin/produits/${produit.id}`} />}
+          >
+            Modifier
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => executer(actions.duplicate, [produit.id])}
+          >
+            <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} />
+            Dupliquer
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              executer(actions.setFeatured, [produit.id], {
+                [CHAMP_VALEUR_LOT]: produit.isFeatured ? "0" : "1",
+              })
             }
           >
-            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              render={<Link href={`/admin/produits/${produit.id}`} />}
-            >
-              Modifier
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => executer(actions.duplicate, [produit.id])}
-            >
-              <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} />
-              Dupliquer
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() =>
-                executer(actions.setFeatured, [produit.id], {
-                  [CHAMP_VALEUR_LOT]: produit.isFeatured ? "0" : "1",
-                })
-              }
-            >
-              {produit.isFeatured
-                ? "Retirer la mise en avant"
-                : "Mettre en avant"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() =>
-                executer(actions.setFreeShipping, [produit.id], {
-                  [CHAMP_VALEUR_LOT]: produit.freeShipping ? "0" : "1",
-                })
-              }
-            >
-              {produit.freeShipping
-                ? "Retirer la livraison offerte"
-                : "Offrir la livraison"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => {
-                setProduitASupprimer(produit)
-                setSuppressionOuverte(true)
-              }}
-            >
-              <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} />
-              Supprimer
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    )
+            {produit.isFeatured
+              ? "Retirer la mise en avant"
+              : "Mettre en avant"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              executer(actions.setFreeShipping, [produit.id], {
+                [CHAMP_VALEUR_LOT]: produit.freeShipping ? "0" : "1",
+              })
+            }
+          >
+            {produit.freeShipping
+              ? "Retirer la livraison offerte"
+              : "Offrir la livraison"}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => {
+              setProduitASupprimer(produit)
+              setSuppressionOuverte(true)
+            }}
+          >
+            <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} />
+            Supprimer
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
 
-    return [
-      {
-        id: SELECTION_COLUMN_ID,
-        enableSorting: false,
-        enableHiding: false,
-        header: ({ table }) => (
-          <Checkbox
-            aria-label="Sélectionner tous les Produits de la page"
-            checked={table.getIsAllPageRowsSelected()}
-            indeterminate={table.getIsSomePageRowsSelected()}
-            onCheckedChange={(coche) =>
-              table.toggleAllPageRowsSelected(coche === true)
-            }
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            aria-label={`Sélectionner ${row.original.name}`}
-            checked={row.getIsSelected()}
-            onCheckedChange={(coche) => row.toggleSelected(coche === true)}
-          />
-        ),
-      },
-      {
-        id: NOM_COLUMN_ID,
-        accessorFn: (produit) => produit.name,
-        meta: { label: "Produit" },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Produit" />
-        ),
-        cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            {row.original.image ? (
-              <Image
-                src={row.original.image}
-                alt=""
-                width={40}
-                height={40}
-                className="size-10 rounded-lg border object-cover"
+  const columns: ColumnDef<FaitsProduitListe>[] = [
+    {
+      id: SELECTION_COLUMN_ID,
+      enableSorting: false,
+      enableHiding: false,
+      header: ({ table }) => (
+        <Checkbox
+          aria-label="Sélectionner tous les Produits de la page"
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
+          onCheckedChange={(coche) =>
+            table.toggleAllPageRowsSelected(coche === true)
+          }
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          aria-label={`Sélectionner ${row.original.name}`}
+          checked={row.getIsSelected()}
+          onCheckedChange={(coche) => row.toggleSelected(coche === true)}
+        />
+      ),
+    },
+    {
+      id: NOM_COLUMN_ID,
+      accessorFn: (produit) => produit.name,
+      meta: { label: "Produit" },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Produit" />
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          {row.original.image ? (
+            <Image
+              src={row.original.image}
+              alt=""
+              width={40}
+              height={40}
+              className="size-10 rounded-lg border object-cover"
+            />
+          ) : (
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+              <HugeiconsIcon
+                icon={Image01Icon}
+                strokeWidth={2}
+                className="size-4"
               />
-            ) : null}
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate font-medium">{row.original.name}</span>
-              <span className="truncate text-sm text-muted-foreground">
-                {row.original.brand}
-              </span>
-            </div>
+            </span>
+          )}
+          <div className="flex min-w-0 flex-col">
+            <Link
+              href={`/admin/produits/${row.original.id}`}
+              className="truncate font-medium underline-offset-4 hover:underline"
+            >
+              {row.original.name}
+            </Link>
+            <span className="truncate text-sm text-muted-foreground">
+              {row.original.brand}
+            </span>
           </div>
-        ),
-      },
-      {
-        id: STRUCTURE_COLUMN_ID,
-        accessorFn: (produit) => produit.categoryName,
-        enableSorting: false,
-        meta: { label: "Structure" },
-        header: "Structure",
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap">{row.original.categoryName}</span>
-        ),
-      },
-      {
-        id: PRIX_COLUMN_ID,
-        accessorFn: (produit) => produit.price,
-        meta: { label: "Prix" },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Prix" />
-        ),
-        cell: ({ row }) => (
-          <span className="font-medium whitespace-nowrap">
-            {formatPrice(row.original.price)}
-          </span>
-        ),
-      },
-      {
-        id: STOCK_COLUMN_ID,
-        accessorFn: (produit) => produit.totalStock,
-        meta: { label: "Stock" },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Stock" />
-        ),
-        cell: ({ row }) => (
-          <span
-            className={
-              row.original.totalStock === 0 ? "text-destructive" : undefined
-            }
-          >
-            {row.original.totalStock}
-          </span>
-        ),
-      },
-      {
-        id: DATE_COLUMN_ID,
-        accessorFn: (produit) => produit.createdAt.getTime(),
-        meta: { label: "Créé le" },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Créé le" />
-        ),
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap text-muted-foreground">
-            {dateFormatter.format(row.original.createdAt)}
-          </span>
-        ),
-      },
-      {
-        id: STATUT_COLUMN_ID,
-        accessorFn: (produit) =>
-          [
-            produit.isFeatured ? "mis-en-avant" : "",
-            produit.freeShipping ? "livraison-offerte" : "",
-          ]
-            .filter(Boolean)
-            .join(","),
-        enableSorting: false,
-        enableHiding: false,
-        header: "Statut",
-        cell: ({ row }) => (
-          <div className="flex flex-wrap gap-1">
-            {row.original.isFeatured ? <Badge>Mis en avant</Badge> : null}
-            {row.original.freeShipping ? (
-              <Badge variant="secondary">Livraison offerte</Badge>
-            ) : null}
-          </div>
-        ),
-      },
-      {
-        id: MISE_EN_AVANT_COLUMN_ID,
-        accessorFn: (produit) => (produit.isFeatured ? "1" : "0"),
-        enableSorting: false,
-        enableHiding: false,
-        header: "Mise en avant",
-        cell: () => null,
-      },
-      {
-        id: LIVRAISON_OFFERTE_COLUMN_ID,
-        accessorFn: (produit) => (produit.freeShipping ? "1" : "0"),
-        enableSorting: false,
-        enableHiding: false,
-        header: "Livraison offerte",
-        cell: () => null,
-      },
-      {
-        id: ACTIONS_COLUMN_ID,
-        enableSorting: false,
-        enableHiding: false,
-        header: () => (
-          <div className="flex justify-end pe-1">
-            <span className="font-medium whitespace-nowrap">Actions</span>
-          </div>
-        ),
-        cell: ({ row }) => actionsDeLigne(row.original),
-      },
-    ]
-  })()
+        </div>
+      ),
+    },
+    {
+      id: STRUCTURE_COLUMN_ID,
+      accessorFn: (produit) => produit.categoryName,
+      enableSorting: false,
+      meta: { label: "Structure", className: "hidden md:table-cell" },
+      header: "Structure",
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap">{row.original.categoryName}</span>
+      ),
+    },
+    {
+      id: PRIX_COLUMN_ID,
+      accessorFn: (produit) => produit.price,
+      meta: { label: "Prix" },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Prix" />
+      ),
+      cell: ({ row }) => (
+        <span className="font-medium whitespace-nowrap">
+          {formatPrice(row.original.price)}
+        </span>
+      ),
+    },
+    {
+      id: STOCK_COLUMN_ID,
+      accessorFn: (produit) => produit.totalStock,
+      meta: { label: "Stock" },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Stock" />
+      ),
+      cell: ({ row }) => (
+        <span
+          className={cn(
+            "tabular-nums",
+            row.original.totalStock === 0 && "font-medium text-destructive",
+            row.original.totalStock > 0 &&
+              row.original.totalStock <= SEUIL_STOCK_FAIBLE &&
+              "font-medium text-amber-700"
+          )}
+        >
+          {row.original.totalStock}
+        </span>
+      ),
+    },
+    {
+      id: DATE_COLUMN_ID,
+      accessorFn: (produit) => produit.createdAt.getTime(),
+      meta: { label: "Créé le", className: "hidden xl:table-cell" },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Créé le" />
+      ),
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap text-muted-foreground">
+          {dateFormatter.format(row.original.createdAt)}
+        </span>
+      ),
+    },
+    {
+      id: STATUT_COLUMN_ID,
+      accessorFn: (produit) =>
+        [
+          produit.isFeatured ? "mis-en-avant" : "",
+          produit.freeShipping ? "livraison-offerte" : "",
+        ]
+          .filter(Boolean)
+          .join(","),
+      enableSorting: false,
+      enableHiding: false,
+      meta: { label: "Statut", className: "hidden lg:table-cell" },
+      header: "Statut",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.isFeatured ? <Badge>Mis en avant</Badge> : null}
+          {row.original.freeShipping ? (
+            <Badge variant="secondary">Livraison offerte</Badge>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: MISE_EN_AVANT_COLUMN_ID,
+      accessorFn: (produit) => (produit.isFeatured ? "1" : "0"),
+      enableSorting: false,
+      enableHiding: false,
+      header: "Mise en avant",
+      cell: () => null,
+    },
+    {
+      id: LIVRAISON_OFFERTE_COLUMN_ID,
+      accessorFn: (produit) => (produit.freeShipping ? "1" : "0"),
+      enableSorting: false,
+      enableHiding: false,
+      header: "Livraison offerte",
+      cell: () => null,
+    },
+    {
+      id: ACTIONS_COLUMN_ID,
+      enableSorting: false,
+      enableHiding: false,
+      header: () => (
+        <div className="flex justify-end pe-1">
+          <span className="font-medium whitespace-nowrap">Actions</span>
+        </div>
+      ),
+      cell: ({ row }) => actionsDeLigne(row.original),
+    },
+  ]
 
   const table = useReactTable({
     data: page.produits,
@@ -634,7 +656,7 @@ export function ProduitsTable({
       />
 
       {idsSelectionnes.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
           <span className="text-sm font-medium">
             {idsSelectionnes.length} produit
             {idsSelectionnes.length > 1 ? "s" : ""} sélectionné
@@ -704,67 +726,160 @@ export function ProduitsTable({
       ) : null}
 
       {page.produits.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-10 text-center">
-          <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-muted">
+        <EmptyState
+          icon={
             <HugeiconsIcon
               icon={Search01Icon}
               strokeWidth={2}
-              className="size-5 text-muted-foreground"
+              className="size-5"
             />
-          </div>
-          <p className="text-sm font-medium">
-            {hasActiveCriteria
+          }
+          title={
+            hasActiveCriteria
               ? "Aucun Produit ne correspond à ces critères."
-              : "Aucun Produit pour le moment."}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {hasActiveCriteria
+              : "Aucun Produit pour le moment."
+          }
+          description={
+            hasActiveCriteria
               ? "Ajustez la recherche ou les filtres pour élargir la liste."
-              : "Les nouveaux Produits apparaîtront ici."}
-          </p>
-          {hasActiveCriteria ? (
-            <Button variant="outline" className="mt-4" onClick={reset}>
-              Réinitialiser les filtres
-            </Button>
-          ) : null}
-        </div>
+              : "Les nouveaux Produits apparaîtront ici."
+          }
+          action={
+            hasActiveCriteria ? (
+              <Button variant="outline" onClick={reset}>
+                Réinitialiser les filtres
+              </Button>
+            ) : null
+          }
+          className="py-14"
+        />
       ) : (
         <>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() ? "selected" : undefined}
+          <div className="hidden overflow-clip rounded-xl border bg-card lg:block">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        className={header.column.columnDef.meta?.className}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() ? "selected" : undefined}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cell.column.columnDef.meta?.className}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex flex-col divide-y overflow-clip rounded-xl border bg-card lg:hidden">
+            {page.produits.map((produit) => {
+              const selectionne = rowSelection[produit.id] === true
+              return (
+                <div
+                  key={produit.id}
+                  data-state={selectionne ? "selected" : undefined}
+                  className="flex flex-col gap-2 p-3 data-[state=selected]:bg-muted"
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      aria-label={`Sélectionner ${produit.name}`}
+                      checked={selectionne}
+                      onCheckedChange={(coche) =>
+                        setRowSelection((precedente) => {
+                          const suivante = { ...precedente }
+                          if (coche === true) suivante[produit.id] = true
+                          else delete suivante[produit.id]
+                          return suivante
+                        })
+                      }
+                    />
+                    {produit.image ? (
+                      <Image
+                        src={produit.image}
+                        alt=""
+                        width={40}
+                        height={40}
+                        className="size-10 shrink-0 rounded-lg border object-cover"
+                      />
+                    ) : (
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+                        <HugeiconsIcon
+                          icon={Image01Icon}
+                          strokeWidth={2}
+                          className="size-4"
+                        />
+                      </span>
+                    )}
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <Link
+                        href={`/admin/produits/${produit.id}`}
+                        className="line-clamp-2 font-medium underline-offset-4 hover:underline"
+                      >
+                        {produit.name}
+                      </Link>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {produit.brand} · {produit.categoryName}
+                      </span>
+                    </div>
+                    {actionsDeLigne(produit)}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 ps-7">
+                    <span className="text-sm font-medium tabular-nums">
+                      {formatPrice(produit.price)}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge
+                        variant={
+                          produit.totalStock === 0 ? "destructive" : "outline"
+                        }
+                        className={cn(
+                          "tabular-nums",
+                          produit.totalStock > 0 &&
+                            produit.totalStock <= SEUIL_STOCK_FAIBLE &&
+                            "border-amber-600/20 bg-amber-500/10 text-amber-700"
+                        )}
+                      >
+                        {produit.totalStock === 0
+                          ? "Rupture"
+                          : `${produit.totalStock} en stock`}
+                      </Badge>
+                      {produit.isFeatured ? <Badge>Mis en avant</Badge> : null}
+                      {produit.freeShipping ? (
+                        <Badge variant="secondary">Livraison offerte</Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
           <DataTablePagination table={table} />
         </>
       )}
@@ -838,7 +953,15 @@ export function ProduitsTable({
 export function ProduitsSkeleton() {
   return (
     <div className="flex flex-col gap-4">
-      <div className="h-8 w-full max-w-64 animate-pulse rounded-lg bg-muted" />
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="h-9 w-full max-w-64 animate-pulse rounded-full bg-muted" />
+        {Array.from({ length: 4 }, (_valeur, index) => (
+          <div
+            key={index}
+            className="h-8 w-28 animate-pulse rounded-full bg-muted"
+          />
+        ))}
+      </div>
       <div className="h-64 animate-pulse rounded-xl bg-muted" />
     </div>
   )

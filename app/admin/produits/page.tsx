@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { parseProduitListingParams } from "@/lib/produit-listing"
 import {
@@ -31,12 +32,15 @@ export default function AdminProductsPage({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Produits</h1>
-        <Button render={<Link href="/admin/produits/nouveau" />}>
-          Nouveau produit
-        </Button>
-      </div>
+      <PageHeader
+        title="Produits"
+        description="Le catalogue, ses prix, son stock et ses mises en avant."
+        actions={
+          <Button render={<Link href="/admin/produits/nouveau" />}>
+            Nouveau produit
+          </Button>
+        }
+      />
 
       <Suspense fallback={<ProduitsSkeleton />}>
         <ProduitsContent searchParamsPromise={searchParams} />

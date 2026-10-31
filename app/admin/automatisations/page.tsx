@@ -1,7 +1,12 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Alert02Icon, Robot01Icon } from "@hugeicons/core-free-icons"
+
 import { BoutonAutomatisation } from "@/components/admin/bouton-automatisation"
+import { EmptyState } from "@/components/admin/empty-state"
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,131 +50,153 @@ export default async function AdminAutomatisationsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">Automatisations</h1>
-          <p className="text-sm text-muted-foreground">
-            Chaque Règle se lit déclencheur → condition → action : elle décide
-            ce qu&apos;un Événement exécute.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            render={<Link href="/admin/automatisations/executions" />}
-          >
-            Historique des exécutions
-          </Button>
-          <Button render={<Link href="/admin/automatisations/nouveau" />}>
-            Nouvelle règle
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Automatisations"
+        description="Chaque Règle se lit déclencheur → condition → action : elle décide ce qu’un Événement exécute."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              render={<Link href="/admin/automatisations/executions" />}
+            >
+              Historique des exécutions
+            </Button>
+            <Button render={<Link href="/admin/automatisations/nouveau" />}>
+              Nouvelle règle
+            </Button>
+          </>
+        }
+      />
 
       {enEchec > 0 ? (
-        <p className="text-sm font-medium" role="status">
-          {enEchec} exécution(s) en échec.{" "}
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          <HugeiconsIcon
+            icon={Alert02Icon}
+            strokeWidth={2}
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+          <span className="font-medium">
+            {enEchec} exécution{enEchec > 1 ? "s" : ""} en échec.
+          </span>
           <Link
             href="/admin/automatisations/executions?statut=echoue"
-            className="underline"
+            className="font-medium underline underline-offset-4"
           >
             Voir les échecs
           </Link>
-        </p>
+        </div>
       ) : null}
 
       {regles.length === 0 ? (
-        <p className="text-muted-foreground">
-          Aucune Règle d&apos;automatisation. Une Règle dit quoi faire quand
-          quelque chose arrive — par exemple envoyer l&apos;e-mail de
-          confirmation quand une Commande est créée. Créez la première règle.
-        </p>
+        <EmptyState
+          icon={
+            <HugeiconsIcon
+              icon={Robot01Icon}
+              strokeWidth={2}
+              className="size-5"
+            />
+          }
+          title="Aucune Règle d'automatisation."
+          description="Une Règle dit quoi faire quand quelque chose arrive — par exemple envoyer l’e-mail de confirmation quand une Commande est créée."
+          action={
+            <Button render={<Link href="/admin/automatisations/nouveau" />}>
+              Créer la première règle
+            </Button>
+          }
+          className="py-14"
+        />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Règle</TableHead>
-              <TableHead>Déclencheur → condition → action</TableHead>
-              <TableHead>État</TableHead>
-              <TableHead>Dernière exécution</TableHead>
-              <TableHead className="text-end">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {regles.map((regle) => (
-              <TableRow key={regle.id}>
-                <TableCell className="font-medium">{regle.nom}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1 text-sm">
-                    <span>
-                      {LIBELLES_DECLENCHEUR[regle.declencheur]} →{" "}
-                      {libelleDeLaCondition(regle.condition.type)} →{" "}
-                      {LIBELLES_ACTION[regle.action]}
-                    </span>
-                    {regle.configuration ? (
-                      <span className="font-mono text-xs text-muted-foreground">
-                        destinataire :{" "}
-                        {regle.configuration.destinataireVariable}
-                      </span>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={regle.actif ? "secondary" : "outline"}>
-                    {regle.actif ? "Actif" : "Inactif"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {regle.derniereExecution ? (
-                    <div className="flex flex-col text-sm">
-                      <span>
-                        {
-                          LIBELLES_STATUT_EXECUTION[
-                            regle.derniereExecution.statut
-                          ]
-                        }
-                      </span>
-                      <span className="text-muted-foreground">
-                        {formatDate.format(regle.derniereExecution.debut)} ·{" "}
-                        {
-                          LIBELLES_DECLENCHEUR_EXECUTION[
-                            regle.derniereExecution.declencheur
-                          ]
-                        }
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">
-                      Jamais
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      render={
-                        <Link href={`/admin/automatisations/${regle.id}`} />
-                      }
-                    >
-                      Modifier
-                    </Button>
-                    <BoutonAutomatisation
-                      action={basculerRegleAction}
-                      champs={{
-                        regleId: regle.id,
-                        actif: regle.actif ? "non" : "actif",
-                        retour: "liste",
-                      }}
-                      libelle={regle.actif ? "Désactiver" : "Activer"}
-                    />
-                  </div>
-                </TableCell>
+        <div className="overflow-clip rounded-xl border bg-card">
+          <Table>
+            <TableHeader className="bg-muted/40">
+              <TableRow>
+                <TableHead>Règle</TableHead>
+                <TableHead>Déclencheur → condition → action</TableHead>
+                <TableHead>État</TableHead>
+                <TableHead>Dernière exécution</TableHead>
+                <TableHead className="text-end">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {regles.map((regle) => (
+                <TableRow key={regle.id}>
+                  <TableCell className="font-medium">{regle.nom}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1 text-sm">
+                      <span>
+                        {LIBELLES_DECLENCHEUR[regle.declencheur]} →{" "}
+                        {libelleDeLaCondition(regle.condition.type)} →{" "}
+                        {LIBELLES_ACTION[regle.action]}
+                      </span>
+                      {regle.configuration ? (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          destinataire :{" "}
+                          {regle.configuration.destinataireVariable}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={regle.actif ? "secondary" : "outline"}>
+                      {regle.actif ? "Actif" : "Inactif"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {regle.derniereExecution ? (
+                      <div className="flex flex-col text-sm">
+                        <span>
+                          {
+                            LIBELLES_STATUT_EXECUTION[
+                              regle.derniereExecution.statut
+                            ]
+                          }
+                        </span>
+                        <span className="text-muted-foreground">
+                          {formatDate.format(regle.derniereExecution.debut)} ·{" "}
+                          {
+                            LIBELLES_DECLENCHEUR_EXECUTION[
+                              regle.derniereExecution.declencheur
+                            ]
+                          }
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        Jamais
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        render={
+                          <Link href={`/admin/automatisations/${regle.id}`} />
+                        }
+                      >
+                        Modifier
+                      </Button>
+                      <BoutonAutomatisation
+                        action={basculerRegleAction}
+                        champs={{
+                          regleId: regle.id,
+                          actif: regle.actif ? "non" : "actif",
+                          retour: "liste",
+                        }}
+                        libelle={regle.actif ? "Désactiver" : "Activer"}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   )

@@ -338,11 +338,11 @@ describe("AdminCategoriesPage — arbre propre", () => {
       lignes.find((candidate) => candidate.nom === structure.name)?.cellules ??
       []
 
-    expect(cellulesDe(arbre.racine)[4]).toBe("1 sur 2")
-    expect(cellulesDe(arbre.autre)[4]).toBe("2 sur 2")
-    expect(cellulesDe(arbre.enfantA)[4]).toBe("1 sur 2")
-    expect(cellulesDe(arbre.enfantB)[4]).toBe("2 sur 2")
-    expect(cellulesDe(arbre.petitA)[4]).toBe("1 sur 1")
+    expect(cellulesDe(arbre.racine)[2]).toBe("1 sur 2")
+    expect(cellulesDe(arbre.autre)[2]).toBe("2 sur 2")
+    expect(cellulesDe(arbre.enfantA)[2]).toBe("1 sur 2")
+    expect(cellulesDe(arbre.enfantB)[2]).toBe("2 sur 2")
+    expect(cellulesDe(arbre.petitA)[2]).toBe("1 sur 1")
   })
 
   it("montre les Produits directs et le cumul de la branche", async () => {
@@ -365,12 +365,12 @@ describe("AdminCategoriesPage — arbre propre", () => {
         lignes.find((candidate) => candidate.nom === structure.name)
           ?.cellules ?? []
 
-      expect(cellulesDe(arbre.petitA)[2]).toContain("1 direct")
-      expect(cellulesDe(arbre.petitA)[2]).toContain("1 au total")
-      expect(cellulesDe(arbre.enfantA)[2]).toContain("0 direct")
-      expect(cellulesDe(arbre.enfantA)[2]).toContain("1 au total")
-      expect(cellulesDe(arbre.racine)[2]).toContain("0 direct")
-      expect(cellulesDe(arbre.racine)[2]).toContain("1 au total")
+      expect(cellulesDe(arbre.petitA)[1]).toContain("1 direct")
+      expect(cellulesDe(arbre.petitA)[1]).toContain("1 au total")
+      expect(cellulesDe(arbre.enfantA)[1]).toContain("0 direct")
+      expect(cellulesDe(arbre.enfantA)[1]).toContain("1 au total")
+      expect(cellulesDe(arbre.racine)[1]).toContain("0 direct")
+      expect(cellulesDe(arbre.racine)[1]).toContain("1 au total")
     } finally {
       await prisma.product.delete({ where: { id: produit.id } })
     }

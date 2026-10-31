@@ -42,10 +42,20 @@ async function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthSessionLayer hasGoogle={hasGoogleOAuth} hasFacebook={hasFacebookOAuth}>
       <SidebarProvider defaultOpen={defaultOpen}>
+        <a
+          href="#contenu-admin"
+          className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow-lg focus:ring-2 focus:ring-ring focus:outline-none"
+        >
+          Aller au contenu
+        </a>
         <AppSidebar userName={client.name ?? ""} userEmail={client.email} />
         <SidebarInset className="@container/content">
           <SiteHeader userName={client.name ?? ""} userEmail={client.email} />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+          <main
+            id="contenu-admin"
+            tabIndex={-1}
+            className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 outline-none sm:px-6 sm:py-8"
+          >
             {children}
           </main>
         </SidebarInset>

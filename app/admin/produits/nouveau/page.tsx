@@ -1,6 +1,9 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { ProductForm } from "@/components/admin/product-form"
+import { Button } from "@/components/ui/button"
 import { listerImagesPourGalerie } from "@/lib/use-cases/images-produit"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import { createProductAction } from "@/app/admin/produits/actions"
@@ -25,7 +28,15 @@ export default async function NewProductPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Nouveau produit</h1>
+      <PageHeader
+        title="Nouveau produit"
+        description="Renseignez les informations, les images et les variantes du Produit."
+        actions={
+          <Button variant="outline" render={<Link href="/admin/produits" />}>
+            Retour aux produits
+          </Button>
+        }
+      />
       <ProductForm
         structures={structures}
         bibliotheque={bibliotheque}

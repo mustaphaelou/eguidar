@@ -1,6 +1,9 @@
+import Link from "next/link"
 import { notFound } from "next/navigation"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { CityForm } from "@/components/admin/city-form"
+import { Button } from "@/components/ui/button"
 import { listAdminCities } from "@/lib/use-cases/livraison"
 import { updateCityAction } from "@/app/admin/villes/actions"
 
@@ -17,7 +20,15 @@ export default async function EditCityPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Modifier — {city.name}</h1>
+      <PageHeader
+        title={`Modifier — ${city.name}`}
+        description="Le nom de la ville et le frais de livraison appliqué au panier."
+        actions={
+          <Button variant="outline" render={<Link href="/admin/villes" />}>
+            Retour aux villes
+          </Button>
+        }
+      />
       <CityForm city={city} action={updateCityAction} />
     </div>
   )

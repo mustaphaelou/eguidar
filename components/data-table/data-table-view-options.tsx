@@ -18,6 +18,8 @@ declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     label?: string
+    /** Classes appliquées à l'en-tête et aux cellules, par exemple pour masquer une colonne sur mobile. */
+    className?: string
   }
 }
 
@@ -32,7 +34,7 @@ function DataTableViewOptions<TData>({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="max-sm:h-9">
             Affichage
             <HugeiconsIcon
               icon={SlidersHorizontalIcon}

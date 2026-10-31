@@ -4,7 +4,13 @@ import Image from "next/image"
 import { useActionState, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -71,9 +77,12 @@ export function CategoryForm({
         </p>
       ) : null}
 
-      <Card>
+      <Card className="w-full max-w-3xl">
         <CardHeader>
           <CardTitle>Informations</CardTitle>
+          <CardDescription>
+            Le nom, le slug et la place de la catégorie dans l’arbre.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid gap-4 md:grid-cols-2">

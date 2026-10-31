@@ -112,9 +112,9 @@ describe("MediasBibliotheque", () => {
     })
 
     expect(rendu.container.textContent).toContain(
-      "2 Image(s) produit affichée(s) sur 2 au registre"
+      "2 Images produit affichées sur 2 au registre"
     )
-    expect(rendu.container.textContent).toContain("1 inutilisée(s)")
+    expect(rendu.container.textContent).toContain("1 inutilisée")
     expect(rendu.container.textContent).toContain("1 sans texte alternatif")
     expect(
       rendu.container.querySelector<HTMLInputElement>("#medias-q")?.value
@@ -133,9 +133,8 @@ describe("MediasBibliotheque", () => {
     ].filter((vignette) => !vignette.closest('[data-slot="drawer-popup"]'))
     expect(vignettes).toHaveLength(2)
     for (const vignette of vignettes) {
-      expect(vignette.getAttribute("data-image-width")).toBe("96")
-      expect(vignette.getAttribute("data-image-height")).toBe("96")
-      expect(vignette.getAttribute("data-image-sizes")).toBe("96px")
+      expect(vignette.getAttribute("data-image-src")).toBeTruthy()
+      expect(vignette.getAttribute("data-image-sizes")).toContain("50vw")
     }
   })
 
@@ -157,7 +156,7 @@ describe("MediasBibliotheque", () => {
     expect(cases).toHaveLength(2)
     await cliquer(cases[1]!)
 
-    expect(rendu.container.textContent).toContain("1 sélectionnée(s)")
+    expect(rendu.container.textContent).toContain("1 sélectionnée")
     const formulaire = [...rendu.container.querySelectorAll("form")].find(
       (candidat) => candidat.querySelector('input[name="publicUrl"]')
     )

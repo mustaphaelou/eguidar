@@ -3,7 +3,13 @@
 import { useActionState, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -100,9 +106,12 @@ export function RegleAutomationForm({
         </p>
       ) : null}
 
-      <Card>
+      <Card className="w-full max-w-3xl">
         <CardHeader>
           <CardTitle>La Règle</CardTitle>
+          <CardDescription>
+            Le déclencheur décide des conditions et des actions offertes.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -230,13 +239,19 @@ export function RegleAutomationForm({
             </fieldset>
           ) : null}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
             <Checkbox
               id="actif"
               name="actif"
               defaultChecked={regle?.actif ?? true}
+              className="mt-0.5"
             />
-            <Label htmlFor="actif">Règle active</Label>
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="actif">Règle active</Label>
+              <p className="text-xs text-muted-foreground">
+                Une règle inactive reste enregistrée mais ne s’exécute pas.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
