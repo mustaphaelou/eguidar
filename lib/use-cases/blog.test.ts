@@ -584,6 +584,36 @@ describe("blog lecture publique", () => {
       ])
     })
 
+    it("n'offre jamais un Article dont la date de publication est future", async () => {
+      await creerArticle({
+        suffix: "lies-courant-horloge",
+        statut: "publie",
+        publishedAt: new Date("2026-01-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-passe-horloge",
+        statut: "publie",
+        publishedAt: new Date("2026-02-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-futur-horloge",
+        statut: "publie",
+        publishedAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        themeSlug: "guides",
+      })
+
+      const lies = await fetchArticlesLies(
+        bSlug("lies-courant-horloge"),
+        "guides"
+      )
+
+      expect(lies.map((article) => article.slug)).toEqual([
+        bSlug("lies-passe-horloge"),
+      ])
+    })
+
     it("retourne une liste vide quand l'Article est seul", async () => {
       await creerArticle({
         suffix: "lies-courant-seul",

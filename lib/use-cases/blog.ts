@@ -196,9 +196,8 @@ export async function fetchArticlesLies(
   themeSlug: string
 ): Promise<ArticleLie[]> {
   const publies = {
-    statut: "publie" as const,
+    ...filtreArticlePublic(),
     slug: { not: slug },
-    publishedAt: { not: null },
   }
   const memes = await prisma.articleBlog.findMany({
     where: { ...publies, theme: { is: { slug: themeSlug } } },
