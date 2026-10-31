@@ -3,7 +3,7 @@
 import { useId } from "react"
 import { type Table } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon } from "@hugeicons/core-free-icons"
+import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -58,7 +58,7 @@ function DataTableToolbar<TData>({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-2.5",
+        "flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
         className
       )}
     >
@@ -66,13 +66,21 @@ function DataTableToolbar<TData>({
         <Label htmlFor={idRecherche} className="sr-only">
           {searchLabel}
         </Label>
-        <Input
-          id={idRecherche}
-          placeholder={searchPlaceholder}
-          value={(table.getState().globalFilter ?? "") as string}
-          onChange={(event) => table.setGlobalFilter(event.target.value)}
-          className="h-8 w-full max-w-64 md:w-40 lg:w-64"
-        />
+        <div className="relative w-full sm:max-w-64 md:w-44 lg:w-64">
+          <HugeiconsIcon
+            icon={Search01Icon}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-muted-foreground"
+          />
+          <Input
+            id={idRecherche}
+            placeholder={searchPlaceholder}
+            value={(table.getState().globalFilter ?? "") as string}
+            onChange={(event) => table.setGlobalFilter(event.target.value)}
+            className="h-9 w-full ps-9"
+          />
+        </div>
         {filters.map((filter) => {
           const column = table.getColumn(filter.columnId)
           if (!column) return null
@@ -89,6 +97,7 @@ function DataTableToolbar<TData>({
           <Button
             variant="outline"
             size="sm"
+            className="max-sm:h-9"
             onClick={() => {
               table.resetColumnFilters()
               table.setGlobalFilter("")
@@ -103,14 +112,16 @@ function DataTableToolbar<TData>({
           </Button>
         )}
       </div>
-      <DataTableViewOptions table={table} />
-      {resultCount !== undefined ? (
-        <DataTableStatus
-          resultCount={resultCount}
-          selectedCount={nombreSelectionne}
-          labels={statusLabels}
-        />
-      ) : null}
+      <div className="flex items-center gap-2 sm:ms-auto">
+        <DataTableViewOptions table={table} />
+        {resultCount !== undefined ? (
+          <DataTableStatus
+            resultCount={resultCount}
+            selectedCount={nombreSelectionne}
+            labels={statusLabels}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

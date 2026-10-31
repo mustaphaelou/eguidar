@@ -24,7 +24,9 @@ export function NavGroup({ section }: { section: NavSection }) {
   return (
     <SidebarGroup>
       {section.title ? (
-        <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+        <SidebarGroupLabel className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+          {section.title}
+        </SidebarGroupLabel>
       ) : null}
       <SidebarGroupContent>
         <SidebarMenu>
@@ -39,6 +41,7 @@ export function NavGroup({ section }: { section: NavSection }) {
                 <SidebarMenuButton
                   isActive={isActive}
                   tooltip={item.title}
+                  className="relative h-9 rounded-lg"
                   render={
                     item.isExternal ? (
                       <a
@@ -54,6 +57,12 @@ export function NavGroup({ section }: { section: NavSection }) {
                     if (isMobile) setOpenMobile(false)
                   }}
                 >
+                  {isActive ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-2 start-0 w-0.5 rounded-full bg-primary"
+                    />
+                  ) : null}
                   {item.icon ? (
                     <HugeiconsIcon icon={item.icon} strokeWidth={2} />
                   ) : null}
@@ -62,7 +71,7 @@ export function NavGroup({ section }: { section: NavSection }) {
                     <HugeiconsIcon
                       icon={ExternalLinkIcon}
                       strokeWidth={2}
-                      className="size-4 text-muted-foreground"
+                      className="ms-auto size-3.5 text-muted-foreground"
                     />
                   ) : null}
                 </SidebarMenuButton>

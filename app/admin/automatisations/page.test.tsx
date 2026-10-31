@@ -178,7 +178,7 @@ describe("la page des automatisations", () => {
 
     const html = await rendreLaPage()
     const texte = sansBalises(html)
-    expect(texte).toContain("1 exécution(s) en échec")
+    expect(texte).toContain("1 exécution en échec")
     expect(texte).toContain("Échoué")
     expect(texte).toContain("Événement")
     expect(texte).toMatch(/\d{2}\/\d{2}\/\d{4}/)

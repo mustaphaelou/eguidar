@@ -1,6 +1,9 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { RegleAutomationForm } from "@/components/admin/regle-automation-form"
+import { Button } from "@/components/ui/button"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { REGISTRE_STATUTS } from "@/lib/statut-de-commande"
 import { enregistrerRegleAction } from "@/app/admin/automatisations/actions"
@@ -16,14 +19,18 @@ const STATUTS = (Object.keys(REGISTRE_STATUTS) as OrderStatus[]).map(
 export default function NouvelleReglePage() {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Nouvelle règle</h1>
-        <p className="text-sm text-muted-foreground">
-          Composez la Règle à partir du vocabulaire fermé : déclencheur,
-          condition, action. Une combinaison impossible est refusée en la
-          nommant.
-        </p>
-      </div>
+      <PageHeader
+        title="Nouvelle règle"
+        description="Composez la Règle à partir du vocabulaire fermé : déclencheur, condition, action. Une combinaison impossible est refusée en la nommant."
+        actions={
+          <Button
+            variant="outline"
+            render={<Link href="/admin/automatisations" />}
+          >
+            Retour aux règles
+          </Button>
+        }
+      />
       <RegleAutomationForm statuts={STATUTS} action={enregistrerRegleAction} />
     </div>
   )

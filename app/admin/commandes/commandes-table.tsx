@@ -18,6 +18,7 @@ import {
   type DataTableFacetedFilterOption,
 } from "@/components/data-table"
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+import { EmptyState } from "@/components/admin/empty-state"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -71,6 +72,7 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
     id: CLIENT_COLUMN_ID,
     accessorFn: (row) => row.customerName,
     enableSorting: false,
+    meta: { label: "Client", className: "hidden sm:table-cell" },
     header: CLIENT_COLUMN_ID,
     cell: ({ row }) => (
       <div className="flex max-w-56 min-w-0 flex-col">
@@ -85,6 +87,7 @@ const columns: ColumnDef<AdminOrderSummary>[] = [
     id: ARTICLES_COLUMN_ID,
     accessorFn: (row) => row.itemCount,
     enableSorting: false,
+    meta: { label: "Articles", className: "hidden md:table-cell" },
     header: ARTICLES_COLUMN_ID,
     cell: ({ row }) => (
       <span className="whitespace-nowrap">{row.original.itemCount}</span>
@@ -203,64 +206,117 @@ export function CommandesTable({
       />
 
       {page.orders.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-10 text-center">
-          <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-muted">
+        <EmptyState
+          icon={
             <HugeiconsIcon
               icon={Search01Icon}
               strokeWidth={2}
-              className="size-5 text-muted-foreground"
+              className="size-5"
             />
-          </div>
-          <p className="text-sm font-medium">
-            {hasActiveCriteria
+          }
+          title={
+            hasActiveCriteria
               ? "Aucune commande ne correspond à ces critères."
-              : "Aucune commande pour le moment."}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {hasActiveCriteria
+              : "Aucune commande pour le moment."
+          }
+          description={
+            hasActiveCriteria
               ? "Ajustez la recherche ou les filtres pour élargir la liste."
-              : "Les nouvelles commandes apparaîtront ici."}
-          </p>
-          {hasActiveCriteria && (
-            <Button variant="outline" className="mt-4" onClick={reset}>
-              Réinitialiser les filtres
-            </Button>
-          )}
-        </div>
+              : "Les nouvelles commandes apparaîtront ici, avec leur statut et leur montant."
+          }
+          action={
+            hasActiveCriteria ? (
+              <Button variant="outline" onClick={reset}>
+                Réinitialiser les filtres
+              </Button>
+            ) : null
+          }
+          className="py-14"
+        />
       ) : (
         <>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="flex flex-col divide-y overflow-clip rounded-xl border bg-card lg:hidden">
+            {page.orders.map((order) => (
+              <div key={order.id} className="flex flex-col gap-2 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 flex-col">
+                    <span className="font-medium">
+                      {shortOrderId(order.id)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {dateFormatter.format(order.createdAt)}
+                    </span>
+                  </div>
+                  <OrderStatusBadge status={order.status} />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm">
+                      {order.customerName}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {order.customerEmail}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium whitespace-nowrap tabular-nums">
+                    {formatPrice(order.totalPayable)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {order.itemCount} article{order.itemCount > 1 ? "s" : ""}
+                  </span>
+                  <Button
+                    render={<Link href={`/admin/commandes/${order.id}`} />}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Voir la commande
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-clip rounded-xl border bg-card lg:block">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        className={header.column.columnDef.meta?.className}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cell.column.columnDef.meta?.className}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
           <DataTablePagination table={table} />
         </>
       )}
@@ -271,7 +327,10 @@ export function CommandesTable({
 export function CommandesSkeleton() {
   return (
     <div className="flex flex-col gap-4">
-      <div className="h-8 w-full max-w-64 animate-pulse rounded-lg bg-muted" />
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="h-9 w-full max-w-64 animate-pulse rounded-full bg-muted" />
+        <div className="h-8 w-40 animate-pulse rounded-full bg-muted" />
+      </div>
       <div className="h-64 animate-pulse rounded-xl bg-muted" />
     </div>
   )

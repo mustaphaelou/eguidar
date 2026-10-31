@@ -6,6 +6,7 @@ import {
   PlusSignIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useActionState, useEffect, useRef, useState } from "react"
 
@@ -24,7 +25,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -220,6 +227,9 @@ export function ProductForm({
       <Card>
         <CardHeader>
           <CardTitle>Informations</CardTitle>
+          <CardDescription>
+            Le nom, la marque, le prix et la Structure qui range le Produit.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <FieldError>{state.sections?.informations}</FieldError>
@@ -318,6 +328,7 @@ export function ProductForm({
                 id="description"
                 name={CHAMPS_FORMULAIRE_PRODUIT.description}
                 defaultValue={product?.description}
+                className="min-h-24"
               />
             </div>
           </div>
@@ -338,6 +349,10 @@ export function ProductForm({
       <Card>
         <CardHeader>
           <CardTitle>Mise en avant</CardTitle>
+          <CardDescription>
+            Ce que voit la boutique : page d’accueil, livraison offerte et ordre
+            de tri.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <FieldError>{state.sections?.miseEnAvant}</FieldError>
@@ -382,6 +397,9 @@ export function ProductForm({
       <Card>
         <CardHeader>
           <CardTitle>Images</CardTitle>
+          <CardDescription>
+            La première image sert de vignette dans le catalogue.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <FieldError>{state.sections?.images}</FieldError>
@@ -399,6 +417,9 @@ export function ProductForm({
       <Card>
         <CardHeader>
           <CardTitle>Variantes (tailles, couleurs, SKU…)</CardTitle>
+          <CardDescription>
+            Chaque variante porte son propre stock et son écart de prix.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <FieldError>{state.sections?.variantes}</FieldError>
@@ -502,9 +523,16 @@ export function ProductForm({
         </CardContent>
       </Card>
 
-      <div className="barre-enregistrement sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 border-t bg-background/95 px-1 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
+      <div className="barre-enregistrement sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:-mx-6 sm:px-6">
         <Button type="submit" disabled={isPending}>
           {isPending ? "Enregistrement…" : "Enregistrer le produit"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          render={<Link href="/admin/produits" />}
+        >
+          Annuler
         </Button>
         <p
           role="status"

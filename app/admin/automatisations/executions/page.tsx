@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { BoutonAutomatisation } from "@/components/admin/bouton-automatisation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,22 +53,18 @@ export default function AdminExecutionsPage({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">Historique des exécutions</h1>
-          <p className="text-sm text-muted-foreground">
-            Statut, tentative, erreur et horodatages de chaque Exécution. Une
-            Exécution réessayée est marquée « Manuel » ; l&apos;historique est
-            conservé quatorze jours.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          render={<Link href="/admin/automatisations" />}
-        >
-          Retour aux règles
-        </Button>
-      </div>
+      <PageHeader
+        title="Historique des exécutions"
+        description="Statut, tentative, erreur et horodatages de chaque Exécution. Une Exécution réessayée est marquée « Manuel » ; l’historique est conservé quatorze jours."
+        actions={
+          <Button
+            variant="outline"
+            render={<Link href="/admin/automatisations" />}
+          >
+            Retour aux règles
+          </Button>
+        }
+      />
 
       <Suspense fallback={<p className="text-muted-foreground">Chargement…</p>}>
         <ExecutionsContent searchParamsPromise={searchParams} />
@@ -150,74 +147,76 @@ async function ExecutionsContent({
       </form>
 
       {executions.length === 0 ? (
-        <p className="text-muted-foreground">
+        <p className="rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
           Aucune exécution pour ces filtres. Les effets des prochaines mutations
           apparaîtront ici.
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Statut</TableHead>
-              <TableHead>Règle</TableHead>
-              <TableHead>Événement</TableHead>
-              <TableHead>Déclencheur</TableHead>
-              <TableHead>Tentative</TableHead>
-              <TableHead>Erreur</TableHead>
-              <TableHead>Début</TableHead>
-              <TableHead>Fin</TableHead>
-              <TableHead className="text-end">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {executions.map((execution) => (
-              <TableRow key={execution.id}>
-                <TableCell>
-                  <Badge
-                    variant={
-                      execution.statut === "echoue"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
-                    {LIBELLES_STATUT_EXECUTION[execution.statut]}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-medium">
-                  {execution.regle ?? execution.action}
-                </TableCell>
-                <TableCell>
-                  {execution.evenement
-                    ? `${execution.evenement.type} — ${execution.evenement.entityId}`
-                    : "—"}
-                </TableCell>
-                <TableCell>
-                  {LIBELLES_DECLENCHEUR_EXECUTION[execution.declencheur]}
-                </TableCell>
-                <TableCell>{execution.tentative}</TableCell>
-                <TableCell className="max-w-64 text-sm break-words">
-                  {execution.erreur ?? "—"}
-                </TableCell>
-                <TableCell>{horodatage(execution.debut)}</TableCell>
-                <TableCell>{horodatage(execution.fin)}</TableCell>
-                <TableCell>
-                  <div className="flex justify-end">
-                    {execution.statut === "echoue" ? (
-                      <BoutonAutomatisation
-                        action={reessayerExecutionAction}
-                        champs={{
-                          executionId: execution.id,
-                          ...filtresDuRetour,
-                        }}
-                        libelle="Réessayer"
-                      />
-                    ) : null}
-                  </div>
-                </TableCell>
+        <div className="overflow-clip rounded-xl border bg-card">
+          <Table>
+            <TableHeader className="bg-muted/40">
+              <TableRow>
+                <TableHead>Statut</TableHead>
+                <TableHead>Règle</TableHead>
+                <TableHead>Événement</TableHead>
+                <TableHead>Déclencheur</TableHead>
+                <TableHead>Tentative</TableHead>
+                <TableHead>Erreur</TableHead>
+                <TableHead>Début</TableHead>
+                <TableHead>Fin</TableHead>
+                <TableHead className="text-end">Action</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {executions.map((execution) => (
+                <TableRow key={execution.id}>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        execution.statut === "echoue"
+                          ? "destructive"
+                          : "secondary"
+                      }
+                    >
+                      {LIBELLES_STATUT_EXECUTION[execution.statut]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {execution.regle ?? execution.action}
+                  </TableCell>
+                  <TableCell>
+                    {execution.evenement
+                      ? `${execution.evenement.type} — ${execution.evenement.entityId}`
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {LIBELLES_DECLENCHEUR_EXECUTION[execution.declencheur]}
+                  </TableCell>
+                  <TableCell>{execution.tentative}</TableCell>
+                  <TableCell className="max-w-64 text-sm break-words">
+                    {execution.erreur ?? "—"}
+                  </TableCell>
+                  <TableCell>{horodatage(execution.debut)}</TableCell>
+                  <TableCell>{horodatage(execution.fin)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end">
+                      {execution.statut === "echoue" ? (
+                        <BoutonAutomatisation
+                          action={reessayerExecutionAction}
+                          champs={{
+                            executionId: execution.id,
+                            ...filtresDuRetour,
+                          }}
+                          libelle="Réessayer"
+                        />
+                      ) : null}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </>
   )

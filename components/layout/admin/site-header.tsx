@@ -24,6 +24,10 @@ const SECTION_LABELS: Record<string, string> = {
   commandes: "Commandes",
   villes: "Villes",
   livraison: "Livraison",
+  medias: "Médias",
+  automatisations: "Automatisations",
+  nouveau: "Nouveau",
+  executions: "Exécutions",
 }
 
 function humanizeSegment(segment: string): string {
@@ -45,6 +49,13 @@ type Crumb = { label: string; href?: string }
 
 function useCrumbs(pathname: string): Crumb[] {
   return React.useMemo(() => {
+    if (pathname === "/admin") {
+      return [
+        { label: "Administration", href: "/admin" },
+        { label: "Tableau de bord" },
+      ]
+    }
+
     const segments = pathname
       .replace(/^\/admin/, "")
       .split("/")
@@ -100,7 +111,11 @@ export function SiteHeader({
     >
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-4!" />
-      {isMobile ? null : (
+      {isMobile ? (
+        <span className="truncate text-sm font-medium">
+          {crumbs[crumbs.length - 1]?.label}
+        </span>
+      ) : (
         <Breadcrumb>
           <BreadcrumbList>
             {crumbs.map((crumb, index) => (

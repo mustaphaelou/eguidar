@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { ShippingSettingsForm } from "@/components/admin/shipping-settings-form"
 import {
   Card,
@@ -21,9 +22,12 @@ export default async function AdminShippingSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Livraison</h1>
+      <PageHeader
+        title="Livraison"
+        description="Le seuil à partir duquel une commande bénéficie de la livraison offerte."
+      />
 
-      <Card>
+      <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Livraison offerte</CardTitle>
           <CardDescription>

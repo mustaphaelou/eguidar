@@ -48,7 +48,7 @@ function DataTableFacetedFilter<TData, TValue>({
           <Button
             variant="outline"
             size="sm"
-            className="border-dashed"
+            className="border-dashed max-sm:h-9"
             aria-label={`${title ?? "Filtre"} — ${resumeSelection}`}
           >
             <HugeiconsIcon

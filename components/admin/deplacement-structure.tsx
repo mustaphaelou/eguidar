@@ -75,7 +75,6 @@ export type ActionDeplacement = (
 
 interface DeplacementStructureProps {
   ligne: LigneStructureVue
-  intentions: IntentionsDeplacement
   destinations: readonly DestinationStructure[]
   action: ActionDeplacement
   onResultat: (resultat: { texte: string; refus: boolean }) => void
@@ -144,9 +143,88 @@ function BoutonDeGeste({
   )
 }
 
-export function DeplacementStructure({
+/**
+ * Les quatre gestes d'ordre d'une Structure. Ils vivent dans la colonne
+ * « Position », avec la position qu'ils changent, plutôt que d'empiler une
+ * troisième rangée de boutons dans la colonne des actions.
+ */
+export function GestesStructure({
   ligne,
   intentions,
+  action,
+  onResultat,
+}: {
+  ligne: LigneStructureVue
+  intentions: IntentionsDeplacement
+  action: ActionDeplacement
+  onResultat: (resultat: { texte: string; refus: boolean }) => void
+}) {
+  const [state, setState] = useState<DeplacementState>({})
+  const [enAttente, demarrer] = useTransition()
+
+  const formAction = (formData: FormData): void => {
+    demarrer(async () => {
+      const resultat = await action(state, formData)
+      if (resultat.message) {
+        setState({})
+        onResultat({ texte: resultat.message, refus: false })
+      } else {
+        setState(resultat)
+        if (resultat.error) {
+          onResultat({ texte: resultat.error, refus: true })
+        }
+      }
+    })
+  }
+
+  return (
+    <div
+      role="group"
+      aria-label={`Déplacer ${ligne.name} dans l'arbre`}
+      className="flex items-center gap-0.5 rounded-md border bg-background p-0.5"
+    >
+      <BoutonDeGeste
+        libelle="Monter"
+        nomStructure={ligne.name}
+        intention={intentions.monter}
+        categorieId={ligne.id}
+        enAttente={enAttente}
+        icone={ArrowUp01Icon}
+        formAction={formAction}
+      />
+      <BoutonDeGeste
+        libelle="Descendre"
+        nomStructure={ligne.name}
+        intention={intentions.descendre}
+        categorieId={ligne.id}
+        enAttente={enAttente}
+        icone={ArrowDown01Icon}
+        formAction={formAction}
+      />
+      <BoutonDeGeste
+        libelle="Indenter"
+        nomStructure={ligne.name}
+        intention={intentions.indenter}
+        categorieId={ligne.id}
+        enAttente={enAttente}
+        icone={ArrowRight01Icon}
+        formAction={formAction}
+      />
+      <BoutonDeGeste
+        libelle="Désindenter"
+        nomStructure={ligne.name}
+        intention={intentions.desindenter}
+        categorieId={ligne.id}
+        enAttente={enAttente}
+        icone={ArrowLeft01Icon}
+        formAction={formAction}
+      />
+    </div>
+  )
+}
+
+export function DeplacementStructure({
+  ligne,
   destinations,
   action,
   onResultat,
@@ -191,46 +269,7 @@ export function DeplacementStructure({
   const boutonDeplacement = ligne.horsArbre ? "Rattacher…" : "Déplacer sous…"
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex items-center gap-1">
-        <BoutonDeGeste
-          libelle="Monter"
-          nomStructure={ligne.name}
-          intention={intentions.monter}
-          categorieId={ligne.id}
-          enAttente={enAttente}
-          icone={ArrowUp01Icon}
-          formAction={formAction}
-        />
-        <BoutonDeGeste
-          libelle="Descendre"
-          nomStructure={ligne.name}
-          intention={intentions.descendre}
-          categorieId={ligne.id}
-          enAttente={enAttente}
-          icone={ArrowDown01Icon}
-          formAction={formAction}
-        />
-        <BoutonDeGeste
-          libelle="Indenter"
-          nomStructure={ligne.name}
-          intention={intentions.indenter}
-          categorieId={ligne.id}
-          enAttente={enAttente}
-          icone={ArrowRight01Icon}
-          formAction={formAction}
-        />
-        <BoutonDeGeste
-          libelle="Désindenter"
-          nomStructure={ligne.name}
-          intention={intentions.desindenter}
-          categorieId={ligne.id}
-          enAttente={enAttente}
-          icone={ArrowLeft01Icon}
-          formAction={formAction}
-        />
-      </div>
-
+    <div className="flex flex-col items-end gap-1.5">
       <Dialog open={ouvert} onOpenChange={changerOuverture}>
         <DialogTrigger
           render={
