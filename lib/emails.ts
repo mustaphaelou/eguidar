@@ -50,7 +50,7 @@ export interface OrderEmailItem {
 }
 
 /**
- * La clé d'idempotence du fournisseur (ADR-0041) : la même Commande et le même
+ * La clé d'idempotence du fournisseur (ADR-0044) : la même Commande et le même
  * fait donnent la même clé, que l'e-mail parte tout de suite après le commit
  * ou qu'un travailleur le rejoue. Resend la mémorise 24 h — c'est la durée de
  * vie d'un événement.

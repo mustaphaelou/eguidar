@@ -11,7 +11,7 @@ import type {
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 /**
- * Le vocabulaire fermé de l'éditeur de Règles (ADR-0041). Le module est pur :
+ * Le vocabulaire fermé de l'éditeur de Règles (ADR-0044). Le module est pur :
  * il ne touche ni la base, ni le travailleur, pour que le formulaire client et
  * le serveur lisent exactement la même liste.
  */

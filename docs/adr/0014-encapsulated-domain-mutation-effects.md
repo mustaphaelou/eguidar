@@ -69,10 +69,10 @@ stock, validation, or transitions.
   caller and stayed caller-injected as an exception; they are now deleted outright, the module
   exposing only public reads.
 
-## Amendement — L'outbox et le travailleur sont pris (ADR-0041, 2026-10-28)
+## Amendement — L'outbox et le travailleur sont pris (ADR-0044, 2026-10-28)
 
 Le seul invariant de cet ADR qui cesse d'être vrai est « No schema change, no queues/outbox ».
-[0041](0041-des-effets-post-commit-durables.md) le remplace : l'événement est écrit dans la
+[0044](0044-des-effets-post-commit-durables.md) le remplace : l'événement est écrit dans la
 transaction de la mutation, un travailleur pg-boss le réclame en `FOR UPDATE SKIP LOCKED`, et une
 exécution durable garde son statut, sa tentative et son erreur. Les ports `*Effects`, les adaptateurs
 de production, la surcharge partielle, la propriété de chaque module sur son vocabulaire de refus et

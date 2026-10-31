@@ -16,7 +16,7 @@ import { prunerLesExecutions } from "@/lib/automations/retention"
 
 /**
  * Le travailleur tient sur le Postgres déjà déployé : pg-boss n'ajoute ni
- * Redis, ni second conteneur (ADR-0041). La file porte des **balayages** ;
+ * Redis, ni second conteneur (ADR-0044). La file porte des **balayages** ;
  * l'unité durable est l'événement de `AutomationEvent`, réclamé en
  * `FOR UPDATE SKIP LOCKED` par l'exécuteur.
  */

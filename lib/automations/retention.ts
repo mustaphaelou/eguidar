@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db"
  * La fenêtre de l'historique. Shopify Flow documente 14 jours
  * (research §6) : c'est la même durée pour le journal des Exécutions. Le
  * nettoyage est un travail du balayage existant — pas un second
- * ordonnanceur, pas une seconde tâche planifiée (ADR-0041).
+ * ordonnanceur, pas une seconde tâche planifiée (ADR-0044).
  */
 export const DUREE_RETENTION_EXECUTIONS_MS = 14 * 24 * 60 * 60 * 1000
 

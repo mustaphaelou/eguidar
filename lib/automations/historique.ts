@@ -33,7 +33,7 @@ export interface FiltresHistorique {
 /**
  * La lecture de l'historique : statut, tentative, erreur, horodatages, avec
  * les filtres de Flow (statut, règle, fenêtre de temps). Une exécution en
- * échec doit rester visible et réessayable dans l'Administration (ADR-0041).
+ * échec doit rester visible et réessayable dans l'Administration (ADR-0044).
  */
 export async function listerExecutions(
   filtres: FiltresHistorique = {}
@@ -71,7 +71,7 @@ export async function listerExecutions(
 /**
  * Le bandeau de l'Administration : un échec ne reste pas invisible. Seul
  * `echoue` est un statut d'Exécution ; `mort` est un statut d'Événement et ne
- * peut pas compter ici (ADR-0041).
+ * peut pas compter ici (ADR-0044).
  */
 export async function compterExecutionsEnEchec(): Promise<number> {
   return prisma.automationRun.count({ where: { status: "echoue" } })

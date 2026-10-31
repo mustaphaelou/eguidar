@@ -54,7 +54,7 @@ const BOITE_ERREUR =
   "rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
 
 /**
- * L'éditeur ne propose que le vocabulaire fermé (ADR-0041) : les actions
+ * L'éditeur ne propose que le vocabulaire fermé (ADR-0044) : les actions
  * offertes dépendent du déclencheur, une action qui écrirait la table
  * observée n'y figure jamais, et le destinataire d'un digest est un **nom** de
  * variable d'environnement.

@@ -24,7 +24,7 @@ const runId = randomUUID().slice(0, 8)
 const PREFIXE = `plan-${runId}-`
 const JOUR = new Date("2026-10-28T07:00:00.000Z")
 const LENDEMAIN = new Date("2026-10-29T07:00:00.000Z")
-// Le digest nomme son destinataire par variable d'environnement (ADR-0041) :
+// Le digest nomme son destinataire par variable d'environnement (ADR-0044) :
 // le test la pose lui-même, sans dépendre du `.env` de la machine.
 const ADRESSE_DIGEST = `digest-${runId}@example.test`
 

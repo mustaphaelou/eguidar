@@ -1,4 +1,4 @@
--- ADR-0041 : les effets post-commit deviennent des automatisations durables.
+-- ADR-0044 : les effets post-commit deviennent des automatisations durables.
 -- Migration strictement additive : elle ne touche aucune table existante, et
 -- aucun retour arrière n'efface un événement déjà consommé.
 

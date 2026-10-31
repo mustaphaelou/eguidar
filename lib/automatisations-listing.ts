@@ -1,7 +1,7 @@
 import type { StatutAutomation } from "@/lib/generated/prisma/client"
 
 /**
- * Les statuts qu'une Exécution peut prendre (ADR-0041). `en_attente` et `mort`
+ * Les statuts qu'une Exécution peut prendre (ADR-0044). `en_attente` et `mort`
  * appartiennent à la machine à états de l'Événement, pas à celle de
  * l'Exécution : les offrir dans le filtre promettrait des lignes qui
  * n'existent jamais.

@@ -4,7 +4,7 @@ import type { Prisma } from "@/lib/generated/prisma/client"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 
 /**
- * Le vocabulaire fermé des événements d'automatisation (ADR-0041). Un
+ * Le vocabulaire fermé des événements d'automatisation (ADR-0044). Un
  * déclencheur est une valeur de cette liste, jamais une expression libre : la
  * règle ne peut donc pas boucler sur sa propre écriture.
  */
@@ -87,7 +87,7 @@ async function prochainRang(
 
 /**
  * Écrit un événement dans **la transaction de la mutation** qui le produit :
- * un retour arrière ne laisse donc ni événement ni exécution (ADR-0041).
+ * un retour arrière ne laisse donc ni événement ni exécution (ADR-0044).
  */
 export async function enregistrerEvenement(
   tx: Prisma.TransactionClient,

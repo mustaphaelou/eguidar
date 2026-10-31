@@ -129,7 +129,7 @@ const payloadJour = z.object({ jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 
 /**
  * Le destinataire d'un digest est nommé par une variable d'environnement
- * (ADR-0041) : la valeur est lue ici, jamais écrite en base ni affichée. Une
+ * (ADR-0044) : la valeur est lue ici, jamais écrite en base ni affichée. Une
  * variable absente ou invalide est une panne nommée — sans sa valeur.
  */
 export const VARIABLE_DESTINATAIRE_PAR_DEFAUT = "ADMIN_EMAIL"

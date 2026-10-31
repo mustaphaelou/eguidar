@@ -288,7 +288,7 @@ model ArticleBlogProduit {
   @@index([productId])
 }
 
-// --- Automatisations durables (ADR-0041) ---
+// --- Automatisations durables (ADR-0044) ---
 
 enum StatutAutomation {
   en_attente
