@@ -195,6 +195,13 @@ Elle n'ajoute aucun terme au glossaire.
   d'exploitation, pas une garantie du code : l'opérateur fournit une crédential qui ne peut pas
   écrire.
 
+- **Docker 29 exige que le privilège réseau soit accordé, pas seulement demandé.** `build.network:
+  host` fait demander `network.host` au constructeur ; depuis Docker 29, BuildKit refuse une demande
+  que le déploiement n'a pas accordée, et `docker compose build` s'arrête avant le premier stage sur
+  `additional privileges requested: pass "--allow=network.host"`. `docker-compose.yml` porte donc
+  `build.entitlements: [network.host]`, que Compose transmet au bake comme privilège accordé ; la CI
+  accorde le même privilège par l'input `allow: network.host` de `docker/build-push-action`.
+
 - **La CI prête un Catalogue au build, sans secret de dépôt.** Le job `build` migre et sème
   `eguidar_probe`, passe son URL au build hôte par `DATABASE_URL`, et livre la même valeur au build
   Docker par l'input `secrets` sous l'identifiant `database_url`. Le constructeur partage le réseau
