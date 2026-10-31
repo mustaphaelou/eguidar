@@ -5,10 +5,20 @@ import type { ReactElement } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+const navigation = vi.hoisted(() => ({ push: vi.fn() }))
+
 vi.mock("next/image", () => ({
   default: ({ src, alt }: { src: string; alt: string }) => (
     <span data-image-src={src} aria-label={alt} />
   ),
+}))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: navigation.push,
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
 }))
 
 import {
@@ -91,6 +101,7 @@ afterEach(() => {
   container.remove()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  navigation.push.mockClear()
 })
 
 describe("ProductForm", () => {
@@ -110,7 +121,7 @@ describe("ProductForm", () => {
     }
     product.images.push(secondImage)
     const root = render(
-      <ProductForm product={product} categories={[]} action={action} />
+      <ProductForm product={product} structures={[]} action={action} />
     )
 
     const remove = container.querySelector<HTMLButtonElement>(
@@ -137,7 +148,7 @@ describe("ProductForm", () => {
       ): Promise<ProductFormState> => ({ error: "Refus de validation" })
     )
     render(
-      <ProductForm product={initialProduct()} categories={[]} action={action} />
+      <ProductForm product={initialProduct()} structures={[]} action={action} />
     )
 
     const remove = container.querySelector<HTMLButtonElement>(
@@ -182,7 +193,7 @@ describe("ProductForm", () => {
       }
     )
     render(
-      <ProductForm product={initialProduct()} categories={[]} action={action} />
+      <ProductForm product={initialProduct()} structures={[]} action={action} />
     )
 
     const champ = container.querySelector<HTMLInputElement>(
@@ -217,7 +228,7 @@ describe("les noms de champs rendus", () => {
     render(
       <ProductForm
         product={initialProduct()}
-        categories={[]}
+        structures={[]}
         action={async () => ({})}
       />
     )
@@ -232,5 +243,262 @@ describe("les noms de champs rendus", () => {
         (nom) => !rendus.includes(nom)
       )
     ).toEqual([])
+  })
+})
+
+function champNom(): HTMLInputElement {
+  const champ = container.querySelector<HTMLInputElement>('input[name="name"]')
+  if (!champ) throw new Error("champ Nom absent")
+  return champ
+}
+
+function modifierLeNom(valeur = "Produit modifié") {
+  act(() => {
+    const champ = champNom()
+    champ.value = valeur
+    champ.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+}
+
+function carteDontLeTitreContient(titre: string): HTMLElement {
+  const carte = [
+    ...container.querySelectorAll<HTMLElement>('[data-slot="card"]'),
+  ].find((element) => element.textContent?.includes(titre))
+  if (!carte) throw new Error(`carte « ${titre} » absente`)
+  return carte
+}
+
+describe("ProductForm — les erreurs par section", () => {
+  it("nomme chaque section invalide au lieu d'un seul message global", async () => {
+    const action = vi.fn(async (): Promise<ProductFormState> => ({
+      error: "Données invalides : catégorie requise ; nom de variante requis",
+      sections: {
+        structure: "catégorie requise",
+        variantes: "nom de variante requis",
+      },
+    }))
+    render(
+      <ProductForm product={initialProduct()} structures={[]} action={action} />
+    )
+
+    const form = container.querySelector<HTMLFormElement>("form")!
+    await act(async () => {
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(carteDontLeTitreContient("Informations").textContent).toContain(
+      "catégorie requise"
+    )
+    expect(carteDontLeTitreContient("Variantes").textContent).toContain(
+      "nom de variante requis"
+    )
+    expect(container.textContent).toContain("Certaines sections sont invalides")
+    expect(container.textContent).not.toContain("Données invalides")
+    const alertes = container.querySelectorAll('[role="alert"]')
+    expect(alertes.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it("garde le message global quand le refus ne nomme aucune section", async () => {
+    const action = vi.fn(async (): Promise<ProductFormState> => ({
+      error: "L'enregistrement du Catalogue a échoué",
+      sections: {},
+    }))
+    render(
+      <ProductForm product={initialProduct()} structures={[]} action={action} />
+    )
+
+    const form = container.querySelector<HTMLFormElement>("form")!
+    await act(async () => {
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).toContain(
+      "L'enregistrement du Catalogue a échoué"
+    )
+  })
+})
+
+describe("ProductForm — la barre d'enregistrement collante", () => {
+  it("reste dans le flux, après le dernier champ, et ne le recouvre pas", () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        structures={[]}
+        action={async () => ({})}
+      />
+    )
+
+    const form = container.querySelector<HTMLFormElement>("form")!
+    const barre = form.querySelector<HTMLElement>(".sticky")
+
+    expect(barre).not.toBeNull()
+    expect(barre!.className).toContain("bottom-0")
+    expect(barre!.className).not.toContain("fixed")
+    expect(barre!.previousElementSibling?.getAttribute("data-slot")).toBe(
+      "card"
+    )
+    expect(form.lastElementChild?.className).toContain("sticky")
+  })
+})
+
+describe("ProductForm — la garde des modifications non enregistrées", () => {
+  it("ne retient pas le déchargement tant que rien n'a changé", () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        structures={[]}
+        action={async () => ({})}
+      />
+    )
+
+    const evenement = new Event("beforeunload", { cancelable: true })
+    act(() => {
+      window.dispatchEvent(evenement)
+    })
+
+    expect(evenement.defaultPrevented).toBe(false)
+  })
+
+  it("retient le déchargement après une modification", () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        structures={[]}
+        action={async () => ({})}
+      />
+    )
+
+    modifierLeNom()
+
+    const evenement = new Event("beforeunload", { cancelable: true })
+    act(() => {
+      window.dispatchEvent(evenement)
+    })
+
+    expect(evenement.defaultPrevented).toBe(true)
+  })
+
+  it("demande confirmation avant un lien interne, et laisse rester sur la page", async () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        structures={[]}
+        action={async () => ({})}
+      />
+    )
+    modifierLeNom()
+
+    const lien = document.createElement("a")
+    lien.href = "/admin/produits"
+    lien.textContent = "Retour à la liste"
+    document.body.appendChild(lien)
+
+    await act(async () => {
+      lien.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const dialogue = document.querySelector<HTMLElement>(
+      '[data-slot="alert-dialog-content"]'
+    )
+    expect(dialogue).not.toBeNull()
+    expect(dialogue!.textContent).toContain("Quitter sans enregistrer ?")
+
+    const rester = [
+      ...dialogue!.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((bouton) => bouton.textContent === "Rester sur la page")
+    if (!rester) throw new Error("bouton « Rester sur la page » absent")
+    await act(async () => {
+      rester.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(navigation.push).not.toHaveBeenCalled()
+    lien.remove()
+  })
+
+  it("navigue quand l'éditeur confirme quitter sans enregistrer", async () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        structures={[]}
+        action={async () => ({})}
+      />
+    )
+    modifierLeNom()
+
+    const lien = document.createElement("a")
+    lien.href = "/admin/produits"
+    lien.textContent = "Retour à la liste"
+    document.body.appendChild(lien)
+
+    await act(async () => {
+      lien.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const dialogue = document.querySelector<HTMLElement>(
+      '[data-slot="alert-dialog-content"]'
+    )!
+    const quitter = [
+      ...dialogue.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((bouton) => bouton.textContent === "Quitter sans enregistrer")
+    if (!quitter) throw new Error("bouton « Quitter sans enregistrer » absent")
+    await act(async () => {
+      quitter.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(navigation.push).toHaveBeenCalledWith("/admin/produits")
+    lien.remove()
+  })
+})
+
+describe("ProductForm — le Produit sans Structure et le chemin du sélecteur", () => {
+  it("explique l'absence des pages de catégorie quand la Structure est nulle", () => {
+    const produit = { ...initialProduct(), categoryId: null }
+    render(
+      <ProductForm
+        product={produit}
+        structures={[]}
+        action={async () => ({})}
+      />
+    )
+
+    expect(container.textContent).toContain(
+      "il n'apparaît donc sur aucune page de catégorie"
+    )
+  })
+
+  it("affiche le chemin entier de la Structure choisie", () => {
+    render(
+      <ProductForm
+        product={initialProduct()}
+        structures={[
+          {
+            id: "categorie-1",
+            nom: "Enfant",
+            chemin: "Racine A › Enfant",
+          },
+          {
+            id: "categorie-2",
+            nom: "Enfant",
+            chemin: "Racine B › Enfant",
+          },
+        ]}
+        action={async () => ({})}
+      />
+    )
+
+    const champ = container.querySelector<HTMLInputElement>(
+      '[data-slot="combobox-input"]'
+    )
+    expect(champ?.value).toBe("Racine A › Enfant")
   })
 })

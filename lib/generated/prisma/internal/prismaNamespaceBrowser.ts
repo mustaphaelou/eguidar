@@ -62,6 +62,7 @@ export const ModelName = {
   Product: "Product",
   ProductVariant: "ProductVariant",
   BrouillonImageProduit: "BrouillonImageProduit",
+  ImageProduit: "ImageProduit",
   CartItem: "CartItem",
   Order: "Order",
   OrderItem: "OrderItem",
@@ -70,6 +71,10 @@ export const ModelName = {
   Theme: "Theme",
   ArticleBlog: "ArticleBlog",
   ArticleBlogProduit: "ArticleBlogProduit",
+  AutomationEvent: "AutomationEvent",
+  AutomationRule: "AutomationRule",
+  AutomationRuleRevision: "AutomationRuleRevision",
+  AutomationRun: "AutomationRun",
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -156,6 +161,7 @@ export const CategoryScalarFieldEnum = {
   slug: "slug",
   image: "image",
   parentId: "parentId",
+  position: "position",
   createdAt: "createdAt",
   updatedAt: "updatedAt",
 } as const
@@ -213,6 +219,21 @@ export const BrouillonImageProduitScalarFieldEnum = {
 
 export type BrouillonImageProduitScalarFieldEnum =
   (typeof BrouillonImageProduitScalarFieldEnum)[keyof typeof BrouillonImageProduitScalarFieldEnum]
+
+export const ImageProduitScalarFieldEnum = {
+  id: "id",
+  publicUrl: "publicUrl",
+  mimeType: "mimeType",
+  byteSize: "byteSize",
+  width: "width",
+  height: "height",
+  alt: "alt",
+  createdBy: "createdBy",
+  createdAt: "createdAt",
+} as const
+
+export type ImageProduitScalarFieldEnum =
+  (typeof ImageProduitScalarFieldEnum)[keyof typeof ImageProduitScalarFieldEnum]
 
 export const CartItemScalarFieldEnum = {
   id: "id",
@@ -317,6 +338,72 @@ export const ArticleBlogProduitScalarFieldEnum = {
 export type ArticleBlogProduitScalarFieldEnum =
   (typeof ArticleBlogProduitScalarFieldEnum)[keyof typeof ArticleBlogProduitScalarFieldEnum]
 
+export const AutomationEventScalarFieldEnum = {
+  id: "id",
+  type: "type",
+  entityType: "entityType",
+  entityId: "entityId",
+  seq: "seq",
+  attemptOf: "attemptOf",
+  payload: "payload",
+  occurredAt: "occurredAt",
+  expiresAt: "expiresAt",
+  status: "status",
+  attempts: "attempts",
+  lastError: "lastError",
+  availableAt: "availableAt",
+  lockedUntil: "lockedUntil",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type AutomationEventScalarFieldEnum =
+  (typeof AutomationEventScalarFieldEnum)[keyof typeof AutomationEventScalarFieldEnum]
+
+export const AutomationRuleScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  enabled: "enabled",
+  trigger: "trigger",
+  condition: "condition",
+  action: "action",
+  actionConfig: "actionConfig",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type AutomationRuleScalarFieldEnum =
+  (typeof AutomationRuleScalarFieldEnum)[keyof typeof AutomationRuleScalarFieldEnum]
+
+export const AutomationRuleRevisionScalarFieldEnum = {
+  id: "id",
+  ruleId: "ruleId",
+  snapshot: "snapshot",
+  author: "author",
+  createdAt: "createdAt",
+} as const
+
+export type AutomationRuleRevisionScalarFieldEnum =
+  (typeof AutomationRuleRevisionScalarFieldEnum)[keyof typeof AutomationRuleRevisionScalarFieldEnum]
+
+export const AutomationRunScalarFieldEnum = {
+  id: "id",
+  eventId: "eventId",
+  ruleId: "ruleId",
+  action: "action",
+  status: "status",
+  attempt: "attempt",
+  lastError: "lastError",
+  durationMs: "durationMs",
+  startedAt: "startedAt",
+  finishedAt: "finishedAt",
+  trigger: "trigger",
+  createdAt: "createdAt",
+} as const
+
+export type AutomationRunScalarFieldEnum =
+  (typeof AutomationRunScalarFieldEnum)[keyof typeof AutomationRunScalarFieldEnum]
+
 export const SortOrder = {
   asc: "asc",
   desc: "desc",
@@ -330,6 +417,14 @@ export const JsonNullValueInput = {
 
 export type JsonNullValueInput =
   (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+export const NullableJsonNullValueInput = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+} as const
+
+export type NullableJsonNullValueInput =
+  (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
 
 export const QueryMode = {
   default: "default",

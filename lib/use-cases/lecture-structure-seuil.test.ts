@@ -42,6 +42,24 @@ const SITES_NOMMES: ExceptionLecture[] = [
       "le compte des catégories qui dit si le catalogue du build est vide : aucune rangée ne nomme sa place dans l'arbre, aucun nom n'est lu",
   },
   {
+    chemin: "lib/automations/actions.ts",
+    voie: "relation",
+    extrait: `include: ${FORME.champ}`,
+    declaration: "chargerProduitIndexable",
+    herite: false,
+    raison:
+      "le nom et le slug de la catégorie dans le Document d'index que le travailleur réécrit : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+  },
+  {
+    chemin: "lib/automations/actions.ts",
+    voie: "relation",
+    extrait: `include: ${FORME.champ}`,
+    declaration: "reconcilierRecherche",
+    herite: false,
+    raison:
+      "le nom et le slug de la catégorie de chaque Produit que la réconciliation reprojette : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+  },
+  {
     chemin: "lib/use-cases/admin-catalog.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
@@ -240,7 +258,7 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
     }
   })
 
-  it("la liste s'élargit des quatorze entrées d'ici, chacune avec sa raison propre", () => {
+  it("la liste s'élargit des seize entrées d'ici, chacune avec sa raison propre", () => {
     const raisons = SITES_NOMMES.map(({ raison }) => raison)
     expect(raisons).toHaveLength(new Set(raisons).size)
 
@@ -262,10 +280,10 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
     expect(heritees.length).toBe(3)
-    expect(SITES_NOMMES).toHaveLength(17)
-    expect(SITES_NOMMES).toHaveLength(heritees.length + 14)
+    expect(SITES_NOMMES).toHaveLength(19)
+    expect(SITES_NOMMES).toHaveLength(heritees.length + 16)
 
-    const attenduesParVoie = { relation: 9, delegue: 8 }
+    const attenduesParVoie = { relation: 11, delegue: 8 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,

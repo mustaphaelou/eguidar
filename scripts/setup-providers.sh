@@ -148,7 +148,7 @@ finish() {
   printf '\n'
 }
 
-TOTAL_STAGES=4
+TOTAL_STAGES=5
 
 banner "Eguidar provider setup"
 
@@ -367,6 +367,197 @@ else
   note "(24 h by default). A shorter rule deletes the file of a draft the"
   note "application still considers claimable; a longer one only leaves orphan"
   note "bytes behind, because the registry refuses the claim either way."
+fi
+
+stage "R2 CORS (téléversement depuis l'Administration)"
+say "L'Administration envoie chaque Image produit par un PUT pré-signé depuis"
+say "le navigateur. Sans politique CORS sur le bucket, le navigateur bloque le"
+say "PUT sans aucune trace côté serveur : un bucket neuf échoue à l'upload."
+say "Cette étape applique la politique versionnée et vérifie qu'elle vit."
+
+CORS_R2_FILE="$RACINE/infra/cors-r2.json"
+
+_cors_value() {
+  node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    const valeur = process.argv[2].split(".").reduce((noeud, cle) => noeud[cle], artefact)
+    process.stdout.write(String(valeur))
+  ' "$CORS_R2_FILE" "$1"
+}
+
+_cors_corps() {
+  node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    process.stdout.write(JSON.stringify({ rules: artefact.rules }))
+  ' "$CORS_R2_FILE"
+}
+
+_cors_origines() {
+  node -e '
+    const fs = require("node:fs")
+    const artefact = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    process.stdout.write(
+      artefact.rules.flatMap((regle) => regle.allowed.origins).join(", ")
+    )
+  ' "$CORS_R2_FILE"
+}
+
+_cors_lire() {
+  curl -sS -H "Authorization: Bearer $CORS_TOKEN" "$CORS_URL"
+}
+
+_cors_etrangeres() {
+  local vivant
+  vivant="$(_cors_lire)" || return 1
+  printf '%s' "$vivant" | node -e '
+    const fs = require("node:fs")
+    const attendues = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).rules
+    let lu
+    try {
+      lu = JSON.parse(fs.readFileSync(0, "utf8"))
+    } catch {
+      console.error("réponse illisible")
+      process.exit(1)
+    }
+    if (lu.success === false) {
+      console.error("lecture impossible : " + JSON.stringify(lu.errors ?? lu).slice(0, 200))
+      process.exit(1)
+    }
+    const regles = lu?.result?.rules
+    if (!Array.isArray(regles)) {
+      console.error("règles absentes de la réponse")
+      process.exit(1)
+    }
+    const etrangeres = regles.filter(
+      (regle) =>
+        !attendues.some(
+          (attendue) => JSON.stringify(attendue) === JSON.stringify(regle)
+        )
+    )
+    for (const regle of etrangeres) console.log("    " + JSON.stringify(regle))
+    process.stdout.write(String(etrangeres.length))
+  ' "$CORS_R2_FILE"
+}
+
+_cors_appliquer() {
+  curl -sS -X PUT "$CORS_URL" \
+    -H "Authorization: Bearer $CORS_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data-binary "$(_cors_corps)"
+}
+
+_cors_verifier() {
+  local vivant
+  vivant="$(_cors_lire)" || {
+    warn "could not read the live CORS policy — check the token and R2_ACCOUNT_ID"
+    return 1
+  }
+  printf '%s' "$vivant" | node -e '
+    const fs = require("node:fs")
+    const attendues = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).rules
+    const lu = JSON.parse(fs.readFileSync(0, "utf8"))
+    const observees = lu?.result?.rules ?? null
+    if (JSON.stringify(attendues) === JSON.stringify(observees)) {
+      console.log("  live CORS rules match the artifact")
+    } else {
+      console.log("  live CORS rules differ from the artifact")
+      console.log("  expected: " + JSON.stringify(attendues))
+      console.log("  observed: " + JSON.stringify(observees))
+      process.exitCode = 1
+    }
+  ' "$CORS_R2_FILE"
+}
+
+if [[ ! -f "$CORS_R2_FILE" ]] || ! command -v node >/dev/null 2>&1; then
+  warn "can't read the checked-in CORS artifact ($CORS_R2_FILE)"
+  SKIPPED+=("R2 CORS — apply infra/cors-r2.json by hand")
+else
+  CORS_BUCKET_NAME="$(_cors_value bucket)"
+  CORS_ORIGINES="$(_cors_origines)"
+
+  note ""
+  note "Artifact: infra/cors-r2.json"
+  note "  bucket  : $CORS_BUCKET_NAME"
+  note "  origins : $CORS_ORIGINES"
+  note "  methods : PUT · headers : content-type · expose : ETag"
+  warn "The origins are exact: R2 compares the browser's Origin header, so a"
+  warn "wildcard would let any site ask for an upload link on this bucket."
+  warn "A presigned URL expires silently: an expired PUT answers 403 without"
+  warn "CORS headers, which JavaScript can only read as a network failure."
+  note ""
+  note "Prefer the dashboard? R2 → bucket → Settings → CORS Policy → Add policy,"
+  note "and paste the { rules: [...] } body of the artifact:"
+  open_url "https://dash.cloudflare.com/?to=/:account/r2/buckets/$CORS_BUCKET_NAME/settings"
+
+  CORS_TOKEN="${CLOUDFLARE_API_TOKEN:-$(_existing CLOUDFLARE_API_TOKEN || true)}"
+  CORS_ACCOUNT="${R2_ACCOUNT_ID:-$(_existing R2_ACCOUNT_ID || true)}"
+  CORS_ENV_BUCKET="$(_existing R2_BUCKET || true)"
+  CORS_BUCKET_DIVERGE=0
+  if [[ -n "$CORS_ENV_BUCKET" && "$CORS_ENV_BUCKET" != "$CORS_BUCKET_NAME" ]]; then
+    CORS_BUCKET_DIVERGE=1
+    warn "R2_BUCKET in $ENV_FILE is '$CORS_ENV_BUCKET' while the artifact targets"
+    warn "'$CORS_BUCKET_NAME'. Applying would configure the wrong bucket."
+  fi
+
+  if [[ -z "$CORS_TOKEN" ]]; then
+    step "Create a Cloudflare API token with 'Workers R2 Storage: Edit' for this"
+    step "account. It is stored only in $ENV_FILE."
+    ask_secret CLOUDFLARE_API_TOKEN "Paste the API token:"
+    _save CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
+    CORS_TOKEN="$CLOUDFLARE_API_TOKEN"
+  fi
+  if [[ -z "$CORS_ACCOUNT" ]]; then
+    ask R2_ACCOUNT_ID "Cloudflare account ID:"
+    _save R2_ACCOUNT_ID "$R2_ACCOUNT_ID"
+    CORS_ACCOUNT="$R2_ACCOUNT_ID"
+  fi
+
+  CORS_URL="https://api.cloudflare.com/client/v4/accounts/$CORS_ACCOUNT/r2/buckets/$CORS_BUCKET_NAME/cors"
+
+  if [[ -z "$CORS_TOKEN" || -z "$CORS_ACCOUNT" ]]; then
+    warn "no CLOUDFLARE_API_TOKEN or R2_ACCOUNT_ID — nothing was sent to R2"
+    SKIPPED+=("R2 CORS (needs CLOUDFLARE_API_TOKEN and R2_ACCOUNT_ID)")
+  elif ! command -v curl >/dev/null 2>&1; then
+    warn "curl is missing — apply the CORS policy from the dashboard instead"
+    SKIPPED+=("R2 CORS (no curl)")
+  elif [[ "$CORS_BUCKET_DIVERGE" -eq 1 ]]; then
+    warn "bucket mismatch — nothing was applied, so the wrong bucket is never"
+    warn "configured. Reconcile R2_BUCKET and the artifact, then re-run."
+    SKIPPED+=("R2 CORS (bucket mismatch)")
+  elif confirm "Apply the CORS policy to bucket $CORS_BUCKET_NAME now?"; then
+    CORS_ETRANGERES="$(_cors_etrangeres 2>/dev/null || true)"
+    CORS_NOMBRE="${CORS_ETRANGERES##*$'\n'}"
+    if ! [[ "$CORS_NOMBRE" =~ ^[0-9]+$ ]]; then
+      warn "could not read the live CORS rules — nothing was applied. Check the"
+      warn "token and R2_ACCOUNT_ID, or set the policy from the dashboard instead."
+      SKIPPED+=("R2 CORS (live rules unreadable)")
+    elif [[ "$CORS_NOMBRE" -gt 0 ]]; then
+      warn "This bucket already has $CORS_NOMBRE CORS rule(s) the artifact does"
+      warn "not describe. The API replaces the whole policy, so applying DELETES"
+      warn "them:"
+      printf '%s\n' "${CORS_ETRANGERES%$'\n'*}"
+      if ! confirm "Replace those foreign CORS rules and leave only the artifact's rules?"; then
+        warn "nothing was applied. Edit the artifact to describe them, or set"
+        warn "the policy from the dashboard so they survive."
+        SKIPPED+=("R2 CORS (would delete existing bucket rules)")
+      else
+        _cors_appliquer || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+      fi
+    else
+      _cors_appliquer || warn "the API call failed — check the token and R2_ACCOUNT_ID"
+    fi
+    pause "Press Enter to verify the live CORS policy against the artifact."
+    if _cors_verifier; then
+      printf '  %s✓ R2 CORS policy applied and verified%s\n' "$GREEN" "$RESET"
+    else
+      warn "live CORS configuration still differs from the artifact"
+      SKIPPED+=("R2 CORS verification")
+    fi
+  else
+    SKIPPED+=("R2 CORS policy not applied — re-run this stage")
+  fi
 fi
 
 stage "Cache Rules (Documents à l'edge)"

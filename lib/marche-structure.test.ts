@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  comparerStructures,
   marcheDesStructures,
   marcheStructure,
   type LiensStructure,
@@ -526,5 +527,57 @@ describe("marcheStructure — l'index inverse est un fait de la marche (#584)", 
 
     expect([...liens.parentParId]).toHaveLength(5)
     expect(lectures()).toBe(apresConstruction + 1)
+  })
+})
+
+describe("comparerStructures — l'ordre (position, nom, identifiant)", () => {
+  it("donne la priorité à la position, puis au nom en français, puis à l'identifiant", () => {
+    expect(
+      comparerStructures(
+        { id: "b", name: "Zèbre", position: 1 },
+        { id: "a", name: "Alpha", position: 2 }
+      )
+    ).toBeLessThan(0)
+    expect(
+      comparerStructures(
+        { id: "b", name: "Alpha", position: 1 },
+        { id: "a", name: "Zèbre", position: 1 }
+      )
+    ).toBeLessThan(0)
+    expect(
+      comparerStructures(
+        { id: "a", name: "Jumeau", position: 1 },
+        { id: "b", name: "Jumeau", position: 1 }
+      )
+    ).toBeLessThan(0)
+  })
+
+  it("range les racines et les enfants directs par position, pas par nom", () => {
+    const marche = marcheStructure({
+      parentParId: new Map([
+        ["zebre-racine", null],
+        ["alpha-racine", null],
+        ["zebre-enfant", "racine"],
+        ["alpha-enfant", "racine"],
+        ["racine", null],
+      ]),
+      noms: new Map([
+        ["zebre-racine", "Zèbre"],
+        ["alpha-racine", "Alpha"],
+        ["zebre-enfant", "Zèbre"],
+        ["alpha-enfant", "Alpha"],
+        ["racine", "Racine"],
+      ]),
+      positions: new Map([
+        ["zebre-racine", 10],
+        ["alpha-racine", 20],
+        ["racine", 5],
+        ["zebre-enfant", 10],
+        ["alpha-enfant", 20],
+      ]),
+    })
+
+    expect(marche.racines()).toEqual(["racine", "zebre-racine", "alpha-racine"])
+    expect(marche.enfantsDe("racine")).toEqual(["zebre-enfant", "alpha-enfant"])
   })
 })

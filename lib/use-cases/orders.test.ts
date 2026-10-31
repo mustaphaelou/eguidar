@@ -609,10 +609,20 @@ describe("order placement", () => {
       expect(stock.stock).toBe(0)
       expect((await lirePanierClient(userIdA)).lines).toHaveLength(0)
       expect(invalidateProduits).not.toHaveBeenCalled()
-      expect(warnSpy).toHaveBeenCalledWith(
-        `[order] purge des documents du catalogue non effectuée pour ${order.id}`,
-        expect.any(Error)
-      )
+      const ligne = warnSpy.mock.calls
+        .map(([message]) => String(message))
+        .find((message) =>
+          message.includes(
+            `[order] purge des documents du catalogue non effectuée pour ${order.id}`
+          )
+        )
+      expect(ligne).toBeTruthy()
+      expect(JSON.parse(ligne!.slice("[effet] ".length))).toMatchObject({
+        effet: "purge-catalogue",
+        entite: { type: "commande", id: order.id },
+        resultat: "echec",
+        erreur: "Structure indisponible",
+      })
     } finally {
       warnSpy.mockRestore()
     }

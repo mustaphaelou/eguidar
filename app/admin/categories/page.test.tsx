@@ -80,7 +80,9 @@ async function rendreLaListe(): Promise<{ html: string; journal: string[] }> {
 
 interface LigneRendue {
   nom: string
+  html: string
   premiereCellule: string
+  cellules: string[]
   ciblesProduits: string[]
   ciblesSousCategories: string[]
   nomsStructures: Record<string, string>
@@ -111,7 +113,12 @@ function lignesDuRendu(html: string): LigneRendue[] {
     .slice(1)
     .map((ligne) => ({
       nom: /<span class="font-medium">([^<]*)<\/span>/.exec(ligne)?.[1] ?? "",
+      html: ligne,
       premiereCellule: sansBalises(ligne.split("</td>")[0] ?? ""),
+      cellules: ligne
+        .split("</td>")
+        .slice(0, 6)
+        .map((cellule) => sansBalises(cellule)),
       ciblesProduits: jsonDe(ligne, "data-cibles-produits"),
       ciblesSousCategories: jsonDe(ligne, "data-cibles-sous-categories"),
       nomsStructures: objetDe(ligne, "data-noms"),
@@ -305,17 +312,124 @@ describe("AdminCategoriesPage — arbre propre", () => {
     )
   })
 
-  it("garde le sous-titre d'une Structure saine : sa parente, ou sa racine", async () => {
+  it("montre le chemin de la Structure saine : sa racine, ou son fil d'Ariane", async () => {
     const { html } = await rendreLaListe()
     const lignes = lignesDuRendu(html)
     const celluleDe = (structure: StructureCreee) =>
       lignes.find((candidate) => candidate.nom === structure.name)
         ?.premiereCellule ?? ""
 
-    expect(celluleDe(arbre.enfantA)).toContain(`sous ${arbre.racine.name}`)
+    expect(celluleDe(arbre.enfantA)).toContain(
+      `${arbre.racine.name} / ${arbre.enfantA.name}`
+    )
+    expect(celluleDe(arbre.petitA)).toContain(
+      `${arbre.racine.name} / ${arbre.enfantA.name} / ${arbre.petitA.name}`
+    )
     expect(celluleDe(arbre.racine)).toContain("Catégorie racine")
     for (const structure of Object.values(arbre)) {
       expect(celluleDe(structure)).not.toContain("hors arbre")
     }
+  })
+
+  it("montre la position parmi les sœurs, et leur nombre", async () => {
+    const { html } = await rendreLaListe()
+    const lignes = lignesDuRendu(html)
+    const cellulesDe = (structure: StructureCreee) =>
+      lignes.find((candidate) => candidate.nom === structure.name)?.cellules ??
+      []
+
+    expect(cellulesDe(arbre.racine)[4]).toBe("1 sur 2")
+    expect(cellulesDe(arbre.autre)[4]).toBe("2 sur 2")
+    expect(cellulesDe(arbre.enfantA)[4]).toBe("1 sur 2")
+    expect(cellulesDe(arbre.enfantB)[4]).toBe("2 sur 2")
+    expect(cellulesDe(arbre.petitA)[4]).toBe("1 sur 1")
+  })
+
+  it("montre les Produits directs et le cumul de la branche", async () => {
+    const produit = await prisma.product.create({
+      data: {
+        name: "Produit du cumul",
+        slug: `${PREFIXE}cumul`,
+        description: "desc",
+        brand: "Marque",
+        price: 10000,
+        specs: {},
+        images: [],
+        categoryId: arbre.petitA.id,
+      },
+    })
+    try {
+      const { html } = await rendreLaListe()
+      const lignes = lignesDuRendu(html)
+      const cellulesDe = (structure: StructureCreee) =>
+        lignes.find((candidate) => candidate.nom === structure.name)
+          ?.cellules ?? []
+
+      expect(cellulesDe(arbre.petitA)[2]).toContain("1 direct")
+      expect(cellulesDe(arbre.petitA)[2]).toContain("1 au total")
+      expect(cellulesDe(arbre.enfantA)[2]).toContain("0 direct")
+      expect(cellulesDe(arbre.enfantA)[2]).toContain("1 au total")
+      expect(cellulesDe(arbre.racine)[2]).toContain("0 direct")
+      expect(cellulesDe(arbre.racine)[2]).toContain("1 au total")
+    } finally {
+      await prisma.product.delete({ where: { id: produit.id } })
+    }
+  })
+
+  it("garde une seule région polie, et n'invente ni treegrid ni glisser-déposer", async () => {
+    const { html } = await rendreLaListe()
+
+    expect(html.match(/role="status"/g) ?? []).toHaveLength(1)
+    expect(html).toContain('aria-live="polite"')
+    expect(html).not.toContain('role="treegrid"')
+    expect(html).not.toContain('draggable="true"')
+  })
+
+  it("envoie une intention par geste, jamais une position ni une fratrie", async () => {
+    const { html } = await rendreLaListe()
+    const ligne = lignesDuRendu(html).find(
+      (candidate) => candidate.nom === arbre.enfantB.name
+    )!
+
+    expect(html).not.toContain('name="position"')
+    const formulaires = ligne.html.split("<form").slice(1)
+    const intentionDe = (geste: string) => {
+      const formulaire = formulaires.find((candidate) =>
+        candidate.includes(`aria-label="${geste} ${arbre.enfantB.name}"`)
+      )
+      expect(formulaire, `${geste} de « ${arbre.enfantB.name} »`).toBeDefined()
+      return {
+        nouvelleParenteId:
+          /name="nouvelleParenteId" value="([^"]*)"/.exec(formulaire!)?.[1] ??
+          "",
+        avantId: /name="avantId" value="([^"]*)"/.exec(formulaire!)?.[1] ?? "",
+      }
+    }
+
+    expect(intentionDe("Monter")).toEqual({
+      nouvelleParenteId: arbre.racine.id,
+      avantId: arbre.enfantA.id,
+    })
+    expect(intentionDe("Indenter")).toEqual({
+      nouvelleParenteId: arbre.enfantA.id,
+      avantId: "",
+    })
+  })
+
+  it("offre « Rattacher… » sur une Structure hors arbre, et « Déplacer sous… » sur une saine", async () => {
+    const { html } = await rendreLaListe()
+    const lignes = lignesDuRendu(html)
+    const horsArbre = lignes.find(
+      (ligne) => ligne.nom === cycle[0]!.name
+    )!.premiereCellule
+
+    expect(horsArbre).toContain("hors arbre")
+    expect(html).toContain(`Rattacher ${cycle[0]!.name}`)
+    expect(html).toContain(`Rattacher ${accrocheeAuCycle.name}`)
+    expect(html).toContain(
+      `Déplacer ${arbre.racine.name} sous une autre Structure`
+    )
+    expect(html).toContain("Rattacher…")
+    expect(html).toContain("Déplacer sous…")
   })
 })

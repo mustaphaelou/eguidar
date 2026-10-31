@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { prisma } from "@/lib/db"
 import {
   fetchArticleParSlug,
+  fetchArticleSlugs,
   fetchArticlesLies,
   fetchBlogLanding,
 } from "@/lib/use-cases/blog"
@@ -195,6 +196,50 @@ describe("blog lecture publique", () => {
       await expect(
         fetchArticleParSlug(bSlug("detail-brouillon"))
       ).resolves.toBeNull()
+    })
+  })
+
+  describe("l'horloge de publication", () => {
+    it("ne rend un Article qu'entre sa date de publication et maintenant", async () => {
+      const moinsUneMinute = new Date(Date.now() - 60_000)
+      const demain = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      const passe = await creerArticle({
+        suffix: "horloge-passe",
+        statut: "publie",
+        publishedAt: moinsUneMinute,
+      })
+      const futur = await creerArticle({
+        suffix: "horloge-futur",
+        statut: "publie",
+        publishedAt: demain,
+      })
+      const sansDate = await creerArticle({
+        suffix: "horloge-sans-date",
+        statut: "publie",
+        publishedAt: null,
+      })
+
+      const landing = await fetchBlogLanding()
+      const slugsDeLaLanding = [
+        landing.hero?.slug,
+        ...landing.articles.map((article) => article.slug),
+      ]
+
+      expect(slugsDeLaLanding).toContain(passe.slug)
+      expect(slugsDeLaLanding).not.toContain(futur.slug)
+      expect(slugsDeLaLanding).not.toContain(sansDate.slug)
+
+      await expect(fetchArticleParSlug(passe.slug)).resolves.toMatchObject({
+        slug: passe.slug,
+      })
+      await expect(fetchArticleParSlug(futur.slug)).resolves.toBeNull()
+      await expect(fetchArticleParSlug(sansDate.slug)).resolves.toBeNull()
+
+      const slugsPrets = await fetchArticleSlugs()
+
+      expect(slugsPrets).toContain(passe.slug)
+      expect(slugsPrets).not.toContain(futur.slug)
+      expect(slugsPrets).not.toContain(sansDate.slug)
     })
   })
 
@@ -536,6 +581,36 @@ describe("blog lecture publique", () => {
 
       expect(lies.map((article) => article.slug)).toEqual([
         bSlug("lies-publie"),
+      ])
+    })
+
+    it("n'offre jamais un Article dont la date de publication est future", async () => {
+      await creerArticle({
+        suffix: "lies-courant-horloge",
+        statut: "publie",
+        publishedAt: new Date("2026-01-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-passe-horloge",
+        statut: "publie",
+        publishedAt: new Date("2026-02-01T10:00:00Z"),
+        themeSlug: "guides",
+      })
+      await creerArticle({
+        suffix: "lies-futur-horloge",
+        statut: "publie",
+        publishedAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        themeSlug: "guides",
+      })
+
+      const lies = await fetchArticlesLies(
+        bSlug("lies-courant-horloge"),
+        "guides"
+      )
+
+      expect(lies.map((article) => article.slug)).toEqual([
+        bSlug("lies-passe-horloge"),
       ])
     })
 

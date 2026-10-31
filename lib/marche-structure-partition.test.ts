@@ -49,6 +49,7 @@ function partitionDepuisLesLiens(
   const liens: LiensStructure = {
     parentParId: new Map(faits.map((fait) => [fait.id, fait.parentId])),
     noms: new Map(faits.map((fait) => [fait.id, fait.name])),
+    positions: new Map(faits.map((fait) => [fait.id, fait.position ?? 0])),
   }
   const marche = marcheStructure(liens)
   return (id) => complementDepuis(marche, liens, id)
