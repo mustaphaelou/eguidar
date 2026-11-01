@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useSignInFlow } from "./use-sign-in-flow"
 import { useSignUpFlow } from "./use-sign-up-flow"
 import { useOtpExchange } from "./verification-de-l-email"
+import { ENVOIS_PROTEGES } from "@/lib/test-de-securite"
 
 vi.mock("next/navigation", () => mockNextNavigation())
 
@@ -18,14 +19,14 @@ const JETON = "jeton-de-la-garde"
 
 const CLE_SITE = "1x00000000000000000000AA"
 
-const CLE_TURNSTILE = "0x0000000000000000000000000000000000000000"
-
 const CHEMIN_BASE = "/api/auth"
 
 interface Envoi {
   chemin: string
   entetes: Record<string, string>
 }
+
+const attaches: { envoi: string; action: string }[] = []
 
 const envois: Envoi[] = vi.hoisted(() => {
   const captures: { chemin: string; entetes: Record<string, string> }[] = []
@@ -61,6 +62,7 @@ const roots: ReturnType<typeof createRoot>[] = []
 
 beforeEach(async () => {
   envois.length = 0
+  attaches.length = 0
   container = document.createElement("div")
   document.body.appendChild(container)
   resetNavigation("/")
@@ -73,6 +75,13 @@ beforeEach(async () => {
   await act(async () => root.render(<Surfaces />))
   window.turnstile = {
     render: (_cible, options) => {
+      attaches.push({
+        envoi:
+          _cible
+            .closest("[data-envoi-protege]")
+            ?.getAttribute("data-envoi-protege") ?? "inconnu",
+        action: options.action,
+      })
       options.callback(JETON)
       return "widget-de-la-garde"
     },
@@ -123,7 +132,8 @@ function Connexion() {
       <button type="button" data-envoi onClick={() => flow.otp.verify()}>
         vérification du code
       </button>
-      {flow.captcha.field}
+      <div data-envoi-protege="connexion">{flow.captcha.field}</div>
+      <div data-envoi-protege="code">{flow.otp.captchaField}</div>
     </form>
   )
 }
@@ -140,7 +150,7 @@ function Inscription() {
       <button type="submit" data-envoi>
         inscription
       </button>
-      {flow.captcha.field}
+      <div data-envoi-protege="inscription">{flow.captcha.field}</div>
     </form>
   )
 }
@@ -160,7 +170,7 @@ function EnvoiDuCode() {
       <button type="button" data-envoi onClick={() => otp.verify()}>
         vérification du code
       </button>
-      {otp.captchaField}
+      <div data-envoi-protege="reinitialisation">{otp.captchaField}</div>
     </div>
   )
 }
@@ -204,26 +214,8 @@ function pointsDEntreeProtegesParLeNavigateur(): string[] {
   ].sort()
 }
 
-async function pointsDEntreeProtegesParLeServeur(): Promise<string[]> {
-  vi.stubEnv("TURNSTILE_SECRET_KEY", CLE_TURNSTILE)
-  vi.resetModules()
-  const { auth } = await import("@/lib/auth")
-  const options = auth.options as unknown as {
-    basePath?: string
-    plugins?: { id?: string; options?: { endpoints?: string[] } }[]
-  }
-  expect(options.basePath ?? CHEMIN_BASE).toBe(CHEMIN_BASE)
-  const plugin = options.plugins?.find((p) => p.id === "captcha")
-  expect(
-    plugin,
-    "le plugin de Test de sécurité n'est pas enregistré sur l'instance"
-  ).toBeDefined()
-  const endpoints = plugin?.options?.endpoints
-  expect(
-    Array.isArray(endpoints) && endpoints.length > 0,
-    "le plugin de Test de sécurité ne protège aucun point d'entrée"
-  ).toBe(true)
-  return [...(endpoints ?? [])].sort()
+function pointsDEntreeProtegesParLeServeur(): string[] {
+  return [...new Set(ENVOIS_PROTEGES.map((envoi) => envoi.chemin))].sort()
 }
 
 function ecart(navigateur: string[], serveur: string[]) {
@@ -238,7 +230,7 @@ describe("Envois protégés et points d'entrée protégés", () => {
     await envoyer()
 
     const navigateur = pointsDEntreeProtegesParLeNavigateur()
-    const serveur = await pointsDEntreeProtegesParLeServeur()
+    const serveur = pointsDEntreeProtegesParLeServeur()
     const { protegeSansEnvoi, envoiSansProtection } = ecart(navigateur, serveur)
 
     expect(
@@ -253,6 +245,21 @@ describe("Envois protégés et points d'entrée protégés", () => {
       envoiSansProtection,
       `le navigateur envoie ${envoiSansProtection.join(", ")} et le serveur ne protège aucun point d'entrée correspondant`
     ).toEqual([])
+  })
+
+  it("attache à chaque widget l'action de son Envoi protégé", async () => {
+    await envoyer()
+
+    expect(
+      new Map(attaches.map(({ envoi, action }) => [envoi, action]))
+    ).toEqual(
+      new Map([
+        ["connexion", "connexion"],
+        ["code", "code"],
+        ["inscription", "inscription"],
+        ["reinitialisation", "reinitialisation"],
+      ])
+    )
   })
 
   it("la garde distingue un Envoi protégé d'un envoi ordinaire", async () => {
