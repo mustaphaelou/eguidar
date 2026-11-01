@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { signInSchema, signUpSchema } from "./auth-form-schemas"
+import {
+  resetPasswordSchema,
+  signInSchema,
+  signUpSchema,
+} from "./auth-form-schemas"
 
 describe("signInSchema", () => {
   it("requires an email", () => {
@@ -64,11 +68,11 @@ describe("signUpSchema", () => {
     }
   })
 
-  it("enforces a minimum password length of 8 on signup", () => {
+  it("refuses a password shorter than the 15-character floor", () => {
     const result = signUpSchema.safeParse({
       name: "Salma",
       email: "a@b.ma",
-      password: "court",
+      password: "MotDePasse!123",
     })
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -76,20 +80,75 @@ describe("signUpSchema", () => {
         (issue) => issue.path[0] === "password"
       )
       expect(passwordIssue?.message).toBe(
-        "Le mot de passe doit contenir au moins 8 caractères."
+        "Le mot de passe doit contenir au moins 15 caractères."
       )
     }
+  })
+
+  it("accepts a password of exactly 15 characters", () => {
+    const result = signUpSchema.safeParse({
+      name: "Salma",
+      email: "a@b.ma",
+      password: "MotDePasse!1234",
+    })
+
+    expect(result.success).toBe(true)
   })
 
   it("accepts a valid signup", () => {
     const result = signUpSchema.safeParse({
       name: " Salma Bennani ",
       email: "salma@example.ma",
-      password: "motdepasse",
+      password: "motdepasse12345",
     })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.name).toBe("Salma Bennani")
+    }
+  })
+})
+
+describe("resetPasswordSchema", () => {
+  it("refuses a password shorter than the 15-character floor", () => {
+    const result = resetPasswordSchema.safeParse({
+      password: "MotDePasse!123",
+      confirmPassword: "MotDePasse!123",
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const passwordIssue = result.error.issues.find(
+        (issue) => issue.path[0] === "password"
+      )
+      expect(passwordIssue?.message).toBe(
+        "Le mot de passe doit contenir au moins 15 caractères."
+      )
+    }
+  })
+
+  it("accepts a password of exactly 15 characters when both entries match", () => {
+    const result = resetPasswordSchema.safeParse({
+      password: "MotDePasse!1234",
+      confirmPassword: "MotDePasse!1234",
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it("refuses two different passwords", () => {
+    const result = resetPasswordSchema.safeParse({
+      password: "MotDePasse!1234",
+      confirmPassword: "AutreMotDePasse!1",
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const confirmIssue = result.error.issues.find(
+        (issue) => issue.path[0] === "confirmPassword"
+      )
+      expect(confirmIssue?.message).toBe(
+        "Les mots de passe ne correspondent pas."
+      )
     }
   })
 })

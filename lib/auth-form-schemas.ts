@@ -1,5 +1,12 @@
 import { z } from "zod"
 
+import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
+
+export const MESSAGE_MOT_DE_PASSE_TROP_COURT = `Le mot de passe doit contenir au moins ${LONGUEUR_MINIMALE_MOT_DE_PASSE} caractères.`
+
+export const MESSAGE_MOTS_DE_PASSE_DIFFERENTS =
+  "Les mots de passe ne correspondent pas."
+
 const emailField = z
   .string()
   .trim()
@@ -11,13 +18,25 @@ export const signInSchema = z.object({
   password: z.string().min(1, { message: "Saisissez votre mot de passe." }),
 })
 
+const champMotDePasse = z.string().min(LONGUEUR_MINIMALE_MOT_DE_PASSE, {
+  message: MESSAGE_MOT_DE_PASSE_TROP_COURT,
+})
+
 export const signUpSchema = z.object({
   name: z.string().trim().min(1, { message: "Saisissez votre nom complet." }),
   email: emailField,
-  password: z.string().min(8, {
-    message: "Le mot de passe doit contenir au moins 8 caractères.",
-  }),
+  password: champMotDePasse,
 })
+
+export const resetPasswordSchema = z
+  .object({
+    password: champMotDePasse,
+    confirmPassword: z.string(),
+  })
+  .refine(({ password, confirmPassword }) => password === confirmPassword, {
+    message: MESSAGE_MOTS_DE_PASSE_DIFFERENTS,
+    path: ["confirmPassword"],
+  })
 
 export function collectFieldIssues(error: z.ZodError): Record<string, string> {
   const issues: Record<string, string> = {}

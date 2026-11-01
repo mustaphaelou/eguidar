@@ -14,7 +14,7 @@ describe("translateAuthError", () => {
       translateAuthError({ code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" })
     ).toBe("Un compte existe déjà avec cette adresse e-mail.")
     expect(translateAuthError({ code: "PASSWORD_TOO_SHORT" })).toBe(
-      "Le mot de passe doit contenir au moins 8 caractères."
+      "Le mot de passe doit contenir au moins 15 caractères."
     )
     expect(translateAuthError({ code: "USER_NOT_FOUND" })).toBe(
       "Aucun compte n'est associé à cette adresse e-mail."

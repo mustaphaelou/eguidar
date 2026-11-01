@@ -1,5 +1,7 @@
 "use client"
 
+import { MESSAGE_MOT_DE_PASSE_TROP_COURT } from "@/lib/auth-form-schemas"
+
 export function translateAuthError(error: {
   code?: string
   message?: string
@@ -12,7 +14,7 @@ export function translateAuthError(error: {
     case "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL":
       return "Un compte existe déjà avec cette adresse e-mail."
     case "PASSWORD_TOO_SHORT":
-      return "Le mot de passe doit contenir au moins 8 caractères."
+      return MESSAGE_MOT_DE_PASSE_TROP_COURT
     case "USER_NOT_FOUND":
       return "Aucun compte n'est associé à cette adresse e-mail."
     case "INVALID_OTP":
