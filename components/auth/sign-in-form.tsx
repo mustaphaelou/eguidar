@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import type { AuthFlow } from "@/components/auth/auth-dialog"
+import { useAuthDialogError } from "@/components/auth/auth-dialogs"
 import { PasswordInput } from "@/components/auth/password-input"
 import { useSignInFlow } from "@/components/auth/use-sign-in-flow"
 import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
@@ -54,6 +55,8 @@ export function SignInForm({
     backToForm,
   } = useSignInFlow({ ...flow, onSuccess })
   const [issues, setIssues] = useState<Record<string, string>>({})
+  const dialogError = useAuthDialogError()
+  const afficherEchecSocial = dialogError && !error && !notice
 
   function updateIssue(key: string) {
     setIssues((prev) => {
@@ -79,6 +82,11 @@ export function SignInForm({
     <>
       {step === "form" && (
         <div className="flex flex-col gap-4">
+          {afficherEchecSocial && (
+            <p role="alert" className="text-sm font-medium text-destructive">
+              {dialogError}
+            </p>
+          )}
           {(hasFacebook || hasGoogle) && (
             <>
               <div className="flex flex-col gap-2">

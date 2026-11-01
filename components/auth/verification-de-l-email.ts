@@ -8,8 +8,12 @@ import {
 } from "@/components/auth/auth-form-glue"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
+import {
+  ACTIONS_PAR_TYPE_OTP,
+  type TypeOtp,
+} from "@/lib/vocabulaire-test-de-securite"
 
-export type OtpExchangeType = "email-verification" | "forget-password"
+export type OtpExchangeType = TypeOtp
 
 export function useOtpExchange({
   email,
@@ -26,7 +30,7 @@ export function useOtpExchange({
   const [otp, setOtp] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const captcha = useTestDeSecurite()
+  const captcha = useTestDeSecurite(ACTIONS_PAR_TYPE_OTP[type])
 
   async function send() {
     setError(null)

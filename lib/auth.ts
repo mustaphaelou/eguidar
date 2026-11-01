@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { nextCookies } from "better-auth/next-js"
-import { captcha, emailOTP, haveIBeenPwned } from "better-auth/plugins"
+import { emailOTP, haveIBeenPwned } from "better-auth/plugins"
 
 import {
   ORDRE_ENTETES_ADRESSE_CLIENT,
@@ -13,6 +13,14 @@ import { hacherMotDePasse } from "@/lib/mot-de-passe-hache"
 import { verifierMotDePasseEtRehacher } from "@/lib/rehachage-mot-de-passe"
 import { sendOtpEmail } from "@/lib/emails"
 import {
+  ORIGINES_DE_LA_BOUTIQUE,
+  originesSupplementaires,
+} from "@/lib/origines-de-confiance"
+import {
+  hotesDuTestDeSecurite,
+  pluginTestDeSecurite,
+} from "@/lib/test-de-securite"
+import {
   SESSION_INACTIVE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "@/lib/session-constants"
@@ -21,6 +29,7 @@ import { hooksEchecsConnexion } from "@/lib/echecs-connexion"
 export const auth = betterAuth({
   appName: "Eguidar",
   baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: [...ORIGINES_DE_LA_BOUTIQUE, ...originesSupplementaires()],
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   advanced: {
@@ -30,6 +39,12 @@ export const auth = betterAuth({
       ipAddressHeaders: [...ORDRE_ENTETES_ADRESSE_CLIENT],
       trustedProxies: [...PROXIES_DE_CONFIANCE],
     },
+  },
+  account: {
+    // Les jetons fournisseur sont chiffrés au repos avec une clé dérivée de
+    // BETTER_AUTH_SECRET. Changer ce secret rend les jetons existants
+    // illisibles : conséquence acceptée, rien dans la boutique ne les lit.
+    encryptOAuthTokens: true,
   },
   hooks: hooksEchecsConnexion,
   session: {
@@ -59,10 +74,17 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      // L'ensemble des scopes est déclaré en entier : la bibliothèque n'ajoute
+      // aucun scope par défaut et une montée de version ne peut pas l'élargir
+      // en silence.
+      disableDefaultScope: true,
+      scope: ["openid", "email", "profile"],
     },
     facebook: {
       clientId: process.env.FACEBOOK_CLIENT_ID ?? "",
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? "",
+      disableDefaultScope: true,
+      scope: ["email", "public_profile"],
       mapProfileToUser: () => ({ emailVerified: true }),
     },
   },
@@ -81,14 +103,9 @@ export const auth = betterAuth({
     }),
     ...(process.env.TURNSTILE_SECRET_KEY
       ? [
-          captcha({
-            provider: "cloudflare-turnstile",
+          pluginTestDeSecurite({
             secretKey: process.env.TURNSTILE_SECRET_KEY,
-            endpoints: [
-              "/sign-up/email",
-              "/sign-in/email",
-              "/email-otp/send-verification-otp",
-            ],
+            allowedHostnames: hotesDuTestDeSecurite(),
           }),
         ]
       : []),

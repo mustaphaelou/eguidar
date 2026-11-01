@@ -34,6 +34,21 @@ export function translateAuthError(error: {
   }
 }
 
+export function translateConnexionSocialeFailure(
+  code: string | null
+): string | null {
+  switch (code) {
+    case null:
+      return null
+    case "access_denied":
+      return "La connexion a été annulée. Vous pouvez réessayer."
+    case "email_not_found":
+      return "Le fournisseur ne nous a pas transmis d'adresse e-mail. Continuez avec un autre fournisseur ou inscrivez-vous avec une adresse e-mail."
+    default:
+      return "La connexion a échoué. Veuillez réessayer."
+  }
+}
+
 export function resolveAuthRefusal(
   error: { code?: string; message?: string } | null | undefined,
   reset: () => void
