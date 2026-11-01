@@ -241,6 +241,10 @@ export async function executerEvenement(
 
   for (const regle of regles) {
     const decision = deciderAutomation(regle, evenement, maintenant)
+    // Inatteignable aujourd'hui : la requête ne rend que les Règles actives de
+    // même déclencheur, et l'expiration est jugée avant la boucle. La garde
+    // reste pour qu'un élargissement de la requête (Règles désactivées ou d'un
+    // autre déclencheur) n'ouvre pas une Exécution que la Décision a écartée.
     if (
       decision.decision === "ignorer" &&
       decision.raison.type !== "condition-non-remplie"

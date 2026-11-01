@@ -1,5 +1,6 @@
 import {
   laConditionEstRemplie,
+  statutDeLaCharge,
   type ConditionAutomation,
   type TypeConditionAutomation,
 } from "@/lib/automations/vocabulaire"
@@ -9,6 +10,11 @@ import {
  * cet Événement ». Elle reçoit les lignes telles que Prisma les porte — aucun
  * adaptateur — et ne rend jamais de phrase : chaque consommateur écrit la
  * sienne. Aucune base, aucun port, aucune transaction.
+ *
+ * Les noms de champs reprennent volontairement les colonnes Prisma — `trigger`,
+ * `enabled`, `condition`, puis `type`, `payload`, `expiresAt` — pour que les
+ * lignes se passent telles quelles, même si le vocabulaire du domaine préfère
+ * « déclencheur » et « état activé ».
  */
 export interface RegleDecision {
   trigger: string
@@ -65,11 +71,6 @@ export function evenementEstExpire(expiresAt: Date, maintenant: Date): boolean {
   return expiresAt.getTime() <= maintenant.getTime()
 }
 
-function statutDeLaCharge(payload: unknown): unknown {
-  if (!payload || typeof payload !== "object") return undefined
-  return (payload as { statut?: unknown }).statut
-}
-
 /**
  * L'ordre est canonique : déclencheur → état → expiration → condition. Le
  * premier motif gagne, et la condition n'est lue qu'une fois les trois
@@ -114,11 +115,11 @@ export function deciderAutomation(
     }
   }
 
-  const type = (condition as ConditionAutomation).type
+  const typeDeLaCondition = (condition as ConditionAutomation).type
   return {
     decision: "executer",
-    condition: type,
-    ...(type === "statut-commande"
+    condition: typeDeLaCondition,
+    ...(typeDeLaCondition === "statut-commande"
       ? { statut: statutDeLaCharge(evenement.payload) }
       : {}),
   }
