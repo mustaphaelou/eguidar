@@ -9,6 +9,25 @@ describe("Connexion sociale : configuration serveur", () => {
     expect(Object.keys(providers).sort()).toEqual(["facebook", "google"])
   })
 
+  it("declares provider-token encryption at rest", () => {
+    expect(auth.options.account?.encryptOAuthTokens).toBe(true)
+  })
+
+  it.each([
+    { provider: "google", scopes: ["email", "openid", "profile"] },
+    { provider: "facebook", scopes: ["email", "public_profile"] },
+  ] as const)(
+    "asks $provider for exactly the declared scopes",
+    ({ provider, scopes }) => {
+      const providerOptions = auth.options.socialProviders?.[provider]
+
+      expect(providerOptions?.disableDefaultScope).toBe(true)
+      expect([...(providerOptions?.scope ?? [])].sort()).toEqual(
+        [...scopes].sort()
+      )
+    }
+  )
+
   it("reads the Facebook credentials from the environment", async () => {
     vi.stubEnv("FACEBOOK_CLIENT_ID", "facebook-client-id")
     vi.stubEnv("FACEBOOK_CLIENT_SECRET", "facebook-client-secret")

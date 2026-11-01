@@ -15,6 +15,7 @@ import {
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
+import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 
 export type SignInFlow = ReturnType<typeof useSignInFlow>
@@ -37,7 +38,7 @@ export function useSignInFlow({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const captcha = useTestDeSecurite()
+  const captcha = useTestDeSecurite(ACTIONS_TEST_DE_SECURITE.connexion)
   const otp = useOtpExchange({
     email,
     type: "email-verification",

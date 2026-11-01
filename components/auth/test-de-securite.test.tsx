@@ -5,11 +5,16 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useTestDeSecurite } from "./test-de-securite"
+import {
+  ACTIONS_TEST_DE_SECURITE,
+  type ActionTestDeSecurite,
+} from "@/lib/vocabulaire-test-de-securite"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 type TurnstileOptions = {
   sitekey: string
+  action: string
   callback: (token: string) => void
   "expired-callback"?: () => void
   "error-callback"?: () => void
@@ -45,8 +50,12 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function Harness() {
-  const captcha = useTestDeSecurite()
+function Harness({
+  action = ACTIONS_TEST_DE_SECURITE.connexion,
+}: {
+  action?: ActionTestDeSecurite
+} = {}) {
+  const captcha = useTestDeSecurite(action)
   return (
     <div>
       <div data-ready={String(captcha.ready)} />
@@ -129,10 +138,23 @@ describe("useTestDeSecurite", () => {
 
     expect(renderMock).toHaveBeenCalledTimes(1)
     expect(capturedOptions().sitekey).toBe("1x00000000000000000000AA")
+    expect(capturedOptions().action).toBe("connexion")
     expect(capturedOptions().theme).toBe("auto")
     expect(ready()).toBe("false")
     expect(headers()).toBe("undefined")
   })
+
+  it.each(Object.values(ACTIONS_TEST_DE_SECURITE))(
+    "renders the %s action on the widget",
+    async (action) => {
+      vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+
+      await render(<Harness action={action} />)
+      await loadScript()
+
+      expect(capturedOptions().action).toBe(action)
+    }
+  )
 
   it("becomes ready and carries the jeton header once the token arrives", async () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")

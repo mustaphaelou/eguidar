@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import type { ActionTestDeSecurite } from "@/lib/vocabulaire-test-de-securite"
 
 type TurnstileOptions = {
   sitekey: string
+  action: ActionTestDeSecurite
   callback: (token: string) => void
   "expired-callback"?: () => void
   "error-callback"?: () => void
@@ -29,12 +31,14 @@ type WidgetStatus = "idle" | "expired" | "error"
 
 function TestSecuriteWidget({
   siteKey,
+  action,
   onTokenChange,
   status,
   onStatusChange,
   resetSignal,
 }: {
   siteKey: string
+  action: ActionTestDeSecurite
   onTokenChange: (token: string | null) => void
   status: WidgetStatus
   onStatusChange: (status: WidgetStatus) => void
@@ -84,6 +88,7 @@ function TestSecuriteWidget({
     if (!loaded || !containerRef.current || !window.turnstile) return
     widgetIdRef.current = window.turnstile.render(containerRef.current, {
       sitekey: siteKey,
+      action,
       callback: (token) => onTokenChangeRef.current(token),
       "expired-callback": () => {
         onTokenChangeRef.current(null)
@@ -101,7 +106,7 @@ function TestSecuriteWidget({
         widgetIdRef.current = null
       }
     }
-  }, [loaded, siteKey, onStatusChange])
+  }, [loaded, siteKey, action, onStatusChange])
 
   useEffect(() => {
     if (resetSignal === 0) return
@@ -145,7 +150,7 @@ function TestSecuriteWidget({
   )
 }
 
-export function useTestDeSecurite() {
+export function useTestDeSecurite(action: ActionTestDeSecurite) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const [token, setToken] = useState<string | null>(null)
   const [status, setStatus] = useState<WidgetStatus>("idle")
@@ -163,6 +168,7 @@ export function useTestDeSecurite() {
     field: siteKey ? (
       <TestSecuriteWidget
         siteKey={siteKey}
+        action={action}
         onTokenChange={setToken}
         status={status}
         onStatusChange={setStatus}
