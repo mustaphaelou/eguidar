@@ -517,7 +517,39 @@ describe("AuthDialog", () => {
       expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
         provider: "facebook",
         callbackURL: "http://localhost:3000/?query=phone",
+        errorCallbackURL: "http://localhost:3000/?query=phone&open=login",
       })
+    })
+
+    it("returns to the Connexion modal with the cancelled message after access_denied", async () => {
+      window.history.replaceState(null, "", "/?open=login&error=access_denied")
+      renderDialogs({ hasGoogle: true, hasFacebook: true })
+      await flush()
+      rerender()
+
+      expect(dialog()).not.toBeNull()
+      expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+        "La connexion a été annulée. Vous pouvez réessayer."
+      )
+      expect(
+        socialProviderButtons().map((button) => button.textContent?.trim())
+      ).toEqual(["Continuer avec Facebook", "Continuer avec Google"])
+    })
+
+    it("offers the Continuer avec … entry points when the provider has no e-mail", async () => {
+      window.history.replaceState(
+        null,
+        "",
+        "/?open=login&error=email_not_found"
+      )
+      renderDialogs({ hasGoogle: true, hasFacebook: true })
+      await flush()
+      rerender()
+
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+        "Le fournisseur ne nous a pas transmis d'adresse e-mail"
+      )
+      expect(socialProviderButtons()).toHaveLength(2)
     })
 
     it("shows no Connexion sociale block when no provider is configured", async () => {

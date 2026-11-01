@@ -5,6 +5,7 @@ import { useState } from "react"
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import {
   useAuthDialogDestination,
+  useAuthDialogErrorDestination,
   usePageAddressWithoutAuthParams,
 } from "@/components/auth/auth-dialogs"
 import {
@@ -31,6 +32,7 @@ export function useSignInFlow({
 }) {
   const next = useAuthDialogDestination()
   const pageAddress = usePageAddressWithoutAuthParams()
+  const errorDestination = useAuthDialogErrorDestination()
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -76,6 +78,7 @@ export function useSignInFlow({
     const result = await authClient.signIn.social({
       provider,
       callbackURL: socialSignInDestination(pageAddress),
+      errorCallbackURL: socialSignInDestination(errorDestination),
     })
     if (result.error) setError(translateAuthError(result.error))
   }
