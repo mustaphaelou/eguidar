@@ -156,7 +156,8 @@ export default async function AdminRegleAutomatisationPage({
                 {evenements.map((evenement) => (
                   <option key={evenement.id} value={evenement.id}>
                     {evenement.entityId} —{" "}
-                    {formatDate.format(evenement.occurredAt)}
+                    {formatDate.format(evenement.occurredAt)} —{" "}
+                    {LIBELLES_STATUT_EXECUTION[evenement.statut]}
                   </option>
                 ))}
               </select>

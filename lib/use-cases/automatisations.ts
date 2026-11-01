@@ -3,9 +3,15 @@ import { z } from "zod"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import {
+  DUREE_VIE_EVENEMENT_MS,
   typeEntiteAutomationSchema,
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
+import {
+  deciderAutomation,
+  type DecisionAutomation,
+  type RaisonIgnoree,
+} from "@/lib/automations/decision"
 import {
   executerLAction,
   type DependancesAutomations,
@@ -14,13 +20,12 @@ import {
   conditionAutomationSchema,
   configurationRegleSchema,
   ecrireRevisionRegle,
-  laConditionEstRemplie,
   verifierRegle,
   type RegleAutomation,
 } from "@/lib/automations/regles"
 import {
   LIBELLES_ACTION,
-  LIBELLES_DECLENCHEUR,
+  libelleBrutDuDeclencheur,
   libelleDeLaCondition,
   type ActionAutomation,
   type ConfigurationRegle,
@@ -408,6 +413,37 @@ function libelleDeLAction(action: ActionAutomation): string {
 }
 
 /**
+ * La Simulation garde ses phrases et son affichage à deux valeurs ; seule la
+ * Décision juge. Le rendu reste privé pour que les trois consommateurs ne
+ * partagent jamais une prose.
+ */
+function motifDeLaSimulation(
+  decision: DecisionAutomation,
+  regle: RegleAutomation,
+  action: string
+): string {
+  if (decision.decision === "executer") {
+    if (decision.condition === "statut-commande") {
+      return `La condition « ${libelleDeLaCondition(decision.condition)} » retient le statut « ${String(decision.statut)} » : l'action ${action} serait exécutée.`
+    }
+    return `La condition « ${libelleDeLaCondition(decision.condition)} » est remplie : l'action ${action} serait exécutée.`
+  }
+
+  const raison = decision.raison
+  switch (raison.type) {
+    case "declencheur-different": {
+      return `Le déclencheur de la règle ne correspond pas : « ${libelleBrutDuDeclencheur(raison.recu)} » (${raison.recu}) au lieu de « ${libelleBrutDuDeclencheur(regle.declencheur)} » (${regle.declencheur}) : l'action ${action} serait ignorée.`
+    }
+    case "regle-desactivee":
+      return "La règle est désactivée : l'action ne serait pas exécutée."
+    case "evenement-expire":
+      return `L'Événement a expiré le ${raison.expireLe.toISOString()} : l'action ne serait pas exécutée.`
+    case "condition-non-remplie":
+      return `La condition « ${libelleDeLaCondition(regle.condition.type)} » ne retient pas le statut « ${String(raison.statut)} » : l'action ${action} serait ignorée.`
+  }
+}
+
+/**
  * Les Événements réels qui peuvent servir de sujet à une simulation : ceux du
  * déclencheur de la règle, du plus récent au plus ancien.
  */
@@ -476,53 +512,11 @@ export async function simulerRegle(
     expiresAt: evenement.expiresAt,
     statut: evenement.status,
   }
-  const action = libelleDeLAction(regle.action)
-
-  if (evenement.type !== regle.declencheur) {
-    return {
-      decision: "ignorerait",
-      motif: `Le déclencheur de la règle ne correspond pas : « ${LIBELLES_DECLENCHEUR[evenement.type as keyof typeof LIBELLES_DECLENCHEUR] ?? evenement.type} » (${evenement.type}) au lieu de « ${LIBELLES_DECLENCHEUR[regle.declencheur]} » (${regle.declencheur}) : l'action ${action} serait ignorée.`,
-      evenement: sujet,
-    }
-  }
-
-  if (!regle.actif) {
-    return {
-      decision: "ignorerait",
-      motif: "La règle est désactivée : l'action ne serait pas exécutée.",
-      evenement: sujet,
-    }
-  }
-
-  if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
-    return {
-      decision: "ignorerait",
-      motif: `L'Événement a expiré le ${evenement.expiresAt.toISOString()} : l'action ne serait pas exécutée.`,
-      evenement: sujet,
-    }
-  }
-
-  if (!laConditionEstRemplie(regle.condition, evenement.payload)) {
-    const statut = (evenement.payload as { statut?: unknown } | null)?.statut
-    return {
-      decision: "ignorerait",
-      motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » ne retient pas le statut « ${String(statut)} » : l'action ${action} serait ignorée.`,
-      evenement: sujet,
-    }
-  }
-
-  if (regle.condition.type === "statut-commande") {
-    const statut = (evenement.payload as { statut?: unknown }).statut
-    return {
-      decision: "enverrait",
-      motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » retient le statut « ${String(statut)} » : l'action ${action} serait exécutée.`,
-      evenement: sujet,
-    }
-  }
+  const decision = deciderAutomation(ligne, evenement, maintenant)
 
   return {
-    decision: "enverrait",
-    motif: `La condition « ${libelleDeLaCondition(regle.condition.type)} » est remplie : l'action ${action} serait exécutée.`,
+    decision: decision.decision === "executer" ? "enverrait" : "ignorerait",
+    motif: motifDeLaSimulation(decision, regle, libelleDeLAction(regle.action)),
     evenement: sujet,
   }
 }
@@ -533,11 +527,32 @@ export interface ResultatReessai {
   erreur: string | null
 }
 
+const FENETRE_REJEU_EN_HEURES = DUREE_VIE_EVENEMENT_MS / (60 * 60 * 1000)
+
+/**
+ * Le refus nomme la raison de la Décision sans rejouer son ordre : chaque
+ * raison a sa phrase, et l'Événement expiré rappelle la fenêtre de rejeu. Le
+ * rendu reste privé pour que la Décision et les autres consommateurs ne
+ * partagent jamais une prose.
+ */
+function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
+  switch (raison.type) {
+    case "evenement-expire":
+      return `L'Événement a expiré le ${raison.expireLe.toISOString()} : la fenêtre de rejeu de ${FENETRE_REJEU_EN_HEURES} h est dépassée, rien n'est rejoué.`
+    case "regle-desactivee":
+      return "La Règle est désactivée : réactivez-la pour réessayer cette Exécution."
+    case "declencheur-different":
+      return `La Règle ne possède plus cet Événement : elle attend « ${libelleBrutDuDeclencheur(raison.attendu)} » (${raison.attendu}) et l'Événement porte « ${libelleBrutDuDeclencheur(raison.recu)} » (${raison.recu}).`
+    case "condition-non-remplie":
+      return "La condition de la Règle ne retient plus cet Événement : la modification de la Règle est honorée, rien n'est rejoué."
+  }
+}
+
 /**
  * Le réessai manuel (Flow : « Manual retry », n8n : l'exécution manuelle est
- * distincte de la production). Il rejoue **la règle** sur l'Événement de
- * l'Exécution, écrit une nouvelle Exécution `manuel` et laisse l'échec
- * d'origine dans l'historique comme trace.
+ * distincte de la production). Il consulte la Décision avant d'écrire : seule
+ * une paire que la Règle actuelle gouverne encore ouvre une Exécution
+ * `manuel`. Un refus laisse l'échec d'origine et son Événement intacts.
  */
 export async function reessayerExecution(
   executionId: string,
@@ -567,6 +582,11 @@ export async function reessayerExecution(
   const regle = versRegle(execution.rule)
   const evenement = execution.event
   const maintenant = dependances.maintenant
+
+  const decision = deciderAutomation(execution.rule, evenement, maintenant)
+  if (decision.decision === "ignorer") {
+    throw new ReessaiRefuseError(motifDuReessaiRefuse(decision.raison))
+  }
 
   const reessai = await prisma.$transaction(async (tx) => {
     const agregat = await tx.automationRun.aggregate({

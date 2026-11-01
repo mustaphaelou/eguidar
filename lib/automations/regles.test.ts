@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db"
 import {
   ACTIONS_AUTOMATION,
   CONDITIONS_AUTOMATION,
-  laConditionEstRemplie,
   REGLES_AUTOMATION,
   semerLesRegles,
   verifierRegle,
@@ -37,28 +36,6 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
         actif: true,
       })
     ).toThrow()
-  })
-
-  it("évalue une condition sur la charge de l'événement", () => {
-    expect(laConditionEstRemplie({ type: "toujours" }, {})).toBe(true)
-    expect(
-      laConditionEstRemplie(
-        { type: "statut-commande", statuts: ["expediee"] },
-        { statut: "expediee" }
-      )
-    ).toBe(true)
-    expect(
-      laConditionEstRemplie(
-        { type: "statut-commande", statuts: ["expediee"] },
-        { statut: "annulee" }
-      )
-    ).toBe(false)
-    expect(
-      laConditionEstRemplie(
-        { type: "statut-commande", statuts: ["expediee"] },
-        {}
-      )
-    ).toBe(false)
   })
 
   it("sème les règles du code, puis les met à jour sans doublon", async () => {

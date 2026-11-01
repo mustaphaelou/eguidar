@@ -233,10 +233,55 @@ export function conditionsOffertes(
     : ["toujours"]
 }
 
-function libelleDuDeclencheur(declencheur: string): string {
-  const libelle =
+/**
+ * Le statut brut d'une charge, ou `undefined` quand la charge n'est pas un
+ * objet. La condition et la Décision lisent ce même champ : le partager évite
+ * que l'une et l'autre divergent sur la forme de la charge.
+ */
+export function statutDeLaCharge(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object") return undefined
+  return (payload as { statut?: unknown }).statut
+}
+
+/**
+ * Évalue la condition d'une règle sur la charge d'un événement. Une condition
+ * inconnue ou une charge qui ne porte pas le champ demandé vaut « non » : la
+ * règle ne s'exécute pas, plutôt que de s'exécuter à l'aveugle. La condition
+ * est reçue brute, telle que la ligne Prisma la porte, pour que la Décision
+ * n'ait besoin ni de Zod ni de la base.
+ */
+export function laConditionEstRemplie(
+  condition: unknown,
+  payload: unknown
+): boolean {
+  if (!condition || typeof condition !== "object") return false
+  const type = (condition as { type?: unknown }).type
+  if (type === "toujours") return true
+  if (type === "statut-commande") {
+    const statut = statutDeLaCharge(payload)
+    const statuts = (condition as { statuts?: unknown }).statuts
+    return (
+      typeof statut === "string" &&
+      Array.isArray(statuts) &&
+      statuts.includes(statut)
+    )
+  }
+  return false
+}
+
+/**
+ * Le libellé brut d'un déclencheur, ou son code quand il n'appartient pas au
+ * vocabulaire fermé. Le partager laisse à chaque consommateur sa décoration —
+ * guillemets et code — et donc sa prose, sans recopier la table de libellés.
+ */
+export function libelleBrutDuDeclencheur(declencheur: string): string {
+  return (
     LIBELLES_DECLENCHEUR[declencheur as TypeEvenementAutomation] ?? declencheur
-  return `« ${libelle} » (${declencheur})`
+  )
+}
+
+function libelleDuDeclencheur(declencheur: string): string {
+  return `« ${libelleBrutDuDeclencheur(declencheur)} » (${declencheur})`
 }
 
 function libelleDeLAction(action: string): string {

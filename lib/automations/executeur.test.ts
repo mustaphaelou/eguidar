@@ -17,6 +17,7 @@ import { semerLesRegles } from "@/lib/automations/regles"
 import {
   creerPortCatalogueMemoire,
   creerPortEmailsMemoire,
+  creerPortRechercheMemoire,
   dependancesDeTest,
 } from "@/test/automations-memoire"
 
@@ -107,6 +108,13 @@ describe("le travailleur des automatisations", () => {
     expect(evenements.map((evenement) => evenement.status)).toEqual([
       "reussi",
       "reussi",
+    ])
+    const runs = await prisma.automationRun.findMany({
+      where: { eventId: { in: evenements.map((evenement) => evenement.id) } },
+    })
+    expect(runs.map((run) => [run.ruleId, run.status])).toEqual([
+      ["statut-commande", "reussi"],
+      ["statut-commande", "reussi"],
     ])
   })
 
@@ -230,6 +238,90 @@ describe("le travailleur des automatisations", () => {
 
   it("n'exécute jamais un événement expiré, et le note ignoré", async () => {
     const entite = `categorie-${runId}-expire`
+    const expireLe = new Date(MAINTENANT.getTime() - 3_600_000)
+    await ecrire({
+      type: "structure.modifiee",
+      entityType: "categorie",
+      entityId: entite,
+      occurredAt: new Date(MAINTENANT.getTime() - 2 * 3_600_000),
+      expiresAt: expireLe,
+      payload: { categorieId: entite },
+    })
+    const catalogue = creerPortCatalogueMemoire()
+
+    const bilan = await executerLesEvenements(
+      options(),
+      dependancesDeTest(MAINTENANT, { catalogue: catalogue.port })
+    )
+
+    expect(bilan.ignores).toBe(1)
+    expect(catalogue.structures).toBe(0)
+    const evenement = await prisma.automationEvent.findFirstOrThrow({
+      where: { entityId: entite },
+    })
+    expect(evenement.status).toBe("ignore")
+    const runs = await prisma.automationRun.findMany({
+      where: { eventId: evenement.id },
+    })
+    expect(runs).toHaveLength(1)
+    expect(runs[0]!.status).toBe("ignore")
+    expect(runs[0]!.lastError).toBe(
+      `événement expiré le ${expireLe.toISOString()}`
+    )
+  })
+
+  it("écrit une ligne ignorée par règle active pour un événement expiré", async () => {
+    const entite = `produit-${runId}-expire-multi`
+    const expireLe = new Date(MAINTENANT.getTime() - 3_600_000)
+    await ecrire({
+      type: "produit.enregistre",
+      entityType: "produit",
+      entityId: entite,
+      occurredAt: new Date(MAINTENANT.getTime() - 2 * 3_600_000),
+      expiresAt: expireLe,
+      payload: { produitId: entite },
+    })
+    const catalogue = creerPortCatalogueMemoire()
+    const recherche = creerPortRechercheMemoire()
+
+    const bilan = await executerLesEvenements(
+      options(),
+      dependancesDeTest(MAINTENANT, {
+        catalogue: catalogue.port,
+        recherche: recherche.port,
+      })
+    )
+
+    expect(bilan.ignores).toBe(1)
+    expect(catalogue.invalidations).toHaveLength(0)
+    expect(catalogue.purges).toHaveLength(0)
+    expect(recherche.operations).toHaveLength(0)
+    const evenement = await prisma.automationEvent.findFirstOrThrow({
+      where: { entityId: entite },
+    })
+    expect(evenement.status).toBe("ignore")
+    const runs = await prisma.automationRun.findMany({
+      where: { eventId: evenement.id },
+      orderBy: { ruleId: "asc" },
+    })
+    expect(runs.map((run) => run.ruleId)).toEqual([
+      "indexation-produit",
+      "invalidation-catalogue",
+      "purge-catalogue",
+    ])
+    expect(runs.map((run) => [run.status, run.lastError])).toEqual([
+      ["ignore", `événement expiré le ${expireLe.toISOString()}`],
+      ["ignore", `événement expiré le ${expireLe.toISOString()}`],
+      ["ignore", `événement expiré le ${expireLe.toISOString()}`],
+    ])
+  })
+
+  it("laisse un événement expiré ignoré sans ligne quand aucune règle active ne le concerne", async () => {
+    await prisma.automationRule.updateMany({
+      where: { trigger: "structure.modifiee" },
+      data: { enabled: false },
+    })
+    const entite = `categorie-${runId}-expire-sans-regle`
     await ecrire({
       type: "structure.modifiee",
       entityType: "categorie",
@@ -254,9 +346,7 @@ describe("le travailleur des automatisations", () => {
     const runs = await prisma.automationRun.findMany({
       where: { eventId: evenement.id },
     })
-    expect(runs).toHaveLength(1)
-    expect(runs[0]!.status).toBe("ignore")
-    expect(runs[0]!.lastError).toContain("expiré")
+    expect(runs).toHaveLength(0)
   })
 
   it("une seconde livraison du même événement n'envoie pas un second e-mail", async () => {
@@ -311,6 +401,7 @@ describe("le travailleur des automatisations", () => {
     const runs = await prisma.automationRun.findMany({
       where: { eventId: evenement.id },
     })
+    expect(runs).toHaveLength(1)
     expect(runs[0]!.status).toBe("ignore")
     expect(runs[0]!.lastError).toBe("condition non remplie")
   })
@@ -334,6 +425,10 @@ describe("le travailleur des automatisations", () => {
       where: { entityId: entite },
     })
     expect(evenement.status).toBe("reussi")
+    const runs = await prisma.automationRun.findMany({
+      where: { eventId: evenement.id },
+    })
+    expect(runs).toHaveLength(0)
   })
 
   it("résout le destinataire d'un digest par un nom de variable, jamais par sa valeur", async () => {
