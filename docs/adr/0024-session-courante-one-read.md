@@ -23,3 +23,54 @@ The same session read was written four times. `sign-in-status.tsx:13` called `au
 - `proxy.ts` never performs a session read at the edge.
 - A surface that demands a Client composes the refusal from `loginUrl`; the read itself never redirects.
 - A missing session and a non-admin session stay distinguishable: an absent Client is `null`, a present one carries its `Role`.
+
+## Amendement — La durée absolue termine la session, et la lecture s'en assure (#835)
+
+`expiresIn`/`updateAge` ne connaissent que l'inactivité : une session qui reste
+active repoussait `expiresAt` indéfiniment, et un cookie volé chez un Client qui
+continue de naviguer ne mourait jamais. ASVS 7.3.2 demande une durée maximale
+absolue, distincte de la fenêtre d'inactivité.
+
+**Deux constantes nommées portent la borne.** `lib/session-constants.ts` gagne
+`SESSION_ABSOLUTE_CLIENT_SECONDS` (30 jours) et
+`SESSION_ABSOLUTE_ADMIN_SECONDS` (24 heures), à côté de la paire d'inactivité.
+Elles reprennent les plafonds NIST AAL1 et AAL2 ; une session d'Administration —
+le rôle `admin`, quelle que soit la page qu'il consulte — prend la plus courte.
+L'âge se mesure depuis `session.createdAt`, que l'activité ne rafraîchit pas, et
+non depuis `expiresAt`, que `updateAge` fait glisser.
+
+**La borne termine la session, elle ne la masque pas.** `lib/session-expiration.ts`
+porte le prédicat et le geste : une session qui atteint sa borne est supprimée
+(`prisma.session.deleteMany` sur son jeton). `lireSession()` l'applique — c'est le
+seul propriétaire de la Session courante pour les rendus et les actions — et le
+gestionnaire `/api/auth/*` fait de même avant de traiter une requête portant un
+cookie de session. Le cookie volé cesse donc d'authentifier les endpoints
+d'authentification eux-mêmes, et non seulement les pages : la prochaine lecture,
+côté serveur ou via `useSession`, trouve une session absente et le navigateur
+retombe sur l'état Visiteur. Il n'y a pas de notice dédiée : la fin se présente
+comme une session absente, et la Connexion reste possible.
+
+**Le crochet client n'est pas une seconde lecture de Session courante.**
+`useSession()` (`better-auth/react`) interroge `/api/auth/get-session` ; il ne
+lit pas `lireSession()`. Il ne peut donc pas porter la décision, et c'est le
+gestionnaire de route qui purge la session avant que `useSession()` ne reçoive
+sa réponse. `proxy.ts` garde son contrôle de présence de cookie : ce n'est pas une
+lecture de session, et il ne borne rien.
+
+**La fenêtre d'inactivité de 30 minutes ne change pas.** Les deux fins sont
+indépendantes : une session peut mourir d'inactivité bien avant sa borne absolue,
+et une session active meurt quand même à la borne. Le glossaire nomme désormais
+les deux termes séparément (Session inactive, Session hors durée absolue).
+
+## Invariants
+
+- Une session dont `createdAt` a atteint la borne de son rôle ne rend jamais de
+  Client par `lireSession()`, et sa ligne est supprimée.
+- Une requête portant un cookie dont la session a atteint la borne est traitée
+  comme non authentifiée par `/api/auth/*` : la ligne est supprimée avant le
+  gestionnaire, et `get-session` répond `null`.
+- `SESSION_ABSOLUTE_ADMIN_SECONDS < SESSION_ABSOLUTE_CLIENT_SECONDS`, et les deux
+  sont plus grandes que `SESSION_INACTIVE_SECONDS`.
+- Les deux bornes sont des constantes nommées ; aucune branche de rôle ne cache
+  un nombre dans la lecture.
+- `proxy.ts` ne lit toujours pas la session et ne borne rien.
