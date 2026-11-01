@@ -25,7 +25,7 @@ import {
 } from "@/lib/automations/regles"
 import {
   LIBELLES_ACTION,
-  LIBELLES_DECLENCHEUR,
+  libelleBrutDuDeclencheur,
   libelleDeLaCondition,
   type ActionAutomation,
   type ConfigurationRegle,
@@ -432,11 +432,7 @@ function motifDeLaSimulation(
   const raison = decision.raison
   switch (raison.type) {
     case "declencheur-different": {
-      const libelleRecu =
-        LIBELLES_DECLENCHEUR[
-          raison.recu as keyof typeof LIBELLES_DECLENCHEUR
-        ] ?? raison.recu
-      return `Le déclencheur de la règle ne correspond pas : « ${libelleRecu} » (${raison.recu}) au lieu de « ${LIBELLES_DECLENCHEUR[regle.declencheur]} » (${regle.declencheur}) : l'action ${action} serait ignorée.`
+      return `Le déclencheur de la règle ne correspond pas : « ${libelleBrutDuDeclencheur(raison.recu)} » (${raison.recu}) au lieu de « ${libelleBrutDuDeclencheur(regle.declencheur)} » (${regle.declencheur}) : l'action ${action} serait ignorée.`
     }
     case "regle-desactivee":
       return "La règle est désactivée : l'action ne serait pas exécutée."
@@ -533,13 +529,6 @@ export interface ResultatReessai {
 
 const FENETRE_REJEU_EN_HEURES = DUREE_VIE_EVENEMENT_MS / (60 * 60 * 1000)
 
-function libelleDuDeclencheur(declencheur: string): string {
-  return (
-    LIBELLES_DECLENCHEUR[declencheur as keyof typeof LIBELLES_DECLENCHEUR] ??
-    declencheur
-  )
-}
-
 /**
  * Le refus nomme la raison de la Décision sans rejouer son ordre : chaque
  * raison a sa phrase, et l'Événement expiré rappelle la fenêtre de rejeu. Le
@@ -553,7 +542,7 @@ function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
     case "regle-desactivee":
       return "La Règle est désactivée : réactivez-la pour réessayer cette Exécution."
     case "declencheur-different":
-      return `La Règle ne possède plus cet Événement : elle attend « ${libelleDuDeclencheur(raison.attendu)} » (${raison.attendu}) et l'Événement porte « ${libelleDuDeclencheur(raison.recu)} » (${raison.recu}).`
+      return `La Règle ne possède plus cet Événement : elle attend « ${libelleBrutDuDeclencheur(raison.attendu)} » (${raison.attendu}) et l'Événement porte « ${libelleBrutDuDeclencheur(raison.recu)} » (${raison.recu}).`
     case "condition-non-remplie":
       return "La condition de la Règle ne retient plus cet Événement : la modification de la Règle est honorée, rien n'est rejoué."
   }

@@ -322,8 +322,8 @@ nouvelle vérification ne peut donc pas être ajoutée sans choisir une issue et
   rejeu, réactivation demandée, déclencheur attendu et reçu, ou modification de la condition
   honorée. Le refus ne crée aucune Exécution et laisse l'Exécution en échec et son Événement
   intacts ; une paire exécutable garde le réessai `manuel`, sa tentative suivante et la réparation
-  du voisin. La vérification locale d'expiration disparaît : la Décision est la seule porte des
-  quatre vérifications.
+  du voisin. Le réessai ne redérive ni l'état activé, ni le déclencheur, ni l'expiration, ni la
+  condition : la Décision est sa seule porte.
 
 - **La bascule n'est pas rouverte.** La portée de l'addendum « ce que la bascule arrête » tient :
   « La bascule gouverne le travailleur durable ; elle n'éteint pas les effets synchrones. » Le
