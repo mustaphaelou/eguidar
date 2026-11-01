@@ -405,8 +405,12 @@ The act by which a Client ends their own session via the « Déconnexion » entr
 _Avoid_: logout, se déconnecter (as the screen name), déconnexion automatique (reserved for Session inactive)
 
 **Session inactive**:
-A Client session ended automatically after 30 minutes without any activity on their part (click, scroll, keypress or navigation). The Client is shown a brief notice, then the Connexion modal with the Destination post-connexion set to the page they were on; their Panier survives and is reattached on reconnection. Distinct from Déconnexion, which is voluntary.
+A Client session ended automatically after 30 minutes without any activity on their part (click, scroll, keypress or navigation). The Client is shown a brief notice, then the Connexion modal with the Destination post-connexion set to the page they were on; their Panier survives and is reattached on reconnection. Distinct from Déconnexion, which is voluntary, and from Session hors durée absolue, which ends a session however active it is.
 _Avoid_: logout automatique, timeout, session expirée, expiration de session
+
+**Session hors durée absolue**:
+A Session courante ended because it reached the absolute maximum lifetime measured from its creation — 30 days for a Client, 24 hours for the Administration — even if the Client kept browsing. The session row is deleted at the first read or authentication call, so the cookie stops authenticating everywhere; no notice is shown, the Client is treated as a Visiteur and can reconnect. Distinct from Session inactive, whose 30-minute window is about inactivity.
+_Avoid_: session expirée, timeout, expiration de session
 
 **Session courante**:
 La lecture de la session de la requête en cours : elle répond le Client — ses faits d'identité et son
