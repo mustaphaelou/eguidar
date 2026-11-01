@@ -8,6 +8,7 @@ import {
   PROXIES_DE_CONFIANCE,
 } from "@/lib/adresse-client"
 import { prisma } from "@/lib/db"
+import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
 import { sendOtpEmail } from "@/lib/emails"
 import {
   SESSION_INACTIVE_SECONDS,
@@ -43,7 +44,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
-    minPasswordLength: 8,
+    minPasswordLength: LONGUEUR_MINIMALE_MOT_DE_PASSE,
   },
   socialProviders: {
     google: {

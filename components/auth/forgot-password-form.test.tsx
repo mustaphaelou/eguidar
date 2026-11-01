@@ -1,5 +1,10 @@
 // @vitest-environment happy-dom
-import { mockNextLink, mockNextNavigation, resetNavigation } from "./test-utils"
+import {
+  mockNextLink,
+  mockNextNavigation,
+  resetNavigation,
+  setInputValue,
+} from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
@@ -11,6 +16,15 @@ import { loginUrl } from "@/lib/lien-de-connexion"
 vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("next/link", () => mockNextLink())
+
+vi.mock("@/lib/client", () => ({
+  authClient: {
+    emailOtp: {
+      sendVerificationOtp: vi.fn(async () => ({ data: {}, error: null })),
+      resetPassword: vi.fn(),
+    },
+  },
+}))
 
 const captchaStub = vi.hoisted(() => ({
   ready: true,
@@ -74,5 +88,57 @@ describe("ForgotPasswordForm", () => {
       `a[href='${loginUrl()}']`
     )
     expect(loginLink).not.toBeNull()
+  })
+
+  it("refuse un mot de passe de 14 caractères avec le message de la règle, pas le navigateur", async () => {
+    render(<ForgotPasswordForm />)
+
+    setInputValue(
+      container.querySelector<HTMLInputElement>("input[type='email']")!,
+      "jane@example.com"
+    )
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>("button[type='submit']")!
+        .click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    setInputValue(container.querySelector<HTMLInputElement>("#otp")!, "123456")
+    setInputValue(
+      container.querySelector<HTMLInputElement>("#new-password")!,
+      "MotDePasse!123"
+    )
+    setInputValue(
+      container.querySelector<HTMLInputElement>("#confirm-password")!,
+      "MotDePasse!123"
+    )
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>("button[type='submit']")!
+        .click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).toContain(
+      "Le mot de passe doit contenir au moins 15 caractères."
+    )
+  })
+
+  it("annonce le minimum de 15 caractères sur l'étape de réinitialisation", async () => {
+    render(<ForgotPasswordForm />)
+
+    setInputValue(
+      container.querySelector<HTMLInputElement>("input[type='email']")!,
+      "jane@example.com"
+    )
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>("button[type='submit']")!
+        .click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).toContain("Au moins 15 caractères.")
   })
 })
