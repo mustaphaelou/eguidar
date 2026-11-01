@@ -20,6 +20,7 @@ import {
 } from "@/lib/lien-de-connexion"
 import { useSession } from "@/lib/client"
 
+import { translateConnexionSocialeFailure } from "./auth-form-glue"
 import { AuthDialog } from "./auth-dialog"
 
 type AuthDialogsContextValue = {
@@ -93,9 +94,14 @@ export function AuthDialogsProvider({
     (dialog: AuthDialogName, next?: string) => {
       queueMicrotask(() => {
         const current = currentAddress()
+        const { next: existingNext } = parseAuthParams(currentSearch())
+        const destination = next ?? existingNext
         navigateUnlessUnchanged(
           current,
-          withAuthParams(current, { dialog, next }),
+          withAuthParams(pageAddressWithoutAuthParams(currentSearch()), {
+            dialog,
+            ...(destination ? { next: destination } : {}),
+          }),
           (url) => router.push(url, { scroll: false })
         )
       })
@@ -182,6 +188,20 @@ export function usePageAddressWithoutAuthParams(): string {
   return pageAddressWithoutAuthParams(searchParams)
 }
 
+export function useAuthDialogError(): string | null {
+  const searchParams = useSearchParams()
+  return translateConnexionSocialeFailure(parseAuthParams(searchParams).error)
+}
+
+export function useAuthDialogErrorDestination(): string {
+  const searchParams = useSearchParams()
+  const { next } = parseAuthParams(searchParams)
+  return withAuthParams(pageAddressWithoutAuthParams(searchParams), {
+    dialog: "login",
+    ...(next ? { next } : {}),
+  })
+}
+
 export function useAuthDialogs() {
   const context = useContext(AuthDialogsContext)
   if (!context) {
@@ -193,15 +213,15 @@ export function useAuthDialogs() {
 function AuthUrlCleaner() {
   const searchParams = useSearchParams()
   const internals = useContext(AuthDialogsInternalsContext)
-  const { open, dialog, next } = parseAuthParams(searchParams)
+  const { open, dialog, next, error } = parseAuthParams(searchParams)
 
   useEffect(() => {
     if (!internals) return
     if (!internals.sessionReady) return
-    if (open === null && next === null) return
+    if (open === null && next === null && error === null) return
     if (open !== null && modalAllowed(open, dialog, internals)) return
     internals.cleanAuthParams()
-  }, [open, dialog, next, internals])
+  }, [open, dialog, next, error, internals])
 
   return null
 }

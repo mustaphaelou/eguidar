@@ -1,5 +1,6 @@
 const OPEN_PARAM = "open"
 const NEXT_PARAM = "next"
+const ERROR_PARAM = "error"
 
 const URL_BASE = "http://localhost"
 
@@ -12,6 +13,7 @@ export interface AuthParams {
   open: string | null
   dialog: AuthDialogName | null
   next: string | null
+  error: string | null
 }
 
 export interface AuthParamsOptions {
@@ -37,6 +39,7 @@ function safeDestination(raw: string | null | undefined): string | null {
 function deleteAuthParams(params: URLSearchParams): void {
   params.delete(OPEN_PARAM)
   params.delete(NEXT_PARAM)
+  params.delete(ERROR_PARAM)
 }
 
 function rewriteSearchParams(
@@ -63,7 +66,12 @@ export function parseAuthParams(search: string | URLSearchParams): AuthParams {
   const open = params.get(OPEN_PARAM)
   const dialog: AuthDialogName | null =
     open === "login" || open === "signup" ? open : null
-  return { open, dialog, next: safeDestination(params.get(NEXT_PARAM)) }
+  return {
+    open,
+    dialog,
+    next: safeDestination(params.get(NEXT_PARAM)),
+    error: params.get(ERROR_PARAM)?.trim() || null,
+  }
 }
 
 export function withAuthParams(

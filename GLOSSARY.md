@@ -428,7 +428,8 @@ _Avoid_: session, utilisateur courant, getSession
 
 **Lien de connexion**:
 Un lien ou une redirection qui ouvre la modale de Connexion ou d'Inscription sur la page courante
-via les paramètres d'URL `?open=login|signup` et `?next`.
+via les paramètres d'URL `?open=login|signup` et `?next` ; un échec de Connexion sociale y ajoute
+`?error`, qui n'a de sens qu'avec `?open=login`.
 _Avoid_: login link, login URL, route de connexion
 
 **Administration**:

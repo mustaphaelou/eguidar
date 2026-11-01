@@ -370,45 +370,53 @@ describe("useSignInFlow", () => {
       provider: "google",
       url: "/panier?open=login",
       expected: "http://localhost:3000/panier",
+      errorCallback: "http://localhost:3000/panier?open=login",
     },
     {
       provider: "facebook",
       url: "/panier?open=login",
       expected: "http://localhost:3000/panier",
+      errorCallback: "http://localhost:3000/panier?open=login",
     },
     {
       provider: "google",
       url: "/?open=login&query=phone",
       expected: "http://localhost:3000/?query=phone",
+      errorCallback: "http://localhost:3000/?query=phone&open=login",
     },
     {
       provider: "facebook",
       url: "/?open=login&query=phone",
       expected: "http://localhost:3000/?query=phone",
+      errorCallback: "http://localhost:3000/?query=phone&open=login",
     },
     {
       provider: "google",
       url: "/produits?query=phone",
       expected: "http://localhost:3000/produits?query=phone",
+      errorCallback: "http://localhost:3000/produits?query=phone&open=login",
     },
     {
       provider: "facebook",
       url: "/produits?query=phone",
       expected: "http://localhost:3000/produits?query=phone",
+      errorCallback: "http://localhost:3000/produits?query=phone&open=login",
     },
     {
       provider: "google",
       url: "/?open=login&next=%2Fadmin",
       expected: "http://localhost:3000/",
+      errorCallback: "http://localhost:3000/?open=login&next=%2Fadmin",
     },
     {
       provider: "facebook",
       url: "/?open=login&next=%2Fadmin",
       expected: "http://localhost:3000/",
+      errorCallback: "http://localhost:3000/?open=login&next=%2Fadmin",
     },
   ] as const)(
     "computes the $provider Connexion sociale callbackURL from $url",
-    async ({ provider, url, expected }) => {
+    async ({ provider, url, expected, errorCallback }) => {
       window.history.replaceState(null, "", url)
       mockedAuthClient.signIn.social.mockResolvedValue({
         data: {},
@@ -422,6 +430,7 @@ describe("useSignInFlow", () => {
       expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
         provider,
         callbackURL: expected,
+        errorCallbackURL: errorCallback,
       })
     }
   )
