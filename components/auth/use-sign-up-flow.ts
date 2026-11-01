@@ -7,6 +7,7 @@ import { resolveAuthRefusal } from "@/components/auth/auth-form-glue"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { authClient } from "@/lib/client"
+import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 
 export function useSignUpFlow({
   step,
@@ -23,7 +24,7 @@ export function useSignUpFlow({
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const captcha = useTestDeSecurite()
+  const captcha = useTestDeSecurite(ACTIONS_TEST_DE_SECURITE.inscription)
   const otp = useOtpExchange({ email, type: "email-verification", onVerified })
 
   async function handleSignUp(e: React.FormEvent) {

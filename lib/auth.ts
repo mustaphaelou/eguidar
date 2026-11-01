@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { nextCookies } from "better-auth/next-js"
-import { captcha, emailOTP, haveIBeenPwned } from "better-auth/plugins"
+import { emailOTP, haveIBeenPwned } from "better-auth/plugins"
 
 import {
   ORDRE_ENTETES_ADRESSE_CLIENT,
@@ -10,6 +10,10 @@ import {
 import { prisma } from "@/lib/db"
 import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
 import { sendOtpEmail } from "@/lib/emails"
+import {
+  hotesDuTestDeSecurite,
+  pluginTestDeSecurite,
+} from "@/lib/test-de-securite"
 import {
   SESSION_INACTIVE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
@@ -88,14 +92,9 @@ export const auth = betterAuth({
     }),
     ...(process.env.TURNSTILE_SECRET_KEY
       ? [
-          captcha({
-            provider: "cloudflare-turnstile",
+          pluginTestDeSecurite({
             secretKey: process.env.TURNSTILE_SECRET_KEY,
-            endpoints: [
-              "/sign-up/email",
-              "/sign-in/email",
-              "/email-otp/send-verification-otp",
-            ],
+            allowedHostnames: hotesDuTestDeSecurite(),
           }),
         ]
       : []),

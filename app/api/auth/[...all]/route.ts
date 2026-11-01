@@ -3,16 +3,10 @@ import { getSessionCookie } from "better-auth/cookies"
 
 import { auth } from "@/lib/auth"
 import { rejouerPanierVisiteur } from "@/lib/panier"
+import { estPointEntreeConnexion } from "@/lib/points-entree-connexion"
 import { revoquerSessionHorsDuree } from "@/lib/session-expiration"
 
 const handlers = toNextJsHandler(auth)
-
-function estTentativeConnexion(methode: string, chemin: string): boolean {
-  return (
-    (methode === "POST" && chemin.endsWith("/sign-in/email")) ||
-    (methode === "GET" && chemin.includes("/callback/"))
-  )
-}
 
 function fusionnerCookies(requete: Headers, reponse: Response): Headers {
   const fusion = new Headers(requete)
@@ -51,7 +45,7 @@ async function traiterAvecRejou(
   await purgerSessionHorsDuree(requete)
   const reponse = await traiter(requete)
   const { pathname } = new URL(requete.url)
-  if (!estTentativeConnexion(requete.method, pathname)) return reponse
+  if (!estPointEntreeConnexion(requete.method, pathname)) return reponse
   try {
     const session = await auth.api.getSession({
       headers: fusionnerCookies(requete.headers, reponse),
