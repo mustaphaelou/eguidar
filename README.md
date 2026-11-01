@@ -23,6 +23,8 @@ npm run dev
 
 Le compte admin par défaut est créé par le seed (`ADMIN_EMAIL` / `ADMIN_PASSWORD` dans `.env`). Les fournisseurs Google et Facebook, Turnstile et Resend fonctionnent dès que leurs clés sont renseignées dans `.env` : `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` et `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` pour la Connexion sociale.
 
+Pour Facebook, l'application doit aussi déclarer l'URL de suppression des données — `https://<domaine>/api/facebook/suppression-donnees`, sur l'hôte de `BETTER_AUTH_URL` — comme « Data Deletion Request URL » dans le tableau de bord Meta (HTTPS public exigé). C'est le seul geste manuel de la suppression ; la route, sa signature et sa page d'état sont dans le dépôt (ADR-0046).
+
 Un assistant interactif complète l'étape 2 : `bash scripts/setup-providers.sh` guide la création du widget Cloudflare Turnstile, restaure les variables de base de test (`TEST_DB_NAME`, `TEST_DATABASE_URL`) dans `.env`, applique la règle de cycle de vie R2 des Brouillons d'Image produit, applique la politique CORS qui autorise le téléversement depuis l'Administration, et rend les documents de la boutique éligibles au cache de l'edge.
 
 Les images produits sont envoyées vers Cloudflare R2 via des URLs pré-signées : renseigner `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` et `R2_PUBLIC_URL` dans `.env`. La recherche (Meilisearch) est ré-indexée automatiquement à chaque enregistrement ou suppression d'un produit.
