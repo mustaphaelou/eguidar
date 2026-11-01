@@ -1,4 +1,4 @@
-import { getIp } from "@better-auth/core/utils/ip"
+import { getIP } from "@better-auth/core/utils/ip"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -30,7 +30,7 @@ describe("Limiteur d'authentification — adresse du client", () => {
   it("résout le client réel derrière un x-forwarded-for multi-relais", () => {
     const requete = requeteAvec({ "x-forwarded-for": "203.0.113.7, 10.0.0.2" })
 
-    expect(getIp(requete, auth.options)).toBe("203.0.113.7")
+    expect(getIP(requete, auth.options)).toBe("203.0.113.7")
   })
 
   it("préfère cf-connecting-ip au relais de transmission", () => {
@@ -39,6 +39,6 @@ describe("Limiteur d'authentification — adresse du client", () => {
       "x-forwarded-for": "198.51.100.99, 10.0.0.2",
     })
 
-    expect(getIp(requete, auth.options)).toBe("203.0.113.7")
+    expect(getIP(requete, auth.options)).toBe("203.0.113.7")
   })
 })
