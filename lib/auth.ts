@@ -9,6 +9,8 @@ import {
 } from "@/lib/adresse-client"
 import { prisma } from "@/lib/db"
 import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
+import { hacherMotDePasse } from "@/lib/mot-de-passe-hache"
+import { verifierMotDePasseEtRehacher } from "@/lib/rehachage-mot-de-passe"
 import { sendOtpEmail } from "@/lib/emails"
 import {
   SESSION_INACTIVE_SECONDS,
@@ -48,6 +50,10 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     minPasswordLength: LONGUEUR_MINIMALE_MOT_DE_PASSE,
     revokeSessionsOnPasswordReset: true,
+    password: {
+      hash: hacherMotDePasse,
+      verify: verifierMotDePasseEtRehacher,
+    },
   },
   socialProviders: {
     google: {
