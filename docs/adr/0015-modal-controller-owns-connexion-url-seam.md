@@ -44,13 +44,13 @@ happens when the Visiteur opens the modal — required bouncing across five file
   re-litigate why the URL is the source of truth — it records who is allowed to touch it.
 
 - **Dead full-page-reload fallbacks were deleted** from the sign-in and sign-up flows — the
-  last "leave the page" violators of ADR-0001 *inside the modal seam*. The controller's
+  last "leave the page" violators of ADR-0001 _inside the modal seam_. The controller's
   never-leave-the-page/one-write-channel invariant is scoped to the seam it owns: opening,
   closing, and self-cleaning `?open`/`?next` never leave the page and are the only URL writes
   in the modal area. One full-page navigation remains, deliberately outside that scope: the
   post-authentication redirect in `use-sign-in-flow.ts` (`window.location.href = next`). It
   happens after a session exists and after the Lien de connexion params are gone, so it
-  navigates *to* the Destination post-connexion instead of touching the seam. A future
+  navigates _to_ the Destination post-connexion instead of touching the seam. A future
   standalone page, if ever built, must be built on the controller, not on a reload.
 
 - **Future consumers go through the interface.** The Session inactive feature will consume
@@ -138,3 +138,18 @@ the interface » est levée. Le reste de la décision tient :
 - ADR-0001 intacte, et les quatre invariants énoncés ci-dessus tous
   vrais — le sixième membre ne touche ni la lecture ni l'écriture des
   paramètres.
+
+## Amendement — Le Lien de connexion porte le code d'échec de la Connexion sociale (#853)
+
+Le corps fixe « The URL seam itself is unchanged » et le contrat pur `loginUrl`/`signupUrl`/
+`parseAuthParams` : le Lien de connexion n'avait que `?open` et `?next`. La Connexion sociale
+échouée y ajoute `?error`, que la bibliothèque ajoute à l'adresse de retour et que le contrôleur
+lit pour rouvrir la modale avec un message traduit. `parseAuthParams` gagne donc `error`,
+`withoutAuthSearchParams` le retire, et le contrôleur expose deux lectures de plus — le message
+traduit et l'adresse de retour de l'échec — sans qu'aucun autre module ne lise ou n'écrive le seam.
+
+Ce que l'amendement ne change pas : le contrôleur reste le seul lecteur et le seul écrivain des
+paramètres `?open`/`?next`/`?error` ; le prédicat de session reste en une copie ; `loginUrl`/
+`signupUrl` et les redirections héritées sont inchangées ; les producteurs serveur d'URL
+d'authentification restent hors du seam ; ADR-0001 reste intacte. La surface du contrôleur gagne
+deux lectures dérivées du seam, et non un second chemin d'écriture.

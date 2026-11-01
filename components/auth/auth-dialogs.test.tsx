@@ -645,6 +645,20 @@ describe("AuthDialogsProvider controller interface", () => {
     expect(controllerDialog()).toBe("signup")
   })
 
+  it("efface le code d'échec quand l'Inscription remplace la Connexion", async () => {
+    window.history.replaceState(null, "", "/?open=login&error=email_not_found")
+    render(() => controllerHarness())
+
+    controllerClick("open-signup")
+    await flush()
+
+    expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
+      "/?open=signup",
+      { scroll: false }
+    )
+    expect(locationParams().get("error")).toBeNull()
+  })
+
   it("closes through a replace that keeps unrelated params and notifies consumers", () => {
     window.history.replaceState(
       null,
@@ -714,7 +728,7 @@ describe("AuthDialogsProvider controller interface", () => {
     await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
-      "/panier?next=%2Fprofil&open=login",
+      "/panier?open=login&next=%2Fprofil",
       { scroll: false }
     )
   })
@@ -727,7 +741,7 @@ describe("AuthDialogsProvider controller interface", () => {
     await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
-      "/panier?next=%2Fpanier&open=login",
+      "/panier?open=login&next=%2Fpanier",
       { scroll: false }
     )
   })
@@ -740,7 +754,7 @@ describe("AuthDialogsProvider controller interface", () => {
     await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
-      "/panier?next=%2Fpanier&open=login",
+      "/panier?open=login&next=%2Fpanier",
       { scroll: false }
     )
   })
@@ -757,7 +771,7 @@ describe("AuthDialogsProvider controller interface", () => {
     await flush()
 
     expect(navigationSpies.push).toHaveBeenCalledExactlyOnceWith(
-      "/panier?next=%2Frecherche%3Fq%3Ddeux%2520mots&open=login",
+      "/panier?open=login&next=%2Frecherche%3Fq%3Ddeux%2520mots",
       { scroll: false }
     )
   })

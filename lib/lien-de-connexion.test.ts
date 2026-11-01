@@ -99,6 +99,7 @@ describe("parseAuthParams", () => {
       open: "login",
       dialog: "login",
       next: "/admin",
+      error: null,
     })
   })
 
@@ -110,6 +111,7 @@ describe("parseAuthParams", () => {
       open: "signup",
       dialog: "signup",
       next: "/profil",
+      error: null,
     })
   })
 
@@ -120,6 +122,7 @@ describe("parseAuthParams", () => {
       open: "login",
       dialog: "login",
       next: "/profil/commandes?page=2",
+      error: null,
     })
   })
 
@@ -131,6 +134,7 @@ describe("parseAuthParams", () => {
       open: "login",
       dialog: "login",
       next: "/recherche?q=100%",
+      error: null,
     })
   })
 
@@ -139,11 +143,13 @@ describe("parseAuthParams", () => {
       open: null,
       dialog: null,
       next: null,
+      error: null,
     })
     expect(parseAuthParams("?q=chaussures&tri=prix-asc")).toEqual({
       open: null,
       dialog: null,
       next: null,
+      error: null,
     })
   })
 
@@ -152,11 +158,34 @@ describe("parseAuthParams", () => {
       open: "checkout",
       dialog: null,
       next: null,
+      error: null,
     })
     expect(parseAuthParams("?open=")).toEqual({
       open: "",
       dialog: null,
       next: null,
+      error: null,
+    })
+  })
+
+  it("lit le code d'échec de la Connexion sociale", () => {
+    expect(parseAuthParams("?open=login&error=access_denied")).toEqual({
+      open: "login",
+      dialog: "login",
+      next: null,
+      error: "access_denied",
+    })
+    expect(parseAuthParams("?error=email_not_found")).toEqual({
+      open: null,
+      dialog: null,
+      next: null,
+      error: "email_not_found",
+    })
+    expect(parseAuthParams("?open=login&error=")).toEqual({
+      open: "login",
+      dialog: "login",
+      next: null,
+      error: null,
     })
   })
 
@@ -166,12 +195,14 @@ describe("parseAuthParams", () => {
         open: "login",
         dialog: "login",
         next: null,
+        error: null,
       })
     }
     expect(parseAuthParams("?open=login&next=")).toEqual({
       open: "login",
       dialog: "login",
       next: null,
+      error: null,
     })
   })
 
@@ -182,6 +213,7 @@ describe("parseAuthParams", () => {
       open: "login",
       dialog: "login",
       next: "/recherche?q=deux%20mots",
+      error: null,
     })
     expect(
       parseAuthParams("?open=login&next=%2Frecherche%3Fq%3Ddeux%20mots")
@@ -189,6 +221,7 @@ describe("parseAuthParams", () => {
       open: "login",
       dialog: "login",
       next: "/recherche?q=deux mots",
+      error: null,
     })
   })
 })
@@ -281,6 +314,17 @@ describe("withAuthParams", () => {
 })
 
 describe("withoutAuthSearchParams", () => {
+  it("retire le code d'échec avec les paramètres d'authentification", () => {
+    expect(
+      withoutAuthSearchParams(
+        "?open=login&next=%2Fpanier&error=email_not_found"
+      )
+    ).toBe("")
+    expect(
+      withoutAuthSearchParams("?q=chaussures&open=login&error=access_denied")
+    ).toBe("?q=chaussures")
+  })
+
   it("maps an empty search to an empty result", () => {
     expect(withoutAuthSearchParams("")).toBe("")
     expect(withoutAuthSearchParams(new URLSearchParams())).toBe("")

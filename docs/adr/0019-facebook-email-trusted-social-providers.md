@@ -27,7 +27,7 @@ button never rendered in production, and the storefront never really offered it.
 ## Considered Options
 
 - **`accountLinking.trustedProviders: ["facebook"]` only** — rejected: it repairs linking
-  *into* verified accounts but leaves Facebook-created accounts unverified, so a later Google
+  _into_ verified accounts but leaves Facebook-created accounts unverified, so a later Google
   sign-in with the same e-mail stays blocked; half a fix.
 - **Keep Better Auth defaults** — rejected: the most common case (an existing Client tries
   Facebook with the same e-mail) is refused on a raw error page.
@@ -43,3 +43,23 @@ button never rendered in production, and the storefront never really offered it.
 - The Prisma schema and the Panier replay seam need no change: `account.providerId` is
   provider-agnostic and the auth API route already replays the Visiteur Panier on any
   `/callback/*`.
+
+## Amendement — La Connexion sociale échouée revient dans la modale (#853)
+
+La quatrième puce de la Décision — « Failed callbacks keep today's behavior » — est remplacée.
+Une Connexion sociale qui échoue ne rend plus la page d'erreur brute de la bibliothèque : le
+Client revient sur la page courante, la modale de Connexion s'ouvre, et un message traduit
+explique l'échec. Un dialogue annulé (`access_denied`) et un profil Facebook sans adresse
+(`email_not_found`) ont chacun leur message ; le second propose les entrées « Continuer avec … »
+déjà présentes, parce que ce Client n'a rien fait de faux et a besoin d'un pas suivant.
+
+La couture est celle du contrôleur de modales (ADR-0015) : le code d'échec voyage par le Lien de
+connexion, le contrôleur le lit et le traduit, et aucune seconde route d'erreur n'est ouverte. Un
+code que la modale ne connaît pas tombe sur un message générique plutôt que sur une page brute.
+Le reste de la décision tient : un e-mail Facebook vaut vérification, les fournisseurs sont
+Facebook et Google, les boutons sociaux restent sur la Connexion seule, et l'Inscription ne
+connecte pas automatiquement.
+
+Ce que l'amendement ne change pas : les deux invariants de liaison ci-dessus, l'unique Compte
+client par e-mail, le sens de `emailVerified`, et le fait que le schéma Prisma et la couture de
+rejeu du Panier n'ont pas besoin de changer.
