@@ -45,6 +45,7 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: true,
     minPasswordLength: LONGUEUR_MINIMALE_MOT_DE_PASSE,
+    revokeSessionsOnPasswordReset: true,
   },
   socialProviders: {
     google: {
