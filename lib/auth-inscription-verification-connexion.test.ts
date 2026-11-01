@@ -16,7 +16,7 @@ import { fauxServiceDeFuite } from "@/test/faux-service-de-fuite"
 
 const runId = randomUUID().slice(0, 8)
 const email = `auth-parcours-${runId}@test.ma`
-const motDePasse = "MotDePasse!818"
+const motDePasse = "MotDePasse!8181"
 
 beforeAll(() => {
   vi.stubGlobal("fetch", fauxServiceDeFuite([]))

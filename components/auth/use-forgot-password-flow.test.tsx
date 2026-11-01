@@ -194,15 +194,15 @@ describe("useForgotPasswordFlow", () => {
     render(<Harness />)
     await sendCode()
     setInputValue(otpInput(), "123456")
-    setInputValue(passwordInput(), "password123")
-    setInputValue(confirmPasswordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
+    setInputValue(confirmPasswordInput(), "MotDePasse!12345")
 
     await clickAndFlush(resetButton())
 
     expect(mockedAuthClient.emailOtp.resetPassword).toHaveBeenCalledWith({
       email: "jane@example.com",
       otp: "123456",
-      password: "password123",
+      password: "MotDePasse!12345",
     })
     expect(
       mockedAuthClient.emailOtp.resetPassword.mock.calls[0][0]
@@ -221,13 +221,15 @@ describe("useForgotPasswordFlow", () => {
     render(<Harness />)
     await sendCode()
     setInputValue(otpInput(), "123456")
-    setInputValue(passwordInput(), "short")
-    setInputValue(confirmPasswordInput(), "short")
+    setInputValue(passwordInput(), "MotDePasse!123")
+    setInputValue(confirmPasswordInput(), "MotDePasse!123")
 
     await clickAndFlush(resetButton())
 
     expect(mockedAuthClient.emailOtp.resetPassword).not.toHaveBeenCalled()
-    expect(error()).toBe("Le mot de passe doit contenir au moins 8 caractères.")
+    expect(error()).toBe(
+      "Le mot de passe doit contenir au moins 15 caractères."
+    )
     expect(step()).toBe("otp")
   })
 
@@ -240,8 +242,8 @@ describe("useForgotPasswordFlow", () => {
     render(<Harness />)
     await sendCode()
     setInputValue(otpInput(), "123456")
-    setInputValue(passwordInput(), "password123")
-    setInputValue(confirmPasswordInput(), "password456")
+    setInputValue(passwordInput(), "MotDePasse!12345")
+    setInputValue(confirmPasswordInput(), "MotDePasse!67890")
 
     await clickAndFlush(resetButton())
 
@@ -263,8 +265,8 @@ describe("useForgotPasswordFlow", () => {
     render(<Harness />)
     await sendCode()
     setInputValue(otpInput(), "123456")
-    setInputValue(passwordInput(), "password123")
-    setInputValue(confirmPasswordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
+    setInputValue(confirmPasswordInput(), "MotDePasse!12345")
 
     await clickAndFlush(resetButton())
 
@@ -286,8 +288,8 @@ describe("useForgotPasswordFlow", () => {
     render(<Harness />)
     await sendCode()
     setInputValue(otpInput(), "123456")
-    setInputValue(passwordInput(), "password123")
-    setInputValue(confirmPasswordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
+    setInputValue(confirmPasswordInput(), "MotDePasse!12345")
 
     await clickAndFlush(resetButton())
     expect(error()).not.toBeNull()
