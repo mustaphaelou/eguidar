@@ -297,3 +297,40 @@ qui manquaient.
   la supprime du stockage à l'enregistrement réussi, donc une URL partagée entre deux Produits
   ferait disparaître l'image du second. C'est une décision du produit, pas un effet de bord de la
   lecture.
+
+## Addendum — la Décision d'automatisation
+
+Un jugement unique, `deciderAutomation` (`lib/automations/decision.ts`), répond désormais pour
+« cette Règle, cet Événement ». Il est pur — ni base, ni port, ni transaction, ni phrase : les
+lignes Prisma lui suffisent, et chaque consommateur écrit son texte. Son ordre est canonique :
+déclencheur → état activé → expiration → condition ; le premier motif gagne, et l'expiration est
+inclusive. Deux issues seulement : `executer`, ou `ignorer` avec une raison fermée —
+`declencheur-different`, `regle-desactivee`, `evenement-expire`, `condition-non-remplie`. Une
+nouvelle vérification ne peut donc pas être ajoutée sans choisir une issue et une raison.
+
+- **Le travailleur exécute la Décision, et garde son agrégat d'expiration.** Sa requête garde
+  `enabled` et le déclencheur de l'Événement : une Règle désactivée ou d'un autre déclencheur n'est
+  pas candidate et ne laisse aucune Exécution. Il juge l'expiration une fois pour l'Événement : un
+  Événement expiré est toujours `ignore`, avec une Exécution `ignore` par Règle active et de même
+  déclencheur, et aucune lorsqu'aucune Règle active ne le concerne ; un Événement vivant sans Règle
+  active correspondante reste `reussi`. Pour chaque Règle candidate, une paire exécutable exécute
+  l'action et une condition non remplie laisse une Exécution `ignore` ; les autres raisons n'ouvrent
+  aucune ligne. Les motifs courts restent « condition non remplie » et « événement expiré le … ».
+
+- **Le Réessai manuel consulte la Décision avant d'écrire.** Une paire que la Règle actuelle ne
+  gouverne plus est refusée avec un message propre à sa raison : date d'expiration et fenêtre de
+  rejeu, réactivation demandée, déclencheur attendu et reçu, ou modification de la condition
+  honorée. Le refus ne crée aucune Exécution et laisse l'Exécution en échec et son Événement
+  intacts ; une paire exécutable garde le réessai `manuel`, sa tentative suivante et la réparation
+  du voisin. La vérification locale d'expiration disparaît : la Décision est la seule porte des
+  quatre vérifications.
+
+- **La bascule n'est pas rouverte.** La portée de l'addendum « ce que la bascule arrête » tient :
+  « La bascule gouverne le travailleur durable ; elle n'éteint pas les effets synchrones. » Le
+  Réessai manuel demande désormais la même Décision, donc l'état activé atteint aussi le rejeu
+  manuel, sans changer ce que la bascule arrête ni les effets immédiats après le commit.
+
+- Épinglé par `lib/automations/decision.test.ts` (l'ordre, la borne inclusive, chaque raison),
+  `lib/automations/executeur.test.ts` (l'agrégat d'expiration, les lignes par Règle, aucune ligne
+  pour une Règle désactivée), `lib/use-cases/automatisations.test.ts` (les refus sans écriture, le
+  réessai réussi) et `app/admin/automatisations/[id]/page.test.tsx` (l'affichage de la Simulation).

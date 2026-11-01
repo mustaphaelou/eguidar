@@ -554,6 +554,25 @@ exécute. Semée dans le code, révisée à chaque changement, éditable par le 
 l'Administration.
 _Avoid_: workflow, scénario, trigger
 
+**Décision d'automatisation**:
+Le jugement pur de « cette Règle d'automatisation, cet Événement d'automatisation » : une fonction
+sans état, sans base, sans port et sans transaction, qui reçoit le déclencheur, l'état activé et la
+condition de la Règle, le type, la charge et l'expiration de l'Événement, et l'heure courante. Deux
+issues seulement : `executer`, l'action de la Règle s'applique, ou `ignorer`, avec une raison fermée
+— `declencheur-different` (le déclencheur attendu et le reçu), `regle-desactivee`,
+`evenement-expire` (la date d'expiration) ou `condition-non-remplie` (la condition et le statut brut
+de la charge). L'ordre est canonique : déclencheur → état activé → expiration → condition ; le
+premier motif gagne, et l'expiration est inclusive.
+
+Trois consommateurs, trois rendus : le travailleur l'exécute — sa requête garde les Règles actives
+et du même déclencheur, donc une Règle désactivée ou un déclencheur différent ne reçoit aucune
+Exécution d'automatisation, tandis qu'une paire exécutable et une condition non remplie en reçoivent
+une —, la Simulation d'automatisation l'affiche, et le Réessai manuel la consulte avant d'écrire.
+La Décision ne porte aucune phrase : chaque consommateur écrit la sienne. L'admissibilité de
+l'Événement — `reussi`, `ignore`, `mort` — reste à l'appelant : la Décision répond seulement à « si
+cet Événement était livré à cette Règle maintenant, s'exécuterait-il ? ».
+_Avoid_: verdict, verdict d'automatisation, décision de règle
+
 **Simulation d'automatisation**:
 L'évaluation d'une Règle d'automatisation contre un Événement d'automatisation réel, qui rend
 « enverrait » ou « ignorerait » avec son motif, sans écrire d'Exécution d'automatisation et sans
