@@ -19,11 +19,15 @@ modulaire), et son tableau scrypt place le palier le plus coûteux à `N=2^17`,
   constant (`timingSafeEqual`, après une garde de longueur).
 - **Les paramètres sont ceux du palier OWASP le plus fort**, `N=2^17`, `r=8`,
   `p=1`. Sur la machine de développement (AMD Ryzen 5 PRO 7530U), ce palier
-  mesure ~480 ms pour une empreinte, sous la cible d'une seconde ; les paliers
-  plus faibles du tableau OWASP mesurent 199 ms (`2^14/8/5`), 274 ms
-  (`2^15/8/3`) et 360 ms (`2^16/8/2`). La confirmation sur l'hôte Coolify est le
-  geste manuel de #837 ; si elle dépassait une seconde, le palier immédiatement
-  inférieur reste dans le tableau OWASP et se change dans
+  mesure ~385 ms en moyenne pour une empreinte (min 375, max 392), sous la
+  cible d'une seconde ; les paliers plus faibles du tableau OWASP mesurent
+  157 ms (`2^14/8/5`), 210 ms (`2^15/8/3`) et 318 ms (`2^16/8/2`), et le
+  défaut historique de la bibliothèque (`2^14/16/1`) 88 ms. La confirmation sur
+  l'hôte Coolify est le geste manuel de #837 : lancer
+  `npx tsx scripts/mesurer-cout-scrypt.ts` (ou `--json` pour un enregistrement
+  machine) sur l'hôte où tourne l'application, et reporter le tableau dans ce
+  document et dans #837. Si l'hôte mesure au-dessus d'une seconde, le palier
+  immédiatement inférieur reste dans le tableau OWASP et se change dans
   `PARAMETRES_SCRYPT`, ce qui déclenche le rehachage opportuniste ci-dessous.
 - **L'ancien format reste vérifiable.** Une empreinte `sel:hex` est recalculée
   avec les paramètres historiques (`N=2^14`, `r=16`, `p=1`, clé de 64 octets) et
@@ -70,10 +74,13 @@ modulaire), et son tableau scrypt place le palier le plus coûteux à `N=2^17`,
 
 ## Invariants
 
-- Toute nouvelle empreinte est un PHC `$scrypt$N=…,r=…,p=…$sel$clé` dont la
-  vérification relit les paramètres stockés.
-- Une empreinte `sel:hex` reste vérifiable avec les paramètres historiques, et
-  n'est réécrite qu'après une Connexion réussie.
+- Toute nouvelle empreinte est un scrypt auto-descriptif
+  `$scrypt$N=…,r=…,p=…$sel$clé` dont la vérification relit les paramètres
+  stockés.
+- Une empreinte `sel:hex` reste vérifiable avec les paramètres historiques ; elle
+  n'est réécrite qu'après une vérification réussie du mot de passe, ce qui
+  arrive à la Connexion, au changement de mot de passe et à la suppression de
+  compte (Better Auth appelle `password.verify` dans ces trois flux).
 - Un mot de passe faux, une empreinte malformée ou des paramètres hors bornes
   rendent `false` sans lever et sans écrire.
 - La seule écriture de rehachage cible une ligne `account` de fournisseur

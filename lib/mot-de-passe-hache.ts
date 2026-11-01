@@ -113,6 +113,42 @@ function lireHistorique(hash: string): { sel: string; cle: Buffer } | null {
   }
 }
 
+interface HashAnalyse {
+  parametres: ParametresScrypt
+  sel: Buffer
+  cle: Buffer
+  historique: boolean
+}
+
+/**
+ * Analyse une empreinte une seule fois : PHC scrypt auto-descriptif ou ancien
+ * format `sel:hex`. Rend `null` pour tout ce qui n'est pas reconnu ou hors
+ * bornes. Les deux vérifications (mot de passe et décision de rehachage) se
+ * servent de cette analyse, pour ne pas relire la chaîne à chaque fois.
+ */
+function analyserHash(hash: string): HashAnalyse | null {
+  if (hash.length > LONGUEUR_HASH_MAX) return null
+
+  const phc = lirePhc(hash)
+  if (phc) {
+    return {
+      parametres: phc.parametres,
+      sel: phc.sel,
+      cle: phc.cle,
+      historique: false,
+    }
+  }
+
+  const historique = lireHistorique(hash)
+  if (!historique) return null
+  return {
+    parametres: { ...PARAMETRES_HISTORIQUES },
+    sel: Buffer.from(historique.sel, "utf8"),
+    cle: historique.cle,
+    historique: true,
+  }
+}
+
 /** Écrit un PHC scrypt auto-descriptif : `$scrypt$N=…,r=…,p=…$sel$clé`. */
 export async function hacherMotDePasse(motDePasse: string): Promise<string> {
   const sel = randomBytes(16)
@@ -133,21 +169,12 @@ export async function verifierMotDePasse({
   hash: string
   password: string
 }): Promise<boolean> {
-  if (hash.length > LONGUEUR_HASH_MAX) return false
+  const analyse = analyserHash(hash)
+  if (!analyse) return false
 
   try {
-    const phc = lirePhc(hash)
-    if (phc) {
-      const calculee = await deriver(password, phc.sel, phc.parametres)
-      return egalesEnTempsConstant(calculee, phc.cle)
-    }
-
-    const historique = lireHistorique(hash)
-    if (!historique) return false
-    const calculee = await deriver(password, historique.sel, {
-      ...PARAMETRES_HISTORIQUES,
-    })
-    return egalesEnTempsConstant(calculee, historique.cle)
+    const calculee = await deriver(password, analyse.sel, analyse.parametres)
+    return egalesEnTempsConstant(calculee, analyse.cle)
   } catch {
     return false
   }
@@ -158,12 +185,11 @@ export async function verifierMotDePasse({
  * sous la cible. Un hash déjà à la cible ou au-dessus ne bouge pas.
  */
 export function motDePasseDoitEtreRehache(hash: string): boolean {
-  if (hash.length > LONGUEUR_HASH_MAX) return false
-  if (lireHistorique(hash)) return true
+  const analyse = analyserHash(hash)
+  if (!analyse) return false
+  if (analyse.historique) return true
 
-  const phc = lirePhc(hash)
-  if (!phc) return false
-  const { N, r, p } = phc.parametres
+  const { N, r, p } = analyse.parametres
   return (
     N < PARAMETRES_SCRYPT.N ||
     r < PARAMETRES_SCRYPT.r ||
