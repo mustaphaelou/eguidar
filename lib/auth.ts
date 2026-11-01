@@ -11,6 +11,10 @@ import { prisma } from "@/lib/db"
 import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
 import { sendOtpEmail } from "@/lib/emails"
 import {
+  ORIGINES_DE_LA_BOUTIQUE,
+  originesSupplementaires,
+} from "@/lib/origines-de-confiance"
+import {
   hotesDuTestDeSecurite,
   pluginTestDeSecurite,
 } from "@/lib/test-de-securite"
@@ -23,6 +27,7 @@ import { hooksEchecsConnexion } from "@/lib/echecs-connexion"
 export const auth = betterAuth({
   appName: "Eguidar",
   baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: [...ORIGINES_DE_LA_BOUTIQUE, ...originesSupplementaires()],
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   advanced: {
