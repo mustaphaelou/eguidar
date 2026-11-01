@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import {
   CommandesSkeleton,
   CommandesTable,
@@ -21,7 +22,10 @@ export default function AdminCommandesPage({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Commandes</h1>
+      <PageHeader
+        title="Commandes"
+        description="Suivez les commandes, leur paiement et leur livraison."
+      />
       <Suspense fallback={<CommandesSkeleton />}>
         <CommandesContent searchParamsPromise={searchParams} />
       </Suspense>

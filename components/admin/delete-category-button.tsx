@@ -104,7 +104,7 @@ export function DeleteCategoryButton({
   return (
     <div className="flex flex-col items-end gap-1.5">
       {raison ? (
-        <p className="flex items-center gap-1.5 text-sm text-destructive">
+        <p className="sr-only">
           <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
           {raison}
         </p>
@@ -112,7 +112,6 @@ export function DeleteCategoryButton({
 
       {confirmation ? (
         <div className="flex flex-col items-end gap-1.5">
-          {}
           {enfants ? (
             <Button variant="destructive" size="sm" disabled>
               {isPending ? "Suppression…" : "Supprimer"}
@@ -122,8 +121,13 @@ export function DeleteCategoryButton({
             <DialogTrigger
               render={
                 <Button
-                  variant={enfants ? "outline" : "destructive"}
+                  variant="ghost"
                   size="sm"
+                  className={
+                    enfants
+                      ? undefined
+                      : "text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  }
                 />
               }
             >
@@ -263,7 +267,12 @@ export function DeleteCategoryButton({
         <AlertDialog>
           <AlertDialogTrigger
             render={
-              <Button variant="destructive" size="sm" disabled={isPending} />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={isPending}
+              />
             }
           >
             {isPending ? "Suppression…" : "Supprimer"}

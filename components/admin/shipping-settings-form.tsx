@@ -35,24 +35,36 @@ export function ShippingSettingsForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="freeShippingThreshold">
-          Seuil de livraison offerte (MAD)
+          Seuil de livraison offerte
         </Label>
-        <Input
-          id="freeShippingThreshold"
-          name="freeShippingThreshold"
-          type="number"
-          required
-          min="0.01"
-          step="0.01"
-          defaultValue={threshold !== null ? centsToInputValue(threshold) : ""}
-        />
-        <p className="text-sm text-muted-foreground">
+        <div className="relative max-w-56">
+          <Input
+            id="freeShippingThreshold"
+            name="freeShippingThreshold"
+            type="number"
+            required
+            min="0.01"
+            step="0.01"
+            inputMode="decimal"
+            defaultValue={
+              threshold !== null ? centsToInputValue(threshold) : ""
+            }
+            className="pe-14 tabular-nums"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 end-4 my-auto text-sm text-muted-foreground"
+          >
+            MAD
+          </span>
+        </div>
+        <p className="max-w-prose text-sm text-muted-foreground">
           Les commandes dont le sous-total atteint ce montant bénéficient de la
           livraison gratuite, quel que soit le frais de la ville.
         </p>
       </div>
 
-      <div className="flex gap-2">
+      <div>
         <Button type="submit" disabled={isPending}>
           {isPending ? "Enregistrement…" : "Enregistrer le seuil"}
         </Button>

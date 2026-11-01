@@ -3,7 +3,13 @@
 import { useActionState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { centsToInputValue } from "@/lib/money"
@@ -33,9 +39,12 @@ export function CityForm({ city, action }: CityFormProps) {
         </p>
       ) : null}
 
-      <Card>
+      <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Informations</CardTitle>
+          <CardDescription>
+            Le nom affiché au panier et le frais appliqué à cette ville.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -57,7 +66,9 @@ export function CityForm({ city, action }: CityFormProps) {
               required
               min="0"
               step="0.01"
+              inputMode="decimal"
               defaultValue={city ? centsToInputValue(city.fee) : ""}
+              className="max-w-56 tabular-nums"
             />
           </div>
         </CardContent>

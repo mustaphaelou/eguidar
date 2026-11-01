@@ -2,6 +2,9 @@
 
 import { useRef } from "react"
 
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Delete01Icon } from "@hugeicons/core-free-icons"
+
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -29,8 +32,17 @@ export function DeleteCityButton({
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
-        Supprimer
+      <AlertDialogTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Supprimer ${cityName}`}
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          />
+        }
+      >
+        <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} aria-hidden="true" />
       </AlertDialogTrigger>
       <AlertDialogContent initialFocus={annulerRef}>
         <AlertDialogHeader>

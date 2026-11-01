@@ -1,5 +1,7 @@
+import Link from "next/link"
 import { notFound } from "next/navigation"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { ProductForm } from "@/components/admin/product-form"
 import { Button } from "@/components/ui/button"
 import {
@@ -49,7 +51,15 @@ export default async function EditProductPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Modifier — {product.name}</h1>
+      <PageHeader
+        title={`Modifier — ${product.name}`}
+        description="Les informations, les images et les variantes du Produit."
+        actions={
+          <Button variant="outline" render={<Link href="/admin/produits" />}>
+            Retour aux produits
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -59,48 +69,52 @@ export default async function EditProductPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Variante</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead className="w-40">Stock</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {product.variants.map((variant) => (
-                <TableRow key={variant.id}>
-                  <TableCell className="font-medium">{variant.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {variant.sku}
-                  </TableCell>
-                  <TableCell>
-                    <form
-                      action={updateVariantStockAction}
-                      className="flex items-center gap-2"
-                    >
-                      <input
-                        type="hidden"
-                        name="variantId"
-                        value={variant.id}
-                      />
-                      <Input
-                        name="stock"
-                        type="number"
-                        min="0"
-                        step="1"
-                        defaultValue={variant.stock}
-                        className="h-8 w-24"
-                      />
-                      <Button type="submit" size="sm" variant="outline">
-                        Enregistrer
-                      </Button>
-                    </form>
-                  </TableCell>
+          <div className="overflow-clip rounded-xl border">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead>Variante</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead className="w-40">Stock</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {product.variants.map((variant) => (
+                  <TableRow key={variant.id}>
+                    <TableCell className="font-medium">
+                      {variant.name}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {variant.sku}
+                    </TableCell>
+                    <TableCell>
+                      <form
+                        action={updateVariantStockAction}
+                        className="flex items-center gap-2"
+                      >
+                        <input
+                          type="hidden"
+                          name="variantId"
+                          value={variant.id}
+                        />
+                        <Input
+                          name="stock"
+                          type="number"
+                          min="0"
+                          step="1"
+                          defaultValue={variant.stock}
+                          className="h-8 w-24"
+                        />
+                        <Button type="submit" size="sm" variant="outline">
+                          Enregistrer
+                        </Button>
+                      </form>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

@@ -5,12 +5,15 @@ import {
   GridViewIcon,
   Image01Icon,
   ListViewIcon,
+  Search01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import Image from "next/image"
 import Link from "next/link"
 import { useActionState, useMemo, useState } from "react"
 
+import { EmptyState } from "@/components/admin/empty-state"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -37,6 +40,7 @@ import {
   buildMediasListingUrl,
   type MediasListingParams,
 } from "@/lib/medias-listing"
+import { cn } from "@/lib/utils"
 import type {
   FaitsImageProduit,
   PageImagesProduit,
@@ -71,6 +75,10 @@ export function formatTaille(octets: number): string {
   const ko = octets / 1024
   if (ko < 1024) return `${ko.toFixed(1).replace(".", ",")} Ko`
   return `${(ko / 1024).toFixed(1).replace(".", ",")} Mo`
+}
+
+function pluriel(nombre: number, singulier: string, pluriel: string): string {
+  return `${nombre} ${nombre > 1 ? pluriel : singulier}`
 }
 
 function usageLabel(image: FaitsImageProduit): string {
@@ -136,16 +144,24 @@ export function MediasBibliotheque({
         method="get"
         action={MEDIAS_LISTING_PATH}
         role="search"
-        className="flex flex-wrap items-end gap-2"
+        className="flex flex-wrap items-center gap-2"
       >
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="medias-q">Rechercher une Image produit</Label>
+        <div className="relative w-full max-w-md">
+          <Label htmlFor="medias-q" className="sr-only">
+            Rechercher une Image produit
+          </Label>
+          <HugeiconsIcon
+            icon={Search01Icon}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-muted-foreground"
+          />
           <Input
             id="medias-q"
             name="q"
             defaultValue={params.q ?? ""}
             placeholder="Texte alternatif, adresse ou Produit…"
-            className="w-72"
+            className="h-9 ps-9"
           />
         </div>
         {params.inutilisees ? (
@@ -154,13 +170,14 @@ export function MediasBibliotheque({
         {params.sansAlt ? (
           <input type="hidden" name="sans-alt" value="1" />
         ) : null}
-        <Button type="submit" variant="outline" size="sm">
+        <Button type="submit" variant="outline" size="sm" className="h-9">
           Rechercher
         </Button>
         {filtresActifs ? (
           <Button
             variant="ghost"
             size="sm"
+            className="h-9"
             render={<Link href={buildMediasListingUrl({})} />}
           >
             Réinitialiser
@@ -170,8 +187,9 @@ export function MediasBibliotheque({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          variant={params.inutilisees ? "default" : "outline"}
+          variant={params.inutilisees ? "secondary" : "outline"}
           size="sm"
+          className="h-9"
           aria-pressed={params.inutilisees ?? false}
           render={
             <Link
@@ -185,8 +203,9 @@ export function MediasBibliotheque({
           Inutilisées ({page.inutiliseesCount})
         </Button>
         <Button
-          variant={params.sansAlt ? "default" : "outline"}
+          variant={params.sansAlt ? "secondary" : "outline"}
           size="sm"
+          className="h-9"
           aria-pressed={params.sansAlt ?? false}
           render={
             <Link
@@ -204,6 +223,7 @@ export function MediasBibliotheque({
             type="submit"
             variant="ghost"
             size="sm"
+            className="h-9"
             disabled={reconciliationEnCours}
           >
             {reconciliationEnCours
@@ -216,23 +236,35 @@ export function MediasBibliotheque({
             </p>
           ) : null}
         </form>
-        <div className="ms-auto flex items-center gap-1">
+        <div
+          role="group"
+          aria-label="Affichage de la bibliothèque"
+          className="ms-auto inline-flex items-center rounded-full border bg-muted/50 p-0.5"
+        >
           <Button
             type="button"
-            variant={vue === "grille" ? "default" : "outline"}
+            variant="ghost"
             size="sm"
             aria-pressed={vue === "grille"}
             onClick={() => setVue("grille")}
+            className={cn(
+              "h-8 rounded-full px-3",
+              vue === "grille" && "bg-background shadow-sm ring-1 ring-border"
+            )}
           >
             <HugeiconsIcon icon={GridViewIcon} strokeWidth={2} />
             Grille
           </Button>
           <Button
             type="button"
-            variant={vue === "liste" ? "default" : "outline"}
+            variant="ghost"
             size="sm"
             aria-pressed={vue === "liste"}
             onClick={() => setVue("liste")}
+            className={cn(
+              "h-8 rounded-full px-3",
+              vue === "liste" && "bg-background shadow-sm ring-1 ring-border"
+            )}
           >
             <HugeiconsIcon icon={ListViewIcon} strokeWidth={2} />
             Liste
@@ -245,18 +277,23 @@ export function MediasBibliotheque({
         aria-live="polite"
         className="text-sm text-muted-foreground"
       >
-        {page.images.length} Image(s) produit affichée(s) sur {page.totalCount}{" "}
-        au registre · {page.inutiliseesCount} inutilisée(s) ·{" "}
+        {pluriel(
+          page.images.length,
+          "Image produit affichée",
+          "Images produit affichées"
+        )}{" "}
+        sur {page.totalCount} au registre ·{" "}
+        {pluriel(page.inutiliseesCount, "inutilisée", "inutilisées")} ·{" "}
         {page.sansAltCount} sans texte alternatif
         {selectionEffective.size > 0
-          ? ` · ${selectionEffective.size} sélectionnée(s)`
+          ? ` · ${pluriel(selectionEffective.size, "sélectionnée", "sélectionnées")}`
           : ""}
       </p>
 
       {selectionEffective.size > 0 ? (
         <form
           action={supprimerAction}
-          className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed p-3"
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2"
         >
           {[...selectionEffective].map((publicUrl) => (
             <input
@@ -266,8 +303,8 @@ export function MediasBibliotheque({
               value={publicUrl}
             />
           ))}
-          <span className="text-sm">
-            {selectionEffective.size} sélectionnée(s)
+          <span className="text-sm font-medium">
+            {pluriel(selectionEffective.size, "sélectionnée", "sélectionnées")}
           </span>
           <Button
             type="submit"
@@ -294,117 +331,165 @@ export function MediasBibliotheque({
       ) : null}
 
       {page.images.length === 0 ? (
-        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          <HugeiconsIcon
-            icon={Image01Icon}
-            strokeWidth={2}
-            className="mx-auto mb-2 size-8"
-          />
-          Aucune Image produit ne correspond à ces critères.
-        </p>
+        <EmptyState
+          icon={
+            <HugeiconsIcon
+              icon={Image01Icon}
+              strokeWidth={2}
+              className="size-5"
+            />
+          }
+          title={
+            filtresActifs
+              ? "Aucune Image produit ne correspond à ces critères."
+              : "La bibliothèque est vide."
+          }
+          description={
+            filtresActifs
+              ? "Effacez les filtres pour revoir toutes les images du catalogue."
+              : "Les images téléversées depuis les Produits apparaîtront ici."
+          }
+          action={
+            filtresActifs ? (
+              <Button
+                variant="outline"
+                render={<Link href={buildMediasListingUrl({})} />}
+              >
+                Effacer les filtres
+              </Button>
+            ) : null
+          }
+          className="py-14"
+        />
       ) : vue === "grille" ? (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {page.images.map((image) => (
             <li
               key={image.publicUrl}
               data-image-url={image.publicUrl}
-              className="flex flex-col gap-2 rounded-xl border p-2"
+              className="group flex flex-col overflow-clip rounded-xl border bg-card"
             >
-              <div className="flex items-start justify-between gap-2">
-                <Checkbox
-                  checked={selectionEffective.has(image.publicUrl)}
-                  onCheckedChange={() => basculer(image.publicUrl)}
-                  aria-label={`Sélectionner l'Image produit ${
-                    image.alt ?? image.publicUrl
-                  }`}
-                />
-                <span className="text-[11px] text-muted-foreground">
-                  {image.usageCount > 0
-                    ? `Utilisée (${image.usageCount})`
-                    : "Inutilisée"}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailUrl(image.publicUrl)}
-                className="self-center"
-                aria-label="Ouvrir le détail de l'Image produit"
-              >
-                <Image
-                  src={image.publicUrl}
-                  alt={image.alt ?? ""}
-                  width={96}
-                  height={96}
-                  sizes="96px"
-                  className="size-24 rounded-lg border object-cover"
-                />
-              </button>
-              <p className="line-clamp-2 text-xs">
-                {image.alt ?? (
-                  <span className="text-destructive">
-                    Sans texte alternatif
+              <div className="relative aspect-square bg-muted/30">
+                <button
+                  type="button"
+                  onClick={() => setDetailUrl(image.publicUrl)}
+                  className="block size-full"
+                  aria-label="Ouvrir le détail de l'Image produit"
+                >
+                  <Image
+                    src={image.publicUrl}
+                    alt={image.alt ?? ""}
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    className="object-cover motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out motion-safe:group-hover:scale-[1.03]"
+                  />
+                </button>
+                <div className="pointer-events-none absolute inset-x-2 top-2 flex items-start justify-between gap-2">
+                  <span className="pointer-events-auto rounded-full bg-background/90 p-1 shadow-sm backdrop-blur">
+                    <Checkbox
+                      checked={selectionEffective.has(image.publicUrl)}
+                      onCheckedChange={() => basculer(image.publicUrl)}
+                      aria-label={`Sélectionner l'Image produit ${
+                        image.alt ?? image.publicUrl
+                      }`}
+                    />
                   </span>
-                )}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {dimensions(image)} · {formatTaille(image.byteSize)} ·{" "}
-                {image.mimeType}
-              </p>
+                  <Badge
+                    variant={image.usageCount > 0 ? "secondary" : "outline"}
+                    className="bg-background/90 shadow-sm backdrop-blur"
+                  >
+                    {image.usageCount > 0
+                      ? `Utilisée (${image.usageCount})`
+                      : "Inutilisée"}
+                  </Badge>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1 p-3">
+                <p className="line-clamp-2 text-xs font-medium">
+                  {image.alt ?? (
+                    <span className="text-destructive">
+                      Sans texte alternatif
+                    </span>
+                  )}
+                </p>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {dimensions(image)} · {formatTaille(image.byteSize)}
+                </p>
+              </div>
             </li>
           ))}
         </ul>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Sélection</TableHead>
-              <TableHead>Image produit</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Dimensions</TableHead>
-              <TableHead>Taille</TableHead>
-              <TableHead>Utilisation</TableHead>
-              <TableHead>Texte alternatif</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {page.images.map((image) => (
-              <TableRow key={image.publicUrl} data-image-url={image.publicUrl}>
-                <TableCell>
-                  <Checkbox
-                    checked={selectionEffective.has(image.publicUrl)}
-                    onCheckedChange={() => basculer(image.publicUrl)}
-                    aria-label={`Sélectionner l'Image produit ${
-                      image.alt ?? image.publicUrl
-                    }`}
-                  />
-                </TableCell>
-                <TableCell>
-                  <button
-                    type="button"
-                    onClick={() => setDetailUrl(image.publicUrl)}
-                    className="flex items-center gap-2 text-start"
-                    aria-label="Ouvrir le détail de l'Image produit"
-                  >
-                    <Image
-                      src={image.publicUrl}
-                      alt=""
-                      width={96}
-                      height={96}
-                      sizes="96px"
-                      className="size-12 rounded-lg border object-cover"
-                    />
-                    <span className="max-w-48 truncate">{image.publicUrl}</span>
-                  </button>
-                </TableCell>
-                <TableCell>{image.mimeType}</TableCell>
-                <TableCell>{dimensions(image)}</TableCell>
-                <TableCell>{formatTaille(image.byteSize)}</TableCell>
-                <TableCell>{usageLabel(image)}</TableCell>
-                <TableCell>{image.alt ?? "—"}</TableCell>
+        <div className="overflow-clip rounded-xl border bg-card">
+          <Table>
+            <TableHeader className="bg-muted/40">
+              <TableRow>
+                <TableHead>Sélection</TableHead>
+                <TableHead>Image produit</TableHead>
+                <TableHead className="hidden md:table-cell">Type</TableHead>
+                <TableHead className="hidden lg:table-cell">
+                  Dimensions
+                </TableHead>
+                <TableHead className="hidden lg:table-cell">Taille</TableHead>
+                <TableHead>Utilisation</TableHead>
+                <TableHead className="hidden md:table-cell">
+                  Texte alternatif
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {page.images.map((image) => (
+                <TableRow
+                  key={image.publicUrl}
+                  data-image-url={image.publicUrl}
+                >
+                  <TableCell>
+                    <Checkbox
+                      checked={selectionEffective.has(image.publicUrl)}
+                      onCheckedChange={() => basculer(image.publicUrl)}
+                      aria-label={`Sélectionner l'Image produit ${
+                        image.alt ?? image.publicUrl
+                      }`}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      onClick={() => setDetailUrl(image.publicUrl)}
+                      className="flex items-center gap-2 text-start"
+                      aria-label="Ouvrir le détail de l'Image produit"
+                    >
+                      <Image
+                        src={image.publicUrl}
+                        alt=""
+                        width={96}
+                        height={96}
+                        sizes="96px"
+                        className="size-12 rounded-lg border object-cover"
+                      />
+                      <span className="max-w-48 truncate">
+                        {image.publicUrl}
+                      </span>
+                    </button>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {image.mimeType}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {dimensions(image)}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {formatTaille(image.byteSize)}
+                  </TableCell>
+                  <TableCell>{usageLabel(image)}</TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {image.alt ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       <Drawer

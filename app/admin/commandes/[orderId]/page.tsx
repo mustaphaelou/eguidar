@@ -6,6 +6,7 @@ import { Call02Icon, MapPinIcon, UserIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { OrderStatusActions } from "@/components/admin/order-status-actions"
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { RecapitulatifPaiement } from "@/components/storefront/recapitulatif-paiement"
 import { Button } from "@/components/ui/button"
@@ -65,24 +66,18 @@ export default async function AdminOrderDetailPage({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            Commande {shortOrderId(order.id)}
-          </h1>
-          <p className="text-sm text-muted-foreground">{orderDate}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <OrderStatusBadge status={order.status} />
-          <Button
-            render={<Link href="/admin/commandes" />}
-            variant="outline"
-            size="sm"
-          >
-            Toutes les commandes
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={`Commande ${shortOrderId(order.id)}`}
+        description={orderDate}
+        actions={
+          <>
+            <OrderStatusBadge status={order.status} />
+            <Button render={<Link href="/admin/commandes" />} variant="outline">
+              Toutes les commandes
+            </Button>
+          </>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -147,34 +142,36 @@ export default async function AdminOrderDetailPage({
           <CardTitle className="text-base">Articles</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Article</TableHead>
-                <TableHead>Variante</TableHead>
-                <TableHead className="text-end">Quantité</TableHead>
-                <TableHead className="text-end">Prix unitaire</TableHead>
-                <TableHead className="text-end">Sous-total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {order.items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.productName}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {item.variantName}
-                  </TableCell>
-                  <TableCell className="text-end">{item.quantity}</TableCell>
-                  <TableCell className="text-end">
-                    {formatPrice(item.price)}
-                  </TableCell>
-                  <TableCell className="text-end">
-                    {formatPrice(item.price * item.quantity)}
-                  </TableCell>
+          <div className="overflow-clip rounded-xl border">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead>Article</TableHead>
+                  <TableHead>Variante</TableHead>
+                  <TableHead className="text-end">Quantité</TableHead>
+                  <TableHead className="text-end">Prix unitaire</TableHead>
+                  <TableHead className="text-end">Sous-total</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {order.items.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.productName}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {item.variantName}
+                    </TableCell>
+                    <TableCell className="text-end">{item.quantity}</TableCell>
+                    <TableCell className="text-end">
+                      {formatPrice(item.price)}
+                    </TableCell>
+                    <TableCell className="text-end">
+                      {formatPrice(item.price * item.quantity)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
           <RecapitulatifPaiement commande={order} />
         </CardContent>
       </Card>

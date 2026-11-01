@@ -1,6 +1,7 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { Button } from "@/components/ui/button"
 import {
   TableauStructure,
@@ -36,12 +37,15 @@ export default async function AdminCategoriesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Catégories</h1>
-        <Button render={<Link href="/admin/categories/nouveau" />}>
-          Nouvelle catégorie
-        </Button>
-      </div>
+      <PageHeader
+        title="Catégories"
+        description="L’arbre du catalogue : chaque Structure range les Produits et les sous-catégories."
+        actions={
+          <Button render={<Link href="/admin/categories/nouveau" />}>
+            Nouvelle catégorie
+          </Button>
+        }
+      />
 
       {lignesVue.length === 0 ? (
         <p className="text-muted-foreground">

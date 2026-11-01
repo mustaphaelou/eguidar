@@ -70,18 +70,12 @@ export function UserMenu({
         <DropdownMenuTrigger
           aria-label="Menu utilisateur"
           disabled={pending}
-          render={
-            <span
-              tabIndex={0}
-              role="button"
-              className="inline-flex cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Avatar className="border">
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-            </span>
-          }
-        />
+          className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Avatar className="border">
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
         {content}
       </DropdownMenu>
     )
@@ -89,23 +83,30 @@ export function UserMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger disabled={pending}>
-        <SidebarMenuButton size="lg" tooltip={displayName}>
-          <Avatar className="border">
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <span className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-sm font-medium">{displayName}</span>
-            <span className="truncate text-xs text-muted-foreground">
-              {userEmail}
-            </span>
-          </span>
-          <HugeiconsIcon
-            icon={ArrowUp01Icon}
-            strokeWidth={2}
-            className="ms-auto size-4 text-muted-foreground"
+      <DropdownMenuTrigger
+        disabled={pending}
+        render={
+          <SidebarMenuButton
+            size="lg"
+            tooltip={displayName}
+            className="data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground"
           />
-        </SidebarMenuButton>
+        }
+      >
+        <Avatar className="border">
+          <AvatarFallback>{initials}</AvatarFallback>
+        </Avatar>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-sm font-medium">{displayName}</span>
+          <span className="truncate text-xs text-muted-foreground">
+            {userEmail}
+          </span>
+        </span>
+        <HugeiconsIcon
+          icon={ArrowUp01Icon}
+          strokeWidth={2}
+          className="ms-auto size-4 text-muted-foreground"
+        />
       </DropdownMenuTrigger>
       {content}
     </DropdownMenu>

@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
+import { PageHeader } from "@/components/layout/admin/page-header"
 import { BoutonAutomatisation } from "@/components/admin/bouton-automatisation"
 import { RegleAutomationForm } from "@/components/admin/regle-automation-form"
 import { Badge } from "@/components/ui/badge"
@@ -80,33 +81,35 @@ export default async function AdminRegleAutomatisationPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">Modifier — {regle.nom}</h1>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        title={`Modifier — ${regle.nom}`}
+        description={
+          <>
             {LIBELLES_DECLENCHEUR[regle.declencheur]} →{" "}
             {libelleDeLaCondition(regle.condition.type)} →{" "}
             {LIBELLES_ACTION[regle.action]}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            render={<Link href="/admin/automatisations" />}
-          >
-            Retour aux règles
-          </Button>
-          <BoutonAutomatisation
-            action={basculerRegleAction}
-            champs={{
-              regleId: regle.id,
-              actif: regle.actif ? "non" : "actif",
-              retour: "regle",
-            }}
-            libelle={regle.actif ? "Désactiver" : "Activer"}
-          />
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              render={<Link href="/admin/automatisations" />}
+            >
+              Retour aux règles
+            </Button>
+            <BoutonAutomatisation
+              action={basculerRegleAction}
+              champs={{
+                regleId: regle.id,
+                actif: regle.actif ? "non" : "actif",
+                retour: "regle",
+              }}
+              libelle={regle.actif ? "Désactiver" : "Activer"}
+            />
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <Badge variant={regle.actif ? "secondary" : "outline"}>
