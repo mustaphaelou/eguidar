@@ -2,10 +2,9 @@ import "dotenv/config"
 
 import { randomUUID } from "node:crypto"
 
-import { hashPassword } from "better-auth/crypto"
-
 import { semerLesRegles } from "../lib/automations/regles"
 import { prisma } from "../lib/db"
+import { hacherMotDePasse } from "../lib/mot-de-passe-hache"
 import { indexProductDocuments } from "../lib/meili"
 import { toIndexableProduct } from "../lib/index-projection"
 import { slugify } from "../lib/slug"
@@ -427,7 +426,7 @@ async function main() {
       data: { role: "admin", emailVerified: true, name: adminName },
     })
   } else {
-    const password = await hashPassword(adminPassword)
+    const password = await hacherMotDePasse(adminPassword)
     await prisma.user.create({
       data: {
         id: randomUUID(),
