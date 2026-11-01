@@ -33,6 +33,12 @@ export const auth = betterAuth({
       trustedProxies: [...PROXIES_DE_CONFIANCE],
     },
   },
+  account: {
+    // Les jetons fournisseur sont chiffrés au repos avec une clé dérivée de
+    // BETTER_AUTH_SECRET. Changer ce secret rend les jetons existants
+    // illisibles : conséquence acceptée, rien dans la boutique ne les lit.
+    encryptOAuthTokens: true,
+  },
   hooks: hooksEchecsConnexion,
   session: {
     expiresIn: SESSION_INACTIVE_SECONDS,
@@ -57,10 +63,17 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      // L'ensemble des scopes est déclaré en entier : la bibliothèque n'ajoute
+      // aucun scope par défaut et une montée de version ne peut pas l'élargir
+      // en silence.
+      disableDefaultScope: true,
+      scope: ["openid", "email", "profile"],
     },
     facebook: {
       clientId: process.env.FACEBOOK_CLIENT_ID ?? "",
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? "",
+      disableDefaultScope: true,
+      scope: ["email", "public_profile"],
       mapProfileToUser: () => ({ emailVerified: true }),
     },
   },
