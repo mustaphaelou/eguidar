@@ -43,3 +43,23 @@ Le reste de la décision tient : la page `/mot-de-passe-oublie`, la
 redirection permanente depuis `/request-password-reset`
 (`next.config.ts:23-31`), le plugin `emailOTP` en deux étapes sur une seule
 page, et le refus de la mise en modale.
+
+## Amendement — La réinitialisation révoque les sessions en cours (#834)
+
+L'option `revokeSessionsOnPasswordReset` était laissée à son défaut, `false` : la
+réinitialisation changeait bien le mot de passe, mais toute session déjà ouverte
+continuait de s'authentifier. Celui qui détenait l'ancien mot de passe n'était donc
+pas éjecté par le geste censé le révoquer — ASVS 7.4.3 demande au minimum l'option
+de terminer les autres sessions après un changement d'identifiant.
+
+**La décision est de l'activer.** Après l'échange du code, une fois le nouveau mot
+de passe écrit, `/email-otp/reset-password` supprime toutes les sessions du Compte
+client (`internalAdapter.deleteUserSessions`, `better-auth@1.6.26`,
+`node_modules/better-auth/dist/plugins/email-otp/routes.mjs:599`) : la session ouverte avec l'ancien mot de passe,
+comme les autres, ne relit plus de Client. Le Client se reconnecte avec le nouveau
+mot de passe.
+
+Le reste de la réinitialisation ne change pas : demande sans énumération, code à
+usage unique haché au repos (ADR-0043), vérification du code avant de toucher au
+mot de passe, et page `/mot-de-passe-oublie` de l'amendement précédent. L'ancien
+mot de passe reste en vigueur si la réinitialisation échoue.
