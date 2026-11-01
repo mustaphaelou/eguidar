@@ -3,12 +3,14 @@ import { z } from "zod"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import {
+  DUREE_VIE_EVENEMENT_MS,
   typeEntiteAutomationSchema,
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
 import {
   deciderAutomation,
   type DecisionAutomation,
+  type RaisonIgnoree,
 } from "@/lib/automations/decision"
 import {
   executerLAction,
@@ -529,11 +531,39 @@ export interface ResultatReessai {
   erreur: string | null
 }
 
+const FENETRE_REJEU_EN_HEURES = DUREE_VIE_EVENEMENT_MS / (60 * 60 * 1000)
+
+function libelleDuDeclencheur(declencheur: string): string {
+  return (
+    LIBELLES_DECLENCHEUR[declencheur as keyof typeof LIBELLES_DECLENCHEUR] ??
+    declencheur
+  )
+}
+
+/**
+ * Le refus nomme la raison de la Décision sans rejouer son ordre : chaque
+ * raison a sa phrase, et l'Événement expiré rappelle la fenêtre de rejeu. Le
+ * rendu reste privé pour que la Décision et les autres consommateurs ne
+ * partagent jamais une prose.
+ */
+function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
+  switch (raison.type) {
+    case "evenement-expire":
+      return `L'Événement a expiré le ${raison.expireLe.toISOString()} : la fenêtre de rejeu de ${FENETRE_REJEU_EN_HEURES} h est dépassée, rien n'est rejoué.`
+    case "regle-desactivee":
+      return "La Règle est désactivée : réactivez-la pour réessayer cette Exécution."
+    case "declencheur-different":
+      return `La Règle ne possède plus cet Événement : elle attend « ${libelleDuDeclencheur(raison.attendu)} » (${raison.attendu}) et l'Événement porte « ${libelleDuDeclencheur(raison.recu)} » (${raison.recu}).`
+    case "condition-non-remplie":
+      return "La condition de la Règle ne retient plus cet Événement : la modification de la Règle est honorée, rien n'est rejoué."
+  }
+}
+
 /**
  * Le réessai manuel (Flow : « Manual retry », n8n : l'exécution manuelle est
- * distincte de la production). Il rejoue **la règle** sur l'Événement de
- * l'Exécution, écrit une nouvelle Exécution `manuel` et laisse l'échec
- * d'origine dans l'historique comme trace.
+ * distincte de la production). Il consulte la Décision avant d'écrire : seule
+ * une paire que la Règle actuelle gouverne encore ouvre une Exécution
+ * `manuel`. Un refus laisse l'échec d'origine et son Événement intacts.
  */
 export async function reessayerExecution(
   executionId: string,
@@ -563,6 +593,11 @@ export async function reessayerExecution(
   const regle = versRegle(execution.rule)
   const evenement = execution.event
   const maintenant = dependances.maintenant
+
+  const decision = deciderAutomation(execution.rule, evenement, maintenant)
+  if (decision.decision === "ignorer") {
+    throw new ReessaiRefuseError(motifDuReessaiRefuse(decision.raison))
+  }
 
   const reessai = await prisma.$transaction(async (tx) => {
     const agregat = await tx.automationRun.aggregate({

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { executerLesEvenements } from "@/lib/automations/executeur"
 import {
@@ -58,6 +59,95 @@ async function creerUneRegle(surcharges: Partial<EntreeRegle> = {}) {
     AUTEUR,
     MAINTENANT
   )
+}
+
+interface EchecRejoue {
+  regleId: string
+  evenementId: string
+  executionId: string
+}
+
+async function preparerUnEchec(options: {
+  regle?: Partial<EntreeRegle>
+  evenement: {
+    type: string
+    entityType?: string
+    payload: unknown
+    expireLe: Date
+  }
+}): Promise<EchecRejoue> {
+  const regleId = await creerUneRegle(options.regle)
+  const entityType = options.evenement.entityType ?? "categorie"
+  const entite = `${entityType}-${runId}-${randomUUID().slice(0, 8)}`
+  const evenement = await prisma.automationEvent.create({
+    data: {
+      type: options.evenement.type,
+      entityType,
+      entityId: entite,
+      seq: 1,
+      attemptOf: 1,
+      payload: options.evenement.payload as Prisma.InputJsonValue,
+      occurredAt: new Date(MAINTENANT.getTime() - 10_000),
+      expiresAt: options.evenement.expireLe,
+      status: "mort",
+      attempts: 3,
+      lastError: "cache indisponible",
+    },
+  })
+  const execution = await prisma.automationRun.create({
+    data: {
+      eventId: evenement.id,
+      ruleId: regleId,
+      action: options.regle?.action ?? "index.produit",
+      status: "echoue",
+      attempt: 3,
+      lastError: "cache indisponible",
+      startedAt: new Date(MAINTENANT.getTime() - 10_000),
+      finishedAt: new Date(MAINTENANT.getTime() - 9_500),
+      trigger: "evenement",
+    },
+  })
+  return {
+    regleId,
+    evenementId: evenement.id,
+    executionId: execution.id,
+  }
+}
+
+/**
+ * Un refus ne doit laisser aucune trace : ni nouvelle Exécution, ni ligne
+ * d'échec retouchée, ni Événement consommé.
+ */
+async function attendreUnRefusSansEcriture(
+  reessai: () => Promise<unknown>,
+  message: string,
+  echec: EchecRejoue
+): Promise<void> {
+  const executionAvant = await prisma.automationRun.findUniqueOrThrow({
+    where: { id: echec.executionId },
+  })
+  const evenementAvant = await prisma.automationEvent.findUniqueOrThrow({
+    where: { id: echec.evenementId },
+  })
+  const executionsAvant = await prisma.automationRun.count({
+    where: { eventId: echec.evenementId },
+  })
+
+  await expect(reessai()).rejects.toThrow(message)
+
+  await expect(
+    prisma.automationRun.count({ where: { eventId: echec.evenementId } })
+  ).resolves.toBe(executionsAvant)
+  await expect(
+    prisma.automationRun.findUniqueOrThrow({
+      where: { id: echec.executionId },
+    })
+  ).resolves.toEqual(executionAvant)
+  await expect(
+    prisma.automationEvent.findUniqueOrThrow({
+      where: { id: echec.evenementId },
+    })
+  ).resolves.toEqual(evenementAvant)
 }
 
 describe("l'éditeur de Règles d'automatisation", () => {
@@ -561,6 +651,205 @@ describe("l'éditeur de Règles d'automatisation", () => {
     await expect(
       prisma.automationEvent.findUniqueOrThrow({ where: { id: evenement.id } })
     ).resolves.toMatchObject({ status: "mort" })
+  })
+
+  it("réessaie une Exécution sans masquer l'échec de la Règle voisine", async () => {
+    const id = await creerUneRegle({ nom: nomDeRegle("voisine") })
+    const voisine = await creerUneRegle({
+      nom: nomDeRegle("encore-voisine"),
+      action: "index.produit",
+    })
+    const entite = `produit-${runId}-voisin`
+    const evenement = await prisma.automationEvent.create({
+      data: {
+        type: "produit.enregistre",
+        entityType: "produit",
+        entityId: entite,
+        seq: 1,
+        attemptOf: 1,
+        payload: { produitId: entite },
+        occurredAt: new Date(MAINTENANT.getTime() - 10_000),
+        expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
+        status: "mort",
+        attempts: 3,
+        lastError: "index indisponible",
+      },
+    })
+    const executions = await Promise.all(
+      [id, voisine].map((ruleId) =>
+        prisma.automationRun.create({
+          data: {
+            eventId: evenement.id,
+            ruleId,
+            action: "index.produit",
+            status: "echoue",
+            attempt: 1,
+            lastError: "index indisponible",
+            startedAt: new Date(MAINTENANT.getTime() - 10_000),
+            finishedAt: new Date(MAINTENANT.getTime() - 9_500),
+            trigger: "evenement",
+          },
+        })
+      )
+    )
+
+    await expect(
+      reessayerExecution(executions[0]!.id, dependancesDeTest(MAINTENANT))
+    ).resolves.toMatchObject({ statut: "reussi" })
+    await expect(
+      prisma.automationEvent.findUniqueOrThrow({ where: { id: evenement.id } })
+    ).resolves.toMatchObject({ status: "mort" })
+
+    await expect(
+      reessayerExecution(executions[1]!.id, dependancesDeTest(MAINTENANT))
+    ).resolves.toMatchObject({ statut: "reussi" })
+    await expect(
+      prisma.automationEvent.findUniqueOrThrow({ where: { id: evenement.id } })
+    ).resolves.toMatchObject({ status: "reussi", lastError: null })
+  })
+
+  it("refuse le réessai d'une Règle désactivée en demandant de la réactiver, sans rien écrire", async () => {
+    const echec = await preparerUnEchec({
+      regle: { actif: false },
+      evenement: {
+        type: "produit.enregistre",
+        entityType: "produit",
+        payload: { produitId: `produit-${runId}-desactive` },
+        expireLe: new Date(MAINTENANT.getTime() + 3_600_000),
+      },
+    })
+
+    await attendreUnRefusSansEcriture(
+      () =>
+        reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
+      "La Règle est désactivée : réactivez-la pour réessayer cette Exécution.",
+      echec
+    )
+  })
+
+  it("refuse le réessai d'une Règle qui ne porte plus le déclencheur de l'Événement", async () => {
+    const echec = await preparerUnEchec({
+      regle: { declencheur: "produit.enregistre", action: "index.produit" },
+      evenement: {
+        type: "structure.modifiee",
+        payload: { categorieId: `categorie-${runId}-declencheur` },
+        expireLe: new Date(MAINTENANT.getTime() + 3_600_000),
+      },
+    })
+
+    await attendreUnRefusSansEcriture(
+      () =>
+        reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
+      "La Règle ne possède plus cet Événement : elle attend « Produit enregistré » (produit.enregistre) et l'Événement porte « Structure modifiée » (structure.modifiee).",
+      echec
+    )
+  })
+
+  it("refuse le réessai quand la condition ne retient plus l'Événement, en honorant la modification", async () => {
+    const echec = await preparerUnEchec({
+      regle: {
+        declencheur: "commande.statut.changee",
+        condition: { type: "statut-commande", statuts: ["shipped"] },
+        action: "email.commande-statut",
+      },
+      evenement: {
+        type: "commande.statut.changee",
+        entityType: "commande",
+        payload: {
+          statut: "pending",
+          snapshot: { orderId: `commande-${runId}-condition` },
+        },
+        expireLe: new Date(MAINTENANT.getTime() + 3_600_000),
+      },
+    })
+
+    await attendreUnRefusSansEcriture(
+      () =>
+        reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
+      "La condition de la Règle ne retient plus cet Événement : la modification de la Règle est honorée, rien n'est rejoué.",
+      echec
+    )
+  })
+
+  it("refuse le réessai d'un Événement expiré en nommant sa date et la fenêtre de rejeu", async () => {
+    const echec = await preparerUnEchec({
+      evenement: {
+        type: "produit.enregistre",
+        entityType: "produit",
+        payload: { produitId: `produit-${runId}-expire` },
+        expireLe: new Date(MAINTENANT.getTime() - 60_000),
+      },
+    })
+
+    await attendreUnRefusSansEcriture(
+      () =>
+        reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
+      "L'Événement a expiré le 2026-10-28T08:59:00.000Z : la fenêtre de rejeu de 24 h est dépassée, rien n'est rejoué.",
+      echec
+    )
+  })
+
+  it("garde l'ordre de la Décision : une Règle désactivée prime sur l'expiration", async () => {
+    const echec = await preparerUnEchec({
+      regle: { actif: false },
+      evenement: {
+        type: "produit.enregistre",
+        entityType: "produit",
+        payload: { produitId: `produit-${runId}-ordre-desactive` },
+        expireLe: new Date(MAINTENANT.getTime() - 60_000),
+      },
+    })
+
+    await attendreUnRefusSansEcriture(
+      () =>
+        reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
+      "La Règle est désactivée : réactivez-la pour réessayer cette Exécution.",
+      echec
+    )
+  })
+
+  it("garde l'ordre de la Décision : un déclencheur différent prime sur l'expiration", async () => {
+    const echec = await preparerUnEchec({
+      regle: { declencheur: "produit.enregistre", action: "index.produit" },
+      evenement: {
+        type: "structure.modifiee",
+        payload: { categorieId: `categorie-${runId}-ordre-declencheur` },
+        expireLe: new Date(MAINTENANT.getTime() - 60_000),
+      },
+    })
+
+    await attendreUnRefusSansEcriture(
+      () =>
+        reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
+      "La Règle ne possède plus cet Événement : elle attend « Produit enregistré » (produit.enregistre) et l'Événement porte « Structure modifiée » (structure.modifiee).",
+      echec
+    )
+  })
+
+  it("garde l'ordre de la Décision : l'expiration prime sur une condition non remplie", async () => {
+    const echec = await preparerUnEchec({
+      regle: {
+        declencheur: "commande.statut.changee",
+        condition: { type: "statut-commande", statuts: ["shipped"] },
+        action: "email.commande-statut",
+      },
+      evenement: {
+        type: "commande.statut.changee",
+        entityType: "commande",
+        payload: {
+          statut: "pending",
+          snapshot: { orderId: `commande-${runId}-ordre-expire` },
+        },
+        expireLe: new Date(MAINTENANT.getTime() - 60_000),
+      },
+    })
+
+    await attendreUnRefusSansEcriture(
+      () =>
+        reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
+      "L'Événement a expiré le 2026-10-28T08:59:00.000Z : la fenêtre de rejeu de 24 h est dépassée, rien n'est rejoué.",
+      echec
+    )
   })
 
   it("liste les règles avec leur état et leur dernière exécution", async () => {
