@@ -642,7 +642,7 @@ describe("AuthDialog", () => {
       setInputValue(emailInput()!, "jane@example.com")
       setInputValue(
         dialog()!.querySelector<HTMLInputElement>("#password")!,
-        "password123"
+        "MotDePasse!12345"
       )
       await clickAndFlush(submitButton("Créer mon compte")!)
 

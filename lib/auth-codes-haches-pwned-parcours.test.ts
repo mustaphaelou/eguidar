@@ -19,8 +19,8 @@ import { fauxServiceDeFuite } from "@/test/faux-service-de-fuite"
 const runId = randomUUID().slice(0, 8)
 const email = (suffixe: string) => `codes-haches-${runId}-${suffixe}@test.ma`
 const motDePasseSur = `mot-de-passe-sur-${runId}`
-const motDePasseFuite = "password123"
-const motDePasseFuiteReinitialisation = "qwerty123"
+const motDePasseFuite = "password12345678"
+const motDePasseFuiteReinitialisation = "qwertyuiop12345"
 
 async function refus(promesse: Promise<unknown>): Promise<{
   code?: string

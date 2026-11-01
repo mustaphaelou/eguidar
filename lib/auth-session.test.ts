@@ -12,6 +12,12 @@ describe("server session backstop", () => {
     expect(auth.options.session?.expiresIn).toBe(SESSION_INACTIVE_SECONDS)
   })
 
+  it("révoque les sessions existantes quand le mot de passe est réinitialisé", () => {
+    expect(auth.options.emailAndPassword?.revokeSessionsOnPasswordReset).toBe(
+      true
+    )
+  })
+
   it("refreshes sessions on activity well before expiry so the window slides", () => {
     expect(auth.options.session?.updateAge).toBe(SESSION_UPDATE_AGE_SECONDS)
     expect(SESSION_UPDATE_AGE_SECONDS).toBeGreaterThan(0)

@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { translateAuthError } from "./auth-form-glue"
 import { useOtpExchange } from "./verification-de-l-email"
+import { resetPasswordSchema } from "@/lib/auth-form-schemas"
 import { authClient } from "@/lib/client"
 
 export type ForgotPasswordStep = "email" | "otp" | "success"
@@ -25,13 +26,9 @@ export function useForgotPasswordFlow() {
     e.preventDefault()
     setError(null)
 
-    if (password.length < 8) {
-      setError("Le mot de passe doit contenir au moins 8 caractères.")
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError("Les mots de passe ne correspondent pas.")
+    const saisie = resetPasswordSchema.safeParse({ password, confirmPassword })
+    if (!saisie.success) {
+      setError(saisie.error.issues[0]!.message)
       return
     }
 
