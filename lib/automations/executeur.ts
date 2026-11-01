@@ -7,7 +7,6 @@ import {
 } from "@/lib/automations/actions"
 import {
   actionAutomationSchema,
-  conditionAutomationSchema,
   configurationRegleSchema,
   type ActionAutomation,
 } from "@/lib/automations/regles"
@@ -15,7 +14,10 @@ import {
   typeEntiteAutomationSchema,
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
-import { laConditionEstRemplie } from "@/lib/automations/vocabulaire"
+import {
+  deciderAutomation,
+  evenementEstExpire,
+} from "@/lib/automations/decision"
 
 export const LIMITE_PAR_BALAYAGE = 20
 export const BAIL_EXECUTION_MS = 60_000
@@ -197,10 +199,10 @@ async function ignorerEvenement(
 }
 
 /**
- * Exécute un événement réclamé : les règles actives dont le déclencheur
- * correspond, la condition évaluée sur la charge, l'action enregistrée.
- * L'expiration est jugée avant toute action — un événement périmé est
- * « ignoré », jamais « échoué ».
+ * Exécute un événement réclamé : la Décision d'automatisation juge chaque
+ * couple « cette Règle, cet Événement », la requête gardant le filtre des
+ * règles actives et de même déclencheur. L'expiration est jugée une fois pour
+ * l'événement — un événement périmé est « ignoré », jamais « échoué ».
  */
 export async function executerEvenement(
   evenement: AutomationEvent,
@@ -216,13 +218,15 @@ export async function executerEvenement(
     orderBy: { id: "asc" },
     select: {
       id: true,
+      trigger: true,
+      enabled: true,
       action: true,
       condition: true,
       actionConfig: true,
     },
   })
 
-  if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
+  if (evenementEstExpire(evenement.expiresAt, maintenant)) {
     return ignorerEvenement(
       evenement,
       regles,
@@ -236,7 +240,14 @@ export async function executerEvenement(
   let derniereErreur: string | null = null
 
   for (const regle of regles) {
-    const condition = conditionAutomationSchema.parse(regle.condition)
+    const decision = deciderAutomation(regle, evenement, maintenant)
+    if (
+      decision.decision === "ignorer" &&
+      decision.raison.type !== "condition-non-remplie"
+    ) {
+      continue
+    }
+
     const action: ActionAutomation = actionAutomationSchema.parse(regle.action)
     const configuration = configurationRegleSchema
       .optional()
@@ -250,7 +261,7 @@ export async function executerEvenement(
       maintenant,
     })
 
-    if (!laConditionEstRemplie(condition, evenement.payload)) {
+    if (decision.decision === "ignorer") {
       await terminerRun(run.id, "ignore", maintenant, "condition non remplie")
       continue
     }
