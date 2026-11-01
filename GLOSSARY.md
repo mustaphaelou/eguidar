@@ -378,6 +378,13 @@ _Avoid_: login page, se connecter (as the screen name)
 **Connexion sociale**:
 L'authentification d'un Client via un fournisseur externe (Facebook, Google) plutôt qu'un mot de passe.
 _Avoid_: social login, login social, OAuth
+**Connexion par mot de passe**:
+La Connexion d'un Client par l'adresse et le mot de passe de son Compte client, sur la route `/sign-in/email`.
+_Avoid_: login, password login
+
+**Connexion par code**:
+L'authentification d'un Client par un code à usage unique envoyé à son adresse, servie par la route `/sign-in/email-otp`. Elle n'a pas de surface dans la boutique et se distingue de la Connexion par mot de passe comme de la Vérification de l'e-mail, qui prouve l'adresse sans remplacer le mot de passe.
+_Avoid_: OTP login, magic link, passwordless login, connexion sans mot de passe
 
 **Inscription**:
 Creating a new customer account, presented in its own modal (distinct from Connexion).
