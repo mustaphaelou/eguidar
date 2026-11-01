@@ -1,7 +1,9 @@
 import { toNextJsHandler } from "better-auth/next-js"
+import { getSessionCookie } from "better-auth/cookies"
 
 import { auth } from "@/lib/auth"
 import { rejouerPanierVisiteur } from "@/lib/panier"
+import { revoquerSessionHorsDuree } from "@/lib/session-expiration"
 
 const handlers = toNextJsHandler(auth)
 
@@ -35,10 +37,18 @@ function fusionnerCookies(requete: Headers, reponse: Response): Headers {
   return fusion
 }
 
+async function purgerSessionHorsDuree(requete: Request): Promise<void> {
+  if (!getSessionCookie(requete)) return
+
+  const session = await auth.api.getSession({ headers: requete.headers })
+  if (session) await revoquerSessionHorsDuree(session)
+}
+
 async function traiterAvecRejou(
   traiter: (requete: Request) => Promise<Response>,
   requete: Request
 ): Promise<Response> {
+  await purgerSessionHorsDuree(requete)
   const reponse = await traiter(requete)
   const { pathname } = new URL(requete.url)
   if (!estTentativeConnexion(requete.method, pathname)) return reponse

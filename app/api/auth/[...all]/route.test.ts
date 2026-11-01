@@ -272,6 +272,29 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
     expect(await lignesPanier()).toEqual([])
   })
 
+  it("purge une session hors durée portée par un cookie avant de traiter la requête", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { id: userId },
+      session: { token: "vieux-jeton", createdAt: new Date(0) },
+    })
+    handlerMock.mockResolvedValue(new Response(null, { status: 204 }))
+
+    const requeteSortie = new Request(
+      "http://localhost:3000/api/auth/sign-out",
+      {
+        method: "POST",
+        headers: { cookie: "better-auth.session_token=vieux-jeton" },
+      }
+    )
+
+    await POST(requeteSortie)
+
+    expect(getSessionMock).toHaveBeenCalledWith({
+      headers: requeteSortie.headers,
+    })
+    expect(handlerMock).toHaveBeenCalled()
+  })
+
   it("propagates a failing auth handler unchanged", async () => {
     handlerMock.mockRejectedValue(new Error("boom"))
 
