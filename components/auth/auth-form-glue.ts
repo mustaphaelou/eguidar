@@ -21,6 +21,8 @@ export function translateAuthError(error: {
       return "Le code de vérification a expiré. Veuillez en demander un nouveau."
     case "TOO_MANY_ATTEMPTS":
       return "Trop de tentatives. Veuillez patienter avant de réessayer."
+    case "ACCOUNT_TEMPORARILY_LOCKED":
+      return "Trop de tentatives de connexion sur ce compte. Réessayez dans quelques minutes."
     case "MISSING_RESPONSE":
       return "Veuillez valider le test de sécurité (Turnstile)."
     case "VERIFICATION_FAILED":

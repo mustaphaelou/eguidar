@@ -13,6 +13,7 @@ import {
   SESSION_INACTIVE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "@/lib/session-constants"
+import { hooksEchecsConnexion } from "@/lib/echecs-connexion"
 
 export const auth = betterAuth({
   appName: "Eguidar",
@@ -27,6 +28,7 @@ export const auth = betterAuth({
       trustedProxies: [...PROXIES_DE_CONFIANCE],
     },
   },
+  hooks: hooksEchecsConnexion,
   session: {
     expiresIn: SESSION_INACTIVE_SECONDS,
     updateAge: SESSION_UPDATE_AGE_SECONDS,

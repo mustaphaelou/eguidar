@@ -28,6 +28,9 @@ describe("translateAuthError", () => {
     expect(translateAuthError({ code: "TOO_MANY_ATTEMPTS" })).toBe(
       "Trop de tentatives. Veuillez patienter avant de réessayer."
     )
+    expect(translateAuthError({ code: "ACCOUNT_TEMPORARILY_LOCKED" })).toBe(
+      "Trop de tentatives de connexion sur ce compte. Réessayez dans quelques minutes."
+    )
     expect(translateAuthError({ code: "MISSING_RESPONSE" })).toBe(
       "Veuillez valider le test de sécurité (Turnstile)."
     )
