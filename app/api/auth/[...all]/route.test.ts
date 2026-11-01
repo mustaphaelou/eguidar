@@ -80,6 +80,10 @@ function connexionMotDePasse(panier?: ArticlePanierVisiteur[]): Request {
   return requete("POST", "/api/auth/sign-in/email", panier)
 }
 
+function connexionParCode(panier?: ArticlePanierVisiteur[]): Request {
+  return requete("POST", "/api/auth/sign-in/email-otp", panier)
+}
+
 function callbackFournisseur(
   fournisseur: string,
   panier?: ArticlePanierVisiteur[]
@@ -236,15 +240,55 @@ describe("auth route replaying the Visiteur's cookie Panier", () => {
     }
   )
 
-  it("keeps the cookie Panier untouched when authentication fails", async () => {
-    getSessionMock.mockResolvedValue(null)
-    handlerMock.mockResolvedValue(reponseAuth(401, false))
+  it("reattaches the same Panier after a Connexion par code, exactly once", async () => {
+    await ajouterArticleAuPanier(variantA, 3)
+    const reponseConnexion = reponseAuth(200)
+    handlerMock.mockResolvedValue(reponseConnexion)
 
-    await POST(connexionMotDePasse([{ variantId: variantA, quantity: 2 }]))
+    const reponse = await POST(
+      connexionParCode([
+        { variantId: variantA, quantity: 2 },
+        { variantId: varianteSupprimee, quantity: 5 },
+      ])
+    )
 
-    expect(hasCookie(NOM_COOKIE_PANIER_VISITEUR)).toBe(true)
-    expect(deletedCookieNames).toEqual([])
-    expect(await lignesPanier()).toEqual([])
+    expect(await lignesPanier()).toEqual([{ variantId: variantA, quantity: 5 }])
+    expect(hasCookie(NOM_COOKIE_PANIER_VISITEUR)).toBe(false)
+    expect(deletedCookieNames).toEqual([NOM_COOKIE_PANIER_VISITEUR])
+    expect(reponse).toBe(reponseConnexion)
+  })
+
+  it.each([
+    ["le mot de passe", connexionMotDePasse],
+    ["le code", connexionParCode],
+  ] as const)(
+    "keeps the cookie Panier untouched when a Connexion by %s fails",
+    async (_libelle, connexion) => {
+      getSessionMock.mockResolvedValue(null)
+      handlerMock.mockResolvedValue(reponseAuth(401, false))
+
+      await POST(connexion([{ variantId: variantA, quantity: 2 }]))
+
+      expect(hasCookie(NOM_COOKIE_PANIER_VISITEUR)).toBe(true)
+      expect(deletedCookieNames).toEqual([])
+      expect(await lignesPanier()).toEqual([])
+    }
+  )
+
+  it("reattaches the same Panier after a Vérification de l'e-mail once a session exists", async () => {
+    await ajouterArticleAuPanier(variantA, 3)
+    handlerMock.mockResolvedValue(reponseAuth(200))
+
+    await POST(
+      requete("POST", "/api/auth/email-otp/verify-email", [
+        { variantId: variantA, quantity: 2 },
+        { variantId: varianteSupprimee, quantity: 5 },
+      ])
+    )
+
+    expect(await lignesPanier()).toEqual([{ variantId: variantA, quantity: 5 }])
+    expect(hasCookie(NOM_COOKIE_PANIER_VISITEUR)).toBe(false)
+    expect(deletedCookieNames).toEqual([NOM_COOKIE_PANIER_VISITEUR])
   })
 
   it("replays nothing when no Visiteur cookie is present", async () => {
