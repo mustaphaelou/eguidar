@@ -62,6 +62,9 @@ model account {
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Une identité de fournisseur (Google, Facebook) ne désigne qu'un seul
+  // Compte client, même si deux connexions arrivent en même temps.
+  @@unique([providerId, accountId])
   @@index([userId])
 }
 
