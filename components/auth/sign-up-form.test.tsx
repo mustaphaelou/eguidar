@@ -117,8 +117,14 @@ describe("SignUpForm", () => {
     expect(container.textContent).toContain("Saisissez votre nom complet.")
     expect(container.textContent).toContain("Saisissez votre adresse e-mail.")
     expect(container.textContent).toContain(
-      "Le mot de passe doit contenir au moins 8 caractères."
+      "Le mot de passe doit contenir au moins 15 caractères."
     )
+  })
+
+  it("annonce le minimum de 15 caractères avant la soumission", () => {
+    render(<Harness />)
+
+    expect(container.textContent).toContain("Au moins 15 caractères.")
   })
 
   it("submits a valid payload through the flow and clears the field issues", async () => {
@@ -127,14 +133,14 @@ describe("SignUpForm", () => {
     render(<Harness />)
     setInputValue(input("name"), "Jane Doe")
     setInputValue(input("email"), "jane@example.com")
-    setInputValue(input("password"), "password123")
+    setInputValue(input("password"), "MotDePasse!12345")
 
     await clickAndFlush(submitButton())
 
     expect(mockedAuthClient.signUp.email).toHaveBeenCalledWith({
       name: "Jane Doe",
       email: "jane@example.com",
-      password: "password123",
+      password: "MotDePasse!12345",
       fetchOptions: { headers: undefined },
     })
     expect(container.textContent).not.toContain("Saisissez votre nom complet.")
@@ -146,7 +152,7 @@ describe("SignUpForm", () => {
     render(<Harness />)
     setInputValue(input("name"), "Jane Doe")
     setInputValue(input("email"), "jane@example.com")
-    setInputValue(input("password"), "password123")
+    setInputValue(input("password"), "MotDePasse!12345")
 
     expect(submitButton().disabled).toBe(true)
     expect(mockedAuthClient.signUp.email).not.toHaveBeenCalled()

@@ -151,14 +151,14 @@ describe("useSignUpFlow", () => {
     render(<Harness onStepChange={onStepChange} />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
 
     await clickAndFlush(signUpButton())
 
     expect(mockedAuthClient.signUp.email).toHaveBeenCalledWith({
       name: "Jane Doe",
       email: "jane@example.com",
-      password: "password123",
+      password: "MotDePasse!12345",
       fetchOptions: { headers: { "x-captcha-response": captchaStub.jeton } },
     })
     expect(onStepChange).toHaveBeenCalledWith("otp", "jane@example.com")
@@ -180,7 +180,7 @@ describe("useSignUpFlow", () => {
     render(<Harness onStepChange={onStepChange} />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
 
     await clickAndFlush(signUpButton())
 
@@ -203,7 +203,7 @@ describe("useSignUpFlow", () => {
     render(<Harness onStepChange={onStepChange} />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
 
     await act(async () => {
       signUpButton().click()
@@ -230,7 +230,7 @@ describe("useSignUpFlow", () => {
     render(<Harness />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
 
     await clickAndFlush(signUpButton())
 
@@ -248,7 +248,7 @@ describe("useSignUpFlow", () => {
     render(<Harness />)
     setInputValue(nameInput(), "Jane Doe")
     setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "password123")
+    setInputValue(passwordInput(), "MotDePasse!12345")
 
     await clickAndFlush(signUpButton())
 

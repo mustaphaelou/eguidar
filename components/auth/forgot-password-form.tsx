@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useForgotPasswordFlow } from "@/components/auth/use-forgot-password-flow"
 import { loginUrl } from "@/lib/lien-de-connexion"
+import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
 
 export function ForgotPasswordForm() {
   const {
@@ -113,7 +114,7 @@ export function ForgotPasswordForm() {
 
       {step === "otp" && (
         <CardContent className="flex flex-col gap-4">
-          <form onSubmit={handleResetPassword}>
+          <form onSubmit={handleResetPassword} noValidate>
             <FieldGroup>
               <Field data-invalid={Boolean(error)}>
                 <FieldLabel htmlFor="otp">Code de vérification</FieldLabel>
@@ -138,12 +139,11 @@ export function ForgotPasswordForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={8}
                   autoComplete="new-password"
                   aria-invalid={error ? true : undefined}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Au moins 8 caractères.
+                  Au moins {LONGUEUR_MINIMALE_MOT_DE_PASSE} caractères.
                 </p>
               </Field>
               <Field data-invalid={Boolean(error)}>
@@ -156,7 +156,6 @@ export function ForgotPasswordForm() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  minLength={8}
                   autoComplete="new-password"
                   aria-invalid={error ? true : undefined}
                 />

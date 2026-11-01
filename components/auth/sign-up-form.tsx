@@ -14,6 +14,7 @@ import type { AuthFlow } from "@/components/auth/auth-dialog"
 import { PasswordInput } from "@/components/auth/password-input"
 import { useSignUpFlow } from "@/components/auth/use-sign-up-flow"
 import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
+import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
 
 export function SignUpForm({
   flow,
@@ -123,7 +124,7 @@ export function SignUpForm({
                     id="password-hint"
                     className="text-xs text-muted-foreground"
                   >
-                    Au moins 8 caractères.
+                    Au moins {LONGUEUR_MINIMALE_MOT_DE_PASSE} caractères.
                   </p>
                 )}
               </div>
