@@ -105,8 +105,6 @@ export interface CatalogEffects {
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): Promise<void> | void
   purgeCatalogue(product: CatalogueEventProduct): Promise<void> | void
-  purgeCatalog(product: CatalogueEventProduct): Promise<void> | void
-  purgeEdge(product: CatalogueEventProduct): Promise<void> | void
   deleteImages(urls: string[]): Promise<void>
   enregistrerImages(
     entrees: readonly EntreeRegistreImageProduit[],
@@ -136,12 +134,6 @@ export function defaultCatalogEffects(libelleJournal: string): CatalogEffects {
       return revaliderCatalogue(product)
     },
     async purgeCatalogue(product) {
-      await purgerEdgeDurable(demandeDePurgeCatalogue(product))
-    },
-    async purgeCatalog(product) {
-      await purgerEdgeDurable(demandeDePurgeCatalogue(product))
-    },
-    async purgeEdge(product) {
       await purgerEdgeDurable(demandeDePurgeCatalogue(product))
     },
     async deleteImages(urls) {
@@ -800,6 +792,15 @@ async function enregistrerProduit(
           slug: ecriture.produit.slug,
           previousSlug: ecriture.slugPrecedent,
         }
+  // L'invalidation et la purge partagent la même lecture de la Structure : une
+  // seule lecture pour les deux conséquences déclarées.
+  let chainesLues:
+    Promise<Awaited<ReturnType<typeof chainesDuProduit>>> | undefined
+  const chaines = () =>
+    (chainesLues ??= chainesDuProduit(
+      ecriture.produit.categoryId,
+      contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
+    ))
   await runOrderedEffects(
     plan.consequences.map((c) => ({
       effet: c.effet,
@@ -821,19 +822,15 @@ async function enregistrerProduit(
         } else if (c.effet === "reindexation") {
           await effects.reindexProducts([toIndexableProduct(ecriture.produit)])
         } else if (c.effet === "invalidation-cache") {
-          const chaines = await chainesDuProduit(
-            ecriture.produit.categoryId,
-            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
-          )
-          await effects.revalidateCatalog({ ...evenementCatalogue, ...chaines })
+          await effects.revalidateCatalog({
+            ...evenementCatalogue,
+            ...(await chaines()),
+          })
         } else if (c.effet === "purge-catalogue") {
-          const chaines = await chainesDuProduit(
-            ecriture.produit.categoryId,
-            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
-          )
-          const purgeFn =
-            effects.purgeCatalogue ?? effects.purgeCatalog ?? effects.purgeEdge
-          if (purgeFn) await purgeFn({ ...evenementCatalogue, ...chaines })
+          await effects.purgeCatalogue({
+            ...evenementCatalogue,
+            ...(await chaines()),
+          })
         }
       },
     }))
@@ -1263,11 +1260,7 @@ export async function duplicateProduct(
           }
         } else if (c.effet === "purge-catalogue") {
           for (const { evenement } of documentsDuplication) {
-            const purgeFn =
-              effects.purgeCatalogue ??
-              effects.purgeCatalog ??
-              effects.purgeEdge
-            if (purgeFn) await purgeFn(evenement)
+            await effects.purgeCatalogue(evenement)
           }
         }
       },

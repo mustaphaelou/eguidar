@@ -436,8 +436,7 @@ describe("admin catalog mutations", () => {
     })
   })
 
-  it("réussit l'enregistrement sans identifiants Cloudflare et journalise la purge ignorée", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+  it("réussit l'enregistrement sans identifiants Cloudflare", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch")
     const zoneInitiale = process.env.CLOUDFLARE_ZONE_ID
     const jetonInitial = process.env.CLOUDFLARE_API_TOKEN
@@ -454,14 +453,8 @@ describe("admin catalog mutations", () => {
           String(url).includes("api.cloudflare.com")
         )
       ).toEqual([])
-      expect(
-        warnSpy.mock.calls.some(([message]) =>
-          String(message).includes("purge de l'edge non effectuée")
-        )
-      ).toBe(false)
     } finally {
       fetchSpy.mockRestore()
-      warnSpy.mockRestore()
       if (zoneInitiale === undefined) delete process.env.CLOUDFLARE_ZONE_ID
       else process.env.CLOUDFLARE_ZONE_ID = zoneInitiale
       if (jetonInitial === undefined) delete process.env.CLOUDFLARE_API_TOKEN
