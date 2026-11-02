@@ -397,7 +397,7 @@ describe("Lecture de la Structure — la reconnaissance de la lecture", () => {
     )
 
     for (const [recepteur, attendues] of [
-      ["prisma", 4],
+      ["prisma", 5],
       ["tx", 2],
       ["client", 2],
     ] as const) {
