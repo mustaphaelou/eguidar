@@ -371,6 +371,79 @@ describe("admin city writes", () => {
   })
 })
 
+describe("les écritures de Livraison restent hors de l'outbox", () => {
+  beforeEach(async () => {
+    await prisma.deliveryCity.deleteMany({
+      where: { name: { startsWith: `Ville Livraison ${runId}` } },
+    })
+  })
+
+  afterAll(async () => {
+    await prisma.deliveryCity.deleteMany({
+      where: { name: { startsWith: `Ville Livraison ${runId}` } },
+    })
+  })
+
+  it("n'écrit ni Événement ni Exécution et invalide le cache même Règles coupées", async () => {
+    const regles = await prisma.automationRule.findMany({
+      select: { id: true, enabled: true },
+    })
+    const evenements = await prisma.automationEvent.count()
+    const executions = await prisma.automationRun.count()
+    const revalidateShipping = vi.fn()
+
+    await prisma.automationRule.updateMany({ data: { enabled: false } })
+    try {
+      const city = await createCity(
+        { name: cityName("hors-outbox"), fee: 2500 },
+        { revalidateShipping }
+      )
+      await updateCity(
+        city.id,
+        { name: cityName("hors-outbox"), fee: 3000 },
+        { revalidateShipping }
+      )
+      await deleteCity(city.id, { revalidateShipping })
+      await updateShippingSettings(
+        { freeShippingThreshold: 210000 },
+        { revalidateShipping }
+      )
+    } finally {
+      for (const regle of regles) {
+        await prisma.automationRule.update({
+          where: { id: regle.id },
+          data: { enabled: regle.enabled },
+        })
+      }
+      await prisma.shippingSettings.upsert({
+        where: { id: "default" },
+        update: { freeShippingThreshold: 100000 },
+        create: { id: "default", freeShippingThreshold: 100000 },
+      })
+    }
+
+    expect(revalidateShipping).toHaveBeenCalledTimes(4)
+    expect(await prisma.automationEvent.count()).toBe(evenements)
+    expect(await prisma.automationRun.count()).toBe(executions)
+  })
+
+  it("journalise l'échec de l'invalidation sans rien rejouer", async () => {
+    const evenements = await prisma.automationEvent.count()
+    const executions = await prisma.automationRun.count()
+
+    const city = await verifierFrontiereBestEffort("invalidation", (echec) =>
+      createCity(
+        { name: cityName("echec-hors-outbox"), fee: 2000 },
+        { revalidateShipping: echec }
+      )
+    )
+
+    expect(city.name).toBe(cityName("echec-hors-outbox"))
+    expect(await prisma.automationEvent.count()).toBe(evenements)
+    expect(await prisma.automationRun.count()).toBe(executions)
+  })
+})
+
 describe("admin shipping settings writes", () => {
   afterAll(async () => {
     await prisma.shippingSettings.upsert({
