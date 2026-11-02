@@ -26,6 +26,7 @@ function effetsSilencieux() {
     reindexProducts: vi.fn(async (_produits: IndexableProduct[]) => {}),
     removeProductFromIndex: vi.fn(async () => {}),
     revalidateCatalog: vi.fn(() => {}),
+    purgeCatalogue: vi.fn(() => {}),
     deleteImages: vi.fn(async () => {}),
   } satisfies Partial<CatalogEffects>
 }
@@ -175,6 +176,119 @@ describe("les gestes en lot du Catalogue", () => {
     ])
     expect(effets.removeProductFromIndex).toHaveBeenCalledWith(cible.id)
     expect(effets.revalidateCatalog).toHaveBeenCalledTimes(1)
+    expect(effets.purgeCatalogue).toHaveBeenCalledTimes(1)
+    expect(effets.purgeCatalogue).toHaveBeenCalledWith({
+      id: cible.id,
+      slug: cible.slug,
+      categoryChain: [{ slug: racine.slug }],
+    })
+  })
+
+  it("écrit un Événement produit.supprime complet par Produit du lot", async () => {
+    const premiere = await creerProduit("supprime-evenement-1", {
+      images: ["https://cdn.example.test/supprime-1.jpg"],
+      stocks: [1, 2],
+    })
+    const seconde = await creerProduit("supprime-evenement-2", {
+      categoryId: null,
+      images: [],
+    })
+
+    await bulkDelete(
+      [premiere.id, seconde.id, randomUUID()],
+      effetsSilencieux()
+    )
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: {
+        type: "produit.supprime",
+        entityType: "produit",
+        entityId: { in: [premiere.id, seconde.id] },
+      },
+    })
+    expect(evenements).toHaveLength(2)
+    expect(
+      evenements.find((evenement) => evenement.entityId === premiere.id)
+        ?.payload
+    ).toEqual({
+      produitId: premiere.id,
+      slug: premiere.slug,
+      categoryId: racine.id,
+      images: ["https://cdn.example.test/supprime-1.jpg"],
+    })
+    expect(
+      evenements.find((evenement) => evenement.entityId === seconde.id)?.payload
+    ).toEqual({
+      produitId: seconde.id,
+      slug: seconde.slug,
+      categoryId: null,
+      images: [],
+    })
+  })
+
+  it("journalise la portée réelle d'une suppression groupée, pas le premier Produit", async () => {
+    const premiere = await creerProduit("portee-1")
+    const seconde = await creerProduit("portee-2")
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    try {
+      await bulkDelete([premiere.id, seconde.id], {
+        ...effetsSilencieux(),
+        deleteImages: async () => {
+          throw new Error("panne de stockage")
+        },
+      })
+      const mesures = warnSpy.mock.calls.flatMap(([ligne]) => {
+        if (typeof ligne !== "string" || !ligne.startsWith("[effet] "))
+          return []
+        return [JSON.parse(ligne.slice("[effet] ".length))]
+      })
+      expect(mesures).toContainEqual(
+        expect.objectContaining({
+          effet: "suppression-images",
+          entite: { type: "produit", id: "lot" },
+          portee: 2,
+          resultat: "echec",
+        })
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("n'écrit aucun Événement et ne supprime rien quand la transaction du lot est annulée", async () => {
+    const premiere = await creerProduit("annule-suppression-1")
+    const seconde = await creerProduit("annule-suppression-2")
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après les Événements du lot")
+      })) as unknown as typeof prisma.$transaction)
+
+    try {
+      await expect(
+        bulkDelete([premiere.id, seconde.id], effetsSilencieux())
+      ).rejects.toThrow("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(
+      await prisma.automationEvent.count({
+        where: {
+          type: "produit.supprime",
+          entityId: { in: [premiere.id, seconde.id] },
+        },
+      })
+    ).toBe(0)
+    await expect(
+      prisma.product.count({
+        where: { id: { in: [premiere.id, seconde.id] } },
+      })
+    ).resolves.toBe(2)
   })
 
   it("ne touche aucune ligne quand la liste est vide", async () => {

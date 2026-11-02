@@ -146,7 +146,7 @@ export const DECLENCHEURS_PAR_ACTION: Readonly<
     "structure.modifiee",
     "structure.supprimee",
   ],
-  "purge.catalogue": ["produit.enregistre"],
+  "purge.catalogue": ["produit.enregistre", "produit.supprime"],
   "index.structure": ["structure.modifiee", "structure.supprimee"],
   "suppression.images": [
     "produit.enregistre",

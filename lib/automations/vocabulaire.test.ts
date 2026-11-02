@@ -31,6 +31,7 @@ describe("le vocabulaire fermé de l'éditeur de Règles", () => {
     expect(actionsOffertes("produit.supprime")).toEqual([
       "desindex.produit",
       "invalidation.catalogue",
+      "purge.catalogue",
       "suppression.images",
     ])
     expect(actionsOffertes("variante.stock.changee")).toEqual(["index.produit"])
