@@ -215,8 +215,12 @@ const produitEnregistre: Declaration = (f) => {
     faits: [
       fait("produit.enregistre", "produit", String(f.produitId), {
         produitId: f.produitId,
+        slug: f.slug ?? null,
+        slugPrecedent: f.slugPrecedent ?? null,
+        categoryId: f.categoryId ?? null,
+        categoryIdPrecedent: f.categoryIdPrecedent ?? null,
         imagesRetirees: removed,
-        galerie: f.galerie,
+        galerie: f.galerie ?? null,
       }),
     ],
     consequences,
@@ -224,7 +228,22 @@ const produitEnregistre: Declaration = (f) => {
 }
 
 const produitEnregistreLot: Declaration = (f) => {
-  const ids = (f.produitIds as string[]) ?? []
+  const produitsInput = (f.produits as Array<Record<string, unknown>>) ?? []
+  const ids =
+    (f.produitIds as string[]) ??
+    produitsInput.map((p) => String(p.id ?? p.produitId))
+  const produits = ids.map((id, index) => {
+    const p = produitsInput[index] ?? {}
+    return {
+      id,
+      slug: p.slug ?? null,
+      slugPrecedent: p.slugPrecedent ?? null,
+      categoryId: p.categoryId ?? null,
+      categoryIdPrecedent: p.categoryIdPrecedent ?? null,
+      imagesRetirees: (p.imagesRetirees as string[]) ?? [],
+      galerie: p.galerie ?? null,
+    }
+  })
   const consequences: ConsequenceApresEcriture[] = [
     consequence(
       "reindexation",
@@ -244,8 +263,16 @@ const produitEnregistreLot: Declaration = (f) => {
     )
   }
   return {
-    faits: ids.map((id) =>
-      fait("produit.enregistre", "produit", id, { produitId: id })
+    faits: produits.map((p) =>
+      fait("produit.enregistre", "produit", p.id, {
+        produitId: p.id,
+        slug: p.slug,
+        slugPrecedent: p.slugPrecedent,
+        categoryId: p.categoryId,
+        categoryIdPrecedent: p.categoryIdPrecedent,
+        imagesRetirees: p.imagesRetirees,
+        galerie: p.galerie,
+      })
     ),
     consequences,
   }
@@ -526,6 +553,7 @@ export const REGISTRE_APRES_ECRITURE = REGISTRE
 export const GENRES_MIGRES: GenreEcriture[] = [
   "commande.creee",
   "commande.statut.changee",
+  "produit.enregistre",
 ]
 export const KINDS_MIGRES = GENRES_MIGRES
 export const MIGRATED_KINDS = GENRES_MIGRES
@@ -549,6 +577,43 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
     id: "statut-commande",
     nom: "E-mail de statut de Commande",
   },
+  "index.produit": { id: "indexation-produit", nom: "Indexation du Produit" },
+  "invalidation.catalogue": {
+    id: "invalidation-catalogue",
+    nom: "Invalidation du Catalogue",
+  },
+  "purge.catalogue": { id: "purge-catalogue", nom: "Purge du bord" },
+  // Une même action peut servir deux déclencheurs : la clé qualifiée garde une
+  // identité de Règle distincte par déclencheur, comme le semis créateur
+  // seulement l'exige.
+  "produit.enregistre|suppression.images": {
+    id: "suppression-images-produit-enregistre",
+    nom: "Suppression des images retirées",
+  },
+}
+
+/**
+ * Les faits qui révèlent les conséquences conditionnelles d'un genre : une
+ * conséquence déclarée seulement quand une image est retirée n'apparaît pas
+ * dans un plan appelé sans faits, mais sa Règle par défaut doit exister. Ce
+ * modèle ne remplace jamais les faits d'une écriture réelle ; il ne sert qu'au
+ * semis.
+ */
+export const FAITS_POUR_REGLES: Partial<
+  Record<GenreEcriture, FaitsApresEcriture>
+> = {
+  "produit.enregistre": {
+    produitId: "produit-modele",
+    imagesRetirees: ["https://cdn.example.test/modele.jpg"],
+  },
+  "structure.modifiee": {
+    categorieId: "categorie-modele",
+    imageRetiree: "https://cdn.example.test/modele.jpg",
+  },
+  "structure.supprimee": {
+    categorieId: "categorie-modele",
+    image: "https://cdn.example.test/modele.jpg",
+  },
 }
 
 // Liste en attente : Règles par défaut des genres non migrés, conservées ici
@@ -560,12 +625,6 @@ export const REGLES_EN_ATTENTE: Array<{
   action: ActionAutomation
   actif?: boolean
 }> = [
-  {
-    id: "indexation-produit",
-    nom: "Indexation du Produit",
-    declencheur: "produit.enregistre",
-    action: "index.produit",
-  },
   {
     id: "indexation-stock",
     nom: "Indexation du stock",
@@ -579,22 +638,10 @@ export const REGLES_EN_ATTENTE: Array<{
     action: "desindex.produit",
   },
   {
-    id: "invalidation-catalogue",
-    nom: "Invalidation du Catalogue",
-    declencheur: "produit.enregistre",
-    action: "invalidation.catalogue",
-  },
-  {
     id: "invalidation-catalogue-suppression",
     nom: "Invalidation après suppression",
     declencheur: "produit.supprime",
     action: "invalidation.catalogue",
-  },
-  {
-    id: "purge-catalogue",
-    nom: "Purge du bord",
-    declencheur: "produit.enregistre",
-    action: "purge.catalogue",
   },
   {
     id: "invalidation-structure",
@@ -668,11 +715,13 @@ export function reglesParDefaut(): Array<{
     actif: boolean
   }> = []
   for (const genre of GENRES_MIGRES) {
-    const plan = declarerApresEcriture(genre, {})
+    const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
     const declencheurFait = plan.faits[0]?.declencheur
     for (const c of plan.consequences) {
       if (!c.durable || !c.action) continue
-      const identite = IDENTITES_REGLES_MIGREES[c.action]
+      const identite =
+        IDENTITES_REGLES_MIGREES[`${declencheurFait}|${c.action}`] ??
+        IDENTITES_REGLES_MIGREES[c.action]
       if (!identite) continue
       out.push({
         id: identite.id,

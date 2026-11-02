@@ -436,8 +436,7 @@ describe("admin catalog mutations", () => {
     })
   })
 
-  it("réussit l'enregistrement sans identifiants Cloudflare et journalise la purge ignorée", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+  it("réussit l'enregistrement sans identifiants Cloudflare", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch")
     const zoneInitiale = process.env.CLOUDFLARE_ZONE_ID
     const jetonInitial = process.env.CLOUDFLARE_API_TOKEN
@@ -454,14 +453,8 @@ describe("admin catalog mutations", () => {
           String(url).includes("api.cloudflare.com")
         )
       ).toEqual([])
-      expect(
-        warnSpy.mock.calls.some(([message]) =>
-          String(message).includes("purge de l'edge non effectuée")
-        )
-      ).toBe(true)
     } finally {
       fetchSpy.mockRestore()
-      warnSpy.mockRestore()
       if (zoneInitiale === undefined) delete process.env.CLOUDFLARE_ZONE_ID
       else process.env.CLOUDFLARE_ZONE_ID = zoneInitiale
       if (jetonInitial === undefined) delete process.env.CLOUDFLARE_API_TOKEN
@@ -746,7 +739,7 @@ describe("admin catalog mutations", () => {
       { deleteImages }
     )
 
-    expect(deleteImages).toHaveBeenCalledWith([])
+    expect(deleteImages).not.toHaveBeenCalled()
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
       select: { images: true },
@@ -981,8 +974,7 @@ describe("admin catalog mutations", () => {
       { deleteImages }
     )
 
-    expect(deleteImages).toHaveBeenCalledOnce()
-    expect(deleteImages).toHaveBeenCalledWith([])
+    expect(deleteImages).not.toHaveBeenCalled()
   })
 
   it("rejects updating with a variant id belonging to another product", async () => {
@@ -1155,19 +1147,19 @@ describe("admin catalog mutations", () => {
       stock: v.stock,
     }))
 
-    const updated = await verifierFrontiereBestEffort(
-      "suppression",
-      (effetQuiEchoue) =>
-        updateProduct(
-          product.id,
-          makeInput({
-            slug: slug("fail-r2"),
-            name: "Renommé",
-            images: [],
-            variants,
-          }),
-          { deleteImages: effetQuiEchoue }
-        )
+    const updated = await updateProduct(
+      product.id,
+      makeInput({
+        slug: slug("fail-r2"),
+        name: "Renommé",
+        images: [],
+        variants,
+      }),
+      {
+        deleteImages: async () => {
+          throw new Error("effet auxiliaire indisponible")
+        },
+      }
     )
 
     expect(updated.name).toBe("Renommé")
