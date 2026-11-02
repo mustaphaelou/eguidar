@@ -19,6 +19,7 @@ import {
   type ConfigurationRegle,
   type TypeConditionAutomation,
 } from "@/lib/automations/vocabulaire"
+import { reglesParDefaut } from "@/lib/apres-ecriture"
 import { STATUTS_VALIDES } from "@/lib/statut-de-commande"
 
 /**
@@ -93,136 +94,7 @@ export function verifierRegle(regle: unknown): RegleAutomation {
  * semis reste la référence d'une installation neuve, la table la copie.
  */
 export const REGLES_AUTOMATION: readonly RegleAutomation[] = Object.freeze(
-  [
-    {
-      id: "confirmation-commande",
-      nom: "Confirmation de Commande",
-      declencheur: "commande.creee",
-      condition: { type: "toujours" },
-      action: "email.commande-creee",
-      actif: true,
-    },
-    {
-      id: "statut-commande",
-      nom: "E-mail de statut de Commande",
-      declencheur: "commande.statut.changee",
-      condition: { type: "toujours" },
-      action: "email.commande-statut",
-      actif: true,
-    },
-    {
-      id: "indexation-produit",
-      nom: "Indexation du Produit",
-      declencheur: "produit.enregistre",
-      condition: { type: "toujours" },
-      action: "index.produit",
-      actif: true,
-    },
-    {
-      id: "indexation-stock",
-      nom: "Indexation du stock",
-      declencheur: "variante.stock.changee",
-      condition: { type: "toujours" },
-      action: "index.produit",
-      actif: true,
-    },
-    {
-      id: "desindexation-produit",
-      nom: "Désindexation du Produit",
-      declencheur: "produit.supprime",
-      condition: { type: "toujours" },
-      action: "desindex.produit",
-      actif: true,
-    },
-    {
-      id: "invalidation-catalogue",
-      nom: "Invalidation du Catalogue",
-      declencheur: "produit.enregistre",
-      condition: { type: "toujours" },
-      action: "invalidation.catalogue",
-      actif: true,
-    },
-    {
-      id: "invalidation-catalogue-suppression",
-      nom: "Invalidation après suppression",
-      declencheur: "produit.supprime",
-      condition: { type: "toujours" },
-      action: "invalidation.catalogue",
-      actif: true,
-    },
-    {
-      id: "purge-catalogue",
-      nom: "Purge du bord",
-      declencheur: "produit.enregistre",
-      condition: { type: "toujours" },
-      action: "purge.catalogue",
-      actif: true,
-    },
-    {
-      id: "invalidation-structure",
-      nom: "Invalidation de la Structure",
-      declencheur: "structure.creee",
-      condition: { type: "toujours" },
-      action: "invalidation.structure",
-      actif: true,
-    },
-    {
-      id: "invalidation-structure-modifiee",
-      nom: "Invalidation de la Structure modifiée",
-      declencheur: "structure.modifiee",
-      condition: { type: "toujours" },
-      action: "invalidation.structure",
-      actif: true,
-    },
-    {
-      id: "invalidation-structure-supprimee",
-      nom: "Invalidation de la Structure supprimée",
-      declencheur: "structure.supprimee",
-      condition: { type: "toujours" },
-      action: "invalidation.structure",
-      actif: true,
-    },
-    {
-      id: "indexation-structure",
-      nom: "Indexation de la Structure",
-      declencheur: "structure.modifiee",
-      condition: { type: "toujours" },
-      action: "index.structure",
-      actif: true,
-    },
-    {
-      id: "suppression-images-produit",
-      nom: "Suppression des images",
-      declencheur: "produit.supprime",
-      condition: { type: "toujours" },
-      action: "suppression.images",
-      actif: true,
-    },
-    {
-      id: "digest-stock-bas",
-      nom: "Digest du stock bas",
-      declencheur: "planification.digest-stock-bas",
-      condition: { type: "toujours" },
-      action: "digest.stock-bas",
-      actif: true,
-    },
-    {
-      id: "reconciliation-recherche",
-      nom: "Réconciliation de la recherche",
-      declencheur: "planification.reconciliation-recherche",
-      condition: { type: "toujours" },
-      action: "reconciliation.recherche",
-      actif: true,
-    },
-    {
-      id: "digest-proprietaire",
-      nom: "Digest du propriétaire",
-      declencheur: "planification.digest-stock-bas",
-      condition: { type: "toujours" },
-      action: "digest.proprietaire",
-      actif: false,
-    },
-  ].map((regle) => verifierRegle(regle))
+  reglesParDefaut().map((regle) => verifierRegle(regle))
 )
 
 function instantane(regle: RegleAutomation) {
