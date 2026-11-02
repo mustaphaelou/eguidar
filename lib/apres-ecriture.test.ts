@@ -179,12 +179,17 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
   })
 
   it("ne crée aucune Règle pour les conséquences non durables", () => {
-    const regles = reglesParDefaut()
-    expect(regles.some((regle) => regle.action === "registre-images")).toBe(
-      false
+    const plan = declarerApresEcriture("produit.enregistre", {
+      produitId: PRODUIT,
+      imagesRetirees: ["https://cdn.example.test/retiree.jpg"],
+    })
+    const nonDurables = plan.consequences.filter(
+      (consequence) => !consequence.durable
     )
+
+    expect(nonDurables.length).toBeGreaterThan(0)
     expect(
-      regles.some((regle) => regle.action === "suppression-brouillons")
-    ).toBe(false)
+      nonDurables.every((consequence) => consequence.action === undefined)
+    ).toBe(true)
   })
 })
