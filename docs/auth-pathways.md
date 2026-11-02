@@ -11,9 +11,7 @@ Vocabulary follows `GLOSSARY.md`: **Inscription**, **Vérification de l'e-mail**
 
 **Phase 2** is the change set this document describes; **Phase 3** is the
 follow-up tracked by #813 and is named only where a control is deliberately
-absent today. The self-describing password hash section describes #838 (PR
-#856), which must merge before this document; until then the code on `main`
-still uses Better Auth's default `salt:hex` format.
+absent today.
 
 ## The seven pathways
 
@@ -159,7 +157,7 @@ Providers: Google and Facebook.
   owned by Better Auth; the shop does not implement OAuth itself.
 - Facebook's profile e-mail counts as verified (`mapProfileToUser` sets
   `emailVerified: true`), because Facebook requires a confirmed address before
-  login; Google already reports one (ADR-0019).
+  Connexion; Google already reports one (ADR-0019).
 - Linking follows the library's default gates: no `trustedProviders`, no
   `requireLocalEmailVerified: false`. A social identity links to an existing
   Compte client when the provider reports a verified e-mail (both providers do)
@@ -228,8 +226,8 @@ the Connexion modal and reads no session.
 - A valid request deletes, in one transaction, the Compte client, its Commandes
   (and their OrderItems by cascade), its sessions, accounts, Articles du panier
   and Brouillons d'Image produit, plus the `verification` rows whose identifier
-  contains one of its addresses. The cached Commande pages are invalidated after
-  the commit.
+  ends with `-otp-` followed by one of its addresses. The cached Commande pages
+  are invalidated after the commit.
 - The response carries exactly `{ url, confirmation_code }`; the status page at
   `/suppression-donnees?code=…` is public and confirms the deletion.
 - An unknown ASID is a `200` with code and deletes nothing (idempotent replay).
@@ -265,19 +263,19 @@ they are not product surfaces and the shop configures no sender for them:
 
 ## Cross-cutting state
 
-| Control                              | Value                                                                                   | Owner                                                   |
-| ------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Password floor                       | 15 characters                                                                           | `lib/longueur-mot-de-passe.ts`                          |
-| Password ceiling                     | 128 characters (library default)                                                        | `better-auth`                                           |
-| Password hash                        | `$scrypt$N=131072,r=8,p=1$<salt base64url>$<key base64url>`, legacy `salt:hex` accepted | `lib/mot-de-passe-hache.ts` (ADR-0045)                  |
-| Rehash                               | on successful Connexion when legacy or below target                                     | `lib/rehachage-mot-de-passe.ts`                         |
-| Session inactivity                   | 30 minutes, refresh every 6                                                             | `lib/session-constants.ts`                              |
-| Session absolute                     | 30 days Client, 24 hours Administration                                                 | `lib/session-constants.ts`, `lib/session-expiration.ts` |
-| Per-address auth limiter             | 10 s / 3 for sign-in and sign-up; 60 s / 3 for code sends                               | `better-auth` (memory, per process)                     |
-| Per-address failed-Connexion counter | 10 failures / 15 minutes, Redis                                                         | `lib/echecs-connexion.ts` (ADR-0047)                    |
-| Provider identity                    | unique `(providerId, accountId)`                                                        | `prisma/schema.prisma`, migration `20261101160000`      |
-| Breach check                         | Have I Been Pwned, fail-closed, three declared paths                                    | `lib/auth.ts` (ADR-0043)                                |
-| Test de sécurité                     | Turnstile on sign-up, password sign-in and verification/reset sends                     | `lib/auth.ts`                                           |
+| Control                                                         | Value                                                                                   | Owner                                                   |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Password floor                                                  | 15 characters                                                                           | `lib/longueur-mot-de-passe.ts`                          |
+| Password ceiling                                                | 128 characters (library default)                                                        | `better-auth`                                           |
+| Password hash                                                   | `$scrypt$N=131072,r=8,p=1$<salt base64url>$<key base64url>`, legacy `salt:hex` accepted | `lib/mot-de-passe-hache.ts` (ADR-0045)                  |
+| Rehash                                                          | on successful Connexion when legacy or below target                                     | `lib/rehachage-mot-de-passe.ts`                         |
+| Session inactivity                                              | 30 minutes, refresh every 6                                                             | `lib/session-constants.ts`                              |
+| Session absolute                                                | 30 days Client, 24 hours Administration                                                 | `lib/session-constants.ts`, `lib/session-expiration.ts` |
+| Per-address auth limiter                                        | 10 s / 3 for sign-in and sign-up; 60 s / 3 for code sends                               | `better-auth` (memory, per process)                     |
+| Per-account failed-Connexion counter (normalized typed address) | 10 failures / 15 minutes, Redis                                                         | `lib/echecs-connexion.ts` (ADR-0047)                    |
+| Provider identity                                               | unique `(providerId, accountId)`                                                        | `prisma/schema.prisma`, migration `20261101160000`      |
+| Breach check                                                    | Have I Been Pwned, fail-closed, three declared paths                                    | `lib/auth.ts` (ADR-0043)                                |
+| Test de sécurité                                                | Turnstile on sign-up, password sign-in and verification/reset sends                     | `lib/auth.ts`                                           |
 
 ## Deliberately absent across the shop
 

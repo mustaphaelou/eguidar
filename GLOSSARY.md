@@ -378,6 +378,7 @@ _Avoid_: login page, se connecter (as the screen name)
 **Connexion sociale**:
 L'authentification d'un Client via un fournisseur externe (Facebook, Google) plutôt qu'un mot de passe.
 _Avoid_: social login, login social, OAuth
+
 **Connexion par mot de passe**:
 La Connexion d'un Client par l'adresse et le mot de passe de son Compte client, sur la route `/sign-in/email`.
 _Avoid_: login, password login

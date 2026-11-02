@@ -1,6 +1,7 @@
 "use client"
 
 import { MESSAGE_MOT_DE_PASSE_TROP_COURT } from "@/lib/auth-form-schemas"
+import { MESSAGE_COMPTE_TEMPORAIREMENT_VERROUILLE } from "@/lib/echecs-connexion-regles"
 
 export function translateAuthError(error: {
   code?: string
@@ -24,7 +25,7 @@ export function translateAuthError(error: {
     case "TOO_MANY_ATTEMPTS":
       return "Trop de tentatives. Veuillez patienter avant de réessayer."
     case "ACCOUNT_TEMPORARILY_LOCKED":
-      return "Trop de tentatives de connexion sur ce compte. Réessayez dans quelques minutes."
+      return MESSAGE_COMPTE_TEMPORAIREMENT_VERROUILLE
     case "MISSING_RESPONSE":
       return "Veuillez valider le test de sécurité (Turnstile)."
     case "VERIFICATION_FAILED":

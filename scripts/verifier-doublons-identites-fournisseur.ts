@@ -9,7 +9,7 @@ import { prisma } from "../lib/db"
 //
 // Usage : npx tsx scripts/verifier-doublons-identites-fournisseur.ts
 // La base visée est celle de DATABASE_URL ; en local, pointer la base de test :
-//   DATABASE_URL="$TEST_DATABASE_URL" npx tsx scripts/verifier-doublons-comptes.ts
+//   DATABASE_URL="$TEST_DATABASE_URL" npx tsx scripts/verifier-doublons-identites-fournisseur.ts
 //
 // Sortie : 0 quand aucune paire n'est dupliquée, 1 sinon — chaque paire est
 // alors imprimée avec son nombre de lignes et les Comptes clients concernés.

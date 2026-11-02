@@ -7,11 +7,9 @@ import {
   type OptionsLimiteurRecherche,
   type PortLimiteurRecherche,
 } from "@/lib/limiteur-recherche"
-import { getRedis } from "@/lib/redis"
+import { clientRedisPret, getRedis, type ClientRedis } from "@/lib/redis"
 
 const PREFIXE_CLE = "eguidar:limiteur-recherche:"
-
-type ClientRedis = NonNullable<ReturnType<typeof getRedis>>
 
 export type ObtenirClientRedis = () => ClientRedis | null
 
@@ -24,11 +22,10 @@ export function creerLimiteurRechercheRedis(
 
   return {
     async consommer(cle) {
-      const client = obtenirClient()
+      const client = await clientRedisPret(obtenirClient)
       if (!client) {
         throw new LimiteurRechercheIndisponibleError("REDIS_URL absent")
       }
-      if (!client.isOpen) await client.connect()
 
       const cleRedis = `${PREFIXE_CLE}${cle}`
       const multi = client.multi()

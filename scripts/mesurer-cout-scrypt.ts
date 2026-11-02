@@ -1,20 +1,32 @@
 import { randomBytes, scryptSync } from "node:crypto"
 
+import { PARAMETRES_SCRYPT } from "../lib/mot-de-passe-hache"
+
 // Jeux de paramètres scrypt candidats, dans l'ordre croissant du coût. Les
 // valeurs reprennent le tableau OWASP (r=8 fixé par OWASP) plus le défaut
-// historique de la bibliothèque (r=16), pour comparer sur la même machine.
+// historique de la bibliothèque (r=16), pour comparer sur la même machine. Le
+// palier choisi est lu dans `PARAMETRES_SCRYPT` : changer la constante met à
+// jour la mesure et le texte de clôture.
 const JEUX = [
   { nom: "defaut bibliothèque", N: 2 ** 14, r: 16, p: 1 },
   { nom: "OWASP le plus faible", N: 2 ** 14, r: 8, p: 5 },
   { nom: "OWASP intermédiaire bas", N: 2 ** 15, r: 8, p: 3 },
   { nom: "OWASP intermédiaire haut", N: 2 ** 16, r: 8, p: 2 },
-  { nom: "OWASP le plus fort (choisi)", N: 2 ** 17, r: 8, p: 1 },
+  {
+    nom: "OWASP le plus fort (choisi)",
+    N: PARAMETRES_SCRYPT.N,
+    r: PARAMETRES_SCRYPT.r,
+    p: PARAMETRES_SCRYPT.p,
+  },
 ] as const
+
+const PALIER_CHOISI = JEUX[JEUX.length - 1]
+const PALIER_REPLI = JEUX[JEUX.length - 2]
 
 const ITERATIONS = 3
 const MOT_DE_PASSE = "MotDePasse!Benchmark1234"
 const SEL = randomBytes(16)
-const CLE_OCTETS = 64
+const CLE_OCTETS = PARAMETRES_SCRYPT.dkLen
 
 interface Resultat {
   nom: string
@@ -104,12 +116,14 @@ function principal(): void {
     "Cible : une empreinte sous une seconde (règle OWASP). Les paramètres"
   )
   console.log(
-    "choisis sont N=131072, r=8, p=1 (palier OWASP le plus fort), sauf si"
+    `choisis sont N=${PALIER_CHOISI.N}, r=${PALIER_CHOISI.r}, p=${PALIER_CHOISI.p} (palier OWASP le plus fort), sauf si`
   )
   console.log(
     "l'hôte Coolify mesure au-dessus d'une seconde : descendre alors au palier"
   )
-  console.log("immédiatement inférieur, N=65536, r=8, p=2.")
+  console.log(
+    `immédiatement inférieur, N=${PALIER_REPLI.N}, r=${PALIER_REPLI.r}, p=${PALIER_REPLI.p}.`
+  )
 }
 
 principal()

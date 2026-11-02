@@ -91,11 +91,13 @@ export async function POST(request: Request): Promise<Response> {
     return reponseJson({ error: MESSAGE_INDISPONIBLE }, 500)
   }
 
-  const confirmation_code = randomBytes(16).toString("hex")
+  // `confirmation_code` est le nom que Meta attend dans le corps ; la variable
+  // locale, elle, porte le vocabulaire du domaine.
+  const codeDeConfirmation = randomBytes(16).toString("hex")
   return reponseJson(
     {
-      url: urlDeStatut(request, confirmation_code),
-      confirmation_code,
+      url: urlDeStatut(request, codeDeConfirmation),
+      confirmation_code: codeDeConfirmation,
     },
     200
   )

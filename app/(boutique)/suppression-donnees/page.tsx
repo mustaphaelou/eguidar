@@ -59,7 +59,7 @@ async function CodeDeConfirmation({
   const { code } = await searchParams
   const brut = Array.isArray(code) ? code[0] : code
   const confirmationCode =
-    typeof brut === "string" && /^[0-9a-zA-Z-]{1,64}$/.test(brut) ? brut : null
+    typeof brut === "string" && /^[0-9a-zA-Z]{1,64}$/.test(brut) ? brut : null
 
   if (!confirmationCode) {
     return (
