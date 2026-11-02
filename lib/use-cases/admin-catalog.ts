@@ -58,7 +58,10 @@ import type {
 } from "@/lib/use-cases/cache-invalidation"
 import {
   chaineDeLaStructure,
+  demandeDePurgeCatalogue,
   invalidateCatalogue,
+  purgerEdgeDurable,
+  revaliderCatalogue,
 } from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
@@ -66,7 +69,9 @@ import {
   leverConflitUnique,
   messageDeValidation,
   runEffect,
+  runOrderedEffects,
 } from "@/lib/use-cases/mutation-squelette"
+import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -100,6 +105,9 @@ export interface CatalogEffects {
   reindexProducts(products: IndexableProduct[]): Promise<void>
   removeProductFromIndex(productId: string): Promise<void>
   revalidateCatalog(product: CatalogueEventProduct): Promise<void> | void
+  purgeCatalogue(product: CatalogueEventProduct): Promise<void> | void
+  purgeCatalog(product: CatalogueEventProduct): Promise<void> | void
+  purgeEdge(product: CatalogueEventProduct): Promise<void> | void
   deleteImages(urls: string[]): Promise<void>
   enregistrerImages(
     entrees: readonly EntreeRegistreImageProduit[],
@@ -126,7 +134,16 @@ export function defaultCatalogEffects(libelleJournal: string): CatalogEffects {
       await deleteProductDocument(id)
     },
     revalidateCatalog(product) {
-      return invalidateCatalogue(product)
+      return revaliderCatalogue(product)
+    },
+    async purgeCatalogue(product) {
+      await purgerEdgeDurable(demandeDePurgeCatalogue(product))
+    },
+    async purgeCatalog(product) {
+      await purgerEdgeDurable(demandeDePurgeCatalogue(product))
+    },
+    async purgeEdge(product) {
+      await purgerEdgeDurable(demandeDePurgeCatalogue(product))
     },
     async deleteImages(urls) {
       for (const url of urls) {
@@ -721,8 +738,9 @@ async function enregistrerProduit(
   const { images, promotions } = await promouvoirBrouillons(data, effects)
 
   let ecriture: FaitsEcritureProduit
+  let plan: ReturnType<typeof declarerApresEcriture>
   try {
-    ecriture = await prisma.$transaction(async (tx) => {
+    const resultat = await prisma.$transaction(async (tx) => {
       const ecrit =
         contexte.kind === "creation"
           ? await ecrireCreation(tx, data, images)
@@ -741,21 +759,30 @@ async function enregistrerProduit(
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
-      await enregistrerEvenement(tx, {
-        type: "produit.enregistre",
-        entityType: "produit",
-        entityId: ecrit.produit.id,
-        payload: {
-          produitId: ecrit.produit.id,
-          slug: ecrit.produit.slug,
-          slugPrecedent: ecrit.slugPrecedent ?? null,
-          categoryId: ecrit.produit.categoryId,
-          categoryIdPrecedent:
-            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null,
-        },
+      const planLocal = declarerApresEcriture("produit.enregistre", {
+        produitId: ecrit.produit.id,
+        slug: ecrit.produit.slug,
+        slugPrecedent: ecrit.slugPrecedent ?? null,
+        categoryId: ecrit.produit.categoryId,
+        categoryIdPrecedent:
+          contexte.kind === "miseAJour" ? contexte.existant.categoryId : null,
+        imagesRetirees: ecrit.imagesRetirees,
+        galerie: data.images,
       })
-      return ecrit
+      if (planLocal.faits.length > 0) {
+        for (const f of planLocal.faits) {
+          await enregistrerEvenement(tx, {
+            type: f.declencheur,
+            entityType: f.entite,
+            entityId: f.identifiant,
+            payload: f.charge,
+          })
+        }
+      }
+      return { ecrit, plan: planLocal }
     })
+    ecriture = resultat.ecrit
+    plan = resultat.plan
   } catch (error) {
     await compenserPromotions(promotions, effects)
     mapUniqueViolation(error)
@@ -766,37 +793,6 @@ async function enregistrerProduit(
     promotions,
     images
   )
-  if (entreesRegistre.length > 0) {
-    await runEffect({
-      effet: "registre-images",
-      entite: { type: "produit", id: ecriture.produit.id },
-      message: `[catalog] écriture du registre des Images produit non effectuée pour ${ecriture.produit.id}`,
-      fn: () =>
-        effects.enregistrerImages(entreesRegistre, data.ownerId ?? null),
-    })
-  }
-  if (promotions.length > 0) {
-    await runEffect({
-      effet: "suppression-brouillons",
-      entite: { type: "produit", id: ecriture.produit.id },
-      message: `[catalog] suppression des Brouillons d'Image produit non effectuée pour ${ecriture.produit.id}`,
-      fn: () => effects.cycleVie.supprimerSources(promotions),
-    })
-  }
-  if (contexte.kind === "miseAJour") {
-    await runEffect({
-      effet: "suppression-images",
-      entite: { type: "produit", id: ecriture.produit.id },
-      message: `[catalog] suppression d'images R2 non effectuée pour ${ecriture.produit.id}`,
-      fn: () => effects.deleteImages(ecriture.imagesRetirees),
-    })
-  }
-  await runEffect({
-    effet: "reindexation",
-    entite: { type: "produit", id: ecriture.produit.id },
-    message: `[catalog] réindexation Meilisearch non effectuée pour ${ecriture.produit.id}`,
-    fn: () => effects.reindexProducts([toIndexableProduct(ecriture.produit)]),
-  })
   const evenementCatalogue =
     ecriture.slugPrecedent === undefined
       ? { id: ecriture.produit.id, slug: ecriture.produit.slug }
@@ -805,18 +801,44 @@ async function enregistrerProduit(
           slug: ecriture.produit.slug,
           previousSlug: ecriture.slugPrecedent,
         }
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "produit", id: ecriture.produit.id },
-    message: `[catalog] invalidation du cache non effectuée pour ${ecriture.produit.id}`,
-    fn: async () => {
-      const chaines = await chainesDuProduit(
-        ecriture.produit.categoryId,
-        contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
-      )
-      await effects.revalidateCatalog({ ...evenementCatalogue, ...chaines })
-    },
-  })
+  await runOrderedEffects(
+    plan.consequences.map((c) => ({
+      effet: c.effet,
+      entite: c.entite,
+      message: c.message,
+      portee: c.portee,
+      fn: async () => {
+        if (c.effet === "registre-images") {
+          if (entreesRegistre.length > 0)
+            await effects.enregistrerImages(
+              entreesRegistre,
+              data.ownerId ?? null
+            )
+        } else if (c.effet === "suppression-brouillons") {
+          if (promotions.length > 0)
+            await effects.cycleVie.supprimerSources(promotions)
+        } else if (c.effet === "suppression-images") {
+          await effects.deleteImages(ecriture.imagesRetirees)
+        } else if (c.effet === "reindexation") {
+          await effects.reindexProducts([toIndexableProduct(ecriture.produit)])
+        } else if (c.effet === "invalidation-cache") {
+          const chaines = await chainesDuProduit(
+            ecriture.produit.categoryId,
+            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
+          )
+          await effects.revalidateCatalog({ ...evenementCatalogue, ...chaines })
+        } else if (c.effet === "purge-catalogue") {
+          const chaines = await chainesDuProduit(
+            ecriture.produit.categoryId,
+            contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
+          )
+          const purgeFn =
+            effects.purgeCatalogue ?? effects.purgeCatalog ?? effects.purgeEdge
+          if (purgeFn) await purgeFn({ ...evenementCatalogue, ...chaines })
+        }
+      },
+    }))
+  )
   return ecriture.produit
 }
 
@@ -994,30 +1016,58 @@ async function mettreAJourLot(
   if (partage.succes.length > 0) {
     const categorieCiblee =
       typeof data.categoryId === "string" ? data.categoryId : null
+    const produitsDeclaration = partage.succes.map((id) => {
+      const produit = parId.get(id)!
+      const categoryId = categorieCiblee ?? produit.categoryId
+      return {
+        id,
+        slug: produit.slug,
+        categoryId,
+        categoryIdPrecedent:
+          categoryId === produit.categoryId ? null : produit.categoryId,
+      }
+    })
+    const planLot = declarerApresEcriture("produit.enregistre.lot", {
+      produitIds: partage.succes,
+      produits: produitsDeclaration,
+    })
     await prisma.$transaction(async (tx) => {
       await tx.product.updateMany({
         where: { id: { in: partage.succes } },
         data,
       })
-      for (const id of partage.succes) {
-        const produit = parId.get(id)!
-        const categoryId = categorieCiblee ?? produit.categoryId
-        await enregistrerEvenement(tx, {
-          type: "produit.enregistre",
-          entityType: "produit",
-          entityId: id,
-          payload: {
-            produitId: id,
-            slug: produit.slug,
-            slugPrecedent: null,
-            categoryId,
-            categoryIdPrecedent:
-              categoryId === produit.categoryId ? null : produit.categoryId,
-          },
-        })
+      if (planLot.faits.length > 0) {
+        for (const f of planLot.faits) {
+          await enregistrerEvenement(tx, {
+            type: f.declencheur,
+            entityType: f.entite,
+            entityId: f.identifiant,
+            payload: f.charge,
+          })
+        }
       }
     })
-    await reindexerLot(partage.succes, effects)
+    const documents = await documentsDeLot(partage.succes)
+    await runOrderedEffects(
+      planLot.consequences.map((c) => ({
+        effet: c.effet,
+        entite: c.entite,
+        message: c.message,
+        portee: c.portee,
+        fn: async () => {
+          if (c.effet === "reindexation") {
+            await effects.reindexProducts(
+              documents.map(({ indexable }) => indexable)
+            )
+          } else if (c.effet === "invalidation-cache") {
+            const doc = documents.find(
+              ({ indexable }) => indexable.id === c.entite.id
+            )
+            if (doc) await effects.revalidateCatalog(doc.evenement)
+          }
+        },
+      }))
+    )
   }
   return partage
 }
@@ -1186,6 +1236,7 @@ export async function duplicateProduct(
     })
   }
 
+  let planDuplication!: ReturnType<typeof declarerApresEcriture>
   const copie = await prisma.$transaction(async (tx) => {
     const creee = await tx.product.create({
       data: {
@@ -1204,22 +1255,56 @@ export async function duplicateProduct(
       },
       include: { variants: true },
     })
-    await enregistrerEvenement(tx, {
-      type: "produit.enregistre",
-      entityType: "produit",
-      entityId: creee.id,
-      payload: {
-        produitId: creee.id,
-        slug: creee.slug,
-        slugPrecedent: null,
-        categoryId: creee.categoryId,
-        categoryIdPrecedent: null,
-      },
+    planDuplication = declarerApresEcriture("produit.enregistre", {
+      produitId: creee.id,
+      slug: creee.slug,
+      slugPrecedent: null,
+      categoryId: creee.categoryId,
+      categoryIdPrecedent: null,
+      imagesRetirees: [],
+      galerie: [],
     })
+    if (planDuplication.faits.length > 0) {
+      for (const f of planDuplication.faits) {
+        await enregistrerEvenement(tx, {
+          type: f.declencheur,
+          entityType: f.entite,
+          entityId: f.identifiant,
+          payload: f.charge,
+        })
+      }
+    }
     return creee
   })
 
-  await reindexerLot([copie.id], effects)
+  const documentsDuplication = await documentsDeLot([copie.id])
+  await runOrderedEffects(
+    planDuplication.consequences.map((c) => ({
+      effet: c.effet,
+      entite: c.entite,
+      message: c.message,
+      portee: c.portee,
+      fn: async () => {
+        if (c.effet === "reindexation") {
+          await effects.reindexProducts(
+            documentsDuplication.map(({ indexable }) => indexable)
+          )
+        } else if (c.effet === "invalidation-cache") {
+          for (const { evenement } of documentsDuplication) {
+            await effects.revalidateCatalog(evenement)
+          }
+        } else if (c.effet === "purge-catalogue") {
+          for (const { evenement } of documentsDuplication) {
+            const purgeFn =
+              effects.purgeCatalogue ??
+              effects.purgeCatalog ??
+              effects.purgeEdge
+            if (purgeFn) await purgeFn(evenement)
+          }
+        }
+      },
+    }))
+  )
   return copie
 }
 

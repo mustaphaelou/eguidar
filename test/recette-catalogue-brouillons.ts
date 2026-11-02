@@ -83,6 +83,9 @@ export function creerEnvironnementMemoire(dateInitiale: Date) {
     deleteImages: vi.fn(async () => {}),
     reindexProducts: vi.fn(async () => {}),
     revalidateCatalog: vi.fn(),
+    purgeCatalogue: vi.fn(async () => {}),
+    purgeCatalog: vi.fn(async () => {}),
+    purgeEdge: vi.fn(async () => {}),
     removeProductFromIndex: vi.fn(async () => {}),
     enregistrerImages: vi.fn(async () => {}),
   }
@@ -98,6 +101,9 @@ export function creerEnvironnementDurable(horloge: Horloge) {
     deleteImages: vi.fn(async () => {}),
     reindexProducts: vi.fn(async () => {}),
     revalidateCatalog: vi.fn(),
+    purgeCatalogue: vi.fn(async () => {}),
+    purgeCatalog: vi.fn(async () => {}),
+    purgeEdge: vi.fn(async () => {}),
     removeProductFromIndex: vi.fn(async () => {}),
     enregistrerImages: vi.fn(async () => {}),
   }
