@@ -59,7 +59,6 @@ import type {
 import {
   chaineDeLaStructure,
   demandeDePurgeCatalogue,
-  invalidateCatalogue,
   purgerEdgeDurable,
   revaliderCatalogue,
 } from "@/lib/use-cases/cache-invalidation"
@@ -942,37 +941,6 @@ async function documentsDeLot(
       },
     }
   })
-}
-
-/**
- * Les effets d'un geste en lot restent après engagement, comme ceux d'une
- * écriture unitaire : la mutation a déjà écrit ses Événements dans sa
- * transaction (`mettreAJourLot`, `duplicateProduct`), et ce qui suit ne peut
- * que manquer sans jamais décider du commit.
- */
-async function reindexerLot(
-  ids: readonly string[],
-  effects: CatalogEffects
-): Promise<void> {
-  const documents = await documentsDeLot(ids)
-  if (documents.length === 0) return
-
-  await runEffect({
-    effet: "reindexation",
-    entite: { type: "produit", id: ids[0]! },
-    message:
-      "[catalog] réindexation Meilisearch non effectuée pour un geste en lot",
-    fn: () =>
-      effects.reindexProducts(documents.map(({ indexable }) => indexable)),
-  })
-  for (const { indexable, evenement } of documents) {
-    await runEffect({
-      effet: "invalidation-cache",
-      entite: { type: "produit", id: indexable.id },
-      message: `[catalog] invalidation du cache non effectuée pour ${indexable.id}`,
-      fn: () => effects.revalidateCatalog(evenement),
-    })
-  }
 }
 
 function partitionDesIdentifiants(
