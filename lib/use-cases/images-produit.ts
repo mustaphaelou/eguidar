@@ -431,3 +431,22 @@ export async function supprimerImagesProduitDuStockage(
     }
   }
 }
+
+/**
+ * La même garantie pour l'image d'une Structure : l'espace de noms R2 d'une
+ * catégorie n'est pas celui des Images produit, donc la suppression durable
+ * passe par son propre adaptateur. Un échec remonte pour que l'Exécution
+ * échouée réessaie.
+ */
+export async function supprimerImagesCategorieDuStockage(
+  publicUrls: readonly string[]
+): Promise<void> {
+  for (const url of publicUrls) {
+    const resultat = await stockageImageProduitR2.supprimerImageCategorie(url)
+    if (!resultat.ok) {
+      throw new Error(
+        `suppression de l'image de la Structure ${url} impossible (${resultat.erreur.code}) : ${resultat.erreur.message}`
+      )
+    }
+  }
+}

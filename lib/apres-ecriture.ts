@@ -447,27 +447,63 @@ const structureModifiee: Declaration = (f) => {
   }
 }
 
+/**
+ * La branche orpheline n'a pas d'identifiant en base : c'est un
+ * pseudo-identifiant de journal que l'adaptateur immédiat traduit en
+ * `categoryId: null`, et que l'action durable reconnaît à l'absence de
+ * destination. Le fait ne porte jamais la branche elle-même, seulement les
+ * identifiants de destination.
+ */
+export const BRANCHE_SANS_STRUCTURE = "sans-structure"
+
+function destinationsDeSuppression(
+  produitsCible: unknown,
+  enfantsCible: unknown
+): string[] {
+  return [
+    ...new Set(
+      [produitsCible, enfantsCible].filter(
+        (destination): destination is string =>
+          typeof destination === "string" && destination.length > 0
+      )
+    ),
+  ]
+}
+
 const structureSupprimee: Declaration = (f) => {
-  const destinations = (f.destinations as string[]) ?? []
+  const image = typeof f.image === "string" && f.image !== "" ? f.image : null
+  const destinations = destinationsDeSuppression(
+    f.produitsCible,
+    f.enfantsCible
+  )
   const consequences: ConsequenceApresEcriture[] = []
-  if (f.image) {
+  for (const destination of destinations) {
+    consequences.push(
+      consequence(
+        "reindexation",
+        { type: "categorie", id: destination },
+        `réindexation de la structure ${destination}`,
+        { action: "index.structure", durable: true }
+      )
+    )
+  }
+  if (destinations.length === 0 && f.produitsSansStructure === true) {
+    consequences.push(
+      consequence(
+        "reindexation",
+        { type: "categorie", id: BRANCHE_SANS_STRUCTURE },
+        `réindexation des Produits orphelins`,
+        { action: "index.structure", durable: true }
+      )
+    )
+  }
+  if (image) {
     consequences.push(
       consequence(
         "suppression-images",
         { type: "categorie", id: String(f.categorieId) },
         `suppression de l'image de la structure ${f.categorieId}`,
         { action: "suppression.images", durable: true }
-      )
-    )
-  }
-  const branches = destinations.length > 0 ? destinations : ["sans-structure"]
-  for (const dest of branches) {
-    consequences.push(
-      consequence(
-        "reindexation",
-        { type: "categorie", id: dest },
-        `réindexation de la structure ${dest}`,
-        { action: "index.structure", durable: true }
       )
     )
   }
@@ -483,10 +519,9 @@ const structureSupprimee: Declaration = (f) => {
     faits: [
       fait("structure.supprimee", "categorie", String(f.categorieId), {
         categorieId: f.categorieId,
-        image: f.image ?? null,
-        destinations: f.destinations ?? [],
-        produitsCible: f.produitsCible ?? null,
-        enfantsCible: f.enfantsCible ?? null,
+        image,
+        destinations,
+        produitsSansStructure: f.produitsSansStructure === true,
       }),
     ],
     consequences,
@@ -586,6 +621,7 @@ export const GENRES_MIGRES: GenreEcriture[] = [
   "produit.enregistre",
   "produit.supprime",
   "variante.stock.changee",
+  "structure.supprimee",
 ]
 export const KINDS_MIGRES = GENRES_MIGRES
 export const MIGRATED_KINDS = GENRES_MIGRES
@@ -642,6 +678,18 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
     id: "indexation-stock",
     nom: "Indexation du stock",
   },
+  "structure.supprimee|index.structure": {
+    id: "indexation-structure-supprimee",
+    nom: "Indexation de la Structure supprimée",
+  },
+  "structure.supprimee|suppression.images": {
+    id: "suppression-images-structure-supprimee",
+    nom: "Suppression de l'image de la Structure supprimée",
+  },
+  "structure.supprimee|invalidation.structure": {
+    id: "invalidation-structure-supprimee",
+    nom: "Invalidation de la Structure supprimée",
+  },
 }
 
 /**
@@ -665,6 +713,7 @@ export const FAITS_POUR_REGLES: Partial<
   "structure.supprimee": {
     categorieId: "categorie-modele",
     image: "https://cdn.example.test/modele.jpg",
+    produitsCible: "categorie-modele-cible",
   },
 }
 
@@ -687,12 +736,6 @@ export const REGLES_EN_ATTENTE: Array<{
     id: "invalidation-structure-modifiee",
     nom: "Invalidation de la Structure modifiée",
     declencheur: "structure.modifiee",
-    action: "invalidation.structure",
-  },
-  {
-    id: "invalidation-structure-supprimee",
-    nom: "Invalidation de la Structure supprimée",
-    declencheur: "structure.supprimee",
     action: "invalidation.structure",
   },
   {
@@ -742,6 +785,12 @@ export function reglesParDefaut(): Array<{
     condition: { type: "toujours" }
     actif: boolean
   }> = []
+  // Un même déclencheur peut déclarer plusieurs conséquences qui demandent la
+  // même action — une réindexation par branche de destination d'une Structure
+  // supprimée, par exemple. La Règle par défaut est gouvernée par l'action, pas
+  // par le nombre de branches : une seule ligne suffit, et l'action lit toutes
+  // les destinations de la charge.
+  const reglesVues = new Set<string>()
   for (const genre of GENRES_MIGRES) {
     const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
     const declencheurFait = plan.faits[0]?.declencheur
@@ -750,7 +799,8 @@ export function reglesParDefaut(): Array<{
       const identite =
         IDENTITES_REGLES_MIGREES[`${declencheurFait}|${c.action}`] ??
         IDENTITES_REGLES_MIGREES[c.action]
-      if (!identite) continue
+      if (!identite || reglesVues.has(identite.id)) continue
+      reglesVues.add(identite.id)
       out.push({
         id: identite.id,
         nom: identite.nom,

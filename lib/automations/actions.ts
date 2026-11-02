@@ -38,7 +38,10 @@ import {
   type CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
-import { supprimerImagesProduitDuStockage } from "@/lib/use-cases/images-produit"
+import {
+  supprimerImagesCategorieDuStockage,
+  supprimerImagesProduitDuStockage,
+} from "@/lib/use-cases/images-produit"
 
 export interface EntreeEmailDigest {
   destinataire: string
@@ -324,12 +327,20 @@ async function collecterIdsBranche(
 async function indexerStructure(contexte: ContexteAction): Promise<void> {
   const payload = contexte.evenement.payload as Record<string, unknown>
   const destinations = Array.isArray(payload.destinations)
-    ? (payload.destinations as string[])
+    ? (payload.destinations as unknown[]).filter(
+        (destination): destination is string =>
+          typeof destination === "string" && destination.length > 0
+      )
     : payload.destination
       ? [String(payload.destination)]
       : payload.categorieId
         ? [String(payload.categorieId)]
         : []
+  // Une suppression sans destination n'a de Produits à réindexer que ceux
+  // restés orphelins ; une suppression d'une Structure vide n'en a aucun.
+  if (destinations.length === 0 && payload.produitsSansStructure !== true) {
+    return
+  }
   const cibles = destinations.length > 0 ? destinations : [null]
   for (const dest of cibles) {
     const idsBranches = dest === null ? [] : await collecterIdsBranche(dest)
@@ -358,6 +369,10 @@ async function supprimerImages(contexte: ContexteAction): Promise<void> {
   for (const cle of ["url", "image", "imageRetiree"]) {
     const v = payload[cle]
     if (typeof v === "string") urls.add(v)
+  }
+  if (contexte.evenement.entityType === "categorie") {
+    await supprimerImagesCategorieDuStockage([...urls])
+    return
   }
   await supprimerImagesProduitDuStockage([...urls])
 }
