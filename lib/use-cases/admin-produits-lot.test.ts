@@ -217,6 +217,8 @@ describe("les gestes en lot du Catalogue", () => {
         slugPrecedent: null,
         categoryId: racine.id,
         categoryIdPrecedent: null,
+        imagesRetirees: [],
+        galerie: null,
       })
     }
   })
@@ -239,6 +241,8 @@ describe("les gestes en lot du Catalogue", () => {
       slugPrecedent: null,
       categoryId: enfant.id,
       categoryIdPrecedent: racine.id,
+      imagesRetirees: [],
+      galerie: null,
     })
   })
 

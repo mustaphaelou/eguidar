@@ -981,8 +981,7 @@ describe("admin catalog mutations", () => {
       { deleteImages }
     )
 
-    expect(deleteImages).toHaveBeenCalledOnce()
-    expect(deleteImages).toHaveBeenCalledWith([])
+    expect(deleteImages).not.toHaveBeenCalled()
   })
 
   it("rejects updating with a variant id belonging to another product", async () => {

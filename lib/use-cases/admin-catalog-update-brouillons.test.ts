@@ -227,7 +227,7 @@ describe("mise à jour d'un Produit avec des Brouillons d'Image produit", () => 
       existingImage,
       existingSecondImage,
     ])
-    expect(effets.deleteImages).toHaveBeenCalledExactlyOnceWith([])
+    expect(effets.deleteImages).not.toHaveBeenCalled()
   })
 
   it("ne touche à aucune couture de Brouillon quand la Galerie n'en porte aucun", async () => {

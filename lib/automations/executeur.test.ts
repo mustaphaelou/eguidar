@@ -310,8 +310,10 @@ describe("le travailleur des automatisations", () => {
       "indexation-produit",
       "invalidation-catalogue",
       "purge-catalogue",
+      "suppression-images-produit",
     ])
     expect(runs.map((run) => [run.status, run.lastError])).toEqual([
+      ["ignore", `événement expiré le ${expireLe.toISOString()}`],
       ["ignore", `événement expiré le ${expireLe.toISOString()}`],
       ["ignore", `événement expiré le ${expireLe.toISOString()}`],
       ["ignore", `événement expiré le ${expireLe.toISOString()}`],
