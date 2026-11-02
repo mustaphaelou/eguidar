@@ -197,6 +197,35 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
   })
 })
 
+describe("la déclaration de variante.stock.changee", () => {
+  it("réindexe durablement puis invalide le cache, réparé par le TTL", () => {
+    const plan = declarerApresEcriture("variante.stock.changee", {
+      produitId: PRODUIT,
+    })
+
+    expect(plan.faits).toEqual([
+      {
+        declencheur: "variante.stock.changee",
+        entite: "produit",
+        identifiant: PRODUIT,
+        charge: { produitId: PRODUIT },
+      },
+    ])
+    expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
+    expect(durable(plan)).toEqual(["reindexation"])
+    expect(actions(plan)).toEqual(["index.produit"])
+
+    const invalidation = plan.consequences.find(
+      (consequence) => consequence.effet === "invalidation-cache"
+    )
+    expect(invalidation).toMatchObject({
+      durable: false,
+      reparation: "TTL",
+      entite: { type: "produit", id: PRODUIT },
+    })
+  })
+})
+
 const CATEGORIE = "categorie-872"
 
 describe("la déclaration de structure.creee", () => {
@@ -290,6 +319,28 @@ describe("la déclaration de structure.modifiee", () => {
   })
 })
 
+describe("les Règles par défaut dérivées de variante.stock.changee", () => {
+  it("reprend l'identité indexation-stock pour la seule réindexation durable", () => {
+    expect(
+      reglesParDefaut()
+        .filter((regle) => regle.declencheur === "variante.stock.changee")
+        .map((regle) => [regle.id, regle.action, regle.nom])
+    ).toEqual([["indexation-stock", "index.produit", "Indexation du stock"]])
+  })
+
+  it("retire la Règle de la liste en attente et ne duplique aucune identité", () => {
+    expect(GENRES_MIGRES).toContain("variante.stock.changee")
+    expect(
+      REGLES_EN_ATTENTE.some((regle) => regle.id === "indexation-stock")
+    ).toBe(false)
+    expect(
+      reglesParDefaut().filter((regle) => regle.id === "indexation-stock")
+    ).toHaveLength(1)
+    const ids = reglesParDefaut().map((regle) => regle.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
 describe("les Règles par défaut dérivées des déclarations de Structure", () => {
   it("reprend les identités existantes pour la création et l'invalidation", () => {
     const creation = reglesParDefaut().filter(
@@ -323,13 +374,15 @@ describe("les Règles par défaut dérivées des déclarations de Structure", ()
       ).toBe(false)
     }
   })
+})
 
-  it("donne exactement une Règle par conséquence durable et aucune aux autres", () => {
+describe("chaque conséquence durable a exactement une Règle par déclencheur", () => {
+  it("aucune conséquence non durable n'en a", () => {
     const regles = reglesParDefaut()
 
-    for (const genre of ["structure.creee", "structure.modifiee"] as const) {
+    for (const genre of GENRES_MIGRES) {
       const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
-      const declencheur = plan.faits[0]!.declencheur
+      const declencheur = plan.faits[0]?.declencheur ?? genre
       for (const consequence of plan.consequences) {
         if (!consequence.action) continue
         expect(
@@ -337,13 +390,9 @@ describe("les Règles par défaut dérivées des déclarations de Structure", ()
             (regle) =>
               regle.declencheur === declencheur &&
               regle.action === consequence.action
-          ),
-          `${declencheur}|${consequence.action}`
+          )
         ).toHaveLength(consequence.durable ? 1 : 0)
       }
     }
-
-    const ids = regles.map((regle) => regle.id)
-    expect(new Set(ids).size).toBe(ids.length)
   })
 })

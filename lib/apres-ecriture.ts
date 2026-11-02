@@ -554,6 +554,7 @@ export const GENRES_MIGRES: GenreEcriture[] = [
   "commande.creee",
   "commande.statut.changee",
   "produit.enregistre",
+  "variante.stock.changee",
   "structure.creee",
   "structure.modifiee",
 ]
@@ -591,6 +592,10 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
   "produit.enregistre|suppression.images": {
     id: "suppression-images-produit-enregistre",
     nom: "Suppression des images retirées",
+  },
+  "variante.stock.changee|index.produit": {
+    id: "indexation-stock",
+    nom: "Indexation du stock",
   },
   "structure.creee|invalidation.structure": {
     id: "invalidation-structure",
@@ -643,12 +648,6 @@ export const REGLES_EN_ATTENTE: Array<{
   action: ActionAutomation
   actif?: boolean
 }> = [
-  {
-    id: "indexation-stock",
-    nom: "Indexation du stock",
-    declencheur: "variante.stock.changee",
-    action: "index.produit",
-  },
   {
     id: "desindexation-produit",
     nom: "Désindexation du Produit",
