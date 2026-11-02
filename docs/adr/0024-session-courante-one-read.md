@@ -62,10 +62,13 @@ indépendantes : une session peut mourir d'inactivité bien avant sa borne absol
 et une session active meurt quand même à la borne. Le glossaire nomme désormais
 les deux termes séparément (Session inactive, Session hors durée absolue).
 
-**Le test du rôle vit dans `lib/role.ts`** : `estRoleAdmin` y est extrait pour que
-`lib/session-expiration.ts` borne une session sans importer la lecture de Session
-courante ni réécrire `"admin"`, `Client` et `estAdmin` restant dans le module de
-session.
+**Le vocabulaire du rôle vit dans un module feuille, `lib/role.ts`.** `Role`
+(`"user" | "admin"`) et `estRoleAdmin` y sont déclarés ; le module n'importe
+rien, donc `lib/session-expiration.ts` lit le rôle et borne une session sans
+importer la lecture de Session courante — aucun cycle ne passe par
+`lib/use-cases/session-courante.ts`. Le module de session réexporte `Role` et
+compose `estAdmin` et `lireSession` à partir du prédicat ; `Client` et `estAdmin`
+restent chez lui.
 
 ## Invariants
 

@@ -93,14 +93,19 @@ export async function supprimerDonneesFacebook(
 
     // `verification` n'a pas de clé étrangère vers `user` : les codes encore en
     // attente pour les adresses du Client partent explicitement. Better Auth
-    // construit chaque identifiant avec `toOTPIdentifier` — `${type}-otp-${email}`
-    // —, donc le suffixe `-otp-${email}` couvre tous les types sans toucher au
-    // code d'une autre adresse dont celle-ci serait le suffixe.
+    // écrit deux formes : `toOTPIdentifier` pour les codes — `${type}-otp-${email}`
+    // — et `change-email-otp-${oldEmail}-${newEmail}` pour le changement
+    // d'adresse. Le suffixe couvre la première, la contenance `-otp-${email}-`
+    // la seconde quand l'adresse supprimée est l'ancienne ; aucune ne touche
+    // l'identifiant d'une autre adresse dont celle-ci serait le suffixe. Le
+    // changement d'adresse reste désactivé dans `lib/auth.ts`, mais la forme est
+    // couverte pour que l'activer un jour ne laisse pas de lignes derrière.
     await tx.verification.deleteMany({
       where: {
-        OR: clients.map(({ email }) => ({
-          identifier: { endsWith: `-otp-${email}` },
-        })),
+        OR: clients.flatMap(({ email }) => [
+          { identifier: { endsWith: `-otp-${email}` } },
+          { identifier: { contains: `-otp-${email}-` } },
+        ]),
       },
     })
 

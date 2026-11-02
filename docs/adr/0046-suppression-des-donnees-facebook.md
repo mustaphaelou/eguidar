@@ -124,8 +124,10 @@ masquage. La seule réponse honnête est donc la suppression dure.
 - La comparaison de signature est un `HMAC-SHA256` sur le segment de charge encodé, comparé en
   temps constant après une garde de longueur égale.
 - Une demande valide supprime le Compte client, ses Commandes, leurs `OrderItem`, les lignes
-  `verification` de ses adresses et tout ce que la cascade du Compte client emporte, dans une seule
-  transaction ; les pages de Commande invalidées ne servent plus la Commande supprimée.
+  `verification` que Better Auth écrit pour ses adresses — les codes `<type>-otp-<adresse>` et les
+  lignes `change-email-otp-<ancienne adresse>-<nouvelle adresse>` dont l'adresse supprimée est
+  l'ancienne — et tout ce que la cascade du Compte client emporte, dans une seule transaction ; les
+  pages de Commande invalidées ne servent plus la Commande supprimée.
 - Un identifiant applicatif inconnu rend `200` avec `{ url, confirmation_code }` et ne supprime
   rien.
 - La réponse porte exactement `url` et `confirmation_code` ; le code est 16 octets aléatoires en
