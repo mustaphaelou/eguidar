@@ -1,3 +1,7 @@
+import {
+  declarerApresEcriture,
+  type PlanApresEcriture,
+} from "@/lib/apres-ecriture"
 import { prisma } from "@/lib/db"
 import {
   normaliserTexteAlternatif,
@@ -12,10 +16,13 @@ import {
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import {
   chaineDeLaStructure,
-  invalidateCatalogue,
+  revaliderCatalogue,
 } from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
-import { avecSurcharges, runEffect } from "@/lib/use-cases/mutation-squelette"
+import {
+  avecSurcharges,
+  runOrderedEffects,
+} from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export interface EntreeRegistreImageProduit {
@@ -64,7 +71,7 @@ export function defaultImagesProduitEffects(): ImagesProduitEffects {
   return {
     supprimerImage: (url) =>
       stockageImageProduitR2.supprimerImagePersistee(url),
-    revaliderCatalogue: (produit) => invalidateCatalogue(produit),
+    revaliderCatalogue: (produit) => revaliderCatalogue(produit),
   }
 }
 
@@ -270,6 +277,44 @@ export async function listerImagesPourGalerie(
 }
 
 /**
+ * L'adaptateur immédiat du Texte alternatif : le plan d'une écriture sans
+ * conséquence durable ne porte que la révalidation du cache, la même
+ * conséquence que l'enregistrement d'un Produit. Aucun Événement n'est écrit,
+ * et un échec est journalisé sans reprise : le TTL du cache le répare.
+ */
+async function executerPlanTexteAlternatif(
+  plan: PlanApresEcriture,
+  evenements: readonly CatalogueEventProduct[],
+  effects: ImagesProduitEffects
+): Promise<void> {
+  const parProduit = new Map(
+    evenements.map((evenement) => [evenement.id, evenement])
+  )
+  await runOrderedEffects(
+    plan.consequences.map((consequence) => ({
+      effet: consequence.effet,
+      entite: consequence.entite,
+      message: consequence.message,
+      portee: consequence.portee,
+      fn: () => {
+        if (consequence.effet !== "invalidation-cache") {
+          throw new Error(
+            `effet de Texte alternatif non pris en charge : ${consequence.effet}`
+          )
+        }
+        const produit = parProduit.get(consequence.entite.id)
+        if (!produit) {
+          throw new Error(
+            `Produit ${consequence.entite.id} absent du plan du Texte alternatif`
+          )
+        }
+        return effects.revaliderCatalogue(produit)
+      },
+    }))
+  )
+}
+
+/**
  * Le Texte alternatif d'une Image produit est rendu par la fiche de chaque
  * Produit qui la nomme : l'écrire invalide donc ces fiches, côté boutique
  * comme côté Administration. Une Image produit que personne ne nomme ne
@@ -300,19 +345,15 @@ export async function mettreAJourTexteAlternatif(
 
   const effects = avecSurcharges(defaultImagesProduitEffects(), overrides)
   const lecture = await lireStructure()
-  for (const produit of produits) {
-    const evenement: CatalogueEventProduct = {
-      id: produit.id,
-      slug: produit.slug,
-      categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
-    }
-    await runEffect({
-      effet: "invalidation-cache",
-      entite: { type: "produit", id: produit.id },
-      message: `[médias] invalidation du cache non effectuée pour le Produit ${produit.id} après modification du Texte alternatif`,
-      fn: () => effects.revaliderCatalogue(evenement),
-    })
-  }
+  const evenements: CatalogueEventProduct[] = produits.map((produit) => ({
+    id: produit.id,
+    slug: produit.slug,
+    categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+  }))
+  const plan = declarerApresEcriture("image.texte-alternatif", {
+    produitIds: produits.map((produit) => produit.id),
+  })
+  await executerPlanTexteAlternatif(plan, evenements, effects)
   return normalise
 }
 

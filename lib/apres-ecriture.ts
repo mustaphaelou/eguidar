@@ -528,21 +528,80 @@ const structureSupprimee: Declaration = (f) => {
   }
 }
 
-function maintenanceDeclaration(
-  effet: TypeEffetPostCommit,
+/**
+ * Les écritures de maintenance n'ont aucune conséquence durable : leur plan ne
+ * porte aucun fait, donc aucun Événement, et sa seule conséquence est la
+ * tentative immédiate d'invalidation du cache. Un échec est journalisé et le
+ * TTL du cache le répare.
+ */
+function consequenceDeMaintenance(
   entite: EntiteEffetPostCommit,
-  id: string,
   message: string
-): Declaration {
-  return () => ({
-    faits: [],
-    consequences: [
-      consequence(effet, entite, message, {
-        durable: false,
-        reparation: "TTL",
-      }),
-    ],
+): ConsequenceApresEcriture {
+  return consequence("invalidation-cache", entite, message, {
+    durable: false,
+    reparation: "TTL",
   })
+}
+
+function planDeMaintenance(
+  entite: EntiteEffetPostCommit,
+  message: string
+): PlanApresEcriture {
+  return {
+    faits: [],
+    consequences: [consequenceDeMaintenance(entite, message)],
+  }
+}
+
+const villeCreee: Declaration = (f) => {
+  const villeId = String(f.villeId)
+  return planDeMaintenance(
+    { type: "ville", id: villeId },
+    `invalidation du cache livraison pour la création de la ville ${villeId}`
+  )
+}
+
+const villeModifiee: Declaration = (f) => {
+  const villeId = String(f.villeId)
+  return planDeMaintenance(
+    { type: "ville", id: villeId },
+    `invalidation du cache livraison pour la ville ${villeId}`
+  )
+}
+
+const villeSupprimee: Declaration = (f) => {
+  const villeId = String(f.villeId)
+  return planDeMaintenance(
+    { type: "ville", id: villeId },
+    `invalidation du cache livraison pour la suppression de la ville ${villeId}`
+  )
+}
+
+const livraisonReglee: Declaration = (f) => {
+  const livraisonId = String(f.livraisonId ?? "default")
+  return planDeMaintenance(
+    { type: "livraison", id: livraisonId },
+    "invalidation du cache livraison pour le seuil de livraison"
+  )
+}
+
+/**
+ * Une Image produit n'a qu'un propriétaire, mais l'écriture reste une liste :
+ * chaque Produit touché reçoit sa propre conséquence, donc sa propre ligne de
+ * journal et sa propre limite d'échec.
+ */
+const imageTexteAlternatif: Declaration = (f) => {
+  const produitIds = ((f.produitIds as string[] | undefined) ?? []).map(String)
+  return {
+    faits: [],
+    consequences: produitIds.map((produitId) =>
+      consequenceDeMaintenance(
+        { type: "produit", id: produitId },
+        `invalidation du cache catalogue pour le Produit ${produitId} après modification du Texte alternatif`
+      )
+    ),
+  }
 }
 
 const REGISTRE: Record<GenreEcriture, Declaration> = {
@@ -556,41 +615,11 @@ const REGISTRE: Record<GenreEcriture, Declaration> = {
   "structure.creee": structureCreee,
   "structure.modifiee": structureModifiee,
   "structure.supprimee": structureSupprimee,
-  "ville.creee": (f) =>
-    maintenanceDeclaration(
-      "invalidation-cache",
-      { type: "ville", id: String(f.villeId ?? "ville") },
-      String(f.villeId ?? "ville"),
-      `invalidation du cache livraison pour ${f.villeId}`
-    )(f),
-  "ville.modifiee": (f) =>
-    maintenanceDeclaration(
-      "invalidation-cache",
-      { type: "ville", id: String(f.villeId ?? "ville") },
-      String(f.villeId ?? "ville"),
-      `invalidation du cache livraison pour ${f.villeId}`
-    )(f),
-  "ville.supprimee": (f) =>
-    maintenanceDeclaration(
-      "invalidation-cache",
-      { type: "ville", id: String(f.villeId ?? "ville") },
-      String(f.villeId ?? "ville"),
-      `invalidation du cache livraison pour ${f.villeId}`
-    )(f),
-  "livraison.reglee": (f) =>
-    maintenanceDeclaration(
-      "invalidation-cache",
-      { type: "livraison", id: String(f.id ?? "livraison") },
-      String(f.id ?? "livraison"),
-      `invalidation du cache livraison`
-    )(f),
-  "image.texte-alternatif": (f) =>
-    maintenanceDeclaration(
-      "invalidation-cache",
-      { type: "produit", id: String(f.produitId ?? "produit") },
-      String(f.produitId ?? "produit"),
-      `invalidation du cache catalogue`
-    )(f),
+  "ville.creee": villeCreee,
+  "ville.modifiee": villeModifiee,
+  "ville.supprimee": villeSupprimee,
+  "livraison.reglee": livraisonReglee,
+  "image.texte-alternatif": imageTexteAlternatif,
 }
 
 export function declarerApresEcriture(
@@ -613,8 +642,9 @@ export const APRES_ECRITURE = REGISTRE
 export const DECLARATIONS = REGISTRE
 export const REGISTRE_APRES_ECRITURE = REGISTRE
 
-// Genres dont l'après-écriture est migrée : leurs Règles par défaut sont dérivées
-// du plan, jamais d'une entrée parallèle.
+// Genres dont le site d'appel est migré : la mutation appelle la déclaration
+// au lieu de redéclarer ses effets. Les écritures groupées n'y figurent pas :
+// elles partagent le déclencheur du genre unitaire, qui couvre leurs Règles.
 export const GENRES_MIGRES: GenreEcriture[] = [
   "commande.creee",
   "commande.statut.changee",
@@ -624,17 +654,25 @@ export const GENRES_MIGRES: GenreEcriture[] = [
   "structure.creee",
   "structure.modifiee",
   "structure.supprimee",
+  "ville.creee",
+  "ville.modifiee",
+  "ville.supprimee",
+  "livraison.reglee",
+  "image.texte-alternatif",
 ]
 export const KINDS_MIGRES = GENRES_MIGRES
 export const MIGRATED_KINDS = GENRES_MIGRES
 
-// Genres dont la déclaration existe mais dont le site d'appel n'est pas encore
-// migré : leurs Règles par défaut restent dans la liste en attente.
-export const GENRES_EN_ATTENTE: GenreEcriture[] = (
+/**
+ * Les genres dont la déclaration possède les Règles par défaut : tous les
+ * genres unitaires. Les genres groupés sont exclus parce qu'ils partagent le
+ * déclencheur du genre unitaire, et les écritures de maintenance n'ajoutent
+ * aucune Règle puisqu'elles n'ont aucune conséquence durable. Un genre qui
+ * déclarerait une conséquence durable entre donc ici sans autre édition.
+ */
+export const GENRES_DERIVES: GenreEcriture[] = (
   Object.keys(REGISTRE) as GenreEcriture[]
-).filter((g) => !GENRES_MIGRES.includes(g))
-export const KINDS_EN_ATTENTE = GENRES_EN_ATTENTE
-export const PENDING_KINDS = GENRES_EN_ATTENTE
+).filter((genre) => !genre.endsWith(".lot"))
 
 // Identités historiques des Règles par défaut dérivées, pour conserver
 // l'historique d'Exécution.
@@ -735,9 +773,13 @@ export const FAITS_POUR_REGLES: Partial<
   },
 }
 
-// Liste en attente : Règles par défaut des genres non migrés, conservées ici
-// (et non dans regles.ts) pour qu'une seule source possède la politique.
-export const REGLES_EN_ATTENTE: Array<{
+/**
+ * Les déclencheurs planifiés ne viennent pas d'une écriture d'Administration :
+ * la déclaration nomme donc leurs Règles directement, à côté des Règles
+ * dérivées des plans, pour qu'une seule source possède la politique par
+ * défaut.
+ */
+const REGLES_PLANIFIEES: Array<{
   id: string
   nom: string
   declencheur: TypeEvenementAutomation
@@ -764,11 +806,9 @@ export const REGLES_EN_ATTENTE: Array<{
     actif: false,
   },
 ]
-export const REGLES_NON_MIGREES = REGLES_EN_ATTENTE
-export const PENDING_RULES = REGLES_EN_ATTENTE
 
-// Règles par défaut : les genres migrés les dérivent du plan, les autres viennent
-// de la liste en attente.
+// Règles par défaut : chaque Règle durable vient de la déclaration du genre
+// qui l'émet ; seuls les déclencheurs planifiés sont nommés directement.
 export function reglesParDefaut(): Array<{
   id: string
   nom: string
@@ -791,7 +831,7 @@ export function reglesParDefaut(): Array<{
   // par le nombre de branches : une seule ligne suffit, et l'action lit toutes
   // les destinations de la charge.
   const reglesVues = new Set<string>()
-  for (const genre of GENRES_MIGRES) {
+  for (const genre of GENRES_DERIVES) {
     const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
     const declencheurFait = plan.faits[0]?.declencheur
     for (const c of plan.consequences) {
@@ -811,7 +851,7 @@ export function reglesParDefaut(): Array<{
       })
     }
   }
-  for (const r of REGLES_EN_ATTENTE) {
+  for (const r of REGLES_PLANIFIEES) {
     out.push({ ...r, condition: { type: "toujours" }, actif: r.actif ?? true })
   }
   return out

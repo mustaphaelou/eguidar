@@ -13,6 +13,7 @@ import {
 import { revalidatePath, revalidateTag } from "next/cache"
 
 import { prisma } from "@/lib/db"
+import { verifierFrontiereBestEffort } from "@/test/mutation-squelette-recette"
 import {
   ImageProduitIntrouvableError,
   ImageProduitSuppressionImpossibleError,
@@ -273,6 +274,36 @@ describe("Bibliothèque des médias — lecture, filtres et comptes", () => {
 
     expect(revalidatePath).not.toHaveBeenCalled()
     expect(revalidateTag).not.toHaveBeenCalled()
+  })
+
+  it("n'écrit ni Événement ni Exécution quand le Texte alternatif change", async () => {
+    const evenements = await prisma.automationEvent.count()
+    const executions = await prisma.automationRun.count()
+
+    await mettreAJourTexteAlternatif(URL_A, "Sans outbox")
+
+    expect(await prisma.automationEvent.count()).toBe(evenements)
+    expect(await prisma.automationRun.count()).toBe(executions)
+  })
+
+  it("journalise l'échec de la révalidation sans rien rejouer", async () => {
+    const evenements = await prisma.automationEvent.count()
+    const executions = await prisma.automationRun.count()
+
+    const resultat = await verifierFrontiereBestEffort(
+      "invalidation",
+      (echec) =>
+        mettreAJourTexteAlternatif(URL_A, "Échec sans reprise", {
+          revaliderCatalogue: echec,
+        })
+    )
+
+    expect(resultat).toBe("Échec sans reprise")
+    await expect(
+      prisma.imageProduit.findUnique({ where: { publicUrl: URL_A } })
+    ).resolves.toMatchObject({ alt: "Échec sans reprise" })
+    expect(await prisma.automationEvent.count()).toBe(evenements)
+    expect(await prisma.automationRun.count()).toBe(executions)
   })
 })
 
