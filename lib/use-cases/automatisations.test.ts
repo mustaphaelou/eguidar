@@ -784,7 +784,7 @@ describe("l'éditeur de Règles d'automatisation", () => {
     await attendreUnRefusSansEcriture(
       () =>
         reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
-      "L'Événement a expiré le 2026-10-28T08:59:00.000Z : la fenêtre de rejeu de 24 h est dépassée, rien n'est rejoué.",
+      "L'Événement a expiré le 2026-10-28T08:59:00.000Z : sa fenêtre de rejeu est passée, un réessai pourrait produire un doublon.",
       echec
     )
   })
@@ -847,7 +847,7 @@ describe("l'éditeur de Règles d'automatisation", () => {
     await attendreUnRefusSansEcriture(
       () =>
         reessayerExecution(echec.executionId, dependancesDeTest(MAINTENANT)),
-      "L'Événement a expiré le 2026-10-28T08:59:00.000Z : la fenêtre de rejeu de 24 h est dépassée, rien n'est rejoué.",
+      "L'Événement a expiré le 2026-10-28T08:59:00.000Z : sa fenêtre de rejeu est passée, un réessai pourrait produire un doublon.",
       echec
     )
   })

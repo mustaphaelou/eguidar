@@ -5,6 +5,7 @@ import { Prisma } from "@/lib/generated/prisma/client"
 import {
   TYPES_EVENEMENT_AUTOMATION,
   type TypeEvenementAutomation,
+  typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
 import {
   ACTIONS_AUTOMATION,
@@ -306,3 +307,25 @@ export async function semerLesRegles(
 }
 
 export type TypeEvenementRegle = TypeEvenementAutomation
+
+export function versRegle(ligne: {
+  id: string
+  name: string
+  enabled: boolean
+  trigger: string
+  condition: Prisma.JsonValue
+  action: string
+  actionConfig: Prisma.JsonValue | null
+}): RegleAutomation {
+  return {
+    id: ligne.id,
+    nom: ligne.name,
+    declencheur: typeEvenementAutomationSchema.parse(ligne.trigger),
+    condition: conditionAutomationSchema.parse(ligne.condition),
+    action: ligne.action as ActionAutomation,
+    ...(ligne.actionConfig
+      ? { configuration: configurationRegleSchema.parse(ligne.actionConfig) }
+      : {}),
+    actif: ligne.enabled,
+  }
+}
