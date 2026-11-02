@@ -292,10 +292,11 @@ they are not product surfaces and the shop configures no sender for them:
 - A per-account throttle on the code pathways beyond the per-code attempt cap.
 - Administrative MFA or a second factor on the Administration.
 
-## Open operational item
+## Scrypt cost on the host
 
-The scrypt parameters are the OWASP strongest tier, measured at ~480 ms on the
-development host; their confirmation on the Coolify host is the manual
-benchmark tracked by #837. If that host measures over one second, the next OWASP
-tier (`N=2^16, r=8, p=2`, then `N=2^15, r=8, p=3`) is a one-constant change, and
-the rehash-on-Connexion migrates existing Comptes clients without a reset.
+The scrypt parameters are the OWASP strongest tier. The benchmark ran on the
+Coolify host (`linux arm64`, Node `v22.23.4`, 4 vCPU) on 2026-11-02: about
+331 ms per hash (min 328, max 333), under the one-second rule, against about
+385 ms on the development host. The next OWASP tier (`N=2^16, r=8, p=2`, then
+`N=2^15, r=8, p=3`) remains a one-constant change, and the rehash-on-Connexion
+migrates existing Comptes clients without a reset.

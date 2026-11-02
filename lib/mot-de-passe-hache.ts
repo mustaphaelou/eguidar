@@ -2,9 +2,10 @@ import { randomBytes, scrypt, timingSafeEqual } from "node:crypto"
 
 /**
  * Les paramètres scrypt choisis pour 2026. N=2^17, r=8, p=1 est le palier le
- * plus fort du tableau OWASP, mesuré à ~480 ms sur la machine de développement ;
- * la confirmation sur l'hôte Coolify est suivie par #837, et changer la
- * constante suffit à déclencher un rehachage opportuniste des Comptes clients.
+ * plus fort du tableau OWASP : ~331 ms par empreinte sur l'hôte Coolify
+ * (linux arm64, Node 22) et ~385 ms sur la machine de développement, sous la
+ * cible d'une seconde. Changer la constante suffit à déclencher un rehachage
+ * opportuniste des Comptes clients.
  */
 export const PARAMETRES_SCRYPT = {
   N: 131072,
