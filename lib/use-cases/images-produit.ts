@@ -412,3 +412,11 @@ export async function reconstituerRegistreImagesProduit(): Promise<BilanReconsti
 
   return { ajoutees, supprimees }
 }
+
+export async function supprimerImagesProduitDuStockage(
+  publicUrls: readonly string[]
+): Promise<void> {
+  for (const url of publicUrls) {
+    await stockageImageProduitR2.supprimerImagePersistee(url)
+  }
+}

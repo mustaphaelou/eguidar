@@ -30,8 +30,8 @@ import {
   avecSurcharges,
   messageDeValidation,
   runOrderedEffects,
-  type EffetPostCommit,
 } from "@/lib/use-cases/mutation-squelette"
+import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = {
@@ -343,94 +343,97 @@ export async function placeOrder(
   })
   if (!user) throw new UserNotFoundError()
 
-  const { order, produitsDrainés } = await prisma.$transaction(async (tx) => {
-    const cart = await lirePanierClient(userId, tx)
-    if (cart.lines.length === 0) throw new EmptyCartError()
+  const { order, produitsDrainés, plan } = await prisma.$transaction(
+    async (tx) => {
+      const cart = await lirePanierClient(userId, tx)
+      if (cart.lines.length === 0) throw new EmptyCartError()
 
-    const chargé = await chargerDevis(cart, undefined, tx)
-    const projet = projeterDevis(chargé, data.cityId)
-    const selection = selectionValidee(projet.selection)
-    const city = selection.ville
-    const montants = montantsDeLaCommande(cart.subtotal, selection)
-    // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
-    if (montants.totalPayable !== data.totalAffiche)
-      throw new DevisPériméError()
+      const chargé = await chargerDevis(cart, undefined, tx)
+      const projet = projeterDevis(chargé, data.cityId)
+      const selection = selectionValidee(projet.selection)
+      const city = selection.ville
+      const montants = montantsDeLaCommande(cart.subtotal, selection)
+      // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
+      if (montants.totalPayable !== data.totalAffiche)
+        throw new DevisPériméError()
 
-    const outOfStock = cart.lines
-      .filter((line) => line.quantity > line.stock)
-      .map((line) => ({
-        productName: line.productName,
-        variantName: line.variantName,
-        requested: line.quantity,
-        available: line.stock,
-      }))
-    if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
+      const outOfStock = cart.lines
+        .filter((line) => line.quantity > line.stock)
+        .map((line) => ({
+          productName: line.productName,
+          variantName: line.variantName,
+          requested: line.quantity,
+          available: line.stock,
+        }))
+      if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
 
-    await reserverStock(tx, cart.lines)
-    const produitsDrainés = await produitsTouches(tx, cart.lines)
+      await reserverStock(tx, cart.lines)
+      const produitsDrainés = await produitsTouches(tx, cart.lines)
 
-    const created = await tx.order.create({
-      data: {
-        userId,
-        cityName: city.name,
-        address: data.address,
-        phone: data.phone,
-        ...montants,
-        items: {
-          create: cart.lines.map((line) => ({
-            variantId: line.variantId,
-            productName: line.productName,
-            variantName: line.variantName,
-            price: line.unitPrice,
-            quantity: line.quantity,
-          })),
+      const created = await tx.order.create({
+        data: {
+          userId,
+          cityName: city.name,
+          address: data.address,
+          phone: data.phone,
+          ...montants,
+          items: {
+            create: cart.lines.map((line) => ({
+              variantId: line.variantId,
+              productName: line.productName,
+              variantName: line.variantName,
+              price: line.unitPrice,
+              quantity: line.quantity,
+            })),
+          },
         },
-      },
-      include: { items: true },
-    })
+        include: { items: true },
+      })
 
-    await tx.cartItem.deleteMany({
-      where: {
-        userId,
-        variantId: { in: cart.lines.map((line) => line.variantId) },
-      },
-    })
-    await enregistrerEvenement(tx, {
-      type: "commande.creee",
-      entityType: "commande",
-      entityId: created.id,
-      payload: { snapshot: toOrderEmailSnapshot(created, user.email) },
-    })
-    return { order: created, produitsDrainés }
-  })
+      await tx.cartItem.deleteMany({
+        where: {
+          userId,
+          variantId: { in: cart.lines.map((line) => line.variantId) },
+        },
+      })
+      const plan = declarerApresEcriture("commande.creee", {
+        commandeId: created.id,
+        snapshot: toOrderEmailSnapshot(created, user.email),
+      })
+      if (plan.faits.length > 0) {
+        for (const f of plan.faits) {
+          await enregistrerEvenement(tx, {
+            type: f.declencheur,
+            entityType: f.entite,
+            entityId: f.identifiant,
+            payload: f.charge,
+          })
+        }
+      }
+      return { order: created, produitsDrainés, plan }
+    }
+  )
 
-  await runOrderedEffects([
-    {
-      effet: "email",
-      entite: { type: "commande", id: order.id },
-      message: `[order] e-mail de confirmation non envoyé pour ${order.id}`,
-      fn: () =>
-        effects.sendOrderPlacedEmail(toOrderEmailSnapshot(order, user.email)),
-    },
-    {
-      effet: "invalidation-cache",
-      entite: { type: "commande", id: order.id },
-      message: `[order] invalidation du cache non effectuée pour ${order.id}`,
-      fn: () => effects.invalidateCommande(order.id),
-    },
-    {
-      effet: "purge-catalogue",
-      entite: { type: "commande", id: order.id },
-      message: `[order] purge des documents du catalogue non effectuée pour ${order.id}`,
+  await runOrderedEffects(
+    plan.consequences.map((c) => ({
+      effet: c.effet,
+      entite: c.entite,
+      message: c.message,
       fn: async () => {
-        // La résolution de la Structure suit le commit, une fois pour tous les
-        // Produits : ce n'est pas une recherche par article (#757).
-        await effects.invalidateProduits(
-          await produitsDuCatalogue(produitsDrainés)
-        )
+        if (c.effet === "email") {
+          await effects.sendOrderPlacedEmail(
+            toOrderEmailSnapshot(order, user.email)
+          )
+        } else if (c.effet === "invalidation-cache") {
+          await effects.invalidateCommande(order.id)
+        } else if (c.effet === "purge-catalogue") {
+          await effects.invalidateProduits(
+            await produitsDuCatalogue(produitsDrainés)
+          )
+        }
       },
-    },
-  ])
+    }))
+  )
   return order
 }
 
@@ -497,7 +500,7 @@ export async function updateOrderStatus(
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
-  const { updated, produitsRestockés } = await prisma.$transaction(
+  const { updated, produitsRestockés, plan } = await prisma.$transaction(
     async (tx) => {
       const fresh = await tx.order.findUnique({
         where: { id: orderId },
@@ -526,49 +529,44 @@ export async function updateOrderStatus(
         where: { id: orderId },
         include: { items: true },
       })
-      await enregistrerEvenement(tx, {
-        type: "commande.statut.changee",
-        entityType: "commande",
-        entityId: orderId,
-        payload: {
-          snapshot: toOrderEmailSnapshot(updated, existing.user.email),
-          statut: nextStatus,
-        },
+      const plan = declarerApresEcriture("commande.statut.changee", {
+        commandeId: orderId,
+        snapshot: toOrderEmailSnapshot(updated, existing.user.email),
+        statut: nextStatus,
+        purgeCatalogue: réapprovisionne(nextStatus),
       })
-
-      return { updated, produitsRestockés }
+      if (plan.faits.length > 0) {
+        for (const f of plan.faits) {
+          await enregistrerEvenement(tx, {
+            type: f.declencheur,
+            entityType: f.entite,
+            entityId: f.identifiant,
+            payload: f.charge,
+          })
+        }
+      }
+      return { updated, produitsRestockés, plan }
     }
   )
 
-  const effetsPostCommit: EffetPostCommit[] = [
-    {
-      effet: "email",
-      entite: { type: "commande", id: orderId },
-      message: `[order] e-mail de statut non envoyé pour ${orderId}`,
-      fn: () =>
-        effects.sendOrderStatusEmail(
+  const effetsPostCommit = plan.consequences.map((c) => ({
+    effet: c.effet,
+    entite: c.entite,
+    message: c.message,
+    fn: async () => {
+      if (c.effet === "email") {
+        await effects.sendOrderStatusEmail(
           toOrderEmailSnapshot(updated, existing.user.email),
           updated.status
-        ),
-    },
-    {
-      effet: "invalidation-cache",
-      entite: { type: "commande", id: orderId },
-      message: `[order] invalidation du cache non effectuée pour ${orderId}`,
-      fn: () => effects.invalidateCommande(orderId),
-    },
-  ]
-  if (produitsRestockés !== null) {
-    const produits = produitsRestockés
-    effetsPostCommit.push({
-      effet: "purge-catalogue",
-      entite: { type: "commande", id: orderId },
-      message: `[order] purge des documents du catalogue non effectuée pour ${orderId}`,
-      fn: async () => {
+        )
+      } else if (c.effet === "invalidation-cache") {
+        await effects.invalidateCommande(orderId)
+      } else if (c.effet === "purge-catalogue") {
+        const produits = produitsRestockés ?? []
         await effects.invalidateProduits(await produitsDuCatalogue(produits))
-      },
-    })
-  }
+      }
+    },
+  }))
   await runOrderedEffects(effetsPostCommit)
   return updated
 }

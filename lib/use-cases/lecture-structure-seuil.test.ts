@@ -60,6 +60,24 @@ const SITES_NOMMES: ExceptionLecture[] = [
       "le nom et le slug de la catégorie de chaque Produit que la réconciliation reprojette : le pointeur d'une seule rangée, pas sa place dans l'arbre",
   },
   {
+    chemin: "lib/automations/actions.ts",
+    voie: "delegue",
+    extrait: `prisma.${FORME.delegue}.findMany`,
+    declaration: "collecterIdsBranche",
+    herite: false,
+    raison:
+      "la liste des catégories pour résoudre la branche d'une Structure réindexée par le travailleur : le pointeur des rangées, pas leur place dans l'arbre",
+  },
+  {
+    chemin: "lib/automations/actions.ts",
+    voie: "relation",
+    extrait: `include: ${FORME.champ}`,
+    declaration: "indexerStructure",
+    herite: false,
+    raison:
+      "le nom et le slug de la catégorie des Produits d'une branche réindexée par le travailleur : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+  },
+  {
     chemin: "lib/use-cases/admin-catalog.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
@@ -280,10 +298,10 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
     expect(heritees.length).toBe(3)
-    expect(SITES_NOMMES).toHaveLength(19)
-    expect(SITES_NOMMES).toHaveLength(heritees.length + 16)
+    expect(SITES_NOMMES).toHaveLength(21)
+    expect(SITES_NOMMES).toHaveLength(heritees.length + 18)
 
-    const attenduesParVoie = { relation: 11, delegue: 8 }
+    const attenduesParVoie = { relation: 12, delegue: 9 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,

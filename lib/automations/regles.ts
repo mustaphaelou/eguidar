@@ -183,6 +183,22 @@ export const REGLES_AUTOMATION: readonly RegleAutomation[] = Object.freeze(
       actif: true,
     },
     {
+      id: "indexation-structure",
+      nom: "Indexation de la Structure",
+      declencheur: "structure.modifiee",
+      condition: { type: "toujours" },
+      action: "index.structure",
+      actif: true,
+    },
+    {
+      id: "suppression-images-produit",
+      nom: "Suppression des images",
+      declencheur: "produit.supprime",
+      condition: { type: "toujours" },
+      action: "suppression.images",
+      actif: true,
+    },
+    {
       id: "digest-stock-bas",
       nom: "Digest du stock bas",
       declencheur: "planification.digest-stock-bas",

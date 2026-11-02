@@ -38,6 +38,7 @@ import {
   type CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
+import { supprimerImagesProduitDuStockage } from "@/lib/use-cases/images-produit"
 
 export interface EntreeEmailDigest {
   destinataire: string
@@ -296,6 +297,71 @@ async function reconcilierRecherche(contexte: ContexteAction): Promise<void> {
   contexte.dependances.signaler(rapport.texte)
 }
 
+async function collecterIdsBranche(
+  categorieId: string | null
+): Promise<string[]> {
+  if (!categorieId) return []
+  const tous = await prisma.category.findMany({
+    select: { id: true, parentId: true },
+  })
+  const enfants = new Map<string, string[]>()
+  for (const c of tous) {
+    if (c.parentId) {
+      if (!enfants.has(c.parentId)) enfants.set(c.parentId, [])
+      enfants.get(c.parentId)!.push(c.id)
+    }
+  }
+  const resultat: string[] = []
+  const pile = [categorieId]
+  while (pile.length) {
+    const id = pile.pop()!
+    resultat.push(id)
+    for (const enfant of enfants.get(id) ?? []) pile.push(enfant)
+  }
+  return resultat
+}
+
+async function indexerStructure(contexte: ContexteAction): Promise<void> {
+  const payload = contexte.evenement.payload as Record<string, unknown>
+  const destinations = Array.isArray(payload.destinations)
+    ? (payload.destinations as string[])
+    : payload.destination
+      ? [String(payload.destination)]
+      : payload.categorieId
+        ? [String(payload.categorieId)]
+        : []
+  const cibles = destinations.length > 0 ? destinations : [null]
+  for (const dest of cibles) {
+    const idsBranches = dest === null ? [] : await collecterIdsBranche(dest)
+    const where =
+      dest === null ? { categoryId: null } : { categoryId: { in: idsBranches } }
+    const produits = await prisma.product.findMany({
+      where,
+      include: { variants: true, category: true },
+    })
+    if (produits.length > 0) {
+      await contexte.dependances.recherche.indexer(
+        produits.map(toIndexableProduct)
+      )
+    }
+  }
+}
+
+async function supprimerImages(contexte: ContexteAction): Promise<void> {
+  const payload = contexte.evenement.payload as Record<string, unknown>
+  const urls = new Set<string>()
+  for (const cle of ["urls", "images", "imagesRetirees"]) {
+    const v = payload[cle]
+    if (Array.isArray(v))
+      for (const u of v) if (typeof u === "string") urls.add(u)
+  }
+  for (const cle of ["url", "image", "imageRetiree"]) {
+    const v = payload[cle]
+    if (typeof v === "string") urls.add(v)
+  }
+  await supprimerImagesProduitDuStockage([...urls])
+}
+
 const ACTIONS: Record<
   ActionAutomation,
   (contexte: ContexteAction) => Promise<void>
@@ -306,6 +372,8 @@ const ACTIONS: Record<
   "desindex.produit": desindexerProduit,
   "invalidation.catalogue": invaliderCatalogue,
   "invalidation.structure": invaliderStructure,
+  "index.structure": indexerStructure,
+  "suppression.images": supprimerImages,
   "purge.catalogue": purgerCatalogue,
   "digest.stock-bas": envoyerDigestStockBas,
   "digest.proprietaire": envoyerDigestProprietaire,
