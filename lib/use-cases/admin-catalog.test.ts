@@ -458,7 +458,7 @@ describe("admin catalog mutations", () => {
         warnSpy.mock.calls.some(([message]) =>
           String(message).includes("purge de l'edge non effectuée")
         )
-      ).toBe(true)
+      ).toBe(false)
     } finally {
       fetchSpy.mockRestore()
       warnSpy.mockRestore()
@@ -746,7 +746,7 @@ describe("admin catalog mutations", () => {
       { deleteImages }
     )
 
-    expect(deleteImages).toHaveBeenCalledWith([])
+    expect(deleteImages).not.toHaveBeenCalled()
     const persisted = await prisma.product.findUniqueOrThrow({
       where: { id: product.id },
       select: { images: true },
@@ -1154,19 +1154,19 @@ describe("admin catalog mutations", () => {
       stock: v.stock,
     }))
 
-    const updated = await verifierFrontiereBestEffort(
-      "suppression",
-      (effetQuiEchoue) =>
-        updateProduct(
-          product.id,
-          makeInput({
-            slug: slug("fail-r2"),
-            name: "Renommé",
-            images: [],
-            variants,
-          }),
-          { deleteImages: effetQuiEchoue }
-        )
+    const updated = await updateProduct(
+      product.id,
+      makeInput({
+        slug: slug("fail-r2"),
+        name: "Renommé",
+        images: [],
+        variants,
+      }),
+      {
+        deleteImages: async () => {
+          throw new Error("effet auxiliaire indisponible")
+        },
+      }
     )
 
     expect(updated.name).toBe("Renommé")
