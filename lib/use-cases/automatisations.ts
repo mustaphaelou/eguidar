@@ -17,12 +17,16 @@ import {
   type DependancesAutomations,
 } from "@/lib/automations/actions"
 import {
-  conditionAutomationSchema,
-  configurationRegleSchema,
   ecrireRevisionRegle,
   verifierRegle,
+  versRegle,
   type RegleAutomation,
 } from "@/lib/automations/regles"
+import {
+  annulerExecutionsEnCours,
+  ouvrirReessai,
+  terminerExecution,
+} from "@/lib/automations/executions"
 import {
   LIBELLES_ACTION,
   libelleBrutDuDeclencheur,
@@ -81,8 +85,6 @@ export class RegleValidationError extends UserFacingError {
     this.name = "RegleValidationError"
   }
 }
-
-export const MOTIF_ANNULATION = "annulée : règle désactivée"
 
 /** Ce que l'éditeur compose : les valeurs brutes du formulaire. */
 export interface EntreeRegle {
@@ -158,28 +160,6 @@ function verifierOuRefuser(entree: unknown): RegleAutomation {
       )
     }
     throw error
-  }
-}
-
-function versRegle(ligne: {
-  id: string
-  name: string
-  enabled: boolean
-  trigger: string
-  condition: Prisma.JsonValue
-  action: string
-  actionConfig: Prisma.JsonValue | null
-}): RegleAutomation {
-  return {
-    id: ligne.id,
-    nom: ligne.name,
-    declencheur: typeEvenementAutomationSchema.parse(ligne.trigger),
-    condition: conditionAutomationSchema.parse(ligne.condition),
-    action: ligne.action as ActionAutomation,
-    ...(ligne.actionConfig
-      ? { configuration: configurationRegleSchema.parse(ligne.actionConfig) }
-      : {}),
-    actif: ligne.enabled,
   }
 }
 
@@ -344,52 +324,10 @@ export async function basculerRegle(
       where: { id: regleId },
       data: { enabled: actif },
     })
-    if (!actif) await annulerExecutionsEnCours(tx, regleId, maintenant)
+    if (!actif)
+      await annulerExecutionsEnCours({ regleId, maintenant, client: tx })
     await ecrireRevisionRegle(tx, regle, auteur, maintenant)
   })
-}
-
-async function annulerExecutionsEnCours(
-  tx: Prisma.TransactionClient,
-  regleId: string,
-  maintenant: Date
-): Promise<number> {
-  const executions = await tx.automationRun.findMany({
-    where: { ruleId: regleId, status: "en_cours" },
-    select: { id: true, startedAt: true, eventId: true },
-  })
-  if (executions.length === 0) return 0
-
-  for (const execution of executions) {
-    await tx.automationRun.update({
-      where: { id: execution.id },
-      data: {
-        status: "ignore",
-        lastError: MOTIF_ANNULATION,
-        finishedAt: maintenant,
-        durationMs: Math.max(
-          0,
-          maintenant.getTime() - execution.startedAt.getTime()
-        ),
-      },
-    })
-  }
-
-  const evenements = [
-    ...new Set(
-      executions
-        .map((execution) => execution.eventId)
-        .filter((eventId): eventId is string => eventId !== null)
-    ),
-  ]
-  if (evenements.length > 0) {
-    await tx.automationEvent.updateMany({
-      where: { id: { in: evenements }, status: "en_cours" },
-      data: { lockedUntil: null },
-    })
-  }
-
-  return executions.length
 }
 
 export interface EvenementSimulable {
@@ -583,106 +521,90 @@ export async function reessayerExecution(
   const evenement = execution.event
   const maintenant = dependances.maintenant
 
-  const decision = deciderAutomation(execution.rule, evenement, maintenant)
+  const decision = deciderAutomation(
+    {
+      trigger: regle.declencheur,
+      enabled: regle.actif,
+      condition: regle.condition,
+    },
+    {
+      type: evenement.type,
+      payload: evenement.payload,
+      expiresAt: evenement.expiresAt,
+    },
+    maintenant
+  )
   if (decision.decision === "ignorer") {
+    if (decision.raison.type === "evenement-expire") {
+      throw new ReessaiRefuseError(
+        `L'Événement a expiré le ${evenement.expiresAt.toISOString()} : sa fenêtre de rejeu est passée, un réessai pourrait produire un doublon.`
+      )
+    }
     throw new ReessaiRefuseError(motifDuReessaiRefuse(decision.raison))
   }
 
-  const reessai = await prisma.$transaction(async (tx) => {
-    const agregat = await tx.automationRun.aggregate({
-      where: { eventId: evenement.id, ruleId: regle.id },
-      _max: { attempt: true },
-    })
-    return tx.automationRun.create({
-      data: {
-        eventId: evenement.id,
-        ruleId: regle.id,
-        action: regle.action,
-        status: "en_cours",
-        attempt: (agregat._max.attempt ?? 0) + 1,
-        startedAt: maintenant,
-        trigger: "manuel",
-      },
-    })
-  })
+  const ouverture = await ouvrirReessai(executionId, { maintenant })
+  if (!ouverture.ok) {
+    switch (ouverture.raison) {
+      case "introuvable":
+        throw new ExecutionIntrouvableError()
+      case "pas-en-echec":
+        throw new ReessaiRefuseError(
+          "Seule une Exécution en échec peut être réessayée"
+        )
+      case "evenement-disparu":
+        throw new ReessaiRefuseError(
+          "L'Événement de cette Exécution n'existe plus : rien à rejouer"
+        )
+      case "regle-disparue":
+        throw new ReessaiRefuseError(
+          "La Règle de cette Exécution n'existe plus : rien à rejouer"
+        )
+      case "expire":
+        throw new ReessaiRefuseError(
+          `L'Événement a expiré le ${evenement.expiresAt.toISOString()} : sa fenêtre de rejeu est passée, un réessai pourrait produire un doublon.`
+        )
+    }
+  }
+
+  const reessaiId = ouverture.execution.id
+  const regleOuverte = ouverture.regle
+  const evenementOuvert = ouverture.evenement
 
   try {
     await executerLAction({
       evenement: {
-        type: typeEvenementAutomationSchema.parse(evenement.type),
-        entityType: typeEntiteAutomationSchema.parse(evenement.entityType),
-        entityId: evenement.entityId,
-        payload: evenement.payload,
+        type: typeEvenementAutomationSchema.parse(evenementOuvert.type),
+        entityType: typeEntiteAutomationSchema.parse(
+          evenementOuvert.entityType
+        ),
+        entityId: evenementOuvert.entityId,
+        payload: evenementOuvert.payload,
       },
       regle: {
-        id: regle.id,
-        action: regle.action,
-        configuration: regle.configuration,
+        id: regleOuverte.id,
+        action: regleOuverte.action,
+        configuration: regleOuverte.configuration,
       },
       dependances,
     })
+    await terminerExecution({
+      executionId: reessaiId,
+      issue: "reussi",
+      maintenant,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    await prisma.automationRun.update({
-      where: { id: reessai.id },
-      data: {
-        status: "echoue",
-        lastError: message,
-        finishedAt: maintenant,
-        durationMs: Math.max(
-          0,
-          maintenant.getTime() - reessai.startedAt.getTime()
-        ),
-      },
+    await terminerExecution({
+      executionId: reessaiId,
+      issue: "echoue",
+      erreur: message,
+      maintenant,
     })
-    return { executionId: reessai.id, statut: "echoue", erreur: message }
+    return { executionId: reessaiId, statut: "echoue", erreur: message }
   }
 
-  await prisma.automationRun.update({
-    where: { id: reessai.id },
-    data: {
-      status: "reussi",
-      lastError: null,
-      finishedAt: maintenant,
-      durationMs: Math.max(
-        0,
-        maintenant.getTime() - reessai.startedAt.getTime()
-      ),
-    },
-  })
-
-  if (await plusAucuneRegleEnEchec(evenement.id, regle.id)) {
-    await prisma.automationEvent.updateMany({
-      where: { id: evenement.id },
-      data: { status: "reussi", lastError: null, lockedUntil: null },
-    })
-  }
-
-  return { executionId: reessai.id, statut: "reussi", erreur: null }
-}
-
-/**
- * L'Événement ne redevient « réussi » que si aucune **autre** règle n'a encore
- * sa dernière Exécution en échec : un réessai ne masque pas l'échec du voisin.
- */
-async function plusAucuneRegleEnEchec(
-  eventId: string,
-  regleReessayee: string
-): Promise<boolean> {
-  const executions = await prisma.automationRun.findMany({
-    where: { eventId },
-    orderBy: { startedAt: "desc" },
-    select: { ruleId: true, status: true },
-  })
-  const derniereParRegle = new Map<string, string>()
-  for (const execution of executions) {
-    if (!execution.ruleId) continue
-    if (derniereParRegle.has(execution.ruleId)) continue
-    derniereParRegle.set(execution.ruleId, execution.status)
-  }
-  return [...derniereParRegle.entries()].every(
-    ([ruleId, statut]) => ruleId === regleReessayee || statut !== "echoue"
-  )
+  return { executionId: reessaiId, statut: "reussi", erreur: null }
 }
 
 export type { ActionAutomation, TypeConditionAutomation }
