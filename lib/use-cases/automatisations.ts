@@ -17,8 +17,6 @@ import {
   type DependancesAutomations,
 } from "@/lib/automations/actions"
 import {
-  conditionAutomationSchema,
-  configurationRegleSchema,
   ecrireRevisionRegle,
   verifierRegle,
   versRegle,
@@ -26,7 +24,6 @@ import {
 } from "@/lib/automations/regles"
 import {
   annulerExecutionsEnCours,
-  MOTIF_ANNULATION,
   ouvrirReessai,
   terminerExecution,
 } from "@/lib/automations/executions"
