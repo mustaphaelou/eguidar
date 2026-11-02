@@ -58,6 +58,23 @@ async function ecrireEvenement(produitId: string, urls: string[]) {
   )
 }
 
+async function ecrireEvenementDeSuppression(produitId: string, urls: string[]) {
+  await prisma.$transaction((tx) =>
+    enregistrerEvenement(tx, {
+      type: "produit.supprime",
+      entityType: "produit",
+      entityId: produitId,
+      occurredAt: MAINTENANT,
+      payload: {
+        produitId,
+        slug: `produit-${produitId}`,
+        categoryId: null,
+        images: urls,
+      },
+    })
+  )
+}
+
 beforeEach(async () => {
   await prisma.automationRun.deleteMany()
   await prisma.automationEvent.deleteMany()
@@ -144,5 +161,45 @@ describe("l'action suppression.images", () => {
     })
     expect(relu.status).toBe("reussi")
     expect(relu.lastError).toBeNull()
+  })
+
+  it("supprime les images d'un Produit supprimé et laisse un réessai après échec", async () => {
+    const produitId = randomUUID()
+    const urls = urlsRetirees()
+    await ecrireEvenementDeSuppression(produitId, urls)
+    supprimerImagePersisteeMock.mockRejectedValueOnce(
+      new Error("R2 indisponible")
+    )
+
+    const delai = 60_000
+    const premier = await executerLesEvenements(
+      options(MAINTENANT, () => delai),
+      dependancesDeTest(MAINTENANT)
+    )
+
+    expect(premier.echoues).toBeGreaterThan(0)
+    const echec = await prisma.automationRun.findFirstOrThrow({
+      where: { ruleId: "suppression-images-produit" },
+    })
+    expect(echec.status).toBe("echoue")
+    expect(echec.lastError).toContain("R2 indisponible")
+
+    const plusTard = new Date(MAINTENANT.getTime() + delai + 1)
+    await executerLesEvenements(
+      options(plusTard, () => 0),
+      dependancesDeTest(plusTard)
+    )
+
+    const executions = await prisma.automationRun.findMany({
+      where: { ruleId: "suppression-images-produit" },
+      orderBy: { attempt: "asc" },
+    })
+    expect(executions.map((execution) => execution.status)).toEqual([
+      "echoue",
+      "reussi",
+    ])
+    expect(
+      new Set(supprimerImagePersisteeMock.mock.calls.map(([url]) => url))
+    ).toEqual(new Set(urls))
   })
 })

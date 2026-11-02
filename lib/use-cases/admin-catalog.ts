@@ -858,44 +858,58 @@ export async function deleteProduct(
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
-  const existing = await prisma.$transaction(async (tx) => {
+  const { produit, images, plan } = await prisma.$transaction(async (tx) => {
     const produit = await tx.product.findUnique({ where: { id } })
     if (!produit) throw new ProductNotFoundError()
 
-    await tx.product.delete({ where: { id } })
-    await enregistrerEvenement(tx, {
-      type: "produit.supprime",
-      entityType: "produit",
-      entityId: id,
-      payload: {
-        produitId: id,
-        slug: produit.slug,
-        categoryId: produit.categoryId,
-      },
+    const images = urlsImagesProduit(produit.images)
+    const plan = declarerApresEcriture("produit.supprime", {
+      produitId: produit.id,
+      slug: produit.slug,
+      categoryId: produit.categoryId,
+      images,
     })
-    return produit
+    await tx.product.delete({ where: { id } })
+    for (const fait of plan.faits) {
+      await enregistrerEvenement(tx, {
+        type: fait.declencheur,
+        entityType: fait.entite,
+        entityId: fait.identifiant,
+        payload: fait.charge,
+      })
+    }
+    return { produit, images, plan }
   })
-  await runEffect({
-    effet: "suppression-images",
-    entite: { type: "produit", id },
-    message: `[catalog] suppression d'images R2 non effectuée pour ${id}`,
-    fn: () => effects.deleteImages(urlsImagesProduit(existing.images)),
+
+  // Une seule lecture de la Structure après le commit pour l'invalidation et
+  // la purge, comme pour l'enregistrement.
+  let chainesLues:
+    Promise<Awaited<ReturnType<typeof chainesDuProduit>>> | undefined
+  const chaines = () => (chainesLues ??= chainesDuProduit(produit.categoryId))
+  const evenementCatalogue = async () => ({
+    id: produit.id,
+    slug: produit.slug,
+    ...(await chaines()),
   })
-  await runEffect({
-    effet: "desindexation",
-    entite: { type: "produit", id },
-    message: `[catalog] suppression de l'index Meilisearch non effectuée pour ${id}`,
-    fn: () => effects.removeProductFromIndex(id),
-  })
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "produit", id },
-    message: `[catalog] invalidation du cache non effectuée pour ${id}`,
-    fn: async () => {
-      const chaines = await chainesDuProduit(existing.categoryId)
-      await effects.revalidateCatalog({ id, slug: existing.slug, ...chaines })
-    },
-  })
+  await runOrderedEffects(
+    plan.consequences.map((consequence) => ({
+      effet: consequence.effet,
+      entite: consequence.entite,
+      message: consequence.message,
+      portee: consequence.portee,
+      fn: async () => {
+        if (consequence.effet === "suppression-images") {
+          await effects.deleteImages(images)
+        } else if (consequence.effet === "desindexation") {
+          await effects.removeProductFromIndex(produit.id)
+        } else if (consequence.effet === "invalidation-cache") {
+          await effects.revalidateCatalog(await evenementCatalogue())
+        } else if (consequence.effet === "purge-catalogue") {
+          await effects.purgeCatalogue(await evenementCatalogue())
+        }
+      },
+    }))
+  )
 }
 
 export interface RapportLot {
@@ -1111,49 +1125,64 @@ export async function bulkDelete(
   )
   if (partage.succes.length === 0) return partage
 
-  const supprimes = new Set(partage.succes)
+  const parId = new Map(existants.map((produit) => [produit.id, produit]))
+  const produits = partage.succes.map((id) => {
+    const produit = parId.get(id)!
+    return {
+      id: produit.id,
+      slug: produit.slug,
+      categoryId: produit.categoryId,
+      images: urlsImagesProduit(produit.images),
+    }
+  })
+  const plan = declarerApresEcriture("produit.supprime.lot", {
+    produitIds: produits.map((produit) => produit.id),
+    produits,
+  })
   await prisma.$transaction(async (tx) => {
     await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
-    for (const produit of existants) {
-      if (!supprimes.has(produit.id)) continue
+    for (const fait of plan.faits) {
       await enregistrerEvenement(tx, {
-        type: "produit.supprime",
-        entityType: "produit",
-        entityId: produit.id,
-        payload: {
-          produitId: produit.id,
-          slug: produit.slug,
-          categoryId: produit.categoryId,
-        },
+        type: fait.declencheur,
+        entityType: fait.entite,
+        entityId: fait.identifiant,
+        payload: fait.charge,
       })
     }
   })
   const lecture = await lireStructure()
-  for (const produit of existants) {
-    await runEffect({
-      effet: "suppression-images",
-      entite: { type: "produit", id: produit.id },
-      message: `[catalog] suppression d'images R2 non effectuée pour ${produit.id}`,
-      fn: () => effects.deleteImages(urlsImagesProduit(produit.images)),
-    })
-    await runEffect({
-      effet: "desindexation",
-      entite: { type: "produit", id: produit.id },
-      message: `[catalog] suppression de l'index Meilisearch non effectuée pour ${produit.id}`,
-      fn: () => effects.removeProductFromIndex(produit.id),
-    })
-    await runEffect({
-      effet: "invalidation-cache",
-      entite: { type: "produit", id: produit.id },
-      message: `[catalog] invalidation du cache non effectuée pour ${produit.id}`,
-      fn: () =>
-        effects.revalidateCatalog({
-          id: produit.id,
-          slug: produit.slug,
-          categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
-        }),
-    })
-  }
+  const evenements = produits.map((produit) => ({
+    id: produit.id,
+    slug: produit.slug,
+    categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+  }))
+  await runOrderedEffects(
+    plan.consequences.map((consequence) => ({
+      effet: consequence.effet,
+      entite: consequence.entite,
+      message: consequence.message,
+      portee: consequence.portee,
+      fn: async () => {
+        if (consequence.effet === "suppression-images") {
+          await effects.deleteImages(
+            produits.flatMap((produit) => produit.images)
+          )
+        } else if (consequence.effet === "desindexation") {
+          for (const produit of produits) {
+            await effects.removeProductFromIndex(produit.id)
+          }
+        } else if (consequence.effet === "invalidation-cache") {
+          for (const evenement of evenements) {
+            await effects.revalidateCatalog(evenement)
+          }
+        } else if (consequence.effet === "purge-catalogue") {
+          for (const evenement of evenements) {
+            await effects.purgeCatalogue(evenement)
+          }
+        }
+      },
+    }))
+  )
   return partage
 }
 

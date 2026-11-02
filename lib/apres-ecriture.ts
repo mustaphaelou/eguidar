@@ -319,23 +319,53 @@ const produitSupprime: Declaration = (f) => {
 }
 
 const produitSupprimeLot: Declaration = (f) => {
-  const ids = (f.produitIds as string[]) ?? []
+  const produitsInput = (f.produits as Array<Record<string, unknown>>) ?? []
+  const ids =
+    (f.produitIds as string[]) ??
+    produitsInput.map((produit) => String(produit.id ?? produit.produitId))
+  const produits = ids.map((id, index) => {
+    const produit = produitsInput[index] ?? {}
+    return {
+      id,
+      slug: produit.slug ?? null,
+      categoryId: produit.categoryId ?? null,
+      images: (produit.images as string[]) ?? [],
+    }
+  })
+  const portee = ids.length
   return {
-    faits: ids.map((id) =>
-      fait("produit.supprime", "produit", id, { produitId: id })
+    faits: produits.map((produit) =>
+      fait("produit.supprime", "produit", produit.id, {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+        images: produit.images,
+      })
     ),
     consequences: [
       consequence(
         "suppression-images",
         { type: "produit", id: "lot" },
         `suppression des images groupée`,
-        { action: "suppression.images", durable: true, portee: ids.length }
+        { action: "suppression.images", durable: true, portee }
       ),
       consequence(
         "desindexation",
         { type: "produit", id: "lot" },
         `désindexation groupée`,
-        { action: "desindex.produit", durable: true, portee: ids.length }
+        { action: "desindex.produit", durable: true, portee }
+      ),
+      consequence(
+        "invalidation-cache",
+        { type: "produit", id: "lot" },
+        `invalidation du catalogue groupée après suppression`,
+        { action: "invalidation.catalogue", durable: true, portee }
+      ),
+      consequence(
+        "purge-catalogue",
+        { type: "produit", id: "lot" },
+        `purge du bord groupée après suppression`,
+        { action: "purge.catalogue", durable: true, portee }
       ),
     ],
   }
@@ -554,6 +584,7 @@ export const GENRES_MIGRES: GenreEcriture[] = [
   "commande.creee",
   "commande.statut.changee",
   "produit.enregistre",
+  "produit.supprime",
 ]
 export const KINDS_MIGRES = GENRES_MIGRES
 export const MIGRATED_KINDS = GENRES_MIGRES
@@ -589,6 +620,22 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
   "produit.enregistre|suppression.images": {
     id: "suppression-images-produit-enregistre",
     nom: "Suppression des images retirées",
+  },
+  "produit.supprime|suppression.images": {
+    id: "suppression-images-produit",
+    nom: "Suppression des images",
+  },
+  "produit.supprime|desindex.produit": {
+    id: "desindexation-produit",
+    nom: "Désindexation du Produit",
+  },
+  "produit.supprime|invalidation.catalogue": {
+    id: "invalidation-catalogue-suppression",
+    nom: "Invalidation après suppression",
+  },
+  "produit.supprime|purge.catalogue": {
+    id: "purge-catalogue-suppression",
+    nom: "Purge après suppression",
   },
 }
 
@@ -632,18 +679,6 @@ export const REGLES_EN_ATTENTE: Array<{
     action: "index.produit",
   },
   {
-    id: "desindexation-produit",
-    nom: "Désindexation du Produit",
-    declencheur: "produit.supprime",
-    action: "desindex.produit",
-  },
-  {
-    id: "invalidation-catalogue-suppression",
-    nom: "Invalidation après suppression",
-    declencheur: "produit.supprime",
-    action: "invalidation.catalogue",
-  },
-  {
     id: "invalidation-structure",
     nom: "Invalidation de la Structure",
     declencheur: "structure.creee",
@@ -666,12 +701,6 @@ export const REGLES_EN_ATTENTE: Array<{
     nom: "Indexation de la Structure",
     declencheur: "structure.modifiee",
     action: "index.structure",
-  },
-  {
-    id: "suppression-images-produit",
-    nom: "Suppression des images",
-    declencheur: "produit.supprime",
-    action: "suppression.images",
   },
   {
     id: "digest-stock-bas",

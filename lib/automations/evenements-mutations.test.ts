@@ -266,6 +266,12 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
       "produit.enregistre",
       "produit.supprime",
     ])
+    expect(evenements[1]!.payload).toEqual({
+      produitId: produit.id,
+      slug: produit.slug,
+      categoryId,
+      images: [],
+    })
   })
 
   it("le stock d'une Variante écrit variante.stock.changee dans la transaction", async () => {

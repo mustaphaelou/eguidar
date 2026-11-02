@@ -131,6 +131,105 @@ describe("la déclaration de produit.enregistre", () => {
   })
 })
 
+describe("la déclaration de produit.supprime", () => {
+  it("ordonne les quatre conséquences durables du Produit supprimé", () => {
+    const plan = declarerApresEcriture("produit.supprime", {
+      produitId: PRODUIT,
+      slug: SLUG,
+      categoryId: "structure",
+      images: ["https://cdn.example.test/a.jpg"],
+    })
+
+    expect(effets(plan)).toEqual([
+      "suppression-images",
+      "desindexation",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
+    expect(durable(plan)).toEqual([
+      "suppression-images",
+      "desindexation",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
+    expect(actions(plan)).toEqual([
+      "suppression.images",
+      "desindex.produit",
+      "invalidation.catalogue",
+      "purge.catalogue",
+    ])
+    for (const consequence of plan.consequences) {
+      if (consequence.durable) expect(consequence.reparation).toBeUndefined()
+    }
+  })
+
+  it("porte l'identité, le slug, la Structure et toutes les URL dans le fait", () => {
+    const images = [
+      "https://cdn.example.test/une.jpg",
+      "https://cdn.example.test/deux.jpg",
+    ]
+    const plan = declarerApresEcriture("produit.supprime", {
+      produitId: PRODUIT,
+      slug: SLUG,
+      categoryId: "structure",
+      images,
+    })
+
+    expect(plan.faits).toEqual([
+      {
+        declencheur: "produit.supprime",
+        entite: "produit",
+        identifiant: PRODUIT,
+        charge: {
+          produitId: PRODUIT,
+          slug: SLUG,
+          categoryId: "structure",
+          images,
+        },
+      },
+    ])
+  })
+})
+
+describe("la déclaration de produit.supprime.lot", () => {
+  it("émet un fait complet par Produit et une conséquence groupée par effet avec sa portée", () => {
+    const plan = declarerApresEcriture("produit.supprime.lot", {
+      produits: [
+        {
+          id: "a",
+          slug: "a",
+          categoryId: "structure",
+          images: ["https://cdn.example.test/a.jpg"],
+        },
+        { id: "b", slug: "b", categoryId: null, images: [] },
+      ],
+    })
+
+    expect(plan.faits.map((fait) => fait.identifiant)).toEqual(["a", "b"])
+    expect(
+      plan.faits.every((fait) => fait.declencheur === "produit.supprime")
+    ).toBe(true)
+    expect(plan.faits[1]!.charge).toEqual({
+      produitId: "b",
+      slug: "b",
+      categoryId: null,
+      images: [],
+    })
+    expect(effets(plan)).toEqual([
+      "suppression-images",
+      "desindexation",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
+    expect(plan.consequences.map((consequence) => consequence.portee)).toEqual([
+      2, 2, 2, 2,
+    ])
+    for (const consequence of plan.consequences) {
+      expect(consequence).toMatchObject({ durable: true, portee: 2 })
+    }
+  })
+})
+
 describe("la déclaration de produit.enregistre.lot", () => {
   it("émet un fait par Produit et une réindexation groupée portant sa portée", () => {
     const plan = declarerApresEcriture("produit.enregistre.lot", {
@@ -176,6 +275,32 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
     })
     const actionsDurables = actions(plan).sort()
     expect(regles.map((regle) => regle.action).sort()).toEqual(actionsDurables)
+  })
+
+  it("réutilise les identités de suppression et crée la Règle de purge", () => {
+    const regles = reglesParDefaut().filter(
+      (regle) => regle.declencheur === "produit.supprime"
+    )
+
+    expect(regles.map((regle) => [regle.id, regle.action])).toEqual([
+      ["suppression-images-produit", "suppression.images"],
+      ["desindexation-produit", "desindex.produit"],
+      ["invalidation-catalogue-suppression", "invalidation.catalogue"],
+      ["purge-catalogue-suppression", "purge.catalogue"],
+    ])
+    const plan = declarerApresEcriture("produit.supprime", {
+      produitId: PRODUIT,
+      images: ["https://cdn.example.test/une.jpg"],
+    })
+    expect(regles.map((regle) => regle.action).sort()).toEqual(
+      actions(plan).sort()
+    )
+  })
+
+  it("ne dérive jamais deux Règles de même identité", () => {
+    const identifiants = reglesParDefaut().map((regle) => regle.id)
+
+    expect(new Set(identifiants).size).toBe(identifiants.length)
   })
 
   it("ne crée aucune Règle pour les conséquences non durables", () => {

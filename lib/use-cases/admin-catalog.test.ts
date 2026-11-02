@@ -11,6 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   CatalogValidationError,
   createProduct,
@@ -1027,13 +1028,20 @@ describe("admin catalog mutations", () => {
   it("deletes the product with its variants and clears the search index", async () => {
     const removeProductFromIndex = vi.fn(async () => {})
     const revalidateCatalog = vi.fn()
+    const purgeCatalogue = vi.fn()
     const deleteImages = vi.fn(async () => {})
-    const product = await createProduct(makeInput({ slug: slug("delete") }))
+    const product = await createProduct(
+      makeInput({
+        slug: slug("delete"),
+        images: ["https://cdn.example.com/delete-1.jpg"],
+      })
+    )
 
     await deleteProduct(product.id, {
       deleteImages,
       removeProductFromIndex,
       revalidateCatalog,
+      purgeCatalogue,
     })
 
     await expect(
@@ -1044,10 +1052,25 @@ describe("admin catalog mutations", () => {
     })
     expect(variantCount).toBe(0)
     expect(removeProductFromIndex).toHaveBeenCalledWith(product.id)
-    expect(revalidateCatalog).toHaveBeenCalledWith({
+    expect(deleteImages).toHaveBeenCalledWith([
+      "https://cdn.example.com/delete-1.jpg",
+    ])
+    const evenement = {
       id: product.id,
       slug: product.slug,
       categoryChain: [{ slug: `categorie-${runId}` }],
+    }
+    expect(revalidateCatalog).toHaveBeenCalledWith(evenement)
+    expect(purgeCatalogue).toHaveBeenCalledWith(evenement)
+    const evenements = await prisma.automationEvent.findMany({
+      where: { type: "produit.supprime", entityId: product.id },
+    })
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]!.payload).toEqual({
+      produitId: product.id,
+      slug: product.slug,
+      categoryId: product.categoryId,
+      images: ["https://cdn.example.com/delete-1.jpg"],
     })
   })
 
@@ -1065,6 +1088,48 @@ describe("admin catalog mutations", () => {
 
     expect(deleteImages).toHaveBeenCalledOnce()
     expect(deleteImages).toHaveBeenCalledWith(images)
+  })
+
+  it("n'appelle aucun effet et n'écrit aucun Événement quand la suppression est annulée", async () => {
+    const product = await createProduct(makeInput({ slug: slug("rollback") }))
+    const deleteImages = vi.fn(async () => {})
+    const removeProductFromIndex = vi.fn(async () => {})
+    const revalidateCatalog = vi.fn()
+    const purgeCatalogue = vi.fn()
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après l'Événement de suppression")
+      })) as unknown as typeof prisma.$transaction)
+
+    try {
+      await expect(
+        deleteProduct(product.id, {
+          deleteImages,
+          removeProductFromIndex,
+          revalidateCatalog,
+          purgeCatalogue,
+        })
+      ).rejects.toThrow("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(deleteImages).not.toHaveBeenCalled()
+    expect(removeProductFromIndex).not.toHaveBeenCalled()
+    expect(revalidateCatalog).not.toHaveBeenCalled()
+    expect(purgeCatalogue).not.toHaveBeenCalled()
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.not.toBeNull()
+    expect(
+      await prisma.automationEvent.count({
+        where: { type: "produit.supprime", entityId: product.id },
+      })
+    ).toBe(0)
   })
 
   it("throws ProductNotFoundError when deleting an unknown product", async () => {
@@ -1174,6 +1239,18 @@ describe("admin catalog mutations", () => {
 
     await verifierFrontiereBestEffort("index", (effetQuiEchoue) =>
       deleteProduct(product.id, { removeProductFromIndex: effetQuiEchoue })
+    )
+
+    await expect(
+      prisma.product.findUnique({ where: { id: product.id } })
+    ).resolves.toBeNull()
+  })
+
+  it("still deletes the product when the edge purge fails", async () => {
+    const product = await createProduct(makeInput({ slug: slug("fail-purge") }))
+
+    await verifierFrontiereBestEffort("purge", (effetQuiEchoue) =>
+      deleteProduct(product.id, { purgeCatalogue: effetQuiEchoue })
     )
 
     await expect(
