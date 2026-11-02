@@ -1,6 +1,7 @@
 import "server-only"
 
 import { prisma } from "@/lib/db"
+import { estRoleAdmin } from "@/lib/role"
 import {
   SESSION_ABSOLUTE_ADMIN_SECONDS,
   SESSION_ABSOLUTE_CLIENT_SECONDS,
@@ -12,7 +13,7 @@ export interface SessionHorodatee {
 }
 
 function borneAbsolue(role: string): number {
-  return role === "admin"
+  return estRoleAdmin(role)
     ? SESSION_ABSOLUTE_ADMIN_SECONDS
     : SESSION_ABSOLUTE_CLIENT_SECONDS
 }

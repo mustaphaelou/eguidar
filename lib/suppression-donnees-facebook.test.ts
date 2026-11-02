@@ -25,11 +25,13 @@ const runId = randomUUID().slice(0, 8)
 const emailPrefix = `suppression-facebook-${runId}-`
 
 type DonneesClient = {
+  email: string
   userId: string
   accountRowId: string
   orderId: string
   orderItemId: string
   verificationId: string
+  verificationEmailId: string
 }
 
 function signer(
@@ -56,11 +58,14 @@ function requete(signedRequest: string | null): Request {
   })
 }
 
-async function semerClient(asid: string): Promise<DonneesClient> {
+async function semerClient(
+  asid: string,
+  email = `${emailPrefix}${asid}@test.ma`
+): Promise<DonneesClient> {
   const user = await prisma.user.create({
     data: {
       id: randomUUID(),
-      email: `${emailPrefix}${asid}@test.ma`,
+      email,
       name: "Client Facebook",
     },
   })
@@ -97,34 +102,51 @@ async function semerClient(asid: string): Promise<DonneesClient> {
     include: { items: true },
   })
 
+  // Better Auth construit ses identifiants avec `toOTPIdentifier` :
+  // `${type}-otp-${email}`, sans deux-points.
   const verification = await prisma.verification.create({
     data: {
       id: randomUUID(),
-      identifier: `email-otp:forget-password:${user.email}`,
+      identifier: `forget-password-otp-${user.email}`,
+      value: "empreinte:0",
+      expiresAt: new Date(Date.now() + 5 * 60_000),
+    },
+  })
+
+  const verificationEmail = await prisma.verification.create({
+    data: {
+      id: randomUUID(),
+      identifier: `email-verification-otp-${user.email}`,
       value: "empreinte:0",
       expiresAt: new Date(Date.now() + 5 * 60_000),
     },
   })
 
   return {
+    email: user.email,
     userId: user.id,
     accountRowId: account.id,
     orderId: order.id,
     orderItemId: order.items[0].id,
     verificationId: verification.id,
+    verificationEmailId: verificationEmail.id,
   }
 }
 
 async function lignesRestantes(donnees: DonneesClient) {
-  const [user, account, order, orderItem, verification] = await Promise.all([
-    prisma.user.findUnique({ where: { id: donnees.userId } }),
-    prisma.account.findUnique({ where: { id: donnees.accountRowId } }),
-    prisma.order.findUnique({ where: { id: donnees.orderId } }),
-    prisma.orderItem.findUnique({ where: { id: donnees.orderItemId } }),
-    prisma.verification.findUnique({ where: { id: donnees.verificationId } }),
-  ])
+  const [user, account, order, orderItem, verification, verificationEmail] =
+    await Promise.all([
+      prisma.user.findUnique({ where: { id: donnees.userId } }),
+      prisma.account.findUnique({ where: { id: donnees.accountRowId } }),
+      prisma.order.findUnique({ where: { id: donnees.orderId } }),
+      prisma.orderItem.findUnique({ where: { id: donnees.orderItemId } }),
+      prisma.verification.findUnique({ where: { id: donnees.verificationId } }),
+      prisma.verification.findUnique({
+        where: { id: donnees.verificationEmailId },
+      }),
+    ])
 
-  return { user, account, order, orderItem, verification }
+  return { user, account, order, orderItem, verification, verificationEmail }
 }
 
 beforeEach(() => {
@@ -141,10 +163,10 @@ afterAll(async () => {
     where: { identifier: { contains: emailPrefix } },
   })
   await prisma.order.deleteMany({
-    where: { user: { email: { startsWith: emailPrefix } } },
+    where: { user: { email: { contains: emailPrefix } } },
   })
   await prisma.user.deleteMany({
-    where: { email: { startsWith: emailPrefix } },
+    where: { email: { contains: emailPrefix } },
   })
   vi.unstubAllEnvs()
 })
@@ -180,6 +202,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
       order: null,
       orderItem: null,
       verification: null,
+      verificationEmail: null,
     })
     expect(revalidatePath).toHaveBeenCalledWith("/commandes")
     expect(revalidatePath).toHaveBeenCalledWith("/admin/commandes")
@@ -202,6 +225,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
       user: { id: donnees.userId },
       order: { id: donnees.orderId },
       verification: { id: donnees.verificationId },
+      verificationEmail: { id: donnees.verificationEmailId },
     })
   })
 
@@ -229,6 +253,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.order).not.toBeNull()
     expect(restantes.orderItem).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
+    expect(restantes.verificationEmail).not.toBeNull()
   })
 
   it("refuse une requête sans signed_request et ne supprime rien", async () => {
@@ -246,6 +271,8 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.account).not.toBeNull()
     expect(restantes.order).not.toBeNull()
     expect(restantes.orderItem).not.toBeNull()
+    expect(restantes.verification).not.toBeNull()
+    expect(restantes.verificationEmail).not.toBeNull()
   })
 
   it("ne supprime rien quand le secret de l'application manque", async () => {
@@ -273,6 +300,8 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.account).not.toBeNull()
     expect(restantes.order).not.toBeNull()
     expect(restantes.orderItem).not.toBeNull()
+    expect(restantes.verification).not.toBeNull()
+    expect(restantes.verificationEmail).not.toBeNull()
   })
 
   it("accepte un identifiant Facebook inconnu et rend quand même un code de confirmation", async () => {
@@ -329,7 +358,43 @@ describe("POST /api/facebook/suppression-donnees", () => {
       order: null,
       orderItem: null,
       verification: null,
+      verificationEmail: null,
     })
+  })
+
+  it("ne supprime pas les codes d'un autre Compte client dont l'adresse a celle du Client supprimé pour suffixe", async () => {
+    const asidSupprime = `asid-${runId}-suffixe-a`
+    const clientSupprime = await semerClient(asidSupprime)
+    const asidConserve = `asid-${runId}-suffixe-b`
+    const clientConserve = await semerClient(
+      asidConserve,
+      `x${clientSupprime.email}`
+    )
+
+    const reponse = await POST(
+      requete(
+        signer({
+          algorithm: "HMAC-SHA256",
+          user_id: asidSupprime,
+          issued_at: 1700000000,
+        })
+      )
+    )
+
+    expect(reponse.status).toBe(200)
+    await expect(lignesRestantes(clientSupprime)).resolves.toEqual({
+      user: null,
+      account: null,
+      order: null,
+      orderItem: null,
+      verification: null,
+      verificationEmail: null,
+    })
+
+    const restantes = await lignesRestantes(clientConserve)
+    expect(restantes.user).not.toBeNull()
+    expect(restantes.verification).not.toBeNull()
+    expect(restantes.verificationEmail).not.toBeNull()
   })
 })
 
@@ -345,5 +410,16 @@ describe("Page /suppression-donnees", () => {
     expect(html).toContain("Suppression des données confirmée")
     expect(html).toContain("Commandes")
     expect(html).toContain("Si des données étaient rattachées")
+  })
+
+  it("n'affiche pas un code qui contient autre chose que des caractères alphanumériques", async () => {
+    const page = await SuppressionDonneesPage({
+      searchParams: Promise.resolve({ code: "abc-123" }),
+    })
+    const flux = await renderToReadableStream(page)
+    const html = await new Response(flux).text()
+
+    expect(html).not.toContain("abc-123")
+    expect(html).toContain("Aucun code de confirmation")
   })
 })

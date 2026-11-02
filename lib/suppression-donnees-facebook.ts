@@ -4,7 +4,7 @@ import type { FournisseurSocial } from "@/lib/oauth-providers"
 import { prisma } from "@/lib/db"
 import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 
-export const FOURNISSEUR_FACEBOOK: FournisseurSocial = "facebook"
+const FOURNISSEUR_FACEBOOK: FournisseurSocial = "facebook"
 
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/
 
@@ -60,10 +60,15 @@ export function verifierSignedRequest(
  * Un identifiant inconnu ne supprime rien : l'appel reste idempotent, comme
  * Meta l'exige quand il rejoue une demande de suppression.
  */
-export async function supprimerDonneesFacebook(asid: string): Promise<void> {
+export async function supprimerDonneesFacebook(
+  identifiantApplicatif: string
+): Promise<void> {
   const commandes = await prisma.$transaction(async (tx) => {
     const comptes = await tx.account.findMany({
-      where: { providerId: FOURNISSEUR_FACEBOOK, accountId: asid },
+      where: {
+        providerId: FOURNISSEUR_FACEBOOK,
+        accountId: identifiantApplicatif,
+      },
       select: { userId: true },
     })
 
@@ -87,10 +92,15 @@ export async function supprimerDonneesFacebook(asid: string): Promise<void> {
     })
 
     // `verification` n'a pas de clé étrangère vers `user` : les codes encore en
-    // attente pour les adresses du Client partent explicitement.
+    // attente pour les adresses du Client partent explicitement. Better Auth
+    // construit chaque identifiant avec `toOTPIdentifier` — `${type}-otp-${email}`
+    // —, donc le suffixe `-otp-${email}` couvre tous les types sans toucher au
+    // code d'une autre adresse dont celle-ci serait le suffixe.
     await tx.verification.deleteMany({
       where: {
-        OR: clients.map(({ email }) => ({ identifier: { contains: email } })),
+        OR: clients.map(({ email }) => ({
+          identifier: { endsWith: `-otp-${email}` },
+        })),
       },
     })
 

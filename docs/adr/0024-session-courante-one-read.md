@@ -62,6 +62,11 @@ indépendantes : une session peut mourir d'inactivité bien avant sa borne absol
 et une session active meurt quand même à la borne. Le glossaire nomme désormais
 les deux termes séparément (Session inactive, Session hors durée absolue).
 
+**Le test du rôle vit dans `lib/role.ts`** : `estRoleAdmin` y est extrait pour que
+`lib/session-expiration.ts` borne une session sans importer la lecture de Session
+courante ni réécrire `"admin"`, `Client` et `estAdmin` restant dans le module de
+session.
+
 ## Invariants
 
 - Une session dont `createdAt` a atteint la borne de son rôle ne rend jamais de

@@ -4,9 +4,10 @@ import { headers } from "next/headers"
 import { cache } from "react"
 
 import { auth } from "@/lib/auth"
+import { estRoleAdmin, type Role } from "@/lib/role"
 import { revoquerSessionHorsDuree } from "@/lib/session-expiration"
 
-export type Role = "user" | "admin"
+export type { Role }
 
 export interface Client {
   id: string
@@ -25,9 +26,9 @@ export const lireSession = cache(async (): Promise<Client | null> => {
   if (await revoquerSessionHorsDuree(session)) return null
 
   const { id, name, email, role } = session.user
-  return { id, name, email, role: role === "admin" ? "admin" : "user" }
+  return { id, name, email, role: estRoleAdmin(role) ? "admin" : "user" }
 })
 
 export function estAdmin(client: Client | null): client is Client {
-  return client?.role === "admin"
+  return client !== null && estRoleAdmin(client.role)
 }

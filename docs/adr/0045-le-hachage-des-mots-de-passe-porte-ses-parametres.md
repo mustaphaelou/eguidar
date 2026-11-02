@@ -26,8 +26,15 @@ modulaire), et son tableau scrypt place le palier le plus coûteux à `N=2^17`,
   historique de la bibliothèque (`2^14/16/1`) 77 ms. Sur la machine de
   développement (AMD Ryzen 5 PRO 7530U, `x86_64`), les mêmes paliers mesurent
   ~385 ms, 157 ms, 210 ms, 318 ms et 88 ms : l'ordre ne change pas, et le
-  palier retenu reste sous la seconde sur les deux machines. Le relevé se
-  refait avec `npx tsx scripts/mesurer-cout-scrypt.ts` (ou `--json` pour un
+  palier retenu reste sous la seconde sur les deux machines. Le relevé qui
+  fait foi se fait là où l'application tourne — l'hôte Coolify ou son conteneur
+  d'application —, jamais sur la machine d'un développeur : c'est cette mesure
+  qui décide du palier, et ses nombres sont consignés ici et dans
+  `docs/auth-pathways.md`. Le relevé du 2 novembre 2026 a été obtenu ainsi :
+  une personne ayant accès au changement a exécuté
+  `scripts/mesurer-cout-scrypt.ts` dans le conteneur de l'application, puis sa
+  sortie a été recopiée ici. Le relevé se refait avec
+  `npx tsx scripts/mesurer-cout-scrypt.ts` (ou `--json` pour un
   enregistrement machine). Si un jour l'hôte mesure au-dessus d'une seconde,
   le palier immédiatement inférieur reste dans le tableau OWASP et se change
   dans `PARAMETRES_SCRYPT`, ce qui déclenche le rehachage opportuniste

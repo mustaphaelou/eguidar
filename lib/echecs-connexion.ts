@@ -8,9 +8,7 @@ import {
   MESSAGE_COMPTE_TEMPORAIREMENT_VERROUILLE,
   cleEchecsConnexion,
 } from "@/lib/echecs-connexion-regles"
-import { getRedis } from "@/lib/redis"
-
-type ClientRedis = NonNullable<ReturnType<typeof getRedis>>
+import { clientRedisPret } from "@/lib/redis"
 
 const CHEMIN_CONNEXION_MOT_DE_PASSE = "/sign-in/email"
 
@@ -27,22 +25,11 @@ function adresseDuCorps(body: unknown): string | null {
  * première ligne, et un Redis indisponible ne doit pas fermer la Connexion à
  * tout le monde.
  */
-async function clientRedis(): Promise<ClientRedis | null> {
-  const redis = getRedis()
-  if (!redis) return null
-  try {
-    if (!redis.isOpen) await redis.connect()
-  } catch {
-    // Une autre requête a pu ouvrir la connexion entre-temps.
-  }
-  return redis.isOpen ? redis : null
-}
-
 export async function connexionTemporairementVerrouillee(
   email: string
 ): Promise<boolean> {
   try {
-    const redis = await clientRedis()
+    const redis = await clientRedisPret()
     if (!redis) return false
     const valeur = await redis.get(cleEchecsConnexion(email))
     return Number(valeur ?? 0) >= ECHEANCES_MAX_CONNEXIONS_ECHOUEES
@@ -53,7 +40,7 @@ export async function connexionTemporairementVerrouillee(
 
 export async function compterEchecConnexion(email: string): Promise<void> {
   try {
-    const redis = await clientRedis()
+    const redis = await clientRedisPret()
     if (!redis) return
     const cle = cleEchecsConnexion(email)
     const multi = redis.multi()
@@ -71,7 +58,7 @@ export async function reinitialiserEchecsConnexion(
   email: string
 ): Promise<void> {
   try {
-    const redis = await clientRedis()
+    const redis = await clientRedisPret()
     if (!redis) return
     await redis.del(cleEchecsConnexion(email))
   } catch {
