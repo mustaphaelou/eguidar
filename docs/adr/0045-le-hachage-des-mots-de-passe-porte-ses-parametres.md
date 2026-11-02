@@ -18,17 +18,20 @@ modulaire), et son tableau scrypt place le palier le plus coûteux à `N=2^17`,
   chaîne et recalcule avec ces paramètres ; il compare les tampons en temps
   constant (`timingSafeEqual`, après une garde de longueur).
 - **Les paramètres sont ceux du palier OWASP le plus fort**, `N=2^17`, `r=8`,
-  `p=1`. Sur la machine de développement (AMD Ryzen 5 PRO 7530U), ce palier
-  mesure ~385 ms en moyenne pour une empreinte (min 375, max 392), sous la
-  cible d'une seconde ; les paliers plus faibles du tableau OWASP mesurent
-  157 ms (`2^14/8/5`), 210 ms (`2^15/8/3`) et 318 ms (`2^16/8/2`), et le
-  défaut historique de la bibliothèque (`2^14/16/1`) 88 ms. La confirmation sur
-  l'hôte Coolify est le geste manuel de #837 : lancer
-  `npx tsx scripts/mesurer-cout-scrypt.ts` (ou `--json` pour un enregistrement
-  machine) sur l'hôte où tourne l'application, et reporter le tableau dans ce
-  document et dans #837. Si l'hôte mesure au-dessus d'une seconde, le palier
-  immédiatement inférieur reste dans le tableau OWASP et se change dans
-  `PARAMETRES_SCRYPT`, ce qui déclenche le rehachage opportuniste ci-dessous.
+  `p=1`. Le palier est mesuré sur l'hôte Coolify le 2 novembre 2026, dans le
+  conteneur de l'application (`linux arm64`, Node `v22.23.4`, 4 vCPU) :
+  ~331 ms en moyenne pour une empreinte (min 328, max 333), sous la cible
+  d'une seconde. Les paliers plus faibles du tableau OWASP mesurent 167 ms
+  (`2^14/8/5`), 213 ms (`2^15/8/3`) et 297 ms (`2^16/8/2`), et le défaut
+  historique de la bibliothèque (`2^14/16/1`) 77 ms. Sur la machine de
+  développement (AMD Ryzen 5 PRO 7530U, `x86_64`), les mêmes paliers mesurent
+  ~385 ms, 157 ms, 210 ms, 318 ms et 88 ms : l'ordre ne change pas, et le
+  palier retenu reste sous la seconde sur les deux machines. Le relevé se
+  refait avec `npx tsx scripts/mesurer-cout-scrypt.ts` (ou `--json` pour un
+  enregistrement machine). Si un jour l'hôte mesure au-dessus d'une seconde,
+  le palier immédiatement inférieur reste dans le tableau OWASP et se change
+  dans `PARAMETRES_SCRYPT`, ce qui déclenche le rehachage opportuniste
+  ci-dessous.
 - **L'ancien format reste vérifiable.** Une empreinte `sel:hex` est recalculée
   avec les paramètres historiques (`N=2^14`, `r=16`, `p=1`, clé de 64 octets) et
   la même convention de sel que la bibliothèque : la chaîne hexadécimale
