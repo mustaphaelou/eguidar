@@ -334,3 +334,7 @@ nouvelle vérification ne peut donc pas être ajoutée sans choisir une issue et
   `lib/automations/executeur.test.ts` (l'agrégat d'expiration, les lignes par Règle, aucune ligne
   pour une Règle désactivée), `lib/use-cases/automatisations.test.ts` (les refus sans écriture, le
   réessai réussi) et `app/admin/automatisations/[id]/page.test.tsx` (l'affichage de la Simulation).
+
+## Suite
+
+Le cycle de vie d’une Exécution d’automatisation (ouverture, clôture, annulation, réessai) est désormais la propriété de `lib/automations/executions.ts` : voir `docs/adr/0048-le-cycle-de-vie-d-une-execution-d-automatisation-a-un-proprietaire.md`.
