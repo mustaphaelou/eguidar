@@ -542,6 +542,43 @@ _Avoid_: produit associé, related product
 Un Article de blog proposé à la fin d'un autre Article de blog, choisi dans le même Thème d'abord.
 _Avoid_: article associé, article suggéré, related article
 
+**Après-écriture**:
+La déclaration pure, par genre d'écriture, de tout ce qu'une mutation d'Administration déclenche
+après son commit : les faits écrits dans la transaction et les conséquences immédiates, ordonnées.
+C'est la source unique de l'imédiat et du durable ; l'adaptateur immédiat et le travailleur en
+dérivent. Elle est pure : pas de Prisma, pas de transaction, pas de lecture, pas de fermeture. Un
+genre d'écriture absent n'émet rien.
+_Avoid_: post-commit, effet post-commit, aftermath, hook
+
+**Conséquence durable**:
+Une conséquence d'un plan qui n'a pas de réparation bornée : elle est écrite comme Événement
+d'automatisation et réessayée par le travailleur. Chaque conséquence durable porte exactement une
+Règle d'automatisation par défaut et par déclencheur.
+_Avoid_: effet durable, tâche durable
+
+**Conséquence non durable**:
+Une conséquence d'un plan dont l'échec est réparé par un moyen borné nommé — réconciliation, cycle
+de vie R2 ou TTL de cache — et qui n'est donc pas écrite comme Événement d'automatisation ni
+réessayée. Elle n'a aucune Règle d'automatisation par défaut.
+_Avoid_: effet best-effort, effet non critique
+
+**Fait**:
+L'unité écrite dans la transaction d'une mutation et lue par le travailleur : un déclencheur, une
+entité et une charge immuable. Un plan en porte un ou plusieurs ; un retour arrière n'en laisse
+aucun.
+_Avoid_: événement (réservé à l'Événement d'automatisation), message
+
+**Plan**:
+Le résultat de l'Après-écriture pour un genre d'écriture et ses faits typés : la liste ordonnée
+des faits à écrire dans la transaction et la liste ordonnée des conséquences à tenter après le
+commit. C'est le contrat testé sans base.
+_Avoid_: plan d'exécution, scénario
+
+**Portée**:
+La taille réelle d'une conséquence groupée, portée par la conséquence et par la ligne de journal,
+pour qu'une réindexation groupée nomme le nombre de Produits concernés plutôt que le premier.
+_Avoid_: scope, lot (réservé au genre d'écriture groupé), batch
+
 **Automatisation**:
 Un effet post-commit exécuté durablement par le travailleur, à partir d'un Événement
 d'automatisation et de la Règle d'automatisation qui le déclenche : e-mail de Commande,
