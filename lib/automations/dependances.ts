@@ -10,7 +10,7 @@ import {
   listProductDocuments,
 } from "@/lib/meili"
 import {
-  invalidateStructure,
+  invalidateStructureDurable,
   purgerEdgeDurable,
   revaliderCatalogue,
 } from "@/lib/use-cases/cache-invalidation"
@@ -39,7 +39,7 @@ export function dependancesAutomations(
     },
     catalogue: {
       revaliderCatalogue,
-      revaliderStructure: invalidateStructure,
+      revaliderStructure: invalidateStructureDurable,
       purger: purgerEdgeDurable,
     },
     maintenant,

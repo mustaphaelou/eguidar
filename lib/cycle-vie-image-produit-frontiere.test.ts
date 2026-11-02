@@ -289,7 +289,7 @@ describe("Cycle de vie des Images produit — frontière", () => {
     }
   })
 
-  it("partage les deux suppressions par URL entre le Catalogue et la Structure, sans les confondre", () => {
+  it("réserve chaque suppression par URL à son espace de noms : Catalogue, Registre, Structure", () => {
     const persistees = SOURCES.filter(({ source: contenu }) =>
       contenu.includes("stockageImageProduitR2.supprimerImagePersistee(url)")
     )
@@ -304,7 +304,12 @@ describe("Cycle de vie des Images produit — frontière", () => {
     expect(persistees).toEqual(
       [MODULE_CATALOGUE, MODULE_REGISTRE_IMAGES].sort()
     )
-    expect(categories).toEqual([MODULE_STRUCTURE])
+    // La Structure garde la porte immédiate ; le Registre des Images porte la
+    // suppression durable que le travailleur rejoue, dans le même espace de
+    // noms de catégorie.
+    expect(categories).toEqual(
+      [MODULE_REGISTRE_IMAGES, MODULE_STRUCTURE].sort()
+    )
   })
 
   it("retire l'ancien alias générique de suppression par URL", () => {

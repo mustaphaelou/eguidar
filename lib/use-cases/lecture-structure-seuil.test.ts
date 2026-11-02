@@ -179,10 +179,10 @@ const SITES_NOMMES: ExceptionLecture[] = [
     chemin: "lib/use-cases/admin-structure.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
-    declaration: "deleteCategory",
+    declaration: "readIndexableProductsOfBranch",
     herite: false,
     raison:
-      "le nom de la catégorie dans les Documents d'index des Produits détachés d'une Structure supprimée : le pointeur d'une seule rangée, la topologie restant à la Marche",
+      "le nom de la catégorie dans les Documents d'index des Produits d'une branche de destination d'une Structure supprimée, résolue après le commit : le pointeur d'une seule rangée, la topologie restant à la Marche",
   },
   {
     chemin: MODULE_LECTURE,

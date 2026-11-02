@@ -16,6 +16,7 @@ import {
   invalidateLivraison,
   invalidateProduits,
   invalidateStructure,
+  invalidateStructureDurable,
   demandeDePurge,
   PRODUCT_TAG,
   productDetailTag,
@@ -483,6 +484,55 @@ describe("invalidateStructure", () => {
       expect(warnSpy).toHaveBeenCalledOnce()
     } finally {
       warnSpy.mockRestore()
+    }
+  })
+})
+
+describe("invalidateStructureDurable", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("renvoie l'échec de purge pour que le travailleur réessaie l'invalidation", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: false, errors: [] }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      })
+    )
+    const zoneInitiale = process.env.CLOUDFLARE_ZONE_ID
+    const jetonInitial = process.env.CLOUDFLARE_API_TOKEN
+    process.env.CLOUDFLARE_ZONE_ID = "zone-test"
+    process.env.CLOUDFLARE_API_TOKEN = "jeton-test"
+    try {
+      await expect(invalidateStructureDurable()).rejects.toThrow(/HTTP 503/)
+      expect(mockedRevalidateTag).toHaveBeenCalledWith(CATEGORY_TAG, "max")
+      expect(mockedRevalidateTag).toHaveBeenCalledWith(PRODUCT_TAG, "max")
+      expect(mockedRevalidateTag).toHaveBeenCalledWith(HOME_TAG, "max")
+      expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/categories")
+      expect(fetchSpy).toHaveBeenCalledOnce()
+    } finally {
+      fetchSpy.mockRestore()
+      if (zoneInitiale === undefined) delete process.env.CLOUDFLARE_ZONE_ID
+      else process.env.CLOUDFLARE_ZONE_ID = zoneInitiale
+      if (jetonInitial === undefined) delete process.env.CLOUDFLARE_API_TOKEN
+      else process.env.CLOUDFLARE_API_TOKEN = jetonInitial
+    }
+  })
+
+  it("ne considère pas une purge non configurée comme un échec", async () => {
+    const zoneInitiale = process.env.CLOUDFLARE_ZONE_ID
+    const jetonInitial = process.env.CLOUDFLARE_API_TOKEN
+    delete process.env.CLOUDFLARE_ZONE_ID
+    delete process.env.CLOUDFLARE_API_TOKEN
+    try {
+      await expect(invalidateStructureDurable()).resolves.toBeUndefined()
+      expect(mockedRevalidateTag).toHaveBeenCalledWith(CATEGORY_TAG, "max")
+    } finally {
+      if (zoneInitiale === undefined) delete process.env.CLOUDFLARE_ZONE_ID
+      else process.env.CLOUDFLARE_ZONE_ID = zoneInitiale
+      if (jetonInitial === undefined) delete process.env.CLOUDFLARE_API_TOKEN
+      else process.env.CLOUDFLARE_API_TOKEN = jetonInitial
     }
   })
 })
