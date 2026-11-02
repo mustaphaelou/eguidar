@@ -140,20 +140,16 @@ const commandeStatutChangee: Declaration = (f) => {
       ),
       { durable: false, reparation: "TTL" }
     ),
+    consequence(
+      "purge-catalogue",
+      { type: "commande", id: String(f.commandeId) },
+      String(
+        f.messagePurge ??
+          `[order] purge des documents du catalogue non effectuée pour ${f.commandeId}`
+      ),
+      { durable: false, reparation: "TTL" }
+    ),
   ]
-  if (f.purgeCatalogue) {
-    consequences.push(
-      consequence(
-        "purge-catalogue",
-        { type: "commande", id: String(f.commandeId) },
-        String(
-          f.messagePurge ??
-            `[order] purge des documents du catalogue non effectuée pour ${f.commandeId}`
-        ),
-        { durable: false, reparation: "TTL" }
-      )
-    )
-  }
   return {
     faits: [
       fait("commande.statut.changee", "commande", String(f.commandeId), {
@@ -525,21 +521,176 @@ export const APRES_ECRITURE = REGISTRE
 export const DECLARATIONS = REGISTRE
 export const REGISTRE_APRES_ECRITURE = REGISTRE
 
-// Default rules derived (for seeder): list of {trigger, action} durable consequences
+// Genres dont l'après-écriture est migrée : leurs Règles par défaut sont dérivées
+// du plan, jamais d'une entrée parallèle.
+export const GENRES_MIGRES: GenreEcriture[] = [
+  "commande.creee",
+  "commande.statut.changee",
+]
+export const KINDS_MIGRES = GENRES_MIGRES
+export const MIGRATED_KINDS = GENRES_MIGRES
+
+// Genres dont la déclaration existe mais dont le site d'appel n'est pas encore
+// migré : leurs Règles par défaut restent dans la liste en attente.
+export const GENRES_EN_ATTENTE: GenreEcriture[] = (
+  Object.keys(REGISTRE) as GenreEcriture[]
+).filter((g) => !GENRES_MIGRES.includes(g))
+export const KINDS_EN_ATTENTE = GENRES_EN_ATTENTE
+export const PENDING_KINDS = GENRES_EN_ATTENTE
+
+// Identités historiques des Règles par défaut dérivées, pour conserver
+// l'historique d'Exécution.
+const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
+  "email.commande-creee": {
+    id: "confirmation-commande",
+    nom: "Confirmation de Commande",
+  },
+  "email.commande-statut": {
+    id: "statut-commande",
+    nom: "E-mail de statut de Commande",
+  },
+}
+
+// Liste en attente : Règles par défaut des genres non migrés, conservées ici
+// (et non dans regles.ts) pour qu'une seule source possède la politique.
+export const REGLES_EN_ATTENTE: Array<{
+  id: string
+  nom: string
+  declencheur: TypeEvenementAutomation
+  action: ActionAutomation
+  actif?: boolean
+}> = [
+  {
+    id: "indexation-produit",
+    nom: "Indexation du Produit",
+    declencheur: "produit.enregistre",
+    action: "index.produit",
+  },
+  {
+    id: "indexation-stock",
+    nom: "Indexation du stock",
+    declencheur: "variante.stock.changee",
+    action: "index.produit",
+  },
+  {
+    id: "desindexation-produit",
+    nom: "Désindexation du Produit",
+    declencheur: "produit.supprime",
+    action: "desindex.produit",
+  },
+  {
+    id: "invalidation-catalogue",
+    nom: "Invalidation du Catalogue",
+    declencheur: "produit.enregistre",
+    action: "invalidation.catalogue",
+  },
+  {
+    id: "invalidation-catalogue-suppression",
+    nom: "Invalidation après suppression",
+    declencheur: "produit.supprime",
+    action: "invalidation.catalogue",
+  },
+  {
+    id: "purge-catalogue",
+    nom: "Purge du bord",
+    declencheur: "produit.enregistre",
+    action: "purge.catalogue",
+  },
+  {
+    id: "invalidation-structure",
+    nom: "Invalidation de la Structure",
+    declencheur: "structure.creee",
+    action: "invalidation.structure",
+  },
+  {
+    id: "invalidation-structure-modifiee",
+    nom: "Invalidation de la Structure modifiée",
+    declencheur: "structure.modifiee",
+    action: "invalidation.structure",
+  },
+  {
+    id: "invalidation-structure-supprimee",
+    nom: "Invalidation de la Structure supprimée",
+    declencheur: "structure.supprimee",
+    action: "invalidation.structure",
+  },
+  {
+    id: "indexation-structure",
+    nom: "Indexation de la Structure",
+    declencheur: "structure.modifiee",
+    action: "index.structure",
+  },
+  {
+    id: "suppression-images-produit",
+    nom: "Suppression des images",
+    declencheur: "produit.supprime",
+    action: "suppression.images",
+  },
+  {
+    id: "digest-stock-bas",
+    nom: "Digest du stock bas",
+    declencheur: "planification.digest-stock-bas",
+    action: "digest.stock-bas",
+  },
+  {
+    id: "reconciliation-recherche",
+    nom: "Réconciliation de la recherche",
+    declencheur: "planification.reconciliation-recherche",
+    action: "reconciliation.recherche",
+  },
+  {
+    id: "digest-proprietaire",
+    nom: "Digest du propriétaire",
+    declencheur: "planification.digest-stock-bas",
+    action: "digest.proprietaire",
+    actif: false,
+  },
+]
+export const REGLES_NON_MIGREES = REGLES_EN_ATTENTE
+export const PENDING_RULES = REGLES_EN_ATTENTE
+
+// Règles par défaut : les genres migrés les dérivent du plan, les autres viennent
+// de la liste en attente.
 export function reglesParDefaut(): Array<{
   id: string
   nom: string
   declencheur: TypeEvenementAutomation
   action: ActionAutomation
+  condition: { type: "toujours" }
+  actif: boolean
 }> {
   const out: Array<{
     id: string
     nom: string
     declencheur: TypeEvenementAutomation
     action: ActionAutomation
+    condition: { type: "toujours" }
+    actif: boolean
   }> = []
-  // minimal: handled by static list; declaration owns via this helper if needed
+  for (const genre of GENRES_MIGRES) {
+    const plan = declarerApresEcriture(genre, {})
+    const declencheurFait = plan.faits[0]?.declencheur
+    for (const c of plan.consequences) {
+      if (!c.durable || !c.action) continue
+      const identite = IDENTITES_REGLES_MIGREES[c.action]
+      if (!identite) continue
+      out.push({
+        id: identite.id,
+        nom: identite.nom,
+        declencheur: (declencheurFait ?? genre) as TypeEvenementAutomation,
+        action: c.action,
+        condition: { type: "toujours" },
+        actif: true,
+      })
+    }
+  }
+  for (const r of REGLES_EN_ATTENTE) {
+    out.push({ ...r, condition: { type: "toujours" }, actif: r.actif ?? true })
+  }
   return out
 }
+export const reglesParDefault = reglesParDefaut
+export const defaultRules = reglesParDefaut
+export const rulesParDefaut = reglesParDefaut
 
 export default REGISTRE

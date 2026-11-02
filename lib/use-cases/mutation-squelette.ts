@@ -42,6 +42,7 @@ export interface MesureEffetPostCommit {
   dureeMs: number
   message: string
   erreur?: string
+  portee?: number
 }
 
 export interface JournalEffetsPostCommit {
@@ -69,6 +70,7 @@ export interface EffetPostCommit {
   entite: EntiteEffetPostCommit
   /** Le libellé historique, conservé dans la mesure et les logs. */
   message: string
+  portee?: number
   fn: () => Promise<unknown> | unknown
 }
 
@@ -105,6 +107,7 @@ export async function runEffect(
       resultat: "succes",
       dureeMs: Date.now() - debut,
       message: effet.message,
+      portee: effet.portee,
     })
   } catch (error) {
     enregistrerSansCasser(journal, {
@@ -114,6 +117,7 @@ export async function runEffect(
       dureeMs: Date.now() - debut,
       message: effet.message,
       erreur: messageDeLErreur(error),
+      portee: effet.portee,
     })
   }
 }
