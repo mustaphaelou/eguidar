@@ -225,9 +225,10 @@ the Connexion modal and reads no session.
   `user_id` and `algorithm: "HMAC-SHA256"`.
 - A valid request deletes, in one transaction, the Compte client, its Commandes
   (and their OrderItems by cascade), its sessions, accounts, Articles du panier
-  and Brouillons d'Image produit, plus the `verification` rows whose identifier
-  ends with `-otp-` followed by one of its addresses. The cached Commande pages
-  are invalidated after the commit.
+  and Brouillons d'Image produit, plus the `verification` rows Better Auth
+  writes for one of its addresses: the `<type>-otp-<address>` codes and the
+  `change-email-otp-<old address>-<new address>` rows when the deleted address
+  is the old one. The cached Commande pages are invalidated after the commit.
 - The response carries exactly `{ url, confirmation_code }`; the status page at
   `/suppression-donnees?code=…` is public and confirms the deletion.
 - An unknown ASID is a `200` with code and deletes nothing (idempotent replay).

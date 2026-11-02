@@ -32,6 +32,7 @@ type DonneesClient = {
   orderItemId: string
   verificationId: string
   verificationEmailId: string
+  verificationChangementEmailId: string
 }
 
 function signer(
@@ -59,8 +60,8 @@ function requete(signedRequest: string | null): Request {
 }
 
 async function semerClient(
-  asid: string,
-  email = `${emailPrefix}${asid}@test.ma`
+  identifiantApplicatif: string,
+  email = `${emailPrefix}${identifiantApplicatif}@test.ma`
 ): Promise<DonneesClient> {
   const user = await prisma.user.create({
     data: {
@@ -73,7 +74,7 @@ async function semerClient(
   const account = await prisma.account.create({
     data: {
       id: randomUUID(),
-      accountId: asid,
+      accountId: identifiantApplicatif,
       providerId: "facebook",
       userId: user.id,
     },
@@ -122,6 +123,15 @@ async function semerClient(
     },
   })
 
+  const verificationChangementEmail = await prisma.verification.create({
+    data: {
+      id: randomUUID(),
+      identifier: `change-email-otp-${user.email}-nouvelle-${runId}@test.ma`,
+      value: "empreinte:0",
+      expiresAt: new Date(Date.now() + 5 * 60_000),
+    },
+  })
+
   return {
     email: user.email,
     userId: user.id,
@@ -130,23 +140,42 @@ async function semerClient(
     orderItemId: order.items[0].id,
     verificationId: verification.id,
     verificationEmailId: verificationEmail.id,
+    verificationChangementEmailId: verificationChangementEmail.id,
   }
 }
 
 async function lignesRestantes(donnees: DonneesClient) {
-  const [user, account, order, orderItem, verification, verificationEmail] =
-    await Promise.all([
-      prisma.user.findUnique({ where: { id: donnees.userId } }),
-      prisma.account.findUnique({ where: { id: donnees.accountRowId } }),
-      prisma.order.findUnique({ where: { id: donnees.orderId } }),
-      prisma.orderItem.findUnique({ where: { id: donnees.orderItemId } }),
-      prisma.verification.findUnique({ where: { id: donnees.verificationId } }),
-      prisma.verification.findUnique({
-        where: { id: donnees.verificationEmailId },
-      }),
-    ])
+  const [
+    user,
+    account,
+    order,
+    orderItem,
+    verification,
+    verificationEmail,
+    verificationChangementEmail,
+  ] = await Promise.all([
+    prisma.user.findUnique({ where: { id: donnees.userId } }),
+    prisma.account.findUnique({ where: { id: donnees.accountRowId } }),
+    prisma.order.findUnique({ where: { id: donnees.orderId } }),
+    prisma.orderItem.findUnique({ where: { id: donnees.orderItemId } }),
+    prisma.verification.findUnique({ where: { id: donnees.verificationId } }),
+    prisma.verification.findUnique({
+      where: { id: donnees.verificationEmailId },
+    }),
+    prisma.verification.findUnique({
+      where: { id: donnees.verificationChangementEmailId },
+    }),
+  ])
 
-  return { user, account, order, orderItem, verification, verificationEmail }
+  return {
+    user,
+    account,
+    order,
+    orderItem,
+    verification,
+    verificationEmail,
+    verificationChangementEmail,
+  }
 }
 
 beforeEach(() => {
@@ -173,14 +202,14 @@ afterAll(async () => {
 
 describe("POST /api/facebook/suppression-donnees", () => {
   it("supprime le Compte client, son compte Facebook et ses Commandes quand la signature est valide", async () => {
-    const asid = `asid-${runId}-a`
-    const donnees = await semerClient(asid)
+    const identifiantApplicatif = `identifiant-${runId}-a`
+    const donnees = await semerClient(identifiantApplicatif)
 
     const reponse = await POST(
       requete(
         signer({
           algorithm: "HMAC-SHA256",
-          user_id: asid,
+          user_id: identifiantApplicatif,
           issued_at: 1700000000,
         })
       )
@@ -203,17 +232,44 @@ describe("POST /api/facebook/suppression-donnees", () => {
       orderItem: null,
       verification: null,
       verificationEmail: null,
+      verificationChangementEmail: null,
     })
     expect(revalidatePath).toHaveBeenCalledWith("/commandes")
     expect(revalidatePath).toHaveBeenCalledWith("/admin/commandes")
   })
 
+  it("supprime aussi le code de changement d'adresse dont l'ancienne adresse est celle du Client supprimé", async () => {
+    const identifiantApplicatif = `identifiant-${runId}-changement-email`
+    const donnees = await semerClient(identifiantApplicatif)
+
+    const reponse = await POST(
+      requete(
+        signer({
+          algorithm: "HMAC-SHA256",
+          user_id: identifiantApplicatif,
+          issued_at: 1700000000,
+        })
+      )
+    )
+
+    expect(reponse.status).toBe(200)
+    await expect(lignesRestantes(donnees)).resolves.toEqual({
+      user: null,
+      account: null,
+      order: null,
+      orderItem: null,
+      verification: null,
+      verificationEmail: null,
+      verificationChangementEmail: null,
+    })
+  })
+
   it("refuse une signature malformée qui décode pourtant les bons octets", async () => {
-    const asid = `asid-${runId}-malformee`
-    const donnees = await semerClient(asid)
+    const identifiantApplicatif = `identifiant-${runId}-malformee`
+    const donnees = await semerClient(identifiantApplicatif)
     const signe = signer({
       algorithm: "HMAC-SHA256",
-      user_id: asid,
+      user_id: identifiantApplicatif,
       issued_at: 1700000000,
     })
     const malforme = `${signe.split(".")[0]}!###.${signe.split(".")[1]}`
@@ -226,17 +282,24 @@ describe("POST /api/facebook/suppression-donnees", () => {
       order: { id: donnees.orderId },
       verification: { id: donnees.verificationId },
       verificationEmail: { id: donnees.verificationEmailId },
+      verificationChangementEmail: {
+        id: donnees.verificationChangementEmailId,
+      },
     })
   })
 
   it("refuse une signature invalide et ne supprime rien", async () => {
-    const asid = `asid-${runId}-b`
-    const donnees = await semerClient(asid)
+    const identifiantApplicatif = `identifiant-${runId}-b`
+    const donnees = await semerClient(identifiantApplicatif)
 
     const reponse = await POST(
       requete(
         signer(
-          { algorithm: "HMAC-SHA256", user_id: asid, issued_at: 1700000000 },
+          {
+            algorithm: "HMAC-SHA256",
+            user_id: identifiantApplicatif,
+            issued_at: 1700000000,
+          },
           "mauvais-secret"
         )
       )
@@ -254,10 +317,11 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.orderItem).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
+    expect(restantes.verificationChangementEmail).not.toBeNull()
   })
 
   it("refuse une requête sans signed_request et ne supprime rien", async () => {
-    const donnees = await semerClient(`asid-${runId}-c`)
+    const donnees = await semerClient(`identifiant-${runId}-c`)
 
     const reponse = await POST(requete(null))
 
@@ -273,18 +337,19 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.orderItem).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
+    expect(restantes.verificationChangementEmail).not.toBeNull()
   })
 
   it("ne supprime rien quand le secret de l'application manque", async () => {
-    const asid = `asid-${runId}-d`
-    const donnees = await semerClient(asid)
+    const identifiantApplicatif = `identifiant-${runId}-d`
+    const donnees = await semerClient(identifiantApplicatif)
     vi.stubEnv("FACEBOOK_CLIENT_SECRET", "")
 
     const reponse = await POST(
       requete(
         signer({
           algorithm: "HMAC-SHA256",
-          user_id: asid,
+          user_id: identifiantApplicatif,
           issued_at: 1700000000,
         })
       )
@@ -302,16 +367,17 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.orderItem).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
+    expect(restantes.verificationChangementEmail).not.toBeNull()
   })
 
   it("accepte un identifiant Facebook inconnu et rend quand même un code de confirmation", async () => {
-    const asid = `asid-${runId}-inconnu`
+    const identifiantApplicatif = `identifiant-${runId}-inconnu`
 
     const reponse = await POST(
       requete(
         signer({
           algorithm: "HMAC-SHA256",
-          user_id: asid,
+          user_id: identifiantApplicatif,
           issued_at: 1700000000,
         })
       )
@@ -329,8 +395,8 @@ describe("POST /api/facebook/suppression-donnees", () => {
   })
 
   it("accepte aussi un corps JSON portant signed_request", async () => {
-    const asid = `asid-${runId}-json`
-    const donnees = await semerClient(asid)
+    const identifiantApplicatif = `identifiant-${runId}-json`
+    const donnees = await semerClient(identifiantApplicatif)
 
     const reponse = await POST(
       new Request(`${ORIGINE_DE_TEST}/api/facebook/suppression-donnees`, {
@@ -339,7 +405,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
         body: JSON.stringify({
           signed_request: signer({
             algorithm: "HMAC-SHA256",
-            user_id: asid,
+            user_id: identifiantApplicatif,
             issued_at: 1700000000,
           }),
         }),
@@ -359,15 +425,16 @@ describe("POST /api/facebook/suppression-donnees", () => {
       orderItem: null,
       verification: null,
       verificationEmail: null,
+      verificationChangementEmail: null,
     })
   })
 
   it("ne supprime pas les codes d'un autre Compte client dont l'adresse a celle du Client supprimé pour suffixe", async () => {
-    const asidSupprime = `asid-${runId}-suffixe-a`
-    const clientSupprime = await semerClient(asidSupprime)
-    const asidConserve = `asid-${runId}-suffixe-b`
+    const identifiantSupprime = `identifiant-${runId}-suffixe-a`
+    const clientSupprime = await semerClient(identifiantSupprime)
+    const identifiantConserve = `identifiant-${runId}-suffixe-b`
     const clientConserve = await semerClient(
-      asidConserve,
+      identifiantConserve,
       `x${clientSupprime.email}`
     )
 
@@ -375,7 +442,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
       requete(
         signer({
           algorithm: "HMAC-SHA256",
-          user_id: asidSupprime,
+          user_id: identifiantSupprime,
           issued_at: 1700000000,
         })
       )
@@ -389,12 +456,14 @@ describe("POST /api/facebook/suppression-donnees", () => {
       orderItem: null,
       verification: null,
       verificationEmail: null,
+      verificationChangementEmail: null,
     })
 
     const restantes = await lignesRestantes(clientConserve)
     expect(restantes.user).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
+    expect(restantes.verificationChangementEmail).not.toBeNull()
   })
 })
 
