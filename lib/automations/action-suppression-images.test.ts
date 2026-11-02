@@ -27,8 +27,8 @@ const runId = randomUUID().slice(0, 8)
 const MAINTENANT = new Date("2026-10-28T07:00:00.000Z")
 const REGLE = "suppression-images-produit-enregistre"
 
-function options() {
-  return { maintenant: MAINTENANT, delaiDeReprise: () => 0 }
+function options(maintenant = MAINTENANT, delaiDeReprise = () => 0) {
+  return { maintenant, delaiDeReprise }
 }
 
 function urlsRetirees() {
@@ -100,8 +100,9 @@ describe("l'action suppression.images", () => {
       new Error("R2 indisponible")
     )
 
+    const delai = 60_000
     const premier = await executerLesEvenements(
-      options(),
+      options(MAINTENANT, () => delai),
       dependancesDeTest(MAINTENANT)
     )
 
@@ -110,15 +111,19 @@ describe("l'action suppression.images", () => {
       where: { entityId: produitId },
     })
     expect(evenement.status).toBe("en_attente")
+    expect(evenement.availableAt.getTime()).toBeGreaterThan(
+      MAINTENANT.getTime()
+    )
     const echec = await prisma.automationRun.findFirstOrThrow({
       where: { ruleId: REGLE },
     })
     expect(echec.status).toBe("echoue")
     expect(echec.lastError).toContain("R2 indisponible")
 
+    const plusTard = new Date(MAINTENANT.getTime() + delai + 1)
     const second = await executerLesEvenements(
-      options(),
-      dependancesDeTest(MAINTENANT)
+      options(plusTard, () => 0),
+      dependancesDeTest(plusTard)
     )
 
     expect(second.echoues).toBe(0)
