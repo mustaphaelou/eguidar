@@ -18,6 +18,10 @@ import {
   deciderAutomation,
   evenementEstExpire,
 } from "@/lib/automations/decision"
+import {
+  ouvrirExecution,
+  terminerExecution,
+} from "@/lib/automations/executions"
 
 export const LIMITE_PAR_BALAYAGE = 20
 export const BAIL_EXECUTION_MS = 60_000
@@ -114,66 +118,6 @@ export async function reclamerEvenements(
   })
 }
 
-interface OptionsRun {
-  eventId: string
-  ruleId: string
-  action: string
-  attempt: number
-  trigger: "evenement" | "planification" | "manuel"
-  maintenant: Date
-}
-
-async function demarrerRun(options: OptionsRun) {
-  return prisma.automationRun.upsert({
-    where: {
-      eventId_ruleId_attempt: {
-        eventId: options.eventId,
-        ruleId: options.ruleId,
-        attempt: options.attempt,
-      },
-    },
-    create: {
-      eventId: options.eventId,
-      ruleId: options.ruleId,
-      action: options.action,
-      status: "en_cours",
-      attempt: options.attempt,
-      startedAt: options.maintenant,
-      trigger: options.trigger,
-    },
-    update: {
-      status: "en_cours",
-      action: options.action,
-      startedAt: options.maintenant,
-      finishedAt: null,
-      lastError: null,
-      durationMs: null,
-    },
-  })
-}
-
-async function terminerRun(
-  id: string,
-  statut: "reussi" | "echoue" | "ignore",
-  maintenant: Date,
-  erreur?: string
-) {
-  const run = await prisma.automationRun.findUniqueOrThrow({ where: { id } })
-  return prisma.automationRun.update({
-    where: { id },
-    data: {
-      status: statut,
-      finishedAt: maintenant,
-      durationMs: Math.max(0, maintenant.getTime() - run.startedAt.getTime()),
-      lastError: erreur ?? null,
-    },
-  })
-}
-
-function declencheurDe(type: string): OptionsRun["trigger"] {
-  return type.startsWith("planification.") ? "planification" : "evenement"
-}
-
 async function ignorerEvenement(
   evenement: AutomationEvent,
   regles: { id: string; action: string }[],
@@ -181,15 +125,17 @@ async function ignorerEvenement(
   maintenant: Date
 ): Promise<"ignore"> {
   for (const regle of regles) {
-    const run = await demarrerRun({
-      eventId: evenement.id,
-      ruleId: regle.id,
-      action: regle.action,
-      attempt: evenement.attempts + 1,
-      trigger: declencheurDe(evenement.type),
+    const run = await ouvrirExecution({
+      evenement: { id: evenement.id, type: evenement.type },
+      regle: { id: regle.id, action: regle.action },
       maintenant,
     })
-    await terminerRun(run.id, "ignore", maintenant, motif)
+    await terminerExecution({
+      executionId: run.id,
+      issue: "ignore",
+      erreur: motif,
+      maintenant,
+    })
   }
   await prisma.automationEvent.update({
     where: { id: evenement.id },
@@ -236,7 +182,6 @@ export async function executerEvenement(
   }
 
   const tentative = evenement.attempts + 1
-  const trigger = declencheurDe(evenement.type)
   let derniereErreur: string | null = null
 
   for (const regle of regles) {
@@ -256,17 +201,19 @@ export async function executerEvenement(
     const configuration = configurationRegleSchema
       .optional()
       .parse(regle.actionConfig ?? undefined)
-    const run = await demarrerRun({
-      eventId: evenement.id,
-      ruleId: regle.id,
-      action: regle.action,
-      attempt: tentative,
-      trigger,
+    const run = await ouvrirExecution({
+      evenement: { id: evenement.id, type: evenement.type },
+      regle: { id: regle.id, action: regle.action },
       maintenant,
     })
 
     if (decision.decision === "ignorer") {
-      await terminerRun(run.id, "ignore", maintenant, "condition non remplie")
+      await terminerExecution({
+        executionId: run.id,
+        issue: "ignore",
+        erreur: "condition non remplie",
+        maintenant,
+      })
       continue
     }
 
@@ -281,10 +228,19 @@ export async function executerEvenement(
         regle: { id: regle.id, action, configuration },
         dependances,
       })
-      await terminerRun(run.id, "reussi", maintenant)
+      await terminerExecution({
+        executionId: run.id,
+        issue: "reussi",
+        maintenant,
+      })
     } catch (error) {
       derniereErreur = messageDeLErreur(error)
-      await terminerRun(run.id, "echoue", maintenant, derniereErreur)
+      await terminerExecution({
+        executionId: run.id,
+        issue: "echoue",
+        erreur: derniereErreur,
+        maintenant,
+      })
     }
   }
 
