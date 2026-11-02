@@ -500,6 +500,97 @@ describe("la déclaration de variante.stock.changee", () => {
   })
 })
 
+describe("la déclaration de structure.creee", () => {
+  it("ne déclare que l'invalidation durable : ni réindexation ni image", () => {
+    const plan = declarerApresEcriture("structure.creee", {
+      categorieId: CATEGORIE,
+    })
+
+    expect(plan.faits).toEqual([
+      {
+        declencheur: "structure.creee",
+        entite: "categorie",
+        identifiant: CATEGORIE,
+        charge: { categorieId: CATEGORIE },
+      },
+    ])
+    expect(effets(plan)).toEqual(["invalidation-cache"])
+    expect(durable(plan)).toEqual(["invalidation-cache"])
+    expect(actions(plan)).toEqual(["invalidation.structure"])
+    expect(plan.consequences[0]).toMatchObject({
+      entite: { type: "categorie", id: CATEGORIE },
+    })
+  })
+})
+
+describe("la déclaration de structure.modifiee", () => {
+  it("porte le fait borné : catégorie, image retirée et destination", () => {
+    const image = "https://cdn.example.test/categories/ancienne.jpg"
+    const plan = declarerApresEcriture("structure.modifiee", {
+      categorieId: CATEGORIE,
+      imageRetiree: image,
+      destination: "categorie-parente",
+    })
+
+    expect(plan.faits).toEqual([
+      {
+        declencheur: "structure.modifiee",
+        entite: "categorie",
+        identifiant: CATEGORIE,
+        charge: {
+          categorieId: CATEGORIE,
+          imageRetiree: image,
+          destination: "categorie-parente",
+        },
+      },
+    ])
+    expect(Object.keys(plan.faits[0]!.charge as object)).not.toContain(
+      "branche"
+    )
+  })
+
+  it("ordonne la suppression d'image, la réindexation puis l'invalidation", () => {
+    const plan = declarerApresEcriture("structure.modifiee", {
+      categorieId: CATEGORIE,
+      imageRetiree: "https://cdn.example.test/categories/ancienne.jpg",
+      destination: "categorie-parente",
+    })
+
+    expect(effets(plan)).toEqual([
+      "suppression-images",
+      "reindexation",
+      "invalidation-cache",
+    ])
+    expect(durable(plan)).toEqual(effets(plan))
+    expect(actions(plan)).toEqual([
+      "suppression.images",
+      "index.structure",
+      "invalidation.structure",
+    ])
+    expect(plan.consequences[0]!.entite).toEqual({
+      type: "categorie",
+      id: CATEGORIE,
+    })
+  })
+
+  it("ne déclare la suppression d'image que si une image est retirée", () => {
+    const plan = declarerApresEcriture("structure.modifiee", {
+      categorieId: CATEGORIE,
+      imageRetiree: null,
+      destination: null,
+    })
+
+    expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
+    expect(durable(plan)).toEqual(["reindexation", "invalidation-cache"])
+    expect(actions(plan)).toEqual(["index.structure", "invalidation.structure"])
+    expect(plan.faits[0]!.charge).toEqual({
+      categorieId: CATEGORIE,
+      imageRetiree: null,
+      destination: null,
+    })
+  })
+})
+
 describe("les écritures de maintenance sans conséquence durable", () => {
   const plansDeMaintenance = () => [
     declarerApresEcriture("ville.creee", { villeId: "ville-1" }),
@@ -574,8 +665,45 @@ describe("les Règles par défaut dérivées de variante.stock.changee", () => {
     const ids = reglesParDefaut().map((regle) => regle.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+})
 
-  it("chaque conséquence durable a exactement une Règle, aucune non durable n'en a", () => {
+describe("les Règles par défaut dérivées des déclarations de Structure", () => {
+  it("reprend les identités existantes pour la création et l'invalidation", () => {
+    const creation = reglesParDefaut().filter(
+      (regle) => regle.declencheur === "structure.creee"
+    )
+    expect(creation.map((regle) => [regle.id, regle.action])).toEqual([
+      ["invalidation-structure", "invalidation.structure"],
+    ])
+
+    const modification = reglesParDefaut().filter(
+      (regle) => regle.declencheur === "structure.modifiee"
+    )
+    expect(modification.map((regle) => [regle.id, regle.action])).toEqual([
+      ["suppression-images-structure-modifiee", "suppression.images"],
+      ["indexation-structure", "index.structure"],
+      ["invalidation-structure-modifiee", "invalidation.structure"],
+    ])
+  })
+
+  it("ne duplique aucune identité et ne garde aucune liste en attente", () => {
+    expect(GENRES_MIGRES).toContain("structure.creee")
+    expect(GENRES_MIGRES).toContain("structure.modifiee")
+    for (const id of [
+      "invalidation-structure",
+      "invalidation-structure-modifiee",
+      "indexation-structure",
+    ]) {
+      expect(
+        reglesParDefaut().filter((regle) => regle.id === id),
+        id
+      ).toHaveLength(1)
+    }
+  })
+})
+
+describe("chaque conséquence durable a exactement une Règle par déclencheur", () => {
+  it("aucune conséquence non durable n'en a", () => {
     const regles = reglesParDefaut()
 
     for (const genre of GENRES_MIGRES) {
@@ -677,6 +805,11 @@ describe("les Règles par défaut de l'installation", () => {
       "indexation-structure": {
         declencheur: "structure.modifiee",
         action: "index.structure",
+        actif: true,
+      },
+      "suppression-images-structure-modifiee": {
+        declencheur: "structure.modifiee",
+        action: "suppression.images",
         actif: true,
       },
       "invalidation-structure-supprimee": {

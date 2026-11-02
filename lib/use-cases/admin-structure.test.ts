@@ -587,7 +587,11 @@ describe("deplacerStructure — un déplacement, un propriétaire", () => {
     expect(evenements).toHaveLength(1)
     expect(evenements[0]).toMatchObject({
       entityType: "categorie",
-      payload: { categorieId: c.id },
+      payload: {
+        categorieId: c.id,
+        imageRetiree: null,
+        destination: racine.id,
+      },
     })
   })
 
@@ -2574,6 +2578,258 @@ describe("admin structure mutations — categories", () => {
       CategoryNotFoundError
     )
 
+    expectNoEffects(effets)
+  })
+})
+
+describe("Structure — l'après-écriture déclarée une fois", () => {
+  beforeEach(async () => {
+    await prisma.automationEvent.deleteMany({
+      where: { entityType: "categorie" },
+    })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `struc-${runId}-` } },
+    })
+    await prisma.category.deleteMany({
+      where: { slug: { startsWith: `cat-${runId}-` } },
+    })
+  })
+
+  afterAll(async () => {
+    await prisma.automationEvent.deleteMany({
+      where: { entityType: "categorie" },
+    })
+    await prisma.product.deleteMany({
+      where: { slug: { startsWith: `struc-${runId}-` } },
+    })
+    await prisma.category.deleteMany({
+      where: { slug: { startsWith: `cat-${runId}-` } },
+    })
+  })
+
+  it("une création ne déclare que l'invalidation durable", async () => {
+    const effets = effectSpies()
+
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("fait-creation") }),
+      effets
+    )
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: { type: "structure.creee", entityId: category.id },
+    })
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]!.payload).toEqual({ categorieId: category.id })
+    expect(effets.deleteImage).not.toHaveBeenCalled()
+    expect(effets.reindexProducts).not.toHaveBeenCalled()
+    expect(effets.revalidateCategories).toHaveBeenCalledOnce()
+  })
+
+  it("un renommage réindexe toute la branche de la Structure", async () => {
+    const reindexProducts = vi.fn()
+    const racine = await createCategory(
+      makeCategoryInput({ slug: categorySlug("branche-racine") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("branche-enfant"),
+        parentId: racine.id,
+      })
+    )
+    const produitRacine = await makeProductIn(
+      racine,
+      "branche-racine",
+      "Racine"
+    )
+    const produitEnfant = await makeProductIn(
+      enfant,
+      "branche-enfant",
+      "Enfant"
+    )
+
+    await updateCategory(
+      racine.id,
+      makeCategoryInput({
+        slug: categorySlug("branche-racine"),
+        name: "Racine renommée",
+      }),
+      { reindexProducts }
+    )
+
+    expect(reindexProducts).toHaveBeenCalledOnce()
+    const documents = reindexProducts.mock.calls[0]![0] as { id: string }[]
+    expect(documents.map((document) => document.id).sort()).toEqual(
+      [produitRacine.id, produitEnfant.id].sort()
+    )
+  })
+
+  it("un déplacement réindexe toute la branche déplacée", async () => {
+    const reindexProducts = vi.fn()
+    const origine = await createCategory(
+      makeCategoryInput({ slug: categorySlug("move-origine") })
+    )
+    const destination = await createCategory(
+      makeCategoryInput({ slug: categorySlug("move-destination") })
+    )
+    const deplacee = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("move-deplacee"),
+        parentId: origine.id,
+      })
+    )
+    const petite = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("move-petite"),
+        parentId: deplacee.id,
+      })
+    )
+    const produitDeplace = await makeProductIn(
+      deplacee,
+      "move-deplacee",
+      "Produit déplacé"
+    )
+    const produitPetit = await makeProductIn(
+      petite,
+      "move-petite",
+      "Produit petit"
+    )
+
+    await deplacerStructure(
+      { id: deplacee.id, nouvelleParenteId: destination.id, avantId: null },
+      { reindexProducts }
+    )
+
+    expect(reindexProducts).toHaveBeenCalledOnce()
+    const documents = reindexProducts.mock.calls[0]![0] as { id: string }[]
+    expect(documents.map((document) => document.id).sort()).toEqual(
+      [produitDeplace.id, produitPetit.id].sort()
+    )
+  })
+
+  it("un remplacement d'image supprime l'ancienne avant de réindexer puis d'invalider", async () => {
+    const ordre: string[] = []
+    const category = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("ordre-image"),
+        image: "https://example.com/ancienne.jpg",
+      })
+    )
+    await makeProductIn(category, "ordre-image", "Produit ordonné")
+
+    await updateCategory(
+      category.id,
+      makeCategoryInput({
+        slug: categorySlug("ordre-image"),
+        image: "https://example.com/nouvelle.jpg",
+      }),
+      {
+        deleteImage: vi.fn(async () => {
+          ordre.push("suppression-images")
+        }),
+        reindexProducts: vi.fn(async () => {
+          ordre.push("reindexation")
+        }),
+        revalidateCategories: vi.fn(async () => {
+          ordre.push("invalidation-cache")
+        }),
+      }
+    )
+
+    expect(ordre).toEqual([
+      "suppression-images",
+      "reindexation",
+      "invalidation-cache",
+    ])
+  })
+
+  it("isole l'échec de réindexation et invalide quand même", async () => {
+    const revalidateCategories = vi.fn()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("panne-reindex") })
+    )
+    await makeProductIn(category, "panne-reindex", "Produit isolé")
+
+    await verifierFrontiereBestEffort("réindexation", (effetQuiEchoue) =>
+      updateCategory(
+        category.id,
+        makeCategoryInput({
+          slug: categorySlug("panne-reindex"),
+          name: "Renommée malgré la panne",
+        }),
+        { reindexProducts: effetQuiEchoue, revalidateCategories }
+      )
+    )
+
+    expect(revalidateCategories).toHaveBeenCalledOnce()
+  })
+
+  it("écrit le fait de modification avec l'image retirée et la destination", async () => {
+    const parente = await createCategory(
+      makeCategoryInput({ slug: categorySlug("fait-parente") })
+    )
+    const category = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("fait-modifiee"),
+        image: "https://example.com/retiree.jpg",
+      })
+    )
+
+    await updateCategory(
+      category.id,
+      makeCategoryInput({
+        slug: categorySlug("fait-modifiee"),
+        image: "https://example.com/conservee.jpg",
+        parentId: parente.id,
+      }),
+      { deleteImage: vi.fn(), reindexProducts: vi.fn() }
+    )
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: { type: "structure.modifiee", entityId: category.id },
+    })
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]!.payload).toEqual({
+      categorieId: category.id,
+      imageRetiree: "https://example.com/retiree.jpg",
+      destination: parente.id,
+    })
+  })
+
+  it("n'écrit aucun Événement quand la transaction de modification est annulée", async () => {
+    const effets = effectSpies()
+    const category = await createCategory(
+      makeCategoryInput({ slug: categorySlug("fait-annule") })
+    )
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après l'écriture du fait")
+      })) as unknown as typeof prisma.$transaction)
+
+    try {
+      const refus = await refusDe(
+        updateCategory(
+          category.id,
+          makeCategoryInput({
+            slug: categorySlug("fait-annule"),
+            name: "Jamais commitée",
+          }),
+          effets
+        )
+      )
+      expect((refus as Error).message).toContain("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    await expect(
+      prisma.automationEvent.count({
+        where: { type: "structure.modifiee", entityId: category.id },
+      })
+    ).resolves.toBe(0)
     expectNoEffects(effets)
   })
 })

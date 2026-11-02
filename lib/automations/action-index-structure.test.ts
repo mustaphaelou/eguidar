@@ -15,6 +15,7 @@ import {
 const runId = randomUUID().slice(0, 8)
 const MAINTENANT = new Date("2026-11-02T07:00:00.000Z")
 const PREFIXE = `idx-structure-${runId}`
+const REGLE_MODIFICATION = "indexation-structure"
 
 function options(maintenant = MAINTENANT, delaiDeReprise = () => 0) {
   return { maintenant, delaiDeReprise }
@@ -56,6 +57,22 @@ async function ecrireSuppression(
       entityId: categorieId,
       occurredAt: MAINTENANT,
       payload: { categorieId, image: null, ...faits },
+    })
+  )
+}
+
+async function ecrireModification(categorieId: string) {
+  await prisma.$transaction((tx) =>
+    enregistrerEvenement(tx, {
+      type: "structure.modifiee",
+      entityType: "categorie",
+      entityId: categorieId,
+      occurredAt: MAINTENANT,
+      payload: {
+        categorieId,
+        imageRetiree: null,
+        destination: null,
+      },
     })
   )
 }
@@ -190,5 +207,86 @@ describe("l'action index.structure d'une Structure supprimée", () => {
     expect(idsIndexes(recherche.operations)).toEqual([])
     // L'invalidation reste déclarée et s'exécute pour la même écriture.
     expect(catalogue.structures).toBe(1)
+  })
+})
+
+describe("l'action index.structure d'une Structure modifiée", () => {
+  it("résout la branche après le commit et réindexe tous ses Produits", async () => {
+    const racine = await creerStructure("racine")
+    const branche = await creerStructure("branche", racine.id)
+    const petite = await creerStructure("petite", branche.id)
+    const produitRacine = await creerProduit("racine", racine.id)
+    const produitBranche = await creerProduit("branche", branche.id)
+    const produitPetite = await creerProduit("petite", petite.id)
+    await ecrireModification(branche.id)
+
+    const recherche = creerPortRechercheMemoire()
+    const bilan = await executerLesEvenements(
+      options(),
+      dependancesDeTest(MAINTENANT, { recherche: recherche.port })
+    )
+
+    expect(bilan.reussis).toBe(1)
+    expect(idsIndexes(recherche.operations).map(idsTries)).toEqual([
+      idsTries([produitBranche.id, produitPetite.id]),
+    ])
+    const indexes = new Set(
+      idsIndexes(recherche.operations).flatMap((ids) => ids)
+    )
+    expect(indexes.has(produitRacine.id)).toBe(false)
+    const execution = await prisma.automationRun.findFirstOrThrow({
+      where: { ruleId: REGLE_MODIFICATION, attempt: 1 },
+    })
+    expect(execution).toMatchObject({ status: "reussi", lastError: null })
+  })
+
+  it("une panne de réindexation laisse une Exécution échouée, puis le réessai réussit", async () => {
+    const racine = await creerStructure("panne-racine")
+    const enfant = await creerStructure("panne-enfant", racine.id)
+    const produit = await creerProduit("panne", enfant.id)
+    await ecrireModification(enfant.id)
+
+    const memoire = creerPortRechercheMemoire()
+    let enPanne = true
+    const port = {
+      ...memoire.port,
+      async indexer(produits: Parameters<typeof memoire.port.indexer>[0]) {
+        if (enPanne) throw new Error("Meilisearch indisponible")
+        await memoire.port.indexer(produits)
+      },
+    }
+
+    const premier = await executerLesEvenements(
+      options(MAINTENANT, () => 60_000),
+      dependancesDeTest(MAINTENANT, { recherche: port })
+    )
+
+    expect(premier.echoues).toBe(1)
+    const evenement = await prisma.automationEvent.findFirstOrThrow({
+      where: { entityId: enfant.id },
+    })
+    expect(evenement.status).toBe("en_attente")
+    const echec = await prisma.automationRun.findFirstOrThrow({
+      where: { ruleId: REGLE_MODIFICATION, attempt: 1 },
+    })
+    expect(echec).toMatchObject({
+      status: "echoue",
+      lastError: "Meilisearch indisponible",
+    })
+
+    enPanne = false
+    const plusTard = new Date(MAINTENANT.getTime() + 60_001)
+    await executerLesEvenements(
+      options(plusTard, () => 0),
+      dependancesDeTest(plusTard, { recherche: port })
+    )
+
+    expect(idsIndexes(memoire.operations).flatMap((ids) => ids)).toContain(
+      produit.id
+    )
+    const reussite = await prisma.automationRun.findFirstOrThrow({
+      where: { ruleId: REGLE_MODIFICATION, attempt: 2 },
+    })
+    expect(reussite).toMatchObject({ status: "reussi", lastError: null })
   })
 })

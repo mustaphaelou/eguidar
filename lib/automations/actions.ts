@@ -129,6 +129,12 @@ const payloadProduit = z.object({
 })
 const payloadProduitId = z.object({ produitId: z.string().min(1) })
 const payloadStructure = z.object({ categorieId: z.string().min(1) })
+const payloadIndexStructure = z.object({
+  categorieId: z.string().min(1).nullish(),
+  destinations: z.array(z.string().min(1)).nullish(),
+  destination: z.string().min(1).nullish(),
+  produitsSansStructure: z.boolean().nullish(),
+})
 const payloadJour = z.object({ jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 
 /**
@@ -234,6 +240,8 @@ async function purgerCatalogue(contexte: ContexteAction): Promise<void> {
 
 async function invaliderStructure(contexte: ContexteAction): Promise<void> {
   payloadStructure.parse(contexte.evenement.payload)
+  // Le cache et le bord sont une seule conséquence déclarée : une purge qui
+  // échoue fait réessayer l'invalidation entière, cache compris.
   await contexte.dependances.catalogue.revaliderStructure()
 }
 
@@ -324,57 +332,82 @@ async function collecterIdsBranche(
   return resultat
 }
 
-async function indexerStructure(contexte: ContexteAction): Promise<void> {
-  const payload = contexte.evenement.payload as Record<string, unknown>
-  const destinations = Array.isArray(payload.destinations)
-    ? (payload.destinations as unknown[]).filter(
-        (destination): destination is string =>
-          typeof destination === "string" && destination.length > 0
-      )
-    : payload.destination
-      ? [String(payload.destination)]
-      : payload.categorieId
-        ? [String(payload.categorieId)]
-        : []
-  // Une suppression sans destination n'a de Produits à réindexer que ceux
-  // restés orphelins ; une suppression d'une Structure vide n'en a aucun.
-  if (destinations.length === 0 && payload.produitsSansStructure !== true) {
-    return
-  }
-  const cibles = destinations.length > 0 ? destinations : [null]
-  for (const dest of cibles) {
-    const idsBranches = dest === null ? [] : await collecterIdsBranche(dest)
-    const where =
-      dest === null ? { categoryId: null } : { categoryId: { in: idsBranches } }
-    const produits = await prisma.product.findMany({
-      where,
-      include: { variants: true, category: true },
-    })
-    if (produits.length > 0) {
-      await contexte.dependances.recherche.indexer(
-        produits.map(toIndexableProduct)
-      )
-    }
+async function indexerBranche(
+  contexte: ContexteAction,
+  destination: string | null
+): Promise<void> {
+  const where =
+    destination === null
+      ? { categoryId: null }
+      : { categoryId: { in: await collecterIdsBranche(destination) } }
+  const produits = await prisma.product.findMany({
+    where,
+    include: { variants: true, category: true },
+  })
+  if (produits.length > 0) {
+    await contexte.dependances.recherche.indexer(
+      produits.map(toIndexableProduct)
+    )
   }
 }
 
-async function supprimerImages(contexte: ContexteAction): Promise<void> {
-  const payload = contexte.evenement.payload as Record<string, unknown>
-  const urls = new Set<string>()
-  for (const cle of ["urls", "images", "imagesRetirees"]) {
-    const v = payload[cle]
-    if (Array.isArray(v))
-      for (const u of v) if (typeof u === "string") urls.add(u)
-  }
-  for (const cle of ["url", "image", "imageRetiree"]) {
-    const v = payload[cle]
-    if (typeof v === "string") urls.add(v)
-  }
-  if (contexte.evenement.entityType === "categorie") {
-    await supprimerImagesCategorieDuStockage([...urls])
+/**
+ * L'action résout la branche après le commit : une modification réindexe la
+ * branche de la Structure touchée, une suppression les branches de destination
+ * (ou les Produits restés sans Structure). La charge ne porte jamais la
+ * branche, seulement des identifiants.
+ */
+async function indexerStructure(contexte: ContexteAction): Promise<void> {
+  const payload = payloadIndexStructure.parse(contexte.evenement.payload)
+
+  if (contexte.evenement.type !== "structure.supprimee") {
+    if (!payload.categorieId) {
+      throw new Error("catégorie absente de la charge de la Structure")
+    }
+    await indexerBranche(contexte, payload.categorieId)
     return
   }
-  await supprimerImagesProduitDuStockage([...urls])
+
+  const destinations =
+    payload.destinations ?? (payload.destination ? [payload.destination] : [])
+  if (destinations.length === 0) {
+    // Une suppression sans destination n'a de Produits à réindexer que ceux
+    // restés orphelins ; une Structure vide n'en a aucun.
+    if (payload.produitsSansStructure === true) {
+      await indexerBranche(contexte, null)
+    }
+    return
+  }
+  for (const destination of destinations) {
+    await indexerBranche(contexte, destination)
+  }
+}
+
+function urlsDesImages(payload: unknown): string[] {
+  const charge = (payload ?? {}) as Record<string, unknown>
+  const urls = new Set<string>()
+  for (const cle of ["urls", "images", "imagesRetirees"]) {
+    const valeur = charge[cle]
+    if (Array.isArray(valeur))
+      for (const url of valeur) if (typeof url === "string") urls.add(url)
+  }
+  for (const cle of ["url", "image", "imageRetiree"]) {
+    const valeur = charge[cle]
+    if (typeof valeur === "string") urls.add(valeur)
+  }
+  return [...urls]
+}
+
+async function supprimerImages(contexte: ContexteAction): Promise<void> {
+  const urls = urlsDesImages(contexte.evenement.payload)
+  if (urls.length === 0) return
+  // Le même fait nomme l'URL ; l'entité de l'Événement choisit l'espace de
+  // noms, car l'image d'une Structure vit hors du préfixe des Images produit.
+  if (contexte.evenement.entityType === "categorie") {
+    await supprimerImagesCategorieDuStockage(urls)
+    return
+  }
+  await supprimerImagesProduitDuStockage(urls)
 }
 
 const ACTIONS: Record<

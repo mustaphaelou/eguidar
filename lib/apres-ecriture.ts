@@ -651,6 +651,8 @@ export const GENRES_MIGRES: GenreEcriture[] = [
   "produit.enregistre",
   "produit.supprime",
   "variante.stock.changee",
+  "structure.creee",
+  "structure.modifiee",
   "structure.supprimee",
   "ville.creee",
   "ville.modifiee",
@@ -716,14 +718,6 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
     id: "indexation-stock",
     nom: "Indexation du stock",
   },
-  "structure.supprimee|index.structure": {
-    id: "indexation-structure-supprimee",
-    nom: "Indexation de la Structure supprimée",
-  },
-  "structure.supprimee|suppression.images": {
-    id: "suppression-images-structure-supprimee",
-    nom: "Suppression de l'image de la Structure supprimée",
-  },
   "structure.creee|invalidation.structure": {
     id: "invalidation-structure",
     nom: "Invalidation de la Structure",
@@ -732,13 +726,25 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
     id: "invalidation-structure-modifiee",
     nom: "Invalidation de la Structure modifiée",
   },
-  "structure.supprimee|invalidation.structure": {
-    id: "invalidation-structure-supprimee",
-    nom: "Invalidation de la Structure supprimée",
-  },
   "structure.modifiee|index.structure": {
     id: "indexation-structure",
     nom: "Indexation de la Structure",
+  },
+  "structure.modifiee|suppression.images": {
+    id: "suppression-images-structure-modifiee",
+    nom: "Suppression des images",
+  },
+  "structure.supprimee|index.structure": {
+    id: "indexation-structure-supprimee",
+    nom: "Indexation de la Structure supprimée",
+  },
+  "structure.supprimee|suppression.images": {
+    id: "suppression-images-structure-supprimee",
+    nom: "Suppression de l'image de la Structure supprimée",
+  },
+  "structure.supprimee|invalidation.structure": {
+    id: "invalidation-structure-supprimee",
+    nom: "Invalidation de la Structure supprimée",
   },
 }
 

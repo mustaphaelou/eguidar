@@ -179,13 +179,18 @@ describe("le travailleur des automatisations", () => {
       [
         [1, "reussi", null],
         [1, "echoue", "cache indisponible"],
+        [1, "reussi", null],
         [2, "reussi", null],
         [2, "echoue", "cache indisponible"],
+        [2, "reussi", null],
       ]
     )
 
     const historique = await listerExecutions()
-    const echec = historique.find((execution) => execution.id === runs[3]!.id)
+    const echecRun = runs.find(
+      (run) => run.attempt === 2 && run.status === "echoue"
+    )!
+    const echec = historique.find((execution) => execution.id === echecRun.id)
     expect(echec).toMatchObject({
       regle: "Invalidation de la Structure modifiée",
       action: "invalidation.structure",
@@ -265,7 +270,7 @@ describe("le travailleur des automatisations", () => {
     const runs = await prisma.automationRun.findMany({
       where: { eventId: evenement.id },
     })
-    expect(runs).toHaveLength(2)
+    expect(runs).toHaveLength(3)
     expect(runs[0]!.status).toBe("ignore")
     expect(runs[0]!.lastError).toBe(
       `événement expiré le ${expireLe.toISOString()}`
