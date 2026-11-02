@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { Prisma } from "@/lib/generated/prisma/client"
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { semerLesRegles } from "@/lib/automations/regles"
 import {
@@ -119,7 +118,10 @@ describe("ouvrirExecution", () => {
   })
 
   it("dérive le déclencheur : planification.* -> planification", async () => {
-    const planif = await creerEvenement("planification.digest-stock-bas", "planification")
+    const planif = await creerEvenement(
+      "planification.digest-stock-bas",
+      "planification"
+    )
     const regle = await regleStatut()
     const res = await ouvrirExecution({
       evenement: planif,
@@ -179,8 +181,6 @@ describe("ouvrirExecution", () => {
     })
     expect(res.attempt).toBe(6)
   })
-
-
 })
 
 describe("terminerExecution", () => {
@@ -208,24 +208,36 @@ describe("terminerExecution", () => {
   it("lastError est le motif pour echoue et ignore, null pour reussi", async () => {
     const evenement = await creerEvenement()
     const regle = await regleStatut()
-    const a = await ouvrirExecution({ evenement, regle, maintenant: MAINTENANT })
+    const a = await ouvrirExecution({
+      evenement,
+      regle,
+      maintenant: MAINTENANT,
+    })
     await terminerExecution({
       executionId: a.id,
       issue: "echoue",
       erreur: "boom",
       maintenant: MAINTENANT,
     })
-    const la = await prisma.automationRun.findUniqueOrThrow({ where: { id: a.id } })
+    const la = await prisma.automationRun.findUniqueOrThrow({
+      where: { id: a.id },
+    })
     expect(la.lastError).toBe("boom")
 
-    const b = await ouvrirExecution({ evenement, regle, maintenant: MAINTENANT })
+    const b = await ouvrirExecution({
+      evenement,
+      regle,
+      maintenant: MAINTENANT,
+    })
     await terminerExecution({
       executionId: b.id,
       issue: "ignore",
       erreur: MOTIF_ANNULATION,
       maintenant: MAINTENANT,
     })
-    const lb = await prisma.automationRun.findUniqueOrThrow({ where: { id: b.id } })
+    const lb = await prisma.automationRun.findUniqueOrThrow({
+      where: { id: b.id },
+    })
     expect(lb.lastError).toBe(MOTIF_ANNULATION)
   })
 
@@ -300,7 +312,10 @@ describe("annulerExecutionsEnCours", () => {
     const evenement = await creerEvenement()
     await prisma.automationEvent.update({
       where: { id: evenement.id },
-      data: { status: "en_cours", lockedUntil: new Date(MAINTENANT.getTime() + 60_000) },
+      data: {
+        status: "en_cours",
+        lockedUntil: new Date(MAINTENANT.getTime() + 60_000),
+      },
     })
     const regle = await regleStatut()
     await prisma.automationRun.create({

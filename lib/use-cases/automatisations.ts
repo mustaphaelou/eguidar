@@ -3,7 +3,6 @@ import { z } from "zod"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import {
-  DUREE_VIE_EVENEMENT_MS,
   typeEntiteAutomationSchema,
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
@@ -527,13 +526,11 @@ export interface ResultatReessai {
   erreur: string | null
 }
 
-const FENETRE_REJEU_EN_HEURES = DUREE_VIE_EVENEMENT_MS / (60 * 60 * 1000)
-
 /**
  * Le refus nomme la raison de la Décision sans rejouer son ordre : chaque
- * raison a sa phrase, et l'Événement expiré rappelle la fenêtre de rejeu. Le
- * rendu reste privé pour que la Décision et les autres consommateurs ne
- * partagent jamais une prose.
+ * raison a sa phrase, et l'Événement expiré nomme la date qui a clos sa
+ * fenêtre de rejeu. Le rendu reste privé pour que la Décision et les autres
+ * consommateurs ne partagent jamais une prose.
  */
 function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
   switch (raison.type) {

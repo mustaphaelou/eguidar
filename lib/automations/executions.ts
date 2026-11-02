@@ -1,7 +1,5 @@
 import { Prisma } from "@/lib/generated/prisma/client"
-import type {
-  AutomationEvent,
-} from "@/lib/generated/prisma/client"
+import type { AutomationEvent } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import { versRegle, type RegleAutomation } from "@/lib/automations/regles"
 
@@ -94,7 +92,9 @@ export async function ouvrirExecution(options: {
       throw error
     // retry once in a fresh transaction (outside the one the module opened)
     const retryClient = client ? client : undefined
-    return await avecClient(retryClient, (tx) => ouvrirExecutionDansTx(tx, rest))
+    return await avecClient(retryClient, (tx) =>
+      ouvrirExecutionDansTx(tx, rest)
+    )
   }
 }
 
