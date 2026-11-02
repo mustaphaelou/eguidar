@@ -58,8 +58,15 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
     )
   })
 
-  it("laisse une révision à chaque changement d'une règle semée", async () => {
+  it("ne réécrit pas une règle existante lors d'un semis ultérieur", async () => {
     await semerLesRegles()
+
+    const avant = await prisma.automationRule.findUniqueOrThrow({
+      where: { id: "statut-commande" },
+    })
+    const revisionsAvant = await prisma.automationRuleRevision.count({
+      where: { ruleId: "statut-commande" },
+    })
 
     const modifiees = REGLES_AUTOMATION.map((regle) =>
       regle.id === "statut-commande"
@@ -71,20 +78,17 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
     )
     await semerLesRegles(modifiees, "proprietaire")
 
-    const regle = await prisma.automationRule.findUniqueOrThrow({
+    const apres = await prisma.automationRule.findUniqueOrThrow({
       where: { id: "statut-commande" },
     })
-    expect(regle.condition).toEqual({ type: "statut-commande", statuts: [] })
-
-    const revisions = await prisma.automationRuleRevision.findMany({
-      where: { ruleId: "statut-commande" },
-      orderBy: { createdAt: "asc" },
-    })
-    expect(revisions).toHaveLength(2)
-    expect(revisions[1]!.author).toBe("proprietaire")
-    expect(revisions[1]!.snapshot).toMatchObject({
-      condition: { type: "statut-commande", statuts: [] },
-    })
+    expect(apres.condition).toEqual(avant.condition)
+    expect(apres.enabled).toBe(avant.enabled)
+    expect(apres.name).toBe(avant.name)
+    expect(
+      await prisma.automationRuleRevision.count({
+        where: { ruleId: "statut-commande" },
+      })
+    ).toBe(revisionsAvant)
   })
 
   it("ne sème aucune règle morte : chaque déclencheur existe", () => {

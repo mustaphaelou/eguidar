@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/db"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import {
   TYPES_EVENEMENT_AUTOMATION,
   type TypeEvenementAutomation,
@@ -270,9 +271,11 @@ export async function ecrireRevisionRegle(
 }
 
 /**
- * Écrit les règles du code dans la table, sans doublon. Une révision n'est
- * ajoutée que si l'instantané change : le semis d'un redéploiement ne gonfle
- * donc pas l'historique.
+ * Écrit les règles du code dans la table, en création seule. Une règle déjà
+ * présente n'est ni mise à jour ni révisée : l'édition et la bascule restent
+ * l'affaire de l'éditeur. Une révision n'est écrite que pour une ligne créée.
+ * Le perdant d'une course concurrente sur le même identifiant absorbe la
+ * violation d'unicité et ne crée aucune ligne ni révision.
  */
 export async function semerLesRegles(
   regles: readonly RegleAutomation[] = REGLES_AUTOMATION,
@@ -280,29 +283,25 @@ export async function semerLesRegles(
 ): Promise<void> {
   for (const regle of regles) {
     const verifiee = verifierRegle(regle)
-    await prisma.$transaction(async (tx) => {
-      await tx.automationRule.upsert({
-        where: { id: verifiee.id },
-        create: {
-          id: verifiee.id,
-          name: verifiee.nom,
-          enabled: verifiee.actif,
-          trigger: verifiee.declencheur,
-          condition: verifiee.condition,
-          action: verifiee.action,
-          actionConfig: verifiee.configuration ?? Prisma.DbNull,
-        },
-        update: {
-          name: verifiee.nom,
-          enabled: verifiee.actif,
-          trigger: verifiee.declencheur,
-          condition: verifiee.condition,
-          action: verifiee.action,
-          actionConfig: verifiee.configuration ?? Prisma.DbNull,
-        },
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.automationRule.create({
+          data: {
+            id: verifiee.id,
+            name: verifiee.nom,
+            enabled: verifiee.actif,
+            trigger: verifiee.declencheur,
+            condition: verifiee.condition,
+            action: verifiee.action,
+            actionConfig: verifiee.configuration ?? Prisma.DbNull,
+          },
+        })
+        await ecrireRevisionRegle(tx, verifiee, auteur)
       })
-      await ecrireRevisionRegle(tx, verifiee, auteur)
-    })
+    } catch (error) {
+      if (hasUniqueViolation(error, ["id"])) continue
+      throw error
+    }
   }
 }
 
