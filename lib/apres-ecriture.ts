@@ -583,6 +583,13 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
     nom: "Invalidation du Catalogue",
   },
   "purge.catalogue": { id: "purge-catalogue", nom: "Purge du bord" },
+  // Une même action peut servir deux déclencheurs : la clé qualifiée garde une
+  // identité de Règle distincte par déclencheur, comme le semis créateur
+  // seulement l'exige.
+  "produit.enregistre|suppression.images": {
+    id: "suppression-images-produit-enregistre",
+    nom: "Suppression des images retirées",
+  },
 }
 
 // Liste en attente : Règles par défaut des genres non migrés, conservées ici
@@ -639,7 +646,7 @@ export const REGLES_EN_ATTENTE: Array<{
   {
     id: "suppression-images-produit",
     nom: "Suppression des images",
-    declencheur: "produit.enregistre",
+    declencheur: "produit.supprime",
     action: "suppression.images",
   },
   {
@@ -688,7 +695,9 @@ export function reglesParDefaut(): Array<{
     const declencheurFait = plan.faits[0]?.declencheur
     for (const c of plan.consequences) {
       if (!c.durable || !c.action) continue
-      const identite = IDENTITES_REGLES_MIGREES[c.action]
+      const identite =
+        IDENTITES_REGLES_MIGREES[`${declencheurFait}|${c.action}`] ??
+        IDENTITES_REGLES_MIGREES[c.action]
       if (!identite) continue
       out.push({
         id: identite.id,
