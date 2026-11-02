@@ -1,7 +1,6 @@
 import { Prisma } from "@/lib/generated/prisma/client"
 import type {
   AutomationEvent,
-  AutomationRun,
 } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
@@ -32,73 +31,68 @@ async function avecClient<T>(
 
 // --- ouvrirExecution ---
 
+async function ouvrirExecutionDansTx(
+  tx: Prisma.TransactionClient,
+  options: {
+    evenement: { id: string; type: string }
+    regle: { id: string; action: string }
+    maintenant: Date
+  }
+): Promise<{ id: string; attempt: number }> {
+  const { evenement, regle, maintenant } = options
+
+  const dernier = await tx.automationRun.findFirst({
+    where: { eventId: evenement.id, ruleId: regle.id },
+    orderBy: { attempt: "desc" },
+  })
+
+  if (dernier && dernier.status === "en_cours") {
+    const misAJour = await tx.automationRun.update({
+      where: { id: dernier.id },
+      data: {
+        status: "en_cours",
+        action: regle.action,
+        startedAt: maintenant,
+        finishedAt: null,
+        lastError: null,
+        durationMs: null,
+      },
+    })
+    return { id: misAJour.id, attempt: misAJour.attempt }
+  }
+
+  const attempt = (dernier?.attempt ?? 0) + 1
+
+  const cree = await tx.automationRun.create({
+    data: {
+      eventId: evenement.id,
+      ruleId: regle.id,
+      action: regle.action,
+      status: "en_cours",
+      attempt,
+      startedAt: maintenant,
+      trigger: declencheurDe(evenement.type),
+    },
+  })
+  return { id: cree.id, attempt: cree.attempt }
+}
+
 export async function ouvrirExecution(options: {
   evenement: { id: string; type: string }
   regle: { id: string; action: string }
   maintenant: Date
   client?: Prisma.TransactionClient
 }): Promise<{ id: string; attempt: number }> {
-  const { evenement, regle, maintenant, client } = options
+  const { client, ...rest } = options
 
-  return avecClient(client, async (tx) => {
-    const dernier = await tx.automationRun.findFirst({
-      where: { eventId: evenement.id, ruleId: regle.id },
-      orderBy: { attempt: "desc" },
-    })
-
-    if (dernier && dernier.status === "en_cours") {
-      const misAJour = await tx.automationRun.update({
-        where: { id: dernier.id },
-        data: {
-          status: "en_cours",
-          action: regle.action,
-          startedAt: maintenant,
-          finishedAt: null,
-          lastError: null,
-          durationMs: null,
-        },
-      })
-      return { id: misAJour.id, attempt: misAJour.attempt }
-    }
-
-    const attempt = (dernier?.attempt ?? 0) + 1
-
-    try {
-      const cree = await tx.automationRun.create({
-        data: {
-          eventId: evenement.id,
-          ruleId: regle.id,
-          action: regle.action,
-          status: "en_cours",
-          attempt,
-          startedAt: maintenant,
-          trigger: declencheurDe(evenement.type),
-        },
-      })
-      return { id: cree.id, attempt: cree.attempt }
-    } catch (error) {
-      if (hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
-        const agregat = await tx.automationRun.aggregate({
-          where: { eventId: evenement.id, ruleId: regle.id },
-          _max: { attempt: true },
-        })
-        const nouvelAttempt = (agregat._max.attempt ?? 0) + 1
-        const cree = await tx.automationRun.create({
-          data: {
-            eventId: evenement.id,
-            ruleId: regle.id,
-            action: regle.action,
-            status: "en_cours",
-            attempt: nouvelAttempt,
-            startedAt: maintenant,
-            trigger: declencheurDe(evenement.type),
-          },
-        })
-        return { id: cree.id, attempt: cree.attempt }
-      }
-      throw error
-    }
-  })
+  try {
+    return await avecClient(client, (tx) => ouvrirExecutionDansTx(tx, rest))
+  } catch (error) {
+    if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) throw error
+    // retry once in a fresh transaction (outside the one the module opened)
+    const retryClient = client ? client : undefined
+    return await avecClient(retryClient, (tx) => ouvrirExecutionDansTx(tx, rest))
+  }
 }
 
 // --- private terminal writer ---
@@ -236,6 +230,63 @@ export async function annulerExecutionsEnCours(options: {
 
 // --- ouvrirReessai ---
 
+async function ouvrirReessaiDansTx(
+  tx: Prisma.TransactionClient,
+  executionId: string,
+  maintenant: Date
+): Promise<
+  | {
+      ok: true
+      execution: { id: string }
+      evenement: AutomationEvent
+      regle: RegleAutomation
+    }
+  | { ok: false; raison: RefusReessai }
+> {
+  const execution = await tx.automationRun.findUnique({
+    where: { id: executionId },
+    include: { event: true, rule: true },
+  })
+
+  if (!execution) return { ok: false, raison: "introuvable" }
+  if (execution.status !== "echoue")
+    return { ok: false, raison: "pas-en-echec" }
+  if (!execution.event) return { ok: false, raison: "evenement-disparu" }
+  if (!execution.rule) return { ok: false, raison: "regle-disparue" }
+
+  const evenement = execution.event
+  if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
+    return { ok: false, raison: "expire" }
+  }
+
+  const regle = versRegle(execution.rule)
+
+  const agregat = await tx.automationRun.aggregate({
+    where: { eventId: evenement.id, ruleId: regle.id },
+    _max: { attempt: true },
+  })
+  const attempt = (agregat._max.attempt ?? 0) + 1
+
+  const cree = await tx.automationRun.create({
+    data: {
+      eventId: evenement.id,
+      ruleId: regle.id,
+      action: regle.action,
+      status: "en_cours",
+      attempt,
+      startedAt: maintenant,
+      trigger: "manuel",
+    },
+  })
+
+  return {
+    ok: true,
+    execution: { id: cree.id },
+    evenement,
+    regle,
+  }
+}
+
 export async function ouvrirReessai(
   executionId: string,
   options: { maintenant: Date; client?: Prisma.TransactionClient }
@@ -250,72 +301,15 @@ export async function ouvrirReessai(
 > {
   const { maintenant, client } = options
 
-  return avecClient(client, async (tx) => {
-    const execution = await tx.automationRun.findUnique({
-      where: { id: executionId },
-      include: { event: true, rule: true },
-    })
-
-    if (!execution) return { ok: false, raison: "introuvable" }
-    if (execution.status !== "echoue")
-      return { ok: false, raison: "pas-en-echec" }
-    if (!execution.event) return { ok: false, raison: "evenement-disparu" }
-    if (!execution.rule) return { ok: false, raison: "regle-disparue" }
-
-    const evenement = execution.event
-    if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
-      return { ok: false, raison: "expire" }
-    }
-
-    const regle = versRegle(execution.rule)
-
-    const agregat = await tx.automationRun.aggregate({
-      where: { eventId: evenement.id, ruleId: regle.id },
-      _max: { attempt: true },
-    })
-    const attempt = (agregat._max.attempt ?? 0) + 1
-
-    let cree: AutomationRun
-    try {
-      cree = await tx.automationRun.create({
-        data: {
-          eventId: evenement.id,
-          ruleId: regle.id,
-          action: regle.action,
-          status: "en_cours",
-          attempt,
-          startedAt: maintenant,
-          trigger: "manuel",
-        },
-      })
-    } catch (error) {
-      if (hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
-        const agregat2 = await tx.automationRun.aggregate({
-          where: { eventId: evenement.id, ruleId: regle.id },
-          _max: { attempt: true },
-        })
-        const nouvelAttempt = (agregat2._max.attempt ?? 0) + 1
-        cree = await tx.automationRun.create({
-          data: {
-            eventId: evenement.id,
-            ruleId: regle.id,
-            action: regle.action,
-            status: "en_cours",
-            attempt: nouvelAttempt,
-            startedAt: maintenant,
-            trigger: "manuel",
-          },
-        })
-      } else {
-        throw error
-      }
-    }
-
-    return {
-      ok: true,
-      execution: { id: cree.id },
-      evenement,
-      regle,
-    }
-  })
+  try {
+    return await avecClient(client, (tx) =>
+      ouvrirReessaiDansTx(tx, executionId, maintenant)
+    )
+  } catch (error) {
+    if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) throw error
+    const retryClient = client ? client : undefined
+    return await avecClient(retryClient, (tx) =>
+      ouvrirReessaiDansTx(tx, executionId, maintenant)
+    )
+  }
 }

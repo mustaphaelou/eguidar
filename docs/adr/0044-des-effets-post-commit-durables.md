@@ -334,3 +334,5 @@ nouvelle vérification ne peut donc pas être ajoutée sans choisir une issue et
   `lib/automations/executeur.test.ts` (l'agrégat d'expiration, les lignes par Règle, aucune ligne
   pour une Règle désactivée), `lib/use-cases/automatisations.test.ts` (les refus sans écriture, le
   réessai réussi) et `app/admin/automatisations/[id]/page.test.tsx` (l'affichage de la Simulation).
+
+Voir aussi [ADR-0048](0048-le-cycle-de-vie-d-une-execution-d-automatisation-a-un-proprietaire.md) : le cycle de vie d’une Exécution d’automatisation a un seul propriétaire (`lib/automations/executions.ts`).
