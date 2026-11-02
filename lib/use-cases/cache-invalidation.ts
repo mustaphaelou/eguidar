@@ -178,13 +178,23 @@ export async function invalidateProduits(
   await purgerEdge(demandeDePurge(tags), options.purgeEdge)
 }
 
-export async function invalidateStructure(
-  options: OptionsInvalidationStructure = {}
-): Promise<void> {
+/**
+ * La moitié cache de l'invalidation d'une Structure, séparée pour que l'action
+ * durable confie la purge du bord à son propre échec et à sa reprise : une
+ * purge manquée fait alors réessayer l'invalidation entière. `invalidateStructure`
+ * reste la porte des mutations qui font les deux d'un coup (ADR-0014).
+ */
+export function revaliderStructure(): void {
   const tags = tagsStructure()
   revaliderTags(tags)
   revalidatePath("/admin/categories")
-  await purgerEdge(demandeDePurge(tags), options.purgeEdge)
+}
+
+export async function invalidateStructure(
+  options: OptionsInvalidationStructure = {}
+): Promise<void> {
+  revaliderStructure()
+  await purgerEdge(demandeDePurge(tagsStructure()), options.purgeEdge)
 }
 
 /**
@@ -206,10 +216,8 @@ export async function purgerEdgeDurable(demande: DemandePurge): Promise<void> {
  * forment une seule conséquence déclarée, réessayée ensemble.
  */
 export async function invalidateStructureDurable(): Promise<void> {
-  const tags = tagsStructure()
-  revaliderTags(tags)
-  revalidatePath("/admin/categories")
-  await purgerEdgeDurable(demandeDePurge(tags))
+  revaliderStructure()
+  await purgerEdgeDurable(demandeDePurge(tagsStructure()))
 }
 
 export function invalidateLivraison(): void {
