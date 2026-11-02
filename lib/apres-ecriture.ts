@@ -554,6 +554,8 @@ export const GENRES_MIGRES: GenreEcriture[] = [
   "commande.creee",
   "commande.statut.changee",
   "produit.enregistre",
+  "structure.creee",
+  "structure.modifiee",
 ]
 export const KINDS_MIGRES = GENRES_MIGRES
 export const MIGRATED_KINDS = GENRES_MIGRES
@@ -589,6 +591,22 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
   "produit.enregistre|suppression.images": {
     id: "suppression-images-produit-enregistre",
     nom: "Suppression des images retirées",
+  },
+  "structure.creee|invalidation.structure": {
+    id: "invalidation-structure",
+    nom: "Invalidation de la Structure",
+  },
+  "structure.modifiee|invalidation.structure": {
+    id: "invalidation-structure-modifiee",
+    nom: "Invalidation de la Structure modifiée",
+  },
+  "structure.modifiee|index.structure": {
+    id: "indexation-structure",
+    nom: "Indexation de la Structure",
+  },
+  "structure.modifiee|suppression.images": {
+    id: "suppression-images-structure-modifiee",
+    nom: "Suppression des images",
   },
 }
 
@@ -644,28 +662,10 @@ export const REGLES_EN_ATTENTE: Array<{
     action: "invalidation.catalogue",
   },
   {
-    id: "invalidation-structure",
-    nom: "Invalidation de la Structure",
-    declencheur: "structure.creee",
-    action: "invalidation.structure",
-  },
-  {
-    id: "invalidation-structure-modifiee",
-    nom: "Invalidation de la Structure modifiée",
-    declencheur: "structure.modifiee",
-    action: "invalidation.structure",
-  },
-  {
     id: "invalidation-structure-supprimee",
     nom: "Invalidation de la Structure supprimée",
     declencheur: "structure.supprimee",
     action: "invalidation.structure",
-  },
-  {
-    id: "indexation-structure",
-    nom: "Indexation de la Structure",
-    declencheur: "structure.modifiee",
-    action: "index.structure",
   },
   {
     id: "suppression-images-produit",

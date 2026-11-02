@@ -72,7 +72,7 @@ const SITES_NOMMES: ExceptionLecture[] = [
     chemin: "lib/automations/actions.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
-    declaration: "indexerStructure",
+    declaration: "indexerBranche",
     herite: false,
     raison:
       "le nom et le slug de la catégorie des Produits d'une branche réindexée par le travailleur : le pointeur d'une seule rangée, pas sa place dans l'arbre",

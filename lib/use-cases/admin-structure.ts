@@ -1,5 +1,9 @@
 import { z } from "zod"
 
+import {
+  declarerApresEcriture,
+  type PlanApresEcriture,
+} from "@/lib/apres-ecriture"
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
@@ -9,11 +13,13 @@ import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
 import { stockageImageProduitR2 } from "@/lib/r2"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
   runEffect,
+  runOrderedEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -308,11 +314,64 @@ async function assertAcyclicCategoryTree(
 async function readIndexableCategoryProducts(
   categoryId: string
 ): Promise<IndexableProduct[]> {
+  const branche = (await lireStructure()).branche(categoryId)
   const products = await prisma.product.findMany({
-    where: { categoryId },
+    where: { categoryId: { in: branche } },
     include: { variants: true, category: true },
   })
   return products.map(toIndexableProduct)
+}
+
+/**
+ * L'adaptateur immédiat de la Structure : une projection mince du nom d'effet
+ * vers les ports existants, exécutée dans l'ordre du plan. La branche est
+ * résolue après le commit, comme le fait l'action durable.
+ */
+async function executerPlanDeStructure(
+  plan: PlanApresEcriture,
+  effects: StructureEffects
+): Promise<void> {
+  const charge = (plan.faits[0]?.charge ?? {}) as {
+    categorieId?: unknown
+    imageRetiree?: unknown
+  }
+
+  await runOrderedEffects(
+    plan.consequences.map((consequence) => ({
+      effet: consequence.effet,
+      entite: consequence.entite,
+      message: consequence.message,
+      portee: consequence.portee,
+      fn: async () => {
+        switch (consequence.effet) {
+          case "suppression-images": {
+            if (typeof charge.imageRetiree !== "string") {
+              throw new Error("image retirée absente du fait de Structure")
+            }
+            await effects.deleteImage(charge.imageRetiree)
+            return
+          }
+          case "reindexation": {
+            if (typeof charge.categorieId !== "string") {
+              throw new Error("catégorie absente du fait de Structure")
+            }
+            const produits = await readIndexableCategoryProducts(
+              charge.categorieId
+            )
+            if (produits.length > 0) await effects.reindexProducts(produits)
+            return
+          }
+          case "invalidation-cache":
+            await effects.revalidateCategories()
+            return
+          default:
+            throw new Error(
+              `effet de Structure non pris en charge : ${consequence.effet}`
+            )
+        }
+      },
+    }))
+  )
 }
 
 export async function createCategory(
@@ -322,7 +381,7 @@ export async function createCategory(
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
 
-  const category = await sousVerrouDeStructure(async (tx) => {
+  const { category, plan } = await sousVerrouDeStructure(async (tx) => {
     await assertUniqueCategorySlug(data.slug, tx)
     await assertCategoryParent(data.parentId, tx)
 
@@ -334,22 +393,21 @@ export async function createCategory(
         image: data.image ?? null,
       },
     })
-    await enregistrerEvenement(tx, {
-      type: "structure.creee",
-      entityType: "categorie",
-      entityId: created.id,
-      payload: { categorieId: created.id },
+    const plan = declarerApresEcriture("structure.creee", {
+      categorieId: created.id,
     })
-    return created
+    for (const fait of plan.faits) {
+      await enregistrerEvenement(tx, {
+        type: fait.declencheur,
+        entityType: fait.entite,
+        entityId: fait.identifiant,
+        payload: fait.charge,
+      })
+    }
+    return { category: created, plan }
   })
 
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "categorie", id: category.id },
-    message:
-      "[structure] invalidation du cache non effectuée pour la création de catégorie",
-    fn: () => effects.revalidateCategories(),
-  })
+  await executerPlanDeStructure(plan, effects)
   return category
 }
 
@@ -361,57 +419,41 @@ export async function updateCategory(
   const effects = avecSurcharges(defaultStructureEffects, overrides)
   const data = parseCategoryInput(input)
 
-  const { category, image: imagePrecedente } = await sousVerrouDeStructure(
-    async (tx) => {
-      const existing = await tx.category.findUnique({ where: { id } })
-      if (!existing) throw new CategoryNotFoundError()
+  const { category, plan } = await sousVerrouDeStructure(async (tx) => {
+    const existing = await tx.category.findUnique({ where: { id } })
+    if (!existing) throw new CategoryNotFoundError()
 
-      await assertUniqueCategorySlug(data.slug, tx, id)
-      await assertAcyclicCategoryTree(id, data.parentId, tx)
+    await assertUniqueCategorySlug(data.slug, tx, id)
+    await assertAcyclicCategoryTree(id, data.parentId, tx)
 
-      const category = await tx.category.update({
-        where: { id },
-        data: {
-          name: data.name,
-          slug: data.slug,
-          parentId: data.parentId ?? null,
-          image: data.image ?? null,
-        },
-      })
+    const category = await tx.category.update({
+      where: { id },
+      data: {
+        name: data.name,
+        slug: data.slug,
+        parentId: data.parentId ?? null,
+        image: data.image ?? null,
+      },
+    })
+    const nextImage = data.image ?? null
+    const plan = declarerApresEcriture("structure.modifiee", {
+      categorieId: id,
+      imageRetiree:
+        existing.image && existing.image !== nextImage ? existing.image : null,
+      destination: data.parentId ?? null,
+    })
+    for (const fait of plan.faits) {
       await enregistrerEvenement(tx, {
-        type: "structure.modifiee",
-        entityType: "categorie",
-        entityId: id,
-        payload: { categorieId: id },
+        type: fait.declencheur,
+        entityType: fait.entite,
+        entityId: fait.identifiant,
+        payload: fait.charge,
       })
-      return { category, image: existing.image }
     }
-  )
-
-  const nextImage = data.image ?? null
-  if (imagePrecedente && imagePrecedente !== nextImage) {
-    await runEffect({
-      effet: "suppression-images",
-      entite: { type: "categorie", id },
-      message: `[structure] suppression d'image R2 non effectuée pour ${imagePrecedente}`,
-      fn: () => effects.deleteImage(imagePrecedente!),
-    })
-  }
-  const products = await readIndexableCategoryProducts(id)
-  if (products.length > 0) {
-    await runEffect({
-      effet: "reindexation",
-      entite: { type: "categorie", id },
-      message: `[structure] réindexation meilisearch non effectuée pour ${id}`,
-      fn: () => effects.reindexProducts(products),
-    })
-  }
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "categorie", id },
-    message: `[structure] invalidation du cache non effectuée pour ${id}`,
-    fn: () => effects.revalidateCategories(),
+    return { category, plan }
   })
+
+  await executerPlanDeStructure(plan, effects)
   return category
 }
 
@@ -486,7 +528,7 @@ export async function deplacerStructure(
   }
   const { id, nouvelleParenteId, avantId } = parsed.data
 
-  const deplacement = await sousVerrouDeStructure(async (tx) => {
+  const { deplacement, plan } = await sousVerrouDeStructure(async (tx) => {
     if (avantId === id) {
       throw new CategoryValidationError([
         "une catégorie ne peut pas être insérée avant elle-même",
@@ -538,35 +580,31 @@ export async function deplacerStructure(
       }
     }
 
-    await enregistrerEvenement(tx, {
-      type: "structure.modifiee",
-      entityType: "categorie",
-      entityId: id,
-      payload: { categorieId: id },
+    const plan = declarerApresEcriture("structure.modifiee", {
+      categorieId: id,
+      imageRetiree: null,
+      destination: nouvelleParenteId,
     })
+    for (const fait of plan.faits) {
+      await enregistrerEvenement(tx, {
+        type: fait.declencheur,
+        entityType: fait.entite,
+        entityId: fait.identifiant,
+        payload: fait.charge,
+      })
+    }
 
     return {
-      nomDestination,
-      position: rang + 1,
-      nombreFreres: ordonnee.length,
+      deplacement: {
+        nomDestination,
+        position: rang + 1,
+        nombreFreres: ordonnee.length,
+      },
+      plan,
     }
   })
 
-  const products = await readIndexableCategoryProducts(id)
-  if (products.length > 0) {
-    await runEffect({
-      effet: "reindexation",
-      entite: { type: "categorie", id },
-      message: `[structure] réindexation meilisearch non effectuée pour ${id}`,
-      fn: () => effects.reindexProducts(products),
-    })
-  }
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "categorie", id },
-    message: `[structure] invalidation du cache non effectuée pour ${id}`,
-    fn: () => effects.revalidateCategories(),
-  })
+  await executerPlanDeStructure(plan, effects)
   return deplacement
 }
 

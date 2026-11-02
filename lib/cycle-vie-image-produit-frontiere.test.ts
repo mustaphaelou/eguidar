@@ -14,6 +14,7 @@ const MODULE_R2 = "lib/r2.ts"
 const MODULE_CYCLE_VIE = "lib/cycle-vie-image-produit.ts"
 const MODULE_CATALOGUE = "lib/use-cases/admin-catalog.ts"
 const MODULE_REGISTRE_IMAGES = "lib/use-cases/images-produit.ts"
+const MODULE_IMAGES_STRUCTURE = "lib/use-cases/images-structure.ts"
 const MODULE_STRUCTURE = "lib/use-cases/admin-structure.ts"
 const ROUTE_LIBERATION = "app/api/admin/uploads/delete/route.ts"
 const ROUTE_PRESIGNATION = "app/api/admin/uploads/presign/route.ts"
@@ -65,6 +66,7 @@ const IMPORTATEURS_R2_AUTORISES = [
   MODULE_CYCLE_VIE,
   MODULE_CATALOGUE,
   MODULE_REGISTRE_IMAGES,
+  MODULE_IMAGES_STRUCTURE,
   MODULE_STRUCTURE,
   // La route de pré-signation n'emprunte au stockage que le vocabulaire des
   // types de contenu, jamais une opération du port.
@@ -304,7 +306,9 @@ describe("Cycle de vie des Images produit — frontière", () => {
     expect(persistees).toEqual(
       [MODULE_CATALOGUE, MODULE_REGISTRE_IMAGES].sort()
     )
-    expect(categories).toEqual([MODULE_STRUCTURE])
+    expect(categories).toEqual(
+      [MODULE_STRUCTURE, MODULE_IMAGES_STRUCTURE].sort()
+    )
   })
 
   it("retire l'ancien alias générique de suppression par URL", () => {
