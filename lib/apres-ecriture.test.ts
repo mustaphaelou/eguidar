@@ -4,8 +4,8 @@ import {
   BRANCHE_SANS_STRUCTURE,
   declarerApresEcriture,
   FAITS_POUR_REGLES,
+  GENRES_DERIVES,
   GENRES_MIGRES,
-  REGLES_EN_ATTENTE,
   reglesParDefaut,
   type PlanApresEcriture,
 } from "@/lib/apres-ecriture"
@@ -403,13 +403,13 @@ describe("les Règles par défaut dérivées de structure.supprimee", () => {
     ).toHaveLength(1)
   })
 
-  it("quitte la liste en attente sans dupliquer d'identité", () => {
+  it("ne duplique aucune identité et n'a plus de liste en attente", () => {
     expect(GENRES_MIGRES).toContain("structure.supprimee")
     expect(
-      REGLES_EN_ATTENTE.some(
+      reglesParDefaut().filter(
         (regle) => regle.id === "invalidation-structure-supprimee"
       )
-    ).toBe(false)
+    ).toHaveLength(1)
     const ids = reglesParDefaut().map((regle) => regle.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
@@ -500,6 +500,63 @@ describe("la déclaration de variante.stock.changee", () => {
   })
 })
 
+describe("les écritures de maintenance sans conséquence durable", () => {
+  const plansDeMaintenance = () => [
+    declarerApresEcriture("ville.creee", { villeId: "ville-1" }),
+    declarerApresEcriture("ville.modifiee", { villeId: "ville-1" }),
+    declarerApresEcriture("ville.supprimee", { villeId: "ville-1" }),
+    declarerApresEcriture("livraison.reglee", { livraisonId: "default" }),
+    declarerApresEcriture("image.texte-alternatif", {
+      produitIds: ["produit-a"],
+    }),
+  ]
+
+  it("ne déclarent aucun fait et une seule invalidation de cache réparée par le TTL", () => {
+    for (const plan of plansDeMaintenance()) {
+      expect(plan.faits).toEqual([])
+      expect(effets(plan)).toEqual(["invalidation-cache"])
+      expect(durable(plan)).toEqual([])
+      expect(actions(plan)).toEqual([])
+      expect(plan.consequences[0]).toMatchObject({
+        durable: false,
+        reparation: "TTL",
+      })
+    }
+
+    const [creation, , suppression, reglage, texte] = plansDeMaintenance()
+    expect(creation!.consequences[0]!.entite).toEqual({
+      type: "ville",
+      id: "ville-1",
+    })
+    expect(suppression!.consequences[0]!.entite).toEqual({
+      type: "ville",
+      id: "ville-1",
+    })
+    expect(reglage!.consequences[0]!.entite).toEqual({
+      type: "livraison",
+      id: "default",
+    })
+    expect(texte!.consequences[0]!.entite).toEqual({
+      type: "produit",
+      id: "produit-a",
+    })
+  })
+
+  it("donne une conséquence par Produit dont le Texte alternatif change", () => {
+    const plan = declarerApresEcriture("image.texte-alternatif", {
+      produitIds: ["produit-a", "produit-b"],
+    })
+
+    expect(plan.faits).toEqual([])
+    expect(
+      plan.consequences.map((consequence) => consequence.entite.id)
+    ).toEqual(["produit-a", "produit-b"])
+    expect(plan.consequences.every((consequence) => !consequence.durable)).toBe(
+      true
+    )
+  })
+})
+
 describe("les Règles par défaut dérivées de variante.stock.changee", () => {
   it("reprend l'identité indexation-stock pour la seule réindexation durable", () => {
     expect(
@@ -509,11 +566,8 @@ describe("les Règles par défaut dérivées de variante.stock.changee", () => {
     ).toEqual([["indexation-stock", "index.produit", "Indexation du stock"]])
   })
 
-  it("retire la Règle de la liste en attente et ne duplique aucune identité", () => {
+  it("ne duplique aucune identité et n'a plus de liste en attente", () => {
     expect(GENRES_MIGRES).toContain("variante.stock.changee")
-    expect(
-      REGLES_EN_ATTENTE.some((regle) => regle.id === "indexation-stock")
-    ).toBe(false)
     expect(
       reglesParDefaut().filter((regle) => regle.id === "indexation-stock")
     ).toHaveLength(1)
@@ -537,6 +591,141 @@ describe("les Règles par défaut dérivées de variante.stock.changee", () => {
           )
         ).toHaveLength(consequence.durable ? 1 : 0)
       }
+    }
+  })
+})
+
+describe("les Règles par défaut de l'installation", () => {
+  it("gardent leurs identités et leurs déclencheurs, planification comprise", () => {
+    const parId = Object.fromEntries(
+      reglesParDefaut().map((regle) => [
+        regle.id,
+        {
+          declencheur: regle.declencheur,
+          action: regle.action,
+          actif: regle.actif,
+        },
+      ])
+    )
+
+    expect(parId).toEqual({
+      "confirmation-commande": {
+        declencheur: "commande.creee",
+        action: "email.commande-creee",
+        actif: true,
+      },
+      "statut-commande": {
+        declencheur: "commande.statut.changee",
+        action: "email.commande-statut",
+        actif: true,
+      },
+      "suppression-images-produit-enregistre": {
+        declencheur: "produit.enregistre",
+        action: "suppression.images",
+        actif: true,
+      },
+      "indexation-produit": {
+        declencheur: "produit.enregistre",
+        action: "index.produit",
+        actif: true,
+      },
+      "invalidation-catalogue": {
+        declencheur: "produit.enregistre",
+        action: "invalidation.catalogue",
+        actif: true,
+      },
+      "purge-catalogue": {
+        declencheur: "produit.enregistre",
+        action: "purge.catalogue",
+        actif: true,
+      },
+      "suppression-images-produit": {
+        declencheur: "produit.supprime",
+        action: "suppression.images",
+        actif: true,
+      },
+      "desindexation-produit": {
+        declencheur: "produit.supprime",
+        action: "desindex.produit",
+        actif: true,
+      },
+      "invalidation-catalogue-suppression": {
+        declencheur: "produit.supprime",
+        action: "invalidation.catalogue",
+        actif: true,
+      },
+      "purge-catalogue-suppression": {
+        declencheur: "produit.supprime",
+        action: "purge.catalogue",
+        actif: true,
+      },
+      "indexation-stock": {
+        declencheur: "variante.stock.changee",
+        action: "index.produit",
+        actif: true,
+      },
+      "invalidation-structure": {
+        declencheur: "structure.creee",
+        action: "invalidation.structure",
+        actif: true,
+      },
+      "invalidation-structure-modifiee": {
+        declencheur: "structure.modifiee",
+        action: "invalidation.structure",
+        actif: true,
+      },
+      "indexation-structure": {
+        declencheur: "structure.modifiee",
+        action: "index.structure",
+        actif: true,
+      },
+      "invalidation-structure-supprimee": {
+        declencheur: "structure.supprimee",
+        action: "invalidation.structure",
+        actif: true,
+      },
+      "indexation-structure-supprimee": {
+        declencheur: "structure.supprimee",
+        action: "index.structure",
+        actif: true,
+      },
+      "suppression-images-structure-supprimee": {
+        declencheur: "structure.supprimee",
+        action: "suppression.images",
+        actif: true,
+      },
+      "digest-stock-bas": {
+        declencheur: "planification.digest-stock-bas",
+        action: "digest.stock-bas",
+        actif: true,
+      },
+      "reconciliation-recherche": {
+        declencheur: "planification.reconciliation-recherche",
+        action: "reconciliation.recherche",
+        actif: true,
+      },
+      "digest-proprietaire": {
+        declencheur: "planification.digest-stock-bas",
+        action: "digest.proprietaire",
+        actif: false,
+      },
+    })
+  })
+
+  it("dérivent toute Règle non planifiée d'une conséquence durable déclarée", () => {
+    const durables = new Set<string>()
+    for (const genre of GENRES_DERIVES) {
+      const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
+      const declencheur = plan.faits[0]?.declencheur
+      for (const consequence of plan.consequences) {
+        if (!consequence.durable || !consequence.action) continue
+        durables.add(`${declencheur ?? genre}|${consequence.action}`)
+      }
+    }
+
+    for (const regle of reglesParDefaut()) {
+      if (regle.declencheur.startsWith("planification.")) continue
+      expect(durables.has(`${regle.declencheur}|${regle.action}`)).toBe(true)
     }
   })
 })
