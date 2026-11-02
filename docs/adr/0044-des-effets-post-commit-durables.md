@@ -268,6 +268,10 @@ qui manquaient.
 
 ## Addendum — ce que la bascule arrête, et deux décisions de la phase 2
 
+- **Pointeur.** La déclaration unique de l'après-écriture, la politique de durabilité et le semis
+  créateur seulement sont enregistrés dans ADR-0049 ; le présent addendum n'ouvre aucune décision
+  concurrente. Ses invariants tiennent.
+
 - **La bascule gouverne le travailleur durable ; elle n'éteint pas les effets synchrones.** Le
   balayage relit `enabled` à chaque passe : une Règle désactivée n'ouvre plus d'Exécution, et les
   Exécutions `en_cours` qu'elle portait passent `ignore` avec le motif « annulée : règle
