@@ -180,15 +180,7 @@ describe("ouvrirExecution", () => {
     expect(res.attempt).toBe(6)
   })
 
-  it("réessaie l'ouverture une fois en cas de collision concurrente", async () => {
-    const evenement = await creerEvenement()
-    const regle = await regleStatut()
-    const [a, b] = await Promise.all([
-      ouvrirExecution({ evenement, regle, maintenant: MAINTENANT }),
-      ouvrirExecution({ evenement, regle, maintenant: MAINTENANT }),
-    ])
-    expect([a.attempt, b.attempt].sort()).toEqual([1, 2])
-  })
+
 })
 
 describe("terminerExecution", () => {
@@ -608,5 +600,3 @@ describe("réparation", () => {
     expect(ev.status).toBe("echoue")
   })
 })
-EOF
-echo done

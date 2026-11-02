@@ -3,7 +3,6 @@ import type {
   AutomationEvent,
 } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
-import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { versRegle, type RegleAutomation } from "@/lib/automations/regles"
 
 export type IssueExecution = "reussi" | "echoue" | "ignore"
@@ -88,7 +87,11 @@ export async function ouvrirExecution(options: {
   try {
     return await avecClient(client, (tx) => ouvrirExecutionDansTx(tx, rest))
   } catch (error) {
-    if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) throw error
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== "P2002"
+    )
+      throw error
     // retry once in a fresh transaction (outside the one the module opened)
     const retryClient = client ? client : undefined
     return await avecClient(retryClient, (tx) => ouvrirExecutionDansTx(tx, rest))
@@ -306,7 +309,11 @@ export async function ouvrirReessai(
       ouvrirReessaiDansTx(tx, executionId, maintenant)
     )
   } catch (error) {
-    if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) throw error
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== "P2002"
+    )
+      throw error
     const retryClient = client ? client : undefined
     return await avecClient(retryClient, (tx) =>
       ouvrirReessaiDansTx(tx, executionId, maintenant)
