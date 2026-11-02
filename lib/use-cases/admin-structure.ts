@@ -1,5 +1,9 @@
 import { z } from "zod"
 
+import {
+  BRANCHE_SANS_STRUCTURE,
+  declarerApresEcriture,
+} from "@/lib/apres-ecriture"
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
@@ -9,11 +13,13 @@ import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
 import { stockageImageProduitR2 } from "@/lib/r2"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
   runEffect,
+  runOrderedEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -570,6 +576,28 @@ export async function deplacerStructure(
   return deplacement
 }
 
+/**
+ * Résout une branche après le commit, par son identifiant seulement : la
+ * Structure supprimée n'est jamais relue, et une destination inconnue ne rend
+ * aucun Produit plutôt que d'échouer. La branche orpheline est le
+ * pseudo-identifiant de journal que la déclaration emploie pour les Produits
+ * restés sans destination.
+ */
+async function readIndexableProductsOfBranch(
+  branche: string,
+  lectureStructure: () => Promise<Awaited<ReturnType<typeof lireStructure>>>
+): Promise<IndexableProduct[]> {
+  const where =
+    branche === BRANCHE_SANS_STRUCTURE
+      ? { categoryId: null }
+      : { categoryId: { in: (await lectureStructure()).branche(branche) } }
+  const products = await prisma.product.findMany({
+    where,
+    include: { variants: true, category: true },
+  })
+  return products.map(toIndexableProduct)
+}
+
 export async function deleteCategory(
   id: string,
   options: {
@@ -585,7 +613,7 @@ export async function deleteCategory(
   const laisseSansStructure =
     options.orphanProducts === true && !reassignToCategoryId
 
-  const { image, movedProducts } = await sousVerrouDeStructure(async (tx) => {
+  const { plan, image } = await sousVerrouDeStructure(async (tx) => {
     const category = await tx.category.findUnique({
       where: { id },
       include: {
@@ -614,7 +642,6 @@ export async function deleteCategory(
       await assertCategoryParent(reassignToCategoryId, tx)
     }
 
-    let moved: IndexableProduct[] = []
     if (category.products.length > 0) {
       if (reassignToCategoryId) {
         await tx.product.updateMany({
@@ -629,43 +656,58 @@ export async function deleteCategory(
           data: { categoryId: null },
         })
       }
-      const movedRows = await tx.product.findMany({
-        where: { id: { in: category.products.map((product) => product.id) } },
-        include: { variants: true, category: true },
-      })
-      moved = movedRows.map(toIndexableProduct)
     }
 
     await tx.category.delete({ where: { id } })
-    await enregistrerEvenement(tx, {
-      type: "structure.supprimee",
-      entityType: "categorie",
-      entityId: id,
-      payload: { categorieId: id },
+
+    const planLocal = declarerApresEcriture("structure.supprimee", {
+      categorieId: id,
+      image: category.image,
+      produitsCible:
+        reassignToCategoryId && category.products.length > 0
+          ? reassignToCategoryId
+          : null,
+      enfantsCible:
+        reparentChildrenToCategoryId && category.children.length > 0
+          ? reparentChildrenToCategoryId
+          : null,
+      produitsSansStructure:
+        laisseSansStructure && category.products.length > 0,
     })
-    return { image: category.image, movedProducts: moved }
+    for (const f of planLocal.faits) {
+      await enregistrerEvenement(tx, {
+        type: f.declencheur,
+        entityType: f.entite,
+        entityId: f.identifiant,
+        payload: f.charge,
+      })
+    }
+    return { plan: planLocal, image: category.image }
   })
 
-  if (movedProducts.length > 0) {
-    await runEffect({
-      effet: "reindexation",
-      entite: { type: "categorie", id },
-      message: `[structure] réindexation meilisearch non effectuée pour ${id}`,
-      fn: () => effects.reindexProducts(movedProducts),
-    })
-  }
-  if (image) {
-    await runEffect({
-      effet: "suppression-images",
-      entite: { type: "categorie", id },
-      message: `[structure] suppression d'image R2 non effectuée pour ${image}`,
-      fn: () => effects.deleteImage(image!),
-    })
-  }
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "categorie", id },
-    message: `[structure] invalidation du cache non effectuée pour ${id}`,
-    fn: () => effects.revalidateCategories(),
-  })
+  let lectureStructure:
+    Promise<Awaited<ReturnType<typeof lireStructure>>> | undefined
+  const lecture = () => (lectureStructure ??= lireStructure())
+
+  await runOrderedEffects(
+    plan.consequences.map((c) => ({
+      effet: c.effet,
+      entite: c.entite,
+      message: c.message,
+      portee: c.portee,
+      fn: async () => {
+        if (c.effet === "suppression-images") {
+          if (image) await effects.deleteImage(image)
+        } else if (c.effet === "reindexation") {
+          const products = await readIndexableProductsOfBranch(
+            c.entite.id,
+            lecture
+          )
+          if (products.length > 0) await effects.reindexProducts(products)
+        } else if (c.effet === "invalidation-cache") {
+          await effects.revalidateCategories()
+        }
+      },
+    }))
+  )
 }

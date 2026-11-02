@@ -2,9 +2,12 @@ import { randomUUID } from "node:crypto"
 
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { supprimerImagePersisteeMock } = vi.hoisted(() => ({
-  supprimerImagePersisteeMock: vi.fn(),
-}))
+const { supprimerImagePersisteeMock, supprimerImageCategorieMock } = vi.hoisted(
+  () => ({
+    supprimerImagePersisteeMock: vi.fn(),
+    supprimerImageCategorieMock: vi.fn(),
+  })
+)
 
 vi.mock("@/lib/r2", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/r2")>()
@@ -13,6 +16,7 @@ vi.mock("@/lib/r2", async (importOriginal) => {
     stockageImageProduitR2: {
       ...original.stockageImageProduitR2,
       supprimerImagePersistee: supprimerImagePersisteeMock,
+      supprimerImageCategorie: supprimerImageCategorieMock,
     },
   }
 })
@@ -75,12 +79,36 @@ async function ecrireEvenementDeSuppression(produitId: string, urls: string[]) {
   )
 }
 
+async function ecrireEvenementStructure(
+  categorieId: string,
+  image: string | null,
+  faits: Record<string, unknown> = {}
+) {
+  await prisma.$transaction((tx) =>
+    enregistrerEvenement(tx, {
+      type: "structure.supprimee",
+      entityType: "categorie",
+      entityId: categorieId,
+      occurredAt: MAINTENANT,
+      payload: {
+        categorieId,
+        image,
+        destinations: [],
+        produitsSansStructure: false,
+        ...faits,
+      },
+    })
+  )
+}
+
 beforeEach(async () => {
   await prisma.automationRun.deleteMany()
   await prisma.automationEvent.deleteMany()
   await semerLesRegles()
   supprimerImagePersisteeMock.mockReset()
   supprimerImagePersisteeMock.mockResolvedValue({ ok: true, valeur: null })
+  supprimerImageCategorieMock.mockReset()
+  supprimerImageCategorieMock.mockResolvedValue({ ok: true, valeur: null })
 })
 
 afterAll(async () => {
@@ -201,5 +229,75 @@ describe("l'action suppression.images", () => {
     expect(
       new Set(supprimerImagePersisteeMock.mock.calls.map(([url]) => url))
     ).toEqual(new Set(urls))
+  })
+})
+
+describe("l'action suppression.images sur une Structure", () => {
+  const REGLE_STRUCTURE = "suppression-images-structure-supprimee"
+
+  it("supprime l'image de la Structure dans son espace de noms R2", async () => {
+    const categorieId = randomUUID()
+    const image = `https://cdn.example.test/categories/${runId}-${categorieId}.jpg`
+    await ecrireEvenementStructure(categorieId, image)
+
+    await executerLesEvenements(options(), dependancesDeTest(MAINTENANT))
+
+    expect(supprimerImageCategorieMock.mock.calls.map(([url]) => url)).toEqual([
+      image,
+    ])
+    expect(supprimerImagePersisteeMock).not.toHaveBeenCalled()
+    const execution = await prisma.automationRun.findFirstOrThrow({
+      where: { ruleId: REGLE_STRUCTURE },
+      orderBy: { attempt: "desc" },
+    })
+    expect(execution).toMatchObject({ status: "reussi", lastError: null })
+  })
+
+  it("laisse une Exécution échouée avec son erreur, puis réussit au réessai", async () => {
+    const categorieId = randomUUID()
+    const image = `https://cdn.example.test/categories/${runId}-${categorieId}.png`
+    await ecrireEvenementStructure(categorieId, image)
+    supprimerImageCategorieMock.mockRejectedValueOnce(
+      new Error("R2 indisponible")
+    )
+
+    const delai = 60_000
+    const premier = await executerLesEvenements(
+      options(MAINTENANT, () => delai),
+      dependancesDeTest(MAINTENANT)
+    )
+
+    expect(premier.echoues).toBe(1)
+    const evenement = await prisma.automationEvent.findFirstOrThrow({
+      where: { entityId: categorieId },
+    })
+    expect(evenement.status).toBe("en_attente")
+    expect(evenement.availableAt.getTime()).toBeGreaterThan(
+      MAINTENANT.getTime()
+    )
+    const echec = await prisma.automationRun.findFirstOrThrow({
+      where: { ruleId: REGLE_STRUCTURE },
+    })
+    expect(echec.status).toBe("echoue")
+    expect(echec.lastError).toContain("R2 indisponible")
+
+    const plusTard = new Date(MAINTENANT.getTime() + delai + 1)
+    const second = await executerLesEvenements(
+      options(plusTard, () => 0),
+      dependancesDeTest(plusTard)
+    )
+
+    expect(second.echoues).toBe(0)
+    const executions = await prisma.automationRun.findMany({
+      where: { ruleId: REGLE_STRUCTURE },
+      orderBy: { attempt: "asc" },
+    })
+    expect(executions.map((execution) => execution.status)).toEqual([
+      "echoue",
+      "reussi",
+    ])
+    expect(
+      new Set(supprimerImageCategorieMock.mock.calls.map(([url]) => url))
+    ).toEqual(new Set([image]))
   })
 })

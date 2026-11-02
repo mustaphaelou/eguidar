@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BRANCHE_SANS_STRUCTURE,
   declarerApresEcriture,
   FAITS_POUR_REGLES,
   GENRES_MIGRES,
@@ -11,6 +12,7 @@ import {
 
 const PRODUIT = "produit-869"
 const SLUG = "produit-869"
+const CATEGORIE = "categorie-873"
 
 function effets(plan: PlanApresEcriture): string[] {
   return plan.consequences.map((consequence) => consequence.effet)
@@ -257,6 +259,159 @@ describe("la déclaration de produit.enregistre.lot", () => {
           consequence.effet === "invalidation-cache" && consequence.durable
       )
     ).toHaveLength(2)
+  })
+})
+
+describe("la déclaration de structure.supprimee", () => {
+  function planDeSuppression(
+    faits: Record<string, unknown> = {}
+  ): PlanApresEcriture {
+    return declarerApresEcriture("structure.supprimee", {
+      categorieId: CATEGORIE,
+      ...faits,
+    })
+  }
+
+  it("réindexe chaque destination, supprime l'image puis invalide la Structure", () => {
+    const plan = planDeSuppression({
+      image: "https://cdn.example.test/categories/supprimee.jpg",
+      produitsCible: "cible-produits",
+      enfantsCible: "cible-enfants",
+    })
+
+    expect(effets(plan)).toEqual([
+      "reindexation",
+      "reindexation",
+      "suppression-images",
+      "invalidation-cache",
+    ])
+    expect(actions(plan)).toEqual([
+      "index.structure",
+      "index.structure",
+      "suppression.images",
+      "invalidation.structure",
+    ])
+    expect(
+      plan.consequences.map((consequence) => consequence.entite.id)
+    ).toEqual(["cible-produits", "cible-enfants", CATEGORIE, CATEGORIE])
+    expect(durable(plan)).toEqual(effets(plan))
+    for (const consequence of plan.consequences) {
+      expect(consequence.reparation).toBeUndefined()
+    }
+  })
+
+  it("ne lit jamais la branche supprimée : le fait ne porte que les destinations", () => {
+    const plan = planDeSuppression({
+      image: "https://cdn.example.test/categories/supprimee.jpg",
+      produitsCible: "cible-produits",
+      enfantsCible: "cible-enfants",
+    })
+
+    expect(plan.faits).toEqual([
+      {
+        declencheur: "structure.supprimee",
+        entite: "categorie",
+        identifiant: CATEGORIE,
+        charge: {
+          categorieId: CATEGORIE,
+          image: "https://cdn.example.test/categories/supprimee.jpg",
+          destinations: ["cible-produits", "cible-enfants"],
+          produitsSansStructure: false,
+        },
+      },
+    ])
+  })
+
+  it("dédoublonne deux destinations qui désignent la même branche", () => {
+    const plan = planDeSuppression({
+      produitsCible: "meme-cible",
+      enfantsCible: "meme-cible",
+    })
+
+    expect(effets(plan).filter((effet) => effet === "reindexation")).toEqual([
+      "reindexation",
+    ])
+    expect(plan.faits[0]?.charge).toMatchObject({
+      destinations: ["meme-cible"],
+    })
+  })
+
+  it("vise la branche Sans Structure quand les Produits sont orphelins", () => {
+    const plan = planDeSuppression({ produitsSansStructure: true })
+
+    expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
+    expect(plan.consequences[0]).toMatchObject({
+      durable: true,
+      action: "index.structure",
+      entite: { type: "categorie", id: BRANCHE_SANS_STRUCTURE },
+    })
+    expect(plan.faits[0]?.charge).toMatchObject({
+      destinations: [],
+      produitsSansStructure: true,
+    })
+  })
+
+  it("ne déclare aucune réindexation quand rien n'a changé de branche", () => {
+    const plan = planDeSuppression()
+
+    expect(effets(plan)).toEqual(["invalidation-cache"])
+    expect(actions(plan)).toEqual(["invalidation.structure"])
+    expect(plan.faits[0]?.charge).toMatchObject({
+      destinations: [],
+      produitsSansStructure: false,
+    })
+  })
+
+  it("n'ajoute pas de suppression d'image quand la Structure n'en avait pas", () => {
+    const plan = planDeSuppression({ produitsCible: "cible-produits" })
+
+    expect(effets(plan)).not.toContain("suppression-images")
+  })
+})
+
+describe("les Règles par défaut dérivées de structure.supprimee", () => {
+  it("dérive les trois règles du plan, une par action durable", () => {
+    expect(
+      reglesParDefaut()
+        .filter((regle) => regle.declencheur === "structure.supprimee")
+        .map((regle) => [regle.id, regle.action])
+    ).toEqual([
+      ["indexation-structure-supprimee", "index.structure"],
+      ["suppression-images-structure-supprimee", "suppression.images"],
+      ["invalidation-structure-supprimee", "invalidation.structure"],
+    ])
+  })
+
+  it("ne duplique pas la Règle d'indexation quand deux branches la déclarent", () => {
+    const plan = declarerApresEcriture("structure.supprimee", {
+      categorieId: CATEGORIE,
+      produitsCible: "cible-produits",
+      enfantsCible: "cible-enfants",
+    })
+
+    expect(
+      plan.consequences.filter(
+        (consequence) => consequence.action === "index.structure"
+      )
+    ).toHaveLength(2)
+    expect(
+      reglesParDefaut().filter(
+        (regle) =>
+          regle.declencheur === "structure.supprimee" &&
+          regle.action === "index.structure"
+      )
+    ).toHaveLength(1)
+  })
+
+  it("quitte la liste en attente sans dupliquer d'identité", () => {
+    expect(GENRES_MIGRES).toContain("structure.supprimee")
+    expect(
+      REGLES_EN_ATTENTE.some(
+        (regle) => regle.id === "invalidation-structure-supprimee"
+      )
+    ).toBe(false)
+    const ids = reglesParDefaut().map((regle) => regle.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })
 

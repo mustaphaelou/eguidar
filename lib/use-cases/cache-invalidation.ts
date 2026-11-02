@@ -199,6 +199,19 @@ export async function purgerEdgeDurable(demande: DemandePurge): Promise<void> {
   }
 }
 
+/**
+ * L'invalidation durable d'une Structure : les tags, les surfaces
+ * d'Administration et la purge du catalogue entier de la porte immédiate, mais
+ * une purge qui remonte au travailleur. Le cache et le bord ainsi invalidés
+ * forment une seule conséquence déclarée, réessayée ensemble.
+ */
+export async function invalidateStructureDurable(): Promise<void> {
+  const tags = tagsStructure()
+  revaliderTags(tags)
+  revalidatePath("/admin/categories")
+  await purgerEdgeDurable(demandeDePurge(tags))
+}
+
 export function invalidateLivraison(): void {
   revalidatePath("/admin/villes")
   revalidatePath("/admin/livraison")
