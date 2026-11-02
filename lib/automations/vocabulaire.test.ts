@@ -26,14 +26,18 @@ describe("le vocabulaire fermé de l'éditeur de Règles", () => {
       "index.produit",
       "invalidation.catalogue",
       "purge.catalogue",
+      "suppression.images",
     ])
     expect(actionsOffertes("produit.supprime")).toEqual([
       "desindex.produit",
       "invalidation.catalogue",
+      "suppression.images",
     ])
     expect(actionsOffertes("variante.stock.changee")).toEqual(["index.produit"])
     expect(actionsOffertes("structure.modifiee")).toEqual([
       "invalidation.structure",
+      "index.structure",
+      "suppression.images",
     ])
     expect(actionsOffertes("planification.digest-stock-bas")).toEqual([
       "digest.stock-bas",
