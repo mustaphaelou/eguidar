@@ -413,10 +413,21 @@ export async function reconstituerRegistreImagesProduit(): Promise<BilanReconsti
   return { ajoutees, supprimees }
 }
 
+/**
+ * La suppression durable d'Images produit : une panne du stockage remonte au
+ * travailleur, qui laisse une Exécution échouée et réessaie. Une suppression
+ * silencieusement manquée ne serait jamais réparée, l'objet R2 restant sans
+ * référence dans le Catalogue.
+ */
 export async function supprimerImagesProduitDuStockage(
   publicUrls: readonly string[]
 ): Promise<void> {
   for (const url of publicUrls) {
-    await stockageImageProduitR2.supprimerImagePersistee(url)
+    const resultat = await stockageImageProduitR2.supprimerImagePersistee(url)
+    if (!resultat.ok) {
+      throw new Error(
+        `suppression de l'Image produit ${url} impossible (${resultat.erreur.code}) : ${resultat.erreur.message}`
+      )
+    }
   }
 }

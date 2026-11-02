@@ -592,6 +592,30 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
   },
 }
 
+/**
+ * Les faits qui révèlent les conséquences conditionnelles d'un genre : une
+ * conséquence déclarée seulement quand une image est retirée n'apparaît pas
+ * dans un plan appelé sans faits, mais sa Règle par défaut doit exister. Ce
+ * modèle ne remplace jamais les faits d'une écriture réelle ; il ne sert qu'au
+ * semis.
+ */
+export const FAITS_POUR_REGLES: Partial<
+  Record<GenreEcriture, FaitsApresEcriture>
+> = {
+  "produit.enregistre": {
+    produitId: "produit-modele",
+    imagesRetirees: ["https://cdn.example.test/modele.jpg"],
+  },
+  "structure.modifiee": {
+    categorieId: "categorie-modele",
+    imageRetiree: "https://cdn.example.test/modele.jpg",
+  },
+  "structure.supprimee": {
+    categorieId: "categorie-modele",
+    image: "https://cdn.example.test/modele.jpg",
+  },
+}
+
 // Liste en attente : Règles par défaut des genres non migrés, conservées ici
 // (et non dans regles.ts) pour qu'une seule source possède la politique.
 export const REGLES_EN_ATTENTE: Array<{
@@ -691,7 +715,7 @@ export function reglesParDefaut(): Array<{
     actif: boolean
   }> = []
   for (const genre of GENRES_MIGRES) {
-    const plan = declarerApresEcriture(genre, {})
+    const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
     const declencheurFait = plan.faits[0]?.declencheur
     for (const c of plan.consequences) {
       if (!c.durable || !c.action) continue
