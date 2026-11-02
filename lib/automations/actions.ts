@@ -38,7 +38,7 @@ import {
   type CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
-import { stockageImageProduitR2 } from "@/lib/r2"
+import { supprimerImagesProduitDuStockage } from "@/lib/use-cases/images-produit"
 
 export interface EntreeEmailDigest {
   destinataire: string
@@ -359,9 +359,7 @@ async function supprimerImages(contexte: ContexteAction): Promise<void> {
     const v = payload[cle]
     if (typeof v === "string") urls.add(v)
   }
-  for (const url of urls) {
-    await stockageImageProduitR2.supprimerImagePersistee(url)
-  }
+  await supprimerImagesProduitDuStockage([...urls])
 }
 
 const ACTIONS: Record<
