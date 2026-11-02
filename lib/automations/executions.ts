@@ -1,8 +1,5 @@
 import { Prisma } from "@/lib/generated/prisma/client"
-import type {
-  AutomationEvent,
-  AutomationRun,
-} from "@/lib/generated/prisma/client"
+import type { AutomationEvent } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { versRegle, type RegleAutomation } from "@/lib/automations/regles"
@@ -40,7 +37,7 @@ export async function ouvrirExecution(options: {
 }): Promise<{ id: string; attempt: number }> {
   const { evenement, regle, maintenant, client } = options
 
-  return avecClient(client, async (tx) => {
+  const ouvrirDans = async (tx: Prisma.TransactionClient) => {
     const dernier = await tx.automationRun.findFirst({
       where: { eventId: evenement.id, ruleId: regle.id },
       orderBy: { attempt: "desc" },
@@ -62,43 +59,47 @@ export async function ouvrirExecution(options: {
     }
 
     const attempt = (dernier?.attempt ?? 0) + 1
+    const cree = await tx.automationRun.create({
+      data: {
+        eventId: evenement.id,
+        ruleId: regle.id,
+        action: regle.action,
+        status: "en_cours",
+        attempt,
+        startedAt: maintenant,
+        trigger: declencheurDe(evenement.type),
+      },
+    })
+    return { id: cree.id, attempt: cree.attempt }
+  }
 
-    try {
+  try {
+    return await avecClient(client, ouvrirDans)
+  } catch (error) {
+    if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
+      throw error
+    }
+    // Nouvelle transaction : la précédente est annulée par PostgreSQL.
+    return avecClient(undefined, async (tx) => {
+      const agregat = await tx.automationRun.aggregate({
+        where: { eventId: evenement.id, ruleId: regle.id },
+        _max: { attempt: true },
+      })
+      const nouvelAttempt = (agregat._max.attempt ?? 0) + 1
       const cree = await tx.automationRun.create({
         data: {
           eventId: evenement.id,
           ruleId: regle.id,
           action: regle.action,
           status: "en_cours",
-          attempt,
+          attempt: nouvelAttempt,
           startedAt: maintenant,
           trigger: declencheurDe(evenement.type),
         },
       })
       return { id: cree.id, attempt: cree.attempt }
-    } catch (error) {
-      if (hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
-        const agregat = await tx.automationRun.aggregate({
-          where: { eventId: evenement.id, ruleId: regle.id },
-          _max: { attempt: true },
-        })
-        const nouvelAttempt = (agregat._max.attempt ?? 0) + 1
-        const cree = await tx.automationRun.create({
-          data: {
-            eventId: evenement.id,
-            ruleId: regle.id,
-            action: regle.action,
-            status: "en_cours",
-            attempt: nouvelAttempt,
-            startedAt: maintenant,
-            trigger: declencheurDe(evenement.type),
-          },
-        })
-        return { id: cree.id, attempt: cree.attempt }
-      }
-      throw error
-    }
-  })
+    })
+  }
 }
 
 // --- private terminal writer ---
@@ -250,21 +251,24 @@ export async function ouvrirReessai(
 > {
   const { maintenant, client } = options
 
-  return avecClient(client, async (tx) => {
+  const ouvrirDans = async (tx: Prisma.TransactionClient) => {
     const execution = await tx.automationRun.findUnique({
       where: { id: executionId },
       include: { event: true, rule: true },
     })
 
-    if (!execution) return { ok: false, raison: "introuvable" }
+    if (!execution)
+      return { ok: false as const, raison: "introuvable" as const }
     if (execution.status !== "echoue")
-      return { ok: false, raison: "pas-en-echec" }
-    if (!execution.event) return { ok: false, raison: "evenement-disparu" }
-    if (!execution.rule) return { ok: false, raison: "regle-disparue" }
+      return { ok: false as const, raison: "pas-en-echec" as const }
+    if (!execution.event)
+      return { ok: false as const, raison: "evenement-disparu" as const }
+    if (!execution.rule)
+      return { ok: false as const, raison: "regle-disparue" as const }
 
     const evenement = execution.event
     if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
-      return { ok: false, raison: "expire" }
+      return { ok: false as const, raison: "expire" as const }
     }
 
     const regle = versRegle(execution.rule)
@@ -275,47 +279,66 @@ export async function ouvrirReessai(
     })
     const attempt = (agregat._max.attempt ?? 0) + 1
 
-    let cree: AutomationRun
-    try {
-      cree = await tx.automationRun.create({
+    const cree = await tx.automationRun.create({
+      data: {
+        eventId: evenement.id,
+        ruleId: regle.id,
+        action: regle.action,
+        status: "en_cours",
+        attempt,
+        startedAt: maintenant,
+        trigger: "manuel",
+      },
+    })
+
+    return {
+      ok: true as const,
+      execution: { id: cree.id },
+      evenement,
+      regle,
+    }
+  }
+
+  try {
+    return await avecClient(client, ouvrirDans)
+  } catch (error) {
+    if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
+      throw error
+    }
+    return avecClient(undefined, async (tx) => {
+      // Recharger l'exécution source pour les données nécessaires.
+      const execution = await tx.automationRun.findUnique({
+        where: { id: executionId },
+        include: { event: true, rule: true },
+      })
+      if (!execution || !execution.event || !execution.rule) {
+        // État inattendu après collision : on propage.
+        throw error
+      }
+      const evenement = execution.event
+      const regle = versRegle(execution.rule)
+      const agregat = await tx.automationRun.aggregate({
+        where: { eventId: evenement.id, ruleId: regle.id },
+        _max: { attempt: true },
+      })
+      const nouvelAttempt = (agregat._max.attempt ?? 0) + 1
+      const cree = await tx.automationRun.create({
         data: {
           eventId: evenement.id,
           ruleId: regle.id,
           action: regle.action,
           status: "en_cours",
-          attempt,
+          attempt: nouvelAttempt,
           startedAt: maintenant,
           trigger: "manuel",
         },
       })
-    } catch (error) {
-      if (hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
-        const agregat2 = await tx.automationRun.aggregate({
-          where: { eventId: evenement.id, ruleId: regle.id },
-          _max: { attempt: true },
-        })
-        const nouvelAttempt = (agregat2._max.attempt ?? 0) + 1
-        cree = await tx.automationRun.create({
-          data: {
-            eventId: evenement.id,
-            ruleId: regle.id,
-            action: regle.action,
-            status: "en_cours",
-            attempt: nouvelAttempt,
-            startedAt: maintenant,
-            trigger: "manuel",
-          },
-        })
-      } else {
-        throw error
+      return {
+        ok: true as const,
+        execution: { id: cree.id },
+        evenement,
+        regle,
       }
-    }
-
-    return {
-      ok: true,
-      execution: { id: cree.id },
-      evenement,
-      regle,
-    }
-  })
+    })
+  }
 }

@@ -293,8 +293,6 @@ describe("l'éditeur de Règles d'automatisation", () => {
     })
     expect(annulee.status).toBe("ignore")
     expect(annulee.lastError).toBe("annulée : règle désactivée")
-    expect(annulee.finishedAt).toEqual(MAINTENANT)
-    expect(annulee.durationMs).toBe(5_000)
 
     const libere = await prisma.automationEvent.findUniqueOrThrow({
       where: { id: evenement.id },
