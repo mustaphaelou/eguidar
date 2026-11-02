@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import {
+  BRANCHE_SANS_STRUCTURE,
   declarerApresEcriture,
   type PlanApresEcriture,
 } from "@/lib/apres-ecriture"
@@ -18,7 +19,6 @@ import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
-  runEffect,
   runOrderedEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
@@ -311,12 +311,23 @@ async function assertAcyclicCategoryTree(
   return { nomDestination: liens.get(parentId)?.name ?? null }
 }
 
-async function readIndexableCategoryProducts(
-  categoryId: string
+/**
+ * Résout une branche après le commit, par son identifiant seulement : la
+ * Structure supprimée n'est jamais relue, et une destination inconnue ne rend
+ * aucun Produit plutôt que d'échouer. La branche orpheline est le
+ * pseudo-identifiant de journal que la déclaration emploie pour les Produits
+ * restés sans destination.
+ */
+async function readIndexableProductsOfBranch(
+  branche: string,
+  lectureStructure: () => Promise<Awaited<ReturnType<typeof lireStructure>>>
 ): Promise<IndexableProduct[]> {
-  const branche = (await lireStructure()).branche(categoryId)
+  const where =
+    branche === BRANCHE_SANS_STRUCTURE
+      ? { categoryId: null }
+      : { categoryId: { in: (await lectureStructure()).branche(branche) } }
   const products = await prisma.product.findMany({
-    where: { categoryId: { in: branche } },
+    where,
     include: { variants: true, category: true },
   })
   return products.map(toIndexableProduct)
@@ -324,17 +335,21 @@ async function readIndexableCategoryProducts(
 
 /**
  * L'adaptateur immédiat de la Structure : une projection mince du nom d'effet
- * vers les ports existants, exécutée dans l'ordre du plan. La branche est
- * résolue après le commit, comme le fait l'action durable.
+ * vers les ports existants, exécutée dans l'ordre du plan. Les branches sont
+ * résolues après le commit, comme le fait l'action durable, et une lecture les
+ * partage.
  */
 async function executerPlanDeStructure(
   plan: PlanApresEcriture,
   effects: StructureEffects
 ): Promise<void> {
   const charge = (plan.faits[0]?.charge ?? {}) as {
-    categorieId?: unknown
+    image?: unknown
     imageRetiree?: unknown
   }
+  let lectureStructure:
+    Promise<Awaited<ReturnType<typeof lireStructure>>> | undefined
+  const lecture = () => (lectureStructure ??= lireStructure())
 
   await runOrderedEffects(
     plan.consequences.map((consequence) => ({
@@ -345,18 +360,20 @@ async function executerPlanDeStructure(
       fn: async () => {
         switch (consequence.effet) {
           case "suppression-images": {
-            if (typeof charge.imageRetiree !== "string") {
-              throw new Error("image retirée absente du fait de Structure")
+            const image =
+              typeof charge.imageRetiree === "string"
+                ? charge.imageRetiree
+                : charge.image
+            if (typeof image !== "string") {
+              throw new Error("image absente du fait de Structure")
             }
-            await effects.deleteImage(charge.imageRetiree)
+            await effects.deleteImage(image)
             return
           }
           case "reindexation": {
-            if (typeof charge.categorieId !== "string") {
-              throw new Error("catégorie absente du fait de Structure")
-            }
-            const produits = await readIndexableCategoryProducts(
-              charge.categorieId
+            const produits = await readIndexableProductsOfBranch(
+              consequence.entite.id,
+              lecture
             )
             if (produits.length > 0) await effects.reindexProducts(produits)
             return
@@ -623,7 +640,7 @@ export async function deleteCategory(
   const laisseSansStructure =
     options.orphanProducts === true && !reassignToCategoryId
 
-  const { image, movedProducts } = await sousVerrouDeStructure(async (tx) => {
+  const { plan } = await sousVerrouDeStructure(async (tx) => {
     const category = await tx.category.findUnique({
       where: { id },
       include: {
@@ -652,7 +669,6 @@ export async function deleteCategory(
       await assertCategoryParent(reassignToCategoryId, tx)
     }
 
-    let moved: IndexableProduct[] = []
     if (category.products.length > 0) {
       if (reassignToCategoryId) {
         await tx.product.updateMany({
@@ -667,43 +683,34 @@ export async function deleteCategory(
           data: { categoryId: null },
         })
       }
-      const movedRows = await tx.product.findMany({
-        where: { id: { in: category.products.map((product) => product.id) } },
-        include: { variants: true, category: true },
-      })
-      moved = movedRows.map(toIndexableProduct)
     }
 
     await tx.category.delete({ where: { id } })
-    await enregistrerEvenement(tx, {
-      type: "structure.supprimee",
-      entityType: "categorie",
-      entityId: id,
-      payload: { categorieId: id },
+
+    const planLocal = declarerApresEcriture("structure.supprimee", {
+      categorieId: id,
+      image: category.image,
+      produitsCible:
+        reassignToCategoryId && category.products.length > 0
+          ? reassignToCategoryId
+          : null,
+      enfantsCible:
+        reparentChildrenToCategoryId && category.children.length > 0
+          ? reparentChildrenToCategoryId
+          : null,
+      produitsSansStructure:
+        laisseSansStructure && category.products.length > 0,
     })
-    return { image: category.image, movedProducts: moved }
+    for (const f of planLocal.faits) {
+      await enregistrerEvenement(tx, {
+        type: f.declencheur,
+        entityType: f.entite,
+        entityId: f.identifiant,
+        payload: f.charge,
+      })
+    }
+    return { plan: planLocal }
   })
 
-  if (movedProducts.length > 0) {
-    await runEffect({
-      effet: "reindexation",
-      entite: { type: "categorie", id },
-      message: `[structure] réindexation meilisearch non effectuée pour ${id}`,
-      fn: () => effects.reindexProducts(movedProducts),
-    })
-  }
-  if (image) {
-    await runEffect({
-      effet: "suppression-images",
-      entite: { type: "categorie", id },
-      message: `[structure] suppression d'image R2 non effectuée pour ${image}`,
-      fn: () => effects.deleteImage(image!),
-    })
-  }
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "categorie", id },
-    message: `[structure] invalidation du cache non effectuée pour ${id}`,
-    fn: () => effects.revalidateCategories(),
-  })
+  await executerPlanDeStructure(plan, effects)
 }

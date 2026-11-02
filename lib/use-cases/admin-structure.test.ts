@@ -1842,6 +1842,163 @@ describe("admin structure mutations — categories", () => {
     expect(deleteImage).toHaveBeenCalledWith("https://example.com/cat.jpg")
   })
 
+  it("réindexe les deux branches de destination quand la suppression en utilise deux", async () => {
+    const reindexProducts = vi.fn()
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-deux-branches") })
+    )
+    const cibleProduits = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-deux-branches-produits") })
+    )
+    const cibleEnfants = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-deux-branches-enfants") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("del-deux-branches-enfant"),
+        parentId: parent.id,
+      })
+    )
+    const produitDeplace = await makeProductIn(
+      parent,
+      "deux-branches-deplace",
+      "Produit réaffecté"
+    )
+    const produitEnfant = await makeProductIn(
+      enfant,
+      "deux-branches-enfant",
+      "Produit de l'enfant"
+    )
+
+    await deleteCategory(
+      parent.id,
+      {
+        reassignToCategoryId: cibleProduits.id,
+        reparentChildrenToCategoryId: cibleEnfants.id,
+      },
+      { reindexProducts, revalidateCategories: vi.fn() }
+    )
+
+    expect(reindexProducts).toHaveBeenCalledTimes(2)
+    const documents = reindexProducts.mock.calls.map(
+      ([produits]) => produits as Array<{ id: string; categorySlug: string }>
+    )
+    expect(documents.map((branche) => branche.map(({ id }) => id))).toEqual([
+      [produitDeplace.id],
+      [produitEnfant.id],
+    ])
+    const parId = new Map(
+      documents.flat().map((document) => [document.id, document])
+    )
+    expect(parId.get(produitDeplace.id)).toMatchObject({
+      categorySlug: cibleProduits.slug,
+    })
+    // Le document d'un Produit nomme sa Structure directe ; la réindexation
+    // d'une branche reparentée couvre bien ce Produit, dont la chaîne a changé.
+    expect(parId.get(produitEnfant.id)).toMatchObject({
+      categorySlug: enfant.slug,
+    })
+  })
+
+  it("écrit un seul Événement structure.supprimee avec les destinations employées", async () => {
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-evenement") })
+    )
+    const cibleProduits = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-evenement-produits") })
+    )
+    const cibleEnfants = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-evenement-enfants") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("del-evenement-enfant"),
+        parentId: parent.id,
+      })
+    )
+    await makeProductIn(parent, "evenement-produit", "Produit réaffecté")
+
+    await deleteCategory(
+      parent.id,
+      {
+        reassignToCategoryId: cibleProduits.id,
+        reparentChildrenToCategoryId: cibleEnfants.id,
+      },
+      effectSpies()
+    )
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: { type: "structure.supprimee", entityId: parent.id },
+    })
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]).toMatchObject({
+      entityType: "categorie",
+      payload: {
+        categorieId: parent.id,
+        image: "https://example.com/cat.jpg",
+        destinations: [cibleProduits.id, cibleEnfants.id],
+        produitsSansStructure: false,
+      },
+    })
+    await expect(
+      prisma.category.findUnique({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: cibleEnfants.id })
+  })
+
+  it("n'écrit aucun Événement quand la transaction de suppression est annulée", async () => {
+    const effets = effectSpies()
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-evenement-annule") })
+    )
+    const cible = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-evenement-annule-cible") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("del-evenement-annule-enfant"),
+        parentId: parent.id,
+      })
+    )
+    await makeProductIn(parent, "annule-produit", "Produit déplacé")
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après l'écriture de l'Événement")
+      })) as unknown as typeof prisma.$transaction)
+
+    try {
+      const refus = await refusDe(
+        deleteCategory(
+          parent.id,
+          {
+            reassignToCategoryId: cible.id,
+            reparentChildrenToCategoryId: cible.id,
+          },
+          effets
+        )
+      )
+      expect((refus as Error).message).toContain("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(
+      await prisma.automationEvent.count({
+        where: { type: "structure.supprimee", entityId: parent.id },
+      })
+    ).toBe(0)
+    await expect(
+      prisma.category.findUnique({ where: { id: parent.id } })
+    ).resolves.not.toBeNull()
+    await expect(
+      prisma.category.findUnique({ where: { id: enfant.id } })
+    ).resolves.toMatchObject({ parentId: parent.id })
+    expectNoEffects(effets)
+  })
+
   it("attend la transaction tierce au verrou grossier, voit son Produit fantôme et le réaffecte", async () => {
     const effets = effectSpies()
     const category = await createCategory(
@@ -2310,8 +2467,10 @@ describe("admin structure mutations — categories", () => {
       makeCategoryInput({ slug: categorySlug("del-img-panne") })
     )
 
-    await verifierFrontiereBestEffort("suppression d'image", (effetQuiEchoue) =>
-      deleteCategory(category.id, {}, { deleteImage: effetQuiEchoue })
+    await verifierFrontiereBestEffort(
+      "suppression de l'image",
+      (effetQuiEchoue) =>
+        deleteCategory(category.id, {}, { deleteImage: effetQuiEchoue })
     )
 
     await expect(

@@ -34,14 +34,14 @@ import {
 } from "@/lib/use-cases/admin-dashboard"
 import {
   chaineDeLaStructure,
-  demandeDePurge,
   demandeDePurgeCatalogue,
-  tagsStructure,
   type CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
-import { supprimerImagesProduitDuStockage } from "@/lib/use-cases/images-produit"
-import { supprimerImagesStructureDuStockage } from "@/lib/use-cases/images-structure"
+import {
+  supprimerImagesCategorieDuStockage,
+  supprimerImagesProduitDuStockage,
+} from "@/lib/use-cases/images-produit"
 
 export interface EntreeEmailDigest {
   destinataire: string
@@ -133,6 +133,7 @@ const payloadIndexStructure = z.object({
   categorieId: z.string().min(1).nullish(),
   destinations: z.array(z.string().min(1)).nullish(),
   destination: z.string().min(1).nullish(),
+  produitsSansStructure: z.boolean().nullish(),
 })
 const payloadJour = z.object({ jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 
@@ -242,7 +243,6 @@ async function invaliderStructure(contexte: ContexteAction): Promise<void> {
   // Le cache et le bord sont une seule conséquence déclarée : une purge qui
   // échoue fait réessayer l'invalidation entière, cache compris.
   await contexte.dependances.catalogue.revaliderStructure()
-  await contexte.dependances.catalogue.purger(demandeDePurge(tagsStructure()))
 }
 
 async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
@@ -371,7 +371,11 @@ async function indexerStructure(contexte: ContexteAction): Promise<void> {
   const destinations =
     payload.destinations ?? (payload.destination ? [payload.destination] : [])
   if (destinations.length === 0) {
-    await indexerBranche(contexte, null)
+    // Une suppression sans destination n'a de Produits à réindexer que ceux
+    // restés orphelins ; une Structure vide n'en a aucun.
+    if (payload.produitsSansStructure === true) {
+      await indexerBranche(contexte, null)
+    }
     return
   }
   for (const destination of destinations) {
@@ -400,10 +404,10 @@ async function supprimerImages(contexte: ContexteAction): Promise<void> {
   // Le même fait nomme l'URL ; l'entité de l'Événement choisit l'espace de
   // noms, car l'image d'une Structure vit hors du préfixe des Images produit.
   if (contexte.evenement.entityType === "categorie") {
-    await supprimerImagesStructureDuStockage(urls)
-  } else {
-    await supprimerImagesProduitDuStockage(urls)
+    await supprimerImagesCategorieDuStockage(urls)
+    return
   }
+  await supprimerImagesProduitDuStockage(urls)
 }
 
 const ACTIONS: Record<

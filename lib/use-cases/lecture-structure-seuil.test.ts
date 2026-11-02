@@ -170,19 +170,10 @@ const SITES_NOMMES: ExceptionLecture[] = [
     chemin: "lib/use-cases/admin-structure.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
-    declaration: "readIndexableCategoryProducts",
+    declaration: "readIndexableProductsOfBranch",
     herite: false,
     raison:
-      "le nom de la catégorie dans les Documents d'index des Produits d'une Structure réaffectée : le pointeur d'une seule rangée, la topologie restant à la Marche",
-  },
-  {
-    chemin: "lib/use-cases/admin-structure.ts",
-    voie: "relation",
-    extrait: `include: ${FORME.champ}`,
-    declaration: "deleteCategory",
-    herite: false,
-    raison:
-      "le nom de la catégorie dans les Documents d'index des Produits détachés d'une Structure supprimée : le pointeur d'une seule rangée, la topologie restant à la Marche",
+      "le nom de la catégorie dans les Documents d'index des Produits d'une branche de destination d'une Structure supprimée, résolue après le commit : le pointeur d'une seule rangée, la topologie restant à la Marche",
   },
   {
     chemin: MODULE_LECTURE,
@@ -298,10 +289,10 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
     expect(heritees.length).toBe(3)
-    expect(SITES_NOMMES).toHaveLength(21)
-    expect(SITES_NOMMES).toHaveLength(heritees.length + 18)
+    expect(SITES_NOMMES).toHaveLength(20)
+    expect(SITES_NOMMES).toHaveLength(heritees.length + 17)
 
-    const attenduesParVoie = { relation: 12, delegue: 9 }
+    const attenduesParVoie = { relation: 11, delegue: 9 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,
