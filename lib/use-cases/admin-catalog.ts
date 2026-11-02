@@ -1317,43 +1317,52 @@ export async function updateVariantStock(
     defaultCatalogEffects(variant.product.id),
     overrides
   )
-  await prisma.$transaction(async (tx) => {
-    await tx.productVariant.update({
-      where: { id: variantId },
-      data: { stock },
-    })
-    await enregistrerEvenement(tx, {
-      type: "variante.stock.changee",
-      entityType: "produit",
-      entityId: variant.product.id,
-      payload: { produitId: variant.product.id },
-    })
-  })
   const product = {
     ...variant.product,
     variants: variant.product.variants.map((v) =>
       v.id === variantId ? { ...v, stock } : v
     ),
   }
-  await runEffect({
-    effet: "reindexation",
-    entite: { type: "produit", id: product.id },
-    message: `[catalog] réindexation Meilisearch non effectuée pour ${product.id}`,
-    fn: () => effects.reindexProducts([toIndexableProduct(product)]),
+  let plan!: ReturnType<typeof declarerApresEcriture>
+  await prisma.$transaction(async (tx) => {
+    await tx.productVariant.update({
+      where: { id: variantId },
+      data: { stock },
+    })
+    plan = declarerApresEcriture("variante.stock.changee", {
+      produitId: variant.product.id,
+    })
+    if (plan.faits.length > 0) {
+      for (const f of plan.faits) {
+        await enregistrerEvenement(tx, {
+          type: f.declencheur,
+          entityType: f.entite,
+          entityId: f.identifiant,
+          payload: f.charge,
+        })
+      }
+    }
   })
-  await runEffect({
-    effet: "invalidation-cache",
-    entite: { type: "produit", id: product.id },
-    message: `[catalog] invalidation du cache non effectuée pour ${product.id}`,
-    fn: async () => {
-      const chaines = await chainesDuProduit(product.categoryId)
-      await effects.revalidateCatalog({
-        id: product.id,
-        slug: product.slug,
-        ...chaines,
-      })
-    },
-  })
+  await runOrderedEffects(
+    plan.consequences.map((c) => ({
+      effet: c.effet,
+      entite: c.entite,
+      message: c.message,
+      portee: c.portee,
+      fn: async () => {
+        if (c.effet === "reindexation") {
+          await effects.reindexProducts([toIndexableProduct(product)])
+        } else if (c.effet === "invalidation-cache") {
+          const chaines = await chainesDuProduit(product.categoryId)
+          await effects.revalidateCatalog({
+            id: product.id,
+            slug: product.slug,
+            ...chaines,
+          })
+        }
+      },
+    }))
+  )
   return product
 }
 

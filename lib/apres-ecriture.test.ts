@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   declarerApresEcriture,
+  FAITS_POUR_REGLES,
+  GENRES_MIGRES,
+  REGLES_EN_ATTENTE,
   reglesParDefaut,
   type PlanApresEcriture,
 } from "@/lib/apres-ecriture"
@@ -297,12 +300,6 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
     )
   })
 
-  it("ne dérive jamais deux Règles de même identité", () => {
-    const identifiants = reglesParDefaut().map((regle) => regle.id)
-
-    expect(new Set(identifiants).size).toBe(identifiants.length)
-  })
-
   it("ne crée aucune Règle pour les conséquences non durables", () => {
     const plan = declarerApresEcriture("produit.enregistre", {
       produitId: PRODUIT,
@@ -316,5 +313,75 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
     expect(
       nonDurables.every((consequence) => consequence.action === undefined)
     ).toBe(true)
+  })
+})
+
+describe("la déclaration de variante.stock.changee", () => {
+  it("réindexe durablement puis invalide le cache, réparé par le TTL", () => {
+    const plan = declarerApresEcriture("variante.stock.changee", {
+      produitId: PRODUIT,
+    })
+
+    expect(plan.faits).toEqual([
+      {
+        declencheur: "variante.stock.changee",
+        entite: "produit",
+        identifiant: PRODUIT,
+        charge: { produitId: PRODUIT },
+      },
+    ])
+    expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
+    expect(durable(plan)).toEqual(["reindexation"])
+    expect(actions(plan)).toEqual(["index.produit"])
+
+    const invalidation = plan.consequences.find(
+      (consequence) => consequence.effet === "invalidation-cache"
+    )
+    expect(invalidation).toMatchObject({
+      durable: false,
+      reparation: "TTL",
+      entite: { type: "produit", id: PRODUIT },
+    })
+  })
+})
+
+describe("les Règles par défaut dérivées de variante.stock.changee", () => {
+  it("reprend l'identité indexation-stock pour la seule réindexation durable", () => {
+    expect(
+      reglesParDefaut()
+        .filter((regle) => regle.declencheur === "variante.stock.changee")
+        .map((regle) => [regle.id, regle.action, regle.nom])
+    ).toEqual([["indexation-stock", "index.produit", "Indexation du stock"]])
+  })
+
+  it("retire la Règle de la liste en attente et ne duplique aucune identité", () => {
+    expect(GENRES_MIGRES).toContain("variante.stock.changee")
+    expect(
+      REGLES_EN_ATTENTE.some((regle) => regle.id === "indexation-stock")
+    ).toBe(false)
+    expect(
+      reglesParDefaut().filter((regle) => regle.id === "indexation-stock")
+    ).toHaveLength(1)
+    const ids = reglesParDefaut().map((regle) => regle.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it("chaque conséquence durable a exactement une Règle, aucune non durable n'en a", () => {
+    const regles = reglesParDefaut()
+
+    for (const genre of GENRES_MIGRES) {
+      const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
+      const declencheur = plan.faits[0]?.declencheur ?? genre
+      for (const consequence of plan.consequences) {
+        if (!consequence.action) continue
+        expect(
+          regles.filter(
+            (regle) =>
+              regle.declencheur === declencheur &&
+              regle.action === consequence.action
+          )
+        ).toHaveLength(consequence.durable ? 1 : 0)
+      }
+    }
   })
 })

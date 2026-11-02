@@ -1257,4 +1257,104 @@ describe("admin catalog mutations", () => {
       prisma.product.findUnique({ where: { id: product.id } })
     ).resolves.toBeNull()
   })
+
+  it("le stock d'une Variante réindexe puis invalide, dans l'ordre déclaré", async () => {
+    const produit = await createProduct(makeInput({ slug: slug("stock") }), {
+      reindexProducts: async () => {},
+      revalidateCatalog: () => {},
+    })
+    const variante = produit.variants[0]!
+    const appels: string[] = []
+    const reindexProducts = vi.fn(async () => {
+      appels.push("réindexation")
+    })
+    const revalidateCatalog = vi.fn(() => {
+      appels.push("invalidation")
+    })
+
+    const misAJour = await updateVariantStock(variante.id, 2, {
+      reindexProducts,
+      revalidateCatalog,
+    })
+
+    expect(appels).toEqual(["réindexation", "invalidation"])
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ id: produit.id, totalStock: 2 }),
+    ])
+    expect(revalidateCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ id: produit.id, slug: produit.slug })
+    )
+    expect(misAJour.variants.find((v) => v.id === variante.id)).toMatchObject({
+      stock: 2,
+    })
+
+    const evenements = await prisma.automationEvent.findMany({
+      where: { entityId: produit.id, type: "variante.stock.changee" },
+    })
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]).toMatchObject({
+      entityType: "produit",
+      payload: { produitId: produit.id },
+    })
+  })
+
+  it("invalide le cache même quand la réindexation du stock échoue", async () => {
+    const produit = await createProduct(
+      makeInput({ slug: slug("stock-echec") }),
+      { reindexProducts: async () => {}, revalidateCatalog: () => {} }
+    )
+    const variante = produit.variants[0]!
+    const revalidateCatalog = vi.fn()
+
+    const misAJour = await verifierFrontiereBestEffort(
+      "réindexation",
+      (effetQuiEchoue) =>
+        updateVariantStock(variante.id, 3, {
+          reindexProducts: effetQuiEchoue,
+          revalidateCatalog,
+        })
+    )
+
+    expect(revalidateCatalog).toHaveBeenCalledOnce()
+    expect(misAJour.variants.find((v) => v.id === variante.id)).toMatchObject({
+      stock: 3,
+    })
+  })
+
+  it("n'écrit aucun Événement quand la transaction du stock est annulée", async () => {
+    const produit = await createProduct(
+      makeInput({ slug: slug("stock-annule") }),
+      { reindexProducts: async () => {}, revalidateCatalog: () => {} }
+    )
+    const variante = produit.variants[0]!
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
+    ) =>
+      reelle(async (tx) => {
+        await callback(tx)
+        throw new Error("annulation simulée après l'écriture de l'Événement")
+      })) as unknown as typeof prisma.$transaction)
+
+    try {
+      await expect(
+        updateVariantStock(variante.id, 7, {
+          reindexProducts: async () => {},
+          revalidateCatalog: () => {},
+        })
+      ).rejects.toThrow("annulation simulée")
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(
+      await prisma.automationEvent.count({
+        where: { entityId: produit.id, type: "variante.stock.changee" },
+      })
+    ).toBe(0)
+    const persiste = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variante.id },
+    })
+    expect(persiste.stock).toBe(5)
+  })
 })
