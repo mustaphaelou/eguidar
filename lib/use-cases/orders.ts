@@ -419,6 +419,7 @@ export async function placeOrder(
       effet: c.effet,
       entite: c.entite,
       message: c.message,
+      portee: c.portee,
       fn: async () => {
         if (c.effet === "email") {
           await effects.sendOrderPlacedEmail(
