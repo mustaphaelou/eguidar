@@ -191,7 +191,7 @@ describe("les gestes en lot du Catalogue", () => {
     })
     const seconde = await creerProduit("supprime-evenement-2", {
       categoryId: null,
-      imagesRetirees: [],
+      images: [],
     })
 
     await bulkDelete(
