@@ -31,7 +31,9 @@ export type GenreEcriture =
   | "livraison.reglee"
   | "image.texte-alternatif"
 
-export interface FaitApresEcriture<D extends TypeEvenementAutomation = TypeEvenementAutomation> {
+export interface FaitApresEcriture<
+  D extends TypeEvenementAutomation = TypeEvenementAutomation,
+> {
   declencheur: D
   entite: TypeEntiteAutomation
   identifiant: string
@@ -728,7 +730,9 @@ export type FaitsVilleCreee = { villeId: string | number }
 export type FaitsVilleModifiee = { villeId: string | number }
 export type FaitsVilleSupprimee = { villeId: string | number }
 export type FaitsLivraisonReglee = { livraisonId?: string | number }
-export type FaitsImageTexteAlternatif = { produitIds?: readonly (string | number)[] }
+export type FaitsImageTexteAlternatif = {
+  produitIds?: readonly (string | number)[]
+}
 
 export type FaitsParGenre = {
   "commande.creee": FaitsCommandeCreee

@@ -22,9 +22,7 @@ export const TYPES_EVENEMENT_AUTOMATION = Object.freeze([
 export type TypeEvenementAutomation =
   (typeof TYPES_EVENEMENT_AUTOMATION)[number]
 
-export const typeEvenementAutomationSchema = z.enum(
-  TYPES_EVENEMENT_AUTOMATION
-)
+export const typeEvenementAutomationSchema = z.enum(TYPES_EVENEMENT_AUTOMATION)
 
 export const TYPES_ENTITE_AUTOMATION = Object.freeze([
   "commande",
@@ -62,16 +60,17 @@ export const chargeCommandeCreeeSchema = z.object({
   snapshot: snapshotCommandeSchema,
 })
 
-export const chargeCommandeStatutChangeeSchema = chargeCommandeCreeeSchema.extend({
-  statut: z.enum([
-    "pending",
-    "confirmed",
-    "shipped",
-    "delivered",
-    "cancelled",
-    "returned",
-  ]),
-})
+export const chargeCommandeStatutChangeeSchema =
+  chargeCommandeCreeeSchema.extend({
+    statut: z.enum([
+      "pending",
+      "confirmed",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "returned",
+    ]),
+  })
 
 export const chargeProduitEnregistreSchema = z.object({
   produitId: z.string().min(1),
@@ -144,13 +143,10 @@ export const TYPE_ENTITE_PAR_DECLENCHEUR = {
 } satisfies Record<TypeEvenementAutomation, TypeEntiteAutomation>
 
 export type ChargeParDeclencheur = {
-  [K in TypeEvenementAutomation]: z.infer<
-    (typeof CHARGES_PAR_DECLENCHEUR)[K]
-  >
+  [K in TypeEvenementAutomation]: z.infer<(typeof CHARGES_PAR_DECLENCHEUR)[K]>
 }
 
-export type Charge<D extends TypeEvenementAutomation> =
-  ChargeParDeclencheur[D]
+export type Charge<D extends TypeEvenementAutomation> = ChargeParDeclencheur[D]
 
 // Aliases de noms possibles pour le map des schémas.
 export const chargesParDeclencheur = CHARGES_PAR_DECLENCHEUR

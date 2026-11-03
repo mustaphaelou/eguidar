@@ -98,7 +98,6 @@ export interface ContexteAction {
   dependances: DependancesAutomations
 }
 
-
 /**
  * Le destinataire d'un digest est nommé par une variable d'environnement
  * (ADR-0044) : la valeur est lue ici, jamais écrite en base ni affichée. Une
@@ -127,7 +126,7 @@ function destinataireDuProprietaire(contexte: ContexteAction): string {
 }
 
 async function evenementCatalogue(
-  payload: z.infer<typeof CHARGES_PAR_DECLENCHEUR["produit.enregistre"]>
+  payload: z.infer<(typeof CHARGES_PAR_DECLENCHEUR)["produit.enregistre"]>
 ): Promise<CatalogueEventProduct> {
   const lecture = await lireStructure()
   const previousSlug =
@@ -191,7 +190,7 @@ async function desindexerProduit(contexte: ContexteAction): Promise<void> {
 
 async function invaliderCatalogue(contexte: ContexteAction): Promise<void> {
   const payload = contexte.evenement.payload as z.infer<
-    typeof CHARGES_PAR_DECLENCHEUR["produit.enregistre"]
+    (typeof CHARGES_PAR_DECLENCHEUR)["produit.enregistre"]
   >
   await contexte.dependances.catalogue.revaliderCatalogue(
     await evenementCatalogue(payload)
@@ -200,7 +199,7 @@ async function invaliderCatalogue(contexte: ContexteAction): Promise<void> {
 
 async function purgerCatalogue(contexte: ContexteAction): Promise<void> {
   const payload = contexte.evenement.payload as z.infer<
-    typeof CHARGES_PAR_DECLENCHEUR["produit.enregistre"]
+    (typeof CHARGES_PAR_DECLENCHEUR)["produit.enregistre"]
   >
   await contexte.dependances.catalogue.purger(
     demandeDePurgeCatalogue(await evenementCatalogue(payload))
@@ -350,7 +349,10 @@ async function indexerStructure(contexte: ContexteAction): Promise<void> {
       await indexerBranche(contexte, destination)
     }
   }
-  if (payload.produitsSansStructure === true && !destinations.includes("sans-structure")) {
+  if (
+    payload.produitsSansStructure === true &&
+    !destinations.includes("sans-structure")
+  ) {
     await indexerBranche(contexte, null)
   }
 }

@@ -286,7 +286,13 @@ describe("le travailleur des automatisations", () => {
       entityId: entite,
       occurredAt: new Date(MAINTENANT.getTime() - 2 * 3_600_000),
       expiresAt: expireLe,
-      payload: { produitId: entite, slug: `slug-${entite}`, slugPrecedent: null, categoryId: null, categoryIdPrecedent: null },
+      payload: {
+        produitId: entite,
+        slug: `slug-${entite}`,
+        slugPrecedent: null,
+        categoryId: null,
+        categoryIdPrecedent: null,
+      },
     })
     const catalogue = creerPortCatalogueMemoire()
     const recherche = creerPortRechercheMemoire()

@@ -32,7 +32,13 @@ async function creerEvenement(
       entityType: "produit",
       entityId: id,
       occurredAt: MAINTENANT,
-      payload: { produitId: id, slug: `slug-${id}`, slugPrecedent: null, categoryId: null, categoryIdPrecedent: null },
+      payload: {
+        produitId: id,
+        slug: `slug-${id}`,
+        slugPrecedent: null,
+        categoryId: null,
+        categoryIdPrecedent: null,
+      },
     })
   })
   return { evenement, entityId: id }

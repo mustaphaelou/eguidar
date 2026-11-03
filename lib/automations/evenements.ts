@@ -1,4 +1,3 @@
-
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import {
@@ -20,10 +19,7 @@ import {
   typeEntiteAutomationSchema,
 } from "@/lib/automations/charge"
 
-export {
-  TYPES_EVENEMENT_AUTOMATION,
-  TYPES_ENTITE_AUTOMATION,
-}
+export { TYPES_EVENEMENT_AUTOMATION, TYPES_ENTITE_AUTOMATION }
 export type { TypeEvenementAutomation, TypeEntiteAutomation }
 export { typeEvenementAutomationSchema, typeEntiteAutomationSchema }
 

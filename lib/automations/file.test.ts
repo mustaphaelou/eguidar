@@ -73,7 +73,11 @@ describe("pg-boss sur le Postgres déjà déployé", () => {
           type: "structure.modifiee",
           entityType: "categorie",
           entityId: entite,
-          payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
+          payload: {
+            categorieId: entite,
+            imagesRetirees: [],
+            destinations: [],
+          },
         })
       )
 

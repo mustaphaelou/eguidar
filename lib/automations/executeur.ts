@@ -191,9 +191,10 @@ export async function executerEvenement(
   let chargePrete = false
   function obtenirCharge(): unknown {
     if (chargePrete) return chargeAnalysee
-    const schema = CHARGES_PAR_DECLENCHEUR[
-      evenement.type as keyof typeof CHARGES_PAR_DECLENCHEUR
-    ]
+    const schema =
+      CHARGES_PAR_DECLENCHEUR[
+        evenement.type as keyof typeof CHARGES_PAR_DECLENCHEUR
+      ]
     const resultat = schema.safeParse(evenement.payload)
     if (!resultat.success) {
       const issue = resultat.error.issues[0]
