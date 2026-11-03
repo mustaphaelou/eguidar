@@ -566,7 +566,7 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
     ])
     const plan = declarerApresEcriture("produit.supprime", {
       produitId: PRODUIT,
-      images: ["https://cdn.example.test/une.jpg"],
+      imagesRetirees: ["https://cdn.example.test/une.jpg"],
     })
     expect(regles.map((regle) => regle.action).sort()).toEqual(
       actions(plan).sort()

@@ -106,6 +106,7 @@ export const chargeStructureSupprimeeSchema = z.object({
   categorieId: z.string().min(1),
   imagesRetirees: z.array(z.string()),
   destinations: z.array(z.string()),
+  produitsSansStructure: z.boolean().optional(),
 })
 
 export const chargePlanificationDigestStockBasSchema = z.object({

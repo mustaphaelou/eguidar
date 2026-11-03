@@ -332,7 +332,6 @@ describe("les gestes en lot du Catalogue", () => {
         categoryId: racine.id,
         categoryIdPrecedent: null,
         imagesRetirees: [],
-        galerie: null,
       })
     }
   })
