@@ -29,19 +29,15 @@ export function getRedis(): ClientRedis | null {
 
 /**
  * Le geste partagé par les deux usages de Redis : rendre un client ouvert, ou
- * `null` quand le magasin n'est pas configuré ou qu'une connexion concurrente
- * a déjà pris la main. Une rejection de `connect` vaut « indisponible » : les
- * appelants la traitent déjà comme telle.
+ * `null` quand le magasin n'est pas configuré. Une rejection de `connect` n'est
+ * pas avalée : elle remonte à l'appelant, qui sait s'il doit échouer (le
+ * limiteur de Recherche) ou laisser passer (le compteur d'échecs de Connexion).
  */
 export async function clientRedisPret(
   obtenirClient: () => ClientRedis | null = getRedis
 ): Promise<ClientRedis | null> {
   const redis = obtenirClient()
   if (!redis) return null
-  try {
-    if (!redis.isOpen) await redis.connect()
-  } catch {
-    // Une autre requête a pu ouvrir la connexion entre-temps.
-  }
+  if (!redis.isOpen) await redis.connect()
   return redis.isOpen ? redis : null
 }

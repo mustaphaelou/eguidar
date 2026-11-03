@@ -2,26 +2,77 @@ import { randomBytes, scryptSync } from "node:crypto"
 
 import { PARAMETRES_SCRYPT } from "../lib/mot-de-passe-hache"
 
-// Jeux de paramètres scrypt candidats, dans l'ordre croissant du coût. Les
-// valeurs reprennent le tableau OWASP (r=8 fixé par OWASP) plus le défaut
-// historique de la bibliothèque (r=16), pour comparer sur la même machine. Le
-// palier choisi est lu dans `PARAMETRES_SCRYPT` : changer la constante met à
-// jour la mesure et le texte de clôture.
-const JEUX = [
-  { nom: "defaut bibliothèque", N: 2 ** 14, r: 16, p: 1 },
+// Les paliers OWASP (r=8 fixé par OWASP), dans l'ordre croissant du coût, et le
+// défaut historique de la bibliothèque (r=16), pour comparer sur la même
+// machine. Le palier choisi est lu dans `PARAMETRES_SCRYPT` : changer la
+// constante met à jour la mesure, la ligne marquée et le texte de clôture.
+interface JeuScrypt {
+  nom: string
+  N: number
+  r: number
+  p: number
+}
+
+const DEFAUT_HISTORIQUE: JeuScrypt = {
+  nom: "defaut bibliothèque",
+  N: 2 ** 14,
+  r: 16,
+  p: 1,
+}
+
+const PALIERS_OWASP: readonly JeuScrypt[] = [
   { nom: "OWASP le plus faible", N: 2 ** 14, r: 8, p: 5 },
   { nom: "OWASP intermédiaire bas", N: 2 ** 15, r: 8, p: 3 },
   { nom: "OWASP intermédiaire haut", N: 2 ** 16, r: 8, p: 2 },
-  {
-    nom: "OWASP le plus fort (choisi)",
-    N: PARAMETRES_SCRYPT.N,
-    r: PARAMETRES_SCRYPT.r,
-    p: PARAMETRES_SCRYPT.p,
-  },
-] as const
+  { nom: "OWASP le plus fort", N: 2 ** 17, r: 8, p: 1 },
+]
 
-const PALIER_CHOISI = JEUX[JEUX.length - 1]
-const PALIER_REPLI = JEUX[JEUX.length - 2]
+function memesParametres(
+  a: Pick<JeuScrypt, "N" | "r" | "p">,
+  b: Pick<JeuScrypt, "N" | "r" | "p">
+): boolean {
+  return a.N === b.N && a.r === b.r && a.p === b.p
+}
+
+const INDEX_PALIER_CHOISI = PALIERS_OWASP.findIndex((palier) =>
+  memesParametres(palier, PARAMETRES_SCRYPT)
+)
+
+const EST_DEFAUT_HISTORIQUE = memesParametres(
+  DEFAUT_HISTORIQUE,
+  PARAMETRES_SCRYPT
+)
+
+const PALIER_CHOISI: JeuScrypt =
+  INDEX_PALIER_CHOISI >= 0
+    ? PALIERS_OWASP[INDEX_PALIER_CHOISI]
+    : EST_DEFAUT_HISTORIQUE
+      ? DEFAUT_HISTORIQUE
+      : {
+          nom: "palier personnalisé",
+          N: PARAMETRES_SCRYPT.N,
+          r: PARAMETRES_SCRYPT.r,
+          p: PARAMETRES_SCRYPT.p,
+        }
+
+// Le repli est le palier OWASP immédiatement inférieur au palier choisi ; le
+// défaut historique et un palier personnalisé n'ont pas de voisin OWASP.
+const PALIER_REPLI: JeuScrypt | null =
+  INDEX_PALIER_CHOISI > 0 ? PALIERS_OWASP[INDEX_PALIER_CHOISI - 1] : null
+
+const JEUX: readonly JeuScrypt[] = [
+  DEFAUT_HISTORIQUE,
+  ...PALIERS_OWASP,
+  ...(INDEX_PALIER_CHOISI === -1 && !EST_DEFAUT_HISTORIQUE
+    ? [PALIER_CHOISI]
+    : []),
+]
+
+const JEUX_AFFICHES = JEUX.map((jeu) =>
+  memesParametres(jeu, PALIER_CHOISI)
+    ? { ...jeu, nom: `${jeu.nom} (choisi)` }
+    : jeu
+)
 
 const ITERATIONS = 3
 const MOT_DE_PASSE = "MotDePasse!Benchmark1234"
@@ -39,7 +90,7 @@ interface Resultat {
   maxMs: number
 }
 
-function mesurer(jeu: (typeof JEUX)[number]): Resultat {
+function mesurer(jeu: JeuScrypt): Resultat {
   const { N, r, p, nom } = jeu
   const memoireMio = (128 * N * r) / (1024 * 1024)
   const maxmem = Math.max(64 * 1024 * 1024, 128 * N * r * 2)
@@ -75,7 +126,7 @@ function mesurer(jeu: (typeof JEUX)[number]): Resultat {
 
 function principal(): void {
   const json = process.argv.includes("--json")
-  const resultats = JEUX.map((jeu) => mesurer(jeu))
+  const resultats = JEUX_AFFICHES.map((jeu) => mesurer(jeu))
 
   if (json) {
     console.log(JSON.stringify(resultats, null, 2))
@@ -116,14 +167,24 @@ function principal(): void {
     "Cible : une empreinte sous une seconde (règle OWASP). Les paramètres"
   )
   console.log(
-    `choisis sont N=${PALIER_CHOISI.N}, r=${PALIER_CHOISI.r}, p=${PALIER_CHOISI.p} (palier OWASP le plus fort), sauf si`
+    `choisis sont N=${PALIER_CHOISI.N}, r=${PALIER_CHOISI.r}, p=${PALIER_CHOISI.p}` +
+      (INDEX_PALIER_CHOISI >= 0
+        ? ` (palier ${PALIERS_OWASP[INDEX_PALIER_CHOISI].nom}), sauf si`
+        : ", sauf si")
   )
-  console.log(
-    "l'hôte Coolify mesure au-dessus d'une seconde : descendre alors au palier"
-  )
-  console.log(
-    `immédiatement inférieur, N=${PALIER_REPLI.N}, r=${PALIER_REPLI.r}, p=${PALIER_REPLI.p}.`
-  )
+  if (PALIER_REPLI) {
+    console.log(
+      "l'hôte Coolify mesure au-dessus d'une seconde : descendre alors au palier"
+    )
+    console.log(
+      `immédiatement inférieur, N=${PALIER_REPLI.N}, r=${PALIER_REPLI.r}, p=${PALIER_REPLI.p}.`
+    )
+  } else {
+    console.log(
+      "l'hôte Coolify mesure au-dessus d'une seconde : aucun palier OWASP ne lui"
+    )
+    console.log("est inférieur.")
+  }
 }
 
 principal()

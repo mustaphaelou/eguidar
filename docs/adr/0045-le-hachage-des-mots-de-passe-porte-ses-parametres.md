@@ -30,11 +30,14 @@ modulaire), et son tableau scrypt place le palier le plus coûteux à `N=2^17`,
   fait foi se fait là où l'application tourne — l'hôte Coolify ou son conteneur
   d'application —, jamais sur la machine d'un développeur : c'est cette mesure
   qui décide du palier, et ses nombres sont consignés ici et dans
-  `docs/auth-pathways.md`. Le relevé du 2 novembre 2026 a été obtenu ainsi :
-  une personne ayant accès au changement a exécuté
-  `scripts/mesurer-cout-scrypt.ts` dans le conteneur de l'application, puis sa
-  sortie a été recopiée ici. Le relevé se refait avec
-  `npx tsx scripts/mesurer-cout-scrypt.ts` (ou `--json` pour un
+  `docs/auth-pathways.md`. Le relevé du 2 novembre 2026 a été obtenu avec une
+  tâche planifiée temporaire de Coolify : le shell de l'hôte n'a pas Node et
+  l'API Coolify n'exécute rien dans le conteneur, donc la tâche a été créée
+  désactivée pour ne jamais partir selon sa planification, exécutée une fois
+  par l'API, puis supprimée après lecture de la sortie du script lancé depuis
+  `main`. L'application n'a pas été redéployée : seul `/tmp/bench.ts` subsistait
+  dans le conteneur, et il disparaît au déploiement suivant. Le relevé se
+  refait avec `npx tsx scripts/mesurer-cout-scrypt.ts` (ou `--json` pour un
   enregistrement machine). Si un jour l'hôte mesure au-dessus d'une seconde,
   le palier immédiatement inférieur reste dans le tableau OWASP et se change
   dans `PARAMETRES_SCRYPT`, ce qui déclenche le rehachage opportuniste
