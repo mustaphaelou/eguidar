@@ -217,7 +217,6 @@ describe("la déclaration de produit.enregistre", () => {
           "https://cdn.example.test/retiree-a.jpg",
           "https://cdn.example.test/retiree-b.jpg",
         ],
-        galerie: ["https://cdn.example.test/conservee.jpg"],
       },
     })
   })
