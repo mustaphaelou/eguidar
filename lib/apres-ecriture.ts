@@ -442,22 +442,22 @@ const structureModifiee: Declaration = (f) => {
       { action: "invalidation.structure", durable: true }
     )
   )
+  const imagesRetireesModifiee = Array.isArray(f.imagesRetirees)
+    ? (f.imagesRetirees as string[])
+    : f.imageRetiree
+      ? [String(f.imageRetiree)]
+      : f.image
+        ? [String(f.image)]
+        : []
+  const destinationsModifiee = Array.isArray(f.destinations)
+    ? (f.destinations as string[])
+    : f.destination
+      ? [String(f.destination)]
+      : f.categorieId
+        ? [String(f.categorieId)]
+        : []
   return {
     faits: [
-      const imagesRetireesModifiee = Array.isArray(f.imagesRetirees)
-        ? (f.imagesRetirees as string[])
-        : f.imageRetiree
-          ? [String(f.imageRetiree)]
-          : f.image
-            ? [String(f.image)]
-            : []
-      const destinationsModifiee = Array.isArray(f.destinations)
-        ? (f.destinations as string[])
-        : f.destination
-          ? [String(f.destination)]
-          : f.categorieId
-            ? [String(f.categorieId)]
-            : []
       fait("structure.modifiee", "categorie", String(f.categorieId), {
         categorieId: f.categorieId,
         imagesRetirees: imagesRetireesModifiee,
@@ -536,17 +536,17 @@ const structureSupprimee: Declaration = (f) => {
       { action: "invalidation.structure", durable: true }
     )
   )
+  const imagesRetireesSupprimee = Array.isArray(f.imagesRetirees)
+    ? (f.imagesRetirees as string[])
+    : image
+      ? [image]
+      : []
+  const destinationsSupprimee = [
+    ...destinations,
+    ...(f.produitsSansStructure === true ? ["sans-structure"] : []),
+  ]
   return {
     faits: [
-      const imagesRetireesSupprimee = Array.isArray(f.imagesRetirees)
-        ? (f.imagesRetirees as string[])
-        : image
-          ? [image]
-          : []
-      const destinationsSupprimee = [
-        ...destinations,
-        ...(f.produitsSansStructure === true ? ["sans-structure"] : []),
-      ]
       fait("structure.supprimee", "categorie", String(f.categorieId), {
         categorieId: f.categorieId,
         imagesRetirees: imagesRetireesSupprimee,

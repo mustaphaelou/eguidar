@@ -1,9 +1,6 @@
 import { z } from "zod"
 
-import {
-  CHARGES_PAR_DECLENCHEUR,
-  type Charge,
-} from "@/lib/automations/charge"
+import { CHARGES_PAR_DECLENCHEUR } from "@/lib/automations/charge"
 
 import type {
   TypeEvenementAutomation,
@@ -32,7 +29,6 @@ import {
   type IndexableProduct,
 } from "@/lib/index-projection"
 import type { DemandePurge } from "@/lib/purge-edge"
-import { STATUTS_VALIDES } from "@/lib/statut-de-commande"
 import {
   getDashboardStats,
   LOW_STOCK_THRESHOLD,
