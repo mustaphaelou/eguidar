@@ -5,7 +5,7 @@ import {
   declarerApresEcriture,
   type PlanApresEcriture,
 } from "@/lib/apres-ecriture"
-import { enregistrerEvenement } from "@/lib/automations/evenements"
+import { enregistrerFaits } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { toIndexableProduct } from "@/lib/index-projection"
@@ -19,7 +19,7 @@ import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
-  runOrderedEffects,
+  runPlanEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -351,44 +351,26 @@ async function executerPlanDeStructure(
     Promise<Awaited<ReturnType<typeof lireStructure>>> | undefined
   const lecture = () => (lectureStructure ??= lireStructure())
 
-  await runOrderedEffects(
-    plan.consequences.map((consequence) => ({
-      effet: consequence.effet,
-      entite: consequence.entite,
-      message: consequence.message,
-      portee: consequence.portee,
-      fn: async () => {
-        switch (consequence.effet) {
-          case "suppression-images": {
-            const image =
-              typeof charge.imageRetiree === "string"
-                ? charge.imageRetiree
-                : charge.image
-            if (typeof image !== "string") {
-              throw new Error("image absente du fait de Structure")
-            }
-            await effects.deleteImage(image)
-            return
-          }
-          case "reindexation": {
-            const produits = await readIndexableProductsOfBranch(
-              consequence.entite.id,
-              lecture
-            )
-            if (produits.length > 0) await effects.reindexProducts(produits)
-            return
-          }
-          case "invalidation-cache":
-            await effects.revalidateCategories()
-            return
-          default:
-            throw new Error(
-              `effet de Structure non pris en charge : ${consequence.effet}`
-            )
-        }
-      },
-    }))
-  )
+  await runPlanEffects(plan, {
+    "suppression-images": async () => {
+      const image =
+        typeof charge.imageRetiree === "string"
+          ? charge.imageRetiree
+          : charge.image
+      if (typeof image !== "string") {
+        throw new Error("image absente du fait de Structure")
+      }
+      await effects.deleteImage(image)
+    },
+    reindexation: async (consequence) => {
+      const produits = await readIndexableProductsOfBranch(
+        consequence.entite.id,
+        lecture
+      )
+      if (produits.length > 0) await effects.reindexProducts(produits)
+    },
+    "invalidation-cache": () => effects.revalidateCategories(),
+  })
 }
 
 export async function createCategory(
@@ -413,14 +395,7 @@ export async function createCategory(
     const plan = declarerApresEcriture("structure.creee", {
       categorieId: created.id,
     })
-    for (const fait of plan.faits) {
-      await enregistrerEvenement(tx, {
-        type: fait.declencheur,
-        entityType: fait.entite,
-        entityId: fait.identifiant,
-        payload: fait.charge,
-      })
-    }
+    await enregistrerFaits(tx, plan.faits)
     return { category: created, plan }
   })
 
@@ -459,14 +434,7 @@ export async function updateCategory(
         existing.image && existing.image !== nextImage ? existing.image : null,
       destination: data.parentId ?? null,
     })
-    for (const fait of plan.faits) {
-      await enregistrerEvenement(tx, {
-        type: fait.declencheur,
-        entityType: fait.entite,
-        entityId: fait.identifiant,
-        payload: fait.charge,
-      })
-    }
+    await enregistrerFaits(tx, plan.faits)
     return { category, plan }
   })
 
@@ -602,14 +570,7 @@ export async function deplacerStructure(
       imageRetiree: null,
       destination: nouvelleParenteId,
     })
-    for (const fait of plan.faits) {
-      await enregistrerEvenement(tx, {
-        type: fait.declencheur,
-        entityType: fait.entite,
-        entityId: fait.identifiant,
-        payload: fait.charge,
-      })
-    }
+    await enregistrerFaits(tx, plan.faits)
 
     return {
       deplacement: {
@@ -640,7 +601,7 @@ export async function deleteCategory(
   const laisseSansStructure =
     options.orphanProducts === true && !reassignToCategoryId
 
-  const { plan } = await sousVerrouDeStructure(async (tx) => {
+  const plan = await sousVerrouDeStructure(async (tx) => {
     const category = await tx.category.findUnique({
       where: { id },
       include: {
@@ -687,7 +648,7 @@ export async function deleteCategory(
 
     await tx.category.delete({ where: { id } })
 
-    const planLocal = declarerApresEcriture("structure.supprimee", {
+    const plan = declarerApresEcriture("structure.supprimee", {
       categorieId: id,
       image: category.image,
       produitsCible:
@@ -701,15 +662,8 @@ export async function deleteCategory(
       produitsSansStructure:
         laisseSansStructure && category.products.length > 0,
     })
-    for (const f of planLocal.faits) {
-      await enregistrerEvenement(tx, {
-        type: f.declencheur,
-        entityType: f.entite,
-        entityId: f.identifiant,
-        payload: f.charge,
-      })
-    }
-    return { plan: planLocal }
+    await enregistrerFaits(tx, plan.faits)
+    return plan
   })
 
   await executerPlanDeStructure(plan, effects)

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { enregistrerEvenement } from "@/lib/automations/evenements"
+import { enregistrerFaits } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import {
   Prisma,
@@ -67,7 +67,7 @@ import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
-  runOrderedEffects,
+  runPlanEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
@@ -727,10 +727,8 @@ async function enregistrerProduit(
 
   const { images, promotions } = await promouvoirBrouillons(data, effects)
 
-  let ecriture: FaitsEcritureProduit
-  let plan: ReturnType<typeof declarerApresEcriture>
-  try {
-    const resultat = await prisma.$transaction(async (tx) => {
+  const { ecrit: ecriture, plan } = await prisma
+    .$transaction(async (tx) => {
       const ecrit =
         contexte.kind === "creation"
           ? await ecrireCreation(tx, data, images)
@@ -749,7 +747,7 @@ async function enregistrerProduit(
           portTransactionRegistreBrouillonImageProduit(tx)
         )
       }
-      const planLocal = declarerApresEcriture("produit.enregistre", {
+      const plan = declarerApresEcriture("produit.enregistre", {
         produitId: ecrit.produit.id,
         slug: ecrit.produit.slug,
         slugPrecedent: ecrit.slugPrecedent ?? null,
@@ -759,24 +757,13 @@ async function enregistrerProduit(
         imagesRetirees: ecrit.imagesRetirees,
         galerie: data.images,
       })
-      if (planLocal.faits.length > 0) {
-        for (const f of planLocal.faits) {
-          await enregistrerEvenement(tx, {
-            type: f.declencheur,
-            entityType: f.entite,
-            entityId: f.identifiant,
-            payload: f.charge,
-          })
-        }
-      }
-      return { ecrit, plan: planLocal }
+      await enregistrerFaits(tx, plan.faits)
+      return { ecrit, plan }
     })
-    ecriture = resultat.ecrit
-    plan = resultat.plan
-  } catch (error) {
-    await compenserPromotions(promotions, effects)
-    mapUniqueViolation(error)
-  }
+    .catch(async (error): Promise<never> => {
+      await compenserPromotions(promotions, effects)
+      mapUniqueViolation(error)
+    })
 
   const entreesRegistre = entreesRegistreImagesProduit(
     data.images,
@@ -800,40 +787,29 @@ async function enregistrerProduit(
       ecriture.produit.categoryId,
       contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
     ))
-  await runOrderedEffects(
-    plan.consequences.map((c) => ({
-      effet: c.effet,
-      entite: c.entite,
-      message: c.message,
-      portee: c.portee,
-      fn: async () => {
-        if (c.effet === "registre-images") {
-          if (entreesRegistre.length > 0)
-            await effects.enregistrerImages(
-              entreesRegistre,
-              data.ownerId ?? null
-            )
-        } else if (c.effet === "suppression-brouillons") {
-          if (promotions.length > 0)
-            await effects.cycleVie.supprimerSources(promotions)
-        } else if (c.effet === "suppression-images") {
-          await effects.deleteImages(ecriture.imagesRetirees)
-        } else if (c.effet === "reindexation") {
-          await effects.reindexProducts([toIndexableProduct(ecriture.produit)])
-        } else if (c.effet === "invalidation-cache") {
-          await effects.revalidateCatalog({
-            ...evenementCatalogue,
-            ...(await chaines()),
-          })
-        } else if (c.effet === "purge-catalogue") {
-          await effects.purgeCatalogue({
-            ...evenementCatalogue,
-            ...(await chaines()),
-          })
-        }
-      },
-    }))
-  )
+  await runPlanEffects(plan, {
+    "registre-images": async () => {
+      if (entreesRegistre.length > 0)
+        await effects.enregistrerImages(entreesRegistre, data.ownerId ?? null)
+    },
+    "suppression-brouillons": async () => {
+      if (promotions.length > 0)
+        await effects.cycleVie.supprimerSources(promotions)
+    },
+    "suppression-images": () => effects.deleteImages(ecriture.imagesRetirees),
+    reindexation: () =>
+      effects.reindexProducts([toIndexableProduct(ecriture.produit)]),
+    "invalidation-cache": async () =>
+      effects.revalidateCatalog({
+        ...evenementCatalogue,
+        ...(await chaines()),
+      }),
+    "purge-catalogue": async () =>
+      effects.purgeCatalogue({
+        ...evenementCatalogue,
+        ...(await chaines()),
+      }),
+  })
   return ecriture.produit
 }
 
@@ -869,14 +845,7 @@ export async function deleteProduct(
       images,
     })
     await tx.product.delete({ where: { id } })
-    for (const fait of plan.faits) {
-      await enregistrerEvenement(tx, {
-        type: fait.declencheur,
-        entityType: fait.entite,
-        entityId: fait.identifiant,
-        payload: fait.charge,
-      })
-    }
+    await enregistrerFaits(tx, plan.faits)
     return { produit, images, plan }
   })
 
@@ -890,25 +859,14 @@ export async function deleteProduct(
     slug: produit.slug,
     ...(await chaines()),
   })
-  await runOrderedEffects(
-    plan.consequences.map((consequence) => ({
-      effet: consequence.effet,
-      entite: consequence.entite,
-      message: consequence.message,
-      portee: consequence.portee,
-      fn: async () => {
-        if (consequence.effet === "suppression-images") {
-          await effects.deleteImages(images)
-        } else if (consequence.effet === "desindexation") {
-          await effects.removeProductFromIndex(produit.id)
-        } else if (consequence.effet === "invalidation-cache") {
-          await effects.revalidateCatalog(await evenementCatalogue())
-        } else if (consequence.effet === "purge-catalogue") {
-          await effects.purgeCatalogue(await evenementCatalogue())
-        }
-      },
-    }))
-  )
+  await runPlanEffects(plan, {
+    "suppression-images": () => effects.deleteImages(images),
+    desindexation: () => effects.removeProductFromIndex(produit.id),
+    "invalidation-cache": async () =>
+      effects.revalidateCatalog(await evenementCatalogue()),
+    "purge-catalogue": async () =>
+      effects.purgeCatalogue(await evenementCatalogue()),
+  })
 }
 
 export interface RapportLot {
@@ -1014,38 +972,19 @@ async function mettreAJourLot(
         where: { id: { in: partage.succes } },
         data,
       })
-      if (planLot.faits.length > 0) {
-        for (const f of planLot.faits) {
-          await enregistrerEvenement(tx, {
-            type: f.declencheur,
-            entityType: f.entite,
-            entityId: f.identifiant,
-            payload: f.charge,
-          })
-        }
-      }
+      await enregistrerFaits(tx, planLot.faits)
     })
     const documents = await documentsDeLot(partage.succes)
-    await runOrderedEffects(
-      planLot.consequences.map((c) => ({
-        effet: c.effet,
-        entite: c.entite,
-        message: c.message,
-        portee: c.portee,
-        fn: async () => {
-          if (c.effet === "reindexation") {
-            await effects.reindexProducts(
-              documents.map(({ indexable }) => indexable)
-            )
-          } else if (c.effet === "invalidation-cache") {
-            const doc = documents.find(
-              ({ indexable }) => indexable.id === c.entite.id
-            )
-            if (doc) await effects.revalidateCatalog(doc.evenement)
-          }
-        },
-      }))
-    )
+    await runPlanEffects(planLot, {
+      reindexation: () =>
+        effects.reindexProducts(documents.map(({ indexable }) => indexable)),
+      "invalidation-cache": (consequence) => {
+        const doc = documents.find(
+          ({ indexable }) => indexable.id === consequence.entite.id
+        )
+        if (doc) return effects.revalidateCatalog(doc.evenement)
+      },
+    })
   }
   return partage
 }
@@ -1140,14 +1079,7 @@ export async function bulkDelete(
   })
   await prisma.$transaction(async (tx) => {
     await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
-    for (const fait of plan.faits) {
-      await enregistrerEvenement(tx, {
-        type: fait.declencheur,
-        entityType: fait.entite,
-        entityId: fait.identifiant,
-        payload: fait.charge,
-      })
-    }
+    await enregistrerFaits(tx, plan.faits)
   })
   const lecture = await lireStructure()
   const evenements = produits.map((produit) => ({
@@ -1155,33 +1087,25 @@ export async function bulkDelete(
     slug: produit.slug,
     categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
   }))
-  await runOrderedEffects(
-    plan.consequences.map((consequence) => ({
-      effet: consequence.effet,
-      entite: consequence.entite,
-      message: consequence.message,
-      portee: consequence.portee,
-      fn: async () => {
-        if (consequence.effet === "suppression-images") {
-          await effects.deleteImages(
-            produits.flatMap((produit) => produit.images)
-          )
-        } else if (consequence.effet === "desindexation") {
-          for (const produit of produits) {
-            await effects.removeProductFromIndex(produit.id)
-          }
-        } else if (consequence.effet === "invalidation-cache") {
-          for (const evenement of evenements) {
-            await effects.revalidateCatalog(evenement)
-          }
-        } else if (consequence.effet === "purge-catalogue") {
-          for (const evenement of evenements) {
-            await effects.purgeCatalogue(evenement)
-          }
-        }
-      },
-    }))
-  )
+  await runPlanEffects(plan, {
+    "suppression-images": () =>
+      effects.deleteImages(produits.flatMap((produit) => produit.images)),
+    desindexation: async () => {
+      for (const produit of produits) {
+        await effects.removeProductFromIndex(produit.id)
+      }
+    },
+    "invalidation-cache": async () => {
+      for (const evenement of evenements) {
+        await effects.revalidateCatalog(evenement)
+      }
+    },
+    "purge-catalogue": async () => {
+      for (const evenement of evenements) {
+        await effects.purgeCatalogue(evenement)
+      }
+    },
+  })
   return partage
 }
 
@@ -1229,71 +1153,60 @@ export async function duplicateProduct(
     })
   }
 
-  let planDuplication!: ReturnType<typeof declarerApresEcriture>
-  const copie = await prisma.$transaction(async (tx) => {
-    const creee = await tx.product.create({
-      data: {
-        name: `${faits.name} (copie)`,
-        slug,
-        description: faits.description,
-        brand: faits.brand,
-        price: faits.price,
-        specs: faits.specs,
-        images: [],
-        isFeatured: faits.isFeatured,
-        featuredOrder: faits.featuredOrder,
-        freeShipping: faits.freeShipping,
-        categoryId: faits.categoryId,
-        variants: { create: variantes },
-      },
-      include: { variants: true },
-    })
-    planDuplication = declarerApresEcriture("produit.enregistre", {
-      produitId: creee.id,
-      slug: creee.slug,
-      slugPrecedent: null,
-      categoryId: creee.categoryId,
-      categoryIdPrecedent: null,
-      imagesRetirees: [],
-      galerie: [],
-    })
-    if (planDuplication.faits.length > 0) {
-      for (const f of planDuplication.faits) {
-        await enregistrerEvenement(tx, {
-          type: f.declencheur,
-          entityType: f.entite,
-          entityId: f.identifiant,
-          payload: f.charge,
-        })
-      }
+  const { copie, plan: planDuplication } = await prisma.$transaction(
+    async (tx) => {
+      const creee = await tx.product.create({
+        data: {
+          name: `${faits.name} (copie)`,
+          slug,
+          description: faits.description,
+          brand: faits.brand,
+          price: faits.price,
+          specs: faits.specs,
+          images: [],
+          isFeatured: faits.isFeatured,
+          featuredOrder: faits.featuredOrder,
+          freeShipping: faits.freeShipping,
+          categoryId: faits.categoryId,
+          variants: { create: variantes },
+        },
+        include: { variants: true },
+      })
+      const plan = declarerApresEcriture("produit.enregistre", {
+        produitId: creee.id,
+        slug: creee.slug,
+        slugPrecedent: null,
+        categoryId: creee.categoryId,
+        categoryIdPrecedent: null,
+        imagesRetirees: [],
+        galerie: [],
+      })
+      await enregistrerFaits(tx, plan.faits)
+      return { copie: creee, plan }
     }
-    return creee
-  })
+  )
 
   const documentsDuplication = await documentsDeLot([copie.id])
-  await runOrderedEffects(
-    planDuplication.consequences.map((c) => ({
-      effet: c.effet,
-      entite: c.entite,
-      message: c.message,
-      portee: c.portee,
-      fn: async () => {
-        if (c.effet === "reindexation") {
-          await effects.reindexProducts(
-            documentsDuplication.map(({ indexable }) => indexable)
-          )
-        } else if (c.effet === "invalidation-cache") {
-          for (const { evenement } of documentsDuplication) {
-            await effects.revalidateCatalog(evenement)
-          }
-        } else if (c.effet === "purge-catalogue") {
-          for (const { evenement } of documentsDuplication) {
-            await effects.purgeCatalogue(evenement)
-          }
-        }
-      },
-    }))
-  )
+  await runPlanEffects(planDuplication, {
+    // Une copie naît sans image ni promotion : les deux conséquences non
+    // durables du plan n'ont rien à faire, mais elles sont adaptées.
+    "registre-images": () => undefined,
+    "suppression-brouillons": () => undefined,
+    reindexation: () =>
+      effects.reindexProducts(
+        documentsDuplication.map(({ indexable }) => indexable)
+      ),
+    "invalidation-cache": async () => {
+      for (const { evenement } of documentsDuplication) {
+        await effects.revalidateCatalog(evenement)
+      }
+    },
+    "purge-catalogue": async () => {
+      for (const { evenement } of documentsDuplication) {
+        await effects.purgeCatalogue(evenement)
+      }
+    },
+  })
   return copie
 }
 
@@ -1322,46 +1235,28 @@ export async function updateVariantStock(
       v.id === variantId ? { ...v, stock } : v
     ),
   }
-  let plan!: ReturnType<typeof declarerApresEcriture>
-  await prisma.$transaction(async (tx) => {
+  const plan = await prisma.$transaction(async (tx) => {
     await tx.productVariant.update({
       where: { id: variantId },
       data: { stock },
     })
-    plan = declarerApresEcriture("variante.stock.changee", {
+    const plan = declarerApresEcriture("variante.stock.changee", {
       produitId: variant.product.id,
     })
-    if (plan.faits.length > 0) {
-      for (const f of plan.faits) {
-        await enregistrerEvenement(tx, {
-          type: f.declencheur,
-          entityType: f.entite,
-          entityId: f.identifiant,
-          payload: f.charge,
-        })
-      }
-    }
+    await enregistrerFaits(tx, plan.faits)
+    return plan
   })
-  await runOrderedEffects(
-    plan.consequences.map((c) => ({
-      effet: c.effet,
-      entite: c.entite,
-      message: c.message,
-      portee: c.portee,
-      fn: async () => {
-        if (c.effet === "reindexation") {
-          await effects.reindexProducts([toIndexableProduct(product)])
-        } else if (c.effet === "invalidation-cache") {
-          const chaines = await chainesDuProduit(product.categoryId)
-          await effects.revalidateCatalog({
-            id: product.id,
-            slug: product.slug,
-            ...chaines,
-          })
-        }
-      },
-    }))
-  )
+  await runPlanEffects(plan, {
+    reindexation: () => effects.reindexProducts([toIndexableProduct(product)]),
+    "invalidation-cache": async () => {
+      const chaines = await chainesDuProduit(product.categoryId)
+      await effects.revalidateCatalog({
+        id: product.id,
+        slug: product.slug,
+        ...chaines,
+      })
+    },
+  })
   return product
 }
 

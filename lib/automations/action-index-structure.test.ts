@@ -186,6 +186,33 @@ describe("l'action index.structure d'une Structure supprimée", () => {
     expect(indexes).not.toContain(produitAutre.id)
   })
 
+  it("réindexe la destination et les Produits Sans Structure quand les Produits sont orphelins", async () => {
+    const cible = await creerStructure("orphelins-cible")
+    const autre = await creerStructure("orphelins-autre")
+    const supprimee = await creerStructure("orphelins-supprimee")
+    const produitCible = await creerProduit("orphelins-cible", cible.id)
+    const produitSansStructure = await creerProduit("orphelins-sans", null)
+    const produitAutre = await creerProduit("orphelins-autre", autre.id)
+
+    await ecrireSuppression(supprimee.id, {
+      destinations: [cible.id],
+      produitsSansStructure: true,
+    })
+    const recherche = creerPortRechercheMemoire()
+
+    await executerLesEvenements(
+      options(),
+      dependancesDeTest(MAINTENANT, { recherche: recherche.port })
+    )
+
+    const indexes = new Set(
+      idsIndexes(recherche.operations).flatMap((ids) => ids)
+    )
+    expect(indexes.has(produitCible.id)).toBe(true)
+    expect(indexes.has(produitSansStructure.id)).toBe(true)
+    expect(indexes.has(produitAutre.id)).toBe(false)
+  })
+
   it("ne réindexe aucun Produit quand la Structure supprimée n'en laissait aucun", async () => {
     const supprimee = await creerStructure("vide")
 

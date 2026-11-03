@@ -370,28 +370,26 @@ async function indexerStructure(contexte: ContexteAction): Promise<void> {
 
   const destinations =
     payload.destinations ?? (payload.destination ? [payload.destination] : [])
-  if (destinations.length === 0) {
-    // Une suppression sans destination n'a de Produits à réindexer que ceux
-    // restés orphelins ; une Structure vide n'en a aucun.
-    if (payload.produitsSansStructure === true) {
-      await indexerBranche(contexte, null)
-    }
-    return
-  }
   for (const destination of destinations) {
     await indexerBranche(contexte, destination)
+  }
+  // Une suppression peut laisser les Produits directs sans structure tout en
+  // reparentant les enfants : la branche orpheline est alors une destination de
+  // plus, indépendante des branches nommées.
+  if (payload.produitsSansStructure === true) {
+    await indexerBranche(contexte, null)
   }
 }
 
 function urlsDesImages(payload: unknown): string[] {
   const charge = (payload ?? {}) as Record<string, unknown>
   const urls = new Set<string>()
-  for (const cle of ["urls", "images", "imagesRetirees"]) {
+  for (const cle of ["images", "imagesRetirees"]) {
     const valeur = charge[cle]
     if (Array.isArray(valeur))
       for (const url of valeur) if (typeof url === "string") urls.add(url)
   }
-  for (const cle of ["url", "image", "imageRetiree"]) {
+  for (const cle of ["image", "imageRetiree"]) {
     const valeur = charge[cle]
     if (typeof valeur === "string") urls.add(valeur)
   }

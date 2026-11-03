@@ -79,6 +79,12 @@ function consequence(
   return { effet, entite, message, ...options }
 }
 
+/**
+ * Le pseudo-identifiant de journal d'une conséquence groupée : la portée porte
+ * le nombre réel de Produits, l'identifiant ne désigne aucune entité.
+ */
+export const IDENTIFIANT_LOT = "lot"
+
 // Commande
 const commandeCreee: Declaration = (f) => ({
   faits: [
@@ -247,7 +253,7 @@ const produitEnregistreLot: Declaration = (f) => {
   const consequences: ConsequenceApresEcriture[] = [
     consequence(
       "reindexation",
-      { type: "produit", id: "lot" },
+      { type: "produit", id: IDENTIFIANT_LOT },
       `réindexation groupée`,
       { action: "index.produit", durable: true, portee: ids.length }
     ),
@@ -345,25 +351,25 @@ const produitSupprimeLot: Declaration = (f) => {
     consequences: [
       consequence(
         "suppression-images",
-        { type: "produit", id: "lot" },
+        { type: "produit", id: IDENTIFIANT_LOT },
         `suppression des images groupée`,
         { action: "suppression.images", durable: true, portee }
       ),
       consequence(
         "desindexation",
-        { type: "produit", id: "lot" },
+        { type: "produit", id: IDENTIFIANT_LOT },
         `désindexation groupée`,
         { action: "desindex.produit", durable: true, portee }
       ),
       consequence(
         "invalidation-cache",
-        { type: "produit", id: "lot" },
+        { type: "produit", id: IDENTIFIANT_LOT },
         `invalidation du catalogue groupée après suppression`,
         { action: "invalidation.catalogue", durable: true, portee }
       ),
       consequence(
         "purge-catalogue",
-        { type: "produit", id: "lot" },
+        { type: "produit", id: IDENTIFIANT_LOT },
         `purge du bord groupée après suppression`,
         { action: "purge.catalogue", durable: true, portee }
       ),
@@ -487,7 +493,7 @@ const structureSupprimee: Declaration = (f) => {
       )
     )
   }
-  if (destinations.length === 0 && f.produitsSansStructure === true) {
+  if (f.produitsSansStructure === true) {
     consequences.push(
       consequence(
         "reindexation",
@@ -626,42 +632,8 @@ export function declarerApresEcriture(
   genre: GenreEcriture,
   faits: FaitsApresEcriture = {}
 ): PlanApresEcriture {
-  const declaration = REGISTRE[genre]
-  if (!declaration) throw new Error(`Genre d'écriture inconnu : ${genre}`)
-  return declaration(faits)
+  return REGISTRE[genre](faits)
 }
-
-// Aliases for compatibility
-export const declarer = declarerApresEcriture
-export const declencher = declarerApresEcriture
-export const apresEcriture = declarerApresEcriture
-export const obtenirPlan = declarerApresEcriture
-export const planDe = declarerApresEcriture
-
-export const APRES_ECRITURE = REGISTRE
-export const DECLARATIONS = REGISTRE
-export const REGISTRE_APRES_ECRITURE = REGISTRE
-
-// Genres dont le site d'appel est migré : la mutation appelle la déclaration
-// au lieu de redéclarer ses effets. Les écritures groupées n'y figurent pas :
-// elles partagent le déclencheur du genre unitaire, qui couvre leurs Règles.
-export const GENRES_MIGRES: GenreEcriture[] = [
-  "commande.creee",
-  "commande.statut.changee",
-  "produit.enregistre",
-  "produit.supprime",
-  "variante.stock.changee",
-  "structure.creee",
-  "structure.modifiee",
-  "structure.supprimee",
-  "ville.creee",
-  "ville.modifiee",
-  "ville.supprimee",
-  "livraison.reglee",
-  "image.texte-alternatif",
-]
-export const KINDS_MIGRES = GENRES_MIGRES
-export const MIGRATED_KINDS = GENRES_MIGRES
 
 /**
  * Les genres dont la déclaration possède les Règles par défaut : tous les
@@ -746,6 +718,35 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
     id: "invalidation-structure-supprimee",
     nom: "Invalidation de la Structure supprimée",
   },
+}
+
+export class IdentiteRegleInconnueError extends Error {
+  constructor(
+    readonly declencheur: TypeEvenementAutomation,
+    readonly action: ActionAutomation
+  ) {
+    super(
+      `Aucune identité de Règle par défaut pour « ${action} » déclenchée par « ${declencheur} »`
+    )
+    this.name = "IdentiteRegleInconnueError"
+  }
+}
+
+/**
+ * L'identité stable d'une Règle par défaut : la clé qualifiée par déclencheur
+ * quand une même action sert deux genres, sinon l'identité historique de
+ * l'action. Un couple inconnu lève — une conséquence durable sans Règle est une
+ * erreur de semis, jamais un silence.
+ */
+export function identiteDeRegle(
+  declencheur: TypeEvenementAutomation,
+  action: ActionAutomation
+): { id: string; nom: string } {
+  const identite =
+    IDENTITES_REGLES_MIGREES[`${declencheur}|${action}`] ??
+    IDENTITES_REGLES_MIGREES[action]
+  if (!identite) throw new IdentiteRegleInconnueError(declencheur, action)
+  return identite
 }
 
 /**
@@ -833,18 +834,17 @@ export function reglesParDefaut(): Array<{
   const reglesVues = new Set<string>()
   for (const genre of GENRES_DERIVES) {
     const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
-    const declencheurFait = plan.faits[0]?.declencheur
+    const declencheur = (plan.faits[0]?.declencheur ??
+      genre) as TypeEvenementAutomation
     for (const c of plan.consequences) {
       if (!c.durable || !c.action) continue
-      const identite =
-        IDENTITES_REGLES_MIGREES[`${declencheurFait}|${c.action}`] ??
-        IDENTITES_REGLES_MIGREES[c.action]
-      if (!identite || reglesVues.has(identite.id)) continue
+      const identite = identiteDeRegle(declencheur, c.action)
+      if (reglesVues.has(identite.id)) continue
       reglesVues.add(identite.id)
       out.push({
         id: identite.id,
         nom: identite.nom,
-        declencheur: (declencheurFait ?? genre) as TypeEvenementAutomation,
+        declencheur,
         action: c.action,
         condition: { type: "toujours" },
         actif: true,
@@ -856,8 +856,3 @@ export function reglesParDefaut(): Array<{
   }
   return out
 }
-export const reglesParDefault = reglesParDefaut
-export const defaultRules = reglesParDefaut
-export const rulesParDefaut = reglesParDefaut
-
-export default REGISTRE

@@ -8,6 +8,7 @@ import {
   messageDeValidation,
   runEffect,
   runOrderedEffects,
+  runPlanEffects,
   type EffetPostCommit,
   type MesureEffetPostCommit,
 } from "@/lib/use-cases/mutation-squelette"
@@ -319,6 +320,59 @@ describe("les effets post-commit ordonnés", () => {
     expect(
       journal.mesures.every((mesure) => mesure.resultat === "succes")
     ).toBe(true)
+  })
+})
+
+describe("les effets d'un plan", () => {
+  it("appelle le gestionnaire nommé par l'effet en lui passant la conséquence", async () => {
+    const journal = creerJournalEffetsMemoire()
+    const reindexer = vi.fn()
+
+    await runPlanEffects(
+      {
+        consequences: [
+          {
+            effet: "reindexation",
+            entite: { type: "produit", id: "produit-1" },
+            message: "réindexation déclarée",
+          },
+        ],
+      },
+      { reindexation: reindexer },
+      journal
+    )
+
+    expect(reindexer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        effet: "reindexation",
+        entite: { type: "produit", id: "produit-1" },
+      })
+    )
+    expect(journal.mesures[0]).toMatchObject({ resultat: "succes" })
+  })
+
+  it("journalise un échec nommé quand aucun gestionnaire ne couvre l'effet", async () => {
+    const journal = creerJournalEffetsMemoire()
+
+    await runPlanEffects(
+      {
+        consequences: [
+          {
+            effet: "registre-images",
+            entite: { type: "produit", id: "produit-1" },
+            message: "registre des images",
+          },
+        ],
+      },
+      {},
+      journal
+    )
+
+    expect(journal.mesures[0]).toMatchObject({
+      resultat: "echec",
+      message: "registre des images",
+      erreur: "effet post-commit non pris en charge : registre-images",
+    })
   })
 })
 

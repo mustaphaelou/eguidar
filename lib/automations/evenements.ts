@@ -116,6 +116,35 @@ export async function enregistrerEvenement(
 }
 
 /**
+ * Le fait tel qu'un plan d'Après-écriture le déclare. La forme est structurelle
+ * pour que le carnet ne dépende pas du module de déclaration.
+ */
+export interface FaitAutomation {
+  declencheur: TypeEvenementAutomation
+  entite: TypeEntiteAutomation
+  identifiant: string
+  charge: unknown
+}
+
+/**
+ * Écrit tous les faits d'un plan dans la transaction de la mutation, dans
+ * l'ordre déclaré. Un plan sans fait n'écrit rien.
+ */
+export async function enregistrerFaits(
+  tx: Prisma.TransactionClient,
+  faits: readonly FaitAutomation[]
+): Promise<void> {
+  for (const fait of faits) {
+    await enregistrerEvenement(tx, {
+      type: fait.declencheur,
+      entityType: fait.entite,
+      entityId: fait.identifiant,
+      payload: fait.charge,
+    })
+  }
+}
+
+/**
  * La variante idempotente : le planificateur rejoue la journée sans créer de
  * doublon. Seule la violation de la clé naturelle est avalée — une autre
  * erreur remonte.

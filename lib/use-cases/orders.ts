@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { enregistrerEvenement } from "@/lib/automations/evenements"
+import { enregistrerFaits } from "@/lib/automations/evenements"
 import type { CommandeListingParams } from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
@@ -29,7 +29,7 @@ import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   messageDeValidation,
-  runOrderedEffects,
+  runPlanEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -314,7 +314,7 @@ async function produitsTouches(
 /**
  * Résout la chaîne de Structures des Produits touchés après le commit : une
  * seule Lecture de la Structure pour l'ensemble, pas une recherche par article
- * (#757). Un échec est attrapé par `runOrderedEffects` et ne défait donc pas la
+ * (#757). Un échec est attrapé par `runPlanEffects` et ne défait donc pas la
  * Commande, comme l'e-mail de confirmation ou la purge.
  */
 async function produitsDuCatalogue(
@@ -400,41 +400,21 @@ export async function placeOrder(
         commandeId: created.id,
         snapshot: toOrderEmailSnapshot(created, user.email),
       })
-      if (plan.faits.length > 0) {
-        for (const f of plan.faits) {
-          await enregistrerEvenement(tx, {
-            type: f.declencheur,
-            entityType: f.entite,
-            entityId: f.identifiant,
-            payload: f.charge,
-          })
-        }
-      }
+      await enregistrerFaits(tx, plan.faits)
       return { order: created, produitsDrainés, plan }
     }
   )
 
-  await runOrderedEffects(
-    plan.consequences.map((c) => ({
-      effet: c.effet,
-      entite: c.entite,
-      message: c.message,
-      portee: c.portee,
-      fn: async () => {
-        if (c.effet === "email") {
-          await effects.sendOrderPlacedEmail(
-            toOrderEmailSnapshot(order, user.email)
-          )
-        } else if (c.effet === "invalidation-cache") {
-          await effects.invalidateCommande(order.id)
-        } else if (c.effet === "purge-catalogue") {
-          await effects.invalidateProduits(
-            await produitsDuCatalogue(produitsDrainés)
-          )
-        }
-      },
-    }))
-  )
+  await runPlanEffects(plan, {
+    email: () =>
+      effects.sendOrderPlacedEmail(toOrderEmailSnapshot(order, user.email)),
+    "invalidation-cache": () => effects.invalidateCommande(order.id),
+    "purge-catalogue": async () => {
+      await effects.invalidateProduits(
+        await produitsDuCatalogue(produitsDrainés)
+      )
+    },
+  })
   return order
 }
 
@@ -534,41 +514,24 @@ export async function updateOrderStatus(
         commandeId: orderId,
         snapshot: toOrderEmailSnapshot(updated, existing.user.email),
         statut: nextStatus,
-        purgeCatalogue: réapprovisionne(nextStatus),
       })
-      if (plan.faits.length > 0) {
-        for (const f of plan.faits) {
-          await enregistrerEvenement(tx, {
-            type: f.declencheur,
-            entityType: f.entite,
-            entityId: f.identifiant,
-            payload: f.charge,
-          })
-        }
-      }
+      await enregistrerFaits(tx, plan.faits)
       return { updated, produitsRestockés, plan }
     }
   )
 
-  const effetsPostCommit = plan.consequences.map((c) => ({
-    effet: c.effet,
-    entite: c.entite,
-    message: c.message,
-    fn: async () => {
-      if (c.effet === "email") {
-        await effects.sendOrderStatusEmail(
-          toOrderEmailSnapshot(updated, existing.user.email),
-          updated.status
-        )
-      } else if (c.effet === "invalidation-cache") {
-        await effects.invalidateCommande(orderId)
-      } else if (c.effet === "purge-catalogue") {
-        const produits = produitsRestockés ?? []
-        await effects.invalidateProduits(await produitsDuCatalogue(produits))
-      }
+  await runPlanEffects(plan, {
+    email: () =>
+      effects.sendOrderStatusEmail(
+        toOrderEmailSnapshot(updated, existing.user.email),
+        updated.status
+      ),
+    "invalidation-cache": () => effects.invalidateCommande(orderId),
+    "purge-catalogue": async () => {
+      const produits = produitsRestockés ?? []
+      await effects.invalidateProduits(await produitsDuCatalogue(produits))
     },
-  }))
-  await runOrderedEffects(effetsPostCommit)
+  })
   return updated
 }
 

@@ -38,7 +38,7 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
     ).toThrow()
   })
 
-  it("sème les règles du code, puis les met à jour sans doublon", async () => {
+  it("sème les règles du code en création seule, sans doublon", async () => {
     await semerLesRegles()
     const premier = await prisma.automationRule.findMany({
       orderBy: { id: "asc" },
@@ -96,6 +96,67 @@ describe("le vocabulaire fermé des règles d'automatisation", () => {
       expect(regle.declencheur).toMatch(/^[a-z-]+(\.[a-z-]+)+$/)
       expect(ACTIONS_AUTOMATION).toContain(regle.action)
     }
+  })
+
+  it("crée une règle nouvelle sans toucher aux règles ni aux révisions existantes", async () => {
+    await semerLesRegles()
+    const reglesAvant = await prisma.automationRule.findMany({
+      orderBy: { id: "asc" },
+    })
+    const revisionsAvant = await prisma.automationRuleRevision.findMany({
+      orderBy: [{ ruleId: "asc" }, { id: "asc" }],
+    })
+    const nouvelle = {
+      id: "nouvelle-regle",
+      nom: "Nouvelle Règle",
+      declencheur: "produit.enregistre" as const,
+      condition: { type: "toujours" as const },
+      action: "index.produit" as const,
+      actif: true,
+    }
+
+    await semerLesRegles([...REGLES_AUTOMATION, nouvelle])
+
+    const reglesApres = await prisma.automationRule.findMany({
+      orderBy: { id: "asc" },
+    })
+    expect(reglesApres.map((regle) => regle.id)).toEqual(
+      [...reglesAvant.map((regle) => regle.id), "nouvelle-regle"].sort()
+    )
+    expect(
+      reglesApres.filter((regle) => regle.id !== "nouvelle-regle")
+    ).toEqual(reglesAvant)
+    const revisionsApres = await prisma.automationRuleRevision.findMany({
+      orderBy: [{ ruleId: "asc" }, { id: "asc" }],
+    })
+    expect(
+      revisionsApres.filter((revision) => revision.ruleId !== "nouvelle-regle")
+    ).toEqual(revisionsAvant)
+    expect(
+      revisionsApres.filter((revision) => revision.ruleId === "nouvelle-regle")
+    ).toHaveLength(1)
+
+    await semerLesRegles([...REGLES_AUTOMATION, nouvelle])
+    expect(
+      await prisma.automationRule.count({ where: { id: "nouvelle-regle" } })
+    ).toBe(1)
+    expect(
+      await prisma.automationRuleRevision.count({
+        where: { ruleId: "nouvelle-regle" },
+      })
+    ).toBe(1)
+  })
+
+  it("absorbe la course de deux semis concurrents : une ligne et une révision par règle", async () => {
+    await Promise.all([semerLesRegles(), semerLesRegles()])
+
+    expect(await prisma.automationRule.count()).toBe(REGLES_AUTOMATION.length)
+    const revisions = await prisma.automationRuleRevision.groupBy({
+      by: ["ruleId"],
+      _count: { _all: true },
+    })
+    expect(revisions).toHaveLength(REGLES_AUTOMATION.length)
+    expect(revisions.every((revision) => revision._count._all === 1)).toBe(true)
   })
 
   it("refuse une combinaison non prise en charge en la nommant", () => {
