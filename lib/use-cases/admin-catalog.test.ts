@@ -1070,7 +1070,7 @@ describe("admin catalog mutations", () => {
       produitId: product.id,
       slug: product.slug,
       categoryId: product.categoryId,
-      images: ["https://cdn.example.com/delete-1.jpg"],
+      imagesRetirees: ["https://cdn.example.com/delete-1.jpg"],
     })
   })
 

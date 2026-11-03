@@ -589,8 +589,8 @@ describe("deplacerStructure — un déplacement, un propriétaire", () => {
       entityType: "categorie",
       payload: {
         categorieId: c.id,
-        imageRetiree: null,
-        destination: racine.id,
+        imagesRetirees: [],
+        destinations: [racine.id],
       },
     })
   })
@@ -1988,9 +1988,8 @@ describe("admin structure mutations — categories", () => {
       entityType: "categorie",
       payload: {
         categorieId: parent.id,
-        image: "https://example.com/cat.jpg",
+        imagesRetirees: ["https://example.com/cat.jpg"],
         destinations: [cibleProduits.id, cibleEnfants.id],
-        produitsSansStructure: false,
       },
     })
     await expect(
@@ -2843,8 +2842,8 @@ describe("Structure — l'après-écriture déclarée une fois", () => {
     expect(evenements).toHaveLength(1)
     expect(evenements[0]!.payload).toEqual({
       categorieId: category.id,
-      imageRetiree: "https://example.com/retiree.jpg",
-      destination: parente.id,
+      imagesRetirees: ["https://example.com/retiree.jpg"],
+      destinations: [parente.id],
     })
   })
 

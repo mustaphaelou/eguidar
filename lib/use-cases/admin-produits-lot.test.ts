@@ -191,7 +191,7 @@ describe("les gestes en lot du Catalogue", () => {
     })
     const seconde = await creerProduit("supprime-evenement-2", {
       categoryId: null,
-      images: [],
+      imagesRetirees: [],
     })
 
     await bulkDelete(
@@ -214,7 +214,7 @@ describe("les gestes en lot du Catalogue", () => {
       produitId: premiere.id,
       slug: premiere.slug,
       categoryId: racine.id,
-      images: ["https://cdn.example.test/supprime-1.jpg"],
+      imagesRetirees: ["https://cdn.example.test/supprime-1.jpg"],
     })
     expect(
       evenements.find((evenement) => evenement.entityId === seconde.id)?.payload
@@ -222,7 +222,7 @@ describe("les gestes en lot du Catalogue", () => {
       produitId: seconde.id,
       slug: seconde.slug,
       categoryId: null,
-      images: [],
+      imagesRetirees: [],
     })
   })
 
@@ -356,7 +356,6 @@ describe("les gestes en lot du Catalogue", () => {
       categoryId: enfant.id,
       categoryIdPrecedent: racine.id,
       imagesRetirees: [],
-      galerie: null,
     })
   })
 

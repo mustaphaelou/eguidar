@@ -416,9 +416,8 @@ describe("la déclaration de structure.supprimee", () => {
         identifiant: CATEGORIE,
         charge: {
           categorieId: CATEGORIE,
-          image: "https://cdn.example.test/categories/supprimee.jpg",
+          imagesRetirees: ["https://cdn.example.test/categories/supprimee.jpg"],
           destinations: ["cible-produits", "cible-enfants"],
-          produitsSansStructure: false,
         },
       },
     ])
@@ -448,8 +447,7 @@ describe("la déclaration de structure.supprimee", () => {
       entite: { type: "categorie", id: BRANCHE_SANS_STRUCTURE },
     })
     expect(plan.faits[0]?.charge).toMatchObject({
-      destinations: [],
-      produitsSansStructure: true,
+      destinations: ["sans-structure"],
     })
   })
 
@@ -468,8 +466,7 @@ describe("la déclaration de structure.supprimee", () => {
       plan.consequences.map((consequence) => consequence.entite.id)
     ).toEqual(["cible-enfants", BRANCHE_SANS_STRUCTURE, CATEGORIE])
     expect(plan.faits[0]?.charge).toMatchObject({
-      destinations: ["cible-enfants"],
-      produitsSansStructure: true,
+      destinations: ["cible-enfants", "sans-structure"],
     })
   })
 
@@ -480,7 +477,6 @@ describe("la déclaration de structure.supprimee", () => {
     expect(actions(plan)).toEqual(["invalidation.structure"])
     expect(plan.faits[0]?.charge).toMatchObject({
       destinations: [],
-      produitsSansStructure: false,
     })
   })
 
@@ -663,8 +659,8 @@ describe("la déclaration de structure.modifiee", () => {
         identifiant: CATEGORIE,
         charge: {
           categorieId: CATEGORIE,
-          imageRetiree: image,
-          destination: "categorie-parente",
+          imagesRetirees: [image],
+          destinations: ["categorie-parente"],
         },
       },
     ])
@@ -709,8 +705,8 @@ describe("la déclaration de structure.modifiee", () => {
     expect(actions(plan)).toEqual(["index.structure", "invalidation.structure"])
     expect(plan.faits[0]!.charge).toEqual({
       categorieId: CATEGORIE,
-      imageRetiree: null,
-      destination: null,
+      imagesRetirees: [],
+      destinations: [],
     })
   })
 })
