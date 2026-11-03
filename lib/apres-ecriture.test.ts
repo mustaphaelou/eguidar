@@ -290,7 +290,10 @@ describe("la déclaration de produit.supprime", () => {
           produitId: PRODUIT,
           slug: SLUG,
           categoryId: "structure",
-          images,
+          imagesRetirees: [
+            "https://cdn.example.test/une.jpg",
+            "https://cdn.example.test/deux.jpg",
+          ],
         },
       },
     ])
