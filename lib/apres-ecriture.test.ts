@@ -305,9 +305,9 @@ describe("la déclaration de produit.supprime.lot", () => {
           id: "a",
           slug: "a",
           categoryId: "structure",
-          images: ["https://cdn.example.test/a.jpg"],
+          imagesRetirees: ["https://cdn.example.test/a.jpg"],
         },
-        { id: "b", slug: "b", categoryId: null, images: [] },
+        { id: "b", slug: "b", categoryId: null, imagesRetirees: [] },
       ],
     })
 
@@ -319,7 +319,7 @@ describe("la déclaration de produit.supprime.lot", () => {
       produitId: "b",
       slug: "b",
       categoryId: null,
-      images: [],
+      imagesRetirees: [],
     })
     expect(effets(plan)).toEqual([
       "suppression-images",
