@@ -455,9 +455,7 @@ const structureModifiee: Declaration = (f) => {
     ? (f.destinations as string[])
     : f.destination
       ? [String(f.destination)]
-      : f.categorieId
-        ? [String(f.categorieId)]
-        : []
+      : []
   return {
     faits: [
       fait("structure.modifiee", "categorie", String(f.categorieId), {
