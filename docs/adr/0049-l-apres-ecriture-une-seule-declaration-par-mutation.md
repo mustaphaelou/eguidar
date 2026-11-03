@@ -119,3 +119,16 @@ réinvente pas à chaque tranche.
 ADR-0044, addendum « ce que la bascule arrête », gagne un pointeur vers le présent ADR pour la
 déclaration unique, la politique de durabilité et le semis créateur seulement. Ses invariants
 tiennent ; aucune décision concurrente n'est ouverte.
+
+## Addendum — la charge d'un Fait est un contrat fermé
+
+- **Module neutre.** `lib/automations/charge.ts` importe uniquement Zod et porte les dix
+  schémas de charge, un par déclencheur, la correspondance déclencheur → type d'entité, et
+  les types dérivés.
+- **Porte d'écriture.** `enregistrerEvenement` valide la charge et le type d'entité dans
+  la transaction ; une violation lève `ContratChargeError`, un erreur de programmeur nommée.
+- **Analyse unique.** Le travailleur analyse la charge une fois par chemin d'exécution et
+  la transmet à l'action déjà typée.
+- **Noms canoniques.** `produitId`, `slug`, `slugPrecedent`, `categoryId`,
+  `categoryIdPrecedent`, `imagesRetirees`, `categorieId`, `destinations`, `snapshot`,
+  `statut`, `jour`.

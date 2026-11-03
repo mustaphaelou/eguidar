@@ -56,7 +56,6 @@ async function ecrireEvenement(produitId: string, urls: string[]) {
         categoryId: null,
         categoryIdPrecedent: null,
         imagesRetirees: urls,
-        galerie: null,
       },
     })
   )
@@ -73,7 +72,7 @@ async function ecrireEvenementDeSuppression(produitId: string, urls: string[]) {
         produitId,
         slug: `produit-${produitId}`,
         categoryId: null,
-        images: urls,
+        imagesRetirees: urls,
       },
     })
   )
@@ -92,7 +91,7 @@ async function ecrireEvenementStructureSupprimee(
       occurredAt: MAINTENANT,
       payload: {
         categorieId,
-        image,
+        imagesRetirees: image ? [image] : [],
         destinations: [],
         produitsSansStructure: false,
         ...faits,
@@ -113,8 +112,8 @@ async function ecrireEvenementStructureModifiee(
       occurredAt: MAINTENANT,
       payload: {
         categorieId,
-        imageRetiree,
-        destination: null,
+        imagesRetirees: [imageRetiree],
+        destinations: [],
       },
     })
   )

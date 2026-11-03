@@ -755,7 +755,6 @@ async function enregistrerProduit(
         categoryIdPrecedent:
           contexte.kind === "miseAJour" ? contexte.existant.categoryId : null,
         imagesRetirees: ecrit.imagesRetirees,
-        galerie: data.images,
       })
       await enregistrerFaits(tx, plan.faits)
       return { ecrit, plan }
@@ -842,7 +841,7 @@ export async function deleteProduct(
       produitId: produit.id,
       slug: produit.slug,
       categoryId: produit.categoryId,
-      images,
+      imagesRetirees: images,
     })
     await tx.product.delete({ where: { id } })
     await enregistrerFaits(tx, plan.faits)

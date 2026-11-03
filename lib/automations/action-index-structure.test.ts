@@ -56,7 +56,7 @@ async function ecrireSuppression(
       entityType: "categorie",
       entityId: categorieId,
       occurredAt: MAINTENANT,
-      payload: { categorieId, image: null, ...faits },
+      payload: { categorieId, imagesRetirees: [], destinations: [], ...faits },
     })
   )
 }
@@ -70,8 +70,8 @@ async function ecrireModification(categorieId: string) {
       occurredAt: MAINTENANT,
       payload: {
         categorieId,
-        imageRetiree: null,
-        destination: null,
+        imagesRetirees: [],
+        destinations: [],
       },
     })
   )

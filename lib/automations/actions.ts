@@ -1,5 +1,10 @@
 import { z } from "zod"
 
+import {
+  CHARGES_PAR_DECLENCHEUR,
+  type Charge,
+} from "@/lib/automations/charge"
+
 import type {
   TypeEvenementAutomation,
   TypeEntiteAutomation,
@@ -97,45 +102,6 @@ export interface ContexteAction {
   dependances: DependancesAutomations
 }
 
-const emailSnapshotSchema = z.object({
-  userEmail: z.string().min(1),
-  orderId: z.string().min(1),
-  items: z.array(
-    z.object({
-      productName: z.string(),
-      variantName: z.string(),
-      quantity: z.number().int(),
-      price: z.number().int(),
-    })
-  ),
-  total: z.number().int(),
-  shippingFee: z.number().int(),
-  totalPayable: z.number().int(),
-  cityName: z.string(),
-  address: z.string(),
-  phone: z.string(),
-})
-
-const payloadCommandeCreee = z.object({ snapshot: emailSnapshotSchema })
-const payloadCommandeStatut = payloadCommandeCreee.extend({
-  statut: z.enum(STATUTS_VALIDES as [string, ...string[]]),
-})
-const payloadProduit = z.object({
-  produitId: z.string().min(1),
-  slug: z.string().min(1),
-  slugPrecedent: z.string().nullish(),
-  categoryId: z.string().nullish(),
-  categoryIdPrecedent: z.string().nullish(),
-})
-const payloadProduitId = z.object({ produitId: z.string().min(1) })
-const payloadStructure = z.object({ categorieId: z.string().min(1) })
-const payloadIndexStructure = z.object({
-  categorieId: z.string().min(1).nullish(),
-  destinations: z.array(z.string().min(1)).nullish(),
-  destination: z.string().min(1).nullish(),
-  produitsSansStructure: z.boolean().nullish(),
-})
-const payloadJour = z.object({ jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 
 /**
  * Le destinataire d'un digest est nommé par une variable d'environnement
@@ -194,7 +160,8 @@ async function chargerProduitIndexable(produitId: string) {
 async function envoyerConfirmationCommande(
   contexte: ContexteAction
 ): Promise<void> {
-  const { snapshot } = payloadCommandeCreee.parse(contexte.evenement.payload)
+  const charge = contexte.evenement.payload as { snapshot: OrderEmailSnapshot }
+  const { snapshot } = charge
   await contexte.dependances.emails.envoyerConfirmationCommande(
     snapshot,
     cleIdempotenceEmailPlacee(snapshot.orderId)
@@ -202,9 +169,11 @@ async function envoyerConfirmationCommande(
 }
 
 async function envoyerStatutCommande(contexte: ContexteAction): Promise<void> {
-  const { snapshot, statut } = payloadCommandeStatut.parse(
-    contexte.evenement.payload
-  )
+  const charge = contexte.evenement.payload as {
+    snapshot: OrderEmailSnapshot
+    statut: OrderStatus
+  }
+  const { snapshot, statut } = charge
   await contexte.dependances.emails.envoyerStatutCommande(
     snapshot,
     statut as OrderStatus,
@@ -213,40 +182,44 @@ async function envoyerStatutCommande(contexte: ContexteAction): Promise<void> {
 }
 
 async function indexerProduit(contexte: ContexteAction): Promise<void> {
-  const { produitId } = payloadProduitId.parse(contexte.evenement.payload)
+  const { produitId } = contexte.evenement.payload as { produitId: string }
   const produit = await chargerProduitIndexable(produitId)
   if (!produit) return
   await contexte.dependances.recherche.indexer([toIndexableProduct(produit)])
 }
 
 async function desindexerProduit(contexte: ContexteAction): Promise<void> {
-  const { produitId } = payloadProduitId.parse(contexte.evenement.payload)
+  const { produitId } = contexte.evenement.payload as { produitId: string }
   await contexte.dependances.recherche.desindexer(produitId)
 }
 
 async function invaliderCatalogue(contexte: ContexteAction): Promise<void> {
-  const payload = payloadProduit.parse(contexte.evenement.payload)
+  const payload = contexte.evenement.payload as z.infer<
+    typeof CHARGES_PAR_DECLENCHEUR["produit.enregistre"]
+  >
   await contexte.dependances.catalogue.revaliderCatalogue(
     await evenementCatalogue(payload)
   )
 }
 
 async function purgerCatalogue(contexte: ContexteAction): Promise<void> {
-  const payload = payloadProduit.parse(contexte.evenement.payload)
+  const payload = contexte.evenement.payload as z.infer<
+    typeof CHARGES_PAR_DECLENCHEUR["produit.enregistre"]
+  >
   await contexte.dependances.catalogue.purger(
     demandeDePurgeCatalogue(await evenementCatalogue(payload))
   )
 }
 
 async function invaliderStructure(contexte: ContexteAction): Promise<void> {
-  payloadStructure.parse(contexte.evenement.payload)
+  // charge déjà validée par la porte
   // Le cache et le bord sont une seule conséquence déclarée : une purge qui
   // échoue fait réessayer l'invalidation entière, cache compris.
   await contexte.dependances.catalogue.revaliderStructure()
 }
 
 async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
-  const { jour } = payloadJour.parse(contexte.evenement.payload)
+  const { jour } = contexte.evenement.payload as { jour: string }
   // Le Tableau de bord est la seule définition du stock bas : le digest relit
   // ses variantes au lieu de rejouer le seuil et l'agrégat une seconde fois.
   const stats = await getDashboardStats()
@@ -271,7 +244,7 @@ async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
 async function envoyerDigestProprietaire(
   contexte: ContexteAction
 ): Promise<void> {
-  const { jour } = payloadJour.parse(contexte.evenement.payload)
+  const { jour } = contexte.evenement.payload as { jour: string }
   const stats = await getDashboardStats()
   await contexte.dependances.emails.envoyerDigest({
     destinataire: destinataireDuProprietaire(contexte),
@@ -288,7 +261,7 @@ async function envoyerDigestProprietaire(
 }
 
 async function reconcilierRecherche(contexte: ContexteAction): Promise<void> {
-  const { jour } = payloadJour.parse(contexte.evenement.payload)
+  const { jour } = contexte.evenement.payload as { jour: string }
   const produits = await prisma.product.findMany({
     include: { variants: true, category: true },
   })
@@ -358,46 +331,39 @@ async function indexerBranche(
  * branche, seulement des identifiants.
  */
 async function indexerStructure(contexte: ContexteAction): Promise<void> {
-  const payload = payloadIndexStructure.parse(contexte.evenement.payload)
+  const payload = contexte.evenement.payload as {
+    categorieId?: string | null
+    destinations?: string[] | null
+    produitsSansStructure?: boolean
+  }
 
   if (contexte.evenement.type !== "structure.supprimee") {
-    if (!payload.categorieId) {
+    const categorieId = payload.categorieId
+    if (!categorieId) {
       throw new Error("catégorie absente de la charge de la Structure")
     }
-    await indexerBranche(contexte, payload.categorieId)
+    await indexerBranche(contexte, categorieId)
     return
   }
 
-  const destinations =
-    payload.destinations ?? (payload.destination ? [payload.destination] : [])
+  const destinations = payload.destinations ?? []
   for (const destination of destinations) {
-    await indexerBranche(contexte, destination)
+    if (destination === "sans-structure") {
+      await indexerBranche(contexte, null)
+    } else {
+      await indexerBranche(contexte, destination)
+    }
   }
-  // Une suppression peut laisser les Produits directs sans structure tout en
-  // reparentant les enfants : la branche orpheline est alors une destination de
-  // plus, indépendante des branches nommées.
-  if (payload.produitsSansStructure === true) {
+  if (payload.produitsSansStructure === true && !destinations.includes("sans-structure")) {
     await indexerBranche(contexte, null)
   }
 }
 
-function urlsDesImages(payload: unknown): string[] {
-  const charge = (payload ?? {}) as Record<string, unknown>
-  const urls = new Set<string>()
-  for (const cle of ["images", "imagesRetirees"]) {
-    const valeur = charge[cle]
-    if (Array.isArray(valeur))
-      for (const url of valeur) if (typeof url === "string") urls.add(url)
-  }
-  for (const cle of ["image", "imageRetiree"]) {
-    const valeur = charge[cle]
-    if (typeof valeur === "string") urls.add(valeur)
-  }
-  return [...urls]
-}
-
 async function supprimerImages(contexte: ContexteAction): Promise<void> {
-  const urls = urlsDesImages(contexte.evenement.payload)
+  const charge = contexte.evenement.payload as { imagesRetirees?: unknown }
+  const urls = Array.isArray(charge.imagesRetirees)
+    ? charge.imagesRetirees.filter((u): u is string => typeof u === "string")
+    : []
   if (urls.length === 0) return
   // Le même fait nomme l'URL ; l'entité de l'Événement choisit l'espace de
   // noms, car l'image d'une Structure vit hors du préfixe des Images produit.

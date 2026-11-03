@@ -38,7 +38,7 @@ async function ecrireSuppression(categorieId: string) {
       occurredAt: MAINTENANT,
       payload: {
         categorieId,
-        image: null,
+        imagesRetirees: [],
         destinations: [],
         produitsSansStructure: false,
       },
