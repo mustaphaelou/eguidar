@@ -563,6 +563,12 @@ de vie R2 ou TTL de cache — et qui n'est donc pas écrite comme Événement d'
 réessayée. Elle n'a aucune Règle d'automatisation par défaut.
 _Avoid_: effet best-effort, effet non critique
 
+**Charge**:
+La charge immuable d'un Fait : l'objet typé que le déclencheur nomme et que le travailleur lit
+pour exécuter une action durable. Une charge par déclencheur, dans le module neutre, validée à
+la porte d'écriture et analysée une seule fois à l'exécution.
+_Avoid_: payload, charge utile, données de l'événement
+
 **Fait**:
 L'unité écrite dans la transaction d'une mutation et lue par le travailleur : un déclencheur, une
 entité et une charge immuable. Un plan en porte un ou plusieurs ; un retour arrière n'en laisse

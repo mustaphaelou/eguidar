@@ -270,7 +270,7 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
       produitId: produit.id,
       slug: produit.slug,
       categoryId,
-      images: [],
+      imagesRetirees: [],
     })
   })
 

@@ -28,7 +28,19 @@ describe("le carnet de sortie des automatisations", () => {
           type: "commande.creee",
           entityType: "commande",
           entityId,
-          payload: { commande: entityId },
+          payload: {
+            snapshot: {
+              userEmail: "a@b.test",
+              orderId: entityId,
+              items: [],
+              total: 0,
+              shippingFee: 0,
+              totalPayable: 0,
+              cityName: "Ville",
+              address: "Adresse",
+              phone: "0600000000",
+            },
+          },
         })
         throw new Error("la mutation échoue après l'écriture de l'événement")
       })
@@ -48,7 +60,13 @@ describe("le carnet de sortie des automatisations", () => {
         type: "produit.enregistre",
         entityType: "produit",
         entityId: premiere,
-        payload: { produitId: premiere },
+        payload: {
+          produitId: premiere,
+          slug: "slug-a",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
       })
       await enregistrerEvenement(tx, {
         type: "variante.stock.changee",
@@ -60,7 +78,13 @@ describe("le carnet de sortie des automatisations", () => {
         type: "produit.enregistre",
         entityType: "produit",
         entityId: seconde,
-        payload: { produitId: seconde },
+        payload: {
+          produitId: seconde,
+          slug: "slug-b",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
       })
     })
 

@@ -84,17 +84,9 @@ export interface ClientEmails {
   }
 }
 
-export interface OrderEmailSnapshot {
-  userEmail: string
-  orderId: string
-  items: OrderEmailItem[]
-  total: number
-  shippingFee: number
-  totalPayable: number
-  cityName: string
-  address: string
-  phone: string
-}
+import type { OrderEmailSnapshot as ChargeOrderEmailSnapshot } from "@/lib/automations/charge"
+
+export type OrderEmailSnapshot = ChargeOrderEmailSnapshot
 
 function escapeHtml(value: string): string {
   return value

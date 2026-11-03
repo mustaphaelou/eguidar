@@ -26,13 +26,22 @@ async function creerEvenement(
 ) {
   const id = entityId ?? `produit-${runId}-${randomUUID().slice(0, 6)}`
   let evenement!: AutomationEvent
+  const estPlanification = type.startsWith("planification.")
   await prisma.$transaction(async (tx) => {
     evenement = await enregistrerEvenement(tx, {
       type,
-      entityType: "produit",
+      entityType: estPlanification ? "planification" : "produit",
       entityId: id,
       occurredAt: MAINTENANT,
-      payload: { produitId: id },
+      payload: estPlanification
+        ? { jour: "2026-10-28" }
+        : {
+            produitId: id,
+            slug: `slug-${id}`,
+            slugPrecedent: null,
+            categoryId: null,
+            categoryIdPrecedent: null,
+          },
     })
   })
   return { evenement, entityId: id }

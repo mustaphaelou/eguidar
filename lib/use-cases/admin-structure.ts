@@ -344,8 +344,7 @@ async function executerPlanDeStructure(
   effects: StructureEffects
 ): Promise<void> {
   const charge = (plan.faits[0]?.charge ?? {}) as {
-    image?: unknown
-    imageRetiree?: unknown
+    imagesRetirees?: unknown
   }
   let lectureStructure:
     Promise<Awaited<ReturnType<typeof lireStructure>>> | undefined
@@ -353,10 +352,12 @@ async function executerPlanDeStructure(
 
   await runPlanEffects(plan, {
     "suppression-images": async () => {
-      const image =
-        typeof charge.imageRetiree === "string"
-          ? charge.imageRetiree
-          : charge.image
+      const images = Array.isArray(charge.imagesRetirees)
+        ? charge.imagesRetirees.filter(
+            (u): u is string => typeof u === "string"
+          )
+        : []
+      const image = images[0]
       if (typeof image !== "string") {
         throw new Error("image absente du fait de Structure")
       }

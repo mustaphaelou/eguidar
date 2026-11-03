@@ -1,41 +1,27 @@
-import { z } from "zod"
-
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
+import {
+  CHARGES_PAR_DECLENCHEUR,
+  TYPE_ENTITE_PAR_DECLENCHEUR,
+} from "@/lib/automations/charge"
 
 /**
  * Le vocabulaire fermé des événements d'automatisation (ADR-0044). Un
  * déclencheur est une valeur de cette liste, jamais une expression libre : la
  * règle ne peut donc pas boucler sur sa propre écriture.
  */
-export const TYPES_EVENEMENT_AUTOMATION = Object.freeze([
-  "commande.creee",
-  "commande.statut.changee",
-  "produit.enregistre",
-  "produit.supprime",
-  "variante.stock.changee",
-  "structure.creee",
-  "structure.modifiee",
-  "structure.supprimee",
-  "planification.digest-stock-bas",
-  "planification.reconciliation-recherche",
-] as const)
+import {
+  TYPES_EVENEMENT_AUTOMATION,
+  type TypeEvenementAutomation,
+  typeEvenementAutomationSchema,
+  TYPES_ENTITE_AUTOMATION,
+  type TypeEntiteAutomation,
+  typeEntiteAutomationSchema,
+} from "@/lib/automations/charge"
 
-export type TypeEvenementAutomation =
-  (typeof TYPES_EVENEMENT_AUTOMATION)[number]
-
-export const typeEvenementAutomationSchema = z.enum(TYPES_EVENEMENT_AUTOMATION)
-
-export const TYPES_ENTITE_AUTOMATION = Object.freeze([
-  "commande",
-  "produit",
-  "categorie",
-  "planification",
-] as const)
-
-export type TypeEntiteAutomation = (typeof TYPES_ENTITE_AUTOMATION)[number]
-
-export const typeEntiteAutomationSchema = z.enum(TYPES_ENTITE_AUTOMATION)
+export { TYPES_EVENEMENT_AUTOMATION, TYPES_ENTITE_AUTOMATION }
+export type { TypeEvenementAutomation, TypeEntiteAutomation }
+export { typeEvenementAutomationSchema, typeEntiteAutomationSchema }
 
 /**
  * La fenêtre pendant laquelle un événement peut être rejoué. Elle vaut la
@@ -85,6 +71,22 @@ async function prochainRang(
   return compte + 1
 }
 
+export class ContratChargeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "ContratChargeError"
+  }
+}
+
+// Aliases pour le nom du programmateur.
+export const ChargeContractError = ContratChargeError
+export const ProgrammerError = ContratChargeError
+export const ErreurContratCharge = ContratChargeError
+export const ChargeInvalideError = ContratChargeError
+export const ErreurDeContrat = ContratChargeError
+export const ContractError = ContratChargeError
+export const ChargeContractViolationError = ContratChargeError
+
 /**
  * Écrit un événement dans **la transaction de la mutation** qui le produit :
  * un retour arrière ne laisse donc ni événement ni exécution (ADR-0044).
@@ -93,6 +95,25 @@ export async function enregistrerEvenement(
   tx: Prisma.TransactionClient,
   entree: EntreeEvenement
 ) {
+  const declencheur = entree.type as TypeEvenementAutomation
+  const schema = CHARGES_PAR_DECLENCHEUR[declencheur]
+  const resultat = schema.safeParse(entree.payload)
+  if (!resultat.success) {
+    const issue = resultat.error.issues[0]
+    const champ = issue?.path?.length ? issue.path.join(".") : "charge"
+    throw new ContratChargeError(
+      `Contrat de charge violé pour « ${declencheur} » : ${champ} — ${
+        issue?.message ?? "invalide"
+      }`
+    )
+  }
+  const entiteAttendue = TYPE_ENTITE_PAR_DECLENCHEUR[declencheur]
+  if (entiteAttendue !== entree.entityType) {
+    throw new ContratChargeError(
+      `Type d'entité incompatible pour « ${declencheur} » : attendu ${entiteAttendue}, reçu ${entree.entityType}`
+    )
+  }
+
   const occurredAt = entree.occurredAt ?? new Date()
   const seq = await prochaineSequence(tx, entree.entityType, entree.entityId)
   const attemptOf =
@@ -105,7 +126,7 @@ export async function enregistrerEvenement(
       entityId: entree.entityId,
       seq,
       attemptOf,
-      payload: entree.payload as Prisma.InputJsonValue,
+      payload: resultat.data as Prisma.InputJsonValue,
       occurredAt,
       expiresAt:
         entree.expiresAt ??

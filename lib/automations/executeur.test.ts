@@ -150,7 +150,7 @@ describe("le travailleur des automatisations", () => {
       entityType: "categorie",
       entityId: entite,
       occurredAt: MAINTENANT,
-      payload: { categorieId: entite },
+      payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
     })
     const catalogue = creerPortCatalogueMemoire({
       panneStructure: new Error("cache indisponible"),
@@ -218,7 +218,7 @@ describe("le travailleur des automatisations", () => {
       entityType: "categorie",
       entityId: entite,
       occurredAt: MAINTENANT,
-      payload: { categorieId: entite },
+      payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
     })
     await prisma.automationEvent.updateMany({
       where: { entityId: entite },
@@ -252,7 +252,7 @@ describe("le travailleur des automatisations", () => {
       entityId: entite,
       occurredAt: new Date(MAINTENANT.getTime() - 2 * 3_600_000),
       expiresAt: expireLe,
-      payload: { categorieId: entite },
+      payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
     })
     const catalogue = creerPortCatalogueMemoire()
 
@@ -286,7 +286,13 @@ describe("le travailleur des automatisations", () => {
       entityId: entite,
       occurredAt: new Date(MAINTENANT.getTime() - 2 * 3_600_000),
       expiresAt: expireLe,
-      payload: { produitId: entite },
+      payload: {
+        produitId: entite,
+        slug: `slug-${entite}`,
+        slugPrecedent: null,
+        categoryId: null,
+        categoryIdPrecedent: null,
+      },
     })
     const catalogue = creerPortCatalogueMemoire()
     const recherche = creerPortRechercheMemoire()
@@ -337,7 +343,7 @@ describe("le travailleur des automatisations", () => {
       entityId: entite,
       occurredAt: new Date(MAINTENANT.getTime() - 2 * 3_600_000),
       expiresAt: new Date(MAINTENANT.getTime() - 3_600_000),
-      payload: { categorieId: entite },
+      payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
     })
     const catalogue = creerPortCatalogueMemoire()
 

@@ -264,7 +264,13 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityId: `produit-${runId}`,
         seq: 1,
         attemptOf: 1,
-        payload: { produitId: `produit-${runId}` },
+        payload: {
+          produitId: `produit-${runId}`,
+          slug: "slug",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
         occurredAt: MAINTENANT,
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
         status: "en_cours",
@@ -321,7 +327,7 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityType: "categorie",
         entityId: entite,
         occurredAt: MAINTENANT,
-        payload: { categorieId: entite },
+        payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
       })
     )
     const catalogue = creerPortCatalogueMemoire()
@@ -397,7 +403,20 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityId: `commande-${runId}-refus`,
         seq: 1,
         attemptOf: 1,
-        payload: { statut: "pending", snapshot: {} },
+        payload: {
+          statut: "pending",
+          snapshot: {
+            userEmail: "a@b",
+            orderId: "o",
+            items: [],
+            total: 0,
+            shippingFee: 0,
+            totalPayable: 0,
+            cityName: "c",
+            address: "a",
+            phone: "p",
+          },
+        },
         occurredAt: MAINTENANT,
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
       },
@@ -447,7 +466,20 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityId: `produit-${runId}-mismatch`,
         seq: 1,
         attemptOf: 1,
-        payload: { statut: "shipped" },
+        payload: {
+          statut: "shipped",
+          snapshot: {
+            userEmail: "a@b",
+            orderId: "o",
+            items: [],
+            total: 0,
+            shippingFee: 0,
+            totalPayable: 0,
+            cityName: "c",
+            address: "a",
+            phone: "p",
+          },
+        },
         occurredAt: MAINTENANT,
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
       },
@@ -478,7 +510,11 @@ describe("l'éditeur de Règles d'automatisation", () => {
           entityId: `categorie-${runId}-${entite}`,
           seq: index + 1,
           attemptOf: index + 1,
-          payload: { categorieId: `categorie-${runId}-${entite}` },
+          payload: {
+            categorieId: `categorie-${runId}-${entite}`,
+            imagesRetirees: [],
+            destinations: [],
+          },
           occurredAt: new Date(MAINTENANT.getTime() + index * 1_000),
           expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
         },
@@ -518,7 +554,7 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityId: entite,
         seq: 1,
         attemptOf: 1,
-        payload: { categorieId: entite },
+        payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
         occurredAt: new Date(MAINTENANT.getTime() - 10_000),
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
         status: "mort",
@@ -590,7 +626,7 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityId: entite,
         seq: 1,
         attemptOf: 1,
-        payload: { categorieId: entite },
+        payload: { categorieId: entite, imagesRetirees: [], destinations: [] },
         occurredAt: new Date(MAINTENANT.getTime() - 10_000),
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
         status: "mort",
@@ -665,7 +701,13 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityId: entite,
         seq: 1,
         attemptOf: 1,
-        payload: { produitId: entite },
+        payload: {
+          produitId: entite,
+          slug: "slug",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
         occurredAt: new Date(MAINTENANT.getTime() - 10_000),
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
         status: "mort",
@@ -712,7 +754,13 @@ describe("l'éditeur de Règles d'automatisation", () => {
       evenement: {
         type: "produit.enregistre",
         entityType: "produit",
-        payload: { produitId: `produit-${runId}-desactive` },
+        payload: {
+          produitId: `produit-${runId}-desactive`,
+          slug: "slug",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
         expireLe: new Date(MAINTENANT.getTime() + 3_600_000),
       },
     })
@@ -730,7 +778,11 @@ describe("l'éditeur de Règles d'automatisation", () => {
       regle: { declencheur: "produit.enregistre", action: "index.produit" },
       evenement: {
         type: "structure.modifiee",
-        payload: { categorieId: `categorie-${runId}-declencheur` },
+        payload: {
+          categorieId: `categorie-${runId}-declencheur`,
+          imagesRetirees: [],
+          destinations: [],
+        },
         expireLe: new Date(MAINTENANT.getTime() + 3_600_000),
       },
     })
@@ -774,7 +826,13 @@ describe("l'éditeur de Règles d'automatisation", () => {
       evenement: {
         type: "produit.enregistre",
         entityType: "produit",
-        payload: { produitId: `produit-${runId}-expire` },
+        payload: {
+          produitId: `produit-${runId}-expire`,
+          slug: "slug",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
         expireLe: new Date(MAINTENANT.getTime() - 60_000),
       },
     })
@@ -793,7 +851,13 @@ describe("l'éditeur de Règles d'automatisation", () => {
       evenement: {
         type: "produit.enregistre",
         entityType: "produit",
-        payload: { produitId: `produit-${runId}-ordre-desactive` },
+        payload: {
+          produitId: `produit-${runId}-ordre-desactive`,
+          slug: "slug",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
         expireLe: new Date(MAINTENANT.getTime() - 60_000),
       },
     })
@@ -811,7 +875,11 @@ describe("l'éditeur de Règles d'automatisation", () => {
       regle: { declencheur: "produit.enregistre", action: "index.produit" },
       evenement: {
         type: "structure.modifiee",
-        payload: { categorieId: `categorie-${runId}-ordre-declencheur` },
+        payload: {
+          categorieId: `categorie-${runId}-ordre-declencheur`,
+          imagesRetirees: [],
+          destinations: [],
+        },
         expireLe: new Date(MAINTENANT.getTime() - 60_000),
       },
     })
@@ -863,7 +931,13 @@ describe("l'éditeur de Règles d'automatisation", () => {
         entityId: `produit-${runId}-liste`,
         seq: 1,
         attemptOf: 1,
-        payload: { produitId: `produit-${runId}-liste` },
+        payload: {
+          produitId: `produit-${runId}-liste`,
+          slug: "slug",
+          slugPrecedent: null,
+          categoryId: null,
+          categoryIdPrecedent: null,
+        },
         occurredAt: MAINTENANT,
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
         status: "reussi",

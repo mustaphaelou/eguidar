@@ -12,6 +12,7 @@ import type {
   TypeEntiteAutomation,
   TypeEvenementAutomation,
 } from "@/lib/automations/evenements"
+import type { Charge } from "@/lib/automations/charge"
 
 export type GenreEcriture =
   | "produit.enregistre"
@@ -30,11 +31,13 @@ export type GenreEcriture =
   | "livraison.reglee"
   | "image.texte-alternatif"
 
-export interface FaitApresEcriture {
-  declencheur: TypeEvenementAutomation
+export interface FaitApresEcriture<
+  D extends TypeEvenementAutomation = TypeEvenementAutomation,
+> {
+  declencheur: D
   entite: TypeEntiteAutomation
   identifiant: string
-  charge: unknown
+  charge: Charge<D>
 }
 
 export interface ConsequenceApresEcriture {
@@ -48,7 +51,7 @@ export interface ConsequenceApresEcriture {
 }
 
 export interface PlanApresEcriture {
-  faits: FaitApresEcriture[]
+  faits: FaitApresEcriture<TypeEvenementAutomation>[]
   consequences: ConsequenceApresEcriture[]
 }
 
@@ -56,12 +59,12 @@ export type FaitsApresEcriture = Record<string, unknown>
 
 type Declaration = (faits: FaitsApresEcriture) => PlanApresEcriture
 
-function fait(
-  declencheur: TypeEvenementAutomation,
+function fait<D extends TypeEvenementAutomation>(
+  declencheur: D,
   entite: TypeEntiteAutomation,
   identifiant: string,
-  charge: unknown
-): FaitApresEcriture {
+  charge: Charge<D>
+): FaitApresEcriture<D> {
   return { declencheur, entite, identifiant, charge }
 }
 
@@ -89,7 +92,7 @@ export const IDENTIFIANT_LOT = "lot"
 const commandeCreee: Declaration = (f) => ({
   faits: [
     fait("commande.creee", "commande", String(f.commandeId), {
-      snapshot: f.snapshot,
+      snapshot: f.snapshot as never,
     }),
   ],
   consequences: [
@@ -159,8 +162,8 @@ const commandeStatutChangee: Declaration = (f) => {
   return {
     faits: [
       fait("commande.statut.changee", "commande", String(f.commandeId), {
-        snapshot: f.snapshot,
-        statut: f.statut,
+        snapshot: f.snapshot as never,
+        statut: f.statut as never,
       }),
     ],
     consequences,
@@ -220,13 +223,12 @@ const produitEnregistre: Declaration = (f) => {
   return {
     faits: [
       fait("produit.enregistre", "produit", String(f.produitId), {
-        produitId: f.produitId,
-        slug: f.slug ?? null,
-        slugPrecedent: f.slugPrecedent ?? null,
-        categoryId: f.categoryId ?? null,
-        categoryIdPrecedent: f.categoryIdPrecedent ?? null,
-        imagesRetirees: removed,
-        galerie: f.galerie ?? null,
+        produitId: f.produitId as never,
+        slug: (f.slug ?? "") as never,
+        slugPrecedent: (f.slugPrecedent ?? null) as never,
+        categoryId: (f.categoryId ?? null) as never,
+        categoryIdPrecedent: (f.categoryIdPrecedent ?? null) as never,
+        imagesRetirees: removed as never,
       }),
     ],
     consequences,
@@ -247,7 +249,6 @@ const produitEnregistreLot: Declaration = (f) => {
       categoryId: p.categoryId ?? null,
       categoryIdPrecedent: p.categoryIdPrecedent ?? null,
       imagesRetirees: (p.imagesRetirees as string[]) ?? [],
-      galerie: p.galerie ?? null,
     }
   })
   const consequences: ConsequenceApresEcriture[] = [
@@ -271,13 +272,12 @@ const produitEnregistreLot: Declaration = (f) => {
   return {
     faits: produits.map((p) =>
       fait("produit.enregistre", "produit", p.id, {
-        produitId: p.id,
-        slug: p.slug,
-        slugPrecedent: p.slugPrecedent,
-        categoryId: p.categoryId,
-        categoryIdPrecedent: p.categoryIdPrecedent,
-        imagesRetirees: p.imagesRetirees,
-        galerie: p.galerie,
+        produitId: p.id as never,
+        slug: (p.slug ?? "") as never,
+        slugPrecedent: (p.slugPrecedent ?? null) as never,
+        categoryId: (p.categoryId ?? null) as never,
+        categoryIdPrecedent: (p.categoryIdPrecedent ?? null) as never,
+        imagesRetirees: (p.imagesRetirees ?? []) as never,
       })
     ),
     consequences,
@@ -285,14 +285,17 @@ const produitEnregistreLot: Declaration = (f) => {
 }
 
 const produitSupprime: Declaration = (f) => {
-  const urls = (f.images as string[]) ?? []
+  const urls =
+    (f.imagesRetirees as string[] | undefined) ??
+    (f.images as string[] | undefined) ??
+    []
   return {
     faits: [
       fait("produit.supprime", "produit", String(f.produitId), {
-        produitId: f.produitId,
-        slug: f.slug,
-        categoryId: f.categoryId,
-        images: urls,
+        produitId: f.produitId as never,
+        slug: (f.slug ?? "") as never,
+        categoryId: (f.categoryId ?? null) as never,
+        imagesRetirees: urls as never,
       }),
     ],
     consequences: [
@@ -342,10 +345,10 @@ const produitSupprimeLot: Declaration = (f) => {
   return {
     faits: produits.map((produit) =>
       fait("produit.supprime", "produit", produit.id, {
-        produitId: produit.id,
-        slug: produit.slug,
-        categoryId: produit.categoryId,
-        images: produit.images,
+        produitId: produit.id as never,
+        slug: (produit.slug ?? "") as never,
+        categoryId: (produit.categoryId ?? null) as never,
+        imagesRetirees: (produit.images ?? []) as never,
       })
     ),
     consequences: [
@@ -380,7 +383,7 @@ const produitSupprimeLot: Declaration = (f) => {
 const varianteStockChangee: Declaration = (f) => ({
   faits: [
     fait("variante.stock.changee", "produit", String(f.produitId), {
-      produitId: f.produitId,
+      produitId: f.produitId as never,
     }),
   ],
   consequences: [
@@ -402,7 +405,7 @@ const varianteStockChangee: Declaration = (f) => ({
 const structureCreee: Declaration = (f) => ({
   faits: [
     fait("structure.creee", "categorie", String(f.categorieId), {
-      categorieId: f.categorieId,
+      categorieId: f.categorieId as never,
     }),
   ],
   consequences: [
@@ -441,12 +444,24 @@ const structureModifiee: Declaration = (f) => {
       { action: "invalidation.structure", durable: true }
     )
   )
+  const imagesRetireesModifiee = Array.isArray(f.imagesRetirees)
+    ? (f.imagesRetirees as string[])
+    : f.imageRetiree
+      ? [String(f.imageRetiree)]
+      : f.image
+        ? [String(f.image)]
+        : []
+  const destinationsModifiee = Array.isArray(f.destinations)
+    ? (f.destinations as string[])
+    : f.destination
+      ? [String(f.destination)]
+      : []
   return {
     faits: [
       fait("structure.modifiee", "categorie", String(f.categorieId), {
-        categorieId: f.categorieId,
-        imageRetiree: f.imageRetiree ?? null,
-        destination: f.destination ?? null,
+        categorieId: f.categorieId as never,
+        imagesRetirees: imagesRetireesModifiee as never,
+        destinations: destinationsModifiee as never,
       }),
     ],
     consequences,
@@ -521,13 +536,21 @@ const structureSupprimee: Declaration = (f) => {
       { action: "invalidation.structure", durable: true }
     )
   )
+  const imagesRetireesSupprimee = Array.isArray(f.imagesRetirees)
+    ? (f.imagesRetirees as string[])
+    : image
+      ? [image]
+      : []
+  const destinationsSupprimee = [
+    ...destinations,
+    ...(f.produitsSansStructure === true ? ["sans-structure"] : []),
+  ]
   return {
     faits: [
       fait("structure.supprimee", "categorie", String(f.categorieId), {
-        categorieId: f.categorieId,
-        image,
-        destinations,
-        produitsSansStructure: f.produitsSansStructure === true,
+        categorieId: f.categorieId as never,
+        imagesRetirees: imagesRetireesSupprimee as never,
+        destinations: destinationsSupprimee as never,
       }),
     ],
     consequences,
@@ -627,6 +650,110 @@ const REGISTRE: Record<GenreEcriture, Declaration> = {
   "livraison.reglee": livraisonReglee,
   "image.texte-alternatif": imageTexteAlternatif,
 }
+
+export type FaitsCommandeCreee = {
+  commandeId: string | number
+  snapshot: unknown
+  messageEmail?: string
+  messageInvalidation?: string
+  messagePurge?: string
+}
+
+export type FaitsCommandeStatutChangee = {
+  commandeId: string | number
+  snapshot: unknown
+  statut: unknown
+  messageEmail?: string
+  messageInvalidation?: string
+  messagePurge?: string
+}
+
+export type FaitsProduitEnregistre = {
+  produitId: string | number
+  slug: unknown
+  slugPrecedent?: unknown
+  categoryId?: unknown
+  categoryIdPrecedent?: unknown
+  imagesRetirees?: unknown
+  galerie?: unknown
+}
+
+export type FaitsProduitEnregistreLot = {
+  produitIds?: readonly (string | number)[]
+  produits?: readonly Record<string, unknown>[]
+}
+
+export type FaitsProduitSupprime = {
+  produitId: string | number
+  slug?: unknown
+  categoryId?: unknown
+  images?: unknown
+  imagesRetirees?: unknown
+}
+
+export type FaitsProduitSupprimeLot = {
+  produitIds?: readonly (string | number)[]
+  produits?: readonly Record<string, unknown>[]
+}
+
+export type FaitsVarianteStockChangee = {
+  produitId: string | number
+}
+
+export type FaitsStructureCreee = {
+  categorieId: string | number
+}
+
+export type FaitsStructureModifiee = {
+  categorieId: string | number
+  imageRetiree?: unknown
+  image?: unknown
+  imagesRetirees?: unknown
+  destination?: unknown
+  destinations?: unknown
+}
+
+export type FaitsStructureSupprimee = {
+  categorieId: string | number
+  image?: unknown
+  images?: unknown
+  imagesRetirees?: unknown
+  produitsCible?: unknown
+  enfantsCible?: unknown
+  destinations?: unknown
+  produitsSansStructure?: unknown
+}
+
+export type FaitsVilleCreee = { villeId: string | number }
+export type FaitsVilleModifiee = { villeId: string | number }
+export type FaitsVilleSupprimee = { villeId: string | number }
+export type FaitsLivraisonReglee = { livraisonId?: string | number }
+export type FaitsImageTexteAlternatif = {
+  produitIds?: readonly (string | number)[]
+}
+
+export type FaitsParGenre = {
+  "commande.creee": FaitsCommandeCreee
+  "commande.statut.changee": FaitsCommandeStatutChangee
+  "produit.enregistre": FaitsProduitEnregistre
+  "produit.enregistre.lot": FaitsProduitEnregistreLot
+  "produit.supprime": FaitsProduitSupprime
+  "produit.supprime.lot": FaitsProduitSupprimeLot
+  "variante.stock.changee": FaitsVarianteStockChangee
+  "structure.creee": FaitsStructureCreee
+  "structure.modifiee": FaitsStructureModifiee
+  "structure.supprimee": FaitsStructureSupprimee
+  "ville.creee": FaitsVilleCreee
+  "ville.modifiee": FaitsVilleModifiee
+  "ville.supprimee": FaitsVilleSupprimee
+  "livraison.reglee": FaitsLivraisonReglee
+  "image.texte-alternatif": FaitsImageTexteAlternatif
+}
+
+export function declarerApresEcriture<G extends GenreEcriture>(
+  genre: G,
+  faits?: FaitsParGenre[G]
+): PlanApresEcriture
 
 export function declarerApresEcriture(
   genre: GenreEcriture,
@@ -833,7 +960,10 @@ export function reglesParDefaut(): Array<{
   // les destinations de la charge.
   const reglesVues = new Set<string>()
   for (const genre of GENRES_DERIVES) {
-    const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
+    const plan = declarerApresEcriture(
+      genre,
+      (FAITS_POUR_REGLES[genre] ?? {}) as FaitsApresEcriture
+    )
     const declencheur = (plan.faits[0]?.declencheur ??
       genre) as TypeEvenementAutomation
     for (const c of plan.consequences) {
