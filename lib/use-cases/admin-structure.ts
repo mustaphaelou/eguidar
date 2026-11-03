@@ -144,8 +144,7 @@ function sqlstateDeLErreur(error: unknown): string | undefined {
   const meta = (error as { meta?: unknown } | null)?.meta
   if (typeof meta !== "object" || meta === null) return undefined
   const lecteur = (meta as Record<string, unknown>).driverAdapterError as
-    | { cause?: { originalCode?: unknown } }
-    | undefined
+    { cause?: { originalCode?: unknown } } | undefined
   const code = lecteur?.cause?.originalCode
   return typeof code === "string" ? code : undefined
 }
@@ -348,8 +347,7 @@ async function executerPlanDeStructure(
     imagesRetirees?: unknown
   }
   let lectureStructure:
-    | Promise<Awaited<ReturnType<typeof lireStructure>>>
-    | undefined
+    Promise<Awaited<ReturnType<typeof lireStructure>>> | undefined
   const lecture = () => (lectureStructure ??= lireStructure())
 
   await runPlanEffects(plan, {
