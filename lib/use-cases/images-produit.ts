@@ -71,7 +71,7 @@ export function defaultImagesProduitEffects(): ImagesProduitEffects {
   return {
     supprimerImage: (url) =>
       stockageImageProduitR2.supprimerImagePersistee(url),
-    revaliderCatalogue: (produit) => revaliderCatalogue(produit),
+    revaliderCatalogue,
   }
 }
 

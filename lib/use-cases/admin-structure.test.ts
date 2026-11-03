@@ -1900,6 +1900,59 @@ describe("admin structure mutations — categories", () => {
     })
   })
 
+  it("réindexe la branche reparentée et les Produits laissés Sans Structure", async () => {
+    const reindexProducts = vi.fn()
+    const parent = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-orphelins") })
+    )
+    const cibleEnfants = await createCategory(
+      makeCategoryInput({ slug: categorySlug("del-orphelins-enfants") })
+    )
+    const enfant = await createCategory(
+      makeCategoryInput({
+        slug: categorySlug("del-orphelins-enfant"),
+        parentId: parent.id,
+      })
+    )
+    const produitOrphelin = await makeProductIn(
+      parent,
+      "orphelins-produit",
+      "Produit laissé Sans Structure"
+    )
+    const produitEnfant = await makeProductIn(
+      enfant,
+      "orphelins-enfant",
+      "Produit reparenté"
+    )
+
+    await deleteCategory(
+      parent.id,
+      {
+        orphanProducts: true,
+        reparentChildrenToCategoryId: cibleEnfants.id,
+      },
+      { reindexProducts, revalidateCategories: vi.fn() }
+    )
+
+    expect(reindexProducts).toHaveBeenCalledTimes(2)
+    const documents = reindexProducts.mock.calls.map(
+      ([produits]) => produits as Array<{ id: string; categorySlug: string }>
+    )
+    expect(documents.map((branche) => branche.map(({ id }) => id))).toEqual([
+      [produitEnfant.id],
+      [produitOrphelin.id],
+    ])
+    const parId = new Map(
+      documents.flat().map((document) => [document.id, document])
+    )
+    expect(parId.get(produitOrphelin.id)).toMatchObject({
+      categorySlug: SLUG_SANS_STRUCTURE,
+    })
+    expect(parId.get(produitEnfant.id)).toMatchObject({
+      categorySlug: enfant.slug,
+    })
+  })
+
   it("écrit un seul Événement structure.supprimee avec les destinations employées", async () => {
     const parent = await createCategory(
       makeCategoryInput({ slug: categorySlug("del-evenement") })

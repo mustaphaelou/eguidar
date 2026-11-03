@@ -55,9 +55,16 @@ réinvente pas à chaque tranche.
   ADR-0044, addendum « ce que la bascule arrête ».)
 
 - **Semis.** La déclaration possède les Règles par défaut. Le semis est créateur seulement : il crée
-  une ligne manquante et ne met jamais à jour une ligne existante. Les identités existantes sont
-  réutilisées (`confirmation-commande`, `statut-commande`, `indexation-produit`, …) ; les deux
-  nouvelles Règles sont `indexation-structure` et `suppression-images-produit`. Une définition par
+  une ligne manquante et ne met jamais à jour une ligne existante. L'inventaire a grandi tranche par
+  tranche. Les identités existantes sont réutilisées : `confirmation-commande`, `statut-commande`,
+  `indexation-produit`, `invalidation-catalogue`, `purge-catalogue`, `desindexation-produit`,
+  `invalidation-catalogue-suppression`, `indexation-stock`, `invalidation-structure`,
+  `invalidation-structure-modifiee`, `invalidation-structure-supprimee`, ainsi que les trois Règles
+  planifiées (`digest-stock-bas`, `reconciliation-recherche`, `digest-proprietaire`). Les tranches
+  ont créé `suppression-images-produit-enregistre`, `suppression-images-produit`,
+  `purge-catalogue-suppression` — la Règle de purge que la liste durable de `produit.supprime`
+  n'avait pas —, `indexation-structure`, `suppression-images-structure-modifiee`,
+  `indexation-structure-supprimee` et `suppression-images-structure-supprimee`. Une définition par
   défaut modifiée est une migration explicite, jamais une réécriture implicite.
 
 - **Deux nouvelles actions du vocabulaire fermé.** `index.structure` réindexe la branche touchée
@@ -65,8 +72,8 @@ réinvente pas à chaque tranche.
   réindexe la branche de destination, puisque la branche supprimée n'existe plus. `suppression.images`
   supprime les objets R2 nommés dans le `fait` ; lors d'une mise à jour ce sont les images
   retirées, lors d'une suppression de Produit ce sont toutes ses images. Libellés éditeur :
-  « Indexation de la Structure » et « Suppression des Images produit » (généralisé à l'image d'une
-  Structure).
+  « Indexation de la Structure » et « Suppression des images » (généralisé à l'image d'une
+  Structure, #872).
 
 - **Conséquences groupées.** Une écriture groupée a un genre groupé. Elle émet un Événement
   d'automatisation par Produit et peut déclarer une réindexation groupée pour toute la sélection ;

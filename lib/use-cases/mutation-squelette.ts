@@ -131,6 +131,62 @@ export async function runOrderedEffects(
   }
 }
 
+/**
+ * La conséquence telle qu'un plan d'Après-écriture la déclare. La forme reste
+ * structurelle pour que le squelette ne dépende pas du module de déclaration.
+ */
+export interface ConsequenceDuPlan {
+  effet: TypeEffetPostCommit
+  entite: EntiteEffetPostCommit
+  message: string
+  portee?: number
+}
+
+export interface PlanPostCommit {
+  consequences: readonly ConsequenceDuPlan[]
+}
+
+export type GestionnairesEffetsPostCommit = Partial<
+  Record<
+    TypeEffetPostCommit,
+    (consequence: ConsequenceDuPlan) => Promise<unknown> | unknown
+  >
+>
+
+export class EffetNonPrisEnChargeError extends Error {
+  constructor(readonly effet: TypeEffetPostCommit) {
+    super(`effet post-commit non pris en charge : ${effet}`)
+    this.name = "EffetNonPrisEnChargeError"
+  }
+}
+
+/**
+ * La seule porte d'un plan : chaque conséquence trouve son gestionnaire par
+ * nom d'effet. Un effet absent de la carte échoue nommément — une conséquence
+ * déclarée sans adaptation est journalisée en échec, jamais en succès.
+ */
+export async function runPlanEffects(
+  plan: PlanPostCommit,
+  gestionnaires: GestionnairesEffetsPostCommit,
+  journal: JournalEffetsPostCommit = journalEffetsConsole
+): Promise<void> {
+  await runOrderedEffects(
+    plan.consequences.map((consequence) => ({
+      effet: consequence.effet,
+      entite: consequence.entite,
+      message: consequence.message,
+      portee: consequence.portee,
+      fn: () => {
+        const gestionnaire = gestionnaires[consequence.effet]
+        if (!gestionnaire)
+          throw new EffetNonPrisEnChargeError(consequence.effet)
+        return gestionnaire(consequence)
+      },
+    })),
+    journal
+  )
+}
+
 export function messageDeValidation(issues: string[]): string {
   return `Données invalides : ${issues.join(" ; ")}`
 }

@@ -5,7 +5,8 @@ import {
   declarerApresEcriture,
   FAITS_POUR_REGLES,
   GENRES_DERIVES,
-  GENRES_MIGRES,
+  identiteDeRegle,
+  IdentiteRegleInconnueError,
   reglesParDefaut,
   type PlanApresEcriture,
 } from "@/lib/apres-ecriture"
@@ -29,6 +30,107 @@ function actions(plan: PlanApresEcriture): string[] {
     consequence.action ? [consequence.action] : []
   )
 }
+
+describe("la déclaration de Commande", () => {
+  const SNAPSHOT = { id: "c1", total: 42 }
+  const creation = () =>
+    declarerApresEcriture("commande.creee", {
+      commandeId: "c1",
+      snapshot: SNAPSHOT,
+    })
+  const changementDeStatut = () =>
+    declarerApresEcriture("commande.statut.changee", {
+      commandeId: "c1",
+      snapshot: SNAPSHOT,
+      statut: "expediee",
+    })
+
+  it("ordonne les trois effets de la création : e-mail, invalidation, purge", () => {
+    expect(effets(creation())).toEqual([
+      "email",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
+  })
+
+  it("ordonne les mêmes trois effets pour le changement de statut", () => {
+    expect(effets(changementDeStatut())).toEqual([
+      "email",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
+  })
+
+  it("garde l'e-mail durable et répare les deux autres par le TTL", () => {
+    const plan = creation()
+
+    expect(plan.consequences.map((consequence) => consequence.durable)).toEqual(
+      [true, false, false]
+    )
+    for (const consequence of plan.consequences) {
+      if (consequence.durable) {
+        expect(consequence.reparation).toBeUndefined()
+      } else {
+        expect(consequence.reparation).toBe("TTL")
+      }
+    }
+  })
+
+  it("donne à la conséquence durable l'action de l'e-mail de Commande", () => {
+    expect(
+      creation().consequences.find((consequence) => consequence.durable)?.action
+    ).toBe("email.commande-creee")
+    expect(
+      changementDeStatut().consequences.find(
+        (consequence) => consequence.durable
+      )?.action
+    ).toBe("email.commande-statut")
+  })
+
+  it("garde l'instantané et le statut dans la charge du fait", () => {
+    expect(creation().faits).toEqual([
+      {
+        declencheur: "commande.creee",
+        entite: "commande",
+        identifiant: "c1",
+        charge: { snapshot: SNAPSHOT },
+      },
+    ])
+    expect(changementDeStatut().faits).toEqual([
+      {
+        declencheur: "commande.statut.changee",
+        entite: "commande",
+        identifiant: "c1",
+        charge: { snapshot: SNAPSHOT, statut: "expediee" },
+      },
+    ])
+  })
+
+  it("n'écrit un fait que parce qu'une conséquence durable existe", () => {
+    for (const plan of [creation(), changementDeStatut()]) {
+      const aDurable = plan.consequences.some(
+        (consequence) => consequence.durable
+      )
+      expect(plan.faits.length > 0).toBe(aDurable)
+    }
+  })
+})
+
+describe("les Règles par défaut dérivées de la Commande", () => {
+  it("réutilise confirmation-commande et statut-commande", () => {
+    const parDeclencheur = (declencheur: string) =>
+      reglesParDefaut()
+        .filter((regle) => regle.declencheur === declencheur)
+        .map((regle) => [regle.id, regle.action])
+
+    expect(parDeclencheur("commande.creee")).toEqual([
+      ["confirmation-commande", "email.commande-creee"],
+    ])
+    expect(parDeclencheur("commande.statut.changee")).toEqual([
+      ["statut-commande", "email.commande-statut"],
+    ])
+  })
+})
 
 describe("la déclaration de produit.enregistre", () => {
   it("distingue la création de la mise à jour par ses faits typés seulement", () => {
@@ -351,6 +453,26 @@ describe("la déclaration de structure.supprimee", () => {
     })
   })
 
+  it("réindexe la destination des enfants et la branche Sans Structure quand les Produits sont orphelins", () => {
+    const plan = planDeSuppression({
+      enfantsCible: "cible-enfants",
+      produitsSansStructure: true,
+    })
+
+    expect(effets(plan)).toEqual([
+      "reindexation",
+      "reindexation",
+      "invalidation-cache",
+    ])
+    expect(
+      plan.consequences.map((consequence) => consequence.entite.id)
+    ).toEqual(["cible-enfants", BRANCHE_SANS_STRUCTURE, CATEGORIE])
+    expect(plan.faits[0]?.charge).toMatchObject({
+      destinations: ["cible-enfants"],
+      produitsSansStructure: true,
+    })
+  })
+
   it("ne déclare aucune réindexation quand rien n'a changé de branche", () => {
     const plan = planDeSuppression()
 
@@ -403,8 +525,8 @@ describe("les Règles par défaut dérivées de structure.supprimee", () => {
     ).toHaveLength(1)
   })
 
-  it("ne duplique aucune identité et n'a plus de liste en attente", () => {
-    expect(GENRES_MIGRES).toContain("structure.supprimee")
+  it("ne duplique aucune identité et donne une seule Règle à chaque conséquence durable de la Structure supprimée", () => {
+    expect(GENRES_DERIVES).toContain("structure.supprimee")
     expect(
       reglesParDefaut().filter(
         (regle) => regle.id === "invalidation-structure-supprimee"
@@ -657,8 +779,8 @@ describe("les Règles par défaut dérivées de variante.stock.changee", () => {
     ).toEqual([["indexation-stock", "index.produit", "Indexation du stock"]])
   })
 
-  it("ne duplique aucune identité et n'a plus de liste en attente", () => {
-    expect(GENRES_MIGRES).toContain("variante.stock.changee")
+  it("ne duplique aucune identité et donne une seule Règle à la réindexation durable du stock", () => {
+    expect(GENRES_DERIVES).toContain("variante.stock.changee")
     expect(
       reglesParDefaut().filter((regle) => regle.id === "indexation-stock")
     ).toHaveLength(1)
@@ -686,9 +808,9 @@ describe("les Règles par défaut dérivées des déclarations de Structure", ()
     ])
   })
 
-  it("ne duplique aucune identité et ne garde aucune liste en attente", () => {
-    expect(GENRES_MIGRES).toContain("structure.creee")
-    expect(GENRES_MIGRES).toContain("structure.modifiee")
+  it("ne duplique aucune identité et donne une seule Règle à chaque conséquence durable de Structure", () => {
+    expect(GENRES_DERIVES).toContain("structure.creee")
+    expect(GENRES_DERIVES).toContain("structure.modifiee")
     for (const id of [
       "invalidation-structure",
       "invalidation-structure-modifiee",
@@ -702,11 +824,34 @@ describe("les Règles par défaut dérivées des déclarations de Structure", ()
   })
 })
 
+describe("l'identité d'une Règle par défaut", () => {
+  it("lève un nom quand le couple déclencheur/action n'a aucune identité", () => {
+    const identiteInconnue = () =>
+      identiteDeRegle("commande.creee", "digest.stock-bas")
+
+    expect(identiteInconnue).toThrow(IdentiteRegleInconnueError)
+    expect(identiteInconnue).toThrow(
+      "Aucune identité de Règle par défaut pour « digest.stock-bas » déclenchée par « commande.creee »"
+    )
+  })
+})
+
+describe("l'invariant du fait et de la conséquence durable", () => {
+  it("n'écrit un fait que si au moins une conséquence est durable, pour chaque genre dérivé", () => {
+    for (const genre of GENRES_DERIVES) {
+      const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
+      expect(plan.faits.length > 0, genre).toBe(
+        plan.consequences.some((consequence) => consequence.durable)
+      )
+    }
+  })
+})
+
 describe("chaque conséquence durable a exactement une Règle par déclencheur", () => {
   it("aucune conséquence non durable n'en a", () => {
     const regles = reglesParDefaut()
 
-    for (const genre of GENRES_MIGRES) {
+    for (const genre of GENRES_DERIVES) {
       const plan = declarerApresEcriture(genre, FAITS_POUR_REGLES[genre] ?? {})
       const declencheur = plan.faits[0]?.declencheur ?? genre
       for (const consequence of plan.consequences) {
