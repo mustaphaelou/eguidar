@@ -127,7 +127,7 @@ function destinataireDuProprietaire(contexte: ContexteAction): string {
 }
 
 async function evenementCatalogue(
-  payload: z.infer<typeof payloadProduit>
+  payload: z.infer<typeof CHARGES_PAR_DECLENCHEUR["produit.enregistre"]>
 ): Promise<CatalogueEventProduct> {
   const lecture = await lireStructure()
   const previousSlug =

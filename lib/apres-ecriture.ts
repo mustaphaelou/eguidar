@@ -90,7 +90,7 @@ export const IDENTIFIANT_LOT = "lot"
 const commandeCreee: Declaration = (f) => ({
   faits: [
     fait("commande.creee", "commande", String(f.commandeId), {
-      snapshot: f.snapshot,
+      snapshot: f.snapshot as never,
     }),
   ],
   consequences: [
@@ -160,8 +160,8 @@ const commandeStatutChangee: Declaration = (f) => {
   return {
     faits: [
       fait("commande.statut.changee", "commande", String(f.commandeId), {
-        snapshot: f.snapshot,
-        statut: f.statut,
+        snapshot: f.snapshot as never,
+        statut: f.statut as never,
       }),
     ],
     consequences,
@@ -221,12 +221,12 @@ const produitEnregistre: Declaration = (f) => {
   return {
     faits: [
       fait("produit.enregistre", "produit", String(f.produitId), {
-        produitId: f.produitId,
-        slug: f.slug,
-        slugPrecedent: f.slugPrecedent ?? null,
-        categoryId: f.categoryId ?? null,
-        categoryIdPrecedent: f.categoryIdPrecedent ?? null,
-        imagesRetirees: removed,
+        produitId: f.produitId as never,
+        slug: (f.slug ?? "") as never,
+        slugPrecedent: (f.slugPrecedent ?? null) as never,
+        categoryId: (f.categoryId ?? null) as never,
+        categoryIdPrecedent: (f.categoryIdPrecedent ?? null) as never,
+        imagesRetirees: removed as never,
       }),
     ],
     consequences,
@@ -270,12 +270,12 @@ const produitEnregistreLot: Declaration = (f) => {
   return {
     faits: produits.map((p) =>
       fait("produit.enregistre", "produit", p.id, {
-        produitId: p.id,
-        slug: p.slug,
-        slugPrecedent: p.slugPrecedent,
-        categoryId: p.categoryId,
-        categoryIdPrecedent: p.categoryIdPrecedent,
-        imagesRetirees: p.imagesRetirees,
+        produitId: p.id as never,
+        slug: (p.slug ?? "") as never,
+        slugPrecedent: (p.slugPrecedent ?? null) as never,
+        categoryId: (p.categoryId ?? null) as never,
+        categoryIdPrecedent: (p.categoryIdPrecedent ?? null) as never,
+        imagesRetirees: (p.imagesRetirees ?? []) as never,
       })
     ),
     consequences,
@@ -290,10 +290,10 @@ const produitSupprime: Declaration = (f) => {
   return {
     faits: [
       fait("produit.supprime", "produit", String(f.produitId), {
-        produitId: f.produitId,
-        slug: f.slug,
-        categoryId: f.categoryId ?? null,
-        imagesRetirees: urls,
+        produitId: f.produitId as never,
+        slug: (f.slug ?? "") as never,
+        categoryId: (f.categoryId ?? null) as never,
+        imagesRetirees: urls as never,
       }),
     ],
     consequences: [
@@ -343,10 +343,10 @@ const produitSupprimeLot: Declaration = (f) => {
   return {
     faits: produits.map((produit) =>
       fait("produit.supprime", "produit", produit.id, {
-        produitId: produit.id,
-        slug: produit.slug,
-        categoryId: produit.categoryId ?? null,
-        imagesRetirees: produit.images,
+        produitId: produit.id as never,
+        slug: (produit.slug ?? "") as never,
+        categoryId: (produit.categoryId ?? null) as never,
+        imagesRetirees: (produit.images ?? []) as never,
       })
     ),
     consequences: [
@@ -381,7 +381,7 @@ const produitSupprimeLot: Declaration = (f) => {
 const varianteStockChangee: Declaration = (f) => ({
   faits: [
     fait("variante.stock.changee", "produit", String(f.produitId), {
-      produitId: f.produitId,
+      produitId: f.produitId as never,
     }),
   ],
   consequences: [
@@ -403,7 +403,7 @@ const varianteStockChangee: Declaration = (f) => ({
 const structureCreee: Declaration = (f) => ({
   faits: [
     fait("structure.creee", "categorie", String(f.categorieId), {
-      categorieId: f.categorieId,
+      categorieId: f.categorieId as never,
     }),
   ],
   consequences: [
@@ -459,9 +459,9 @@ const structureModifiee: Declaration = (f) => {
   return {
     faits: [
       fait("structure.modifiee", "categorie", String(f.categorieId), {
-        categorieId: f.categorieId,
-        imagesRetirees: imagesRetireesModifiee,
-        destinations: destinationsModifiee,
+        categorieId: f.categorieId as never,
+        imagesRetirees: imagesRetireesModifiee as never,
+        destinations: destinationsModifiee as never,
       }),
     ],
     consequences,
@@ -548,9 +548,9 @@ const structureSupprimee: Declaration = (f) => {
   return {
     faits: [
       fait("structure.supprimee", "categorie", String(f.categorieId), {
-        categorieId: f.categorieId,
-        imagesRetirees: imagesRetireesSupprimee,
-        destinations: destinationsSupprimee,
+        categorieId: f.categorieId as never,
+        imagesRetirees: imagesRetireesSupprimee as never,
+        destinations: destinationsSupprimee as never,
       }),
     ],
     consequences,

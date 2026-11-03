@@ -4,7 +4,6 @@ import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import {
   CHARGES_PAR_DECLENCHEUR,
   TYPE_ENTITE_PAR_DECLENCHEUR,
-  type TypeEvenementAutomation,
 } from "@/lib/automations/charge"
 
 /**

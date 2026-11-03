@@ -551,6 +551,7 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
     ])
     const plan = declarerApresEcriture("produit.enregistre", {
       produitId: PRODUIT,
+      slug: SLUG,
       imagesRetirees: ["https://cdn.example.test/retiree.jpg"],
     })
     const actionsDurables = actions(plan).sort()
@@ -580,6 +581,7 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
   it("ne crée aucune Règle pour les conséquences non durables", () => {
     const plan = declarerApresEcriture("produit.enregistre", {
       produitId: PRODUIT,
+      slug: SLUG,
       imagesRetirees: ["https://cdn.example.test/retiree.jpg"],
     })
     const nonDurables = plan.consequences.filter(
