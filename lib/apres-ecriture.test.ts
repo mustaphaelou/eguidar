@@ -243,7 +243,7 @@ describe("la déclaration de produit.supprime", () => {
       produitId: PRODUIT,
       slug: SLUG,
       categoryId: "structure",
-      images: ["https://cdn.example.test/a.jpg"],
+      imagesRetirees: ["https://cdn.example.test/a.jpg"],
     })
 
     expect(effets(plan)).toEqual([
