@@ -1,7 +1,14 @@
 {
   "nom": "main-protection",
   "branche": "refs/heads/main",
-  "contextes": ["build", "format", "lint", "test", "typecheck"],
+  "contextes": [
+    "build",
+    "dependency-review",
+    "format",
+    "lint",
+    "test",
+    "typecheck"
+  ],
   "exigeBrancheAJour": true,
   "suspendLExigenceALaCreation": false,
   "pullRequestRequise": true,

@@ -20,7 +20,14 @@ const SOURCE = "infra/porte-de-fusion.json"
 
 const NOM_DU_CONTRAT = "main-protection"
 
-const CONTEXTES = ["build", "format", "lint", "test", "typecheck"]
+const CONTEXTES = [
+  "build",
+  "dependency-review",
+  "format",
+  "lint",
+  "test",
+  "typecheck",
+]
 
 const CONTRAT: PorteDeFusion = {
   nom: NOM_DU_CONTRAT,
@@ -152,7 +159,7 @@ describe("le refus d'un contrat malformé, clé par clé", () => {
 describe("la comparaison des contextes aux jobs, sans réseau", () => {
   const porte = analyserLaPorteDeFusion(contrat(), SOURCE)
 
-  it("ne trouve aucun écart quand les jobs fournissent les cinq contextes", () => {
+  it("ne trouve aucun écart quand les jobs fournissent les six contextes", () => {
     expect(comparerLesContextesDeLaPorte(porte, [...porte.contextes])).toEqual({
       nonExigés: [],
       sansJob: [],
@@ -235,15 +242,14 @@ describe("la comparaison de la porte aux faits vivants", () => {
   })
 
   it("nomme les contextes qui diffèrent, dans l'ordre trié", () => {
+    const sansFormat = CONTEXTES.filter((contexte) => contexte !== "format")
+
     expect(
-      comparerLaPorteAuxFaits(
-        porte,
-        faits({ contextes: ["build", "lint", "test", "typecheck"] })
-      )
+      comparerLaPorteAuxFaits(porte, faits({ contextes: sansFormat }))
     ).toContainEqual({
       fait: "contextes exigés",
-      attendu: "build, format, lint, test, typecheck",
-      trouve: "build, lint, test, typecheck",
+      attendu: CONTEXTES.join(", "),
+      trouve: sansFormat.join(", "),
     })
   })
 
@@ -356,10 +362,10 @@ describe("les faits de politique du contrat versionné", () => {
     ).toBe("refs/heads/main")
   })
 
-  it("requiert exactement les cinq contextes, triés", () => {
+  it("requiert exactement les six contextes, triés", () => {
     expect(
       porte.contextes,
-      "le contrat doit garder exactement les cinq contextes triés : build, format, lint, test, typecheck. Ce test est leur seul propriétaire."
+      "le contrat doit garder exactement les six contextes triés : build, dependency-review, format, lint, test, typecheck. Ce test est leur seul propriétaire."
     ).toEqual(CONTEXTES)
   })
 
@@ -387,7 +393,7 @@ describe("les faits de politique du contrat versionné", () => {
   it("n'exige aucune revue", () => {
     expect(
       porte.revueRequise,
-      "le contrat doit garder `revueRequise: false` : la porte se prouve par les cinq statuts, sans approbation supplémentaire."
+      "le contrat doit garder `revueRequise: false` : la porte se prouve par les six statuts, sans approbation supplémentaire."
     ).toBe(false)
   })
 
@@ -407,7 +413,7 @@ describe("le contrat et les jobs du flux s'accordent dans les deux sens", () => 
     expect(() => exigerLAccord(porte, jobs)).not.toThrow()
   })
 
-  it("échoue sur un sixième job, en nommant le contrat, le contexte et le correctif", () => {
+  it("échoue sur un septième job, en nommant le contrat, le contexte et le correctif", () => {
     const porte = lireLaPorteDeFusion()
     const jobs = [...lireLesJobs().keys(), "sonde"]
 
@@ -422,6 +428,19 @@ describe("le contrat et les jobs du flux s'accordent dans les deux sens", () => 
 
     expect(() => exigerLAccord(porte, jobs)).toThrow(
       `Le contrat « main-protection » (${SOURCE}) exige le contexte « format » qu'aucun job du flux ne fournit : retirez « format » de \`contextes\`, ou ajoutez un job nommé « format » au flux.`
+    )
+  })
+
+  it("échoue quand le contrat retire dependency-review, en le nommant", () => {
+    const porte = {
+      ...lireLaPorteDeFusion(),
+      contextes: CONTEXTES.filter(
+        (contexte) => contexte !== "dependency-review"
+      ),
+    }
+
+    expect(() => exigerLAccord(porte, [...lireLesJobs().keys()])).toThrow(
+      `Le contrat « main-protection » (${SOURCE}) n'exige pas le job « dependency-review » : ajoutez « dependency-review » à \`contextes\`, ou retirez le job du flux.`
     )
   })
 

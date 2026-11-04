@@ -6,14 +6,16 @@ export const DEPOT = "mustaphaelou/eguidar"
 
 export const API = `https://api.github.com/repos/${DEPOT}/rulesets`
 
-// L'ordre que l'API rend aujourd'hui, différent du contrat trié : la lecture ne
-// réordonne rien, la comparaison traite les contextes comme un ensemble.
+// L'ordre que l'API rend, différent du contrat trié : la lecture ne réordonne
+// rien, la comparaison traite les contextes comme un ensemble. Ces faits
+// décrivent le ruleset une fois le sixième contexte ajouté.
 export const CONTEXTES_VIVANTS = [
   "lint",
   "format",
   "typecheck",
   "test",
   "build",
+  "dependency-review",
 ]
 
 export type ReponseHttp = {

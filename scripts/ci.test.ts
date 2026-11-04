@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 
+import { load } from "js-yaml"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -191,5 +192,61 @@ describe("le job de build éprouve l'artefact de déploiement", () => {
       JOBS.get("build")?.["timeout-minutes"],
       "le job « build » ne porte pas de `timeout-minutes` : une couche Docker bloquée peut retenir le runner sans fin."
     ).toBe(20)
+  })
+})
+
+const CONDITION_DEPENDENCY_REVIEW = "github.event_name == 'pull_request'"
+
+const SOURCE_DU_FLUX = readFileSync(FLUX, "utf8")
+
+const FLUX_COMPLET = load(SOURCE_DU_FLUX) as Record<string, unknown>
+
+describe("le job de dependency-review", () => {
+  it("est la dernière tâche du flux", () => {
+    expect([...JOBS.keys()].at(-1)).toBe("dependency-review")
+  })
+
+  it("ne s'exécute que sur les pull requests", () => {
+    expect(JOBS.get("dependency-review")?.if).toBe(CONDITION_DEPENDENCY_REVIEW)
+  })
+
+  it("court sur ubuntu-latest, borné à dix minutes", () => {
+    const job = JOBS.get("dependency-review")
+
+    expect(job?.["runs-on"]).toBe("ubuntu-latest")
+    expect(job?.["timeout-minutes"]).toBe(10)
+  })
+
+  it("enchaîne exactement checkout puis l'action, dans cet ordre", () => {
+    expect(etapesDe("dependency-review").map((etape) => etape.uses)).toEqual([
+      "actions/checkout@v7",
+      "actions/dependency-review-action@v5",
+    ])
+  })
+
+  it("juge la différence de dépendances aux seuils décidés", () => {
+    const revue = etapesDe("dependency-review").find((etape) =>
+      utiliseAction(etape, "actions/dependency-review-action")
+    )
+
+    expect(revue?.with).toMatchObject({
+      "fail-on-severity": "high",
+      "fail-on-scopes": "runtime",
+    })
+  })
+
+  it("ne porte aucune commande `run:`, et ne rend aucun check npm", () => {
+    expect(
+      etapesDe("dependency-review").filter((etape) => "run" in etape)
+    ).toEqual([])
+    expect(PAR_JOB.get("dependency-review")).toEqual([])
+  })
+
+  it("n'ajoute ni permission ni commentaire de résumé", () => {
+    expect(JOBS.get("dependency-review")?.permissions).toBeUndefined()
+    expect(FLUX_COMPLET).toMatchObject({ permissions: { contents: "read" } })
+    expect(SOURCE_DU_FLUX).not.toMatch(
+      /security-events:|pull-requests:|comment-summary-in-pr/
+    )
   })
 })
