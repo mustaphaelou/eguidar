@@ -237,14 +237,43 @@ describe("le docteur sur un ruleset vivant", () => {
 
     expect(code).toBe(1)
     expect(sortie).toContain("dérivé")
+    const sansFormat = CONTEXTES_VIVANTS.filter(
+      (context) => context !== "format"
+    ).sort()
+
     expect(sortie).toContain(
-      "« contextes exigés » : attendu « build, format, lint, test, typecheck », trouvé « build, lint, test, typecheck »."
+      `« contextes exigés » : attendu « ${CONTRAT.contextes.join(", ")} », trouvé « ${sansFormat.join(", ")} ».`
     )
     expect(sortie).toContain(
       "« exigence suspendue à la création » : attendu « non », trouvé « oui »."
     )
     expect(sortie).toContain(
       "« pull request requise » : attendu « oui », trouvé « non »."
+    )
+  })
+
+  it("sort 1 et nomme dependency-review tant que le ruleset vivant dit cinq", async () => {
+    const cinq = CONTEXTES_VIVANTS.filter(
+      (context) => context !== "dependency-review"
+    ).sort()
+
+    const serveur = fauxServeur(ok([resume(1, "main-protection")]), {
+      1: ok(
+        ruleset({
+          rules: [
+            regleStatuts({
+              required_status_checks: cinq.map((context) => ({ context })),
+            }),
+          ],
+        })
+      ),
+    })
+
+    const { code, sortie } = await lancer(serveur)
+
+    expect(code).toBe(1)
+    expect(sortie).toContain(
+      `« contextes exigés » : attendu « ${CONTRAT.contextes.join(", ")} », trouvé « ${cinq.join(", ")} ».`
     )
   })
 
