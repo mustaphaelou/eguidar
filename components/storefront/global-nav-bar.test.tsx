@@ -159,6 +159,55 @@ describe("GlobalNavBar", () => {
     expect(errors).toEqual([])
   })
 
+  it("rend les catégories dans la barre et les déplie sur mobile", () => {
+    const categories = [
+      { name: "Smartphones", slug: "smartphones" },
+      { name: "Ordinateurs & Tablettes", slug: "ordinateurs-tablettes" },
+    ]
+    const errors = renderCapturingErrors(
+      <GlobalNavBar categories={categories} />
+    )
+
+    expect(
+      container.querySelector("nav[aria-label='Catégories']")
+    ).not.toBeNull()
+    expect(
+      container.querySelector("a[href='/categorie/smartphones']")
+    ).not.toBeNull()
+
+    const menu = container.querySelector<HTMLButtonElement>(
+      "button[aria-label='Ouvrir les catégories']"
+    )!
+    expect(menu.getAttribute("aria-expanded")).toBe("false")
+    expect(menu.getAttribute("aria-controls")).toBe("menu-categories")
+    expect(
+      container.querySelector("#menu-categories")?.hasAttribute("hidden")
+    ).toBe(true)
+
+    act(() => menu.click())
+
+    expect(menu.getAttribute("aria-expanded")).toBe("true")
+    expect(menu.getAttribute("aria-label")).toBe("Fermer les catégories")
+    expect(
+      container.querySelector("#menu-categories")?.hasAttribute("hidden")
+    ).toBe(false)
+    expect(document.activeElement).toBe(
+      container.querySelector(
+        "#menu-categories a[href='/categorie/smartphones']"
+      )
+    )
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+
+    expect(menu.getAttribute("aria-expanded")).toBe("false")
+    expect(document.activeElement).toBe(menu)
+    expect(errors).toEqual([])
+  })
+
   it("ne porte ni Connexion, ni profil, ni Déconnexion", () => {
     renderCapturingErrors(<GlobalNavBar />)
 
