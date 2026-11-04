@@ -245,7 +245,7 @@ Les images produits sont envoyées vers Cloudflare R2 via des URLs pré-signées
 
 ## Qualité
 
-Les cinq checks de la CI — `lint`, `format`, `typecheck`, `test`, `build` — s'exécutent d'un coup, dans l'ordre du flux :
+Les cinq checks npm de la CI — `lint`, `format`, `typecheck`, `test`, `build` — s'exécutent d'un coup, dans l'ordre du flux :
 
 ```bash
 bash scripts/checks.sh
@@ -262,7 +262,7 @@ npm run test:watch
 
 ### La Porte de fusion
 
-`main` n'accepte une fusion que par une pull request dont les cinq contextes requis sont verts et dont la branche est à jour. Cette **Porte de fusion** est un contrat versionné, `infra/porte-de-fusion.json` : les contextes `build`, `format`, `lint`, `test`, `typecheck` — triés —, une pull request exigée, une branche à jour avec `main`, aucune revue exigée et aucun contournement. Le contrat est la source de vérité, même quand GitHub ne peut pas l'appliquer.
+`main` n'accepte une fusion que par une pull request dont les six contextes requis sont verts et dont la branche est à jour. Cette **Porte de fusion** est un contrat versionné, `infra/porte-de-fusion.json` : les contextes `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` — triés —, une pull request exigée, une branche à jour avec `main`, aucune revue exigée et aucun contournement. Le contrat est la source de vérité, même quand GitHub ne peut pas l'appliquer.
 
 Un test pur compare ce contrat aux noms de jobs de `.github/workflows/ci.yml`, dans les deux sens, à chaque passage de `npm test` : ajouter un job sans l'exiger, ou exiger un contexte qu'aucun job ne fournit, rend la CI rouge en nommant le contrat, le contexte et le correctif.
 
@@ -536,7 +536,7 @@ Ses neuf phases, dans l’ordre : preflight, secrets (ni `DATABASE_URL` dans l�
 | `npx prisma migrate dev` | Applique les migrations |
 | `npx prisma db seed` | Données de démo (idempotent) |
 | `npm run porte:verifier` | Docteur local de la Porte de fusion (0 conforme, 1 dérive, 2 illisible) |
-| `bash scripts/checks.sh` | Les cinq checks de la CI, dans l'ordre |
+| `bash scripts/checks.sh` | Les cinq checks npm de la CI, dans l'ordre |
 | `bash scripts/setup-providers.sh` | Assistant Turnstile, R2, CORS et Cache Rules |
 | `bash scripts/verifier-image-deploiement.sh` | Sonde des images `runner` et `migrate` |
 

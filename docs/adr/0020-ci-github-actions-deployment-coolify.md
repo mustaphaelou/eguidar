@@ -10,12 +10,13 @@ in GitHub Actions, while continuous deployment stays with the machinery that alr
 
 ## Decision
 
-- **Continuous integration lives in one GitHub Actions workflow** with five parallel jobs —
-  `lint`, `format`, `typecheck`, `test`, `build` — run on every pull request targeting `main`
-  and every push to `main`. Each job invokes the existing repository script verbatim; the job
-  names are the required status checks.
+- **Continuous integration lives in one GitHub Actions workflow** with six jobs —
+  `lint`, `format`, `typecheck`, `test`, `build`, `dependency-review` — run on every pull request
+  targeting `main` and every push to `main`, except `dependency-review`, which runs only on pull
+  requests. Each check job invokes the existing repository script verbatim; `dependency-review` is
+  made of actions and carries no command. The job names are the required status checks.
 - **A ruleset on `main` makes green checks a precondition to merge**: pull request required, the
-  five checks required, branch required to be up to date with `main`, no review requirement, no
+  six checks required, branch required to be up to date with `main`, no review requirement, no
   bypass. Enforcement is enabled only after the workflow's first fully green run.
 - **The ruleset requires exactly the checks the workflow declares, and a test says so.**
   `scripts/registre-des-checks/` reads the live ruleset from inside the `test` job, compares it
@@ -58,7 +59,7 @@ in GitHub Actions, while continuous deployment stays with the machinery that alr
 - **CI requires no repository secrets or variables**; it can only read the repository.
 - **Coolify's deploy behaviour is unchanged** — webhook on every push to `main`, Dockerfile
   build, `migrate` before the app — so shipping CI cannot change how the site is deployed.
-- **`main` only accepts changes through a pull request** whose five checks are green and whose
+- **`main` only accepts changes through a pull request** whose six checks are green and whose
   branch is up to date with `main`.
 - **Failures surface through GitHub's built-in notifications**; no external webhook or secret
   reports them.
@@ -278,3 +279,104 @@ Deliberately adding a sixth job or flipping a policy fact fails that test with t
 in the message. `npm run porte:verifier` exits `0` when the live ruleset matches; the `2` path is
 fixture-tested for `403`/`404`, exhausted retries, a missing token and several candidates, and
 names the plan-or-visibility remedy.
+
+## Amendment — A sixth gate judges the dependency difference of a pull request (#903, 2026-11-04)
+
+Unlike the earlier amendments, this one rewrites three sentences of **Decision** and **Invariants**
+that counted the gate at five, plus one consequence sentence the sixth job breaks. The count is a
+fact of the gate, not the record of a past decision, so leaving it in place would leave the ADR
+describing a gate it no longer has; all four are quoted verbatim below. The earlier amendments keep
+their five, which was true when they were written, and this amendment names their count as
+superseded.
+
+**The decision: a sixth gate, `dependency-review`, and an after-merge owner for dependency watch.**
+
+- **The gate judges one fact: the dependency difference of the pull request.** The sixth job,
+  `dependency-review`, sits last in the single workflow and runs only when
+  `github.event_name == 'pull_request'`. It cannot go red one morning over code nobody touched,
+  because it compares the base to the head of the pull request in front of it. It runs
+  `actions/checkout@v7`, then `actions/dependency-review-action@v5` with
+  `fail-on-severity: high` and `fail-on-scopes: runtime`. A high-severity advisory in the runtime
+  scope fails; development-scope advisories, the license check and unknown scopes stay out. A pull
+  request that touches no manifest passes without noise, and a fork pull request is judged too.
+- **The job is made of actions, and the reader learns it.** No step of `dependency-review` carries a
+  `run:` command — a first in this workflow. `exigerDesJobsLus` therefore accepts a job whose steps
+  carry at least one command **or** one action, and refuses a job with no step, or with no command
+  and no action, by naming it; the message says « commande ou action ». `checksParJob` returns an
+  empty list for an action-only job, so `bash scripts/checks.sh` still runs the same five npm
+  checks and the manifest-to-workflow comparison stays green.
+- **No secret, no extra permission, no summary comment.** The workflow keeps
+  `permissions: contents: read`; the job adds none, and `security-events: write` appears nowhere.
+  `comment-summary-in-pr` stays off, because commenting would require `pull-requests: write`. The
+  license check stays active and inert: with no `allow-licenses`, the action cannot fail on a
+  license, and no license list is chosen here.
+- **The contract, the glossary and the doctor say six.** `infra/porte-de-fusion.json` requires
+  `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck`, sorted; the contract test
+  remains the single owner of that list. The **Porte de fusion** entry of `GLOSSARY.md` says six,
+  and a new **Défense du dépôt** entry records the concern. The doctor's fixtures and messages
+  carry six contexts.
+- **The after-merge watch has an owner, and it is not a gate.** `dependabot.yml` gains `npm` and
+  `docker` (#907), grouped into one pull request per ecosystem per run, still weekly. No scheduled
+  job, no third-party action, no secret: Dependabot alerts already carry the after-merge signal.
+- **A gate can only require a fact of code; a fact of the world is observed, it does not freeze a
+  merge.** That principle is why the watch is not a gate, and why the gate is only the dependency
+  difference of the pull request in front of it.
+
+**The three sentences this amendment replaces, verbatim.**
+
+- **Decision** — "Continuous integration lives in one GitHub Actions workflow with five parallel
+  jobs — `lint`, `format`, `typecheck`, `test`, `build` — run on every pull request targeting
+  `main` and every push to `main`." — now six jobs, `dependency-review` last and pull-request-only.
+- **Decision** — "A ruleset on `main` makes green checks a precondition to merge: pull request
+  required, the five checks required, branch required to be up to date with `main`, no review
+  requirement, no bypass." — now the six checks.
+- **Invariants** — "`main` only accepts changes through a pull request whose five checks are green
+  and whose branch is up to date with `main`." — now six.
+
+One further sentence is rewritten because the sixth job breaks its premise, though it carries no
+count:
+
+- **Decision** — "Each job invokes the existing repository script verbatim" — becomes "Each check
+  job invokes the existing repository script verbatim; `dependency-review` is made of actions and
+  carries no command."
+
+The earlier amendments' "five jobs / five required status contexts remain … No sixth job, no sixth
+context" bullets, and their "whose five checks are green" sentences, are superseded the same way.
+They are kept as the record of the decisions they belonged to, not as the current count.
+
+**The application sequence, and why the doctor exits `1` in between.**
+
+- The pull request that carries the sixth gate merges while the live ruleset still requires five:
+  it carries the first green `dependency-review` run itself, so the gate is proven before it is
+  required.
+- Only then is the sixth context added to the live ruleset `23223443`, by hand, as a separate
+  explicit action. No `PUT` is emitted by CI.
+- Between the merge and that update, `npm run porte:verifier` exits `1` and names the missing
+  context. That is expected — not a failure and not an oversight: the doctor is honest about the
+  drift until the ruleset catches up. It exits `0` after.
+
+**A fact to verify, not a fact established.** The API reports
+`secret_scanning.push_protection: disabled` and `dependabot_security_updates: disabled` on this
+public repository, while GitHub's documentation says both are on by default for public
+repositories. The Settings → Code security page is the only authority. This amendment records the
+contradiction as a fact to check; it changes no repository setting.
+
+**What this amendment does not change.**
+
+- **Coolify's deploy behaviour** — webhook on every push to `main`, Dockerfile build, `migrate`
+  before the app — is untouched.
+- **CI still requires no repository secret or variable and can only read the repository.**
+- **The gate does not grow beyond the sixth context.** No second workflow, no reader over several
+  workflows, no out-of-gate job list in the contract. The other policy facts — pull request
+  required, branch up to date, no review, no bypass — are unchanged.
+- **No SHA pinning, no CodeQL, no image scan, no SBOM, no scheduled scan.** They stay out of scope.
+- **The development-scope advisories** (`shadcn` → `@shadcn/registry` → `deepmerge`) stay visible in
+  Dependabot and never in the gate.
+
+**How the claim is proven.** `bash scripts/checks.sh` is green, including the contract test that
+fails when a job is added without its context, or when `dependency-review` is removed from the
+contract. The job's wiring — condition, action version, the two thresholds, and the absence of
+`permissions:`, of `run:`, of `security-events: write` and of `comment-summary-in-pr` — is pinned by
+`scripts/ci.test.ts`. The red proof is a throwaway pull request pinning a runtime dependency with a
+high-severity advisory; the green proof is a pull request that touches no manifest. Neither stays in
+the tree. The live proof is the doctor exiting `1` before the manual ruleset update and `0` after.
