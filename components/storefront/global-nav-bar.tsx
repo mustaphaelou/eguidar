@@ -13,6 +13,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/storefront/logo"
 import { SearchSuggestions } from "@/components/storefront/search-suggestions"
+import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import { site } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { ID_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
@@ -79,7 +80,12 @@ export function GlobalNavBar({
           "voile-depoli filet-bas [--voile-depoli-opacite:80%]"
       )}
     >
-      <div className="relative z-20 mx-auto flex h-11 max-w-[1024px] items-center justify-between gap-4 px-4 sm:px-[22px]">
+      <div
+        className={cn(
+          CONTENEUR_BOUTIQUE,
+          "relative z-20 flex h-11 items-center justify-between gap-4"
+        )}
+      >
         <Link
           href="/"
           className="shrink-0"
@@ -132,11 +138,11 @@ export function GlobalNavBar({
       </div>
 
       {searchOpen ? (
-        <div className="voile-depoli border-b border-hairline px-4 [--voile-depoli-opacite:80%]">
+        <div className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]">
           <form
             method="GET"
             action="/recherche"
-            className="mx-auto flex max-w-[1024px] items-center gap-2 py-2"
+            className={cn(CONTENEUR_BOUTIQUE, "flex items-center gap-2 py-2")}
             onSubmit={() => setSearchOpen(false)}
           >
             <HugeiconsIcon
