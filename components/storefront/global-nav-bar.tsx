@@ -5,6 +5,7 @@ import Link from "next/link"
 
 import {
   Cancel01Icon,
+  Menu01Icon,
   Search01Icon,
   ShoppingBag01Icon,
 } from "@hugeicons/core-free-icons"
@@ -21,21 +22,28 @@ import { useApercuDuPanier } from "./apercu-du-panier-provider"
 import { ApercuDuPanierSurface } from "./apercu-du-panier-surface"
 
 export function GlobalNavBar({
+  categories = [],
   panierBadge,
   apercuCorps,
 }: {
+  categories?: readonly { name: string; slug: string }[]
   panierBadge?: React.ReactNode
   apercuCorps?: React.ReactNode
 }) {
   const { ouvert, basculer, fermer } = useApercuDuPanier()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [mouvementDuPanier, setMouvementDuPanier] = useState<{
     sens: "ouverture" | "fermeture"
     cle: number
   } | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const panierRef = useRef<HTMLButtonElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuPanelRef = useRef<HTMLDivElement>(null)
+
+  const aUneNavigation = categories.length > 0
 
   const fermerLApercu = useCallback(() => {
     setMouvementDuPanier((precedent) => ({
@@ -48,6 +56,7 @@ export function GlobalNavBar({
 
   function basculerLApercu() {
     setSearchOpen(false)
+    setMenuOpen(false)
     if (ouvert) {
       fermerLApercu()
       return
@@ -69,6 +78,26 @@ export function GlobalNavBar({
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus()
   }, [searchOpen])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    menuPanelRef.current
+      ?.querySelector<HTMLAnchorElement>("a")
+      ?.focus({ preventScroll: true })
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (!menuOpen) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return
+      setMenuOpen(false)
+      menuButtonRef.current?.focus({ preventScroll: true })
+    }
+
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [menuOpen])
 
   return (
     <header
@@ -94,7 +123,54 @@ export function GlobalNavBar({
           <Logo />
         </Link>
 
+        {aUneNavigation ? (
+          <nav
+            aria-label="Catégories"
+            className="hidden min-w-0 flex-1 items-center justify-center lg:flex"
+          >
+            <ul className="flex items-center gap-6">
+              {categories.map((categorie) => (
+                <li key={categorie.slug}>
+                  <Link
+                    href={`/categorie/${categorie.slug}`}
+                    className="text-[12px] leading-[1.3334] tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {categorie.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ) : null}
+
         <div className="flex shrink-0 items-center gap-0.5">
+          {aUneNavigation ? (
+            <Button
+              ref={menuButtonRef}
+              variant="ghost"
+              size="icon"
+              aria-label={
+                menuOpen ? "Fermer les catégories" : "Ouvrir les catégories"
+              }
+              aria-expanded={menuOpen}
+              aria-controls="menu-categories"
+              className="lg:hidden"
+              onClick={() => {
+                if (!menuOpen) {
+                  setSearchOpen(false)
+                  fermer()
+                }
+                setMenuOpen(!menuOpen)
+              }}
+            >
+              <span className="flex items-center justify-center group-active/button:duration-[100ms] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out motion-safe:group-active/button:scale-90">
+                <HugeiconsIcon
+                  icon={menuOpen ? Cancel01Icon : Menu01Icon}
+                  strokeWidth={2}
+                />
+              </span>
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"
@@ -102,7 +178,10 @@ export function GlobalNavBar({
             aria-expanded={searchOpen}
             className={cn(searchOpen && "text-link hover:text-link")}
             onClick={() => {
-              if (!searchOpen) fermer()
+              if (!searchOpen) {
+                fermer()
+                setMenuOpen(false)
+              }
               setSearchOpen(!searchOpen)
             }}
           >
@@ -136,6 +215,34 @@ export function GlobalNavBar({
           </Button>
         </div>
       </div>
+
+      {aUneNavigation ? (
+        <div
+          ref={menuPanelRef}
+          id="menu-categories"
+          hidden={!menuOpen}
+          className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%] lg:hidden"
+        >
+          <nav
+            aria-label="Catégories"
+            className={cn(CONTENEUR_BOUTIQUE, "py-1")}
+          >
+            <ul className="flex flex-col">
+              {categories.map((categorie) => (
+                <li key={categorie.slug}>
+                  <Link
+                    href={`/categorie/${categorie.slug}`}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex min-h-11 items-center text-[15px] leading-[1.3334] tracking-[-0.01em] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {categorie.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+      ) : null}
 
       {searchOpen ? (
         <div className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]">
