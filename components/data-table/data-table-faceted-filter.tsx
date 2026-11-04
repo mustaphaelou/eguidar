@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { type Column } from "@tanstack/react-table"
+import { type Column, type RowData } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { CirclePlusIcon, Tick02Icon } from "@hugeicons/core-free-icons"
 
@@ -13,19 +13,21 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
+import type { DataTableFeatures } from "./data-table-features"
+
 export type DataTableFacetedFilterOption = {
   label: string
   value: string
   icon?: React.ComponentType<{ className?: string }>
 }
 
-type DataTableFacetedFilterProps<TData, TValue> = {
-  column?: Column<TData, TValue>
+type DataTableFacetedFilterProps<TData extends RowData, TValue> = {
+  column?: Column<DataTableFeatures, TData, TValue>
   title?: string
   options: DataTableFacetedFilterOption[]
 }
 
-function DataTableFacetedFilter<TData, TValue>({
+function DataTableFacetedFilter<TData extends RowData, TValue>({
   column,
   title,
   options,

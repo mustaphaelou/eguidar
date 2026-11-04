@@ -1,7 +1,7 @@
 "use client"
 
 import { useId } from "react"
-import { type Table } from "@tanstack/react-table"
+import { type ReactTable, type RowData } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons"
 
@@ -13,6 +13,7 @@ import {
   DataTableFacetedFilter,
   type DataTableFacetedFilterOption,
 } from "./data-table-faceted-filter"
+import type { DataTableFeatures } from "./data-table-features"
 import {
   DataTableStatus,
   type DataTableStatusLabels,
@@ -25,8 +26,8 @@ export type DataTableToolbarFilter = {
   options: DataTableFacetedFilterOption[]
 }
 
-export type DataTableToolbarProps<TData> = {
-  table: Table<TData>
+export type DataTableToolbarProps<TData extends RowData> = {
+  table: ReactTable<DataTableFeatures, TData>
   searchPlaceholder?: string
   /** Le nom accessible du champ de recherche ; le placeholder ne suffit pas. */
   searchLabel?: string
@@ -39,7 +40,7 @@ export type DataTableToolbarProps<TData> = {
   className?: string
 }
 
-function DataTableToolbar<TData>({
+function DataTableToolbar<TData extends RowData>({
   table,
   searchPlaceholder = "Filtrer…",
   searchLabel = "Rechercher dans la liste",
@@ -51,9 +52,9 @@ function DataTableToolbar<TData>({
 }: DataTableToolbarProps<TData>) {
   const idRecherche = useId()
   const isFiltered =
-    table.getState().columnFilters.length > 0 || !!table.getState().globalFilter
+    table.state.columnFilters.length > 0 || !!table.state.globalFilter
   const nombreSelectionne =
-    selectedCount ?? Object.keys(table.getState().rowSelection ?? {}).length
+    selectedCount ?? Object.keys(table.state.rowSelection ?? {}).length
 
   return (
     <div
@@ -76,7 +77,7 @@ function DataTableToolbar<TData>({
           <Input
             id={idRecherche}
             placeholder={searchPlaceholder}
-            value={(table.getState().globalFilter ?? "") as string}
+            value={(table.state.globalFilter ?? "") as string}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
             className="h-9 w-full ps-9"
           />

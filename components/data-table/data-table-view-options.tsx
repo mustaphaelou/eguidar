@@ -1,6 +1,6 @@
 "use client"
 
-import { type RowData, type Table } from "@tanstack/react-table"
+import { type ReactTable, type RowData } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SlidersHorizontalIcon } from "@hugeicons/core-free-icons"
 
@@ -14,20 +14,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-declare module "@tanstack/react-table" {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ColumnMeta<TData extends RowData, TValue> {
-    label?: string
-    /** Classes appliquées à l'en-tête et aux cellules, par exemple pour masquer une colonne sur mobile. */
-    className?: string
-  }
+import type { DataTableFeatures } from "./data-table-features"
+
+type DataTableViewOptionsProps<TData extends RowData> = {
+  table: ReactTable<DataTableFeatures, TData>
 }
 
-type DataTableViewOptionsProps<TData> = {
-  table: Table<TData>
-}
-
-function DataTableViewOptions<TData>({
+function DataTableViewOptions<TData extends RowData>({
   table,
 }: DataTableViewOptionsProps<TData>) {
   return (

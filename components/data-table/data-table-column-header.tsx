@@ -1,6 +1,6 @@
 "use client"
 
-import { type Column } from "@tanstack/react-table"
+import { type Column, type RowData } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
@@ -19,13 +19,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-type DataTableColumnHeaderProps<TData, TValue> = {
-  column: Column<TData, TValue>
+import type { DataTableFeatures } from "./data-table-features"
+
+type DataTableColumnHeaderProps<TData extends RowData, TValue> = {
+  column: Column<DataTableFeatures, TData, TValue>
   title: string
   className?: string
 }
 
-function DataTableColumnHeader<TData, TValue>({
+function DataTableColumnHeader<TData extends RowData, TValue>({
   column,
   title,
   className,

@@ -3,12 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from "@tanstack/react-table"
+import { flexRender, useTable, type ColumnDef } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Search01Icon } from "@hugeicons/core-free-icons"
 
@@ -18,6 +13,10 @@ import {
   type DataTableFacetedFilterOption,
 } from "@/components/data-table"
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+import {
+  dataTableFeatures,
+  type DataTableFeatures,
+} from "@/components/data-table/data-table-features"
 import { EmptyState } from "@/components/admin/empty-state"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
@@ -51,7 +50,7 @@ const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] =
 
 const dateFormatter = new Intl.DateTimeFormat("fr-MA", { dateStyle: "medium" })
 
-const columns: ColumnDef<AdminOrderSummary>[] = [
+const columns: ColumnDef<DataTableFeatures, AdminOrderSummary>[] = [
   {
     id: DATE_COLUMN_ID,
     accessorFn: (row) => row.createdAt.getTime(),
@@ -159,7 +158,8 @@ export function CommandesTable({
     },
   })
 
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: page.orders,
     columns,
     pageCount: page.pageCount,
@@ -179,7 +179,6 @@ export function CommandesTable({
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
-    getCoreRowModel: getCoreRowModel(),
   })
 
   const hasActiveCriteria = view.q.trim().length > 0 || view.statuses.length > 0

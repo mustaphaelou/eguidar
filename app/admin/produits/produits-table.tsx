@@ -6,8 +6,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   flexRender,
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type ColumnDef,
   type RowSelectionState,
 } from "@tanstack/react-table"
@@ -26,6 +25,10 @@ import {
   DataTableToolbar,
   type DataTableFacetedFilterOption,
 } from "@/components/data-table"
+import {
+  dataTableFeatures,
+  type DataTableFeatures,
+} from "@/components/data-table/data-table-features"
 import {
   AlertDialog,
   AlertDialogClose,
@@ -394,7 +397,7 @@ export function ProduitsTable({
     </div>
   )
 
-  const columns: ColumnDef<FaitsProduitListe>[] = [
+  const columns: ColumnDef<DataTableFeatures, FaitsProduitListe>[] = [
     {
       id: SELECTION_COLUMN_ID,
       enableSorting: false,
@@ -565,7 +568,8 @@ export function ProduitsTable({
     },
   ]
 
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: page.produits,
     columns,
     pageCount: page.pageCount,
@@ -599,7 +603,6 @@ export function ProduitsTable({
     manualFiltering: true,
     initialState: { columnVisibility: COLONNES_CACHEES },
     getRowId: (produit) => produit.id,
-    getCoreRowModel: getCoreRowModel(),
   })
 
   const hasActiveCriteria =
