@@ -1,6 +1,6 @@
 "use client"
 
-import { type Table } from "@tanstack/react-table"
+import { type ReactTable, type RowData } from "@tanstack/react-table"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowLeftDoubleIcon,
@@ -20,18 +20,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-type DataTablePaginationProps<TData> = {
-  table: Table<TData>
+import type { DataTableFeatures } from "./data-table-features"
+
+type DataTablePaginationProps<TData extends RowData> = {
+  table: ReactTable<DataTableFeatures, TData>
   pageSizeOptions?: readonly number[]
   className?: string
 }
 
-function DataTablePagination<TData>({
+function DataTablePagination<TData extends RowData>({
   table,
   pageSizeOptions = PAGE_SIZES,
   className,
 }: DataTablePaginationProps<TData>) {
-  const currentPage = table.getState().pagination.pageIndex + 1
+  const currentPage = table.state.pagination.pageIndex + 1
   const totalPages = table.getPageCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
 
@@ -47,7 +49,7 @@ function DataTablePagination<TData>({
           Lignes par page
         </p>
         <Select
-          value={String(table.getState().pagination.pageSize)}
+          value={String(table.state.pagination.pageSize)}
           onValueChange={(value) => table.setPageSize(Number(value))}
         >
           <SelectTrigger

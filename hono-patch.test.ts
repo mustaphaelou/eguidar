@@ -78,10 +78,13 @@ describe("satisfiesPatchFloor", () => {
 })
 
 describe("installed hono (GHSA-5r4p-p66f-jhc7, GHSA-gqvv-2mrq-wpjv, GHSA-g6gw-c38x-mqfc, GHSA-crvj-82cr-hjcx)", () => {
-  it("sits at or above the patch floor", () => {
+  it("sits at or above the patch floor when present in the tree", () => {
+    // shadcn 4.23 a remplacé @modelcontextprotocol/sdk, qui tirait hono :
+    // absent de l'arbre, aucun hono vulnérable ne peut être servi. L'override
+    // reste la borne si la dépendance revient.
     const version = installedHonoVersion()
-    expect(version, "hono not resolvable in the installed tree").not.toBeNull()
-    expect(satisfiesPatchFloor(version ?? "", HONO_PATCH_FLOOR)).toBe(true)
+    if (version === null) return
+    expect(satisfiesPatchFloor(version, HONO_PATCH_FLOOR)).toBe(true)
   })
 })
 
