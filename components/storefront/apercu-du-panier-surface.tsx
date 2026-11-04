@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react"
 
+import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
+import { cn } from "@/lib/utils"
+
 import {
   ID_APERCU_DU_PANIER,
   ID_TITRE_APERCU_DU_PANIER,
@@ -103,7 +106,12 @@ export function ApercuDuPanierSurface({
         tabIndex={-1}
         className="voile-depoli absolute inset-x-0 top-0 z-10 rounded-b-[28px] pt-11 shadow-2xl outline-none [--voile-depoli-flou:60px] [--voile-depoli-opacite:94%] [--voile-depoli-saturation:120%] max-lg:h-dvh max-lg:rounded-b-none"
       >
-        <div className="mx-auto max-h-[calc(100dvh-2.75rem)] max-w-[1024px] overflow-y-auto px-4 pt-6 pb-8 sm:px-[22px]">
+        <div
+          className={cn(
+            CONTENEUR_BOUTIQUE,
+            "max-h-[calc(100dvh-2.75rem)] overflow-y-auto pt-6 pb-8"
+          )}
+        >
           {children}
         </div>
       </div>

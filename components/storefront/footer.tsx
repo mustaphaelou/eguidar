@@ -4,7 +4,9 @@ import { DeliveryTruck02Icon, Money01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Logo } from "@/components/storefront/logo"
+import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import { site, staticPages } from "@/lib/site"
+import { cn } from "@/lib/utils"
 
 const shopLinks = [{ href: "/", label: "Accueil" }, ...staticPages]
 
@@ -43,7 +45,7 @@ function LinkColumn({
 export function StorefrontFooter() {
   return (
     <footer className="border-t border-border bg-muted">
-      <div className="mx-auto max-w-[980px] px-4 py-10 sm:px-[22px]">
+      <div className={cn(CONTENEUR_BOUTIQUE, "py-10")}>
         <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-3">
           <div>
             <Logo />
