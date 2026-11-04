@@ -646,12 +646,27 @@ erreur ; un renvoi le remet en attente. À distinguer de la file morte de travau
 porte les balayages du travailleur.
 _Avoid_: dead letter queue (comme nom du concept), DLQ
 
+**Défense du dépôt**:
+Le jugement de la différence de dépendances d'une pull request par une seule porte — la sixième,
+`dependency-review` —, plus la veille d'après-fusion confiée aux alertes Dependabot. La porte ne
+juge qu'un fait : la différence entre la base et la tête de la pull request. Un avis de sécurité
+(advisory) de gravité haute ou critique dans la portée d'exécution — les dépendances embarquées
+dans l'image — échoue ; les avis de portée développement, le contrôle de licence et les portées
+inconnues restent dehors. La veille n'est pas une porte : Dependabot ouvre des pull requests
+groupées pour `npm` et `docker`, et ses alertes signalent ce qui est déjà entré.
+Le terme ne couvre ni le secret scanning, ni le code scanning, ni la protection de branche : il
+désigne cette porte et cette veille, pas tout ce qui défend un dépôt.
+À distinguer du **Test de sécurité**, qui est Turnstile et n'a rien à voir : celui-ci garde des
+envois, celle-ci juge des dépendances.
+_Avoid_: sécurité des dépendances (comme nom du concept), supply chain, scan de dépendances
+
 **Porte de fusion**:
-L'ensemble des faits qui rendent une fusion sur `main` acceptable : une pull request, les cinq
-contextes requis — `build`, `format`, `lint`, `test`, `typecheck` —, une branche à jour avec `main`,
-aucune revue exigée et aucun contournement. Un contrat versionné les enregistre et fait foi, même
-quand GitHub ne peut pas l'appliquer. Une porte non lisible n'est pas une porte absente : quand le
-plan, la visibilité ou le jeton ne permet pas de lire le ruleset, le blocage est nommé.
+L'ensemble des faits qui rendent une fusion sur `main` acceptable : une pull request, les six
+contextes requis — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` —, une
+branche à jour avec `main`, aucune revue exigée et aucun contournement. Un contrat versionné les
+enregistre et fait foi, même quand GitHub ne peut pas l'appliquer. Une porte non lisible n'est pas
+une porte absente : quand le plan, la visibilité ou le jeton ne permet pas de lire le ruleset, le
+blocage est nommé.
 _Avoid_: branch protection, merge gate, règles de fusion
 
 **Docteur de la Porte de fusion**:

@@ -33,7 +33,7 @@ vraie, la moitié droite non.
   Les deux directions aboutissent à TypeScript 6. Le seul levier est le paquet vers lequel
   pointe le nom `typescript`, et le déplacer casse `eslint` (amendement suivant).
 
-**Ce que cela change pour la CI.** Sur les cinq jobs, un seul exécute le compilateur natif :
+**Ce que cela change pour la CI.** Sur les six jobs, un seul exécute le compilateur natif :
 `typecheck`. Le job `build` typechecke avec TypeScript 6. Les deux passent aujourd'hui sur le
 même code, mais deux compilateurs peuvent diverger — TypeScript 7 refuse là où 6 accepte, sur
 des cas documentés (nom d'énumération et étalement d'objet, par exemple). Rien n'est observé

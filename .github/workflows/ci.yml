@@ -241,3 +241,14 @@ jobs:
           ADMIN_EMAIL: admin@eguidar.com
           ADMIN_PASSWORD: change-me-admin-password
           BETTER_AUTH_SECRET: replace-with-a-long-random-secret
+
+  dependency-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime
