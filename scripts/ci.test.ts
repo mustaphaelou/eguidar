@@ -48,6 +48,10 @@ function utiliseAction(etape: Record<string, unknown>, nom: string): boolean {
   return typeof etape.uses === "string" && etape.uses.startsWith(`${nom}@`)
 }
 
+const SOURCE_DU_FLUX = readFileSync(FLUX, "utf8")
+
+const FLUX_COMPLET = load(SOURCE_DU_FLUX) as Record<string, unknown>
+
 const JOBS = lireLesJobs()
 
 const PAR_JOB = checksParJob()
@@ -197,10 +201,6 @@ describe("le job de build éprouve l'artefact de déploiement", () => {
 
 const CONDITION_DEPENDENCY_REVIEW = "github.event_name == 'pull_request'"
 
-const SOURCE_DU_FLUX = readFileSync(FLUX, "utf8")
-
-const FLUX_COMPLET = load(SOURCE_DU_FLUX) as Record<string, unknown>
-
 describe("le job de dependency-review", () => {
   it("est la dernière tâche du flux", () => {
     expect([...JOBS.keys()].at(-1)).toBe("dependency-review")
@@ -243,10 +243,18 @@ describe("le job de dependency-review", () => {
   })
 
   it("n'ajoute ni permission ni commentaire de résumé", () => {
-    expect(JOBS.get("dependency-review")?.permissions).toBeUndefined()
+    const job = JOBS.get("dependency-review") ?? {}
+    const permissions = estObjet(job.permissions) ? job.permissions : {}
+
+    expect(job.permissions).toBeUndefined()
     expect(FLUX_COMPLET).toMatchObject({ permissions: { contents: "read" } })
-    expect(SOURCE_DU_FLUX).not.toMatch(
-      /security-events:|pull-requests:|comment-summary-in-pr/
-    )
+    expect(SOURCE_DU_FLUX).not.toMatch(/security-events:/)
+    expect(permissions).not.toHaveProperty("pull-requests")
+    expect(
+      etapesDe("dependency-review").some(
+        (etape) => estObjet(etape.with) && "comment-summary-in-pr" in etape.with
+      ),
+      "l'action ne doit pas commenter le résumé de la pull request : cela exigerait `pull-requests: write`."
+    ).toBe(false)
   })
 })

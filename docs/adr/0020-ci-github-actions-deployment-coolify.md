@@ -283,11 +283,11 @@ names the plan-or-visibility remedy.
 ## Amendment — A sixth gate judges the dependency difference of a pull request (#903, 2026-11-04)
 
 Unlike the earlier amendments, this one rewrites three sentences of **Decision** and **Invariants**
-that counted the gate at five, plus one consequence sentence the sixth job breaks. The count is a
-fact of the gate, not the record of a past decision, so leaving it in place would leave the ADR
-describing a gate it no longer has; all four are quoted verbatim below. The earlier amendments keep
-their five, which was true when they were written, and this amendment names their count as
-superseded.
+that counted the gate at five, plus one further **Decision** sentence the sixth job breaks. The
+count is a fact of the gate, not the record of a past decision, so leaving it in place would leave
+the ADR describing a gate it no longer has; all four are quoted verbatim below. The earlier
+amendments keep their five, which was true when they were written, and this amendment names their
+count as superseded.
 
 **The decision: a sixth gate, `dependency-review`, and an after-merge owner for dependency watch.**
 
@@ -340,9 +340,24 @@ count:
   job invokes the existing repository script verbatim; `dependency-review` is made of actions and
   carries no command."
 
-The earlier amendments' "five jobs / five required status contexts remain … No sixth job, no sixth
-context" bullets, and their "whose five checks are green" sentences, are superseded the same way.
-They are kept as the record of the decisions they belonged to, not as the current count.
+The earlier amendments' counts are superseded the same way, and their sentences are quoted here as
+they were written. The #785 amendment says:
+
+- "**Five jobs and five required status contexts remain** — `lint`, `format`, `typecheck`, `test`,
+  `build`. No sixth job and no sixth context."
+- "**`main` still accepts changes only through a pull request** whose five checks are green and
+  whose branch is up to date with `main`."
+
+The `build` amendment repeats them, the first with ", and the ruleset is unchanged" appended and
+the second with "; the five required status contexts are unchanged":
+
+- "Five jobs and the five required status contexts remain — `lint`, `format`, `typecheck`, `test`,
+  `build`. No sixth job, no sixth context, and the ruleset is unchanged."
+- "**`main` still accepts changes only through a pull request** whose five checks are green and
+  whose branch is up to date with `main`; the five required status contexts are unchanged."
+
+Both amendments now count six. They are kept as the record of the decisions they belonged to, not
+as the current count.
 
 **The application sequence, and why the doctor exits `1` in between.**
 

@@ -649,10 +649,13 @@ _Avoid_: dead letter queue (comme nom du concept), DLQ
 **Défense du dépôt**:
 Le jugement de la différence de dépendances d'une pull request par une seule porte — la sixième,
 `dependency-review` —, plus la veille d'après-fusion confiée aux alertes Dependabot. La porte ne
-juge qu'un fait : la différence entre la base et la tête de la pull request. Un avis de gravité
-haute en portée d'exécution échoue ; les avis de portée développement, le contrôle de licence et
-les portées inconnues restent dehors. La veille n'est pas une porte : Dependabot ouvre des pull
-requests groupées pour `npm` et `docker`, et ses alertes signalent ce qui est déjà entré.
+juge qu'un fait : la différence entre la base et la tête de la pull request. Un avis de sécurité
+(advisory) de gravité haute ou critique dans la portée d'exécution — les dépendances embarquées
+dans l'image — échoue ; les avis de portée développement, le contrôle de licence et les portées
+inconnues restent dehors. La veille n'est pas une porte : Dependabot ouvre des pull requests
+groupées pour `npm` et `docker`, et ses alertes signalent ce qui est déjà entré.
+Le terme ne couvre ni le secret scanning, ni le code scanning, ni la protection de branche : il
+désigne cette porte et cette veille, pas tout ce qui défend un dépôt.
 À distinguer du **Test de sécurité**, qui est Turnstile et n'a rien à voir : celui-ci garde des
 envois, celle-ci juge des dépendances.
 _Avoid_: sécurité des dépendances (comme nom du concept), supply chain, scan de dépendances

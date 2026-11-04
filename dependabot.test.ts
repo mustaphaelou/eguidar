@@ -29,18 +29,15 @@ describe("Dependabot surveille les écosystèmes du dépôt", () => {
   })
 
   it("déclare github-actions, npm et docker à la racine", () => {
-    const suivis = Object.fromEntries(
-      misesAJour().map((miseAJour) => [
-        miseAJour["package-ecosystem"],
-        miseAJour.directory,
-      ])
-    )
+    const suivis = misesAJour()
+      .map((miseAJour) => [miseAJour["package-ecosystem"], miseAJour.directory])
+      .sort(([a], [b]) => a.localeCompare(b))
 
-    expect(suivis).toEqual({
-      "github-actions": "/",
-      npm: "/",
-      docker: "/",
-    })
+    expect(suivis).toEqual([
+      ["docker", "/"],
+      ["github-actions", "/"],
+      ["npm", "/"],
+    ])
   })
 
   it("garde une planification hebdomadaire", () => {

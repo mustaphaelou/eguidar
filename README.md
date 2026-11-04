@@ -173,7 +173,7 @@ Quelques règles qui tiennent le dépôt :
 
 - **Le domaine parle français.** `GLOSSARY.md` fixe le vocabulaire — Produit, Commande, Devis, Ville de livraison, Brouillon d'Image produit — et chaque ADR de `docs/adr/` garde une décision et ses alternatives.
 - **Un fait n'a qu'un propriétaire.** Les artefacts d'infrastructure (`infra/*.json`) sont dérivés du code et un test échoue dès qu'ils divergent ; le domaine fait de même pour ses prix calculés et ses statuts.
-- **La CI est la porte.** Cinq contextes — `build`, `format`, `lint`, `test`, `typecheck` — sont le contrat de fusion de `main`, et `bash scripts/checks.sh` rejoue la même liste en local.
+- **La CI est la porte.** Six contextes — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` — sont le contrat de fusion de `main`, et `bash scripts/checks.sh` rejoue les cinq checks npm en local.
 - **Le flux de travail est écrit.** Les issues, le triage et le domaine sont décrits dans [`docs/agents/`](docs/agents/) ; les standards de code sont dans [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
 
 ## Démarrer
