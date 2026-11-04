@@ -25,11 +25,18 @@ export function extraireLesChecks(commandes: readonly string[]): string[] {
   ]
 }
 
+function etapesDuJob(job: Record<string, unknown>): Record<string, unknown>[] {
+  return (job.steps as unknown[]).filter(estObjet)
+}
+
 function commandesRun(job: Record<string, unknown>): string[] {
-  return (job.steps as unknown[])
-    .filter(estObjet)
+  return etapesDuJob(job)
     .map((etape) => etape.run)
     .filter((run): run is string => typeof run === "string")
+}
+
+function porteUneCommandeOuUneAction(etape: Record<string, unknown>): boolean {
+  return typeof etape.run === "string" || typeof etape.uses === "string"
 }
 
 export function exigerDesJobsLus(
@@ -46,9 +53,9 @@ export function exigerDesJobsLus(
     if (!estObjet(job) || !Array.isArray(job.steps)) {
       throw new Error(`${source} : le job \`${nom}\` n'a pas d'étapes`)
     }
-    if (commandesRun(job).length === 0) {
+    if (!etapesDuJob(job).some(porteUneCommandeOuUneAction)) {
       throw new Error(
-        `${source} : le job \`${nom}\` n'a aucune étape qui porte une commande`
+        `${source} : le job \`${nom}\` n'a aucune étape qui porte une commande ou une action`
       )
     }
     lus.set(nom, job)
