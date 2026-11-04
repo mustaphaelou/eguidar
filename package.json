@@ -29,6 +29,7 @@
     "better-auth": "^1.7.15",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "lodash": "4.17.20",
     "meilisearch": "^0.60.0",
     "next": "16.4.1",
     "next-themes": "^0.4.6",
