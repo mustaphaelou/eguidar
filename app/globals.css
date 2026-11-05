@@ -361,6 +361,31 @@
   }
 }
 
+/* La feuille révèle le Panier par sa hauteur ; les Blocs de contenu (l'état
+   vide, le Compte) prennent leur propre poids en montant de quelques pixels.
+   Le décalage laisse la feuille commencer avant que le texte n'apparaisse. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="apercu-du-panier-bloc"] {
+    animation-name: apercu-bloc;
+    animation-duration: 320ms;
+    animation-delay: calc(60ms + var(--rang-bloc, 0) * 40ms);
+    animation-timing-function: var(--ease-out);
+    animation-fill-mode: both;
+  }
+}
+
+@keyframes apercu-bloc {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* L'icône du Panier répond au clic : elle s'enfonce, dépasse sa taille, puis se
    pose. Les images sont échantillonnées d'un ressort amorti (réponse 0,35 s,
    rebond 0,75) plutôt que d'une courbe unique, parce que l'aller-retour est le
