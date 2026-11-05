@@ -104,7 +104,7 @@ export function ApercuDuPanierSurface({
         aria-modal="true"
         aria-labelledby={ID_TITRE_APERCU_DU_PANIER}
         tabIndex={-1}
-        className="voile-depoli absolute inset-x-0 top-0 z-10 rounded-b-[28px] pt-11 shadow-2xl outline-none [--voile-depoli-flou:60px] [--voile-depoli-opacite:94%] [--voile-depoli-saturation:120%] max-lg:h-dvh max-lg:rounded-b-none"
+        className="voile-depoli absolute inset-x-0 top-0 z-10 rounded-b-[28px] pt-11 shadow-[0_20px_48px_-24px_oklch(0.2_0_none/0.35)] ring-1 ring-black/5 outline-none [--voile-depoli-flou:20px] [--voile-depoli-opacite:86%] [--voile-depoli-saturation:180%] max-lg:h-dvh max-lg:rounded-b-none"
       >
         <div
           className={cn(
