@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button"
 
 export function SignOutButton({
   className,
+  icone,
   onAvant,
 }: {
   className?: string
+  icone?: React.ReactNode
   onAvant?: () => void
 }) {
   const router = useRouter()
@@ -40,6 +42,7 @@ export function SignOutButton({
         void handleSignOut()
       }}
     >
+      {icone}
       Déconnexion
     </Button>
   )

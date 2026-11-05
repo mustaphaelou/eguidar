@@ -8,30 +8,44 @@ import { urlProduit } from "@/lib/carte-produit"
 import { formatPrice } from "@/lib/money"
 
 import { ID_TITRE_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
+import { useApercuDuPanier } from "./apercu-du-panier-provider"
 import { SqueletteDeLApercu } from "./apercu-du-panier-squelette"
 import { LienQuiFermeLApercu } from "./lien-qui-ferme-l-apercu"
 import { lireLApercuDuPanier } from "./lecture-du-panier-http"
 import { MonCompteDansLApercu } from "./mon-compte-dans-l-apercu"
+import { SignInButton } from "./sign-in-button"
 import { useLectureDuPanier } from "./use-lecture-du-panier"
 
 export function ApercuPanier() {
   const apercu = useLectureDuPanier(lireLApercuDuPanier)
+  const { fermer } = useApercuDuPanier()
 
   if (apercu === null) return <SqueletteDeLApercu />
 
   if (apercu.etat === "vide") {
     return (
       <>
-        <section>
+        <section
+          data-slot="apercu-du-panier-bloc"
+          style={{ "--rang-bloc": 0 } as CSSProperties}
+        >
           <h2
             id={ID_TITRE_APERCU_DU_PANIER}
-            className="text-xl font-semibold tracking-[0.007em]"
+            className="text-2xl leading-[1.16] font-semibold tracking-[0.007em]"
           >
             Votre panier est vide
           </h2>
           {apercu.connecte ? null : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Connectez-vous pour retrouver le panier de votre compte.
+            <p className="mt-3 text-sm leading-[1.47] tracking-[-0.016em] text-muted-foreground">
+              <SignInButton
+                ariaLabel="Connectez-vous"
+                variant="link"
+                onAvant={fermer}
+                className="h-auto p-0 align-baseline text-sm font-normal text-link"
+              >
+                Connectez-vous
+              </SignInButton>{" "}
+              pour retrouver le panier de votre compte.
             </p>
           )}
         </section>
@@ -48,7 +62,7 @@ export function ApercuPanier() {
       <section>
         <h2
           id={ID_TITRE_APERCU_DU_PANIER}
-          className="text-xl font-semibold tracking-[0.007em]"
+          className="text-2xl leading-[1.16] font-semibold tracking-[0.007em]"
         >
           Mon panier
         </h2>
