@@ -92,9 +92,9 @@ describe("images.remotePatterns : cdn.eguidar.com est le seul hôte distant acce
     }
   })
 
-  it("garde prisma/seed.ts exempt de placehold.co", () => {
+  it("garde prisma/seed-demo.ts exempt de placehold.co", () => {
     const seedSource = readFileSync(
-      path.join(process.cwd(), "prisma/seed.ts"),
+      path.join(process.cwd(), "prisma/seed-demo.ts"),
       "utf8"
     )
     expect(seedSource.toLowerCase()).not.toContain("placehold.co")

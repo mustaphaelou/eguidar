@@ -193,21 +193,22 @@ const SITES_NOMMES: ExceptionLecture[] = [
       "le nom de la catégorie du produit affiché, pour amorcer son fil d'Ariane : le pointeur d'une seule rangée, la descente restant à la Lecture",
   },
   {
-    chemin: "prisma/seed.ts",
+    chemin: "prisma/seed-demo.ts",
     voie: "delegue",
     extrait: `prisma.${FORME.delegue}.findUniqueOrThrow`,
     declaration: "main",
     herite: true,
-    raison: "outillage d'exploitation : la rangée que le seed vient d'écrire",
+    raison:
+      "outillage de démonstration : la rangée que le seed de démonstration vient d'écrire",
   },
   {
-    chemin: "prisma/seed.ts",
+    chemin: "prisma/seed-demo.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
     declaration: "main",
     herite: false,
     raison:
-      "le nom de la catégorie dans les Documents d'index écrits par l'outillage d'exploitation : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+      "le nom de la catégorie dans les Documents d'index écrits par l'outillage de démonstration : le pointeur d'une seule rangée, pas sa place dans l'arbre",
   },
 ]
 

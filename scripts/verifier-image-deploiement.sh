@@ -37,17 +37,26 @@ fi
 
 ADMINISTRATEURS_ATTENDUS=1
 
-CATEGORIES_ATTENDUES=(
-  accessoires
-  audio-hifi
-  gaming
-  ordinateurs-tablettes
-  smartphones
-  tv-home-cinema
+# Le socle ne sème plus de Catalogue (ADR-0050) : la sonde épingle ce que le
+# déploiement doit vraiment trouver après le seed — le réseau de livraison et
+# son seuil — et non le contenu de démonstration.
+VILLES_ATTENDUES=(
+  agadir
+  casablanca
+  fes
+  kenitra
+  marrakech
+  meknes
+  oujda
+  rabat
+  tanger
+  tetouan
 )
 
-CATEGORIES_ATTENDUES_TEXTE="$(printf '%s,' "${CATEGORIES_ATTENDUES[@]}")"
-CATEGORIES_ATTENDUES_TEXTE="${CATEGORIES_ATTENDUES_TEXTE%,}"
+VILLES_ATTENDUES_TEXTE="$(printf '%s,' "${VILLES_ATTENDUES[@]}")"
+VILLES_ATTENDUES_TEXTE="${VILLES_ATTENDUES_TEXTE%,}"
+
+SEUIL_LIVRAISON_OFFERTE_ATTENDU=100000
 
 JOURNAL=""
 CONTENEUR="eguidar-sonde-artefact-${PROBE_PORT}"
@@ -143,19 +152,23 @@ async function main() {
     'SELECT count(*)::int AS nombre FROM "user" WHERE email = $1 AND role = $2',
     [process.env.ADMIN_EMAIL, "admin"]
   )
-  const categories = await client.query(
-    'SELECT slug FROM "Category" ORDER BY slug'
+  const villes = await client.query(
+    'SELECT slug FROM "DeliveryCity" ORDER BY slug'
+  )
+  const reglages = await client.query(
+    'SELECT "freeShippingThreshold"::int AS seuil FROM "ShippingSettings" WHERE id = $1',
+    ["default"]
   )
   console.log(
-    `administrateur=${administrateurs.rows[0].nombre} categories=${categories.rows
+    `administrateur=${administrateurs.rows[0].nombre} villes=${villes.rows
       .map((ligne) => ligne.slug)
-      .join(",")}`
+      .join(",")} seuil=${reglages.rows[0]?.seuil ?? "absent"}`
   )
   await client.end()
 }
 
 main().catch(async (erreur) => {
-  console.error(`lecture des comptes impossible : ${erreur.message}`)
+  console.error(`lecture des faits du socle impossible : ${erreur.message}`)
   await client.end().catch(() => {})
   process.exit(1)
 })
@@ -166,20 +179,23 @@ verifier_le_seed() {
   local code=0 faits=""
   faits="$(lire_les_faits_du_seed)" || code=$?
   if ((code != 0)); then
-    echec "seed" "lecture des comptes impossible (code ${code}) : ${faits}"
+    echec "seed" "lecture des faits du socle impossible (code ${code}) : ${faits}"
   fi
-  if [[ ! "$faits" =~ ^administrateur=([0-9]+)\ categories=(.*)$ ]]; then
+  if [[ ! "$faits" =~ ^administrateur=([0-9]+)\ villes=(.*)\ seuil=([0-9]+)$ ]]; then
     echec "seed" "faits illisibles : ${faits}"
   fi
-  local administrateurs="${BASH_REMATCH[1]}" categories="${BASH_REMATCH[2]}"
+  local administrateurs="${BASH_REMATCH[1]}" villes="${BASH_REMATCH[2]}" seuil="${BASH_REMATCH[3]}"
   if ((administrateurs != ADMINISTRATEURS_ATTENDUS)); then
     echec "seed" "comptes administrateur : ${administrateurs} trouvé(s), ${ADMINISTRATEURS_ATTENDUS} attendu(s)"
   fi
-  if [[ "$categories" != "$CATEGORIES_ATTENDUES_TEXTE" ]]; then
-    echec "seed" "catégories : ${categories:-aucune} ; attendues : ${CATEGORIES_ATTENDUES_TEXTE}"
+  if [[ "$villes" != "$VILLES_ATTENDUES_TEXTE" ]]; then
+    echec "seed" "Villes de livraison : ${villes:-aucune} ; attendues : ${VILLES_ATTENDUES_TEXTE}"
   fi
-  printf '  administrateur : %s · catégories : %s\n' \
-    "$administrateurs" "${categories//,/ · }"
+  if ((seuil != SEUIL_LIVRAISON_OFFERTE_ATTENDU)); then
+    echec "seed" "seuil de livraison offerte : ${seuil} ; attendu : ${SEUIL_LIVRAISON_OFFERTE_ATTENDU}"
+  fi
+  printf '  administrateur : %s · villes : %s · seuil : %s\n' \
+    "$administrateurs" "${villes//,/ · }" "$seuil"
 }
 
 verifier_le_cache_handler() {

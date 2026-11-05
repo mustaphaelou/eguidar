@@ -6,7 +6,7 @@
 
 ![Page d'accueil d'eguidar.com](docs/screenshots/accueil.png)
 
-> Les captures de ce README sont prises sur une instance locale de démonstration (`npx prisma db seed`), avec deux commandes saisies pour l'exemple ; les noms, adresses et coordonnées y sont floutés.
+> Les captures de ce README sont prises sur une instance locale de démonstration (`npm run seed:demo`), avec deux commandes saisies pour l'exemple ; les noms, adresses et coordonnées y sont floutés.
 
 ## Sommaire
 
@@ -202,13 +202,18 @@ docker compose up -d --wait postgres redis meilisearch
 # 4. Base de test de `npm test` (une seule fois ; « already exists » est sans effet)
 docker compose exec postgres createdb -U eguidar eguidar_test || true
 
-# 5. Schéma et données de démonstration (idempotent)
+# 5. Schéma et socle (idempotent)
 npx prisma migrate dev
 npx prisma db seed
 
-# 6. Application
+# 6. Données de démonstration — Catalogue et Blog de travail (facultatif)
+npm run seed:demo
+
+# 7. Application
 npm run dev
 ```
+
+`npx prisma db seed` n'écrit que le socle — réglages et Villes de livraison, compte administrateur, règles d'automatisation. `npm run seed:demo` ajoute par-dessus les Données de démonstration ; le déploiement n'appelle jamais que le premier (ADR-0050).
 
 `docker compose up -d` sans noms de services démarrerait aussi `migrate`, `purge-edge` et `app` : la commande ci-dessus ne lance que les trois services dont le développement a besoin.
 
@@ -519,7 +524,7 @@ bash scripts/verifier-image-deploiement.sh
 
 Les variables requises sont `IMAGE_RUNNER`, `IMAGE_MIGRATE`, `DATABASE_URL`, `MEILI_URL`, `MEILI_MASTER_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` et `BETTER_AUTH_SECRET` : la première absente est nommée, et la sonde s’arrête avant tout appel à Docker. Les optionnelles sont `REDIS_URL`, `BETTER_AUTH_URL` (défaut `http://localhost:3100`), `PROBE_PORT` (défaut 3100), `PROBE_TIMEOUT` (défaut 90 secondes) et `ADMIN_NAME`.
 
-Ses neuf phases, dans l’ordre : preflight, secrets (ni `DATABASE_URL` dans l’historique de l’image, ni dans son environnement figé, ni dans son environnement d’exécution), migration, faits du seed, seconde migration, comptes inchangés, import du cache-handler dans l’image `runner`, mise en service, surface HTTP (accueil 200, un actif `/_next/static/` 200, `/admin` 307). Un échec s’annonce par `ECHEC : <phase> — <cause>`, suivi des dernières lignes du conteneur.
+Ses neuf phases, dans l’ordre : preflight, secrets (ni `DATABASE_URL` dans l’historique de l’image, ni dans son environnement figé, ni dans son environnement d’exécution), migration, faits du socle (un administrateur, les dix Villes de livraison, le seuil de livraison offerte), seconde migration, faits du socle inchangés, import du cache-handler dans l’image `runner`, mise en service, surface HTTP (accueil 200, un actif `/_next/static/` 200, `/admin` 307). Un échec s’annonce par `ECHEC : <phase> — <cause>`, suivi des dernières lignes du conteneur.
 
 ## Scripts
 
@@ -534,7 +539,8 @@ Ses neuf phases, dans l’ordre : preflight, secrets (ni `DATABASE_URL` dans l�
 | `npm test` | Tests vitest (unitaires + intégration), sur `eguidar_test` |
 | `npm run test:watch` | Tests en continu |
 | `npx prisma migrate dev` | Applique les migrations |
-| `npx prisma db seed` | Données de démo (idempotent) |
+| `npx prisma db seed` | Socle : livraison, compte admin, règles d'automatisation (idempotent) |
+| `npm run seed:demo` | Données de démonstration : Catalogue, Blog, index de recherche |
 | `npm run porte:verifier` | Docteur local de la Porte de fusion (0 conforme, 1 dérive, 2 illisible) |
 | `bash scripts/checks.sh` | Les cinq checks npm de la CI, dans l'ordre |
 | `bash scripts/setup-providers.sh` | Assistant Turnstile, R2, CORS et Cache Rules |

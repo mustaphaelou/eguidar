@@ -166,6 +166,16 @@ jobs:
           ADMIN_NAME: Administrateur
           ADMIN_EMAIL: admin@eguidar.com
           ADMIN_PASSWORD: change-me-admin-password
+      # Le socle ne porte plus de Catalogue (ADR-0050) : le job ajoute les
+      # Données de démonstration pour que le build prérende un vrai catalogue,
+      # comme avant le partage. `tsx` directement, et non `npm run seed:demo` :
+      # `scripts/checks.sh` rejoue les commandes `npm run` du flux sur le dépôt
+      # local, et ce n'est pas un check — il écrirait dans la base du poste.
+      - run: npx tsx prisma/seed-demo.ts
+        env:
+          DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+          MEILI_URL: http://localhost:7700
+          MEILI_MASTER_KEY: eguidar-test-master-key
       - run: npm run build
         env:
           DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe

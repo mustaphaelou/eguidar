@@ -79,9 +79,9 @@ claims no longer hold, and everything that keeps deployment with Coolify still d
 - **The probe consumes the artifact, not the host build.** Three health-checked service containers
   — PostgreSQL with database `eguidar_probe`, Redis, Meilisearch — serve it; the compose stack is
   never started, only syntax-checked with `docker compose config -q`. The `migrate` image runs
-  twice against `eguidar_probe`: the seed's facts are asserted after the first run — the
-  administration account by `ADMIN_EMAIL`, and the six categories — and re-asserted unchanged after
-  the second. The Redis cache handler is imported inside the `runner` image, and the `runner` is
+  twice against `eguidar_probe`: the socle's facts are asserted after the first run — the
+  administration account by `ADMIN_EMAIL`, the ten delivery cities and the free-shipping threshold
+  (ADR-0050) — and re-asserted unchanged after the second. The Redis cache handler is imported inside the `runner` image, and the `runner` is
   booted on port 3100 to answer the home page (200), one hashed `/_next/static/` asset (200) and
   the admin redirect (307).
 - **Nothing is pushed and nothing is deployed.** The tags never leave the runner, no registry login

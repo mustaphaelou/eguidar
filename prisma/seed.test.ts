@@ -64,3 +64,41 @@ describe("prisma/seed.ts — compte admin", () => {
     expect(source).not.toContain("admin-password-change-me")
   })
 })
+
+describe("prisma/seed.ts — le socle ne porte pas de Données de démonstration", () => {
+  const ECRITURES_DU_CATALOGUE = [
+    "prisma.product",
+    "prisma.productVariant",
+    "prisma.category",
+    "prisma.theme",
+    "prisma.articleBlog",
+  ]
+
+  it("n'écrit ni Produit, ni Structure, ni Article de blog", () => {
+    const source = readFileSync(path.join(RACINE, "prisma/seed.ts"), "utf8")
+
+    for (const ecriture of ECRITURES_DU_CATALOGUE) {
+      expect(source, ecriture).not.toContain(ecriture)
+    }
+    expect(source).not.toContain("indexProductDocuments")
+  })
+
+  it("laisse le Catalogue et le Blog à prisma/seed-demo.ts", () => {
+    const source = readFileSync(
+      path.join(RACINE, "prisma/seed-demo.ts"),
+      "utf8"
+    )
+
+    for (const ecriture of ECRITURES_DU_CATALOGUE) {
+      expect(source, ecriture).toContain(ecriture)
+    }
+    expect(source).toContain("indexProductDocuments")
+  })
+
+  it("le déploiement n'appelle que le socle", () => {
+    const dockerfile = readFileSync(path.join(RACINE, "Dockerfile"), "utf8")
+
+    expect(dockerfile).toContain("npx prisma db seed")
+    expect(dockerfile).not.toContain("seed:demo")
+  })
+})
