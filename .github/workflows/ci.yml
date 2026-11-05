@@ -196,6 +196,7 @@ jobs:
         env:
           E2E_DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
           E2E_SANS_BUILD: "1"
+          E2E_REDIS_URL: redis://localhost:6379/1
           MEILI_URL: http://localhost:7700
           MEILI_MASTER_KEY: eguidar-test-master-key
           REDIS_URL: redis://localhost:6379

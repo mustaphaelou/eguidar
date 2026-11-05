@@ -144,12 +144,13 @@ export async function preparerLaBase(baseDeDonnees: string): Promise<void> {
 /** Le build avec la base de la sonde, jamais celle de développement. */
 export function construireLArtefact(
   baseDeDonnees: string,
-  origine: string
+  origine: string,
+  redisUrl: string | null
 ): void {
   const debut = Date.now()
   execFileSync("npm", ["run", "build"], {
     cwd: RACINE,
-    env: environnementDeBuild(baseDeDonnees, origine),
+    env: environnementDeBuild(baseDeDonnees, origine, redisUrl),
     stdio: "inherit",
   })
   const secondes = Math.round((Date.now() - debut) / 1000)

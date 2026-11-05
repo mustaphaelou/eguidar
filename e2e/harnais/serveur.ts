@@ -73,7 +73,8 @@ function copierLArtefact(artefact: string): string {
 
 function environnementDuServeur(
   origine: string,
-  baseDeDonnees: string
+  baseDeDonnees: string,
+  redisUrl: string | null
 ): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -81,6 +82,7 @@ function environnementDuServeur(
     PORT: new URL(origine).port,
     HOSTNAME: "127.0.0.1",
     DATABASE_URL: baseDeDonnees,
+    REDIS_URL: redisUrl ?? "",
     BETTER_AUTH_URL: origine,
     NEXT_PUBLIC_BETTER_AUTH_URL: origine,
     // La condition du plugin de Test de sécurité : absent, il n'est pas
@@ -133,6 +135,7 @@ async function attendreLeServeur(
  */
 export async function demarrerLeServeur(options: {
   baseDeDonnees: string
+  redisUrl: string | null
   artefact?: string
 }): Promise<ServeurDeSonde> {
   const artefact = options.artefact ?? dossierDArtefact()
@@ -147,7 +150,11 @@ export async function demarrerLeServeur(options: {
   const journal: string[] = []
   const serveur = spawn(process.execPath, ["server.js"], {
     cwd: standalone,
-    env: environnementDuServeur(origine, options.baseDeDonnees),
+    env: environnementDuServeur(
+      origine,
+      options.baseDeDonnees,
+      options.redisUrl
+    ),
     stdio: ["ignore", "pipe", "pipe"],
   })
   retenirLeJournal(journal, serveur.stdout)
@@ -181,11 +188,13 @@ export async function demarrerLeServeur(options: {
 /** Le build de la sonde : la base de sonde, l'origine du future serveur, sans Turnstile. */
 export function environnementDeBuild(
   baseDeDonnees: string,
-  origine: string
+  origine: string,
+  redisUrl: string | null
 ): NodeJS.ProcessEnv {
   const environnement: NodeJS.ProcessEnv = {
     ...process.env,
     DATABASE_URL: baseDeDonnees,
+    REDIS_URL: redisUrl ?? "",
     BETTER_AUTH_URL: origine,
     // Le client d'authentification retombe sur l'origine de la fenêtre : la
     // sonde garde son port libre sans rejouer le build.

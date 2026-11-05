@@ -252,7 +252,7 @@ La sonde Playwright joue la boutique dans Chromium sur l'artefact **construit** 
 npm run test:e2e
 ```
 
-Elle est **lente** : le build est le coût. Elle prépare sa propre base (`eguidar_probe` par défaut, dérivée de `TEST_DATABASE_URL`, ou `E2E_DATABASE_URL`), sème les Données de démonstration et une Image produit de fixture attachée à un Produit en Mise en avant, reconstruit l'index de recherche **avant** le build, puis démarre l'artefact sur un port libre et l'arrête. Elle ne touche ni `eguidar` ni `eguidar_test` : toute URL qui désigne l'une de ces deux bases est refusée.
+Elle est **lente** : le build est le coût. Elle prépare sa propre base (`eguidar_probe` par défaut, dérivée de `TEST_DATABASE_URL`, ou `E2E_DATABASE_URL`), sème les Données de démonstration et une Image produit de fixture attachée à un Produit en Mise en avant, reconstruit l'index de recherche **avant** le build, puis démarre l'artefact sur un port libre et l'arrête. Son cache applicatif vit sur un index Redis dédié (l'index 1, surchargeable par `E2E_REDIS_URL`), vidé avant le démarrage ; sans `REDIS_URL`, elle tourne sans cache. Elle ne touche ni `eguidar` ni `eguidar_test` : toute URL qui désigne l'une de ces deux bases est refusée.
 
 Elle ne fait pas partie de `bash scripts/checks.sh` — Chromium n'est pas une dépendance de la porte locale. En intégration continue, elle est hébergée par le job `build`, après le build et avant les images Docker et la sonde Vitest ; un échec publie `playwright-report/` et `test-results/` en artefacts.
 

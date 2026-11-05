@@ -11,6 +11,7 @@ import {
   RACINE,
 } from "../harnais/artefact"
 import { resoudreBaseDeSonde } from "../harnais/base-de-sonde"
+import { afficherRedis, resoudreRedisDeSonde } from "../harnais/redis-de-sonde"
 import { construireLArtefact, preparerLaBase } from "../harnais/preparation"
 import { portLibre } from "../harnais/serveur"
 
@@ -31,6 +32,13 @@ async function principal(): Promise<void> {
 
   console.log(`[sonde] base dédiée : ${baseDeDonnees}`)
   await preparerLaBase(baseDeDonnees)
+
+  const redis = resoudreRedisDeSonde()
+  if (redis === null) {
+    console.log("[sonde] aucun Redis déclaré : la sonde tourne sans cache")
+  } else {
+    console.log(`[sonde] cache applicatif isolé sur ${afficherRedis(redis)}`)
+  }
 
   if (!existsSync(fichierDuServeur(artefact))) {
     if (sansBuild) {
@@ -55,7 +63,7 @@ async function principal(): Promise<void> {
         `l'artefact de E2E_ARTEFACT_DIR (${artefact}) est plus ancien que ses sources et ne peut pas être reconstruit ici : posez E2E_SANS_BUILD=1 pour l'accepter tel quel`
       )
     }
-    construireLArtefact(baseDeDonnees, origine)
+    construireLArtefact(baseDeDonnees, origine, redis)
   } else {
     console.log(
       `[sonde] artefact à jour, build sauté (E2E_SANS_BUILD=1 pour l'imposer) : ${artefact}`
@@ -78,6 +86,7 @@ async function principal(): Promise<void> {
         ...process.env,
         E2E_DATABASE_URL: baseDeDonnees,
         E2E_PORT: String(port),
+        ...(redis === null ? {} : { E2E_REDIS_URL: redis }),
       },
     }
   )
