@@ -280,6 +280,27 @@ describe("ApercuPanier", () => {
     expect(container.textContent).not.toContain("Déconnexion")
   })
 
+  it("porte l'invitation dans la phrase, et referme l'Aperçu avant d'ouvrir la Connexion", async () => {
+    installerFetch(VIDE_VISITEUR)
+
+    await rendreEtAttendre(<BandeauAvecApercu />)
+    await ouvrirLApercu()
+
+    // L'invitation est une phrase de l'état vide, pas une entrée du Compte :
+    // elle se lit au milieu de la phrase qui l'accueille.
+    const invitation = entree("Connectez-vous")
+    expect(invitation.tagName).toBe("BUTTON")
+    expect(invitation.closest("p")?.textContent).toContain(
+      "pour retrouver le panier de votre compte."
+    )
+
+    act(() => invitation.click())
+    await rejouer()
+
+    expect(dialogue()).toBeNull()
+    expect(openLoginMock).toHaveBeenCalledTimes(1)
+  })
+
   it("rend l'état vide d'un Client sans invitation à se connecter", async () => {
     installerFetch(VIDE_CLIENT)
 
