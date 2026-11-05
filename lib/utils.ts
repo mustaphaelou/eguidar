@@ -1,5 +1,19 @@
 import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { extendTailwindMerge } from "tailwind-merge"
+
+/**
+ * `tailwind-merge` lit `text-body` comme une couleur : `--text-body` est un token
+ * maison de taille, et la fusion supprimait donc le `text-primary-foreground` du
+ * Bouton qui le portait (rapport PageSpeed du 2026-11-05, §6.1). Les trois tailles
+ * du thème sont déclarées ensemble pour qu'une sœur ne rouvre pas le défaut.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: ["body", "titre-carte", "titre-catalogue"] }],
+    },
+  },
+})
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

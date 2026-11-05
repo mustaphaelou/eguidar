@@ -6,11 +6,16 @@
 /**
  * `translate` et non `transform` : les utilitaires `translate-*` de Tailwind v4 posent la
  * propriété `translate`, que `transform` n'anime pas.
+ *
+ * Aucun `starting:*` : une classe `starting:` compile en `@starting-style`, qui rend le
+ * texte invisible au premier rendu. Chrome ne compte un élément comme LCP qu'une fois
+ * peint : le fondu d'entrée du héros coûtait 900 ms de « element render delay » au LCP
+ * mobile (rapport PageSpeed du 2026-11-05, §3). Les Panneaux sous la ligne de flottaison
+ * gardent leur révélation au défilement, portée par `data-reveal-etat`, qui n'est jamais
+ * `attente` avant l'hydratation.
  */
 export const APPARITION = [
   "[transition:opacity_900ms_cubic-bezier(0.455,0.03,0.515,0.955),translate_700ms_cubic-bezier(0.455,0.03,0.515,0.955)]",
-  "starting:opacity-0",
-  "starting:translate-y-[30px]",
   "group-data-[reveal-etat=attente]/panneau:opacity-0",
   "group-data-[reveal-etat=attente]/panneau:translate-y-[30px]",
   "motion-reduce:transition-none",
@@ -18,7 +23,6 @@ export const APPARITION = [
 
 export const APPARITION_FONDU = [
   "[transition:opacity_900ms_cubic-bezier(0.455,0.03,0.515,0.955)]",
-  "starting:opacity-0",
   "group-data-[reveal-etat=attente]/panneau:opacity-0",
   "motion-reduce:transition-none",
 ].join(" ")

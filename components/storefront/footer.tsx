@@ -66,7 +66,7 @@ export function StorefrontFooter() {
               <span>
                 Paiement à la livraison. TVA 20% incluse sur tous les prix
                 affichés.{" "}
-                <Link href="/conditions" className="text-link hover:underline">
+                <Link href="/conditions" className="text-link underline">
                   En savoir plus
                 </Link>
               </span>
@@ -80,7 +80,7 @@ export function StorefrontFooter() {
               <span>
                 Livraison rapide partout au Maroc. Frais selon la ville, offerte
                 dès un certain montant.{" "}
-                <Link href="/conditions" className="text-link hover:underline">
+                <Link href="/conditions" className="text-link underline">
                   Voir les tarifs
                 </Link>
               </span>
@@ -93,7 +93,7 @@ export function StorefrontFooter() {
                 href={site.licenseUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-link hover:underline"
+                className="text-link underline"
               >
                 licence MIT
               </a>

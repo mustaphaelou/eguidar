@@ -16,6 +16,17 @@ import {
   type SearchSort,
 } from "@/lib/search-params"
 
+/**
+ * `items` donne au Select le libellé de chaque valeur : sans lui, le bouton
+ * affiche l'identifiant brut (« nouveautes ») plutôt que le libellé
+ * (« Nouveautés »). Le nom accessible, lui, vient de l'`aria-label` du
+ * déclencheur : un `role="combobox"` ne prend jamais son nom dans son contenu.
+ */
+const ITEMS = SEARCH_SORT_OPTIONS.map((option) => ({
+  value: option.id,
+  label: option.label,
+}))
+
 export function SearchSort({
   sort,
   query,
@@ -31,6 +42,7 @@ export function SearchSort({
 
   return (
     <Select
+      items={ITEMS}
       value={sort}
       onValueChange={(next) => {
         router.push(
@@ -44,7 +56,7 @@ export function SearchSort({
         )
       }}
     >
-      <SelectTrigger size="sm">
+      <SelectTrigger size="sm" aria-label="Trier les résultats">
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="end">
