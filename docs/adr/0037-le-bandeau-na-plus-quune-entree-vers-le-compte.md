@@ -100,4 +100,4 @@ menu mobile » s'appuyait sur deux raisons : le Compte ne serait atteignable que
 étroits, et « le menu mobile est déjà ce qui referme l'Aperçu sur mobile ». La première tient
 toujours ; la seconde ne se lit plus, puisque c'est maintenant le déclencheur du Panier qui referme
 l'Aperçu, à toutes les tailles. La décision qui l'emporte est écrite dans
-[0039](0039-le-bandeau-ne-porte-plus-les-pages-de-la-boutique.md).
+[0051](0051-le-bandeau-ne-porte-plus-les-pages-de-la-boutique.md).

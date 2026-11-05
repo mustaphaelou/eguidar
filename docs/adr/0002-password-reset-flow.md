@@ -14,7 +14,7 @@ amendement qui fait foi.
 
 **« Upon successful reset, the user is redirected to `/connexion` to log in
 with their updated credentials » — il n'y a aucune redirection.** Après
-`resetPassword`, `use-forgot-password-flow.ts:49` fait `setStep("success")`
+`resetPassword`, `use-forgot-password-flow.ts:46` fait `setStep("success")`
 et rend la main : ni `router.push`, ni `redirect()`, ni `window.location`.
 Le formulaire rend une étape de succès (`forgot-password-form.tsx:191-204`)
 qui **propose** un lien `<Link href={loginUrl()}>` — le Client choisit
@@ -41,7 +41,7 @@ reconnaître.
 
 Le reste de la décision tient : la page `/mot-de-passe-oublie`, la
 redirection permanente depuis `/request-password-reset`
-(`next.config.ts:23-31`), le plugin `emailOTP` en deux étapes sur une seule
+(`next.config.ts:65-72`), le plugin `emailOTP` en deux étapes sur une seule
 page, et le refus de la mise en modale.
 
 ## Amendement — La réinitialisation révoque les sessions en cours (#834)
@@ -52,11 +52,11 @@ continuait de s'authentifier. Celui qui détenait l'ancien mot de passe n'était
 pas éjecté par le geste censé le révoquer — ASVS 7.4.3 demande au minimum l'option
 de terminer les autres sessions après un changement d'identifiant.
 
-**La décision est de l'activer.** Après l'échange du code, une fois le nouveau mot
-de passe écrit, `/email-otp/reset-password` supprime toutes les sessions du Compte
-client (`internalAdapter.deleteUserSessions`, `better-auth@1.6.26`,
-`node_modules/better-auth/dist/plugins/email-otp/routes.mjs:599`) : la session ouverte avec l'ancien mot de passe,
-comme les autres, ne relit plus de Client. Le Client se reconnecte avec le nouveau
+**La décision est de l'activer.** Après l'échange du code, la bibliothèque supprime toutes les
+sessions du Compte client **avant** d'écrire le nouveau mot de passe : `/email-otp/reset-password`
+délègue (`better-auth@1.7.15`, `dist/plugins/email-otp/routes.mjs`) à `dist/utils/password.mjs`, qui
+appelle `internalAdapter.deleteUserSessions` puis écrit le hachage. La session ouverte avec l'ancien
+mot de passe, comme les autres, ne relit plus de Client. Le Client se reconnecte avec le nouveau
 mot de passe.
 
 Le reste de la réinitialisation ne change pas : demande sans énumération, code à

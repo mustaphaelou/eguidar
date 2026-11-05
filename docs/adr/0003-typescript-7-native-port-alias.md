@@ -24,7 +24,7 @@ vraie, la moitié droite non.
   `@typescript/typescript6`. Next ne cherche pas le binaire `tsc` du `PATH`.
 
   - `experimental.useTypeScriptCli: false` — ce que fixe
-    [`next.config.ts:4-6`](../../next.config.ts#L4-L6) — passe par l'API JavaScript du
+    [`next.config.ts:26-29`](../../next.config.ts#L26-L29) — passe par l'API JavaScript du
     compilateur, résolue par ce nom : TypeScript 6.
   - `experimental.useTypeScriptCli: true` — le défaut de Next 16.3 — lit le champ `bin` du
     paquet résolu. `bin.tsc` y est absent, et Next retombe alors sur son motif `/^tsc\d+$/`,

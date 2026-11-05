@@ -267,7 +267,7 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
     }
   })
 
-  it("la liste s'élargit des seize entrées d'ici, chacune avec sa raison propre", () => {
+  it("la liste s'élargit des vingt entrées d'ici, chacune avec sa raison propre", () => {
     const raisons = SITES_NOMMES.map(({ raison }) => raison)
     expect(raisons).toHaveLength(new Set(raisons).size)
 
