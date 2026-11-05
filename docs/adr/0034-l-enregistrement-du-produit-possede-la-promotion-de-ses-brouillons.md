@@ -323,3 +323,15 @@ mappé, le 200 et la 500 journalisée une fois, et le schéma de pré-signation 
   protocole client, et `components/admin/image-gallery-upload.tsx` ne bouge pas.
 - **Le reste de cet ADR** : la promotion des Brouillons, la couture d'effets et le squelette privé de
   l'enregistrement restent tels que la décision et ses amendements #716 et #721 les ont laissés.
+
+## Amendement — la couture du Catalogue a sept membres, pas cinq
+
+L'amendement précédent énumère cinq membres ; `CatalogEffects` en porte **sept**. Deux effets après
+engagement s'y sont ajoutés depuis, qu'aucun ADR ne nommait :
+
+- `purgeCatalogue`, qui pousse la demande de purge du bord par `purgerEdgeDurable` ;
+- `enregistrerImages`, qui écrit les entrées du Registre des Images produit.
+
+Les cinq membres d'origine — `cycleVie`, `reindexProducts`, `removeProductFromIndex`,
+`revalidateCatalog`, `deleteImages` — tiennent toujours, et `defaultCatalogEffects` branche les sept.
+Un lecteur qui suit la liste de cinq manque deux effets après engagement, dont l'un purge l'edge.

@@ -153,3 +153,18 @@ paramètres `?open`/`?next`/`?error` ; le prédicat de session reste en une copi
 `signupUrl` et les redirections héritées sont inchangées ; les producteurs serveur d'URL
 d'authentification restent hors du seam ; ADR-0001 reste intacte. La surface du contrôleur gagne
 deux lectures dérivées du seam, et non un second chemin d'écriture.
+
+## Amendement — le contrôleur expose une septième lecture, l'adresse de la page
+
+Le corps fixe cinq membres ; l'amendement du #473 en ajoute un sixième, l'e-mail de préremplissage.
+Une **septième lecture** est née du #484 : `usePageAddressWithoutAuthParams`
+(`components/auth/auth-dialogs.tsx`), qui rend l'adresse courante débarrassée des paramètres
+d'authentification, et que `components/auth/use-sign-in-flow.ts` consomme pour composer la
+destination post-connexion. Ni le corps ni l'amendement du #473 ne la nomment.
+
+Elle ne rouvre aucune question : c'est une **lecture dérivée** du seam, pas un second chemin
+d'écriture. Le contrôleur reste le seul lecteur et le seul écrivain de `?open`, `?next` et `?error` ;
+la fonction se contente de retirer ces paramètres de l'adresse de la page.
+
+La surface du contrôleur compte donc sept membres : les cinq du corps, l'e-mail de préremplissage, et
+l'adresse de page sans paramètres d'authentification.

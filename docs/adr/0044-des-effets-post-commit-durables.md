@@ -34,8 +34,9 @@ et l'outbox.
   `lastError`, `availableAt`, `lockedUntil`). `enregistrerEvenement(tx, …)`
   (`lib/automations/evenements.ts`) l'écrit avec le client de la transaction qui produit le fait :
   `placeOrder` et `updateOrderStatus` (`lib/use-cases/orders.ts`), `enregistrerProduit`,
-  `deleteProduct` et `updateVariantStock` (`lib/use-cases/admin-catalog.ts`), et les trois mutations
-  de Structure sous `sousVerrouDeStructure` (`lib/use-cases/admin-structure.ts`). Un retour arrière
+  `deleteProduct` et `updateVariantStock` (`lib/use-cases/admin-catalog.ts`), et les quatre mutations
+  de Structure sous `sousVerrouDeStructure` (`lib/use-cases/admin-structure.ts`) — création,
+  modification, déplacement et suppression. Un retour arrière
   ne laisse ni événement ni exécution. `deleteProduct` et `updateVariantStock`, qui écrivaient hors
   transaction, en ouvrent une — c'est le prix de l'atomicité, et il est nommé ici.
 
@@ -114,9 +115,11 @@ et l'outbox.
 
 - **La surface est minimale, et Phase 5 la possède.** `listerExecutions`
   (`lib/automations/historique.ts`) rend les dernières exécutions avec statut, tentative, erreur et
-  horodatages, et `app/admin/automatisations/page.tsx` les montre ; une exécution en échec y est
-  visible avec son erreur et son nombre de tentatives. La relance manuelle, l'édition des règles et
-  la simulation appartiennent à Phase 5, et les modèles sont déjà taillés pour elle.
+  horodatages, et `app/admin/automatisations/executions/page.tsx` les montre ; une exécution en
+  échec y est visible avec son erreur et son nombre de tentatives.
+  `app/admin/automatisations/page.tsx` n'affiche que le compte des échecs et renvoie vers cette
+  page. La relance manuelle, l'édition des règles et la simulation appartiennent à Phase 5, et les
+  modèles sont déjà taillés pour elle.
 
 ## Options envisagées
 

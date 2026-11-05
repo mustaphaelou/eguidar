@@ -81,7 +81,7 @@ la même.
   exacte du domaine : pas de Structure parente. Aucune constante n'est déclarée, donc rien ne peut
   être remplacé par un mandataire, donc aucune comparaison ne peut devenir fausse par accident.
   Les surfaces voisines ne le font pas autrement — la forme Produit lit son champ de transport par un
-  simple repli sur `""` ([`lib/formulaire-produit.ts:361`](../../lib/formulaire-produit.ts#L361)),
+  simple repli sur `""` ([`lib/formulaire-produit.ts`](../../lib/formulaire-produit.ts)),
   sans jamais le comparer à une constante importée. La surface Structure était la seule à inventer
   une sentinelle *et* à la faire franchir la frontière.
 
@@ -127,7 +127,7 @@ la même.
 - **Un garde de frontière comme unique garantie** — écarté : un test attrape le défaut après coup, à
   la suite suivante, et ne dit rien de l'endroit où il faut poser la constante. Un garde existe
   pourtant — [`app/admin/actions-frontiere.test.ts`](../../app/admin/actions-frontiere.test.ts)
-  applique la règle aux cinq modules `app/admin/<un dossier>/actions.ts`, la surface où le défaut est
+  applique la règle aux sept modules `app/admin/<un dossier>/actions.ts`, la surface où le défaut est
   né — et il garde une règle ; il n'est pas la règle. Dire la même règle à l'écriture, par une règle
   ESLint `no-restricted-imports`, reste le suivi de
   [#520](https://github.com/eloaurdi/eguidar/issues/520), distincte de cet ADR.
@@ -167,29 +167,29 @@ la même.
 
 - **Piège nommé — la règle porte sur les valeurs, pas sur l'atteignabilité.** Un composant serveur
   rend volontairement des composants clients : la page des Structures importe
-  [`DeleteCategoryButton`](../../components/admin/delete-category-button.tsx) à
-  [`app/admin/categories/page.tsx:5`](../../app/admin/categories/page.tsx#L5) et le rend à
-  [`:138`](../../app/admin/categories/page.tsx#L138). Un garde écrit sur « tout fichier non client »
-  s'allumerait sur des dizaines d'imports légitimes. La frontière à garder porte sur ce qui est
-  *emprunté comme valeur*, pas sur ce qui est *atteint comme module*.
+  [`TableauStructure`](../../components/admin/tableau-structure.tsx) depuis
+  [`app/admin/categories/page.tsx`](../../app/admin/categories/page.tsx), et c'est le tableau qui
+  rend [`DeleteCategoryButton`](../../components/admin/delete-category-button.tsx). Un garde écrit sur
+  « tout fichier non client » s'allumerait sur des dizaines d'imports légitimes. La frontière à
+  garder porte sur ce qui est *emprunté comme valeur*, pas sur ce qui est *atteint comme module*.
 
 - **Piège nommé — `importeDe` voit les imports de type.**
-  ([`lib/use-cases/outils-frontiere.ts:95-99`](../../lib/use-cases/outils-frontiere.ts#L95-L99))
-  [`referencesDeSource`](../../lib/use-cases/outils-frontiere.ts#L33-L68) en distingue bien la
-  clause `import type` (ligne 43), mais
-  [`importeDe`](../../lib/use-cases/outils-frontiere.ts#L95-L99) l'ignore. Un garde qui laisse
+  [`importeDe`](../../lib/use-cases/outils-frontiere.ts)
+  [`referencesDeSource`](../../lib/use-cases/outils-frontiere.ts) en distingue bien la
+  clause `import type`, mais
+  [`importeDe`](../../lib/use-cases/outils-frontiere.ts) l'ignore. Un garde qui laisse
   passer le type seul doit donc filtrer lui-même, sur `typeOnly` :
   s'appuyant sur `importeDe` seul, il signalera
-  [`app/admin/commandes/actions.ts:5`](../../app/admin/commandes/actions.ts#L5) comme une violation,
+  [`app/admin/commandes/actions.ts`](../../app/admin/commandes/actions.ts) comme une violation,
   alors que cet emprunt est doublement permis — il est un emprunt de type, et sa cible est de
   surcroît neutre. Le complément qui applique ce filtre est
-  [`empruntsDeValeur`](../../lib/use-cases/outils-frontiere.ts#L241-L254), qui jette l'emprunt de
+  [`empruntsDeValeur`](../../lib/use-cases/outils-frontiere.ts), qui jette l'emprunt de
   type avant de résoudre le spécifieur : la garde appelle ce complément, et non `importeDe`.
 
 - **Piège nommé — la neutralité d'un module se vérifie par transit.** Un module neutre qui n'importe
   rien de notable peut tout de même atteindre un module client ou serveur par un intermédiaire. La
   vérification utile parcourt le graphe des imports de valeurs, comme le fait
-  [`atteignables`](../../lib/use-cases/outils-frontiere.ts#L276-L289) pour ADR-0026 ; une vérification
+  [`atteignables`](../../lib/use-cases/outils-frontiere.ts) pour ADR-0026 ; une vérification
   en direct laisse passer la moitié des chemins.
 
 - **Un module neutre ne devient pas un fourre-tout.** Il ne reçoit une valeur partagée que parce
@@ -226,12 +226,12 @@ que l'absence de reproduction de la transformation est la cause du silence.
 
 **La garde de frontière.** `app/admin/actions-frontiere.test.ts` n'exécute rien : elle lit la
 source, sans build ni transformation RSC, et la règle porte sur ce qui est importé, non sur ce
-que l'exécution en fait. Elle tient les cinq modules `app/admin/<un dossier>/actions.ts` à zéro
+que l'exécution en fait. Elle tient les sept modules `app/admin/<un dossier>/actions.ts` à zéro
 emprunt de valeur vers un module `"use client"`, et elle se prouve elle-même par deux gestes
 inverses : elle remet dans `app/admin/categories/actions.ts` la ligne exacte que
 [#518](https://github.com/eloaurdi/eguidar/issues/518) avait retirée —
 `import { NO_PARENT_VALUE } from "@/components/admin/category-form"`, celle que donne
 `git show 53eb10b^:app/admin/categories/actions.ts` — et attend que la garde la nomme ; le même
-emprunt écrit `import type` passe. La liste des cinq actions gardées est écrite, non déduite
+emprunt écrit `import type` passe. La liste des sept actions gardées est écrite, non déduite
 du parcours, et le témoin de non-vacuité la compare à ce que le parcours trouve : une action
 neuve échoue au témoin jusqu'à ce qu'on la nomme.

@@ -137,25 +137,9 @@ Le parcours va du catalogue à la confirmation de commande, sans paiement en lig
 
 ## Architecture
 
-Eguidar est une application Next.js unique. Les pages sont des Server Components ; les lectures et écritures métier vivent dans `lib/use-cases/`, et les composants client ne reçoivent que des types et des ports.
+Eguidar est une application Next.js unique. Les pages sont des Server Components ; les lectures et écritures métier vivent dans `lib/use-cases/` ; les composants client ne reçoivent que des types et des ports. Elle tourne dans un conteneur Docker déployé par Coolify ; Cloudflare est devant, en cache seulement.
 
-```text
-app/
-├── (boutique)/        # la boutique : accueil, catalogue, panier, commande…
-├── admin/             # l'Administration, protégée par un gate de session
-└── api/               # auth, panier, recherche, pré-signature R2
-components/            # kit UI, composants boutique, admin et auth
-lib/
-├── use-cases/         # lectures et écritures métier (la couture serveur)
-├── generated/prisma/  # client Prisma généré
-├── panier.ts          # Panier
-└── meili.ts           # adaptateur Meilisearch
-prisma/                # schéma, migrations, seed
-infra/                 # artefacts Cloudflare versionnés et contrat de la Porte
-scripts/               # checks, assistant fournisseurs, sondes
-docs/adr/              # décisions d'architecture
-GLOSSARY.md            # vocabulaire du domaine
-```
+**La carte est dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** : les cinq couches, les neuf coutures qui séparent les modules, et les onze lois que la CI fait respecter. Les décisions qui l'ont faite sont dans [`docs/adr/`](docs/adr/), indexées par thème ; le vocabulaire du domaine est dans [`GLOSSARY.md`](GLOSSARY.md).
 
 Le cycle d'une Commande, du Panier au chiffre d'affaires :
 
@@ -169,12 +153,7 @@ flowchart LR
   statut -->|Annuler ou Retourner| stock["Stock réapprovisionné"]
 ```
 
-Quelques règles qui tiennent le dépôt :
-
-- **Le domaine parle français.** `GLOSSARY.md` fixe le vocabulaire — Produit, Commande, Devis, Ville de livraison, Brouillon d'Image produit — et chaque ADR de `docs/adr/` garde une décision et ses alternatives.
-- **Un fait n'a qu'un propriétaire.** Les artefacts d'infrastructure (`infra/*.json`) sont dérivés du code et un test échoue dès qu'ils divergent ; le domaine fait de même pour ses prix calculés et ses statuts.
-- **La CI est la porte.** Six contextes — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` — sont le contrat de fusion de `main`, et `bash scripts/checks.sh` rejoue les cinq checks npm en local.
-- **Le flux de travail est écrit.** Les issues, le triage et le domaine sont décrits dans [`docs/agents/`](docs/agents/) ; les standards de code sont dans [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+Ce que la CI garantit, en six contextes — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` —, se rejoue en local par `bash scripts/checks.sh`. La Porte de fusion et les standards de code sont décrits dans [`docs/agents/`](docs/agents/) et [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
 
 ## Démarrer
 
