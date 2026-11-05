@@ -39,6 +39,11 @@ export interface HomeData {
   featured: CarteProduit[]
 }
 
+export interface NavCategory {
+  name: string
+  slug: string
+}
+
 export interface CategoryPageData {
   category: {
     id: string
@@ -115,6 +120,11 @@ export async function fetchHomeData(): Promise<HomeData> {
     categories: lecture.arbreAccueil(),
     featured: featured.map((product) => versCarteProduit(product)),
   }
+}
+
+export async function fetchNavCategories(): Promise<NavCategory[]> {
+  const lecture = await lireStructure()
+  return lecture.arbreAccueil().map(({ name, slug }) => ({ name, slug }))
 }
 
 export async function fetchCategoryPageData(
@@ -239,11 +249,23 @@ export async function parametresDesCategories(): Promise<ParametresDeSlug[]> {
 
 const STORE_CACHE_LIFE = { revalidate: 900, expire: 86400 }
 
+// Le Bandeau est rendu sur toutes les pages, y compris les pages statiques qui
+// se partagent un an. Sa durée de vie ne doit donc pas raccourcir la leur : le
+// tag `categories` porte l'invalidation réelle, la durée n'est qu'un plafond.
+const NAVIGATION_CACHE_LIFE = { revalidate: 31_536_000, expire: 31_536_000 }
+
 export async function getHomeData(): Promise<HomeData> {
   "use cache: remote"
   cacheTag(HOME_TAG, CATEGORY_TAG, PRODUCT_TAG)
   cacheLife(STORE_CACHE_LIFE)
   return fetchHomeData()
+}
+
+export async function getNavCategories(): Promise<NavCategory[]> {
+  "use cache: remote"
+  cacheTag(CATEGORY_TAG)
+  cacheLife(NAVIGATION_CACHE_LIFE)
+  return fetchNavCategories()
 }
 
 export async function getCategoryPageData(

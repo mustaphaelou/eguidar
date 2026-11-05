@@ -1098,3 +1098,14 @@ contention ; un cycle est refusé en nommant son arête, et une Structure hors a
 page se prouve au rendu : position, cumul, fil d'Ariane, une seule région polie, « Rattacher… » sur
 le hors arbre, aucun `treegrid`. Les quatre boutons se prouvent au clavier, à 24 px, et la charge
 envoyée ne porte que l'intention.
+
+## Amendement — le compte du #693 n'est plus celui du dépôt
+
+L'amendement du #693 écrit seize sites — neuf par la relation, sept par le délégué, trois héritées.
+Le seuil exécutable en pinçait depuis **vingt** : `lib/use-cases/lecture-structure-seuil.test.ts`
+exige vingt entrées nommées, **onze** par la relation, **neuf** par le délégué — dont quatre par la
+poignée, deux `tx` et deux `client` — et **trois** héritées. La garde porte la vérité ; c'est l'ADR
+qui avait pris du retard, et le titre du test qui disait encore « seize » a suivi.
+
+Rien d'autre ne bouge : la règle — une lecture de la relation est une exception nommée, et la liste
+est la règle — tient sans changement.

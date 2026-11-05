@@ -4,7 +4,7 @@
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.4-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org) [![React](https://img.shields.io/badge/React-19.2-61DAFB?logo=react&logoColor=black)](https://react.dev) [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org) [![Licence MIT](https://img.shields.io/badge/licence-MIT-22c55e)](LICENSE)
 
-![Page d'accueil d'eguidar.com](docs/screenshots/accueil.png)
+![Page d'accueil](docs/screenshots/accueil.png)
 
 > Les captures de ce README sont prises sur une instance locale de démonstration (`npm run seed:demo`), avec deux commandes saisies pour l'exemple ; les noms, adresses et coordonnées y sont floutés.
 
@@ -137,25 +137,9 @@ Le parcours va du catalogue à la confirmation de commande, sans paiement en lig
 
 ## Architecture
 
-Eguidar est une application Next.js unique. Les pages sont des Server Components ; les lectures et écritures métier vivent dans `lib/use-cases/`, et les composants client ne reçoivent que des types et des ports.
+Eguidar est une application Next.js unique. Les pages sont des Server Components ; les lectures et écritures métier vivent dans `lib/use-cases/` ; les composants client ne reçoivent que des types et des ports. Elle tourne dans un conteneur Docker déployé par Coolify ; Cloudflare est devant, en cache seulement.
 
-```text
-app/
-├── (boutique)/        # la boutique : accueil, catalogue, panier, commande…
-├── admin/             # l'Administration, protégée par un gate de session
-└── api/               # auth, panier, recherche, pré-signature R2
-components/            # kit UI, composants boutique, admin et auth
-lib/
-├── use-cases/         # lectures et écritures métier (la couture serveur)
-├── generated/prisma/  # client Prisma généré
-├── panier.ts          # Panier
-└── meili.ts           # adaptateur Meilisearch
-prisma/                # schéma, migrations, seed
-infra/                 # artefacts Cloudflare versionnés et contrat de la Porte
-scripts/               # checks, assistant fournisseurs, sondes
-docs/adr/              # décisions d'architecture
-GLOSSARY.md            # vocabulaire du domaine
-```
+**La carte est dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** : les cinq couches, les neuf coutures qui séparent les modules, et les onze lois que la CI fait respecter. Les décisions qui l'ont faite sont dans [`docs/adr/`](docs/adr/), indexées par thème ; le vocabulaire du domaine est dans [`GLOSSARY.md`](GLOSSARY.md).
 
 Le cycle d'une Commande, du Panier au chiffre d'affaires :
 
@@ -169,12 +153,7 @@ flowchart LR
   statut -->|Annuler ou Retourner| stock["Stock réapprovisionné"]
 ```
 
-Quelques règles qui tiennent le dépôt :
-
-- **Le domaine parle français.** `GLOSSARY.md` fixe le vocabulaire — Produit, Commande, Devis, Ville de livraison, Brouillon d'Image produit — et chaque ADR de `docs/adr/` garde une décision et ses alternatives.
-- **Un fait n'a qu'un propriétaire.** Les artefacts d'infrastructure (`infra/*.json`) sont dérivés du code et un test échoue dès qu'ils divergent ; le domaine fait de même pour ses prix calculés et ses statuts.
-- **La CI est la porte.** Six contextes — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` — sont le contrat de fusion de `main`, et `bash scripts/checks.sh` rejoue les cinq checks npm en local.
-- **Le flux de travail est écrit.** Les issues, le triage et le domaine sont décrits dans [`docs/agents/`](docs/agents/) ; les standards de code sont dans [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+Ce que la CI garantit, en six contextes — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` —, se rejoue en local par `bash scripts/checks.sh`. La Porte de fusion et les standards de code sont décrits dans [`docs/agents/`](docs/agents/) et [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
 
 ## Démarrer
 
@@ -347,7 +326,7 @@ L'étape « R2 CORS » de `bash scripts/setup-providers.sh` fait le `PUT` du cor
 curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$R2_ACCOUNT_ID/r2/buckets/$R2_BUCKET/cors" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
   -H "Content-Type: application/json" \
-  --data-binary '{"rules":[{"id":"televersement-administration","allowed":{"origins":["https://eguidar.com"],"methods":["PUT"],"headers":["content-type"]},"exposeHeaders":["ETag"],"maxAgeSeconds":3600}]}'
+  --data-binary '{"rules":[{"id":"televersement-administration","allowed":{"origins":["https://example.com"],"methods":["PUT"],"headers":["content-type"]},"exposeHeaders":["ETag"],"maxAgeSeconds":3600}]}'
 ```
 
 Un lien pré-signé expiré répond `403 ExpiredRequest` **sans en-têtes CORS** : le JavaScript ne peut pas lire la cause et voit un échec réseau. Le client renouvelle donc le lien une fois, puis rend le refus générique si la seconde tentative échoue aussi ; il ne tente jamais d'afficher un refus typé que le navigateur n'a pas pu lire.
@@ -363,7 +342,7 @@ Un document de la boutique est le même pour tous les Visiteurs : Cloudflare peu
 La configuration de zone est versionnée dans [`infra/regle-cache-edge.json`](infra/regle-cache-edge.json), et `infra/regle-cache-edge.ts` la dérive de `HOTE_EDGE` ([`lib/zone-edge.ts`](lib/zone-edge.ts)) — jamais d'une seconde écriture du domaine. Deux règles, dans cet ordre :
 
 1. **`rsc-et-prefetch-hors-cache`** contourne le cache dès que `RSC` ou `Next-Router-Prefetch` est présent.
-2. **`documents-anonymes-eguidar`** rend le HTML de `eguidar.com` éligible au cache, en excluant `/api/`, `/_next/` et le repli `/__placeholder__` des trois routes dynamiques, et en niant les deux mêmes têtes.
+2. **`documents-anonymes-eguidar`** rend le HTML de l'hôte éligible au cache, en excluant `/api/`, `/_next/` et le repli `/__placeholder__` des trois routes dynamiques, et en niant les deux mêmes têtes.
 
 Le repli `/__placeholder__` — le slug qu'une route dynamique rend quand le Catalogue est vide — répond un 404 qui porte `s-maxage`. La seconde règle nie explicitement tout chemin qui finit par ce segment, sur `/produit`, `/categorie` et `/blog` : ce 404 ne devient jamais une entrée partagée.
 
@@ -408,17 +387,17 @@ curl -X PUT "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/rule
 La vérification est **manuelle par nature** : la CI n'a ni jeton ni zone. Sur une URL prérendue, deux requêtes suffisent — la première remplit l'edge, la seconde doit répondre `cf-cache-status: HIT` :
 
 ```bash
-curl -sSI https://eguidar.com/faq | grep -i cf-cache-status
-curl -sSI https://eguidar.com/faq | grep -i cf-cache-status   # HIT
-curl -sSI https://eguidar.com/produit/<slug-prérendu> | grep -i cf-cache-status
-curl -sSI https://eguidar.com/produit/<slug-prérendu> | grep -i cf-cache-status   # HIT
+curl -sSI https://example.com/faq | grep -i cf-cache-status
+curl -sSI https://example.com/faq | grep -i cf-cache-status   # HIT
+curl -sSI https://example.com/produit/<slug-prérendu> | grep -i cf-cache-status
+curl -sSI https://example.com/produit/<slug-prérendu> | grep -i cf-cache-status   # HIT
 ```
 
 Un payload n'est jamais un document : une requête portant `RSC: 1` (ou `Next-Router-Prefetch`) doit contourner le cache et ne jamais recevoir le HTML stocké :
 
 ```bash
-curl -sSI -H 'RSC: 1' https://eguidar.com/faq | grep -i cf-cache-status   # jamais HIT
-curl -sS  -H 'RSC: 1' https://eguidar.com/faq | head -c 120               # un payload RSC, jamais le HTML
+curl -sSI -H 'RSC: 1' https://example.com/faq | grep -i cf-cache-status   # jamais HIT
+curl -sS  -H 'RSC: 1' https://example.com/faq | head -c 120               # un payload RSC, jamais le HTML
 ```
 
 `/faq` et les slugs prérendus répondent `HIT` ; `/produits` (qui lit `searchParams`) et les slugs inconnus restent des rendus d'origine : leur réponse ne porte pas de `s-maxage`, donc l'edge ne les stocke pas. Cette étape rend la zone **éligible** : la purge (déploiement, écriture admin) est un autre mécanisme, décrit dans la section suivante, et une réponse qui porte encore `Set-Cookie` ou `no-store` reste non stockée.
@@ -439,7 +418,7 @@ L'ordre est porté par [`docker-compose.yml`](docker-compose.yml), pas par un ch
 
 ##### Crédential et portée
 
-Créez un jeton d'API Cloudflare portant **Zone → Cache Purge → Purge** sur la zone `eguidar.com` (la portée s'appelle « Cache Purge »). Un même jeton peut aussi porter « Workers R2 Storage: Edit » si l'étape de cycle de vie R2 l'utilise (voir plus haut), mais un jeton dédié à la purge est plus sûr. `CLOUDFLARE_ZONE_ID` identifie la zone et se lit dans la console Cloudflare. Le plan gratuit autorise 5 purges globales par minute : un déploiement en fait une, c'est sans objet.
+Créez un jeton d'API Cloudflare portant **Zone → Cache Purge → Purge** sur la zone cible (la portée s'appelle « Cache Purge »). Un même jeton peut aussi porter « Workers R2 Storage: Edit » si l'étape de cycle de vie R2 l'utilise (voir plus haut), mais un jeton dédié à la purge est plus sûr. `CLOUDFLARE_ZONE_ID` identifie la zone et se lit dans la console Cloudflare. Le plan gratuit autorise 5 purges globales par minute : un déploiement en fait une, c'est sans objet.
 
 Sans ces variables (ou avec `PURGE_EDGE=off`), la phase est un **no-op journalisé** : elle affiche `purge ignorée` et sort 0, le déploiement se poursuit. C'est l'état par défaut tant que le jeton n'est pas fourni.
 
@@ -512,7 +491,7 @@ MEILI_URL=http://localhost:7700 \
 MEILI_MASTER_KEY=meili-dev-master-key \
 REDIS_URL=redis://localhost:6379 \
 ADMIN_NAME=Administrateur \
-ADMIN_EMAIL=admin@eguidar.com \
+ADMIN_EMAIL=admin@example.com \
 ADMIN_PASSWORD=change-me-admin-password \
 BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
 bash scripts/verifier-image-deploiement.sh
@@ -554,7 +533,7 @@ Elle autorise sans rien demander : l'usage, la copie, la modification, la fusion
 
 Trois choses restent hors de la concession :
 
-- **Le nom et le logo « Eguidar »**. Un fork peut reprendre le code ; il ne peut pas se présenter comme la boutique eguidar.com, ni laisser croire qu'il en est l'émetteur.
+- **Le nom et le logo « Eguidar »**. Un fork peut reprendre le code ; il ne peut pas se présenter comme la boutique en ligne, ni laisser croire qu'il en est l'émetteur.
 - **Le contenu de la boutique** — textes, photos produits, descriptions —, que la MIT ne concède pas. Le code qui l'affiche est libre ; les visuels qu'il affiche ne le sont pas.
 - **Les ressources tierces** — `vendor/`, polices, icônes, dépendances de `node_modules` —, qui gardent leurs propres licences, dans leurs fichiers respectifs.
 

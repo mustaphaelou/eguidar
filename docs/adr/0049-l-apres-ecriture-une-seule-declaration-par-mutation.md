@@ -132,3 +132,25 @@ tiennent ; aucune décision concurrente n'est ouverte.
 - **Noms canoniques.** `produitId`, `slug`, `slugPrecedent`, `categoryId`,
   `categoryIdPrecedent`, `imagesRetirees`, `categorieId`, `destinations`, `snapshot`,
   `statut`, `jour`.
+
+## Amendement — les écritures de maintenance sont un second genre
+
+La décision nomme dix genres d'écriture ; le registre en porte **quinze**. #874 a ajouté, après le
+présent ADR, cinq genres que l'énumération ne pouvait pas prévoir :
+
+- `ville.creee`, `ville.modifiee`, `ville.supprimee` ;
+- `livraison.reglee` ;
+- `image.texte-alternatif`.
+
+Ce ne sont pas cinq noms oubliés : c'est un **second genre d'entrée**. Les dix premiers déclarent au
+moins un `fait` et peuvent porter une conséquence durable ; les cinq autres passent par
+`planDeMaintenance`, qui rend `faits: []` et une conséquence **non durable** avec sa réparation
+nommée. Ils partagent le registre — une écriture d'Administration n'a qu'un seul chemin de
+déclaration — mais ils n'émettent aucun Événement d'automatisation et ne reçoivent aucune Règle par
+défaut. `GENRES_DERIVES` dérive les Règles du registre et exclut les genres groupés ; les genres de
+maintenance n'y ajoutent rien, puisqu'ils n'ont aucune conséquence durable.
+
+Le registre reste exhaustif par le type (`Record<GenreEcriture, Declaration>`) : ajouter un genre
+sans déclaration ne compile pas. Depuis #916, une garde l'épingle aussi à l'exécution —
+`lib/apres-ecriture-frontiere.test.ts` compare les genres déclarés aux clés du registre, et vérifie
+que le module n'importe que des types.

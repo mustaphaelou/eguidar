@@ -19,3 +19,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **Issues and specs** — GitHub issues, worked through the `gh` CLI. `docs/agents/issue-tracker.md`
 - **Triage** — five canonical roles map to label strings. `docs/agents/triage-labels.md`
 - **Domain** — `GLOSSARY.md` + `docs/adr/`. `docs/agents/domain.md`
+- **Architecture** — the five couches, the nine coutures and the eleven lois. `docs/ARCHITECTURE.md`

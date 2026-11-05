@@ -1,17 +1,19 @@
 // @vitest-environment happy-dom
-/* eslint-disable react-hooks/incompatible-library -- TanStack Table dans un banc de test. */
-
 import * as React from "react"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import {
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type ColumnDef,
+  type RowSelectionState,
 } from "@tanstack/react-table"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { DataTableToolbar } from "@/components/data-table"
+import {
+  dataTableFeatures,
+  type DataTableFeatures,
+} from "@/components/data-table/data-table-features"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -25,7 +27,9 @@ const LIGNES: Ligne[] = [
   { id: "commande-2", statut: "shipped" },
 ]
 
-const COLONNES: ColumnDef<Ligne>[] = [{ id: "statut", accessorKey: "statut" }]
+const COLONNES: ColumnDef<DataTableFeatures, Ligne>[] = [
+  { id: "statut", accessorKey: "statut" },
+]
 
 const FILTRES = [
   {
@@ -63,10 +67,11 @@ function Tableau({
   selection = {},
   selectedCount,
 }: {
-  selection?: Record<string, boolean>
+  selection?: RowSelectionState
   selectedCount?: number
 }) {
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: LIGNES,
     columns: COLONNES,
     getRowId: (ligne) => ligne.id,
@@ -74,7 +79,6 @@ function Tableau({
       rowSelection: selection,
       columnFilters: [{ id: "statut", value: ["pending"] }],
     },
-    getCoreRowModel: getCoreRowModel(),
   })
 
   return (
@@ -89,7 +93,7 @@ function Tableau({
   )
 }
 
-function rendre(selection?: Record<string, boolean>, selectedCount?: number) {
+function rendre(selection?: RowSelectionState, selectedCount?: number) {
   if (!root) {
     root = createRoot(container)
   }

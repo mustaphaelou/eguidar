@@ -11,7 +11,7 @@ function p2002(
 ): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
     code: "P2002",
-    clientVersion: "7.9.1",
+    clientVersion: "7.10.1",
     meta,
   })
 }
@@ -33,6 +33,74 @@ describe("decodeP2002Fields", () => {
     ).toEqual(["slug"])
   })
 
+  it("decodes the constraint name Prisma 7.10 reports for PostgreSQL", () => {
+    expect(
+      decodeP2002Fields(
+        p2002({
+          driverAdapterError: {
+            cause: {
+              constraint: {
+                index: "AutomationEvent_type_entityId_attemptOf_key",
+              },
+              table: "AutomationEvent",
+            },
+          },
+        })
+      )
+    ).toEqual(["type", "entityId", "attemptOf"])
+    expect(
+      decodeP2002Fields(
+        p2002({
+          driverAdapterError: {
+            cause: {
+              constraint: { index: "Category_slug_key" },
+              table: "Category",
+            },
+          },
+        })
+      )
+    ).toEqual(["slug"])
+  })
+
+  it("falls back to the leading model name when the adapter omits the table", () => {
+    expect(
+      decodeP2002Fields(
+        p2002({
+          driverAdapterError: {
+            cause: { constraint: { index: "Category_slug_key" } },
+          },
+        })
+      )
+    ).toEqual(["slug"])
+  })
+
+  it("reads the primary key constraint as the id field", () => {
+    expect(
+      decodeP2002Fields(
+        p2002({
+          driverAdapterError: {
+            cause: {
+              constraint: { index: "AutomationRule_pkey" },
+              table: "AutomationRule",
+            },
+          },
+        })
+      )
+    ).toEqual(["id"])
+  })
+
+  it("returns [] for a constraint name that is not a key", () => {
+    expect(
+      decodeP2002Fields(
+        p2002({
+          driverAdapterError: {
+            cause: { constraint: { index: "AutomationRule_check" } },
+          },
+        })
+      )
+    ).toEqual([])
+  })
+
   it("prefers meta.target when both dialects are present", () => {
     expect(
       decodeP2002Fields(
@@ -49,7 +117,7 @@ describe("decodeP2002Fields", () => {
       "Foreign key constraint failed",
       {
         code: "P2003",
-        clientVersion: "7.9.1",
+        clientVersion: "7.10.1",
       }
     )
     expect(decodeP2002Fields(other)).toEqual([])

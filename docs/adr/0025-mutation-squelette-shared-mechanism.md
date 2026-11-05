@@ -44,3 +44,19 @@ identical best-effort behaviour are centralized.
 - Task-action refusal mechanics are untouched (ADR-0010, unchanged): the shell's `refusalUrl` and its silent-void default keep deciding the UX.
 - The merge helper preserves `{ ...defaults, ...overrides }`: an override wins per key, and an omitted key falls back to the production default.
 - The four modules keep four suites; only identical assertions may be shared.
+
+## Amendement — Commande déclare un plan, elle ne compose plus la séquence
+
+L'amendement précédent décrit encore la Commande d'avant l'ADR-0049. `placeOrder` et
+`updateOrderStatus` ne passent plus leur effet e-mail suivi d'un `invalidateCommande` à
+`runOrderedEffects` : ils déclarent un plan avec `declarerApresEcriture` — genres `commande.creee`
+et `commande.statut.changee` — puis l'exécutent par `runPlanEffects`. La séquence ordonnée reste le
+mécanisme : `runPlanEffects` appelle `runOrderedEffects`, qui demeure propriétaire de l'ordre, de
+l'attente et de la frontière du meilleur effort.
+
+`runOrderedEffects` garde deux appelants directs — Livraison et Images produit — dont les écritures
+ne déclarent pas encore de plan. Le squelette n'apprend toujours ni entité, ni base, ni e-mail, ni
+cache : il reçoit des conséquences déjà nommées.
+
+Le **journal post-commit** (`JournalEffetsPostCommit`) que le squelette porte n'est décrit ni par la
+décision ni par le premier amendement ; il appartient au même module et mesure chaque effet.
