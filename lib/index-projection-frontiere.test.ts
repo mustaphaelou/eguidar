@@ -68,7 +68,10 @@ const VOIES_D_ECRITURE = new Map<string, string>([
     "lib/use-cases/admin-catalog.ts",
     "l'écriture de l'index après une mutation de Produit",
   ],
-  ["prisma/seed.ts", "l'écriture de l'index par l'outillage d'exploitation"],
+  [
+    "prisma/seed-demo.ts",
+    "l'écriture de l'index par l'outillage de démonstration",
+  ],
 ])
 
 const PROJECTION = "toIndexableProduct"
@@ -362,7 +365,7 @@ describe("Valeur réservée de la facette — un propriétaire, prouvé", () => 
   })
 
   it("la garde tombe sur une voie d'écriture qui re-dérive la valeur, dans un fichier réel", () => {
-    const cible = "prisma/seed.ts"
+    const cible = "prisma/seed-demo.ts"
     const reel = sourceDuDepot(cible).source
 
     expect(atteintLaProjection(reel)).toBe(true)

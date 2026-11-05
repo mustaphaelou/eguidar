@@ -609,9 +609,9 @@ que la reconnaissance trouve. Aucune n'a été demandée au cœur, et aucune n'y
   affiché, pour amorcer son fil d'Ariane
   ([`137`](../../lib/use-cases/storefront.ts#L137)) — le pointeur d'une rangée, la descente restant à la
   Lecture.
-- **[`prisma/seed.ts`](../../prisma/seed.ts)**, une fois : le nom de la catégorie dans les Documents
-  d'index écrits par l'outillage d'exploitation
-  ([`338`](../../prisma/seed.ts#L338)).
+- **[`prisma/seed-demo.ts`](../../prisma/seed-demo.ts)**, une fois : le nom de la catégorie dans les
+  Documents d'index écrits par l'outillage de démonstration
+  ([`393`](../../prisma/seed-demo.ts#L393)).
 
 **La voie d'index garde son exclusion, et elle prend la forme que le seuil lui impose.**
 [`readIndexableCategoryProducts`](../../lib/use-cases/admin-structure.ts#L265) est toujours un `where: { categoryId }`

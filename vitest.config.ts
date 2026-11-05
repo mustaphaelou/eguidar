@@ -18,6 +18,7 @@ export default defineConfig({
       "**/.git/**",
       ".worktrees/**",
       ".agents/**",
+      ".scratch/**",
     ],
     setupFiles: ["test/setup.ts"],
     globalSetup: ["test/global-setup.ts"],

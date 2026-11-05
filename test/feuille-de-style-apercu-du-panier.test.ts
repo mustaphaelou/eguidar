@@ -16,6 +16,7 @@ const REQUETE_MOUVEMENT_REFUSE = "(prefers-reduced-motion: reduce)"
 
 const SELECTEUR_FEUILLE = '[data-slot="apercu-du-panier"]'
 const SELECTEUR_LIGNE = '[data-slot="apercu-du-panier-ligne"]'
+const SELECTEUR_BLOC = '[data-slot="apercu-du-panier-bloc"]'
 const SELECTEUR_VOILE = '[data-slot="voile-sombre"]'
 
 function reglesDe(feuille: FeuilleDeStyleCompilee, selecteur: string): Rule[] {
@@ -140,6 +141,49 @@ describe("les lignes de l'Aperçu du Panier", () => {
   })
 })
 
+describe("les Blocs de l'Aperçu du Panier", () => {
+  let feuille: FeuilleDeStyleCompilee
+
+  beforeAll(async () => {
+    feuille = await compilerLaFeuilleDeStyle()
+  })
+
+  it("montent de 4 px en apparaissant, seulement quand le mouvement est accepté", () => {
+    const regles = reglesDe(feuille, SELECTEUR_BLOC)
+    const acceptees = dansRequete(regles, REQUETE_MOUVEMENT_ACCEPTE)
+
+    expect(valeursDe(acceptees, "animation-name")).toEqual(["apercu-bloc"])
+    expect(valeursDe(acceptees, "animation-duration")).toEqual(["320ms"])
+    expect(valeursDe(acceptees, "animation-timing-function")).toEqual([
+      "var(--ease-out)",
+    ])
+    expect(valeursDe(acceptees, "animation-fill-mode")).toEqual(["both"])
+
+    expect(valeursDe(horsRequete(regles), "animation-name")).toEqual([])
+    expect(valeursDe(horsRequete(regles), "opacity")).toEqual([])
+    expect(valeursDe(horsRequete(regles), "transform")).toEqual([])
+    expect(dansRequete(regles, REQUETE_MOUVEMENT_REFUSE)).toEqual([])
+  })
+
+  it("part de l'opacité nulle et du décalage de -4px pour se poser visible", () => {
+    const images = imagesDe(feuille, "apercu-bloc")
+
+    expect(valeursDe(images, "opacity")).toEqual(["0", "1"])
+    expect(valeursDe(images, "transform")).toEqual(["translateY(-4px)", "none"])
+  })
+
+  it("décale chaque Bloc de 40 ms à partir de son rang, après les 60 ms de la feuille", () => {
+    const acceptees = dansRequete(
+      reglesDe(feuille, SELECTEUR_BLOC),
+      REQUETE_MOUVEMENT_ACCEPTE
+    )
+
+    expect(valeursDe(acceptees, "animation-delay")).toEqual([
+      "calc(60ms + var(--rang-bloc, 0) * 40ms)",
+    ])
+  })
+})
+
 describe("le Voile sombre de l'Aperçu du Panier", () => {
   let feuille: FeuilleDeStyleCompilee
 
@@ -202,8 +246,12 @@ describe("le mouvement de l'Aperçu du Panier", () => {
     ).toEqual(["0", "100dvh"])
   })
 
-  it("laisse la feuille et les lignes immédiatement utilisables sous mouvement réduit", () => {
-    for (const selecteur of [SELECTEUR_FEUILLE, SELECTEUR_LIGNE]) {
+  it("laisse la feuille, les lignes et les Blocs immédiatement utilisables sous mouvement réduit", () => {
+    for (const selecteur of [
+      SELECTEUR_FEUILLE,
+      SELECTEUR_LIGNE,
+      SELECTEUR_BLOC,
+    ]) {
       const regles = reglesDe(feuille, selecteur)
       const hors = horsRequete(regles)
 

@@ -392,7 +392,7 @@ describe("Lecture de la Structure — la reconnaissance de la lecture", () => {
         "lib/use-cases/admin-structure.ts",
         "lib/use-cases/admin-catalog.ts",
         "lib/use-cases/admin-dashboard.ts",
-        "prisma/seed.ts",
+        "prisma/seed-demo.ts",
       ])
     )
 

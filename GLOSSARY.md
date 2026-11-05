@@ -133,6 +133,19 @@ Le refus par le serveur d'une opération sur le Panier : panier plein, quantité
 article indisponible ou article absent.
 _Avoid_: erreur panier, échec d'ajout, rejection
 
+**Socle**:
+Les données qu'une installation reçoit pour servir : le Seuil de livraison offerte, le réseau de
+Villes de livraison avec leurs Frais de livraison, le compte administrateur et les Règles
+d'automatisation. Distinct des Données de démonstration, que le déploiement n'écrit jamais
+(ADR-0050).
+_Avoid_: seed, données initiales, données de base, fixtures
+
+**Données de démonstration**:
+Le Catalogue et le Blog d'une instance de travail — développement local, captures, base éphémère
+de la CI —, distincts du Socle qu'une installation reçoit pour servir. Le déploiement ne les écrit
+jamais (ADR-0050).
+_Avoid_: seed, fixtures, données de test, jeu de démonstration
+
 **Catalogue**:
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)

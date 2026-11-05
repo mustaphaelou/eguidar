@@ -28,6 +28,10 @@ const ENTREE_NON_CHECK = new Map([
     "prepare",
     "le branchement du crochet, qui écrit dans la configuration locale de git et se lance à l'installation",
   ],
+  [
+    "seed:demo",
+    "les Données de démonstration, qui écrivent dans la base : la CI les sème en préparation du build, jamais comme un check, et `scripts/checks.sh` ne doit pas les rejouer sur le poste",
+  ],
 ])
 
 function lireLesScripts(): Set<string> {
@@ -196,6 +200,18 @@ describe("le job de build éprouve l'artefact de déploiement", () => {
       JOBS.get("build")?.["timeout-minutes"],
       "le job « build » ne porte pas de `timeout-minutes` : une couche Docker bloquée peut retenir le runner sans fin."
     ).toBe(20)
+  })
+
+  it("sème les Données de démonstration avant de construire", () => {
+    const runs = etapesDe("build").map((etape) => etape.run)
+    const semis = runs.indexOf("npx tsx prisma/seed-demo.ts")
+    const construction = runs.indexOf("npm run build")
+
+    expect(
+      semis,
+      "le job « build » ne sème pas les Données de démonstration (ADR-0050) : le build prérendrait une boutique vide et perdrait la couverture des routes du Catalogue."
+    ).toBeGreaterThan(-1)
+    expect(semis).toBeLessThan(construction)
   })
 })
 
