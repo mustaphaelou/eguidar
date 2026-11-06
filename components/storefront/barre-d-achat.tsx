@@ -69,7 +69,7 @@ export function BarreDAchat({
             )}
           </Button>
           {ajoute && (
-            <p className="text-sm text-emerald-600">Ajouté au panier</p>
+            <p className="text-sm text-emerald-700">Ajouté au panier</p>
           )}
           {messageRefus && (
             <p role="alert" className="text-sm text-destructive">

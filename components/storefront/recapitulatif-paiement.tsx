@@ -50,7 +50,7 @@ export function RecapitulatifPaiement(props: RecapitulatifPaiementProps) {
             <dd
               className={cn(
                 "shrink-0 text-right font-semibold whitespace-nowrap",
-                row.tone === "offered" && "text-emerald-600",
+                row.tone === "offered" && "text-emerald-700",
                 row.tone === "muted" && "text-muted-foreground"
               )}
             >
