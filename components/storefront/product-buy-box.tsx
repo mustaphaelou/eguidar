@@ -55,11 +55,44 @@ export function ProductBuyBox({
     if (typeof IntersectionObserver === "undefined") return
     const bouton = buyButtonRef.current
     if (!bouton) return
-    const observer = new IntersectionObserver(([entree]) =>
-      setBarVisible(!entree.isIntersecting)
-    )
-    observer.observe(bouton)
-    return () => observer.disconnect()
+
+    let pageDefilee = false
+    let actionDAchatVisible = true
+    let piedDePageDansLaFenetre = false
+
+    function appliquerLaVisibilite() {
+      setBarVisible(
+        pageDefilee && !actionDAchatVisible && !piedDePageDansLaFenetre
+      )
+    }
+
+    function mesurerLaPage() {
+      pageDefilee = window.scrollY > 0
+      // Le Pied de page se repère par son élément `footer` (repère
+      // `contentinfo`) : la Barre d'achat ne connaît aucun de ses composants.
+      const piedDePage = document.querySelector("footer")
+      if (piedDePage === null) {
+        piedDePageDansLaFenetre = false
+      } else {
+        const rectangle = piedDePage.getBoundingClientRect()
+        piedDePageDansLaFenetre =
+          rectangle.top < window.innerHeight && rectangle.bottom > 0
+      }
+      appliquerLaVisibilite()
+    }
+
+    const observateur = new IntersectionObserver(([entree]) => {
+      actionDAchatVisible = entree.isIntersecting
+      mesurerLaPage()
+    })
+    observateur.observe(bouton)
+    window.addEventListener("scroll", mesurerLaPage, { passive: true })
+    mesurerLaPage()
+
+    return () => {
+      observateur.disconnect()
+      window.removeEventListener("scroll", mesurerLaPage)
+    }
   }, [])
 
   if (variants.length === 0) {
@@ -176,7 +209,7 @@ export function ProductBuyBox({
       >
         {enAttente ? "Ajout…" : "Ajouter au panier"}
       </Button>
-      {ajoute && <p className="text-sm text-emerald-600">Ajouté au panier</p>}
+      {ajoute && <p className="text-sm text-emerald-700">Ajouté au panier</p>}
       {messageRefus && (
         <p role="alert" className="text-sm text-destructive">
           {messageRefus}

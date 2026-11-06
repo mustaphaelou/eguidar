@@ -11,6 +11,13 @@
 # testing
 /coverage
 
+# sonde navigateur (Playwright)
+/playwright-report/
+/test-results/
+/.e2e/
+e2e/.auth/
+/public/e2e/
+
 # next.js
 /.next/
 /out/

@@ -32,6 +32,10 @@ const ENTREE_NON_CHECK = new Map([
     "seed:demo",
     "les Données de démonstration, qui écrivent dans la base : la CI les sème en préparation du build, jamais comme un check, et `scripts/checks.sh` ne doit pas les rejouer sur le poste",
   ],
+  [
+    "test:e2e",
+    "la sonde navigateur, qui exige Chromium et une base dédiée : la CI l'héberge dans le job `build` via `npx playwright test`, et `scripts/checks.sh` ne la rejoue pas sur le poste",
+  ],
 ])
 
 function lireLesScripts(): Set<string> {
@@ -212,6 +216,115 @@ describe("le job de build éprouve l'artefact de déploiement", () => {
       "le job « build » ne sème pas les Données de démonstration (ADR-0050) : le build prérendrait une boutique vide et perdrait la couverture des routes du Catalogue."
     ).toBeGreaterThan(-1)
     expect(semis).toBeLessThan(construction)
+  })
+})
+
+const SEMIS_DE_FIXTURE = "npx tsx e2e/scripts/poser-la-fixture.ts"
+const INSTALLATION_CHROMIUM = "npx playwright install --with-deps chromium"
+const SONDE_NAVIGATEUR = "npx playwright test"
+const SONDE_VITEST =
+  "npx vitest run test/serveur-demarre-document-anonyme.test.ts"
+
+function indiceDuRun(commande: string): number {
+  return etapesDe("build").findIndex((etape) => etape.run === commande)
+}
+
+describe("le job de build éprouve la sonde navigateur", () => {
+  it("sème l'image de fixture après les Données de démonstration et avant le build", () => {
+    const semis = indiceDuRun("npx tsx prisma/seed-demo.ts")
+    const fixture = indiceDuRun(SEMIS_DE_FIXTURE)
+    const construction = indiceDuRun("npm run build")
+
+    expect(
+      fixture,
+      "le job « build » n'attache pas l'Image produit de fixture : le héros prérendu n'aurait aucune image et la sonde ne prouverait rien."
+    ).toBeGreaterThan(-1)
+    expect(semis).toBeLessThan(fixture)
+    expect(fixture).toBeLessThan(construction)
+  })
+
+  it("installe Chromium avant de jouer la sonde", () => {
+    expect(
+      indiceDuRun(INSTALLATION_CHROMIUM),
+      "le job « build » ne télécharge pas Chromium : la sonde échouerait au lancement sur un runner neuf."
+    ).toBeGreaterThan(-1)
+    expect(indiceDuRun(INSTALLATION_CHROMIUM)).toBeLessThan(
+      indiceDuRun(SONDE_NAVIGATEUR)
+    )
+  })
+
+  it("joue la sonde après le build, avant les images Docker et la sonde Vitest", () => {
+    const construction = indiceDuRun("npm run build")
+    const sonde = indiceDuRun(SONDE_NAVIGATEUR)
+    const premiereImageDocker = etapesDe("build").findIndex((etape) =>
+      utiliseAction(etape, "docker/build-push-action")
+    )
+    const vitest = indiceDuRun(SONDE_VITEST)
+
+    expect(
+      sonde,
+      "le job « build » ne joue pas `npx playwright test` : la sonde navigateur ne bloquerait aucune fusion."
+    ).toBeGreaterThan(-1)
+    expect(construction).toBeLessThan(sonde)
+    expect(sonde).toBeLessThan(premiereImageDocker)
+    expect(sonde).toBeLessThan(vitest)
+  })
+
+  it("publie le rapport et les traces seulement en cas d'échec", () => {
+    const publication = etapesDe("build").find((etape) =>
+      utiliseAction(etape, "actions/upload-artifact")
+    )
+    const chemins =
+      estObjet(publication?.with) && typeof publication.with.path === "string"
+        ? publication.with.path
+        : ""
+
+    expect(
+      publication,
+      "le job « build » ne publie aucun artefact : une trace d'échec de la sonde serait perdue avec le runner."
+    ).toBeDefined()
+    expect(publication?.if).toBe("failure()")
+    expect(chemins).toContain("playwright-report/")
+    expect(chemins).toContain("test-results/")
+  })
+
+  it("invoque la sonde par npx, sans ajouter de check npm au job", () => {
+    expect(
+      PAR_JOB.get("build"),
+      "le job « build » doit garder sa seule porte nommée : la sonde passe par `npx playwright test`, jamais par `npm run test:e2e`."
+    ).toEqual(["build"])
+  })
+})
+
+const SEMIS_DU_SOCLE = "npx prisma db seed"
+
+function environnementDeLEtape(commande: string): Record<string, unknown> {
+  const etape = etapesDe("build").find(
+    (candidate) => candidate.run === commande
+  )
+  return estObjet(etape?.env) ? etape.env : {}
+}
+
+describe("le job de build donne à la sonde les identifiants de son compte", () => {
+  it("passe à la fixture et à la sonde les mêmes identifiants que le semis du socle", () => {
+    const socle = environnementDeLEtape(SEMIS_DU_SOCLE)
+
+    for (const commande of [SEMIS_DE_FIXTURE, SONDE_NAVIGATEUR]) {
+      const environnement = environnementDeLEtape(commande)
+
+      expect(
+        {
+          ADMIN_EMAIL: environnement.ADMIN_EMAIL,
+          ADMIN_PASSWORD: environnement.ADMIN_PASSWORD,
+        },
+        `l'étape « ${commande} » ne reçoit pas les identifiants du compte administrateur : la sonde ne pourrait ni rattacher ses Commandes au compte semé, ni s'y connecter.`
+      ).toEqual({
+        ADMIN_EMAIL: socle.ADMIN_EMAIL,
+        ADMIN_PASSWORD: socle.ADMIN_PASSWORD,
+      })
+      expect(environnement.ADMIN_EMAIL).toBeTruthy()
+      expect(environnement.ADMIN_PASSWORD).toBeTruthy()
+    }
   })
 })
 

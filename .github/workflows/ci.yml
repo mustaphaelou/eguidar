@@ -176,11 +176,46 @@ jobs:
           DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
           MEILI_URL: http://localhost:7700
           MEILI_MASTER_KEY: eguidar-test-master-key
+      # Les fixtures de la sonde sont posées **avant** le build : l'Image
+      # produit que le héros prérendra, et les deux Commandes rattachées au
+      # compte administrateur semé juste au-dessus (mêmes identifiants).
+      - run: npx tsx e2e/scripts/poser-la-fixture.ts
+        env:
+          E2E_DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+          MEILI_URL: http://localhost:7700
+          MEILI_MASTER_KEY: eguidar-test-master-key
+          ADMIN_EMAIL: admin@eguidar.com
+          ADMIN_PASSWORD: change-me-admin-password
+      - run: npx playwright install --with-deps chromium
       - run: npm run build
         env:
           DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
           NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      # La sonde navigateur : le même artefact que les images, la même base que
+      # le build. Elle échoue si le serveur ne démarre pas ; elle ne se saute
+      # jamais. Un échec rougit le contexte « build » déjà requis (ADR-0020).
+      # `ADMIN_*` sont les identifiants du compte semé : la sonde s'y connecte
+      # par l'endpoint de connexion (le serveur retire `TURNSTILE_SECRET_KEY`).
+      - run: npx playwright test
+        env:
+          E2E_DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
+          E2E_SANS_BUILD: "1"
+          E2E_REDIS_URL: redis://localhost:6379/1
+          MEILI_URL: http://localhost:7700
+          MEILI_MASTER_KEY: eguidar-test-master-key
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: replace-with-a-long-random-secret
+          ADMIN_EMAIL: admin@eguidar.com
+          ADMIN_PASSWORD: change-me-admin-password
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
       - run: docker compose --env-file .env.example config -q
         if: github.event_name == 'push' || github.event.pull_request.draft == false
       # Le driver `docker-container` ne résout pas `host-gateway` : le

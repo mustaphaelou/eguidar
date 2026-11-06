@@ -81,13 +81,13 @@ export function SearchSuggestions({
     (result.products.length > 0 || result.categories.length > 0)
 
   return (
-    <div ref={containerRef} className="relative min-w-0 flex-1">
+    <div ref={containerRef} className="min-w-0 flex-1">
       <Input
         ref={inputRef}
         name="q"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Rechercher un produit, une marque…"
+        placeholder="Chercher"
         className="h-8 rounded-full"
         aria-label="Rechercher un produit"
         aria-expanded={showDropdown}

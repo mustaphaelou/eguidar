@@ -206,6 +206,27 @@ describe("BarreDAchat", () => {
     expect(boutonBarre().getAttribute("aria-label")).toContain("Premium")
   })
 
+  it("raccourcit le libellé visible à « Ajouter » sans perdre « au panier » pour le lecteur d'écran", () => {
+    rendreBarre()
+
+    const [libelleCompact, complement] = [
+      ...boutonBarre().querySelectorAll("span"),
+    ]
+    expect(libelleCompact?.textContent).toBe("Ajouter")
+    expect(complement?.textContent).toBe(" au panier")
+    expect(boutonBarre().textContent).toBe("Ajouter au panier")
+  })
+
+  it("garde le nom accessible complet avec la Variante quand le libellé raccourcit", () => {
+    rendreBarre(undefined, { variantNom: "Premium" })
+
+    const libelleCompact = boutonBarre().querySelector("span")
+    expect(libelleCompact?.textContent).toBe("Ajouter")
+    expect(boutonBarre().getAttribute("aria-label")).toBe(
+      "Ajouter au panier — Premium"
+    )
+  })
+
   it("garde le libellé simple sans aria-label pour une variante unique", () => {
     rendreBarre()
 
