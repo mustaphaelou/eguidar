@@ -60,11 +60,51 @@ async function main() {
     })
     // Better Auth retrouve un Compte à mot de passe par `accountId === user.id` :
     // une base semée avant cette règle garde sinon un compte credential que la
-    // connexion ne retrouve pas. Réparation idempotente, sans toucher au hash.
-    await prisma.account.updateMany({
-      where: { userId: adminUser.id, providerId: "credential" },
-      data: { accountId: adminUser.id },
+    // connexion ne retrouve pas. La réparation ne supprime aucune ligne : une
+    // base qui porte déjà le Compte canonique à côté de l'ancien (deux lignes
+    // credential, `accountId` = email et `accountId` = user.id) ne doit pas les
+    // faire entrer en collision sur `account_providerId_accountId_key`.
+    const canonical = await prisma.account.findFirst({
+      where: { providerId: "credential", accountId: adminUser.id },
+      select: { id: true, password: true },
     })
+    if (canonical) {
+      // Le Compte que Better Auth cherche existe. Si le mot de passe vivait
+      // seulement sur l'ancienne ligne, il est recopié — sans quoi la connexion
+      // resterait impossible malgré le bon `accountId`.
+      if (!canonical.password) {
+        const legacy = await prisma.account.findFirst({
+          where: {
+            userId: adminUser.id,
+            providerId: "credential",
+            password: { not: null },
+            id: { not: canonical.id },
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { password: true },
+        })
+        if (legacy?.password) {
+          await prisma.account.update({
+            where: { id: canonical.id },
+            data: { password: legacy.password },
+          })
+        }
+      }
+    } else {
+      // Aucun Compte canonique : l'ancienne ligne la plus récente devient la
+      // ligne canonique. Une seule ligne est modifiée, donc pas de collision.
+      const legacy = await prisma.account.findFirst({
+        where: { userId: adminUser.id, providerId: "credential" },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+      })
+      if (legacy) {
+        await prisma.account.update({
+          where: { id: legacy.id },
+          data: { accountId: adminUser.id },
+        })
+      }
+    }
   } else {
     const password = await hacherMotDePasse(adminPassword)
     const adminId = randomUUID()
