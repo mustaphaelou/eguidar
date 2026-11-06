@@ -31,9 +31,13 @@ export function ProductCardItem({ product }: { product: CarteProduit }) {
         {product.freeShipping ? (
           <Badge
             variant="secondary"
-            className="absolute inset-s-3 inset-bs-3 gap-1"
+            className="absolute inset-s-3 inset-bs-3 max-w-[calc(100%-1.5rem)] gap-1 text-[11px] sm:text-xs"
           >
-            <HugeiconsIcon icon={DeliveryTruck02Icon} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={DeliveryTruck02Icon}
+              strokeWidth={2}
+              className="hidden sm:block"
+            />
             Livraison offerte
           </Badge>
         ) : null}
