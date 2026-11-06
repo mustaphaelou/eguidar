@@ -19,7 +19,7 @@ export default function BoutiqueNotFound() {
       <p className="max-w-md text-sm text-muted-foreground">
         La page que vous cherchez n&apos;existe pas ou a été déplacée.
       </p>
-      <div className="mt-2 flex gap-3">
+      <div className="mt-2 flex flex-col gap-3 sm:flex-row">
         <Button render={<Link href="/produits" />}>
           Découvrir les produits
         </Button>
