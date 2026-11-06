@@ -252,7 +252,9 @@ La sonde Playwright joue la boutique dans Chromium sur l'artefact **construit** 
 npm run test:e2e
 ```
 
-Elle est **lente** : le build est le coût. Elle prépare sa propre base (`eguidar_probe` par défaut, dérivée de `TEST_DATABASE_URL`, ou `E2E_DATABASE_URL`), sème les Données de démonstration et une Image produit de fixture attachée à un Produit en Mise en avant, reconstruit l'index de recherche **avant** le build, puis démarre l'artefact sur un port libre et l'arrête. Son cache applicatif vit sur un index Redis dédié (l'index 1, surchargeable par `E2E_REDIS_URL`), vidé avant le démarrage ; sans `REDIS_URL`, elle tourne sans cache. Elle ne touche ni `eguidar` ni `eguidar_test` : toute URL qui désigne l'une de ces deux bases est refusée.
+Elle est **lente** : le build est le coût. Elle prépare sa propre base (`eguidar_probe` par défaut, dérivée de `TEST_DATABASE_URL`, ou `E2E_DATABASE_URL`), sème les Données de démonstration, une Image produit de fixture attachée à un Produit en Mise en avant et **deux Commandes de fixture** (`e2e-commande-livree-923`, Livrée au-dessus de 15 000 MAD, et `e2e-commande-confirmation-923`, deux Articles dont un nom long), rattachées au compte administrateur semé, reconstruit l'index de recherche **avant** le build, puis démarre l'artefact sur un port libre et l'arrête. Son cache applicatif vit sur un index Redis dédié (l'index 1, surchargeable par `E2E_REDIS_URL`), vidé avant le démarrage ; sans `REDIS_URL`, elle tourne sans cache. Elle ne touche ni `eguidar` ni `eguidar_test` : toute URL qui désigne l'une de ces deux bases est refusée.
+
+Les surfaces derrière une Session courante (Récapitulatif du Checkout, confirmation de Commande, CA encaissé de l'Administration) sont atteintes par le projet `preparation`, joué avant la sonde : la sonde se connecte **par l'endpoint de connexion de l'application** avec `ADMIN_EMAIL`/`ADMIN_PASSWORD` (les identifiants du semis, lus dans `.env` en local et passés par le job `build` en CI), pas par le formulaire ni par le widget Turnstile. Le serveur de la sonde **retire `TURNSTILE_SECRET_KEY`** de son environnement (`e2e/harnais/serveur.ts`), ce qui écrit la condition d'absence du plugin de Test de sécurité au lieu de la supposer. L'état de session est enregistré une fois dans `e2e/.auth/session-courante.json` (gitignoré) ; un cas qui en dépend déclare `test.use({ storageState: FICHIER_DE_SESSION })` et importe `e2e/harnais/session.ts`. Les cas anonymes (Panier visiteur) gardent un contexte sans session. Pour ajouter un Article au Panier et atteindre le Checkout, `e2e/harnais/panier.ts` expose `ajouterUnArticleAuPanier` et `cheminDuCheckout` ; les identifiants et constantes des Commandes vivent dans `e2e/harnais/commandes-de-fixture.ts`.
 
 Elle ne fait pas partie de `bash scripts/checks.sh` — Chromium n'est pas une dépendance de la porte locale. En intégration continue, elle est hébergée par le job `build`, après le build et avant les images Docker et la sonde Vitest ; un échec publie `playwright-report/` et `test-results/` en artefacts.
 
@@ -262,14 +264,14 @@ Sur une machine neuve, installer Chromium une fois :
 npx playwright install --with-deps chromium
 ```
 
-Rejouer la sonde sans reconstruire, ou ne jouer qu'un cas :
+Rejouer la sonde sur la paire artefact/base déjà préparée, ou ne jouer qu'un cas :
 
 ```bash
-E2E_SANS_BUILD=1 npm run test:e2e          # réutilise l'artefact déjà construit
+E2E_SANS_BUILD=1 npm run test:e2e          # réutilise l'artefact ET la base tels quels
 npm run test:e2e -- --grep accueil         # les arguments après `--` vont à Playwright
 ```
 
-Quand l'artefact manque ou qu'une source est plus récente que lui, `npm run test:e2e` reconstruit. Les variables utiles : `E2E_DATABASE_URL` (base dédiée), `E2E_PORT` (port du serveur, libre par défaut), `E2E_ARTEFACT_DIR` (dossier `standalone` construit ailleurs, à rejouer avec `E2E_SANS_BUILD=1`).
+La préparation de la base et le build **vont de pair** : les pages Produit prérendues portent les identifiants de Variante de la base au moment du build. Sans `E2E_SANS_BUILD=1`, `npm run test:e2e` migre, sème et reconstruit donc à chaque exécution ; avec, il ne touche ni la base ni l'artefact, et les deux doivent provenir de la même exécution. Les variables utiles : `E2E_DATABASE_URL` (base dédiée), `E2E_PORT` (port du serveur, libre par défaut), `E2E_ARTEFACT_DIR` (dossier `standalone` construit ailleurs, à rejouer avec `E2E_SANS_BUILD=1` et la base de ce build).
 
 ### La Porte de fusion
 

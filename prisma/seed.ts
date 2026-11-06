@@ -58,11 +58,19 @@ async function main() {
       where: { email: adminEmail },
       data: { role: "admin", emailVerified: true, name: adminName },
     })
+    // Better Auth retrouve un Compte à mot de passe par `accountId === user.id` :
+    // une base semée avant cette règle garde sinon un compte credential que la
+    // connexion ne retrouve pas. Réparation idempotente, sans toucher au hash.
+    await prisma.account.updateMany({
+      where: { userId: adminUser.id, providerId: "credential" },
+      data: { accountId: adminUser.id },
+    })
   } else {
     const password = await hacherMotDePasse(adminPassword)
+    const adminId = randomUUID()
     await prisma.user.create({
       data: {
-        id: randomUUID(),
+        id: adminId,
         email: adminEmail,
         name: adminName,
         emailVerified: true,
@@ -71,7 +79,7 @@ async function main() {
           create: {
             id: randomUUID(),
             providerId: "credential",
-            accountId: adminEmail,
+            accountId: adminId,
             password,
           },
         },
