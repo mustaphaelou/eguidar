@@ -31,6 +31,9 @@ export const NOM_COURT_DE_PRODUIT_DE_FIXTURE = "Souris sans fil Bluetooth"
 export const TOTAL_DE_LA_COMMANDE_LIVREE = 1_599_800
 export const TOTAL_DE_LA_COMMANDE_DE_CONFIRMATION = 3_299_000
 
+/** Le prix de la ligne au nom long : 29 990,00 MAD, un montant à une ligne. */
+export const PRIX_DE_LA_LIGNE_LONGUE_DE_CONFIRMATION = 2_999_000
+
 export const VILLE_DES_COMMANDES_DE_FIXTURE = "Casablanca"
 export const ADRESSE_DES_COMMANDES_DE_FIXTURE =
   "12, rue des Commandes de fixture"
@@ -99,7 +102,7 @@ function commandeDeConfirmation(
       {
         productName: NOM_LONG_DE_PRODUIT_DE_FIXTURE,
         variantName: "M3 Max — 36 Go / 1 To",
-        price: 2_999_000,
+        price: PRIX_DE_LA_LIGNE_LONGUE_DE_CONFIRMATION,
         quantity: 1,
       },
       {

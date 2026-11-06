@@ -34,20 +34,22 @@ export function RecapitulatifPaiement(props: RecapitulatifPaiementProps) {
           return (
             <div
               key={row.label}
-              className="flex justify-between border-t pt-2 text-base"
+              className="flex justify-between gap-2 border-t pt-2 text-base"
             >
               <dt className="font-bold">{row.label}</dt>
-              <dd className="font-bold">{row.value}</dd>
+              <dd className="shrink-0 text-right font-bold whitespace-nowrap">
+                {row.value}
+              </dd>
             </div>
           )
         }
 
         return (
-          <div key={row.label} className="flex justify-between">
+          <div key={row.label} className="flex justify-between gap-2">
             <dt className="text-muted-foreground">{row.label}</dt>
             <dd
               className={cn(
-                "font-semibold",
+                "shrink-0 text-right font-semibold whitespace-nowrap",
                 row.tone === "offered" && "text-emerald-600",
                 row.tone === "muted" && "text-muted-foreground"
               )}
