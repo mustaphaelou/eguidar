@@ -218,7 +218,7 @@ export function ArticleDuPanier({
           >
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
           </Button>
-          <p className="ms-auto text-sm font-bold sm:ms-2 sm:w-28 sm:text-right">
+          <p className="ms-auto shrink-0 text-right text-sm font-bold whitespace-nowrap sm:ms-2 sm:w-28">
             {formatPrice(article.unitPrice * quantiteAffichee)}
           </p>
         </div>
