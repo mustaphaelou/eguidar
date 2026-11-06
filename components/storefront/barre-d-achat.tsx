@@ -46,8 +46,10 @@ export function BarreDAchat({
       )}
     >
       <div className="mx-auto flex w-full max-w-[980px] items-center justify-between gap-4">
-        <p className="text-[28px] font-semibold">{prix}</p>
-        <div className="flex flex-col items-end gap-1">
+        <p className="shrink-0 text-2xl font-semibold whitespace-nowrap sm:text-[28px]">
+          {prix}
+        </p>
+        <div className="flex shrink-0 flex-col items-end gap-1">
           <Button
             size="xl"
             disabled={indisponible || enAttente}
@@ -57,7 +59,14 @@ export function BarreDAchat({
             }
             className="rounded-full text-body"
           >
-            {enAttente ? "Ajout…" : "Ajouter au panier"}
+            {enAttente ? (
+              "Ajout…"
+            ) : (
+              <>
+                <span>Ajouter</span>
+                <span className="max-sm:sr-only"> au panier</span>
+              </>
+            )}
           </Button>
           {ajoute && (
             <p className="text-sm text-emerald-600">Ajouté au panier</p>
