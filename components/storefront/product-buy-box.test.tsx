@@ -2,7 +2,7 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ResultatPanier } from "@/lib/panier"
 import { formatPrice } from "@/lib/money"
@@ -44,6 +44,39 @@ const variantesMultiples: ProductVariantDto[] = [
 
 let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
+const piedsDePage: HTMLElement[] = []
+
+/**
+ * happy-dom ne calcule aucune intersection : l'observateur factice laisse le
+ * test dire quand le bouton d'achat entre ou quitte la fenêtre, sans simuler
+ * de mise en page.
+ */
+class ObservateurDIntersectionFactice {
+  static instances: ObservateurDIntersectionFactice[] = []
+  readonly root = null
+  readonly rootMargin = "0px"
+  readonly thresholds: readonly number[] = [0]
+  readonly callback: IntersectionObserverCallback
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback
+    ObservateurDIntersectionFactice.instances.push(this)
+  }
+
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return []
+  }
+
+  signaler(isIntersecting: boolean): void {
+    this.callback(
+      [{ isIntersecting } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver
+    )
+  }
+}
 
 beforeEach(() => {
   container = document.createElement("div")
@@ -54,6 +87,10 @@ afterEach(() => {
   for (const root of roots) root.unmount()
   roots.length = 0
   container.remove()
+  for (const piedDePage of piedsDePage) piedDePage.remove()
+  piedsDePage.length = 0
+  document.documentElement.scrollTop = 0
+  vi.unstubAllGlobals()
 })
 
 function render(element: ReactElement) {
@@ -92,6 +129,55 @@ async function cliquerAjouter() {
   })
   await act(async () => {})
   await act(async () => {})
+}
+
+function installerUnObservateurDIntersection() {
+  ObservateurDIntersectionFactice.instances.length = 0
+  vi.stubGlobal("IntersectionObserver", ObservateurDIntersectionFactice)
+}
+
+function observateurDeLaBarre() {
+  const [observateur] = ObservateurDIntersectionFactice.instances
+  if (!observateur) {
+    throw new Error("le bloc d'achat n'a pas observé son bouton d'achat")
+  }
+  return observateur
+}
+
+function defilerLaPage(hauteur: number) {
+  document.documentElement.scrollTop = hauteur
+  act(() => {
+    window.dispatchEvent(new Event("scroll"))
+  })
+}
+
+function barreDUneFiche() {
+  return container.querySelector<HTMLElement>("[data-slot='barre-d-achat']")!
+}
+
+function poserUnPiedDePage(rect: { top: number; bottom: number }) {
+  const piedDePage = document.createElement("footer")
+  situerLePiedDePage(piedDePage, rect)
+  document.body.appendChild(piedDePage)
+  piedsDePage.push(piedDePage)
+  return piedDePage
+}
+
+function situerLePiedDePage(
+  piedDePage: HTMLElement,
+  rect: { top: number; bottom: number }
+) {
+  piedDePage.getBoundingClientRect = () =>
+    ({
+      x: 0,
+      y: rect.top,
+      top: rect.top,
+      bottom: rect.bottom,
+      left: 0,
+      right: 390,
+      width: 390,
+      height: rect.bottom - rect.top,
+    }) as DOMRect
 }
 
 describe("ProductBuyBox", () => {
@@ -277,5 +363,53 @@ describe("ProductBuyBox", () => {
     expect(document.body.textContent).toContain(
       `Option 7 — ${formatPrice(160000)}`
     )
+  })
+})
+
+describe("les conditions de visibilité de la Barre d'achat", () => {
+  it("la garde masquée tant que la page n'a pas défilé", () => {
+    installerUnObservateurDIntersection()
+    render(buyBox(creerPortPanierEnMemoire()))
+
+    act(() => observateurDeLaBarre().signaler(false))
+
+    expect(barreDUneFiche().getAttribute("aria-hidden")).toBe("true")
+  })
+
+  it("la montre quand la page a défilé et que l'action d'achat a quitté la fenêtre", () => {
+    installerUnObservateurDIntersection()
+    render(buyBox(creerPortPanierEnMemoire()))
+
+    act(() => observateurDeLaBarre().signaler(false))
+    defilerLaPage(900)
+
+    expect(barreDUneFiche().getAttribute("aria-hidden")).toBe("false")
+  })
+
+  it("la garde masquée tant que l'action d'achat de la page est dans la fenêtre", () => {
+    installerUnObservateurDIntersection()
+    render(buyBox(creerPortPanierEnMemoire()))
+
+    act(() => observateurDeLaBarre().signaler(true))
+    defilerLaPage(900)
+
+    expect(barreDUneFiche().getAttribute("aria-hidden")).toBe("true")
+  })
+
+  it("s'efface dès que le Pied de page entre dans la fenêtre", () => {
+    installerUnObservateurDIntersection()
+    const piedDePage = poserUnPiedDePage({ top: 2000, bottom: 2400 })
+    render(buyBox(creerPortPanierEnMemoire()))
+
+    act(() => observateurDeLaBarre().signaler(false))
+    defilerLaPage(900)
+    expect(barreDUneFiche().getAttribute("aria-hidden")).toBe("false")
+
+    act(() => {
+      situerLePiedDePage(piedDePage, { top: 100, bottom: 500 })
+      window.dispatchEvent(new Event("scroll"))
+    })
+
+    expect(barreDUneFiche().getAttribute("aria-hidden")).toBe("true")
   })
 })
