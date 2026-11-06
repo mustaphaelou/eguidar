@@ -176,9 +176,19 @@ describe("le Socle rejoué sur une base qui sert déjà", () => {
 
     // Et le Socle est bien écrit — sans quoi ce test ne prouverait que le
     // seed n'a rien fait du tout.
-    expect(
-      await socle.user.findUnique({ where: { email: EMAIL_ADMIN } })
-    ).toMatchObject({ role: "admin", name: "Recette" })
+    const administrateur = await socle.user.findUniqueOrThrow({
+      where: { email: EMAIL_ADMIN },
+      include: { accounts: true },
+    })
+    expect(administrateur).toMatchObject({ role: "admin", name: "Recette" })
+    // Better Auth retrouve le Compte à mot de passe par `accountId === user.id` :
+    // sans cette égalité, la sonde ne peut pas se connecter au compte semé.
+    expect(administrateur.accounts).toContainEqual(
+      expect.objectContaining({
+        providerId: "credential",
+        accountId: administrateur.id,
+      })
+    )
     expect(await socle.deliveryCity.count()).toBe(10)
     expect(
       await socle.shippingSettings.findUnique({ where: { id: "default" } })

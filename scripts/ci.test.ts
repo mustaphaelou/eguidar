@@ -296,6 +296,38 @@ describe("le job de build éprouve la sonde navigateur", () => {
   })
 })
 
+const SEMIS_DU_SOCLE = "npx prisma db seed"
+
+function environnementDeLEtape(commande: string): Record<string, unknown> {
+  const etape = etapesDe("build").find(
+    (candidate) => candidate.run === commande
+  )
+  return estObjet(etape?.env) ? etape.env : {}
+}
+
+describe("le job de build donne à la sonde les identifiants de son compte", () => {
+  it("passe à la fixture et à la sonde les mêmes identifiants que le semis du socle", () => {
+    const socle = environnementDeLEtape(SEMIS_DU_SOCLE)
+
+    for (const commande of [SEMIS_DE_FIXTURE, SONDE_NAVIGATEUR]) {
+      const environnement = environnementDeLEtape(commande)
+
+      expect(
+        {
+          ADMIN_EMAIL: environnement.ADMIN_EMAIL,
+          ADMIN_PASSWORD: environnement.ADMIN_PASSWORD,
+        },
+        `l'étape « ${commande} » ne reçoit pas les identifiants du compte administrateur : la sonde ne pourrait ni rattacher ses Commandes au compte semé, ni s'y connecter.`
+      ).toEqual({
+        ADMIN_EMAIL: socle.ADMIN_EMAIL,
+        ADMIN_PASSWORD: socle.ADMIN_PASSWORD,
+      })
+      expect(environnement.ADMIN_EMAIL).toBeTruthy()
+      expect(environnement.ADMIN_PASSWORD).toBeTruthy()
+    }
+  })
+})
+
 const CONDITION_DEPENDENCY_REVIEW = "github.event_name == 'pull_request'"
 
 describe("le job de dependency-review", () => {

@@ -176,13 +176,16 @@ jobs:
           DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
           MEILI_URL: http://localhost:7700
           MEILI_MASTER_KEY: eguidar-test-master-key
-      # L'image de fixture est attachée au Catalogue semé **avant** le build :
-      # le héros que la sonde exigera est celui que l'artefact prérend.
+      # Les fixtures de la sonde sont posées **avant** le build : l'Image
+      # produit que le héros prérendra, et les deux Commandes rattachées au
+      # compte administrateur semé juste au-dessus (mêmes identifiants).
       - run: npx tsx e2e/scripts/poser-la-fixture.ts
         env:
           E2E_DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
           MEILI_URL: http://localhost:7700
           MEILI_MASTER_KEY: eguidar-test-master-key
+          ADMIN_EMAIL: admin@eguidar.com
+          ADMIN_PASSWORD: change-me-admin-password
       - run: npx playwright install --with-deps chromium
       - run: npm run build
         env:
@@ -192,6 +195,8 @@ jobs:
       # La sonde navigateur : le même artefact que les images, la même base que
       # le build. Elle échoue si le serveur ne démarre pas ; elle ne se saute
       # jamais. Un échec rougit le contexte « build » déjà requis (ADR-0020).
+      # `ADMIN_*` sont les identifiants du compte semé : la sonde s'y connecte
+      # par l'endpoint de connexion (le serveur retire `TURNSTILE_SECRET_KEY`).
       - run: npx playwright test
         env:
           E2E_DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
@@ -201,6 +206,8 @@ jobs:
           MEILI_MASTER_KEY: eguidar-test-master-key
           REDIS_URL: redis://localhost:6379
           BETTER_AUTH_SECRET: replace-with-a-long-random-secret
+          ADMIN_EMAIL: admin@eguidar.com
+          ADMIN_PASSWORD: change-me-admin-password
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
