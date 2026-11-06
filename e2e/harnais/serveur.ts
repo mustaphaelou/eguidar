@@ -71,13 +71,22 @@ function copierLArtefact(artefact: string): string {
   return standalone
 }
 
-function environnementDuServeur(
+/**
+ * L'environnement du serveur de la sonde. `TURNSTILE_SECRET_KEY` en est
+ * **retiré**, même si le poste le déclare : c'est la condition écrite du
+ * plugin de Test de sécurité (voir `lib/auth.ts`), qui n'est alors pas
+ * enregistré et laisse `/api/auth/sign-in/email` accepter la connexion de la
+ * sonde. Le retrait, et non une valeur vide, rend la condition observable telle
+ * quelle dans l'environnement du processus.
+ */
+export function environnementDuServeur(
   origine: string,
   baseDeDonnees: string,
-  redisUrl: string | null
+  redisUrl: string | null,
+  parent: NodeJS.ProcessEnv = process.env
 ): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
+  const environnement: NodeJS.ProcessEnv = {
+    ...parent,
     NODE_ENV: "production",
     PORT: new URL(origine).port,
     HOSTNAME: "127.0.0.1",
@@ -85,12 +94,10 @@ function environnementDuServeur(
     REDIS_URL: redisUrl ?? "",
     BETTER_AUTH_URL: origine,
     NEXT_PUBLIC_BETTER_AUTH_URL: origine,
-    // La condition du plugin de Test de sécurité : absent, il n'est pas
-    // enregistré. Une valeur vide le neutralise même si un `.env` traîne dans
-    // l'artefact (Next copie les fichiers d'environnement dans le standalone).
-    TURNSTILE_SECRET_KEY: "",
     NEXT_TELEMETRY_DISABLED: "1",
   }
+  delete environnement.TURNSTILE_SECRET_KEY
+  return environnement
 }
 
 function retenirLeJournal(journal: string[], flux: Readable | null): void {
@@ -189,10 +196,11 @@ export async function demarrerLeServeur(options: {
 export function environnementDeBuild(
   baseDeDonnees: string,
   origine: string,
-  redisUrl: string | null
+  redisUrl: string | null,
+  parent: NodeJS.ProcessEnv = process.env
 ): NodeJS.ProcessEnv {
   const environnement: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...parent,
     DATABASE_URL: baseDeDonnees,
     REDIS_URL: redisUrl ?? "",
     BETTER_AUTH_URL: origine,

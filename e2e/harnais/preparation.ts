@@ -5,13 +5,15 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 
 import { RACINE } from "./artefact"
+import { semerLesCommandesDeFixture } from "./commandes-de-fixture"
 import { environnementDeBuild } from "./serveur"
 
 /**
  * La préparation de la base de la sonde : migration, socle, Données de
- * démonstration, puis l'Image produit de fixture attachée à un Produit en Mise
- * en avant et réindexée **avant** le build. Le catalogue que le build
- * prérendra porte donc réellement l'image.
+ * démonstration, l'Image produit de fixture attachée à un Produit en Mise en
+ * avant et réindexée **avant** le build, puis les deux Commandes de fixture.
+ * Le catalogue que le build prérendra porte donc réellement l'image, et la
+ * sonde trouve ses Commandes dès que le serveur démarre.
  */
 
 const TABLES_A_TRONQUER = [
@@ -90,9 +92,10 @@ async function tronquerLaBase(baseDeDonnees: string): Promise<void> {
 }
 
 /**
- * Attache l'Image produit locale au premier Produit en Mise en avant et
- * reconstruit l'index de recherche. C'est la seule donnée inventée par la
- * sonde ; les Données de démonstration partagées ne changent pas.
+ * Attache l'Image produit locale au premier Produit en Mise en avant,
+ * reconstruit l'index de recherche, puis sème les deux Commandes de la sonde.
+ * C'est la seule donnée inventée par la sonde ; les Données de démonstration
+ * partagées ne changent pas. Tout est en place avant le build.
  */
 export async function poserLaFixture(baseDeDonnees: string): Promise<void> {
   copierLImagePublique()
@@ -127,6 +130,8 @@ export async function poserLaFixture(baseDeDonnees: string): Promise<void> {
   console.log(
     `[sonde] image de fixture attachée à ${produit.slug} (${CHEMIN_PUBLIC_DE_L_IMAGE}) et index de recherche reconstruit`
   )
+
+  await semerLesCommandesDeFixture(baseDeDonnees)
 }
 
 /** La base de la sonde, prête pour le build : migrée, semée, avec la fixture. */
