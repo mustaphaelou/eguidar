@@ -249,37 +249,41 @@ export function GlobalNavBar({
 
       {searchOpen ? (
         <div className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]">
-          <form
-            method="GET"
-            action="/recherche"
-            className={cn(CONTENEUR_BOUTIQUE, "flex items-center gap-2 py-2")}
-            onSubmit={(event) => {
-              // Le formulaire reste un formulaire : sans JS, action et method
-              // mènent à la page de résultats. Avec JS, la soumission est
-              // interceptée avant que la rangée ne se referme, et la
-              // navigation appartient à la Grammaire d'URL de la Recherche.
-              event.preventDefault()
-              const query = String(
-                new FormData(event.currentTarget).get("q") ?? ""
-              ).trim()
-              setSearchOpen(false)
-              router.push(buildSearchHref(query, {}, {}, {}, "/recherche"))
-            }}
-          >
-            <HugeiconsIcon
-              icon={Search01Icon}
-              strokeWidth={2}
-              className="size-4 shrink-0 text-muted-foreground"
-            />
-            <SearchSuggestions
-              inputRef={searchInputRef}
-              onEscape={() => setSearchOpen(false)}
-              onNavigate={() => setSearchOpen(false)}
-            />
-            <Button type="submit" size="sm" className="rounded-full">
-              Rechercher
-            </Button>
-          </form>
+          {/* Le panneau de Suggestions se positionne sur la rangée entière,
+              champ et bouton : la boîte relative est donc le formulaire. */}
+          <div className={cn(CONTENEUR_BOUTIQUE, "py-2")}>
+            <form
+              method="GET"
+              action="/recherche"
+              className="relative flex items-center gap-2"
+              onSubmit={(event) => {
+                // Le formulaire reste un formulaire : sans JS, action et method
+                // mènent à la page de résultats. Avec JS, la soumission est
+                // interceptée avant que la rangée ne se referme, et la
+                // navigation appartient à la Grammaire d'URL de la Recherche.
+                event.preventDefault()
+                const query = String(
+                  new FormData(event.currentTarget).get("q") ?? ""
+                ).trim()
+                setSearchOpen(false)
+                router.push(buildSearchHref(query, {}, {}, {}, "/recherche"))
+              }}
+            >
+              <HugeiconsIcon
+                icon={Search01Icon}
+                strokeWidth={2}
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+              <SearchSuggestions
+                inputRef={searchInputRef}
+                onEscape={() => setSearchOpen(false)}
+                onNavigate={() => setSearchOpen(false)}
+              />
+              <Button type="submit" size="sm" className="rounded-full">
+                Rechercher
+              </Button>
+            </form>
+          </div>
         </div>
       ) : null}
 
