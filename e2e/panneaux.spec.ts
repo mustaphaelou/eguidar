@@ -18,6 +18,7 @@ import { expect, test } from "./fixtures/sonde"
 
 const PRODUIT_EN_MISE_EN_AVANT = "iPhone 15 Pro"
 const PRODUIT_SANS_ART = "Samsung Galaxy S24 Ultra"
+const PRODUIT_EN_DUO = "MacBook Air 13 M3"
 
 async function ouvrirLAccueil(
   page: Page,
@@ -100,6 +101,28 @@ test.describe("le Panneau en Mise en avant", () => {
     ).toBeVisible()
     await expect(
       panneau.getByRole("button", { name: `Acheter, ${PRODUIT_SANS_ART}` })
+    ).toBeVisible()
+  })
+
+  test("garde la composition d'un Panneau en duo", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLAccueil(page, serveur)
+
+    // Le duo partage `ArtDuPanneau` avec le héros : sa hauteur ne doit pas
+    // payer la correction du format pleine largeur.
+    const panneau = panneauDuProduit(page, PRODUIT_EN_DUO)
+    await expect(panneau).toBeVisible()
+    const boite = await panneau.boundingBox()
+    expect(boite).not.toBeNull()
+    expect(boite?.height ?? 0).toBeGreaterThanOrEqual(500)
+
+    await expect(
+      panneau.getByRole("heading", { name: PRODUIT_EN_DUO, exact: true })
+    ).toBeVisible()
+    await expect(
+      panneau.getByRole("button", { name: `Acheter, ${PRODUIT_EN_DUO}` })
     ).toBeVisible()
   })
 

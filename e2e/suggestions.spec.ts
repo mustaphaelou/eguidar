@@ -133,7 +133,9 @@ test.describe("la Suggestion de produit", () => {
 
       const nom = nomDeLaSuggestion(suggestion)
       await expect(nom).toBeVisible()
-      expect(await largeurDeLaBoite(nom)).toBeGreaterThan(0)
+      // La colonne garde la place d'au moins un nom court ; l'ellipse est
+      // attendue pour « iPhone 15 Pro », pas la disparition de la colonne.
+      expect(await largeurDeLaBoite(nom)).toBeGreaterThanOrEqual(48)
 
       const marque = suggestion.getByText(MARQUE, { exact: true })
       await expect(marque).toBeVisible()
