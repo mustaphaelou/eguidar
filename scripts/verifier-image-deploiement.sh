@@ -58,6 +58,10 @@ VILLES_ATTENDUES_TEXTE="${VILLES_ATTENDUES_TEXTE%,}"
 
 SEUIL_LIVRAISON_OFFERTE_ATTENDU=100000
 
+# Valeur posée par la phase de non-écrasement : un fait de réglage modifié dans
+# l'Administration doit survivre à un nouveau passage de la migration.
+SEUIL_LIVRAISON_OFFERTE_MODIFIE=150000
+
 JOURNAL=""
 CONTENEUR="eguidar-sonde-artefact-${PROBE_PORT}"
 
@@ -196,6 +200,51 @@ verifier_le_seed() {
   fi
   printf '  administrateur : %s · villes : %s · seuil : %s\n' \
     "$administrateurs" "${villes//,/ · }" "$seuil"
+}
+
+modifier_le_seuil_de_livraison() {
+  local code=0
+  docker run --rm -i --network host \
+    -e DATABASE_URL \
+    --entrypoint node "$IMAGE_MIGRATE" - 2>&1 <<'JS' || code=$?
+const { Client } = require("pg")
+
+const client = new Client({ connectionString: process.env.DATABASE_URL })
+
+async function main() {
+  await client.connect()
+  await client.query(
+    'UPDATE "ShippingSettings" SET "freeShippingThreshold" = $1 WHERE id = $2',
+    [150000, "default"]
+  )
+  await client.end()
+}
+
+main().catch(async (erreur) => {
+  console.error(`modification du seuil impossible : ${erreur.message}`)
+  await client.end().catch(() => {})
+  process.exit(1)
+})
+JS
+  if ((code != 0)); then
+    echec "seed" "modification du seuil de livraison offerte impossible (code ${code})"
+  fi
+}
+
+verifier_la_survie_du_reglage() {
+  local code=0 faits="" seuil=""
+  faits="$(lire_les_faits_du_seed)" || code=$?
+  if ((code != 0)); then
+    echec "seed" "lecture des faits du socle impossible (code ${code}) : ${faits}"
+  fi
+  if [[ ! "$faits" =~ seuil=([0-9]+)$ ]]; then
+    echec "seed" "faits illisibles : ${faits}"
+  fi
+  seuil="${BASH_REMATCH[1]}"
+  if ((seuil != SEUIL_LIVRAISON_OFFERTE_MODIFIE)); then
+    echec "seed" "le seuil de livraison offerte a été réécrit : ${seuil} ; attendu : ${SEUIL_LIVRAISON_OFFERTE_MODIFIE}"
+  fi
+  printf '  seuil préservé après remigration : %s\n' "$seuil"
 }
 
 verifier_le_cache_handler() {
@@ -361,6 +410,12 @@ etape "migration (2/2)"
 executer_la_migration
 etape "seed (2/2)"
 verifier_le_seed
+etape "modification du réglage (3/3)"
+modifier_le_seuil_de_livraison
+etape "migration (3/3)"
+executer_la_migration
+etape "seed (3/3)"
+verifier_la_survie_du_reglage
 etape "cache-handler"
 verifier_le_cache_handler
 etape "boot"

@@ -6,6 +6,7 @@ import { semerLesRegles } from "../lib/automations/regles"
 import { prisma } from "../lib/db"
 import { hacherMotDePasse } from "../lib/mot-de-passe-hache"
 import { slugify } from "../lib/slug"
+import { hasUniqueViolation } from "../lib/use-cases/unique-violation"
 import { identifiantsCompteAdmin } from "./compte-admin"
 
 /**
@@ -36,18 +37,32 @@ async function main() {
   const { email: adminEmail, motDePasse: adminPassword } =
     identifiantsCompteAdmin()
 
-  await prisma.shippingSettings.upsert({
-    where: { id: "default" },
-    update: { freeShippingThreshold: 100000 },
-    create: { id: "default", freeShippingThreshold: 100000 },
-  })
+  try {
+    await prisma.shippingSettings.create({
+      data: { id: "default", freeShippingThreshold: 100000 },
+    })
+  } catch (error) {
+    // Le réglage appartient à l'Administration après la première écriture :
+    // une ligne existante n'est ni mise à jour ni révisée.
+    if (!hasUniqueViolation(error, ["id"])) throw error
+  }
 
   for (const city of cities) {
-    await prisma.deliveryCity.upsert({
-      where: { name: city.name },
-      update: { fee: city.fee },
-      create: { ...city, slug: slugify(city.name) },
-    })
+    try {
+      await prisma.deliveryCity.create({
+        data: { ...city, slug: slugify(city.name) },
+      })
+    } catch (error) {
+      // Les frais de livraison appartiennent à l'Administration après la
+      // première écriture : une Ville déjà présente n'est ni mise à jour ni
+      // révisée.
+      if (
+        !hasUniqueViolation(error, ["name"]) &&
+        !hasUniqueViolation(error, ["slug"])
+      ) {
+        throw error
+      }
+    }
   }
 
   const adminUser = await prisma.user.findUnique({
@@ -56,7 +71,10 @@ async function main() {
   if (adminUser) {
     await prisma.user.update({
       where: { email: adminEmail },
-      data: { role: "admin", emailVerified: true, name: adminName },
+      // Le nom d'affichage appartient à l'Administration après la première
+      // écriture : le déploiement ne le réécrit jamais. Le rôle et la
+      // vérification de l'adresse restent des faits d'identité du Socle.
+      data: { role: "admin", emailVerified: true },
     })
     // Better Auth retrouve un Compte à mot de passe par `accountId === user.id` :
     // une base semée avant cette règle garde sinon un compte credential que la
