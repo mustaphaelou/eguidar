@@ -264,14 +264,14 @@ Sur une machine neuve, installer Chromium une fois :
 npx playwright install --with-deps chromium
 ```
 
-Rejouer la sonde sans reconstruire, ou ne jouer qu'un cas :
+Rejouer la sonde sur la paire artefact/base déjà préparée, ou ne jouer qu'un cas :
 
 ```bash
-E2E_SANS_BUILD=1 npm run test:e2e          # réutilise l'artefact déjà construit
+E2E_SANS_BUILD=1 npm run test:e2e          # réutilise l'artefact ET la base tels quels
 npm run test:e2e -- --grep accueil         # les arguments après `--` vont à Playwright
 ```
 
-Quand l'artefact manque ou qu'une source est plus récente que lui, `npm run test:e2e` reconstruit. Les variables utiles : `E2E_DATABASE_URL` (base dédiée), `E2E_PORT` (port du serveur, libre par défaut), `E2E_ARTEFACT_DIR` (dossier `standalone` construit ailleurs, à rejouer avec `E2E_SANS_BUILD=1`).
+La préparation de la base et le build **vont de pair** : les pages Produit prérendues portent les identifiants de Variante de la base au moment du build. Sans `E2E_SANS_BUILD=1`, `npm run test:e2e` migre, sème et reconstruit donc à chaque exécution ; avec, il ne touche ni la base ni l'artefact, et les deux doivent provenir de la même exécution. Les variables utiles : `E2E_DATABASE_URL` (base dédiée), `E2E_PORT` (port du serveur, libre par défaut), `E2E_ARTEFACT_DIR` (dossier `standalone` construit ailleurs, à rejouer avec `E2E_SANS_BUILD=1` et la base de ce build).
 
 ### La Porte de fusion
 
