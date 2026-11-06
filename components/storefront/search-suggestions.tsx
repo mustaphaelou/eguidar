@@ -87,7 +87,7 @@ export function SearchSuggestions({
         name="q"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Produit"
+        placeholder="Chercher"
         className="h-8 rounded-full"
         aria-label="Rechercher un produit"
         aria-expanded={showDropdown}
