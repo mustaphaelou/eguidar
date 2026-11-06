@@ -5,20 +5,25 @@ import type { ReactElement } from "react"
 import Link from "next/link"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { buildSearchHref } from "@/lib/search-params"
+
 import { ID_TITRE_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
 import { LienQuiFermeLApercu } from "./lien-qui-ferme-l-apercu"
 import { ApercuDuPanierProvider } from "./apercu-du-panier-provider"
 import { GlobalNavBar } from "./global-nav-bar"
 import { MonCompteDansLApercu } from "./mon-compte-dans-l-apercu"
 
-const { openLoginMock } = vi.hoisted(() => ({ openLoginMock: vi.fn() }))
+const { openLoginMock, pushMock } = vi.hoisted(() => ({
+  openLoginMock: vi.fn(),
+  pushMock: vi.fn(),
+}))
 
 vi.mock("@/components/auth/auth-dialogs", () => ({
   useAuthDialogs: () => ({ openLogin: openLoginMock }),
 }))
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: pushMock, refresh: vi.fn() }),
 }))
 
 vi.mock("@/lib/client", () => ({ signOut: vi.fn() }))
@@ -48,6 +53,7 @@ const actWarnings = [
 
 beforeEach(() => {
   openLoginMock.mockReset()
+  pushMock.mockReset()
   container = document.createElement("div")
   document.body.appendChild(container)
 })
@@ -114,6 +120,18 @@ function entree(label: string) {
   return [...container.querySelectorAll<HTMLElement>("a, button")].find(
     (element) => element.textContent?.trim() === label
   )!
+}
+
+function formulaireDeRecherche() {
+  return container.querySelector<HTMLFormElement>("form[action='/recherche']")!
+}
+
+function soumettreLaRecherche(): Event {
+  const evenement = new Event("submit", { bubbles: true, cancelable: true })
+  act(() => {
+    formulaireDeRecherche().dispatchEvent(evenement)
+  })
+  return evenement
 }
 
 const fermetures = [
@@ -237,6 +255,38 @@ describe("GlobalNavBar", () => {
     })
     expect(container.querySelector("input[name='q']")).toBeNull()
     expect(toggle.getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("soumet la Recherche par la Grammaire d'URL et referme la rangée", () => {
+    const errors = renderCapturingErrors(<GlobalNavBar />)
+    act(() => boutonRecherche().click())
+
+    container.querySelector<HTMLInputElement>("input[name='q']")!.value =
+      "iphone"
+
+    const evenement = soumettreLaRecherche()
+
+    expect(evenement.defaultPrevented).toBe(true)
+    expect(pushMock).toHaveBeenCalledTimes(1)
+    expect(pushMock).toHaveBeenCalledWith(
+      buildSearchHref("iphone", {}, {}, {}, "/recherche")
+    )
+    expect(container.querySelector("input[name='q']")).toBeNull()
+    expect(errors).toEqual([])
+  })
+
+  it("soumet une Recherche vide vers /recherche sans q", () => {
+    renderCapturingErrors(<GlobalNavBar />)
+    act(() => boutonRecherche().click())
+
+    const evenement = soumettreLaRecherche()
+
+    expect(evenement.defaultPrevented).toBe(true)
+    expect(pushMock).toHaveBeenCalledTimes(1)
+    expect(pushMock).toHaveBeenCalledWith(
+      buildSearchHref("", {}, {}, {}, "/recherche")
+    )
+    expect(container.querySelector("input[name='q']")).toBeNull()
   })
 
   it("le panier est un bouton dépliant qui ne monte le corps qu'une fois ouvert", () => {
