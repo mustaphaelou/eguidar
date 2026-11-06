@@ -41,10 +41,16 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     await attendreLaPagePrete(page, montageDuPanier)
 
     await expect(page).toHaveURL(/\/checkout\?ville=casablanca$/)
+    // Le flux de rendu de Next peut laisser un instant une copie hors du
+    // `<main>` (elle disparaît à l'hydratation) : la surface que le Client lit
+    // est celle du document principal.
+    const principal = page.getByRole("main")
     await expect(
-      page.getByRole("heading", { name: "Commander", level: 1 })
+      principal.getByRole("heading", { name: "Commander", level: 1 })
     ).toBeVisible()
-    await expect(page.getByText("Total à payer à la livraison")).toBeVisible()
+    await expect(
+      principal.getByText("Total à payer à la livraison")
+    ).toBeVisible()
   })
 
   test("la confirmation de la Commande semée à deux Articles", async ({
@@ -59,11 +65,12 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     expect(reponse?.status()).toBe(200)
     await attendreLaPagePrete(page, montageDuPanier)
 
+    const principal = page.getByRole("main")
     await expect(
-      page.getByRole("heading", { name: "Merci pour votre commande" })
+      principal.getByRole("heading", { name: "Merci pour votre commande" })
     ).toBeVisible()
 
-    const lignes = page.getByRole("main").getByRole("listitem")
+    const lignes = principal.getByRole("listitem")
     await expect(lignes).toHaveCount(2)
     await expect(
       lignes.filter({ hasText: NOM_LONG_DE_PRODUIT_DE_FIXTURE })
@@ -71,7 +78,9 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     await expect(
       lignes.filter({ hasText: NOM_COURT_DE_PRODUIT_DE_FIXTURE })
     ).toHaveCount(1)
-    await expect(page.getByText(NOM_LONG_DE_PRODUIT_DE_FIXTURE)).toBeVisible()
+    await expect(
+      principal.getByText(NOM_LONG_DE_PRODUIT_DE_FIXTURE)
+    ).toBeVisible()
   })
 
   test("le tableau de bord de l'Administration et son CA encaissé", async ({
@@ -85,7 +94,7 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     await attendreLaPagePrete(page)
 
     await expect(
-      page.getByRole("heading", { name: "Tableau de bord" })
+      page.getByRole("main").getByRole("heading", { name: "Tableau de bord" })
     ).toBeVisible()
 
     // Le CA encaissé est la somme des Commandes Livrées sur 30 jours
