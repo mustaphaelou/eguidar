@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from "vitest"
 const LECTURE_DE_REQUETE_INTERDITE =
   "Le Bandeau de navigation a lu une donnée de requête pendant son rendu."
 
+// Le Bandeau porte la soumission de la Recherche (#926) : il appelle le routeur
+// client, absent d'un rendu serveur de test.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}))
+
 vi.mock("next/headers", () => ({
   cookies: () => {
     throw new Error(LECTURE_DE_REQUETE_INTERDITE)
