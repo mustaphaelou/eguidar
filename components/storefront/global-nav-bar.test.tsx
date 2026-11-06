@@ -93,8 +93,10 @@ function corpsDeTest() {
 }
 
 function declencheurDuPanier() {
+  // Le déclencheur se reconnaît à son panneau, pas à une étiquette : depuis
+  // #932, son nom accessible vient du texte masqué « Panier » et du badge.
   return container.querySelector<HTMLButtonElement>(
-    "button[aria-label='Panier']"
+    "button[aria-controls='apercu-du-panier']"
   )!
 }
 
@@ -568,14 +570,18 @@ describe("GlobalNavBar", () => {
     expect(icone().getAttribute("data-mouvement")).toBe("fermeture")
   })
 
-  it("rend le badge du panier dans le déclencheur", () => {
+  it("rend le badge du panier dans le déclencheur, sans étiquette qui écrase le contenu", () => {
     renderCapturingErrors(
       <GlobalNavBar panierBadge={<span data-testid="badge">3</span>} />
     )
 
-    const badge = declencheurDuPanier().querySelector<HTMLElement>(
-      "[data-testid='badge']"
-    )!
+    const panier = declencheurDuPanier()
+    // Le nom accessible ne vient plus d'un `aria-label` : un texte masqué
+    // « Panier » précède le nombre, qui reste visible dans la pastille.
+    expect(panier.getAttribute("aria-label")).toBeNull()
+    expect(panier.querySelector(".sr-only")?.textContent).toBe("Panier")
+
+    const badge = panier.querySelector<HTMLElement>("[data-testid='badge']")!
     expect(badge.textContent).toBe("3")
   })
 })

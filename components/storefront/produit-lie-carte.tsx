@@ -39,7 +39,7 @@ export function ProduitLieCarte({
             {enAttente ? "Ajout…" : "Ajouter au panier"}
           </Button>
           {ajoute ? (
-            <p className="text-xs text-emerald-600">Ajouté au panier</p>
+            <p className="text-xs text-emerald-700">Ajouté au panier</p>
           ) : null}
           {messageRefus ? (
             <p role="alert" className="text-xs text-destructive">

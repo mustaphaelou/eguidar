@@ -199,7 +199,6 @@ export function GlobalNavBar({
             ref={panierRef}
             variant="ghost"
             size="icon"
-            aria-label="Panier"
             aria-expanded={ouvert}
             aria-controls={ID_APERCU_DU_PANIER}
             className="relative"
@@ -214,6 +213,10 @@ export function GlobalNavBar({
             >
               <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
             </span>
+            {/* Le nom accessible vient du contenu : « Panier » masqué puis la
+                pastille visible, au lieu d'une étiquette qui écrasait le
+                nombre. */}
+            <span className="sr-only">Panier</span>
             {panierBadge}
           </Button>
         </div>

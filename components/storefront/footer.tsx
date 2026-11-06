@@ -93,7 +93,7 @@ export function StorefrontFooter() {
                 href={site.licenseUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-link underline"
+                className="inline-flex min-h-6 min-w-6 items-center justify-center text-link underline"
               >
                 licence MIT
               </a>
@@ -104,7 +104,10 @@ export function StorefrontFooter() {
                 {index > 0 ? (
                   <span aria-hidden="true" className="h-2.5 w-px bg-border" />
                 ) : null}
-                <Link href={link.href} className="hover:text-foreground">
+                <Link
+                  href={link.href}
+                  className="inline-flex min-h-6 min-w-6 items-center justify-center hover:text-foreground"
+                >
                   {link.label}
                 </Link>
               </span>

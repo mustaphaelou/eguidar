@@ -27,7 +27,11 @@ describe("StorefrontHeader — coquille statique", () => {
     await flux.allReady
     const html = await new Response(flux).text()
 
-    expect(html).toContain('aria-label="Panier"')
+    // Le déclencheur n'écrase plus son contenu par une étiquette : la coquille
+    // porte le texte masqué « Panier » que le badge complétera côté client.
+    expect(html).not.toContain('aria-label="Panier"')
+    expect(html).toContain("sr-only")
+    expect(html).toContain(">Panier</span>")
     expect(html).toContain('aria-expanded="false"')
     expect(html).not.toContain("Navigation principale")
     expect(html).not.toContain("Menu mobile")
