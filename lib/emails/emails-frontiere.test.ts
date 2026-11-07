@@ -46,11 +46,13 @@ describe("Couche e-mail — frontière de neutralité", () => {
     expect(sources.map(({ chemin }) => chemin)).toEqual(
       expect.arrayContaining([
         "lib/emails/adaptateur-envoi.ts",
+        "lib/emails/duree-code.ts",
         "lib/emails/etapes.ts",
         "lib/emails/exemples.ts",
         "lib/emails/gabarit.ts",
         "lib/emails/html.ts",
         "lib/emails/index.ts",
+        "lib/emails/lettre-code.ts",
         "lib/emails/lettres-commande.ts",
         "lib/emails/marque.ts",
         "lib/emails/message.ts",
