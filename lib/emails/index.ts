@@ -46,17 +46,6 @@ export async function sendOtpEmail(
         <p>— L'équipe Eguidar</p>
       </div>
     `,
-    texte: `Code de vérification
-
-Bonjour,
-
-Votre code pour ${label} est :
-
-${otp}
-
-Ce code expire dans 5 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.
-
-— L'équipe Eguidar`,
   })
 }
 
@@ -153,7 +142,6 @@ export async function sendDigestEmail(
     sujet: entree.sujet,
     html: fragment`<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${entree.texte}</pre>`
       .html,
-    texte: entree.texte,
     cleIdempotence: entree.cleIdempotence,
   })
 }

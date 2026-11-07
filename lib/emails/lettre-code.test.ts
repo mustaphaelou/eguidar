@@ -11,7 +11,7 @@ interface AppelEmail {
     to: string
     subject: string
     html: string
-    text: string
+    text?: string
   }
   options?: { idempotencyKey?: string }
 }

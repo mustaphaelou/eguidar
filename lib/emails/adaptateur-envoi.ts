@@ -8,7 +8,7 @@ export interface ClientEmails {
         to: string
         subject: string
         html: string
-        text: string
+        text?: string
       },
       options?: { idempotencyKey?: string }
     ): Promise<unknown>
@@ -19,7 +19,7 @@ export interface EnvoiEmail {
   to: string
   sujet: string
   html: string
-  texte: string
+  texte?: string
   cleIdempotence?: string
 }
 
@@ -39,14 +39,20 @@ export async function envoyer(
     envoi.cleIdempotence === undefined
       ? undefined
       : { idempotencyKey: envoi.cleIdempotence }
-  await client.emails.send(
-    {
-      from: adresseExpedition(),
-      to: envoi.to,
-      subject: envoi.sujet,
-      html: envoi.html,
-      text: envoi.texte,
-    },
-    options
-  )
+  const charge: {
+    from: string
+    to: string
+    subject: string
+    html: string
+    text?: string
+  } = {
+    from: adresseExpedition(),
+    to: envoi.to,
+    subject: envoi.sujet,
+    html: envoi.html,
+  }
+  if (envoi.texte !== undefined) {
+    charge.text = envoi.texte
+  }
+  await client.emails.send(charge, options)
 }

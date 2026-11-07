@@ -1,4 +1,4 @@
-import { html, type HtmlSûr } from "@/lib/emails/gabarit"
+import { html, type HtmlSûr } from "@/lib/emails/html"
 import {
   COULEUR_TEXTE_ATTÉNUÉ,
   LARGEUR_CARTE,
