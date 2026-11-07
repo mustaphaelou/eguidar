@@ -299,6 +299,77 @@ describe("Lettre de changement de statut — commande arrêtée", () => {
   )
 })
 
+const ENVELOPPES = [
+  {
+    statut: "pending",
+    libellé: "En attente",
+    introduction: "Nous avons bien reçu votre commande.",
+  },
+  {
+    statut: "confirmed",
+    libellé: "Confirmée",
+    introduction: "Votre commande est confirmée : nous la préparons.",
+  },
+  {
+    statut: "shipped",
+    libellé: "Expédiée",
+    introduction: "Votre commande est expédiée : elle arrive bientôt.",
+  },
+  {
+    statut: "delivered",
+    libellé: "Livrée",
+    introduction: "Votre commande est livrée. Merci de votre confiance.",
+  },
+  {
+    statut: "cancelled",
+    libellé: "Annulée",
+    introduction: "Votre commande a été annulée.",
+  },
+  {
+    statut: "returned",
+    libellé: "Retournée",
+    introduction: "Votre commande a été retournée.",
+  },
+] as const
+
+describe("Lettre de changement de statut — enveloppe", () => {
+  it.each(ENVELOPPES)(
+    "garde l'enveloppe et la forme du texte pour $statut",
+    async ({ statut, libellé, introduction }) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      expect(appels).toHaveLength(1)
+      const { payload, options } = appels[0]!
+      expect(payload.to).toBe(commandeStandard.userEmail)
+      expect(payload.subject).toBe(
+        `Votre commande #ORD_1234 : ${libellé} — Eguidar`
+      )
+      expect(options?.idempotencyKey).toBe(
+        `commande.statut/ord_1234567890/${statut}`
+      )
+      expect(payload.html).toContain("Suivre ma commande")
+      expect(payload.html).toContain("https://eguidar.com/commandes")
+
+      const texte = payload.text ?? ""
+      const repères = [
+        "Eguidar",
+        "Commande #ORD_1234",
+        introduction,
+        "Total à payer à la livraison",
+        "Suivre ma commande : https://eguidar.com/commandes",
+        `Écrivez-nous : ${site.contactEmail}`,
+      ]
+      const positions = repères.map((repère) => texte.indexOf(repère))
+      for (const position of positions) {
+        expect(position).toBeGreaterThanOrEqual(0)
+      }
+      expect(positions).toEqual([...positions].sort((a, b) => a - b))
+    }
+  )
+})
+
 describe("Le gabarit", () => {
   it("échappe chaque interpolation, joint les tableaux et ignore les vides", () => {
     const fragment = html`<p>
