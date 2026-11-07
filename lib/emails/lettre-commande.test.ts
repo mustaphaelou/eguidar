@@ -5,6 +5,7 @@ import { site, staticPages } from "@/lib/site"
 
 import type { ClientEmails } from "./adaptateur-envoi"
 import {
+  commandeAnnulee,
   commandeCaracteresSpeciaux,
   commandeLivraisonOfferte,
   commandeStandard,
@@ -254,14 +255,16 @@ describe("Lettre de changement de statut — progression", () => {
 
 const ARRÊTS = [
   {
-    statut: "cancelled",
+    statut: "cancelled" as const,
+    commande: commandeAnnulee,
     titre: "Votre commande a été annulée.",
     bandeau: "Annulée",
     phrase: "Vous n'avez rien à payer.",
     phraseHtml: "Vous n&#39;avez rien à payer.",
   },
   {
-    statut: "returned",
+    statut: "returned" as const,
+    commande: { ...commandeAnnulee, orderId: "ord_retournee1" },
     titre: "Votre commande a été retournée.",
     bandeau: "Retournée",
     phrase:
@@ -269,15 +272,15 @@ const ARRÊTS = [
     phraseHtml:
       "Si vous avez réglé la livraison, écrivez-nous pour demander un remboursement.",
   },
-] as const
+]
 
 describe("Lettre de changement de statut — commande arrêtée", () => {
   it.each(ARRÊTS)(
     "remplace la progression par un bandeau pour $statut",
-    async ({ statut, titre, bandeau, phrase, phraseHtml }) => {
+    async ({ statut, commande, titre, bandeau, phrase, phraseHtml }) => {
       const { client, appels } = clientEnMemoire()
 
-      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+      await sendOrderStatusEmail(commande, statut, undefined, client)
 
       const { payload } = appels[0]!
       for (const corps of [payload.html, payload.text]) {
