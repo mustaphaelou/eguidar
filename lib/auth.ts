@@ -12,6 +12,7 @@ import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
 import { hacherMotDePasse } from "@/lib/mot-de-passe-hache"
 import { verifierMotDePasseEtRehacher } from "@/lib/rehachage-mot-de-passe"
 import { sendOtpEmail } from "@/lib/emails"
+import { DUREE_VIE_CODE_SECONDS } from "@/lib/emails/duree-code"
 import {
   ORIGINES_DE_LA_BOUTIQUE,
   originesSupplementaires,
@@ -90,6 +91,9 @@ export const auth = betterAuth({
   },
   plugins: [
     emailOTP({
+      // La lettre annonce cette durée : la valeur vient du même module que la
+      // copie, et la bibliothèque ne peut pas la changer en silence.
+      expiresIn: DUREE_VIE_CODE_SECONDS,
       storeOTP: "hashed",
       async sendVerificationOTP({ email, otp, type }) {
         await sendOtpEmail(email, otp, type)
