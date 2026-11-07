@@ -12,6 +12,7 @@ import {
 } from "./exemples"
 import { etapeDe } from "./etapes"
 import { html, rendreLettre } from "./gabarit"
+import type { HtmlSûr } from "./html"
 import {
   sendDigestEmail,
   sendOrderPlacedEmail,
@@ -424,6 +425,13 @@ describe("Le gabarit", () => {
     expect(fragment.html).not.toContain("null")
     expect(fragment.html).not.toContain("undefined")
     expect(fragment.html).not.toContain("false")
+  })
+
+  it("ne laisse pas un fragment forgé passer pour sûr", () => {
+    // @ts-expect-error — HtmlSûr porte une marque privée que seul html() pose.
+    const forgé: HtmlSûr = { html: "<b>brut</b>" }
+
+    expect(html`${forgé}`.html).not.toContain("<b>brut</b>")
   })
 
   it("rend un document complet, pré-en-tête et note d'en-tête compris", () => {

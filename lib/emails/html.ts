@@ -1,7 +1,10 @@
 const fragmentsSûrs = new WeakSet<object>()
 
+declare const marqueHtmlSûr: unique symbol
+
 export interface HtmlSûr {
   readonly html: string
+  readonly [marqueHtmlSûr]: true
 }
 
 function estSûr(valeur: unknown): valeur is HtmlSûr {
@@ -37,7 +40,7 @@ export function html(
   for (let index = 0; index < valeurs.length; index += 1) {
     sortie += rendreValeur(valeurs[index]) + (morceaux[index + 1] ?? "")
   }
-  const fragment = Object.freeze({ html: sortie })
+  const fragment = Object.freeze({ html: sortie }) as HtmlSûr
   fragmentsSûrs.add(fragment)
   return fragment
 }
