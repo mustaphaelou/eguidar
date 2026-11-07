@@ -1,9 +1,17 @@
-import { getResend } from "@/lib/email"
-import { OrderStatus } from "@/lib/generated/prisma/client"
-import { ORDER_STATUS_LABELS } from "@/lib/statut-de-commande"
-import { formatPrice } from "@/lib/money"
-import { récapitulatifRowsFromCommande } from "@/lib/recapitulatif-paiement"
-import { shortOrderId } from "@/lib/utils"
+import type { OrderEmailSnapshot as ChargeOrderEmailSnapshot } from "@/lib/automations/charge"
+import {
+  envoyer,
+  getResend,
+  type ClientEmails,
+} from "@/lib/emails/adaptateur-envoi"
+import { html as fragment } from "@/lib/emails/gabarit"
+import {
+  messageCommandePlacee,
+  messageCommandeStatut,
+} from "@/lib/emails/lettres-commande"
+import { type OrderStatus } from "@/lib/statut-de-commande"
+
+export type OrderEmailSnapshot = ChargeOrderEmailSnapshot
 
 const otpTypeLabels: Record<string, string> = {
   "email-verification": "la vérification de votre adresse e-mail",
@@ -17,18 +25,17 @@ export async function sendOtpEmail(
   otp: string,
   type: string
 ): Promise<void> {
-  const resend = getResend()
-  if (!resend) {
+  const client = getResend()
+  if (!client) {
     console.warn(
       `[email] RESEND_API_KEY absent — code de vérification non envoyé à ${email}`
     )
     return
   }
   const label = otpTypeLabels[type] ?? "l'utilisation de votre compte"
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? "Eguidar <onboarding@resend.dev>",
+  await envoyer(client, {
     to: email,
-    subject: "Votre code de vérification Eguidar",
+    sujet: "Votre code de vérification Eguidar",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
         <h2>Code de vérification</h2>
@@ -39,14 +46,18 @@ export async function sendOtpEmail(
         <p>— L'équipe Eguidar</p>
       </div>
     `,
-  })
-}
+    texte: `Code de vérification
 
-export interface OrderEmailItem {
-  productName: string
-  variantName: string
-  quantity: number
-  price: number
+Bonjour,
+
+Votre code pour ${label} est :
+
+${otp}
+
+Ce code expire dans 5 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.
+
+— L'équipe Eguidar`,
+  })
 }
 
 /**
@@ -66,97 +77,18 @@ export function cleIdempotenceEmailStatut(
   return `commande.statut/${orderId}/${newStatus}`
 }
 
-/**
- * Le sous-ensemble du client Resend dont l'envoi de Commande a besoin : il
- * permet de prouver la clé d'idempotence sur un double sans mocker le module.
- */
-export interface ClientEmails {
-  emails: {
-    send(
-      payload: {
-        from: string
-        to: string
-        subject: string
-        html: string
-      },
-      options?: { idempotencyKey?: string }
-    ): Promise<unknown>
-  }
-}
-
-import type { OrderEmailSnapshot as ChargeOrderEmailSnapshot } from "@/lib/automations/charge"
-
-export type OrderEmailSnapshot = ChargeOrderEmailSnapshot
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-}
-
-export function orderDetailsHtml(snapshot: OrderEmailSnapshot): string {
-  const itemRows = snapshot.items
-    .map(
-      (item) => `
-        <tr>
-          <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${escapeHtml(item.productName)} ${escapeHtml(item.variantName)} × ${item.quantity}</td>
-          <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap;">${formatPrice(item.price * item.quantity)}</td>
-        </tr>`
-    )
-    .join("")
-
-  const recapRows = récapitulatifRowsFromCommande(snapshot)
-
-  const summaryRows = recapRows
-    .map((row) => {
-      const bold = row.kind === "total" ? " font-weight: bold;" : ""
-      return `
-      <tr>
-        <td style="padding: 8px 0;${bold}">${escapeHtml(row.label)}</td>
-        <td style="padding: 8px 0; text-align: right;${bold} white-space: nowrap;">${escapeHtml(row.value)}</td>
-      </tr>`
-    })
-    .join("")
-
-  return `
-    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-      ${itemRows}
-      ${summaryRows}
-    </table>
-  `
-}
-
-async function sendOrderEmail(
+async function envoyerMessage(
+  client: ClientEmails,
   snapshot: OrderEmailSnapshot,
-  subject: string,
-  intro: string,
-  cleIdempotence: string,
-  client: ClientEmails | null
+  message: { sujet: string; html: string; texte: string },
+  cleIdempotence: string
 ): Promise<void> {
-  if (!client) {
-    console.warn(
-      `[email] RESEND_API_KEY absent — e-mail de commande non envoyé à ${snapshot.userEmail}`
-    )
-    return
-  }
-  await client.emails.send({
-    from: process.env.EMAIL_FROM ?? "Eguidar <onboarding@resend.dev>",
+  await envoyer(client, {
     to: snapshot.userEmail,
-    subject,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2>Eguidar</h2>
-        <p>${intro}</p>
-        <p>Commande ${shortOrderId(snapshot.orderId)}</p>
-        ${orderDetailsHtml(snapshot)}
-        <p>Livraison : ${escapeHtml(snapshot.address)}, ${escapeHtml(snapshot.cityName)} — ${escapeHtml(snapshot.phone)}</p>
-        <p>Réglez en espèces au livreur lors de la réception de votre colis.</p>
-        <p>— L'équipe Eguidar</p>
-      </div>
-    `,
+    sujet: message.sujet,
+    html: message.html,
+    texte: message.texte,
+    cleIdempotence,
   })
 }
 
@@ -165,12 +97,17 @@ export async function sendOrderPlacedEmail(
   cleIdempotence = cleIdempotenceEmailPlacee(snapshot.orderId),
   client: ClientEmails | null = getResend()
 ): Promise<void> {
-  await sendOrderEmail(
+  if (!client) {
+    console.warn(
+      `[email] RESEND_API_KEY absent — e-mail de commande non envoyé à ${snapshot.userEmail}`
+    )
+    return
+  }
+  await envoyerMessage(
+    client,
     snapshot,
-    `Commande ${shortOrderId(snapshot.orderId)} reçue — Eguidar`,
-    "Merci pour votre commande ! Nous l'avons bien reçue.",
-    cleIdempotence,
-    client
+    messageCommandePlacee(snapshot),
+    cleIdempotence
   )
 }
 
@@ -180,12 +117,17 @@ export async function sendOrderStatusEmail(
   cleIdempotence = cleIdempotenceEmailStatut(snapshot.orderId, newStatus),
   client: ClientEmails | null = getResend()
 ): Promise<void> {
-  await sendOrderEmail(
+  if (!client) {
+    console.warn(
+      `[email] RESEND_API_KEY absent — e-mail de commande non envoyé à ${snapshot.userEmail}`
+    )
+    return
+  }
+  await envoyerMessage(
+    client,
     snapshot,
-    `Votre commande ${shortOrderId(snapshot.orderId)} : ${ORDER_STATUS_LABELS[newStatus]} — Eguidar`,
-    `Votre commande est maintenant : <strong>${ORDER_STATUS_LABELS[newStatus]}</strong>.`,
-    cleIdempotence,
-    client
+    messageCommandeStatut(snapshot, newStatus),
+    cleIdempotence
   )
 }
 
@@ -206,13 +148,12 @@ export async function sendDigestEmail(
     )
     return
   }
-  await client.emails.send(
-    {
-      from: process.env.EMAIL_FROM ?? "Eguidar <onboarding@resend.dev>",
-      to: entree.destinataire,
-      subject: entree.sujet,
-      html: `<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${escapeHtml(entree.texte)}</pre>`,
-    },
-    { idempotencyKey: entree.cleIdempotence }
-  )
+  await envoyer(client, {
+    to: entree.destinataire,
+    sujet: entree.sujet,
+    html: fragment`<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${entree.texte}</pre>`
+      .html,
+    texte: entree.texte,
+    cleIdempotence: entree.cleIdempotence,
+  })
 }
