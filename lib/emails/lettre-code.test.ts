@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { ClientEmails } from "./adaptateur-envoi"
+import { libelleDureeCode } from "./duree-code"
 import { sendOtpEmail } from "./index"
 
 const globalResend = globalThis as unknown as { resend?: ClientEmails }
@@ -103,5 +104,13 @@ describe("sendOtpEmail", () => {
       }
       globalResend.resend = clientPrecedent
     }
+  })
+})
+
+describe("La durée de vie du code", () => {
+  it("nomme les minutes et les secondes sans arrondir", () => {
+    expect(libelleDureeCode(60)).toBe("1 minute")
+    expect(libelleDureeCode(300)).toBe("5 minutes")
+    expect(libelleDureeCode(90)).toBe("1 minute 30 secondes")
   })
 })
