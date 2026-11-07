@@ -17,6 +17,15 @@ const PHRASE_PAIEMENT =
 
 const LIBELLÉ_BOUTON = "Suivre ma commande"
 
+const INTRODUCTIONS_STATUT: Record<OrderStatus, string> = {
+  pending: "Nous avons bien reçu votre commande.",
+  confirmed: "Votre commande est confirmée : nous la préparons.",
+  shipped: "Votre commande est expédiée : elle arrive bientôt.",
+  delivered: "Votre commande est livrée. Merci de votre confiance.",
+  cancelled: "Votre commande a été annulée.",
+  returned: "Votre commande a été retournée.",
+}
+
 function urlSuivi(): string {
   return `${site.url}/commandes`
 }
@@ -59,6 +68,7 @@ interface EnteteLettre {
   titre: string
   paragraphe?: string
   introductionTexte: string
+  statut?: OrderStatus
 }
 
 function composerLettre(
@@ -72,6 +82,9 @@ function composerLettre(
   const blocs: Bloc[] = [{ type: "titre", texte: entete.titre }]
   if (entete.paragraphe !== undefined) {
     blocs.push({ type: "paragraphe", texte: entete.paragraphe })
+  }
+  if (entete.statut !== undefined) {
+    blocs.push({ type: "etapes", statut: entete.statut })
   }
   if (articles.length > 0) {
     blocs.push({ type: "lignes", lignes: articles })
@@ -124,10 +137,11 @@ export function messageCommandeStatut(
   snapshot: OrderEmailSnapshot,
   statut: OrderStatus
 ): MessageEmail {
-  const introduction = `Votre commande est maintenant : ${ORDER_STATUS_LABELS[statut]}.`
+  const introduction = INTRODUCTIONS_STATUT[statut]
   const corps = composerLettre(snapshot, {
     titre: introduction,
     introductionTexte: introduction,
+    statut,
   })
   return {
     sujet: `Votre commande ${shortOrderId(snapshot.orderId)} : ${ORDER_STATUS_LABELS[statut]} — Eguidar`,

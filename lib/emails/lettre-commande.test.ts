@@ -177,13 +177,74 @@ describe("Lettre de changement de statut", () => {
       "commande.statut/ord_1234567890/confirmed"
     )
     for (const corps of [payload.html, payload.text]) {
-      expect(corps).toContain("Votre commande est maintenant : Confirmée.")
+      expect(corps).toContain(
+        "Votre commande est confirmée : nous la préparons."
+      )
       expect(corps).toContain("Total à payer à la livraison")
       for (const montant of MONTANTS) expect(corps).toContain(montant)
     }
     expect(payload.html).toContain("https://eguidar.com/commandes")
     expect(payload.text).toContain("https://eguidar.com/commandes")
   })
+})
+
+const ÉTAPES_ATTENDUES = ["Reçue", "Confirmée", "Expédiée", "Livrée"]
+
+const PROGRESSIONS = [
+  {
+    statut: "pending",
+    introduction: "Nous avons bien reçu votre commande.",
+    étape: "Reçue",
+  },
+  {
+    statut: "confirmed",
+    introduction: "Votre commande est confirmée : nous la préparons.",
+    étape: "Confirmée",
+  },
+  {
+    statut: "shipped",
+    introduction: "Votre commande est expédiée : elle arrive bientôt.",
+    étape: "Expédiée",
+  },
+  {
+    statut: "delivered",
+    introduction: "Votre commande est livrée. Merci de votre confiance.",
+    étape: "Livrée",
+  },
+] as const
+
+describe("Lettre de changement de statut — progression", () => {
+  it.each(PROGRESSIONS)(
+    "annonce « $introduction » et marque « $étape » pour $statut",
+    async ({ statut, introduction, étape }) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      const { payload } = appels[0]!
+      for (const corps of [payload.html, payload.text]) {
+        expect(corps).toContain(introduction)
+      }
+      expect(payload.html.match(/aria-current="step"/g)).toHaveLength(1)
+      expect(payload.html).toMatch(
+        new RegExp(`aria-current="step"[^>]*>\\s*${étape}`)
+      )
+      for (const libellé of ÉTAPES_ATTENDUES) {
+        expect(payload.html).toContain(libellé)
+      }
+      for (const libellé of ÉTAPES_ATTENDUES.filter(
+        (libellé) => libellé !== étape
+      )) {
+        expect(payload.html).not.toMatch(
+          new RegExp(`aria-current="step"[^>]*>\\s*${libellé}`)
+        )
+      }
+      expect(payload.html).toContain("https://eguidar.com/commandes")
+      expect(payload.text).toContain("https://eguidar.com/commandes")
+      expect(payload.html).toContain("Total à payer à la livraison")
+      expect(payload.text).toContain("Total à payer à la livraison")
+    }
+  )
 })
 
 describe("Le gabarit", () => {
