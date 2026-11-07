@@ -153,7 +153,7 @@ flowchart LR
   statut -->|Annuler ou Retourner| stock["Stock réapprovisionné"]
 ```
 
-Ce que la CI garantit, en six contextes — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` —, se rejoue en local par `bash scripts/checks.sh`. La Porte de fusion et les standards de code sont décrits dans [`docs/agents/`](docs/agents/) et [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+Ce que la CI garantit, en six contextes — `build`, `dependency-review`, `format`, `lint`, `test`, `typecheck` — se rejoue en local par `bash scripts/checks.sh`. La Porte de fusion et les standards de code sont décrits dans [`docs/agents/`](docs/agents/) et [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
 
 ## Démarrer
 
