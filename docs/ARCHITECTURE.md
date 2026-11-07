@@ -40,7 +40,7 @@ Eguidar est **une application Next.js unique**, servie par un seul processus Nod
 | **Surfaces** | `app/`, `components/` | rendre, lire l'URL, appeler un cas d'usage ou une Server Action |
 | **Cas d'usage** | `lib/use-cases/` | porter la transaction, la Session courante, la validation, l'autorisation |
 | **Domaine pur** | les modules de `lib/` sans aucun `import` | calculer, sans Next, sans Prisma, sans entrée-sortie |
-| **Adaptateurs** | `lib/meili.ts`, `lib/r2.ts`, `lib/purge-edge-cloudflare.ts`, `lib/redis.ts`, `lib/emails.ts` | parler à un service extérieur, derrière un port |
+| **Adaptateurs** | `lib/meili.ts`, `lib/r2.ts`, `lib/purge-edge-cloudflare.ts`, `lib/redis.ts`, `lib/emails/` | parler à un service extérieur, derrière un port |
 | **Infrastructure** | `lib/db.ts`, `lib/configuration-critique.ts`, `cache-handlers/`, `prisma/` | tenir les connexions et la configuration |
 
 **La règle d'import va vers le bas, jamais vers le haut.** Aucune page ni aucune action de production ne touche `lib/db` : seuls les tests le font, pour semer leurs faits. Trente et un modules de `lib/` n'ont aucun import du tout — `carte-produit.ts`, `marche-structure.ts`, `money.ts`, `blog-contenu.ts`, `panier-transport.ts` — et ce sont eux qui portent les calculs.
