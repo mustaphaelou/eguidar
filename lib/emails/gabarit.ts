@@ -182,7 +182,12 @@ export function rendreLettre(lettre: Lettre): string {
   const blocTitreLettre = lettre.blocs.find((bloc) => bloc.type === "titre")
   const titre =
     blocTitreLettre?.type === "titre" ? blocTitreLettre.texte : lettre.préEnTête
-  const préEnTête = lettre.préEnTête.trim() === "" ? titre : lettre.préEnTête
+  const préEnTête =
+    lettre.préEnTête.trim() !== ""
+      ? lettre.préEnTête
+      : titre.trim() !== ""
+        ? titre
+        : site.legalName
   const noteEnTête = lettre.noteEnTête?.trim() ?? ""
 
   return html`<!DOCTYPE html>
