@@ -47,6 +47,9 @@ const MONTANTS = [
   formatPrice(commandeStandard.totalPayable),
 ]
 
+const PHRASE_PAIEMENT =
+  "Réglez en espèces au livreur lors de la réception de votre colis."
+
 describe("Lettre de commande reçue", () => {
   it("part au Client avec le sujet, la Clé d'idempotence et une lettre complète", async () => {
     const { client, appels } = clientEnMemoire()
@@ -61,6 +64,8 @@ describe("Lettre de commande reçue", () => {
     expect(payload.html).toContain("Merci pour votre commande")
     expect(payload.html).toContain("https://eguidar.com/commandes")
     expect(payload.text).toContain("Merci pour votre commande")
+    expect(payload.html).toContain(PHRASE_PAIEMENT)
+    expect(payload.text).toContain(PHRASE_PAIEMENT)
     expect(payload.html).toContain(site.contactEmail)
     expect(payload.text).toContain(site.contactEmail)
     for (const page of staticPages) {
@@ -295,6 +300,33 @@ describe("Lettre de changement de statut — commande arrêtée", () => {
       expect(payload.text).toContain("https://eguidar.com/commandes")
       expect(payload.html).toContain(site.contactEmail)
       expect(payload.text).toContain(site.contactEmail)
+    }
+  )
+})
+
+describe("Lettre de changement de statut — instruction de paiement", () => {
+  it.each([
+    ["pending", true],
+    ["confirmed", true],
+    ["shipped", true],
+    ["delivered", false],
+    ["cancelled", false],
+    ["returned", false],
+  ] as const)(
+    "dit la phrase de paiement pour %s : %s",
+    async (statut, annoncée) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      const { payload } = appels[0]!
+      for (const corps of [payload.html, payload.text]) {
+        if (annoncée) {
+          expect(corps).toContain(PHRASE_PAIEMENT)
+        } else {
+          expect(corps).not.toContain(PHRASE_PAIEMENT)
+        }
+      }
     }
   )
 })

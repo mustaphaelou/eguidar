@@ -15,6 +15,16 @@ import { shortOrderId } from "@/lib/utils"
 const PHRASE_PAIEMENT =
   "Réglez en espèces au livreur lors de la réception de votre colis."
 
+const STATUTS_SANS_PAIEMENT: ReadonlySet<OrderStatus> = new Set([
+  "delivered",
+  "cancelled",
+  "returned",
+])
+
+function annoncePaiement(statut?: OrderStatus): boolean {
+  return statut === undefined || !STATUTS_SANS_PAIEMENT.has(statut)
+}
+
 const LIBELLÉ_BOUTON = "Suivre ma commande"
 
 interface CopieStatut {
@@ -121,7 +131,10 @@ function composerLettre(
   if (livraison.length > 0) {
     blocs.push({ type: "lignes", lignes: livraison })
   }
-  blocs.push({ type: "paragraphe", texte: PHRASE_PAIEMENT })
+  const paiement = annoncePaiement(entete.statut)
+  if (paiement) {
+    blocs.push({ type: "paragraphe", texte: PHRASE_PAIEMENT })
+  }
   blocs.push({ type: "bouton", libellé: LIBELLÉ_BOUTON, url: urlSuivi() })
 
   const corpsHtml = rendreLettre({
@@ -144,7 +157,7 @@ function composerLettre(
     encartTexte,
     [...lignesFactuelles(articles), ...lignesFactuelles(récapitulatif)],
     lignesFactuelles(livraison),
-    [PHRASE_PAIEMENT],
+    paiement ? [PHRASE_PAIEMENT] : [],
     [`${LIBELLÉ_BOUTON} : ${urlSuivi()}`],
     lignesPiedTexte(),
   ]
