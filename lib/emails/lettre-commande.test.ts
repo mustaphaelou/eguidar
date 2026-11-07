@@ -466,6 +466,22 @@ describe("Le gabarit", () => {
     }
   })
 
+  it("rend les étapes dans une table de présentation, une cellule par étape", () => {
+    const document = rendreLettre({
+      préEnTête: "Position de la commande",
+      blocs: [{ type: "etapes", statut: "confirmed" }],
+    })
+
+    expect(document).not.toContain("<ol")
+    expect(document).not.toContain("<li")
+    expect(document.match(/<td/g)).toHaveLength(4)
+    expect(document.match(/role="presentation"/g)).toHaveLength(1)
+    const positions = ÉTAPES_ATTENDUES.map((libellé) =>
+      document.indexOf(libellé)
+    )
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+  })
+
   it("ne rend aucune étape pour une Commande arrêtée", () => {
     const document = rendreLettre({
       préEnTête: "Commande arrêtée",
