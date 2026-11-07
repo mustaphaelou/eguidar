@@ -22,15 +22,9 @@ const MODULES_INTERDITS = [
   "@/lib/email",
 ] as const
 
-const MODULES_STRUCTURELS = [
-  "next",
-  "react",
-  "react-dom",
-  "@prisma/client",
-  "@/lib/generated/prisma",
-  "@/lib/db",
-  "server-only",
-] as const
+const MODULES_STRUCTURELS = MODULES_INTERDITS.filter(
+  (module) => module !== "resend" && module !== "@/lib/email"
+)
 
 function violationsNeutralite(source: SourceProduction): string[] {
   if (source.chemin === ADAPTATEUR) return []
