@@ -5,6 +5,7 @@ import {
   type ClientEmails,
 } from "@/lib/emails/adaptateur-envoi"
 import { html as fragment } from "@/lib/emails/gabarit"
+import { messageCode } from "@/lib/emails/lettre-code"
 import {
   messageCommandePlacee,
   messageCommandeStatut,
@@ -12,13 +13,6 @@ import {
 import { type OrderStatus } from "@/lib/statut-de-commande"
 
 export type OrderEmailSnapshot = ChargeOrderEmailSnapshot
-
-const otpTypeLabels: Record<string, string> = {
-  "email-verification": "la vérification de votre adresse e-mail",
-  "sign-in": "la connexion à votre compte",
-  "forget-password": "la réinitialisation de votre mot de passe",
-  "change-email": "le changement de votre adresse e-mail",
-}
 
 export async function sendOtpEmail(
   email: string,
@@ -32,20 +26,12 @@ export async function sendOtpEmail(
     )
     return
   }
-  const label = otpTypeLabels[type] ?? "l'utilisation de votre compte"
+  const message = messageCode({ code: otp, type })
   await envoyer(client, {
     to: email,
-    sujet: "Votre code de vérification Eguidar",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2>Code de vérification</h2>
-        <p>Bonjour,</p>
-        <p>Votre code pour ${label} est :</p>
-        <p style="font-size: 28px; font-weight: bold; letter-spacing: 6px; text-align: center;">${otp}</p>
-        <p>Ce code expire dans 5 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
-        <p>— L'équipe Eguidar</p>
-      </div>
-    `,
+    sujet: message.sujet,
+    html: message.html,
+    texte: message.texte,
   })
 }
 
