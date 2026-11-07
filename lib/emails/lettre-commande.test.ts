@@ -177,13 +177,197 @@ describe("Lettre de changement de statut", () => {
       "commande.statut/ord_1234567890/confirmed"
     )
     for (const corps of [payload.html, payload.text]) {
-      expect(corps).toContain("Votre commande est maintenant : Confirmée.")
+      expect(corps).toContain(
+        "Votre commande est confirmée : nous la préparons."
+      )
       expect(corps).toContain("Total à payer à la livraison")
       for (const montant of MONTANTS) expect(corps).toContain(montant)
     }
     expect(payload.html).toContain("https://eguidar.com/commandes")
     expect(payload.text).toContain("https://eguidar.com/commandes")
   })
+})
+
+const ÉTAPES_ATTENDUES = ["Reçue", "Confirmée", "Expédiée", "Livrée"]
+
+const PROGRESSIONS = [
+  {
+    statut: "pending",
+    introduction: "Nous avons bien reçu votre commande.",
+    étape: "Reçue",
+  },
+  {
+    statut: "confirmed",
+    introduction: "Votre commande est confirmée : nous la préparons.",
+    étape: "Confirmée",
+  },
+  {
+    statut: "shipped",
+    introduction: "Votre commande est expédiée : elle arrive bientôt.",
+    étape: "Expédiée",
+  },
+  {
+    statut: "delivered",
+    introduction: "Votre commande est livrée. Merci de votre confiance.",
+    étape: "Livrée",
+  },
+] as const
+
+describe("Lettre de changement de statut — progression", () => {
+  it.each(PROGRESSIONS)(
+    "annonce « $introduction » et marque « $étape » pour $statut",
+    async ({ statut, introduction, étape }) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      const { payload } = appels[0]!
+      for (const corps of [payload.html, payload.text]) {
+        expect(corps).toContain(introduction)
+      }
+      expect(payload.html.match(/aria-current="step"/g)).toHaveLength(1)
+      expect(payload.html).toMatch(
+        new RegExp(`aria-current="step"[^>]*>\\s*${étape}`)
+      )
+      for (const libellé of ÉTAPES_ATTENDUES) {
+        expect(payload.html).toContain(libellé)
+      }
+      for (const libellé of ÉTAPES_ATTENDUES.filter(
+        (libellé) => libellé !== étape
+      )) {
+        expect(payload.html).not.toMatch(
+          new RegExp(`aria-current="step"[^>]*>\\s*${libellé}`)
+        )
+      }
+      expect(payload.html).toContain("https://eguidar.com/commandes")
+      expect(payload.text).toContain("https://eguidar.com/commandes")
+      expect(payload.html).toContain("Total à payer à la livraison")
+      expect(payload.text).toContain("Total à payer à la livraison")
+    }
+  )
+})
+
+const ARRÊTS = [
+  {
+    statut: "cancelled",
+    titre: "Votre commande a été annulée.",
+    bandeau: "Annulée",
+    phrase: "Vous n'avez rien à payer.",
+    phraseHtml: "Vous n&#39;avez rien à payer.",
+  },
+  {
+    statut: "returned",
+    titre: "Votre commande a été retournée.",
+    bandeau: "Retournée",
+    phrase:
+      "Si vous avez réglé la livraison, écrivez-nous pour demander un remboursement.",
+    phraseHtml:
+      "Si vous avez réglé la livraison, écrivez-nous pour demander un remboursement.",
+  },
+] as const
+
+describe("Lettre de changement de statut — commande arrêtée", () => {
+  it.each(ARRÊTS)(
+    "remplace la progression par un bandeau pour $statut",
+    async ({ statut, titre, bandeau, phrase, phraseHtml }) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      const { payload } = appels[0]!
+      for (const corps of [payload.html, payload.text]) {
+        expect(corps).toContain(titre)
+        expect(corps).toContain(bandeau)
+      }
+      expect(payload.html).toContain(phraseHtml)
+      expect(payload.text).toContain(phrase)
+      expect(payload.html).not.toContain("aria-current")
+      for (const libellé of ÉTAPES_ATTENDUES) {
+        expect(payload.html).not.toContain(libellé)
+      }
+      expect(payload.html).toContain("Total à payer à la livraison")
+      expect(payload.text).toContain("Total à payer à la livraison")
+      for (const montant of MONTANTS) {
+        expect(payload.html).toContain(montant)
+        expect(payload.text).toContain(montant)
+      }
+      expect(payload.html).toContain("https://eguidar.com/commandes")
+      expect(payload.text).toContain("https://eguidar.com/commandes")
+      expect(payload.html).toContain(site.contactEmail)
+      expect(payload.text).toContain(site.contactEmail)
+    }
+  )
+})
+
+const ENVELOPPES = [
+  {
+    statut: "pending",
+    libellé: "En attente",
+    introduction: "Nous avons bien reçu votre commande.",
+  },
+  {
+    statut: "confirmed",
+    libellé: "Confirmée",
+    introduction: "Votre commande est confirmée : nous la préparons.",
+  },
+  {
+    statut: "shipped",
+    libellé: "Expédiée",
+    introduction: "Votre commande est expédiée : elle arrive bientôt.",
+  },
+  {
+    statut: "delivered",
+    libellé: "Livrée",
+    introduction: "Votre commande est livrée. Merci de votre confiance.",
+  },
+  {
+    statut: "cancelled",
+    libellé: "Annulée",
+    introduction: "Votre commande a été annulée.",
+  },
+  {
+    statut: "returned",
+    libellé: "Retournée",
+    introduction: "Votre commande a été retournée.",
+  },
+] as const
+
+describe("Lettre de changement de statut — enveloppe", () => {
+  it.each(ENVELOPPES)(
+    "garde l'enveloppe et la forme du texte pour $statut",
+    async ({ statut, libellé, introduction }) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      expect(appels).toHaveLength(1)
+      const { payload, options } = appels[0]!
+      expect(payload.to).toBe(commandeStandard.userEmail)
+      expect(payload.subject).toBe(
+        `Votre commande #ORD_1234 : ${libellé} — Eguidar`
+      )
+      expect(options?.idempotencyKey).toBe(
+        `commande.statut/ord_1234567890/${statut}`
+      )
+      expect(payload.html).toContain("Suivre ma commande")
+      expect(payload.html).toContain("https://eguidar.com/commandes")
+
+      const texte = payload.text ?? ""
+      const repères = [
+        "Eguidar",
+        "Commande #ORD_1234",
+        introduction,
+        "Total à payer à la livraison",
+        "Suivre ma commande : https://eguidar.com/commandes",
+        `Écrivez-nous : ${site.contactEmail}`,
+      ]
+      const positions = repères.map((repère) => texte.indexOf(repère))
+      for (const position of positions) {
+        expect(position).toBeGreaterThanOrEqual(0)
+      }
+      expect(positions).toEqual([...positions].sort((a, b) => a - b))
+    }
+  )
 })
 
 describe("Le gabarit", () => {
