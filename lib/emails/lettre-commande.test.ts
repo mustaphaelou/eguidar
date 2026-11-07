@@ -11,8 +11,8 @@ import {
   commandeStandard,
 } from "./exemples"
 import { etapeDe } from "./etapes"
-import { html, rendreLettre } from "./gabarit"
-import type { HtmlSûr } from "./html"
+import { rendreLettre } from "./gabarit"
+import { html, type HtmlSûr } from "./html"
 import {
   sendDigestEmail,
   sendOrderPlacedEmail,

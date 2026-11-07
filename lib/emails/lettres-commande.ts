@@ -5,10 +5,9 @@ import {
   type LigneDeLettre,
 } from "@/lib/emails/gabarit"
 import type { MessageEmail } from "@/lib/emails/message"
-import { lignesPiedTexte } from "@/lib/emails/pied"
+import { lignesPiedTexte, urlAbsolue } from "@/lib/emails/pied"
 import { formatPrice } from "@/lib/money"
 import { récapitulatifRowsFromCommande } from "@/lib/recapitulatif-paiement"
-import { site } from "@/lib/site"
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/statut-de-commande"
 import { shortOrderId } from "@/lib/utils"
 
@@ -60,10 +59,6 @@ const COPIES_STATUT: Record<OrderStatus, CopieStatut> = {
   },
 }
 
-function urlSuivi(): string {
-  return `${site.url}/commandes`
-}
-
 function lignesArticles(snapshot: OrderEmailSnapshot): LigneDeLettre[] {
   return snapshot.items.map((item) => {
     const variante = item.variantName.trim()
@@ -89,7 +84,7 @@ function lignesLivraison(snapshot: OrderEmailSnapshot): LigneDeLettre[] {
   return lignes
 }
 
-function lignesFactuelles(lignes: readonly LigneDeLettre[]): string[] {
+function lignesEnTexte(lignes: readonly LigneDeLettre[]): string[] {
   return lignes.map((ligne) => {
     const note = ligne.note?.trim() ?? ""
     return note === ""
@@ -135,7 +130,11 @@ function composerLettre(
   if (paiement) {
     blocs.push({ type: "paragraphe", texte: PHRASE_PAIEMENT })
   }
-  blocs.push({ type: "bouton", libellé: LIBELLÉ_BOUTON, url: urlSuivi() })
+  blocs.push({
+    type: "bouton",
+    libellé: LIBELLÉ_BOUTON,
+    url: urlAbsolue("/commandes"),
+  })
 
   const corpsHtml = rendreLettre({
     préEnTête: entete.introductionTexte,
@@ -155,10 +154,10 @@ function composerLettre(
     [`Commande ${shortOrderId(snapshot.orderId)}`],
     [entete.introductionTexte],
     encartTexte,
-    [...lignesFactuelles(articles), ...lignesFactuelles(récapitulatif)],
-    lignesFactuelles(livraison),
+    [...lignesEnTexte(articles), ...lignesEnTexte(récapitulatif)],
+    lignesEnTexte(livraison),
     paiement ? [PHRASE_PAIEMENT] : [],
-    [`${LIBELLÉ_BOUTON} : ${urlSuivi()}`],
+    [`${LIBELLÉ_BOUTON} : ${urlAbsolue("/commandes")}`],
     lignesPiedTexte(),
   ]
     .filter((section) => section.length > 0)

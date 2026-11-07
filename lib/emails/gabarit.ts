@@ -14,8 +14,6 @@ import { piedLettre } from "@/lib/emails/pied"
 import { site } from "@/lib/site"
 import type { OrderStatus } from "@/lib/statut-de-commande"
 
-export { html, type HtmlSûr } from "@/lib/emails/html"
-
 export interface LigneDeLettre {
   label: string
   value: string
