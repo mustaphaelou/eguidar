@@ -247,6 +247,58 @@ describe("Lettre de changement de statut — progression", () => {
   )
 })
 
+const ARRÊTS = [
+  {
+    statut: "cancelled",
+    titre: "Votre commande a été annulée.",
+    bandeau: "Annulée",
+    phrase: "Vous n'avez rien à payer.",
+    phraseHtml: "Vous n&#39;avez rien à payer.",
+  },
+  {
+    statut: "returned",
+    titre: "Votre commande a été retournée.",
+    bandeau: "Retournée",
+    phrase:
+      "Si vous avez réglé la livraison, écrivez-nous pour demander un remboursement.",
+    phraseHtml:
+      "Si vous avez réglé la livraison, écrivez-nous pour demander un remboursement.",
+  },
+] as const
+
+describe("Lettre de changement de statut — commande arrêtée", () => {
+  it.each(ARRÊTS)(
+    "remplace la progression par un bandeau pour $statut",
+    async ({ statut, titre, bandeau, phrase, phraseHtml }) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      const { payload } = appels[0]!
+      for (const corps of [payload.html, payload.text]) {
+        expect(corps).toContain(titre)
+        expect(corps).toContain(bandeau)
+      }
+      expect(payload.html).toContain(phraseHtml)
+      expect(payload.text).toContain(phrase)
+      expect(payload.html).not.toContain("aria-current")
+      for (const libellé of ÉTAPES_ATTENDUES) {
+        expect(payload.html).not.toContain(libellé)
+      }
+      expect(payload.html).toContain("Total à payer à la livraison")
+      expect(payload.text).toContain("Total à payer à la livraison")
+      for (const montant of MONTANTS) {
+        expect(payload.html).toContain(montant)
+        expect(payload.text).toContain(montant)
+      }
+      expect(payload.html).toContain("https://eguidar.com/commandes")
+      expect(payload.text).toContain("https://eguidar.com/commandes")
+      expect(payload.html).toContain(site.contactEmail)
+      expect(payload.text).toContain(site.contactEmail)
+    }
+  )
+})
+
 describe("Le gabarit", () => {
   it("échappe chaque interpolation, joint les tableaux et ignore les vides", () => {
     const fragment = html`<p>

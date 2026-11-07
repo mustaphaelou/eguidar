@@ -17,13 +17,37 @@ const PHRASE_PAIEMENT =
 
 const LIBELLÉ_BOUTON = "Suivre ma commande"
 
-const INTRODUCTIONS_STATUT: Record<OrderStatus, string> = {
-  pending: "Nous avons bien reçu votre commande.",
-  confirmed: "Votre commande est confirmée : nous la préparons.",
-  shipped: "Votre commande est expédiée : elle arrive bientôt.",
-  delivered: "Votre commande est livrée. Merci de votre confiance.",
-  cancelled: "Votre commande a été annulée.",
-  returned: "Votre commande a été retournée.",
+interface CopieStatut {
+  introduction: string
+  encart?: { titre: string; texte: string }
+}
+
+const COPIES_STATUT: Record<OrderStatus, CopieStatut> = {
+  pending: { introduction: "Nous avons bien reçu votre commande." },
+  confirmed: {
+    introduction: "Votre commande est confirmée : nous la préparons.",
+  },
+  shipped: {
+    introduction: "Votre commande est expédiée : elle arrive bientôt.",
+  },
+  delivered: {
+    introduction: "Votre commande est livrée. Merci de votre confiance.",
+  },
+  cancelled: {
+    introduction: "Votre commande a été annulée.",
+    encart: {
+      titre: "Annulée",
+      texte: "Vous n'avez rien à payer.",
+    },
+  },
+  returned: {
+    introduction: "Votre commande a été retournée.",
+    encart: {
+      titre: "Retournée",
+      texte:
+        "Si vous avez réglé la livraison, écrivez-nous pour demander un remboursement.",
+    },
+  },
 }
 
 function urlSuivi(): string {
@@ -69,6 +93,7 @@ interface EnteteLettre {
   paragraphe?: string
   introductionTexte: string
   statut?: OrderStatus
+  encart?: { titre?: string; texte?: string }
 }
 
 function composerLettre(
@@ -86,6 +111,9 @@ function composerLettre(
   if (entete.statut !== undefined) {
     blocs.push({ type: "etapes", statut: entete.statut })
   }
+  if (entete.encart !== undefined) {
+    blocs.push({ type: "encart", ...entete.encart })
+  }
   if (articles.length > 0) {
     blocs.push({ type: "lignes", lignes: articles })
   }
@@ -102,10 +130,18 @@ function composerLettre(
     blocs,
   })
 
+  const encartTexte =
+    entete.encart === undefined
+      ? []
+      : [entete.encart.titre, entete.encart.texte].filter(
+          (ligne): ligne is string => ligne !== undefined && ligne.trim() !== ""
+        )
+
   const sections = [
     ["Eguidar"],
     [`Commande ${shortOrderId(snapshot.orderId)}`],
     [entete.introductionTexte],
+    encartTexte,
     [...lignesFactuelles(articles), ...lignesFactuelles(récapitulatif)],
     lignesFactuelles(livraison),
     [PHRASE_PAIEMENT],
@@ -137,11 +173,12 @@ export function messageCommandeStatut(
   snapshot: OrderEmailSnapshot,
   statut: OrderStatus
 ): MessageEmail {
-  const introduction = INTRODUCTIONS_STATUT[statut]
+  const copie = COPIES_STATUT[statut]
   const corps = composerLettre(snapshot, {
-    titre: introduction,
-    introductionTexte: introduction,
+    titre: copie.introduction,
+    introductionTexte: copie.introduction,
     statut,
+    encart: copie.encart,
   })
   return {
     sujet: `Votre commande ${shortOrderId(snapshot.orderId)} : ${ORDER_STATUS_LABELS[statut]} — Eguidar`,
