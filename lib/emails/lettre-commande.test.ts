@@ -5,12 +5,14 @@ import { site, staticPages } from "@/lib/site"
 
 import type { ClientEmails } from "./adaptateur-envoi"
 import {
+  commandeAnnulee,
   commandeCaracteresSpeciaux,
   commandeLivraisonOfferte,
   commandeStandard,
 } from "./exemples"
 import { etapeDe } from "./etapes"
-import { html, rendreLettre } from "./gabarit"
+import { rendreLettre } from "./gabarit"
+import { html, type HtmlSûr } from "./html"
 import {
   sendDigestEmail,
   sendOrderPlacedEmail,
@@ -47,6 +49,9 @@ const MONTANTS = [
   formatPrice(commandeStandard.totalPayable),
 ]
 
+const PHRASE_PAIEMENT =
+  "Réglez en espèces au livreur lors de la réception de votre colis."
+
 describe("Lettre de commande reçue", () => {
   it("part au Client avec le sujet, la Clé d'idempotence et une lettre complète", async () => {
     const { client, appels } = clientEnMemoire()
@@ -61,6 +66,12 @@ describe("Lettre de commande reçue", () => {
     expect(payload.html).toContain("Merci pour votre commande")
     expect(payload.html).toContain("https://eguidar.com/commandes")
     expect(payload.text).toContain("Merci pour votre commande")
+    expect(payload.html).toContain(PHRASE_PAIEMENT)
+    expect(payload.text).toContain(PHRASE_PAIEMENT)
+    const aprèsBody = payload.html.slice(payload.html.indexOf("<body"))
+    expect(
+      aprèsBody.indexOf("Merci pour votre commande ! Nous l'avons bien reçue.")
+    ).toBeLessThan(aprèsBody.indexOf(site.legalName))
     expect(payload.html).toContain(site.contactEmail)
     expect(payload.text).toContain(site.contactEmail)
     for (const page of staticPages) {
@@ -176,6 +187,10 @@ describe("Lettre de changement de statut", () => {
     expect(options?.idempotencyKey).toBe(
       "commande.statut/ord_1234567890/confirmed"
     )
+    const aprèsBody = payload.html.slice(payload.html.indexOf("<body"))
+    expect(
+      aprèsBody.indexOf("Votre commande est confirmée : nous la préparons.")
+    ).toBeLessThan(aprèsBody.indexOf(site.legalName))
     for (const corps of [payload.html, payload.text]) {
       expect(corps).toContain(
         "Votre commande est confirmée : nous la préparons."
@@ -249,14 +264,16 @@ describe("Lettre de changement de statut — progression", () => {
 
 const ARRÊTS = [
   {
-    statut: "cancelled",
+    statut: "cancelled" as const,
+    commande: commandeAnnulee,
     titre: "Votre commande a été annulée.",
     bandeau: "Annulée",
     phrase: "Vous n'avez rien à payer.",
     phraseHtml: "Vous n&#39;avez rien à payer.",
   },
   {
-    statut: "returned",
+    statut: "returned" as const,
+    commande: { ...commandeAnnulee, orderId: "ord_retournee1" },
     titre: "Votre commande a été retournée.",
     bandeau: "Retournée",
     phrase:
@@ -264,15 +281,15 @@ const ARRÊTS = [
     phraseHtml:
       "Si vous avez réglé la livraison, écrivez-nous pour demander un remboursement.",
   },
-] as const
+]
 
 describe("Lettre de changement de statut — commande arrêtée", () => {
   it.each(ARRÊTS)(
     "remplace la progression par un bandeau pour $statut",
-    async ({ statut, titre, bandeau, phrase, phraseHtml }) => {
+    async ({ statut, commande, titre, bandeau, phrase, phraseHtml }) => {
       const { client, appels } = clientEnMemoire()
 
-      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+      await sendOrderStatusEmail(commande, statut, undefined, client)
 
       const { payload } = appels[0]!
       for (const corps of [payload.html, payload.text]) {
@@ -295,6 +312,33 @@ describe("Lettre de changement de statut — commande arrêtée", () => {
       expect(payload.text).toContain("https://eguidar.com/commandes")
       expect(payload.html).toContain(site.contactEmail)
       expect(payload.text).toContain(site.contactEmail)
+    }
+  )
+})
+
+describe("Lettre de changement de statut — instruction de paiement", () => {
+  it.each([
+    ["pending", true],
+    ["confirmed", true],
+    ["shipped", true],
+    ["delivered", false],
+    ["cancelled", false],
+    ["returned", false],
+  ] as const)(
+    "dit la phrase de paiement pour %s : %s",
+    async (statut, annoncée) => {
+      const { client, appels } = clientEnMemoire()
+
+      await sendOrderStatusEmail(commandeStandard, statut, undefined, client)
+
+      const { payload } = appels[0]!
+      for (const corps of [payload.html, payload.text]) {
+        if (annoncée) {
+          expect(corps).toContain(PHRASE_PAIEMENT)
+        } else {
+          expect(corps).not.toContain(PHRASE_PAIEMENT)
+        }
+      }
     }
   )
 })
@@ -383,6 +427,13 @@ describe("Le gabarit", () => {
     expect(fragment.html).not.toContain("false")
   })
 
+  it("ne laisse pas un fragment forgé passer pour sûr", () => {
+    // @ts-expect-error — HtmlSûr porte une marque privée que seul html() pose.
+    const forgé: HtmlSûr = { html: "<b>brut</b>" }
+
+    expect(html`${forgé}`.html).not.toContain("<b>brut</b>")
+  })
+
   it("rend un document complet, pré-en-tête et note d'en-tête compris", () => {
     const document = rendreLettre({
       préEnTête: "Phrase d'aperçu unique",
@@ -413,6 +464,22 @@ describe("Le gabarit", () => {
     for (const libellé of ["Reçue", "Confirmée", "Expédiée", "Livrée"]) {
       expect(document).toContain(libellé)
     }
+  })
+
+  it("rend les étapes dans une table de présentation, une cellule par étape", () => {
+    const document = rendreLettre({
+      préEnTête: "Position de la commande",
+      blocs: [{ type: "etapes", statut: "confirmed" }],
+    })
+
+    expect(document).not.toContain("<ol")
+    expect(document).not.toContain("<li")
+    expect(document.match(/<td/g)).toHaveLength(4)
+    expect(document.match(/role="presentation"/g)).toHaveLength(1)
+    const positions = ÉTAPES_ATTENDUES.map((libellé) =>
+      document.indexOf(libellé)
+    )
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
   })
 
   it("ne rend aucune étape pour une Commande arrêtée", () => {

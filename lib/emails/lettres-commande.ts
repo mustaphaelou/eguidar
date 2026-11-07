@@ -5,15 +5,24 @@ import {
   type LigneDeLettre,
 } from "@/lib/emails/gabarit"
 import type { MessageEmail } from "@/lib/emails/message"
-import { lignesPiedTexte } from "@/lib/emails/pied"
+import { lignesPiedTexte, urlAbsolue } from "@/lib/emails/pied"
 import { formatPrice } from "@/lib/money"
 import { récapitulatifRowsFromCommande } from "@/lib/recapitulatif-paiement"
-import { site } from "@/lib/site"
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/statut-de-commande"
 import { shortOrderId } from "@/lib/utils"
 
 const PHRASE_PAIEMENT =
   "Réglez en espèces au livreur lors de la réception de votre colis."
+
+const STATUTS_SANS_PAIEMENT: ReadonlySet<OrderStatus> = new Set([
+  "delivered",
+  "cancelled",
+  "returned",
+])
+
+function annoncePaiement(statut?: OrderStatus): boolean {
+  return statut === undefined || !STATUTS_SANS_PAIEMENT.has(statut)
+}
 
 const LIBELLÉ_BOUTON = "Suivre ma commande"
 
@@ -50,10 +59,6 @@ const COPIES_STATUT: Record<OrderStatus, CopieStatut> = {
   },
 }
 
-function urlSuivi(): string {
-  return `${site.url}/commandes`
-}
-
 function lignesArticles(snapshot: OrderEmailSnapshot): LigneDeLettre[] {
   return snapshot.items.map((item) => {
     const variante = item.variantName.trim()
@@ -79,7 +84,7 @@ function lignesLivraison(snapshot: OrderEmailSnapshot): LigneDeLettre[] {
   return lignes
 }
 
-function lignesFactuelles(lignes: readonly LigneDeLettre[]): string[] {
+function lignesEnTexte(lignes: readonly LigneDeLettre[]): string[] {
   return lignes.map((ligne) => {
     const note = ligne.note?.trim() ?? ""
     return note === ""
@@ -121,8 +126,15 @@ function composerLettre(
   if (livraison.length > 0) {
     blocs.push({ type: "lignes", lignes: livraison })
   }
-  blocs.push({ type: "paragraphe", texte: PHRASE_PAIEMENT })
-  blocs.push({ type: "bouton", libellé: LIBELLÉ_BOUTON, url: urlSuivi() })
+  const paiement = annoncePaiement(entete.statut)
+  if (paiement) {
+    blocs.push({ type: "paragraphe", texte: PHRASE_PAIEMENT })
+  }
+  blocs.push({
+    type: "bouton",
+    libellé: LIBELLÉ_BOUTON,
+    url: urlAbsolue("/commandes"),
+  })
 
   const corpsHtml = rendreLettre({
     préEnTête: entete.introductionTexte,
@@ -142,10 +154,10 @@ function composerLettre(
     [`Commande ${shortOrderId(snapshot.orderId)}`],
     [entete.introductionTexte],
     encartTexte,
-    [...lignesFactuelles(articles), ...lignesFactuelles(récapitulatif)],
-    lignesFactuelles(livraison),
-    [PHRASE_PAIEMENT],
-    [`${LIBELLÉ_BOUTON} : ${urlSuivi()}`],
+    [...lignesEnTexte(articles), ...lignesEnTexte(récapitulatif)],
+    lignesEnTexte(livraison),
+    paiement ? [PHRASE_PAIEMENT] : [],
+    [`${LIBELLÉ_BOUTON} : ${urlAbsolue("/commandes")}`],
     lignesPiedTexte(),
   ]
     .filter((section) => section.length > 0)

@@ -4,12 +4,13 @@ import {
   getResend,
   type ClientEmails,
 } from "@/lib/emails/adaptateur-envoi"
-import { html as fragment } from "@/lib/emails/gabarit"
+import { html as fragment } from "@/lib/emails/html"
 import { messageCode } from "@/lib/emails/lettre-code"
 import {
   messageCommandePlacee,
   messageCommandeStatut,
 } from "@/lib/emails/lettres-commande"
+import type { MessageEmail } from "@/lib/emails/message"
 import { type OrderStatus } from "@/lib/statut-de-commande"
 
 export type OrderEmailSnapshot = ChargeOrderEmailSnapshot
@@ -55,7 +56,7 @@ export function cleIdempotenceEmailStatut(
 async function envoyerMessage(
   client: ClientEmails,
   snapshot: OrderEmailSnapshot,
-  message: { sujet: string; html: string; texte: string },
+  message: MessageEmail,
   cleIdempotence: string
 ): Promise<void> {
   await envoyer(client, {

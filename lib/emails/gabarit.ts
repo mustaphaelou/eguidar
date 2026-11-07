@@ -14,8 +14,6 @@ import { piedLettre } from "@/lib/emails/pied"
 import { site } from "@/lib/site"
 import type { OrderStatus } from "@/lib/statut-de-commande"
 
-export { html, type HtmlSûr } from "@/lib/emails/html"
-
 export interface LigneDeLettre {
   label: string
   value: string
@@ -140,25 +138,30 @@ function blocBouton(bouton: { libellé: string; url: string }): HtmlSûr {
 function blocEtapes(statut: OrderStatus): HtmlSûr {
   const étape = etapeDe(statut)
   if (étape === "arrêté") return html``
-  const éléments = ETAPES.map((libellé, index) => {
+  const cellules = ETAPES.map((libellé, index) => {
     const numéro = index + 1
     const atteinte = numéro === étape
     const franchie = numéro < étape
     const couleur =
       atteinte || franchie ? COULEUR_ACCENT : COULEUR_TEXTE_ATTÉNUÉ
     const poids = atteinte ? " font-weight: 600;" : ""
-    return html`<li
+    return html`<td
       ${atteinte ? html`aria-current="step"` : html``}
-      style="flex: 1; text-align: center; font-family: ${PILE_DE_POLICES}; font-size: 12px; line-height: 18px; color: ${couleur};${poids}"
+      style="width: 25%; text-align: center; font-family: ${PILE_DE_POLICES}; font-size: 12px; line-height: 18px; color: ${couleur};${poids}"
     >
       ${libellé}
-    </li>`
+    </td>`
   })
-  return html`<ol
-    style="display: flex; margin: 0 0 24px; padding: 0; list-style: none;"
+  return html`<table
+    role="presentation"
+    style="width: 100%; margin: 0 0 24px; border-collapse: collapse; table-layout: fixed;"
   >
-    ${éléments}
-  </ol>`
+    <tbody>
+      <tr>
+        ${cellules}
+      </tr>
+    </tbody>
+  </table>`
 }
 
 function blocCode(code: string): HtmlSûr {

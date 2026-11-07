@@ -101,6 +101,7 @@ describe("Lettre de code", () => {
       const { payload } = await envoyer(type)
       const phrase = `Votre code pour ${libellé} est :`
 
+      expect(payload.subject).toBe("Votre code de vérification Eguidar")
       expect(payload.html).toContain(phrase)
       expect(payload.text).toContain(phrase)
     })
