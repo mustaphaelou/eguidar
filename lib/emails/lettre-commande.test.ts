@@ -68,11 +68,10 @@ describe("Lettre de commande reçue", () => {
     expect(payload.text).toContain("Merci pour votre commande")
     expect(payload.html).toContain(PHRASE_PAIEMENT)
     expect(payload.text).toContain(PHRASE_PAIEMENT)
+    const aprèsBody = payload.html.slice(payload.html.indexOf("<body"))
     expect(
-      payload.html.indexOf(
-        "Merci pour votre commande ! Nous l'avons bien reçue."
-      )
-    ).toBeLessThan(payload.html.indexOf(site.legalName))
+      aprèsBody.indexOf("Merci pour votre commande ! Nous l'avons bien reçue.")
+    ).toBeLessThan(aprèsBody.indexOf(site.legalName))
     expect(payload.html).toContain(site.contactEmail)
     expect(payload.text).toContain(site.contactEmail)
     for (const page of staticPages) {
@@ -188,9 +187,10 @@ describe("Lettre de changement de statut", () => {
     expect(options?.idempotencyKey).toBe(
       "commande.statut/ord_1234567890/confirmed"
     )
+    const aprèsBody = payload.html.slice(payload.html.indexOf("<body"))
     expect(
-      payload.html.indexOf("Votre commande est confirmée : nous la préparons.")
-    ).toBeLessThan(payload.html.indexOf(site.legalName))
+      aprèsBody.indexOf("Votre commande est confirmée : nous la préparons.")
+    ).toBeLessThan(aprèsBody.indexOf(site.legalName))
     for (const corps of [payload.html, payload.text]) {
       expect(corps).toContain(
         "Votre commande est confirmée : nous la préparons."
