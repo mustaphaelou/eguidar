@@ -2,7 +2,7 @@
 
 **La boutique en ligne d'électronique au Maroc.** Catalogue, panier, commande en paiement à la livraison (COD) et une Administration complète — en français, en dirhams marocains, TVA 20 % incluse.
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.4-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org) [![React](https://img.shields.io/badge/React-19.2-61DAFB?logo=react&logoColor=black)](https://react.dev) [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org) [![Licence MIT](https://img.shields.io/badge/licence-MIT-22c55e)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16.4-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org) [![React](https://img.shields.io/badge/React-19.3-61DAFB?logo=react&logoColor=black)](https://react.dev) [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org) [![Licence MIT](https://img.shields.io/badge/licence-MIT-22c55e)](LICENSE)
 
 ![Page d'accueil](docs/screenshots/accueil.png)
 
