@@ -31,6 +31,7 @@ export type Bloc =
   | { type: "encart"; titre?: string; texte?: string }
   | { type: "bouton"; libellé: string; url: string }
   | { type: "etapes"; statut: OrderStatus }
+  | { type: "code"; code: string }
 
 export interface Lettre {
   préEnTête: string
@@ -160,6 +161,14 @@ function blocEtapes(statut: OrderStatus): HtmlSûr {
   </ol>`
 }
 
+function blocCode(code: string): HtmlSûr {
+  return html`<div
+    style="margin: 0 0 24px; padding: 18px 12px; border-radius: 8px; background: ${COULEUR_FOND}; text-align: center; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: 8px; color: ${COULEUR_TEXTE};"
+  >
+    ${code}
+  </div>`
+}
+
 function rendreBloc(bloc: Bloc): HtmlSûr {
   switch (bloc.type) {
     case "titre":
@@ -174,6 +183,8 @@ function rendreBloc(bloc: Bloc): HtmlSûr {
       return blocBouton(bloc)
     case "etapes":
       return blocEtapes(bloc.statut)
+    case "code":
+      return blocCode(bloc.code)
   }
 }
 
