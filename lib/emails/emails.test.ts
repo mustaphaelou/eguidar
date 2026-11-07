@@ -6,8 +6,8 @@ import {
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
   sendOtpEmail,
-} from "./emails"
-import { formatPrice } from "./money"
+} from "./index"
+import { formatPrice } from "@/lib/money"
 
 const { getResendMock, sendMock } = vi.hoisted(() => ({
   getResendMock: vi.fn(),
