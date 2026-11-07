@@ -478,6 +478,12 @@ _Avoid_: changement de statut, mouvement d'état
 Le retour au stock des Variantes d'une Commande lorsque celle-ci passe à Annulée ou Retournée.
 _Avoid_: restock, remise en stock, réintégration de stock
 
+**E-mail de commande**:
+Le message adressé au Client pour une Commande, à sa naissance et à chaque changement de Statut ;
+il reprend le Récapitulatif de paiement, montre l'étape atteinte et renvoie vers `/commandes`.
+Il se distingue du digest, rapport adressé au Propriétaire.
+_Avoid_: e-mail de confirmation, notification de commande, e-mail transactionnel
+
 **Total à payer**:
 Le montant collecté auprès du Client lors de la livraison d'une Commande : le total chiffré par
 le Devis — le sous-total des Articles du panier plus les Frais de livraison — copié tel quel par
