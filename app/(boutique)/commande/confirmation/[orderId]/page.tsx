@@ -95,7 +95,7 @@ async function OrderConfirmationContent({
                   × {item.quantity}
                 </span>
               </span>
-              <span className="font-medium">
+              <span className="shrink-0 text-right font-medium whitespace-nowrap">
                 {formatPrice(item.price * item.quantity)}
               </span>
             </li>

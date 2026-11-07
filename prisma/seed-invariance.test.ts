@@ -176,12 +176,125 @@ describe("le Socle rejoué sur une base qui sert déjà", () => {
 
     // Et le Socle est bien écrit — sans quoi ce test ne prouverait que le
     // seed n'a rien fait du tout.
-    expect(
-      await socle.user.findUnique({ where: { email: EMAIL_ADMIN } })
-    ).toMatchObject({ role: "admin", name: "Recette" })
+    const administrateur = await socle.user.findUniqueOrThrow({
+      where: { email: EMAIL_ADMIN },
+      include: { accounts: true },
+    })
+    expect(administrateur).toMatchObject({ role: "admin", name: "Recette" })
+    // Better Auth retrouve le Compte à mot de passe par `accountId === user.id` :
+    // sans cette égalité, la sonde ne peut pas se connecter au compte semé.
+    expect(administrateur.accounts).toContainEqual(
+      expect.objectContaining({
+        providerId: "credential",
+        accountId: administrateur.id,
+      })
+    )
     expect(await socle.deliveryCity.count()).toBe(10)
     expect(
       await socle.shippingSettings.findUnique({ where: { id: "default" } })
     ).not.toBeNull()
+  }, 120_000)
+
+  it("déplace le Compte credential semé vers `accountId = user.id`", async () => {
+    const email = `socle-ancien-${marque}@exemple.test`
+    const id = randomUUID()
+    await socle.user.create({
+      data: {
+        id,
+        name: "Ancien",
+        email,
+        emailVerified: true,
+        role: "admin",
+      },
+    })
+    const ancien = await socle.account.create({
+      data: {
+        id: randomUUID(),
+        accountId: email,
+        providerId: "credential",
+        userId: id,
+        password: "hash-conserve",
+      },
+    })
+
+    const seed = lancer(
+      process.execPath,
+      ["--import", "tsx", "prisma/seed.ts"],
+      {
+        DATABASE_URL: URL_SOCLE,
+        ADMIN_EMAIL: email,
+        ADMIN_PASSWORD: "mot-de-passe-de-recette",
+        ADMIN_NAME: "Ancien",
+      }
+    )
+
+    expect(seed.status, seed.sortie).toBe(0)
+    const comptes = await socle.account.findMany({
+      where: { userId: id, providerId: "credential" },
+    })
+    expect(comptes).toHaveLength(1)
+    expect(comptes[0]).toMatchObject({
+      id: ancien.id,
+      accountId: id,
+      password: "hash-conserve",
+    })
+  }, 120_000)
+
+  it("ne fait pas entrer en collision l'ancien Compte et le Compte canonique", async () => {
+    const email = `socle-doublon-${marque}@exemple.test`
+    const id = randomUUID()
+    await socle.user.create({
+      data: {
+        id,
+        name: "Doublon",
+        email,
+        emailVerified: true,
+        role: "admin",
+      },
+    })
+    // Une base qui a déjà réparé la connexion porte le Compte canonique à côté
+    // de l'ancienne ligne semée (`accountId = email`). Rejouer le Socle ne doit
+    // pas les faire entrer en collision sur `account_providerId_accountId_key`.
+    await socle.account.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          accountId: email,
+          providerId: "credential",
+          userId: id,
+          password: "hash-ancien",
+        },
+        {
+          id: randomUUID(),
+          accountId: id,
+          providerId: "credential",
+          userId: id,
+          password: "hash-canonique",
+        },
+      ],
+    })
+
+    const seed = lancer(
+      process.execPath,
+      ["--import", "tsx", "prisma/seed.ts"],
+      {
+        DATABASE_URL: URL_SOCLE,
+        ADMIN_EMAIL: email,
+        ADMIN_PASSWORD: "mot-de-passe-de-recette",
+        ADMIN_NAME: "Doublon",
+      }
+    )
+
+    expect(seed.status, seed.sortie).toBe(0)
+    const comptes = await socle.account.findMany({
+      where: { userId: id, providerId: "credential" },
+    })
+    // Le seed ne supprime aucune ligne : l'ancienne reste, le Compte canonique
+    // aussi, avec son mot de passe intact.
+    expect(comptes).toHaveLength(2)
+    expect(comptes.filter((compte) => compte.accountId === id)).toHaveLength(1)
+    expect(comptes.find((compte) => compte.accountId === id)?.password).toBe(
+      "hash-canonique"
+    )
   }, 120_000)
 })

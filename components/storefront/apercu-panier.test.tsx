@@ -40,7 +40,10 @@ vi.mock("@/components/auth/auth-dialogs", () => ({
 
 vi.mock("@/lib/client", () => ({ signOut: vi.fn() }))
 
-import { ID_TITRE_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
+import {
+  ID_APERCU_DU_PANIER,
+  ID_TITRE_APERCU_DU_PANIER,
+} from "./apercu-du-panier-identifiants"
 import { ApercuPanier } from "./apercu-panier"
 import { ApercuDuPanierProvider } from "./apercu-du-panier-provider"
 import { GlobalNavBar } from "./global-nav-bar"
@@ -144,8 +147,10 @@ function BandeauEtAjout() {
 }
 
 function declencheurDuPanier() {
+  // Le déclencheur n'a plus d'`aria-label` (#932) : il s'annonce par son texte
+  // masqué et son nombre. Il reste le seul bouton qui contrôle l'Aperçu.
   return container.querySelector<HTMLButtonElement>(
-    "button[aria-label='Panier']"
+    `button[aria-controls='${ID_APERCU_DU_PANIER}']`
   )!
 }
 

@@ -6,6 +6,7 @@ import { semerLesRegles } from "../lib/automations/regles"
 import { prisma } from "../lib/db"
 import { hacherMotDePasse } from "../lib/mot-de-passe-hache"
 import { slugify } from "../lib/slug"
+import { hasUniqueViolation } from "../lib/use-cases/unique-violation"
 import { identifiantsCompteAdmin } from "./compte-admin"
 
 /**
@@ -36,18 +37,32 @@ async function main() {
   const { email: adminEmail, motDePasse: adminPassword } =
     identifiantsCompteAdmin()
 
-  await prisma.shippingSettings.upsert({
-    where: { id: "default" },
-    update: { freeShippingThreshold: 100000 },
-    create: { id: "default", freeShippingThreshold: 100000 },
-  })
+  try {
+    await prisma.shippingSettings.create({
+      data: { id: "default", freeShippingThreshold: 100000 },
+    })
+  } catch (error) {
+    // Le réglage appartient à l'Administration après la première écriture :
+    // une ligne existante n'est ni mise à jour ni révisée.
+    if (!hasUniqueViolation(error, ["id"])) throw error
+  }
 
   for (const city of cities) {
-    await prisma.deliveryCity.upsert({
-      where: { name: city.name },
-      update: { fee: city.fee },
-      create: { ...city, slug: slugify(city.name) },
-    })
+    try {
+      await prisma.deliveryCity.create({
+        data: { ...city, slug: slugify(city.name) },
+      })
+    } catch (error) {
+      // Les frais de livraison appartiennent à l'Administration après la
+      // première écriture : une Ville déjà présente n'est ni mise à jour ni
+      // révisée.
+      if (
+        !hasUniqueViolation(error, ["name"]) &&
+        !hasUniqueViolation(error, ["slug"])
+      ) {
+        throw error
+      }
+    }
   }
 
   const adminUser = await prisma.user.findUnique({
@@ -56,13 +71,64 @@ async function main() {
   if (adminUser) {
     await prisma.user.update({
       where: { email: adminEmail },
-      data: { role: "admin", emailVerified: true, name: adminName },
+      // Le nom d'affichage appartient à l'Administration après la première
+      // écriture : le déploiement ne le réécrit jamais. Le rôle et la
+      // vérification de l'adresse restent des faits d'identité du Socle.
+      data: { role: "admin", emailVerified: true },
     })
+    // Better Auth retrouve un Compte à mot de passe par `accountId === user.id` :
+    // une base semée avant cette règle garde sinon un compte credential que la
+    // connexion ne retrouve pas. La réparation ne supprime aucune ligne : une
+    // base qui porte déjà le Compte canonique à côté de l'ancien (deux lignes
+    // credential, `accountId` = email et `accountId` = user.id) ne doit pas les
+    // faire entrer en collision sur `account_providerId_accountId_key`.
+    const canonical = await prisma.account.findFirst({
+      where: { providerId: "credential", accountId: adminUser.id },
+      select: { id: true, password: true },
+    })
+    if (canonical) {
+      // Le Compte que Better Auth cherche existe. Si le mot de passe vivait
+      // seulement sur l'ancienne ligne, il est recopié — sans quoi la connexion
+      // resterait impossible malgré le bon `accountId`.
+      if (!canonical.password) {
+        const legacy = await prisma.account.findFirst({
+          where: {
+            userId: adminUser.id,
+            providerId: "credential",
+            password: { not: null },
+            id: { not: canonical.id },
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { password: true },
+        })
+        if (legacy?.password) {
+          await prisma.account.update({
+            where: { id: canonical.id },
+            data: { password: legacy.password },
+          })
+        }
+      }
+    } else {
+      // Aucun Compte canonique : l'ancienne ligne la plus récente devient la
+      // ligne canonique. Une seule ligne est modifiée, donc pas de collision.
+      const legacy = await prisma.account.findFirst({
+        where: { userId: adminUser.id, providerId: "credential" },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+      })
+      if (legacy) {
+        await prisma.account.update({
+          where: { id: legacy.id },
+          data: { accountId: adminUser.id },
+        })
+      }
+    }
   } else {
     const password = await hacherMotDePasse(adminPassword)
+    const adminId = randomUUID()
     await prisma.user.create({
       data: {
-        id: randomUUID(),
+        id: adminId,
         email: adminEmail,
         name: adminName,
         emailVerified: true,
@@ -71,7 +137,7 @@ async function main() {
           create: {
             id: randomUUID(),
             providerId: "credential",
-            accountId: adminEmail,
+            accountId: adminId,
             password,
           },
         },

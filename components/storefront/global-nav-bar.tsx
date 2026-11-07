@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 import {
   Cancel01Icon,
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/storefront/logo"
 import { SearchSuggestions } from "@/components/storefront/search-suggestions"
 import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
+import { buildSearchHref } from "@/lib/search-params"
 import { site } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { ID_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
@@ -31,6 +33,7 @@ export function GlobalNavBar({
   apercuCorps?: React.ReactNode
 }) {
   const { ouvert, basculer, fermer } = useApercuDuPanier()
+  const router = useRouter()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -196,7 +199,6 @@ export function GlobalNavBar({
             ref={panierRef}
             variant="ghost"
             size="icon"
-            aria-label="Panier"
             aria-expanded={ouvert}
             aria-controls={ID_APERCU_DU_PANIER}
             className="relative"
@@ -211,6 +213,10 @@ export function GlobalNavBar({
             >
               <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={2} />
             </span>
+            {/* Le nom accessible vient du contenu : « Panier » masqué puis la
+                pastille visible, au lieu d'une étiquette qui écrasait le
+                nombre. */}
+            <span className="sr-only">Panier</span>
             {panierBadge}
           </Button>
         </div>
@@ -246,26 +252,41 @@ export function GlobalNavBar({
 
       {searchOpen ? (
         <div className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]">
-          <form
-            method="GET"
-            action="/recherche"
-            className={cn(CONTENEUR_BOUTIQUE, "flex items-center gap-2 py-2")}
-            onSubmit={() => setSearchOpen(false)}
-          >
-            <HugeiconsIcon
-              icon={Search01Icon}
-              strokeWidth={2}
-              className="size-4 shrink-0 text-muted-foreground"
-            />
-            <SearchSuggestions
-              inputRef={searchInputRef}
-              onEscape={() => setSearchOpen(false)}
-              onNavigate={() => setSearchOpen(false)}
-            />
-            <Button type="submit" size="sm" className="rounded-full">
-              Rechercher
-            </Button>
-          </form>
+          {/* Le panneau de Suggestions se positionne sur la rangée entière,
+              champ et bouton : la boîte relative est donc le formulaire. */}
+          <div className={cn(CONTENEUR_BOUTIQUE, "py-2")}>
+            <form
+              method="GET"
+              action="/recherche"
+              className="relative flex items-center gap-2"
+              onSubmit={(event) => {
+                // Le formulaire reste un formulaire : sans JS, action et method
+                // mènent à la page de résultats. Avec JS, la soumission est
+                // interceptée avant que la rangée ne se referme, et la
+                // navigation appartient à la Grammaire d'URL de la Recherche.
+                event.preventDefault()
+                const query = String(
+                  new FormData(event.currentTarget).get("q") ?? ""
+                ).trim()
+                setSearchOpen(false)
+                router.push(buildSearchHref(query, {}, {}, {}, "/recherche"))
+              }}
+            >
+              <HugeiconsIcon
+                icon={Search01Icon}
+                strokeWidth={2}
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+              <SearchSuggestions
+                inputRef={searchInputRef}
+                onEscape={() => setSearchOpen(false)}
+                onNavigate={() => setSearchOpen(false)}
+              />
+              <Button type="submit" size="sm" className="rounded-full">
+                Rechercher
+              </Button>
+            </form>
+          </div>
         </div>
       ) : null}
 

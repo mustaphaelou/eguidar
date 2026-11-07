@@ -57,6 +57,22 @@ function frenchMonthLabel(key: string): string {
 
 type Ton = "neutre" | "attention" | "danger"
 
+/** La taille des valeurs qui ne sont pas des montants. */
+const VALEUR_DE_CARTE = "text-xl sm:text-2xl"
+
+/**
+ * Un montant suit la largeur de sa carte, il n'a pas une taille choisie pour
+ * l'échantillon de `15.998,00 MAD` : `cqi` est relatif au conteneur de la
+ * valeur (`CardContent` porte `@container`), donc une carte plus étroite rend
+ * un montant plus petit, dans la même proportion. `clamp` ne borne que les cas
+ * dégénérés (0,5 rem) et retrouve la taille de `sm:text-2xl` (1,5 rem) sur une
+ * carte large. À 390 px, 10,5 cqi donne 14,45 px : le montant occupe 119 px de
+ * ses 138 px, et un montant d'un groupe de plus (`123.456,00 MAD`, mesuré à
+ * 129 px) tient encore sans troncature.
+ */
+const VALEUR_MONETAIRE =
+  "text-[length:clamp(0.5rem,10.5cqi,1.5rem)] font-semibold tracking-tight break-normal whitespace-nowrap tabular-nums"
+
 const TONS: Record<Ton, string> = {
   neutre: "border-border bg-muted/50 text-muted-foreground",
   attention: "border-amber-600/20 bg-amber-500/10 text-amber-700",
@@ -69,12 +85,15 @@ function StatCard({
   hint,
   icon,
   href,
+  valueClassName = VALEUR_DE_CARTE,
 }: {
   label: string
   value: React.ReactNode
   hint: React.ReactNode
   icon: typeof Wallet01Icon
   href?: string
+  /** La taille de la valeur : les montants suivent la carte (`VALEUR_MONETAIRE`). */
+  valueClassName?: string
 }) {
   return (
     <Card size="sm" className="h-full gap-3">
@@ -88,8 +107,13 @@ function StatCard({
           </span>
         </CardAction>
       </CardHeader>
-      <CardContent>
-        <p className="text-xl font-semibold tracking-tight break-normal tabular-nums sm:text-2xl">
+      <CardContent className="@container">
+        <p
+          className={cn(
+            "font-semibold tracking-tight break-normal tabular-nums",
+            valueClassName
+          )}
+        >
           {href ? (
             <Link href={href} className="underline-offset-4 hover:underline">
               {value}
@@ -193,6 +217,7 @@ export default async function AdminDashboardPage() {
         <StatCard
           label="CA encaissé"
           value={formatPrice(stats.caEncaisse30j)}
+          valueClassName={VALEUR_MONETAIRE}
           hint={
             stats.caDelta === undefined ? (
               <span className="flex items-center gap-1">

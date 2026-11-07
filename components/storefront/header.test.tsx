@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from "vitest"
 const LECTURE_DE_REQUETE_INTERDITE =
   "Le Bandeau de navigation a lu une donnée de requête pendant son rendu."
 
+// Le Bandeau porte la soumission de la Recherche (#926) : il appelle le routeur
+// client, absent d'un rendu serveur de test.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}))
+
 vi.mock("next/headers", () => ({
   cookies: () => {
     throw new Error(LECTURE_DE_REQUETE_INTERDITE)
@@ -21,7 +27,11 @@ describe("StorefrontHeader — coquille statique", () => {
     await flux.allReady
     const html = await new Response(flux).text()
 
-    expect(html).toContain('aria-label="Panier"')
+    // Le déclencheur n'écrase plus son contenu par une étiquette : la coquille
+    // porte le texte masqué « Panier » que le badge complétera côté client.
+    expect(html).not.toContain('aria-label="Panier"')
+    expect(html).toContain("sr-only")
+    expect(html).toContain(">Panier</span>")
     expect(html).toContain('aria-expanded="false"')
     expect(html).not.toContain("Navigation principale")
     expect(html).not.toContain("Menu mobile")
