@@ -1,4 +1,5 @@
 import { etapeDe, ETAPES } from "@/lib/emails/etapes"
+import { html, type HtmlSûr } from "@/lib/emails/html"
 import {
   COULEUR_ACCENT,
   COULEUR_BORDURE,
@@ -12,8 +13,6 @@ import {
 import { piedLettre } from "@/lib/emails/pied"
 import { site } from "@/lib/site"
 import type { OrderStatus } from "@/lib/statut-de-commande"
-
-import { html, type HtmlSûr } from "@/lib/emails/html"
 
 export { html, type HtmlSûr } from "@/lib/emails/html"
 
