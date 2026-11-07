@@ -1,5 +1,7 @@
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 
+export type { OrderStatus } from "@/lib/generated/prisma/client"
+
 export type TonStatut = "neutre" | "intermédiaire" | "positif" | "négatif"
 
 interface SpecStatut {
