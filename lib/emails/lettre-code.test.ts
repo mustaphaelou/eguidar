@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
+import { lire } from "@/lib/use-cases/outils-frontiere"
+
 import type { ClientEmails } from "./adaptateur-envoi"
 import { libelleDureeCode } from "./duree-code"
 import { sendOtpEmail } from "./index"
@@ -112,5 +114,13 @@ describe("La durée de vie du code", () => {
     expect(libelleDureeCode(60)).toBe("1 minute")
     expect(libelleDureeCode(300)).toBe("5 minutes")
     expect(libelleDureeCode(90)).toBe("1 minute 30 secondes")
+  })
+
+  it("ancre la configuration d'authentification sur la même valeur", () => {
+    const source = lire(import.meta.url, "../auth.ts")
+
+    expect(source).toMatch(
+      /emailOTP\(\{[\s\S]*?expiresIn:\s*DUREE_VIE_CODE_SECONDS/
+    )
   })
 })
