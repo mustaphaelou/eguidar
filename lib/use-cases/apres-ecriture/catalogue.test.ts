@@ -82,6 +82,70 @@ const IDENTITE = {
   categoryIdPrecedent: CATEGORIE_PRECEDENTE,
 }
 
+const LOT_A = "produit-954-a"
+const LOT_B = "produit-954-b"
+const LOT_SLUG_A = "produit-954-a"
+const LOT_SLUG_B = "produit-954-b"
+const LOT_CATEGORIE = "categorie-954"
+const LOT_IMAGE_A = "https://cdn.example.test/produits/954-a.jpg"
+const LOT_IMAGE_B = "https://cdn.example.test/produits/954-b.jpg"
+
+function indexableDuLot(
+  id: string,
+  slug: string,
+  image: string
+): IndexableProduct {
+  return { ...INDEXABLE, id, slug, name: `Produit ${slug}`, images: [image] }
+}
+
+const INDEXABLE_A = indexableDuLot(LOT_A, LOT_SLUG_A, LOT_IMAGE_A)
+const INDEXABLE_B = indexableDuLot(LOT_B, LOT_SLUG_B, LOT_IMAGE_B)
+
+const EVENEMENT_A: CatalogueEventProduct = {
+  id: LOT_A,
+  slug: LOT_SLUG_A,
+  categoryChain: [{ slug: "racine" }],
+}
+const EVENEMENT_B: CatalogueEventProduct = {
+  id: LOT_B,
+  slug: LOT_SLUG_B,
+  categoryChain: [{ slug: "racine" }],
+}
+
+const DOCUMENT_A: DocumentCatalogue = {
+  indexable: INDEXABLE_A,
+  evenement: EVENEMENT_A,
+}
+const DOCUMENT_B: DocumentCatalogue = {
+  indexable: INDEXABLE_B,
+  evenement: EVENEMENT_B,
+}
+
+const IDENTITE_A_ENREGISTRE = {
+  id: LOT_A,
+  slug: LOT_SLUG_A,
+  slugPrecedent: null,
+  categoryId: LOT_CATEGORIE,
+  categoryIdPrecedent: null,
+}
+const IDENTITE_B_ENREGISTRE = {
+  id: LOT_B,
+  slug: LOT_SLUG_B,
+  slugPrecedent: null,
+  categoryId: LOT_CATEGORIE,
+  categoryIdPrecedent: null,
+}
+const IDENTITE_A_SUPPRIME = {
+  id: LOT_A,
+  slug: LOT_SLUG_A,
+  categoryId: LOT_CATEGORIE,
+}
+const IDENTITE_B_SUPPRIME = {
+  id: LOT_B,
+  slug: LOT_SLUG_B,
+  categoryId: null,
+}
+
 interface Appel {
   port: string
   arguments: unknown[]
@@ -138,6 +202,20 @@ function lecturesEnregistreuses(): {
 } {
   const documents = vi.fn(async () => [DOCUMENT])
   const evenements = vi.fn(async () => [EVENEMENT])
+  return {
+    documents,
+    evenements,
+    lectures: { documents, evenements },
+  }
+}
+
+function lecturesDuLot(): {
+  lectures: LecturesCatalogue
+  documents: ReturnType<typeof vi.fn>
+  evenements: ReturnType<typeof vi.fn>
+} {
+  const documents = vi.fn(async () => [DOCUMENT_A, DOCUMENT_B])
+  const evenements = vi.fn(async () => [EVENEMENT_A, EVENEMENT_B])
   return {
     documents,
     evenements,
@@ -555,6 +633,196 @@ describe("l'adaptateur Catalogue unitaire", () => {
 
     const lectures: LecturesCatalogue = {}
     expect([total, incomplet, superflu, lectures]).toHaveLength(4)
+  })
+})
+
+describe("l'adaptateur Catalogue groupé", () => {
+  it("réindexe le lot d'un seul appel, puis invalide chaque Produit dans l'ordre", async () => {
+    const { appels, effets } = portsEnregistreurs()
+    const lecture = lecturesDuLot()
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("produit.enregistre.lot", {
+      produits: [
+        {
+          id: LOT_A,
+          slug: LOT_SLUG_A,
+          categoryId: LOT_CATEGORIE,
+          categoryIdPrecedent: null,
+        },
+        {
+          id: LOT_B,
+          slug: LOT_SLUG_B,
+          categoryId: LOT_CATEGORIE,
+          categoryIdPrecedent: null,
+        },
+      ],
+    })
+
+    expect(evenementsDuPlan(plan)).toEqual([
+      "reindexation",
+      "invalidation-cache",
+      "invalidation-cache",
+    ])
+    expect(plan.consequences.map((consequence) => consequence.payload)).toEqual(
+      [
+        { produits: [IDENTITE_A_ENREGISTRE, IDENTITE_B_ENREGISTRE] },
+        { produit: IDENTITE_A_ENREGISTRE },
+        { produit: IDENTITE_B_ENREGISTRE },
+      ]
+    )
+    expect(plan.faits.map((fait) => fait.identifiant)).toEqual([LOT_A, LOT_B])
+
+    await executer(plan, effets, lecture.lectures, journal)
+
+    expect(appels).toEqual([
+      { port: "reindexation", arguments: [[INDEXABLE_A, INDEXABLE_B]] },
+      { port: "invalidation-cache", arguments: [EVENEMENT_A] },
+      { port: "invalidation-cache", arguments: [EVENEMENT_B] },
+    ])
+    // Une seule lecture du lot, partagée par les deux invalidations.
+    expect(lecture.documents).toHaveBeenCalledOnce()
+    expect(lecture.evenements).toHaveBeenCalledOnce()
+    expect(journal.mesures).toHaveLength(3)
+    expect(journal.mesures[0]).toMatchObject({
+      effet: "reindexation",
+      entite: { type: "produit", id: "lot" },
+      portee: 2,
+      resultat: "succes",
+    })
+    expect(
+      journal.mesures.map((mesure) => [
+        mesure.effet,
+        mesure.entite.id,
+        mesure.resultat,
+      ])
+    ).toEqual([
+      ["reindexation", "lot", "succes"],
+      ["invalidation-cache", LOT_A, "succes"],
+      ["invalidation-cache", LOT_B, "succes"],
+    ])
+    expect(journal.mesures.some((mesure) => mesure.resultat === "echec")).toBe(
+      false
+    )
+  })
+
+  it("supprime les images du lot d'un seul appel, puis désindexe, invalide et purge chaque Produit dans l'ordre", async () => {
+    const { appels, effets } = portsEnregistreurs()
+    const lecture = lecturesDuLot()
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("produit.supprime.lot", {
+      produits: [
+        {
+          id: LOT_A,
+          slug: LOT_SLUG_A,
+          categoryId: LOT_CATEGORIE,
+          images: [LOT_IMAGE_A],
+        },
+        {
+          id: LOT_B,
+          slug: LOT_SLUG_B,
+          categoryId: null,
+          images: [LOT_IMAGE_B],
+        },
+      ],
+    })
+
+    expect(evenementsDuPlan(plan)).toEqual([
+      "suppression-images",
+      "desindexation",
+      "invalidation-cache",
+      "purge-catalogue",
+      "desindexation",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
+    expect(plan.consequences.map((consequence) => consequence.payload)).toEqual(
+      [
+        { urls: [LOT_IMAGE_A, LOT_IMAGE_B] },
+        { produitId: LOT_A },
+        { produit: IDENTITE_A_SUPPRIME },
+        { produit: IDENTITE_A_SUPPRIME },
+        { produitId: LOT_B },
+        { produit: IDENTITE_B_SUPPRIME },
+        { produit: IDENTITE_B_SUPPRIME },
+      ]
+    )
+    expect(plan.faits.map((fait) => fait.identifiant)).toEqual([LOT_A, LOT_B])
+
+    await executer(plan, effets, lecture.lectures, journal)
+
+    expect(appels).toEqual([
+      {
+        port: "suppression-images",
+        arguments: [[LOT_IMAGE_A, LOT_IMAGE_B]],
+      },
+      { port: "desindexation", arguments: [LOT_A] },
+      { port: "invalidation-cache", arguments: [EVENEMENT_A] },
+      { port: "purge-catalogue", arguments: [EVENEMENT_A] },
+      { port: "desindexation", arguments: [LOT_B] },
+      { port: "invalidation-cache", arguments: [EVENEMENT_B] },
+      { port: "purge-catalogue", arguments: [EVENEMENT_B] },
+    ])
+    // Seule la lecture des événements est nécessaire : aucune réindexation.
+    expect(lecture.documents).not.toHaveBeenCalled()
+    expect(lecture.evenements).toHaveBeenCalledOnce()
+    expect(journal.mesures).toHaveLength(7)
+    expect(journal.mesures[0]).toMatchObject({
+      effet: "suppression-images",
+      entite: { type: "produit", id: "lot" },
+      portee: 2,
+      resultat: "succes",
+    })
+    expect(
+      journal.mesures.map((mesure) => [
+        mesure.effet,
+        mesure.entite.id,
+        mesure.resultat,
+      ])
+    ).toEqual([
+      ["suppression-images", "lot", "succes"],
+      ["desindexation", LOT_A, "succes"],
+      ["invalidation-cache", LOT_A, "succes"],
+      ["purge-catalogue", LOT_A, "succes"],
+      ["desindexation", LOT_B, "succes"],
+      ["invalidation-cache", LOT_B, "succes"],
+      ["purge-catalogue", LOT_B, "succes"],
+    ])
+    expect(journal.mesures.some((mesure) => mesure.resultat === "echec")).toBe(
+      false
+    )
+  })
+
+  it("nomme la lecture du lot manquante et journalise la réindexation en échec", async () => {
+    const { appels, effets } = portsEnregistreurs()
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("produit.enregistre.lot", {
+      produits: [
+        { id: LOT_A, slug: LOT_SLUG_A, categoryId: LOT_CATEGORIE },
+        { id: LOT_B, slug: LOT_SLUG_B, categoryId: LOT_CATEGORIE },
+      ],
+    })
+
+    await executer(
+      plan,
+      effets,
+      { evenements: async () => [EVENEMENT_A, EVENEMENT_B] },
+      journal
+    )
+
+    expect(journal.mesures[0]).toMatchObject({
+      effet: "reindexation",
+      entite: { type: "produit", id: "lot" },
+      portee: 2,
+      resultat: "echec",
+      erreur: "lecture après-écriture manquante : documents",
+    })
+    expect(
+      journal.mesures.slice(1).every((mesure) => mesure.resultat === "succes")
+    ).toBe(true)
+    expect(appels.map((appel) => appel.port)).toEqual([
+      "invalidation-cache",
+      "invalidation-cache",
+    ])
   })
 })
 

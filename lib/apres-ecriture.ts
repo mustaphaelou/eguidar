@@ -479,49 +479,70 @@ const produitEnregistre: DeclarationPour<"produit.enregistre"> = (f) => {
   }
 }
 
+/**
+ * Les Produits d'un lot, alignés sur `produitIds` quand il est fourni et
+ * complétés par la liste typée sinon. Un Produit sans fiche garde son
+ * identifiant et un slug vide : le fait reste émis, la lecture après commit
+ * décidera.
+ */
+function produitsDuLot(f: {
+  produitIds?: readonly string[]
+  produits?: readonly ProduitDuLot[]
+}): ProduitDuLot[] {
+  const parId = new Map(
+    (f.produits ?? []).map((produit) => [String(produit.id), produit])
+  )
+  const ids = (f.produitIds ?? [...parId.keys()]).map(String)
+  return ids.map((id) => parId.get(id) ?? { id, slug: "" })
+}
+
 const produitEnregistreLot: DeclarationPour<"produit.enregistre.lot"> = (f) => {
-  const produitsInput = (f.produits as Array<Record<string, unknown>>) ?? []
-  const ids =
-    (f.produitIds as string[]) ??
-    produitsInput.map((p) => String(p.id ?? p.produitId))
-  const produits = ids.map((id, index) => {
-    const p = produitsInput[index] ?? {}
-    return {
-      id,
-      slug: p.slug ?? null,
-      slugPrecedent: p.slugPrecedent ?? null,
-      categoryId: p.categoryId ?? null,
-      categoryIdPrecedent: p.categoryIdPrecedent ?? null,
-      imagesRetirees: (p.imagesRetirees as string[]) ?? [],
-    }
-  })
-  const consequences: ConsequenceApresEcriture[] = [
+  const produits = produitsDuLot(f)
+  const identites = produits.map((produit) => ({
+    id: produit.id,
+    slug: produit.slug,
+    slugPrecedent: produit.slugPrecedent ?? null,
+    categoryId: produit.categoryId ?? null,
+    categoryIdPrecedent: produit.categoryIdPrecedent ?? null,
+  }))
+  // Une seule réindexation pour toute la sélection, qui porte sa portée réelle ;
+  // l'invalidation, elle, reste par Produit comme le genre unitaire.
+  const consequences: ConsequenceCatalogue[] = [
     consequence(
       "reindexation",
       { type: "produit", id: IDENTIFIANT_LOT },
-      `réindexation groupée`,
-      { action: "index.produit", durable: true, portee: ids.length }
+      `réindexation groupée de ${identites.length} Produits`,
+      {
+        action: "index.produit",
+        durable: true,
+        portee: identites.length,
+        payload: { produits: identites },
+      }
     ),
   ]
-  for (const id of ids) {
+  for (const identite of identites) {
     consequences.push(
       consequence(
         "invalidation-cache",
-        { type: "produit", id },
-        `invalidation du catalogue pour ${id}`,
-        { action: "invalidation.catalogue", durable: true }
+        { type: "produit", id: identite.id },
+        `invalidation du catalogue pour ${identite.id}`,
+        {
+          action: "invalidation.catalogue",
+          durable: true,
+          payload: { produit: identite },
+        }
       )
     )
   }
   return {
-    faits: produits.map((p) =>
-      fait("produit.enregistre", "produit", p.id, {
-        produitId: p.id as never,
-        slug: (p.slug ?? "") as never,
-        slugPrecedent: (p.slugPrecedent ?? null) as never,
-        categoryId: (p.categoryId ?? null) as never,
-        categoryIdPrecedent: (p.categoryIdPrecedent ?? null) as never,
-        imagesRetirees: (p.imagesRetirees ?? []) as never,
+    faits: produits.map((produit) =>
+      fait("produit.enregistre", "produit", produit.id, {
+        produitId: produit.id,
+        slug: produit.slug,
+        slugPrecedent: produit.slugPrecedent ?? null,
+        categoryId: produit.categoryId ?? null,
+        categoryIdPrecedent: produit.categoryIdPrecedent ?? null,
+        imagesRetirees: [...(produit.imagesRetirees ?? [])],
       })
     ),
     consequences,
@@ -589,55 +610,75 @@ const produitSupprime: DeclarationPour<"produit.supprime"> = (f) => {
 }
 
 const produitSupprimeLot: DeclarationPour<"produit.supprime.lot"> = (f) => {
-  const produitsInput = (f.produits as Array<Record<string, unknown>>) ?? []
-  const ids =
-    (f.produitIds as string[]) ??
-    produitsInput.map((produit) => String(produit.id ?? produit.produitId))
-  const produits = ids.map((id, index) => {
-    const produit = produitsInput[index] ?? {}
-    return {
-      id,
-      slug: produit.slug ?? null,
-      categoryId: produit.categoryId ?? null,
-      images: (produit.images as string[]) ?? [],
-    }
-  })
-  const portee = ids.length
-  return {
-    faits: produits.map((produit) =>
-      fait("produit.supprime", "produit", produit.id, {
-        produitId: produit.id as never,
-        slug: (produit.slug ?? "") as never,
-        categoryId: (produit.categoryId ?? null) as never,
-        imagesRetirees: (produit.images ?? []) as never,
-      })
+  const produits = produitsDuLot(f)
+  const urls = produits.flatMap((produit) => [
+    ...(produit.images ?? produit.imagesRetirees ?? []),
+  ])
+  // La suppression des images reste un seul geste pour tout le lot ; la
+  // désindexation, l'invalidation et la purge suivent par Produit, comme les
+  // Événements unitaires que le travailleur redéclarera.
+  const consequences: ConsequenceCatalogue[] = [
+    consequence(
+      "suppression-images",
+      { type: "produit", id: IDENTIFIANT_LOT },
+      `suppression des images groupée de ${produits.length} Produits`,
+      {
+        action: "suppression.images",
+        durable: true,
+        portee: produits.length,
+        payload: { urls },
+      }
     ),
-    consequences: [
-      consequence(
-        "suppression-images",
-        { type: "produit", id: IDENTIFIANT_LOT },
-        `suppression des images groupée`,
-        { action: "suppression.images", durable: true, portee }
-      ),
+  ]
+  for (const produit of produits) {
+    const identite: IdentiteProduitCatalogue = {
+      id: produit.id,
+      slug: produit.slug,
+      categoryId: produit.categoryId ?? null,
+    }
+    consequences.push(
       consequence(
         "desindexation",
-        { type: "produit", id: IDENTIFIANT_LOT },
-        `désindexation groupée`,
-        { action: "desindex.produit", durable: true, portee }
+        { type: "produit", id: produit.id },
+        `désindexation du produit ${produit.id}`,
+        {
+          action: "desindex.produit",
+          durable: true,
+          payload: { produitId: produit.id },
+        }
       ),
       consequence(
         "invalidation-cache",
-        { type: "produit", id: IDENTIFIANT_LOT },
-        `invalidation du catalogue groupée après suppression`,
-        { action: "invalidation.catalogue", durable: true, portee }
+        { type: "produit", id: produit.id },
+        `invalidation du catalogue après suppression ${produit.id}`,
+        {
+          action: "invalidation.catalogue",
+          durable: true,
+          payload: { produit: identite },
+        }
       ),
       consequence(
         "purge-catalogue",
-        { type: "produit", id: IDENTIFIANT_LOT },
-        `purge du bord groupée après suppression`,
-        { action: "purge.catalogue", durable: true, portee }
-      ),
-    ],
+        { type: "produit", id: produit.id },
+        `purge du bord après suppression ${produit.id}`,
+        {
+          action: "purge.catalogue",
+          durable: true,
+          payload: { produit: identite },
+        }
+      )
+    )
+  }
+  return {
+    faits: produits.map((produit) =>
+      fait("produit.supprime", "produit", produit.id, {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId: produit.categoryId ?? null,
+        imagesRetirees: [...(produit.images ?? produit.imagesRetirees ?? [])],
+      })
+    ),
+    consequences,
   }
 }
 
@@ -923,7 +964,9 @@ export type PlansTypés = {
   "structure.modifiee": PlanStructure
   "structure.supprimee": PlanStructure
   "produit.enregistre": PlanCatalogue
+  "produit.enregistre.lot": PlanCatalogue
   "produit.supprime": PlanCatalogue
+  "produit.supprime.lot": PlanCatalogue
   "variante.stock.changee": PlanCatalogue
   "image.texte-alternatif": PlanCatalogue
   "ville.creee": PlanLivraison
@@ -992,9 +1035,19 @@ export type FaitsProduitEnregistre = {
   ownerId?: string | null
 }
 
+export interface ProduitDuLot {
+  id: string
+  slug: string
+  slugPrecedent?: string | null
+  categoryId?: string | null
+  categoryIdPrecedent?: string | null
+  imagesRetirees?: readonly string[]
+  images?: readonly string[]
+}
+
 export type FaitsProduitEnregistreLot = {
-  produitIds?: readonly (string | number)[]
-  produits?: readonly Record<string, unknown>[]
+  produitIds?: readonly string[]
+  produits?: readonly ProduitDuLot[]
 }
 
 export type FaitsProduitSupprime = {
@@ -1006,8 +1059,8 @@ export type FaitsProduitSupprime = {
 }
 
 export type FaitsProduitSupprimeLot = {
-  produitIds?: readonly (string | number)[]
-  produits?: readonly Record<string, unknown>[]
+  produitIds?: readonly string[]
+  produits?: readonly ProduitDuLot[]
 }
 
 export type FaitsVarianteStockChangee = {

@@ -67,7 +67,6 @@ import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
-  runPlanEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import {
@@ -872,14 +871,9 @@ export interface RapportLot {
 const MESSAGE_PRODUIT_INTROUVABLE = "Produit introuvable"
 const MESSAGE_STRUCTURE_INTROUVABLE = "Structure introuvable"
 
-interface DocumentDeLot {
-  indexable: IndexableProduct
-  evenement: CatalogueEventProduct
-}
-
 async function documentsDeLot(
   ids: readonly string[]
-): Promise<DocumentDeLot[]> {
+): Promise<DocumentCatalogue[]> {
   if (ids.length === 0) return []
   const produits = await prisma.product.findMany({
     where: { id: { in: [...ids] } },
@@ -969,16 +963,15 @@ async function mettreAJourLot(
       })
       await enregistrerFaits(tx, planLot.faits)
     })
-    const documents = await documentsDeLot(partage.succes)
-    await runPlanEffects(planLot, {
-      reindexation: () =>
-        effects.reindexProducts(documents.map(({ indexable }) => indexable)),
-      "invalidation-cache": (consequence) => {
-        const doc = documents.find(
-          ({ indexable }) => indexable.id === consequence.entite.id
-        )
-        if (doc) return effects.revalidateCatalog(doc.evenement)
-      },
+    // Les documents et les Événements du lot sont lus une seule fois, à la
+    // première conséquence qui en a besoin, et partagés par la réindexation
+    // groupée et les invalidations par Produit.
+    let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
+    const documents = () => (documentsLus ??= documentsDeLot(partage.succes))
+    await executerCatalogue(planLot, effects, {
+      documents,
+      evenements: async () =>
+        (await documents()).map(({ evenement }) => evenement),
     })
   }
   return partage
@@ -1076,31 +1069,19 @@ export async function bulkDelete(
     await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
     await enregistrerFaits(tx, plan.faits)
   })
-  const lecture = await lireStructure()
-  const evenements = produits.map((produit) => ({
-    id: produit.id,
-    slug: produit.slug,
-    categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
-  }))
-  await runPlanEffects(plan, {
-    "suppression-images": () =>
-      effects.deleteImages(produits.flatMap((produit) => produit.images)),
-    desindexation: async () => {
-      for (const produit of produits) {
-        await effects.removeProductFromIndex(produit.id)
-      }
-    },
-    "invalidation-cache": async () => {
-      for (const evenement of evenements) {
-        await effects.revalidateCatalog(evenement)
-      }
-    },
-    "purge-catalogue": async () => {
-      for (const evenement of evenements) {
-        await effects.purgeCatalogue(evenement)
-      }
-    },
-  })
+  // Les Événements du lot sont lus une seule fois, à la première invalidation,
+  // depuis la fiche lue avant la suppression et une seule lecture de Structure.
+  let evenementsLus: Promise<readonly CatalogueEventProduct[]> | undefined
+  const evenements = () =>
+    (evenementsLus ??= (async () => {
+      const lecture = await lireStructure()
+      return produits.map((produit) => ({
+        id: produit.id,
+        slug: produit.slug,
+        categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+      }))
+    })())
+  await executerCatalogue(plan, effects, { evenements })
   return partage
 }
 
@@ -1181,15 +1162,10 @@ export async function duplicateProduct(
     }
   )
 
-  let documentsLus:
-    Promise<Awaited<ReturnType<typeof documentsDeLot>>> | undefined
+  let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
   const documents = () => (documentsLus ??= documentsDeLot([copie.id]))
   await executerCatalogue(planDuplication, effects, {
-    documents: async () =>
-      (await documents()).map(({ indexable, evenement }) => ({
-        indexable,
-        evenement,
-      })),
+    documents,
     evenements: async () =>
       (await documents()).map(({ evenement }) => evenement),
   })
