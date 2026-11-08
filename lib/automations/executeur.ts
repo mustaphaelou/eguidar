@@ -12,7 +12,6 @@ import {
   typeEntiteAutomationSchema,
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
-import { CHARGES_PAR_DECLENCHEUR } from "@/lib/automations/charge"
 import {
   deciderAutomation,
   evenementEstExpire,
@@ -183,31 +182,9 @@ export async function executerEvenement(
   const tentative = evenement.attempts + 1
   let derniereErreur: string | null = null
 
-  // La charge n'est analysée qu'à la première exécution, et jamais pour un
-  // événement expiré, ignoré ou sans Règle active.
-  let chargeAnalysee: unknown = undefined
-  let chargePrete = false
-  function obtenirCharge(): unknown {
-    if (chargePrete) return chargeAnalysee
-    const schema =
-      CHARGES_PAR_DECLENCHEUR[
-        evenement.type as keyof typeof CHARGES_PAR_DECLENCHEUR
-      ]
-    const resultat = schema.safeParse(evenement.payload)
-    if (!resultat.success) {
-      const issue = resultat.error.issues[0]
-      const champ = issue?.path?.length ? issue.path.join(".") : "charge"
-      throw new Error(
-        `Contrat de charge violé pour « ${evenement.type} » : ${champ} — ${
-          issue?.message ?? "invalide"
-        }`
-      )
-    }
-    chargeAnalysee = resultat.data
-    chargePrete = true
-    return chargeAnalysee
-  }
-
+  // La Charge reste brute ici : le répartiteur la valide une seule fois, et
+  // seulement pour une Règle qui s'exécute — jamais pour un événement expiré,
+  // ignoré ou sans Règle active.
   for (const regle of regles) {
     const decision = deciderAutomation(regle, evenement, maintenant)
     // Inatteignable aujourd'hui : la requête ne rend que les Règles actives de
@@ -242,13 +219,12 @@ export async function executerEvenement(
     }
 
     try {
-      const charge = obtenirCharge()
       await executerActionOuRedeclaration({
         evenement: {
           type: typeEvenementAutomationSchema.parse(evenement.type),
           entityType: typeEntiteAutomationSchema.parse(evenement.entityType),
           entityId: evenement.entityId,
-          payload: charge,
+          payload: evenement.payload,
         },
         regle: { id: regle.id, action, configuration },
         dependances,

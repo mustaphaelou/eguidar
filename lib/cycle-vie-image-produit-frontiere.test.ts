@@ -76,6 +76,11 @@ const IMPORTATEURS_CYCLE_VIE_AUTORISES = [
   ROUTE_PRESIGNATION,
   "infra/regle-cycle-vie-r2.ts",
   MODULE_CATALOGUE,
+  // La déclaration et l'adaptateur Catalogue n'importent que le type
+  // `PreuvePromotion` : l'import est effacé à l'exécution et le graphe de
+  // valeur ne touche pas le cycle de vie.
+  "lib/apres-ecriture.ts",
+  "lib/use-cases/apres-ecriture/catalogue.ts",
 ] as const
 
 const ACTION_ADMIN_PRODUITS = "app/admin/produits/actions.ts"

@@ -382,9 +382,9 @@ describe("Lecture de la Structure — la reconnaissance de la lecture", () => {
     expect(SOURCES.length).toBeGreaterThan(200)
 
     const trouves = sitesDeLecture(SOURCES, FORME)
-    expect(trouves).toHaveLength(20)
+    expect(trouves).toHaveLength(19)
     expect(trouves.filter(({ voie }) => voie === "relation")).toHaveLength(11)
-    expect(trouves.filter(({ voie }) => voie === "delegue")).toHaveLength(9)
+    expect(trouves.filter(({ voie }) => voie === "delegue")).toHaveLength(8)
     expect(trouves.map(({ chemin }) => chemin)).toEqual(
       expect.arrayContaining([
         "lib/use-cases/lecture-structure.ts",
@@ -397,7 +397,7 @@ describe("Lecture de la Structure — la reconnaissance de la lecture", () => {
     )
 
     for (const [recepteur, attendues] of [
-      ["prisma", 5],
+      ["prisma", 4],
       ["tx", 2],
       ["client", 2],
     ] as const) {

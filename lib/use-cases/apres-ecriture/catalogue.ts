@@ -16,6 +16,7 @@ import {
   LectureManquanteError,
   executerPlan,
   executerUne as executerUneConséquence,
+  memoise,
   type GestionnairesPour,
 } from "./executeur"
 
@@ -71,11 +72,6 @@ export class EvenementCatalogueIntrouvableError extends Error {
     super(`événement Catalogue introuvable pour le Produit ${produitId}`)
     this.name = "EvenementCatalogueIntrouvableError"
   }
-}
-
-function memoise<T>(lire: () => Promise<T>): () => Promise<T> {
-  let valeur: Promise<T> | undefined
-  return () => (valeur ??= lire())
 }
 
 function port<T>(valeur: T | undefined, nom: string): NonNullable<T> {

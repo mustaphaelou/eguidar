@@ -18,6 +18,7 @@ import {
   LectureManquanteError,
   executerPlan,
   executerUne as executerUneConséquence,
+  memoise,
   type GestionnairesPour,
 } from "./executeur"
 
@@ -43,11 +44,6 @@ export interface EffetsCommande {
  */
 export interface LecturesCommande {
   structure?: () => Promise<Pick<LectureStructure, "filAriane">>
-}
-
-function memoise<T>(lire: () => Promise<T>): () => Promise<T> {
-  let valeur: Promise<T> | undefined
-  return () => (valeur ??= lire())
 }
 
 function gestionnaires(

@@ -133,6 +133,15 @@ describe("Après-écriture — garde de pureté", () => {
     expect(registre).toEqual(declares)
   })
 
+  it("fixe l'annotation exhaustive du registre", () => {
+    // L'annotation est le contrat : un genre ajouté sans déclaration ne
+    // compile pas. La retirer rendrait le registre partiel sans rien casser
+    // ici, d'où cette garde sur le texte exact.
+    expect(SOURCE).toContain(
+      "const REGISTRE: { [G in GenreEcriture]: DeclarationPour<G> } = {"
+    )
+  })
+
   it("les genres dérivés sont unitaires : aucun genre groupé n'y entre", async () => {
     const { GENRES_DERIVES } = await import("@/lib/apres-ecriture")
 

@@ -7,12 +7,16 @@ import type {
   ConsequenceStructure,
   GenreEcriture,
 } from "@/lib/apres-ecriture"
+import { BRANCHE_SANS_STRUCTURE } from "@/lib/apres-ecriture"
 import { prisma } from "@/lib/db"
 import {
   cleIdempotenceEmailPlacee,
   cleIdempotenceEmailStatut,
 } from "@/lib/emails"
-import { toIndexableProduct } from "@/lib/index-projection"
+import {
+  toIndexableProduct,
+  type IndexableProduct,
+} from "@/lib/index-projection"
 import {
   chaineDeLaStructure,
   demandeDePurgeCatalogue,
@@ -28,6 +32,7 @@ import {
   executerUne as executerUneCommande,
   type EffetsCommande,
 } from "@/lib/use-cases/apres-ecriture/commande"
+import { memoise } from "@/lib/use-cases/apres-ecriture/executeur"
 import {
   executerUne as executerUneStructure,
   type EffetsStructure,
@@ -83,6 +88,19 @@ function identifiantDeLaCharge(charge: ChargeProduitDurable): string {
   return charge.produitId
 }
 
+/**
+ * Une lecture d'Événement Catalogue demandée pour un déclencheur qui n'en a
+ * aucun de durable : le changement de stock ne réindexe qu'un document, il
+ * n'invalide ni ne purge le Catalogue. Une erreur nommée vaut mieux qu'un
+ * Événement inventé, qui ferait passer une donnée fausse pour une lecture.
+ */
+export class EvenementCatalogueNonDurableError extends Error {
+  constructor(readonly type: TypeEvenementAutomation) {
+    super(`aucun Événement Catalogue durable pour « ${type} »`)
+    this.name = "EvenementCatalogueNonDurableError"
+  }
+}
+
 async function evenementCatalogue(
   type: TypeEvenementAutomation,
   charge: ChargeProduitDurable
@@ -115,12 +133,24 @@ async function evenementCatalogue(
         categoryChain: chaineDeLaStructure(lecture, c.categoryId),
       }
     }
-    default: {
-      // Le changement de stock n'a qu'une invalidation non durable : la lecture
-      // n'est jamais demandée, mais un événement vide garde le pont total.
-      const c = charge as Charge<"variante.stock.changee">
-      return { id: c.produitId, slug: "", categoryChain: [] }
-    }
+    default:
+      // Le changement de stock n'a qu'une réindexation durable : la lecture de
+      // l'Événement Catalogue n'est jamais demandée.
+      throw new EvenementCatalogueNonDurableError(type)
+  }
+}
+
+/**
+ * Un document dont seul l'indexable peut être lu. Le changement de stock n'a
+ * pas d'Événement Catalogue ; l'atteindre est une erreur nommée, pas un
+ * événement fabriqué.
+ */
+function documentSansEvenement(indexable: IndexableProduct): DocumentCatalogue {
+  return {
+    indexable,
+    get evenement(): CatalogueEventProduct {
+      throw new EvenementCatalogueNonDurableError("variante.stock.changee")
+    },
   }
 }
 
@@ -139,12 +169,11 @@ function pontCatalogue(
         include: { variants: true, category: true },
       })
       if (!produit) return []
-      return [
-        {
-          indexable: toIndexableProduct(produit),
-          evenement: await evenement(),
-        },
-      ]
+      const indexable = toIndexableProduct(produit)
+      if (type === "variante.stock.changee") {
+        return [documentSansEvenement(indexable)]
+      }
+      return [{ indexable, evenement: await evenement() }]
     })())
 
   const effets: EffetsCatalogue = {
@@ -177,9 +206,20 @@ function pontStructure(dependances: DependancesAutomations): PontExecution {
       await supprimerImagesCategorieDuStockage([url])
     },
   }
-  const lectures: LecturesStructure = {
-    structure: lireStructure,
-    documents: async (categorieIds) => {
+  // Le pont vit le temps d'une Règle, pas d'une conséquence : l'arbre est
+  // mémoïsé au niveau du plan, sinon une Structure supprimée qui réindexe N
+  // destinations le lirait N fois. Chaque branche résolue lit ses documents
+  // une seule fois, elle aussi.
+  const arbre = memoise(() => lireStructure())
+  const documentsParBranche = new Map<string, Promise<IndexableProduct[]>>()
+  function documents(
+    categorieIds: readonly string[] | null
+  ): Promise<IndexableProduct[]> {
+    const cle =
+      categorieIds === null ? BRANCHE_SANS_STRUCTURE : categorieIds.join(",")
+    const memorise = documentsParBranche.get(cle)
+    if (memorise) return memorise
+    const documents = (async () => {
       const produits = await prisma.product.findMany({
         where:
           categorieIds === null
@@ -188,8 +228,11 @@ function pontStructure(dependances: DependancesAutomations): PontExecution {
         include: { variants: true, category: true },
       })
       return produits.map(toIndexableProduct)
-    },
+    })()
+    documentsParBranche.set(cle, documents)
+    return documents
   }
+  const lectures: LecturesStructure = { structure: arbre, documents }
   return {
     executerUne: (consequence) =>
       executerUneStructure(
@@ -203,7 +246,7 @@ function pontStructure(dependances: DependancesAutomations): PontExecution {
 export function creerPont(
   genre: GenreEcriture,
   type: TypeEvenementAutomation,
-  charge: unknown,
+  charge: Charge<TypeEvenementAutomation>,
   dependances: DependancesAutomations
 ): PontExecution {
   switch (genre) {

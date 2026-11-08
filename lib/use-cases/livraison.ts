@@ -4,7 +4,10 @@ import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { slugify } from "@/lib/slug"
-import { executer as executerLivraison } from "@/lib/use-cases/apres-ecriture/livraison"
+import {
+  executer as executerLivraison,
+  type EffetsLivraison,
+} from "@/lib/use-cases/apres-ecriture/livraison"
 import { invalidateLivraison } from "@/lib/use-cases/cache-invalidation"
 import {
   DEFAULT_FREE_SHIPPING_THRESHOLD,
@@ -23,9 +26,11 @@ export interface CityInput {
   fee: number
 }
 
-export interface LivraisonEffects {
-  revalidateShipping(): void
-}
+/**
+ * Les ports de la Livraison sont ceux que l'adaptateur projette ; le type vit
+ * dans l'adaptateur pour que le site d'appel n'en redéclare pas une copie.
+ */
+export type LivraisonEffects = EffetsLivraison
 
 const defaultLivraisonEffects: LivraisonEffects = {
   revalidateShipping() {

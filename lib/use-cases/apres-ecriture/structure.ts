@@ -14,6 +14,7 @@ import {
   LectureManquanteError,
   executerPlan,
   executerUne as executerUneConséquence,
+  memoise,
   type GestionnairesPour,
 } from "./executeur"
 
@@ -42,11 +43,6 @@ export interface LecturesStructure {
   ) => Promise<IndexableProduct[]>
 }
 
-function memoise<T>(lire: () => Promise<T>): () => Promise<T> {
-  let valeur: Promise<T> | undefined
-  return () => (valeur ??= lire())
-}
-
 function gestionnaires(
   effets: EffetsStructure,
   lectures: LecturesStructure
@@ -61,7 +57,7 @@ function gestionnaires(
     const memorise = documentsParBranche.get(branche)
     if (memorise) return memorise
     const documents = (async () => {
-      // La branche Sans Structure n'a pas d'identifiant à résoudre dans
+      // La branche orpheline n'a pas d'identifiant à résoudre dans
       // l'arbre : la supprimer de cette lecture évite de relire la Structure
       // supprimée, et de faire dépendre l'orphelinat d'un arbre.
       const categorieIds =
