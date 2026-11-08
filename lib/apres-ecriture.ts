@@ -13,6 +13,8 @@ import type {
   TypeEvenementAutomation,
 } from "@/lib/automations/evenements"
 import type { Charge, OrderEmailSnapshot } from "@/lib/automations/charge"
+import type { PreuvePromotion } from "@/lib/cycle-vie-image-produit"
+import type { EntreeRegistreImageProduit } from "@/lib/use-cases/images-produit"
 
 export type GenreEcriture =
   | "produit.enregistre"
@@ -138,6 +140,102 @@ export type ConsequenceStructureInvalidation = Extract<
 >
 
 export type PlanStructure = PlanApresEcriture<ConsequenceStructure>
+
+/**
+ * L'identité d'un Produit qu'une conséquence Catalogue transporte. Les
+ * documents indexables et les événements Catalogue sont des lectures après
+ * commit : la déclaration ne les connaît pas, l'adaptateur les résout par
+ * `lectures`.
+ */
+export interface IdentiteProduitCatalogue {
+  id: string
+  slug: string
+  slugPrecedent?: string | null
+  categoryId?: string | null
+  categoryIdPrecedent?: string | null
+}
+
+export type EffetCatalogue =
+  | "registre-images"
+  | "suppression-brouillons"
+  | "suppression-images"
+  | "reindexation"
+  | "desindexation"
+  | "invalidation-cache"
+  | "purge-catalogue"
+
+export interface ChargesCatalogue {
+  "registre-images": {
+    entrees: readonly EntreeRegistreImageProduit[]
+    ownerId: string | null
+  }
+  "suppression-brouillons": { promotions: readonly PreuvePromotion[] }
+  "suppression-images": { urls: readonly string[] }
+  reindexation: { produits: readonly IdentiteProduitCatalogue[] }
+  desindexation: { produitId: string }
+  "invalidation-cache": { produit: IdentiteProduitCatalogue }
+  "purge-catalogue": { produit: IdentiteProduitCatalogue }
+}
+
+export type ConsequenceCatalogue = {
+  [E in EffetCatalogue]: ConsequenceApresEcriture<E, ChargesCatalogue[E]> & {
+    payload: ChargesCatalogue[E]
+  }
+}[EffetCatalogue]
+
+export type ConsequenceCatalogueRegistre = Extract<
+  ConsequenceCatalogue,
+  { effet: "registre-images" }
+>
+export type ConsequenceCatalogueBrouillons = Extract<
+  ConsequenceCatalogue,
+  { effet: "suppression-brouillons" }
+>
+export type ConsequenceCatalogueImages = Extract<
+  ConsequenceCatalogue,
+  { effet: "suppression-images" }
+>
+export type ConsequenceCatalogueReindexation = Extract<
+  ConsequenceCatalogue,
+  { effet: "reindexation" }
+>
+export type ConsequenceCatalogueDesindexation = Extract<
+  ConsequenceCatalogue,
+  { effet: "desindexation" }
+>
+export type ConsequenceCatalogueInvalidation = Extract<
+  ConsequenceCatalogue,
+  { effet: "invalidation-cache" }
+>
+export type ConsequenceCataloguePurge = Extract<
+  ConsequenceCatalogue,
+  { effet: "purge-catalogue" }
+>
+
+export type PlanCatalogue = PlanApresEcriture<ConsequenceCatalogue>
+
+/**
+ * La seule conséquence de Livraison : invalider le cache. Elle est non durable,
+ * réparée par le TTL, et ne porte aucun fait — donc aucun Événement et aucune
+ * Exécution d'automatisation.
+ */
+export type EffetLivraison = "invalidation-cache"
+
+/**
+ * La charge utile d'une invalidation de Livraison : l'identifiant de l'objet
+ * touché suffit, puisque le port n'a qu'un cache à invalider.
+ */
+export interface ChargesLivraison {
+  "invalidation-cache": { id: string }
+}
+
+export type ConsequenceLivraison = {
+  [E in EffetLivraison]: ConsequenceApresEcriture<E, ChargesLivraison[E]> & {
+    payload: ChargesLivraison[E]
+  }
+}[EffetLivraison]
+
+export type PlanLivraison = PlanApresEcriture<ConsequenceLivraison>
 
 export type FaitsApresEcriture = Record<string, unknown>
 
@@ -283,63 +381,98 @@ const commandeStatutChangee: DeclarationPour<"commande.statut.changee"> = (
 
 // Produit enregistre
 const produitEnregistre: DeclarationPour<"produit.enregistre"> = (f) => {
-  const consequences: ConsequenceApresEcriture[] = [
+  const produitId = String(f.produitId)
+  const slug = String(f.slug)
+  const slugPrecedent = f.slugPrecedent ?? null
+  const categoryId = f.categoryId ?? null
+  const categoryIdPrecedent = f.categoryIdPrecedent ?? null
+  const imagesRetirees = [...(f.imagesRetirees ?? [])]
+  const entreesRegistre = [...(f.entreesRegistre ?? [])]
+  const promotions = [...(f.promotions ?? [])]
+  const identite: IdentiteProduitCatalogue = {
+    id: produitId,
+    slug,
+    slugPrecedent,
+    categoryId,
+    categoryIdPrecedent,
+  }
+  const consequences: ConsequenceCatalogue[] = [
     consequence(
       "registre-images",
-      { type: "produit", id: String(f.produitId) },
-      `registre des images produit pour ${f.produitId}`,
+      { type: "produit", id: produitId },
+      `registre des images produit pour ${produitId}`,
       {
         durable: false,
         reparation: "réconciliation par la Bibliothèque des médias",
+        payload: { entrees: entreesRegistre, ownerId: f.ownerId ?? null },
       }
     ),
     consequence(
       "suppression-brouillons",
-      { type: "produit", id: String(f.produitId) },
-      `suppression des brouillons pour ${f.produitId}`,
-      { durable: false, reparation: "cycle de vie R2" }
+      { type: "produit", id: produitId },
+      `suppression des brouillons pour ${produitId}`,
+      {
+        durable: false,
+        reparation: "cycle de vie R2",
+        payload: { promotions },
+      }
     ),
   ]
-  const removed = (f.imagesRetirees as string[] | undefined) ?? []
-  if (removed.length > 0) {
+  if (imagesRetirees.length > 0) {
     consequences.push(
       consequence(
         "suppression-images",
-        { type: "produit", id: String(f.produitId) },
-        `suppression des images pour ${f.produitId}`,
-        { action: "suppression.images", durable: true }
+        { type: "produit", id: produitId },
+        `suppression des images pour ${produitId}`,
+        {
+          action: "suppression.images",
+          durable: true,
+          payload: { urls: imagesRetirees },
+        }
       )
     )
   }
   consequences.push(
     consequence(
       "reindexation",
-      { type: "produit", id: String(f.produitId) },
-      `réindexation du produit ${f.produitId}`,
-      { action: "index.produit", durable: true }
+      { type: "produit", id: produitId },
+      `réindexation du produit ${produitId}`,
+      {
+        action: "index.produit",
+        durable: true,
+        payload: { produits: [identite] },
+      }
     ),
     consequence(
       "invalidation-cache",
-      { type: "produit", id: String(f.produitId) },
-      `invalidation du catalogue pour ${f.produitId}`,
-      { action: "invalidation.catalogue", durable: true }
+      { type: "produit", id: produitId },
+      `invalidation du catalogue pour ${produitId}`,
+      {
+        action: "invalidation.catalogue",
+        durable: true,
+        payload: { produit: identite },
+      }
     ),
     consequence(
       "purge-catalogue",
-      { type: "produit", id: String(f.produitId) },
-      `purge du bord pour ${f.produitId}`,
-      { action: "purge.catalogue", durable: true }
+      { type: "produit", id: produitId },
+      `purge du bord pour ${produitId}`,
+      {
+        action: "purge.catalogue",
+        durable: true,
+        payload: { produit: identite },
+      }
     )
   )
   return {
     faits: [
-      fait("produit.enregistre", "produit", String(f.produitId), {
-        produitId: f.produitId as never,
-        slug: (f.slug ?? "") as never,
-        slugPrecedent: (f.slugPrecedent ?? null) as never,
-        categoryId: (f.categoryId ?? null) as never,
-        categoryIdPrecedent: (f.categoryIdPrecedent ?? null) as never,
-        imagesRetirees: removed as never,
+      fait("produit.enregistre", "produit", produitId, {
+        produitId,
+        slug,
+        slugPrecedent,
+        categoryId,
+        categoryIdPrecedent,
+        imagesRetirees,
       }),
     ],
     consequences,
@@ -396,43 +529,60 @@ const produitEnregistreLot: DeclarationPour<"produit.enregistre.lot"> = (f) => {
 }
 
 const produitSupprime: DeclarationPour<"produit.supprime"> = (f) => {
-  const urls =
-    (f.imagesRetirees as string[] | undefined) ??
-    (f.images as string[] | undefined) ??
-    []
+  const produitId = String(f.produitId)
+  const slug = String(f.slug)
+  const categoryId = f.categoryId ?? null
+  const imagesRetirees = [...(f.imagesRetirees ?? f.images ?? [])]
+  const identite: IdentiteProduitCatalogue = { id: produitId, slug, categoryId }
   return {
     faits: [
-      fait("produit.supprime", "produit", String(f.produitId), {
-        produitId: f.produitId as never,
-        slug: (f.slug ?? "") as never,
-        categoryId: (f.categoryId ?? null) as never,
-        imagesRetirees: urls as never,
+      fait("produit.supprime", "produit", produitId, {
+        produitId,
+        slug,
+        categoryId,
+        imagesRetirees,
       }),
     ],
     consequences: [
       consequence(
         "suppression-images",
-        { type: "produit", id: String(f.produitId) },
-        `suppression des images pour ${f.produitId}`,
-        { action: "suppression.images", durable: true }
+        { type: "produit", id: produitId },
+        `suppression des images pour ${produitId}`,
+        {
+          action: "suppression.images",
+          durable: true,
+          payload: { urls: imagesRetirees },
+        }
       ),
       consequence(
         "desindexation",
-        { type: "produit", id: String(f.produitId) },
-        `désindexation du produit ${f.produitId}`,
-        { action: "desindex.produit", durable: true }
+        { type: "produit", id: produitId },
+        `désindexation du produit ${produitId}`,
+        {
+          action: "desindex.produit",
+          durable: true,
+          payload: { produitId },
+        }
       ),
       consequence(
         "invalidation-cache",
-        { type: "produit", id: String(f.produitId) },
-        `invalidation du catalogue après suppression ${f.produitId}`,
-        { action: "invalidation.catalogue", durable: true }
+        { type: "produit", id: produitId },
+        `invalidation du catalogue après suppression ${produitId}`,
+        {
+          action: "invalidation.catalogue",
+          durable: true,
+          payload: { produit: identite },
+        }
       ),
       consequence(
         "purge-catalogue",
-        { type: "produit", id: String(f.produitId) },
-        `purge du bord après suppression ${f.produitId}`,
-        { action: "purge.catalogue", durable: true }
+        { type: "produit", id: produitId },
+        `purge du bord après suppression ${produitId}`,
+        {
+          action: "purge.catalogue",
+          durable: true,
+          payload: { produit: identite },
+        }
       ),
     ],
   }
@@ -491,29 +641,43 @@ const produitSupprimeLot: DeclarationPour<"produit.supprime.lot"> = (f) => {
   }
 }
 
-const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (
-  f
-) => ({
-  faits: [
-    fait("variante.stock.changee", "produit", String(f.produitId), {
-      produitId: f.produitId as never,
-    }),
-  ],
-  consequences: [
-    consequence(
-      "reindexation",
-      { type: "produit", id: String(f.produitId) },
-      `réindexation du produit ${f.produitId}`,
-      { action: "index.produit", durable: true }
-    ),
-    consequence(
-      "invalidation-cache",
-      { type: "produit", id: String(f.produitId) },
-      `invalidation du cache pour ${f.produitId}`,
-      { durable: false, reparation: "TTL" }
-    ),
-  ],
-})
+const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (f) => {
+  const produitId = String(f.produitId)
+  const identite: IdentiteProduitCatalogue = {
+    id: produitId,
+    slug: String(f.slug),
+    categoryId: f.categoryId ?? null,
+  }
+  return {
+    faits: [
+      fait("variante.stock.changee", "produit", produitId, {
+        produitId,
+      }),
+    ],
+    consequences: [
+      consequence(
+        "reindexation",
+        { type: "produit", id: produitId },
+        `réindexation du produit ${produitId}`,
+        {
+          action: "index.produit",
+          durable: true,
+          payload: { produits: [identite] },
+        }
+      ),
+      consequence(
+        "invalidation-cache",
+        { type: "produit", id: produitId },
+        `invalidation du cache pour ${produitId}`,
+        {
+          durable: false,
+          reparation: "TTL",
+          payload: { produit: identite },
+        }
+      ),
+    ],
+  }
+}
 
 const structureCreee: DeclarationPour<"structure.creee"> = (f) => {
   const categorieId = String(f.categorieId)
@@ -663,10 +827,9 @@ const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
 }
 
 /**
- * Les écritures de maintenance n'ont aucune conséquence durable : leur plan ne
- * porte aucun fait, donc aucun Événement, et sa seule conséquence est la
- * tentative immédiate d'invalidation du cache. Un échec est journalisé et le
- * TTL du cache le répare.
+ * Une conséquence de maintenance : aucune conséquence durable, donc aucun
+ * Événement, et sa seule conséquence est la tentative immédiate d'invalidation
+ * du cache. Un échec est journalisé et le TTL du cache le répare.
  */
 function consequenceDeMaintenance(
   entite: EntiteEffetPostCommit,
@@ -678,45 +841,68 @@ function consequenceDeMaintenance(
   })
 }
 
-function planDeMaintenance(
+/**
+ * L'unique conséquence des écritures de Livraison : l'invalidation du cache,
+ * non durable et réparée par le TTL, sans fait ni Événement. La charge utile
+ * typée ne porte que l'identifiant de l'objet touché — le port n'a qu'un cache
+ * à invalider.
+ */
+function consequenceDeLivraison(
   entite: EntiteEffetPostCommit,
-  message: string
-): PlanApresEcriture {
+  message: string,
+  id: string
+): ConsequenceLivraison {
+  return consequence("invalidation-cache", entite, message, {
+    durable: false,
+    reparation: "TTL",
+    payload: { id },
+  })
+}
+
+function planDeLivraison(
+  entite: EntiteEffetPostCommit,
+  message: string,
+  id: string
+): PlanLivraison {
   return {
     faits: [],
-    consequences: [consequenceDeMaintenance(entite, message)],
+    consequences: [consequenceDeLivraison(entite, message, id)],
   }
 }
 
 const villeCreee: DeclarationPour<"ville.creee"> = (f) => {
   const villeId = String(f.villeId)
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "ville", id: villeId },
-    `invalidation du cache livraison pour la création de la ville ${villeId}`
+    `invalidation du cache livraison pour la création de la ville ${villeId}`,
+    villeId
   )
 }
 
 const villeModifiee: DeclarationPour<"ville.modifiee"> = (f) => {
   const villeId = String(f.villeId)
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "ville", id: villeId },
-    `invalidation du cache livraison pour la ville ${villeId}`
+    `invalidation du cache livraison pour la ville ${villeId}`,
+    villeId
   )
 }
 
 const villeSupprimee: DeclarationPour<"ville.supprimee"> = (f) => {
   const villeId = String(f.villeId)
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "ville", id: villeId },
-    `invalidation du cache livraison pour la suppression de la ville ${villeId}`
+    `invalidation du cache livraison pour la suppression de la ville ${villeId}`,
+    villeId
   )
 }
 
 const livraisonReglee: DeclarationPour<"livraison.reglee"> = (f) => {
   const livraisonId = String(f.livraisonId ?? "default")
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "livraison", id: livraisonId },
-    "invalidation du cache livraison pour le seuil de livraison"
+    "invalidation du cache livraison pour le seuil de livraison",
+    livraisonId
   )
 }
 
@@ -748,6 +934,13 @@ export type PlansTypés = {
   "structure.creee": PlanStructure
   "structure.modifiee": PlanStructure
   "structure.supprimee": PlanStructure
+  "produit.enregistre": PlanCatalogue
+  "produit.supprime": PlanCatalogue
+  "variante.stock.changee": PlanCatalogue
+  "ville.creee": PlanLivraison
+  "ville.modifiee": PlanLivraison
+  "ville.supprimee": PlanLivraison
+  "livraison.reglee": PlanLivraison
 }
 
 export type PlanParGenre = {
@@ -799,12 +992,15 @@ export type FaitsCommandeStatutChangee = {
 
 export type FaitsProduitEnregistre = {
   produitId: string | number
-  slug: unknown
-  slugPrecedent?: unknown
-  categoryId?: unknown
-  categoryIdPrecedent?: unknown
-  imagesRetirees?: unknown
-  galerie?: unknown
+  slug: string
+  slugPrecedent?: string | null
+  categoryId?: string | null
+  categoryIdPrecedent?: string | null
+  imagesRetirees?: readonly string[]
+  galerie?: readonly unknown[]
+  entreesRegistre?: readonly EntreeRegistreImageProduit[]
+  promotions?: readonly PreuvePromotion[]
+  ownerId?: string | null
 }
 
 export type FaitsProduitEnregistreLot = {
@@ -814,10 +1010,10 @@ export type FaitsProduitEnregistreLot = {
 
 export type FaitsProduitSupprime = {
   produitId: string | number
-  slug?: unknown
-  categoryId?: unknown
-  images?: unknown
-  imagesRetirees?: unknown
+  slug: string
+  categoryId?: string | null
+  images?: readonly string[]
+  imagesRetirees?: readonly string[]
 }
 
 export type FaitsProduitSupprimeLot = {
@@ -827,6 +1023,8 @@ export type FaitsProduitSupprimeLot = {
 
 export type FaitsVarianteStockChangee = {
   produitId: string | number
+  slug: string
+  categoryId?: string | null
 }
 
 export type FaitsStructureCreee = {
@@ -1014,6 +1212,7 @@ export const FAITS_POUR_REGLES: Partial<
 > = {
   "produit.enregistre": {
     produitId: "produit-modele",
+    slug: "produit-modele",
     imagesRetirees: ["https://cdn.example.test/modele.jpg"],
   },
   "structure.modifiee": {
