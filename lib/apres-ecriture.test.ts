@@ -385,19 +385,23 @@ describe("la déclaration de produit.enregistre.lot", () => {
 
 describe("la déclaration de structure.supprimee", () => {
   function planDeSuppression(
-    faits: Record<string, unknown> = {}
+    faits: {
+      imagesRetirees?: readonly string[]
+      destinations?: readonly string[]
+    } = {}
   ): PlanApresEcriture {
     return declarerApresEcriture("structure.supprimee", {
       categorieId: CATEGORIE,
+      imagesRetirees: [],
+      destinations: [],
       ...faits,
     })
   }
 
   it("réindexe chaque destination, supprime l'image puis invalide la Structure", () => {
     const plan = planDeSuppression({
-      image: "https://cdn.example.test/categories/supprimee.jpg",
-      produitsCible: "cible-produits",
-      enfantsCible: "cible-enfants",
+      imagesRetirees: ["https://cdn.example.test/categories/supprimee.jpg"],
+      destinations: ["cible-produits", "cible-enfants"],
     })
 
     expect(effets(plan)).toEqual([
@@ -423,9 +427,8 @@ describe("la déclaration de structure.supprimee", () => {
 
   it("ne lit jamais la branche supprimée : le fait ne porte que les destinations", () => {
     const plan = planDeSuppression({
-      image: "https://cdn.example.test/categories/supprimee.jpg",
-      produitsCible: "cible-produits",
-      enfantsCible: "cible-enfants",
+      imagesRetirees: ["https://cdn.example.test/categories/supprimee.jpg"],
+      destinations: ["cible-produits", "cible-enfants"],
     })
 
     expect(plan.faits).toEqual([
@@ -444,8 +447,7 @@ describe("la déclaration de structure.supprimee", () => {
 
   it("dédoublonne deux destinations qui désignent la même branche", () => {
     const plan = planDeSuppression({
-      produitsCible: "meme-cible",
-      enfantsCible: "meme-cible",
+      destinations: ["meme-cible", "meme-cible"],
     })
 
     expect(effets(plan).filter((effet) => effet === "reindexation")).toEqual([
@@ -457,7 +459,9 @@ describe("la déclaration de structure.supprimee", () => {
   })
 
   it("vise la branche Sans Structure quand les Produits sont orphelins", () => {
-    const plan = planDeSuppression({ produitsSansStructure: true })
+    const plan = planDeSuppression({
+      destinations: [BRANCHE_SANS_STRUCTURE],
+    })
 
     expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
     expect(plan.consequences[0]).toMatchObject({
@@ -472,8 +476,7 @@ describe("la déclaration de structure.supprimee", () => {
 
   it("réindexe la destination des enfants et la branche Sans Structure quand les Produits sont orphelins", () => {
     const plan = planDeSuppression({
-      enfantsCible: "cible-enfants",
-      produitsSansStructure: true,
+      destinations: ["cible-enfants", BRANCHE_SANS_STRUCTURE],
     })
 
     expect(effets(plan)).toEqual([
@@ -500,7 +503,7 @@ describe("la déclaration de structure.supprimee", () => {
   })
 
   it("n'ajoute pas de suppression d'image quand la Structure n'en avait pas", () => {
-    const plan = planDeSuppression({ produitsCible: "cible-produits" })
+    const plan = planDeSuppression({ destinations: ["cible-produits"] })
 
     expect(effets(plan)).not.toContain("suppression-images")
   })
@@ -522,8 +525,8 @@ describe("les Règles par défaut dérivées de structure.supprimee", () => {
   it("ne duplique pas la Règle d'indexation quand deux branches la déclarent", () => {
     const plan = declarerApresEcriture("structure.supprimee", {
       categorieId: CATEGORIE,
-      produitsCible: "cible-produits",
-      enfantsCible: "cible-enfants",
+      imagesRetirees: [],
+      destinations: ["cible-produits", "cible-enfants"],
     })
 
     expect(
@@ -666,12 +669,12 @@ describe("la déclaration de structure.creee", () => {
 })
 
 describe("la déclaration de structure.modifiee", () => {
-  it("porte le fait borné : catégorie, image retirée et destination", () => {
+  it("porte le fait borné : catégorie, images retirées et destinations", () => {
     const image = "https://cdn.example.test/categories/ancienne.jpg"
     const plan = declarerApresEcriture("structure.modifiee", {
       categorieId: CATEGORIE,
-      imageRetiree: image,
-      destination: "categorie-parente",
+      imagesRetirees: [image],
+      destinations: ["categorie-parente"],
     })
 
     expect(plan.faits).toEqual([
@@ -694,8 +697,8 @@ describe("la déclaration de structure.modifiee", () => {
   it("ordonne la suppression d'image, la réindexation puis l'invalidation", () => {
     const plan = declarerApresEcriture("structure.modifiee", {
       categorieId: CATEGORIE,
-      imageRetiree: "https://cdn.example.test/categories/ancienne.jpg",
-      destination: "categorie-parente",
+      imagesRetirees: ["https://cdn.example.test/categories/ancienne.jpg"],
+      destinations: ["categorie-parente"],
     })
 
     expect(effets(plan)).toEqual([
@@ -713,13 +716,14 @@ describe("la déclaration de structure.modifiee", () => {
       type: "categorie",
       id: CATEGORIE,
     })
+    expect(plan.consequences[1]!.payload).toEqual({ branche: CATEGORIE })
   })
 
   it("ne déclare la suppression d'image que si une image est retirée", () => {
     const plan = declarerApresEcriture("structure.modifiee", {
       categorieId: CATEGORIE,
-      imageRetiree: null,
-      destination: null,
+      imagesRetirees: [],
+      destinations: [],
     })
 
     expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
