@@ -868,21 +868,6 @@ const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
 }
 
 /**
- * Une conséquence de maintenance : aucune conséquence durable, donc aucun
- * Événement, et sa seule conséquence est la tentative immédiate d'invalidation
- * du cache. Un échec est journalisé et le TTL du cache le répare.
- */
-function consequenceDeMaintenance(
-  entite: EntiteEffetPostCommit,
-  message: string
-): ConsequenceApresEcriture {
-  return consequence("invalidation-cache", entite, message, {
-    durable: false,
-    reparation: "TTL",
-  })
-}
-
-/**
  * L'unique conséquence des écritures de Livraison : l'invalidation du cache,
  * non durable et réparée par le TTL, sans fait ni Événement. La charge utile
  * typée ne porte que l'identifiant de l'objet touché — le port n'a qu'un cache
@@ -950,20 +935,23 @@ const livraisonReglee: DeclarationPour<"livraison.reglee"> = (f) => {
 /**
  * Une Image produit n'a qu'un propriétaire, mais l'écriture reste une liste :
  * chaque Produit touché reçoit sa propre conséquence, donc sa propre ligne de
- * journal et sa propre limite d'échec.
+ * journal et sa propre limite d'échec. La charge utile porte l'identité du
+ * Produit ; l'événement Catalogue, qui vient de la Structure, traverse la
+ * lecture après commit de l'adaptateur.
  */
-const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (f) => {
-  const produitIds = ((f.produitIds as string[] | undefined) ?? []).map(String)
-  return {
-    faits: [],
-    consequences: produitIds.map((produitId) =>
-      consequenceDeMaintenance(
-        { type: "produit", id: produitId },
-        `invalidation du cache catalogue pour le Produit ${produitId} après modification du Texte alternatif`
-      )
-    ),
-  }
-}
+const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (
+  f
+) => ({
+  faits: [],
+  consequences: (f.produits ?? []).map((produit) =>
+    consequence(
+      "invalidation-cache",
+      { type: "produit", id: produit.id },
+      `invalidation du cache catalogue pour le Produit ${produit.id} après modification du Texte alternatif`,
+      { durable: false, reparation: "TTL", payload: { produit } }
+    )
+  ),
+})
 
 /**
  * Les plans que les tranches ont déjà typés. Un genre absent rend le plan
@@ -980,6 +968,7 @@ export type PlansTypés = {
   "produit.supprime": PlanCatalogue
   "produit.supprime.lot": PlanCatalogue
   "variante.stock.changee": PlanCatalogue
+  "image.texte-alternatif": PlanCatalogue
   "ville.creee": PlanLivraison
   "ville.modifiee": PlanLivraison
   "ville.supprimee": PlanLivraison
@@ -1109,7 +1098,7 @@ export type FaitsVilleModifiee = { villeId: string | number }
 export type FaitsVilleSupprimee = { villeId: string | number }
 export type FaitsLivraisonReglee = { livraisonId?: string | number }
 export type FaitsImageTexteAlternatif = {
-  produitIds?: readonly (string | number)[]
+  produits?: readonly IdentiteProduitCatalogue[]
 }
 
 export type FaitsParGenre = {
