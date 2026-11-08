@@ -15,6 +15,10 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
+import { PremierePage } from "@/app/admin/_prototype-premiere-page/premiere-page"
+import { SelecteurDePrototype } from "@/app/admin/_prototype-premiere-page/selecteur"
+import { etatDepuis } from "@/app/admin/_prototype-premiere-page/etats"
+import { cleVarianteDepuis } from "@/app/admin/_prototype-premiere-page/variantes"
 import { EmptyState } from "@/components/admin/empty-state"
 import { RevenueChart } from "@/components/admin/revenue-chart"
 import { PageHeader } from "@/components/layout/admin/page-header"
@@ -181,8 +185,32 @@ function LigneAlerte({
   )
 }
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    variant?: string
+    etat?: string
+    periode?: string
+  }>
+}) {
   await connection()
+  const enDeveloppement = process.env.NODE_ENV === "development"
+  const parametres = (await searchParams) ?? {}
+  const cle = cleVarianteDepuis(parametres.variant)
+  const etat = etatDepuis(parametres.etat)
+
+  // PROTOTYPE (#963) — `?etat=vide` rend la première page (le défaut en
+  // développement) ; `?etat=reel` rend le Tableau de bord d'aujourd'hui.
+  if (enDeveloppement && etat === "vide") {
+    return (
+      <>
+        <PremierePage cle={cle} periode={parametres.periode} />
+        <SelecteurDePrototype courante={cle} etat={etat} />
+      </>
+    )
+  }
+
   const [stats, imagesSansAlt, executionsEnEchec] = await Promise.all([
     getDashboardStats(),
     listerImagesProduit({ sansAlt: true }),
@@ -199,7 +227,7 @@ export default async function AdminDashboardPage() {
   const deltaNul = stats.caDelta === 0
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={cn("flex flex-col gap-6", enDeveloppement && "pb-20")}>
       <PageHeader
         title="Tableau de bord"
         description="Les chiffres de la boutique, les commandes à traiter et les points de vigilance."
@@ -457,6 +485,9 @@ export default async function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+      {enDeveloppement ? (
+        <SelecteurDePrototype courante={cle} etat={etat} />
+      ) : null}
     </div>
   )
 }
