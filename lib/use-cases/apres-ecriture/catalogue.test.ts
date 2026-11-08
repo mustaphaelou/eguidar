@@ -557,3 +557,133 @@ describe("l'adaptateur Catalogue unitaire", () => {
     expect([total, incomplet, superflu, lectures]).toHaveLength(4)
   })
 })
+
+describe("le Texte alternatif par l'adaptateur Catalogue", () => {
+  it("déclare et exécute une invalidation par Produit qui nomme l'Image", async () => {
+    const { appels, effets } = portsEnregistreurs()
+    const lecture = lecturesEnregistreuses()
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("image.texte-alternatif", {
+      produits: [IDENTITE],
+    })
+
+    expect(plan.faits).toEqual([])
+    expect(evenementsDuPlan(plan)).toEqual(["invalidation-cache"])
+    expect(plan.consequences).toHaveLength(1)
+    expect(plan.consequences[0]).toMatchObject({
+      durable: false,
+      reparation: "TTL",
+      entite: { type: "produit", id: PRODUIT },
+      payload: { produit: IDENTITE },
+    })
+    expect(plan.consequences[0]!.action).toBeUndefined()
+
+    await executer(
+      plan,
+      { revalidateCatalog: effets.revalidateCatalog },
+      lecture.lectures,
+      journal
+    )
+
+    expect(appels).toEqual([
+      { port: "invalidation-cache", arguments: [EVENEMENT] },
+    ])
+    expect(lecture.evenements).toHaveBeenCalledOnce()
+    expect(lecture.documents).not.toHaveBeenCalled()
+    expect(journal.mesures).toHaveLength(1)
+    expect(journal.mesures[0]).toMatchObject({
+      effet: "invalidation-cache",
+      entite: { type: "produit", id: PRODUIT },
+      resultat: "succes",
+    })
+  })
+
+  it("donne une conséquence par Produit, dans l'ordre déclaré, et ne lit qu'une fois", async () => {
+    const second = { id: "produit-953-second", slug: "produit-953-second" }
+    const evenementSecond: CatalogueEventProduct = {
+      id: second.id,
+      slug: second.slug,
+      categoryChain: [],
+    }
+    const evenements = vi.fn(async () => [EVENEMENT, evenementSecond])
+    const { appels, effets } = portsEnregistreurs()
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("image.texte-alternatif", {
+      produits: [IDENTITE, second],
+    })
+
+    expect(
+      plan.consequences.map((consequence) => consequence.entite.id)
+    ).toEqual([PRODUIT, second.id])
+    expect(plan.consequences.map((consequence) => consequence.payload)).toEqual(
+      [{ produit: IDENTITE }, { produit: second }]
+    )
+
+    await executer(
+      plan,
+      { revalidateCatalog: effets.revalidateCatalog },
+      { evenements },
+      journal
+    )
+
+    // Une seule lecture des événements pour les deux invalidations du plan.
+    expect(evenements).toHaveBeenCalledOnce()
+    expect(appels).toEqual([
+      { port: "invalidation-cache", arguments: [EVENEMENT] },
+      { port: "invalidation-cache", arguments: [evenementSecond] },
+    ])
+    expect(journal.mesures.map((mesure) => mesure.entite.id)).toEqual([
+      PRODUIT,
+      second.id,
+    ])
+    expect(
+      journal.mesures.every((mesure) => mesure.resultat === "succes")
+    ).toBe(true)
+  })
+
+  it("ne déclare et n'exécute rien quand aucun Produit ne nomme l'Image", async () => {
+    const { appels, effets } = portsEnregistreurs()
+    const lecture = lecturesEnregistreuses()
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("image.texte-alternatif", {
+      produits: [],
+    })
+
+    expect(plan.faits).toEqual([])
+    expect(plan.consequences).toEqual([])
+
+    await executer(
+      plan,
+      { revalidateCatalog: effets.revalidateCatalog },
+      lecture.lectures,
+      journal
+    )
+
+    expect(appels).toEqual([])
+    expect(lecture.evenements).not.toHaveBeenCalled()
+    expect(journal.mesures).toEqual([])
+  })
+
+  it("journalise l'échec nommé quand la lecture des événements manque", async () => {
+    const { appels, effets } = portsEnregistreurs()
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("image.texte-alternatif", {
+      produits: [IDENTITE],
+    })
+
+    await executer(
+      plan,
+      { revalidateCatalog: effets.revalidateCatalog },
+      {},
+      journal
+    )
+
+    expect(appels).toEqual([])
+    expect(journal.mesures).toHaveLength(1)
+    expect(journal.mesures[0]).toMatchObject({
+      effet: "invalidation-cache",
+      resultat: "echec",
+      erreur: "lecture après-écriture manquante : evenements",
+    })
+  })
+})

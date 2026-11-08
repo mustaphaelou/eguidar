@@ -744,7 +744,7 @@ describe("les écritures de maintenance sans conséquence durable", () => {
     declarerApresEcriture("ville.supprimee", { villeId: "ville-1" }),
     declarerApresEcriture("livraison.reglee", { livraisonId: "default" }),
     declarerApresEcriture("image.texte-alternatif", {
-      produitIds: ["produit-a"],
+      produits: [{ id: "produit-a", slug: "produit-a" }],
     }),
   ]
 
@@ -781,7 +781,10 @@ describe("les écritures de maintenance sans conséquence durable", () => {
 
   it("donne une conséquence par Produit dont le Texte alternatif change", () => {
     const plan = declarerApresEcriture("image.texte-alternatif", {
-      produitIds: ["produit-a", "produit-b"],
+      produits: [
+        { id: "produit-a", slug: "produit-a" },
+        { id: "produit-b", slug: "produit-b" },
+      ],
     })
 
     expect(plan.faits).toEqual([])
