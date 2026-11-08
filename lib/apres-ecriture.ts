@@ -104,6 +104,29 @@ export type ConsequenceCommandePurge = Extract<
 
 export type PlanCommande = PlanApresEcriture<ConsequenceCommande>
 
+/**
+ * La seule conséquence de Livraison : invalider le cache. Elle est non durable,
+ * réparée par le TTL, et ne porte aucun fait — donc aucun Événement et aucune
+ * Exécution d'automatisation.
+ */
+export type EffetLivraison = "invalidation-cache"
+
+/**
+ * La charge utile d'une invalidation de Livraison : l'identifiant de l'objet
+ * touché suffit, puisque le port n'a qu'un cache à invalider.
+ */
+export interface ChargesLivraison {
+  "invalidation-cache": { id: string }
+}
+
+export type ConsequenceLivraison = {
+  [E in EffetLivraison]: ConsequenceApresEcriture<E, ChargesLivraison[E]> & {
+    payload: ChargesLivraison[E]
+  }
+}[EffetLivraison]
+
+export type PlanLivraison = PlanApresEcriture<ConsequenceLivraison>
+
 export type FaitsApresEcriture = Record<string, unknown>
 
 type OptionsConsequence<P> = {
@@ -636,10 +659,9 @@ const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
 }
 
 /**
- * Les écritures de maintenance n'ont aucune conséquence durable : leur plan ne
- * porte aucun fait, donc aucun Événement, et sa seule conséquence est la
- * tentative immédiate d'invalidation du cache. Un échec est journalisé et le
- * TTL du cache le répare.
+ * Une conséquence de maintenance : aucune conséquence durable, donc aucun
+ * Événement, et sa seule conséquence est la tentative immédiate d'invalidation
+ * du cache. Un échec est journalisé et le TTL du cache le répare.
  */
 function consequenceDeMaintenance(
   entite: EntiteEffetPostCommit,
@@ -651,45 +673,68 @@ function consequenceDeMaintenance(
   })
 }
 
-function planDeMaintenance(
+/**
+ * L'unique conséquence des écritures de Livraison : l'invalidation du cache,
+ * non durable et réparée par le TTL, sans fait ni Événement. La charge utile
+ * typée ne porte que l'identifiant de l'objet touché — le port n'a qu'un cache
+ * à invalider.
+ */
+function consequenceDeLivraison(
   entite: EntiteEffetPostCommit,
-  message: string
-): PlanApresEcriture {
+  message: string,
+  id: string
+): ConsequenceLivraison {
+  return consequence("invalidation-cache", entite, message, {
+    durable: false,
+    reparation: "TTL",
+    payload: { id },
+  })
+}
+
+function planDeLivraison(
+  entite: EntiteEffetPostCommit,
+  message: string,
+  id: string
+): PlanLivraison {
   return {
     faits: [],
-    consequences: [consequenceDeMaintenance(entite, message)],
+    consequences: [consequenceDeLivraison(entite, message, id)],
   }
 }
 
 const villeCreee: DeclarationPour<"ville.creee"> = (f) => {
   const villeId = String(f.villeId)
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "ville", id: villeId },
-    `invalidation du cache livraison pour la création de la ville ${villeId}`
+    `invalidation du cache livraison pour la création de la ville ${villeId}`,
+    villeId
   )
 }
 
 const villeModifiee: DeclarationPour<"ville.modifiee"> = (f) => {
   const villeId = String(f.villeId)
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "ville", id: villeId },
-    `invalidation du cache livraison pour la ville ${villeId}`
+    `invalidation du cache livraison pour la ville ${villeId}`,
+    villeId
   )
 }
 
 const villeSupprimee: DeclarationPour<"ville.supprimee"> = (f) => {
   const villeId = String(f.villeId)
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "ville", id: villeId },
-    `invalidation du cache livraison pour la suppression de la ville ${villeId}`
+    `invalidation du cache livraison pour la suppression de la ville ${villeId}`,
+    villeId
   )
 }
 
 const livraisonReglee: DeclarationPour<"livraison.reglee"> = (f) => {
   const livraisonId = String(f.livraisonId ?? "default")
-  return planDeMaintenance(
+  return planDeLivraison(
     { type: "livraison", id: livraisonId },
-    "invalidation du cache livraison pour le seuil de livraison"
+    "invalidation du cache livraison pour le seuil de livraison",
+    livraisonId
   )
 }
 
@@ -718,6 +763,10 @@ const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (f) => {
 export type PlansTypés = {
   "commande.creee": PlanCommande
   "commande.statut.changee": PlanCommande
+  "ville.creee": PlanLivraison
+  "ville.modifiee": PlanLivraison
+  "ville.supprimee": PlanLivraison
+  "livraison.reglee": PlanLivraison
 }
 
 export type PlanParGenre = {
