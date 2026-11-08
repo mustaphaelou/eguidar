@@ -10,7 +10,6 @@ import { peutTransitionner, réapprovisionne } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { lirePanierClient } from "@/lib/panier"
 import {
-  chaineDeLaStructure,
   invalidateCommande,
   invalidateProduits,
   type CatalogueEventProduct,
@@ -29,9 +28,9 @@ import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   messageDeValidation,
-  runPlanEffects,
 } from "@/lib/use-cases/mutation-squelette"
-import { declarerApresEcriture } from "@/lib/apres-ecriture"
+import { declarerApresEcriture, type ProduitTouche } from "@/lib/apres-ecriture"
+import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = {
@@ -279,12 +278,6 @@ async function restockerArticles(
 }
 
 /** Les faits que la transaction possède d'un Produit touché, sans sa chaîne. */
-interface ProduitTouche {
-  id: string
-  slug: string
-  categoryId: string | null
-}
-
 /**
  * Les Produits dont une Variante vient de bouger, lus dans la transaction de la
  * Commande. La transaction ne capture que ce qu'elle possède — l'identité du
@@ -314,20 +307,9 @@ async function produitsTouches(
 /**
  * Résout la chaîne de Structures des Produits touchés après le commit : une
  * seule Lecture de la Structure pour l'ensemble, pas une recherche par article
- * (#757). Un échec est attrapé par `runPlanEffects` et ne défait donc pas la
- * Commande, comme l'e-mail de confirmation ou la purge.
+ * (#757). L'adaptateur Commande porte cette lecture, et un échec est attrapé
+ * par sa porte best-effort.
  */
-async function produitsDuCatalogue(
-  produits: readonly ProduitTouche[]
-): Promise<CatalogueEventProduct[]> {
-  if (produits.length === 0) return []
-  const lecture = await lireStructure()
-  return produits.map((produit) => ({
-    id: produit.id,
-    slug: produit.slug,
-    categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
-  }))
-}
 
 export async function placeOrder(
   userId: string,
@@ -343,78 +325,68 @@ export async function placeOrder(
   })
   if (!user) throw new UserNotFoundError()
 
-  const { order, produitsDrainés, plan } = await prisma.$transaction(
-    async (tx) => {
-      const cart = await lirePanierClient(userId, tx)
-      if (cart.lines.length === 0) throw new EmptyCartError()
+  const { order, plan } = await prisma.$transaction(async (tx) => {
+    const cart = await lirePanierClient(userId, tx)
+    if (cart.lines.length === 0) throw new EmptyCartError()
 
-      const chargé = await chargerDevis(cart, undefined, tx)
-      const projet = projeterDevis(chargé, data.cityId)
-      const selection = selectionValidee(projet.selection)
-      const city = selection.ville
-      const montants = montantsDeLaCommande(cart.subtotal, selection)
-      // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
-      if (montants.totalPayable !== data.totalAffiche)
-        throw new DevisPériméError()
+    const chargé = await chargerDevis(cart, undefined, tx)
+    const projet = projeterDevis(chargé, data.cityId)
+    const selection = selectionValidee(projet.selection)
+    const city = selection.ville
+    const montants = montantsDeLaCommande(cart.subtotal, selection)
+    // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
+    if (montants.totalPayable !== data.totalAffiche)
+      throw new DevisPériméError()
 
-      const outOfStock = cart.lines
-        .filter((line) => line.quantity > line.stock)
-        .map((line) => ({
-          productName: line.productName,
-          variantName: line.variantName,
-          requested: line.quantity,
-          available: line.stock,
-        }))
-      if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
+    const outOfStock = cart.lines
+      .filter((line) => line.quantity > line.stock)
+      .map((line) => ({
+        productName: line.productName,
+        variantName: line.variantName,
+        requested: line.quantity,
+        available: line.stock,
+      }))
+    if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
 
-      await reserverStock(tx, cart.lines)
-      const produitsDrainés = await produitsTouches(tx, cart.lines)
+    await reserverStock(tx, cart.lines)
+    const produitsDrainés = await produitsTouches(tx, cart.lines)
 
-      const created = await tx.order.create({
-        data: {
-          userId,
-          cityName: city.name,
-          address: data.address,
-          phone: data.phone,
-          ...montants,
-          items: {
-            create: cart.lines.map((line) => ({
-              variantId: line.variantId,
-              productName: line.productName,
-              variantName: line.variantName,
-              price: line.unitPrice,
-              quantity: line.quantity,
-            })),
-          },
+    const created = await tx.order.create({
+      data: {
+        userId,
+        cityName: city.name,
+        address: data.address,
+        phone: data.phone,
+        ...montants,
+        items: {
+          create: cart.lines.map((line) => ({
+            variantId: line.variantId,
+            productName: line.productName,
+            variantName: line.variantName,
+            price: line.unitPrice,
+            quantity: line.quantity,
+          })),
         },
-        include: { items: true },
-      })
+      },
+      include: { items: true },
+    })
 
-      await tx.cartItem.deleteMany({
-        where: {
-          userId,
-          variantId: { in: cart.lines.map((line) => line.variantId) },
-        },
-      })
-      const plan = declarerApresEcriture("commande.creee", {
-        commandeId: created.id,
-        snapshot: toOrderEmailSnapshot(created, user.email),
-      })
-      await enregistrerFaits(tx, plan.faits)
-      return { order: created, produitsDrainés, plan }
-    }
-  )
-
-  await runPlanEffects(plan, {
-    email: () =>
-      effects.sendOrderPlacedEmail(toOrderEmailSnapshot(order, user.email)),
-    "invalidation-cache": () => effects.invalidateCommande(order.id),
-    "purge-catalogue": async () => {
-      await effects.invalidateProduits(
-        await produitsDuCatalogue(produitsDrainés)
-      )
-    },
+    await tx.cartItem.deleteMany({
+      where: {
+        userId,
+        variantId: { in: cart.lines.map((line) => line.variantId) },
+      },
+    })
+    const plan = declarerApresEcriture("commande.creee", {
+      commandeId: created.id,
+      snapshot: toOrderEmailSnapshot(created, user.email),
+      produitsDrainés,
+    })
+    await enregistrerFaits(tx, plan.faits)
+    return { order: created, plan }
   })
+
+  await executerCommande(plan, effects, { structure: lireStructure })
   return order
 }
 
@@ -481,57 +453,45 @@ export async function updateOrderStatus(
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
-  const { updated, produitsRestockés, plan } = await prisma.$transaction(
-    async (tx) => {
-      const fresh = await tx.order.findUnique({
-        where: { id: orderId },
-        include: { items: true },
-      })
-      if (!fresh) throw new OrderNotFoundError()
-      if (!peutTransitionner(fresh.status, nextStatus)) {
-        throw new InvalidOrderTransitionError(fresh.status, nextStatus)
-      }
-
-      const claimed = await tx.order.updateMany({
-        where: { id: orderId, status: fresh.status },
-        data: { status: nextStatus },
-      })
-      if (claimed.count === 0) {
-        throw new InvalidOrderTransitionError(fresh.status, nextStatus)
-      }
-
-      let produitsRestockés: ProduitTouche[] | null = null
-      if (réapprovisionne(nextStatus)) {
-        await restockerArticles(tx, fresh.items)
-        produitsRestockés = await produitsTouches(tx, fresh.items)
-      }
-
-      const updated = await tx.order.findUniqueOrThrow({
-        where: { id: orderId },
-        include: { items: true },
-      })
-      const plan = declarerApresEcriture("commande.statut.changee", {
-        commandeId: orderId,
-        snapshot: toOrderEmailSnapshot(updated, existing.user.email),
-        statut: nextStatus,
-      })
-      await enregistrerFaits(tx, plan.faits)
-      return { updated, produitsRestockés, plan }
+  const { updated, plan } = await prisma.$transaction(async (tx) => {
+    const fresh = await tx.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    })
+    if (!fresh) throw new OrderNotFoundError()
+    if (!peutTransitionner(fresh.status, nextStatus)) {
+      throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
-  )
 
-  await runPlanEffects(plan, {
-    email: () =>
-      effects.sendOrderStatusEmail(
-        toOrderEmailSnapshot(updated, existing.user.email),
-        updated.status
-      ),
-    "invalidation-cache": () => effects.invalidateCommande(orderId),
-    "purge-catalogue": async () => {
-      const produits = produitsRestockés ?? []
-      await effects.invalidateProduits(await produitsDuCatalogue(produits))
-    },
+    const claimed = await tx.order.updateMany({
+      where: { id: orderId, status: fresh.status },
+      data: { status: nextStatus },
+    })
+    if (claimed.count === 0) {
+      throw new InvalidOrderTransitionError(fresh.status, nextStatus)
+    }
+
+    let produitsRestockés: ProduitTouche[] | null = null
+    if (réapprovisionne(nextStatus)) {
+      await restockerArticles(tx, fresh.items)
+      produitsRestockés = await produitsTouches(tx, fresh.items)
+    }
+
+    const updated = await tx.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: { items: true },
+    })
+    const plan = declarerApresEcriture("commande.statut.changee", {
+      commandeId: orderId,
+      snapshot: toOrderEmailSnapshot(updated, existing.user.email),
+      statut: nextStatus,
+      produitsRestockés: produitsRestockés ?? [],
+    })
+    await enregistrerFaits(tx, plan.faits)
+    return { updated, plan }
   })
+
+  await executerCommande(plan, effects, { structure: lireStructure })
   return updated
 }
 

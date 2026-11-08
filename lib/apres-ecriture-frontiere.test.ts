@@ -78,9 +78,7 @@ function genresDeclares(source: string): string[] {
 }
 
 function genresDuRegistre(source: string): string[] {
-  const bloc = source.match(
-    /const REGISTRE: Record<GenreEcriture, Declaration> = \{([\s\S]*?)\n\}/
-  )
+  const bloc = source.match(/const REGISTRE(?::[^=\n]+)? = \{([\s\S]*?)\n\}/)
   if (!bloc) throw new Error("Le registre Après-écriture est introuvable")
   return [...bloc[1]!.matchAll(/^\s*"([a-z][a-z.-]*)":/gm)].map(
     ([, genre]) => genre!
