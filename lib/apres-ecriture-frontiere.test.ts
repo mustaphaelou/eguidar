@@ -78,9 +78,7 @@ function genresDeclares(source: string): string[] {
 }
 
 function genresDuRegistre(source: string): string[] {
-  const bloc = source.match(
-    /const REGISTRE: Record<GenreEcriture, Declaration> = \{([\s\S]*?)\n\}/
-  )
+  const bloc = source.match(/const REGISTRE(?::[^=\n]+)? = \{([\s\S]*?)\n\}/)
   if (!bloc) throw new Error("Le registre Après-écriture est introuvable")
   return [...bloc[1]!.matchAll(/^\s*"([a-z][a-z.-]*)":/gm)].map(
     ([, genre]) => genre!
@@ -133,6 +131,15 @@ describe("Après-écriture — garde de pureté", () => {
     expect(declares.length).toBeGreaterThanOrEqual(15)
     expect(new Set(registre).size).toBe(registre.length)
     expect(registre).toEqual(declares)
+  })
+
+  it("fixe l'annotation exhaustive du registre", () => {
+    // L'annotation est le contrat : un genre ajouté sans déclaration ne
+    // compile pas. La retirer rendrait le registre partiel sans rien casser
+    // ici, d'où cette garde sur le texte exact.
+    expect(SOURCE).toContain(
+      "const REGISTRE: { [G in GenreEcriture]: DeclarationPour<G> } = {"
+    )
   })
 
   it("les genres dérivés sont unitaires : aucun genre groupé n'y entre", async () => {

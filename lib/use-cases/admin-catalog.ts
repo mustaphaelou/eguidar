@@ -67,9 +67,12 @@ import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
-  runPlanEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { declarerApresEcriture } from "@/lib/apres-ecriture"
+import {
+  executer as executerCatalogue,
+  type DocumentCatalogue,
+} from "@/lib/use-cases/apres-ecriture/catalogue"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -726,6 +729,11 @@ async function enregistrerProduit(
   assertTextesAlternatifsDesNouvellesImages(data.images)
 
   const { images, promotions } = await promouvoirBrouillons(data, effects)
+  const entreesRegistre = entreesRegistreImagesProduit(
+    data.images,
+    promotions,
+    images
+  )
 
   const { ecrit: ecriture, plan } = await prisma
     .$transaction(async (tx) => {
@@ -755,6 +763,9 @@ async function enregistrerProduit(
         categoryIdPrecedent:
           contexte.kind === "miseAJour" ? contexte.existant.categoryId : null,
         imagesRetirees: ecrit.imagesRetirees,
+        entreesRegistre,
+        promotions,
+        ownerId: data.ownerId ?? null,
       })
       await enregistrerFaits(tx, plan.faits)
       return { ecrit, plan }
@@ -764,11 +775,6 @@ async function enregistrerProduit(
       mapUniqueViolation(error)
     })
 
-  const entreesRegistre = entreesRegistreImagesProduit(
-    data.images,
-    promotions,
-    images
-  )
   const evenementCatalogue =
     ecriture.slugPrecedent === undefined
       ? { id: ecriture.produit.id, slug: ecriture.produit.slug }
@@ -786,28 +792,22 @@ async function enregistrerProduit(
       ecriture.produit.categoryId,
       contexte.kind === "miseAJour" ? contexte.existant.categoryId : null
     ))
-  await runPlanEffects(plan, {
-    "registre-images": async () => {
-      if (entreesRegistre.length > 0)
-        await effects.enregistrerImages(entreesRegistre, data.ownerId ?? null)
-    },
-    "suppression-brouillons": async () => {
-      if (promotions.length > 0)
-        await effects.cycleVie.supprimerSources(promotions)
-    },
-    "suppression-images": () => effects.deleteImages(ecriture.imagesRetirees),
-    reindexation: () =>
-      effects.reindexProducts([toIndexableProduct(ecriture.produit)]),
-    "invalidation-cache": async () =>
-      effects.revalidateCatalog({
-        ...evenementCatalogue,
-        ...(await chaines()),
-      }),
-    "purge-catalogue": async () =>
-      effects.purgeCatalogue({
-        ...evenementCatalogue,
-        ...(await chaines()),
-      }),
+  const evenement = async (): Promise<CatalogueEventProduct> => ({
+    ...evenementCatalogue,
+    ...(await chaines()),
+  })
+  let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
+  const documents = () =>
+    (documentsLus ??= (async () => [
+      {
+        indexable: toIndexableProduct(ecriture.produit),
+        evenement: await evenement(),
+      },
+    ])())
+  await executerCatalogue(plan, effects, {
+    documents,
+    evenements: async () =>
+      (await documents()).map(({ evenement }) => evenement),
   })
   return ecriture.produit
 }
@@ -832,7 +832,7 @@ export async function deleteProduct(
   overrides?: Partial<CatalogEffects>
 ): Promise<void> {
   const effects = avecSurcharges(defaultCatalogEffects(id), overrides)
-  const { produit, images, plan } = await prisma.$transaction(async (tx) => {
+  const { produit, plan } = await prisma.$transaction(async (tx) => {
     const produit = await tx.product.findUnique({ where: { id } })
     if (!produit) throw new ProductNotFoundError()
 
@@ -845,7 +845,7 @@ export async function deleteProduct(
     })
     await tx.product.delete({ where: { id } })
     await enregistrerFaits(tx, plan.faits)
-    return { produit, images, plan }
+    return { produit, plan }
   })
 
   // Une seule lecture de la Structure après le commit pour l'invalidation et
@@ -853,18 +853,13 @@ export async function deleteProduct(
   let chainesLues:
     Promise<Awaited<ReturnType<typeof chainesDuProduit>>> | undefined
   const chaines = () => (chainesLues ??= chainesDuProduit(produit.categoryId))
-  const evenementCatalogue = async () => ({
+  const evenementCatalogue = async (): Promise<CatalogueEventProduct> => ({
     id: produit.id,
     slug: produit.slug,
     ...(await chaines()),
   })
-  await runPlanEffects(plan, {
-    "suppression-images": () => effects.deleteImages(images),
-    desindexation: () => effects.removeProductFromIndex(produit.id),
-    "invalidation-cache": async () =>
-      effects.revalidateCatalog(await evenementCatalogue()),
-    "purge-catalogue": async () =>
-      effects.purgeCatalogue(await evenementCatalogue()),
+  await executerCatalogue(plan, effects, {
+    evenements: async () => [await evenementCatalogue()],
   })
 }
 
@@ -876,14 +871,9 @@ export interface RapportLot {
 const MESSAGE_PRODUIT_INTROUVABLE = "Produit introuvable"
 const MESSAGE_STRUCTURE_INTROUVABLE = "Structure introuvable"
 
-interface DocumentDeLot {
-  indexable: IndexableProduct
-  evenement: CatalogueEventProduct
-}
-
 async function documentsDeLot(
   ids: readonly string[]
-): Promise<DocumentDeLot[]> {
+): Promise<DocumentCatalogue[]> {
   if (ids.length === 0) return []
   const produits = await prisma.product.findMany({
     where: { id: { in: [...ids] } },
@@ -973,16 +963,15 @@ async function mettreAJourLot(
       })
       await enregistrerFaits(tx, planLot.faits)
     })
-    const documents = await documentsDeLot(partage.succes)
-    await runPlanEffects(planLot, {
-      reindexation: () =>
-        effects.reindexProducts(documents.map(({ indexable }) => indexable)),
-      "invalidation-cache": (consequence) => {
-        const doc = documents.find(
-          ({ indexable }) => indexable.id === consequence.entite.id
-        )
-        if (doc) return effects.revalidateCatalog(doc.evenement)
-      },
+    // Les documents et les Événements du lot sont lus une seule fois, à la
+    // première conséquence qui en a besoin, et partagés par la réindexation
+    // groupée et les invalidations par Produit.
+    let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
+    const documents = () => (documentsLus ??= documentsDeLot(partage.succes))
+    await executerCatalogue(planLot, effects, {
+      documents,
+      evenements: async () =>
+        (await documents()).map(({ evenement }) => evenement),
     })
   }
   return partage
@@ -1080,31 +1069,19 @@ export async function bulkDelete(
     await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
     await enregistrerFaits(tx, plan.faits)
   })
-  const lecture = await lireStructure()
-  const evenements = produits.map((produit) => ({
-    id: produit.id,
-    slug: produit.slug,
-    categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
-  }))
-  await runPlanEffects(plan, {
-    "suppression-images": () =>
-      effects.deleteImages(produits.flatMap((produit) => produit.images)),
-    desindexation: async () => {
-      for (const produit of produits) {
-        await effects.removeProductFromIndex(produit.id)
-      }
-    },
-    "invalidation-cache": async () => {
-      for (const evenement of evenements) {
-        await effects.revalidateCatalog(evenement)
-      }
-    },
-    "purge-catalogue": async () => {
-      for (const evenement of evenements) {
-        await effects.purgeCatalogue(evenement)
-      }
-    },
-  })
+  // Les Événements du lot sont lus une seule fois, à la première invalidation,
+  // depuis la fiche lue avant la suppression et une seule lecture de Structure.
+  let evenementsLus: Promise<readonly CatalogueEventProduct[]> | undefined
+  const evenements = () =>
+    (evenementsLus ??= (async () => {
+      const lecture = await lireStructure()
+      return produits.map((produit) => ({
+        id: produit.id,
+        slug: produit.slug,
+        categoryChain: chaineDeLaStructure(lecture, produit.categoryId),
+      }))
+    })())
+  await executerCatalogue(plan, effects, { evenements })
   return partage
 }
 
@@ -1185,26 +1162,12 @@ export async function duplicateProduct(
     }
   )
 
-  const documentsDuplication = await documentsDeLot([copie.id])
-  await runPlanEffects(planDuplication, {
-    // Une copie naît sans image ni promotion : les deux conséquences non
-    // durables du plan n'ont rien à faire, mais elles sont adaptées.
-    "registre-images": () => undefined,
-    "suppression-brouillons": () => undefined,
-    reindexation: () =>
-      effects.reindexProducts(
-        documentsDuplication.map(({ indexable }) => indexable)
-      ),
-    "invalidation-cache": async () => {
-      for (const { evenement } of documentsDuplication) {
-        await effects.revalidateCatalog(evenement)
-      }
-    },
-    "purge-catalogue": async () => {
-      for (const { evenement } of documentsDuplication) {
-        await effects.purgeCatalogue(evenement)
-      }
-    },
+  let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
+  const documents = () => (documentsLus ??= documentsDeLot([copie.id]))
+  await executerCatalogue(planDuplication, effects, {
+    documents,
+    evenements: async () =>
+      (await documents()).map(({ evenement }) => evenement),
   })
   return copie
 }
@@ -1241,20 +1204,28 @@ export async function updateVariantStock(
     })
     const plan = declarerApresEcriture("variante.stock.changee", {
       produitId: variant.product.id,
+      slug: variant.product.slug,
+      categoryId: variant.product.categoryId,
     })
     await enregistrerFaits(tx, plan.faits)
     return plan
   })
-  await runPlanEffects(plan, {
-    reindexation: () => effects.reindexProducts([toIndexableProduct(product)]),
-    "invalidation-cache": async () => {
-      const chaines = await chainesDuProduit(product.categoryId)
-      await effects.revalidateCatalog({
-        id: product.id,
-        slug: product.slug,
-        ...chaines,
-      })
-    },
+  let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
+  const documents = () =>
+    (documentsLus ??= (async () => [
+      {
+        indexable: toIndexableProduct(product),
+        evenement: {
+          id: product.id,
+          slug: product.slug,
+          ...(await chainesDuProduit(product.categoryId)),
+        },
+      },
+    ])())
+  await executerCatalogue(plan, effects, {
+    documents,
+    evenements: async () =>
+      (await documents()).map(({ evenement }) => evenement),
   })
   return product
 }

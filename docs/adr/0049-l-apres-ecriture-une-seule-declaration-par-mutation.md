@@ -127,8 +127,10 @@ tiennent ; aucune décision concurrente n'est ouverte.
   les types dérivés.
 - **Porte d'écriture.** `enregistrerEvenement` valide la charge et le type d'entité dans
   la transaction ; une violation lève `ContratChargeError`, un erreur de programmeur nommée.
-- **Analyse unique.** Le travailleur analyse la charge une fois par chemin d'exécution et
-  la transmet à l'action déjà typée.
+- **Analyse unique.** `executerActionOuRedeclaration` analyse la charge une fois, quand une
+  Règle s'exécute — jamais pour un événement expiré, ignoré ou sans Règle. Elle transmet la
+  charge analysée à l'action planifiée ; la redéclaration la reçoit déjà validée par
+  `declarerDepuisLaChargeValidee`. Une Charge invalide lève `ContratChargeError`.
 - **Noms canoniques.** `produitId`, `slug`, `slugPrecedent`, `categoryId`,
   `categoryIdPrecedent`, `imagesRetirees`, `categorieId`, `destinations`, `snapshot`,
   `statut`, `jour`.
@@ -154,3 +156,78 @@ Le registre reste exhaustif par le type (`Record<GenreEcriture, Declaration>`) :
 sans déclaration ne compile pas. Depuis #916, une garde l'épingle aussi à l'exécution —
 `lib/apres-ecriture-frontiere.test.ts` compare les genres déclarés aux clés du registre, et vérifie
 que le module n'importe que des types.
+
+## Addendum — la couture d'exécution réalisée
+
+L'ADR décrivait l'adaptateur immédiat et le travailleur ; #952–#958 ont réalisé la couture. Ce qui
+suit enregistre sa forme atteinte ; le corps et les addenda précédents restent la décision telle
+qu'elle fut écrite.
+
+- **Charge utile typée.** Une conséquence porte `payload`, dérivé des faits typés du genre
+  (`FaitsParGenre`). `PlansTypés` et `PlanParGenre` font rendre à `declarerApresEcriture` le plan
+  typé du genre ; les conséquences d'une entité sont discriminées par leur effet
+  (`ConsequenceCommande`, `ConsequenceCatalogue`, `ConsequenceStructure`, `ConsequenceLivraison`).
+  La Charge du Fait garde son schéma : la déclaration n'y copie que les champs durables ; les faits
+  d'immédiat restent hors de la Charge et voyagent dans la charge utile de la conséquence.
+
+- **`lectures`, une entrée nommée par plan.** Les lectures après commit passent par une seule entrée
+  `lectures` par plan, paresseuse et mémoïsée : aucune lecture n'est faite avant qu'une conséquence
+  l'exige, et une même lecture n'est faite qu'une fois par plan. Une lecture absente échoue par son
+  nom — `LectureManquanteError("structure")` ; la tentative immédiate la journalise en conséquence
+  échouée sans interrompre les suivantes, `executerUne` la laisse remonter pour que l'Exécution
+  échoue.
+
+- **Un exécuteur partagé, un adaptateur par entité.** `lib/use-cases/apres-ecriture/executeur.ts`
+  porte `executerPlan`, `executerUne`, `GestionnairesPour` et `LectureManquanteError`.
+  `commande.ts`, `catalogue.ts`, `structure.ts` et `livraison.ts` projettent les ports de leur
+  entité ; tous exposent `executer` pour la tentative immédiate et `executerUne` pour le
+  travailleur. La carte des gestionnaires est **totale** sur les effets de l'entité : un effet
+  déclaré sans gestionnaire ne compile pas, un gestionnaire en trop non plus ; un port facultatif
+  absent échoue par son nom (`PortCatalogueManquantError`), jamais en silence.
+
+- **Le travailleur redéclare le plan unitaire.** `lib/apres-ecriture-redeclaration.ts` valide la
+  Charge et la rejoue dans la déclaration du genre (`GENRE_PAR_DECLENCHEUR`,
+  `declarerDepuisLaCharge`, qui délègue à `declarerDepuisLaChargeValidee` sur une Charge déjà
+  analysée) ; les genres groupés n'y entrent pas, leurs Événements étant unitaires, et un
+  déclencheur planifié rend `null` parce qu'il n'a pas de genre.
+  `lib/automations/execution-durable.ts` tient la porte unique, `executerActionOuRedeclaration` :
+  elle filtre les conséquences du plan redéclaré sur l'action de la Règle et les exécute dans
+  l'ordre du plan, par le pont de l'entité (`lib/automations/ponts.ts`). Le réessai manuel
+  (`lib/use-cases/automatisations.ts`) partage cette porte ; un échec de conséquence fait échouer
+  l'Exécution et déclenche sa reprise.
+
+- **Une lecture fournie qui omet un Produit échoue par son nom.** Quand le pont fournit la
+  lecture `evenements`, un Événement Catalogue requis absent lève
+  `EvenementCatalogueIntrouvableError(produitId)` — jamais un événement fabriqué. Le changement
+  de stock, qui n'a pas d'Événement Catalogue durable, lève
+  `EvenementCatalogueNonDurableError` si on le lui demande ; il ne réindexe qu'un document.
+
+- **Les lectures du pont sont mémoïsées par plan.** `pontStructure` partage une seule lecture de
+  l'arbre et une lecture de documents par branche résolue, même quand `executerUne` reconstruit
+  sa carte de gestionnaires à chaque conséquence : une Structure supprimée à N destinations ne
+  lit pas l'arbre N fois. Le pont Catalogue mémoïse de même `documents` et `evenements`.
+
+- **Une Règle dont l'action n'est pas déclarée n'exécute rien.** La conséquence n'existe pas dans le
+  plan redéclaré : le filtre la laisse hors du plan, l'Exécution réussit sans effet. La déclaration
+  reste la seule source de vérité ; une action retirée d'un genre n'est pas une erreur du
+  travailleur.
+
+- **`ACTIONS` se réduit aux déclencheurs planifiés.** `lib/automations/actions.ts` ne garde que
+  `digest.stock-bas`, `digest.proprietaire` et `reconciliation.recherche`, qui n'ont pas de genre.
+  Les actions durables n'ont plus de corps dans `ACTIONS` : leur comportement est le plan déclaré,
+  exécuté par l'adaptateur de l'entité.
+
+- **La scission d'ADR-0044 tient.** La bascule ne gouverne que la reprise, l'historique et le
+  réessai manuel ; la tentative immédiate exécute le plan quel que soit `enabled`.
+
+- **Le registre reste exhaustif par le type.** `REGISTRE` est
+  `{ [G in GenreEcriture]: DeclarationPour<G> }` : ajouter un genre sans déclaration ne compile
+  pas ; `lib/apres-ecriture-frontiere.test.ts` continue d'épingler la couverture exacte à
+  l'exécution.
+
+- **Les genres de maintenance sont typés et exécutés par leur entité.** L'amendement « les écritures
+  de maintenance sont un second genre » garde son diagnostic — aucun fait, aucune conséquence
+  durable, aucune Règle. Ce qui a changé depuis : les cinq genres `ville.creee`, `ville.modifiee`,
+  `ville.supprimee`, `livraison.reglee` et `image.texte-alternatif` rendent un plan typé (`PlanLivraison`, `PlanCatalogue`) exécuté par
+  l'adaptateur de leur entité (`livraison.ts`, `catalogue.ts`), et non plus par un
+  `planDeMaintenance` partagé. L'ancien texte n'est pas réécrit : il reste l'état de #874.

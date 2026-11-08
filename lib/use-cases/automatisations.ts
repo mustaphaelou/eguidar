@@ -12,10 +12,8 @@ import {
   type DecisionAutomation,
   type RaisonIgnoree,
 } from "@/lib/automations/decision"
-import {
-  executerLAction,
-  type DependancesAutomations,
-} from "@/lib/automations/actions"
+import { type DependancesAutomations } from "@/lib/automations/actions"
+import { executerActionOuRedeclaration } from "@/lib/automations/execution-durable"
 import {
   ecrireRevisionRegle,
   verifierRegle,
@@ -572,7 +570,7 @@ export async function reessayerExecution(
   const evenementOuvert = ouverture.evenement
 
   try {
-    await executerLAction({
+    await executerActionOuRedeclaration({
       evenement: {
         type: typeEvenementAutomationSchema.parse(evenementOuvert.type),
         entityType: typeEntiteAutomationSchema.parse(

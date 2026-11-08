@@ -1,12 +1,13 @@
 import { z } from "zod"
 
-import {
-  declarerApresEcriture,
-  type PlanApresEcriture,
-} from "@/lib/apres-ecriture"
+import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { slugify } from "@/lib/slug"
+import {
+  executer as executerLivraison,
+  type EffetsLivraison,
+} from "@/lib/use-cases/apres-ecriture/livraison"
 import { invalidateLivraison } from "@/lib/use-cases/cache-invalidation"
 import {
   DEFAULT_FREE_SHIPPING_THRESHOLD,
@@ -16,7 +17,6 @@ import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
-  runOrderedEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -26,42 +26,16 @@ export interface CityInput {
   fee: number
 }
 
-export interface LivraisonEffects {
-  revalidateShipping(): void
-}
+/**
+ * Les ports de la Livraison sont ceux que l'adaptateur projette ; le type vit
+ * dans l'adaptateur pour que le site d'appel n'en redéclare pas une copie.
+ */
+export type LivraisonEffects = EffetsLivraison
 
 const defaultLivraisonEffects: LivraisonEffects = {
   revalidateShipping() {
     invalidateLivraison()
   },
-}
-
-/**
- * L'adaptateur immédiat de la Livraison : une projection mince du nom d'effet
- * vers le port existant, exécutée dans l'ordre du plan. Ces écritures ne
- * déclarent aucun fait, donc aucun Événement n'est écrit et un échec n'est pas
- * rejoué : le TTL du cache le répare.
- */
-async function executerPlanDeLivraison(
-  plan: PlanApresEcriture,
-  effects: LivraisonEffects
-): Promise<void> {
-  await runOrderedEffects(
-    plan.consequences.map((consequence) => ({
-      effet: consequence.effet,
-      entite: consequence.entite,
-      message: consequence.message,
-      portee: consequence.portee,
-      fn: () => {
-        if (consequence.effet !== "invalidation-cache") {
-          throw new Error(
-            `effet de Livraison non pris en charge : ${consequence.effet}`
-          )
-        }
-        return effects.revalidateShipping()
-      },
-    }))
-  )
 }
 
 export class CityValidationError extends UserFacingError {
@@ -184,7 +158,7 @@ export async function createCity(
     mapCityUniqueViolation(error)
   }
 
-  await executerPlanDeLivraison(
+  await executerLivraison(
     declarerApresEcriture("ville.creee", { villeId: city.id }),
     effects
   )
@@ -210,7 +184,7 @@ export async function updateCity(
     mapCityUniqueViolation(error)
   }
 
-  await executerPlanDeLivraison(
+  await executerLivraison(
     declarerApresEcriture("ville.modifiee", { villeId: id }),
     effects
   )
@@ -226,7 +200,7 @@ export async function deleteCity(
   if (!existing) throw new CityNotFoundError()
 
   await prisma.deliveryCity.delete({ where: { id } })
-  await executerPlanDeLivraison(
+  await executerLivraison(
     declarerApresEcriture("ville.supprimee", { villeId: id }),
     effects
   )
@@ -261,7 +235,7 @@ export async function updateShippingSettings(
     },
   })
 
-  await executerPlanDeLivraison(
+  await executerLivraison(
     declarerApresEcriture("livraison.reglee", { livraisonId: "default" }),
     effects
   )
