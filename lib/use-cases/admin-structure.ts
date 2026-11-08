@@ -3,7 +3,6 @@ import { z } from "zod"
 import {
   BRANCHE_SANS_STRUCTURE,
   declarerApresEcriture,
-  type PlanApresEcriture,
 } from "@/lib/apres-ecriture"
 import { enregistrerFaits } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
@@ -13,13 +12,16 @@ import { comparerStructures } from "@/lib/marche-structure"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
 import { stockageImageProduitR2 } from "@/lib/r2"
+import {
+  executer as executerPlanDeStructure,
+  type LecturesStructure,
+} from "@/lib/use-cases/apres-ecriture/structure"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   leverConflitUnique,
   messageDeValidation,
-  runPlanEffects,
 } from "@/lib/use-cases/mutation-squelette"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
@@ -312,20 +314,18 @@ async function assertAcyclicCategoryTree(
 }
 
 /**
- * Résout une branche après le commit, par son identifiant seulement : la
- * Structure supprimée n'est jamais relue, et une destination inconnue ne rend
- * aucun Produit plutôt que d'échouer. La branche orpheline est le
- * pseudo-identifiant de journal que la déclaration emploie pour les Produits
- * restés sans destination.
+ * Résout les documents indexables d'une branche après le commit, à partir des
+ * identifiants que l'adaptateur a déjà résolus dans l'arbre : la Structure
+ * supprimée n'est jamais relue, et une destination inconnue ne rend aucun
+ * Produit plutôt que d'échouer. `null` désigne la branche Sans Structure.
  */
 async function readIndexableProductsOfBranch(
-  branche: string,
-  lectureStructure: () => Promise<Awaited<ReturnType<typeof lireStructure>>>
+  categorieIds: readonly string[] | null
 ): Promise<IndexableProduct[]> {
   const where =
-    branche === BRANCHE_SANS_STRUCTURE
+    categorieIds === null
       ? { categoryId: null }
-      : { categoryId: { in: (await lectureStructure()).branche(branche) } }
+      : { categoryId: { in: [...categorieIds] } }
   const products = await prisma.product.findMany({
     where,
     include: { variants: true, category: true },
@@ -334,44 +334,13 @@ async function readIndexableProductsOfBranch(
 }
 
 /**
- * L'adaptateur immédiat de la Structure : une projection mince du nom d'effet
- * vers les ports existants, exécutée dans l'ordre du plan. Les branches sont
- * résolues après le commit, comme le fait l'action durable, et une lecture les
- * partage.
+ * Les lectures après commit de la Structure. L'adaptateur lit l'arbre au plus
+ * une fois par plan et ne résout chaque branche qu'une fois ; ces fonctions
+ * restent paresseuses.
  */
-async function executerPlanDeStructure(
-  plan: PlanApresEcriture,
-  effects: StructureEffects
-): Promise<void> {
-  const charge = (plan.faits[0]?.charge ?? {}) as {
-    imagesRetirees?: unknown
-  }
-  let lectureStructure:
-    Promise<Awaited<ReturnType<typeof lireStructure>>> | undefined
-  const lecture = () => (lectureStructure ??= lireStructure())
-
-  await runPlanEffects(plan, {
-    "suppression-images": async () => {
-      const images = Array.isArray(charge.imagesRetirees)
-        ? charge.imagesRetirees.filter(
-            (u): u is string => typeof u === "string"
-          )
-        : []
-      const image = images[0]
-      if (typeof image !== "string") {
-        throw new Error("image absente du fait de Structure")
-      }
-      await effects.deleteImage(image)
-    },
-    reindexation: async (consequence) => {
-      const produits = await readIndexableProductsOfBranch(
-        consequence.entite.id,
-        lecture
-      )
-      if (produits.length > 0) await effects.reindexProducts(produits)
-    },
-    "invalidation-cache": () => effects.revalidateCategories(),
-  })
+const lecturesDeStructure: LecturesStructure = {
+  structure: () => lireStructure(),
+  documents: (categorieIds) => readIndexableProductsOfBranch(categorieIds),
 }
 
 export async function createCategory(
@@ -431,15 +400,17 @@ export async function updateCategory(
     const nextImage = data.image ?? null
     const plan = declarerApresEcriture("structure.modifiee", {
       categorieId: id,
-      imageRetiree:
-        existing.image && existing.image !== nextImage ? existing.image : null,
-      destination: data.parentId ?? null,
+      // Les faits singuliers restent la façon dont l'écriture construit les
+      // tableaux que la Charge porte ; la déclaration n'en décide plus.
+      imagesRetirees:
+        existing.image && existing.image !== nextImage ? [existing.image] : [],
+      destinations: data.parentId ? [data.parentId] : [],
     })
     await enregistrerFaits(tx, plan.faits)
     return { category, plan }
   })
 
-  await executerPlanDeStructure(plan, effects)
+  await executerPlanDeStructure(plan, effects, lecturesDeStructure)
   return category
 }
 
@@ -568,8 +539,8 @@ export async function deplacerStructure(
 
     const plan = declarerApresEcriture("structure.modifiee", {
       categorieId: id,
-      imageRetiree: null,
-      destination: nouvelleParenteId,
+      imagesRetirees: [],
+      destinations: nouvelleParenteId ? [nouvelleParenteId] : [],
     })
     await enregistrerFaits(tx, plan.faits)
 
@@ -583,7 +554,7 @@ export async function deplacerStructure(
     }
   })
 
-  await executerPlanDeStructure(plan, effects)
+  await executerPlanDeStructure(plan, effects, lecturesDeStructure)
   return deplacement
 }
 
@@ -649,23 +620,31 @@ export async function deleteCategory(
 
     await tx.category.delete({ where: { id } })
 
+    // L'écriture construit les tableaux que la Charge porte à partir des
+    // faits singuliers ; la déclaration, elle, n'en lit que les tableaux.
+    const destinations = [
+      ...new Set(
+        [
+          reassignToCategoryId && category.products.length > 0
+            ? reassignToCategoryId
+            : null,
+          reparentChildrenToCategoryId && category.children.length > 0
+            ? reparentChildrenToCategoryId
+            : null,
+        ].filter((destination): destination is string => destination !== null)
+      ),
+    ]
+    if (laisseSansStructure && category.products.length > 0) {
+      destinations.push(BRANCHE_SANS_STRUCTURE)
+    }
     const plan = declarerApresEcriture("structure.supprimee", {
       categorieId: id,
-      image: category.image,
-      produitsCible:
-        reassignToCategoryId && category.products.length > 0
-          ? reassignToCategoryId
-          : null,
-      enfantsCible:
-        reparentChildrenToCategoryId && category.children.length > 0
-          ? reparentChildrenToCategoryId
-          : null,
-      produitsSansStructure:
-        laisseSansStructure && category.products.length > 0,
+      imagesRetirees: category.image ? [category.image] : [],
+      destinations,
     })
     await enregistrerFaits(tx, plan.faits)
     return plan
   })
 
-  await executerPlanDeStructure(plan, effects)
+  await executerPlanDeStructure(plan, effects, lecturesDeStructure)
 }
