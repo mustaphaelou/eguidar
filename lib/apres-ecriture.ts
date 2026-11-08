@@ -104,6 +104,41 @@ export type ConsequenceCommandePurge = Extract<
 
 export type PlanCommande = PlanApresEcriture<ConsequenceCommande>
 
+export type EffetStructure =
+  "suppression-images" | "reindexation" | "invalidation-cache"
+
+export interface ChargesStructure {
+  /** Les URL des images retirées de la Structure. */
+  "suppression-images": { urls: readonly string[] }
+  /**
+   * La branche à réindexer : un identifiant de Structure, ou le
+   * pseudo-identifiant `BRANCHE_SANS_STRUCTURE` pour les Produits orphelins.
+   */
+  reindexation: { branche: string }
+  "invalidation-cache": { categorieId: string }
+}
+
+export type ConsequenceStructure = {
+  [E in EffetStructure]: ConsequenceApresEcriture<E, ChargesStructure[E]> & {
+    payload: ChargesStructure[E]
+  }
+}[EffetStructure]
+
+export type ConsequenceStructureSuppressionImages = Extract<
+  ConsequenceStructure,
+  { effet: "suppression-images" }
+>
+export type ConsequenceStructureReindexation = Extract<
+  ConsequenceStructure,
+  { effet: "reindexation" }
+>
+export type ConsequenceStructureInvalidation = Extract<
+  ConsequenceStructure,
+  { effet: "invalidation-cache" }
+>
+
+export type PlanStructure = PlanApresEcriture<ConsequenceStructure>
+
 export type FaitsApresEcriture = Record<string, unknown>
 
 type OptionsConsequence<P> = {
@@ -480,66 +515,75 @@ const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (
   ],
 })
 
-const structureCreee: DeclarationPour<"structure.creee"> = (f) => ({
-  faits: [
-    fait("structure.creee", "categorie", String(f.categorieId), {
-      categorieId: f.categorieId as never,
-    }),
-  ],
-  consequences: [
-    consequence(
-      "invalidation-cache",
-      { type: "categorie", id: String(f.categorieId) },
-      `invalidation de la structure ${f.categorieId}`,
-      { action: "invalidation.structure", durable: true }
-    ),
-  ],
-})
+const structureCreee: DeclarationPour<"structure.creee"> = (f) => {
+  const categorieId = String(f.categorieId)
+  return {
+    faits: [fait("structure.creee", "categorie", categorieId, { categorieId })],
+    consequences: [
+      consequence(
+        "invalidation-cache",
+        { type: "categorie", id: categorieId },
+        `invalidation de la structure ${categorieId}`,
+        {
+          action: "invalidation.structure",
+          durable: true,
+          payload: { categorieId },
+        }
+      ),
+    ],
+  }
+}
 
 const structureModifiee: DeclarationPour<"structure.modifiee"> = (f) => {
-  const consequences: ConsequenceApresEcriture[] = []
-  if (f.imageRetiree) {
+  const categorieId = String(f.categorieId)
+  // Les conséquences se dérivent des champs que la Charge porte déjà ; les
+  // faits singuliers de l'écriture (`imageRetiree`, `destination`) ne servent
+  // qu'à construire ces tableaux au site d'appel.
+  const imagesRetirees = [...(f.imagesRetirees ?? [])]
+  const destinations = [...new Set(f.destinations ?? [])]
+  const consequences: ConsequenceStructure[] = []
+  if (imagesRetirees.length > 0) {
     consequences.push(
       consequence(
         "suppression-images",
-        { type: "categorie", id: String(f.categorieId) },
-        `suppression de l'image de la structure ${f.categorieId}`,
-        { action: "suppression.images", durable: true }
+        { type: "categorie", id: categorieId },
+        `suppression de l'image de la structure ${categorieId}`,
+        {
+          action: "suppression.images",
+          durable: true,
+          payload: { urls: imagesRetirees },
+        }
       )
     )
   }
   consequences.push(
     consequence(
       "reindexation",
-      { type: "categorie", id: String(f.categorieId) },
-      `réindexation de la structure ${f.categorieId}`,
-      { action: "index.structure", durable: true }
+      { type: "categorie", id: categorieId },
+      `réindexation de la structure ${categorieId}`,
+      {
+        action: "index.structure",
+        durable: true,
+        payload: { branche: categorieId },
+      }
     ),
     consequence(
       "invalidation-cache",
-      { type: "categorie", id: String(f.categorieId) },
-      `invalidation de la structure ${f.categorieId}`,
-      { action: "invalidation.structure", durable: true }
+      { type: "categorie", id: categorieId },
+      `invalidation de la structure ${categorieId}`,
+      {
+        action: "invalidation.structure",
+        durable: true,
+        payload: { categorieId },
+      }
     )
   )
-  const imagesRetireesModifiee = Array.isArray(f.imagesRetirees)
-    ? (f.imagesRetirees as string[])
-    : f.imageRetiree
-      ? [String(f.imageRetiree)]
-      : f.image
-        ? [String(f.image)]
-        : []
-  const destinationsModifiee = Array.isArray(f.destinations)
-    ? (f.destinations as string[])
-    : f.destination
-      ? [String(f.destination)]
-      : []
   return {
     faits: [
-      fait("structure.modifiee", "categorie", String(f.categorieId), {
-        categorieId: f.categorieId as never,
-        imagesRetirees: imagesRetireesModifiee as never,
-        destinations: destinationsModifiee as never,
+      fait("structure.modifiee", "categorie", categorieId, {
+        categorieId,
+        imagesRetirees,
+        destinations,
       }),
     ],
     consequences,
@@ -555,80 +599,63 @@ const structureModifiee: DeclarationPour<"structure.modifiee"> = (f) => {
  */
 export const BRANCHE_SANS_STRUCTURE = "sans-structure"
 
-function destinationsDeSuppression(
-  produitsCible: unknown,
-  enfantsCible: unknown
-): string[] {
-  return [
-    ...new Set(
-      [produitsCible, enfantsCible].filter(
-        (destination): destination is string =>
-          typeof destination === "string" && destination.length > 0
-      )
-    ),
-  ]
-}
-
 const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
-  const image = typeof f.image === "string" && f.image !== "" ? f.image : null
-  const destinations = destinationsDeSuppression(
-    f.produitsCible,
-    f.enfantsCible
-  )
-  const consequences: ConsequenceApresEcriture[] = []
+  const categorieId = String(f.categorieId)
+  // La branche Sans Structure voyage dans `destinations` comme n'importe
+  // quelle destination : la déclaration n'a plus à relire les faits singuliers
+  // pour savoir quoi réindexer.
+  const imagesRetirees = [...(f.imagesRetirees ?? [])]
+  const destinations = [...new Set(f.destinations ?? [])]
+  const consequences: ConsequenceStructure[] = []
   for (const destination of destinations) {
+    const orphelins = destination === BRANCHE_SANS_STRUCTURE
     consequences.push(
       consequence(
         "reindexation",
         { type: "categorie", id: destination },
-        `réindexation de la structure ${destination}`,
-        { action: "index.structure", durable: true }
+        orphelins
+          ? "réindexation des Produits orphelins"
+          : `réindexation de la structure ${destination}`,
+        {
+          action: "index.structure",
+          durable: true,
+          payload: { branche: destination },
+        }
       )
     )
   }
-  if (f.produitsSansStructure === true) {
-    consequences.push(
-      consequence(
-        "reindexation",
-        { type: "categorie", id: BRANCHE_SANS_STRUCTURE },
-        `réindexation des Produits orphelins`,
-        { action: "index.structure", durable: true }
-      )
-    )
-  }
-  if (image) {
+  if (imagesRetirees.length > 0) {
     consequences.push(
       consequence(
         "suppression-images",
-        { type: "categorie", id: String(f.categorieId) },
-        `suppression de l'image de la structure ${f.categorieId}`,
-        { action: "suppression.images", durable: true }
+        { type: "categorie", id: categorieId },
+        `suppression de l'image de la structure ${categorieId}`,
+        {
+          action: "suppression.images",
+          durable: true,
+          payload: { urls: imagesRetirees },
+        }
       )
     )
   }
   consequences.push(
     consequence(
       "invalidation-cache",
-      { type: "categorie", id: String(f.categorieId) },
-      `invalidation de la structure ${f.categorieId}`,
-      { action: "invalidation.structure", durable: true }
+      { type: "categorie", id: categorieId },
+      `invalidation de la structure ${categorieId}`,
+      {
+        action: "invalidation.structure",
+        durable: true,
+        payload: { categorieId },
+      }
     )
   )
-  const imagesRetireesSupprimee = Array.isArray(f.imagesRetirees)
-    ? (f.imagesRetirees as string[])
-    : image
-      ? [image]
-      : []
-  const destinationsSupprimee = [
-    ...destinations,
-    ...(f.produitsSansStructure === true ? ["sans-structure"] : []),
-  ]
   return {
     faits: [
-      fait("structure.supprimee", "categorie", String(f.categorieId), {
-        categorieId: f.categorieId as never,
-        imagesRetirees: imagesRetireesSupprimee as never,
-        destinations: destinationsSupprimee as never,
+      fait("structure.supprimee", "categorie", categorieId, {
+        categorieId,
+        imagesRetirees,
+        destinations,
       }),
     ],
     consequences,
@@ -718,6 +745,9 @@ const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (f) => {
 export type PlansTypés = {
   "commande.creee": PlanCommande
   "commande.statut.changee": PlanCommande
+  "structure.creee": PlanStructure
+  "structure.modifiee": PlanStructure
+  "structure.supprimee": PlanStructure
 }
 
 export type PlanParGenre = {
@@ -805,22 +835,22 @@ export type FaitsStructureCreee = {
 
 export type FaitsStructureModifiee = {
   categorieId: string | number
-  imageRetiree?: unknown
-  image?: unknown
-  imagesRetirees?: unknown
-  destination?: unknown
-  destinations?: unknown
+  /** Les images retirées, telles que la Charge les porte. */
+  imagesRetirees: readonly string[]
+  /** Les branches de destination, telles que la Charge les porte. */
+  destinations: readonly string[]
 }
 
 export type FaitsStructureSupprimee = {
   categorieId: string | number
-  image?: unknown
-  images?: unknown
-  imagesRetirees?: unknown
-  produitsCible?: unknown
-  enfantsCible?: unknown
-  destinations?: unknown
-  produitsSansStructure?: unknown
+  /** Les images retirées, telles que la Charge les porte. */
+  imagesRetirees: readonly string[]
+  /**
+   * Les branches de destination, telles que la Charge les porte. La branche
+   * Sans Structure y figure sous son pseudo-identifiant quand des Produits
+   * sont laissés orphelins.
+   */
+  destinations: readonly string[]
 }
 
 export type FaitsVilleCreee = { villeId: string | number }
@@ -988,12 +1018,13 @@ export const FAITS_POUR_REGLES: Partial<
   },
   "structure.modifiee": {
     categorieId: "categorie-modele",
-    imageRetiree: "https://cdn.example.test/modele.jpg",
+    imagesRetirees: ["https://cdn.example.test/modele.jpg"],
+    destinations: ["categorie-modele-parente"],
   },
   "structure.supprimee": {
     categorieId: "categorie-modele",
-    image: "https://cdn.example.test/modele.jpg",
-    produitsCible: "categorie-modele-cible",
+    imagesRetirees: ["https://cdn.example.test/modele.jpg"],
+    destinations: ["categorie-modele-cible"],
   },
 }
 
