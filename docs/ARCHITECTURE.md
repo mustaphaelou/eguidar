@@ -51,14 +51,16 @@ Eguidar est **une application Next.js unique**, servie par un seul processus Nod
 
 Une **couture** est une frontière que deux côtés doivent traverser pour faire leur travail. Elle a un propriétaire de chaque côté, un ADR qui la nomme, et une **garde** qui échoue quand on la franchit de travers. Ce n'est pas une couche : c'est un contrat.
 
-### 3.1 Écriture — la déclaration et ses deux adaptateurs
+### 3.1 Écriture — la déclaration et ses adaptateurs par entité
 
-- **Côté déclarant** : `lib/apres-ecriture.ts` — un registre pur, indexé par `GenreEcriture`, qui rend un `Plan`.
-- **Côté exécutant** : `lib/use-cases/mutation-squelette.ts` — l'adaptateur immédiat ; `lib/automations/executeur.ts` — le travailleur.
+- **Côté déclarant** : `lib/apres-ecriture.ts` — un registre pur, indexé par `GenreEcriture`, qui rend un `Plan` ; `PlansTypés` et `PlanParGenre` donnent à `declarerApresEcriture` le plan typé du genre.
+- **Côté exécutant** : `lib/use-cases/mutation-squelette.ts` — la porte partagée d'un effet (`runEffect`, `runOrderedEffects`, journal, isolation), sous les adaptateurs ; `lib/use-cases/apres-ecriture/executeur.ts` — l'exécuteur partagé (`executerPlan`, `executerUne`, `GestionnairesPour`) ; `commande.ts`, `catalogue.ts`, `structure.ts` et `livraison.ts` — un adaptateur par entité, chacun exposant `executer` pour la tentative immédiate et `executerUne` pour le travailleur.
+- **Côté lectures** : `lectures` — une seule entrée nommée par plan, paresseuse et mémoïsée, où chaque lecture après commit est faite au plus une fois ; une lecture absente lève `LectureManquanteError`, journalisée en conséquence échouée par la tentative immédiate et laissée remonter par le travailleur.
+- **Côté travailleur** : `lib/automations/executeur.ts` — le balayage ; `lib/apres-ecriture-redeclaration.ts` — redéclare le plan unitaire depuis la Charge de l'Événement ; `lib/automations/execution-durable.ts` — `executerActionOuRedeclaration`, la porte unique qui filtre sur l'action de la Règle et exécute chaque conséquence dans l'ordre du plan ; `lib/automations/ponts.ts` — les ponts d'entité qui portent au travailleur les ports et les lectures.
 - **ADR** : 0049 (la déclaration), 0014 (les effets encapsulés), 0044 (la durabilité).
-- **Garde** : `lib/apres-ecriture-frontiere.test.ts`, `lib/apres-ecriture.test.ts`, `test/mutation-squelette-recette.ts`.
+- **Garde** : `lib/apres-ecriture-frontiere.test.ts`, `lib/apres-ecriture.test.ts`, `lib/use-cases/apres-ecriture/*.test.ts`, `lib/automations/redeclaration.test.ts`, `test/mutation-squelette-recette.ts`.
 
-Une écriture d'Administration déclare son plan **dans sa transaction** ; le commit est autoritatif ; les conséquences durables deviennent des Événements d'automatisation, les autres sont réparées par un moyen borné nommé.
+Une écriture d'Administration déclare son plan **dans sa transaction** ; le commit est autoritatif ; les conséquences durables deviennent des Événements d'automatisation, les autres sont réparées par un moyen borné nommé. Le travailleur ne rejoue pas l'écriture : il redéclare le plan depuis la Charge et n'exécute que la conséquence de l'action de sa Règle.
 
 ### 3.2 Entrée — comment une requête devient un appel autorisé
 
