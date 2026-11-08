@@ -32,7 +32,24 @@ function actions(plan: PlanApresEcriture): string[] {
 }
 
 describe("la déclaration de Commande", () => {
-  const SNAPSHOT = { id: "c1", total: 42 }
+  const SNAPSHOT = {
+    userEmail: "client-869@example.test",
+    orderId: "c1",
+    items: [
+      {
+        productName: "Produit 869",
+        variantName: "Standard",
+        quantity: 1,
+        price: 4200,
+      },
+    ],
+    total: 4200,
+    shippingFee: 0,
+    totalPayable: 4200,
+    cityName: "Casablanca",
+    address: "1 rue du Test",
+    phone: "0600000000",
+  }
   const creation = () =>
     declarerApresEcriture("commande.creee", {
       commandeId: "c1",
@@ -42,7 +59,7 @@ describe("la déclaration de Commande", () => {
     declarerApresEcriture("commande.statut.changee", {
       commandeId: "c1",
       snapshot: SNAPSHOT,
-      statut: "expediee",
+      statut: "shipped",
     })
 
   it("ordonne les trois effets de la création : e-mail, invalidation, purge", () => {
@@ -101,7 +118,7 @@ describe("la déclaration de Commande", () => {
         declencheur: "commande.statut.changee",
         entite: "commande",
         identifiant: "c1",
-        charge: { snapshot: SNAPSHOT, statut: "expediee" },
+        charge: { snapshot: SNAPSHOT, statut: "shipped" },
       },
     ])
   })

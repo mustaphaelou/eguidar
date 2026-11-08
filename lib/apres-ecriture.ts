@@ -12,7 +12,7 @@ import type {
   TypeEntiteAutomation,
   TypeEvenementAutomation,
 } from "@/lib/automations/evenements"
-import type { Charge } from "@/lib/automations/charge"
+import type { Charge, OrderEmailSnapshot } from "@/lib/automations/charge"
 
 export type GenreEcriture =
   | "produit.enregistre"
@@ -40,24 +40,79 @@ export interface FaitApresEcriture<
   charge: Charge<D>
 }
 
-export interface ConsequenceApresEcriture {
-  effet: TypeEffetPostCommit
+export interface ConsequenceApresEcriture<
+  E extends TypeEffetPostCommit = TypeEffetPostCommit,
+  P = unknown,
+> {
+  effet: E
   action?: ActionAutomation
   entite: EntiteEffetPostCommit
   message: string
   portee?: number
   durable: boolean
   reparation?: string
+  /** La charge utile typée que l'adaptateur de l'entité reçoit. */
+  payload?: P
 }
 
-export interface PlanApresEcriture {
+export interface PlanApresEcriture<
+  C extends ConsequenceApresEcriture = ConsequenceApresEcriture,
+> {
   faits: FaitApresEcriture<TypeEvenementAutomation>[]
-  consequences: ConsequenceApresEcriture[]
+  consequences: C[]
 }
+
+/**
+ * Les Produits qu'une écriture de Commande a drainés ou restockés : un fait
+ * d'immédiat que la Charge ne porte pas, et que la purge du Catalogue reçoit
+ * dans la charge utile de sa conséquence.
+ */
+export interface ProduitTouche {
+  id: string
+  slug: string
+  categoryId: string | null
+}
+
+export type StatutCommande = Charge<"commande.statut.changee">["statut"]
+
+export type EffetCommande = "email" | "invalidation-cache" | "purge-catalogue"
+
+export interface ChargesCommande {
+  email: { snapshot: OrderEmailSnapshot; statut?: StatutCommande }
+  "invalidation-cache": { commandeId: string }
+  "purge-catalogue": { produits: readonly ProduitTouche[] }
+}
+
+export type ConsequenceCommande = {
+  [E in EffetCommande]: ConsequenceApresEcriture<E, ChargesCommande[E]> & {
+    payload: ChargesCommande[E]
+  }
+}[EffetCommande]
+
+export type ConsequenceCommandeEmail = Extract<
+  ConsequenceCommande,
+  { effet: "email" }
+>
+export type ConsequenceCommandeInvalidation = Extract<
+  ConsequenceCommande,
+  { effet: "invalidation-cache" }
+>
+export type ConsequenceCommandePurge = Extract<
+  ConsequenceCommande,
+  { effet: "purge-catalogue" }
+>
+
+export type PlanCommande = PlanApresEcriture<ConsequenceCommande>
 
 export type FaitsApresEcriture = Record<string, unknown>
 
-type Declaration = (faits: FaitsApresEcriture) => PlanApresEcriture
+type OptionsConsequence<P> = {
+  action?: ActionAutomation
+  portee?: number
+  durable: boolean
+  reparation?: string
+  payload?: P
+}
 
 function fait<D extends TypeEvenementAutomation>(
   declencheur: D,
@@ -68,16 +123,23 @@ function fait<D extends TypeEvenementAutomation>(
   return { declencheur, entite, identifiant, charge }
 }
 
+function consequence<E extends TypeEffetPostCommit, P>(
+  effet: E,
+  entite: EntiteEffetPostCommit,
+  message: string,
+  options: OptionsConsequence<P> & { payload: P }
+): ConsequenceApresEcriture<E, P> & { payload: P }
+function consequence<E extends TypeEffetPostCommit>(
+  effet: E,
+  entite: EntiteEffetPostCommit,
+  message: string,
+  options: OptionsConsequence<unknown>
+): ConsequenceApresEcriture<E>
 function consequence(
   effet: TypeEffetPostCommit,
   entite: EntiteEffetPostCommit,
   message: string,
-  options: {
-    action?: ActionAutomation
-    portee?: number
-    durable: boolean
-    reparation?: string
-  }
+  options: OptionsConsequence<unknown>
 ): ConsequenceApresEcriture {
   return { effet, entite, message, ...options }
 }
@@ -89,89 +151,103 @@ function consequence(
 export const IDENTIFIANT_LOT = "lot"
 
 // Commande
-const commandeCreee: Declaration = (f) => ({
-  faits: [
-    fait("commande.creee", "commande", String(f.commandeId), {
-      snapshot: f.snapshot as never,
-    }),
-  ],
-  consequences: [
-    consequence(
-      "email",
-      { type: "commande", id: String(f.commandeId) },
-      String(
-        f.messageEmail ??
-          `[order] e-mail de confirmation non envoyé pour ${f.commandeId}`
-      ),
-      {
-        action: "email.commande-creee",
-        durable: true,
-      }
-    ),
-    consequence(
-      "invalidation-cache",
-      { type: "commande", id: String(f.commandeId) },
-      String(
-        f.messageInvalidation ??
-          `[order] invalidation du cache non effectuée pour ${f.commandeId}`
-      ),
-      { durable: false, reparation: "TTL" }
-    ),
-    consequence(
-      "purge-catalogue",
-      { type: "commande", id: String(f.commandeId) },
-      String(
-        f.messagePurge ??
-          `[order] purge des documents du catalogue non effectuée pour ${f.commandeId}`
-      ),
-      { durable: false, reparation: "TTL" }
-    ),
-  ],
-})
-
-const commandeStatutChangee: Declaration = (f) => {
-  const consequences: ConsequenceApresEcriture[] = [
-    consequence(
-      "email",
-      { type: "commande", id: String(f.commandeId) },
-      String(
-        f.messageEmail ??
-          `[order] e-mail de statut non envoyé pour ${f.commandeId}`
-      ),
-      { action: "email.commande-statut", durable: true }
-    ),
-    consequence(
-      "invalidation-cache",
-      { type: "commande", id: String(f.commandeId) },
-      String(
-        f.messageInvalidation ??
-          `[order] invalidation du cache non effectuée pour ${f.commandeId}`
-      ),
-      { durable: false, reparation: "TTL" }
-    ),
-    consequence(
-      "purge-catalogue",
-      { type: "commande", id: String(f.commandeId) },
-      String(
-        f.messagePurge ??
-          `[order] purge des documents du catalogue non effectuée pour ${f.commandeId}`
-      ),
-      { durable: false, reparation: "TTL" }
-    ),
-  ]
+const commandeCreee: DeclarationPour<"commande.creee"> = (f) => {
+  const commandeId = String(f.commandeId)
   return {
     faits: [
-      fait("commande.statut.changee", "commande", String(f.commandeId), {
-        snapshot: f.snapshot as never,
-        statut: f.statut as never,
+      fait("commande.creee", "commande", commandeId, {
+        snapshot: f.snapshot,
       }),
     ],
-    consequences,
+    consequences: [
+      consequence(
+        "email",
+        { type: "commande", id: commandeId },
+        f.messageEmail ??
+          `[order] e-mail de confirmation non envoyé pour ${commandeId}`,
+        {
+          action: "email.commande-creee",
+          durable: true,
+          payload: { snapshot: f.snapshot },
+        }
+      ),
+      consequence(
+        "invalidation-cache",
+        { type: "commande", id: commandeId },
+        f.messageInvalidation ??
+          `[order] invalidation du cache non effectuée pour ${commandeId}`,
+        {
+          durable: false,
+          reparation: "TTL",
+          payload: { commandeId },
+        }
+      ),
+      consequence(
+        "purge-catalogue",
+        { type: "commande", id: commandeId },
+        f.messagePurge ??
+          `[order] purge des documents du catalogue non effectuée pour ${commandeId}`,
+        {
+          durable: false,
+          reparation: "TTL",
+          payload: { produits: f.produitsDrainés ?? [] },
+        }
+      ),
+    ],
+  }
+}
+
+const commandeStatutChangee: DeclarationPour<"commande.statut.changee"> = (
+  f
+) => {
+  const commandeId = String(f.commandeId)
+  return {
+    faits: [
+      fait("commande.statut.changee", "commande", commandeId, {
+        snapshot: f.snapshot,
+        statut: f.statut,
+      }),
+    ],
+    consequences: [
+      consequence(
+        "email",
+        { type: "commande", id: commandeId },
+        f.messageEmail ??
+          `[order] e-mail de statut non envoyé pour ${commandeId}`,
+        {
+          action: "email.commande-statut",
+          durable: true,
+          payload: { snapshot: f.snapshot, statut: f.statut },
+        }
+      ),
+      consequence(
+        "invalidation-cache",
+        { type: "commande", id: commandeId },
+        f.messageInvalidation ??
+          `[order] invalidation du cache non effectuée pour ${commandeId}`,
+        {
+          durable: false,
+          reparation: "TTL",
+          payload: { commandeId },
+        }
+      ),
+      consequence(
+        "purge-catalogue",
+        { type: "commande", id: commandeId },
+        f.messagePurge ??
+          `[order] purge des documents du catalogue non effectuée pour ${commandeId}`,
+        {
+          durable: false,
+          reparation: "TTL",
+          payload: { produits: f.produitsRestockés ?? [] },
+        }
+      ),
+    ],
   }
 }
 
 // Produit enregistre
-const produitEnregistre: Declaration = (f) => {
+const produitEnregistre: DeclarationPour<"produit.enregistre"> = (f) => {
   const consequences: ConsequenceApresEcriture[] = [
     consequence(
       "registre-images",
@@ -235,7 +311,7 @@ const produitEnregistre: Declaration = (f) => {
   }
 }
 
-const produitEnregistreLot: Declaration = (f) => {
+const produitEnregistreLot: DeclarationPour<"produit.enregistre.lot"> = (f) => {
   const produitsInput = (f.produits as Array<Record<string, unknown>>) ?? []
   const ids =
     (f.produitIds as string[]) ??
@@ -284,7 +360,7 @@ const produitEnregistreLot: Declaration = (f) => {
   }
 }
 
-const produitSupprime: Declaration = (f) => {
+const produitSupprime: DeclarationPour<"produit.supprime"> = (f) => {
   const urls =
     (f.imagesRetirees as string[] | undefined) ??
     (f.images as string[] | undefined) ??
@@ -327,7 +403,7 @@ const produitSupprime: Declaration = (f) => {
   }
 }
 
-const produitSupprimeLot: Declaration = (f) => {
+const produitSupprimeLot: DeclarationPour<"produit.supprime.lot"> = (f) => {
   const produitsInput = (f.produits as Array<Record<string, unknown>>) ?? []
   const ids =
     (f.produitIds as string[]) ??
@@ -380,7 +456,9 @@ const produitSupprimeLot: Declaration = (f) => {
   }
 }
 
-const varianteStockChangee: Declaration = (f) => ({
+const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (
+  f
+) => ({
   faits: [
     fait("variante.stock.changee", "produit", String(f.produitId), {
       produitId: f.produitId as never,
@@ -402,7 +480,7 @@ const varianteStockChangee: Declaration = (f) => ({
   ],
 })
 
-const structureCreee: Declaration = (f) => ({
+const structureCreee: DeclarationPour<"structure.creee"> = (f) => ({
   faits: [
     fait("structure.creee", "categorie", String(f.categorieId), {
       categorieId: f.categorieId as never,
@@ -418,7 +496,7 @@ const structureCreee: Declaration = (f) => ({
   ],
 })
 
-const structureModifiee: Declaration = (f) => {
+const structureModifiee: DeclarationPour<"structure.modifiee"> = (f) => {
   const consequences: ConsequenceApresEcriture[] = []
   if (f.imageRetiree) {
     consequences.push(
@@ -491,7 +569,7 @@ function destinationsDeSuppression(
   ]
 }
 
-const structureSupprimee: Declaration = (f) => {
+const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
   const image = typeof f.image === "string" && f.image !== "" ? f.image : null
   const destinations = destinationsDeSuppression(
     f.produitsCible,
@@ -583,7 +661,7 @@ function planDeMaintenance(
   }
 }
 
-const villeCreee: Declaration = (f) => {
+const villeCreee: DeclarationPour<"ville.creee"> = (f) => {
   const villeId = String(f.villeId)
   return planDeMaintenance(
     { type: "ville", id: villeId },
@@ -591,7 +669,7 @@ const villeCreee: Declaration = (f) => {
   )
 }
 
-const villeModifiee: Declaration = (f) => {
+const villeModifiee: DeclarationPour<"ville.modifiee"> = (f) => {
   const villeId = String(f.villeId)
   return planDeMaintenance(
     { type: "ville", id: villeId },
@@ -599,7 +677,7 @@ const villeModifiee: Declaration = (f) => {
   )
 }
 
-const villeSupprimee: Declaration = (f) => {
+const villeSupprimee: DeclarationPour<"ville.supprimee"> = (f) => {
   const villeId = String(f.villeId)
   return planDeMaintenance(
     { type: "ville", id: villeId },
@@ -607,7 +685,7 @@ const villeSupprimee: Declaration = (f) => {
   )
 }
 
-const livraisonReglee: Declaration = (f) => {
+const livraisonReglee: DeclarationPour<"livraison.reglee"> = (f) => {
   const livraisonId = String(f.livraisonId ?? "default")
   return planDeMaintenance(
     { type: "livraison", id: livraisonId },
@@ -620,7 +698,7 @@ const livraisonReglee: Declaration = (f) => {
  * chaque Produit touché reçoit sa propre conséquence, donc sa propre ligne de
  * journal et sa propre limite d'échec.
  */
-const imageTexteAlternatif: Declaration = (f) => {
+const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (f) => {
   const produitIds = ((f.produitIds as string[] | undefined) ?? []).map(String)
   return {
     faits: [],
@@ -633,7 +711,26 @@ const imageTexteAlternatif: Declaration = (f) => {
   }
 }
 
-const REGISTRE: Record<GenreEcriture, Declaration> = {
+/**
+ * Les plans que les tranches ont déjà typés. Un genre absent rend le plan
+ * générique : la tranche suivante l'ajoute ici sans toucher au registre.
+ */
+export type PlansTypés = {
+  "commande.creee": PlanCommande
+  "commande.statut.changee": PlanCommande
+}
+
+export type PlanParGenre = {
+  [G in GenreEcriture]: G extends keyof PlansTypés
+    ? PlansTypés[G]
+    : PlanApresEcriture
+}
+
+type DeclarationPour<G extends GenreEcriture> = (
+  faits: FaitsParGenre[G]
+) => PlanParGenre[G]
+
+const REGISTRE: { [G in GenreEcriture]: DeclarationPour<G> } = {
   "commande.creee": commandeCreee,
   "commande.statut.changee": commandeStatutChangee,
   "produit.enregistre": produitEnregistre,
@@ -653,7 +750,8 @@ const REGISTRE: Record<GenreEcriture, Declaration> = {
 
 export type FaitsCommandeCreee = {
   commandeId: string | number
-  snapshot: unknown
+  snapshot: OrderEmailSnapshot
+  produitsDrainés?: readonly ProduitTouche[]
   messageEmail?: string
   messageInvalidation?: string
   messagePurge?: string
@@ -661,8 +759,9 @@ export type FaitsCommandeCreee = {
 
 export type FaitsCommandeStatutChangee = {
   commandeId: string | number
-  snapshot: unknown
-  statut: unknown
+  snapshot: OrderEmailSnapshot
+  statut: StatutCommande
+  produitsRestockés?: readonly ProduitTouche[]
   messageEmail?: string
   messageInvalidation?: string
   messagePurge?: string
@@ -753,13 +852,10 @@ export type FaitsParGenre = {
 export function declarerApresEcriture<G extends GenreEcriture>(
   genre: G,
   faits?: FaitsParGenre[G]
-): PlanApresEcriture
-
-export function declarerApresEcriture(
-  genre: GenreEcriture,
-  faits: FaitsApresEcriture = {}
-): PlanApresEcriture {
-  return REGISTRE[genre](faits)
+): PlanParGenre[G] {
+  return (REGISTRE[genre] as DeclarationPour<G>)(
+    (faits ?? {}) as FaitsParGenre[G]
+  )
 }
 
 /**
@@ -962,7 +1058,7 @@ export function reglesParDefaut(): Array<{
   for (const genre of GENRES_DERIVES) {
     const plan = declarerApresEcriture(
       genre,
-      (FAITS_POUR_REGLES[genre] ?? {}) as FaitsApresEcriture
+      (FAITS_POUR_REGLES[genre] ?? {}) as FaitsParGenre[typeof genre]
     )
     const declencheur = (plan.faits[0]?.declencheur ??
       genre) as TypeEvenementAutomation
