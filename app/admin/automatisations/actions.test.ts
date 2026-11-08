@@ -203,7 +203,11 @@ describe("les actions de l'Administration des automatisations", () => {
         entityId: entite,
         seq: 1,
         attemptOf: 1,
-        payload: { categorieId: entite },
+        payload: {
+          categorieId: entite,
+          imagesRetirees: [],
+          destinations: [],
+        },
         occurredAt: MAINTENANT,
         expiresAt: new Date(MAINTENANT.getTime() + 3_600_000),
         status: "mort",

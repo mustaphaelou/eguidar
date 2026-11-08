@@ -645,7 +645,7 @@ const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (f) => {
   const produitId = String(f.produitId)
   const identite: IdentiteProduitCatalogue = {
     id: produitId,
-    slug: String(f.slug),
+    slug: String(f.slug ?? ""),
     categoryId: f.categoryId ?? null,
   }
   return {
@@ -1023,7 +1023,8 @@ export type FaitsProduitSupprimeLot = {
 
 export type FaitsVarianteStockChangee = {
   produitId: string | number
-  slug: string
+  /** La Charge ne porte que l'identifiant : la déclaration redéclarée s'en passe. */
+  slug?: string
   categoryId?: string | null
 }
 
