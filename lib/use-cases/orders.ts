@@ -304,13 +304,6 @@ async function produitsTouches(
   })
 }
 
-/**
- * Résout la chaîne de Structures des Produits touchés après le commit : une
- * seule Lecture de la Structure pour l'ensemble, pas une recherche par article
- * (#757). L'adaptateur Commande porte cette lecture, et un échec est attrapé
- * par sa porte best-effort.
- */
-
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,

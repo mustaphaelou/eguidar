@@ -45,37 +45,28 @@ const SITES_NOMMES: ExceptionLecture[] = [
     chemin: "lib/automations/actions.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
-    declaration: "chargerProduitIndexable",
-    herite: false,
-    raison:
-      "le nom et le slug de la catégorie dans le Document d'index que le travailleur réécrit : le pointeur d'une seule rangée, pas sa place dans l'arbre",
-  },
-  {
-    chemin: "lib/automations/actions.ts",
-    voie: "relation",
-    extrait: `include: ${FORME.champ}`,
     declaration: "reconcilierRecherche",
     herite: false,
     raison:
       "le nom et le slug de la catégorie de chaque Produit que la réconciliation reprojette : le pointeur d'une seule rangée, pas sa place dans l'arbre",
   },
   {
-    chemin: "lib/automations/actions.ts",
-    voie: "delegue",
-    extrait: `prisma.${FORME.delegue}.findMany`,
-    declaration: "collecterIdsBranche",
-    herite: false,
-    raison:
-      "la liste des catégories pour résoudre la branche d'une Structure réindexée par le travailleur : le pointeur des rangées, pas leur place dans l'arbre",
-  },
-  {
-    chemin: "lib/automations/actions.ts",
+    chemin: "lib/automations/ponts.ts",
     voie: "relation",
     extrait: `include: ${FORME.champ}`,
-    declaration: "indexerBranche",
+    declaration: "pontCatalogue",
     herite: false,
     raison:
-      "le nom et le slug de la catégorie des Produits d'une branche réindexée par le travailleur : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+      "le nom et le slug de la catégorie dans le Document d'index que le travailleur réindexe : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+  },
+  {
+    chemin: "lib/automations/ponts.ts",
+    voie: "relation",
+    extrait: `include: ${FORME.champ}`,
+    declaration: "pontStructure",
+    herite: false,
+    raison:
+      "le nom et le slug de la catégorie des Produits d'une branche réindexée par le travailleur : le pointeur d'une seule rangée, la topologie restant à la Lecture",
   },
   {
     chemin: "lib/use-cases/admin-catalog.ts",
@@ -268,7 +259,7 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
     }
   })
 
-  it("la liste s'élargit des vingt entrées d'ici, chacune avec sa raison propre", () => {
+  it("la liste s'élargit des dix-neuf entrées d'ici, chacune avec sa raison propre", () => {
     const raisons = SITES_NOMMES.map(({ raison }) => raison)
     expect(raisons).toHaveLength(new Set(raisons).size)
 
@@ -290,10 +281,10 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
     expect(heritees.length).toBe(3)
-    expect(SITES_NOMMES).toHaveLength(20)
-    expect(SITES_NOMMES).toHaveLength(heritees.length + 17)
+    expect(SITES_NOMMES).toHaveLength(19)
+    expect(SITES_NOMMES).toHaveLength(heritees.length + 16)
 
-    const attenduesParVoie = { relation: 11, delegue: 9 }
+    const attenduesParVoie = { relation: 11, delegue: 8 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,
