@@ -586,6 +586,7 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
     ])
     const plan = declarerApresEcriture("produit.supprime", {
       produitId: PRODUIT,
+      slug: SLUG,
       imagesRetirees: ["https://cdn.example.test/une.jpg"],
     })
     expect(regles.map((regle) => regle.action).sort()).toEqual(
@@ -614,6 +615,8 @@ describe("la déclaration de variante.stock.changee", () => {
   it("réindexe durablement puis invalide le cache, réparé par le TTL", () => {
     const plan = declarerApresEcriture("variante.stock.changee", {
       produitId: PRODUIT,
+      slug: SLUG,
+      categoryId: CATEGORIE,
     })
 
     expect(plan.faits).toEqual([
