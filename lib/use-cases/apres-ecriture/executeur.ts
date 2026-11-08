@@ -1,8 +1,9 @@
 import {
   EffetNonPrisEnChargeError,
   journalEffetsConsole,
-  runOrderedEffects,
+  runPlanEffects,
   type ConsequenceDuPlan,
+  type GestionnairesEffetsPostCommit,
   type JournalEffetsPostCommit,
 } from "@/lib/use-cases/mutation-squelette"
 
@@ -15,6 +16,15 @@ export class LectureManquanteError extends Error {
     super(`lecture après-écriture manquante : ${lecture}`)
     this.name = "LectureManquanteError"
   }
+}
+
+/**
+ * Mémoïse une lecture paresseuse une fois par plan : la première conséquence
+ * qui en a besoin la déclenche, les suivantes partagent la même promesse.
+ */
+export function memoise<T>(lire: () => Promise<T>): () => Promise<T> {
+  let valeur: Promise<T> | undefined
+  return () => (valeur ??= lire())
 }
 
 /**
@@ -43,27 +53,17 @@ function gestionnairePour<C extends ConsequenceDuPlan>(
 /**
  * La tentative immédiate d'un plan d'entité : ordre déclaré, chaque conséquence
  * dans sa propre limite d'échec, mesure et journal, jamais d'exception
- * (ADR-0014). Un effet absent de la carte est journalisé en échec, jamais en
- * succès — mais le type l'a déjà refusé.
+ * (ADR-0014). Le squelette porte déjà cette politique ; il reçoit ici la carte
+ * **totale** de l'entité, élargie à sa carte partielle le temps d'un passage.
  */
 export async function executerPlan<C extends ConsequenceDuPlan>(
   plan: { consequences: readonly C[] },
   gestionnaires: GestionnairesPour<C>,
   journal: JournalEffetsPostCommit = journalEffetsConsole
 ): Promise<void> {
-  await runOrderedEffects(
-    plan.consequences.map((consequence) => ({
-      effet: consequence.effet,
-      entite: consequence.entite,
-      message: consequence.message,
-      portee: consequence.portee,
-      fn: () => {
-        const gestionnaire = gestionnairePour(gestionnaires, consequence.effet)
-        if (!gestionnaire)
-          throw new EffetNonPrisEnChargeError(consequence.effet)
-        return gestionnaire(consequence)
-      },
-    })),
+  await runPlanEffects(
+    plan,
+    gestionnaires as GestionnairesEffetsPostCommit,
     journal
   )
 }

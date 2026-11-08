@@ -65,7 +65,7 @@ export interface PlanApresEcriture<
 }
 
 /**
- * Les Produits qu'une écriture de Commande a drainés ou restockés : un fait
+ * Les Produits qu'une écriture de Commande a drainés ou réapprovisionnés : un fait
  * d'immédiat que la Charge ne porte pas, et que la purge du Catalogue reçoit
  * dans la charge utile de sa conséquence.
  */
@@ -372,7 +372,7 @@ const commandeStatutChangee: DeclarationPour<"commande.statut.changee"> = (
         {
           durable: false,
           reparation: "TTL",
-          payload: { produits: f.produitsRestockés ?? [] },
+          payload: { produits: f.produitsRéapprovisionnés ?? [] },
         }
       ),
     ],
@@ -480,10 +480,22 @@ const produitEnregistre: DeclarationPour<"produit.enregistre"> = (f) => {
 }
 
 /**
+ * Un fait de lot nomme un Produit que sa fiche ne porte pas. Le site d'appel
+ * construit toujours les deux tableaux alignés : un identifiant sans fiche est
+ * une erreur de programmation nommée, jamais un Produit au slug vide.
+ */
+export class ProduitDuLotIncoherentError extends Error {
+  constructor(readonly produitId: string) {
+    super(
+      `fait de lot incohérent : le Produit ${produitId} n'a pas de fiche dans « produits »`
+    )
+    this.name = "ProduitDuLotIncoherentError"
+  }
+}
+
+/**
  * Les Produits d'un lot, alignés sur `produitIds` quand il est fourni et
- * complétés par la liste typée sinon. Un Produit sans fiche garde son
- * identifiant et un slug vide : le fait reste émis, la lecture après commit
- * décidera.
+ * complétés par la liste typée sinon.
  */
 function produitsDuLot(f: {
   produitIds?: readonly string[]
@@ -493,7 +505,11 @@ function produitsDuLot(f: {
     (f.produits ?? []).map((produit) => [String(produit.id), produit])
   )
   const ids = (f.produitIds ?? [...parId.keys()]).map(String)
-  return ids.map((id) => parId.get(id) ?? { id, slug: "" })
+  return ids.map((id) => {
+    const produit = parId.get(id)
+    if (!produit) throw new ProduitDuLotIncoherentError(id)
+    return produit
+  })
 }
 
 const produitEnregistreLot: DeclarationPour<"produit.enregistre.lot"> = (f) => {
@@ -746,6 +762,12 @@ const structureModifiee: DeclarationPour<"structure.modifiee"> = (f) => {
   // qu'à construire ces tableaux au site d'appel.
   const imagesRetirees = [...(f.imagesRetirees ?? [])]
   const destinations = [...new Set(f.destinations ?? [])]
+  // `destinations` est copié dans le fait parce que la Charge le porte, mais
+  // une modification ne s'en sert pas pour une conséquence : l'action durable
+  // `index.structure` lit `categorieId` pour une modification, et les
+  // destinations ne pilotent que les branches d'une suppression. La garde
+  // d'égalité de la redéclaration prouve déjà que les conséquences durables
+  // coïncident.
   const consequences: ConsequenceStructure[] = []
   if (imagesRetirees.length > 0) {
     consequences.push(
@@ -806,7 +828,7 @@ export const BRANCHE_SANS_STRUCTURE = "sans-structure"
 
 const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
   const categorieId = String(f.categorieId)
-  // La branche Sans Structure voyage dans `destinations` comme n'importe
+  // La branche orpheline (`sans-structure`) voyage dans `destinations` comme n'importe
   // quelle destination : la déclaration n'a plus à relire les faits singuliers
   // pour savoir quoi réindexer.
   const imagesRetirees = [...(f.imagesRetirees ?? [])]
@@ -1016,7 +1038,7 @@ export type FaitsCommandeStatutChangee = {
   commandeId: string | number
   snapshot: OrderEmailSnapshot
   statut: StatutCommande
-  produitsRestockés?: readonly ProduitTouche[]
+  produitsRéapprovisionnés?: readonly ProduitTouche[]
   messageEmail?: string
   messageInvalidation?: string
   messagePurge?: string
@@ -1088,7 +1110,7 @@ export type FaitsStructureSupprimee = {
   imagesRetirees: readonly string[]
   /**
    * Les branches de destination, telles que la Charge les porte. La branche
-   * Sans Structure y figure sous son pseudo-identifiant quand des Produits
+   * La branche orpheline y figure sous son pseudo-identifiant quand des Produits
    * sont laissés orphelins.
    */
   destinations: readonly string[]

@@ -12,7 +12,6 @@ import { lirePanierClient } from "@/lib/panier"
 import {
   invalidateCommande,
   invalidateProduits,
-  type CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
 import {
   deliveryAddressField,
@@ -30,18 +29,17 @@ import {
   messageDeValidation,
 } from "@/lib/use-cases/mutation-squelette"
 import { declarerApresEcriture, type ProduitTouche } from "@/lib/apres-ecriture"
-import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
+import {
+  executer as executerCommande,
+  type EffetsCommande,
+} from "@/lib/use-cases/apres-ecriture/commande"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-export type OrderEffects = {
-  sendOrderPlacedEmail(order: OrderEmailSnapshot): Promise<void>
-  sendOrderStatusEmail(
-    order: OrderEmailSnapshot,
-    newStatus: OrderStatus
-  ): Promise<void>
-  invalidateCommande(orderId: string): void
-  invalidateProduits(produits: readonly CatalogueEventProduct[]): Promise<void>
-}
+/**
+ * Les ports de la Commande sont ceux que l'adaptateur projette ; le type vit
+ * dans l'adaptateur pour que le site d'appel n'en redéclare pas une copie.
+ */
+export type OrderEffects = EffetsCommande
 
 const defaultOrderEffects: OrderEffects = {
   sendOrderPlacedEmail,
@@ -264,7 +262,7 @@ async function reserverStock(
   }
 }
 
-async function restockerArticles(
+async function réapprovisionnerArticles(
   tx: Prisma.TransactionClient,
   items: { variantId: string | null; quantity: number }[]
 ): Promise<void> {
@@ -464,10 +462,10 @@ export async function updateOrderStatus(
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
-    let produitsRestockés: ProduitTouche[] | null = null
+    let produitsRéapprovisionnés: ProduitTouche[] | null = null
     if (réapprovisionne(nextStatus)) {
-      await restockerArticles(tx, fresh.items)
-      produitsRestockés = await produitsTouches(tx, fresh.items)
+      await réapprovisionnerArticles(tx, fresh.items)
+      produitsRéapprovisionnés = await produitsTouches(tx, fresh.items)
     }
 
     const updated = await tx.order.findUniqueOrThrow({
@@ -478,7 +476,7 @@ export async function updateOrderStatus(
       commandeId: orderId,
       snapshot: toOrderEmailSnapshot(updated, existing.user.email),
       statut: nextStatus,
-      produitsRestockés: produitsRestockés ?? [],
+      produitsRéapprovisionnés: produitsRéapprovisionnés ?? [],
     })
     await enregistrerFaits(tx, plan.faits)
     return { updated, plan }

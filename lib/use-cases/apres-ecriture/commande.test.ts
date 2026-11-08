@@ -147,7 +147,7 @@ describe("l'adaptateur Commande", () => {
     )
   })
 
-  it("déclare le changement de statut et remplit les charges utiles du statut et des Produits restockés", async () => {
+  it("déclare le changement de statut et remplit les charges utiles du statut et des Produits réapprovisionnés", async () => {
     const { appels, effets } = portsEnregistreurs()
     const lecture = vi.fn(async () => LECTURE)
     const journal = creerJournalEffetsMemoire()
@@ -155,7 +155,7 @@ describe("l'adaptateur Commande", () => {
       commandeId: COMMANDE,
       snapshot: SNAPSHOT,
       statut: "confirmed",
-      produitsRestockés: [PRODUIT],
+      produitsRéapprovisionnés: [PRODUIT],
     })
 
     expect(plan.consequences.map((consequence) => consequence.effet)).toEqual([

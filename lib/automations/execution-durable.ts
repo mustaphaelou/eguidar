@@ -1,5 +1,6 @@
 import {
-  declarerDepuisLaCharge,
+  analyserCharge,
+  declarerDepuisLaChargeValidee,
   type Redeclaration,
 } from "@/lib/apres-ecriture-redeclaration"
 
@@ -12,8 +13,10 @@ import { creerPont } from "@/lib/automations/ponts"
 
 /**
  * La porte unique d'une Règle sur un Événement, partagée par le travailleur et
- * le réessai manuel. Une action planifiée garde son corps ; une action durable
- * redéclare le plan unitaire depuis la Charge, garde les conséquences de la
+ * le réessai manuel. La Charge est analysée ici, une seule fois, et seulement
+ * quand une Règle s'exécute : un événement expiré, ignoré ou sans Règle n'est
+ * jamais validé. Une action planifiée reçoit la Charge analysée ; une action
+ * durable redéclare le plan unitaire depuis elle, garde les conséquences de la
  * Règle et les exécute dans l'ordre du plan. Une action que le genre ne déclare
  * pas n'exécute rien.
  */
@@ -21,18 +24,24 @@ export async function executerActionOuRedeclaration(
   contexte: ContexteAction
 ): Promise<void> {
   const action = contexte.regle.action
+  const charge = analyserCharge(
+    contexte.evenement.type,
+    contexte.evenement.payload
+  )
+
   if (estActionPlanifiee(action)) {
     await executerLAction({
       ...contexte,
+      evenement: { ...contexte.evenement, payload: charge },
       regle: { ...contexte.regle, action },
     })
     return
   }
 
-  const redeclaration: Redeclaration | null = declarerDepuisLaCharge(
+  const redeclaration: Redeclaration | null = declarerDepuisLaChargeValidee(
     contexte.evenement.type,
     contexte.evenement.entityId,
-    contexte.evenement.payload
+    charge
   )
   if (!redeclaration) return
 
@@ -44,7 +53,7 @@ export async function executerActionOuRedeclaration(
   const pont = creerPont(
     redeclaration.genre,
     contexte.evenement.type,
-    contexte.evenement.payload,
+    charge,
     contexte.dependances
   )
   for (const consequence of consequences) {

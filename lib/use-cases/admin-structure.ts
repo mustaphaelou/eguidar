@@ -14,6 +14,7 @@ import { indexProductDocuments } from "@/lib/meili"
 import { stockageImageProduitR2 } from "@/lib/r2"
 import {
   executer as executerPlanDeStructure,
+  type EffetsStructure,
   type LecturesStructure,
 } from "@/lib/use-cases/apres-ecriture/structure"
 import { invalidateStructure } from "@/lib/use-cases/cache-invalidation"
@@ -33,11 +34,11 @@ export interface CategoryInput {
   image?: string | null
 }
 
-export interface StructureEffects {
-  reindexProducts(products: IndexableProduct[]): Promise<void>
-  revalidateCategories(): Promise<void> | void
-  deleteImage(url: string): Promise<void>
-}
+/**
+ * Les ports de la Structure sont ceux que l'adaptateur projette ; le type vit
+ * dans l'adaptateur pour que le site d'appel n'en redéclare pas une copie.
+ */
+export type StructureEffects = EffetsStructure
 
 const defaultStructureEffects: StructureEffects = {
   reindexProducts: indexProductDocuments,
@@ -317,7 +318,7 @@ async function assertAcyclicCategoryTree(
  * Résout les documents indexables d'une branche après le commit, à partir des
  * identifiants que l'adaptateur a déjà résolus dans l'arbre : la Structure
  * supprimée n'est jamais relue, et une destination inconnue ne rend aucun
- * Produit plutôt que d'échouer. `null` désigne la branche Sans Structure.
+ * Produit plutôt que d'échouer. `null` désigne la branche orpheline.
  */
 async function readIndexableProductsOfBranch(
   categorieIds: readonly string[] | null
