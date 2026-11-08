@@ -1,10 +1,8 @@
 import { Prisma } from "@/lib/generated/prisma/client"
 import type { AutomationEvent } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
-import {
-  executerLAction,
-  type DependancesAutomations,
-} from "@/lib/automations/actions"
+import { type DependancesAutomations } from "@/lib/automations/actions"
+import { executerActionOuRedeclaration } from "@/lib/automations/execution-durable"
 import {
   actionAutomationSchema,
   configurationRegleSchema,
@@ -245,7 +243,7 @@ export async function executerEvenement(
 
     try {
       const charge = obtenirCharge()
-      await executerLAction({
+      await executerActionOuRedeclaration({
         evenement: {
           type: typeEvenementAutomationSchema.parse(evenement.type),
           entityType: typeEntiteAutomationSchema.parse(evenement.entityType),
