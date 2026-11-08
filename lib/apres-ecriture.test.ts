@@ -318,16 +318,16 @@ describe("la déclaration de produit.supprime", () => {
 })
 
 describe("la déclaration de produit.supprime.lot", () => {
-  it("émet un fait complet par Produit et une conséquence groupée par effet avec sa portée", () => {
+  it("émet un fait complet par Produit, une suppression d'images groupée puis les conséquences par Produit", () => {
     const plan = declarerApresEcriture("produit.supprime.lot", {
       produits: [
         {
           id: "a",
           slug: "a",
           categoryId: "structure",
-          imagesRetirees: ["https://cdn.example.test/a.jpg"],
+          images: ["https://cdn.example.test/a.jpg"],
         },
-        { id: "b", slug: "b", categoryId: null, imagesRetirees: [] },
+        { id: "b", slug: "b", categoryId: null, images: [] },
       ],
     })
 
@@ -346,18 +346,40 @@ describe("la déclaration de produit.supprime.lot", () => {
       "desindexation",
       "invalidation-cache",
       "purge-catalogue",
+      "desindexation",
+      "invalidation-cache",
+      "purge-catalogue",
     ])
-    expect(plan.consequences.map((consequence) => consequence.portee)).toEqual([
-      2, 2, 2, 2,
+    // La suppression des images reste groupée et porte sa portée ; les trois
+    // conséquences par Produit suivent, chacune nommant son Produit.
+    expect(plan.consequences[0]).toMatchObject({
+      durable: true,
+      portee: 2,
+      payload: { urls: ["https://cdn.example.test/a.jpg"] },
+    })
+    expect(
+      plan.consequences
+        .slice(1)
+        .every((consequence) => consequence.portee === undefined)
+    ).toBe(true)
+    expect(
+      plan.consequences.slice(1).map((consequence) => consequence.payload)
+    ).toEqual([
+      { produitId: "a" },
+      { produit: { id: "a", slug: "a", categoryId: "structure" } },
+      { produit: { id: "a", slug: "a", categoryId: "structure" } },
+      { produitId: "b" },
+      { produit: { id: "b", slug: "b", categoryId: null } },
+      { produit: { id: "b", slug: "b", categoryId: null } },
     ])
     for (const consequence of plan.consequences) {
-      expect(consequence).toMatchObject({ durable: true, portee: 2 })
+      expect(consequence.durable).toBe(true)
     }
   })
 })
 
 describe("la déclaration de produit.enregistre.lot", () => {
-  it("émet un fait par Produit et une réindexation groupée portant sa portée", () => {
+  it("émet un fait par Produit, une réindexation groupée portant les identités, puis une invalidation par Produit", () => {
     const plan = declarerApresEcriture("produit.enregistre.lot", {
       produitIds: ["a", "b"],
       produits: [
@@ -370,10 +392,35 @@ describe("la déclaration de produit.enregistre.lot", () => {
     expect(
       plan.faits.every((fait) => fait.declencheur === "produit.enregistre")
     ).toBe(true)
-    const reindexation = plan.consequences.find(
-      (consequence) => consequence.effet === "reindexation"
+    expect(effets(plan)).toEqual([
+      "reindexation",
+      "invalidation-cache",
+      "invalidation-cache",
+    ])
+    const identites = [
+      {
+        id: "a",
+        slug: "a",
+        slugPrecedent: null,
+        categoryId: "structure",
+        categoryIdPrecedent: null,
+      },
+      {
+        id: "b",
+        slug: "b",
+        slugPrecedent: null,
+        categoryId: "structure",
+        categoryIdPrecedent: null,
+      },
+    ]
+    expect(plan.consequences.map((consequence) => consequence.payload)).toEqual(
+      [
+        { produits: identites },
+        { produit: identites[0] },
+        { produit: identites[1] },
+      ]
     )
-    expect(reindexation).toMatchObject({ durable: true, portee: 2 })
+    expect(plan.consequences[0]).toMatchObject({ durable: true, portee: 2 })
     expect(
       plan.consequences.filter(
         (consequence) =>
