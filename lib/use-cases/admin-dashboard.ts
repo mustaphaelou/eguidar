@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/db"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { FRAGMENT_WHERE_ENCAISSÉS } from "@/lib/statut-de-commande"
+import {
+  cleDuSeau,
+  PERIODE_PAR_DEFAUT,
+  seauxDePeriode,
+  type Periode,
+} from "@/lib/tableau-de-bord-periode"
 
 export const LOW_STOCK_THRESHOLD = 5
 
@@ -11,16 +17,6 @@ export interface LowStockVariant {
   stock: number
   productId: string
   productName: string
-  productSlug: string
-}
-
-export interface RecentProduct {
-  id: string
-  name: string
-  slug: string
-  price: number
-  isFeatured: boolean
-  createdAt: Date
 }
 
 export interface RecentOrder {
@@ -32,96 +28,70 @@ export interface RecentOrder {
   totalPayable: number
 }
 
-export interface RevenueMonth {
-  month: string
-  revenue: number
+/** Un seau de Chiffre d'affaires encaissé : sa clé locale et sa somme en centimes. */
+export interface SeauChiffreAffaires {
+  cle: string
+  montant: number
 }
 
 export interface DashboardStats {
   productCount: number
   outOfStockCount: number
-  categoryCount: number
   orderCount: number
   pendingOrderCount: number
   caEncaisse30j: number
   caDelta: number | undefined
   ordersLast30: number
-  revenueByMonth: RevenueMonth[]
+  chiffreAffairesEncaisse: SeauChiffreAffaires[]
   lowStockVariants: LowStockVariant[]
-  recentProducts: RecentProduct[]
   recentOrders: RecentOrder[]
 }
 
 const DAY_MS = 86_400_000
 
-export function localMonthKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+function last30Window(now: Date) {
+  return { start: new Date(now.getTime() - 30 * DAY_MS), end: now }
 }
 
-function last30Window(nowMs: number) {
-  return { start: new Date(nowMs - 30 * DAY_MS), end: new Date(nowMs) }
+function prior30Window(now: Date, currentStart: Date) {
+  return { start: new Date(now.getTime() - 60 * DAY_MS), end: currentStart }
 }
 
-function prior30Window(nowMs: number, previousEnd: Date) {
-  return { start: new Date(nowMs - 60 * DAY_MS), end: previousEnd }
-}
-
-function last12MonthWindows(nowMs: number) {
-  const now = new Date(nowMs)
-  const oldestBucketStart = new Date(now.getFullYear(), now.getMonth() - 11, 1)
-  const monthKeys: string[] = []
-  for (let offset = 0; offset < 12; offset++) {
-    const bucketStart = new Date(
-      oldestBucketStart.getFullYear(),
-      oldestBucketStart.getMonth() + offset,
-      1
-    )
-    monthKeys.push(localMonthKey(bucketStart))
-  }
-  return { oldestBucketStart, monthKeys }
-}
-
-export async function getDashboardStats(): Promise<DashboardStats> {
-  const nowMs = Date.now()
-  const { start: currentWindowStart, end: now } = last30Window(nowMs)
-  const { start: previousWindowStart } = prior30Window(nowMs, now)
-  const { oldestBucketStart, monthKeys } = last12MonthWindows(nowMs)
+/**
+ * Le contrat du Tableau de bord : les compteurs, les fenêtres fixes de 30 jours
+ * (CA, delta, commandes récentes) et les seaux du graphique pour la période
+ * demandée. `periode` est optionnel pour les consommateurs qui ne lisent qu'un
+ * compteur, comme le digest du stock bas.
+ */
+export async function getDashboardStats(
+  periode: Periode = PERIODE_PAR_DEFAUT
+): Promise<DashboardStats> {
+  const maintenant = new Date()
+  const { start: currentWindowStart, end: currentWindowEnd } =
+    last30Window(maintenant)
+  const previousWindow = prior30Window(maintenant, currentWindowStart)
+  const seaux = seauxDePeriode(periode, maintenant)
 
   const [
     productCount,
     outOfStockCount,
-    categoryCount,
     orderCount,
     pendingOrderCount,
     lowStockVariants,
-    recentProducts,
     recentOrders,
     currentWindowSums,
     previousWindowSums,
     ordersLast30,
-    twelveMonthRows,
+    encaissements,
   ] = await Promise.all([
     prisma.product.count(),
     prisma.product.count({ where: { variants: { every: { stock: 0 } } } }),
-    prisma.category.count(),
     prisma.order.count(),
     prisma.order.count({ where: { status: "pending" } }),
     prisma.productVariant.findMany({
       where: { stock: { lte: LOW_STOCK_THRESHOLD } },
       orderBy: { stock: "asc" },
-      include: { product: { select: { id: true, name: true, slug: true } } },
-    }),
-    prisma.product.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        price: true,
-        isFeatured: true,
-        createdAt: true,
-      },
+      include: { product: { select: { id: true, name: true } } },
     }),
     prisma.order.findMany({
       orderBy: { createdAt: "desc" },
@@ -139,25 +109,25 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       _sum: { totalPayable: true },
       where: {
         ...FRAGMENT_WHERE_ENCAISSÉS,
-        createdAt: { gte: currentWindowStart, lte: now },
+        createdAt: { gte: currentWindowStart, lte: currentWindowEnd },
       },
     }),
     prisma.order.aggregate({
       _sum: { totalPayable: true },
       where: {
         ...FRAGMENT_WHERE_ENCAISSÉS,
-        createdAt: { gte: previousWindowStart, lt: currentWindowStart },
+        createdAt: { gte: previousWindow.start, lt: currentWindowStart },
       },
     }),
     prisma.order.count({
-      where: { createdAt: { gte: currentWindowStart, lte: now } },
+      where: { createdAt: { gte: currentWindowStart, lte: currentWindowEnd } },
     }),
     prisma.order.findMany({
       where: {
         ...FRAGMENT_WHERE_ENCAISSÉS,
-        createdAt: { gte: oldestBucketStart, lte: now },
+        createdAt: { gte: seaux[0]!.debut, lte: maintenant },
       },
-      select: { id: true, totalPayable: true, createdAt: true },
+      select: { totalPayable: true, createdAt: true },
     }),
   ])
 
@@ -170,24 +140,26 @@ export async function getDashboardStats(): Promise<DashboardStats> {
           ((caEncaisse30j - priorCaEncaisse) / priorCaEncaisse) * 100 * 10
         ) / 10
 
-  const revenueByKey = new Map<string, number>()
-  for (const row of twelveMonthRows) {
-    const key = localMonthKey(row.createdAt)
-    revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + row.totalPayable)
+  const montantParCle = new Map(seaux.map((seau) => [seau.cle, 0]))
+  for (const commande of encaissements) {
+    const cle = cleDuSeau(periode, commande.createdAt)
+    const montant = montantParCle.get(cle)
+    if (montant !== undefined) {
+      montantParCle.set(cle, montant + commande.totalPayable)
+    }
   }
 
   return {
     productCount,
     outOfStockCount,
-    categoryCount,
     orderCount,
     pendingOrderCount,
     caEncaisse30j,
     caDelta,
     ordersLast30,
-    revenueByMonth: monthKeys.map((month) => ({
-      month,
-      revenue: revenueByKey.get(month) ?? 0,
+    chiffreAffairesEncaisse: seaux.map((seau) => ({
+      cle: seau.cle,
+      montant: montantParCle.get(seau.cle) ?? 0,
     })),
     lowStockVariants: lowStockVariants.map((variant) => ({
       id: variant.id,
@@ -196,9 +168,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       stock: variant.stock,
       productId: variant.product.id,
       productName: variant.product.name,
-      productSlug: variant.product.slug,
     })),
-    recentProducts,
     recentOrders: recentOrders.map((order) => ({
       id: order.id,
       status: order.status,

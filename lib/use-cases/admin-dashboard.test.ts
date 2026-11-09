@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { cleDuSeau, seauxDePeriode } from "@/lib/tableau-de-bord-periode"
 import {
   getDashboardStats,
-  localMonthKey,
   LOW_STOCK_THRESHOLD,
 } from "@/lib/use-cases/admin-dashboard"
 
@@ -16,6 +16,7 @@ type SeedStatus =
   "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned"
 
 let userIdA: string
+let produitStockFaibleId: string
 
 async function createUser(suffix: string): Promise<string> {
   const user = await prisma.user.create({
@@ -78,7 +79,7 @@ describe("admin dashboard stats", () => {
     const category = await prisma.category.create({
       data: { name: "Catégorie Dashboard", slug: `dashboard-cat-${runId}` },
     })
-    await prisma.product.create({
+    const produitStockFaible = await prisma.product.create({
       data: {
         name: "Produit stock faible",
         slug: `dashboard-low-${runId}`,
@@ -106,6 +107,7 @@ describe("admin dashboard stats", () => {
         },
       },
     })
+    produitStockFaibleId = produitStockFaible.id
     await prisma.product.create({
       data: {
         name: "Produit stock suffisant",
@@ -158,11 +160,13 @@ describe("admin dashboard stats", () => {
     await prisma.$disconnect()
   })
 
-  it("counts products and categories", async () => {
+  it("ne publie plus les champs morts du contrat", async () => {
     const stats = await getDashboardStats()
+
     expect(stats.productCount).toBeGreaterThanOrEqual(2)
-    expect(stats.categoryCount).toBeGreaterThanOrEqual(1)
     expect(stats.lowStockVariants.length).toBeGreaterThanOrEqual(2)
+    expect("categoryCount" in stats).toBe(false)
+    expect("recentProducts" in stats).toBe(false)
   })
 
   it("compte les Produits en rupture, y compris ceux qui n'ont aucune Variante", async () => {
@@ -191,7 +195,7 @@ describe("admin dashboard stats", () => {
   it("lists variants at or below the low-stock threshold with product info", async () => {
     const stats = await getDashboardStats()
     const low = stats.lowStockVariants.filter(
-      (v) => v.productSlug === `dashboard-low-${runId}`
+      (v) => v.productId === produitStockFaibleId
     )
     expect(low).toHaveLength(2)
     expect(low[0]).toMatchObject({
@@ -199,17 +203,10 @@ describe("admin dashboard stats", () => {
       stock: 0,
       sku: `DB-${runId}-OUT`,
     })
+    expect("productSlug" in low[0]!).toBe(false)
     expect(
       stats.lowStockVariants.some((v) => v.stock > LOW_STOCK_THRESHOLD)
     ).toBe(false)
-  })
-
-  it("includes the most recently created products", async () => {
-    const stats = await getDashboardStats()
-    expect(stats.recentProducts.length).toBeGreaterThanOrEqual(2)
-    expect(
-      stats.recentProducts.some((p) => p.slug === `dashboard-low-${runId}`)
-    ).toBe(true)
   })
 
   describe("aggregates (#84)", () => {
@@ -295,43 +292,102 @@ describe("admin dashboard stats", () => {
       )
     })
 
-    it("buckets delivered-only revenue into twelve zero-filled calendar months oldest to newest", async () => {
+    it("range le Chiffre d'affaires encaissé en trente jours calendaires, du plus ancien au plus récent", async () => {
+      const maintenant = new Date()
+      const jourLocal = (joursAvant: number, heure = 12) =>
+        new Date(
+          maintenant.getFullYear(),
+          maintenant.getMonth(),
+          maintenant.getDate() - joursAvant,
+          heure
+        )
+
+      const aujourdHui = new Date(maintenant)
+      const hier = jourLocal(1)
+      const premierJour = jourLocal(29)
+      const horsFenetre = jourLocal(30)
+
+      await createSeedOrderAt("delivered", aujourdHui, 900, 100, 1000)
+      await createSeedOrderAt("delivered", hier, 1800, 200, 2000)
+      await createSeedOrderAt("delivered", premierJour, 2700, 300, 3000)
+      await createSeedOrderAt("delivered", horsFenetre, 3600, 400, 4000)
+      await createSeedOrderAt("shipped", jourLocal(2), 5000, 500, 5500)
+
+      const stats = await getDashboardStats("30j")
+
+      expect(stats.chiffreAffairesEncaisse).toHaveLength(30)
+      expect(stats.chiffreAffairesEncaisse).toEqual(
+        seauxDePeriode("30j", maintenant).map((seau) => ({
+          cle: seau.cle,
+          montant:
+            seau.cle === cleDuSeau("30j", aujourdHui)
+              ? 1000
+              : seau.cle === cleDuSeau("30j", hier)
+                ? 2000
+                : seau.cle === cleDuSeau("30j", premierJour)
+                  ? 3000
+                  : 0,
+        }))
+      )
+      expect(stats.caEncaisse30j).toBe(6000)
+    })
+
+    it("range le Chiffre d'affaires encaissé en treize semaines, du plus ancien au plus récent", async () => {
+      const maintenant = new Date()
+      const seaux = seauxDePeriode("90j", maintenant)
+      const premierJour = new Date(seaux[0]!.debut.getTime() + 12 * 3_600_000)
+      const semainePrecedente = new Date(maintenant.getTime() - 7 * DAY_MS)
+      const horsFenetre = new Date(seaux[0]!.debut.getTime() - 60_000)
+
+      await createSeedOrderAt("delivered", premierJour, 700, 100, 800)
+      await createSeedOrderAt("delivered", semainePrecedente, 1400, 200, 1600)
+      await createSeedOrderAt("delivered", maintenant, 2100, 300, 2400)
+      await createSeedOrderAt("delivered", horsFenetre, 3500, 500, 4000)
+      await createSeedOrderAt(
+        "cancelled",
+        new Date(maintenant.getTime() - 2 * DAY_MS),
+        9999,
+        999,
+        10998
+      )
+
+      const stats = await getDashboardStats("90j")
+
+      expect(stats.chiffreAffairesEncaisse).toHaveLength(13)
+      expect(stats.chiffreAffairesEncaisse).toEqual(
+        seaux.map((seau) => ({
+          cle: seau.cle,
+          montant:
+            seau.cle === cleDuSeau("90j", premierJour)
+              ? 800
+              : seau.cle === cleDuSeau("90j", semainePrecedente)
+                ? 1600
+                : seau.cle === cleDuSeau("90j", maintenant)
+                  ? 2400
+                  : 0,
+        }))
+      )
+    })
+
+    it("range le Chiffre d'affaires encaissé en douze mois calendaires, du plus ancien au plus récent", async () => {
       const nowDate = new Date()
       const currentMonthStart = new Date(
         nowDate.getFullYear(),
         nowDate.getMonth(),
         1
       )
-      const expectedKeyFor = (monthOffset: number) =>
-        localMonthKey(
-          new Date(
-            currentMonthStart.getFullYear(),
-            currentMonthStart.getMonth() - monthOffset,
-            1
-          )
-        )
-      const localMidMonth = (monthOffset: number, day: number) =>
+      const localMonth = (monthOffset: number, day: number) =>
         new Date(
           currentMonthStart.getFullYear(),
           currentMonthStart.getMonth() - monthOffset,
           day,
           12
         )
+      const expectedKeyFor = (monthOffset: number) =>
+        cleDuSeau("12mois", localMonth(monthOffset, 15))
 
-      await createSeedOrderAt(
-        "delivered",
-        localMidMonth(7, 15),
-        12000,
-        800,
-        12800
-      )
-      await createSeedOrderAt(
-        "delivered",
-        localMidMonth(3, 15),
-        5000,
-        250,
-        5250
-      )
+      await createSeedOrderAt("delivered", localMonth(7, 15), 12000, 800, 12800)
+      await createSeedOrderAt("delivered", localMonth(3, 15), 5000, 250, 5250)
       await createSeedOrderAt(
         "delivered",
         new Date(
@@ -341,40 +397,34 @@ describe("admin dashboard stats", () => {
         1,
         10000
       )
-      await createSeedOrderAt("shipped", localMidMonth(6, 15), 7000, 300, 7300)
-      await createSeedOrderAt("cancelled", localMidMonth(6, 16), 4444, 44, 4488)
-      await createSeedOrderAt("returned", localMidMonth(2, 15), 3600, 400, 4000)
-      await createSeedOrderAt(
-        "delivered",
-        localMidMonth(13, 15),
-        8888,
-        888,
-        9776
-      )
+      await createSeedOrderAt("shipped", localMonth(6, 15), 7000, 300, 7300)
+      await createSeedOrderAt("cancelled", localMonth(6, 16), 4444, 44, 4488)
+      await createSeedOrderAt("returned", localMonth(2, 15), 3600, 400, 4000)
+      await createSeedOrderAt("delivered", localMonth(13, 15), 8888, 888, 9776)
 
-      const stats = await getDashboardStats()
+      const stats = await getDashboardStats("12mois")
 
-      const revenueByKey = new Map<string, number>()
-      revenueByKey.set(expectedKeyFor(7), 12800)
-      revenueByKey.set(expectedKeyFor(3), 5250)
-      revenueByKey.set(expectedKeyFor(0), 10000)
+      const montantParCle = new Map<string, number>()
+      montantParCle.set(expectedKeyFor(7), 12800)
+      montantParCle.set(expectedKeyFor(3), 5250)
+      montantParCle.set(expectedKeyFor(0), 10000)
 
-      const expected: Array<{ month: string; revenue: number }> = []
+      const expected: Array<{ cle: string; montant: number }> = []
       for (let offset = 11; offset >= 0; offset--) {
-        const month = expectedKeyFor(offset)
-        expected.push({ month, revenue: revenueByKey.get(month) ?? 0 })
+        const cle = expectedKeyFor(offset)
+        expected.push({ cle, montant: montantParCle.get(cle) ?? 0 })
       }
 
-      expect(stats.revenueByMonth).toHaveLength(12)
-      expect(stats.revenueByMonth).toEqual(expected)
+      expect(stats.chiffreAffairesEncaisse).toHaveLength(12)
+      expect(stats.chiffreAffairesEncaisse).toEqual(expected)
       expect(
-        stats.revenueByMonth.find(
-          (bucket) => bucket.month === expectedKeyFor(5)
-        )?.revenue
+        stats.chiffreAffairesEncaisse.find(
+          (seau) => seau.cle === expectedKeyFor(5)
+        )?.montant
       ).toBe(0)
       expect(
-        stats.revenueByMonth.some(
-          (bucket) => bucket.month === expectedKeyFor(13)
+        stats.chiffreAffairesEncaisse.some(
+          (seau) => seau.cle === expectedKeyFor(13)
         )
       ).toBe(false)
     })
@@ -390,13 +440,13 @@ describe("admin dashboard stats", () => {
         totalÀPayerStocké
       )
 
-      const stats = await getDashboardStats()
+      const stats = await getDashboardStats("12mois")
 
       expect(stats.caEncaisse30j).toBe(totalÀPayerStocké)
       expect(
-        stats.revenueByMonth.find(
-          (bucket) => bucket.month === localMonthKey(createdAt)
-        )?.revenue
+        stats.chiffreAffairesEncaisse.find(
+          (seau) => seau.cle === cleDuSeau("12mois", createdAt)
+        )?.montant
       ).toBe(totalÀPayerStocké)
       const recente = stats.recentOrders.find((order) => order.id === id)
       expect(recente).toMatchObject({

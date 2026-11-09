@@ -14,9 +14,9 @@ import {
 
 import { formatPrice } from "@/lib/money"
 
-interface RevenuePoint {
-  month: string
-  revenue: number
+export interface PointDeChiffreAffaires {
+  label: string
+  montant: number
 }
 
 const moneyFormatter = new Intl.NumberFormat("fr-FR", {
@@ -27,15 +27,25 @@ const moneyFormatter = new Intl.NumberFormat("fr-FR", {
 /** Le gris des axes suit les jetons du thème plutôt qu'une valeur en dur. */
 const AXE = {
   stroke: "var(--muted-foreground)",
-  fontSize: 12,
+  fontSize: 11,
   tickLine: false,
   axisLine: false,
 } as const
 
-export function RevenueChart({ data }: { data: RevenuePoint[] }) {
-  if (data.every((point) => point.revenue === 0)) {
+/**
+ * Trente barres ne tiennent pas trente étiquettes à 390 px. `preserveStartEnd`
+ * garde les deux bouts et laisse Recharts espacer le milieu d'au moins 8 px ;
+ * les tooltips restent par barre, car l'axe des tooltips lit le domaine complet.
+ * Aucune animation d'entrée : le graphique est posé, il ne se présente pas.
+ */
+export function GraphiqueDuChiffreAffaires({
+  data,
+}: {
+  data: PointDeChiffreAffaires[]
+}) {
+  if (data.every((point) => point.montant === 0)) {
     return (
-      <div className="flex h-[300px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 text-center">
+      <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 text-center">
         <span className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
           <HugeiconsIcon
             icon={ChartIncreaseIcon}
@@ -47,7 +57,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
           Aucune vente encaissée sur cette période.
         </p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Le graphique se remplit dès que des commandes passent au statut «
+          Le graphique se remplit dès que des Commandes passent au statut «
           Livrée ».
         </p>
       </div>
@@ -55,17 +65,22 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid
           vertical={false}
           stroke="var(--border)"
           strokeDasharray="3 3"
         />
-        <XAxis dataKey="month" {...AXE} />
+        <XAxis
+          dataKey="label"
+          {...AXE}
+          interval="preserveStartEnd"
+          minTickGap={8}
+        />
         <YAxis
           {...AXE}
-          width={48}
+          width={44}
           tickFormatter={(value: number) => moneyFormatter.format(value / 100)}
         />
         <Tooltip
@@ -77,13 +92,17 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
             color: "var(--popover-foreground)",
             fontSize: "0.75rem",
           }}
-          formatter={(value) => [formatPrice(Number(value)), "CA encaissé"]}
+          formatter={(value) => [
+            formatPrice(Number(value)),
+            "Chiffre d'affaires encaissé",
+          ]}
         />
         <Bar
-          dataKey="revenue"
+          dataKey="montant"
           fill="currentColor"
-          radius={[4, 4, 0, 0]}
+          radius={[3, 3, 0, 0]}
           className="fill-primary"
+          isAnimationActive={false}
         />
       </BarChart>
     </ResponsiveContainer>
