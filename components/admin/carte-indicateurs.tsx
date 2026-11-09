@@ -64,7 +64,7 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
       className="grid grid-cols-2 gap-3 lg:grid-cols-4"
     >
       <CarteStat
-        label="CA encaissé"
+        label="Chiffre d'affaires encaissé"
         value={formatPrice(stats.caEncaisse30j)}
         valueClassName={VALEUR_MONETAIRE}
         hint={<HintDuChiffreAffaires delta={stats.caDelta} />}

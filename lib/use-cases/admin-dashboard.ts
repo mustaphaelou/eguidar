@@ -3,9 +3,11 @@ import type { OrderStatus } from "@/lib/generated/prisma/client"
 import { FRAGMENT_WHERE_ENCAISSÉS } from "@/lib/statut-de-commande"
 import {
   cleDuSeau,
+  libelleDuSeau,
   PERIODE_PAR_DEFAUT,
   seauxDePeriode,
   type Periode,
+  type PointDeChiffreAffaires,
 } from "@/lib/tableau-de-bord-periode"
 
 export const LOW_STOCK_THRESHOLD = 5
@@ -28,12 +30,6 @@ export interface RecentOrder {
   totalPayable: number
 }
 
-/** Un seau de Chiffre d'affaires encaissé : sa clé locale et sa somme en centimes. */
-export interface SeauChiffreAffaires {
-  cle: string
-  montant: number
-}
-
 export interface DashboardStats {
   productCount: number
   outOfStockCount: number
@@ -42,7 +38,7 @@ export interface DashboardStats {
   caEncaisse30j: number
   caDelta: number | undefined
   ordersLast30: number
-  chiffreAffairesEncaisse: SeauChiffreAffaires[]
+  chiffreAffairesEncaisse: PointDeChiffreAffaires[]
   lowStockVariants: LowStockVariant[]
   recentOrders: RecentOrder[]
 }
@@ -158,7 +154,7 @@ export async function getDashboardStats(
     caDelta,
     ordersLast30,
     chiffreAffairesEncaisse: seaux.map((seau) => ({
-      cle: seau.cle,
+      label: libelleDuSeau(periode, seau.debut),
       montant: montantParCle.get(seau.cle) ?? 0,
     })),
     lowStockVariants: lowStockVariants.map((variant) => ({

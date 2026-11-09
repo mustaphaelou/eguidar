@@ -7,13 +7,7 @@ import { cn } from "@/lib/utils"
  * Une carte de vigilance entièrement à zéro se dit une fois, doucement. Ce
  * n'est pas un état vide : c'est une bonne nouvelle, et elle prend une ligne.
  */
-export function LigneCalme({
-  detail,
-  className,
-}: {
-  detail?: string
-  className?: string
-}) {
+export function LigneCalme({ className }: { className?: string }) {
   return (
     <div
       className={cn(
@@ -28,12 +22,7 @@ export function LigneCalme({
           className="size-4"
         />
       </span>
-      <span className="flex min-w-0 flex-col">
-        <span className="text-sm font-medium">Rien à signaler.</span>
-        {detail ? (
-          <span className="text-xs text-muted-foreground">{detail}</span>
-        ) : null}
-      </span>
+      <span className="min-w-0 text-sm font-medium">Rien à signaler.</span>
     </div>
   )
 }

@@ -157,12 +157,12 @@ describe("cleDuSeau", () => {
 
 describe("libelleDuSeau", () => {
   it("écrit un jour et une semaine en jj/mm", () => {
-    expect(libelleDuSeau("30j", "2026-11-09")).toBe("09/11")
-    expect(libelleDuSeau("90j", "2026-08-17")).toBe("17/08")
+    expect(libelleDuSeau("30j", new Date(2026, 10, 9))).toBe("09/11")
+    expect(libelleDuSeau("90j", new Date(2026, 7, 17))).toBe("17/08")
   })
 
   it("écrit un mois en abrégé français", () => {
-    expect(libelleDuSeau("12mois", "2026-01")).toBe("janv.")
-    expect(libelleDuSeau("12mois", "2026-11")).toBe("nov.")
+    expect(libelleDuSeau("12mois", new Date(2026, 0, 1))).toBe("janv.")
+    expect(libelleDuSeau("12mois", new Date(2026, 10, 1))).toBe("nov.")
   })
 })

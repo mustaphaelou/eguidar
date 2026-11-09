@@ -22,7 +22,7 @@ import { expect, test } from "./fixtures/sonde"
 
 test.use({ storageState: FICHIER_DE_SESSION })
 
-const CA_ENCAISSE = "CA encaissé"
+const CA_ENCAISSE = "Chiffre d'affaires encaissé"
 
 async function ouvrirLeTableauDeBord(
   page: Page,

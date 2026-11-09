@@ -18,8 +18,8 @@ vi.mock("next/link", () => ({
   ),
 }))
 
-const etat = vi.hoisted(() => ({
-  stats: {
+const { etat, statsVides } = vi.hoisted(() => {
+  const statsVides = () => ({
     productCount: 0,
     outOfStockCount: 0,
     orderCount: 0,
@@ -27,14 +27,15 @@ const etat = vi.hoisted(() => ({
     caEncaisse30j: 0,
     caDelta: undefined as number | undefined,
     ordersLast30: 0,
-    chiffreAffairesEncaisse: [] as { cle: string; montant: number }[],
+    chiffreAffairesEncaisse: [] as { label: string; montant: number }[],
     lowStockVariants: [] as never[],
     recentOrders: [] as never[],
-  },
-}))
+  })
+
+  return { etat: { stats: statsVides() }, statsVides }
+})
 
 vi.mock("@/lib/use-cases/admin-dashboard", () => ({
-  LOW_STOCK_THRESHOLD: 5,
   getDashboardStats: async () => etat.stats,
 }))
 
@@ -67,27 +68,16 @@ async function rendre(): Promise<string> {
 }
 
 beforeEach(() => {
-  etat.stats = {
-    productCount: 0,
-    outOfStockCount: 0,
-    orderCount: 0,
-    pendingOrderCount: 0,
-    caEncaisse30j: 0,
-    caDelta: undefined,
-    ordersLast30: 0,
-    chiffreAffairesEncaisse: [],
-    lowStockVariants: [],
-    recentOrders: [],
-  }
+  etat.stats = statsVides()
 })
 
 describe("la première page du Tableau de bord", () => {
   it("n'invite qu'à créer le premier produit quand le catalogue et les Commandes sont vides", async () => {
     const html = await rendre()
 
-    expect(html).toContain("Aucun produit au catalogue.")
+    expect(html).toContain("Aucun Produit au catalogue.")
     expect(html).toContain(
-      "Un produit, une variante et son stock suffisent à la première commande."
+      "Un Produit, une Variante et son stock suffisent à la première Commande."
     )
     expect(html).toContain("Créer le premier produit")
     expect(html).toContain('href="/admin/produits/nouveau"')
@@ -99,7 +89,6 @@ describe("la première page du Tableau de bord", () => {
   it("ne rend aucun indicateur, aucun graphique, aucune période et aucune liste", async () => {
     const html = await rendre()
 
-    expect(html).not.toContain("CA encaissé")
     expect(html).not.toContain("Commandes récentes")
     expect(html).not.toContain("À surveiller")
     expect(html).not.toContain("30 j")
@@ -112,8 +101,8 @@ describe("la première page du Tableau de bord", () => {
 
     const html = await rendre()
 
-    expect(html).not.toContain("Aucun produit au catalogue.")
-    expect(html).toContain("CA encaissé")
+    expect(html).not.toContain("Aucun Produit au catalogue.")
+    expect(html).toMatch(/Chiffre d(?:&#x27;|')affaires encaissé/)
     expect(html).toContain("Commandes récentes")
     expect(html).toContain("À surveiller")
     expect(html).toContain('data-testid="graphique-chiffre-affaires"')
@@ -124,7 +113,7 @@ describe("la première page du Tableau de bord", () => {
 
     const html = await rendre()
 
-    expect(html).not.toContain("Aucun produit au catalogue.")
+    expect(html).not.toContain("Aucun Produit au catalogue.")
     expect(html).toContain("Commandes récentes")
   })
 })

@@ -45,7 +45,7 @@ export function CommandesRecentes({
     <Card className={cn("flex h-full flex-col", className)}>
       <CardHeader>
         <CardTitle>Commandes récentes</CardTitle>
-        <CardDescription>Les dernières commandes reçues.</CardDescription>
+        <CardDescription>Les dernières Commandes reçues.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col px-0">
         {commandes.length === 0 ? (
@@ -57,8 +57,8 @@ export function CommandesRecentes({
                 className="size-5"
               />
             }
-            title="Aucune commande récente."
-            description="Les nouvelles commandes apparaîtront ici, avec leur statut et leur montant."
+            title="Aucune Commande récente."
+            description="Les nouvelles Commandes apparaîtront ici, avec leur statut et leur montant."
             className="border-0 bg-transparent px-(--card-spacing) py-8"
           />
         ) : (

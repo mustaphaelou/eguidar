@@ -39,6 +39,15 @@ export interface SeauDePeriode {
   fin: Date
 }
 
+/**
+ * Un point du graphique : le libellé de son seau et sa somme en centimes.
+ * Type neutre, partagé par le cas d'usage et le composant client.
+ */
+export interface PointDeChiffreAffaires {
+  label: string
+  montant: number
+}
+
 const formatJour = new Intl.DateTimeFormat("fr-FR", {
   day: "2-digit",
   month: "2-digit",
@@ -100,6 +109,84 @@ function cleDuMois(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
+function construireJours(maintenant: Date): SeauDePeriode[] {
+  const aujourdHui = debutDuJour(maintenant)
+  return Array.from({ length: NOMBRE_DE_SEAUX["30j"] }, (_valeur, index) => {
+    const jour = NOMBRE_DE_SEAUX["30j"] - 1 - index
+    const debut = new Date(
+      aujourdHui.getFullYear(),
+      aujourdHui.getMonth(),
+      aujourdHui.getDate() - jour
+    )
+    const fin = new Date(
+      debut.getFullYear(),
+      debut.getMonth(),
+      debut.getDate() + 1
+    )
+    return { cle: cleDuJour(debut), debut, fin }
+  })
+}
+
+function construireSemaines(maintenant: Date): SeauDePeriode[] {
+  const lundiCourant = debutDeLaSemaine(maintenant)
+  return Array.from({ length: NOMBRE_DE_SEAUX["90j"] }, (_valeur, index) => {
+    const semaine = NOMBRE_DE_SEAUX["90j"] - 1 - index
+    const debut = new Date(
+      lundiCourant.getFullYear(),
+      lundiCourant.getMonth(),
+      lundiCourant.getDate() - semaine * 7
+    )
+    const fin = new Date(
+      debut.getFullYear(),
+      debut.getMonth(),
+      debut.getDate() + 7
+    )
+    return { cle: cleDuJour(debut), debut, fin }
+  })
+}
+
+function construireMois(maintenant: Date): SeauDePeriode[] {
+  const annee = maintenant.getFullYear()
+  const mois = maintenant.getMonth()
+  return Array.from({ length: NOMBRE_DE_SEAUX["12mois"] }, (_valeur, index) => {
+    const recul = NOMBRE_DE_SEAUX["12mois"] - 1 - index
+    const debut = new Date(annee, mois - recul, 1)
+    const fin = new Date(annee, mois - recul + 1, 1)
+    return { cle: cleDuMois(debut), debut, fin }
+  })
+}
+
+interface ConstructeurDePeriode {
+  /** Les seaux de la période, du plus ancien au plus récent. */
+  seaux(maintenant: Date): SeauDePeriode[]
+  /** La clé du seau où tombe `date`. */
+  cle(date: Date): string
+  /** Le libellé court du seau qui commence à `debut`. */
+  libelle(debut: Date): string
+}
+
+/**
+ * Un constructeur par période : les trois fonctions qui dépendaient de la
+ * période lisent la même table au lieu de répéter la même cascade.
+ */
+const CONSTRUCTEURS: Record<Periode, ConstructeurDePeriode> = {
+  "30j": {
+    seaux: construireJours,
+    cle: cleDuJour,
+    libelle: (debut) => formatJour.format(debut),
+  },
+  "90j": {
+    seaux: construireSemaines,
+    cle: (date) => cleDuJour(debutDeLaSemaine(date)),
+    libelle: (debut) => formatJour.format(debut),
+  },
+  "12mois": {
+    seaux: construireMois,
+    cle: cleDuMois,
+    libelle: (debut) => formatMois.format(debut),
+  },
+}
+
 /**
  * Les seaux du graphique, du plus ancien au plus récent.
  *
@@ -112,68 +199,15 @@ export function seauxDePeriode(
   periode: Periode,
   maintenant: Date = new Date()
 ): SeauDePeriode[] {
-  if (periode === "30j") {
-    const aujourdHui = debutDuJour(maintenant)
-    return Array.from({ length: NOMBRE_DE_SEAUX["30j"] }, (_valeur, index) => {
-      const jour = NOMBRE_DE_SEAUX["30j"] - 1 - index
-      const debut = new Date(
-        aujourdHui.getFullYear(),
-        aujourdHui.getMonth(),
-        aujourdHui.getDate() - jour
-      )
-      const fin = new Date(
-        debut.getFullYear(),
-        debut.getMonth(),
-        debut.getDate() + 1
-      )
-      return { cle: cleDuJour(debut), debut, fin }
-    })
-  }
-
-  if (periode === "90j") {
-    const lundiCourant = debutDeLaSemaine(maintenant)
-    return Array.from({ length: NOMBRE_DE_SEAUX["90j"] }, (_valeur, index) => {
-      const semaine = NOMBRE_DE_SEAUX["90j"] - 1 - index
-      const debut = new Date(
-        lundiCourant.getFullYear(),
-        lundiCourant.getMonth(),
-        lundiCourant.getDate() - semaine * 7
-      )
-      const fin = new Date(
-        debut.getFullYear(),
-        debut.getMonth(),
-        debut.getDate() + 7
-      )
-      return { cle: cleDuJour(debut), debut, fin }
-    })
-  }
-
-  const annee = maintenant.getFullYear()
-  const mois = maintenant.getMonth()
-  return Array.from({ length: NOMBRE_DE_SEAUX["12mois"] }, (_valeur, index) => {
-    const recul = NOMBRE_DE_SEAUX["12mois"] - 1 - index
-    const debut = new Date(annee, mois - recul, 1)
-    const fin = new Date(annee, mois - recul + 1, 1)
-    return { cle: cleDuMois(debut), debut, fin }
-  })
+  return CONSTRUCTEURS[periode].seaux(maintenant)
 }
 
 /** La clé du seau de `periode` où tombe `date`. */
 export function cleDuSeau(periode: Periode, date: Date): string {
-  if (periode === "30j") return cleDuJour(date)
-  if (periode === "90j") return cleDuJour(debutDeLaSemaine(date))
-  return cleDuMois(date)
-}
-
-function dateDeLaCle(cle: string): Date {
-  const [annee, mois, jour] = cle.split("-").map(Number)
-  return new Date(annee ?? 1970, (mois ?? 1) - 1, jour ?? 1)
+  return CONSTRUCTEURS[periode].cle(date)
 }
 
 /** Le libellé court d'un seau : `09/11` pour un jour ou une semaine, `nov.` pour un mois. */
-export function libelleDuSeau(periode: Periode, cle: string): string {
-  const date = dateDeLaCle(cle)
-  return periode === "12mois"
-    ? formatMois.format(date)
-    : formatJour.format(date)
+export function libelleDuSeau(periode: Periode, debut: Date): string {
+  return CONSTRUCTEURS[periode].libelle(debut)
 }

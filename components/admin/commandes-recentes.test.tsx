@@ -19,6 +19,7 @@ vi.mock("next/link", () => ({
 }))
 
 import { CommandesRecentes } from "./commandes-recentes"
+import { liensVers } from "@/test/liens-vers"
 import type { RecentOrder } from "@/lib/use-cases/admin-dashboard"
 
 const COMMANDES: RecentOrder[] = [
@@ -40,16 +41,6 @@ const COMMANDES: RecentOrder[] = [
   },
 ]
 
-function liensVers(html: string, href: string): string[] {
-  const motif = new RegExp(
-    `<a[^>]*href="${href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>([\\s\\S]*?)</a>`,
-    "g"
-  )
-  return [...html.matchAll(motif)].map((correspondance) =>
-    correspondance[1]!.replace(/<[^>]*>/g, "").trim()
-  )
-}
-
 async function rendre(element: React.ReactNode): Promise<string> {
   const stream = await renderToReadableStream(element)
   return new Response(stream).text()
@@ -63,7 +54,7 @@ describe("les Commandes récentes", () => {
     const pied = liensVers(html, "/admin/commandes")
 
     expect(pied).toHaveLength(1)
-    expect(pied[0]).toBe("Voir les 7 commandes")
+    expect(pied[0]!.texte).toBe("Voir les 7 commandes")
     expect(html).not.toContain("Tout voir")
   })
 
@@ -72,7 +63,9 @@ describe("les Commandes récentes", () => {
       <CommandesRecentes commandes={COMMANDES.slice(0, 1)} total={1} />
     )
 
-    expect(liensVers(html, "/admin/commandes")[0]).toBe("Voir la commande")
+    expect(liensVers(html, "/admin/commandes")[0]!.texte).toBe(
+      "Voir la commande"
+    )
   })
 
   it("garde le rythme de la ligne : la référence, la date et l'article, le montant, le statut", async () => {
@@ -93,7 +86,7 @@ describe("les Commandes récentes", () => {
   it("garde son état vide sans pied quand aucune Commande n'existe", async () => {
     const html = await rendre(<CommandesRecentes commandes={[]} total={0} />)
 
-    expect(html).toContain("Aucune commande récente.")
+    expect(html).toContain("Aucune Commande récente.")
     expect(liensVers(html, "/admin/commandes")).toHaveLength(0)
   })
 })

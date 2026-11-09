@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { cleDuSeau, seauxDePeriode } from "@/lib/tableau-de-bord-periode"
+import {
+  cleDuSeau,
+  libelleDuSeau,
+  seauxDePeriode,
+} from "@/lib/tableau-de-bord-periode"
 import {
   getDashboardStats,
   LOW_STOCK_THRESHOLD,
@@ -318,7 +322,7 @@ describe("admin dashboard stats", () => {
       expect(stats.chiffreAffairesEncaisse).toHaveLength(30)
       expect(stats.chiffreAffairesEncaisse).toEqual(
         seauxDePeriode("30j", maintenant).map((seau) => ({
-          cle: seau.cle,
+          label: libelleDuSeau("30j", seau.debut),
           montant:
             seau.cle === cleDuSeau("30j", aujourdHui)
               ? 1000
@@ -356,7 +360,7 @@ describe("admin dashboard stats", () => {
       expect(stats.chiffreAffairesEncaisse).toHaveLength(13)
       expect(stats.chiffreAffairesEncaisse).toEqual(
         seaux.map((seau) => ({
-          cle: seau.cle,
+          label: libelleDuSeau("90j", seau.debut),
           montant:
             seau.cle === cleDuSeau("90j", premierJour)
               ? 800
@@ -385,6 +389,8 @@ describe("admin dashboard stats", () => {
         )
       const expectedKeyFor = (monthOffset: number) =>
         cleDuSeau("12mois", localMonth(monthOffset, 15))
+      const expectedLabelFor = (monthOffset: number) =>
+        libelleDuSeau("12mois", localMonth(monthOffset, 15))
 
       await createSeedOrderAt("delivered", localMonth(7, 15), 12000, 800, 12800)
       await createSeedOrderAt("delivered", localMonth(3, 15), 5000, 250, 5250)
@@ -409,24 +415,23 @@ describe("admin dashboard stats", () => {
       montantParCle.set(expectedKeyFor(3), 5250)
       montantParCle.set(expectedKeyFor(0), 10000)
 
-      const expected: Array<{ cle: string; montant: number }> = []
+      const expected: Array<{ label: string; montant: number }> = []
       for (let offset = 11; offset >= 0; offset--) {
         const cle = expectedKeyFor(offset)
-        expected.push({ cle, montant: montantParCle.get(cle) ?? 0 })
+        expected.push({
+          label: expectedLabelFor(offset),
+          montant: montantParCle.get(cle) ?? 0,
+        })
       }
 
       expect(stats.chiffreAffairesEncaisse).toHaveLength(12)
       expect(stats.chiffreAffairesEncaisse).toEqual(expected)
+      expect(stats.chiffreAffairesEncaisse[0]?.label).toBe(expectedLabelFor(11))
       expect(
         stats.chiffreAffairesEncaisse.find(
-          (seau) => seau.cle === expectedKeyFor(5)
+          (point) => point.label === expectedLabelFor(5)
         )?.montant
       ).toBe(0)
-      expect(
-        stats.chiffreAffairesEncaisse.some(
-          (seau) => seau.cle === expectedKeyFor(13)
-        )
-      ).toBe(false)
     })
 
     it("answers with the persisted Total à payer, never with a sum recomputed from the Sous-total and the Frais de livraison", async () => {
@@ -445,7 +450,7 @@ describe("admin dashboard stats", () => {
       expect(stats.caEncaisse30j).toBe(totalÀPayerStocké)
       expect(
         stats.chiffreAffairesEncaisse.find(
-          (seau) => seau.cle === cleDuSeau("12mois", createdAt)
+          (point) => point.label === libelleDuSeau("12mois", createdAt)
         )?.montant
       ).toBe(totalÀPayerStocké)
       const recente = stats.recentOrders.find((order) => order.id === id)
