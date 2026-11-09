@@ -28,6 +28,13 @@ function sansEchappement(selecteur: string): string {
   return selecteur.replaceAll("\\", "")
 }
 
+// Tailwind peut envelopper une variante dans `:is(…)` — par exemple
+// `:is(:where(.group):hover .group-hover\:underline)` depuis la 4.3.4.
+// La garde cherche donc la classe dans le sélecteur, pas à sa tête.
+function porteLaClasse(selecteur: string, classe: string): boolean {
+  return sansEchappement(selecteur).includes(classe)
+}
+
 function dansLaRequeteDuPointeurFin(regle: Rule): boolean {
   return mediaDe(regle).some((requete) => requete.includes("(pointer:fine)"))
 }
@@ -58,19 +65,21 @@ describe("la famille du survol dans la feuille de style compilée", () => {
   })
 
   it("continue d'émettre le survol simple, le survol de groupe et le survol de groupe nommé", () => {
-    const liste = selecteursDe(feuille).map(sansEchappement)
+    const liste = selecteursDe(feuille)
 
-    expect(liste.some((selecteur) => selecteur.startsWith(".hover:"))).toBe(
+    expect(liste.some((selecteur) => porteLaClasse(selecteur, ".hover:"))).toBe(
       true
     )
     expect(
-      liste.some((selecteur) => selecteur.startsWith(".group-hover:"))
+      liste.some((selecteur) => porteLaClasse(selecteur, ".group-hover:"))
     ).toBe(true)
     expect(
-      liste.some((selecteur) => selecteur.startsWith(".group-hover/lien:"))
+      liste.some((selecteur) => porteLaClasse(selecteur, ".group-hover/lien:"))
     ).toBe(true)
     expect(
-      liste.some((selecteur) => selecteur.startsWith(".group-hover/categorie:"))
+      liste.some((selecteur) =>
+        porteLaClasse(selecteur, ".group-hover/categorie:")
+      )
     ).toBe(true)
   })
 
@@ -91,16 +100,16 @@ describe("la famille du survol dans la feuille de style compilée", () => {
   })
 
   it("garde le soulignement du lien du Panneau et des catégories de la Bande", () => {
-    const liste = selecteursDe(feuille).map(sansEchappement)
+    const liste = selecteursDe(feuille)
 
     expect(
       liste.some((selecteur) =>
-        selecteur.startsWith(".group-hover/lien:underline")
+        porteLaClasse(selecteur, ".group-hover/lien:underline")
       )
     ).toBe(true)
     expect(
       liste.some((selecteur) =>
-        selecteur.startsWith(".group-hover/categorie:underline")
+        porteLaClasse(selecteur, ".group-hover/categorie:underline")
       )
     ).toBe(true)
 
@@ -108,12 +117,10 @@ describe("la famille du survol dans la feuille de style compilée", () => {
     let bande: Rule | undefined
 
     feuille.racine.walkRules((regle) => {
-      if (sansEchappement(regle.selector).startsWith(".group-hover/lien:")) {
+      if (porteLaClasse(regle.selector, ".group-hover/lien:")) {
         panneau = regle
       }
-      if (
-        sansEchappement(regle.selector).startsWith(".group-hover/categorie:")
-      ) {
+      if (porteLaClasse(regle.selector, ".group-hover/categorie:")) {
         bande = regle
       }
     })
