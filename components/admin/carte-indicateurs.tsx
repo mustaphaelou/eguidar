@@ -76,7 +76,7 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
         hint="30 derniers jours"
         icon={ShoppingBasket02Icon}
         href="/admin/commandes"
-        action="Voir les commandes"
+        action={`Commandes : ${stats.ordersLast30} — voir les commandes`}
       />
       <CarteStat
         label="En attente"
@@ -84,7 +84,7 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
         hint="Commandes à traiter"
         icon={ClockIcon}
         href={enAttenteUrl}
-        action="Voir les commandes en attente"
+        action={`Commandes en attente : ${stats.pendingOrderCount} — voir les commandes en attente`}
       />
       <CarteStat
         label="Produits"
@@ -92,7 +92,7 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
         hint="Produits au catalogue"
         icon={PackageIcon}
         href="/admin/produits"
-        action="Voir les produits"
+        action={`Produits : ${stats.productCount} — voir les produits`}
       />
     </section>
   )
