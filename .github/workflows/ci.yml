@@ -208,7 +208,7 @@ jobs:
           BETTER_AUTH_SECRET: replace-with-a-long-random-secret
           ADMIN_EMAIL: admin@eguidar.com
           ADMIN_PASSWORD: change-me-admin-password
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
