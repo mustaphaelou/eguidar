@@ -28,6 +28,7 @@ vi.mock("@/components/admin/graphique-chiffre-affaires", () => ({
 
 import AdminDashboardPage from "./page"
 import { prisma } from "@/lib/db"
+import { liensVers, type LienRendu } from "@/test/liens-vers"
 
 const runId = randomUUID().slice(0, 8)
 const prefixe = `dashboard-route-${runId}-`
@@ -63,28 +64,7 @@ async function creerProduit(cle: string, stocks: number[]) {
   })
 }
 
-function echapper(texte: string): string {
-  return texte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
-function liensVers(
-  html: string,
-  href: string
-): { balise: string; texte: string }[] {
-  const motif = new RegExp(
-    `<a[^>]*href="${echapper(href)}"[^>]*>([\\s\\S]*?)</a>`,
-    "g"
-  )
-  return [...html.matchAll(motif)].map((correspondance) => ({
-    balise: correspondance[0]!.slice(0, correspondance[0]!.indexOf(">") + 1),
-    texte: correspondance[1]!.replace(/<[^>]*>/g, "").trim(),
-  }))
-}
-
-function lienDontLeTexteEst(
-  html: string,
-  href: string
-): { texte: string } | null {
+function lienDontLeTexteEst(html: string, href: string): LienRendu | null {
   return liensVers(html, href)[0] ?? null
 }
 
@@ -195,10 +175,42 @@ describe("le Tableau de bord rend ses comptes actionnables", () => {
   it("ouvre la Liste des Produits depuis le compte des Produits", async () => {
     const total = await prisma.product.count()
     const html = await rendreLeTableauDeBord()
+    const carte = lienDontLeTexteEst(html, "/admin/produits")
 
-    expect(lienDontLeTexteEst(html, "/admin/produits")?.texte).toBe(
-      String(total)
+    expect(carte?.texte).toBe(String(total))
+    expect(carte?.balise).toContain(`aria-label="Produits : ${total}`)
+  })
+
+  it("ouvre la Liste des Commandes depuis le compte des Commandes", async () => {
+    const debut = new Date(Date.now() - 30 * 86_400_000)
+    const commandes = await prisma.order.count({
+      where: { createdAt: { gte: debut, lte: new Date() } },
+    })
+    const html = await rendreLeTableauDeBord()
+    const carte = liensVers(html, "/admin/commandes").find((lien) =>
+      lien.balise.includes(`aria-label="Commandes : ${commandes}`)
     )
+
+    expect(carte?.texte).toBe(String(commandes))
+  })
+
+  it("ouvre la Liste filtrée sur les Commandes en attente depuis le compte En attente", async () => {
+    const enAttente = await prisma.order.count({ where: { status: "pending" } })
+    const html = await rendreLeTableauDeBord()
+    const carte = liensVers(html, "/admin/commandes?statut=pending").find(
+      (lien) =>
+        lien.balise.includes(`aria-label="Commandes en attente : ${enAttente}`)
+    )
+
+    expect(html).toContain("En attente")
+    expect(carte?.texte).toBe(String(enAttente))
+  })
+
+  it("nomme le Chiffre d'affaires encaissé sans son ancien raccourci", async () => {
+    const html = await rendreLeTableauDeBord()
+
+    expect(html).toMatch(/Chiffre d(?:&#x27;|')affaires encaissé/)
+    expect(html).not.toContain("CA encaissé")
   })
 
   it("ouvre la Liste filtrée sur le stock nul depuis le compte des ruptures", async () => {

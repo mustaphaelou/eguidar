@@ -1,13 +1,6 @@
-import { PackageIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-
-import { EmptyState } from "@/components/admin/empty-state"
 import { LigneDeListe } from "@/components/admin/ligne-de-liste"
 import { Badge } from "@/components/ui/badge"
-import {
-  LOW_STOCK_THRESHOLD,
-  type LowStockVariant,
-} from "@/lib/use-cases/admin-dashboard"
+import { type LowStockVariant } from "@/lib/use-cases/admin-dashboard"
 import { cn } from "@/lib/utils"
 
 function LigneStock({ variante }: { variante: LowStockVariant }) {
@@ -41,34 +34,15 @@ function LigneStock({ variante }: { variante: LowStockVariant }) {
  */
 export function ListeDeStockFaible({
   stock,
-  vide = true,
   colonnesAuLg = false,
   className,
 }: {
   stock: LowStockVariant[]
-  /** Le cartouche vide n'a pas sa place dans une carte qui porte déjà des alertes. */
-  vide?: boolean
   /** Une carte pleine largeur lit mieux en deux colonnes. */
   colonnesAuLg?: boolean
   className?: string
 }) {
-  if (stock.length === 0) {
-    if (!vide) return null
-    return (
-      <EmptyState
-        icon={
-          <HugeiconsIcon
-            icon={PackageIcon}
-            strokeWidth={2}
-            className="size-5"
-          />
-        }
-        title="Aucune variante en stock faible."
-        description={`Toutes les variantes ont plus de ${LOW_STOCK_THRESHOLD} unités disponibles.`}
-        className="border-0 bg-transparent px-(--card-spacing) py-8"
-      />
-    )
-  }
+  if (stock.length === 0) return null
 
   return (
     <ul

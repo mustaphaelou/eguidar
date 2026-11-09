@@ -35,10 +35,10 @@ export function PremierePage() {
               className="size-5"
             />
           </EmptyMedia>
-          <EmptyTitle>Aucun produit au catalogue.</EmptyTitle>
+          <EmptyTitle>Aucun Produit au catalogue.</EmptyTitle>
           <EmptyDescription>
-            Un produit, une variante et son stock suffisent à la première
-            commande. Les Commandes et le Chiffre d&apos;affaires encaissé
+            Un Produit, une Variante et son stock suffisent à la première
+            Commande. Les Commandes et le Chiffre d&apos;affaires encaissé
             apparaîtront ici.
           </EmptyDescription>
         </EmptyHeader>

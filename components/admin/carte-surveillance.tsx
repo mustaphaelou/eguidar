@@ -10,10 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { buildProduitListingUrl } from "@/lib/produit-listing"
-import {
-  LOW_STOCK_THRESHOLD,
-  type LowStockVariant,
-} from "@/lib/use-cases/admin-dashboard"
+import { type LowStockVariant } from "@/lib/use-cases/admin-dashboard"
 import { cn } from "@/lib/utils"
 
 import { LigneCalme } from "./ligne-calme"
@@ -35,13 +32,13 @@ export function CarteSurveillance({
   stock,
   className,
 }: {
-  compteurs: CompteursDAlerte & { stockFaible: number }
+  compteurs: CompteursDAlerte
   stock: LowStockVariant[]
   className?: string
 }) {
   const calme =
     compteurs.enRupture === 0 &&
-    compteurs.stockFaible === 0 &&
+    stock.length === 0 &&
     compteurs.sansAlt === 0 &&
     compteurs.echecs === 0
 
@@ -70,13 +67,11 @@ export function CarteSurveillance({
       </CardHeader>
       <CardContent className="px-0">
         {calme ? (
-          <LigneCalme
-            detail={`Aucune variante sous ${LOW_STOCK_THRESHOLD} unités, aucune image sans texte alternatif, aucune automatisation en échec.`}
-          />
+          <LigneCalme />
         ) : (
           <>
             <LignesDAlerte compteurs={compteurs} />
-            <ListeDeStockFaible stock={stock} vide={false} colonnesAuLg />
+            <ListeDeStockFaible stock={stock} colonnesAuLg />
           </>
         )}
       </CardContent>

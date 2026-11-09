@@ -42,26 +42,27 @@ async function rendre(
 
 describe("la carte À surveiller", () => {
   it("dit le calme une seule fois quand tout est à zéro", async () => {
-    const html = await rendre(
-      { enRupture: 0, stockFaible: 0, sansAlt: 0, echecs: 0 },
-      []
-    )
+    const html = await rendre({ enRupture: 0, sansAlt: 0, echecs: 0 }, [])
 
     expect(html).toContain("Rien à signaler.")
-    expect(html).toContain(
-      "Aucune variante sous 5 unités, aucune image sans texte alternatif, aucune automatisation en échec."
-    )
+    expect(html).not.toContain("Aucune variante sous")
     expect(html).not.toContain("En rupture")
     expect(html).not.toContain("Images produit sans texte alternatif")
     expect(html).not.toContain("Automatisations en échec")
     expect(html).not.toContain("Aucune variante en stock faible.")
   })
 
+  it("ne rend pas de cartouche vide quand le stock est vide mais qu'une alerte existe", async () => {
+    const html = await rendre({ enRupture: 2, sansAlt: 0, echecs: 0 }, [])
+
+    expect(html).toContain("En rupture")
+    expect(html).not.toContain("Aucune variante en stock faible.")
+  })
+
   it("ne rend que les alertes non nulles, et jamais la ligne Stock faible", async () => {
-    const html = await rendre(
-      { enRupture: 2, stockFaible: 1, sansAlt: 1, echecs: 0 },
-      [VARIANTE]
-    )
+    const html = await rendre({ enRupture: 2, sansAlt: 1, echecs: 0 }, [
+      VARIANTE,
+    ])
 
     expect(html).toContain("En rupture")
     expect(html).toContain("Images produit sans texte alternatif")
@@ -72,10 +73,9 @@ describe("la carte À surveiller", () => {
   })
 
   it("garde l'ancre et la liste du stock, avec le Produit et sa pastille", async () => {
-    const html = await rendre(
-      { enRupture: 0, stockFaible: 1, sansAlt: 0, echecs: 0 },
-      [VARIANTE]
-    )
+    const html = await rendre({ enRupture: 0, sansAlt: 0, echecs: 0 }, [
+      VARIANTE,
+    ])
 
     expect(html).toContain('id="stock-faible"')
     expect(html).toContain('href="/admin/produits/produit-1"')
@@ -85,10 +85,9 @@ describe("la carte À surveiller", () => {
   })
 
   it("cache l'action de l'en-tête sous sm pour ne pas comprimer la description", async () => {
-    const html = await rendre(
-      { enRupture: 0, stockFaible: 1, sansAlt: 0, echecs: 0 },
-      [VARIANTE]
-    )
+    const html = await rendre({ enRupture: 0, sansAlt: 0, echecs: 0 }, [
+      VARIANTE,
+    ])
 
     expect(html).toContain("Voir les produits")
     expect(html).toContain("hidden sm:block")

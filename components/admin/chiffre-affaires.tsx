@@ -14,13 +14,11 @@ import {
   libelleLongPeriode,
   PERIODE_VALUES,
   type Periode,
+  type PointDeChiffreAffaires,
 } from "@/lib/tableau-de-bord-periode"
 import { cn } from "@/lib/utils"
 
-import {
-  GraphiqueDuChiffreAffaires,
-  type PointDeChiffreAffaires,
-} from "./graphique-chiffre-affaires"
+import { GraphiqueDuChiffreAffaires } from "./graphique-chiffre-affaires"
 
 /**
  * La carte du Chiffre d'affaires encaissé.

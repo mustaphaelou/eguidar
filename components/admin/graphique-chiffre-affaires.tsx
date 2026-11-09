@@ -13,11 +13,7 @@ import {
 } from "recharts"
 
 import { formatPrice } from "@/lib/money"
-
-export interface PointDeChiffreAffaires {
-  label: string
-  montant: number
-}
+import type { PointDeChiffreAffaires } from "@/lib/tableau-de-bord-periode"
 
 const moneyFormatter = new Intl.NumberFormat("fr-FR", {
   notation: "compact",

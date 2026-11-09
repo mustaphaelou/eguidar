@@ -11,7 +11,7 @@ import { TableauDeBordChargement } from "@/components/admin/tableau-de-bord-char
 import { PageHeader } from "@/components/layout/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { compterExecutionsEnEchec } from "@/lib/automations/historique"
-import { libelleDuSeau, parsePeriode } from "@/lib/tableau-de-bord-periode"
+import { parsePeriode } from "@/lib/tableau-de-bord-periode"
 import { getDashboardStats } from "@/lib/use-cases/admin-dashboard"
 import { listerImagesProduit } from "@/lib/use-cases/images-produit"
 
@@ -51,16 +51,11 @@ async function TableauDeBord({
     return <PremierePage />
   }
 
-  const points = stats.chiffreAffairesEncaisse.map((seau) => ({
-    label: libelleDuSeau(periode, seau.cle),
-    montant: seau.montant,
-  }))
-
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Tableau de bord"
-        description="Les chiffres de la boutique, les commandes à traiter et les points de vigilance."
+        description="Les chiffres de la boutique, les Commandes à traiter et les points de vigilance."
         actions={
           <Button render={<Link href="/admin/produits/nouveau" />}>
             Nouveau produit
@@ -72,7 +67,7 @@ async function TableauDeBord({
 
       <div className="grid gap-4 lg:grid-cols-7">
         <CarteChiffreAffaires
-          data={points}
+          data={stats.chiffreAffairesEncaisse}
           periode={periode}
           className="lg:col-span-4"
         />
@@ -86,7 +81,6 @@ async function TableauDeBord({
       <CarteSurveillance
         compteurs={{
           enRupture: stats.outOfStockCount,
-          stockFaible: stats.lowStockVariants.length,
           sansAlt: imagesSansAlt.sansAltCount,
           echecs: executionsEnEchec,
         }}
