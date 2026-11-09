@@ -6,8 +6,9 @@ import {
   resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
+import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
+import type { PortAuthentification } from "@/components/auth/port-authentification"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
-import { authClient } from "@/lib/client"
 import {
   ACTIONS_PAR_TYPE_OTP,
   type TypeOtp,
@@ -15,17 +16,20 @@ import {
 
 export type OtpExchangeType = TypeOtp
 
-export function useOtpExchange({
-  email,
-  type,
-  onSent,
-  onVerified,
-}: {
-  email: string
-  type: OtpExchangeType
-  onSent?: () => void
-  onVerified?: (email: string) => void
-}) {
+export function useOtpExchange(
+  {
+    email,
+    type,
+    onSent,
+    onVerified,
+  }: {
+    email: string
+    type: OtpExchangeType
+    onSent?: () => void
+    onVerified?: (email: string) => void
+  },
+  port: PortAuthentification = portAuthentificationClient
+) {
   const [otpSent, setOtpSent] = useState(false)
   const [otp, setOtp] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -36,10 +40,10 @@ export function useOtpExchange({
     setError(null)
     setLoading(true)
     try {
-      const result = await authClient.emailOtp.sendVerificationOtp({
+      const result = await port.envoyerCode({
         email,
         type,
-        fetchOptions: { headers: captcha.headers },
+        entetes: captcha.headers,
       })
       if (result.error) {
         setError(resolveAuthRefusal(result.error, captcha.reset))
@@ -56,7 +60,7 @@ export function useOtpExchange({
     setError(null)
     setLoading(true)
     try {
-      const result = await authClient.emailOtp.verifyEmail({ email, otp })
+      const result = await port.verifierCode({ email, code: otp })
       if (result.error) {
         setError(translateAuthError(result.error))
         return
