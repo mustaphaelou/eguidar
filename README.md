@@ -58,7 +58,7 @@ Le parcours va du catalogue à la confirmation de commande, sans paiement en lig
   <tr>
     <td width="50%" align="center" valign="top">
       <a href="docs/screenshots/admin-tableau-de-bord.png"><img src="docs/screenshots/admin-tableau-de-bord.png" alt="Tableau de bord de l'Administration" width="100%"></a><br>
-      <sub><b>Tableau de bord</b> — chiffre d'affaires encaissé, commandes à traiter, stock faible.</sub>
+      <sub><b>Tableau de bord</b> — chiffre d'affaires encaissé sur une période, commandes récentes et alertes.</sub>
     </td>
     <td width="50%" align="center" valign="top">
       <a href="docs/screenshots/admin-produits.png"><img src="docs/screenshots/admin-produits.png" alt="Liste des produits" width="100%"></a><br>
