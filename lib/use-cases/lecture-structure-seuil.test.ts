@@ -114,14 +114,6 @@ const SITES_NOMMES: ExceptionLecture[] = [
       "le seul nom de la catégorie dans la liste des Produits de l'Administration : une chaîne d'une seule rangée, pas sa place dans l'arbre",
   },
   {
-    chemin: "lib/use-cases/admin-dashboard.ts",
-    voie: "delegue",
-    extrait: `prisma.${FORME.delegue}.count`,
-    declaration: "getDashboardStats",
-    herite: true,
-    raison: "le compte de Structures du tableau de bord",
-  },
-  {
     chemin: "lib/use-cases/admin-structure.ts",
     voie: "delegue",
     extrait: `client.${FORME.delegue}.findUnique`,
@@ -259,7 +251,7 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
     }
   })
 
-  it("la liste s'élargit des dix-neuf entrées d'ici, chacune avec sa raison propre", () => {
+  it("la liste s'élargit des dix-huit entrées d'ici, chacune avec sa raison propre", () => {
     const raisons = SITES_NOMMES.map(({ raison }) => raison)
     expect(raisons).toHaveLength(new Set(raisons).size)
 
@@ -280,11 +272,11 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
     }
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
-    expect(heritees.length).toBe(3)
-    expect(SITES_NOMMES).toHaveLength(19)
+    expect(heritees.length).toBe(2)
+    expect(SITES_NOMMES).toHaveLength(18)
     expect(SITES_NOMMES).toHaveLength(heritees.length + 16)
 
-    const attenduesParVoie = { relation: 11, delegue: 8 }
+    const attenduesParVoie = { relation: 11, delegue: 7 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,
