@@ -5,8 +5,15 @@ import {
   LIBELLES_STATUT_LIGNE_IMPORT,
   LIBELLES_STATUT_LOT_IMPORT,
   LIMITE_OCTETS_IMPORT,
+  MESSAGE_LOT_INTROUVABLE,
+  STATUTS_LOT_IMPORT,
   analyserLesLignes,
+  avertissementDepuisLeCode,
+  codeDAvertissement,
   contenuDuModele,
+  estDejaApplique,
+  estEnApplication,
+  etapeDuLot,
   grouperParProduit,
   jugerLEnTete,
   lireLeTexte,
@@ -14,6 +21,9 @@ import {
   messageDAvertissement,
   messageDuRefus,
   normaliserLeNom,
+  peutAppliquer,
+  peutVerifier,
+  refusDepuisLeCode,
   ressembleÀDuHtml,
   serialiserLesRefusCsv,
   statutAfficheDuLot,
@@ -252,6 +262,71 @@ describe("jugerLEnTete", () => {
       expect(jugerLEnTete(cas.texte)).toEqual(cas.attendu)
     })
   }
+})
+
+describe("les messages partagés", () => {
+  it("porte le seul texte d'un Lot introuvable", () => {
+    expect(MESSAGE_LOT_INTROUVABLE).toBe("Ce Lot d'import est introuvable.")
+  })
+})
+
+describe("le décodage des codes relus depuis la base", () => {
+  it("rend chaque avertissement du vocabulaire, sans perdre colonne_inconnue", () => {
+    expect(avertissementDepuisLeCode("colonne_inconnue:notes")).toEqual({
+      code: "colonne_inconnue",
+      colonne: "notes",
+    })
+    expect(avertissementDepuisLeCode("colonne_inconnue")).toEqual({
+      code: "colonne_inconnue",
+      colonne: "",
+    })
+    expect(avertissementDepuisLeCode("description_html")).toEqual({
+      code: "description_html",
+    })
+    expect(avertissementDepuisLeCode("produit_sans_structure")).toEqual({
+      code: "produit_sans_structure",
+    })
+    expect(avertissementDepuisLeCode("nom_ressemblant")).toEqual({
+      code: "nom_ressemblant",
+    })
+    expect(avertissementDepuisLeCode("autre")).toBeNull()
+  })
+
+  it("encode le nom de la colonne inconnue avec son code", () => {
+    expect(
+      codeDAvertissement({ code: "colonne_inconnue", colonne: "notes" })
+    ).toBe("colonne_inconnue:notes")
+    expect(codeDAvertissement({ code: "description_html" })).toBe(
+      "description_html"
+    )
+  })
+
+  it("reconstruit un refus depuis son code et le contexte de la Ligne", () => {
+    expect(
+      refusDepuisLeCode("structure_inconnue", { structure: "maison" })
+    ).toEqual({
+      code: "structure_inconnue",
+      structure: "maison",
+      portee: "produit",
+    })
+    expect(refusDepuisLeCode("sku_deja_pris", { sku: "SKU-1" })).toEqual({
+      code: "sku_deja_pris",
+      sku: "SKU-1",
+      portee: "produit",
+    })
+    expect(
+      refusDepuisLeCode("champ_requis_manquant", { champ: "name" })
+    ).toEqual({
+      code: "champ_requis_manquant",
+      champ: "name",
+      portee: "produit",
+    })
+    expect(refusDepuisLeCode("prix_invalide")).toEqual({
+      code: "prix_invalide",
+    })
+    expect(refusDepuisLeCode("inconnu")).toBeNull()
+    expect(refusDepuisLeCode(null)).toBeNull()
+  })
 })
 
 describe("messageDuRefus", () => {
@@ -520,6 +595,35 @@ describe("serialiserLesRefusCsv", () => {
   })
 })
 
+describe("l'étape courante du parcours d'import", () => {
+  it("dit où en est un Lot, statut par statut", () => {
+    expect(etapeDuLot("brouillon")).toBe("verifier")
+    expect(etapeDuLot("verifie")).toBe("appliquer")
+    expect(etapeDuLot("en_cours")).toBe("appliquer")
+    expect(etapeDuLot("partiel")).toBe("appliquer")
+    expect(etapeDuLot("termine")).toBe("appliquer")
+    expect(etapeDuLot("echoue")).toBe("televerser")
+  })
+})
+
+describe("les prédicats de statut", () => {
+  it("dit quels Lots se vérifient et lesquels s'appliquent", () => {
+    expect(STATUTS_LOT_IMPORT.filter(peutVerifier)).toEqual([
+      "brouillon",
+      "verifie",
+    ])
+    expect(STATUTS_LOT_IMPORT.filter(peutAppliquer)).toEqual([
+      "verifie",
+      "en_cours",
+    ])
+    expect(STATUTS_LOT_IMPORT.filter(estDejaApplique)).toEqual([
+      "partiel",
+      "termine",
+    ])
+    expect(STATUTS_LOT_IMPORT.filter(estEnApplication)).toEqual(["en_cours"])
+  })
+})
+
 describe("les libellés français des statuts", () => {
   it("traduit les six statuts du Lot", () => {
     expect(LIBELLES_STATUT_LOT_IMPORT).toEqual({
@@ -779,10 +883,26 @@ describe("lireLesLignes — les Lignes mal formées", () => {
       numero: 2,
       slug: "",
       sku: "",
-      cellules: {},
       enregistrement: null,
       refus: { code: "ligne_mal_formee" },
     })
+  })
+
+  it("garde les cellules brutes par position, même quand la Ligne est mal formée", () => {
+    const lignes = lireLesLignes(
+      csvFichier(EN_TETE_CANONIQUE, `chaise,Chaise,Maison`)
+    )
+
+    expect(lignes).toMatchObject([
+      {
+        numero: 2,
+        slug: "",
+        sku: "",
+        cellules: { slug: "chaise", name: "Chaise", brand: "Maison" },
+        enregistrement: null,
+        refus: { code: "ligne_mal_formee" },
+      },
+    ])
   })
 
   it("refuse une Ligne dont le nombre de cellules diffère de l'en-tête", () => {

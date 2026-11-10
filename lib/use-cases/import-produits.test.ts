@@ -286,6 +286,27 @@ describe("televerserLeFichier — les Lignes lues", () => {
       [3, "ligne_mal_formee", "refusee", ""],
       [4, null, null, "table"],
     ])
+    expect(lot?.lignes[1]?.cellules).toMatchObject({
+      slug: "trop",
+      name: "peu",
+    })
+  })
+
+  it("rejoue une Ligne mal formée avec ses cellules brutes et son refus", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}${LIGNE_CHAISE}\r\ntrop,peu\r\n${LIGNE_TABLE}\r\n`
+    )
+
+    await verifierLeLot(resultat.lotId)
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.lignes[1]).toMatchObject({
+      codeRefus: "ligne_mal_formee",
+      statut: "refusee",
+      cellules: { slug: "trop", name: "peu" },
+      refus: { code: "ligne_mal_formee" },
+    })
+    expect(lot?.produitsRefuses).toBe(0)
   })
 
   it("persiste le doublon et le conflit sur toutes leurs occurrences", async () => {

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import type { EtapeImport } from "@/lib/import-produits"
 import { cn } from "@/lib/utils"
 
 export const ETAPES_IMPORT = [
@@ -18,8 +19,6 @@ export const ETAPES_IMPORT = [
     description: "Écrire ce qui a été vérifié, sans rien supprimer.",
   },
 ] as const
-
-export type EtapeImport = (typeof ETAPES_IMPORT)[number]["id"]
 
 /**
  * Les trois étapes du parcours d'import. L'étape courante est portée par

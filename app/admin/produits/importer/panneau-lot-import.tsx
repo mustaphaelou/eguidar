@@ -14,10 +14,15 @@ import {
   MESSAGE_APPLIQUER_PRET,
   MESSAGE_APPLIQUER_REFUS,
   MESSAGE_INDEXATION_EN_ATTENTE,
+  avertissementDepuisLeCode,
+  estDejaApplique,
+  estEnApplication,
   grouperParProduit,
   statutAfficheDuLot,
   messageDAvertissement,
   messageDuRefus,
+  peutAppliquer,
+  peutVerifier,
   type AvertissementImport,
 } from "@/lib/import-produits"
 import { formatPrice } from "@/lib/money"
@@ -55,23 +60,11 @@ function tailleEnOctets(taille: number): string {
   return `${NOMBRE.format(taille)} octet${taille > 1 ? "s" : ""}`
 }
 
-function avertissementDepuisLeCode(code: string): AvertissementImport | null {
-  switch (code) {
-    case "description_html":
-      return { code: "description_html" }
-    case "produit_sans_structure":
-      return { code: "produit_sans_structure" }
-    case "nom_ressemblant":
-      return { code: "nom_ressemblant" }
-    default:
-      return null
-  }
-}
-
 function avertissementsDeLaLigne(ligne: LigneImportLue): AvertissementImport[] {
-  return ligne.avertissements
-    .map((code) => avertissementDepuisLeCode(code))
-    .filter((avertissement) => avertissement !== null)
+  return ligne.avertissements.flatMap((code) => {
+    const avertissement = avertissementDepuisLeCode(code)
+    return avertissement === null ? [] : [avertissement]
+  })
 }
 
 function avertissementsDuGroupe(
@@ -363,10 +356,12 @@ export function PanneauLotImport({
 }) {
   const refuse = lot.statut === "echoue"
   const verifie = lot.statut === "verifie"
-  const enCours = lot.statut === "en_cours"
+  const enCours = estEnApplication(lot.statut)
   const partiel = lot.statut === "partiel"
   const termine = lot.statut === "termine"
-  const peutVerifier = verifie || lot.statut === "brouillon"
+  const dejaApplique = estDejaApplique(lot.statut)
+  const peutVerifierLeLot = peutVerifier(lot.statut)
+  const peutAppliquerLeLot = peutAppliquer(lot.statut)
   const groupes = grouperParProduit(lot.lignes)
   const totalProduits = groupes.filter((groupe) => groupe.slug !== "").length
   const nombreDeLignes = lot.lignes.length
@@ -380,18 +375,17 @@ export function PanneauLotImport({
   // écritures, le rapport ne dit jamais « terminé », quel que soit le statut
   // persisté.
   const indexationEnAttente = lot.indexes < lot.ecrits
-  const dejaApplique = partiel || termine
   const applicationCommencee =
     enCours || dejaApplique || lot.ecrits > 0 || lot.indexes > 0
   const appliquerDisponible =
-    (verifie || enCours) && !refusPresent && lot.produitsRefuses === 0
+    peutAppliquerLeLot && !refusPresent && lot.produitsRefuses === 0
   const messageAppliquer = dejaApplique
     ? termine
       ? "Ce Lot est déjà appliqué : ses Produits sont écrits et son rapport est ci-dessus."
       : "Ce Lot a été appliqué partiellement : les Produits en échec portent leur raison. Corrigez le fichier, puis téléversez-le de nouveau."
     : enCours
       ? "L'application est en cours : reprenez-la pour écrire les Produits restants et rattraper l'indexation."
-      : !verifie
+      : !peutAppliquerLeLot
         ? MESSAGE_APPLIQUER_LOT_NON_VERIFIE
         : refusPresent || lot.produitsRefuses > 0
           ? MESSAGE_APPLIQUER_REFUS
@@ -478,7 +472,7 @@ export function PanneauLotImport({
             ) : null}
             {applicationCommencee ? <CompteursApplication lot={lot} /> : null}
 
-            {peutVerifier ? (
+            {peutVerifierLeLot ? (
               <BoutonVerifierLot lotId={lot.id} action={verificationAction} />
             ) : null}
 

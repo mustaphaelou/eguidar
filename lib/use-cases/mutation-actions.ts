@@ -17,10 +17,30 @@ export function parseMoneyField(formData: FormData, key: string): number {
   return cents
 }
 
-export function parseRequiredId(formData: FormData, key: string): string {
+export function parseRequiredId(
+  formData: FormData,
+  key: string,
+  message: string = INVALID_FORM_MESSAGE
+): string {
   const value = String(formData.get(key) ?? "")
-  if (!value) throw new Error(INVALID_FORM_MESSAGE)
+  if (!value) throw new Error(message)
   return value
+}
+
+/**
+ * Lit un entier positif ou nul, et rien d'autre : ni signe, ni décimale, ni
+ * valeur au-delà de la précision sûre. La copie du refus appartient à l'action.
+ */
+export function parseEntierObligatoire(
+  formData: FormData,
+  key: string,
+  message: string = INVALID_FORM_MESSAGE
+): number {
+  const value = String(formData.get(key) ?? "")
+  if (!/^\d+$/.test(value)) throw new Error(message)
+  const nombre = Number(value)
+  if (!Number.isSafeInteger(nombre)) throw new Error(message)
+  return nombre
 }
 
 export interface MutationActionState {

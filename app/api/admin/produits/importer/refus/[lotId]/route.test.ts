@@ -20,8 +20,9 @@ vi.mock("@/lib/use-cases/session-courante", async (importOriginal) => ({
 }))
 
 import { GET } from "@/app/api/admin/produits/importer/refus/[lotId]/route"
-import { COLONNES_IMPORT } from "@/lib/import-produits"
+import { COLONNES_IMPORT, MESSAGE_LOT_INTROUVABLE } from "@/lib/import-produits"
 import { prisma } from "@/lib/db"
+import { televerserLeFichier } from "@/lib/use-cases/import-produits"
 import type { Client } from "@/lib/use-cases/session-courante"
 
 const runId = randomUUID().slice(0, 8)
@@ -145,6 +146,26 @@ describe("GET /api/admin/produits/importer/refus/[lotId]", () => {
     expect(corps).not.toContain("TABLE-01")
   })
 
+  it("rend les cellules brutes d'une Ligne mal formée persistée", async () => {
+    comme("admin")
+    const resultat = await televerserLeFichier({
+      nomFichier: "casse.csv",
+      octets: new TextEncoder().encode(
+        `${COLONNES_IMPORT.join(",")}\r\ntrop,peu\r\n`
+      ),
+      auteurId: AUTEUR_ID,
+    })
+
+    const reponse = await requete(resultat.lotId)
+    const corps = new TextDecoder().decode(
+      new Uint8Array(await reponse.arrayBuffer())
+    )
+    const lignes = corps.split("\r\n")
+
+    expect(lignes[1]).toContain("2,ligne_mal_formee,")
+    expect(lignes[1]).toContain(",trop,peu,")
+  })
+
   it("refuse un compte ordinaire sans rendre le fichier", async () => {
     comme("user")
     const lotId = await semerLeLotAvecRefus()
@@ -173,9 +194,7 @@ describe("GET /api/admin/produits/importer/refus/[lotId]", () => {
     const reponse = await requete("lot-inconnu")
 
     expect(reponse.status).toBe(404)
-    await expect(reponse.text()).resolves.toBe(
-      "Ce Lot d'import est introuvable."
-    )
+    await expect(reponse.text()).resolves.toBe(MESSAGE_LOT_INTROUVABLE)
     expect(reponse.headers.get("Content-Disposition")).toBeNull()
   })
 })

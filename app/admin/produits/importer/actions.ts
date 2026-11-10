@@ -11,7 +11,11 @@ import type {
   EchecProduitApplication,
   StatutLotImport,
 } from "@/lib/import-produits"
-import { adminFormAction } from "@/lib/use-cases/mutation-actions"
+import {
+  adminFormAction,
+  parseEntierObligatoire,
+  parseRequiredId,
+} from "@/lib/use-cases/mutation-actions"
 
 const PAGE_IMPORT = "/admin/produits/importer"
 
@@ -85,13 +89,9 @@ export const verifierLeLotAction = adminFormAction<
   VerificationState
 >({
   next: PAGE_IMPORT,
-  parse: (formData) => {
-    const lotId = formData.get("lotId")
-    if (typeof lotId !== "string" || lotId === "") {
-      throw new Error("Aucun Lot à vérifier")
-    }
-    return { lotId }
-  },
+  parse: (formData) => ({
+    lotId: parseRequiredId(formData, "lotId", "Aucun Lot à vérifier"),
+  }),
   run: async ({ lotId }) => {
     await verifierLeLot(lotId)
     redirect(`${PAGE_IMPORT}?lot=${lotId}`)
@@ -113,20 +113,13 @@ export const appliquerLeLotAction = adminFormAction<
   ApplicationState
 >({
   next: PAGE_IMPORT,
-  parse: (formData) => {
-    const lotId = String(formData.get("lotId") ?? "")
-    if (lotId === "") {
-      throw new Error("Aucun Lot à appliquer")
-    }
-    const curseurBrut = String(formData.get("curseur") ?? "")
-    if (!/^\d+$/.test(curseurBrut)) {
-      throw new Error("Curseur d'application invalide")
-    }
-    const curseur = Number(curseurBrut)
-    if (!Number.isSafeInteger(curseur)) {
-      throw new Error("Curseur d'application invalide")
-    }
-    return { lotId, curseur }
-  },
+  parse: (formData) => ({
+    lotId: parseRequiredId(formData, "lotId", "Aucun Lot à appliquer"),
+    curseur: parseEntierObligatoire(
+      formData,
+      "curseur",
+      "Curseur d'application invalide"
+    ),
+  }),
   run: async ({ lotId, curseur }) => appliquerLeLot(lotId, curseur),
 })
