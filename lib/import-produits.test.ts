@@ -5,6 +5,7 @@ import {
   LIBELLES_STATUT_LIGNE_IMPORT,
   LIBELLES_STATUT_LOT_IMPORT,
   LIMITE_OCTETS_IMPORT,
+  analyserLesLignes,
   contenuDuModele,
   grouperParProduit,
   jugerLEnTete,
@@ -12,6 +13,7 @@ import {
   lireLesLignes,
   messageDAvertissement,
   messageDuRefus,
+  normaliserLeNom,
   ressembleÀDuHtml,
   type AvertissementImport,
   type ColonneImport,
@@ -356,6 +358,39 @@ describe("messageDuRefus", () => {
     expect(message).toContain("« name »")
     expect(message).toMatch(/différentes/)
   })
+
+  it("nomme la Structure inconnue et dit qu'aucune Structure n'est créée", () => {
+    const message = messageDuRefus({
+      code: "structure_inconnue",
+      structure: "maison",
+    })
+
+    expect(message).toContain("« maison »")
+    expect(message).toContain("Structure")
+    expect(message).toMatch(/n'est créée/)
+  })
+
+  it("nomme le sku déjà pris par un autre Produit", () => {
+    const message = messageDuRefus({
+      code: "sku_deja_pris",
+      sku: "CHAISE-01",
+    })
+
+    expect(message).toContain("« CHAISE-01 »")
+    expect(message).toContain("autre Produit")
+  })
+
+  it("dit qu'un refus porte sur le Produit entier, pas seulement la Ligne", () => {
+    const message = messageDuRefus({
+      code: "champ_requis_manquant",
+      champ: "variant_name",
+      portee: "produit",
+    })
+
+    expect(message).toMatch(/^Le Produit est refusé/)
+    expect(message).toContain("« variant_name »")
+    expect(message).toContain("Lignes")
+  })
 })
 
 describe("messageDAvertissement", () => {
@@ -385,6 +420,24 @@ describe("messageDAvertissement", () => {
 
     expect(message).toContain("HTML")
     expect(message).toContain("texte")
+  })
+
+  it("avertit qu'un Produit est sans Structure sans le refuser", () => {
+    const message = messageDAvertissement({ code: "produit_sans_structure" })
+
+    expect(message).toContain("Structure")
+    expect(message).toMatch(/sans/)
+    expect(message).not.toMatch(/refus/i)
+  })
+
+  it("avertit qu'un nom ressemble à un Produit existant sous un autre slug", () => {
+    const message = messageDAvertissement({
+      code: "nom_ressemblant",
+      slug: "chaise-longue",
+    })
+
+    expect(message).toContain("« chaise-longue »")
+    expect(message).toMatch(/doublon/)
   })
 })
 
@@ -1176,5 +1229,121 @@ describe("grouperParProduit", () => {
       ["chaise", [2, 4]],
       ["table", [3]],
     ])
+  })
+})
+
+describe("normaliserLeNom", () => {
+  it("retire les accents, la casse et les espaces superflus", () => {
+    expect(normaliserLeNom("  Chaise   ÉLÉGANTE  ")).toBe("chaise elegante")
+  })
+
+  it("normalise les espaces insécables et les retours à la ligne", () => {
+    expect(normaliserLeNom("Table\u00a0de\r\njardin")).toBe("table de jardin")
+  })
+
+  it("laisse un nom déjà normalisé inchangé", () => {
+    expect(normaliserLeNom("chaise longue")).toBe("chaise longue")
+  })
+})
+
+describe("analyserLesLignes — le rejeu depuis les cellules persistées", () => {
+  it("re-derive le champ d'un champ requis manquant", () => {
+    const lignes = lireLesLignes(
+      csvFichier(EN_TETE_CANONIQUE, ligneCsv({ slug: "chaise" }))
+    )
+
+    const rejouees = analyserLesLignes(
+      lignes.map(({ numero, cellules }) => ({ numero, cellules }))
+    )
+
+    expect(rejouees[0]?.refus).toEqual({
+      code: "champ_requis_manquant",
+      champ: "variant_sku",
+    })
+  })
+
+  it("re-derive la forme du doublon", () => {
+    const lignes = lireLesLignes(
+      csvFichier(
+        EN_TETE_CANONIQUE,
+        ligneCsv({
+          slug: "chaise",
+          name: "Chaise",
+          variant_sku: "SKU-1",
+        }),
+        ligneCsv({
+          slug: "chaise",
+          name: "Table",
+          variant_sku: "SKU-1",
+        })
+      )
+    )
+
+    const rejouees = analyserLesLignes(
+      lignes.map(({ numero, cellules }) => ({ numero, cellules }))
+    )
+
+    expect(rejouees.map((ligne) => ligne.refus)).toEqual([
+      {
+        code: "doublon_fichier",
+        doublon: "couple",
+        sku: "SKU-1",
+        slug: "chaise",
+      },
+      {
+        code: "doublon_fichier",
+        doublon: "couple",
+        sku: "SKU-1",
+        slug: "chaise",
+      },
+    ])
+  })
+
+  it("re-derive le champ du conflit de Produit", () => {
+    const lignes = lireLesLignes(
+      csvFichier(
+        EN_TETE_CANONIQUE,
+        ligneCsv({ slug: "chaise", name: "Chaise", variant_sku: "SKU-1" }),
+        ligneCsv({ slug: "chaise", name: "Table", variant_sku: "SKU-2" })
+      )
+    )
+
+    const rejouees = analyserLesLignes(
+      lignes.map(({ numero, cellules }) => ({ numero, cellules }))
+    )
+
+    expect(rejouees.map((ligne) => ligne.refus)).toEqual([
+      { code: "produit_en_conflit", champ: "name" },
+      { code: "produit_en_conflit", champ: "name" },
+    ])
+  })
+
+  it("re-derive l'enregistrement normalisé et l'avertissement HTML", () => {
+    const lignes = lireLesLignes(
+      csvFichier(
+        EN_TETE_CANONIQUE,
+        ligneCsv({
+          slug: "chaise",
+          description: "<b>Bois</b>",
+          variant_sku: "SKU-1",
+          variant_name: "Chaise",
+          variant_price: "12.50",
+          variant_stock: "3",
+        })
+      )
+    )
+
+    const [rejouee] = analyserLesLignes(
+      lignes.map(({ numero, cellules }) => ({ numero, cellules }))
+    )
+
+    expect(rejouee?.enregistrement?.variante.prix).toBe(1250)
+    expect(rejouee?.avertissements).toEqual([{ code: "description_html" }])
+  })
+
+  it("traite des cellules vides comme une Ligne mal formée", () => {
+    const [rejouee] = analyserLesLignes([{ numero: 3, cellules: {} }])
+
+    expect(rejouee?.refus).toEqual({ code: "ligne_mal_formee" })
   })
 })
