@@ -474,6 +474,35 @@ describe("AuthDialog", () => {
       expect(new URL(window.location.href).searchParams.has("open")).toBe(false)
     })
 
+    it("closes the modal instead of navigating when the Destination carries a backslash", async () => {
+      mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
+      window.history.replaceState(
+        null,
+        "",
+        "/?open=login&next=/%5Cevil.example"
+      )
+      renderDialogs()
+      await flush()
+      rerender()
+
+      expect(dialog()).not.toBeNull()
+      expect(title()).toBe("Connexion à Eguidar")
+
+      setInputValue(emailInput()!, "user@example.com")
+      setInputValue(
+        dialog()!.querySelector<HTMLInputElement>('input[type="password"]')!,
+        "motdepasse"
+      )
+      await clickAndFlush(
+        dialog()!.querySelector<HTMLButtonElement>(
+          'form button[type="submit"]'
+        )!
+      )
+
+      expect(dialog()).toBeNull()
+      expect(window.location.pathname).toBe("/")
+    })
+
     it("shows Continuer avec Google alone when Google is configured", async () => {
       window.history.replaceState(null, "", "/?open=login")
       renderDialogs({ hasGoogle: true })

@@ -111,6 +111,9 @@ function Connexion() {
     step: "form",
     email: ADRESSE,
     onStepChange: () => {},
+    destination: null,
+    pageAddress: "/",
+    socialReturnAddress: "/",
   })
   return (
     <form onSubmit={flow.handleSignIn}>
