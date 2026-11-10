@@ -3,9 +3,14 @@
 import { redirect } from "next/navigation"
 
 import {
+  appliquerLeLot,
   televerserLeFichier,
   verifierLeLot,
 } from "@/lib/use-cases/import-produits"
+import type {
+  EchecProduitApplication,
+  StatutLotImport,
+} from "@/lib/import-produits"
 import { adminFormAction } from "@/lib/use-cases/mutation-actions"
 
 const PAGE_IMPORT = "/admin/produits/importer"
@@ -15,6 +20,23 @@ export interface TeleversementState {
 }
 
 export type VerificationState = TeleversementState
+
+/**
+ * Le résultat d'un appel d'application, ou son refus. La page enchaîne les
+ * appels tant qu'il reste des Produits ou que l'indexation n'a pas rattrapé.
+ */
+export interface ApplicationState {
+  error?: string
+  lotId?: string
+  traites?: number
+  reste?: number
+  curseurSuivant?: number
+  ecrits?: number
+  indexes?: number
+  echecs?: EchecProduitApplication[]
+  indexationEnAttente?: boolean
+  statut?: StatutLotImport
+}
 
 interface FichierTeleverse {
   fichier: File
@@ -74,4 +96,37 @@ export const verifierLeLotAction = adminFormAction<
     await verifierLeLot(lotId)
     redirect(`${PAGE_IMPORT}?lot=${lotId}`)
   },
+})
+
+interface LotACurseur {
+  lotId: string
+  curseur: number
+}
+
+/**
+ * L'application passe par la porte d'administration : elle ne rend pas de
+ * redirection, car la page enchaîne les appels avec le curseur rendu. Un refus
+ * du cas d'usage revient en message français, sans rien écrire.
+ */
+export const appliquerLeLotAction = adminFormAction<
+  LotACurseur,
+  ApplicationState
+>({
+  next: PAGE_IMPORT,
+  parse: (formData) => {
+    const lotId = String(formData.get("lotId") ?? "")
+    if (lotId === "") {
+      throw new Error("Aucun Lot à appliquer")
+    }
+    const curseurBrut = String(formData.get("curseur") ?? "")
+    if (!/^\d+$/.test(curseurBrut)) {
+      throw new Error("Curseur d'application invalide")
+    }
+    const curseur = Number(curseurBrut)
+    if (!Number.isSafeInteger(curseur)) {
+      throw new Error("Curseur d'application invalide")
+    }
+    return { lotId, curseur }
+  },
+  run: async ({ lotId, curseur }) => appliquerLeLot(lotId, curseur),
 })

@@ -26,6 +26,10 @@ vi.mock("next/link", () => ({
   ),
 }))
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
+}))
+
 vi.mock("./formulaire-import", () => ({
   FormulaireImport: ({ action }: { action: unknown }) => (
     <div data-testid="formulaire-import" data-action={typeof action} />
@@ -34,8 +38,13 @@ vi.mock("./formulaire-import", () => ({
 
 import ImportProductsPage from "./page"
 import { prisma } from "@/lib/db"
-import { COLONNES_IMPORT, type ColonneImport } from "@/lib/import-produits"
 import {
+  COLONNES_IMPORT,
+  MESSAGE_INDEXATION_EN_ATTENTE,
+  type ColonneImport,
+} from "@/lib/import-produits"
+import {
+  appliquerLeLot,
   televerserLeFichier,
   verifierLeLot,
 } from "@/lib/use-cases/import-produits"
@@ -463,5 +472,102 @@ describe("la page d'import des Produits — le Lot vérifié", () => {
     expect(baliseDuBouton(html, "Appliquer le Lot")).not.toContain(
       'disabled=""'
     )
+  })
+})
+
+describe("la page d'import des Produits — le Lot appliqué", () => {
+  function effetsSansIndexation(echoue = false) {
+    return {
+      reindexProducts: vi.fn(async () => {
+        if (echoue) throw new Error("Meili indisponible")
+      }),
+      revalidateCatalog: vi.fn(),
+      purgeCatalogue: vi.fn(),
+      deleteImages: vi.fn(async () => {}),
+      enregistrerImages: vi.fn(async () => {}),
+    }
+  }
+
+  it("distingue les Produits écrits des Produits indexés et dit le Lot terminé", async () => {
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-appliquee`,
+          name: "Appliquée",
+          brand: "Maison",
+          variant_sku: `${runId}-APPLIQUEE-01`,
+          variant_name: "Unique",
+          variant_price: "10.00",
+        })
+      )
+    )
+    await appliquerLeLot(lotId, 0, effetsSansIndexation())
+
+    const html = await rendre({ lot: lotId })
+
+    expect(html).toContain("Résultat de l&#x27;application")
+    expect(html).toMatch(/Produits écrits<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toMatch(/Produits indexés<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toContain("Terminé")
+    expect(html).toContain("tous ses Produits sont écrits et indexés")
+    expect(html).toContain("Écrite")
+    expect(baliseDuBouton(html, "Appliquer le Lot")).toContain('disabled=""')
+  })
+
+  it("affiche l'indexation en attente et jamais terminé quand l'indexation est en retard", async () => {
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-attente`,
+          name: "En attente",
+          brand: "Maison",
+          variant_sku: `${runId}-ATTENTE-01`,
+          variant_name: "Unique",
+          variant_price: "10.00",
+        })
+      )
+    )
+    await appliquerLeLot(lotId, 0, effetsSansIndexation(true))
+
+    const html = await rendre({ lot: lotId })
+
+    expect(html).toContain("En cours")
+    expect(html).toMatch(/Produits écrits<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toMatch(/Produits indexés<\/dt><dd[^>]*>0<\/dd>/)
+    expect(html.replaceAll("&#x27;", "'")).toContain(
+      MESSAGE_INDEXATION_EN_ATTENTE
+    )
+    expect(html).not.toContain("tous ses Produits sont écrits et indexés")
+    expect(html).toContain("Reprendre l&#x27;application")
+  })
+
+  it("montre la raison d'un Produit en échec sur ses Lignes et le Lot partiel", async () => {
+    const lot = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "9".repeat(64),
+        taille: 64,
+        statut: "partiel",
+        ecrits: 0,
+        indexes: 0,
+      },
+    })
+    await prisma.ligneImport.create({
+      data: {
+        lotId: lot.id,
+        numero: 2,
+        slug: `v-${runId}-echec`,
+        sku: `${runId}-ECHEC-01`,
+        cellules: { slug: `v-${runId}-echec` },
+        statut: "echouee",
+        motifEchec: "Panne simulée du Catalogue",
+      },
+    })
+
+    const html = await rendre({ lot: lot.id })
+
+    expect(html).toContain("Partiel")
+    expect(html).toContain("Échec d&#x27;écriture : Panne simulée du Catalogue")
+    expect(html).toContain("application est partielle")
   })
 })

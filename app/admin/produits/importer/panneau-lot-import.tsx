@@ -13,6 +13,7 @@ import {
   MESSAGE_APPLIQUER_LOT_NON_VERIFIE,
   MESSAGE_APPLIQUER_PRET,
   MESSAGE_APPLIQUER_REFUS,
+  MESSAGE_INDEXATION_EN_ATTENTE,
   grouperParProduit,
   messageDAvertissement,
   messageDuRefus,
@@ -29,7 +30,8 @@ import type {
   LigneImportLue,
   LotImportLu,
 } from "@/lib/use-cases/import-produits"
-import type { VerificationState } from "./actions"
+import type { ApplicationState, VerificationState } from "./actions"
+import { BoutonAppliquerLot } from "./bouton-appliquer-lot"
 import { BoutonVerifierLot } from "./bouton-verifier-lot"
 
 const NOMBRE = new Intl.NumberFormat("fr-MA")
@@ -156,7 +158,11 @@ function LigneLue({ ligne }: { ligne: LigneImportLue }) {
         </code>
         {ligne.statut !== null ? (
           <Badge
-            variant={ligne.statut === "refusee" ? "destructive" : "secondary"}
+            variant={
+              ligne.statut === "refusee" || ligne.statut === "echouee"
+                ? "destructive"
+                : "secondary"
+            }
           >
             {LIBELLES_STATUT_LIGNE_IMPORT[ligne.statut]}
           </Badge>
@@ -169,6 +175,11 @@ function LigneLue({ ligne }: { ligne: LigneImportLue }) {
             {ligne.refus.code}
           </code>
         </div>
+      ) : null}
+      {ligne.motifEchec !== null ? (
+        <p className="text-destructive">
+          {`Échec d'écriture : ${ligne.motifEchec}`}
+        </p>
       ) : null}
     </li>
   )
@@ -256,6 +267,65 @@ function Compteurs({ lot }: { lot: LotImportLu }) {
 }
 
 /**
+ * Le rapport de l'application : ce qui est **écrit** et ce qui est **indexé**
+ * sont deux compteurs distincts. Tant que l'indexation est en retard, le Lot
+ * reste « en cours » et le rapport dit « indexation en attente », jamais
+ * « terminé ».
+ */
+function CompteursApplication({ lot }: { lot: LotImportLu }) {
+  const indexationEnAttente =
+    lot.statut === "en_cours" && lot.indexes < lot.ecrits
+  const totalProduits = grouperParProduit(lot.lignes).filter(
+    (groupe) => groupe.slug !== ""
+  ).length
+
+  return (
+    <section
+      aria-label="Résultat de l'application"
+      className="flex flex-col gap-2"
+    >
+      <h2 className="font-medium">Résultat de l&apos;application</h2>
+      <dl className="grid gap-3 text-sm sm:grid-cols-3">
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-muted-foreground">Produits écrits</dt>
+          <dd className="text-lg font-medium">{lot.ecrits}</dd>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-muted-foreground">Produits indexés</dt>
+          <dd className="text-lg font-medium">{lot.indexes}</dd>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-muted-foreground">Produits traités</dt>
+          <dd className="text-lg font-medium">
+            {`${lot.curseur} / ${totalProduits}`}
+          </dd>
+        </div>
+      </dl>
+      {indexationEnAttente ? (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm"
+        >
+          {MESSAGE_INDEXATION_EN_ATTENTE}
+        </p>
+      ) : null}
+      {lot.statut === "partiel" ? (
+        <p className="text-sm text-destructive">
+          L&apos;application est partielle : les Produits en échec ont leur
+          raison sur leurs Lignes. Corrigez le fichier, puis téléversez-le de
+          nouveau.
+        </p>
+      ) : null}
+      {lot.statut === "termine" ? (
+        <p className="text-sm text-muted-foreground">
+          Le Lot est terminé : tous ses Produits sont écrits et indexés.
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+/**
  * Le Lot relu : son statut, son auteur, son instant, l'empreinte et la taille de
  * son fichier, ses avertissements, le résultat de sa Vérification — compteurs,
  * statuts de Ligne, refus avec numéro et code, avertissements et diff avant →
@@ -265,13 +335,20 @@ function Compteurs({ lot }: { lot: LotImportLu }) {
 export function PanneauLotImport({
   lot,
   verificationAction,
+  applicationAction,
 }: {
   lot: LotImportLu
   verificationAction: MutationFormAction<VerificationState>
+  applicationAction: MutationFormAction<ApplicationState>
 }) {
   const refuse = lot.statut === "echoue"
   const verifie = lot.statut === "verifie"
+  const enCours = lot.statut === "en_cours"
+  const partiel = lot.statut === "partiel"
+  const termine = lot.statut === "termine"
+  const peutVerifier = verifie || lot.statut === "brouillon"
   const groupes = grouperParProduit(lot.lignes)
+  const totalProduits = groupes.filter((groupe) => groupe.slug !== "").length
   const nombreDeLignes = lot.lignes.length
   const libelleLignes = `${NOMBRE.format(nombreDeLignes)} ligne${
     nombreDeLignes > 1 ? "s" : ""
@@ -279,13 +356,22 @@ export function PanneauLotImport({
   const refusPresent = lot.lignes.some(
     (ligne) => ligne.statut === "refusee" || ligne.refus !== null
   )
+  const dejaApplique = partiel || termine
+  const applicationCommencee =
+    enCours || dejaApplique || lot.ecrits > 0 || lot.indexes > 0
   const appliquerDisponible =
-    verifie && !refusPresent && lot.produitsRefuses === 0
-  const messageAppliquer = !verifie
-    ? MESSAGE_APPLIQUER_LOT_NON_VERIFIE
-    : refusPresent || lot.produitsRefuses > 0
-      ? MESSAGE_APPLIQUER_REFUS
-      : MESSAGE_APPLIQUER_PRET
+    (verifie || enCours) && !refusPresent && lot.produitsRefuses === 0
+  const messageAppliquer = dejaApplique
+    ? termine
+      ? "Ce Lot est déjà appliqué : ses Produits sont écrits et son rapport est ci-dessus."
+      : "Ce Lot a été appliqué partiellement : les Produits en échec portent leur raison. Corrigez le fichier, puis téléversez-le de nouveau."
+    : enCours
+      ? "L'application est en cours : reprenez-la pour écrire les Produits restants et rattraper l'indexation."
+      : !verifie
+        ? MESSAGE_APPLIQUER_LOT_NON_VERIFIE
+        : refusPresent || lot.produitsRefuses > 0
+          ? MESSAGE_APPLIQUER_REFUS
+          : MESSAGE_APPLIQUER_PRET
 
   return (
     <Card aria-label="Lot d'import">
@@ -310,9 +396,15 @@ export function PanneauLotImport({
         <p className="text-sm text-muted-foreground">
           {refuse
             ? "Le fichier a été refusé : aucun Produit, aucune Variante et aucune Structure n'ont été écrits. Corrigez le fichier, puis téléversez-le de nouveau."
-            : verifie
-              ? "Le fichier est accepté et le Lot est vérifié : voici ce que son application créerait, modifierait ou refuserait, sans rien écrire."
-              : "Le fichier est accepté. Ses Lignes sont lues ; la Vérification contre le Catalogue dira ce qu'il créerait, modifierait ou refuserait."}
+            : termine
+              ? "Le Lot est terminé : ses Produits sont écrits et indexés."
+              : partiel
+                ? "Le Lot a été appliqué partiellement : les Produits écrits le sont, les autres ont leur raison sur leurs Lignes."
+                : enCours
+                  ? "Le Lot est en cours d'application : les Produits déjà écrits le restent, l'application reprend au curseur."
+                  : verifie
+                    ? "Le fichier est accepté et le Lot est vérifié : voici ce que son application créerait, modifierait ou refuserait, sans rien écrire."
+                    : "Le fichier est accepté. Ses Lignes sont lues ; la Vérification contre le Catalogue dira ce qu'il créerait, modifierait ou refuserait."}
         </p>
 
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -353,9 +445,14 @@ export function PanneauLotImport({
 
         {refuse ? null : (
           <section className="flex flex-col gap-4">
-            {verifie ? <Compteurs lot={lot} /> : null}
+            {verifie || enCours || dejaApplique ? (
+              <Compteurs lot={lot} />
+            ) : null}
+            {applicationCommencee ? <CompteursApplication lot={lot} /> : null}
 
-            <BoutonVerifierLot lotId={lot.id} action={verificationAction} />
+            {peutVerifier ? (
+              <BoutonVerifierLot lotId={lot.id} action={verificationAction} />
+            ) : null}
 
             <section className="flex flex-col gap-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -385,11 +482,22 @@ export function PanneauLotImport({
             </section>
 
             <div className="flex flex-col gap-2 border-t border-foreground/10 pt-4">
-              <div>
-                <Button type="button" disabled={!appliquerDisponible}>
-                  Appliquer le Lot
-                </Button>
-              </div>
+              {appliquerDisponible ? (
+                <BoutonAppliquerLot
+                  lotId={lot.id}
+                  curseurInitial={lot.curseur}
+                  ecritsInitiaux={lot.ecrits}
+                  indexesInitiaux={lot.indexes}
+                  total={totalProduits}
+                  action={applicationAction}
+                />
+              ) : (
+                <div>
+                  <Button type="button" disabled>
+                    Appliquer le Lot
+                  </Button>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 {messageAppliquer}
               </p>

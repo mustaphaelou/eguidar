@@ -42,6 +42,7 @@ export type LigneImportMinAggregateOutputType = {
   sku: string | null
   codeRefus: string | null
   statut: $Enums.StatutLigneImport | null
+  motifEchec: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -54,6 +55,7 @@ export type LigneImportMaxAggregateOutputType = {
   sku: string | null
   codeRefus: string | null
   statut: $Enums.StatutLigneImport | null
+  motifEchec: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -70,6 +72,7 @@ export type LigneImportCountAggregateOutputType = {
   avertissements: number
   diff: number
   statut: number
+  motifEchec: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -91,6 +94,7 @@ export type LigneImportMinAggregateInputType = {
   sku?: true
   codeRefus?: true
   statut?: true
+  motifEchec?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -103,6 +107,7 @@ export type LigneImportMaxAggregateInputType = {
   sku?: true
   codeRefus?: true
   statut?: true
+  motifEchec?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -119,6 +124,7 @@ export type LigneImportCountAggregateInputType = {
   avertissements?: true
   diff?: true
   statut?: true
+  motifEchec?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -229,6 +235,7 @@ export type LigneImportGroupByOutputType = {
   avertissements: string[]
   diff: runtime.JsonValue | null
   statut: $Enums.StatutLigneImport | null
+  motifEchec: string | null
   createdAt: Date
   updatedAt: Date
   _count: LigneImportCountAggregateOutputType | null
@@ -269,6 +276,7 @@ export type LigneImportWhereInput = {
     | Prisma.EnumStatutLigneImportNullableFilter<"LigneImport">
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.StringNullableFilter<"LigneImport"> | string | null
   createdAt?: Prisma.DateTimeFilter<"LigneImport"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"LigneImport"> | Date | string
   lot?: Prisma.XOR<
@@ -289,6 +297,7 @@ export type LigneImportOrderByWithRelationInput = {
   avertissements?: Prisma.SortOrder
   diff?: Prisma.SortOrderInput | Prisma.SortOrder
   statut?: Prisma.SortOrderInput | Prisma.SortOrder
+  motifEchec?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   lot?: Prisma.LotImportOrderByWithRelationInput
@@ -314,6 +323,7 @@ export type LigneImportWhereUniqueInput = Prisma.AtLeast<
       | Prisma.EnumStatutLigneImportNullableFilter<"LigneImport">
       | $Enums.StatutLigneImport
       | null
+    motifEchec?: Prisma.StringNullableFilter<"LigneImport"> | string | null
     createdAt?: Prisma.DateTimeFilter<"LigneImport"> | Date | string
     updatedAt?: Prisma.DateTimeFilter<"LigneImport"> | Date | string
     lot?: Prisma.XOR<
@@ -336,6 +346,7 @@ export type LigneImportOrderByWithAggregationInput = {
   avertissements?: Prisma.SortOrder
   diff?: Prisma.SortOrderInput | Prisma.SortOrder
   statut?: Prisma.SortOrderInput | Prisma.SortOrder
+  motifEchec?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.LigneImportCountOrderByAggregateInput
@@ -368,6 +379,8 @@ export type LigneImportScalarWhereWithAggregatesInput = {
     | Prisma.EnumStatutLigneImportNullableWithAggregatesFilter<"LigneImport">
     | $Enums.StatutLigneImport
     | null
+  motifEchec?:
+    Prisma.StringNullableWithAggregatesFilter<"LigneImport"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"LigneImport"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"LigneImport"> | Date | string
 }
@@ -383,6 +396,7 @@ export type LigneImportCreateInput = {
   avertissements?: Prisma.LigneImportCreateavertissementsInput | string[]
   diff?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   statut?: $Enums.StatutLigneImport | null
+  motifEchec?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   lot: Prisma.LotImportCreateNestedOneWithoutLignesInput
@@ -400,6 +414,7 @@ export type LigneImportUncheckedCreateInput = {
   avertissements?: Prisma.LigneImportCreateavertissementsInput | string[]
   diff?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   statut?: $Enums.StatutLigneImport | null
+  motifEchec?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -418,6 +433,7 @@ export type LigneImportUpdateInput = {
     | Prisma.NullableEnumStatutLigneImportFieldUpdateOperationsInput
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   lot?: Prisma.LotImportUpdateOneRequiredWithoutLignesNestedInput
@@ -438,6 +454,7 @@ export type LigneImportUncheckedUpdateInput = {
     | Prisma.NullableEnumStatutLigneImportFieldUpdateOperationsInput
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -454,6 +471,7 @@ export type LigneImportCreateManyInput = {
   avertissements?: Prisma.LigneImportCreateavertissementsInput | string[]
   diff?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   statut?: $Enums.StatutLigneImport | null
+  motifEchec?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -472,6 +490,7 @@ export type LigneImportUpdateManyMutationInput = {
     | Prisma.NullableEnumStatutLigneImportFieldUpdateOperationsInput
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -491,6 +510,7 @@ export type LigneImportUncheckedUpdateManyInput = {
     | Prisma.NullableEnumStatutLigneImportFieldUpdateOperationsInput
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -522,6 +542,7 @@ export type LigneImportCountOrderByAggregateInput = {
   avertissements?: Prisma.SortOrder
   diff?: Prisma.SortOrder
   statut?: Prisma.SortOrder
+  motifEchec?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -538,6 +559,7 @@ export type LigneImportMaxOrderByAggregateInput = {
   sku?: Prisma.SortOrder
   codeRefus?: Prisma.SortOrder
   statut?: Prisma.SortOrder
+  motifEchec?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -550,6 +572,7 @@ export type LigneImportMinOrderByAggregateInput = {
   sku?: Prisma.SortOrder
   codeRefus?: Prisma.SortOrder
   statut?: Prisma.SortOrder
+  motifEchec?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -680,6 +703,7 @@ export type LigneImportCreateWithoutLotInput = {
   avertissements?: Prisma.LigneImportCreateavertissementsInput | string[]
   diff?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   statut?: $Enums.StatutLigneImport | null
+  motifEchec?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -695,6 +719,7 @@ export type LigneImportUncheckedCreateWithoutLotInput = {
   avertissements?: Prisma.LigneImportCreateavertissementsInput | string[]
   diff?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   statut?: $Enums.StatutLigneImport | null
+  motifEchec?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -762,6 +787,7 @@ export type LigneImportScalarWhereInput = {
     | Prisma.EnumStatutLigneImportNullableFilter<"LigneImport">
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.StringNullableFilter<"LigneImport"> | string | null
   createdAt?: Prisma.DateTimeFilter<"LigneImport"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"LigneImport"> | Date | string
 }
@@ -777,6 +803,7 @@ export type LigneImportCreateManyLotInput = {
   avertissements?: Prisma.LigneImportCreateavertissementsInput | string[]
   diff?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   statut?: $Enums.StatutLigneImport | null
+  motifEchec?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -795,6 +822,7 @@ export type LigneImportUpdateWithoutLotInput = {
     | Prisma.NullableEnumStatutLigneImportFieldUpdateOperationsInput
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -813,6 +841,7 @@ export type LigneImportUncheckedUpdateWithoutLotInput = {
     | Prisma.NullableEnumStatutLigneImportFieldUpdateOperationsInput
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -831,6 +860,7 @@ export type LigneImportUncheckedUpdateManyWithoutLotInput = {
     | Prisma.NullableEnumStatutLigneImportFieldUpdateOperationsInput
     | $Enums.StatutLigneImport
     | null
+  motifEchec?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -851,6 +881,7 @@ export type LigneImportSelect<
     avertissements?: boolean
     diff?: boolean
     statut?: boolean
+    motifEchec?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     lot?: boolean | Prisma.LotImportDefaultArgs<ExtArgs>
@@ -874,6 +905,7 @@ export type LigneImportSelectCreateManyAndReturn<
     avertissements?: boolean
     diff?: boolean
     statut?: boolean
+    motifEchec?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     lot?: boolean | Prisma.LotImportDefaultArgs<ExtArgs>
@@ -897,6 +929,7 @@ export type LigneImportSelectUpdateManyAndReturn<
     avertissements?: boolean
     diff?: boolean
     statut?: boolean
+    motifEchec?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     lot?: boolean | Prisma.LotImportDefaultArgs<ExtArgs>
@@ -916,6 +949,7 @@ export type LigneImportSelectScalar = {
   avertissements?: boolean
   diff?: boolean
   statut?: boolean
+  motifEchec?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
@@ -935,6 +969,7 @@ export type LigneImportOmit<
   | "avertissements"
   | "diff"
   | "statut"
+  | "motifEchec"
   | "createdAt"
   | "updatedAt",
   ExtArgs["result"]["ligneImport"]
@@ -979,6 +1014,7 @@ export type $LigneImportPayload<
       avertissements: string[]
       diff: runtime.JsonValue | null
       statut: $Enums.StatutLigneImport | null
+      motifEchec: string | null
       createdAt: Date
       updatedAt: Date
     },
@@ -1595,6 +1631,7 @@ export interface LigneImportFieldRefs {
   readonly avertissements: Prisma.FieldRef<"LigneImport", "String[]">
   readonly diff: Prisma.FieldRef<"LigneImport", "Json">
   readonly statut: Prisma.FieldRef<"LigneImport", "StatutLigneImport">
+  readonly motifEchec: Prisma.FieldRef<"LigneImport", "String">
   readonly createdAt: Prisma.FieldRef<"LigneImport", "DateTime">
   readonly updatedAt: Prisma.FieldRef<"LigneImport", "DateTime">
 }

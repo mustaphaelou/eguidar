@@ -28,6 +28,15 @@ export type ColonneRequiseImport = (typeof COLONNES_REQUISES_IMPORT)[number]
 /** 5 Mo : le contrat du fichier, sous la limite de corps de 6 Mo des actions. */
 export const LIMITE_OCTETS_IMPORT = 5 * 1024 * 1024
 
+/** Le nombre de Produits qu'un appel d'application écrit au plus. */
+export const PRODUITS_PAR_APPLICATION_IMPORT = 25
+
+/** Un Produit que l'application n'a pas pu écrire, et la raison montrée à l'administrateur. */
+export interface EchecProduitApplication {
+  slug: string
+  motif: string
+}
+
 /** Ce que dit le bouton Appliquer quand le Lot n'a pas encore été vérifié. */
 export const MESSAGE_APPLIQUER_LOT_NON_VERIFIE =
   "Appliquer reste indisponible tant que le Lot n'est pas vérifié : lancez d'abord la Vérification du Lot."
@@ -39,6 +48,13 @@ export const MESSAGE_APPLIQUER_REFUS =
 /** Ce que dit le bouton Appliquer quand le Lot est vérifié sans refus. */
 export const MESSAGE_APPLIQUER_PRET =
   "Le Lot est vérifié et aucune Ligne n'est refusée : l'application peut écrire les Produits annoncés."
+
+/**
+ * Le rapport ne dit jamais « terminé » tant que l'indexation n'a pas rattrapé
+ * les écritures : le Catalogue ne montrerait pas encore les Produits.
+ */
+export const MESSAGE_INDEXATION_EN_ATTENTE =
+  "L'indexation n'a pas encore rattrapé les écritures : indexation en attente (reprise automatique). Les Produits sont écrits, mais le Catalogue ne les montre pas encore."
 
 export const NOM_MODELE_IMPORT = "modele-import-produits.csv"
 
