@@ -23,6 +23,8 @@ export interface BoutonAppliquerLotProps {
   ecritsInitiaux: number
   indexesInitiaux: number
   total: number
+  /** Le Lot est déjà `en_cours` : l'appel est une reprise, même avant tout Produit. */
+  reprise?: boolean
   action: MutationFormAction<ApplicationState>
 }
 
@@ -44,6 +46,7 @@ export function BoutonAppliquerLot({
   ecritsInitiaux,
   indexesInitiaux,
   total,
+  reprise = false,
   action,
 }: BoutonAppliquerLotProps) {
   const router = useRouter()
@@ -165,7 +168,7 @@ export function BoutonAppliquerLot({
         <Button type="button" onClick={appliquer} disabled={enCours}>
           {enCours
             ? "Application…"
-            : curseurInitial > 0
+            : reprise || curseurInitial > 0
               ? "Reprendre l'application"
               : "Appliquer le Lot"}
         </Button>

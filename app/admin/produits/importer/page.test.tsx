@@ -31,8 +31,18 @@ vi.mock("next/navigation", () => ({
 }))
 
 vi.mock("./formulaire-import", () => ({
-  FormulaireImport: ({ action }: { action: unknown }) => (
-    <div data-testid="formulaire-import" data-action={typeof action} />
+  FormulaireImport: ({
+    action,
+    indisponible,
+  }: {
+    action: unknown
+    indisponible?: string | null
+  }) => (
+    <div
+      data-testid="formulaire-import"
+      data-action={typeof action}
+      data-indisponible={indisponible ?? ""}
+    />
   ),
 }))
 
@@ -40,6 +50,7 @@ import ImportProductsPage from "./page"
 import { prisma } from "@/lib/db"
 import {
   COLONNES_IMPORT,
+  MESSAGE_IMPORT_EN_COURS,
   MESSAGE_INDEXATION_EN_ATTENTE,
   type ColonneImport,
 } from "@/lib/import-produits"
@@ -595,6 +606,93 @@ describe("la page d'import des Produits — le Lot appliqué", () => {
     expect(html).toContain("Partiel")
     expect(html).toContain("Échec d&#x27;écriture : Panne simulée du Catalogue")
     expect(html).toContain("application est partielle")
+  })
+})
+
+describe("la page d'import des Produits — le Lot en cours", () => {
+  function effetsSansIndexation() {
+    return {
+      reindexProducts: vi.fn(async () => {}),
+      revalidateCatalog: vi.fn(),
+      purgeCatalogue: vi.fn(),
+      deleteImages: vi.fn(async () => {}),
+      enregistrerImages: vi.fn(async () => {}),
+    }
+  }
+
+  function fichierDeNProduits(prefixe: string, nombre: number): string {
+    return fichierCsv(
+      ...Array.from({ length: nombre }, (_inutilise, position) =>
+        ligneCsv({
+          slug: `v-${runId}-${prefixe}-${position}`,
+          name: `Produit ${prefixe} ${position}`,
+          brand: "Maison",
+          variant_sku: `${runId}-${prefixe.toUpperCase()}-${position}`,
+          variant_name: "Unique",
+          variant_price: "10.00",
+        })
+      )
+    )
+  }
+
+  it("signale le Lot en cours et désactive le téléversement quand aucun Lot n'est ouvert", async () => {
+    const lot = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "7".repeat(64),
+        taille: 64,
+        statut: "en_cours",
+        curseur: 25,
+        ecrits: 25,
+        indexes: 25,
+      },
+    })
+
+    const html = await rendre()
+    const texte = html.replaceAll("&#x27;", "'")
+
+    expect(texte).toContain("Un import est en cours")
+    expect(
+      liensVers(html, `/admin/produits/importer?lot=${lot.id}`)[0]?.texte
+    ).toBe("Reprendre")
+    expect(texte).toContain(`data-indisponible="${MESSAGE_IMPORT_EN_COURS}"`)
+  })
+
+  it("rouvre un Lot interrompu au curseur, propose la reprise et la poursuit jusqu'au bout", async () => {
+    const lotId = await uploaderEtVerifier(
+      fichierDeNProduits("reprise-page", 27)
+    )
+
+    const premier = await appliquerLeLot(lotId, 0, effetsSansIndexation())
+    expect(premier).toMatchObject({
+      statut: "en_cours",
+      curseurSuivant: 25,
+      ecrits: 25,
+      reste: 2,
+    })
+
+    const html = await rendre({ lot: lotId })
+    const texte = html.replaceAll("&#x27;", "'")
+
+    expect(html).toContain("En cours")
+    expect(texte).toContain("Reprendre l'application")
+    expect(html).toMatch(/Produits traités<\/dt><dd[^>]*>25 \/ 27<\/dd>/)
+    expect(texte).toContain(`data-indisponible="${MESSAGE_IMPORT_EN_COURS}"`)
+
+    const seconde = await appliquerLeLot(
+      lotId,
+      premier.curseurSuivant,
+      effetsSansIndexation()
+    )
+    expect(seconde).toMatchObject({
+      statut: "termine",
+      ecrits: 27,
+      indexes: 27,
+    })
+
+    const termine = await rendre({ lot: lotId })
+    expect(termine).toContain("Terminé")
+    expect(termine).toMatch(/Produits traités<\/dt><dd[^>]*>27 \/ 27<\/dd>/)
   })
 })
 

@@ -9,7 +9,13 @@ import {
   televerserLeFichierAction,
   verifierLeLotAction,
 } from "@/app/admin/produits/importer/actions"
-import { lireLeLot, listerLesLots } from "@/lib/use-cases/import-produits"
+import { MESSAGE_IMPORT_EN_COURS } from "@/lib/import-produits"
+import {
+  lireLeLot,
+  lireLotEnCours,
+  listerLesLots,
+} from "@/lib/use-cases/import-produits"
+import { BandeauLotEnCours } from "./bandeau-lot-en-cours"
 import { EtapesImport } from "./etapes-import"
 import { FormulaireImport } from "./formulaire-import"
 import { HistoriqueImports } from "./historique-imports"
@@ -70,10 +76,13 @@ async function ImportContent({
 }) {
   const raw = await searchParamsPromise
   const lotId = premierParametre(raw.lot)
-  const [lot, lots] = await Promise.all([
-    lotId === undefined ? null : lireLeLot(lotId),
+  const [lot, lotEnCours, lots] = await Promise.all([
+    lotId === undefined ? Promise.resolve(null) : lireLeLot(lotId),
+    lireLotEnCours(),
     listerLesLots(),
   ])
+  const televersementIndisponible =
+    lotEnCours === null ? null : MESSAGE_IMPORT_EN_COURS
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,6 +95,10 @@ async function ImportContent({
         </p>
       ) : null}
 
+      {lotEnCours !== null && lotId === undefined ? (
+        <BandeauLotEnCours lot={lotEnCours} />
+      ) : null}
+
       {lot !== null ? (
         <PanneauLotImport
           lot={lot}
@@ -94,7 +107,10 @@ async function ImportContent({
         />
       ) : null}
 
-      <FormulaireImport action={televerserLeFichierAction} />
+      <FormulaireImport
+        action={televerserLeFichierAction}
+        indisponible={televersementIndisponible}
+      />
 
       <HistoriqueImports lots={lots} />
     </div>

@@ -4,7 +4,10 @@ import { act } from "react"
 import { describe, expect, it } from "vitest"
 
 import { FormulaireImport } from "@/app/admin/produits/importer/formulaire-import"
-import { LIMITE_OCTETS_IMPORT } from "@/lib/import-produits"
+import {
+  LIMITE_OCTETS_IMPORT,
+  MESSAGE_IMPORT_EN_COURS,
+} from "@/lib/import-produits"
 import { actionQuiCapture, monterFormulaire } from "@/test/rendu-formulaire"
 
 const rendu = monterFormulaire()
@@ -107,5 +110,25 @@ describe("FormulaireImport", () => {
     expect(rendu.boutonDontLeLibelleEst("Téléverser le fichier").disabled).toBe(
       false
     )
+  })
+
+  it("désactive le champ et l'envoi tant qu'un import est en cours, en l'expliquant", async () => {
+    const { action, soumissions } = actionQuiCapture<{ error?: string }>()
+    rendu.render(
+      <FormulaireImport
+        action={action}
+        indisponible={MESSAGE_IMPORT_EN_COURS}
+      />
+    )
+
+    expect(champFichier().disabled).toBe(true)
+    expect(rendu.container.textContent).toContain(MESSAGE_IMPORT_EN_COURS)
+    expect(rendu.boutonDontLeLibelleEst("Téléverser le fichier").disabled).toBe(
+      true
+    )
+
+    await rendu.soumettre(formulaire())
+
+    expect(soumissions).toEqual([])
   })
 })

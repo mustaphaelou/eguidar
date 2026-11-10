@@ -10,6 +10,7 @@ import {
 import {
   COLONNES_IMPORT,
   LIMITE_OCTETS_IMPORT,
+  MESSAGE_IMPORT_EN_COURS,
   STATUTS_LIGNE_IMPORT,
   STATUTS_LOT_IMPORT,
   messageDAvertissement,
@@ -19,6 +20,7 @@ import {
   LIMITE_LOTS_HISTORIQUE_IMPORT,
   listerLesLots,
   lireLeLot,
+  lireLotEnCours,
   televerserLeFichier,
   verifierLeLot,
 } from "@/lib/use-cases/import-produits"
@@ -133,6 +135,49 @@ describe("televerserLeFichier — l'enveloppe acceptée", () => {
     await televerser(`${EN_TETE}${LIGNE_CHAISE}\r\n${LIGNE_TABLE}\r\n`)
 
     expect(await compterLeCatalogue()).toEqual(avant)
+  })
+})
+
+describe("televerserLeFichier — un seul Lot en cours", () => {
+  it("refuse un nouveau fichier tant qu'un Lot est en cours, sans créer de Lot ni de Ligne", async () => {
+    const enCours = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "e".repeat(64),
+        taille: 12,
+        statut: "en_cours",
+      },
+    })
+    const lotsAvant = await prisma.lotImport.count()
+    const lignesAvant = await prisma.ligneImport.count()
+
+    await expect(
+      televerser(`${EN_TETE}${LIGNE_CHAISE}\r\n`)
+    ).rejects.toMatchObject({
+      name: "UserFacingError",
+      message: MESSAGE_IMPORT_EN_COURS,
+    })
+
+    expect(await prisma.lotImport.count()).toBe(lotsAvant)
+    expect(await prisma.ligneImport.count()).toBe(lignesAvant)
+    await expect(
+      prisma.lotImport.findUniqueOrThrow({ where: { id: enCours.id } })
+    ).resolves.toMatchObject({ statut: "en_cours", ecrits: 0 })
+  })
+
+  it("accepte un fichier quand le Lot existant n'est pas en cours", async () => {
+    await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "d".repeat(64),
+        taille: 8,
+        statut: "verifie",
+      },
+    })
+
+    const resultat = await televerser(EN_TETE)
+
+    expect(resultat.statut).toBe("brouillon")
   })
 })
 
@@ -383,6 +428,35 @@ describe("lireLeLot", () => {
     expect(lu?.lignes[1]).toMatchObject({
       slug: "chaise",
       statut: "a_creer",
+    })
+  })
+})
+
+describe("lireLotEnCours", () => {
+  it("rend null quand aucun Lot n'est en cours, même si d'autres Lots existent", async () => {
+    await televerser(EN_TETE)
+    await expect(lireLotEnCours()).resolves.toBeNull()
+  })
+
+  it("rend le Lot en cours avec son identifiant et son avancement", async () => {
+    const lot = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "c".repeat(64),
+        taille: 21,
+        statut: "en_cours",
+        curseur: 25,
+        ecrits: 25,
+        indexes: 24,
+      },
+    })
+
+    await expect(lireLotEnCours()).resolves.toEqual({
+      id: lot.id,
+      createdAt: lot.createdAt,
+      curseur: 25,
+      ecrits: 25,
+      indexes: 24,
     })
   })
 })

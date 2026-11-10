@@ -9,6 +9,7 @@ import {
 import {
   LIMITE_OCTETS_IMPORT,
   MESSAGE_APPLIQUER_REFUS,
+  MESSAGE_IMPORT_EN_COURS,
   PRODUITS_PAR_APPLICATION_IMPORT,
   analyserLesLignes,
   estCodeRefusImport,
@@ -46,6 +47,10 @@ import {
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
+import {
+  hasUniqueViolation,
+  uniqueViolationIndex,
+} from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 /**
@@ -135,6 +140,18 @@ export interface CompteursImport {
   produitsRefuses: number
 }
 
+/**
+ * Le Lot `en_cours`, résumé pour la page : l'index partiel en garantit au plus
+ * un. La reprise n'a besoin que de son identifiant et de son avancement.
+ */
+export interface LotEnCoursImport {
+  id: string
+  createdAt: Date
+  curseur: number
+  ecrits: number
+  indexes: number
+}
+
 export interface LigneVerifieeImport {
   numero: number
   statut: StatutLigneImport
@@ -211,11 +228,22 @@ function donneesDeLaLigne(ligne: LigneImport) {
  * acceptée — avec toutes ses Lignes lues dans la même écriture —, `echoue`
  * avec son motif sinon. Un Lot refusé ne porte aucune Ligne. L'empreinte est
  * celle des octets reçus, pas du texte décodé.
+ *
+ * Un second téléversement est refusé tant qu'un Lot est `en_cours` : la
+ * reprise du Lot en cours passe avant, et rien n'est mis en file.
  */
 export async function televerserLeFichier({
   octets,
   auteurId,
 }: TeleversementImport): Promise<LotImportTeleverse> {
+  const enCours = await prisma.lotImport.findFirst({
+    where: { statut: "en_cours" },
+    select: { id: true },
+  })
+  if (enCours !== null) {
+    throw new UserFacingError(MESSAGE_IMPORT_EN_COURS)
+  }
+
   const empreinte = createHash("sha256").update(octets).digest("hex")
   const enveloppe = jugerLEnveloppe(octets)
   const accepte = enveloppe.refus.length === 0
@@ -527,6 +555,45 @@ function produitsEcrits(statut: StatutLigneImport | null): boolean {
   return statut === "ecrite" || statut === "echouee"
 }
 
+/** Le nom de l'index partiel créé par la migration de #986. */
+const INDEX_LOT_EN_COURS = "LotImport_un_seul_en_cours"
+
+/**
+ * L'index partiel de la base est le seul arbitre : il nomme la contrainte
+ * violée, ou — selon la version de l'adaptateur — ses champs.
+ */
+function estViolationDuLotEnCours(error: unknown): boolean {
+  return (
+    uniqueViolationIndex(error) === INDEX_LOT_EN_COURS ||
+    hasUniqueViolation(error, ["statut"])
+  )
+}
+
+/**
+ * Passe le Lot à `en_cours` en une seule écriture conditionnelle. C'est la
+ * première écriture de l'application : si un autre Lot est déjà en cours,
+ * l'index partiel refuse celle-ci et rien du Catalogue n'a été touché.
+ */
+async function demarrerLApplication(lotId: string): Promise<void> {
+  try {
+    const transition = await prisma.lotImport.updateMany({
+      where: { id: lotId, statut: "verifie" },
+      data: { statut: "en_cours" },
+    })
+    if (transition.count === 0) {
+      throw new UserFacingError(
+        "Ce Lot a déjà été pris par un autre appel : rechargez la page avant de reprendre."
+      )
+    }
+  } catch (error) {
+    if (error instanceof UserFacingError) throw error
+    if (estViolationDuLotEnCours(error)) {
+      throw new UserFacingError(MESSAGE_IMPORT_EN_COURS)
+    }
+    throw error
+  }
+}
+
 function motifDeLEchec(error: unknown): string {
   if (error instanceof UserFacingError) return error.message
   const message = error instanceof Error ? error.message : String(error)
@@ -764,6 +831,13 @@ export async function appliquerLeLot(
   }
   if (lot.lignes.some((ligne) => ligne.statut === "refusee")) {
     throw new UserFacingError(MESSAGE_APPLIQUER_REFUS)
+  }
+
+  // Le passage à `en_cours` est la première écriture, avant tout Produit : la
+  // perdante d'une course est refusée sans avoir rien écrit. Un Lot déjà
+  // `en_cours` est une reprise : il ne repasse pas par la transition.
+  if (lot.statut === "verifie") {
+    await demarrerLApplication(lotId)
   }
 
   const lignesRejouees = rejouerLesLignes(
@@ -1098,4 +1172,23 @@ export async function lireLeLot(id: string): Promise<LotImportLu | null> {
       }
     }),
   }
+}
+
+/**
+ * Le Lot `en_cours`, le plus récent : la page le retrouve après un onglet
+ * fermé et propose de reprendre. L'index partiel garantit qu'il y en a au plus
+ * un ; le tri par date n'est qu'un départage déterministe.
+ */
+export async function lireLotEnCours(): Promise<LotEnCoursImport | null> {
+  return prisma.lotImport.findFirst({
+    where: { statut: "en_cours" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      createdAt: true,
+      curseur: true,
+      ecrits: true,
+      indexes: true,
+    },
+  })
 }

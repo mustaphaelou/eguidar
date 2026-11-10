@@ -151,4 +151,20 @@ describe("BoutonAppliquerLot", () => {
     expect(rendu.container.textContent).toContain("Ce Lot est déjà appliqué")
     expect(navigation.refresh).toHaveBeenCalledTimes(1)
   })
+
+  it("nomme la reprise d'un Lot en cours même avant tout Produit traité", () => {
+    rendu.render(
+      <BoutonAppliquerLot
+        lotId="lot-1"
+        curseurInitial={0}
+        ecritsInitiaux={0}
+        indexesInitiaux={0}
+        total={50}
+        reprise
+        action={vi.fn()}
+      />
+    )
+
+    expect(rendu.boutonDontLeLibelleEst("Reprendre l'application")).toBeTruthy()
+  })
 })

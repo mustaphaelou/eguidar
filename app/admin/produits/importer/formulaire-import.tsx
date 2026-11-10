@@ -16,6 +16,11 @@ interface FormulaireImportProps {
     precedent: TeleversementState,
     formData: FormData
   ) => Promise<TeleversementState | { error: string }>
+  /**
+   * Pourquoi le téléversement est indisponible — un Lot d'import est en cours —
+   * ou `null` quand il l'est. Le cas d'usage refuse de toute façon.
+   */
+  indisponible?: string | null
 }
 
 const MESSAGE_TROP_GROS = messageDuRefus({ code: "fichier_trop_gros" })
@@ -25,10 +30,17 @@ const MESSAGE_TROP_GROS = messageDuRefus({ code: "fichier_trop_gros" })
  * avant l'envoi : au-delà de 5 Mo, la requête dépasserait aussi la limite de
  * corps de 6 Mo des actions serveur, et l'administrateur lirait une erreur du
  * framework au lieu du message du contrat.
+ *
+ * Il est désactivé tant qu'un Lot est en cours : un seul import à la fois, et
+ * la reprise du Lot en cours passe avant tout nouveau fichier.
  */
-export function FormulaireImport({ action }: FormulaireImportProps) {
+export function FormulaireImport({
+  action,
+  indisponible = null,
+}: FormulaireImportProps) {
   const [state, formAction, isPending] = useActionState(action, {})
   const [erreurDeTaille, setErreurDeTaille] = useState<string | null>(null)
+  const bloque = indisponible !== null
 
   function verifierLaTaille(event: React.ChangeEvent<HTMLInputElement>) {
     const fichier = event.target.files?.[0]
@@ -43,10 +55,19 @@ export function FormulaireImport({ action }: FormulaireImportProps) {
     <form
       action={formAction}
       onSubmit={(event) => {
-        if (erreurDeTaille !== null) event.preventDefault()
+        if (bloque || erreurDeTaille !== null) event.preventDefault()
       }}
       className="flex flex-col gap-4 rounded-2xl bg-card p-6 ring-1 ring-foreground/10"
     >
+      {indisponible ? (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm"
+        >
+          {indisponible}
+        </p>
+      ) : null}
+
       {state.error ? (
         <p
           role="alert"
@@ -73,6 +94,7 @@ export function FormulaireImport({ action }: FormulaireImportProps) {
           type="file"
           accept=".csv,text/csv"
           required
+          disabled={bloque}
           aria-describedby="fichier-aide"
           onChange={verifierLaTaille}
         />
@@ -83,7 +105,10 @@ export function FormulaireImport({ action }: FormulaireImportProps) {
       </div>
 
       <div>
-        <Button type="submit" disabled={isPending || erreurDeTaille !== null}>
+        <Button
+          type="submit"
+          disabled={bloque || isPending || erreurDeTaille !== null}
+        >
           {isPending ? "Téléversement…" : "Téléverser le fichier"}
         </Button>
       </div>
