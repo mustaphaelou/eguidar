@@ -75,6 +75,8 @@ export const ModelName = {
   AutomationRule: "AutomationRule",
   AutomationRuleRevision: "AutomationRuleRevision",
   AutomationRun: "AutomationRun",
+  LotImport: "LotImport",
+  LigneImport: "LigneImport",
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -403,6 +405,47 @@ export const AutomationRunScalarFieldEnum = {
 
 export type AutomationRunScalarFieldEnum =
   (typeof AutomationRunScalarFieldEnum)[keyof typeof AutomationRunScalarFieldEnum]
+
+export const LotImportScalarFieldEnum = {
+  id: "id",
+  auteurId: "auteurId",
+  empreinte: "empreinte",
+  taille: "taille",
+  statut: "statut",
+  curseur: "curseur",
+  produitsCrees: "produitsCrees",
+  produitsModifies: "produitsModifies",
+  produitsInchanges: "produitsInchanges",
+  produitsRefuses: "produitsRefuses",
+  ecrits: "ecrits",
+  indexes: "indexes",
+  avertissements: "avertissements",
+  motifEchec: "motifEchec",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type LotImportScalarFieldEnum =
+  (typeof LotImportScalarFieldEnum)[keyof typeof LotImportScalarFieldEnum]
+
+export const LigneImportScalarFieldEnum = {
+  id: "id",
+  lotId: "lotId",
+  numero: "numero",
+  slug: "slug",
+  sku: "sku",
+  cellules: "cellules",
+  enregistrement: "enregistrement",
+  codeRefus: "codeRefus",
+  avertissements: "avertissements",
+  diff: "diff",
+  statut: "statut",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type LigneImportScalarFieldEnum =
+  (typeof LigneImportScalarFieldEnum)[keyof typeof LigneImportScalarFieldEnum]
 
 export const SortOrder = {
   asc: "asc",

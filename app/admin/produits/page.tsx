@@ -36,9 +36,17 @@ export default function AdminProductsPage({
         title="Produits"
         description="Le catalogue, ses prix, son stock et ses mises en avant."
         actions={
-          <Button render={<Link href="/admin/produits/nouveau" />}>
-            Nouveau produit
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              render={<Link href="/admin/produits/importer" />}
+            >
+              Importer un fichier
+            </Button>
+            <Button render={<Link href="/admin/produits/nouveau" />}>
+              Nouveau produit
+            </Button>
+          </>
         }
       />
 

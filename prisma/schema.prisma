@@ -28,6 +28,7 @@ model user {
   cartItems              CartItem[]
   orders                 Order[]
   brouillonsImageProduit BrouillonImageProduit[]
+  lotsImport             LotImport[]
 }
 
 model session {
@@ -380,4 +381,69 @@ model AutomationRun {
   @@unique([eventId, ruleId, attempt])
   @@index([startedAt])
   @@index([status])
+}
+
+// --- Import de produits (spec #979) ---
+
+enum StatutLotImport {
+  brouillon
+  verifie
+  en_cours
+  partiel
+  termine
+  echoue
+}
+
+enum StatutLigneImport {
+  a_creer
+  a_modifier
+  inchangee
+  refusee
+  ecrite
+  echouee
+}
+
+model LotImport {
+  id                String           @id @default(cuid())
+  auteurId          String?
+  auteur            user?            @relation(fields: [auteurId], references: [id], onDelete: SetNull)
+  empreinte         String
+  taille            Int
+  statut            StatutLotImport  @default(brouillon)
+  curseur           Int              @default(0)
+  produitsCrees     Int              @default(0)
+  produitsModifies  Int              @default(0)
+  produitsInchanges Int              @default(0)
+  produitsRefuses   Int              @default(0)
+  ecrits            Int              @default(0)
+  indexes           Int              @default(0)
+  avertissements    String[]         @default([])
+  motifEchec        String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  lignes            LigneImport[]
+
+  @@index([createdAt])
+  @@index([statut])
+}
+
+model LigneImport {
+  id             String             @id @default(cuid())
+  lotId          String
+  lot            LotImport          @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  numero         Int
+  slug           String
+  sku            String
+  cellules       Json
+  enregistrement Json?
+  codeRefus      String?
+  avertissements String[]           @default([])
+  diff           Json?
+  statut         StatutLigneImport?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([lotId, numero])
+  @@index([lotId, slug])
+  @@index([lotId, statut])
 }

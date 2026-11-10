@@ -24,6 +24,8 @@ const TEST_TABLES = [
   "AutomationRule",
   "AutomationRuleRevision",
   "AutomationRun",
+  "LotImport",
+  "LigneImport",
 ] as const
 
 export default async function globalSetup() {

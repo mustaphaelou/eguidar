@@ -26,6 +26,9 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   experimental: {
     useTypeScriptCli: false,
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
   },
   output: "standalone",
   cacheComponents: true,
