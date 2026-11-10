@@ -26,6 +26,11 @@ const EN_TETE_AVEC_BOM = `\uFEFF${EN_TETE}`
 const EMPREINTE_EN_TETE_AVEC_BOM =
   "3b9017f6d30ec743a1120e03217770709edc247a146bd6814f287a6bd06a877e"
 
+// Dans l'ordre canonique : slug,name,brand,category,description,variant_sku,
+// variant_name,variant_price,variant_stock.
+const LIGNE_CHAISE = "chaise,Chaise,Maison,,,CHAISE-01,Chaise en bois,12.50,3"
+const LIGNE_TABLE = "table,Table,Maison,,,TABLE-01,Table en bois,89.00,1"
+
 function octets(texte: string): Uint8Array {
   return new TextEncoder().encode(texte)
 }
@@ -105,8 +110,134 @@ describe("televerserLeFichier — l'enveloppe acceptée", () => {
 
     await televerser(EN_TETE)
     await televerser("name,brand,variant_sku\r\n")
+    await televerser(`${EN_TETE}${LIGNE_CHAISE}\r\n${LIGNE_TABLE}\r\n`)
 
     expect(await compterLeCatalogue()).toEqual(avant)
+  })
+})
+
+describe("televerserLeFichier — les Lignes lues", () => {
+  it("persiste chaque Ligne avec ses cellules brutes et son enregistrement normalisé", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}${LIGNE_CHAISE}\r\n${LIGNE_TABLE}\r\n`
+    )
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.statut).toBe("brouillon")
+    expect(lot?.lignes).toHaveLength(2)
+    expect(lot?.lignes[0]).toMatchObject({
+      numero: 2,
+      slug: "chaise",
+      sku: "CHAISE-01",
+      statut: null,
+      codeRefus: null,
+      avertissements: [],
+      cellules: {
+        slug: "chaise",
+        name: "Chaise",
+        brand: "Maison",
+        category: "",
+        description: "",
+        variant_sku: "CHAISE-01",
+        variant_name: "Chaise en bois",
+        variant_price: "12.50",
+        variant_stock: "3",
+      },
+      enregistrement: {
+        produit: {
+          slug: "chaise",
+          name: "Chaise",
+          brand: "Maison",
+          category: null,
+          description: null,
+        },
+        variante: {
+          sku: "CHAISE-01",
+          name: "Chaise en bois",
+          prix: 1250,
+          stock: 3,
+        },
+      },
+    })
+    expect(lot?.lignes[1]).toMatchObject({
+      numero: 3,
+      slug: "table",
+      sku: "TABLE-01",
+      statut: null,
+    })
+  })
+
+  it("persiste une Ligne refusée avec le statut refusee et son code", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}chaise,Chaise,Maison,,,CHAISE-01,,abc,3\r\n${LIGNE_TABLE}\r\n`
+    )
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.statut).toBe("brouillon")
+    expect(lot?.lignes[0]).toMatchObject({
+      numero: 2,
+      slug: "chaise",
+      sku: "CHAISE-01",
+      statut: "refusee",
+      codeRefus: "prix_invalide",
+    })
+    expect(lot?.lignes[1]).toMatchObject({
+      numero: 3,
+      slug: "table",
+      statut: null,
+      codeRefus: null,
+    })
+  })
+
+  it("persiste les codes d'avertissement d'une Ligne sans la refuser", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}chaise,Chaise,Maison,,"<b>Bois massif</b>",CHAISE-01,,4.00,3\r\n`
+    )
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.lignes[0]).toMatchObject({
+      statut: null,
+      codeRefus: null,
+      avertissements: ["description_html"],
+    })
+  })
+
+  it("garde le Lot brouillon et ses Lignes lisibles quand une Ligne est mal formée", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}${LIGNE_CHAISE}\r\ntrop,peu\r\n${LIGNE_TABLE}\r\n`
+    )
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.statut).toBe("brouillon")
+    expect(
+      lot?.lignes.map((ligne) => [
+        ligne.numero,
+        ligne.codeRefus,
+        ligne.statut,
+        ligne.slug,
+      ])
+    ).toEqual([
+      [2, null, null, "chaise"],
+      [3, "ligne_mal_formee", "refusee", ""],
+      [4, null, null, "table"],
+    ])
+  })
+
+  it("persiste le doublon et le conflit sur toutes leurs occurrences", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}chaise,Chaise,Maison,,,SKU-1,,10.00,1\r\n` +
+        `chaise,Table,Maison,,,SKU-2,,10.00,1\r\n` +
+        `banc,Banc,Maison,,,SKU-2,,10.00,1\r\n`
+    )
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.lignes.map((ligne) => [ligne.codeRefus, ligne.statut])).toEqual(
+      [
+        ["produit_en_conflit", "refusee"],
+        ["doublon_fichier", "refusee"],
+        ["doublon_fichier", "refusee"],
+      ]
+    )
   })
 })
 

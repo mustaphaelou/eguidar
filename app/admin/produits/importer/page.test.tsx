@@ -56,6 +56,13 @@ function etapeCourante(html: string): string {
   return trouvee[1]!
 }
 
+function baliseDuBouton(html: string, libelle: string): string {
+  const index = html.indexOf(libelle)
+  if (index === -1) throw new Error(`bouton « ${libelle} » absent du rendu`)
+  const debut = html.lastIndexOf("<button", index)
+  return html.slice(debut, index)
+}
+
 beforeAll(async () => {
   await prisma.user.create({
     data: {
@@ -156,5 +163,109 @@ describe("la page d'import des Produits", () => {
 
     expect(html).toContain("est introuvable.")
     expect(html).not.toContain('aria-label="Lot d')
+  })
+
+  it("liste les Lignes lues, groupées par Produit, avec leurs refus et leurs avertissements", async () => {
+    const lot = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "d".repeat(64),
+        taille: 128,
+      },
+    })
+    await prisma.ligneImport.createMany({
+      data: [
+        {
+          lotId: lot.id,
+          numero: 2,
+          slug: "chaise",
+          sku: "CHAISE-01",
+          cellules: { slug: "chaise" },
+          statut: null,
+        },
+        {
+          lotId: lot.id,
+          numero: 3,
+          slug: "chaise",
+          sku: "CHAISE-02",
+          cellules: { slug: "chaise" },
+          statut: "refusee",
+          codeRefus: "prix_invalide",
+        },
+        {
+          lotId: lot.id,
+          numero: 4,
+          slug: "table",
+          sku: "TABLE-01",
+          cellules: { slug: "table" },
+          avertissements: ["description_html"],
+        },
+      ],
+    })
+
+    const html = await rendre({ lot: lot.id })
+
+    expect(html).toContain("Lignes lues")
+    expect(html).toContain("3 lignes lues")
+    expect(html).toContain('aria-label="Produit chaise"')
+    expect(html).toContain('aria-label="Produit table"')
+    expect(html).toContain("Produit")
+    expect(html).toContain("chaise")
+    expect(html).toContain("table")
+    expect(html).toContain("Ligne 2")
+    expect(html).toContain("Ligne 3")
+    expect(html).toContain("Ligne 4")
+    expect(html).toContain("CHAISE-01")
+    expect(html).toContain("CHAISE-02")
+    expect(html).toContain("TABLE-01")
+    expect(html).toContain("prix de la Variante")
+    expect(html).toContain("un montant valide")
+    expect(html).toContain("La description ressemble à du HTML")
+  })
+
+  it("présente les Lignes illisibles hors des Produits", async () => {
+    const lot = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "e".repeat(64),
+        taille: 64,
+      },
+    })
+    await prisma.ligneImport.createMany({
+      data: [
+        {
+          lotId: lot.id,
+          numero: 3,
+          slug: "",
+          sku: "",
+          cellules: {},
+          statut: "refusee",
+          codeRefus: "ligne_mal_formee",
+        },
+      ],
+    })
+
+    const html = await rendre({ lot: lot.id })
+
+    expect(html).toContain("Lignes illisibles")
+    expect(html).toContain("Ligne 3")
+    expect(html).toContain("enregistrement CSV valide")
+  })
+
+  it("garde Appliquer indisponible tant que le Lot reste brouillon", async () => {
+    const lot = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "f".repeat(64),
+        taille: 64,
+        statut: "brouillon",
+      },
+    })
+
+    const html = await rendre({ lot: lot.id })
+
+    expect(html).toContain("Appliquer le Lot")
+    expect(baliseDuBouton(html, "Appliquer le Lot")).toContain("disabled")
+    expect(html).toContain("Appliquer reste indisponible")
   })
 })
