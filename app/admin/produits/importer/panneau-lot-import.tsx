@@ -15,6 +15,7 @@ import {
   MESSAGE_APPLIQUER_REFUS,
   MESSAGE_INDEXATION_EN_ATTENTE,
   grouperParProduit,
+  statutAfficheDuLot,
   messageDAvertissement,
   messageDuRefus,
   type AvertissementImport,
@@ -237,6 +238,25 @@ function GroupeDeLignes({
   )
 }
 
+/**
+ * Le CSV des refus se télécharge depuis la base, pas depuis le fichier
+ * d'origine : les cellules de chaque Ligne refusée y sont persistées.
+ */
+function TelechargerLesRefus({ lotId }: { lotId: string }) {
+  return (
+    <div>
+      <Button
+        variant="outline"
+        render={
+          <a href={`/api/admin/produits/importer/refus/${lotId}`} download />
+        }
+      >
+        Télécharger le CSV des refus
+      </Button>
+    </div>
+  )
+}
+
 function Compteurs({ lot }: { lot: LotImportLu }) {
   return (
     <section
@@ -273,8 +293,8 @@ function Compteurs({ lot }: { lot: LotImportLu }) {
  * « terminé ».
  */
 function CompteursApplication({ lot }: { lot: LotImportLu }) {
-  const indexationEnAttente =
-    lot.statut === "en_cours" && lot.indexes < lot.ecrits
+  const indexationEnAttente = lot.indexes < lot.ecrits
+  const termineEtIndexe = lot.statut === "termine" && !indexationEnAttente
   const totalProduits = grouperParProduit(lot.lignes).filter(
     (groupe) => groupe.slug !== ""
   ).length
@@ -316,7 +336,7 @@ function CompteursApplication({ lot }: { lot: LotImportLu }) {
           nouveau.
         </p>
       ) : null}
-      {lot.statut === "termine" ? (
+      {termineEtIndexe ? (
         <p className="text-sm text-muted-foreground">
           Le Lot est terminé : tous ses Produits sont écrits et indexés.
         </p>
@@ -356,6 +376,10 @@ export function PanneauLotImport({
   const refusPresent = lot.lignes.some(
     (ligne) => ligne.statut === "refusee" || ligne.refus !== null
   )
+  // L'indexation est un effet après commit : tant qu'elle n'a pas rattrapé les
+  // écritures, le rapport ne dit jamais « terminé », quel que soit le statut
+  // persisté.
+  const indexationEnAttente = lot.indexes < lot.ecrits
   const dejaApplique = partiel || termine
   const applicationCommencee =
     enCours || dejaApplique || lot.ecrits > 0 || lot.indexes > 0
@@ -379,7 +403,7 @@ export function PanneauLotImport({
         <CardTitle>Lot d&apos;import</CardTitle>
         <CardAction>
           <Badge variant={refuse ? "destructive" : "secondary"}>
-            {LIBELLES_STATUT_LOT_IMPORT[lot.statut]}
+            {LIBELLES_STATUT_LOT_IMPORT[statutAfficheDuLot(lot)]}
           </Badge>
         </CardAction>
       </CardHeader>
@@ -397,7 +421,9 @@ export function PanneauLotImport({
           {refuse
             ? "Le fichier a été refusé : aucun Produit, aucune Variante et aucune Structure n'ont été écrits. Corrigez le fichier, puis téléversez-le de nouveau."
             : termine
-              ? "Le Lot est terminé : ses Produits sont écrits et indexés."
+              ? indexationEnAttente
+                ? "Le Lot est en cours d'application : les Produits déjà écrits le restent, l'indexation est en attente et sera reprise automatiquement."
+                : "Le Lot est terminé : ses Produits sont écrits et indexés."
               : partiel
                 ? "Le Lot a été appliqué partiellement : les Produits écrits le sont, les autres ont leur raison sur leurs Lignes."
                 : enCours
@@ -431,6 +457,8 @@ export function PanneauLotImport({
             </dd>
           </div>
         </dl>
+
+        {refusPresent ? <TelechargerLesRefus lotId={lot.id} /> : null}
 
         {lot.avertissements.length > 0 ? (
           <section className="flex flex-col gap-2">
