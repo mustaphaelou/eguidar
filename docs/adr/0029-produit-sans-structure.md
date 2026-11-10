@@ -306,3 +306,18 @@ chemin d'export des types avec elle. Ce qui était vrai le reste : `resoudreLesN
 avant l'assemblage, et les garanties de libellé sont inchangées — le libellé d'une puce est celui de
 son option, et une catégorie que la Structure ne nomme pas garde son slug (`noms.get(valeur) ??
 valeur`, [`lib/filtre-de-recherche.ts:224-237`](../../lib/filtre-de-recherche.ts#L224-L237)).
+
+## Amendement — Un Produit naît sans Structure par import (#981, 2026-11-10)
+
+La décision dit qu'« un Produit n'est sans Structure que si sa Structure a été supprimée » et que
+la suppression en est la seule façon. #979 ajoute une seconde naissance, et elle est délibérée :
+un **Lot d'import** dont la colonne `category` est vide crée un Produit sans Structure, et cet
+état est compté en avertissement dans la **Vérification du Lot**.
+
+Ce qui ne change pas : l'orphelin se vend normalement, se cherche sous `_sans-structure`, et le
+formulaire de l'Administration continue d'exiger une Structure — un Produit né sans Structure par
+import doit en choisir une pour s'enregistrer. L'orphelinat reste un choix de l'éditeur, jamais un
+défaut : il vient du fichier qu'il a téléversé, ou de la Structure qu'il a supprimée.
+
+La décision qui l'emporte est écrite dans
+[0052](0052-le-fichier-d-import-est-additif-et-se-juge-avant-d-ecrire.md).

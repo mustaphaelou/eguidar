@@ -68,6 +68,7 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 | [0034](0034-l-enregistrement-du-produit-possede-la-promotion-de-ses-brouillons.md) | L'enregistrement du Produit possède la promotion de ses Brouillons d'Image produit, en trois phases | ★ |
 | [0035](0035-le-filtre-de-recherche-a-un-proprietaire-neutre.md) | Le Filtre de recherche a un propriétaire neutre, et son interface n'est pas l'assembleur | |
 | [0040](0040-le-contenu-d-un-article-de-blog-reste-une-chaine-a-grammaire-fermee.md) | Le contenu d'un Article de blog reste une chaîne à grammaire fermée | |
+| [0052](0052-le-fichier-d-import-est-additif-et-se-juge-avant-d-ecrire.md) | Le fichier d'import est additif et se juge avant d'écrire | |
 
 ### Panier, Commande, Livraison
 
