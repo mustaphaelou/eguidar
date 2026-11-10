@@ -20,24 +20,6 @@ vi.mock("next/navigation", () => mockNextNavigation())
 
 vi.mock("next/link", () => mockNextLink())
 
-type FlowSetter = (step: "form" | "otp", email: string) => void
-
-const flowSetters = vi.hoisted(() => ({
-  signup: null as FlowSetter | null,
-}))
-
-vi.mock("@/components/auth/use-sign-up-flow", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/components/auth/use-sign-up-flow")>()
-  return {
-    ...actual,
-    useSignUpFlow: (options: Parameters<typeof actual.useSignUpFlow>[0]) => {
-      flowSetters.signup = options.onStepChange
-      return actual.useSignUpFlow(options)
-    },
-  }
-})
-
 vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@/components/auth/test-de-securite")
@@ -94,7 +76,6 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   resetNavigation("/")
-  flowSetters.signup = null
   mockedAuthClient.signUp.email.mockResolvedValue({ data: {}, error: null })
   mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
     data: {},
@@ -644,40 +625,6 @@ describe("AuthDialog", () => {
       expect(title()).toBe("Créez votre compte pour finaliser votre commande")
     })
 
-    it("derives title, description, and swap from the flow step without form submission", async () => {
-      window.history.replaceState(
-        null,
-        "",
-        "/?open=signup&next=/produit/tableau-atlas"
-      )
-      renderDialogs()
-      await flush()
-      rerender()
-
-      expect(flowSetters.signup).not.toBeNull()
-      expect(title()).toBe("Créez votre compte pour finaliser votre commande")
-      expect(swapButton()?.textContent).toBe("Se connecter")
-
-      act(() => flowSetters.signup!("otp", "direct@example.com"))
-      expect(title()).toBe("Vérifiez votre e-mail")
-      expect(description()).toBe(
-        "Vérifiez votre adresse e-mail pour finaliser votre inscription (direct@example.com)."
-      )
-      expect(swapButton()).toBeNull()
-
-      act(() => flowSetters.signup!("form", "edited@example.com"))
-      expect(title()).toBe("Créez votre compte pour finaliser votre commande")
-      expect(swapButton()?.textContent).toBe("Se connecter")
-
-      await clickAndSync(swapButton()!)
-
-      expect(title()).toBe("Connectez-vous pour finaliser votre commande")
-      expect(emailInput()?.value).toBe("edited@example.com")
-      expect(new URL(window.location.href).searchParams.get("open")).toBe(
-        "login"
-      )
-    })
-
     it("shows the continuer title for a non-commerce destination", async () => {
       window.history.replaceState(null, "", "/?open=signup&next=/compte")
       renderDialogs({ harness: <SwapHarness /> })
@@ -711,6 +658,7 @@ describe("AuthDialog", () => {
       expect(description()).toBe(
         "Vérifiez votre adresse e-mail pour finaliser votre inscription (jane@example.com)."
       )
+      expect(swapButton()).toBeNull()
 
       await clickAndFlush(submitButton("Envoyer le code")!)
 

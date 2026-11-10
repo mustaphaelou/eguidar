@@ -10,22 +10,16 @@ import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import type { AuthFlow } from "@/components/auth/auth-dialog"
 import { PasswordInput } from "@/components/auth/password-input"
-import { useSignUpFlow } from "@/components/auth/use-sign-up-flow"
+import type { SignUpFlow } from "@/components/auth/use-sign-up-flow"
 import { collectFieldIssues, signUpSchema } from "@/lib/auth-form-schemas"
 import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/lib/longueur-mot-de-passe"
 
-export function SignUpForm({
-  flow,
-  onVerified,
-}: {
-  flow: AuthFlow
-  onVerified?: (email: string) => void
-}) {
+export function SignUpForm({ flow }: { flow: SignUpFlow }) {
   const [issues, setIssues] = useState<Record<string, string>>({})
-  const { step, email } = flow
   const {
+    step,
+    email,
     name,
     setName,
     setEmail,
@@ -36,7 +30,7 @@ export function SignUpForm({
     loading,
     captcha,
     handleSignUp,
-  } = useSignUpFlow({ ...flow, onVerified })
+  } = flow
 
   function updateIssue(key: string) {
     setIssues((prev) => {

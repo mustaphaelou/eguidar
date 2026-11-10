@@ -1,7 +1,5 @@
 "use client"
 
-import { useCallback, useState } from "react"
-
 import {
   Dialog,
   DialogContent,
@@ -21,14 +19,7 @@ import {
 import { SignInForm } from "./sign-in-form"
 import { SignUpForm } from "./sign-up-form"
 import { useSignInFlow } from "./use-sign-in-flow"
-
-export type AuthFlowStep = "form" | "otp"
-
-export type AuthFlow = {
-  step: AuthFlowStep
-  email: string
-  onStepChange: (step: AuthFlowStep, email: string) => void
-}
+import { useSignUpFlow } from "./use-sign-up-flow"
 
 const COMMERCE_PREFIXES = ["/produit", "/panier", "/checkout"]
 
@@ -92,7 +83,7 @@ function AuthDialogHeader({
   onSwap,
 }: {
   dialog: AuthDialogName
-  step: AuthFlowStep
+  step: "form" | "otp"
   email: string
   destination: string | null
   onSwap: () => void
@@ -195,19 +186,12 @@ function ConnexionPanel({
 }
 
 function InscriptionPanel() {
-  const { email: seedEmail, openLogin } = useAuthDialogs()
+  const { email, openLogin } = useAuthDialogs()
   const destination = useAuthDialogDestination()
-  const [flowState, setFlowState] = useState<{
-    step: AuthFlowStep
-    email: string
-  }>({
-    step: "form",
-    email: seedEmail,
+  const flow = useSignUpFlow({
+    email,
+    onVerified: (verifiedEmail) => openLogin({ email: verifiedEmail }),
   })
-  const handleStepChange = useCallback((step: AuthFlowStep, email: string) => {
-    setFlowState({ step, email })
-  }, [])
-  const flow: AuthFlow = { ...flowState, onStepChange: handleStepChange }
 
   return (
     <>
@@ -218,10 +202,7 @@ function InscriptionPanel() {
         destination={destination}
         onSwap={() => openLogin({ email: flow.email })}
       />
-      <SignUpForm
-        flow={flow}
-        onVerified={(verifiedEmail) => openLogin({ email: verifiedEmail })}
-      />
+      <SignUpForm flow={flow} />
     </>
   )
 }
