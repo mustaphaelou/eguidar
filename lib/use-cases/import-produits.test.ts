@@ -13,8 +13,14 @@ import {
   STATUTS_LIGNE_IMPORT,
   STATUTS_LOT_IMPORT,
   messageDAvertissement,
+  type ColonneImport,
 } from "@/lib/import-produits"
-import { lireLeLot, televerserLeFichier } from "@/lib/use-cases/import-produits"
+import {
+  lireLeLot,
+  televerserLeFichier,
+  verifierLeLot,
+} from "@/lib/use-cases/import-produits"
+import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const runId = randomUUID().slice(0, 8)
 const AUTEUR_ID = `import-auteur-${runId}`
@@ -56,6 +62,12 @@ async function compterLeCatalogue() {
 beforeEach(async () => {
   await prisma.ligneImport.deleteMany()
   await prisma.lotImport.deleteMany()
+  await prisma.product.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
+  await prisma.category.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
   await prisma.user.deleteMany({ where: { id: AUTEUR_ID } })
   await prisma.user.create({
     data: {
@@ -70,6 +82,12 @@ beforeEach(async () => {
 afterAll(async () => {
   await prisma.ligneImport.deleteMany()
   await prisma.lotImport.deleteMany()
+  await prisma.product.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
+  await prisma.category.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
   await prisma.user.deleteMany({ where: { id: AUTEUR_ID } })
   await prisma.$disconnect()
 })
@@ -294,6 +312,32 @@ describe("lireLeLot", () => {
     await expect(lireLeLot("lot-inexistant")).resolves.toBeNull()
   })
 
+  it("re-derive le contexte d'un champ requis manquant depuis les cellules", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}chaise,Chaise,Maison,,,,Chaise,10.00,3\r\n`
+    )
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.lignes[0]?.codeRefus).toBe("champ_requis_manquant")
+    expect(lot?.lignes[0]?.refus).toEqual({
+      code: "champ_requis_manquant",
+      champ: "variant_sku",
+    })
+  })
+
+  it("re-derive le champ d'un conflit de Produit depuis les cellules", async () => {
+    const resultat = await televerser(
+      `${EN_TETE}chaise,Chaise,Maison,,,CHAISE-01,Chaise,10.00,1\r\n` +
+        `chaise,Autre,Maison,,,CHAISE-02,Table,10.00,1\r\n`
+    )
+    const lot = await lireLeLot(resultat.lotId)
+
+    expect(lot?.lignes.map((ligne) => ligne.refus)).toEqual([
+      { code: "produit_en_conflit", champ: "name" },
+      { code: "produit_en_conflit", champ: "name" },
+    ])
+  })
+
   it("relit les Lignes d'un Lot dans l'ordre de leur numéro", async () => {
     const lot = await prisma.lotImport.create({
       data: {
@@ -338,6 +382,377 @@ describe("lireLeLot", () => {
       slug: "chaise",
       statut: "a_creer",
     })
+  })
+})
+
+describe("verifierLeLot — le jugement contre le Catalogue", () => {
+  const STRUCTURE_SLUG = `v-${runId}-maison`
+  const SLUG_CHAISE = `v-${runId}-chaise`
+  const SLUG_BANC = `v-${runId}-banc`
+  const SLUG_TABLE = `v-${runId}-table`
+  const SKU_CHAISE = `${runId}-CHAISE-01`
+  const SKU_BANC = `${runId}-BANC-01`
+  const SKU_TABLE = `${runId}-TABLE-01`
+
+  function celluleCsv(valeur: string): string {
+    return /[",\r\n]/.test(valeur)
+      ? `"${valeur.replaceAll('"', '""')}"`
+      : valeur
+  }
+
+  function ligneCsv(valeurs: Partial<Record<ColonneImport, string>>): string {
+    return COLONNES_IMPORT.map((colonne) =>
+      celluleCsv(valeurs[colonne] ?? "")
+    ).join(",")
+  }
+
+  function fichierCsv(...lignes: string[]): string {
+    return [EN_TETE.replace(/\r\n$/, ""), ...lignes].join("\r\n") + "\r\n"
+  }
+
+  async function creerLaStructure(
+    slug = STRUCTURE_SLUG,
+    name = "Maison"
+  ): Promise<string> {
+    const structure = await prisma.category.create({ data: { name, slug } })
+    return structure.id
+  }
+
+  async function creerLaChaise(categoryId: string) {
+    return prisma.product.create({
+      data: {
+        slug: SLUG_CHAISE,
+        name: "Chaise",
+        brand: "Maison",
+        description: "Bois massif",
+        categoryId,
+        price: 1250,
+        specs: {},
+        images: [],
+        variants: {
+          create: [
+            {
+              name: "Chaise en bois",
+              sku: SKU_CHAISE,
+              priceDelta: 0,
+              stock: 3,
+            },
+          ],
+        },
+      },
+      include: { variants: true },
+    })
+  }
+
+  async function creerLeBanc(categoryId: string) {
+    return prisma.product.create({
+      data: {
+        slug: SLUG_BANC,
+        name: "Banc",
+        brand: "Maison",
+        description: "Bois massif",
+        categoryId,
+        price: 5000,
+        specs: {},
+        images: [],
+        variants: {
+          create: [{ name: "Banc", sku: SKU_BANC, priceDelta: 0, stock: 1 }],
+        },
+      },
+      include: { variants: true },
+    })
+  }
+
+  it("juge les quatre issues, persiste compteurs, statuts et diff, et passe le Lot à vérifié", async () => {
+    const categoryId = await creerLaStructure()
+    await creerLaChaise(categoryId)
+    await creerLeBanc(categoryId)
+    const avant = await compterLeCatalogue()
+
+    const contenu = fichierCsv(
+      ligneCsv({
+        slug: SLUG_TABLE,
+        name: "Table",
+        brand: "Maison",
+        category: STRUCTURE_SLUG,
+        description: "Bois massif",
+        variant_sku: SKU_TABLE,
+        variant_name: "Table en bois",
+        variant_price: "20.00",
+        variant_stock: "2",
+      }),
+      ligneCsv({
+        slug: SLUG_CHAISE,
+        variant_sku: SKU_CHAISE,
+        variant_stock: "5",
+      }),
+      ligneCsv({ slug: SLUG_BANC, variant_sku: SKU_BANC }),
+      ligneCsv({
+        slug: `v-${runId}-etagere`,
+        name: "Étagère",
+        brand: "Maison",
+        category: `v-${runId}-inconnue`,
+        variant_sku: `${runId}-ETAGERE-01`,
+        variant_name: "Étagère",
+        variant_price: "30.00",
+      })
+    )
+
+    const televerse = await televerser(contenu)
+    const rapport = await verifierLeLot(televerse.lotId)
+    const lot = await lireLeLot(televerse.lotId)
+
+    expect(rapport).toMatchObject({
+      lotId: televerse.lotId,
+      statut: "verifie",
+      compteurs: {
+        produitsCrees: 1,
+        produitsModifies: 1,
+        produitsInchanges: 1,
+        produitsRefuses: 1,
+      },
+      peutAppliquer: false,
+    })
+    expect(
+      rapport.lignes.map((ligne) => [
+        ligne.numero,
+        ligne.statut,
+        ligne.refus?.code ?? null,
+      ])
+    ).toEqual([
+      [2, "a_creer", null],
+      [3, "a_modifier", null],
+      [4, "inchangee", null],
+      [5, "refusee", "structure_inconnue"],
+    ])
+
+    expect(lot).toMatchObject({
+      statut: "verifie",
+      produitsCrees: 1,
+      produitsModifies: 1,
+      produitsInchanges: 1,
+      produitsRefuses: 1,
+    })
+    expect(lot?.lignes.map((ligne) => ligne.statut)).toEqual([
+      "a_creer",
+      "a_modifier",
+      "inchangee",
+      "refusee",
+    ])
+
+    const refusee = lot?.lignes.find((ligne) => ligne.numero === 5)
+    expect(refusee?.refus).toEqual({
+      code: "structure_inconnue",
+      structure: `v-${runId}-inconnue`,
+      portee: "produit",
+    })
+
+    const modifiee = lot?.lignes.find((ligne) => ligne.numero === 3)
+    expect(modifiee?.refus).toBeNull()
+    expect(modifiee?.diff).toEqual({
+      produit: [],
+      variantes: [
+        {
+          sku: SKU_CHAISE,
+          changements: [{ champ: "stock", avant: 3, apres: 5 }],
+        },
+      ],
+    })
+
+    expect(await compterLeCatalogue()).toEqual(avant)
+  })
+
+  it("rejoue la même vérification sans doubler les Lignes ni changer les compteurs", async () => {
+    const categoryId = await creerLaStructure()
+    await creerLaChaise(categoryId)
+
+    const contenu = fichierCsv(
+      ligneCsv({
+        slug: SLUG_CHAISE,
+        variant_sku: SKU_CHAISE,
+        variant_stock: "7",
+      })
+    )
+    const televerse = await televerser(contenu)
+    const premier = await verifierLeLot(televerse.lotId)
+    const premierLot = await lireLeLot(televerse.lotId)
+
+    const second = await verifierLeLot(televerse.lotId)
+    const secondLot = await lireLeLot(televerse.lotId)
+
+    expect(second.compteurs).toEqual(premier.compteurs)
+    expect(second.lignes.map((ligne) => ligne.statut)).toEqual(
+      premier.lignes.map((ligne) => ligne.statut)
+    )
+    expect(secondLot?.lignes).toHaveLength(premierLot?.lignes.length ?? 0)
+    expect(secondLot?.lignes.map((ligne) => ligne.numero)).toEqual(
+      premierLot?.lignes.map((ligne) => ligne.numero)
+    )
+    expect(secondLot?.statut).toBe("verifie")
+  })
+
+  it("accepte un Lot brouillon ou vérifié et refuse les autres statuts", async () => {
+    const statuts = [
+      ["en_cours", /en cours/i],
+      ["partiel", /partiel/i],
+      ["termine", /appliqué/i],
+      ["echoue", /échoué/i],
+    ] as const
+
+    for (const [statut, motif] of statuts) {
+      const lot = await prisma.lotImport.create({
+        data: {
+          auteurId: AUTEUR_ID,
+          empreinte: "a".repeat(64),
+          taille: 42,
+          statut,
+        },
+      })
+
+      await expect(verifierLeLot(lot.id)).rejects.toMatchObject({
+        name: "UserFacingError",
+        message: expect.stringMatching(motif),
+      })
+    }
+
+    const brouillon = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "b".repeat(64),
+        taille: 42,
+        statut: "brouillon",
+      },
+    })
+    await expect(verifierLeLot(brouillon.id)).resolves.toMatchObject({
+      statut: "verifie",
+    })
+  })
+
+  it("refuse une vérification pour un Lot inconnu", async () => {
+    await expect(verifierLeLot("lot-inconnu")).rejects.toBeInstanceOf(
+      UserFacingError
+    )
+    await expect(verifierLeLot("lot-inconnu")).rejects.toThrow(/introuvable/)
+  })
+
+  it("revalide une Ligne refusée quand la Structure manquante est créée", async () => {
+    const contenu = fichierCsv(
+      ligneCsv({
+        slug: SLUG_TABLE,
+        name: "Table",
+        brand: "Maison",
+        category: `v-${runId}-tardive`,
+        variant_sku: SKU_TABLE,
+        variant_name: "Table",
+        variant_price: "20.00",
+      })
+    )
+    const televerse = await televerser(contenu)
+
+    const premier = await verifierLeLot(televerse.lotId)
+    expect(premier.lignes[0]).toMatchObject({
+      statut: "refusee",
+      refus: { code: "structure_inconnue" },
+    })
+    expect(premier.peutAppliquer).toBe(false)
+
+    await creerLaStructure(`v-${runId}-tardive`, "Tardive")
+
+    const second = await verifierLeLot(televerse.lotId)
+    expect(second.lignes[0]).toMatchObject({ statut: "a_creer", refus: null })
+    expect(second.compteurs.produitsRefuses).toBe(0)
+    expect(second.compteurs.produitsCrees).toBe(1)
+    expect(second.peutAppliquer).toBe(true)
+  })
+
+  it("refuse un sku possédé par un autre Produit, avec son numéro de Ligne", async () => {
+    const categoryId = await creerLaStructure()
+    await prisma.product.create({
+      data: {
+        slug: SLUG_TABLE,
+        name: "Table",
+        brand: "Maison",
+        description: "",
+        categoryId,
+        price: 2000,
+        specs: {},
+        images: [],
+        variants: {
+          create: [{ name: "Table", sku: SKU_TABLE, priceDelta: 0, stock: 4 }],
+        },
+      },
+    })
+    const avant = await compterLeCatalogue()
+
+    const contenu = fichierCsv(
+      ligneCsv({
+        slug: `v-${runId}-nouvelle`,
+        name: "Nouvelle",
+        brand: "Maison",
+        variant_sku: SKU_TABLE,
+        variant_name: "Nouvelle",
+        variant_price: "10.00",
+      })
+    )
+    const televerse = await televerser(contenu)
+    const rapport = await verifierLeLot(televerse.lotId)
+
+    expect(rapport.lignes[0]).toMatchObject({
+      numero: 2,
+      statut: "refusee",
+      refus: { code: "sku_deja_pris", sku: SKU_TABLE },
+    })
+    expect(rapport.compteurs).toEqual({
+      produitsCrees: 0,
+      produitsModifies: 0,
+      produitsInchanges: 0,
+      produitsRefuses: 1,
+    })
+    expect(await compterLeCatalogue()).toEqual(avant)
+  })
+
+  it("persiste l'avertissement de nom ressemblant sans refuser le Lot", async () => {
+    await prisma.product.create({
+      data: {
+        slug: `v-${runId}-existante`,
+        name: "Chaise Longue",
+        brand: "Maison",
+        description: "",
+        price: 1000,
+        specs: {},
+        images: [],
+        variants: {
+          create: [
+            {
+              name: "Existante",
+              sku: `${runId}-EXISTANTE-01`,
+              priceDelta: 0,
+              stock: 1,
+            },
+          ],
+        },
+      },
+    })
+
+    const contenu = fichierCsv(
+      ligneCsv({
+        slug: `v-${runId}-nouvelle`,
+        name: "chaise longue",
+        brand: "Maison",
+        variant_sku: `${runId}-NOUVELLE-01`,
+        variant_name: "Nouvelle",
+        variant_price: "10.00",
+      })
+    )
+    const televerse = await televerser(contenu)
+    const rapport = await verifierLeLot(televerse.lotId)
+    const lot = await lireLeLot(televerse.lotId)
+
+    expect(rapport.compteurs.produitsCrees).toBe(1)
+    expect(rapport.compteurs.produitsRefuses).toBe(0)
+    expect(rapport.peutAppliquer).toBe(true)
+    expect(lot?.lignes[0]?.avertissements).toContain("nom_ressemblant")
+    expect(lot?.lignes[0]?.avertissements).toContain("produit_sans_structure")
   })
 })
 

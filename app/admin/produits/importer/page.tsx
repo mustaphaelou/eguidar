@@ -4,7 +4,10 @@ import { Suspense } from "react"
 
 import { PageHeader } from "@/components/layout/admin/page-header"
 import { Button } from "@/components/ui/button"
-import { televerserLeFichierAction } from "@/app/admin/produits/importer/actions"
+import {
+  televerserLeFichierAction,
+  verifierLeLotAction,
+} from "@/app/admin/produits/importer/actions"
 import { lireLeLot } from "@/lib/use-cases/import-produits"
 import { EtapesImport } from "./etapes-import"
 import { FormulaireImport } from "./formulaire-import"
@@ -78,7 +81,9 @@ async function ImportContent({
         </p>
       ) : null}
 
-      {lot !== null ? <PanneauLotImport lot={lot} /> : null}
+      {lot !== null ? (
+        <PanneauLotImport lot={lot} verificationAction={verifierLeLotAction} />
+      ) : null}
 
       <FormulaireImport action={televerserLeFichierAction} />
     </div>

@@ -34,6 +34,11 @@ vi.mock("./formulaire-import", () => ({
 
 import ImportProductsPage from "./page"
 import { prisma } from "@/lib/db"
+import { COLONNES_IMPORT, type ColonneImport } from "@/lib/import-produits"
+import {
+  televerserLeFichier,
+  verifierLeLot,
+} from "@/lib/use-cases/import-produits"
 import { liensVers } from "@/test/liens-vers"
 
 const runId = randomUUID().slice(0, 8)
@@ -77,11 +82,23 @@ beforeAll(async () => {
 beforeEach(async () => {
   await prisma.ligneImport.deleteMany()
   await prisma.lotImport.deleteMany()
+  await prisma.product.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
+  await prisma.category.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
 })
 
 afterAll(async () => {
   await prisma.ligneImport.deleteMany()
   await prisma.lotImport.deleteMany()
+  await prisma.product.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
+  await prisma.category.deleteMany({
+    where: { slug: { startsWith: `v-${runId}-` } },
+  })
   await prisma.user.deleteMany({ where: { id: AUTEUR_ID } })
   await prisma.$disconnect()
 })
@@ -265,7 +282,186 @@ describe("la page d'import des Produits", () => {
     const html = await rendre({ lot: lot.id })
 
     expect(html).toContain("Appliquer le Lot")
-    expect(baliseDuBouton(html, "Appliquer le Lot")).toContain("disabled")
+    expect(baliseDuBouton(html, "Appliquer le Lot")).toContain('disabled=""')
     expect(html).toContain("Appliquer reste indisponible")
+  })
+})
+
+const STRUCTURE_SLUG = `v-${runId}-maison`
+
+function celluleCsv(valeur: string): string {
+  return /[",\r\n]/.test(valeur) ? `"${valeur.replaceAll('"', '""')}"` : valeur
+}
+
+function ligneCsv(valeurs: Partial<Record<ColonneImport, string>>): string {
+  return COLONNES_IMPORT.map((colonne) =>
+    celluleCsv(valeurs[colonne] ?? "")
+  ).join(",")
+}
+
+function fichierCsv(...lignes: string[]): string {
+  return [COLONNES_IMPORT.join(","), ...lignes].join("\r\n") + "\r\n"
+}
+
+async function semerLaStructure(): Promise<string> {
+  const structure = await prisma.category.create({
+    data: { name: "Maison", slug: STRUCTURE_SLUG },
+  })
+  return structure.id
+}
+
+async function semerLaChaise(categoryId: string): Promise<string> {
+  const produit = await prisma.product.create({
+    data: {
+      slug: `v-${runId}-chaise`,
+      name: "Chaise",
+      brand: "Maison",
+      description: "Bois massif",
+      categoryId,
+      price: 1250,
+      specs: {},
+      images: [],
+      variants: {
+        create: [
+          {
+            name: "Chaise en bois",
+            sku: `${runId}-CHAISE-01`,
+            priceDelta: 0,
+            stock: 3,
+          },
+        ],
+      },
+    },
+    include: { variants: true },
+  })
+  return produit.id
+}
+
+async function uploaderEtVerifier(contenu: string): Promise<string> {
+  const televerse = await televerserLeFichier({
+    nomFichier: "catalogue.csv",
+    octets: new TextEncoder().encode(contenu),
+    auteurId: AUTEUR_ID,
+  })
+  await verifierLeLot(televerse.lotId)
+  return televerse.lotId
+}
+
+describe("la page d'import des Produits — le Lot vérifié", () => {
+  it("rend les compteurs, les statuts et le diff avant → après", async () => {
+    const categoryId = await semerLaStructure()
+    await semerLaChaise(categoryId)
+
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-chaise`,
+          variant_sku: `${runId}-CHAISE-01`,
+          variant_stock: "5",
+        }),
+        ligneCsv({
+          slug: `v-${runId}-table`,
+          name: "Table",
+          brand: "Maison",
+          category: STRUCTURE_SLUG,
+          variant_sku: `${runId}-TABLE-01`,
+          variant_name: "Table en bois",
+          variant_price: "20.00",
+          variant_stock: "2",
+        })
+      )
+    )
+
+    const html = await rendre({ lot: lotId })
+
+    expect(html).toContain("Vérifié")
+    expect(html).toContain("Résultat de la Vérification")
+    expect(html).toMatch(/Produits créés<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toMatch(/Produits modifiés<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toMatch(/Produits inchangés<\/dt><dd[^>]*>0<\/dd>/)
+    expect(html).toMatch(/Produits refusés<\/dt><dd[^>]*>0<\/dd>/)
+    expect(html).toContain("À créer")
+    expect(html).toContain("À modifier")
+    expect(html).toContain("Changements")
+    expect(html).toContain("Avant : 3")
+    expect(html).toContain("Après : 5")
+    expect(html).toContain("Vérifier le Lot")
+    expect(html).toContain("application peut écrire les Produits annoncés")
+    expect(baliseDuBouton(html, "Appliquer le Lot")).not.toContain(
+      'disabled=""'
+    )
+  })
+
+  it("rend chaque refus avec son numéro de Ligne et son code, et bloque Appliquer", async () => {
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-etagere`,
+          name: "Étagère",
+          brand: "Maison",
+          category: `v-${runId}-inconnue`,
+          variant_sku: `${runId}-ETAGERE-01`,
+          variant_name: "Étagère",
+          variant_price: "30.00",
+        })
+      )
+    )
+
+    const html = await rendre({ lot: lotId })
+
+    expect(html).toContain("Ligne 2")
+    expect(html).toContain("structure_inconnue")
+    expect(html).toContain("inconnue")
+    expect(html).toContain("Produits refusés")
+    expect(html).toMatch(/Produits refusés<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toContain("une seule Ligne ou un seul Produit est refusé")
+    expect(baliseDuBouton(html, "Appliquer le Lot")).toContain('disabled=""')
+  })
+
+  it("rend les avertissements sans bloquer Appliquer", async () => {
+    await prisma.product.create({
+      data: {
+        slug: `v-${runId}-existante`,
+        name: "Chaise Longue",
+        brand: "Maison",
+        description: "",
+        price: 1000,
+        specs: {},
+        images: [],
+        variants: {
+          create: [
+            {
+              name: "Existante",
+              sku: `${runId}-EXISTANTE-01`,
+              priceDelta: 0,
+              stock: 1,
+            },
+          ],
+        },
+      },
+    })
+
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-nouvelle`,
+          name: "chaise longue",
+          brand: "Maison",
+          variant_sku: `${runId}-NOUVELLE-01`,
+          variant_name: "Nouvelle",
+          variant_price: "10.00",
+        })
+      )
+    )
+
+    const html = await rendre({ lot: lotId })
+
+    expect(html).toContain("pas de Structure")
+    expect(html).toContain("doublon")
+    expect(html).toMatch(/Produits refusés<\/dt><dd[^>]*>0<\/dd>/)
+    expect(html).toContain("application peut écrire les Produits annoncés")
+    expect(baliseDuBouton(html, "Appliquer le Lot")).not.toContain(
+      'disabled=""'
+    )
   })
 })

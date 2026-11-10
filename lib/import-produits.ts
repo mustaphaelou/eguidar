@@ -28,6 +28,18 @@ export type ColonneRequiseImport = (typeof COLONNES_REQUISES_IMPORT)[number]
 /** 5 Mo : le contrat du fichier, sous la limite de corps de 6 Mo des actions. */
 export const LIMITE_OCTETS_IMPORT = 5 * 1024 * 1024
 
+/** Ce que dit le bouton Appliquer quand le Lot n'a pas encore été vérifié. */
+export const MESSAGE_APPLIQUER_LOT_NON_VERIFIE =
+  "Appliquer reste indisponible tant que le Lot n'est pas vérifié : lancez d'abord la Vérification du Lot."
+
+/** Ce que dit le bouton Appliquer quand un seul refus bloque le Lot. */
+export const MESSAGE_APPLIQUER_REFUS =
+  "Appliquer reste indisponible tant qu'une seule Ligne ou un seul Produit est refusé : corrigez le fichier, puis vérifiez-le de nouveau."
+
+/** Ce que dit le bouton Appliquer quand le Lot est vérifié sans refus. */
+export const MESSAGE_APPLIQUER_PRET =
+  "Le Lot est vérifié et aucune Ligne n'est refusée : l'application peut écrire les Produits annoncés."
+
 export const NOM_MODELE_IMPORT = "modele-import-produits.csv"
 
 export const STATUTS_LOT_IMPORT = [
@@ -83,6 +95,8 @@ export const CODES_REFUS_IMPORT = [
   "champ_requis_manquant",
   "prix_invalide",
   "stock_invalide",
+  "structure_inconnue",
+  "sku_deja_pris",
   "doublon_fichier",
   "produit_en_conflit",
 ] as const
@@ -102,13 +116,28 @@ export interface RefusImport {
   champ?: ColonneImport
   /** La valeur fautive, pour `slug_invalide`. */
   slug?: string
-  /** Le sku concerné, pour `doublon_fichier`. */
+  /** Le sku concerné, pour `doublon_fichier` et `sku_deja_pris`. */
   sku?: string
   /** La forme du doublon, pour que le message dise laquelle des deux. */
   doublon?: "sku" | "couple"
+  /** La Structure nommée, pour `structure_inconnue`. */
+  structure?: string
+  /**
+   * `produit` quand le refus frappe le Produit entier et que la Ligne hérite du
+   * code : le message le dit, au lieu de faire croire que la Ligne est fautive.
+   */
+  portee?: "produit"
 }
 
-export type CodeAvertissementImport = "colonne_inconnue" | "description_html"
+export const CODES_AVERTISSEMENT_IMPORT = [
+  "colonne_inconnue",
+  "description_html",
+  "produit_sans_structure",
+  "nom_ressemblant",
+] as const
+
+export type CodeAvertissementImport =
+  (typeof CODES_AVERTISSEMENT_IMPORT)[number]
 
 export type AvertissementImport =
   | {
@@ -119,6 +148,12 @@ export type AvertissementImport =
       colonneAttendue?: ColonneImport
     }
   | { code: "description_html" }
+  | { code: "produit_sans_structure" }
+  | {
+      code: "nom_ressemblant"
+      /** Le slug du Produit existant qui porte déjà ce nom, quand il est connu. */
+      slug?: string
+    }
 
 export interface EnTeteImport {
   /** Les cellules non vides de l'en-tête, dans l'ordre du fichier. */
@@ -226,6 +261,15 @@ function sansCasseNiAccent(nom: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+}
+
+/**
+ * La forme comparable d'un nom de Produit : NFD, accents retirés, minuscules,
+ * espaces réduits à un seul. Deux noms qui ne diffèrent que par ces détails
+ * désignent le même nom pour l'avertissement de ressemblance.
+ */
+export function normaliserLeNom(nom: string): string {
+  return sansCasseNiAccent(nom).replace(/\s+/g, " ").trim()
 }
 
 function colonneConnue(nom: string): ColonneImport | undefined {
@@ -558,59 +602,54 @@ export function grouperParProduit<T extends { slug: string }>(
 }
 
 /**
- * Lit le tableau des Lignes d'un fichier déjà accepté : chaque enregistrement
- * devient une Ligne numérotée, les cellules sont rangées par nom de colonne,
- * une Ligne mal formée est refusée sans empêcher la lecture des autres, puis
- * les doublons et les conflits de Produit sont refusés sur toutes leurs
- * occurrences. Une Ligne ne porte jamais qu'un refus, dans l'ordre de priorité
+ * Un enregistrement prêt à être analysé : ses cellules déjà rangées par nom de
+ * colonne, son numéro de ligne physique, et le fait qu'il ait été lisible.
+ */
+export interface LigneBruteImport {
+  numero: number
+  cellules: CellulesImport
+  /**
+   * `false` quand le parseur a lu l'enregistrement. Omis, une Ligne dont aucune
+   * cellule connue n'a été conservée est traitée comme mal formée : un
+   * enregistrement lisible porte toujours au moins `slug` et `variant_sku`.
+   */
+  malFormee?: boolean
+}
+
+/**
+ * L'étape d'analyse du contrat, séparée du parseur : elle juge des cellules
+ * déjà rangées, qu'elles viennent d'un fichier ou des cellules persistées d'un
+ * Lot. C'est ce qui permet à la Vérification de rejouer un Lot sans relire son
+ * fichier, et de retrouver le contexte perdu d'un refus.
+ *
+ * Une Ligne ne porte jamais qu'un refus, dans l'ordre de priorité
  * `ligne_mal_formee` > `slug_invalide` > `champ_requis_manquant` >
  * `prix_invalide` > `stock_invalide` > `doublon_fichier` > `produit_en_conflit`.
  */
-export function lireLesLignes(texte: string): readonly LigneImport[] {
-  const enregistrements = analyserLesEnregistrements(texte)
-  const entete = enregistrements[0]
-  if (entete === undefined || entete.malFormee) return []
+export function analyserLesLignes(
+  enregistrements: readonly LigneBruteImport[]
+): readonly LigneImport[] {
+  const lignes: LigneImport[] = enregistrements.map(
+    ({ numero, cellules, malFormee }) => {
+      const illisible = malFormee ?? Object.keys(cellules).length === 0
+      const description = cellules.description ?? ""
 
-  const indexParColonne = new Map<ColonneImport, number>()
-  for (const [index, nom] of entete.cellules.entries()) {
-    if (estColonneConnue(nom) && !indexParColonne.has(nom)) {
-      indexParColonne.set(nom, index)
-    }
-  }
-
-  const lignes: LigneImport[] = []
-  for (const enregistrement of enregistrements.slice(1)) {
-    if (enregistrementVide(enregistrement.cellules)) continue
-
-    const malFormee =
-      enregistrement.malFormee ||
-      enregistrement.cellules.length !== entete.cellules.length
-
-    const cellules: Record<string, string> = {}
-    if (!malFormee) {
-      for (const [colonne, index] of indexParColonne) {
-        cellules[colonne] = enregistrement.cellules[index] ?? ""
+      return {
+        numero,
+        slug: cellules.slug ?? "",
+        sku: cellules.variant_sku ?? "",
+        cellules,
+        enregistrement: illisible ? null : normaliserLaLigne(cellules),
+        refus: illisible
+          ? { code: "ligne_mal_formee" }
+          : refuserLaLigne(cellules),
+        avertissements:
+          !illisible && description !== "" && ressembleÀDuHtml(description)
+            ? [{ code: "description_html" }]
+            : [],
       }
     }
-
-    const description = cellules.description ?? ""
-    const avertissements: AvertissementImport[] =
-      !malFormee && description !== "" && ressembleÀDuHtml(description)
-        ? [{ code: "description_html" }]
-        : []
-
-    lignes.push({
-      numero: enregistrement.numero,
-      slug: cellules.slug ?? "",
-      sku: cellules.variant_sku ?? "",
-      cellules,
-      enregistrement: malFormee ? null : normaliserLaLigne(cellules),
-      refus: malFormee
-        ? { code: "ligne_mal_formee" }
-        : refuserLaLigne(cellules),
-      avertissements,
-    })
-  }
+  )
 
   const doublons = doublonsDesLignes(lignes)
   for (const ligne of lignes) {
@@ -631,6 +670,44 @@ export function lireLesLignes(texte: string): readonly LigneImport[] {
   return lignes
 }
 
+/**
+ * Lit le tableau des Lignes d'un fichier déjà accepté : le parseur découpe le
+ * texte et range chaque enregistrement par colonne, puis l'analyse juge les
+ * Lignes, refuse les mal formées, les doublons et les conflits de Produit.
+ */
+export function lireLesLignes(texte: string): readonly LigneImport[] {
+  const enregistrements = analyserLesEnregistrements(texte)
+  const entete = enregistrements[0]
+  if (entete === undefined || entete.malFormee) return []
+
+  const indexParColonne = new Map<ColonneImport, number>()
+  for (const [index, nom] of entete.cellules.entries()) {
+    if (estColonneConnue(nom) && !indexParColonne.has(nom)) {
+      indexParColonne.set(nom, index)
+    }
+  }
+
+  const brutes: LigneBruteImport[] = []
+  for (const enregistrement of enregistrements.slice(1)) {
+    if (enregistrementVide(enregistrement.cellules)) continue
+
+    const malFormee =
+      enregistrement.malFormee ||
+      enregistrement.cellules.length !== entete.cellules.length
+
+    const cellules: Record<string, string> = {}
+    if (!malFormee) {
+      for (const [colonne, index] of indexParColonne) {
+        cellules[colonne] = enregistrement.cellules[index] ?? ""
+      }
+    }
+
+    brutes.push({ numero: enregistrement.numero, cellules, malFormee })
+  }
+
+  return analyserLesLignes(brutes)
+}
+
 function listeFrancaise(elements: readonly string[]): string {
   if (elements.length <= 1) return elements[0] ?? ""
   return `${elements.slice(0, -1).join(", ")} et ${elements[elements.length - 1]}`
@@ -649,6 +726,12 @@ function messageEnTeteIncomplet(
 
 /** Le message français d'un refus : un seul propriétaire du texte. */
 export function messageDuRefus(refus: RefusImport): string {
+  const message = messageDeBaseDuRefus(refus)
+  if (refus.portee !== "produit") return message
+  return `Le Produit est refusé : ${message.charAt(0).toLowerCase()}${message.slice(1)}`
+}
+
+function messageDeBaseDuRefus(refus: RefusImport): string {
   switch (refus.code) {
     case "fichier_trop_gros":
       return "Le fichier dépasse 5 Mo. Découpez-le en plusieurs fichiers plus petits, puis téléversez-les l'un après l'autre."
@@ -665,13 +748,27 @@ export function messageDuRefus(refus: RefusImport): string {
       return `Le slug « ${refus.slug} » est invalide : il doit être en minuscules, en chiffres et en tirets uniquement, par exemple « chaise-longue ».`
     case "champ_requis_manquant":
       if (refus.champ === undefined) {
-        return "Un champ requis de la Ligne est vide."
+        return refus.portee === "produit"
+          ? "Un champ requis du Produit est vide."
+          : "Un champ requis de la Ligne est vide."
+      }
+      if (refus.portee === "produit") {
+        return `La colonne requise « ${refus.champ} » est vide sur au moins une de ses Lignes.`
       }
       return `La colonne requise « ${refus.champ} » est vide sur cette Ligne.`
     case "prix_invalide":
       return "Le prix de la Variante n'est pas un montant valide : écrivez des dirhams avec un point décimal et deux décimales au plus, par exemple « 12.50 »."
     case "stock_invalide":
       return "Le stock de la Variante n'est pas un entier positif ou nul : écrivez un nombre entier, par exemple « 3 »."
+    case "structure_inconnue":
+      if (refus.structure === undefined || refus.structure === "") {
+        return "La Structure nommée par la colonne « category » est inconnue. Aucune Structure n'est créée par l'import : corrigez le slug ou créez la Structure à la main."
+      }
+      return `La Structure « ${refus.structure} » est inconnue. Aucune Structure n'est créée par l'import : corrigez le slug ou créez la Structure à la main.`
+    case "sku_deja_pris": {
+      const sku = refus.sku ?? "cette Variante"
+      return `Le sku « ${sku} » appartient déjà à un autre Produit du Catalogue : une Variante ne peut pas changer de Produit.`
+    }
     case "doublon_fichier": {
       const sku = refus.sku ?? "cette Variante"
       if (refus.doublon === "couple") {
@@ -702,6 +799,13 @@ export function messageDAvertissement(
       return `La colonne « ${avertissement.colonne} » est ignorée : elle ne fait pas partie des neuf colonnes attendues.`
     case "description_html":
       return "La description ressemble à du HTML : elle s'affichera comme du texte brut, balises comprises."
+    case "produit_sans_structure":
+      return "Ce Produit n'a pas de Structure : il sera importé sans catégorie. Aucune Structure n'est créée par l'import."
+    case "nom_ressemblant":
+      if (avertissement.slug !== undefined) {
+        return `Un Produit à créer porte le nom d'un Produit existant (« ${avertissement.slug} ») : vérifiez qu'il ne s'agit pas d'un doublon.`
+      }
+      return "Un Produit à créer porte le nom d'un Produit existant sous un autre slug : vérifiez qu'il ne s'agit pas d'un doublon."
   }
 }
 
