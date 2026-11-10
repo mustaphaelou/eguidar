@@ -497,6 +497,82 @@ export type EnumDeclencheurExecutionWithAggregatesFilter<$PrismaModel = never> =
     _max?: Prisma.NestedEnumDeclencheurExecutionFilter<$PrismaModel>
   }
 
+export type EnumStatutLotImportFilter<$PrismaModel = never> = {
+  equals?:
+    | $Enums.StatutLotImport
+    | Prisma.EnumStatutLotImportFieldRefInput<$PrismaModel>
+  in?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  notIn?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  not?:
+    | Prisma.NestedEnumStatutLotImportFilter<$PrismaModel>
+    | $Enums.StatutLotImport
+}
+
+export type EnumStatutLotImportWithAggregatesFilter<$PrismaModel = never> = {
+  equals?:
+    | $Enums.StatutLotImport
+    | Prisma.EnumStatutLotImportFieldRefInput<$PrismaModel>
+  in?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  notIn?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  not?:
+    | Prisma.NestedEnumStatutLotImportWithAggregatesFilter<$PrismaModel>
+    | $Enums.StatutLotImport
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumStatutLotImportFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumStatutLotImportFilter<$PrismaModel>
+}
+
+export type EnumStatutLigneImportNullableFilter<$PrismaModel = never> = {
+  equals?:
+    | $Enums.StatutLigneImport
+    | Prisma.EnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  in?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  notIn?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  not?:
+    | Prisma.NestedEnumStatutLigneImportNullableFilter<$PrismaModel>
+    | $Enums.StatutLigneImport
+    | null
+}
+
+export type EnumStatutLigneImportNullableWithAggregatesFilter<
+  $PrismaModel = never,
+> = {
+  equals?:
+    | $Enums.StatutLigneImport
+    | Prisma.EnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  in?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  notIn?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  not?:
+    | Prisma.NestedEnumStatutLigneImportNullableWithAggregatesFilter<$PrismaModel>
+    | $Enums.StatutLigneImport
+    | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumStatutLigneImportNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumStatutLigneImportNullableFilter<$PrismaModel>
+}
+
 export type NestedStringFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel>
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
@@ -915,4 +991,82 @@ export type NestedEnumDeclencheurExecutionWithAggregatesFilter<
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumDeclencheurExecutionFilter<$PrismaModel>
   _max?: Prisma.NestedEnumDeclencheurExecutionFilter<$PrismaModel>
+}
+
+export type NestedEnumStatutLotImportFilter<$PrismaModel = never> = {
+  equals?:
+    | $Enums.StatutLotImport
+    | Prisma.EnumStatutLotImportFieldRefInput<$PrismaModel>
+  in?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  notIn?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  not?:
+    | Prisma.NestedEnumStatutLotImportFilter<$PrismaModel>
+    | $Enums.StatutLotImport
+}
+
+export type NestedEnumStatutLotImportWithAggregatesFilter<
+  $PrismaModel = never,
+> = {
+  equals?:
+    | $Enums.StatutLotImport
+    | Prisma.EnumStatutLotImportFieldRefInput<$PrismaModel>
+  in?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  notIn?:
+    | $Enums.StatutLotImport[]
+    | Prisma.ListEnumStatutLotImportFieldRefInput<$PrismaModel>
+  not?:
+    | Prisma.NestedEnumStatutLotImportWithAggregatesFilter<$PrismaModel>
+    | $Enums.StatutLotImport
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumStatutLotImportFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumStatutLotImportFilter<$PrismaModel>
+}
+
+export type NestedEnumStatutLigneImportNullableFilter<$PrismaModel = never> = {
+  equals?:
+    | $Enums.StatutLigneImport
+    | Prisma.EnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  in?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  notIn?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  not?:
+    | Prisma.NestedEnumStatutLigneImportNullableFilter<$PrismaModel>
+    | $Enums.StatutLigneImport
+    | null
+}
+
+export type NestedEnumStatutLigneImportNullableWithAggregatesFilter<
+  $PrismaModel = never,
+> = {
+  equals?:
+    | $Enums.StatutLigneImport
+    | Prisma.EnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  in?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  notIn?:
+    | $Enums.StatutLigneImport[]
+    | Prisma.ListEnumStatutLigneImportFieldRefInput<$PrismaModel>
+    | null
+  not?:
+    | Prisma.NestedEnumStatutLigneImportNullableWithAggregatesFilter<$PrismaModel>
+    | $Enums.StatutLigneImport
+    | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumStatutLigneImportNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumStatutLigneImportNullableFilter<$PrismaModel>
 }

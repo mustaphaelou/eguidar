@@ -242,6 +242,7 @@ export type userWhereInput = {
   cartItems?: Prisma.CartItemListRelationFilter
   orders?: Prisma.OrderListRelationFilter
   brouillonsImageProduit?: Prisma.BrouillonImageProduitListRelationFilter
+  lotsImport?: Prisma.LotImportListRelationFilter
 }
 
 export type userOrderByWithRelationInput = {
@@ -262,6 +263,7 @@ export type userOrderByWithRelationInput = {
   cartItems?: Prisma.CartItemOrderByRelationAggregateInput
   orders?: Prisma.OrderOrderByRelationAggregateInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitOrderByRelationAggregateInput
+  lotsImport?: Prisma.LotImportOrderByRelationAggregateInput
 }
 
 export type userWhereUniqueInput = Prisma.AtLeast<
@@ -289,6 +291,7 @@ export type userWhereUniqueInput = Prisma.AtLeast<
     cartItems?: Prisma.CartItemListRelationFilter
     orders?: Prisma.OrderListRelationFilter
     brouillonsImageProduit?: Prisma.BrouillonImageProduitListRelationFilter
+    lotsImport?: Prisma.LotImportListRelationFilter
   },
   "id" | "email"
 >
@@ -350,6 +353,7 @@ export type userCreateInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
 
 export type userUncheckedCreateInput = {
@@ -369,6 +373,7 @@ export type userUncheckedCreateInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
 
 export type userUpdateInput = {
@@ -389,6 +394,7 @@ export type userUpdateInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateInput = {
@@ -410,6 +416,7 @@ export type userUncheckedUpdateInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
 
 export type userCreateManyInput = {
@@ -511,6 +518,11 @@ export type UserListRelationFilter = {
 
 export type userOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
+}
+
+export type UserNullableScalarRelationFilter = {
+  is?: Prisma.userWhereInput | null
+  isNot?: Prisma.userWhereInput | null
 }
 
 export type StringFieldUpdateOperationsInput = {
@@ -745,6 +757,34 @@ export type userUncheckedUpdateManyWithoutShippingCityNestedInput = {
   deleteMany?: Prisma.userScalarWhereInput | Prisma.userScalarWhereInput[]
 }
 
+export type userCreateNestedOneWithoutLotsImportInput = {
+  create?: Prisma.XOR<
+    Prisma.userCreateWithoutLotsImportInput,
+    Prisma.userUncheckedCreateWithoutLotsImportInput
+  >
+  connectOrCreate?: Prisma.userCreateOrConnectWithoutLotsImportInput
+  connect?: Prisma.userWhereUniqueInput
+}
+
+export type userUpdateOneWithoutLotsImportNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.userCreateWithoutLotsImportInput,
+    Prisma.userUncheckedCreateWithoutLotsImportInput
+  >
+  connectOrCreate?: Prisma.userCreateOrConnectWithoutLotsImportInput
+  upsert?: Prisma.userUpsertWithoutLotsImportInput
+  disconnect?: Prisma.userWhereInput | boolean
+  delete?: Prisma.userWhereInput | boolean
+  connect?: Prisma.userWhereUniqueInput
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.userUpdateToOneWithWhereWithoutLotsImportInput,
+      Prisma.userUpdateWithoutLotsImportInput
+    >,
+    Prisma.userUncheckedUpdateWithoutLotsImportInput
+  >
+}
+
 export type userCreateWithoutSessionsInput = {
   id: string
   name: string
@@ -761,6 +801,7 @@ export type userCreateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
 
 export type userUncheckedCreateWithoutSessionsInput = {
@@ -779,6 +820,7 @@ export type userUncheckedCreateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
 
 export type userCreateOrConnectWithoutSessionsInput = {
@@ -826,6 +868,7 @@ export type userUpdateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateWithoutSessionsInput = {
@@ -846,6 +889,7 @@ export type userUncheckedUpdateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
 
 export type userCreateWithoutAccountsInput = {
@@ -864,6 +908,7 @@ export type userCreateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
 
 export type userUncheckedCreateWithoutAccountsInput = {
@@ -882,6 +927,7 @@ export type userUncheckedCreateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
 
 export type userCreateOrConnectWithoutAccountsInput = {
@@ -929,6 +975,7 @@ export type userUpdateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateWithoutAccountsInput = {
@@ -949,6 +996,7 @@ export type userUncheckedUpdateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
 
 export type userCreateWithoutBrouillonsImageProduitInput = {
@@ -967,6 +1015,7 @@ export type userCreateWithoutBrouillonsImageProduitInput = {
   sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
 
 export type userUncheckedCreateWithoutBrouillonsImageProduitInput = {
@@ -985,6 +1034,7 @@ export type userUncheckedCreateWithoutBrouillonsImageProduitInput = {
   sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
 
 export type userCreateOrConnectWithoutBrouillonsImageProduitInput = {
@@ -1032,6 +1082,7 @@ export type userUpdateWithoutBrouillonsImageProduitInput = {
   sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateWithoutBrouillonsImageProduitInput = {
@@ -1052,6 +1103,7 @@ export type userUncheckedUpdateWithoutBrouillonsImageProduitInput = {
   sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
 
 export type userCreateWithoutCartItemsInput = {
@@ -1070,6 +1122,7 @@ export type userCreateWithoutCartItemsInput = {
   sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
 
 export type userUncheckedCreateWithoutCartItemsInput = {
@@ -1088,6 +1141,7 @@ export type userUncheckedCreateWithoutCartItemsInput = {
   sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
 
 export type userCreateOrConnectWithoutCartItemsInput = {
@@ -1135,6 +1189,7 @@ export type userUpdateWithoutCartItemsInput = {
   sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateWithoutCartItemsInput = {
@@ -1155,6 +1210,7 @@ export type userUncheckedUpdateWithoutCartItemsInput = {
   sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
 
 export type userCreateWithoutOrdersInput = {
@@ -1173,6 +1229,7 @@ export type userCreateWithoutOrdersInput = {
   sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
 
 export type userUncheckedCreateWithoutOrdersInput = {
@@ -1191,6 +1248,7 @@ export type userUncheckedCreateWithoutOrdersInput = {
   sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
 
 export type userCreateOrConnectWithoutOrdersInput = {
@@ -1238,6 +1296,7 @@ export type userUpdateWithoutOrdersInput = {
   sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateWithoutOrdersInput = {
@@ -1258,6 +1317,7 @@ export type userUncheckedUpdateWithoutOrdersInput = {
   sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
 
 export type userCreateWithoutShippingCityInput = {
@@ -1276,6 +1336,7 @@ export type userCreateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
 
 export type userUncheckedCreateWithoutShippingCityInput = {
@@ -1294,6 +1355,7 @@ export type userUncheckedCreateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
 
 export type userCreateOrConnectWithoutShippingCityInput = {
@@ -1356,6 +1418,113 @@ export type userScalarWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"user"> | Date | string
 }
 
+export type userCreateWithoutLotsImportInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  phone?: string | null
+  shippingAddress?: string | null
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  shippingCity?: Prisma.DeliveryCityCreateNestedOneWithoutUsersInput
+  accounts?: Prisma.accountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
+  cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
+  orders?: Prisma.OrderCreateNestedManyWithoutUserInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+}
+
+export type userUncheckedCreateWithoutLotsImportInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  phone?: string | null
+  shippingAddress?: string | null
+  shippingCityId?: string | null
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.accountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
+  cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+}
+
+export type userCreateOrConnectWithoutLotsImportInput = {
+  where: Prisma.userWhereUniqueInput
+  create: Prisma.XOR<
+    Prisma.userCreateWithoutLotsImportInput,
+    Prisma.userUncheckedCreateWithoutLotsImportInput
+  >
+}
+
+export type userUpsertWithoutLotsImportInput = {
+  update: Prisma.XOR<
+    Prisma.userUpdateWithoutLotsImportInput,
+    Prisma.userUncheckedUpdateWithoutLotsImportInput
+  >
+  create: Prisma.XOR<
+    Prisma.userCreateWithoutLotsImportInput,
+    Prisma.userUncheckedCreateWithoutLotsImportInput
+  >
+  where?: Prisma.userWhereInput
+}
+
+export type userUpdateToOneWithWhereWithoutLotsImportInput = {
+  where?: Prisma.userWhereInput
+  data: Prisma.XOR<
+    Prisma.userUpdateWithoutLotsImportInput,
+    Prisma.userUncheckedUpdateWithoutLotsImportInput
+  >
+}
+
+export type userUpdateWithoutLotsImportInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingAddress?:
+    Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  shippingCity?: Prisma.DeliveryCityUpdateOneWithoutUsersNestedInput
+  accounts?: Prisma.accountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
+  cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+}
+
+export type userUncheckedUpdateWithoutLotsImportInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingAddress?:
+    Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingCityId?:
+    Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.accountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
+  cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+}
+
 export type userCreateManyShippingCityInput = {
   id: string
   name: string
@@ -1386,6 +1555,7 @@ export type userUpdateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateWithoutShippingCityInput = {
@@ -1405,6 +1575,7 @@ export type userUncheckedUpdateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
 
 export type userUncheckedUpdateManyWithoutShippingCityInput = {
@@ -1431,6 +1602,7 @@ export type UserCountOutputType = {
   cartItems: number
   orders: number
   brouillonsImageProduit: number
+  lotsImport: number
 }
 
 export type UserCountOutputTypeSelect<
@@ -1443,6 +1615,7 @@ export type UserCountOutputTypeSelect<
   orders?: boolean | UserCountOutputTypeCountOrdersArgs
   brouillonsImageProduit?:
     boolean | UserCountOutputTypeCountBrouillonsImageProduitArgs
+  lotsImport?: boolean | UserCountOutputTypeCountLotsImportArgs
 }
 
 /**
@@ -1508,6 +1681,16 @@ export type UserCountOutputTypeCountBrouillonsImageProduitArgs<
   where?: Prisma.BrouillonImageProduitWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountLotsImportArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs =
+    runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.LotImportWhereInput
+}
+
 export type userSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs =
     runtime.Types.Extensions.DefaultArgs,
@@ -1531,6 +1714,7 @@ export type userSelect<
     orders?: boolean | Prisma.user$ordersArgs<ExtArgs>
     brouillonsImageProduit?:
       boolean | Prisma.user$brouillonsImageProduitArgs<ExtArgs>
+    lotsImport?: boolean | Prisma.user$lotsImportArgs<ExtArgs>
     _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
   },
   ExtArgs["result"]["user"]
@@ -1620,6 +1804,7 @@ export type userInclude<
   orders?: boolean | Prisma.user$ordersArgs<ExtArgs>
   brouillonsImageProduit?:
     boolean | Prisma.user$brouillonsImageProduitArgs<ExtArgs>
+  lotsImport?: boolean | Prisma.user$lotsImportArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type userIncludeCreateManyAndReturn<
@@ -1647,6 +1832,7 @@ export type $userPayload<
     cartItems: Prisma.$CartItemPayload<ExtArgs>[]
     orders: Prisma.$OrderPayload<ExtArgs>[]
     brouillonsImageProduit: Prisma.$BrouillonImageProduitPayload<ExtArgs>[]
+    lotsImport: Prisma.$LotImportPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
@@ -2275,6 +2461,17 @@ export interface Prisma__userClient<
   ): Prisma.PrismaPromise<
     | runtime.Types.Result.GetResult<
         Prisma.$BrouillonImageProduitPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >
+  lotsImport<T extends Prisma.user$lotsImportArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.user$lotsImportArgs<ExtArgs>>
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$LotImportPayload<ExtArgs>,
         T,
         "findMany",
         GlobalOmitOptions
@@ -2945,6 +3142,35 @@ export type user$brouillonsImageProduitArgs<
   distinct?:
     | Prisma.BrouillonImageProduitScalarFieldEnum
     | Prisma.BrouillonImageProduitScalarFieldEnum[]
+}
+
+/**
+ * user.lotsImport
+ */
+export type user$lotsImportArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs =
+    runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the LotImport
+   */
+  select?: Prisma.LotImportSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the LotImport
+   */
+  omit?: Prisma.LotImportOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.LotImportInclude<ExtArgs> | null
+  where?: Prisma.LotImportWhereInput
+  orderBy?:
+    | Prisma.LotImportOrderByWithRelationInput
+    | Prisma.LotImportOrderByWithRelationInput[]
+  cursor?: Prisma.LotImportWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.LotImportScalarFieldEnum | Prisma.LotImportScalarFieldEnum[]
 }
 
 /**
