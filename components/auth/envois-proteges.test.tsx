@@ -108,9 +108,7 @@ afterEach(async () => {
 
 function Connexion() {
   const flow = useSignInFlow({
-    step: "form",
     email: ADRESSE,
-    onStepChange: () => {},
     destination: null,
     pageAddress: "/",
     socialReturnAddress: "/",

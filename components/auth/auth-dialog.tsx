@@ -163,23 +163,12 @@ function ConnexionPanel({
   hasGoogle: boolean
   hasFacebook: boolean
 }) {
-  const { email: seedEmail, openSignUp, close } = useAuthDialogs()
+  const { email, openSignUp, close } = useAuthDialogs()
   const destination = useAuthDialogDestination()
   const pageAddress = usePageAddressWithoutAuthParams()
   const socialReturnAddress = useAuthDialogErrorDestination()
-  const [flowState, setFlowState] = useState<{
-    step: AuthFlowStep
-    email: string
-  }>({
-    step: "form",
-    email: seedEmail,
-  })
-  const handleStepChange = useCallback((step: AuthFlowStep, email: string) => {
-    setFlowState({ step, email })
-  }, [])
   const flow = useSignInFlow({
-    ...flowState,
-    onStepChange: handleStepChange,
+    email,
     onSuccess: close,
     destination,
     pageAddress,
