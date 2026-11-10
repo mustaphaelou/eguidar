@@ -50,6 +50,13 @@ export const MESSAGE_APPLIQUER_PRET =
   "Le Lot est vérifié et aucune Ligne n'est refusée : l'application peut écrire les Produits annoncés."
 
 /**
+ * Le refus d'un second import tant qu'un Lot est en cours : la reprise du Lot
+ * en cours passe avant tout nouveau téléversement.
+ */
+export const MESSAGE_IMPORT_EN_COURS =
+  "Un import est déjà en cours : reprenez-le ou terminez-le avant d'en lancer un autre."
+
+/**
  * Le rapport ne dit jamais « terminé » tant que l'indexation n'a pas rattrapé
  * les écritures : le Catalogue ne montrerait pas encore les Produits.
  */

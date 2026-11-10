@@ -12,7 +12,11 @@ import {
 
 import { prisma } from "@/lib/db"
 import type { IndexableProduct } from "@/lib/index-projection"
-import { COLONNES_IMPORT, type ColonneImport } from "@/lib/import-produits"
+import {
+  COLONNES_IMPORT,
+  MESSAGE_IMPORT_EN_COURS,
+  type ColonneImport,
+} from "@/lib/import-produits"
 import {
   appliquerLeLot,
   lireLeLot,
@@ -690,5 +694,212 @@ describe("appliquerLeLot — le merge complet", () => {
       produitsRefuses: 0,
     })
     expect(second.peutAppliquer).toBe(true)
+  })
+})
+
+function fichierDeNProduits(prefixe: string, nombre: number): string {
+  return fichierCsv(
+    ...Array.from({ length: nombre }, (_inutilise, position) =>
+      ligneCsv({
+        slug: slug(`${prefixe}-${position}`),
+        name: `Produit ${prefixe} ${position}`,
+        brand: "Maison",
+        variant_sku: sku(`${prefixe}-${position}`),
+        variant_name: "Unique",
+        variant_price: "10.00",
+      })
+    )
+  )
+}
+
+describe("appliquerLeLot — un seul Lot en cours", () => {
+  it("l'index partiel de la base refuse un second Lot en cours", async () => {
+    await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "1".repeat(64),
+        taille: 12,
+        statut: "en_cours",
+      },
+    })
+
+    await expect(
+      prisma.lotImport.create({
+        data: {
+          auteurId: AUTEUR_ID,
+          empreinte: "2".repeat(64),
+          taille: 12,
+          statut: "en_cours",
+        },
+      })
+    ).rejects.toMatchObject({ code: "P2002" })
+
+    await expect(
+      prisma.lotImport.count({ where: { statut: "en_cours" } })
+    ).resolves.toBe(1)
+  })
+
+  it("fait gagner une seule des deux applications concurrentes ; la perdante est refusée en français et n'écrit rien", async () => {
+    const lotA = await preparerLeLot(fichierDeNProduits("course-a", 27))
+    const lotB = await preparerLeLot(fichierDeNProduits("course-b", 27))
+    const effets = effetsDeTest()
+
+    const resultats = await Promise.allSettled([
+      appliquerLeLot(lotA, 0, effets.overrides),
+      appliquerLeLot(lotB, 0, effets.overrides),
+    ])
+    const reussites = resultats.filter(
+      (
+        resultat
+      ): resultat is PromiseFulfilledResult<
+        Awaited<ReturnType<typeof appliquerLeLot>>
+      > => resultat.status === "fulfilled"
+    )
+    const refus = resultats.filter(
+      (resultat): resultat is PromiseRejectedResult =>
+        resultat.status === "rejected"
+    )
+
+    expect(reussites).toHaveLength(1)
+    expect(refus).toHaveLength(1)
+    expect(refus[0]?.reason).toMatchObject({
+      name: "UserFacingError",
+      message: MESSAGE_IMPORT_EN_COURS,
+    })
+
+    const gagnant = reussites[0]!.value
+    const perdantId = gagnant.lotId === lotA ? lotB : lotA
+    expect(gagnant).toMatchObject({
+      traites: 25,
+      reste: 2,
+      ecrits: 25,
+      statut: "en_cours",
+    })
+
+    const lotsEnCours = await prisma.lotImport.findMany({
+      where: { statut: "en_cours" },
+      select: { id: true },
+    })
+    expect(lotsEnCours.map((lot) => lot.id)).toEqual([gagnant.lotId])
+
+    const perdant = await prisma.lotImport.findUniqueOrThrow({
+      where: { id: perdantId },
+    })
+    expect(perdant).toMatchObject({
+      statut: "verifie",
+      curseur: 0,
+      ecrits: 0,
+      indexes: 0,
+    })
+    await expect(
+      prisma.ligneImport.count({
+        where: { lotId: perdantId, statut: { in: ["ecrite", "echouee"] } },
+      })
+    ).resolves.toBe(0)
+
+    const prefixeGagnant = gagnant.lotId === lotA ? "course-a" : "course-b"
+    const prefixePerdant = gagnant.lotId === lotA ? "course-b" : "course-a"
+    await expect(
+      prisma.product.count({
+        where: { slug: { startsWith: `a-${runId}-${prefixeGagnant}-` } },
+      })
+    ).resolves.toBe(25)
+    await expect(
+      prisma.product.count({
+        where: { slug: { startsWith: `a-${runId}-${prefixePerdant}-` } },
+      })
+    ).resolves.toBe(0)
+  })
+})
+
+describe("appliquerLeLot — la reprise après une interruption", () => {
+  it("laisse le Lot en cours au curseur, le reprend sans réécrire ni recompter les Produits déjà écrits", async () => {
+    const lotId = await preparerLeLot(fichierDeNProduits("reprise", 27))
+    const effets = effetsDeTest()
+
+    // L'onglet est fermé pendant l'application : plus aucun appel jusqu'à la
+    // réouverture. Le Lot, son curseur et ses Lignes restent en base.
+    const interrompu = await appliquerLeLot(lotId, 0, effets.overrides)
+
+    expect(interrompu).toMatchObject({
+      traites: 25,
+      reste: 2,
+      curseurSuivant: 25,
+      ecrits: 25,
+      indexes: 25,
+      statut: "en_cours",
+    })
+    const lotInterrompu = await lireLeLot(lotId)
+    expect(lotInterrompu).toMatchObject({
+      statut: "en_cours",
+      curseur: 25,
+      ecrits: 25,
+      indexes: 25,
+    })
+    expect(lotInterrompu?.statut).not.toBe("termine")
+    expect(
+      lotInterrompu?.lignes.filter((ligne) => ligne.statut === "ecrite")
+    ).toHaveLength(25)
+    expect(
+      lotInterrompu?.lignes.filter((ligne) => ligne.statut !== "ecrite")
+    ).toHaveLength(2)
+
+    const updatedAtAvant = new Map(
+      (
+        await prisma.product.findMany({
+          where: {
+            slug: {
+              in: Array.from({ length: 25 }, (_x, i) => slug(`reprise-${i}`)),
+            },
+          },
+          select: { slug: true, updatedAt: true },
+        })
+      ).map((produit) => [produit.slug, produit.updatedAt.getTime()])
+    )
+
+    const reprise = await appliquerLeLot(
+      lotId,
+      lotInterrompu!.curseur,
+      effets.overrides
+    )
+
+    expect(reprise).toMatchObject({
+      traites: 2,
+      reste: 0,
+      curseurSuivant: 27,
+      ecrits: 27,
+      indexes: 27,
+      echecs: [],
+      indexationEnAttente: false,
+      statut: "termine",
+    })
+    await expect(
+      prisma.product.count({
+        where: { slug: { startsWith: `a-${runId}-reprise-` } },
+      })
+    ).resolves.toBe(27)
+
+    const updatedAtApres = new Map(
+      (
+        await prisma.product.findMany({
+          where: {
+            slug: {
+              in: Array.from({ length: 25 }, (_x, i) => slug(`reprise-${i}`)),
+            },
+          },
+          select: { slug: true, updatedAt: true },
+        })
+      ).map((produit) => [produit.slug, produit.updatedAt.getTime()])
+    )
+    expect(updatedAtApres).toEqual(updatedAtAvant)
+
+    const lot = await lireLeLot(lotId)
+    expect(lot).toMatchObject({
+      statut: "termine",
+      curseur: 27,
+      ecrits: 27,
+      indexes: 27,
+    })
+    expect(lot?.lignes.every((ligne) => ligne.statut === "ecrite")).toBe(true)
   })
 })

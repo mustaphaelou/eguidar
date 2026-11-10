@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { Client } from "@/lib/use-cases/session-courante"
+import { MESSAGE_IMPORT_EN_COURS } from "@/lib/import-produits"
 import type { TeleversementImport } from "@/lib/use-cases/import-produits"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
@@ -8,6 +9,7 @@ import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"
 const televersements = vi.hoisted(() => ({
   appels: [] as TeleversementImport[],
   resultat: { lotId: "lot-1", statut: "brouillon" as const },
+  erreur: null as Error | null,
 }))
 
 const verifications = vi.hoisted(() => ({
@@ -37,6 +39,7 @@ vi.mock("@/lib/use-cases/import-produits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/use-cases/import-produits")>()),
   televerserLeFichier: async (entree: TeleversementImport) => {
     televersements.appels.push(entree)
+    if (televersements.erreur !== null) throw televersements.erreur
     return televersements.resultat
   },
   verifierLeLot: async (lotId: string) => {
@@ -85,6 +88,7 @@ beforeEach(() => {
   sessionCouranteMock.mockResolvedValue(ADMIN)
   redirectMock.mockClear()
   televersements.appels.length = 0
+  televersements.erreur = null
   verifications.appels.length = 0
   verifications.erreur = null
   applications.appels.length = 0
@@ -136,6 +140,19 @@ describe("televerserLeFichierAction", () => {
 
     expect(resultat).toEqual({ error: "Aucun fichier reçu" })
     expect(televersements.appels).toEqual([])
+  })
+
+  it("rend le message français quand un import est déjà en cours, sans ouvrir de Lot", async () => {
+    televersements.erreur = new UserFacingError(MESSAGE_IMPORT_EN_COURS)
+
+    const resultat = await televerserLeFichierAction(
+      {},
+      formulaire(fichierCsv("slug,name\r\n"))
+    )
+
+    expect(resultat).toEqual({ error: MESSAGE_IMPORT_EN_COURS })
+    expect(redirectMock).not.toHaveBeenCalled()
+    expect(televersements.appels).toHaveLength(1)
   })
 })
 

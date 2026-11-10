@@ -489,6 +489,7 @@ export function PanneauLotImport({
                   ecritsInitiaux={lot.ecrits}
                   indexesInitiaux={lot.indexes}
                   total={totalProduits}
+                  reprise={enCours}
                   action={applicationAction}
                 />
               ) : (
