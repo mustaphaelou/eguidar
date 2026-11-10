@@ -30,6 +30,7 @@ import {
   type InstantaneCatalogue,
   type PlanProduit,
 } from "@/lib/plan-import-produits"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 /**
@@ -219,8 +220,9 @@ function valeursUniques(valeurs: readonly string[]): string[] {
 
 /**
  * Lit le Catalogue nécessaire au plan en trois lectures et une liste de noms :
- * les Produits du fichier, les Structures nommées, les skus déjà possédés, et
- * tous les noms pour l'avertissement de ressemblance. Aucune écriture.
+ * les Produits du fichier, les skus déjà possédés, tous les noms pour
+ * l'avertissement de ressemblance, et les Structures par la porte de la Lecture
+ * de la Structure. Aucune écriture.
  */
 async function lireLInstantane(
   lignes: readonly LigneImport[]
@@ -231,11 +233,10 @@ async function lireLInstantane(
   )
   const skus = valeursUniques(lignes.map((ligne) => ligne.sku))
 
-  const [produits, structures, variantes, noms] = await Promise.all([
+  const [produits, variantes, noms, lectureDesStructures] = await Promise.all([
     prisma.product.findMany({
       where: { slug: { in: slugs } },
       include: {
-        category: { select: { slug: true } },
         variants: {
           select: {
             id: true,
@@ -249,11 +250,6 @@ async function lireLInstantane(
       },
       orderBy: { slug: "asc" },
     }),
-    prisma.category.findMany({
-      where: { slug: { in: categories } },
-      select: { id: true, slug: true },
-      orderBy: { slug: "asc" },
-    }),
     prisma.productVariant.findMany({
       where: { sku: { in: skus } },
       select: { sku: true, product: { select: { slug: true } } },
@@ -262,6 +258,7 @@ async function lireLInstantane(
       select: { slug: true, name: true },
       orderBy: { slug: "asc" },
     }),
+    lireStructure(),
   ])
 
   return {
@@ -275,7 +272,11 @@ async function lireLInstantane(
           brand: produit.brand,
           description: produit.description,
           categoryId: produit.categoryId,
-          structureSlug: produit.category?.slug ?? null,
+          structureSlug:
+            produit.categoryId === null
+              ? null
+              : (lectureDesStructures.structure(produit.categoryId)?.slug ??
+                null),
           price: produit.price,
           variants: produit.variants.map((variante) => ({
             id: variante.id,
@@ -288,10 +289,12 @@ async function lireLInstantane(
       ])
     ),
     structuresParSlug: Object.fromEntries(
-      structures.map((structure) => [
-        structure.slug,
-        { id: structure.id, slug: structure.slug },
-      ])
+      categories.flatMap((slug) => {
+        const structure = lectureDesStructures.structureParSlug(slug)
+        return structure === null
+          ? []
+          : [[structure.slug, { id: structure.id, slug: structure.slug }]]
+      })
     ),
     produitsParSku: Object.fromEntries(
       variantes.map((variante) => [variante.sku, variante.product.slug])
