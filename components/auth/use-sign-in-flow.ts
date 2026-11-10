@@ -4,11 +4,6 @@ import { useState } from "react"
 
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import {
-  useAuthDialogDestination,
-  useAuthDialogErrorDestination,
-  usePageAddressWithoutAuthParams,
-} from "@/components/auth/auth-dialogs"
-import {
   resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
@@ -27,17 +22,20 @@ export function useSignInFlow(
     email,
     onStepChange,
     onSuccess,
+    destination,
+    pageAddress,
+    socialReturnAddress,
   }: {
     step: AuthFlowStep
     email: string
     onStepChange: (step: AuthFlowStep, email: string) => void
     onSuccess?: () => void
+    destination: string | null
+    pageAddress: string
+    socialReturnAddress: string
   },
   port: PortAuthentification = portAuthentificationClient
 ) {
-  const next = useAuthDialogDestination()
-  const pageAddress = usePageAddressWithoutAuthParams()
-  const errorDestination = useAuthDialogErrorDestination()
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -86,14 +84,14 @@ export function useSignInFlow(
     const result = await port.connexionSociale({
       fournisseur: provider,
       adresseDeRetour: socialSignInDestination(pageAddress),
-      adresseDeRetourEnEchec: socialSignInDestination(errorDestination),
+      adresseDeRetourEnEchec: socialSignInDestination(socialReturnAddress),
     })
     if (result.error) setError(translateAuthError(result.error))
   }
 
   function completeSignIn() {
-    if (next) {
-      window.location.href = next
+    if (destination) {
+      window.location.href = destination
       return
     }
     onSuccess?.()
@@ -109,7 +107,6 @@ export function useSignInFlow(
   }
 
   return {
-    next,
     email,
     setEmail,
     password,

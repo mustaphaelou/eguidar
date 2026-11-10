@@ -91,12 +91,18 @@ function Harness({
   email: emailProp = "",
   onStepChange,
   onSuccess,
+  destination = null,
+  pageAddress = "/",
+  socialReturnAddress = "/",
   port,
 }: {
   step?: AuthFlowStep
   email?: string
   onStepChange?: (step: AuthFlowStep, email: string) => void
   onSuccess?: () => void
+  destination?: string | null
+  pageAddress?: string
+  socialReturnAddress?: string
   port?: PortAuthentification
 }) {
   const controlled = useControlledFlow({
@@ -104,7 +110,16 @@ function Harness({
     email: emailProp,
     onStepChange,
   })
-  const flow = useSignInFlow({ ...controlled, onSuccess }, port)
+  const flow = useSignInFlow(
+    {
+      ...controlled,
+      onSuccess,
+      destination,
+      pageAddress,
+      socialReturnAddress,
+    },
+    port
+  )
   return (
     <div>
       <input
@@ -197,11 +212,10 @@ async function clickAndFlush(target: HTMLElement) {
 }
 
 describe("useSignInFlow", () => {
-  it("navigates to a validated ?next= after successful sign-in", async () => {
-    window.history.replaceState(null, "", "/?next=/profil")
+  it("navigates to the Destination after successful sign-in", async () => {
     mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
 
-    render(<Harness />)
+    render(<Harness destination="/profil" />)
     setInputValue(emailInput(), "test@example.com")
     setInputValue(passwordInput(), "secret123")
 
@@ -216,23 +230,7 @@ describe("useSignInFlow", () => {
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
-  it("stays on the page when ?next= carries a backslash", async () => {
-    window.history.replaceState(null, "", "/?next=/%5Cevil.example")
-    mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
-    const onSuccess = vi.fn()
-
-    render(<Harness onSuccess={onSuccess} />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
-
-    await clickAndFlush(signInButton())
-
-    expect(onSuccess).toHaveBeenCalled()
-    expect(window.location.pathname).toBe("/")
-  })
-
-  it("calls onSuccess and stays on the page when there is no ?next=", async () => {
-    window.history.replaceState(null, "", "/")
+  it("calls onSuccess and stays on the page when there is no Destination", async () => {
     mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
     const onSuccess = vi.fn()
 
@@ -248,7 +246,6 @@ describe("useSignInFlow", () => {
   })
 
   it("moves to the code-verification step when the e-mail is not verified", async () => {
-    window.history.replaceState(null, "", "/?next=/profil")
     mockedAuthClient.signIn.email.mockResolvedValue({
       data: null,
       error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
@@ -256,7 +253,13 @@ describe("useSignInFlow", () => {
     const onSuccess = vi.fn()
     const onStepChange = vi.fn()
 
-    render(<Harness onSuccess={onSuccess} onStepChange={onStepChange} />)
+    render(
+      <Harness
+        onSuccess={onSuccess}
+        onStepChange={onStepChange}
+        destination="/profil"
+      />
+    )
     setInputValue(emailInput(), "test@example.com")
     setInputValue(passwordInput(), "secret123")
 
@@ -325,7 +328,6 @@ describe("useSignInFlow", () => {
   })
 
   it("walks the tail from the unverified e-mail to the code step, the verified notice, and a successful sign-in", async () => {
-    window.history.replaceState(null, "", "/?next=/profil")
     mockedAuthClient.signIn.email
       .mockResolvedValueOnce({
         data: null,
@@ -339,7 +341,13 @@ describe("useSignInFlow", () => {
     const onSuccess = vi.fn()
     const onStepChange = vi.fn()
 
-    render(<Harness onSuccess={onSuccess} onStepChange={onStepChange} />)
+    render(
+      <Harness
+        onSuccess={onSuccess}
+        onStepChange={onStepChange}
+        destination="/profil"
+      />
+    )
     setInputValue(emailInput(), "test@example.com")
     setInputValue(passwordInput(), "secret123")
 
@@ -367,7 +375,6 @@ describe("useSignInFlow", () => {
   })
 
   it("reçoit son transport et le remet à l'échange de code qu'il compose", async () => {
-    window.history.replaceState(null, "", "/?next=/profil")
     const port = creerPortAuthentificationEnMemoire((appel) =>
       appel.operation === "connexionParMotDePasse"
         ? {
@@ -376,7 +383,7 @@ describe("useSignInFlow", () => {
         : { error: null }
     )
 
-    render(<Harness port={port} />)
+    render(<Harness port={port} destination="/profil" />)
     setInputValue(emailInput(), "test@example.com")
     setInputValue(passwordInput(), "secret123")
 
@@ -428,62 +435,80 @@ describe("useSignInFlow", () => {
   it.each([
     {
       provider: "google",
-      url: "/panier?open=login",
+      pageAddress: "/panier",
+      socialReturnAddress: "/panier?open=login",
       expected: "http://localhost:3000/panier",
       errorCallback: "http://localhost:3000/panier?open=login",
     },
     {
       provider: "facebook",
-      url: "/panier?open=login",
+      pageAddress: "/panier",
+      socialReturnAddress: "/panier?open=login",
       expected: "http://localhost:3000/panier",
       errorCallback: "http://localhost:3000/panier?open=login",
     },
     {
       provider: "google",
-      url: "/?open=login&query=phone",
+      pageAddress: "/?query=phone",
+      socialReturnAddress: "/?query=phone&open=login",
       expected: "http://localhost:3000/?query=phone",
       errorCallback: "http://localhost:3000/?query=phone&open=login",
     },
     {
       provider: "facebook",
-      url: "/?open=login&query=phone",
+      pageAddress: "/?query=phone",
+      socialReturnAddress: "/?query=phone&open=login",
       expected: "http://localhost:3000/?query=phone",
       errorCallback: "http://localhost:3000/?query=phone&open=login",
     },
     {
       provider: "google",
-      url: "/produits?query=phone",
+      pageAddress: "/produits?query=phone",
+      socialReturnAddress: "/produits?query=phone&open=login",
       expected: "http://localhost:3000/produits?query=phone",
       errorCallback: "http://localhost:3000/produits?query=phone&open=login",
     },
     {
       provider: "facebook",
-      url: "/produits?query=phone",
+      pageAddress: "/produits?query=phone",
+      socialReturnAddress: "/produits?query=phone&open=login",
       expected: "http://localhost:3000/produits?query=phone",
       errorCallback: "http://localhost:3000/produits?query=phone&open=login",
     },
     {
       provider: "google",
-      url: "/?open=login&next=%2Fadmin",
+      pageAddress: "/",
+      socialReturnAddress: "/?open=login&next=%2Fadmin",
       expected: "http://localhost:3000/",
       errorCallback: "http://localhost:3000/?open=login&next=%2Fadmin",
     },
     {
       provider: "facebook",
-      url: "/?open=login&next=%2Fadmin",
+      pageAddress: "/",
+      socialReturnAddress: "/?open=login&next=%2Fadmin",
       expected: "http://localhost:3000/",
       errorCallback: "http://localhost:3000/?open=login&next=%2Fadmin",
     },
   ] as const)(
-    "computes the $provider Connexion sociale callbackURL from $url",
-    async ({ provider, url, expected, errorCallback }) => {
-      window.history.replaceState(null, "", url)
+    "computes the $provider Connexion sociale callbackURL from $pageAddress",
+    async ({
+      provider,
+      pageAddress,
+      socialReturnAddress,
+      expected,
+      errorCallback,
+    }) => {
       mockedAuthClient.signIn.social.mockResolvedValue({
         data: {},
         error: null,
       })
 
-      render(<Harness />)
+      render(
+        <Harness
+          pageAddress={pageAddress}
+          socialReturnAddress={socialReturnAddress}
+        />
+      )
 
       await clickAndFlush(socialButton(provider))
 
