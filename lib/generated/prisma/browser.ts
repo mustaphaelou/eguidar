@@ -121,3 +121,13 @@ export type AutomationRuleRevision = Prisma.AutomationRuleRevisionModel
  *
  */
 export type AutomationRun = Prisma.AutomationRunModel
+/**
+ * Model LotImport
+ *
+ */
+export type LotImport = Prisma.LotImportModel
+/**
+ * Model LigneImport
+ *
+ */
+export type LigneImport = Prisma.LigneImportModel

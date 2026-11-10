@@ -48,3 +48,27 @@ export const DeclencheurExecution = {
 
 export type DeclencheurExecution =
   (typeof DeclencheurExecution)[keyof typeof DeclencheurExecution]
+
+export const StatutLotImport = {
+  brouillon: "brouillon",
+  verifie: "verifie",
+  en_cours: "en_cours",
+  partiel: "partiel",
+  termine: "termine",
+  echoue: "echoue",
+} as const
+
+export type StatutLotImport =
+  (typeof StatutLotImport)[keyof typeof StatutLotImport]
+
+export const StatutLigneImport = {
+  a_creer: "a_creer",
+  a_modifier: "a_modifier",
+  inchangee: "inchangee",
+  refusee: "refusee",
+  ecrite: "ecrite",
+  echouee: "echouee",
+} as const
+
+export type StatutLigneImport =
+  (typeof StatutLigneImport)[keyof typeof StatutLigneImport]

@@ -59,6 +59,15 @@ export function decodeP2002Fields(error: unknown): string[] {
   return indexFields(violation.index, violation.table)
 }
 
+/**
+ * Le nom de l'index violé, quand PostgreSQL le nomme. C'est la seule lecture
+ * possible pour un index partiel, dont le nom ne suit pas la convention
+ * `<Modèle>_<champs>_key` que `decodeP2002Fields` décode.
+ */
+export function uniqueViolationIndex(error: unknown): string | undefined {
+  return uniqueViolationOf(error)?.index
+}
+
 export function hasUniqueViolation(error: unknown, fields: string[]): boolean {
   return decodeP2002Fields(error).some((target) => fields.includes(target))
 }

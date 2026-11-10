@@ -36,6 +36,7 @@ import {
   PRODUIT_STOCK_ZERO,
 } from "@/lib/produit-listing"
 import { creerStructure, type StructureCreee } from "@/test/structure-fixtures"
+import { liensVers } from "@/test/liens-vers"
 
 const runId = randomUUID().slice(0, 8)
 const prefixe = `route-produits-${runId}-`
@@ -322,5 +323,12 @@ describe("la route de la Liste des Produits", () => {
       const nom = /aria-label="([^"]*)"/.exec(controle[2]!)?.[1]
       expect(nom || sansBalises(controle[3]!), controle[0]).toBeTruthy()
     }
+  })
+
+  it("offre le lien vers l'import depuis son en-tête", async () => {
+    const html = await rendreLaListe()
+    const lien = liensVers(html, "/admin/produits/importer")[0]
+
+    expect(lien?.texte).toBe("Importer un fichier")
   })
 })

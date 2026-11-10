@@ -296,7 +296,7 @@ describe("les faits du formulaire", () => {
     expectTypeOf<FaitsFormulaireProduit["categoryId"]>().toEqualTypeOf<
       string | null
     >()
-    expectTypeOf<ProductInput["categoryId"]>().toEqualTypeOf<string>()
+    expectTypeOf<ProductInput["categoryId"]>().toEqualTypeOf<string | null>()
   })
 
   it("décrivent la même Variante que l'entrée de la mutation", () => {

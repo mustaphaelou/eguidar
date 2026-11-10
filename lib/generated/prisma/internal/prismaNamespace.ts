@@ -448,6 +448,8 @@ export const ModelName = {
   AutomationRule: "AutomationRule",
   AutomationRuleRevision: "AutomationRuleRevision",
   AutomationRun: "AutomationRun",
+  LotImport: "LotImport",
+  LigneImport: "LigneImport",
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -491,6 +493,8 @@ export type TypeMap<
       | "automationRule"
       | "automationRuleRevision"
       | "automationRun"
+      | "lotImport"
+      | "ligneImport"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2090,6 +2094,158 @@ export type TypeMap<
         }
       }
     }
+    LotImport: {
+      payload: Prisma.$LotImportPayload<ExtArgs>
+      fields: Prisma.LotImportFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.LotImportFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.LotImportFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>
+        }
+        findFirst: {
+          args: Prisma.LotImportFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.LotImportFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>
+        }
+        findMany: {
+          args: Prisma.LotImportFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>[]
+        }
+        create: {
+          args: Prisma.LotImportCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>
+        }
+        createMany: {
+          args: Prisma.LotImportCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.LotImportCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>[]
+        }
+        delete: {
+          args: Prisma.LotImportDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>
+        }
+        update: {
+          args: Prisma.LotImportUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>
+        }
+        deleteMany: {
+          args: Prisma.LotImportDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.LotImportUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.LotImportUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>[]
+        }
+        upsert: {
+          args: Prisma.LotImportUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LotImportPayload>
+        }
+        aggregate: {
+          args: Prisma.LotImportAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateLotImport>
+        }
+        groupBy: {
+          args: Prisma.LotImportGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LotImportGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.LotImportCountArgs<ExtArgs>
+          result:
+            | runtime.Types.Utils.Optional<Prisma.LotImportCountAggregateOutputType>
+            | number
+        }
+      }
+    }
+    LigneImport: {
+      payload: Prisma.$LigneImportPayload<ExtArgs>
+      fields: Prisma.LigneImportFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.LigneImportFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.LigneImportFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>
+        }
+        findFirst: {
+          args: Prisma.LigneImportFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.LigneImportFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>
+        }
+        findMany: {
+          args: Prisma.LigneImportFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>[]
+        }
+        create: {
+          args: Prisma.LigneImportCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>
+        }
+        createMany: {
+          args: Prisma.LigneImportCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.LigneImportCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>[]
+        }
+        delete: {
+          args: Prisma.LigneImportDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>
+        }
+        update: {
+          args: Prisma.LigneImportUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>
+        }
+        deleteMany: {
+          args: Prisma.LigneImportDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.LigneImportUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.LigneImportUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>[]
+        }
+        upsert: {
+          args: Prisma.LigneImportUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LigneImportPayload>
+        }
+        aggregate: {
+          args: Prisma.LigneImportAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateLigneImport>
+        }
+        groupBy: {
+          args: Prisma.LigneImportGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LigneImportGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.LigneImportCountArgs<ExtArgs>
+          result:
+            | runtime.Types.Utils.Optional<Prisma.LigneImportCountAggregateOutputType>
+            | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2440,6 +2596,48 @@ export const AutomationRunScalarFieldEnum = {
 export type AutomationRunScalarFieldEnum =
   (typeof AutomationRunScalarFieldEnum)[keyof typeof AutomationRunScalarFieldEnum]
 
+export const LotImportScalarFieldEnum = {
+  id: "id",
+  auteurId: "auteurId",
+  empreinte: "empreinte",
+  taille: "taille",
+  statut: "statut",
+  curseur: "curseur",
+  produitsCrees: "produitsCrees",
+  produitsModifies: "produitsModifies",
+  produitsInchanges: "produitsInchanges",
+  produitsRefuses: "produitsRefuses",
+  ecrits: "ecrits",
+  indexes: "indexes",
+  avertissements: "avertissements",
+  motifEchec: "motifEchec",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type LotImportScalarFieldEnum =
+  (typeof LotImportScalarFieldEnum)[keyof typeof LotImportScalarFieldEnum]
+
+export const LigneImportScalarFieldEnum = {
+  id: "id",
+  lotId: "lotId",
+  numero: "numero",
+  slug: "slug",
+  sku: "sku",
+  cellules: "cellules",
+  enregistrement: "enregistrement",
+  codeRefus: "codeRefus",
+  avertissements: "avertissements",
+  diff: "diff",
+  statut: "statut",
+  motifEchec: "motifEchec",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type LigneImportScalarFieldEnum =
+  (typeof LigneImportScalarFieldEnum)[keyof typeof LigneImportScalarFieldEnum]
+
 export const SortOrder = {
   asc: "asc",
   desc: "desc",
@@ -2614,6 +2812,32 @@ export type EnumDeclencheurExecutionFieldRefInput<$PrismaModel> =
  */
 export type ListEnumDeclencheurExecutionFieldRefInput<$PrismaModel> =
   FieldRefInputType<$PrismaModel, "DeclencheurExecution[]">
+
+/**
+ * Reference to a field of type 'StatutLotImport'
+ */
+export type EnumStatutLotImportFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "StatutLotImport"
+>
+
+/**
+ * Reference to a field of type 'StatutLotImport[]'
+ */
+export type ListEnumStatutLotImportFieldRefInput<$PrismaModel> =
+  FieldRefInputType<$PrismaModel, "StatutLotImport[]">
+
+/**
+ * Reference to a field of type 'StatutLigneImport'
+ */
+export type EnumStatutLigneImportFieldRefInput<$PrismaModel> =
+  FieldRefInputType<$PrismaModel, "StatutLigneImport">
+
+/**
+ * Reference to a field of type 'StatutLigneImport[]'
+ */
+export type ListEnumStatutLigneImportFieldRefInput<$PrismaModel> =
+  FieldRefInputType<$PrismaModel, "StatutLigneImport[]">
 
 /**
  * Reference to a field of type 'Float'
@@ -2809,6 +3033,8 @@ export type GlobalOmitConfig = {
   automationRule?: Prisma.AutomationRuleOmit
   automationRuleRevision?: Prisma.AutomationRuleRevisionOmit
   automationRun?: Prisma.AutomationRunOmit
+  lotImport?: Prisma.LotImportOmit
+  ligneImport?: Prisma.LigneImportOmit
 }
 
 /* Types for Logging */
