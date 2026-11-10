@@ -2630,6 +2630,7 @@ export const LigneImportScalarFieldEnum = {
   avertissements: "avertissements",
   diff: "diff",
   statut: "statut",
+  motifEchec: "motifEchec",
   createdAt: "createdAt",
   updatedAt: "updatedAt",
 } as const
