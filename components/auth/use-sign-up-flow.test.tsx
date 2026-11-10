@@ -6,7 +6,9 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AuthFlowStep } from "@/components/auth/auth-dialog"
+import type { PortAuthentification } from "@/components/auth/port-authentification"
 import { authClient } from "@/lib/client"
+import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import { useSignUpFlow } from "./use-sign-up-flow"
 
 const captchaStub = vi.hoisted(() => ({
@@ -71,18 +73,20 @@ function Harness({
   email: emailProp = "",
   onStepChange,
   onVerified,
+  port,
 }: {
   step?: AuthFlowStep
   email?: string
   onStepChange?: (step: AuthFlowStep, email: string) => void
   onVerified?: (email: string) => void
+  port?: PortAuthentification
 }) {
   const controlled = useControlledFlow({
     step: stepProp,
     email: emailProp,
     onStepChange,
   })
-  const flow = useSignUpFlow({ ...controlled, onVerified })
+  const flow = useSignUpFlow({ ...controlled, onVerified }, port)
   return (
     <div>
       <input
@@ -100,6 +104,17 @@ function Harness({
         value={flow.password}
         onChange={(e) => flow.setPassword(e.target.value)}
       />
+      <input
+        aria-label="otp"
+        value={flow.otp.otp}
+        onChange={(e) => flow.otp.setOtp(e.target.value)}
+      />
+      <button type="button" data-send-otp onClick={() => flow.otp.send()}>
+        send otp
+      </button>
+      <button type="button" data-verify-otp onClick={() => flow.otp.verify()}>
+        verify otp
+      </button>
       <form onSubmit={flow.handleSignUp}>
         <button type="submit">sign up</button>
       </form>
@@ -122,6 +137,10 @@ function passwordInput() {
   return container.querySelector<HTMLInputElement>(
     'input[aria-label="password"]'
   )!
+}
+
+function otpInput() {
+  return container.querySelector<HTMLInputElement>('input[aria-label="otp"]')!
 }
 
 function signUpButton() {
@@ -253,6 +272,55 @@ describe("useSignUpFlow", () => {
     await clickAndFlush(signUpButton())
 
     expect(captchaStub.reset).not.toHaveBeenCalled()
+  })
+
+  it("reçoit son transport et le remet à l'échange de code qu'il compose", async () => {
+    const port = creerPortAuthentificationEnMemoire()
+    const onVerified = vi.fn()
+
+    render(<Harness port={port} onVerified={onVerified} />)
+    setInputValue(nameInput(), "Jane Doe")
+    setInputValue(emailInput(), "jane@example.com")
+    setInputValue(passwordInput(), "MotDePasse!12345")
+
+    await clickAndFlush(signUpButton())
+
+    expect(port.appels).toEqual([
+      {
+        operation: "inscription",
+        nom: "Jane Doe",
+        email: "jane@example.com",
+        motDePasse: "MotDePasse!12345",
+        entetes: { "x-captcha-response": captchaStub.jeton },
+      },
+    ])
+    expect(step()).toBe("otp")
+
+    await clickAndFlush(container.querySelector("[data-send-otp]")!)
+    setInputValue(otpInput(), "123456")
+    await clickAndFlush(container.querySelector("[data-verify-otp]")!)
+
+    expect(port.appels).toEqual([
+      {
+        operation: "inscription",
+        nom: "Jane Doe",
+        email: "jane@example.com",
+        motDePasse: "MotDePasse!12345",
+        entetes: { "x-captcha-response": captchaStub.jeton },
+      },
+      {
+        operation: "envoyerCode",
+        email: "jane@example.com",
+        type: "email-verification",
+        entetes: { "x-captcha-response": captchaStub.jeton },
+      },
+      {
+        operation: "verifierCode",
+        email: "jane@example.com",
+        code: "123456",
+      },
+    ])
+    expect(onVerified).toHaveBeenCalledWith("jane@example.com")
   })
 
   it("renders the controlled email prop", () => {
