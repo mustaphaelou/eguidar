@@ -192,3 +192,33 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   gestes.
 - Les deux modules de route restent des déclarations : `export const POST`/`DELETE =
   adminJsonRoute(...)`, et aucune construction de réponse.
+
+## Amendement — Un téléchargement de fichier ne peut pas traverser la porte JSON (#979, 2026-11-10)
+
+Aucune phrase de la décision n'est réécrite. L'invariant « Toute route JSON de mutation de
+l'Administration traverse `adminJsonRoute` » reste vrai : un téléchargement de fichier n'est pas une
+route JSON. [0052](0052-le-fichier-d-import-est-additif-et-se-juge-avant-d-ecrire.md) ouvre l'import
+des Produits et deux surfaces de lecture qui rendent un CSV — le modèle vierge et le CSV des refus
+d'un Lot. La porte d'ADR-0039 ne sait rendre que du JSON : lui faire traverser un fichier obligerait
+à lui apprendre un second type de réponse, ou à faire semblant d'un corps JSON pour le défaire
+ensuite.
+
+### Ce que cet amendement décide
+
+- **L'exception est un téléchargement, pas une route d'Administration.** Les deux routes
+  `app/api/admin/produits/importer/modele/route.ts` et
+  `app/api/admin/produits/importer/refus/[lotId]/route.ts` ne passent pas par `adminJsonRoute`.
+  Elles portent leur propre porte : `lireSession`, puis `estAdmin`, avant toute lecture de fichier ;
+  un visiteur sans Session ou un compte ordinaire reçoit 401 `Non autorisé`, sans
+  `Content-Disposition`. Leur réponse est un CSV : `Content-Type: text/csv; charset=utf-8`,
+  `Content-Disposition: attachment`, et `Cache-Control: private, no-store`.
+- **La preuve est une frontière dédiée, non vacante.**
+  `app/api/admin/produits/importer/frontiere.test.ts` lit les sources de production, voit les deux
+  routes et ne signale rien sur le corpus réel ; il nomme chaque contournement — une route qui
+  importe `lib/db`, ne lit plus la Session, ne vérifie plus le rôle, repasse par `adminJsonRoute`,
+  construit `Response.json(...)`, n'annonce plus le téléchargement ou ne déclare plus le type CSV.
+  Une troisième route de téléchargement de l'import rejoindrait cette liste surveillée.
+- **Aucune autre route d'Administration ne suit cet exemple.** Une route qui rend du JSON — lecture
+  ou mutation — reste soumise à `adminJsonRoute` et à sa frontière. L'exception ne couvre ni un
+  corps JSON, ni une mutation, ni une lecture qui pourrait rendre du JSON : elle n'existe que
+  parce qu'un fichier ne peut pas traverser une porte qui ne rend que du JSON.
