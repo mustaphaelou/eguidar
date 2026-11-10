@@ -150,6 +150,23 @@ _Avoid_: seed, fixtures, données de test, jeu de démonstration
 The complete set of products for sale, browsable via the "Tous nos produits" page.
 _Avoid_: tous les produits (as the concept name)
 
+**Lot d'import**:
+Un fichier téléversé dans l'Administration, avec son état : les Lignes qu'il porte, ce que sa
+Vérification a conclu, et ce que son application a écrit. Il retient son auteur, son instant et
+l'empreinte de son fichier, et peut rester inachevé pour être repris.
+_Avoid_: batch, job d'import, téléversement
+
+**Ligne d'import**:
+Une ligne d'un Lot : une Variante candidate, et les faits du Produit que son `slug` groupe. Elle
+porte la valeur brute de la cellule, la valeur normalisée, et le refus qui l'écarte le cas échéant.
+_Avoid_: row, enregistrement, item
+
+**Vérification du Lot**:
+Le jugement porté sur un Lot avant son application — ce qu'il créerait, modifierait, laisserait
+inchangé, et ce qu'il refuse —, sans aucune écriture. L'application le rejoue par le même code,
+jamais par une seconde implémentation.
+_Avoid_: dry run, prévisualisation, simulation
+
 **Structure**:
 L'arborescence de catégories du Catalogue telle que l'Administration la gère : la table `Category`
 en base, la **Lecture de la Structure** qui la lit pour une page, et le module
@@ -289,8 +306,9 @@ Un Produit dont la Structure a été supprimée, et qu'elle a emporté sans lui.
 normalement et reste lisible, mais il n'appartient à aucune page de catégorie et à aucun
 décompte du Catalogue. La Recherche le range sous la valeur de facette réservée
 `_sans-structure`, hors de la grammaire de slug d'une Structure : cette valeur ne peut donc
-jamais désigner une catégorie réelle. La seule façon d'en produire un est de supprimer une
-Structure ; la seule façon de ne plus l'être est de lui en choisir une (ADR-0029).
+jamais désigner une catégorie réelle. Un Produit naît sans Structure quand un Lot d'import le
+déclare tel, et le devient quand la suppression de sa Structure le laisse sans — un choix de
+l'éditeur (ADR-0029). La seule façon de ne plus l'être est de lui en choisir une.
 _Avoid_: produit orphelin, catégorie supprimée, produit sans catégorie
 
 **Image produit**:
