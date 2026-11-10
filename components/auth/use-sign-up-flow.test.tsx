@@ -3,6 +3,7 @@ import { act } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ResultatAuthentification } from "@/components/auth/port-authentification"
+import { MESSAGE_SERVEUR_INJOIGNABLE } from "@/components/auth/auth-form-glue"
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 
@@ -147,6 +148,21 @@ describe("useSignUpFlow", () => {
     expect(courant().error).toBe(
       "Un compte existe déjà avec cette adresse e-mail."
     )
+    expect(courant().step).toBe("form")
+    expect(courant().loading).toBe(false)
+  })
+
+  it("montre un message quand la requête n'atteint pas le serveur", async () => {
+    port.repondre = () => Promise.reject(new TypeError("Failed to fetch"))
+
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+
+    expect(courant().error).toBe(MESSAGE_SERVEUR_INJOIGNABLE)
     expect(courant().step).toBe("form")
     expect(courant().loading).toBe(false)
   })

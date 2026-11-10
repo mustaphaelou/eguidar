@@ -3,6 +3,7 @@
 import { useState } from "react"
 
 import {
+  MESSAGE_SERVEUR_INJOIGNABLE,
   resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
@@ -72,6 +73,8 @@ export function useSignInFlow(
         return
       }
       completeSignIn()
+    } catch {
+      setError(MESSAGE_SERVEUR_INJOIGNABLE)
     } finally {
       setLoading(false)
     }
@@ -80,12 +83,16 @@ export function useSignInFlow(
   async function handleSocial(provider: FournisseurSocial) {
     setError(null)
     setNotice(null)
-    const result = await port.connexionSociale({
-      fournisseur: provider,
-      adresseDeRetour: socialSignInDestination(pageAddress),
-      adresseDeRetourEnEchec: socialSignInDestination(socialReturnAddress),
-    })
-    if (result.error) setError(translateAuthError(result.error))
+    try {
+      const result = await port.connexionSociale({
+        fournisseur: provider,
+        adresseDeRetour: socialSignInDestination(pageAddress),
+        adresseDeRetourEnEchec: socialSignInDestination(socialReturnAddress),
+      })
+      if (result.error) setError(translateAuthError(result.error))
+    } catch {
+      setError(MESSAGE_SERVEUR_INJOIGNABLE)
+    }
   }
 
   function completeSignIn() {

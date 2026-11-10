@@ -7,6 +7,14 @@ import {
   MESSAGE_COMPTE_TEMPORAIREMENT_VERROUILLE,
 } from "@/lib/echecs-connexion-regles"
 
+/**
+ * Le refus que le Port ne rend pas : une requête qui n'atteint pas le serveur
+ * ne produit ni `code` ni `message`. Le flux la traduit par cette copie plutôt
+ * que de laisser le formulaire inchangé, sans explication.
+ */
+export const MESSAGE_SERVEUR_INJOIGNABLE =
+  "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
+
 export function translateAuthError(error: RefusAuthentification): string {
   switch (error.code) {
     case "INVALID_EMAIL_OR_PASSWORD":
