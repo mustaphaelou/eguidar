@@ -1,24 +1,29 @@
 import { createHash } from "node:crypto"
 
 import { prisma } from "@/lib/db"
-import type {
-  StatutLigneImport,
-  StatutLotImport,
+import {
+  Prisma,
+  type StatutLigneImport,
+  type StatutLotImport,
 } from "@/lib/generated/prisma/client"
 import {
   LIMITE_OCTETS_IMPORT,
   jugerLEnTete,
   lireLeTexte,
+  lireLesLignes,
   messageDAvertissement,
   messageDuRefus,
   type AvertissementImport,
+  type CellulesImport,
+  type EnregistrementImport,
+  type LigneImport,
   type RefusImport,
 } from "@/lib/import-produits"
 
 /**
- * Le cas d'usage du téléversement : il juge l'enveloppe et persiste le Lot.
- * C'est le seul module de l'import qui parle Prisma. Aucun Produit, aucune
- * Variante et aucune Structure n'est écrit ici.
+ * Le cas d'usage du téléversement : il juge l'enveloppe, lit les Lignes et
+ * persiste le Lot avec elles. C'est le seul module de l'import qui parle
+ * Prisma. Aucun Produit, aucune Variante et aucune Structure n'est écrit ici.
  */
 
 export interface TeleversementImport {
@@ -37,6 +42,8 @@ export interface LigneImportLue {
   numero: number
   slug: string
   sku: string
+  cellules: CellulesImport
+  enregistrement: EnregistrementImport | null
   statut: StatutLigneImport | null
   codeRefus: string | null
   avertissements: string[]
@@ -63,31 +70,64 @@ export interface LotImportLu {
 }
 
 interface EnveloppeJugee {
+  /** Le texte décodé, quand l'enveloppe peut être lue ; `null` sinon. */
+  texte: string | null
   refus: RefusImport[]
   avertissements: AvertissementImport[]
 }
 
 function jugerLEnveloppe(octets: Uint8Array): EnveloppeJugee {
   if (octets.byteLength > LIMITE_OCTETS_IMPORT) {
-    return { refus: [{ code: "fichier_trop_gros" }], avertissements: [] }
+    return {
+      texte: null,
+      refus: [{ code: "fichier_trop_gros" }],
+      avertissements: [],
+    }
   }
 
   const texte = lireLeTexte(octets)
   if (texte === null) {
-    return { refus: [{ code: "encodage_invalide" }], avertissements: [] }
+    return {
+      texte: null,
+      refus: [{ code: "encodage_invalide" }],
+      avertissements: [],
+    }
   }
 
   const enTete = jugerLEnTete(texte)
   return {
+    texte,
     refus: [...enTete.refus],
     avertissements: [...enTete.avertissements],
   }
 }
 
+function donneesDeLaLigne(ligne: LigneImport) {
+  const statut: StatutLigneImport | null =
+    ligne.refus === null ? null : "refusee"
+
+  return {
+    numero: ligne.numero,
+    slug: ligne.slug,
+    sku: ligne.sku,
+    cellules: ligne.cellules as unknown as Prisma.InputJsonValue,
+    enregistrement:
+      ligne.enregistrement === null
+        ? Prisma.DbNull
+        : (ligne.enregistrement as unknown as Prisma.InputJsonValue),
+    codeRefus: ligne.refus?.code ?? null,
+    avertissements: ligne.avertissements.map(
+      (avertissement) => avertissement.code
+    ),
+    statut,
+  }
+}
+
 /**
  * Crée un Lot pour tout fichier reçu : `brouillon` quand l'enveloppe est
- * acceptée, `echoue` avec son motif sinon. Un Lot refusé ne porte aucune
- * Ligne. L'empreinte est celle des octets reçus, pas du texte décodé.
+ * acceptée — avec toutes ses Lignes lues dans la même écriture —, `echoue`
+ * avec son motif sinon. Un Lot refusé ne porte aucune Ligne. L'empreinte est
+ * celle des octets reçus, pas du texte décodé.
  */
 export async function televerserLeFichier({
   octets,
@@ -96,6 +136,8 @@ export async function televerserLeFichier({
   const empreinte = createHash("sha256").update(octets).digest("hex")
   const enveloppe = jugerLEnveloppe(octets)
   const accepte = enveloppe.refus.length === 0
+  const lignes =
+    accepte && enveloppe.texte !== null ? lireLesLignes(enveloppe.texte) : []
 
   const lot = await prisma.lotImport.create({
     data: {
@@ -109,6 +151,7 @@ export async function televerserLeFichier({
       avertissements: enveloppe.avertissements.map((avertissement) =>
         messageDAvertissement(avertissement)
       ),
+      ...(accepte ? { lignes: { create: lignes.map(donneesDeLaLigne) } } : {}),
     },
     select: { id: true, statut: true },
   })
@@ -118,7 +161,7 @@ export async function televerserLeFichier({
 
 /** Le Lot et ses Lignes, pour la page et les tickets suivants. */
 export async function lireLeLot(id: string): Promise<LotImportLu | null> {
-  return prisma.lotImport.findUnique({
+  const lot = await prisma.lotImport.findUnique({
     where: { id },
     select: {
       id: true,
@@ -144,6 +187,8 @@ export async function lireLeLot(id: string): Promise<LotImportLu | null> {
           numero: true,
           slug: true,
           sku: true,
+          cellules: true,
+          enregistrement: true,
           statut: true,
           codeRefus: true,
           avertissements: true,
@@ -151,4 +196,15 @@ export async function lireLeLot(id: string): Promise<LotImportLu | null> {
       },
     },
   })
+
+  if (lot === null) return null
+
+  return {
+    ...lot,
+    lignes: lot.lignes.map((ligne) => ({
+      ...ligne,
+      cellules: ligne.cellules as CellulesImport,
+      enregistrement: ligne.enregistrement as EnregistrementImport | null,
+    })),
+  }
 }
