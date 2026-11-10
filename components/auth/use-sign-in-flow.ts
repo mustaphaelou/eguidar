@@ -13,7 +13,7 @@ import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 
-export type SignInFlowStep = "form" | "otp"
+type SignInFlowStep = "form" | "otp"
 
 export type SignInFlow = ReturnType<typeof useSignInFlow>
 

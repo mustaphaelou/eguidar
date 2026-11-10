@@ -1,15 +1,13 @@
 "use client"
 
+import type { RefusAuthentification } from "@/components/auth/port-authentification"
 import { MESSAGE_MOT_DE_PASSE_TROP_COURT } from "@/lib/auth-form-schemas"
 import {
   CODE_COMPTE_TEMPORAIREMENT_VERROUILLE,
   MESSAGE_COMPTE_TEMPORAIREMENT_VERROUILLE,
 } from "@/lib/echecs-connexion-regles"
 
-export function translateAuthError(error: {
-  code?: string
-  message?: string
-}): string {
+export function translateAuthError(error: RefusAuthentification): string {
   switch (error.code) {
     case "INVALID_EMAIL_OR_PASSWORD":
       return "E-mail ou mot de passe invalide."
@@ -54,7 +52,7 @@ export function translateConnexionSocialeFailure(
 }
 
 export function resolveAuthRefusal(
-  error: { code?: string; message?: string } | null | undefined,
+  error: RefusAuthentification | null | undefined,
   reset: () => void
 ): string {
   if (isTestDeSecuriteRefusal(error)) reset()
@@ -62,7 +60,7 @@ export function resolveAuthRefusal(
 }
 
 function isTestDeSecuriteRefusal(
-  error: { code?: string } | null | undefined
+  error: RefusAuthentification | null | undefined
 ): boolean {
   return error?.code === "VERIFICATION_FAILED"
 }

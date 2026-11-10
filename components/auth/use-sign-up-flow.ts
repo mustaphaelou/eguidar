@@ -9,7 +9,7 @@ import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 
-export type SignUpFlowStep = "form" | "otp"
+type SignUpFlowStep = "form" | "otp"
 
 export type SignUpFlow = ReturnType<typeof useSignUpFlow>
 

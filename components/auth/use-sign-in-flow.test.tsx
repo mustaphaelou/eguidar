@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import { act } from "react"
-import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { ResultatAuthentification } from "@/components/auth/port-authentification"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
+import { renderHook } from "./test-utils"
 import type { SignInFlow } from "./use-sign-in-flow"
 import { useSignInFlow } from "./use-sign-in-flow"
 
@@ -28,28 +28,12 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
   }),
 }))
 
-vi.mock("@/lib/client", () => ({
-  authClient: {
-    signIn: {
-      email: vi.fn(),
-      social: vi.fn(),
-    },
-    emailOtp: {
-      verifyEmail: vi.fn(),
-    },
-  },
-}))
-
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-let container: HTMLDivElement
 let port: PortAuthentificationEnMemoire
 let courantHook: { readonly current: SignInFlow } | null
-const roots: ReturnType<typeof createRoot>[] = []
 
 beforeEach(() => {
-  container = document.createElement("div")
-  document.body.appendChild(container)
   window.history.replaceState(null, "", "/")
   captchaStub.ready = true
   captchaStub.reset.mockClear()
@@ -58,28 +42,9 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const root of roots) root.unmount()
-  roots.length = 0
-  container.remove()
   vi.restoreAllMocks()
   vi.clearAllMocks()
 })
-
-function renderHook<T>(hook: () => T): { readonly current: T } {
-  let current!: T
-  function Probe() {
-    current = hook()
-    return null
-  }
-  const root = createRoot(container)
-  roots.push(root)
-  act(() => root.render(<Probe />))
-  return {
-    get current() {
-      return current
-    },
-  }
-}
 
 function rendreFlux({
   email = "",
