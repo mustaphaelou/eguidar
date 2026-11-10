@@ -108,9 +108,10 @@ afterEach(async () => {
 
 function Connexion() {
   const flow = useSignInFlow({
-    step: "form",
     email: ADRESSE,
-    onStepChange: () => {},
+    destination: null,
+    pageAddress: "/",
+    socialReturnAddress: "/",
   })
   return (
     <form onSubmit={flow.handleSignIn}>
@@ -140,9 +141,7 @@ function Connexion() {
 
 function Inscription() {
   const flow = useSignUpFlow({
-    step: "form",
     email: ADRESSE,
-    onStepChange: () => {},
     onVerified: () => {},
   })
   return (

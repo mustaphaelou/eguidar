@@ -1,8 +1,40 @@
-import { act, createElement, useState } from "react"
+import { act, createElement } from "react"
+import { createRoot } from "react-dom/client"
 import type { ReactNode } from "react"
-import { vi } from "vitest"
+import { afterEach, vi } from "vitest"
 
-import type { AuthFlowStep } from "@/components/auth/auth-dialog"
+const racines: ReturnType<typeof createRoot>[] = []
+const conteneurs: HTMLDivElement[] = []
+
+afterEach(() => {
+  for (const racine of racines) racine.unmount()
+  racines.length = 0
+  for (const conteneur of conteneurs) conteneur.remove()
+  conteneurs.length = 0
+})
+
+/**
+ * Rend un crochet en isolation et expose son état courant. Le racine et le
+ * conteneur sont nettoyés après chaque test.
+ */
+export function renderHook<T>(hook: () => T): { readonly current: T } {
+  let current!: T
+  function Probe() {
+    current = hook()
+    return null
+  }
+  const conteneur = document.createElement("div")
+  document.body.appendChild(conteneur)
+  conteneurs.push(conteneur)
+  const racine = createRoot(conteneur)
+  racines.push(racine)
+  act(() => racine.render(createElement(Probe)))
+  return {
+    get current() {
+      return current
+    },
+  }
+}
 
 export const navigationSpies = {
   push: vi.fn(),
@@ -72,26 +104,4 @@ export function setInputValue(input: HTMLInputElement, value: string) {
     setter.call(input, value)
     input.dispatchEvent(new Event("input", { bubbles: true }))
   })
-}
-
-export function useControlledFlow({
-  step: defaultStep = "form",
-  email: defaultEmail = "",
-  onStepChange,
-}: {
-  step?: AuthFlowStep
-  email?: string
-  onStepChange?: (step: AuthFlowStep, email: string) => void
-} = {}) {
-  const [step, setStep] = useState<AuthFlowStep>(defaultStep)
-  const [email, setEmail] = useState(defaultEmail)
-  return {
-    step,
-    email,
-    onStepChange: (nextStep: AuthFlowStep, nextEmail: string) => {
-      setStep(nextStep)
-      setEmail(nextEmail)
-      onStepChange?.(nextStep, nextEmail)
-    },
-  }
 }

@@ -5,14 +5,14 @@ import {
   resetNavigation,
   setInputValue,
 } from "./test-utils"
-import { act, useState } from "react"
+import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { authClient } from "@/lib/client"
-import type { AuthFlow, AuthFlowStep } from "./auth-dialog"
 import { SignUpForm } from "./sign-up-form"
+import { useSignUpFlow } from "./use-sign-up-flow"
 
 vi.mock("next/navigation", () => mockNextNavigation())
 
@@ -94,16 +94,7 @@ async function clickAndFlush(target: HTMLElement) {
 }
 
 function Harness() {
-  const [step, setStep] = useState<AuthFlowStep>("form")
-  const [email, setEmail] = useState("")
-  const flow: AuthFlow = {
-    step,
-    email,
-    onStepChange: (nextStep, nextEmail) => {
-      setStep(nextStep)
-      setEmail(nextEmail)
-    },
-  }
+  const flow = useSignUpFlow({ email: "" })
   return <SignUpForm flow={flow} />
 }
 

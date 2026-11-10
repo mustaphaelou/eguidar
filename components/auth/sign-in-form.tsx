@@ -21,10 +21,9 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import type { AuthFlow } from "@/components/auth/auth-dialog"
 import { useAuthDialogError } from "@/components/auth/auth-dialogs"
 import { PasswordInput } from "@/components/auth/password-input"
-import { useSignInFlow } from "@/components/auth/use-sign-in-flow"
+import type { SignInFlow } from "@/components/auth/use-sign-in-flow"
 import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 
 export function SignInForm({
@@ -32,16 +31,15 @@ export function SignInForm({
   hasFacebook,
   flow,
   onForgotPassword,
-  onSuccess,
 }: {
   hasGoogle: boolean
   hasFacebook: boolean
-  flow: AuthFlow
+  flow: SignInFlow
   onForgotPassword?: () => void
-  onSuccess?: () => void
 }) {
-  const { step, email } = flow
   const {
+    step,
+    email,
     setEmail,
     password,
     setPassword,
@@ -53,7 +51,7 @@ export function SignInForm({
     handleSignIn,
     handleSocial,
     backToForm,
-  } = useSignInFlow({ ...flow, onSuccess })
+  } = flow
   const [issues, setIssues] = useState<Record<string, string>>({})
   const dialogError = useAuthDialogError()
   const afficherEchecSocial = dialogError && !error && !notice

@@ -2,51 +2,55 @@
 
 import { useState } from "react"
 
-import type { AuthFlowStep } from "@/components/auth/auth-dialog"
-import {
-  useAuthDialogDestination,
-  useAuthDialogErrorDestination,
-  usePageAddressWithoutAuthParams,
-} from "@/components/auth/auth-dialogs"
 import {
   resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
+import type { PortAuthentification } from "@/components/auth/port-authentification"
+import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
-import { authClient } from "@/lib/client"
 import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 
+type SignInFlowStep = "form" | "otp"
+
 export type SignInFlow = ReturnType<typeof useSignInFlow>
 
-export function useSignInFlow({
-  step,
-  email,
-  onStepChange,
-  onSuccess,
-}: {
-  step: AuthFlowStep
-  email: string
-  onStepChange: (step: AuthFlowStep, email: string) => void
-  onSuccess?: () => void
-}) {
-  const next = useAuthDialogDestination()
-  const pageAddress = usePageAddressWithoutAuthParams()
-  const errorDestination = useAuthDialogErrorDestination()
+export function useSignInFlow(
+  {
+    email: adresseDeDépart,
+    onSuccess,
+    destination,
+    pageAddress,
+    socialReturnAddress,
+  }: {
+    email: string
+    onSuccess?: () => void
+    destination: string | null
+    pageAddress: string
+    socialReturnAddress: string
+  },
+  port: PortAuthentification = portAuthentificationClient
+) {
+  const [step, setStep] = useState<SignInFlowStep>("form")
+  const [email, setEmail] = useState(adresseDeDépart)
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const captcha = useTestDeSecurite(ACTIONS_TEST_DE_SECURITE.connexion)
-  const otp = useOtpExchange({
-    email,
-    type: "email-verification",
-    onVerified: () => {
-      setNotice("Votre e-mail est vérifié. Connectez-vous.")
-      backToForm()
+  const otp = useOtpExchange(
+    {
+      email,
+      type: "email-verification",
+      onVerified: () => {
+        setNotice("Votre e-mail est vérifié. Connectez-vous.")
+        backToForm()
+      },
     },
-  })
+    port
+  )
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -54,14 +58,14 @@ export function useSignInFlow({
     setNotice(null)
     setLoading(true)
     try {
-      const result = await authClient.signIn.email({
+      const result = await port.connexionParMotDePasse({
         email,
-        password,
-        fetchOptions: { headers: captcha.headers },
+        motDePasse: password,
+        entetes: captcha.headers,
       })
       if (result.error) {
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
-          onStepChange("otp", email)
+          setStep("otp")
           return
         }
         setError(resolveAuthRefusal(result.error, captcha.reset))
@@ -76,33 +80,28 @@ export function useSignInFlow({
   async function handleSocial(provider: FournisseurSocial) {
     setError(null)
     setNotice(null)
-    const result = await authClient.signIn.social({
-      provider,
-      callbackURL: socialSignInDestination(pageAddress),
-      errorCallbackURL: socialSignInDestination(errorDestination),
+    const result = await port.connexionSociale({
+      fournisseur: provider,
+      adresseDeRetour: socialSignInDestination(pageAddress),
+      adresseDeRetourEnEchec: socialSignInDestination(socialReturnAddress),
     })
     if (result.error) setError(translateAuthError(result.error))
   }
 
   function completeSignIn() {
-    if (next) {
-      window.location.href = next
+    if (destination) {
+      window.location.href = destination
       return
     }
     onSuccess?.()
   }
 
-  function setEmail(value: string) {
-    onStepChange(step, value)
-  }
-
   function backToForm() {
-    onStepChange("form", email)
+    setStep("form")
     setError(null)
   }
 
   return {
-    next,
     email,
     setEmail,
     password,

@@ -1,18 +1,13 @@
 // @vitest-environment happy-dom
-import {
-  mockNextNavigation,
-  resetNavigation,
-  setInputValue,
-  useControlledFlow,
-} from "./test-utils"
 import { act } from "react"
-import { createRoot } from "react-dom/client"
-import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { AuthFlowStep } from "@/components/auth/auth-dialog"
-import { authClient } from "@/lib/client"
+import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
+import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
+import type { ResultatAuthentification } from "@/components/auth/port-authentification"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
+import { renderHook } from "./test-utils"
+import type { SignInFlow } from "./use-sign-in-flow"
 import { useSignInFlow } from "./use-sign-in-flow"
 
 const captchaStub = vi.hoisted(() => ({
@@ -33,405 +28,403 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
   }),
 }))
 
-vi.mock("next/navigation", () => mockNextNavigation())
-
-vi.mock("@/lib/client", () => ({
-  authClient: {
-    signIn: {
-      email: vi.fn(),
-      social: vi.fn(),
-    },
-    emailOtp: {
-      verifyEmail: vi.fn(),
-    },
-  },
-}))
-
-const mockedAuthClient = authClient as unknown as {
-  signIn: {
-    email: ReturnType<typeof vi.fn>
-    social: ReturnType<typeof vi.fn>
-  }
-  emailOtp: {
-    verifyEmail: ReturnType<typeof vi.fn>
-  }
-}
-
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-let container: HTMLDivElement
-const roots: ReturnType<typeof createRoot>[] = []
+let port: PortAuthentificationEnMemoire
+let courantHook: { readonly current: SignInFlow } | null
 
 beforeEach(() => {
-  container = document.createElement("div")
-  document.body.appendChild(container)
-  resetNavigation("/")
+  window.history.replaceState(null, "", "/")
   captchaStub.ready = true
   captchaStub.reset.mockClear()
+  port = creerPortAuthentificationEnMemoire()
+  courantHook = null
 })
 
 afterEach(() => {
-  for (const root of roots) root.unmount()
-  roots.length = 0
-  container.remove()
   vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
-function render(element: ReactElement) {
-  const root = createRoot(container)
-  roots.push(root)
-  act(() => root.render(element))
-}
-
-function Harness({
-  step: stepProp = "form",
-  email: emailProp = "",
-  onStepChange,
+function rendreFlux({
+  email = "",
   onSuccess,
+  destination = null,
+  pageAddress = "/",
+  socialReturnAddress = "/",
+  port: portDuTest = port,
 }: {
-  step?: AuthFlowStep
   email?: string
-  onStepChange?: (step: AuthFlowStep, email: string) => void
   onSuccess?: () => void
-}) {
-  const controlled = useControlledFlow({
-    step: stepProp,
-    email: emailProp,
-    onStepChange,
-  })
-  const flow = useSignInFlow({ ...controlled, onSuccess })
-  return (
-    <div>
-      <input
-        aria-label="email"
-        value={flow.email}
-        onChange={(e) => flow.setEmail(e.target.value)}
-      />
-      <input
-        aria-label="password"
-        value={flow.password}
-        onChange={(e) => flow.setPassword(e.target.value)}
-      />
-      <input
-        aria-label="otp"
-        value={flow.otp.otp}
-        onChange={(e) => flow.otp.setOtp(e.target.value)}
-      />
-      <button type="button" data-verify-otp onClick={() => flow.otp.verify()}>
-        verify otp
-      </button>
-      <form onSubmit={flow.handleSignIn}>
-        <button type="submit">sign in</button>
-      </form>
-      <button
-        type="button"
-        data-social-google
-        onClick={() => flow.handleSocial("google")}
-      >
-        social google
-      </button>
-      <button
-        type="button"
-        data-social-facebook
-        onClick={() => flow.handleSocial("facebook")}
-      >
-        social facebook
-      </button>
-      <div data-step={flow.step} />
-      {flow.notice && <p data-notice>{flow.notice}</p>}
-      {flow.error && <p data-error>{flow.error}</p>}
-      {flow.loading && <p data-loading>loading</p>}
-    </div>
+  destination?: string | null
+  pageAddress?: string
+  socialReturnAddress?: string
+  port?: PortAuthentificationEnMemoire
+} = {}) {
+  courantHook = renderHook(() =>
+    useSignInFlow(
+      { email, onSuccess, destination, pageAddress, socialReturnAddress },
+      portDuTest
+    )
   )
+  return courantHook
 }
 
-function emailInput() {
-  return container.querySelector<HTMLInputElement>('input[aria-label="email"]')!
+function courant(): SignInFlow {
+  expect(courantHook, "le flux est rendu").not.toBeNull()
+  return courantHook!.current
 }
 
-function passwordInput() {
-  return container.querySelector<HTMLInputElement>(
-    'input[aria-label="password"]'
-  )!
+function saisirEmail(valeur: string) {
+  act(() => {
+    courant().setEmail(valeur)
+  })
 }
 
-function otpInput() {
-  return container.querySelector<HTMLInputElement>('input[aria-label="otp"]')!
+function saisirMotDePasse(valeur: string) {
+  act(() => {
+    courant().setPassword(valeur)
+  })
 }
 
-function signInButton() {
-  return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
+function saisirCode(valeur: string) {
+  act(() => {
+    courant().otp.setOtp(valeur)
+  })
 }
 
-function socialButton(provider: FournisseurSocial = "google") {
-  return container.querySelector<HTMLButtonElement>(
-    `[data-social-${provider}]`
-  )!
-}
-
-function step() {
-  return container.querySelector("[data-step]")?.getAttribute("data-step")
-}
-
-function notice() {
-  return container.querySelector("[data-notice]")?.textContent ?? null
-}
-
-function error() {
-  return container.querySelector("[data-error]")?.textContent ?? null
-}
-
-async function clickAndFlush(target: HTMLElement) {
-  await act(async () => {
-    target.click()
+function soumettre() {
+  const flux = courant()
+  return act(async () => {
+    await flux.handleSignIn({ preventDefault: () => {} } as React.FormEvent)
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
 
+async function envoyerLeCode() {
+  await act(async () => {
+    await courant().otp.send()
+  })
+}
+
+async function verifierLeCode() {
+  await act(async () => {
+    await courant().otp.verify()
+  })
+}
+
+function revenirAuFormulaire() {
+  act(() => {
+    courant().backToForm()
+  })
+}
+
+async function connexionSociale(provider: FournisseurSocial) {
+  await act(async () => {
+    await courant().handleSocial(provider)
+  })
+}
+
 describe("useSignInFlow", () => {
-  it("navigates to a validated ?next= after successful sign-in", async () => {
-    window.history.replaceState(null, "", "/?next=/profil")
-    mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
+  it("navigates to the Destination after successful sign-in", async () => {
+    rendreFlux({ destination: "/profil" })
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
 
-    render(<Harness />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
-
-    await clickAndFlush(signInButton())
+    await soumettre()
 
     expect(window.location.pathname).toBe("/profil")
-    expect(mockedAuthClient.signIn.email).toHaveBeenCalledWith({
-      email: "test@example.com",
-      password: "secret123",
-      fetchOptions: { headers: { "x-captcha-response": captchaStub.jeton } },
+    expect(port.appels).toEqual([
+      {
+        operation: "connexionParMotDePasse",
+        email: "test@example.com",
+        motDePasse: "secret123",
+        entetes: { "x-captcha-response": captchaStub.jeton },
+      },
+    ])
+    expect(courant().loading).toBe(false)
+  })
+
+  it("calls onSuccess and stays on the page when there is no Destination", async () => {
+    const onSuccess = vi.fn()
+
+    rendreFlux({ onSuccess })
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
+
+    await soumettre()
+
+    expect(onSuccess).toHaveBeenCalled()
+    expect(window.location.pathname).toBe("/")
+    expect(courant().step).toBe("form")
+  })
+
+  it("shows the pending flag while the sign-in is in flight and clears it after", async () => {
+    let resolve!: (resultat: ResultatAuthentification) => void
+    port.repondre = () =>
+      new Promise<ResultatAuthentification>((resoudre) => {
+        resolve = resoudre
+      })
+
+    rendreFlux()
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
+
+    const flux = courant()
+    await act(async () => {
+      flux.handleSignIn({ preventDefault: () => {} } as React.FormEvent)
+      await Promise.resolve()
     })
-    expect(container.querySelector("[data-loading]")).toBeNull()
-  })
+    expect(courant().loading).toBe(true)
 
-  it("stays on the page when ?next= carries a backslash", async () => {
-    window.history.replaceState(null, "", "/?next=/%5Cevil.example")
-    mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
-    const onSuccess = vi.fn()
-
-    render(<Harness onSuccess={onSuccess} />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
-
-    await clickAndFlush(signInButton())
-
-    expect(onSuccess).toHaveBeenCalled()
-    expect(window.location.pathname).toBe("/")
-  })
-
-  it("calls onSuccess and stays on the page when there is no ?next=", async () => {
-    window.history.replaceState(null, "", "/")
-    mockedAuthClient.signIn.email.mockResolvedValue({ data: {}, error: null })
-    const onSuccess = vi.fn()
-
-    render(<Harness onSuccess={onSuccess} />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
-
-    await clickAndFlush(signInButton())
-
-    expect(onSuccess).toHaveBeenCalled()
-    expect(window.location.pathname).toBe("/")
-    expect(step()).toBe("form")
+    await act(async () => {
+      resolve({ error: null })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(courant().loading).toBe(false)
   })
 
   it("moves to the code-verification step when the e-mail is not verified", async () => {
-    window.history.replaceState(null, "", "/?next=/profil")
-    mockedAuthClient.signIn.email.mockResolvedValue({
-      data: null,
+    port.repondre = () => ({
       error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
     })
     const onSuccess = vi.fn()
-    const onStepChange = vi.fn()
 
-    render(<Harness onSuccess={onSuccess} onStepChange={onStepChange} />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
+    rendreFlux({ onSuccess, destination: "/profil" })
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
 
-    await clickAndFlush(signInButton())
+    await soumettre()
 
-    expect(onStepChange).toHaveBeenCalledWith("otp", "test@example.com")
-    expect(step()).toBe("otp")
+    expect(courant().step).toBe("otp")
     expect(onSuccess).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
-    expect(error()).toBeNull()
-    expect(container.querySelector("[data-loading]")).toBeNull()
+    expect(courant().error).toBeNull()
+    expect(courant().loading).toBe(false)
   })
 
   it("surfaces INVALID_EMAIL_OR_PASSWORD and stays on the form step", async () => {
-    mockedAuthClient.signIn.email.mockResolvedValue({
-      data: null,
+    port.repondre = () => ({
       error: { code: "INVALID_EMAIL_OR_PASSWORD", message: "bad credentials" },
     })
-    const onStepChange = vi.fn()
 
-    render(<Harness onStepChange={onStepChange} />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
+    rendreFlux()
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
 
-    await clickAndFlush(signInButton())
+    await soumettre()
 
-    expect(error()).toBe("E-mail ou mot de passe invalide.")
-    expect(step()).toBe("form")
-    expect(onStepChange).not.toHaveBeenCalledWith("otp", expect.any(String))
-    expect(container.querySelector("[data-loading]")).toBeNull()
+    expect(courant().error).toBe("E-mail ou mot de passe invalide.")
+    expect(courant().step).toBe("form")
   })
 
   it("resets the Test de sécurité so a rejected sign-in retries with a fresh jeton", async () => {
-    mockedAuthClient.signIn.email.mockResolvedValue({
-      data: null,
+    port.repondre = () => ({
       error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
     })
 
-    render(<Harness />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
+    rendreFlux()
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
 
-    await clickAndFlush(signInButton())
+    await soumettre()
 
     expect(captchaStub.reset).toHaveBeenCalled()
-    expect(error()).toBe("Le test de sécurité a échoué. Veuillez réessayer.")
-    expect(step()).toBe("form")
+    expect(courant().error).toBe(
+      "Le test de sécurité a échoué. Veuillez réessayer."
+    )
+    expect(courant().step).toBe("form")
   })
 
   it("does not reset the Test de sécurité when the sign-in is refused for another reason", async () => {
-    mockedAuthClient.signIn.email.mockResolvedValue({
-      data: null,
-      error: {
-        code: "INVALID_EMAIL_OR_PASSWORD",
-        message: "bad credentials",
-      },
+    port.repondre = () => ({
+      error: { code: "INVALID_EMAIL_OR_PASSWORD", message: "bad credentials" },
     })
 
-    render(<Harness />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
+    rendreFlux()
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
 
-    await clickAndFlush(signInButton())
+    await soumettre()
 
     expect(captchaStub.reset).not.toHaveBeenCalled()
   })
 
-  it("walks the tail from the unverified e-mail to the code step, the verified notice, and a successful sign-in", async () => {
-    window.history.replaceState(null, "", "/?next=/profil")
-    mockedAuthClient.signIn.email
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
-      })
-      .mockResolvedValueOnce({ data: {}, error: null })
-    mockedAuthClient.emailOtp.verifyEmail.mockResolvedValue({
-      data: {},
-      error: null,
+  it("revient au formulaire depuis l'étape du code avec l'adresse conservée", async () => {
+    port.repondre = () => ({
+      error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
     })
+
+    rendreFlux({ email: "test@example.com" })
+    saisirMotDePasse("secret123")
+
+    await soumettre()
+
+    expect(courant().step).toBe("otp")
+
+    revenirAuFormulaire()
+
+    expect(courant().step).toBe("form")
+    expect(courant().email).toBe("test@example.com")
+    expect(courant().error).toBeNull()
+  })
+
+  it("walks the tail from the unverified e-mail to the code step, the verified notice, and a successful sign-in", async () => {
+    let connexions = 0
+    port.repondre = (appel) => {
+      if (appel.operation === "connexionParMotDePasse") {
+        connexions += 1
+        if (connexions === 1) {
+          return {
+            error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" },
+          }
+        }
+      }
+      return { error: null }
+    }
     const onSuccess = vi.fn()
-    const onStepChange = vi.fn()
 
-    render(<Harness onSuccess={onSuccess} onStepChange={onStepChange} />)
-    setInputValue(emailInput(), "test@example.com")
-    setInputValue(passwordInput(), "secret123")
+    rendreFlux({ onSuccess, destination: "/profil" })
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
 
-    await clickAndFlush(signInButton())
+    await soumettre()
 
-    expect(onStepChange).toHaveBeenCalledWith("otp", "test@example.com")
-    expect(step()).toBe("otp")
+    expect(courant().step).toBe("otp")
     expect(onSuccess).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
 
-    setInputValue(otpInput(), "123456")
-    await clickAndFlush(container.querySelector("[data-verify-otp]")!)
+    saisirCode("123456")
+    await verifierLeCode()
 
-    expect(onStepChange).toHaveBeenCalledWith("form", "test@example.com")
-    expect(step()).toBe("form")
-    expect(notice()).toContain("Votre e-mail est vérifié")
+    expect(courant().step).toBe("form")
+    expect(courant().notice).toContain("Votre e-mail est vérifié")
 
-    await clickAndFlush(signInButton())
+    await soumettre()
 
-    expect(mockedAuthClient.emailOtp.verifyEmail).toHaveBeenCalledWith({
-      email: "test@example.com",
-      otp: "123456",
-    })
     expect(window.location.pathname).toBe("/profil")
+    expect(onSuccess).not.toHaveBeenCalled()
   })
 
-  it("renders the controlled email prop", () => {
-    render(<Harness email="prefilled@example.com" />)
+  it("reçoit son transport et le remet à l'échange de code qu'il compose", async () => {
+    port.repondre = (appel) =>
+      appel.operation === "connexionParMotDePasse"
+        ? { error: { code: "EMAIL_NOT_VERIFIED", message: "not verified" } }
+        : { error: null }
 
-    expect(emailInput().value).toBe("prefilled@example.com")
+    rendreFlux({ destination: "/profil" })
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
+
+    await soumettre()
+
+    expect(courant().step).toBe("otp")
+
+    await envoyerLeCode()
+    saisirCode("123456")
+    await verifierLeCode()
+
+    expect(port.appels).toEqual([
+      {
+        operation: "connexionParMotDePasse",
+        email: "test@example.com",
+        motDePasse: "secret123",
+        entetes: { "x-captcha-response": captchaStub.jeton },
+      },
+      {
+        operation: "envoyerCode",
+        email: "test@example.com",
+        type: "email-verification",
+        entetes: { "x-captcha-response": captchaStub.jeton },
+      },
+      {
+        operation: "verifierCode",
+        email: "test@example.com",
+        code: "123456",
+      },
+    ])
+    expect(courant().step).toBe("form")
+    expect(courant().notice).toContain("Votre e-mail est vérifié")
   })
 
   it.each([
     {
       provider: "google",
-      url: "/panier?open=login",
+      pageAddress: "/panier",
+      socialReturnAddress: "/panier?open=login",
       expected: "http://localhost:3000/panier",
       errorCallback: "http://localhost:3000/panier?open=login",
     },
     {
       provider: "facebook",
-      url: "/panier?open=login",
+      pageAddress: "/panier",
+      socialReturnAddress: "/panier?open=login",
       expected: "http://localhost:3000/panier",
       errorCallback: "http://localhost:3000/panier?open=login",
     },
     {
       provider: "google",
-      url: "/?open=login&query=phone",
+      pageAddress: "/?query=phone",
+      socialReturnAddress: "/?query=phone&open=login",
       expected: "http://localhost:3000/?query=phone",
       errorCallback: "http://localhost:3000/?query=phone&open=login",
     },
     {
       provider: "facebook",
-      url: "/?open=login&query=phone",
+      pageAddress: "/?query=phone",
+      socialReturnAddress: "/?query=phone&open=login",
       expected: "http://localhost:3000/?query=phone",
       errorCallback: "http://localhost:3000/?query=phone&open=login",
     },
     {
       provider: "google",
-      url: "/produits?query=phone",
+      pageAddress: "/produits?query=phone",
+      socialReturnAddress: "/produits?query=phone&open=login",
       expected: "http://localhost:3000/produits?query=phone",
       errorCallback: "http://localhost:3000/produits?query=phone&open=login",
     },
     {
       provider: "facebook",
-      url: "/produits?query=phone",
+      pageAddress: "/produits?query=phone",
+      socialReturnAddress: "/produits?query=phone&open=login",
       expected: "http://localhost:3000/produits?query=phone",
       errorCallback: "http://localhost:3000/produits?query=phone&open=login",
     },
     {
       provider: "google",
-      url: "/?open=login&next=%2Fadmin",
+      pageAddress: "/",
+      socialReturnAddress: "/?open=login&next=%2Fadmin",
       expected: "http://localhost:3000/",
       errorCallback: "http://localhost:3000/?open=login&next=%2Fadmin",
     },
     {
       provider: "facebook",
-      url: "/?open=login&next=%2Fadmin",
+      pageAddress: "/",
+      socialReturnAddress: "/?open=login&next=%2Fadmin",
       expected: "http://localhost:3000/",
       errorCallback: "http://localhost:3000/?open=login&next=%2Fadmin",
     },
   ] as const)(
-    "computes the $provider Connexion sociale callbackURL from $url",
-    async ({ provider, url, expected, errorCallback }) => {
-      window.history.replaceState(null, "", url)
-      mockedAuthClient.signIn.social.mockResolvedValue({
-        data: {},
-        error: null,
-      })
+    "computes the $provider Connexion sociale callbackURL from $pageAddress",
+    async ({
+      provider,
+      pageAddress,
+      socialReturnAddress,
+      expected,
+      errorCallback,
+    }) => {
+      rendreFlux({ pageAddress, socialReturnAddress })
 
-      render(<Harness />)
+      await connexionSociale(provider)
 
-      await clickAndFlush(socialButton(provider))
-
-      expect(mockedAuthClient.signIn.social).toHaveBeenCalledWith({
-        provider,
-        callbackURL: expected,
-        errorCallbackURL: errorCallback,
-      })
+      expect(port.appels).toEqual([
+        {
+          operation: "connexionSociale",
+          fournisseur: provider,
+          adresseDeRetour: expected,
+          adresseDeRetourEnEchec: errorCallback,
+        },
+      ])
     }
   )
 })
