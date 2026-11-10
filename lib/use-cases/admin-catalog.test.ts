@@ -13,6 +13,10 @@ import {
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import {
+  LIBELLE_SANS_STRUCTURE,
+  SLUG_SANS_STRUCTURE,
+} from "@/lib/index-projection"
+import {
   CatalogValidationError,
   createProduct,
   deleteProduct,
@@ -1356,5 +1360,99 @@ describe("admin catalog mutations", () => {
       where: { id: variante.id },
     })
     expect(persiste.stock).toBe(5)
+  })
+
+  describe("un Produit sans Structure", () => {
+    it("naît sans Structure et l'écrit en base", async () => {
+      const produit = await createProduct(
+        makeInput({ slug: slug("sans-structure"), categoryId: null })
+      )
+
+      expect(produit.categoryId).toBeNull()
+      await expect(
+        prisma.product.findUniqueOrThrow({ where: { id: produit.id } })
+      ).resolves.toMatchObject({ categoryId: null })
+    })
+
+    it("déclare son plan d'après-écriture sans erreur, sur une chaîne de Structure vide", async () => {
+      const reindexProducts = vi.fn(async () => {})
+      const revalidateCatalog = vi.fn()
+      const purgeCatalogue = vi.fn()
+
+      const produit = await createProduct(
+        makeInput({ slug: slug("sans-chaine"), categoryId: null }),
+        { reindexProducts, revalidateCatalog, purgeCatalogue }
+      )
+
+      const evenement = {
+        id: produit.id,
+        slug: produit.slug,
+        categoryChain: [],
+      }
+      expect(revalidateCatalog).toHaveBeenCalledWith(evenement)
+      expect(purgeCatalogue).toHaveBeenCalledWith(evenement)
+      expect(reindexProducts).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: produit.id,
+          categorySlug: SLUG_SANS_STRUCTURE,
+          categoryName: LIBELLE_SANS_STRUCTURE,
+        }),
+      ])
+      const faits = await prisma.automationEvent.findMany({
+        where: { entityId: produit.id, type: "produit.enregistre" },
+      })
+      expect(faits).toHaveLength(1)
+      expect(faits[0]!.payload).toMatchObject({
+        produitId: produit.id,
+        categoryId: null,
+        categoryIdPrecedent: null,
+      })
+    })
+
+    it("quitte sa Structure à la mise à jour et nomme l'ancienne chaîne", async () => {
+      const produit = await createProduct(
+        makeInput({ slug: slug("quitte-structure") })
+      )
+      const variants = produit.variants.map((v) => ({
+        id: v.id,
+        name: v.name,
+        sku: v.sku,
+        priceDelta: v.priceDelta,
+        stock: v.stock,
+      }))
+      const revalidateCatalog = vi.fn()
+      const purgeCatalogue = vi.fn()
+
+      const misAJour = await updateProduct(
+        produit.id,
+        makeInput({
+          slug: slug("quitte-structure"),
+          categoryId: null,
+          variants,
+        }),
+        { revalidateCatalog, purgeCatalogue, reindexProducts: async () => {} }
+      )
+
+      expect(misAJour.categoryId).toBeNull()
+      await expect(
+        prisma.product.findUniqueOrThrow({ where: { id: produit.id } })
+      ).resolves.toMatchObject({ categoryId: null })
+      const evenement = {
+        id: produit.id,
+        slug: slug("quitte-structure"),
+        categoryChain: [],
+        previousCategoryChain: [{ slug: `categorie-${runId}` }],
+      }
+      expect(revalidateCatalog).toHaveBeenLastCalledWith(evenement)
+      expect(purgeCatalogue).toHaveBeenLastCalledWith(evenement)
+    })
+
+    it("refuse encore la chaîne vide du formulaire, par le message « catégorie requise »", async () => {
+      await expect(
+        createProduct(
+          makeInput({ slug: slug("structure-vide"), categoryId: "" })
+        )
+      ).rejects.toThrow("catégorie requise")
+    })
   })
 })
