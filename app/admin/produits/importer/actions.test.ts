@@ -15,6 +15,12 @@ const verifications = vi.hoisted(() => ({
   erreur: null as Error | null,
 }))
 
+const applications = vi.hoisted(() => ({
+  appels: [] as { lotId: string; curseur: number }[],
+  resultat: {} as Record<string, unknown>,
+  erreur: null as Error | null,
+}))
+
 vi.mock("next/navigation", async () => {
   const mocks = await import("@/test/navigation-mocks")
   return { redirect: mocks.redirectMock }
@@ -38,9 +44,15 @@ vi.mock("@/lib/use-cases/import-produits", async (importOriginal) => ({
     if (verifications.erreur !== null) throw verifications.erreur
     return undefined as never
   },
+  appliquerLeLot: async (lotId: string, curseur: number) => {
+    applications.appels.push({ lotId, curseur })
+    if (applications.erreur !== null) throw applications.erreur
+    return applications.resultat
+  },
 }))
 
 import {
+  appliquerLeLotAction,
   televerserLeFichierAction,
   verifierLeLotAction,
 } from "@/app/admin/produits/importer/actions"
@@ -75,6 +87,9 @@ beforeEach(() => {
   televersements.appels.length = 0
   verifications.appels.length = 0
   verifications.erreur = null
+  applications.appels.length = 0
+  applications.resultat = {}
+  applications.erreur = null
 })
 
 describe("televerserLeFichierAction", () => {
@@ -177,5 +192,80 @@ describe("verifierLeLotAction", () => {
         "Ce Lot est déjà appliqué : la Vérification ne peut plus le rejuger.",
     })
     expect(verifications.appels).toEqual(["lot-42"])
+  })
+})
+
+function formulaireDApplication(lotId?: string, curseur?: string): FormData {
+  const formData = new FormData()
+  if (lotId !== undefined) formData.set("lotId", lotId)
+  if (curseur !== undefined) formData.set("curseur", curseur)
+  return formData
+}
+
+describe("appliquerLeLotAction", () => {
+  it("confie le Lot et le curseur au cas d'usage et rend son résultat", async () => {
+    applications.resultat = {
+      lotId: "lot-42",
+      traites: 25,
+      reste: 2,
+      curseurSuivant: 25,
+      ecrits: 25,
+      indexes: 24,
+      echecs: [],
+      indexationEnAttente: true,
+      statut: "en_cours",
+    }
+
+    const resultat = await appliquerLeLotAction(
+      {},
+      formulaireDApplication("lot-42", "25")
+    )
+
+    expect(resultat).toEqual(applications.resultat)
+    expect(applications.appels).toEqual([{ lotId: "lot-42", curseur: 25 }])
+  })
+
+  it("refuse un compte ordinaire avant d'appliquer", async () => {
+    sessionCouranteMock.mockResolvedValue(CLIENT_ORDINAIRE)
+
+    await expect(
+      appliquerLeLotAction({}, formulaireDApplication("lot-42", "0"))
+    ).rejects.toMatchObject({
+      name: "NEXT_REDIRECT",
+      url: "/?open=login&next=%2Fadmin%2Fproduits%2Fimporter",
+    })
+
+    expect(applications.appels).toEqual([])
+  })
+
+  it("refuse un formulaire sans Lot ou avec un curseur invalide", async () => {
+    expect(await appliquerLeLotAction({}, formulaireDApplication())).toEqual({
+      error: "Aucun Lot à appliquer",
+    })
+    expect(
+      await appliquerLeLotAction({}, formulaireDApplication("lot-42", "-1"))
+    ).toEqual({ error: "Curseur d'application invalide" })
+    expect(
+      await appliquerLeLotAction({}, formulaireDApplication("lot-42", "abc"))
+    ).toEqual({ error: "Curseur d'application invalide" })
+
+    expect(applications.appels).toEqual([])
+  })
+
+  it("rend le message français d'un Lot impossible à appliquer", async () => {
+    applications.erreur = new UserFacingError(
+      "Ce Lot est déjà appliqué : il ne peut pas l'être une seconde fois."
+    )
+
+    const resultat = await appliquerLeLotAction(
+      {},
+      formulaireDApplication("lot-42", "0")
+    )
+
+    expect(resultat).toEqual({
+      error:
+        "Ce Lot est déjà appliqué : il ne peut pas l'être une seconde fois.",
+    })
+    expect(applications.appels).toEqual([{ lotId: "lot-42", curseur: 0 }])
   })
 })

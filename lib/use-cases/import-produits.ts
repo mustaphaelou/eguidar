@@ -9,6 +9,7 @@ import {
 import {
   LIMITE_OCTETS_IMPORT,
   MESSAGE_APPLIQUER_REFUS,
+  PRODUITS_PAR_APPLICATION_IMPORT,
   analyserLesLignes,
   estCodeRefusImport,
   grouperParProduit,
@@ -19,10 +20,16 @@ import {
   messageDuRefus,
   type AvertissementImport,
   type CellulesImport,
+  type EchecProduitApplication,
   type EnregistrementImport,
   type LigneImport,
   type RefusImport,
 } from "@/lib/import-produits"
+import {
+  normaliserTexteAlternatif,
+  type EntreeImageProduit,
+} from "@/lib/galerie-image-produit"
+import { toIndexableProduct } from "@/lib/index-projection"
 import {
   champRequisManquantDuProduit,
   planifierLeLot,
@@ -30,6 +37,14 @@ import {
   type InstantaneCatalogue,
   type PlanProduit,
 } from "@/lib/plan-import-produits"
+import { urlsImagesProduit } from "@/lib/product-metrics"
+import {
+  createProduct,
+  defaultCatalogEffects,
+  updateProduct,
+  type CatalogEffects,
+  type ProductInput,
+} from "@/lib/use-cases/admin-catalog"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 /**
@@ -60,6 +75,8 @@ export interface LigneImportLue {
   enregistrement: EnregistrementImport | null
   statut: StatutLigneImport | null
   codeRefus: string | null
+  /** La raison de l'échec d'écriture d'un Produit, portée par ses Lignes. */
+  motifEchec: string | null
   /** Le refus complet, rejoué depuis les cellules : le contexte n'est pas perdu. */
   refus: RefusImport | null
   avertissements: string[]
@@ -440,11 +457,465 @@ export async function verifierLeLot(
   }
 }
 
+export interface ApplicationLotImport {
+  lotId: string
+  /** Les Produits traités pendant cet appel (écrits, inchangés ou en échec). */
+  traites: number
+  /** Les Produits que le curseur n'a pas encore atteints. */
+  reste: number
+  curseurSuivant: number
+  /** Les Produits écrits depuis le début du Lot. */
+  ecrits: number
+  /** Les Produits dont la réindexation a réussi depuis le début du Lot. */
+  indexes: number
+  echecs: EchecProduitApplication[]
+  indexationEnAttente: boolean
+  statut: StatutLotImport
+}
+
+interface ChampsPreservesProduitImport {
+  specs: Record<string, string>
+  images: EntreeImageProduit[]
+  isFeatured: boolean
+  featuredOrder: number
+  freeShipping: boolean
+}
+
+function messageDuStatutNonApplicable(statut: StatutLotImport): string {
+  switch (statut) {
+    case "brouillon":
+      return "Ce Lot n'est pas encore vérifié : lancez la Vérification avant de l'appliquer."
+    case "partiel":
+      return "Ce Lot a déjà été appliqué partiellement : il ne peut pas être repris. Téléversez de nouveau le fichier pour le réappliquer."
+    case "termine":
+      return "Ce Lot est déjà appliqué : il ne peut pas l'être une seconde fois."
+    case "echoue":
+      return "Ce Lot a échoué au téléversement : il n'a aucun Produit à appliquer. Corrigez le fichier, puis téléversez-le de nouveau."
+    case "en_cours":
+    case "verifie":
+      return ""
+  }
+}
+
+function produitsEcrits(statut: StatutLigneImport | null): boolean {
+  return statut === "ecrite" || statut === "echouee"
+}
+
+function motifDeLEchec(error: unknown): string {
+  if (error instanceof UserFacingError) return error.message
+  const message = error instanceof Error ? error.message : String(error)
+  return `L'écriture du Produit a échoué : ${message}`
+}
+
+/**
+ * Les champs que l'import ne possède pas sont relus sur la ligne du Produit et
+ * renvoyés tels quels : les images avec leur texte alternatif, les
+ * spécifications **brutes** (le lecteur `specificationsProduit` est
+ * tout-ou-rien) et les trois drapeaux. C'est ce qui empêche le premier import
+ * d'effacer les galeries et de réinitialiser les mises en avant.
+ */
+async function lireLesChampsPreserves(
+  produitId: string
+): Promise<ChampsPreservesProduitImport> {
+  const produit = await prisma.product.findUniqueOrThrow({
+    where: { id: produitId },
+    select: {
+      specs: true,
+      images: true,
+      isFeatured: true,
+      featuredOrder: true,
+      freeShipping: true,
+    },
+  })
+
+  const urls = urlsImagesProduit(produit.images)
+  const registre =
+    urls.length === 0
+      ? []
+      : await prisma.imageProduit.findMany({
+          where: { publicUrl: { in: urls } },
+          select: { publicUrl: true, alt: true },
+        })
+  const altParUrl = new Map(
+    registre.map((ligne) => [ligne.publicUrl, ligne.alt])
+  )
+
+  return {
+    specs: produit.specs as unknown as Record<string, string>,
+    images: urls.map((url) => {
+      const alt = normaliserTexteAlternatif(altParUrl.get(url))
+      return alt === null
+        ? { kind: "persistee" as const, url }
+        : { kind: "persistee" as const, url, alt }
+    }),
+    isFeatured: produit.isFeatured,
+    featuredOrder: produit.featuredOrder,
+    freeShipping: produit.freeShipping,
+  }
+}
+
+/**
+ * L'état désiré complet : les champs du plan, l'union des Variantes existantes
+ * et des Lignes (le writer ne supprime donc rien), et les champs préservés.
+ * Aucun `tentativeId`, aucun `ownerId` : l'import n'est pas une reprise de
+ * Brouillon et ne change pas le propriétaire.
+ */
+function donneesDuProduitImport(
+  plan: PlanProduit,
+  champs: ChampsPreservesProduitImport
+): ProductInput {
+  if (plan.etatDesire === null) {
+    throw new Error(`Le Produit ${plan.slug} n'a pas d'état désiré à écrire`)
+  }
+  const etat = plan.etatDesire
+  return {
+    name: etat.name,
+    slug: plan.slug,
+    description: etat.description,
+    brand: etat.brand,
+    categoryId: etat.categoryId,
+    price: etat.price,
+    specs: champs.specs,
+    images: champs.images,
+    isFeatured: champs.isFeatured,
+    featuredOrder: champs.featuredOrder,
+    freeShipping: champs.freeShipping,
+    variants: etat.variants.map((variante) => ({
+      ...(variante.id === undefined ? {} : { id: variante.id }),
+      name: variante.name,
+      sku: variante.sku,
+      priceDelta: variante.priceDelta,
+      stock: variante.stock,
+    })),
+  }
+}
+
+/**
+ * Enveloppe la réindexation pour observer son issue : `runEffect` avale
+ * l'exception, donc le marqueur est la seule trace d'un échec d'indexation
+ * après un commit réussi.
+ */
+function effetsAvecIndexation(
+  overrides: Partial<CatalogEffects> | undefined,
+  marqueur: { indexe: boolean }
+): Partial<CatalogEffects> {
+  const indexation =
+    overrides?.reindexProducts ??
+    defaultCatalogEffects("import-produits").reindexProducts
+  return {
+    ...overrides,
+    async reindexProducts(produits) {
+      try {
+        await indexation(produits)
+        marqueur.indexe = true
+      } catch (error) {
+        marqueur.indexe = false
+        throw error
+      }
+    },
+  }
+}
+
+/**
+ * Rattrape l'indexation des Produits déjà écrits, par paquets bornés. Un paquet
+ * en échec est rejoué Produit par Produit pour ne compter que les
+ * réindexations réellement réussies.
+ */
+async function reindexerLesProduitsEcrits(
+  lotId: string,
+  overrides: Partial<CatalogEffects> | undefined
+): Promise<number> {
+  const lignes = await prisma.ligneImport.findMany({
+    where: { lotId, statut: "ecrite" },
+    orderBy: { numero: "asc" },
+    select: { slug: true },
+  })
+  const slugs = [...new Set(lignes.map((ligne) => ligne.slug))]
+  if (slugs.length === 0) return 0
+
+  const produits = await prisma.product.findMany({
+    where: { slug: { in: slugs } },
+    include: {
+      variants: {
+        select: { name: true, sku: true, priceDelta: true, stock: true },
+      },
+      category: { select: { id: true, slug: true, name: true } },
+    },
+  })
+  const parSlug = new Map(produits.map((produit) => [produit.slug, produit]))
+  const documents = slugs.flatMap((slugProduit) => {
+    const produit = parSlug.get(slugProduit)
+    return produit === undefined ? [] : [toIndexableProduct(produit)]
+  })
+
+  const indexation =
+    overrides?.reindexProducts ??
+    defaultCatalogEffects("import-produits").reindexProducts
+  let indexes = 0
+  for (
+    let debut = 0;
+    debut < documents.length;
+    debut += PRODUITS_PAR_APPLICATION_IMPORT
+  ) {
+    const paquet = documents.slice(
+      debut,
+      debut + PRODUITS_PAR_APPLICATION_IMPORT
+    )
+    try {
+      await indexation(paquet)
+      indexes += paquet.length
+    } catch {
+      for (const document of paquet) {
+        try {
+          await indexation([document])
+          indexes += 1
+        } catch {
+          // Ce Produit reste non indexé : un appel suivant le retentera.
+        }
+      }
+    }
+  }
+  return indexes
+}
+
+/**
+ * Applique un Lot vérifié : les Produits du fichier, dans l'ordre de première
+ * apparition, 25 au plus par appel. Chaque Produit rejoue la Vérification avec
+ * un instantané frais, puis son écriture passe par l'écrivain du Catalogue —
+ * une transaction par Produit, une seconde pour ses Lignes et le curseur. Un
+ * Produit en échec n'arrête pas les autres : ses Lignes portent le motif.
+ *
+ * L'indexation est un effet après commit, non bloquant : `ecrits` compte les
+ * Produits écrits, `indexes` les réindexés. Tant qu'ils diffèrent, le Lot reste
+ * `en_cours` et un appel suivant rattrape l'indexation.
+ */
+export async function appliquerLeLot(
+  lotId: string,
+  curseur: number,
+  overrides?: Partial<CatalogEffects>
+): Promise<ApplicationLotImport> {
+  const lot = await prisma.lotImport.findUnique({
+    where: { id: lotId },
+    select: {
+      id: true,
+      statut: true,
+      ecrits: true,
+      indexes: true,
+      lignes: {
+        orderBy: { numero: "asc" },
+        select: {
+          numero: true,
+          slug: true,
+          statut: true,
+          cellules: true,
+        },
+      },
+    },
+  })
+
+  if (lot === null) {
+    throw new UserFacingError("Ce Lot d'import est introuvable.")
+  }
+  if (lot.statut !== "verifie" && lot.statut !== "en_cours") {
+    throw new UserFacingError(messageDuStatutNonApplicable(lot.statut))
+  }
+  if (!Number.isInteger(curseur) || curseur < 0) {
+    throw new UserFacingError("Le curseur d'application est invalide.")
+  }
+  if (lot.lignes.some((ligne) => ligne.statut === "refusee")) {
+    throw new UserFacingError(MESSAGE_APPLIQUER_REFUS)
+  }
+
+  const lignesRejouees = rejouerLesLignes(
+    lot.lignes.map((ligne) => ({
+      numero: ligne.numero,
+      cellules: ligne.cellules as unknown as CellulesImport,
+    }))
+  )
+  const rejoueeParNumero = new Map(
+    lignesRejouees.map((ligne) => [ligne.numero, ligne])
+  )
+  const groupes = grouperParProduit(lot.lignes)
+
+  // Le curseur donne l'index du prochain Produit ; un Produit déjà écrit ou en
+  // échec est sauté pour qu'une reprise ne le réécrive jamais.
+  let index = Math.min(curseur, groupes.length)
+  let traites = 0
+  const aTraiter: {
+    position: number
+    slug: string
+    lignesRejouees: LigneImport[]
+  }[] = []
+  while (index < groupes.length && traites < PRODUITS_PAR_APPLICATION_IMPORT) {
+    const groupe = groupes[index]!
+    if (!groupe.lignes.every((ligne) => produitsEcrits(ligne.statut))) {
+      const lignesDuGroupe = groupe.lignes.flatMap((ligne) => {
+        const rejouee = rejoueeParNumero.get(ligne.numero)
+        return rejouee === undefined ? [] : [rejouee]
+      })
+      aTraiter.push({
+        position: index,
+        slug: groupe.slug,
+        lignesRejouees: lignesDuGroupe,
+      })
+      traites += 1
+    }
+    index += 1
+  }
+  const curseurSuivant = index
+  const reste = groupes.length - curseurSuivant
+
+  const lignesDuLot = aTraiter.flatMap((produit) => produit.lignesRejouees)
+  const instantane =
+    lignesDuLot.length === 0 ? null : await lireLInstantane(lignesDuLot)
+  const plans =
+    instantane === null ? [] : planifierLeLot(lignesDuLot, instantane)
+  const planParSlug = new Map(plans.map((plan) => [plan.slug, plan]))
+
+  let ecrits = lot.ecrits
+  let indexes = Math.min(lot.indexes, lot.ecrits)
+  const echecs: EchecProduitApplication[] = []
+
+  for (const produit of aTraiter) {
+    const plan = planParSlug.get(produit.slug)
+    if (plan === undefined) {
+      throw new Error(
+        `Le plan du Produit ${produit.slug} manque à l'application du Lot`
+      )
+    }
+
+    if (plan.issue === "inchange") {
+      await prisma.lotImport.update({
+        where: { id: lotId },
+        data: { curseur: produit.position + 1, statut: "en_cours" },
+      })
+      continue
+    }
+
+    let statutLignes: StatutLigneImport = "echouee"
+    let motif: string | null = null
+    let ecrit = false
+    let indexe = false
+
+    if (plan.issue === "refuse") {
+      motif =
+        plan.refus === null
+          ? "Le Produit a été refusé par la Vérification."
+          : messageDuRefus(plan.refus)
+      echecs.push({ slug: produit.slug, motif })
+    } else {
+      try {
+        const existant = instantane?.produitsParSlug[produit.slug] ?? null
+        const champs =
+          existant === null
+            ? {
+                specs: {},
+                images: [],
+                isFeatured: false,
+                featuredOrder: 0,
+                freeShipping: false,
+              }
+            : await lireLesChampsPreserves(existant.id)
+        const donnees = donneesDuProduitImport(plan, champs)
+        const marqueur = { indexe: false }
+        const effets = effetsAvecIndexation(overrides, marqueur)
+
+        if (existant === null) {
+          await createProduct(donnees, effets)
+        } else {
+          await updateProduct(existant.id, donnees, effets)
+        }
+
+        statutLignes = "ecrite"
+        ecrit = true
+        indexe = marqueur.indexe
+      } catch (error) {
+        motif = motifDeLEchec(error)
+        echecs.push({ slug: produit.slug, motif })
+      }
+    }
+
+    if (ecrit) {
+      ecrits += 1
+      if (indexe) indexes = Math.min(indexes + 1, ecrits)
+    }
+
+    await prisma.$transaction([
+      prisma.ligneImport.updateMany({
+        where: { lotId, slug: produit.slug },
+        data: { statut: statutLignes, motifEchec: motif },
+      }),
+      prisma.lotImport.update({
+        where: { id: lotId },
+        data: {
+          curseur: produit.position + 1,
+          statut: "en_cours",
+          ecrits,
+          indexes: Math.min(indexes, ecrits),
+        },
+      }),
+    ])
+  }
+
+  let statut: StatutLotImport
+  let indexesFinaux = Math.min(indexes, ecrits)
+  let indexationEnAttente = false
+
+  if (reste > 0) {
+    statut = "en_cours"
+    indexationEnAttente = indexesFinaux < ecrits
+  } else {
+    const echecsDuLot =
+      (await prisma.ligneImport.count({
+        where: { lotId, statut: "echouee" },
+      })) > 0
+    if (echecsDuLot) {
+      statut = "partiel"
+    } else if (indexesFinaux < ecrits) {
+      indexesFinaux = Math.min(
+        await reindexerLesProduitsEcrits(lotId, overrides),
+        ecrits
+      )
+      if (indexesFinaux < ecrits) {
+        statut = "en_cours"
+        indexationEnAttente = true
+      } else {
+        statut = "termine"
+      }
+    } else {
+      statut = "termine"
+    }
+  }
+
+  await prisma.lotImport.update({
+    where: { id: lotId },
+    data: {
+      statut,
+      curseur: curseurSuivant,
+      ecrits,
+      indexes: indexesFinaux,
+    },
+  })
+
+  return {
+    lotId,
+    traites,
+    reste,
+    curseurSuivant,
+    ecrits,
+    indexes: indexesFinaux,
+    echecs,
+    indexationEnAttente,
+    statut,
+  }
+}
+
 /**
  * Le refus d'une Ligne dont le code a été persisté mais dont le plan n'a pas
  * laissé de trace en clair : le contexte est reconstruit depuis les cellules,
  * quand il l'est, et la portée produit est dite.
  */
+
 function refusDepuisLeCode(
   codeRefus: string | null,
   ligne: LigneImportLue,
@@ -512,6 +983,7 @@ export async function lireLeLot(id: string): Promise<LotImportLu | null> {
           enregistrement: true,
           statut: true,
           codeRefus: true,
+          motifEchec: true,
           avertissements: true,
           diff: true,
         },
