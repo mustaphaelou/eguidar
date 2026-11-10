@@ -89,7 +89,7 @@ export interface ProductInput {
   slug: string
   description: string
   brand: string
-  categoryId: string
+  categoryId: string | null
   price: number
   specs: Record<string, string>
   images: readonly (string | EntreeImageProduit)[]
@@ -274,7 +274,7 @@ const productInputSchema = z.object({
     ),
   description: z.string(),
   brand: z.string().min(1, "marque requise"),
-  categoryId: z.string().min(1, "catégorie requise"),
+  categoryId: z.string().min(1, "catégorie requise").nullable(),
   price: z.number().int().min(0, "le prix doit être positif ou nul"),
   specs: z.record(z.string(), z.string()),
   images: galerieSoumiseSchema,
