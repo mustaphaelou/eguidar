@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 
-import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import {
   resolveAuthRefusal,
   translateAuthError,
@@ -13,6 +12,8 @@ import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
+
+export type SignInFlowStep = "form" | "otp"
 
 export type SignInFlow = ReturnType<typeof useSignInFlow>
 
@@ -32,7 +33,7 @@ export function useSignInFlow(
   },
   port: PortAuthentification = portAuthentificationClient
 ) {
-  const [step, setStep] = useState<AuthFlowStep>("form")
+  const [step, setStep] = useState<SignInFlowStep>("form")
   const [email, setEmail] = useState(adresseDeDépart)
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)

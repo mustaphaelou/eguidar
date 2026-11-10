@@ -1,14 +1,13 @@
 // @vitest-environment happy-dom
-import { resetNavigation, setInputValue, useControlledFlow } from "./test-utils"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
-import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { AuthFlowStep } from "@/components/auth/auth-dialog"
-import type { PortAuthentification } from "@/components/auth/port-authentification"
-import { authClient } from "@/lib/client"
+import type { ResultatAuthentification } from "@/components/auth/port-authentification"
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
+import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
+
+import type { SignUpFlow } from "./use-sign-up-flow"
 import { useSignUpFlow } from "./use-sign-up-flow"
 
 const captchaStub = vi.hoisted(() => ({
@@ -37,21 +36,21 @@ vi.mock("@/lib/client", () => ({
   },
 }))
 
-const mockedAuthClient = authClient as unknown as {
-  signUp: { email: ReturnType<typeof vi.fn> }
-}
-
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 let container: HTMLDivElement
+let port: PortAuthentificationEnMemoire
+let courantHook: { readonly current: SignUpFlow } | null
 const roots: ReturnType<typeof createRoot>[] = []
 
 beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
-  resetNavigation("/")
+  window.history.replaceState(null, "", "/")
   captchaStub.ready = true
   captchaStub.reset.mockClear()
+  port = creerPortAuthentificationEnMemoire()
+  courantHook = null
 })
 
 afterEach(() => {
@@ -62,228 +61,90 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function render(element: ReactElement) {
+function renderHook<T>(hook: () => T): { readonly current: T } {
+  let current!: T
+  function Probe() {
+    current = hook()
+    return null
+  }
   const root = createRoot(container)
   roots.push(root)
-  act(() => root.render(element))
+  act(() => root.render(<Probe />))
+  return {
+    get current() {
+      return current
+    },
+  }
 }
 
-function Harness({
-  step: stepProp = "form",
-  email: emailProp = "",
-  onStepChange,
+function rendreFlux({
+  email = "",
   onVerified,
-  port,
 }: {
-  step?: AuthFlowStep
   email?: string
-  onStepChange?: (step: AuthFlowStep, email: string) => void
   onVerified?: (email: string) => void
-  port?: PortAuthentification
-}) {
-  const controlled = useControlledFlow({
-    step: stepProp,
-    email: emailProp,
-    onStepChange,
+} = {}) {
+  courantHook = renderHook(() => useSignUpFlow({ email, onVerified }, port))
+  return courantHook
+}
+
+function courant(): SignUpFlow {
+  expect(courantHook, "le flux est rendu").not.toBeNull()
+  return courantHook!.current
+}
+
+function saisirNom(valeur: string) {
+  act(() => {
+    courant().setName(valeur)
   })
-  const flow = useSignUpFlow({ ...controlled, onVerified }, port)
-  return (
-    <div>
-      <input
-        aria-label="name"
-        value={flow.name}
-        onChange={(e) => flow.setName(e.target.value)}
-      />
-      <input
-        aria-label="email"
-        value={flow.email}
-        onChange={(e) => flow.setEmail(e.target.value)}
-      />
-      <input
-        aria-label="password"
-        value={flow.password}
-        onChange={(e) => flow.setPassword(e.target.value)}
-      />
-      <input
-        aria-label="otp"
-        value={flow.otp.otp}
-        onChange={(e) => flow.otp.setOtp(e.target.value)}
-      />
-      <button type="button" data-send-otp onClick={() => flow.otp.send()}>
-        send otp
-      </button>
-      <button type="button" data-verify-otp onClick={() => flow.otp.verify()}>
-        verify otp
-      </button>
-      <form onSubmit={flow.handleSignUp}>
-        <button type="submit">sign up</button>
-      </form>
-      <div data-step={flow.step} />
-      {flow.error && <p data-error>{flow.error}</p>}
-      {flow.loading && <p data-loading>loading</p>}
-    </div>
-  )
 }
 
-function nameInput() {
-  return container.querySelector<HTMLInputElement>('input[aria-label="name"]')!
+function saisirEmail(valeur: string) {
+  act(() => {
+    courant().setEmail(valeur)
+  })
 }
 
-function emailInput() {
-  return container.querySelector<HTMLInputElement>('input[aria-label="email"]')!
+function saisirMotDePasse(valeur: string) {
+  act(() => {
+    courant().setPassword(valeur)
+  })
 }
 
-function passwordInput() {
-  return container.querySelector<HTMLInputElement>(
-    'input[aria-label="password"]'
-  )!
+function saisirCode(valeur: string) {
+  act(() => {
+    courant().otp.setOtp(valeur)
+  })
 }
 
-function otpInput() {
-  return container.querySelector<HTMLInputElement>('input[aria-label="otp"]')!
-}
-
-function signUpButton() {
-  return container.querySelector<HTMLButtonElement>('button[type="submit"]')!
-}
-
-function step() {
-  return container.querySelector("[data-step]")?.getAttribute("data-step")
-}
-
-function error() {
-  return container.querySelector("[data-error]")?.textContent ?? null
-}
-
-async function clickAndFlush(target: HTMLElement) {
-  await act(async () => {
-    target.click()
+function soumettre() {
+  const flux = courant()
+  return act(async () => {
+    await flux.handleSignUp({ preventDefault: () => {} } as React.FormEvent)
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
 
+async function envoyerLeCode() {
+  await act(async () => {
+    await courant().otp.send()
+  })
+}
+
+async function verifierLeCode() {
+  await act(async () => {
+    await courant().otp.verify()
+  })
+}
+
 describe("useSignUpFlow", () => {
-  it("submits a valid sign-up and moves to the otp step", async () => {
-    mockedAuthClient.signUp.email.mockResolvedValue({ data: {}, error: null })
-    const onStepChange = vi.fn()
+  it("inscrit un compte valide et ouvre l'étape du code", async () => {
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
 
-    render(<Harness onStepChange={onStepChange} />)
-    setInputValue(nameInput(), "Jane Doe")
-    setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "MotDePasse!12345")
-
-    await clickAndFlush(signUpButton())
-
-    expect(mockedAuthClient.signUp.email).toHaveBeenCalledWith({
-      name: "Jane Doe",
-      email: "jane@example.com",
-      password: "MotDePasse!12345",
-      fetchOptions: { headers: { "x-captcha-response": captchaStub.jeton } },
-    })
-    expect(onStepChange).toHaveBeenCalledWith("otp", "jane@example.com")
-    expect(step()).toBe("otp")
-    expect(container.querySelector("[data-loading]")).toBeNull()
-    expect(error()).toBeNull()
-  })
-
-  it("surfaces USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL and stays on the form step", async () => {
-    mockedAuthClient.signUp.email.mockResolvedValue({
-      data: null,
-      error: {
-        code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
-        message: "User already exists. Use another email.",
-      },
-    })
-    const onStepChange = vi.fn()
-
-    render(<Harness onStepChange={onStepChange} />)
-    setInputValue(nameInput(), "Jane Doe")
-    setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "MotDePasse!12345")
-
-    await clickAndFlush(signUpButton())
-
-    expect(error()).toBe("Un compte existe déjà avec cette adresse e-mail.")
-    expect(step()).toBe("form")
-    expect(onStepChange).not.toHaveBeenCalledWith("otp", expect.any(String))
-    expect(container.querySelector("[data-loading]")).toBeNull()
-  })
-
-  it("shows loading while the sign-up is in flight and clears it after", async () => {
-    let resolveSignUp!: (value: unknown) => void
-    mockedAuthClient.signUp.email.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveSignUp = resolve
-        })
-    )
-    const onStepChange = vi.fn()
-
-    render(<Harness onStepChange={onStepChange} />)
-    setInputValue(nameInput(), "Jane Doe")
-    setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "MotDePasse!12345")
-
-    await act(async () => {
-      signUpButton().click()
-      await Promise.resolve()
-    })
-    expect(container.querySelector("[data-loading]")).not.toBeNull()
-    expect(step()).toBe("form")
-
-    await act(async () => {
-      resolveSignUp({ data: {}, error: null })
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(container.querySelector("[data-loading]")).toBeNull()
-    expect(onStepChange).toHaveBeenCalledWith("otp", "jane@example.com")
-    expect(step()).toBe("otp")
-  })
-
-  it("resets the Test de sécurité so a rejected sign-up retries with a fresh jeton", async () => {
-    mockedAuthClient.signUp.email.mockResolvedValue({
-      data: null,
-      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
-    })
-
-    render(<Harness />)
-    setInputValue(nameInput(), "Jane Doe")
-    setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "MotDePasse!12345")
-
-    await clickAndFlush(signUpButton())
-
-    expect(captchaStub.reset).toHaveBeenCalled()
-    expect(error()).toBe("Le test de sécurité a échoué. Veuillez réessayer.")
-    expect(step()).toBe("form")
-  })
-
-  it("does not reset the Test de sécurité when the sign-up is refused for another reason", async () => {
-    mockedAuthClient.signUp.email.mockResolvedValue({
-      data: null,
-      error: { code: "PASSWORD_TOO_SHORT", message: "too short" },
-    })
-
-    render(<Harness />)
-    setInputValue(nameInput(), "Jane Doe")
-    setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "MotDePasse!12345")
-
-    await clickAndFlush(signUpButton())
-
-    expect(captchaStub.reset).not.toHaveBeenCalled()
-  })
-
-  it("reçoit son transport et le remet à l'échange de code qu'il compose", async () => {
-    const port = creerPortAuthentificationEnMemoire()
-    const onVerified = vi.fn()
-
-    render(<Harness port={port} onVerified={onVerified} />)
-    setInputValue(nameInput(), "Jane Doe")
-    setInputValue(emailInput(), "jane@example.com")
-    setInputValue(passwordInput(), "MotDePasse!12345")
-
-    await clickAndFlush(signUpButton())
+    await soumettre()
 
     expect(port.appels).toEqual([
       {
@@ -294,11 +155,109 @@ describe("useSignUpFlow", () => {
         entetes: { "x-captcha-response": captchaStub.jeton },
       },
     ])
-    expect(step()).toBe("otp")
+    expect(courant().step).toBe("otp")
+    expect(courant().loading).toBe(false)
+    expect(courant().error).toBeNull()
+  })
 
-    await clickAndFlush(container.querySelector("[data-send-otp]")!)
-    setInputValue(otpInput(), "123456")
-    await clickAndFlush(container.querySelector("[data-verify-otp]")!)
+  it("relève USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL et reste au formulaire", async () => {
+    port.repondre = () => ({
+      error: {
+        code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
+        message: "User already exists. Use another email.",
+      },
+    })
+
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+
+    expect(courant().error).toBe(
+      "Un compte existe déjà avec cette adresse e-mail."
+    )
+    expect(courant().step).toBe("form")
+    expect(courant().loading).toBe(false)
+  })
+
+  it("montre l'attente pendant l'inscription puis l'efface", async () => {
+    let resolve!: (resultat: ResultatAuthentification) => void
+    port.repondre = () =>
+      new Promise<ResultatAuthentification>((resoudre) => {
+        resolve = resoudre
+      })
+
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    const flux = courant()
+    await act(async () => {
+      flux.handleSignUp({ preventDefault: () => {} } as React.FormEvent)
+      await Promise.resolve()
+    })
+    expect(courant().loading).toBe(true)
+
+    await act(async () => {
+      resolve({ error: null })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(courant().loading).toBe(false)
+    expect(courant().step).toBe("otp")
+  })
+
+  it("réinitialise le Test de sécurité quand l'inscription est rejetée pour lui", async () => {
+    port.repondre = () => ({
+      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
+    })
+
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+
+    expect(captchaStub.reset).toHaveBeenCalled()
+    expect(courant().error).toBe(
+      "Le test de sécurité a échoué. Veuillez réessayer."
+    )
+    expect(courant().step).toBe("form")
+  })
+
+  it("ne réinitialise pas le Test de sécurité quand le refus est ailleurs", async () => {
+    port.repondre = () => ({
+      error: { code: "PASSWORD_TOO_SHORT", message: "too short" },
+    })
+
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+
+    expect(captchaStub.reset).not.toHaveBeenCalled()
+  })
+
+  it("reçoit son transport et le remet à l'échange de code qu'il compose", async () => {
+    const onVerified = vi.fn()
+
+    rendreFlux({ onVerified })
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+
+    expect(courant().step).toBe("otp")
+
+    await envoyerLeCode()
+    saisirCode("123456")
+    await verifierLeCode()
 
     expect(port.appels).toEqual([
       {
@@ -321,11 +280,5 @@ describe("useSignUpFlow", () => {
       },
     ])
     expect(onVerified).toHaveBeenCalledWith("jane@example.com")
-  })
-
-  it("renders the controlled email prop", () => {
-    render(<Harness email="prefilled@example.com" />)
-
-    expect(emailInput().value).toBe("prefilled@example.com")
   })
 })

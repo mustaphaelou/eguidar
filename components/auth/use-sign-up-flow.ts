@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 
-import type { AuthFlowStep } from "@/components/auth/auth-dialog"
 import { resolveAuthRefusal } from "@/components/auth/auth-form-glue"
 import type { PortAuthentification } from "@/components/auth/port-authentification"
 import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
@@ -10,20 +9,22 @@ import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
 import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 
+export type SignUpFlowStep = "form" | "otp"
+
+export type SignUpFlow = ReturnType<typeof useSignUpFlow>
+
 export function useSignUpFlow(
   {
-    step,
-    email,
-    onStepChange,
+    email: adresseDeDépart,
     onVerified,
   }: {
-    step: AuthFlowStep
     email: string
-    onStepChange: (step: AuthFlowStep, email: string) => void
     onVerified?: (email: string) => void
   },
   port: PortAuthentification = portAuthentificationClient
 ) {
+  const [step, setStep] = useState<SignUpFlowStep>("form")
+  const [email, setEmail] = useState(adresseDeDépart)
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -49,14 +50,10 @@ export function useSignUpFlow(
         setError(resolveAuthRefusal(result.error, captcha.reset))
         return
       }
-      onStepChange("otp", email)
+      setStep("otp")
     } finally {
       setLoading(false)
     }
-  }
-
-  function setEmail(value: string) {
-    onStepChange(step, value)
   }
 
   return {

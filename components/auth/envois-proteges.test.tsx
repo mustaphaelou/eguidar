@@ -141,9 +141,7 @@ function Connexion() {
 
 function Inscription() {
   const flow = useSignUpFlow({
-    step: "form",
     email: ADRESSE,
-    onStepChange: () => {},
     onVerified: () => {},
   })
   return (
