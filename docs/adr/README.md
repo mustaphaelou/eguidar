@@ -49,6 +49,7 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 | [0045](0045-le-hachage-des-mots-de-passe-porte-ses-parametres.md) | Le hachage des mots de passe porte ses paramètres, et se met à niveau à la Connexion | |
 | [0046](0046-suppression-des-donnees-facebook.md) | Une demande de suppression Facebook supprime le Compte client en entier | |
 | [0047](0047-le-compteur-d-echecs-est-tenu-par-adresse.md) | Le compteur d'échecs d'une Connexion est tenu par adresse normalisée, dans Redis | |
+| [0053](0053-les-flux-d-authentification-possedent-leur-etat.md) | Les flux d'authentification possèdent leur état ; la modale compose sans en garder | |
 
 ### Catalogue, Structure, Recherche, médias
 
