@@ -552,6 +552,32 @@ describe("la page d'import des Produits — le Lot appliqué", () => {
     expect(html).toContain("Reprendre l&#x27;application")
   })
 
+  it("relit un Lot appliqué : compteurs, écrits/indexés et diff avant → après", async () => {
+    const categoryId = await semerLaStructure()
+    await semerLaChaise(categoryId)
+
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-chaise`,
+          variant_sku: `${runId}-CHAISE-01`,
+          variant_stock: "5",
+        })
+      )
+    )
+    await appliquerLeLot(lotId, 0, effetsSansIndexation())
+
+    const html = await rendre({ lot: lotId })
+
+    expect(html).toContain("Terminé")
+    expect(html).toMatch(/Produits écrits<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toMatch(/Produits indexés<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toContain("Changements")
+    expect(html).toContain("Avant : 3")
+    expect(html).toContain("Après : 5")
+    expect(html).toContain("Écrite")
+  })
+
   it("montre la raison d'un Produit en échec sur ses Lignes et le Lot partiel", async () => {
     const lot = await prisma.lotImport.create({
       data: {
@@ -667,5 +693,191 @@ describe("la page d'import des Produits — le Lot en cours", () => {
     const termine = await rendre({ lot: lotId })
     expect(termine).toContain("Terminé")
     expect(termine).toMatch(/Produits traités<\/dt><dd[^>]*>27 \/ 27<\/dd>/)
+  })
+})
+
+describe("la page d'import des Produits — l'historique", () => {
+  const DATE = new Intl.DateTimeFormat("fr-MA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })
+
+  it("liste les Lots passés du plus récent au plus ancien, avec auteur, date, statut et compteurs", async () => {
+    const ancien = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "7".repeat(64),
+        taille: 10,
+        statut: "termine",
+        produitsCrees: 2,
+        produitsModifies: 1,
+        produitsInchanges: 0,
+        produitsRefuses: 1,
+        ecrits: 3,
+        indexes: 3,
+        createdAt: new Date("2026-01-01T09:00:00.000Z"),
+      },
+    })
+    const recent = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "8".repeat(64),
+        taille: 20,
+        statut: "echoue",
+        produitsCrees: 0,
+        produitsModifies: 0,
+        produitsInchanges: 0,
+        produitsRefuses: 0,
+        createdAt: new Date("2026-02-01T09:00:00.000Z"),
+      },
+    })
+
+    const html = await rendre()
+
+    expect(html).toContain("Historique des imports")
+    expect(html).toContain(AUTEUR_NOM)
+    expect(html).toContain(AUTEUR_EMAIL)
+    expect(html).toContain("Terminé")
+    expect(html).toContain("Échoué")
+    expect(html).toContain(DATE.format(ancien.createdAt))
+    expect(html).toContain(DATE.format(recent.createdAt))
+    expect(html).toMatch(/Créés(?:<!-- -->)?\s*<strong[^>]*>2<\/strong>/)
+    expect(html).toMatch(/Modifiés(?:<!-- -->)?\s*<strong[^>]*>1<\/strong>/)
+    expect(html).toMatch(/Inchangés(?:<!-- -->)?\s*<strong[^>]*>0<\/strong>/)
+    expect(html).toMatch(/Refusés(?:<!-- -->)?\s*<strong[^>]*>1<\/strong>/)
+    expect(html).toMatch(/Écrits(?:<!-- -->)?\s*<strong[^>]*>3<\/strong>/)
+    expect(html).toMatch(/Indexés(?:<!-- -->)?\s*<strong[^>]*>3<\/strong>/)
+
+    const positionRecent = html.indexOf(
+      `/admin/produits/importer?lot=${recent.id}`
+    )
+    const positionAncien = html.indexOf(
+      `/admin/produits/importer?lot=${ancien.id}`
+    )
+    expect(positionRecent).toBeGreaterThan(-1)
+    expect(positionAncien).toBeGreaterThan(positionRecent)
+    expect(
+      liensVers(html, `/admin/produits/importer?lot=${recent.id}`)[0]?.texte
+    ).toBe("Voir le rapport")
+  })
+
+  it("dit qu'aucun Lot n'a encore été importé", async () => {
+    const html = await rendre()
+
+    expect(html).toContain("Aucun Lot d&#x27;import")
+  })
+})
+
+describe("la page d'import des Produits — le rapport relisible", () => {
+  it("n'annonce jamais un Lot terminé tant que l'indexation est en retard", async () => {
+    const lot = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "6".repeat(64),
+        taille: 64,
+        statut: "termine",
+        curseur: 2,
+        ecrits: 2,
+        indexes: 1,
+      },
+    })
+    await prisma.ligneImport.createMany({
+      data: [
+        {
+          lotId: lot.id,
+          numero: 2,
+          slug: `v-${runId}-un`,
+          sku: `${runId}-UN`,
+          cellules: { slug: `v-${runId}-un` },
+          statut: "ecrite",
+        },
+        {
+          lotId: lot.id,
+          numero: 3,
+          slug: `v-${runId}-deux`,
+          sku: `${runId}-DEUX`,
+          cellules: { slug: `v-${runId}-deux` },
+          statut: "ecrite",
+        },
+      ],
+    })
+
+    const html = (await rendre({ lot: lot.id })).replaceAll("&#x27;", "'")
+
+    expect(html).toMatch(/Produits écrits<\/dt><dd[^>]*>2<\/dd>/)
+    expect(html).toMatch(/Produits indexés<\/dt><dd[^>]*>1<\/dd>/)
+    expect(html).toContain(MESSAGE_INDEXATION_EN_ATTENTE)
+    expect(html).not.toContain("Terminé")
+    expect(html).not.toContain("tous ses Produits sont écrits et indexés")
+  })
+
+  it("montre les refus avec leur numéro de Ligne, leur code et le message exact", async () => {
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-etagere`,
+          name: "Étagère",
+          brand: "Maison",
+          category: `v-${runId}-inconnue`,
+          variant_sku: `${runId}-ETAGERE-01`,
+          variant_name: "Étagère",
+          variant_price: "30.00",
+        })
+      )
+    )
+
+    const html = (await rendre({ lot: lotId })).replaceAll("&#x27;", "'")
+
+    expect(html).toContain("Ligne 2")
+    expect(html).toContain("structure_inconnue")
+    expect(html).toContain(
+      `Le Produit est refusé : la Structure « v-${runId}-inconnue » est inconnue. Aucune Structure n'est créée par l'import : corrigez le slug ou créez la Structure à la main.`
+    )
+  })
+
+  it("propose le CSV des refus quand le Lot a au moins une Ligne refusée", async () => {
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-refusee`,
+          name: "Refusée",
+          brand: "Maison",
+          category: `v-${runId}-inconnue`,
+          variant_sku: `${runId}-REFUSEE-01`,
+          variant_name: "Refusée",
+          variant_price: "30.00",
+        })
+      )
+    )
+
+    const html = await rendre({ lot: lotId })
+    const lien = liensVers(
+      html,
+      `/api/admin/produits/importer/refus/${lotId}`
+    )[0]
+
+    expect(lien?.texte).toBe("Télécharger le CSV des refus")
+    expect(lien?.balise).toContain("download")
+  })
+
+  it("cache le CSV des refus quand aucune Ligne n'est refusée", async () => {
+    const lotId = await uploaderEtVerifier(
+      fichierCsv(
+        ligneCsv({
+          slug: `v-${runId}-acceptee`,
+          name: "Acceptée",
+          brand: "Maison",
+          variant_sku: `${runId}-ACCEPTEE-01`,
+          variant_name: "Acceptée",
+          variant_price: "30.00",
+        })
+      )
+    )
+
+    const html = await rendre({ lot: lotId })
+
+    expect(
+      liensVers(html, `/api/admin/produits/importer/refus/${lotId}`)
+    ).toEqual([])
   })
 })

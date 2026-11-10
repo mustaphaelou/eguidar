@@ -9,11 +9,14 @@ import {
 } from "@/lib/use-cases/outils-frontiere"
 
 const ROUTE_MODELE = "app/api/admin/produits/importer/modele/route.ts"
+const ROUTE_REFUS = "app/api/admin/produits/importer/refus/[lotId]/route.ts"
 
-// La route de téléchargement ne peut pas passer par `adminJsonRoute` : la
-// porte JSON ne rend que du JSON. Cette garde-là est donc la sienne, jumelle
-// de celle des routes de téléversement, et elle exige la Session courante et
-// le rôle administrateur explicitement.
+// Les routes de téléchargement de l'import ne peuvent pas passer par
+// `adminJsonRoute` : la porte JSON ne rend que du JSON. Cette garde-là est donc
+// la leur, jumelle de celle des routes de téléversement, et elle exige la
+// Session courante et le rôle administrateur explicitement.
+const ROUTES_SURVEILLEES = [ROUTE_MODELE, ROUTE_REFUS] as const
+
 const SOURCES = sourcesDeProduction(
   import.meta.url,
   "../../../..",
@@ -50,16 +53,21 @@ function contournementsDe({ chemin, source }: SourceProduction): string[] {
 }
 
 function contournements(sources: readonly SourceProduction[]): string[] {
-  const route = sources.find(({ chemin }) => chemin === ROUTE_MODELE)
-  return route === undefined
-    ? [`${ROUTE_MODELE} est absente du corpus`]
-    : contournementsDe(route)
+  return ROUTES_SURVEILLEES.flatMap((chemin) => {
+    const route = sources.find((source) => source.chemin === chemin)
+    return route === undefined
+      ? [`${chemin} est absente du corpus`]
+      : contournementsDe(route)
+  })
 }
 
-describe("Administration — la route du modèle d'import", () => {
-  it("le parcours est non vacuant : il voit la route et ne signale rien", () => {
+describe("Administration — les routes de téléchargement de l'import", () => {
+  it("le parcours est non vacuant : il voit les deux routes et ne signale rien", () => {
     expect(SOURCES.length).toBeGreaterThan(200)
-    expect(SOURCES.map(({ chemin }) => chemin)).toContain(ROUTE_MODELE)
+    const chemins = SOURCES.map(({ chemin }) => chemin)
+    for (const route of ROUTES_SURVEILLEES) {
+      expect(chemins).toContain(route)
+    }
     expect(contournements(SOURCES)).toEqual([])
   })
 })
@@ -114,5 +122,18 @@ describe("Administration — la garde sait nommer le contournement", () => {
         )
       )
     ).toEqual([`${ROUTE_MODELE} passe par la porte JSON`])
+  })
+
+  it("signale la route des refus quand elle n'annonce plus le téléchargement", () => {
+    const route = sourceDuCorpus(SOURCES, ROUTE_REFUS)
+    const sansEntete = route.source.replace(
+      /Content-Disposition/g,
+      "Content-Language"
+    )
+
+    expect(sansEntete).not.toBe(route.source)
+    expect(
+      contournements(avecSource(SOURCES, ROUTE_REFUS, sansEntete))
+    ).toEqual([`${ROUTE_REFUS} n'annonce pas le téléchargement`])
   })
 })

@@ -10,10 +10,15 @@ import {
   verifierLeLotAction,
 } from "@/app/admin/produits/importer/actions"
 import { MESSAGE_IMPORT_EN_COURS } from "@/lib/import-produits"
-import { lireLeLot, lireLotEnCours } from "@/lib/use-cases/import-produits"
+import {
+  lireLeLot,
+  lireLotEnCours,
+  listerLesLots,
+} from "@/lib/use-cases/import-produits"
 import { BandeauLotEnCours } from "./bandeau-lot-en-cours"
 import { EtapesImport } from "./etapes-import"
 import { FormulaireImport } from "./formulaire-import"
+import { HistoriqueImports } from "./historique-imports"
 import { PanneauLotImport } from "./panneau-lot-import"
 
 export const metadata: Metadata = {
@@ -71,9 +76,10 @@ async function ImportContent({
 }) {
   const raw = await searchParamsPromise
   const lotId = premierParametre(raw.lot)
-  const [lot, lotEnCours] = await Promise.all([
+  const [lot, lotEnCours, lots] = await Promise.all([
     lotId === undefined ? Promise.resolve(null) : lireLeLot(lotId),
     lireLotEnCours(),
+    listerLesLots(),
   ])
   const televersementIndisponible =
     lotEnCours === null ? null : MESSAGE_IMPORT_EN_COURS
@@ -105,6 +111,8 @@ async function ImportContent({
         action={televerserLeFichierAction}
         indisponible={televersementIndisponible}
       />
+
+      <HistoriqueImports lots={lots} />
     </div>
   )
 }

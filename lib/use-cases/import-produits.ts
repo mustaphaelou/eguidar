@@ -110,6 +110,29 @@ export interface LotImportLu {
   lignes: LigneImportLue[]
 }
 
+/**
+ * Un Lot de l'historique : de quoi le reconnaître et décider de le relire,
+ * sans charger ses Lignes.
+ */
+export interface LotImportListe {
+  id: string
+  auteur: { name: string; email: string } | null
+  createdAt: Date
+  statut: StatutLotImport
+  produitsCrees: number
+  produitsModifies: number
+  produitsInchanges: number
+  produitsRefuses: number
+  ecrits: number
+  indexes: number
+}
+
+/**
+ * L'historique est borné : au-delà de cinquante Lots, la page cesserait d'être
+ * un rapport pour devenir un journal. Seuls les plus récents sont lus.
+ */
+export const LIMITE_LOTS_HISTORIQUE_IMPORT = 50
+
 export interface CompteursImport {
   produitsCrees: number
   produitsModifies: number
@@ -1040,6 +1063,26 @@ function refusDepuisLeCode(
     default:
       return { code: codeRefus }
   }
+}
+
+/** Les Lots passés, du plus récent au plus ancien, sans leurs Lignes. */
+export async function listerLesLots(): Promise<LotImportListe[]> {
+  return prisma.lotImport.findMany({
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: LIMITE_LOTS_HISTORIQUE_IMPORT,
+    select: {
+      id: true,
+      createdAt: true,
+      statut: true,
+      produitsCrees: true,
+      produitsModifies: true,
+      produitsInchanges: true,
+      produitsRefuses: true,
+      ecrits: true,
+      indexes: true,
+      auteur: { select: { name: true, email: true } },
+    },
+  })
 }
 
 /** Le Lot et ses Lignes, pour la page et les tickets suivants. */

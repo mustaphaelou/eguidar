@@ -17,6 +17,8 @@ import {
   type ColonneImport,
 } from "@/lib/import-produits"
 import {
+  LIMITE_LOTS_HISTORIQUE_IMPORT,
+  listerLesLots,
   lireLeLot,
   lireLotEnCours,
   televerserLeFichier,
@@ -456,6 +458,89 @@ describe("lireLotEnCours", () => {
       ecrits: 25,
       indexes: 24,
     })
+  })
+})
+
+describe("listerLesLots", () => {
+  it("liste les Lots du plus récent au plus ancien, avec auteur, date, statut et compteurs", async () => {
+    const ancien = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "1".repeat(64),
+        taille: 10,
+        statut: "termine",
+        produitsCrees: 2,
+        produitsModifies: 1,
+        produitsInchanges: 0,
+        produitsRefuses: 1,
+        ecrits: 3,
+        indexes: 2,
+        createdAt: new Date("2026-01-01T10:00:00.000Z"),
+      },
+    })
+    const recent = await prisma.lotImport.create({
+      data: {
+        auteurId: AUTEUR_ID,
+        empreinte: "2".repeat(64),
+        taille: 20,
+        statut: "brouillon",
+        produitsCrees: 0,
+        produitsModifies: 0,
+        produitsInchanges: 0,
+        produitsRefuses: 0,
+        ecrits: 0,
+        indexes: 0,
+        createdAt: new Date("2026-02-01T10:00:00.000Z"),
+      },
+    })
+
+    const lots = await listerLesLots()
+
+    expect(lots.map((lot) => lot.id)).toEqual([recent.id, ancien.id])
+    expect(lots[0]).toMatchObject({
+      auteur: { name: AUTEUR_NOM, email: AUTEUR_EMAIL },
+      statut: "brouillon",
+      produitsCrees: 0,
+      produitsModifies: 0,
+      produitsInchanges: 0,
+      produitsRefuses: 0,
+      ecrits: 0,
+      indexes: 0,
+    })
+    expect(lots[1]).toMatchObject({
+      auteur: { name: AUTEUR_NOM, email: AUTEUR_EMAIL },
+      statut: "termine",
+      produitsCrees: 2,
+      produitsModifies: 1,
+      produitsInchanges: 0,
+      produitsRefuses: 1,
+      ecrits: 3,
+      indexes: 2,
+    })
+    expect(lots[0]?.createdAt).toBeInstanceOf(Date)
+  })
+
+  it("borne l'historique aux cinquante Lots les plus récents", async () => {
+    const total = LIMITE_LOTS_HISTORIQUE_IMPORT + 2
+    await prisma.lotImport.createMany({
+      data: Array.from({ length: total }, (_, index) => ({
+        auteurId: AUTEUR_ID,
+        empreinte: `${index}`.padStart(64, "3"),
+        taille: index,
+        createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+      })),
+    })
+
+    const lots = await listerLesLots()
+    const tous = await prisma.lotImport.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true },
+    })
+
+    expect(tous).toHaveLength(total)
+    expect(lots.map((lot) => lot.id)).toEqual(
+      tous.slice(0, LIMITE_LOTS_HISTORIQUE_IMPORT).map((lot) => lot.id)
+    )
   })
 })
 
