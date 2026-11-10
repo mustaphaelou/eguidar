@@ -30,22 +30,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }))
 
-vi.mock("./formulaire-import", () => ({
-  FormulaireImport: ({
-    action,
-    indisponible,
-  }: {
-    action: unknown
-    indisponible?: string | null
-  }) => (
-    <div
-      data-testid="formulaire-import"
-      data-action={typeof action}
-      data-indisponible={indisponible ?? ""}
-    />
-  ),
-}))
-
 import ImportProductsPage from "./page"
 import { prisma } from "@/lib/db"
 import {
@@ -86,6 +70,12 @@ function baliseDuBouton(html: string, libelle: string): string {
   if (index === -1) throw new Error(`bouton « ${libelle} » absent du rendu`)
   const debut = html.lastIndexOf("<button", index)
   return html.slice(debut, index)
+}
+
+function baliseDuChamp(html: string, nom: string): string {
+  const champ = new RegExp(`<input[^>]*name="${nom}"[^>]*>`).exec(html)
+  if (!champ) throw new Error(`champ « ${nom} » absent du rendu`)
+  return champ[0]
 }
 
 beforeAll(async () => {
@@ -135,6 +125,32 @@ describe("la page d'import des Produits", () => {
     expect(etapeCourante(html)).not.toContain("Vérifier")
   })
 
+  it.each([
+    ["brouillon", "Vérifier"],
+    ["verifie", "Appliquer"],
+    ["en_cours", "Appliquer"],
+    ["partiel", "Appliquer"],
+    ["termine", "Appliquer"],
+    ["echoue", "Téléverser"],
+  ] as const)(
+    "marque l'étape courante d'un Lot %s sur %s",
+    async (statut, libelle) => {
+      const lot = await prisma.lotImport.create({
+        data: {
+          auteurId: AUTEUR_ID,
+          empreinte: "a".repeat(64),
+          taille: 64,
+          statut,
+        },
+      })
+
+      const html = await rendre({ lot: lot.id })
+
+      expect(html.match(/aria-current="step"/g)).toHaveLength(1)
+      expect(etapeCourante(html)).toContain(libelle)
+    }
+  )
+
   it("propose le modèle vierge au téléchargement", async () => {
     const html = await rendre()
     const lien = liensVers(html, "/api/admin/produits/importer/modele")[0]
@@ -143,11 +159,12 @@ describe("la page d'import des Produits", () => {
     expect(lien?.balise).toContain("download")
   })
 
-  it("rend le formulaire de téléversement et lui confie l'action serveur", async () => {
+  it("rend le formulaire réel de téléversement", async () => {
     const html = await rendre()
 
-    expect(html).toContain('data-testid="formulaire-import"')
-    expect(html).toContain('data-action="function"')
+    expect(html).toContain("Fichier CSV")
+    expect(html).toContain("Téléverser le fichier")
+    expect(baliseDuChamp(html, "fichier")).toContain('type="file"')
   })
 
   it("relit un Lot accepté avec son auteur, sa taille, son empreinte et ses avertissements", async () => {
@@ -172,7 +189,7 @@ describe("la page d'import des Produits", () => {
     expect(html).toContain("b".repeat(64))
     expect(html).toContain(avertissement)
     expect(html).toContain("Le fichier est accepté.")
-    expect(html).toContain('data-testid="formulaire-import"')
+    expect(html).toContain("Téléverser le fichier")
   })
 
   it("relit un Lot refusé avec son motif", async () => {
@@ -235,7 +252,7 @@ describe("la page d'import des Produits", () => {
           slug: "table",
           sku: "TABLE-01",
           cellules: { slug: "table" },
-          avertissements: ["description_html"],
+          avertissements: ["description_html", "colonne_inconnue:notes"],
         },
       ],
     })
@@ -258,6 +275,7 @@ describe("la page d'import des Produits", () => {
     expect(html).toContain("prix de la Variante")
     expect(html).toContain("un montant valide")
     expect(html).toContain("La description ressemble à du HTML")
+    expect(html).toContain("La colonne « notes » est ignorée")
   })
 
   it("présente les Lignes illisibles hors des Produits", async () => {
@@ -655,7 +673,9 @@ describe("la page d'import des Produits — le Lot en cours", () => {
     expect(
       liensVers(html, `/admin/produits/importer?lot=${lot.id}`)[0]?.texte
     ).toBe("Reprendre")
-    expect(texte).toContain(`data-indisponible="${MESSAGE_IMPORT_EN_COURS}"`)
+    expect(texte).toContain(MESSAGE_IMPORT_EN_COURS)
+    expect(baliseDuChamp(html, "fichier")).toContain("disabled")
+    expect(baliseDuBouton(html, "Téléverser le fichier")).toContain("disabled")
   })
 
   it("rouvre un Lot interrompu au curseur, propose la reprise et la poursuit jusqu'au bout", async () => {
@@ -677,7 +697,9 @@ describe("la page d'import des Produits — le Lot en cours", () => {
     expect(html).toContain("En cours")
     expect(texte).toContain("Reprendre l'application")
     expect(html).toMatch(/Produits traités<\/dt><dd[^>]*>25 \/ 27<\/dd>/)
-    expect(texte).toContain(`data-indisponible="${MESSAGE_IMPORT_EN_COURS}"`)
+    expect(texte).toContain(MESSAGE_IMPORT_EN_COURS)
+    expect(baliseDuChamp(html, "fichier")).toContain("disabled")
+    expect(baliseDuBouton(html, "Téléverser le fichier")).toContain("disabled")
 
     const seconde = await appliquerLeLot(
       lotId,

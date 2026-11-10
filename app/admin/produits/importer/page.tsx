@@ -9,7 +9,11 @@ import {
   televerserLeFichierAction,
   verifierLeLotAction,
 } from "@/app/admin/produits/importer/actions"
-import { MESSAGE_IMPORT_EN_COURS } from "@/lib/import-produits"
+import {
+  MESSAGE_IMPORT_EN_COURS,
+  MESSAGE_LOT_INTROUVABLE,
+  etapeDuLot,
+} from "@/lib/import-produits"
 import {
   lireLeLot,
   lireLotEnCours,
@@ -58,8 +62,6 @@ export default function ImportProductsPage({
         }
       />
 
-      <EtapesImport etapeCourante="televerser" />
-
       <Suspense
         fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}
       >
@@ -86,12 +88,16 @@ async function ImportContent({
 
   return (
     <div className="flex flex-col gap-6">
+      <EtapesImport
+        etapeCourante={lot === null ? "televerser" : etapeDuLot(lot.statut)}
+      />
+
       {lotId !== undefined && lot === null ? (
         <p
           role="alert"
           className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
-          Ce Lot d&apos;import est introuvable.
+          {MESSAGE_LOT_INTROUVABLE}
         </p>
       ) : null}
 

@@ -11,6 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { Prisma } from "@/lib/generated/prisma/client"
 import type { IndexableProduct } from "@/lib/index-projection"
 import {
   COLONNES_IMPORT,
@@ -250,7 +251,8 @@ describe("appliquerLeLot — l'isolement d'un Produit en échec", () => {
 
     // On injecte la panne sur la première transaction du writer : la première
     // écriture de Produit échoue, les suivantes retrouvent la vraie transaction.
-    const panne = new Error("Panne simulée du Catalogue")
+    const panne = new Error("Unique constraint failed on the fields: (`slug`)")
+    const avertissement = vi.spyOn(console, "warn").mockImplementation(() => {})
     vi.spyOn(prisma, "$transaction").mockImplementationOnce((() =>
       Promise.reject(panne)) as never)
 
@@ -267,9 +269,14 @@ describe("appliquerLeLot — l'isolement d'un Produit en échec", () => {
     expect(resultat.echecs).toEqual([
       {
         slug: slug("en-echec"),
-        motif: expect.stringContaining("Panne simulée"),
+        motif: expect.stringContaining("corrigez le fichier"),
       },
     ])
+    expect(resultat.echecs[0]?.motif).not.toMatch(/Unique|constraint|failed/i)
+    expect(avertissement).toHaveBeenCalledWith(
+      expect.stringContaining(slug("en-echec")),
+      panne
+    )
 
     await expect(
       prisma.product.findUnique({ where: { slug: slug("en-echec") } })
@@ -286,12 +293,73 @@ describe("appliquerLeLot — l'isolement d'un Produit en échec", () => {
       (ligne) => ligne.slug === slug("en-echec")
     )
     expect(lignesEchouees?.map((ligne) => ligne.statut)).toEqual(["echouee"])
-    expect(lignesEchouees?.[0]?.motifEchec).toContain("Panne simulée")
+    expect(lignesEchouees?.[0]?.motifEchec).toContain("corrigez le fichier")
+    expect(lignesEchouees?.[0]?.motifEchec).not.toMatch(
+      /Unique|constraint|failed/i
+    )
     expect(
       lot?.lignes
         .filter((ligne) => ligne.slug === slug("reussi"))
         .map((ligne) => ligne.statut)
     ).toEqual(["ecrite"])
+  })
+
+  it("traduit une violation d'unicité en français sans écrire le texte de la base", async () => {
+    await prisma.product.create({
+      data: {
+        slug: slug("unique"),
+        name: "Unique",
+        brand: "Maison",
+        description: "",
+        price: 1000,
+        specs: {},
+        images: [],
+        variants: {
+          create: [
+            {
+              name: "Unique",
+              sku: sku("UNIQUE-1"),
+              priceDelta: 0,
+              stock: 1,
+            },
+          ],
+        },
+      },
+    })
+    const lotId = await preparerLeLot(
+      fichierCsv(
+        ligneCsv({
+          slug: slug("unique"),
+          variant_sku: sku("UNIQUE-1"),
+          variant_stock: "3",
+        })
+      )
+    )
+    const effets = effetsDeTest()
+    const avertissement = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const panne = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`slug`)",
+      {
+        code: "P2002",
+        clientVersion: "7.10.1",
+        meta: { target: ["slug"] },
+      }
+    )
+    vi.spyOn(prisma.product, "findUniqueOrThrow").mockRejectedValueOnce(panne)
+
+    const resultat = await appliquerLeLot(lotId, 0, effets.overrides)
+
+    expect(resultat.echecs[0]?.motif).toContain("slug ou son sku est déjà pris")
+    expect(resultat.echecs[0]?.motif).not.toMatch(/Unique|constraint|failed/i)
+    expect(avertissement).toHaveBeenCalledWith(
+      expect.stringContaining(slug("unique")),
+      panne
+    )
+    const lot = await lireLeLot(lotId)
+    expect(lot?.lignes[0]?.motifEchec).toContain(
+      "slug ou son sku est déjà pris"
+    )
+    expect(lot?.lignes[0]?.motifEchec).not.toMatch(/Unique|constraint|failed/i)
   })
 })
 

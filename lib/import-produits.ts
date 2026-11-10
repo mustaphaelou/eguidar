@@ -1,11 +1,13 @@
 /**
- * Le contrat du fichier d'import des Produits. Le module n'importe rien : il
- * porte les neuf colonnes, la lecture stricte de l'UTF-8, le jugement de
- * l'en-tête, le parseur RFC 4180 minimal, la normalisation et le groupement des
- * Lignes, le vocabulaire fermé des refus et des avertissements, leurs messages
- * français, et le modèle vierge. Il est partagé par le serveur et le client,
- * sans base, sans horloge et sans réseau.
+ * Le contrat du fichier d'import des Produits. Il n'importe que la grammaire du
+ * slug, son propriétaire neutre : il porte les neuf colonnes, la lecture
+ * stricte de l'UTF-8, le jugement de l'en-tête, le parseur RFC 4180 minimal, la
+ * normalisation et le groupement des Lignes, le vocabulaire fermé des refus et
+ * des avertissements, leurs messages français, et le modèle vierge. Il est
+ * partagé par le serveur et le client, sans base, sans horloge et sans réseau.
  */
+
+import { GRAMMAIRE_SLUG } from "./slug"
 
 export const COLONNES_IMPORT = [
   "slug",
@@ -63,6 +65,9 @@ export const MESSAGE_IMPORT_EN_COURS =
 export const MESSAGE_INDEXATION_EN_ATTENTE =
   "L'indexation n'a pas encore rattrapé les écritures : indexation en attente (reprise automatique). Les Produits sont écrits, mais le Catalogue ne les montre pas encore."
 
+/** Le seul texte d'un Lot absent : la page, la route des refus et le cas d'usage le disent pareil. */
+export const MESSAGE_LOT_INTROUVABLE = "Ce Lot d'import est introuvable."
+
 export const NOM_MODELE_IMPORT = "modele-import-produits.csv"
 
 export const STATUTS_LOT_IMPORT = [
@@ -75,6 +80,49 @@ export const STATUTS_LOT_IMPORT = [
 ] as const
 
 export type StatutLotImport = (typeof STATUTS_LOT_IMPORT)[number]
+
+/** Les trois étapes du parcours d'import, dans l'ordre où la page les montre. */
+export type EtapeImport = "televerser" | "verifier" | "appliquer"
+
+/**
+ * L'étape que la page marque comme courante pour un Lot : un brouillon attend sa
+ * Vérification, un Lot jugé (ou déjà en application) est à l'étape Appliquer, et
+ * un Lot refusé au téléversement renvoie à Téléverser. Sans Lot, la page dit
+ * elle-même `televerser`.
+ */
+export function etapeDuLot(statut: StatutLotImport): EtapeImport {
+  switch (statut) {
+    case "brouillon":
+      return "verifier"
+    case "verifie":
+    case "en_cours":
+    case "partiel":
+    case "termine":
+      return "appliquer"
+    case "echoue":
+      return "televerser"
+  }
+}
+
+/** Un Lot que la Vérification peut rejuger : un brouillon ou un Lot vérifié. */
+export function peutVerifier(statut: StatutLotImport): boolean {
+  return statut === "brouillon" || statut === "verifie"
+}
+
+/** Un Lot que l'application peut écrire ou reprendre : vérifié ou en cours. */
+export function peutAppliquer(statut: StatutLotImport): boolean {
+  return statut === "verifie" || statut === "en_cours"
+}
+
+/** Un Lot dont l'application a déjà commencé : partiel ou terminé. */
+export function estDejaApplique(statut: StatutLotImport): boolean {
+  return statut === "partiel" || statut === "termine"
+}
+
+/** Un Lot dont l'application est en cours et reprend au curseur. */
+export function estEnApplication(statut: StatutLotImport): boolean {
+  return statut === "en_cours"
+}
 
 export const LIBELLES_STATUT_LOT_IMPORT: Readonly<
   Record<StatutLotImport, string>
@@ -167,6 +215,53 @@ export interface RefusImport {
   portee?: "produit"
 }
 
+/** Ce que la Ligne relue sait encore pour reconstruire le contexte d'un refus. */
+export interface ContexteRefusImport {
+  slug?: string
+  sku?: string
+  /** La Structure nommée par le groupe, pour `structure_inconnue`. */
+  structure?: string
+  /** Le champ requis manquant du Produit, pour `champ_requis_manquant`. */
+  champ?: ColonneImport
+}
+
+/**
+ * Le seul décodeur code → refus pour un code relu depuis la base. Le code est
+ * le témoin du vocabulaire fermé ; le contexte est ce que les cellules
+ * persistées ont permis de retrouver. Un code inconnu rend `null`.
+ */
+export function refusDepuisLeCode(
+  codeRefus: string | null,
+  contexte: ContexteRefusImport = {}
+): RefusImport | null {
+  if (codeRefus === null || !estCodeRefusImport(codeRefus)) return null
+
+  switch (codeRefus) {
+    case "structure_inconnue":
+      return {
+        code: codeRefus,
+        ...(contexte.structure === undefined
+          ? {}
+          : { structure: contexte.structure }),
+        portee: "produit",
+      }
+    case "sku_deja_pris":
+      return {
+        code: codeRefus,
+        ...(contexte.sku === undefined ? {} : { sku: contexte.sku }),
+        portee: "produit",
+      }
+    case "champ_requis_manquant":
+      return {
+        code: codeRefus,
+        ...(contexte.champ === undefined ? {} : { champ: contexte.champ }),
+        portee: "produit",
+      }
+    default:
+      return { code: codeRefus }
+  }
+}
+
 export const CODES_AVERTISSEMENT_IMPORT = [
   "colonne_inconnue",
   "description_html",
@@ -180,7 +275,7 @@ export type CodeAvertissementImport =
 export type AvertissementImport =
   | {
       code: "colonne_inconnue"
-      /** La colonne du fichier qui est ignorée. */
+      /** La colonne du fichier qui est ignorée ; vide quand elle n'est pas connue. */
       colonne: string
       /** La colonne connue dont `colonne` ne diffère que par la casse ou l'accent. */
       colonneAttendue?: ColonneImport
@@ -192,6 +287,53 @@ export type AvertissementImport =
       /** Le slug du Produit existant qui porte déjà ce nom, quand il est connu. */
       slug?: string
     }
+
+/** Le préfixe qui garde le nom d'une colonne inconnue dans son code persisté. */
+const PREFIXE_COLONNE_INCONNUE = "colonne_inconnue:"
+
+/**
+ * Le code persisté d'un avertissement. Le nom d'une colonne inconnue ne se
+ * perd pas : il suit le code, séparé par `:`, pour que le rapport relu puisse
+ * le nommer.
+ */
+export function codeDAvertissement(avertissement: AvertissementImport): string {
+  if (
+    avertissement.code === "colonne_inconnue" &&
+    avertissement.colonne !== ""
+  ) {
+    return `${PREFIXE_COLONNE_INCONNUE}${avertissement.colonne}`
+  }
+  return avertissement.code
+}
+
+/**
+ * Le seul décodeur code → avertissement pour un code relu depuis la base. Tous
+ * les codes du vocabulaire sont rendus : `colonne_inconnue` retrouve son nom
+ * quand le code le porte, et reste un avertissement quand il ne le porte pas.
+ */
+export function avertissementDepuisLeCode(
+  code: string
+): AvertissementImport | null {
+  if (code.startsWith(PREFIXE_COLONNE_INCONNUE)) {
+    return {
+      code: "colonne_inconnue",
+      colonne: code.slice(PREFIXE_COLONNE_INCONNUE.length),
+    }
+  }
+
+  switch (code) {
+    case "colonne_inconnue":
+      return { code, colonne: "" }
+    case "description_html":
+      return { code }
+    case "produit_sans_structure":
+      return { code }
+    case "nom_ressemblant":
+      return { code }
+    default:
+      return null
+  }
+}
 
 export interface EnTeteImport {
   /** Les cellules non vides de l'en-tête, dans l'ordre du fichier. */
@@ -465,7 +607,6 @@ function enregistrementVide(cellules: readonly string[]): boolean {
   return cellules.every((cellule) => cellule.length === 0)
 }
 
-const GRAMMAIRE_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const FORMAT_PRIX = /^\d+(?:\.\d{1,2})?$/
 const FORMAT_STOCK = /^\d+$/
 
@@ -642,14 +783,17 @@ export function grouperParProduit<T extends { slug: string }>(
 /**
  * Un enregistrement prêt à être analysé : ses cellules déjà rangées par nom de
  * colonne, son numéro de ligne physique, et le fait qu'il ait été lisible.
+ * Même mal formé, il garde ses cellules brutes, rangées par position dans les
+ * colonnes connues de l'en-tête : le CSV des refus peut ainsi montrer au
+ * tableur ce que le fichier contenait.
  */
 export interface LigneBruteImport {
   numero: number
   cellules: CellulesImport
   /**
-   * `false` quand le parseur a lu l'enregistrement. Omis, une Ligne dont aucune
-   * cellule connue n'a été conservée est traitée comme mal formée : un
-   * enregistrement lisible porte toujours au moins `slug` et `variant_sku`.
+   * `true` quand le parseur n'a pas pu lire l'enregistrement. Omis, une Ligne
+   * dont aucune cellule connue n'a été conservée est traitée comme mal formée :
+   * un enregistrement lisible porte toujours au moins `slug` et `variant_sku`.
    */
   malFormee?: boolean
 }
@@ -674,8 +818,11 @@ export function analyserLesLignes(
 
       return {
         numero,
-        slug: cellules.slug ?? "",
-        sku: cellules.variant_sku ?? "",
+        // Une Ligne mal formée n'identifie aucun Produit : ses cellules restent
+        // lisibles pour le CSV des refus, mais son slug et son sku ne font pas
+        // foi. Le rejeu la reconnaît à son code persisté.
+        slug: illisible ? "" : (cellules.slug ?? ""),
+        sku: illisible ? "" : (cellules.variant_sku ?? ""),
         cellules,
         enregistrement: illisible ? null : normaliserLaLigne(cellules),
         refus: illisible
@@ -734,10 +881,8 @@ export function lireLesLignes(texte: string): readonly LigneImport[] {
       enregistrement.cellules.length !== entete.cellules.length
 
     const cellules: Record<string, string> = {}
-    if (!malFormee) {
-      for (const [colonne, index] of indexParColonne) {
-        cellules[colonne] = enregistrement.cellules[index] ?? ""
-      }
+    for (const [colonne, index] of indexParColonne) {
+      cellules[colonne] = enregistrement.cellules[index] ?? ""
     }
 
     brutes.push({ numero: enregistrement.numero, cellules, malFormee })
@@ -772,7 +917,7 @@ export function messageDuRefus(refus: RefusImport): string {
 function messageDeBaseDuRefus(refus: RefusImport): string {
   switch (refus.code) {
     case "fichier_trop_gros":
-      return "Le fichier dépasse 5 Mo. Découpez-le en plusieurs fichiers plus petits, puis téléversez-les l'un après l'autre."
+      return `Le fichier dépasse ${LIMITE_OCTETS_IMPORT / 1024 / 1024} Mo. Découpez-le en plusieurs fichiers plus petits, puis téléversez-les l'un après l'autre.`
     case "encodage_invalide":
       return "Le fichier n'est pas en UTF-8. Enregistrez-le en UTF-8, puis réessayez : les accents doivent rester lisibles."
     case "en_tete_incomplet":
@@ -831,6 +976,9 @@ export function messageDAvertissement(
 ): string {
   switch (avertissement.code) {
     case "colonne_inconnue":
+      if (avertissement.colonne === "") {
+        return "Une colonne inconnue est ignorée : elle ne fait pas partie des neuf colonnes attendues."
+      }
       if (avertissement.colonneAttendue !== undefined) {
         return `La colonne « ${avertissement.colonne} » est ignorée : les noms de colonnes sont sensibles à la casse et aux accents. La colonne attendue est « ${avertissement.colonneAttendue} ».`
       }

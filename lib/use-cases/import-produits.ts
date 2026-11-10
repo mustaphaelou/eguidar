@@ -10,17 +10,22 @@ import {
   LIMITE_OCTETS_IMPORT,
   MESSAGE_APPLIQUER_REFUS,
   MESSAGE_IMPORT_EN_COURS,
+  MESSAGE_LOT_INTROUVABLE,
   PRODUITS_PAR_APPLICATION_IMPORT,
   analyserLesLignes,
-  estCodeRefusImport,
+  codeDAvertissement,
   grouperParProduit,
   jugerLEnTete,
   lireLeTexte,
   lireLesLignes,
   messageDAvertissement,
   messageDuRefus,
+  peutAppliquer,
+  peutVerifier,
+  refusDepuisLeCode,
   type AvertissementImport,
   type CellulesImport,
+  type ContexteRefusImport,
   type EchecProduitApplication,
   type EnregistrementImport,
   type LigneImport,
@@ -202,10 +207,22 @@ function jugerLEnveloppe(octets: Uint8Array): EnveloppeJugee {
   }
 }
 
-function donneesDeLaLigne(ligne: LigneImport) {
-  const statut: StatutLigneImport | null =
-    ligne.refus === null ? null : "refusee"
+interface ChoixDeLaLigne {
+  refus: RefusImport | null
+  avertissements: readonly AvertissementImport[]
+  statut: StatutLigneImport | null
+  diff?: DiffProduitPlanImport | null
+}
 
+/**
+ * La seule construction d'une ligne `LigneImport` persistée : le téléversement
+ * l'écrit avec son refus local ; la Vérification l'écrit avec le jugement du
+ * plan et son diff avant → après. Le `diff` vaut `DbNull` quand il n'y en a pas.
+ */
+function donneesDeLaLigne(
+  ligne: LigneImport,
+  { refus, avertissements, statut, diff = null }: ChoixDeLaLigne
+) {
   return {
     numero: ligne.numero,
     slug: ligne.slug,
@@ -215,10 +232,12 @@ function donneesDeLaLigne(ligne: LigneImport) {
       ligne.enregistrement === null
         ? Prisma.DbNull
         : (ligne.enregistrement as unknown as Prisma.InputJsonValue),
-    codeRefus: ligne.refus?.code ?? null,
-    avertissements: ligne.avertissements.map(
-      (avertissement) => avertissement.code
-    ),
+    codeRefus: refus?.code ?? null,
+    avertissements: avertissements.map(codeDAvertissement),
+    diff:
+      diff === null
+        ? Prisma.DbNull
+        : (diff as unknown as Prisma.InputJsonValue),
     statut,
   }
 }
@@ -262,7 +281,19 @@ export async function televerserLeFichier({
       avertissements: enveloppe.avertissements.map((avertissement) =>
         messageDAvertissement(avertissement)
       ),
-      ...(accepte ? { lignes: { create: lignes.map(donneesDeLaLigne) } } : {}),
+      ...(accepte
+        ? {
+            lignes: {
+              create: lignes.map((ligne) =>
+                donneesDeLaLigne(ligne, {
+                  refus: ligne.refus,
+                  avertissements: ligne.avertissements,
+                  statut: ligne.refus === null ? null : "refusee",
+                })
+              ),
+            },
+          }
+        : {}),
     },
     select: { id: true, statut: true },
   })
@@ -272,14 +303,27 @@ export async function televerserLeFichier({
 
 /**
  * Rejoue l'analyse d'un Lot depuis les cellules persistées : le numéro et les
- * cellules sont la seule vérité, le code stocké n'est qu'un témoin. C'est ce
- * qui rend visibles le champ manquant, la forme du doublon et le champ du
- * conflit, que #983 n'avait pas conservés.
+ * cellules sont la seule vérité, et le code stocké n'est qu'un témoin — sauf
+ * `ligne_mal_formee`, la seule trace de la forme que les cellules brutes ne
+ * disent plus. C'est ce qui rend visibles le champ manquant, la forme du
+ * doublon et le champ du conflit, que #983 n'avait pas conservés.
  */
 function rejouerLesLignes(
-  lignes: readonly { numero: number; cellules: CellulesImport }[]
+  lignes: readonly {
+    numero: number
+    cellules: CellulesImport
+    codeRefus?: string | null
+  }[]
 ): LigneImport[] {
-  return [...analyserLesLignes(lignes)]
+  return [
+    ...analyserLesLignes(
+      lignes.map((ligne) => ({
+        numero: ligne.numero,
+        cellules: ligne.cellules,
+        ...(ligne.codeRefus === "ligne_mal_formee" ? { malFormee: true } : {}),
+      }))
+    ),
+  ]
 }
 
 function valeursUniques(valeurs: readonly string[]): string[] {
@@ -417,15 +461,15 @@ export async function verifierLeLot(
       statut: true,
       lignes: {
         orderBy: { numero: "asc" },
-        select: { numero: true, cellules: true },
+        select: { numero: true, cellules: true, codeRefus: true },
       },
     },
   })
 
   if (lot === null) {
-    throw new UserFacingError("Ce Lot d'import est introuvable.")
+    throw new UserFacingError(MESSAGE_LOT_INTROUVABLE)
   }
-  if (lot.statut !== "brouillon" && lot.statut !== "verifie") {
+  if (!peutVerifier(lot.statut)) {
     throw new UserFacingError(messageDuStatutNonVerifiable(lot.statut))
   }
 
@@ -433,6 +477,7 @@ export async function verifierLeLot(
     lot.lignes.map((ligne) => ({
       numero: ligne.numero,
       cellules: ligne.cellules as CellulesImport,
+      codeRefus: ligne.codeRefus,
     }))
   )
   const instantane = await lireLInstantane(lignes)
@@ -452,23 +497,12 @@ export async function verifierLeLot(
       if (ligne === undefined) continue
       donnees.push({
         lotId,
-        numero: ligne.numero,
-        slug: ligne.slug,
-        sku: ligne.sku,
-        cellules: ligne.cellules as unknown as Prisma.InputJsonValue,
-        enregistrement:
-          ligne.enregistrement === null
-            ? Prisma.DbNull
-            : (ligne.enregistrement as unknown as Prisma.InputJsonValue),
-        codeRefus: lignePlanifiee.refus?.code ?? null,
-        avertissements: lignePlanifiee.avertissements.map(
-          (avertissement) => avertissement.code
-        ),
-        diff:
-          diff === null
-            ? Prisma.DbNull
-            : (diff as unknown as Prisma.InputJsonValue),
-        statut: lignePlanifiee.statut,
+        ...donneesDeLaLigne(ligne, {
+          refus: lignePlanifiee.refus,
+          avertissements: lignePlanifiee.avertissements,
+          statut: lignePlanifiee.statut,
+          diff,
+        }),
       })
     }
   }
@@ -594,10 +628,30 @@ async function demarrerLApplication(lotId: string): Promise<void> {
   }
 }
 
-function motifDeLEchec(error: unknown): string {
+const MESSAGE_ECHEC_WRITE_UNIQUE =
+  "L'écriture du Produit a échoué : son slug ou son sku est déjà pris dans le Catalogue. Corrigez le fichier, puis réessayez."
+
+const MESSAGE_ECHEC_WRITE =
+  "L'écriture du Produit a échoué : corrigez le fichier, puis réessayez."
+
+/**
+ * Le motif montré à l'administrateur, jamais le texte brut de la base : un
+ * `UserFacingError` garde sa copie française, une violation d'unicité dit que
+ * le slug ou le sku est déjà pris, et tout le reste renvoie à la correction du
+ * fichier. L'erreur brute part au journal de l'opérateur, pas en base.
+ */
+function motifDeLEchec(error: unknown, slug: string): string {
   if (error instanceof UserFacingError) return error.message
-  const message = error instanceof Error ? error.message : String(error)
-  return `L'écriture du Produit a échoué : ${message}`
+
+  console.warn(
+    `[import-produits] écriture du Produit ${slug} impossible`,
+    error
+  )
+
+  if (hasUniqueViolation(error, ["slug", "sku"])) {
+    return MESSAGE_ECHEC_WRITE_UNIQUE
+  }
+  return MESSAGE_ECHEC_WRITE
 }
 
 /**
@@ -815,15 +869,16 @@ export async function appliquerLeLot(
           slug: true,
           statut: true,
           cellules: true,
+          codeRefus: true,
         },
       },
     },
   })
 
   if (lot === null) {
-    throw new UserFacingError("Ce Lot d'import est introuvable.")
+    throw new UserFacingError(MESSAGE_LOT_INTROUVABLE)
   }
-  if (lot.statut !== "verifie" && lot.statut !== "en_cours") {
+  if (!peutAppliquer(lot.statut)) {
     throw new UserFacingError(messageDuStatutNonApplicable(lot.statut))
   }
   if (!Number.isInteger(curseur) || curseur < 0) {
@@ -844,6 +899,7 @@ export async function appliquerLeLot(
     lot.lignes.map((ligne) => ({
       numero: ligne.numero,
       cellules: ligne.cellules as unknown as CellulesImport,
+      codeRefus: ligne.codeRefus,
     }))
   )
   const rejoueeParNumero = new Map(
@@ -944,7 +1000,7 @@ export async function appliquerLeLot(
         ecrit = true
         indexe = marqueur.indexe
       } catch (error) {
-        motif = motifDeLEchec(error)
+        motif = motifDeLEchec(error, produit.slug)
         echecs.push({ slug: produit.slug, motif })
       }
     }
@@ -1025,43 +1081,25 @@ export async function appliquerLeLot(
 }
 
 /**
- * Le refus d'une Ligne dont le code a été persisté mais dont le plan n'a pas
- * laissé de trace en clair : le contexte est reconstruit depuis les cellules,
- * quand il l'est, et la portée produit est dite.
+ * Le contexte qu'un refus relu retrouve dans les cellules persistées : le sku
+ * de la Ligne, la Structure nommée par le groupe et le champ requis manquant du
+ * Produit. Le décodeur du contrat décide seul quels codes s'en servent.
  */
-
-function refusDepuisLeCode(
-  codeRefus: string | null,
+function contexteDuRefus(
   ligne: LigneImportLue,
   groupe: readonly LigneImportLue[]
-): RefusImport | null {
-  if (codeRefus === null || !estCodeRefusImport(codeRefus)) return null
+): ContexteRefusImport {
+  const structure = groupe
+    .map((membre) => membre.cellules.category)
+    .find((valeur) => valeur !== undefined && valeur !== "")
+  const champ = champRequisManquantDuProduit(
+    groupe.map((membre) => ({ cellules: membre.cellules }))
+  )
 
-  switch (codeRefus) {
-    case "structure_inconnue": {
-      const structure = groupe
-        .map((membre) => membre.cellules.category)
-        .find((valeur) => valeur !== undefined && valeur !== "")
-      return {
-        code: codeRefus,
-        ...(structure === undefined ? {} : { structure }),
-        portee: "produit",
-      }
-    }
-    case "sku_deja_pris":
-      return { code: codeRefus, sku: ligne.sku, portee: "produit" }
-    case "champ_requis_manquant": {
-      const champ = champRequisManquantDuProduit(
-        groupe.map((membre) => ({ cellules: membre.cellules }))
-      )
-      return {
-        code: codeRefus,
-        ...(champ === null ? {} : { champ }),
-        portee: "produit",
-      }
-    }
-    default:
-      return { code: codeRefus }
+  return {
+    sku: ligne.sku,
+    ...(structure === undefined ? {} : { structure }),
+    ...(champ === null ? {} : { champ }),
   }
 }
 
@@ -1135,9 +1173,7 @@ export async function lireLeLot(id: string): Promise<LotImportLu | null> {
     diff: ligne.diff as DiffProduitPlanImport | null,
   }))
 
-  const analyses = analyserLesLignes(
-    lignes.map((ligne) => ({ numero: ligne.numero, cellules: ligne.cellules }))
-  )
+  const analyses = rejouerLesLignes(lignes)
   const analyseParNumero = new Map(
     analyses.map((ligne) => [ligne.numero, ligne])
   )
@@ -1161,8 +1197,7 @@ export async function lireLeLot(id: string): Promise<LotImportLu | null> {
           : (refusRejoue ??
             refusDepuisLeCode(
               ligne.codeRefus,
-              ligne,
-              groupes.get(ligne.slug) ?? [ligne]
+              contexteDuRefus(ligne, groupes.get(ligne.slug) ?? [ligne])
             ))
 
       return {

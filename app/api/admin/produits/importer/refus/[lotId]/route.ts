@@ -1,4 +1,5 @@
 import {
+  MESSAGE_LOT_INTROUVABLE,
   messageDuRefus,
   serialiserLesRefusCsv,
   type RefusCsvImport,
@@ -56,7 +57,7 @@ export async function GET(
   const { lotId } = await params
   const lot = await lireLeLot(lotId)
   if (lot === null) {
-    return new Response("Ce Lot d'import est introuvable.", {
+    return new Response(MESSAGE_LOT_INTROUVABLE, {
       status: 404,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",

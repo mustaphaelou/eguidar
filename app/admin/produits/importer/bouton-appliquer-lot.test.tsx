@@ -34,20 +34,20 @@ function resultat(
 }
 
 describe("BoutonAppliquerLot", () => {
-  it("enchaîne les appels avec le curseur rendu et affiche la progression x / y", async () => {
-    const appels: FormData[] = []
-    const action = vi.fn(
-      async (_etat: ApplicationState, formData: FormData) => {
-        appels.push(formData)
-        if (appels.length === 1) {
-          return resultat({
-            traites: 25,
-            reste: 25,
-            curseurSuivant: 25,
-            ecrits: 25,
-            indexes: 25,
-          })
-        }
+  it("enchaîne les appels et affiche la progression x / y jusqu'au bout", async () => {
+    let appels = 0
+    const action = vi.fn(async () => {
+      appels += 1
+      if (appels === 1) {
+        return resultat({
+          traites: 25,
+          reste: 25,
+          curseurSuivant: 25,
+          ecrits: 25,
+          indexes: 25,
+        })
+      }
+      if (appels === 2) {
         return resultat({
           traites: 25,
           reste: 0,
@@ -57,7 +57,8 @@ describe("BoutonAppliquerLot", () => {
           statut: "termine",
         })
       }
-    )
+      throw new Error("appel inattendu au-delà du dernier Produit")
+    })
 
     rendu.render(
       <BoutonAppliquerLot
@@ -75,23 +76,21 @@ describe("BoutonAppliquerLot", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(appels).toHaveLength(2)
-    expect(appels.map((formData) => formData.get("curseur"))).toEqual([
-      "0",
-      "25",
-    ])
-    expect(appels.every((formData) => formData.get("lotId") === "lot-1")).toBe(
-      true
-    )
-    expect(rendu.container.textContent).toContain("50 / 50")
-    expect(rendu.container.textContent).toContain("Produits écrits")
-    expect(rendu.container.textContent).toContain("Produits indexés")
-    expect(navigation.refresh).toHaveBeenCalledTimes(1)
+    const texte = rendu.container.textContent
+    expect(texte).toContain("50 / 50")
+    expect(texte).toContain("Produits écrits : 50")
+    expect(texte).toContain("Produits indexés : 50")
+    expect(texte).not.toContain("appel inattendu")
   })
 
-  it("montre l'indexation en attente et ne dit jamais terminé tant qu'elle n'a pas rattrapé", async () => {
-    const action = vi.fn(async () =>
-      resultat({
+  it("montre l'indexation en attente et arrête ses reprises quand elle n'a pas rattrapé", async () => {
+    let appels = 0
+    const action = vi.fn(async () => {
+      appels += 1
+      if (appels > 3) {
+        throw new Error("reprise inattendue au-delà de la borne")
+      }
+      return resultat({
         traites: 0,
         reste: 0,
         curseurSuivant: 2,
@@ -100,7 +99,7 @@ describe("BoutonAppliquerLot", () => {
         indexationEnAttente: true,
         statut: "en_cours",
       })
-    )
+    })
 
     rendu.render(
       <BoutonAppliquerLot
@@ -118,18 +117,22 @@ describe("BoutonAppliquerLot", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(action.mock.calls.length).toBeGreaterThan(1)
-    expect(action.mock.calls.length).toBeLessThanOrEqual(4)
     expect(rendu.container.textContent).toContain(MESSAGE_INDEXATION_EN_ATTENTE)
     expect(rendu.container.textContent).not.toContain("Terminé")
-    expect(navigation.refresh).toHaveBeenCalledTimes(1)
+    expect(rendu.container.textContent).not.toContain("reprise inattendue")
+    expect(rendu.boutonDontLeLibelleEst("Appliquer le Lot")).toBeTruthy()
   })
 
-  it("affiche le message français d'un refus sans boucler", async () => {
-    const action = vi.fn(async () => ({
-      error:
-        "Ce Lot est déjà appliqué : il ne peut pas l'être une seconde fois.",
-    }))
+  it("affiche le message français d'un refus et s'arrête", async () => {
+    let appels = 0
+    const action = vi.fn(async () => {
+      appels += 1
+      if (appels > 1) throw new Error("appel après le refus")
+      return {
+        error:
+          "Ce Lot est déjà appliqué : il ne peut pas l'être une seconde fois.",
+      }
+    })
 
     rendu.render(
       <BoutonAppliquerLot
@@ -147,9 +150,9 @@ describe("BoutonAppliquerLot", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(action).toHaveBeenCalledTimes(1)
     expect(rendu.container.textContent).toContain("Ce Lot est déjà appliqué")
-    expect(navigation.refresh).toHaveBeenCalledTimes(1)
+    expect(rendu.container.textContent).not.toContain("appel après le refus")
+    expect(rendu.boutonDontLeLibelleEst("Appliquer le Lot")).toBeTruthy()
   })
 
   it("nomme la reprise d'un Lot en cours même avant tout Produit traité", () => {

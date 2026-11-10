@@ -22,6 +22,7 @@ import {
   adminTaskAction,
   formAction,
   INVALID_FORM_MESSAGE,
+  parseEntierObligatoire,
   parseMoneyField,
   parseRequiredId,
   taskAction,
@@ -83,6 +84,40 @@ describe("parseRequiredId", () => {
     const fd = formData()
     fd.append("cityId", "")
     expect(() => parseRequiredId(fd, "cityId")).toThrow(INVALID_FORM_MESSAGE)
+  })
+
+  it("uses the caller's French message when one is given", () => {
+    expect(() =>
+      parseRequiredId(formData(), "lotId", "Aucun Lot à vérifier")
+    ).toThrow("Aucun Lot à vérifier")
+  })
+})
+
+describe("parseEntierObligatoire", () => {
+  it("returns a non-negative safe integer", () => {
+    const fd = formData()
+    fd.append("curseur", "25")
+    expect(parseEntierObligatoire(fd, "curseur", "Curseur invalide")).toBe(25)
+
+    const zero = formData()
+    zero.append("curseur", "0")
+    expect(parseEntierObligatoire(zero, "curseur", "Curseur invalide")).toBe(0)
+  })
+
+  it("throws the caller's message for a missing, negative, fractional or unsafe value", () => {
+    const message = "Curseur d'application invalide"
+
+    expect(() =>
+      parseEntierObligatoire(formData(), "curseur", message)
+    ).toThrow(message)
+
+    for (const valeur of ["-1", "1.5", "beaucoup", "9007199254740992"]) {
+      const fd = formData()
+      fd.append("curseur", valeur)
+      expect(() => parseEntierObligatoire(fd, "curseur", message)).toThrow(
+        message
+      )
+    }
   })
 })
 
