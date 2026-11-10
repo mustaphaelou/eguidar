@@ -1,6 +1,40 @@
 import { act, createElement } from "react"
+import { createRoot } from "react-dom/client"
 import type { ReactNode } from "react"
-import { vi } from "vitest"
+import { afterEach, vi } from "vitest"
+
+const racines: ReturnType<typeof createRoot>[] = []
+const conteneurs: HTMLDivElement[] = []
+
+afterEach(() => {
+  for (const racine of racines) racine.unmount()
+  racines.length = 0
+  for (const conteneur of conteneurs) conteneur.remove()
+  conteneurs.length = 0
+})
+
+/**
+ * Rend un crochet en isolation et expose son état courant. Le racine et le
+ * conteneur sont nettoyés après chaque test.
+ */
+export function renderHook<T>(hook: () => T): { readonly current: T } {
+  let current!: T
+  function Probe() {
+    current = hook()
+    return null
+  }
+  const conteneur = document.createElement("div")
+  document.body.appendChild(conteneur)
+  conteneurs.push(conteneur)
+  const racine = createRoot(conteneur)
+  racines.push(racine)
+  act(() => racine.render(createElement(Probe)))
+  return {
+    get current() {
+      return current
+    },
+  }
+}
 
 export const navigationSpies = {
   push: vi.fn(),

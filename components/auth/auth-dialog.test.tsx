@@ -245,6 +245,29 @@ describe("AuthDialog", () => {
     expect(titleElement()?.className).toContain("text-lg")
   })
 
+  it("ne monte qu'un seul flux à la fois", async () => {
+    window.history.replaceState(null, "", "/?open=login")
+    renderDialogs()
+    await flush()
+    rerender()
+
+    expect(document.querySelector("#name")).toBeNull()
+    expect(
+      document.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.textContent
+    ).toContain("Se connecter")
+
+    window.history.replaceState(null, "", "/?open=signup")
+    rerender()
+    await flush()
+
+    expect(document.querySelector("#name")).not.toBeNull()
+    expect(
+      document.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.textContent
+    ).toContain("Créer mon compte")
+  })
+
   describe("Connexion", () => {
     it("opens from the provider, writes ?open=login, and closes on Escape", async () => {
       renderDialogs({ harness: <Harness /> })

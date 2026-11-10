@@ -168,3 +168,16 @@ la fonction se contente de retirer ces paramètres de l'adresse de la page.
 
 La surface du contrôleur compte donc sept membres : les cinq du corps, l'e-mail de préremplissage, et
 l'adresse de page sans paramètres d'authentification.
+
+## Amendement — le panneau remet l'adresse de la page à son flux (#973)
+
+L'amendement du #484 disait que `usePageAddressWithoutAuthParams` était consommée par
+`components/auth/use-sign-in-flow.ts`. La spec #973 a retiré au flux de Connexion l'import du contrôleur :
+le panneau (`components/auth/auth-dialog.tsx`) lit désormais les trois valeurs du contrôleur — Destination,
+adresse de la page et adresse de retour d'un échec social — une fois, et les remet à son flux en
+paramètres. Le flux ne lit plus le seam lui-même.
+
+Ce que l'amendement ne change pas : le contrôleur reste le seul lecteur et le seul écrivain du Lien de
+connexion ; la septième lecture reste une lecture dérivée, sans second canal d'écriture ; ADR-0001 et
+les invariants du corps tiennent. Seul le consommateur de la lecture a bougé, du flux vers le panneau
+qui le compose.

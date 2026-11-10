@@ -50,7 +50,7 @@ function headingForDestination(
 
 const OTP_TITLE = "Vérifiez votre e-mail"
 
-const ENTETES: Record<
+const TEXTES: Record<
   AuthDialogName,
   {
     defaultTitle: string
@@ -88,27 +88,27 @@ function AuthDialogHeader({
   destination: string | null
   onSwap: () => void
 }) {
-  const entete = ENTETES[dialog]
+  const textes = TEXTES[dialog]
   const contextualTitle = headingForDestination(dialog, destination)
   const isOtp = step === "otp"
 
   return (
     <DialogHeader>
       <DialogTitle className="text-lg">
-        {isOtp ? OTP_TITLE : (contextualTitle ?? entete.defaultTitle)}
+        {isOtp ? OTP_TITLE : (contextualTitle ?? textes.defaultTitle)}
       </DialogTitle>
       <DialogDescription>
         {isOtp ? (
-          entete.otpDescription(email)
+          textes.otpDescription(email)
         ) : (
           <>
-            {entete.swapPrefix}{" "}
+            {textes.swapPrefix}{" "}
             <button
               type="button"
               onClick={onSwap}
               className="underline underline-offset-4 hover:text-primary"
             >
-              {entete.swapLabel}
+              {textes.swapLabel}
             </button>
           </>
         )}

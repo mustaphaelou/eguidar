@@ -29,7 +29,9 @@ appelant de production ne possède.
   seconde application de la forme qu'ADR-0018 a choisie pour les mutations du Panier : un test passe une
   doublure en mémoire (`test/port-authentification.ts`, à côté de celle du Panier), aucun appel de
   production n'en passe. Le refus traverse le port dans sa forme actuelle (`code`, `message`) : la
-  traduction en copie reste au flux, qui la porte déjà.
+  traduction en copie reste au flux, qui la porte déjà. **La Réinitialisation est l'exception nommée** :
+  `useForgotPasswordFlow` appelle l'échange de code sans port et garde l'adaptateur réel — il a déjà la
+  forme cible et n'est pas migré.
 
 - **La Destination post-connexion est une entrée, pas une lecture.** Le flux de Connexion reçoit la
   Destination, l'adresse de la page et l'adresse de retour d'une Connexion sociale échouée en paramètres,
@@ -91,8 +93,9 @@ appelant de production ne possède.
   l'aller-retour du code pour l'Inscription.
 
 - **Un seul flux monté à la fois.** La composition de `components/auth/auth-dialog.tsx` ne monte qu'une
-  pièce par modale, chacune dans son `DialogContent` ; les suites de la modale n'atteignent jamais les
-  deux flux ensemble.
+  pièce par modale, chacune dans son `DialogContent`. Tenue par
+  `components/auth/auth-dialog.test.tsx` — « ne monte qu'un seul flux à la fois » : la modale ouverte
+  à la Connexion ne rend ni le champ `name` ni le bouton de l'Inscription, et réciproquement.
 
 - **Le panneau est une composition sans état.** Il ne stocke plus ni étape ni adresse ; il porte les
   titres, les descriptions et la bascule. Tenue par `components/auth/auth-dialog.tsx` (aucun état de
