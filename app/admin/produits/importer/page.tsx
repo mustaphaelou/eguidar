@@ -9,9 +9,10 @@ import {
   televerserLeFichierAction,
   verifierLeLotAction,
 } from "@/app/admin/produits/importer/actions"
-import { lireLeLot } from "@/lib/use-cases/import-produits"
+import { lireLeLot, listerLesLots } from "@/lib/use-cases/import-produits"
 import { EtapesImport } from "./etapes-import"
 import { FormulaireImport } from "./formulaire-import"
+import { HistoriqueImports } from "./historique-imports"
 import { PanneauLotImport } from "./panneau-lot-import"
 
 export const metadata: Metadata = {
@@ -69,7 +70,10 @@ async function ImportContent({
 }) {
   const raw = await searchParamsPromise
   const lotId = premierParametre(raw.lot)
-  const lot = lotId === undefined ? null : await lireLeLot(lotId)
+  const [lot, lots] = await Promise.all([
+    lotId === undefined ? null : lireLeLot(lotId),
+    listerLesLots(),
+  ])
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,6 +95,8 @@ async function ImportContent({
       ) : null}
 
       <FormulaireImport action={televerserLeFichierAction} />
+
+      <HistoriqueImports lots={lots} />
     </div>
   )
 }

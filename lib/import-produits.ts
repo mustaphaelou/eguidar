@@ -80,6 +80,21 @@ export const LIBELLES_STATUT_LOT_IMPORT: Readonly<
   echoue: "Échoué",
 })
 
+/**
+ * Le statut qu'un rapport affiche : l'indexation est un effet après commit,
+ * donc un Lot dont les écritures dépassent les indexations ne se dit jamais
+ * « terminé », même si la base le porte encore.
+ */
+export function statutAfficheDuLot(lot: {
+  statut: StatutLotImport
+  ecrits: number
+  indexes: number
+}): StatutLotImport {
+  return lot.statut === "termine" && lot.indexes < lot.ecrits
+    ? "en_cours"
+    : lot.statut
+}
+
 export const STATUTS_LIGNE_IMPORT = [
   "a_creer",
   "a_modifier",
@@ -828,4 +843,43 @@ export function messageDAvertissement(
 /** Le modèle vierge : une seule ligne d'en-tête, BOM compris pour Excel. */
 export function contenuDuModele(): string {
   return `\uFEFF${COLONNES_IMPORT.join(",")}\r\n`
+}
+
+/** Une Ligne refusée, prête pour le CSV : de quoi corriger le tableur. */
+export interface RefusCsvImport {
+  /** Le numéro de la ligne physique du fichier. */
+  numero: number
+  /** Le code ASCII du refus, tel que persisté. */
+  code: string
+  /** Le message français exact montré dans le rapport. */
+  message: string
+  /** Les cellules brutes, dans les colonnes connues du fichier. */
+  cellules: CellulesImport
+}
+
+function celluleCsv(valeur: string): string {
+  return /[",\r\n]/.test(valeur) ? `"${valeur.replaceAll('"', '""')}"` : valeur
+}
+
+/**
+ * Le CSV des refus : une ligne d'en-tête, puis une ligne par Ligne refusée —
+ * numéro, code, message français, et les neuf cellules brutes du fichier. Le
+ * BOM et les fins de ligne CRLF sont ceux du modèle, pour qu'un tableur ouvre
+ * le fichier sans réglage.
+ */
+export function serialiserLesRefusCsv(
+  refus: readonly RefusCsvImport[]
+): string {
+  const lignes = [
+    ["numero", "code", "message", ...COLONNES_IMPORT],
+    ...refus.map((ligne) => [
+      String(ligne.numero),
+      ligne.code,
+      ligne.message,
+      ...COLONNES_IMPORT.map((colonne) => ligne.cellules[colonne] ?? ""),
+    ]),
+  ]
+  return `\uFEFF${lignes
+    .map((ligne) => ligne.map(celluleCsv).join(","))
+    .join("\r\n")}\r\n`
 }

@@ -15,6 +15,8 @@ import {
   messageDuRefus,
   normaliserLeNom,
   ressembleÀDuHtml,
+  serialiserLesRefusCsv,
+  statutAfficheDuLot,
   type AvertissementImport,
   type ColonneImport,
   type EnTeteImport,
@@ -456,6 +458,68 @@ describe("contenuDuModele", () => {
   })
 })
 
+describe("serialiserLesRefusCsv", () => {
+  it("rend une ligne d'en-tête puis une ligne par refus, suivie des neuf cellules brutes", () => {
+    const csv = serialiserLesRefusCsv([
+      {
+        numero: 2,
+        code: "prix_invalide",
+        message: "Le prix de la Variante n'est pas un montant valide.",
+        cellules: {
+          slug: "chaise",
+          variant_sku: "CHAISE-01",
+          variant_price: "douze",
+        },
+      },
+      {
+        numero: 3,
+        code: "slug_invalide",
+        message: "Le slug est invalide.",
+        cellules: { slug: "Chaise!", variant_sku: "CHAISE-02" },
+      },
+    ])
+
+    const lignes = sansBom(csv).split("\r\n")
+
+    expect(csv.startsWith("\uFEFF")).toBe(true)
+    expect(lignes.at(-1)).toBe("")
+    expect(lignes[0]).toBe(`numero,code,message,${COLONNES_IMPORT.join(",")}`)
+    expect(lignes[1]).toBe(
+      "2,prix_invalide,Le prix de la Variante n'est pas un montant valide.,chaise,,,,,CHAISE-01,,douze,"
+    )
+    expect(lignes[2]).toBe(
+      "3,slug_invalide,Le slug est invalide.,Chaise!,,,,,CHAISE-02,,,"
+    )
+  })
+
+  it("cite et double les cellules qui portent une virgule, un guillemet ou un retour à la ligne", () => {
+    const csv = serialiserLesRefusCsv([
+      {
+        numero: 5,
+        code: "produit_en_conflit",
+        message:
+          'Le champ « name » a, dit-il, deux valeurs "différentes" sur cette Ligne.',
+        cellules: {
+          slug: "chaise",
+          name: 'Chaise, "grand" modèle\nligne 2',
+          variant_sku: "CHAISE-01",
+        },
+      },
+    ])
+
+    expect(sansBom(csv)).toBe(
+      `numero,code,message,${COLONNES_IMPORT.join(",")}\r\n` +
+        '5,produit_en_conflit,"Le champ « name » a, dit-il, deux valeurs ""différentes"" sur cette Ligne.",chaise,"Chaise, ""grand"" modèle\nligne 2",,,,CHAISE-01,,,\r\n'
+    )
+  })
+
+  it("garde l'en-tête seul quand aucune Ligne n'est refusée", () => {
+    expect(sansBom(serialiserLesRefusCsv([]))).toBe(
+      `numero,code,message,${COLONNES_IMPORT.join(",")}\r\n`
+    )
+  })
+})
+
 describe("les libellés français des statuts", () => {
   it("traduit les six statuts du Lot", () => {
     expect(LIBELLES_STATUT_LOT_IMPORT).toEqual({
@@ -466,6 +530,18 @@ describe("les libellés français des statuts", () => {
       termine: "Terminé",
       echoue: "Échoué",
     })
+  })
+
+  it("ne dit jamais terminé un Lot dont l'indexation est en retard", () => {
+    expect(
+      statutAfficheDuLot({ statut: "termine", ecrits: 2, indexes: 2 })
+    ).toBe("termine")
+    expect(
+      statutAfficheDuLot({ statut: "termine", ecrits: 2, indexes: 1 })
+    ).toBe("en_cours")
+    expect(
+      statutAfficheDuLot({ statut: "partiel", ecrits: 2, indexes: 1 })
+    ).toBe("partiel")
   })
 
   it("traduit les six statuts de la Ligne", () => {
