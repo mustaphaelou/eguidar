@@ -18,17 +18,13 @@ export type SignInFlow = ReturnType<typeof useSignInFlow>
 
 export function useSignInFlow(
   {
-    step,
-    email,
-    onStepChange,
+    email: adresseDeDépart,
     onSuccess,
     destination,
     pageAddress,
     socialReturnAddress,
   }: {
-    step: AuthFlowStep
     email: string
-    onStepChange: (step: AuthFlowStep, email: string) => void
     onSuccess?: () => void
     destination: string | null
     pageAddress: string
@@ -36,6 +32,8 @@ export function useSignInFlow(
   },
   port: PortAuthentification = portAuthentificationClient
 ) {
+  const [step, setStep] = useState<AuthFlowStep>("form")
+  const [email, setEmail] = useState(adresseDeDépart)
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -66,7 +64,7 @@ export function useSignInFlow(
       })
       if (result.error) {
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
-          onStepChange("otp", email)
+          setStep("otp")
           return
         }
         setError(resolveAuthRefusal(result.error, captcha.reset))
@@ -97,12 +95,8 @@ export function useSignInFlow(
     onSuccess?.()
   }
 
-  function setEmail(value: string) {
-    onStepChange(step, value)
-  }
-
   function backToForm() {
-    onStepChange("form", email)
+    setStep("form")
     setError(null)
   }
 
