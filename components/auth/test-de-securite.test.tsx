@@ -253,4 +253,40 @@ describe("useTestDeSecurite", () => {
     expect(renderMock).toHaveBeenCalledTimes(2)
     expect(scriptTags()).toHaveLength(1)
   })
+
+  it("dit que le Test de sécurité n'a pas pu se charger quand le script ne charge pas, puis le repose au réessai", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+
+    await render(<Harness />)
+    const premier = document.getElementById("turnstile-script")!
+    await act(async () => {
+      premier.dispatchEvent(new Event("error"))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).toContain(
+      "Impossible de charger le test de sécurité."
+    )
+    expect(ready()).toBe("false")
+
+    const reessayer = [...container.querySelectorAll("button")].find(
+      (bouton) => bouton.textContent === "Réessayer"
+    )
+    expect(reessayer, "le bouton Réessayer est offert").toBeDefined()
+
+    await act(async () => {
+      reessayer!.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const second = document.getElementById("turnstile-script")
+    expect(second, "le script est reposé").not.toBeNull()
+    expect(second).not.toBe(premier)
+
+    await act(async () => {
+      second!.dispatchEvent(new Event("load"))
+    })
+
+    expect(renderMock).toHaveBeenCalledTimes(1)
+  })
 })

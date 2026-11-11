@@ -49,6 +49,18 @@ function TestSecuriteWidget({
   const onTokenChangeRef = useRef(onTokenChange)
 
   const [loaded, setLoaded] = useState(false)
+  const [scriptAttempt, setScriptAttempt] = useState(0)
+
+  /**
+   * Une requête qui n'atteint pas le serveur ne laisse aucun jeton : sans ce
+   * retrait, le bouton resterait désactivé sans un mot. Le script est retiré
+   * pour que l'effet le repose et rouvre une chance au Client.
+   */
+  const relancerScript = useCallback(() => {
+    document.getElementById("turnstile-script")?.remove()
+    setLoaded(false)
+    setScriptAttempt((essai) => essai + 1)
+  }, [])
 
   const resetWidget = useCallback(() => {
     if (!widgetIdRef.current || !window.turnstile) return
@@ -67,22 +79,36 @@ function TestSecuriteWidget({
   })
 
   useEffect(() => {
+    const marquerCharge = () => setLoaded(true)
+    const marquerInjoignable = () => onStatusChange("error")
     const existing = document.getElementById(
       "turnstile-script"
     ) as HTMLScriptElement | null
     if (existing) {
-      if (window.turnstile) queueMicrotask(() => setLoaded(true))
-      else existing.addEventListener("load", () => setLoaded(true))
-      return
+      if (window.turnstile) {
+        queueMicrotask(marquerCharge)
+        return
+      }
+      existing.addEventListener("load", marquerCharge)
+      existing.addEventListener("error", marquerInjoignable)
+      return () => {
+        existing.removeEventListener("load", marquerCharge)
+        existing.removeEventListener("error", marquerInjoignable)
+      }
     }
     const script = document.createElement("script")
     script.id = "turnstile-script"
     script.src = SCRIPT_SRC
     script.async = true
     script.defer = true
-    script.addEventListener("load", () => setLoaded(true))
+    script.addEventListener("load", marquerCharge)
+    script.addEventListener("error", marquerInjoignable)
     document.head.appendChild(script)
-  }, [])
+    return () => {
+      script.removeEventListener("load", marquerCharge)
+      script.removeEventListener("error", marquerInjoignable)
+    }
+  }, [onStatusChange, scriptAttempt])
 
   useEffect(() => {
     if (!loaded || !containerRef.current || !window.turnstile) return
@@ -115,6 +141,10 @@ function TestSecuriteWidget({
 
   function retry() {
     onStatusChange("idle")
+    if (!loaded) {
+      relancerScript()
+      return
+    }
     resetWidget()
   }
 
