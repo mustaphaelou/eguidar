@@ -1,16 +1,19 @@
-import { etapeDe, ETAPES } from "@/lib/emails/etapes"
 import { html, type HtmlSûr } from "@/lib/emails/html"
+import { etapeDe, ETAPES } from "@/lib/emails/etapes"
 import {
   COULEUR_ACCENT,
-  COULEUR_BORDURE,
-  COULEUR_CARTE,
+  COULEUR_BLANC,
+  COULEUR_FILET,
   COULEUR_FOND,
+  COULEUR_NOIR,
   COULEUR_TEXTE,
   COULEUR_TEXTE_ATTÉNUÉ,
-  LARGEUR_CARTE,
+  LARGEUR_LETTRE,
+  MOT_SYMBOLE,
   PILE_DE_POLICES,
+  PILE_DE_POLICES_MONO,
 } from "@/lib/emails/marque"
-import { piedLettre } from "@/lib/emails/pied"
+import { piedLettre, urlAbsolue } from "@/lib/emails/pied"
 import { site } from "@/lib/site"
 import type { OrderStatus } from "@/lib/statut-de-commande"
 
@@ -39,7 +42,8 @@ export interface Lettre {
 
 function blocTitre(texte: string): HtmlSûr {
   return html`<h1
-    style="margin: 0 0 16px; font-family: ${PILE_DE_POLICES}; font-size: 24px; line-height: 32px; font-weight: 600; color: ${COULEUR_TEXTE};"
+    class="eguidar-titre"
+    style="margin: 0 0 18px; font-family: ${PILE_DE_POLICES}; font-size: 34px; line-height: 40px; font-weight: 600; letter-spacing: -0.025em; color: ${COULEUR_TEXTE};"
   >
     ${texte}
   </h1>`
@@ -47,51 +51,84 @@ function blocTitre(texte: string): HtmlSûr {
 
 function blocParagraphe(texte: string): HtmlSûr {
   return html`<p
-    style="margin: 0 0 16px; font-family: ${PILE_DE_POLICES}; font-size: 15px; line-height: 24px; color: ${COULEUR_TEXTE};"
+    style="margin: 0 0 28px; font-family: ${PILE_DE_POLICES}; font-size: 18px; line-height: 28px; color: ${COULEUR_TEXTE};"
   >
     ${texte}
   </p>`
 }
 
-function styleValeurLigne(ligne: LigneDeLettre): string {
-  const poids = ligne.kind === "total" ? " font-weight: 600;" : ""
-  const couleur =
-    ligne.tone === "offered"
-      ? COULEUR_ACCENT
-      : ligne.tone === "muted"
-        ? COULEUR_TEXTE_ATTÉNUÉ
-        : COULEUR_TEXTE
-  return `padding: 6px 0; text-align: right; white-space: nowrap; color: ${couleur};${poids}`
+function couleurValeur(ligne: LigneDeLettre): string {
+  if (ligne.tone === "offered") return COULEUR_ACCENT
+  if (ligne.tone === "muted") return COULEUR_TEXTE_ATTÉNUÉ
+  return COULEUR_TEXTE
 }
 
-function blocLignes(lignes: readonly LigneDeLettre[]): HtmlSûr {
+function styleValeurLigne(ligne: LigneDeLettre): string {
+  const taille =
+    ligne.kind === "total" ? "font-size: 17px;" : "font-size: 16px;"
+  const poids = ligne.kind === "total" ? "font-weight: 600;" : ""
+  return `${taille} ${poids} text-align: right; vertical-align: top; font-variant-numeric: tabular-nums; color: ${couleurValeur(ligne)};`
+}
+
+function styleTableLignes(options: {
+  ouvreLeGroupe?: boolean
+  fermeLeGroupe?: boolean
+}): string {
+  return [
+    "width: 100%",
+    options.fermeLeGroupe === false ? "margin: 0" : "margin: 0 0 24px",
+    "border-collapse: collapse",
+    options.ouvreLeGroupe === false
+      ? ""
+      : `border-top: 1px solid ${COULEUR_FILET}`,
+    `border-bottom: 1px solid ${COULEUR_FILET}`,
+  ]
+    .filter((declaration) => declaration !== "")
+    .join("; ")
+}
+
+function blocLignes(
+  lignes: readonly LigneDeLettre[],
+  options: { ouvreLeGroupe?: boolean; fermeLeGroupe?: boolean } = {}
+): HtmlSûr {
   if (lignes.length === 0) return html``
-  const lignesRendues = lignes.map(
-    (ligne) =>
-      html`<tr>
-        <td
-          style="padding: 6px 0; font-family: ${PILE_DE_POLICES}; font-size: 14px; line-height: 22px; color: ${COULEUR_TEXTE};"
-        >
-          ${ligne.label}
-          ${
-            ligne.note
-              ? html`<span
-                  style="display: block; font-size: 12px; line-height: 18px; color: ${COULEUR_TEXTE_ATTÉNUÉ};"
-                  >${ligne.note}</span
-                >`
-              : html``
-          }
-        </td>
-        <td
-          style="font-family: ${PILE_DE_POLICES}; font-size: 14px; line-height: 22px; ${styleValeurLigne(ligne)}"
-        >
-          ${ligne.value}
-        </td>
-      </tr>`
-  )
+  const lignesRendues = lignes.map((ligne, index) => {
+    const dernier = index === lignes.length - 1
+    const total = ligne.kind === "total"
+    const suivantTotal = lignes[index + 1]?.kind === "total"
+    const filetBas =
+      dernier || suivantTotal
+        ? ""
+        : `border-bottom: 1px solid ${COULEUR_FILET};`
+    const filetHaut = total ? `border-top: 1px solid ${COULEUR_TEXTE};` : ""
+    const rembourrage = total ? "16px 0" : "14px 0"
+    const poidsLibellé = total ? "600" : ligne.note ? "500" : "400"
+    return html`<tr>
+      <td
+        style="${filetBas} ${filetHaut} padding: ${rembourrage}; font-family: ${PILE_DE_POLICES}; font-size: 16px; line-height: 24px; vertical-align: top; color: ${COULEUR_TEXTE};"
+      >
+        <span style="font-weight: ${poidsLibellé};">${ligne.label}</span>
+        ${
+          ligne.note
+            ? html`<span
+                style="display: block; margin-top: 2px; font-size: 13px; line-height: 19px; font-weight: 400; color: ${COULEUR_TEXTE_ATTÉNUÉ};"
+                >${ligne.note}</span
+              >`
+            : html``
+        }
+      </td>
+      <td
+        style="${filetBas} ${filetHaut} ${styleValeurLigne(ligne)} padding: ${rembourrage}; font-family: ${PILE_DE_POLICES}; line-height: 24px;"
+      >
+        ${ligne.value}
+      </td>
+    </tr>`
+  })
   return html`<table
     role="presentation"
-    style="width: 100%; margin: 0 0 16px; border-collapse: collapse;"
+    cellpadding="0"
+    cellspacing="0"
+    style="${styleTableLignes(options)};"
   >
     <tbody>
       ${lignesRendues}
@@ -101,35 +138,48 @@ function blocLignes(lignes: readonly LigneDeLettre[]): HtmlSûr {
 
 function blocEncart(encart: { titre?: string; texte?: string }): HtmlSûr {
   if (!encart.titre && !encart.texte) return html``
-  return html`<div
-    style="margin: 0 0 20px; padding: 14px 16px; background: ${COULEUR_FOND}; border-left: 4px solid ${COULEUR_ACCENT}; border-radius: 8px; font-family: ${PILE_DE_POLICES};"
+  return html`<table
+    role="presentation"
+    cellpadding="0"
+    cellspacing="0"
+    width="100%"
+    style="width: 100%; margin: 0 0 24px; border-collapse: collapse;"
   >
-    ${
-      encart.titre
-        ? html`<p
-            style="margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; color: ${COULEUR_TEXTE};"
-          >
-            ${encart.titre}
-          </p>`
-        : html``
-    }
-    ${
-      encart.texte
-        ? html`<p
-            style="margin: 0; font-size: 14px; line-height: 22px; color: ${COULEUR_TEXTE};"
-          >
-            ${encart.texte}
-          </p>`
-        : html``
-    }
-  </div>`
+    <tbody>
+      <tr>
+        <td
+          style="padding: 18px 20px; border-radius: 14px; background: ${COULEUR_FOND}; font-family: ${PILE_DE_POLICES};"
+        >
+          ${
+            encart.titre
+              ? html`<p
+                  style="margin: 0 0 3px; font-size: 15px; line-height: 22px; font-weight: 600; color: ${COULEUR_TEXTE};"
+                >
+                  ${encart.titre}
+                </p>`
+              : html``
+          }
+          ${
+            encart.texte
+              ? html`<p
+                  style="margin: 0; font-size: 15px; line-height: 23px; color: ${COULEUR_TEXTE};"
+                >
+                  ${encart.texte}
+                </p>`
+              : html``
+          }
+        </td>
+      </tr>
+    </tbody>
+  </table>`
 }
 
 function blocBouton(bouton: { libellé: string; url: string }): HtmlSûr {
-  return html`<div style="margin: 24px 0; text-align: center;">
+  return html`<div style="margin: 32px 0 4px;">
     <a
       href="${bouton.url}"
-      style="display: inline-block; padding: 12px 28px; border-radius: 999px; background: ${COULEUR_ACCENT}; color: ${COULEUR_CARTE}; font-family: ${PILE_DE_POLICES}; font-size: 15px; line-height: 20px; font-weight: 600; text-decoration: none;"
+      class="eguidar-bouton"
+      style="display: inline-block; padding: 14px 28px; border-radius: 980px; background: ${COULEUR_ACCENT}; color: ${COULEUR_BLANC}; font-family: ${PILE_DE_POLICES}; font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; text-decoration: none;"
       >${bouton.libellé}</a
     >
   </div>`
@@ -142,19 +192,23 @@ function blocEtapes(statut: OrderStatus): HtmlSûr {
     const numéro = index + 1
     const atteinte = numéro === étape
     const franchie = numéro < étape
-    const couleur =
-      atteinte || franchie ? COULEUR_ACCENT : COULEUR_TEXTE_ATTÉNUÉ
+    const couleurFilet = atteinte || franchie ? COULEUR_ACCENT : COULEUR_FILET
+    const couleurTexte = atteinte ? COULEUR_TEXTE : COULEUR_TEXTE_ATTÉNUÉ
     const poids = atteinte ? " font-weight: 600;" : ""
     return html`<td
       ${atteinte ? html`aria-current="step"` : html``}
-      style="width: 25%; text-align: center; font-family: ${PILE_DE_POLICES}; font-size: 12px; line-height: 18px; color: ${couleur};${poids}"
+      class="eguidar-etape"
+      style="width: 25%; padding: 14px 6px 0 0; border-top: 2px solid ${couleurFilet}; vertical-align: top; text-align: left; font-family: ${PILE_DE_POLICES}; font-size: 11px; line-height: 16px; letter-spacing: 0.06em; text-transform: uppercase; color: ${couleurTexte};${poids}"
     >
       ${libellé}
     </td>`
   })
   return html`<table
     role="presentation"
-    style="width: 100%; margin: 0 0 24px; border-collapse: collapse; table-layout: fixed;"
+    cellpadding="0"
+    cellspacing="0"
+    class="eguidar-etapes"
+    style="width: 100%; margin: 4px 0 30px; border-collapse: collapse; table-layout: fixed;"
   >
     <tbody>
       <tr>
@@ -166,10 +220,25 @@ function blocEtapes(statut: OrderStatus): HtmlSûr {
 
 function blocCode(code: string): HtmlSûr {
   return html`<div
-    style="margin: 0 0 24px; padding: 18px 12px; border-radius: 8px; background: ${COULEUR_FOND}; text-align: center; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: 8px; color: ${COULEUR_TEXTE};"
+    style="margin: 0 0 24px; padding: 22px 12px; border-radius: 14px; background: ${COULEUR_FOND}; text-align: center; font-family: ${PILE_DE_POLICES_MONO}; font-size: 38px; line-height: 46px; font-weight: 600; letter-spacing: 10px; color: ${COULEUR_TEXTE};"
   >
     ${code}
   </div>`
+}
+
+/**
+ * Les tableaux de lignes qui se suivent se lisent comme un seul : le premier
+ * ouvre le filet, les suivants s'y raccordent sans gouttière, le dernier porte
+ * l'écart. Le récapitulatif garde ainsi la forme d'une seule table.
+ */
+function rendreBlocs(blocs: readonly Bloc[]): HtmlSûr {
+  return html`${blocs.map((bloc, index) => {
+    if (bloc.type !== "lignes") return rendreBloc(bloc)
+    return blocLignes(bloc.lignes, {
+      ouvreLeGroupe: blocs[index - 1]?.type !== "lignes",
+      fermeLeGroupe: blocs[index + 1]?.type !== "lignes",
+    })
+  })}`
 }
 
 function rendreBloc(bloc: Bloc): HtmlSûr {
@@ -191,6 +260,75 @@ function rendreBloc(bloc: Bloc): HtmlSûr {
   }
 }
 
+function enteteLettre(noteEnTête: string): HtmlSûr {
+  return html`<table
+    role="presentation"
+    cellpadding="0"
+    cellspacing="0"
+    width="100%"
+    bgcolor="${COULEUR_NOIR}"
+    style="width: 100%; border-collapse: collapse; background: ${COULEUR_NOIR};"
+  >
+    <tbody>
+      <tr>
+        <td align="center" style="padding: 0;">
+          <table
+            role="presentation"
+            cellpadding="0"
+            cellspacing="0"
+            width="${LARGEUR_LETTRE}"
+            class="eguidar-contenu"
+            style="width: 100%; max-width: ${LARGEUR_LETTRE}; border-collapse: collapse;"
+          >
+            <tbody>
+              <tr>
+                <td
+                  class="eguidar-entete"
+                  height="140"
+                  style="height: 140px; padding: 0 48px; vertical-align: middle;"
+                >
+                  <table
+                    role="presentation"
+                    cellpadding="0"
+                    cellspacing="0"
+                    width="100%"
+                    style="width: 100%; border-collapse: collapse;"
+                  >
+                    <tbody>
+                      <tr>
+                        <td
+                          align="left"
+                          style="font-family: ${PILE_DE_POLICES}; font-size: 28px; line-height: 28px; font-weight: 600; letter-spacing: -0.035em; color: ${COULEUR_BLANC};"
+                        >
+                          <a
+                            href="${urlAbsolue("/")}"
+                            style="color: ${COULEUR_BLANC}; text-decoration: none;"
+                            >${MOT_SYMBOLE}</a
+                          >
+                        </td>
+                        ${
+                          noteEnTête
+                            ? html`<td
+                                align="right"
+                                style="font-family: ${PILE_DE_POLICES}; font-size: 10px; line-height: 14px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.56);"
+                              >
+                                ${noteEnTête}
+                              </td>`
+                            : html``
+                        }
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    </tbody>
+  </table>`
+}
+
 export function rendreLettre(lettre: Lettre): string {
   const blocTitreLettre = lettre.blocs.find((bloc) => bloc.type === "titre")
   const titre =
@@ -208,48 +346,86 @@ export function rendreLettre(lettre: Lettre): string {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
         <title>${titre}</title>
         <style>
           @media only screen and (max-width: 600px) {
-            .eguidar-carte {
-              width: 100% !important;
+            .eguidar-entete {
+              height: 104px !important;
+              padding-left: 24px !important;
+              padding-right: 24px !important;
+            }
+            .eguidar-corps {
+              padding-left: 24px !important;
+              padding-right: 24px !important;
+              padding-top: 34px !important;
+            }
+            .eguidar-titre {
+              font-size: 28px !important;
+              line-height: 34px !important;
+            }
+            .eguidar-pied {
+              padding-left: 24px !important;
+              padding-right: 24px !important;
+            }
+            .eguidar-etape {
+              padding-right: 4px !important;
+              font-size: 10px !important;
+              letter-spacing: 0.04em !important;
+            }
+            .eguidar-bouton {
+              display: block !important;
+              box-sizing: border-box !important;
+              text-align: center !important;
             }
           }
         </style>
       </head>
-      <body style="margin: 0; padding: 0; background: ${COULEUR_FOND};">
+      <body
+        style="margin: 0; padding: 0; background: ${COULEUR_BLANC}; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;"
+      >
         <div
           style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent; font-size: 1px;"
         >
           ${préEnTête}
         </div>
-        <div style="padding: 24px 12px;">
-          <div
-            class="eguidar-carte"
-            style="width: ${LARGEUR_CARTE}; max-width: 100%; margin: 0 auto; border: 1px solid ${COULEUR_BORDURE}; border-radius: 16px; background: ${COULEUR_CARTE}; font-family: ${PILE_DE_POLICES}; box-sizing: border-box;"
-          >
-            <div style="padding: 28px 32px 8px;">
-              <div
-                style="font-family: ${PILE_DE_POLICES}; font-size: 18px; line-height: 24px; font-weight: 600; color: ${COULEUR_TEXTE};"
-              >
-                ${site.legalName}
-              </div>
-              ${
-                noteEnTête
-                  ? html`<div
-                      style="margin-top: 6px; font-family: ${PILE_DE_POLICES}; font-size: 13px; line-height: 20px; color: ${COULEUR_TEXTE_ATTÉNUÉ};"
-                    >
-                      ${noteEnTête}
-                    </div>`
-                  : html``
-              }
-            </div>
-            <div style="padding: 8px 32px 32px;">
-              ${lettre.blocs.map(rendreBloc)}
-            </div>
-          </div>
-          ${piedLettre()}
-        </div>
+        ${enteteLettre(noteEnTête)}
+        <table
+          role="presentation"
+          cellpadding="0"
+          cellspacing="0"
+          width="100%"
+          bgcolor="${COULEUR_BLANC}"
+          style="width: 100%; border-collapse: collapse; background: ${COULEUR_BLANC};"
+        >
+          <tbody>
+            <tr>
+              <td align="center" style="padding: 0;">
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  width="${LARGEUR_LETTRE}"
+                  class="eguidar-contenu"
+                  style="width: 100%; max-width: ${LARGEUR_LETTRE}; border-collapse: collapse;"
+                >
+                  <tbody>
+                    <tr>
+                      <td
+                        class="eguidar-corps"
+                        style="padding: 52px 48px 40px; font-family: ${PILE_DE_POLICES};"
+                      >
+                        ${rendreBlocs(lettre.blocs)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        ${piedLettre()}
       </body>
     </html>`.html
 }
