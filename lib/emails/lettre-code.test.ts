@@ -65,8 +65,8 @@ describe("Lettre de code", () => {
     expect(payload.subject).toBe("Votre code de vérification Eguidar")
     expect(payload.to).toBe(destinataire)
     expect(payload.html).toContain("<!DOCTYPE html>")
-    expect(payload.html).toContain('class="eguidar-carte"')
-    expect(payload.html).toMatch(/>\s*Eguidar\s*</)
+    expect(payload.html).toContain('class="eguidar-contenu"')
+    expect(payload.html).toMatch(/>\s*eguidar\.\s*<\/a/)
     expect(payload.html).toContain(
       `Votre code de vérification Eguidar est ${code}.`
     )
