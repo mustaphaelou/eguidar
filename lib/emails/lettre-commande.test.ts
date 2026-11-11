@@ -474,8 +474,14 @@ describe("Le gabarit", () => {
 
     expect(document).not.toContain("<ol")
     expect(document).not.toContain("<li")
-    expect(document.match(/<td/g)).toHaveLength(4)
-    expect(document.match(/role="presentation"/g)).toHaveLength(1)
+    const début = document.indexOf('class="eguidar-etapes"')
+    const ouverture = document.lastIndexOf("<table", début)
+    const tableEtapes = document.slice(
+      ouverture,
+      document.indexOf("</table>", ouverture)
+    )
+    expect(tableEtapes.match(/<td/g)).toHaveLength(4)
+    expect(tableEtapes.match(/role="presentation"/g)).toHaveLength(1)
     const positions = ÉTAPES_ATTENDUES.map((libellé) =>
       document.indexOf(libellé)
     )

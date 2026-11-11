@@ -122,10 +122,10 @@ function composerLettre(
   if (articles.length > 0) {
     blocs.push({ type: "lignes", lignes: articles })
   }
-  blocs.push({ type: "lignes", lignes: récapitulatif })
   if (livraison.length > 0) {
     blocs.push({ type: "lignes", lignes: livraison })
   }
+  blocs.push({ type: "lignes", lignes: récapitulatif })
   const paiement = annoncePaiement(entete.statut)
   if (paiement) {
     blocs.push({ type: "paragraphe", texte: PHRASE_PAIEMENT })
@@ -154,8 +154,11 @@ function composerLettre(
     [`Commande ${shortOrderId(snapshot.orderId)}`],
     [entete.introductionTexte],
     encartTexte,
-    [...lignesEnTexte(articles), ...lignesEnTexte(récapitulatif)],
-    lignesEnTexte(livraison),
+    [
+      ...lignesEnTexte(articles),
+      ...lignesEnTexte(livraison),
+      ...lignesEnTexte(récapitulatif),
+    ],
     paiement ? [PHRASE_PAIEMENT] : [],
     [`${LIBELLÉ_BOUTON} : ${urlAbsolue("/commandes")}`],
     lignesPiedTexte(),
@@ -171,7 +174,7 @@ export function messageCommandePlacee(
 ): MessageEmail {
   const introduction = "Merci pour votre commande ! Nous l'avons bien reçue."
   const corps = composerLettre(snapshot, {
-    titre: "Merci pour votre commande",
+    titre: "Commande reçue",
     paragraphe: introduction,
     introductionTexte: introduction,
   })
