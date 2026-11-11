@@ -309,7 +309,11 @@ describe("admin dashboard stats", () => {
       const aujourdHui = new Date(maintenant)
       const hier = jourLocal(1)
       const premierJour = jourLocal(29)
-      const horsFenetre = jourLocal(30)
+      // Le graphique compte des jours calendaires, le KPI somme les trente
+      // derniers jours glissants (spec #84). Un ordre au jour 30 à midi tombe
+      // dans cette fenêtre pour tout lancement avant midi ; le jour 31 le tient
+      // hors des deux fenêtres, quelle que soit l'heure du test.
+      const horsFenetre = jourLocal(31)
 
       await createSeedOrderAt("delivered", aujourdHui, 900, 100, 1000)
       await createSeedOrderAt("delivered", hier, 1800, 200, 2000)
