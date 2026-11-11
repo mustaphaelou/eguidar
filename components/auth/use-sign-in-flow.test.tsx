@@ -2,6 +2,7 @@
 import { act } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { MESSAGE_SERVEUR_INJOIGNABLE } from "@/components/auth/auth-form-glue"
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { ResultatAuthentification } from "@/components/auth/port-authentification"
@@ -157,6 +158,29 @@ describe("useSignInFlow", () => {
     expect(onSuccess).toHaveBeenCalled()
     expect(window.location.pathname).toBe("/")
     expect(courant().step).toBe("form")
+  })
+
+  it("shows a message when the sign-in request does not reach the server", async () => {
+    port.repondre = () => Promise.reject(new TypeError("Failed to fetch"))
+
+    rendreFlux()
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
+
+    await soumettre()
+
+    expect(courant().error).toBe(MESSAGE_SERVEUR_INJOIGNABLE)
+    expect(courant().step).toBe("form")
+    expect(courant().loading).toBe(false)
+  })
+
+  it("shows a message when the social sign-in request does not reach the server", async () => {
+    port.repondre = () => Promise.reject(new TypeError("Failed to fetch"))
+
+    rendreFlux()
+    await connexionSociale("google")
+
+    expect(courant().error).toBe(MESSAGE_SERVEUR_INJOIGNABLE)
   })
 
   it("shows the pending flag while the sign-in is in flight and clears it after", async () => {

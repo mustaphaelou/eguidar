@@ -2,7 +2,10 @@
 
 import { useState } from "react"
 
-import { translateAuthError } from "./auth-form-glue"
+import {
+  MESSAGE_SERVEUR_INJOIGNABLE,
+  translateAuthError,
+} from "./auth-form-glue"
 import { useOtpExchange } from "./verification-de-l-email"
 import { resetPasswordSchema } from "@/lib/auth-form-schemas"
 import { authClient } from "@/lib/client"
@@ -44,6 +47,8 @@ export function useForgotPasswordFlow() {
         return
       }
       setStep("success")
+    } catch {
+      setError(MESSAGE_SERVEUR_INJOIGNABLE)
     } finally {
       setLoading(false)
     }

@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { MESSAGE_SERVEUR_INJOIGNABLE } from "./auth-form-glue"
 import { authClient } from "@/lib/client"
 import { useForgotPasswordFlow } from "./use-forgot-password-flow"
 
@@ -271,6 +272,28 @@ describe("useForgotPasswordFlow", () => {
     await clickAndFlush(resetButton())
 
     expect(error()).toBe("Le code de vérification est invalide ou incorrect.")
+    expect(step()).toBe("otp")
+    expect(container.querySelector("[data-loading]")).toBeNull()
+  })
+
+  it("shows a message when the reset request does not reach the server", async () => {
+    mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
+      data: {},
+      error: null,
+    })
+    mockedAuthClient.emailOtp.resetPassword.mockRejectedValue(
+      new TypeError("Failed to fetch")
+    )
+
+    render(<Harness />)
+    await sendCode()
+    setInputValue(otpInput(), "123456")
+    setInputValue(passwordInput(), "MotDePasse!12345")
+    setInputValue(confirmPasswordInput(), "MotDePasse!12345")
+
+    await clickAndFlush(resetButton())
+
+    expect(error()).toBe(MESSAGE_SERVEUR_INJOIGNABLE)
     expect(step()).toBe("otp")
     expect(container.querySelector("[data-loading]")).toBeNull()
   })

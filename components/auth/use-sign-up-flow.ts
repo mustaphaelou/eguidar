@@ -2,7 +2,10 @@
 
 import { useState } from "react"
 
-import { resolveAuthRefusal } from "@/components/auth/auth-form-glue"
+import {
+  MESSAGE_SERVEUR_INJOIGNABLE,
+  resolveAuthRefusal,
+} from "@/components/auth/auth-form-glue"
 import type { PortAuthentification } from "@/components/auth/port-authentification"
 import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
@@ -51,6 +54,8 @@ export function useSignUpFlow(
         return
       }
       setStep("otp")
+    } catch {
+      setError(MESSAGE_SERVEUR_INJOIGNABLE)
     } finally {
       setLoading(false)
     }

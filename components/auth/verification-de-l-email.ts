@@ -3,6 +3,7 @@
 import { useState } from "react"
 
 import {
+  MESSAGE_SERVEUR_INJOIGNABLE,
   resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
@@ -51,6 +52,8 @@ export function useOtpExchange(
       }
       setOtpSent(true)
       onSent?.()
+    } catch {
+      setError(MESSAGE_SERVEUR_INJOIGNABLE)
     } finally {
       setLoading(false)
     }
@@ -66,6 +69,8 @@ export function useOtpExchange(
         return
       }
       onVerified?.(email)
+    } catch {
+      setError(MESSAGE_SERVEUR_INJOIGNABLE)
     } finally {
       setLoading(false)
     }

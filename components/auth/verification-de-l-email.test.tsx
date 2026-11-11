@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { MESSAGE_SERVEUR_INJOIGNABLE } from "./auth-form-glue"
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { ResultatAuthentification } from "./port-authentification"
@@ -223,6 +224,20 @@ describe("useOtpExchange", () => {
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
+  it("keeps the code un-sent and shows a message when the send does not reach the server", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "")
+    port.repondre = () => Promise.reject(new TypeError("Failed to fetch"))
+    const onSent = vi.fn()
+
+    await render(<Harness onSent={onSent} />)
+    await clickAndFlush(sendButton())
+
+    expect(otpSent()).toBe("false")
+    expect(onSent).not.toHaveBeenCalled()
+    expect(error()).toBe(MESSAGE_SERVEUR_INJOIGNABLE)
+    expect(container.querySelector("[data-loading]")).toBeNull()
+  })
+
   it("resets the Test de sécurité after a rejected send so the retry carries a fresh jeton", async () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
     port.repondre = () => ({
@@ -315,6 +330,21 @@ describe("useOtpExchange", () => {
     await clickAndFlush(verifyButton())
 
     expect(error()).toBe("Le code de vérification est invalide ou incorrect.")
+    expect(onVerified).not.toHaveBeenCalled()
+    expect(container.querySelector("[data-loading]")).toBeNull()
+  })
+
+  it("shows a message and does not call onVerified when the verification does not reach the server", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "")
+    port.repondre = () => Promise.reject(new TypeError("Failed to fetch"))
+    const onVerified = vi.fn()
+
+    await render(<Harness onVerified={onVerified} />)
+    setInputValue(otpInput(), "123456")
+
+    await clickAndFlush(verifyButton())
+
+    expect(error()).toBe(MESSAGE_SERVEUR_INJOIGNABLE)
     expect(onVerified).not.toHaveBeenCalled()
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
