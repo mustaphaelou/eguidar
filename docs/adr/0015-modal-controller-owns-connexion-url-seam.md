@@ -181,3 +181,20 @@ Ce que l'amendement ne change pas : le contrôleur reste le seul lecteur et le s
 connexion ; la septième lecture reste une lecture dérivée, sans second canal d'écriture ; ADR-0001 et
 les invariants du corps tiennent. Seul le consommateur de la lecture a bougé, du flux vers le panneau
 qui le compose.
+
+## Amendement — la Connexion reçoit l'avis d'un flux précédent
+
+Le corps énumère `openLogin({ email?, next? })` ; l'amendement du #473 y a ajouté l'e-mail, celui du
+#484 l'adresse de la page. Une entrée s'y ajoute : `openLogin({ email?, next?, avis? })`, le fait
+qu'un flux précédent doit dire au Client, rendu une fois par la modale qui le reçoit. L'Inscription
+s'en sert quand la Vérification de l'e-mail aboutit — « Votre compte est créé et votre adresse e-mail
+est vérifiée. Connectez-vous. » — et la Session inactive pourra s'en servir pour son propre avis.
+L'avis circule sur la valeur de contexte (`AuthDialogsContextValue.avis`,
+`components/auth/auth-dialogs.tsx`), est effacé par `close()` et par l'ouverture de l'Inscription, et
+le panneau de Connexion le rend une fois, dans son en-tête, avant que son propre flux ne prenne la
+parole.
+
+Ce que l'amendement ne change pas : le contrôleur reste le seul lecteur et le seul écrivain du Lien
+de connexion (`?open`/`?next`/`?error`) ; l'avis ne touche ni la lecture ni l'écriture du seam ;
+ADR-0001 et les invariants du corps tiennent. Le panneau reste une composition sans état : il lit
+l'avis du contrôleur et le rend, il n'en garde rien.

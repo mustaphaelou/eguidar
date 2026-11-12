@@ -124,7 +124,7 @@ export function SignUpForm({ flow }: { flow: SignUpFlow }) {
               </div>
               {captcha.field}
               {error && <FieldError>{error}</FieldError>}
-              <Button type="submit" disabled={loading || !captcha.ready}>
+              <Button type="submit" disabled={loading || !captcha.peutEnvoyer}>
                 {loading && (
                   <HugeiconsIcon
                     icon={Loading03Icon}
@@ -193,7 +193,7 @@ export function SignUpForm({ flow }: { flow: SignUpFlow }) {
               <Button
                 type="button"
                 onClick={() => otp.send()}
-                disabled={otp.loading || !otp.captchaReady}
+                disabled={otp.loading || !otp.peutEnvoyer}
               >
                 {otp.loading && (
                   <HugeiconsIcon

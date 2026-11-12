@@ -85,6 +85,6 @@ export function useOtpExchange(
     send,
     verify,
     captchaField: captcha.field,
-    captchaReady: captcha.ready,
+    peutEnvoyer: captcha.peutEnvoyer,
   }
 }

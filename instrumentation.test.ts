@@ -23,6 +23,7 @@ describe("register", () => {
     vi.stubEnv("NODE_ENV", "production")
     vi.stubEnv("RESEND_API_KEY", "")
     vi.stubEnv("TURNSTILE_SECRET_KEY", "cle_turnstile_de_test")
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
 
     register()
 
@@ -46,6 +47,7 @@ describe("register", () => {
     vi.stubEnv("NODE_ENV", "production")
     vi.stubEnv("RESEND_API_KEY", "re_cle_de_test")
     vi.stubEnv("TURNSTILE_SECRET_KEY", "cle_turnstile_de_test")
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
 
     register()
 
@@ -56,6 +58,7 @@ describe("register", () => {
     vi.stubEnv("NODE_ENV", "production")
     vi.stubEnv("RESEND_API_KEY", "re_cle_de_test")
     vi.stubEnv("TURNSTILE_SECRET_KEY", "cle_turnstile_de_test")
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
 
     register()
     await new Promise((resoudre) => setTimeout(resoudre, 0))
