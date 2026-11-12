@@ -101,3 +101,4 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 | [0031](0031-copie-vendue-de-braces.md) | Une copie vendue de `braces` porte la garde de profondeur | |
 | [0038](0038-document-anonyme-a-l-edge.md) | Le document anonyme est le même pour tous, le Bandeau de navigation lit le Panier après peinture | |
 | [0039](0039-la-porte-json-administration-est-une-route.md) | La porte JSON de l'Administration est une route, et les deux téléversements la traversent | |
+| [0054](0054-le-cache-de-detail-admet-un-budget-borne.md) | Le cache de détail admet un budget borné de clés, et un refus d'écriture est un miss silencieux | |
