@@ -147,7 +147,7 @@ Compte client, ses Commandes, leurs `OrderItem` et les lignes `verification` san
 Événements d'automatisation. C'est une énumération de ce que la cascade du Compte client et les
 suppressions explicites emportent ; `AutomationEvent` n'a aucune clé étrangère vers `Order`, donc
 les Événements étaient hors de cette énumération. Depuis ADR-0044, leur charge garde pourtant une
-copie de la Commande — e-mail, ville, adresse, téléphone, lignes du panier, totaux — : la
+copie de la Commande — e-mail, ville, adresse, téléphone, Articles du panier, totaux — : la
 suppression ne l'emportait pas. C'était une exception à la promesse de l'ADR, et la promesse se lit
 désormais sans exception pour ces lignes.
 
@@ -156,7 +156,7 @@ supprime le Compte client, ses Commandes, leurs `OrderItem`, les Événements d'
 l'entité est l'une de ces Commandes, les lignes `verification` que Better Auth écrit pour ses
 adresses, et tout ce que la cascade du Compte client emporte, dans une seule transaction.
 `supprimerDonneesFacebook` (`lib/suppression-donnees-facebook.ts`) efface ces Événements par
-`entityType` et `entityId`, avant les `Order` — donc avant le Compte client —, dans la
+`entityType` et `entityId`, après les `Order` et avant le Compte client, dans la
 `prisma.$transaction` qui porte déjà le reste. Le type d'entité n'est pas figé dans le module de
 suppression : il vient de `TYPE_ENTITE_PAR_DECLENCHEUR` (`lib/automations/charge.ts`), le
 vocabulaire fermé que la porte d'écriture des Événements valide. Ce sont toutes les lignes dont
@@ -166,11 +166,11 @@ l'entité est une Commande supprimée, quel que soit le déclencheur.
 données de la personne, et la charge d'un Événement est une copie de la Commande : la vider en
 gardant la ligne serait un masquage, c'est-à-dire une conservation. Un tombstone serait une ligne
 de plus, et cette ligne resterait réclamable par le travailleur : la réclamation
-(`FOR UPDATE SKIP LOCKED`, ADR-0044) ne regarde que le statut, la séquence et `availableAt` ; elle
-ne sait pas que l'entité n'existe plus. Une Règle pourrait donc s'exécuter sur un fait que le
-Client a demandé d'effacer — au mieux sans effet, au pire en envoyant un e-mail dont la charge
-porte encore une adresse qui aurait dû disparaître. La seule ligne que le travailleur ne peut pas
-réclamer est celle qui n'existe plus.
+(`FOR UPDATE SKIP LOCKED`, ADR-0044) ne regarde que le statut, la séquence, `availableAt` et
+`lockedUntil` ; elle ne sait pas que l'entité n'existe plus. Une Règle pourrait donc s'exécuter
+sur un fait que le Client a demandé d'effacer — au mieux sans effet, au pire en envoyant un e-mail
+dont la charge porte encore une adresse qui aurait dû disparaître. La seule ligne que le
+travailleur ne peut pas réclamer est celle qui n'existe plus.
 
 **Les Exécutions d'automatisation survivent.** `AutomationRun.eventId` est nullable et sa relation
 vers `AutomationEvent` est déclarée `onDelete: SetNull` (`prisma/schema.prisma`) : la suppression de
@@ -183,8 +183,8 @@ exécuté, et il ne dépend pas de la survie du fait qui l'a déclenché.
 n'ajoute ni migration, ni champ, ni réglage, ni purge propre aux Événements d'automatisation ; elle
 n'introduit aucune durée de conservation générale de ces Événements. La fenêtre de quatorze jours
 qui élague les Exécutions (`lib/automations/retention.ts`) ne bouge pas et ne s'étend pas aux
-Événements. La promesse qu'ADR-0046 a écrite tient toujours, et elle vaut maintenant pour les
-copies que le journal d'automatisation gardait sans exception.
+Événements. La promesse qu'ADR-0046 a écrite tient toujours, et elle vaut désormais sans
+exception pour les copies que portaient les Événements d'automatisation.
 
 **L'invalidation de cache après le commit ne change pas.** `supprimerDonneesFacebook` collecte
 toujours les identifiants des `Order` supprimées et appelle `invalidateCommande` pour chacune,
