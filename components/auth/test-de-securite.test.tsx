@@ -4,11 +4,14 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { mockNextLink } from "./test-utils"
 import { useTestDeSecurite } from "./test-de-securite"
 import {
   ACTIONS_TEST_DE_SECURITE,
   type ActionTestDeSecurite,
 } from "@/lib/vocabulaire-test-de-securite"
+
+vi.mock("next/link", () => mockNextLink())
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -58,7 +61,8 @@ function Harness({
   const captcha = useTestDeSecurite(action)
   return (
     <div>
-      <div data-ready={String(captcha.ready)} />
+      <div data-etat={captcha.etat} />
+      <div data-peut-envoyer={String(captcha.peutEnvoyer)} />
       <div
         data-headers={
           captcha.headers ? JSON.stringify(captcha.headers) : "undefined"
@@ -91,8 +95,18 @@ function scriptTags() {
   return document.querySelectorAll("#turnstile-script")
 }
 
-function ready() {
-  return container.querySelector("[data-ready]")?.getAttribute("data-ready")
+function etat() {
+  return container.querySelector("[data-etat]")?.getAttribute("data-etat")
+}
+
+function widget() {
+  return container.querySelector('[data-testid="test-de-securite-widget"]')
+}
+
+function peutEnvoyer() {
+  return container
+    .querySelector("[data-peut-envoyer]")
+    ?.getAttribute("data-peut-envoyer")
 }
 
 function headers() {
@@ -119,18 +133,19 @@ async function loadScript() {
 }
 
 describe("useTestDeSecurite", () => {
-  it("is always ready, renders nothing and issues no headers when the site key is absent", async () => {
+  it("is ready, renders nothing and issues no headers when the site key is absent", async () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "")
 
     await render(<Harness />)
 
-    expect(ready()).toBe("true")
+    expect(etat()).toBe("pret")
+    expect(peutEnvoyer()).toBe("true")
     expect(headers()).toBe("undefined")
     expect(container.querySelector("script#turnstile-script")).toBeNull()
     expect(renderMock).not.toHaveBeenCalled()
   })
 
-  it("renders the field and the widget is not ready before a token arrives when the site key is set", async () => {
+  it("renders the field and waits before a token arrives when the site key is set", async () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
 
     await render(<Harness />)
@@ -140,7 +155,8 @@ describe("useTestDeSecurite", () => {
     expect(capturedOptions().sitekey).toBe("1x00000000000000000000AA")
     expect(capturedOptions().action).toBe("connexion")
     expect(capturedOptions().theme).toBe("auto")
-    expect(ready()).toBe("false")
+    expect(etat()).toBe("attente")
+    expect(peutEnvoyer()).toBe("false")
     expect(headers()).toBe("undefined")
   })
 
@@ -166,7 +182,8 @@ describe("useTestDeSecurite", () => {
       capturedOptions().callback("tok-1")
     })
 
-    expect(ready()).toBe("true")
+    expect(etat()).toBe("pret")
+    expect(peutEnvoyer()).toBe("true")
     expect(headers()).toBe(JSON.stringify({ "x-captcha-response": "tok-1" }))
   })
 
@@ -183,14 +200,15 @@ describe("useTestDeSecurite", () => {
       capturedOptions()["expired-callback"]!()
     })
 
-    expect(ready()).toBe("false")
+    expect(etat()).toBe("attente")
+    expect(peutEnvoyer()).toBe("false")
     expect(headers()).toBe("undefined")
     expect(document.body.textContent).toContain(
       "Vérification de sécurité expirée."
     )
   })
 
-  it("clears the jeton and shows error feedback on the error callback", async () => {
+  it("clears the jeton, names the failure and keeps the send closed on the error callback", async () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
 
     await render(<Harness />)
@@ -203,11 +221,23 @@ describe("useTestDeSecurite", () => {
       capturedOptions()["error-callback"]!()
     })
 
-    expect(ready()).toBe("false")
+    expect(etat()).toBe("indisponible")
+    expect(peutEnvoyer()).toBe("false")
     expect(headers()).toBe("undefined")
     expect(document.body.textContent).toContain(
-      "Impossible de charger le test de sécurité."
+      "La vérification de sécurité n'a pas pu aboutir."
     )
+    expect(document.body.textContent).toContain(
+      "nous vous aiderons à régler le problème"
+    )
+    expect(
+      container.querySelector('a[href="/contact"]'),
+      "le lien de contact est offert"
+    ).not.toBeNull()
+    expect(
+      widget()?.classList.contains("hidden"),
+      "le widget en échec est masqué"
+    ).toBe(true)
   })
 
   it("reset clears the jeton and resets the widget so a fresh token can arrive", async () => {
@@ -222,7 +252,8 @@ describe("useTestDeSecurite", () => {
     await resetClick()
 
     expect(resetMock).toHaveBeenCalledWith("widget-1")
-    expect(ready()).toBe("false")
+    expect(etat()).toBe("attente")
+    expect(peutEnvoyer()).toBe("false")
     expect(headers()).toBe("undefined")
     expect(document.body.textContent).not.toContain(
       "Vérification de sécurité expirée."
@@ -232,7 +263,8 @@ describe("useTestDeSecurite", () => {
       capturedOptions().callback("tok-2")
     })
 
-    expect(ready()).toBe("true")
+    expect(etat()).toBe("pret")
+    expect(peutEnvoyer()).toBe("true")
     expect(headers()).toBe(JSON.stringify({ "x-captcha-response": "tok-2" }))
   })
 
@@ -265,9 +297,11 @@ describe("useTestDeSecurite", () => {
     })
 
     expect(container.textContent).toContain(
-      "Impossible de charger le test de sécurité."
+      "La vérification de sécurité n'a pas pu aboutir."
     )
-    expect(ready()).toBe("false")
+    expect(etat()).toBe("indisponible")
+    expect(peutEnvoyer()).toBe("false")
+    expect(widget()?.classList.contains("hidden")).toBe(true)
 
     const reessayer = [...container.querySelectorAll("button")].find(
       (bouton) => bouton.textContent === "Réessayer"
@@ -288,5 +322,8 @@ describe("useTestDeSecurite", () => {
     })
 
     expect(renderMock).toHaveBeenCalledTimes(1)
+    expect(etat()).toBe("attente")
+    expect(peutEnvoyer()).toBe("false")
+    expect(widget()?.classList.contains("hidden")).toBe(false)
   })
 })

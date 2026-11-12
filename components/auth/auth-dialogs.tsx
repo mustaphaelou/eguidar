@@ -25,7 +25,18 @@ import { AuthDialog } from "./auth-dialog"
 
 type AuthDialogsContextValue = {
   email: string
-  openLogin: (options?: { email?: string; next?: string }) => void
+  /**
+   * Le fait qu'un flux précédent doit dire au Client, rendu une fois par la
+   * modale qui le reçoit. La Vérification de l'e-mail d'une Inscription s'en
+   * sert pour annoncer le Compte client créé ; la Session inactive pourra s'en
+   * servir pour son avis. Le contrôleur le possède, le panneau le rend.
+   */
+  avis: string | null
+  openLogin: (options?: {
+    email?: string
+    next?: string
+    avis?: string
+  }) => void
   openSignUp: (options?: { email?: string }) => void
   close: () => void
 }
@@ -87,6 +98,7 @@ export function AuthDialogsProvider({
   children: React.ReactNode
 }) {
   const [email, setEmail] = useState("")
+  const [avis, setAvis] = useState<string | null>(null)
   const router = useRouter()
   const { data: session, isPending } = useSession()
 
@@ -110,6 +122,7 @@ export function AuthDialogsProvider({
   )
 
   const cleanAuthParams = useCallback(() => {
+    setAvis(null)
     const current = currentAddress()
     navigateUnlessUnchanged(
       current,
@@ -119,8 +132,9 @@ export function AuthDialogsProvider({
   }, [router])
 
   const openLogin = useCallback(
-    (options?: { email?: string; next?: string }) => {
+    (options?: { email?: string; next?: string; avis?: string }) => {
       setEmail(options?.email ?? "")
+      setAvis(options?.avis ?? null)
       const next =
         options?.next ??
         parseAuthParams(currentSearch()).next ??
@@ -133,6 +147,7 @@ export function AuthDialogsProvider({
   const openSignUp = useCallback(
     (options?: { email?: string }) => {
       setEmail(options?.email ?? "")
+      setAvis(null)
       openAuthDialog("signup")
     },
     [openAuthDialog]
@@ -144,8 +159,8 @@ export function AuthDialogsProvider({
   }, [cleanAuthParams])
 
   const value = useMemo(
-    () => ({ email, openLogin, openSignUp, close }),
-    [email, openLogin, openSignUp, close]
+    () => ({ email, avis, openLogin, openSignUp, close }),
+    [email, avis, openLogin, openSignUp, close]
   )
 
   const internals = useMemo(

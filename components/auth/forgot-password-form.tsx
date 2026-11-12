@@ -94,7 +94,7 @@ export function ForgotPasswordForm() {
               <Field>
                 <Button
                   type="submit"
-                  disabled={otp.loading || !otp.captchaReady}
+                  disabled={otp.loading || !otp.peutEnvoyer}
                 >
                   {otp.loading ? "Envoi…" : "Envoyer le code"}
                 </Button>
