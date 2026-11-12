@@ -7,6 +7,7 @@ import { Prisma } from "@/lib/generated/prisma/client"
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import {
   compterEvenementsMorts,
+  executerEvenement,
   executerLesEvenements,
   reclamerLesIdentifiants,
   redriveEvenementsMorts,
@@ -241,6 +242,23 @@ describe("le travailleur des automatisations", () => {
       where: { entityId: entite },
     })
     expect(evenement.status).toBe("reussi")
+  })
+
+  it("termine sans erreur un Événement d'automatisation disparu sous le travailleur", async () => {
+    // Aucune Règle active ne réclame ce fait : le travailleur va directement à
+    // l'écriture terminale, celle qui doit tolérer la ligne disparue. Les
+    // Règles sont resemées par le `beforeEach` du test suivant.
+    await prisma.automationRule.deleteMany()
+    const entite = `commande-${runId}-supprimee`
+    await statutCommande(entite, "confirmed")
+    const evenement = await prisma.automationEvent.findFirstOrThrow({
+      where: { entityId: entite },
+    })
+    await prisma.automationEvent.delete({ where: { id: evenement.id } })
+
+    await expect(
+      executerEvenement(evenement, options(), dependancesDeTest(MAINTENANT))
+    ).resolves.toBe("reussi")
   })
 
   it("n'exécute jamais un événement expiré, et le note ignoré", async () => {

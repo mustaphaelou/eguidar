@@ -13,7 +13,10 @@ import {
 
 import { revalidatePath } from "next/cache"
 
-import { TYPE_ENTITE_PAR_DECLENCHEUR } from "@/lib/automations/charge"
+import {
+  TYPE_ENTITE_PAR_DECLENCHEUR,
+  type OrderEmailSnapshot,
+} from "@/lib/automations/charge"
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 
@@ -26,15 +29,15 @@ const ORIGINE_DE_TEST = "https://boutique.eguidar.test"
 const VILLE_DU_CLIENT = "Casablanca"
 const ADRESSE_DU_CLIENT = "1 rue du Test"
 const TELEPHONE_DU_CLIENT = "+212600000000"
-const PRIX_DE_LA_LIGNE = 10000
+const PRIX_DE_L_ARTICLE = 10000
 const FRAIS_DE_LIVRAISON = 0
-const TOTAL_A_PAYER = PRIX_DE_LA_LIGNE + FRAIS_DE_LIVRAISON
+const TOTAL_A_PAYER = PRIX_DE_L_ARTICLE + FRAIS_DE_LIVRAISON
 
-const LIGNE_DE_PANIER = {
+const ARTICLE_DU_PANIER = {
   productName: "Produit de test",
   variantName: "Standard",
   quantity: 1,
-  price: PRIX_DE_LA_LIGNE,
+  price: PRIX_DE_L_ARTICLE,
 } as const
 
 const runId = randomUUID().slice(0, 8)
@@ -61,18 +64,23 @@ type DonneesClient = {
   total: number
   fraisLivraison: number
   totalAPayer: number
-  lignes: Array<{
-    productName: string
-    variantName: string
-    quantity: number
-    price: number
-  }>
+  articles: OrderEmailSnapshot["items"]
 }
 
 type EvenementsCommande = {
   creeeId: string
   statutChangeeId: string
   executionId: string
+}
+
+const AUCUNE_LIGNE_RESTANTE = {
+  user: null,
+  account: null,
+  order: null,
+  orderItem: null,
+  verification: null,
+  verificationEmail: null,
+  verificationChangementEmail: null,
 }
 
 function signer(
@@ -136,11 +144,11 @@ async function semerClient(
       cityName: VILLE_DU_CLIENT,
       address: ADRESSE_DU_CLIENT,
       phone: TELEPHONE_DU_CLIENT,
-      total: PRIX_DE_LA_LIGNE,
+      total: PRIX_DE_L_ARTICLE,
       shippingFee: FRAIS_DE_LIVRAISON,
       totalPayable: TOTAL_A_PAYER,
       items: {
-        create: [LIGNE_DE_PANIER],
+        create: [ARTICLE_DU_PANIER],
       },
     },
     include: { items: true },
@@ -185,15 +193,11 @@ async function semerClient(
     ville: VILLE_DU_CLIENT,
     adresse: ADRESSE_DU_CLIENT,
     telephone: TELEPHONE_DU_CLIENT,
-    total: PRIX_DE_LA_LIGNE,
+    total: PRIX_DE_L_ARTICLE,
     fraisLivraison: FRAIS_DE_LIVRAISON,
     totalAPayer: TOTAL_A_PAYER,
-    lignes: [{ ...LIGNE_DE_PANIER }],
+    articles: [{ ...ARTICLE_DU_PANIER }],
   }
-}
-
-async function semerClientSansCommande(identifiantApplicatif: string) {
-  return semerCompte(identifiantApplicatif)
 }
 
 /**
@@ -207,7 +211,7 @@ async function semerEvenementsDeCommande(
   const copieDeLaCommande = {
     userEmail: donnees.email,
     orderId: donnees.orderId,
-    items: donnees.lignes,
+    items: donnees.articles,
     total: donnees.total,
     shippingFee: donnees.fraisLivraison,
     totalPayable: donnees.totalAPayer,
@@ -260,6 +264,25 @@ async function evenementsDeCommande(donnees: DonneesClient) {
   })
 }
 
+async function evenementsPortantLEmail(email: string) {
+  const evenements = await prisma.automationEvent.findMany({
+    select: { id: true, payload: true },
+  })
+  return evenements.filter(({ payload }) =>
+    JSON.stringify(payload).includes(email)
+  )
+}
+
+async function verifierEvenementsIntacts(
+  donnees: DonneesClient,
+  evenements: EvenementsCommande
+): Promise<void> {
+  await expect(evenementsDeCommande(donnees)).resolves.toEqual([
+    expect.objectContaining({ id: evenements.creeeId }),
+    expect.objectContaining({ id: evenements.statutChangeeId }),
+  ])
+}
+
 async function lignesRestantes(donnees: DonneesClient) {
   const [
     user,
@@ -308,12 +331,9 @@ afterAll(async () => {
   // client : la suppression du Client ne les emporte pas. Le nettoyage les
   // efface par identifiant semé et balaie aussi toute charge qui porterait
   // encore l'adresse de la suite — ceux des cas négatifs compris.
-  const evenementsRestants = await prisma.automationEvent.findMany({
-    select: { id: true, payload: true },
-  })
-  const evenementsPortantLAdresse = evenementsRestants
-    .filter(({ payload }) => JSON.stringify(payload).includes(emailPrefix))
-    .map(({ id }) => id)
+  const evenementsPortantLAdresse = (
+    await evenementsPortantLEmail(emailPrefix)
+  ).map(({ id }) => id)
 
   await prisma.automationRun.deleteMany({
     where: { id: { in: executionsSemees } },
@@ -362,15 +382,9 @@ describe("POST /api/facebook/suppression-donnees", () => {
       `${ORIGINE_DE_TEST}/suppression-donnees?code=${corps.confirmation_code}`
     )
 
-    await expect(lignesRestantes(donnees)).resolves.toEqual({
-      user: null,
-      account: null,
-      order: null,
-      orderItem: null,
-      verification: null,
-      verificationEmail: null,
-      verificationChangementEmail: null,
-    })
+    await expect(lignesRestantes(donnees)).resolves.toEqual(
+      AUCUNE_LIGNE_RESTANTE
+    )
     expect(revalidatePath).toHaveBeenCalledWith("/commandes")
     expect(revalidatePath).toHaveBeenCalledWith("/admin/commandes")
   })
@@ -402,15 +416,9 @@ describe("POST /api/facebook/suppression-donnees", () => {
         where: { id: evenements.statutChangeeId },
       })
     ).resolves.toBeNull()
-    await expect(lignesRestantes(donnees)).resolves.toEqual({
-      user: null,
-      account: null,
-      order: null,
-      orderItem: null,
-      verification: null,
-      verificationEmail: null,
-      verificationChangementEmail: null,
-    })
+    await expect(lignesRestantes(donnees)).resolves.toEqual(
+      AUCUNE_LIGNE_RESTANTE
+    )
   })
 
   it("ne laisse aucune charge d'Événement porter les données de Commande du Client supprimé", async () => {
@@ -418,8 +426,8 @@ describe("POST /api/facebook/suppression-donnees", () => {
     const donnees = await semerClient(identifiantApplicatif)
     await semerEvenementsDeCommande(donnees)
 
-    // La ligne qui part emporte bien la ville, l'adresse, le téléphone, les
-    // lignes du panier et les totaux : sans cela, l'assertion d'effacement ne
+    // La charge qui part porte bien la ville, l'adresse, le téléphone, les
+    // Articles du panier et les totaux : sans cela, l'assertion d'effacement ne
     // prouverait rien.
     const semes = await evenementsDeCommande(donnees)
     expect(semes).toHaveLength(2)
@@ -428,20 +436,13 @@ describe("POST /api/facebook/suppression-donnees", () => {
         snapshot: {
           userEmail: donnees.email,
           orderId: donnees.orderId,
-          cityName: "Casablanca",
-          address: "1 rue du Test",
-          phone: "+212600000000",
-          total: 10000,
-          shippingFee: 0,
-          totalPayable: 10000,
-          items: [
-            {
-              productName: "Produit de test",
-              variantName: "Standard",
-              quantity: 1,
-              price: 10000,
-            },
-          ],
+          cityName: donnees.ville,
+          address: donnees.adresse,
+          phone: donnees.telephone,
+          total: donnees.total,
+          shippingFee: donnees.fraisLivraison,
+          totalPayable: donnees.totalAPayer,
+          items: donnees.articles,
         },
       })
     }
@@ -457,12 +458,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     )
 
     expect(reponse.status).toBe(200)
-    const restants = await prisma.automationEvent.findMany()
-    expect(
-      restants.filter(({ payload }) =>
-        JSON.stringify(payload).includes(donnees.email)
-      )
-    ).toEqual([])
+    await expect(evenementsPortantLEmail(donnees.email)).resolves.toEqual([])
   })
 
   it("conserve l'Exécution d'automatisation liée à l'Événement supprimé avec un lien nullifié", async () => {
@@ -492,7 +488,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
 
   it("supprime un Client rattaché à Facebook mais sans Commande et rend le code de confirmation", async () => {
     const identifiantApplicatif = `identifiant-${runId}-sans-commande`
-    const compte = await semerClientSansCommande(identifiantApplicatif)
+    const compte = await semerCompte(identifiantApplicatif)
 
     const reponse = await POST(
       requete(
@@ -581,15 +577,9 @@ describe("POST /api/facebook/suppression-donnees", () => {
     await expect(prisma.automationEvent.count()).resolves.toBe(
       nombreApresPremiere
     )
-    await expect(lignesRestantes(donnees)).resolves.toEqual({
-      user: null,
-      account: null,
-      order: null,
-      orderItem: null,
-      verification: null,
-      verificationEmail: null,
-      verificationChangementEmail: null,
-    })
+    await expect(lignesRestantes(donnees)).resolves.toEqual(
+      AUCUNE_LIGNE_RESTANTE
+    )
   })
 
   it("supprime aussi le code de changement d'adresse dont l'ancienne adresse est celle du Client supprimé", async () => {
@@ -607,15 +597,9 @@ describe("POST /api/facebook/suppression-donnees", () => {
     )
 
     expect(reponse.status).toBe(200)
-    await expect(lignesRestantes(donnees)).resolves.toEqual({
-      user: null,
-      account: null,
-      order: null,
-      orderItem: null,
-      verification: null,
-      verificationEmail: null,
-      verificationChangementEmail: null,
-    })
+    await expect(lignesRestantes(donnees)).resolves.toEqual(
+      AUCUNE_LIGNE_RESTANTE
+    )
   })
 
   it("refuse une signature malformée qui décode pourtant les bons octets", async () => {
@@ -641,10 +625,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
         id: donnees.verificationChangementEmailId,
       },
     })
-    await expect(evenementsDeCommande(donnees)).resolves.toEqual([
-      expect.objectContaining({ id: evenements.creeeId }),
-      expect.objectContaining({ id: evenements.statutChangeeId }),
-    ])
+    await verifierEvenementsIntacts(donnees, evenements)
   })
 
   it("refuse une signature invalide et ne supprime rien", async () => {
@@ -678,10 +659,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
     expect(restantes.verificationChangementEmail).not.toBeNull()
-    await expect(evenementsDeCommande(donnees)).resolves.toEqual([
-      expect.objectContaining({ id: evenements.creeeId }),
-      expect.objectContaining({ id: evenements.statutChangeeId }),
-    ])
+    await verifierEvenementsIntacts(donnees, evenements)
   })
 
   it("refuse une requête sans signed_request et ne supprime rien", async () => {
@@ -703,10 +681,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
     expect(restantes.verificationChangementEmail).not.toBeNull()
-    await expect(evenementsDeCommande(donnees)).resolves.toEqual([
-      expect.objectContaining({ id: evenements.creeeId }),
-      expect.objectContaining({ id: evenements.statutChangeeId }),
-    ])
+    await verifierEvenementsIntacts(donnees, evenements)
   })
 
   it("ne supprime rien quand le secret de l'application manque", async () => {
@@ -738,10 +713,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
     expect(restantes.verificationChangementEmail).not.toBeNull()
-    await expect(evenementsDeCommande(donnees)).resolves.toEqual([
-      expect.objectContaining({ id: evenements.creeeId }),
-      expect.objectContaining({ id: evenements.statutChangeeId }),
-    ])
+    await verifierEvenementsIntacts(donnees, evenements)
   })
 
   it("accepte un identifiant Facebook inconnu et rend quand même un code de confirmation", async () => {
@@ -792,15 +764,9 @@ describe("POST /api/facebook/suppression-donnees", () => {
       confirmation_code: expect.stringMatching(/^[0-9a-f]{32}$/),
     })
 
-    await expect(lignesRestantes(donnees)).resolves.toEqual({
-      user: null,
-      account: null,
-      order: null,
-      orderItem: null,
-      verification: null,
-      verificationEmail: null,
-      verificationChangementEmail: null,
-    })
+    await expect(lignesRestantes(donnees)).resolves.toEqual(
+      AUCUNE_LIGNE_RESTANTE
+    )
   })
 
   it("ne supprime pas les codes d'un autre Compte client dont l'adresse a celle du Client supprimé pour suffixe", async () => {
@@ -823,15 +789,9 @@ describe("POST /api/facebook/suppression-donnees", () => {
     )
 
     expect(reponse.status).toBe(200)
-    await expect(lignesRestantes(clientSupprime)).resolves.toEqual({
-      user: null,
-      account: null,
-      order: null,
-      orderItem: null,
-      verification: null,
-      verificationEmail: null,
-      verificationChangementEmail: null,
-    })
+    await expect(lignesRestantes(clientSupprime)).resolves.toEqual(
+      AUCUNE_LIGNE_RESTANTE
+    )
 
     const restantes = await lignesRestantes(clientConserve)
     expect(restantes.user).not.toBeNull()

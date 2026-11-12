@@ -91,22 +91,25 @@ export async function supprimerDonneesFacebook(
       select: { id: true },
     })
 
+    // `Order.user` n'est pas en cascade : les Commandes partent avant le
+    // Compte client, et `OrderItem` suit par cascade de sa Commande.
+    await tx.order.deleteMany({
+      where: { userId: { in: identifiants } },
+    })
+
     // Les Événements d'automatisation gardent une copie de la Commande — e-mail,
-    // ville, adresse, téléphone, lignes du panier et totaux — sans clé étrangère
-    // vers elle : ils ne partent pas avec la suppression. Ils partent dans la
-    // même transaction, avant que les Commandes ne soient effacées. Les
-    // Exécutions survivent : le schéma nullifie leur lien vers l'Événement.
+    // ville, adresse, téléphone, Articles du panier et totaux — sans clé
+    // étrangère vers elle : ils ne partent pas avec la suppression. Ils partent
+    // dans la même transaction, après les Commandes et avant le Compte client :
+    // la suppression des Commandes attend un `updateOrderStatus` concurrent qui
+    // tient leur verrou, puis l'effacement emporte l'Événement que ce dernier
+    // vient d'écrire. Les Exécutions survivent : le schéma nullifie leur lien
+    // vers l'Événement.
     await tx.automationEvent.deleteMany({
       where: {
         entityType: ENTITE_COMMANDE,
         entityId: { in: commandesSupprimees.map(({ id }) => id) },
       },
-    })
-
-    // `Order.user` n'est pas en cascade : les Commandes partent avant le
-    // Compte client, et `OrderItem` suit par cascade de sa Commande.
-    await tx.order.deleteMany({
-      where: { userId: { in: identifiants } },
     })
 
     // `verification` n'a pas de clé étrangère vers `user` : les codes encore en

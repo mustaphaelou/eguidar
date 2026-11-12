@@ -135,7 +135,9 @@ async function ignorerEvenement(
       maintenant,
     })
   }
-  await prisma.automationEvent.update({
+  // `updateMany` plutôt que `update` : la suppression Facebook peut emporter la
+  // ligne pendant que le travailleur la tient ; une ligne absente est un no-op.
+  await prisma.automationEvent.updateMany({
     where: { id: evenement.id },
     data: { status: "ignore", lockedUntil: null, lastError: motif },
   })
@@ -247,7 +249,7 @@ export async function executerEvenement(
 
   if (derniereErreur !== null) {
     if (tentative >= maxTentatives) {
-      await prisma.automationEvent.update({
+      await prisma.automationEvent.updateMany({
         where: { id: evenement.id },
         data: {
           status: "mort",
@@ -258,7 +260,7 @@ export async function executerEvenement(
       })
       return "echoue"
     }
-    await prisma.automationEvent.update({
+    await prisma.automationEvent.updateMany({
       where: { id: evenement.id },
       data: {
         status: "en_attente",
@@ -271,7 +273,9 @@ export async function executerEvenement(
     return "echoue"
   }
 
-  await prisma.automationEvent.update({
+  // Même tolérance ici : l'Événement peut avoir été supprimé pendant que le
+  // travailleur l'exécutait ; l'Exécution garde son dernier état.
+  await prisma.automationEvent.updateMany({
     where: { id: evenement.id },
     data: {
       status: "reussi",
