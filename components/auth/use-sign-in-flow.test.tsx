@@ -22,7 +22,8 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
     typeof import("@/components/auth/test-de-securite")
   >()),
   useTestDeSecurite: () => ({
-    ready: captchaStub.ready,
+    etat: captchaStub.ready ? "pret" : "attente",
+    peutEnvoyer: captchaStub.ready,
     headers: { "x-captcha-response": captchaStub.jeton },
     field: null,
     reset: captchaStub.reset,
@@ -255,7 +256,7 @@ describe("useSignInFlow", () => {
 
     expect(captchaStub.reset).toHaveBeenCalled()
     expect(courant().error).toBe(
-      "Le test de sécurité a échoué. Veuillez réessayer."
+      "La vérification de sécurité a échoué. Réessayez."
     )
     expect(courant().step).toBe("form")
   })

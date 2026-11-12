@@ -32,10 +32,10 @@ describe("translateAuthError", () => {
       "Trop de tentatives de connexion sur ce compte. Réessayez dans quelques minutes."
     )
     expect(translateAuthError({ code: "MISSING_RESPONSE" })).toBe(
-      "Veuillez valider le test de sécurité (Turnstile)."
+      "La vérification de sécurité n'a pas abouti. Réessayez dans un instant."
     )
     expect(translateAuthError({ code: "VERIFICATION_FAILED" })).toBe(
-      "Le test de sécurité a échoué. Veuillez réessayer."
+      "La vérification de sécurité a échoué. Réessayez."
     )
   })
 
@@ -55,7 +55,7 @@ describe("resolveAuthRefusal", () => {
     const reset = vi.fn()
 
     expect(resolveAuthRefusal({ code: "VERIFICATION_FAILED" }, reset)).toBe(
-      "Le test de sécurité a échoué. Veuillez réessayer."
+      "La vérification de sécurité a échoué. Réessayez."
     )
     expect(reset).toHaveBeenCalledTimes(1)
   })
@@ -76,7 +76,7 @@ describe("resolveAuthRefusal", () => {
     const reset = vi.fn()
 
     expect(resolveAuthRefusal({ code: "MISSING_RESPONSE" }, reset)).toBe(
-      "Veuillez valider le test de sécurité (Turnstile)."
+      "La vérification de sécurité n'a pas abouti. Réessayez dans un instant."
     )
     expect(reset).not.toHaveBeenCalled()
   })

@@ -1,8 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import type { ActionTestDeSecurite } from "@/lib/vocabulaire-test-de-securite"
 
 type TurnstileOptions = {
@@ -29,10 +31,13 @@ const SCRIPT_SRC =
 
 type WidgetStatus = "idle" | "expired" | "error"
 
+export type EtatTestDeSecurite = "attente" | "pret" | "indisponible"
+
 function TestSecuriteWidget({
   siteKey,
   action,
   onTokenChange,
+  etat,
   status,
   onStatusChange,
   resetSignal,
@@ -40,6 +45,7 @@ function TestSecuriteWidget({
   siteKey: string
   action: ActionTestDeSecurite
   onTokenChange: (token: string | null) => void
+  etat: EtatTestDeSecurite
   status: WidgetStatus
   onStatusChange: (status: WidgetStatus) => void
   resetSignal: number
@@ -79,7 +85,12 @@ function TestSecuriteWidget({
   })
 
   useEffect(() => {
-    const marquerCharge = () => setLoaded(true)
+    const marquerCharge = () => {
+      setLoaded(true)
+      // Un chargement qui aboutit après un échec remet le Test de sécurité en
+      // attente : le script a été reposé, le widget va être rendu.
+      onStatusChange("idle")
+    }
     const marquerInjoignable = () => onStatusChange("error")
     const existing = document.getElementById(
       "turnstile-script"
@@ -152,18 +163,42 @@ function TestSecuriteWidget({
     <div className="flex flex-col gap-1">
       <div
         ref={containerRef}
-        className="min-h-16 overflow-hidden rounded-xl border bg-background/60 p-1"
+        data-testid="test-de-securite-widget"
+        className={cn(
+          "min-h-16 overflow-hidden rounded-xl border bg-background/60 p-1",
+          etat === "indisponible" && "hidden"
+        )}
       />
-      {status !== "idle" && (
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span
-            className={
-              status === "error" ? "text-destructive" : "text-muted-foreground"
-            }
+      {etat === "indisponible" && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs">
+          <p className="font-medium text-amber-900">
+            La vérification de sécurité n&apos;a pas pu aboutir.
+          </p>
+          <p className="mt-1 leading-5 text-amber-800">
+            Réessayez dans un instant. Si cela persiste,{" "}
+            <Link
+              href="/contact"
+              className="underline underline-offset-4 hover:text-amber-950"
+            >
+              contactez-nous
+            </Link>{" "}
+            — nous vous aiderons à régler le problème.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={retry}
           >
-            {status === "expired"
-              ? "Vérification de sécurité expirée."
-              : "Impossible de charger le test de sécurité."}
+            Réessayer
+          </Button>
+        </div>
+      )}
+      {etat === "attente" && status === "expired" && (
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-muted-foreground">
+            Vérification de sécurité expirée.
           </span>
           <Button
             type="button"
@@ -180,11 +215,31 @@ function TestSecuriteWidget({
   )
 }
 
+/**
+ * L'état est fermé à trois valeurs : `attente` tant qu'aucun jeton n'est
+ * arrivé, `pret` dès qu'un jeton est là (ou qu'aucun Test n'est requis),
+ * `indisponible` quand le script ou le widget a dit qu'il ne pouvait pas se
+ * charger.
+ *
+ * `peutEnvoyer` n'est vrai qu'en `pret`. Un défi indisponible ne rend pas le
+ * bouton actif : le Client ne pourrait qu'obtenir un refus du serveur, et le
+ * panneau lui offre une reprise et un contact. L'attente et l'indisponibilité
+ * ferment donc l'Envoi protégé de la même façon, mais ne disent pas la même
+ * chose.
+ */
 export function useTestDeSecurite(action: ActionTestDeSecurite) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const [token, setToken] = useState<string | null>(null)
   const [status, setStatus] = useState<WidgetStatus>("idle")
   const [resetSignal, setResetSignal] = useState(0)
+
+  const etat: EtatTestDeSecurite =
+    !siteKey || token !== null
+      ? "pret"
+      : status === "error"
+        ? "indisponible"
+        : "attente"
+  const peutEnvoyer = etat === "pret"
 
   function reset() {
     setToken(null)
@@ -193,13 +248,15 @@ export function useTestDeSecurite(action: ActionTestDeSecurite) {
   }
 
   return {
-    ready: !siteKey || token !== null,
+    etat,
+    peutEnvoyer,
     headers: token ? { "x-captcha-response": token } : undefined,
     field: siteKey ? (
       <TestSecuriteWidget
         siteKey={siteKey}
         action={action}
         onTokenChange={setToken}
+        etat={etat}
         status={status}
         onStatusChange={setStatus}
         resetSignal={resetSignal}

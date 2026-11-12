@@ -107,3 +107,22 @@ appelant de production ne possède.
 
 - **Le Lien de connexion est inchangé.** ADR-0015 tient : lecture et écriture uniques du seam,
   assainissement, nettoyage à la fermeture. Tenue par `components/auth/auth-dialogs.test.tsx`.
+
+## Amendement — le contrôleur porte l'avis d'un flux précédent
+
+Le corps attribue « l'avis (Connexion seulement) » au flux de Connexion : c'est le sien, celui de sa
+propre Vérification de l'e-mail (« Votre e-mail est vérifié. Connectez-vous. »), et `useSignInFlow`
+le garde dans `notice`.
+
+Un second avis, de même nature mais d'un autre propriétaire, naît du passage de l'Inscription à la
+Connexion : la Vérification de l'e-mail de l'Inscription constate un fait que le flux d'Inscription
+emporte en se démontant. Le contrôleur le porte une fois (`AuthDialogsContextValue.avis`,
+`components/auth/auth-dialogs.tsx`), `openLogin({ avis })` le reçoit, et le panneau de Connexion le
+rend dans son en-tête. Le panneau reste une composition sans état : il lit l'avis du contrôleur, ne
+le stocke pas, et le masque dès que son propre flux parle — une attente, un refus ou son propre
+`notice`.
+
+Ce que l'amendement ne change pas : chaque flux garde son étape et son avis propre ; le panneau
+n'ajoute aucun état ; ADR-0015 reste le seul lecteur et le seul écrivain du Lien de connexion. Les
+deux avis ne se confondent pas : celui du flux raconte son échange, celui du contrôleur transmet le
+fait d'un flux qui n'est plus monté.

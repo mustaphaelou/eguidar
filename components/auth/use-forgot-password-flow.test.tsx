@@ -19,7 +19,8 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
     typeof import("@/components/auth/test-de-securite")
   >()),
   useTestDeSecurite: () => ({
-    ready: captchaStub.ready,
+    etat: captchaStub.ready ? "pret" : "attente",
+    peutEnvoyer: captchaStub.ready,
     headers: undefined,
     field: null,
     reset: captchaStub.reset,

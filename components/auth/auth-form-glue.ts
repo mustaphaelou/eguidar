@@ -36,9 +36,9 @@ export function translateAuthError(error: RefusAuthentification): string {
     case CODE_COMPTE_TEMPORAIREMENT_VERROUILLE:
       return MESSAGE_COMPTE_TEMPORAIREMENT_VERROUILLE
     case "MISSING_RESPONSE":
-      return "Veuillez valider le test de sécurité (Turnstile)."
+      return "La vérification de sécurité n'a pas abouti. Réessayez dans un instant."
     case "VERIFICATION_FAILED":
-      return "Le test de sécurité a échoué. Veuillez réessayer."
+      return "La vérification de sécurité a échoué. Réessayez."
     default:
       return error.message ?? "Une erreur est survenue. Veuillez réessayer."
   }

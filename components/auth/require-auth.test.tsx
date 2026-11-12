@@ -29,7 +29,8 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
     typeof import("@/components/auth/test-de-securite")
   >()),
   useTestDeSecurite: () => ({
-    ready: true,
+    etat: "pret",
+    peutEnvoyer: true,
     headers: undefined,
     field: null,
     reset: vi.fn(),

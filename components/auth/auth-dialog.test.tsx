@@ -25,7 +25,8 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
     typeof import("@/components/auth/test-de-securite")
   >()),
   useTestDeSecurite: () => ({
-    ready: true,
+    etat: "pret",
+    peutEnvoyer: true,
     headers: undefined,
     field: null,
     reset: vi.fn(),
@@ -695,6 +696,10 @@ describe("AuthDialog", () => {
 
       expect(title()).toBe("Connectez-vous pour continuer")
       expect(emailInput()?.value).toBe("jane@example.com")
+      expect(description()).toBe(
+        "Votre compte est créé et votre adresse e-mail est vérifiée. Connectez-vous."
+      )
+      expect(dialog()?.textContent).not.toContain("Pas encore de compte")
       expect(new URL(window.location.href).searchParams.get("open")).toBe(
         "login"
       )

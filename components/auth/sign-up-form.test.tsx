@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => mockNextNavigation())
 vi.mock("next/link", () => mockNextLink())
 
 const captchaStub = vi.hoisted(() => ({
-  ready: true,
+  etat: "pret" as "attente" | "pret" | "indisponible",
   reset: vi.fn(),
 }))
 
@@ -28,7 +28,8 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
     typeof import("@/components/auth/test-de-securite")
   >()),
   useTestDeSecurite: () => ({
-    ready: captchaStub.ready,
+    etat: captchaStub.etat,
+    peutEnvoyer: captchaStub.etat === "pret",
     headers: undefined,
     field: null,
     reset: captchaStub.reset,
@@ -60,7 +61,7 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   resetNavigation("/")
-  captchaStub.ready = true
+  captchaStub.etat = "pret"
   captchaStub.reset.mockClear()
 })
 
@@ -137,8 +138,8 @@ describe("SignUpForm", () => {
     expect(container.textContent).not.toContain("Saisissez votre nom complet.")
   })
 
-  it("keeps the submit button disabled while the captcha is not ready", async () => {
-    captchaStub.ready = false
+  it("keeps the submit button disabled while the Test de sécurité is waiting", async () => {
+    captchaStub.etat = "attente"
 
     render(<Harness />)
     setInputValue(input("name"), "Jane Doe")
@@ -146,6 +147,20 @@ describe("SignUpForm", () => {
     setInputValue(input("password"), "MotDePasse!12345")
 
     expect(submitButton().disabled).toBe(true)
+    expect(mockedAuthClient.signUp.email).not.toHaveBeenCalled()
+  })
+
+  it("keeps the submit disabled and does not send when the Test de sécurité is unavailable", async () => {
+    captchaStub.etat = "indisponible"
+
+    render(<Harness />)
+    setInputValue(input("name"), "Jane Doe")
+    setInputValue(input("email"), "jane@example.com")
+    setInputValue(input("password"), "MotDePasse!12345")
+
+    expect(submitButton().disabled).toBe(true)
+    await clickAndFlush(submitButton())
+
     expect(mockedAuthClient.signUp.email).not.toHaveBeenCalled()
   })
 })

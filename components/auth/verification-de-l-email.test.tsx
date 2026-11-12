@@ -89,7 +89,7 @@ function Harness({
         verify
       </button>
       <div data-otp-sent={String(otp.otpSent)} />
-      <div data-captcha-ready={String(otp.captchaReady)} />
+      <div data-peut-envoyer={String(otp.peutEnvoyer)} />
       {otp.error && <p data-error>{otp.error}</p>}
       {otp.loading && <p data-loading>loading</p>}
       {otp.captchaField}
@@ -115,10 +115,10 @@ function otpSent() {
     ?.getAttribute("data-otp-sent")
 }
 
-function captchaReady() {
+function peutEnvoyer() {
   return container
-    .querySelector("[data-captcha-ready]")
-    ?.getAttribute("data-captcha-ready")
+    .querySelector("[data-peut-envoyer]")
+    ?.getAttribute("data-peut-envoyer")
 }
 
 function error() {
@@ -159,7 +159,7 @@ describe("useOtpExchange", () => {
     await loadScript()
     await setToken("otp-token")
 
-    expect(captchaReady()).toBe("true")
+    expect(peutEnvoyer()).toBe("true")
     await clickAndFlush(sendButton())
 
     expect(port.appels).toEqual([
@@ -250,9 +250,9 @@ describe("useOtpExchange", () => {
     await clickAndFlush(sendButton())
 
     expect(resetMock).toHaveBeenCalledWith("widget-1")
-    expect(captchaReady()).toBe("false")
+    expect(peutEnvoyer()).toBe("false")
     expect(otpSent()).toBe("false")
-    expect(error()).toBe("Le test de sécurité a échoué. Veuillez réessayer.")
+    expect(error()).toBe("La vérification de sécurité a échoué. Réessayez.")
   })
 
   it("does not reset the Test de sécurité when the send is refused for another reason", async () => {

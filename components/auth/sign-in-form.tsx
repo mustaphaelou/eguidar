@@ -175,7 +175,7 @@ export function SignInForm({
                 <Button
                   type="submit"
                   size="lg"
-                  disabled={loading || !captcha.ready}
+                  disabled={loading || !captcha.peutEnvoyer}
                 >
                   {loading && (
                     <HugeiconsIcon
@@ -261,7 +261,7 @@ export function SignInForm({
                   type="button"
                   size="lg"
                   onClick={() => otp.send()}
-                  disabled={otp.loading || !otp.captchaReady}
+                  disabled={otp.loading || !otp.peutEnvoyer}
                 >
                   {otp.loading && (
                     <HugeiconsIcon
