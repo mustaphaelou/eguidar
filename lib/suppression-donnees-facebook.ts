@@ -1,10 +1,16 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 
+import { TYPE_ENTITE_PAR_DECLENCHEUR } from "@/lib/automations/charge"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 import { prisma } from "@/lib/db"
 import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 
 const FOURNISSEUR_FACEBOOK: FournisseurSocial = "facebook"
+
+// Le type d'entité de la Commande vient du vocabulaire fermé des
+// automatisations, celui-là même que l'écrivain d'Événements valide : le module
+// de suppression ne fige pas ce littéral.
+const ENTITE_COMMANDE = TYPE_ENTITE_PAR_DECLENCHEUR["commande.creee"]
 
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/
 
@@ -83,6 +89,18 @@ export async function supprimerDonneesFacebook(
     const commandesSupprimees = await tx.order.findMany({
       where: { userId: { in: identifiants } },
       select: { id: true },
+    })
+
+    // Les Événements d'automatisation gardent une copie de la Commande — e-mail,
+    // ville, adresse, téléphone, lignes du panier et totaux — sans clé étrangère
+    // vers elle : ils ne partent pas avec la suppression. Ils partent dans la
+    // même transaction, avant que les Commandes ne soient effacées. Les
+    // Exécutions survivent : le schéma nullifie leur lien vers l'Événement.
+    await tx.automationEvent.deleteMany({
+      where: {
+        entityType: ENTITE_COMMANDE,
+        entityId: { in: commandesSupprimees.map(({ id }) => id) },
+      },
     })
 
     // `Order.user` n'est pas en cascade : les Commandes partent avant le
