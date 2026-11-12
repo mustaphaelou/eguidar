@@ -8,6 +8,10 @@
 > code, schema or configuration in this checkout was modified; no package was installed and no
 > server was started. Anything I could not confirm from a primary source is listed in
 > [Unverified](#unverified).
+>
+> **Companion doc.** The capability map for the version this checkout now installs,
+> `better-auth@1.7.18`, is [`better-auth-capabilities.md`](./better-auth-capabilities.md); its §9.2
+> records what changed between that note's 1.6.26 and today's install.
 
 ## Summary
 
