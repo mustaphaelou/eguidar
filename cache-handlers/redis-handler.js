@@ -1,10 +1,54 @@
 import { createClient } from "redis"
 
+import { estTagDeDetail } from "./prefixes-detail.js"
+
 const MAX_TTL_SECONDS = 30 * 24 * 60 * 60
 const TAG_KEY_PREFIX = "eguidar:cache:tag:"
 const TAGS_SET_KEY = "eguidar:cache:revalidated-tags"
+const BUDGET_DETAIL_KEY = "eguidar:cache:detail-budget"
+
+export const DETAIL_KEYS_MAX_DEFAULT = 10_000
 
 let clientPromise = null
+
+function plafondDetail() {
+  const brut = process.env.CACHE_DETAIL_KEYS_MAX
+  if (typeof brut !== "string" || brut.trim() === "") {
+    return DETAIL_KEYS_MAX_DEFAULT
+  }
+  const valeur = Number(brut)
+  if (!Number.isFinite(valeur) || valeur <= 0) return DETAIL_KEYS_MAX_DEFAULT
+  return Math.floor(valeur)
+}
+
+function estEntreeDeDetail(tags) {
+  return Array.isArray(tags) && tags.some(estTagDeDetail)
+}
+
+/**
+ * Best-effort : rend vrai quand le budget est plein ; le membre de l'écriture
+ * courante est alors retiré. Une panne Redis rend faux pour que l'entrée
+ * s'écrive comme avant.
+ */
+async function budgetRefuse(client, cacheKey, ttl) {
+  const maintenant = Date.now()
+  try {
+    await client.zAdd(BUDGET_DETAIL_KEY, {
+      score: maintenant + ttl * 1000,
+      value: cacheKey,
+    })
+    await client.zRemRangeByScore(BUDGET_DETAIL_KEY, "-inf", maintenant)
+    const admises = await client.zCard(BUDGET_DETAIL_KEY)
+    if (admises <= plafondDetail()) return false
+  } catch {
+    return false
+  }
+  try {
+    await client.zRem(BUDGET_DETAIL_KEY, cacheKey)
+  } catch {
+  }
+  return true
+}
 
 function getClient() {
   const url = process.env.REDIS_URL
@@ -116,7 +160,16 @@ const redisHandler = {
       reader.releaseLock()
 
       const payload = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
-      const ttl = Math.max(1, Math.min(entry.expire ?? MAX_TTL_SECONDS, MAX_TTL_SECONDS))
+      const ttl = Math.max(
+        1,
+        Math.min(entry.expire ?? MAX_TTL_SECONDS, MAX_TTL_SECONDS)
+      )
+      if (
+        estEntreeDeDetail(entry.tags) &&
+        (await budgetRefuse(client, cacheKey, ttl))
+      ) {
+        return
+      }
       await client.set(
         cacheKey,
         JSON.stringify({
