@@ -9,7 +9,7 @@ import {
   vi,
 } from "vitest"
 
-const BUDGET_DETAIL_KEY = "eguidar:cache:detail-budget"
+const DETAIL_BUDGET_KEY = "eguidar:cache:detail-budget"
 
 const MAINTENANT = Date.parse("2026-01-01T00:00:00.000Z")
 const JOUR_EN_MS = 24 * 60 * 60 * 1000
@@ -30,10 +30,16 @@ const etat = vi.hoisted(() => ({
   budget: new Map<string, number>(),
   appelsSet: [] as AppelSet[],
   commandesBudget: [] as CommandeBudget[],
-  panneBudget: null as "zAdd" | "zCard" | null,
+  panneBudget: null as "zAdd" | "zRemRangeByScore" | "zCard" | null,
 }))
 
 vi.mock("redis", () => {
+  const exigerCleBudget = (cle: string): void => {
+    if (cle !== DETAIL_BUDGET_KEY) {
+      throw new Error(`clé de budget inattendue : ${cle}`)
+    }
+  }
+
   const controlerPanne = (): void => {
     if (etat.panneBudget !== null) {
       throw new Error(`panne Redis simulée sur ${etat.panneBudget}`)
@@ -49,12 +55,14 @@ vi.mock("redis", () => {
         etat.entrees.set(cle, { charge, ex: options.EX })
       },
       zAdd: async (cle: string, membre: { score: number; value: string }) => {
+        exigerCleBudget(cle)
         etat.commandesBudget.push({ commande: "zAdd", args: [cle, membre] })
         controlerPanne()
         etat.budget.set(membre.value, membre.score)
         return 1
       },
       zRemRangeByScore: async (cle: string, min: string, max: number) => {
+        exigerCleBudget(cle)
         etat.commandesBudget.push({
           commande: "zRemRangeByScore",
           args: [cle, min, max],
@@ -70,11 +78,13 @@ vi.mock("redis", () => {
         return supprimes
       },
       zCard: async (cle: string) => {
+        exigerCleBudget(cle)
         etat.commandesBudget.push({ commande: "zCard", args: [cle] })
         controlerPanne()
         return etat.budget.size
       },
       zRem: async (cle: string, membre: string) => {
+        exigerCleBudget(cle)
         etat.commandesBudget.push({ commande: "zRem", args: [cle, membre] })
         controlerPanne()
         return etat.budget.delete(membre) ? 1 : 0
@@ -169,15 +179,15 @@ describe("Le budget du cache de détail", () => {
       {
         commande: "zAdd",
         args: [
-          BUDGET_DETAIL_KEY,
+          DETAIL_BUDGET_KEY,
           { score: MAINTENANT + JOUR_EN_MS, value: "produit:chaise" },
         ],
       },
       {
         commande: "zRemRangeByScore",
-        args: [BUDGET_DETAIL_KEY, "-inf", MAINTENANT],
+        args: [DETAIL_BUDGET_KEY, "-inf", MAINTENANT],
       },
-      { commande: "zCard", args: [BUDGET_DETAIL_KEY] },
+      { commande: "zCard", args: [DETAIL_BUDGET_KEY] },
     ])
     expect(etat.budget.get("produit:chaise")).toBe(MAINTENANT + JOUR_EN_MS)
   })
@@ -197,7 +207,7 @@ describe("Le budget du cache de détail", () => {
     expect([...etat.budget.keys()].sort()).toEqual(["detail:1", "detail:2"])
     expect(etat.commandesBudget.at(-1)).toEqual({
       commande: "zRem",
-      args: [BUDGET_DETAIL_KEY, "detail:3"],
+      args: [DETAIL_BUDGET_KEY, "detail:3"],
     })
   })
 
@@ -283,22 +293,22 @@ describe("Le budget du cache de détail", () => {
       {
         commande: "zAdd",
         args: [
-          BUDGET_DETAIL_KEY,
+          DETAIL_BUDGET_KEY,
           { score: MAINTENANT + 2 * JOUR_EN_MS, value: "detail:2" },
         ],
       },
       {
         commande: "zRemRangeByScore",
-        args: [BUDGET_DETAIL_KEY, "-inf", MAINTENANT + JOUR_EN_MS],
+        args: [DETAIL_BUDGET_KEY, "-inf", MAINTENANT + JOUR_EN_MS],
       },
-      { commande: "zCard", args: [BUDGET_DETAIL_KEY] },
+      { commande: "zCard", args: [DETAIL_BUDGET_KEY] },
     ])
   })
 
   it("avale une panne Redis du budget et écrit quand même l'entrée", async () => {
     process.env.CACHE_DETAIL_KEYS_MAX = "10"
 
-    for (const commande of ["zAdd", "zCard"] as const) {
+    for (const commande of ["zAdd", "zRemRangeByScore", "zCard"] as const) {
       viderLEtat()
       etat.panneBudget = commande
 

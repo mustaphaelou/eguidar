@@ -22,7 +22,7 @@ medium.
   `product:`, `category:` et `blog:` ; une entrée dont aucun tag ne commence par l'un des trois
   n'est pas une entrée de détail. Les trois préfixes ont un seul propriétaire,
   `cache-handlers/prefixes-detail.js`, que lisent les constructeurs de tags et le handler : la
-  frontière ne peut pas diverger.
+  couture ne peut pas diverger.
 
 - **Le budget vit dans un sorted set Redis, et son score est l'instant d'expiration.** La clé est
   `eguidar:cache:detail-budget` ; le membre est la clé de cache, le score est l'instant

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -34,23 +34,58 @@ const PROPRIETAIRE = "cache-handlers/prefixes-detail.js"
 const CONSOMMATEUR = "lib/use-cases/cache-invalidation.ts"
 const MODULE = "cache-handlers/prefixes-detail"
 
+const PIECES_DU_CORPUS = [
+  PROPRIETAIRE,
+  CONSOMMATEUR,
+  "cache-handlers/redis-handler.js",
+  "scripts/purger-edge.mjs",
+  "next.config.ts",
+  "proxy.ts",
+  "instrumentation.ts",
+]
+
 const LIAISONS: readonly (readonly [string, string])[] = [
   ["productDetailTag", "PREFIXE_DETAIL_PRODUIT"],
   ["categoryDetailTag", "PREFIXE_DETAIL_CATEGORIE"],
   ["blogDetailTag", "PREFIXE_DETAIL_BLOG"],
 ]
 
-function sourcesDuDossierDetail(): SourceProduction[] {
-  const dossier = fileURLToPath(
-    new URL("../../cache-handlers", import.meta.url)
+const RACINE_DEPOT = fileURLToPath(new URL("../../", import.meta.url))
+
+function fichiersSous(dossier: string): string[] {
+  return readdirSync(dossier, { withFileTypes: true }).flatMap((entree) => {
+    const enfant = path.join(dossier, entree.name)
+    return entree.isDirectory() ? fichiersSous(enfant) : [enfant]
+  })
+}
+
+function sourceProduction(absolu: string): SourceProduction {
+  return {
+    chemin: path.relative(RACINE_DEPOT, absolu).split(path.sep).join("/"),
+    source: readFileSync(absolu, "utf8"),
+  }
+}
+
+/**
+ * Le helper partagé `sourcesDeProduction` ne lit que le TypeScript ; la garde
+ * ajoute ici le JavaScript de production (cache-handlers, scripts .mjs).
+ */
+function sourcesJs(depuis: string, ...racines: string[]): SourceProduction[] {
+  const estSource = (nom: string): boolean =>
+    /\.m?js$/.test(nom) && !/\.test\.m?js$/.test(nom)
+  return racines.flatMap((racine) =>
+    fichiersSous(fileURLToPath(new URL(racine, depuis)))
+      .filter((absolu) => estSource(path.basename(absolu)))
+      .map(sourceProduction)
   )
-  return readdirSync(dossier)
-    .filter((nom) => /\.(?:c|m)?js$/.test(nom))
-    .sort()
-    .map((nom) => ({
-      chemin: `cache-handlers/${nom}`,
-      source: readFileSync(path.join(dossier, nom), "utf8"),
-    }))
+}
+
+/** Les fichiers TypeScript de la racine du dépôt, quand ils existent. */
+function sourcesRacine(depuis: string, ...noms: string[]): SourceProduction[] {
+  return noms
+    .map((nom) => fileURLToPath(new URL(nom, depuis)))
+    .filter((absolu) => existsSync(absolu))
+    .map(sourceProduction)
 }
 
 const SOURCES: SourceProduction[] = [
@@ -62,7 +97,13 @@ const SOURCES: SourceProduction[] = [
     "../../prisma",
     "../../scripts"
   ),
-  ...sourcesDuDossierDetail(),
+  ...sourcesJs(import.meta.url, "../../cache-handlers", "../../scripts"),
+  ...sourcesRacine(
+    import.meta.url,
+    "../../next.config.ts",
+    "../../proxy.ts",
+    "../../instrumentation.ts"
+  ),
 ]
 
 function echapper(motif: string): string {
@@ -163,9 +204,7 @@ describe("Le propriétaire des préfixes, prouvé par les sources", () => {
   it("le corpus de production est non vacant et porte le propriétaire et son consommateur", () => {
     const chemins = SOURCES.map(({ chemin }) => chemin)
     expect(SOURCES.length).toBeGreaterThan(100)
-    expect(chemins).toEqual(
-      expect.arrayContaining([PROPRIETAIRE, CONSOMMATEUR])
-    )
+    expect(chemins).toEqual(expect.arrayContaining(PIECES_DU_CORPUS))
   })
 
   it("le module propriétaire est neutre : aucun import", () => {
