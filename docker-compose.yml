@@ -108,6 +108,7 @@ services:
       - HOSTNAME=0.0.0.0
       - DATABASE_URL=postgresql://${POSTGRES_USER:-eguidar}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eguidar}
       - REDIS_URL=redis://redis:6379
+      - CACHE_DETAIL_KEYS_MAX=${CACHE_DETAIL_KEYS_MAX:-10000}
       - MEILI_URL=http://meilisearch:7700
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env}
