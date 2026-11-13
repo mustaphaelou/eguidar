@@ -1,5 +1,10 @@
 import { revalidatePath, revalidateTag } from "next/cache"
 
+import {
+  PREFIXE_DETAIL_BLOG,
+  PREFIXE_DETAIL_CATEGORIE,
+  PREFIXE_DETAIL_PRODUIT,
+} from "@/cache-handlers/prefixes-detail.js"
 import { urlProduit } from "@/lib/carte-produit"
 import type { DemandePurge, PortPurgeEdge } from "@/lib/purge-edge"
 import { creerPurgeEdgeCloudflare } from "@/lib/purge-edge-cloudflare"
@@ -11,14 +16,11 @@ export const HOME_TAG = "home"
 export const CATEGORY_TAG = "categories"
 export const BLOG_TAG = "blog"
 
-const PREFIXE_DETAIL_PRODUIT = "product:"
-const PREFIXE_DETAIL_CATEGORIE = "category:"
-
 export const productDetailTag = (slug: string) =>
   `${PREFIXE_DETAIL_PRODUIT}${slug}`
 export const categoryDetailTag = (slug: string) =>
   `${PREFIXE_DETAIL_CATEGORIE}${slug}`
-export const blogDetailTag = (slug: string) => `blog:${slug}`
+export const blogDetailTag = (slug: string) => `${PREFIXE_DETAIL_BLOG}${slug}`
 
 export interface CatalogueEventCategory {
   slug: string

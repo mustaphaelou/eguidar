@@ -134,8 +134,10 @@ Le refus reste composé par la surface qui l'exige : la lecture ne refuse jamais
 
 - **Côté producteur** : `lib/use-cases/cache-invalidation.ts` — les étiquettes, `revaliderCatalogue`, `purgerEdgeDurable`.
 - **Côté bord** : `infra/regle-cache-edge.json`, `scripts/purger-edge.mjs`.
-- **ADR** : 0005 (les en-têtes), 0038 (le document anonyme), 0014 (l'invalidation est un effet).
-- **Garde** : `lib/use-cases/cache-invalidation.test.ts`, `infra/regle-cache-edge.test.ts`, `test/contrat-purge-edge.ts`, `purge-edge-deploiement.test.ts`.
+- **Propriétaire des préfixes de détail** : `cache-handlers/prefixes-detail.js` — les trois préfixes et leur prédicat, partagés par les constructeurs de tags et le handler du cache.
+- **Budget du cache de détail** : `cache-handlers/redis-handler.js` — l'admission des entrées de détail (ADR-0054).
+- **ADR** : 0005 (les en-têtes), 0038 (le document anonyme), 0014 (l'invalidation est un effet), 0054 (le budget du cache de détail).
+- **Garde** : `lib/use-cases/cache-invalidation.test.ts`, `lib/use-cases/cache-invalidation-prefixes-frontiere.test.ts`, `cache-handlers/redis-handler.test.ts`, `infra/regle-cache-edge.test.ts`, `test/contrat-purge-edge.ts`, `purge-edge-deploiement.test.ts`.
 
 **Deux emplacements qui surprennent.** `lib/use-cases/ville-url.ts` est neutre — un seul import de type, une garde `*-frontiere` — mais il vit sous `use-cases/`, et un composant client l'importe pour sa valeur `villeVersParam`. Et `lib/panier-transport.ts` est le contrat de fil du Panier, pas un cas d'usage.
 
