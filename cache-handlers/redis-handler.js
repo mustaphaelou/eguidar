@@ -5,13 +5,13 @@ import { estTagDeDetail } from "./prefixes-detail.js"
 const MAX_TTL_SECONDS = 30 * 24 * 60 * 60
 const TAG_KEY_PREFIX = "eguidar:cache:tag:"
 const TAGS_SET_KEY = "eguidar:cache:revalidated-tags"
-const BUDGET_DETAIL_KEY = "eguidar:cache:detail-budget"
+const DETAIL_BUDGET_KEY = "eguidar:cache:detail-budget"
 
 export const DETAIL_KEYS_MAX_DEFAULT = 10_000
 
 let clientPromise = null
 
-function plafondDetail() {
+function detailKeysMax() {
   const brut = process.env.CACHE_DETAIL_KEYS_MAX
   if (typeof brut !== "string" || brut.trim() === "") {
     return DETAIL_KEYS_MAX_DEFAULT
@@ -21,33 +21,33 @@ function plafondDetail() {
   return Math.floor(valeur)
 }
 
-function estEntreeDeDetail(tags) {
+function isDetailEntry(tags) {
   return Array.isArray(tags) && tags.some(estTagDeDetail)
 }
 
 /**
- * Best-effort : rend vrai quand le budget est plein ; le membre de l'écriture
- * courante est alors retiré. Une panne Redis rend faux pour que l'entrée
- * s'écrive comme avant.
+ * Best-effort : rend vrai quand l'entrée est admise, faux quand le budget la
+ * refuse ; le membre de l'écriture courante est alors retiré. Une panne Redis
+ * rend vrai pour que l'entrée s'écrive comme avant.
  */
-async function budgetRefuse(client, cacheKey, ttl) {
+async function admitDetailEntry(client, cacheKey, ttl) {
   const maintenant = Date.now()
   try {
-    await client.zAdd(BUDGET_DETAIL_KEY, {
+    await client.zAdd(DETAIL_BUDGET_KEY, {
       score: maintenant + ttl * 1000,
       value: cacheKey,
     })
-    await client.zRemRangeByScore(BUDGET_DETAIL_KEY, "-inf", maintenant)
-    const admises = await client.zCard(BUDGET_DETAIL_KEY)
-    if (admises <= plafondDetail()) return false
+    await client.zRemRangeByScore(DETAIL_BUDGET_KEY, "-inf", maintenant)
+    const admises = await client.zCard(DETAIL_BUDGET_KEY)
+    if (admises <= detailKeysMax()) return true
   } catch {
-    return false
+    return true
   }
   try {
-    await client.zRem(BUDGET_DETAIL_KEY, cacheKey)
+    await client.zRem(DETAIL_BUDGET_KEY, cacheKey)
   } catch {
   }
-  return true
+  return false
 }
 
 function getClient() {
@@ -165,8 +165,8 @@ const redisHandler = {
         Math.min(entry.expire ?? MAX_TTL_SECONDS, MAX_TTL_SECONDS)
       )
       if (
-        estEntreeDeDetail(entry.tags) &&
-        (await budgetRefuse(client, cacheKey, ttl))
+        isDetailEntry(entry.tags) &&
+        !(await admitDetailEntry(client, cacheKey, ttl))
       ) {
         return
       }
