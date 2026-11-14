@@ -12,7 +12,7 @@ git show origin/main:docs/agents/factory/implement.md
 ## One run
 
 - The issue and its comments are the spec. Use the glossary's words in names, tests and the pull request.
-- Branch `agent/<issue>-<slug>` off `origin/main`, in the worktree the executor gave you.
+- Work on the branch the executor prepared — `agent/<ticket name>`, cut from `origin/main` — and never rename it.
 - One issue, one branch, one pull request. No second ticket, no drive-by fix.
 
 ## Definition of done
