@@ -15,7 +15,6 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 
 - **0036 n'a jamais été écrite.** Le numéro est sauté, pas perdu : aucune référence ne le cite.
 - **0039 est la porte JSON de l'Administration.** Le Bandeau, publié le même jour sous le même numéro, porte désormais **0051** ; son unique référence — l'amendement d'ADR-0037 — a suivi.
-- **0050 est réservée** à une décision en cours : le déploiement ne sème plus de Données de démonstration.
 
 ## Les décisions
 
@@ -101,4 +100,5 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 | [0031](0031-copie-vendue-de-braces.md) | Une copie vendue de `braces` porte la garde de profondeur | |
 | [0038](0038-document-anonyme-a-l-edge.md) | Le document anonyme est le même pour tous, le Bandeau de navigation lit le Panier après peinture | |
 | [0039](0039-la-porte-json-administration-est-une-route.md) | La porte JSON de l'Administration est une route, et les deux téléversements la traversent | |
+| [0050](0050-le-deploiement-ne-seme-plus-de-donnees-de-demonstration.md) | Le déploiement ne sème plus de Données de démonstration | |
 | [0054](0054-le-cache-de-detail-admet-un-budget-borne.md) | Le cache de détail admet un budget borné de clés, et un refus d'écriture est un miss silencieux | |
