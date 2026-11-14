@@ -26,3 +26,4 @@ Use the `grep` tool for repo-wide search: it is ripgrep, so it skips `node_modul
 - **Triage** — five canonical roles map to label strings. `docs/agents/triage-labels.md`
 - **Worktrees** — a spec runs in its own checkout, out of search and the Docker context; checks run there. `docs/agents/worktrees.md`
 - **Deployment** — service order, the first-deploy chicken-and-egg, where machine facts live. `docs/agents/exploitation.md`
+- **Factory** — the review and implement mandates, read from `origin/main`. `docs/agents/factory/`
