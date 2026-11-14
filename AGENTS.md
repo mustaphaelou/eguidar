@@ -14,9 +14,15 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 `CODING_STANDARDS.md` — how to prove the work before calling it done.
 
+## Search
+
+Use the `grep` tool for repo-wide search: it is ripgrep, so it skips `node_modules` and gitignored checkouts. Shell `grep -r` walks every worktree.
+
 ## Agent docs
 
+- **Where code lives** — the file map first, then the couche and couture the change crosses. `docs/agents/domain.md`, `docs/ARCHITECTURE.md`
+- **Domain words** — the term `GLOSSARY.md` owns and the decision behind it. `GLOSSARY.md`, `docs/adr/README.md`
 - **Issues and specs** — GitHub issues, worked through the `gh` CLI. `docs/agents/issue-tracker.md`
 - **Triage** — five canonical roles map to label strings. `docs/agents/triage-labels.md`
-- **Domain** — `GLOSSARY.md` + `docs/adr/`. `docs/agents/domain.md`
-- **Architecture** — the five couches, the nine coutures and the eleven lois. `docs/ARCHITECTURE.md`
+- **Worktrees** — a spec runs in its own checkout, out of search and the Docker context; checks run there. `docs/agents/worktrees.md`
+- **Deployment** — service order, the first-deploy chicken-and-egg, where machine facts live. `docs/agents/exploitation.md`

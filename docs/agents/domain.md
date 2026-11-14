@@ -6,7 +6,7 @@ How the engineering skills should consume this repo's domain documentation when 
 
 - **`GLOSSARY.md`** at the repo root — the single context. This repo has one domain, so there is no `GLOSSARY-MAP.md`.
 - **[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md)** — where things live: the five couches, the nine coutures, the eleven lois.
-- **[`docs/adr/README.md`](../adr/README.md)** — the index of the 49 decisions, grouped by theme, with the most-cited ones marked. Read the ADRs that touch the area you're about to work in.
+- **[`docs/adr/README.md`](../adr/README.md)** — the index of the decisions, grouped by theme, with the most-cited ones marked. Read the ADRs that touch the area you're about to work in.
 
 ## File structure
 
@@ -14,17 +14,29 @@ Single-context repo:
 
 ```
 /
+├── AGENTS.md              ← the entry point for an agent
 ├── GLOSSARY.md            ← domain vocabulary
 ├── docs/
 │   ├── ARCHITECTURE.md    ← where things live
-│   └── adr/               ← decisions, indexed by docs/adr/README.md
+│   ├── adr/               ← decisions, indexed by docs/adr/README.md
+│   └── agents/            ← this folder: how agents work here
 ├── app/                   ← routes, Server Actions, the seven API handlers
 ├── components/            ← the UI kit and the client surfaces
-└── lib/
-    ├── use-cases/         ← business reads and writes
-    ├── automations/       ← the durable worker
-    └── *.ts               ← the domain modules
+├── lib/
+│   ├── use-cases/         ← business reads and writes
+│   ├── automations/       ← the durable worker
+│   └── *.ts               ← the domain modules
+├── cache-handlers/        ← the Redis cache adapter Next calls
+├── prisma/                ← schema, migrations, seeds
+├── scripts/               ← checks.sh, the CI check list, deployment helpers
+├── test/                  ← shared fixtures and cross-module guards
+├── e2e/                   ← the Playwright probe and its harness
+├── infra/                 ← Cloudflare rulesets, generated from code
+├── docker/                ← image entrypoints and helpers
+└── vendor/                ← the vendored braces copy (ADR-0031)
 ```
+
+Everything else at the root is configuration, assets, or working space: the tracked `plans/` and `prototype/`, and the gitignored `notes/`, `.scratch/`, `.worktrees/`, `.agents/`.
 
 There is no `src/`. The `@/*` path alias resolves to the repo root.
 
@@ -34,7 +46,7 @@ When your output names a domain concept (in an issue title, a refactor proposal,
 
 If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 
-Architecture words — *couture*, *couche*, *garde*, *module neutre*, *port*, *adaptateur* — are **not** domain words. They are defined in `docs/ARCHITECTURE.md` §6 and do not belong in `GLOSSARY.md`.
+Architecture words — _couture_, _couche_, _garde_, _module neutre_, _port_, _adaptateur_ — are **not** domain words. They are defined in `docs/ARCHITECTURE.md` §6 and do not belong in `GLOSSARY.md`.
 
 ## Flag ADR conflicts
 

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { readFileSync } from "node:fs"
+import { readFileSync, realpathSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
 
@@ -177,10 +177,18 @@ describe("installed braces (GHSA-vfj7-8cjw-p6xm, CVE-2026-93687)", () => {
     const manifestPath = createRequire(import.meta.url).resolve(
       "braces/package.json"
     )
+    // realpath : un worktree lie node_modules ; une release du registre résout
+    // sous node_modules/braces, pas sous vendor/.
+    const manifestReel = realpathSync(manifestPath)
+    const dossier = path.dirname(manifestReel)
     expect(
-      path.relative(RACINE, manifestPath),
+      path.basename(dossier),
       "le paquet résolu n'est pas la copie vendue"
-    ).toBe(path.join(DOSSIER_VENDU, "package.json"))
+    ).toBe("braces")
+    expect(
+      path.basename(path.dirname(dossier)),
+      "le paquet résolu n'est pas la copie vendue"
+    ).toBe("vendor")
 
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
       version?: unknown

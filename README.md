@@ -244,6 +244,14 @@ npm test          # exécution unique (migrations appliquées automatiquement)
 npm run test:watch
 ```
 
+#### Où vit un test
+
+- Un test de module vit **à côté de son module** : `lib/x.ts` ↔ `lib/x.test.ts`, de même sous `app/**` et à la racine pour `proxy.ts` et `instrumentation.ts`.
+- La racine porte les gardes qui vérifient ce qui est **installé ou configuré**, non un module — correctifs de dépendances, `next.config.ts`, `.gitignore`, `package.json` et ses overrides. Ils y sont parce qu'ils affirment les bords du dépôt, non parce qu'ils resteraient à classer.
+- `test/` réunit les fixtures partagées, le `global-setup.ts` et les gardes inter-modules qui en ont besoin.
+
+`npx vitest run <chemin>` ne sélectionne qu'une de ces maisons ; `npm test` les joue toutes les trois.
+
 ### La sonde navigateur
 
 La sonde Playwright joue la boutique dans Chromium sur l'artefact **construit** (`standalone`), jamais sur `next dev`, au format d'un téléphone (390 × 844) :

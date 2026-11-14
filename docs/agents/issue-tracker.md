@@ -43,3 +43,15 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me` — the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+
+## Local scratch
+
+Disposable agent files live in `.scratch/`; it is gitignored. The GitHub issue is
+the durable record, not the directory.
+
+- **Spec drafts**: `/to-spec` drafts at `.scratch/specs/<slug>.md`, then publishes to a GitHub issue.
+- **Implementation**: `/implement-spec` writes per-issue context to `.scratch/<issue>-<slug>/notes.md` and the ticket map to `map.tsv` there.
+- **Never cite** a `.scratch/` path from a commit, an ADR, or another doc except this section — the repo is public and the path exists only on the machine that wrote it.
+- **Delete** an issue's directory when its PR merges; leave entries that predate the convention alone.
+
+Full convention: `.scratch/README.md` (machine-local, not committed).
