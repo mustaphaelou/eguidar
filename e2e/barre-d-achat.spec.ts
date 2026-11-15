@@ -27,8 +27,16 @@ const LARGEURS_DE_TELEPHONE = [
 /** Le défilement qui met l'action d'achat hors vue sans atteindre le Pied de page. */
 const DEFILEMENT_APRES_L_ACTION = 1000
 
+/**
+ * La Barre d'achat que le Client voit.
+ *
+ * Une fiche prérendue peut porter, le temps que React révèle le segment
+ * streamé, une copie du contenu encore `hidden` : cette copie n'est ni
+ * affichée ni actionnable, et la sonde ne la compte pas. Deux barres rendues
+ * restent une violation du mode strict, donc un défaut visible.
+ */
 function barreDAchat(page: Page): Locator {
-  return page.locator("[data-slot='barre-d-achat']")
+  return page.locator("[data-slot='barre-d-achat']").filter({ visible: true })
 }
 
 function prixDeLaBarre(page: Page): Locator {
