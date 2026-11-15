@@ -41,7 +41,15 @@ function plageDeclaree(
   ligne: LigneDePlage,
   manifeste: Manifeste = MANIFESTE
 ): string {
-  return manifeste[ligne.plage.section]?.[ligne.plage.cle ?? ligne.paquet] ?? ""
+  const section = manifeste[ligne.plage.section]
+  const cle = ligne.plage.cle ?? ligne.paquet
+  return (
+    section?.[cle] ??
+    (ligne.plage.cleDeRepli === undefined
+      ? undefined
+      : section?.[ligne.plage.cleDeRepli]) ??
+    ""
+  )
 }
 
 function verifierPlage(
@@ -142,7 +150,7 @@ describe("les planchers des paquets installés", () => {
 })
 
 describe("l'absence d'un paquet installé", () => {
-  it.each(["next", "better-auth", "vitest", "@vitest/mocker"])(
+  it.each(["next", "better-auth", "vite", "vitest", "@vitest/mocker"])(
     "%s exige sa présence",
     (paquet) => {
       expect(() =>
@@ -151,14 +159,49 @@ describe("l'absence d'un paquet installé", () => {
     }
   )
 
-  it.each(["fast-uri", "hono", "ip-address", "mysql2", "systeminformation"])(
-    "%s passe quand il est absent",
-    (paquet) => {
-      expect(() =>
-        verifierLigne(ligneDe(paquet), { resoudre: () => null })
-      ).not.toThrow()
+  it.each([
+    "fast-uri",
+    "hono",
+    "ip-address",
+    "js-yaml",
+    "mysql2",
+    "systeminformation",
+    "undici",
+  ])("%s passe quand il est absent", (paquet) => {
+    expect(() =>
+      verifierLigne(ligneDe(paquet), { resoudre: () => null })
+    ).not.toThrow()
+  })
+})
+
+describe("la plage de js-yaml", () => {
+  it("lit la clé camel-case quand la clé hyphenated est absente", () => {
+    const overrides: Record<string, string> = {
+      ...(MANIFESTE.overrides ?? {}),
+      jsYaml: "^4.3.2",
     }
-  )
+    delete overrides["js-yaml"]
+    expect(() =>
+      verifierLigne(ligneDe("js-yaml"), {
+        manifeste: { ...MANIFESTE, overrides },
+      })
+    ).not.toThrow()
+  })
+
+  it("garde la clé camel-case prioritaire sur la clé hyphenated", () => {
+    expect(() =>
+      verifierLigne(ligneDe("js-yaml"), {
+        manifeste: {
+          ...MANIFESTE,
+          overrides: {
+            ...(MANIFESTE.overrides ?? {}),
+            jsYaml: "^4.3.2",
+            "js-yaml": "^4.0.0",
+          },
+        },
+      })
+    ).not.toThrow()
+  })
 })
 
 describe("la famille better-auth", () => {

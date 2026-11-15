@@ -1,15 +1,11 @@
 import { spawn } from "node:child_process"
 import { createHash, randomBytes } from "node:crypto"
-import { readFileSync } from "node:fs"
 import { createServer } from "node:http"
 import type { Server } from "node:http"
 import { createRequire } from "node:module"
 import type { Duplex } from "node:stream"
-import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-
-const UNDICI_PATCH_FLOOR = "7.29.1"
 
 const RFC6455_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -31,83 +27,11 @@ setTimeout(() => {
 }, ${DEADLINE_CLIENT_MS})
 `
 
-function releaseParts(version: string): number[] {
-  const release = version.split("-", 1)[0] ?? ""
-  return release.split(".").map((part) => Number.parseInt(part, 10))
-}
-
-function satisfiesPatchFloor(version: string, floor: string): boolean {
-  if (version.includes("-")) return false
-  const [major = 0, minor = 0, patch = 0] = releaseParts(version)
-  const [floorMajor = 0, floorMinor = 0, floorPatch = 0] = releaseParts(floor)
-  if (major !== floorMajor) return major > floorMajor
-  if (minor !== floorMinor) return minor > floorMinor
-  return patch >= floorPatch
-}
-
 function undiciEntry(): string {
   return createRequire(import.meta.url).resolve("undici")
 }
 
-function installedUndiciVersion(): string | null {
-  try {
-    const manifestPath = createRequire(import.meta.url).resolve(
-      "undici/package.json"
-    )
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-      version?: unknown
-    }
-    return typeof manifest.version === "string" ? manifest.version : null
-  } catch {
-    return null
-  }
-}
-
-describe("satisfiesPatchFloor", () => {
-  it("accepts the patch floor itself", () => {
-    expect(satisfiesPatchFloor("7.29.1", UNDICI_PATCH_FLOOR)).toBe(true)
-  })
-
-  it("accepts later patch, minor and major releases", () => {
-    expect(satisfiesPatchFloor("7.29.2", UNDICI_PATCH_FLOOR)).toBe(true)
-    expect(satisfiesPatchFloor("7.30.0", UNDICI_PATCH_FLOOR)).toBe(true)
-    expect(satisfiesPatchFloor("8.10.2", UNDICI_PATCH_FLOOR)).toBe(true)
-  })
-
-  it("rejects the vulnerable releases below the floor", () => {
-    expect(satisfiesPatchFloor("7.29.0", UNDICI_PATCH_FLOOR)).toBe(false)
-    expect(satisfiesPatchFloor("7.27.2", UNDICI_PATCH_FLOOR)).toBe(false)
-    expect(satisfiesPatchFloor("6.28.0", UNDICI_PATCH_FLOOR)).toBe(false)
-  })
-
-  it("rejects prereleases and malformed versions", () => {
-    expect(satisfiesPatchFloor("7.29.1-beta.1", UNDICI_PATCH_FLOOR)).toBe(false)
-    expect(satisfiesPatchFloor("", UNDICI_PATCH_FLOOR)).toBe(false)
-    expect(satisfiesPatchFloor("garbage", UNDICI_PATCH_FLOOR)).toBe(false)
-  })
-})
-
-describe("installed undici (GHSA-rfgv-xxqx-mfg5)", () => {
-  it("sits at or above the patch floor when present in the tree", () => {
-    const version = installedUndiciVersion()
-    if (version === null) return
-    expect(satisfiesPatchFloor(version, UNDICI_PATCH_FLOOR)).toBe(true)
-  })
-})
-
-describe("package.json overrides", () => {
-  it("pins undici to a range whose floor reaches the patch floor", () => {
-    const manifest = JSON.parse(
-      readFileSync(path.join(process.cwd(), "package.json"), "utf8")
-    ) as { overrides?: Record<string, string> }
-    const range = manifest.overrides?.undici
-    expect(range, "undici override missing from package.json").toBeDefined()
-    const rangeFloor = (range ?? "").replace(/^[^0-9]*/, "")
-    expect(satisfiesPatchFloor(rangeFloor, UNDICI_PATCH_FLOOR)).toBe(true)
-  })
-})
-
-describe("an unrequested subprotocol fails the connection (CVE-2026-19534)", () => {
+describe("an unrequested subprotocol fails the connection", () => {
   let server: Server
   let sockets: Set<Duplex>
   let url: string
