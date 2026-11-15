@@ -14,6 +14,11 @@ export type EmplacementDePlage = {
   section: SectionDeManifeste
   /** La clé de la section, quand elle diffère du nom du paquet. */
   cle?: string
+  /**
+   * La seconde écriture acceptée de la clé, essayée seulement quand `cle` est
+   * absente de la section.
+   */
+  cleDeRepli?: string
 }
 
 /** Ce que la ligne exige quand le paquet est absent de l'arbre installé. */
@@ -236,6 +241,15 @@ export const PLANCHERS_INSTALLES: readonly PlancherInstalle[] = [
     absence: "passe",
   },
   {
+    paquet: "js-yaml",
+    plancher: "4.3.2",
+    avis: ["GHSA-2883-xcg3-v3hh"],
+    raison:
+      "4.3.2 borne les clés de fusion d'un document YAML pour fermer le merge-bomb",
+    plage: { section: "overrides", cle: "jsYaml", cleDeRepli: "js-yaml" },
+    absence: "passe",
+  },
+  {
     paquet: "mysql2",
     plancher: "3.22.0",
     avis: ["GHSA-3f6p-5ww8-9rcr"],
@@ -251,6 +265,24 @@ export const PLANCHERS_INSTALLES: readonly PlancherInstalle[] = [
     raison: "5.33.16 ferme l'injection de commandes par caractères Unicode",
     plage: { section: "overrides" },
     absence: "passe",
+  },
+  {
+    paquet: "undici",
+    plancher: "7.29.1",
+    avis: ["GHSA-rfgv-xxqx-mfg5"],
+    raison:
+      "7.29.1 refuse un sous-protocole WebSocket non demandé au lieu de tuer le processus",
+    plage: { section: "overrides" },
+    absence: "passe",
+  },
+  {
+    paquet: "vite",
+    plancher: "8.3.3",
+    avis: ["GHSA-587h-7wmj-h5pm", "GHSA-698v-4r3x-3vcv", "GHSA-r825-w8mm-5pxw"],
+    raison:
+      "8.3.3 est la première version qui embarque le launch-editor corrigé, où les trois correctifs atterrissent",
+    plage: { section: "overrides" },
+    absence: "echoue",
   },
   {
     paquet: "vitest",
