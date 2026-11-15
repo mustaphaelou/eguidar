@@ -34,6 +34,31 @@ export type PlancherInstalle = {
   famille?: readonly string[]
 }
 
+/** Une copie d'un paquet dans l'arbre que le fichier de verrouillage décrit. */
+export type Copie = {
+  paquet: string
+  /** La clé de `packages` du fichier de verrouillage. */
+  chemin: string
+  version: string
+}
+
+/** Les entrées de `packages` du fichier de verrouillage. */
+export type ArbreDeVerrouillage = Record<string, { version?: unknown }>
+
+/**
+ * La ligne d'un paquet dont le plancher est prouvé par chaque copie du fichier
+ * de verrouillage : son plancher, les avis qui le fondent, la plage d'override
+ * qui le déclare et la ligne majeure à laquelle il s'applique.
+ */
+export type PlancherDeCopie = {
+  paquet: string
+  majeure: number
+  plancher: string
+  avis: readonly string[]
+  raison: string
+  plage: EmplacementDePlage
+}
+
 /** Les parties numériques d'une version, sans sa préversion. */
 function partiesDeVersion(version: string): number[] {
   const release = version.split("-", 1)[0] ?? ""
@@ -99,6 +124,39 @@ export function versionInstallee(paquet: string): string | null {
 /** Le plancher qu'une plage déclare : l'opérateur qui la précède est retiré. */
 export function plancherDePlage(plage: string): string {
   return plage.replace(/^[^0-9]*/, "")
+}
+
+/** Le contenu de `packages` dans le fichier de verrouillage du dépôt. */
+export function arbreDeVerrouillage(): ArbreDeVerrouillage {
+  const racine = path.resolve(import.meta.dirname, "..", "..")
+  const lock = JSON.parse(
+    readFileSync(path.join(racine, "package-lock.json"), "utf8")
+  ) as { packages?: ArbreDeVerrouillage }
+  return lock.packages ?? {}
+}
+
+/**
+ * Les copies qu'un arbre de verrouillage installe d'un paquet : `npm ci` rejoue
+ * cet arbre, et une résolution depuis la racine ne voit pas les copies
+ * imbriquées sous leur consommateur.
+ */
+export function copiesDe(
+  paquet: string,
+  arbre: ArbreDeVerrouillage = arbreDeVerrouillage()
+): Copie[] {
+  const suffixe = `node_modules/${paquet}`
+  return Object.entries(arbre)
+    .filter(([cle]) => cle === suffixe || cle.endsWith(`/${suffixe}`))
+    .map(([chemin, entree]) => ({
+      paquet,
+      chemin,
+      version: typeof entree.version === "string" ? entree.version : "",
+    }))
+}
+
+/** La ligne majeure d'une version. */
+export function majeureDeVersion(version: string): number {
+  return partiesDeVersion(version)[0] ?? 0
 }
 
 // 1.7.7 is the release that closes every open better-auth advisory:
@@ -211,5 +269,50 @@ export const PLANCHERS_INSTALLES: readonly PlancherInstalle[] = [
       "4.1.12 normalise les antislashs du chemin et sérialise l'URL d'un mock manuel",
     plage: { section: "overrides" },
     absence: "echoue",
+  },
+]
+
+// A row whose floor is evidenced by the lockfile rather than by an installed
+// package: the tree can hold one copy per major line, and each line was patched
+// on its own schedule, so the override key pins one range per line.
+//
+// minimatch (GHSA-g3hv-75wg-m249, CVE-2026-118764) — during the first phase of
+// pattern preprocessing, minimatch rewrites `**/../` into two patterns and
+// re-runs the pass until nothing changes, so N occurrences become 2**N
+// patterns; the second phase then compares every pair, which is quadratic in
+// that set. 11.0.1 is the first release that stops the first phase at
+// `braceExpandMax` and skips the pairwise pass above 1000 patterns.
+//
+// brace-expansion (GHSA-q2hr-2g5m-vwhr, GHSA-qhr7-859c-m2p7,
+// GHSA-6j4f-fj2g-mc7p) — a glob is expanded once per match, so the quadratic
+// `{a},b}` expansion and the two stack-exhaustion recursions are a CPU and
+// stack DoS; both major lines were patched separately.
+export const PLANCHERS_DE_COPIE: readonly PlancherDeCopie[] = [
+  {
+    paquet: "minimatch",
+    majeure: 11,
+    plancher: "11.0.1",
+    avis: ["GHSA-g3hv-75wg-m249"],
+    raison:
+      "11.0.1 borne l'expansion de `**/../` à `braceExpandMax` et saute la comparaison par paires au-delà de mille motifs",
+    plage: { section: "overrides" },
+  },
+  {
+    paquet: "brace-expansion",
+    majeure: 1,
+    plancher: "1.1.21",
+    avis: ["GHSA-q2hr-2g5m-vwhr", "GHSA-qhr7-859c-m2p7", "GHSA-6j4f-fj2g-mc7p"],
+    raison:
+      "1.1.21 ferme l'expansion quadratique des accolades et les deux récursions qui épuisent la pile",
+    plage: { section: "overrides", cle: "brace-expansion@1" },
+  },
+  {
+    paquet: "brace-expansion",
+    majeure: 5,
+    plancher: "5.0.12",
+    avis: ["GHSA-q2hr-2g5m-vwhr", "GHSA-qhr7-859c-m2p7", "GHSA-6j4f-fj2g-mc7p"],
+    raison:
+      "5.0.12 ferme l'expansion quadratique des accolades et les deux récursions qui épuisent la pile",
+    plage: { section: "overrides", cle: "brace-expansion@5" },
   },
 ]

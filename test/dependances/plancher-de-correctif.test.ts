@@ -4,10 +4,16 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
+  PLANCHERS_DE_COPIE,
   PLANCHERS_INSTALLES,
+  arbreDeVerrouillage,
+  copiesDe,
+  majeureDeVersion,
   plancherDePlage,
   respecteLePlancher,
   versionInstallee,
+  type ArbreDeVerrouillage,
+  type Copie,
   type PlancherInstalle,
   type SectionDeManifeste,
 } from "./plancher-de-correctif"
@@ -20,20 +26,26 @@ const MANIFESTE = JSON.parse(
   readFileSync(path.join(RACINE, "package.json"), "utf8")
 ) as Manifeste
 
+const PAQUETS_DE_COPIE = [
+  ...new Set(PLANCHERS_DE_COPIE.map((ligne) => ligne.paquet)),
+]
+
 type OptionsDeVerification = {
   manifeste?: Manifeste
   resoudre?: (paquet: string) => string | null
 }
 
+type LigneDePlage = Pick<PlancherInstalle, "paquet" | "plancher" | "plage">
+
 function plageDeclaree(
-  ligne: PlancherInstalle,
+  ligne: LigneDePlage,
   manifeste: Manifeste = MANIFESTE
 ): string {
   return manifeste[ligne.plage.section]?.[ligne.plage.cle ?? ligne.paquet] ?? ""
 }
 
 function verifierPlage(
-  ligne: PlancherInstalle,
+  ligne: LigneDePlage,
   manifeste: Manifeste = MANIFESTE
 ): void {
   const plage = plageDeclaree(ligne, manifeste)
@@ -196,5 +208,83 @@ describe("une violation synthétique", () => {
         },
       })
     ).toThrow()
+  })
+})
+
+function copiesDesPlanchers(
+  arbre: ArbreDeVerrouillage = arbreDeVerrouillage()
+): Copie[] {
+  return PAQUETS_DE_COPIE.flatMap((paquet) => copiesDe(paquet, arbre))
+}
+
+function verifierCopie(copie: Copie): void {
+  const ligne = PLANCHERS_DE_COPIE.find(
+    (candidate) =>
+      candidate.paquet === copie.paquet &&
+      candidate.majeure === majeureDeVersion(copie.version)
+  )
+  expect(
+    ligne,
+    `aucun plancher pour ${copie.chemin}@${copie.version}`
+  ).toBeDefined()
+  expect(
+    respecteLePlancher(copie.version, ligne?.plancher ?? ""),
+    `${copie.chemin}@${copie.version} est sous le plancher ${String(ligne?.plancher)} (${ligne?.raison ?? ""})`
+  ).toBe(true)
+}
+
+describe("les planchers du fichier de verrouillage", () => {
+  for (const paquet of PAQUETS_DE_COPIE) {
+    it(`${paquet} a au moins une copie`, () => {
+      expect(copiesDe(paquet)).not.toHaveLength(0)
+    })
+  }
+
+  for (const ligne of PLANCHERS_DE_COPIE) {
+    it(`${ligne.paquet}@${ligne.majeure} déclare une plage qui atteint le plancher ${ligne.plancher}`, () => {
+      verifierPlage(ligne)
+    })
+  }
+
+  it("donne un plancher à chaque ligne majeure installée", () => {
+    for (const copie of copiesDesPlanchers()) {
+      expect(
+        PLANCHERS_DE_COPIE.some(
+          (ligne) =>
+            ligne.paquet === copie.paquet &&
+            ligne.majeure === majeureDeVersion(copie.version)
+        ),
+        `aucun plancher pour ${copie.chemin}@${copie.version}`
+      ).toBe(true)
+    }
+  })
+
+  it("place chaque copie au plancher de sa ligne", () => {
+    for (const copie of copiesDesPlanchers()) verifierCopie(copie)
+  })
+})
+
+describe("une copie fabriquée", () => {
+  function arbreAvecCopie(version: string): ArbreDeVerrouillage {
+    return {
+      ...arbreDeVerrouillage(),
+      "node_modules/eslint/node_modules/brace-expansion": { version },
+    }
+  }
+
+  it("fait tomber une copie sous le plancher de sa ligne", () => {
+    expect(() => {
+      for (const copie of copiesDesPlanchers(arbreAvecCopie("1.1.20"))) {
+        verifierCopie(copie)
+      }
+    }).toThrow()
+  })
+
+  it("fait tomber une ligne majeure sans plancher", () => {
+    expect(() => {
+      for (const copie of copiesDesPlanchers(arbreAvecCopie("4.0.0"))) {
+        verifierCopie(copie)
+      }
+    }).toThrow()
   })
 })
