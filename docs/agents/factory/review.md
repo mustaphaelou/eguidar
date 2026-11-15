@@ -29,7 +29,7 @@ Report both, even when empty.
 
 **Blocking** — a hard violation of an ADR, of `CODING_STANDARDS.md`, or of the spec's acceptance criteria. Every blocking finding quotes its clause: the ADR number and its section, the standards line, or the exact acceptance sentence. A finding without a citation is not blocking.
 
-**Jugement (advisory)** — design judgement: duplicated code, speculative generality, primitive obsession, shotgun surgery, mysterious names, dead defensive branches, middle men. Name the smell and where it bites; do not demand the rewrite.
+**Judgement (advisory)** — design judgement: duplicated code, speculative generality, primitive obsession, shotgun surgery, mysterious names, dead defensive branches, middle men. Name the smell and where it bites; do not demand the rewrite.
 
 ## What not to demand
 
@@ -40,7 +40,7 @@ Report both, even when empty.
 
 ## Size
 
-Above 2,000 changed lines — excluding `package-lock.json` and generated paths — a cold read is not possible. The verdict is `trop gros pour une lecture froide`; review the Spec axis and the shape only, make no line-level claims, and say what to split.
+Above 2,000 changed lines — excluding `package-lock.json` and generated paths — a cold read is not possible. The verdict is `too large for a cold read`; review the Spec axis and the shape only, make no line-level claims, and say what to split.
 
 ## Audit the evidence
 
@@ -50,28 +50,28 @@ Above 2,000 changed lines — excluding `package-lock.json` and generated paths 
 
 ## Output
 
-One formal review, event `COMMENT`, in French. It opens with:
+One formal review, event `COMMENT`, in formal English. It opens with:
 
-> Cette revue est produite par un agent automatique, pas par un humain.
+> This review is produced by an automated agent, not a human.
 
 The first line after it is the verdict, exactly one of:
 
-    Verdict : fusionnable
-    Verdict : bloquant (2)
-    Verdict : trop gros pour une lecture froide
+    Verdict: mergeable
+    Verdict: blocking (2)
+    Verdict: too large for a cold read
 
 When the diff touches a protected path (listed in `implement.md`), add one line under the verdict:
 
-    Portée : data
+    Blast radius: data
 
 with one of `checks`, `gate`, `deploy`, `data`, `auth`, `instructions`.
 
-Then, in French:
+Then:
 
 ```markdown
 ## Standards
-### Bloquant
-### Jugement
+### Blocking
+### Judgement
 ## Spec
 ```
 
