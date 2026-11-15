@@ -351,7 +351,9 @@ describe("the vendored copy bounds nesting depth (GHSA-vfj7-8cjw-p6xm)", () => {
   })
 })
 
-const FICHIERS_QUI_EPROUVENT = new Set(["braces-patch.test.ts"])
+const FICHIERS_QUI_EPROUVENT = new Set([
+  "test/dependances/braces-patch.test.ts",
+])
 
 const DOSSIERS_VENDUS = ["vendor/"]
 
