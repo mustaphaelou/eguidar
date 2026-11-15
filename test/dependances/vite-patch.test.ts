@@ -4,7 +4,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { respecteLePlancher } from "./plancher-de-correctif"
+import { respecteLePlancher, versionInstallee } from "./plancher-de-correctif"
 
 // vite inlines launch-editor, which never enters the installed tree as its own
 // package. Its floor therefore stays with the scan that reads vite's bundle,
@@ -22,17 +22,8 @@ function javascriptFilesUnder(directory: string): string[] {
 }
 
 function launchEditorVersions(): string[] {
-  try {
-    const manifestPath = createRequire(import.meta.url).resolve(
-      "launch-editor/package.json"
-    )
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-      version?: unknown
-    }
-    if (typeof manifest.version === "string") return [manifest.version]
-  } catch {
-    // vite inlines launch-editor; fall through to the bundled copy.
-  }
+  const installee = versionInstallee("launch-editor")
+  if (installee !== null) return [installee]
 
   const viteManifestPath = createRequire(import.meta.url).resolve(
     "vite/package.json"
