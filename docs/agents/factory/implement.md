@@ -11,17 +11,22 @@ git show origin/main:docs/agents/factory/implement.md
 
 ## One run
 
-- The issue and its comments are the spec. Use the glossary's words in names, tests and the pull request.
-- Work on the branch the executor prepared — `agent/<ticket name>`, cut from `origin/main` — and never rename it.
-- One issue, one branch, one pull request. No second ticket, no drive-by fix.
+The issue and its comments are the spec. The executor has already prepared the worktree; run the whole chain, in this order:
+
+1. Work on the branch the executor prepared — `agent/<ticket name>`, cut from `origin/main` — and never rename it.
+2. Implement the acceptance criteria with tests, using the glossary's words in names, tests and the pull request.
+3. `bash scripts/checks.sh` green in the worktree.
+4. Open the pull request, non-draft, with the `agent` label, the automated line, `Closes #<issue>`, the `## Verification` table and `## Protected paths`.
+5. Watch CI on that pull request — `gh pr checks <number> --watch` — and make it green. On a red check, fix and push; after two failed attempts, report `blocked` naming the check.
+6. Report `ready` only when CI is green. One issue, one branch, one pull request; no second ticket, no drive-by fix. If you push after the review has started, say so in one pull-request comment naming the new head.
 
 ## Definition of done
 
-- `bash scripts/checks.sh` is green in the worktree — the same five command-bearing checks CI runs. The Evidence section quotes its final line.
+- `bash scripts/checks.sh` is green in the worktree, and CI is green on the pull request. The Evidence section quotes the local final line; the Verification table records the CI result.
 - The behaviour has tests, in the repo's layout: `test/` or `*.test.ts` beside the module.
 - An ADR is amended or added when the ticket changes a decision; `GLOSSARY.md` is updated when it changes a domain term. A new ADR or entry in the diff is a proposal, reviewed like code.
 - The pull request is opened **non-draft**: the review Source does not observe draft → ready.
-- The pull request carries the `agent` label.
+- The pull request carries the `agent` label, the `## Verification` table and the `## Protected paths` section.
 - The title is one French sentence, in the register of `git log --oneline` on `main`.
 
 ## Body
@@ -42,6 +47,20 @@ Closes #<issue>
 - **Before:** <the command and its failing output, or the behaviour that was wrong>
 - **After:** `bash scripts/checks.sh` → <its final line>; <targeted commands and counts>
 
+## Verification
+
+| Acceptance criterion | Command or artifact | Status |
+| --- | --- | --- |
+| <criterion from the issue> | `<command>` → `<result>`, or <artifact and where> | met |
+| <criterion from the issue> | <what was done and why> | deviated — <what a person must accept> |
+| <criterion from the issue> | <why it is not met> | not met |
+
+Every acceptance criterion appears exactly once. `met` is backed by a command or artifact; `deviated` names what the acceptance cannot hold as written and what a person must accept; `not met` means the run could not satisfy it — report `blocked` rather than pretending. A deviation belongs in this table, not in `## Decisions`.
+
+## Protected paths
+
+<one line per protected path in the diff: the path, why the acceptance needs it, what changes. Write "None." when the diff touches none.>
+
 ## Merge Danger
 
 **Door:** <one-way or two-way>
@@ -55,9 +74,9 @@ Closes #<issue>
 <the local calls you made and why; omit the section when there are none>
 ```
 
-## Blast radius — stop and report `blocked`
+## Blast radius — check, and stop unless the acceptance requires it
 
-Do not edit these. Report the path and the reason; a person decides.
+Check the diff against this list. A protected path the ticket does not require: stop and report `blocked`. A protected path the acceptance requires: edit it, list it under `## Protected paths` with the reason, and let the review mark `Portée:`; a person decides at merge.
 
 - **checks and gate** — `.github/workflows/**`, `scripts/checks.sh`, `scripts/ci-liste.ts`, `scripts/format.ts`, `scripts/porte-de-fusion/**`, and any script the CI list invokes.
 - **deploy** — `docker-compose.yml`, `Dockerfile`, `.dockerignore`, `infra/**`.
@@ -74,7 +93,7 @@ Do not edit these. Report the path and the reason; a person decides.
 
 ## Conduct
 
-- Push the branch to `mustaphaelou/eguidar`, open the pull request against `main`, and stop. No merge, no deploy, no `gh pr merge`, no push to `main`.
+- Push the branch to `mustaphaelou/eguidar`, open the pull request against `main`, watch CI, and stop once it is green. No merge, no deploy, no `gh pr merge`, no push to `main`.
 - The automated line is mandatory: the account has human commits too, and the repository squash-merges, so the pull request is the durable record.
 - No `.scratch/` writes and no citation of the ticket directory: the ticket directory is the scratch, and it is deleted when the ticket ends.
 - French for the title, body and comments; the code speaks the glossary's vocabulary.
