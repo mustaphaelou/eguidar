@@ -30,6 +30,7 @@ Single-context repo:
 ├── prisma/                ← schema, migrations, seeds
 ├── scripts/               ← checks.sh, the CI check list, deployment helpers
 ├── test/                  ← shared fixtures and cross-module guards
+│   └── dependances/       ← the dependency gardes
 ├── e2e/                   ← the Playwright probe and its harness
 ├── infra/                 ← Cloudflare rulesets, generated from code
 ├── docker/                ← image entrypoints and helpers
