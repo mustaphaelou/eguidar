@@ -14,7 +14,7 @@ git show origin/main:docs/agents/factory/review.md
 - **The spec** — the issue named in the PR title or body (`(#999)`), with its comments: `gh issue view 999 --comments`. No spec is a valid case; say so instead of inventing one.
 - **The standards, from `origin/main`** — `AGENTS.md`, `CODING_STANDARDS.md`, `docs/agents/domain.md`, `GLOSSARY.md`, `docs/ARCHITECTURE.md`, and the ADRs that touch the changed area (`docs/adr/README.md` is the index).
 - **The gate** — `scripts/checks.sh` and the CI jobs prove that lint, format, types, tests and the build pass; do not re-prove them.
-- **The diff** — `gh pr diff <n>`, the PR body, and its `Merge Danger` section.
+- **The diff** — `gh pr diff <n>`, the PR body, and its `Verification`, `Protected paths` and `Merge Danger` sections.
 
 An ADR or a glossary entry that the diff adds or changes is a **proposal to judge**, not a standard to judge by. Main's rules are the rules.
 
@@ -29,7 +29,7 @@ Report both, even when empty.
 
 **Blocking** — a hard violation of an ADR, of `CODING_STANDARDS.md`, or of the spec's acceptance criteria. Every blocking finding quotes its clause: the ADR number and its section, the standards line, or the exact acceptance sentence. A finding without a citation is not blocking.
 
-**Jugement (advisory)** — design judgement: duplicated code, speculative generality, primitive obsession, shotgun surgery, mysterious names, dead defensive branches, middle men. Name the smell and where it bites; do not demand the rewrite.
+**Judgement (advisory)** — design judgement: duplicated code, speculative generality, primitive obsession, shotgun surgery, mysterious names, dead defensive branches, middle men. Name the smell and where it bites; do not demand the rewrite.
 
 ## What not to demand
 
@@ -40,32 +40,38 @@ Report both, even when empty.
 
 ## Size
 
-Above 2,000 changed lines — excluding `package-lock.json` and generated paths — a cold read is not possible. The verdict is `trop gros pour une lecture froide`; review the Spec axis and the shape only, make no line-level claims, and say what to split.
+Above 2,000 changed lines — excluding `package-lock.json` and generated paths — a cold read is not possible. The verdict is `too large for a cold read`; review the Spec axis and the shape only, make no line-level claims, and say what to split.
+
+## Audit the evidence
+
+- **`## Verification`** — every acceptance criterion appears once. Re-run the cheap checks (`git diff --name-status -M`, `git diff --summary -M`, `git grep`) and confirm the `met` rows hold; a `met` claim that does not hold, a `not met` row, or a missing criterion is blocking. Judge a `deviated` row against the acceptance text.
+- **`## Protected paths`** — every protected path in the diff appears there with its reason. An undeclared one is blocking.
+- **CI** — green on the head you review. Pending or red: say so; never claim the checks passed.
 
 ## Output
 
-One formal review, event `COMMENT`, in French. It opens with:
+One formal review, event `COMMENT`, in formal English. It opens with:
 
-> Cette revue est produite par un agent automatique, pas par un humain.
+> This review is produced by an automated agent, not a human.
 
 The first line after it is the verdict, exactly one of:
 
-    Verdict : fusionnable
-    Verdict : bloquant (2)
-    Verdict : trop gros pour une lecture froide
+    Verdict: mergeable
+    Verdict: blocking (2)
+    Verdict: too large for a cold read
 
 When the diff touches a protected path (listed in `implement.md`), add one line under the verdict:
 
-    Portée : data
+    Blast radius: data
 
 with one of `checks`, `gate`, `deploy`, `data`, `auth`, `instructions`.
 
-Then, in French:
+Then:
 
 ```markdown
 ## Standards
-### Bloquant
-### Jugement
+### Blocking
+### Judgement
 ## Spec
 ```
 
