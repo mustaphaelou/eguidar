@@ -133,10 +133,11 @@ place:
 
 When the registry publishes a release that bounds depth, delete this directory,
 drop `braces` from `devDependencies`, drop the `braces` entry from `overrides`,
-regenerate `package-lock.json`, and put `braces-patch.test.ts` back into the
-shape of the other patch guards: a floor, `satisfiesPatchFloor`, and an override.
-`braces-patch.test.ts` fails the moment the copy here stops being the installed
-one, so the removal cannot be half-done.
+regenerate `package-lock.json`, and put
+`test/dependances/braces-patch.test.ts` back into the shape of the other patch
+guards: a floor, `satisfiesPatchFloor`, and an override.
+`test/dependances/braces-patch.test.ts` fails the moment the copy here stops
+being the installed one, so the removal cannot be half-done.
 
 The decision to vendor rather than pin, patch in place, or drop the tooling is
 recorded in [ADR-0031](../docs/adr/0031-copie-vendue-de-braces.md).

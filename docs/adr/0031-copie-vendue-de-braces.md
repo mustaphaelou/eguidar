@@ -90,7 +90,7 @@ production établie par #538 n'a pas bougé.
   place ; la correction tient au paquet qu'ils reçoivent, non à leur suppression.
 
 *Mesures citées à l'alerte Dependabot #53 et à
-[`braces-patch.test.ts`](../../braces-patch.test.ts).*
+[`test/dependances/braces-patch.test.ts`](../../test/dependances/braces-patch.test.ts).*
 
 ## Amendement — La construction de l'image porte la copie vendue, et la garde de texte est remplacée (#676, 2026-10-17)
 

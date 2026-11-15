@@ -33,9 +33,9 @@ prints the path and the test database without touching anything.
 ## Dependencies and secrets
 
 `node_modules` is a real hardlink copy (`cp -al`), never a symlink: a symlink
-resolves packages into another checkout, and `braces-patch.test.ts` then fails
-with a `../../vendor/...` path. `.env` is copied for the same reason: tools
-read it by path.
+resolves packages into another checkout, and
+`test/dependances/braces-patch.test.ts` then fails with a `../../vendor/...`
+path. `.env` is copied for the same reason: tools read it by path.
 
 The copied `.env` gets its own `TEST_DATABASE_URL`, `eguidar_test_<branch>`:
 Vitest's global setup truncates every table, so two suites sharing one test
