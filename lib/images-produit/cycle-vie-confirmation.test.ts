@@ -5,10 +5,10 @@ import type {
   CycleVieImageProduit,
   PortTransactionRegistreBrouillonImageProduit,
   ResultatPreparationPromotionBrouillons,
-} from "@/lib/cycle-vie-image-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import { draftObjectKey } from "@/lib/r2"
-import type { ContentTypeImageProduit } from "@/lib/r2"
+} from "@/lib/images-produit/cycle-vie"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
+import { draftObjectKey } from "@/lib/images-produit/r2"
+import type { ContentTypeImageProduit } from "@/lib/images-produit/r2"
 import {
   brouillon,
   creerCycleVieTest,

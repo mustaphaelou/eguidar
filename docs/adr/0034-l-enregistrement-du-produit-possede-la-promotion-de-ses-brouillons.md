@@ -11,7 +11,7 @@ autour de la transaction que le **Catalogue** ouvrait.
 
 Le coût était double. L'unité de l'opération logique tenait à un rappel plutôt qu'à un ordre écrit :
 deux modules croyaient tenir la séquence, l'un ouvrant sa transaction, l'autre décidant quand y
-entrer. Et les suites éprouvaient ce rappel — `lib/cycle-vie-image-produit.test.ts` en a perdu six
+entrer. Et les suites éprouvaient ce rappel — `lib/images-produit/cycle-vie.test.ts` en a perdu six
 cent cinquante-neuf lignes au seul ticket #690 —, c'est-à-dire un détail d'implémentation plutôt que
 le comportement observable d'un enregistrement de **Produit**.
 
@@ -27,9 +27,9 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
 ## Décision
 
 - **Une couture séquentielle, en ordre direct.** L'interface du cycle de vie
-  (`lib/cycle-vie-image-produit.ts:191-215`) n'expose plus aucune opération qui prend une fonction :
+  (`lib/images-produit/cycle-vie.ts:191-215`) n'expose plus aucune opération qui prend une fonction :
   elle se lit dans l'ordre où l'enregistrement l'exécute — préparer la promotion, confirmer,
-  supprimer les sources — par `preparerPromotionBrouillons` (`lib/cycle-vie-image-produit.ts:840-925`),
+  supprimer les sources — par `preparerPromotionBrouillons` (`lib/images-produit/cycle-vie.ts:840-925`),
   `confirmerBrouillons` (`:927-946`), `compenserPromotionBrouillons` (`:966-984`) et
   `supprimerSources` (`:986-999`), qui rendent la main à chaque geste et laissent l'appelant les
   enchaîner. Le **Catalogue** est cet appelant : `createProduct`
@@ -47,7 +47,7 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
   transaction : la rangée du **Produit**, ses Variantes, et la liaison des Brouillons au **Produit**
   — `effects.confirmerBrouillons(created.id, promotions, portTransactionRegistreBrouillonImageProduit(tx))`
   (`:497-501`, `:631-635`), le port passé ne sachant que confirmer une promotion
-  (`lib/cycle-vie-image-produit.ts:132-136`, `:461-468`). *Après* l'engagement : la suppression des
+  (`lib/images-produit/cycle-vie.ts:132-136`, `:461-468`). *Après* l'engagement : la suppression des
   sources, en best-effort (`effects.supprimerSources`, ADR-0014), puis la suppression des Images
   produit retirées, la réindexation et l'invalidation du cache. Aucune opération de stockage ne
   s'exécute pendant que la transaction est ouverte, et aucune écriture de base ne s'exécute après
@@ -58,7 +58,7 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
 - **La compensation est inconditionnelle, et elle épargne ce qui est engagé.** Tout échec de la
   transaction — validation, unicité, panne — passe par `compenserPromotions`
   (`lib/use-cases/admin-catalog.ts:439-445`) puis `compenserPromotionBrouillons`
-  (`lib/cycle-vie-image-produit.ts:966-984`) : les copies promues qui ne sont liées à aucun
+  (`lib/images-produit/cycle-vie.ts:966-984`) : les copies promues qui ne sont liées à aucun
   **Produit** sont supprimées, et les revendications de la tentative sont rendues, Brouillon par
   Brouillon. L'appelant ne décide pas de compenser, et il ne peut pas l'oublier : la compensation
   appartient à la couture. Deux preuves sont épargnées par construction : une promotion déjà liée à
@@ -87,11 +87,11 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
 
 - **La promotion du stockage n'a qu'un propriétaire, et le Catalogue garde son effet après
   engagement.** `promouvoirBrouillon`, `supprimerBrouillon` et `supprimerImagePromue` ne sont nommés
-  que par le port qui les implémente (`lib/r2.ts`) et par le module de cycle de vie qui les appelle
-  (`lib/cycle-vie-image-produit.ts`) ; le **Catalogue** n'en nomme aucun, et son seul geste de
+  que par le port qui les implémente (`lib/images-produit/r2.ts`) et par le module de cycle de vie qui les appelle
+  (`lib/images-produit/cycle-vie.ts`) ; le **Catalogue** n'en nomme aucun, et son seul geste de
   stockage reste `stockageImageProduitR2.supprimerImagePersistee(url)`
   (`lib/use-cases/admin-catalog.ts:102-114`), effet après engagement de sa propre mutation. La
-  frontière d'imports l'épingle : `lib/cycle-vie-image-produit-frontiere.test.ts`.
+  frontière d'imports l'épingle : `lib/images-produit/cycle-vie-frontiere.test.ts`.
 
 - **Ce qui ne change pas.** Les routes de téléversement (`app/api/admin/uploads/presign/route.ts`,
   `app/api/admin/uploads/delete/route.ts`) et le port client de téléversement restent tels qu'ADR-0033
@@ -148,9 +148,9 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
 
 - L'interface du cycle de vie est séquentielle et en ordre direct ; `revendiquerEtEnregistrer` et
   `RevendicationImagesProduit` n'ont aucun propriétaire et aucune mention dans `app/`, `lib/` ou
-  `components/` — épinglé par `lib/cycle-vie-image-produit-frontiere.test.ts`.
+  `components/` — épinglé par `lib/images-produit/cycle-vie-frontiere.test.ts`.
 - Les trois gestes de promotion du stockage — `promouvoirBrouillon`, `supprimerBrouillon`,
-  `supprimerImagePromue` — n'ont que deux maisons, le port qui les implémente (`lib/r2.ts`) et le
+  `supprimerImagePromue` — n'ont que deux maisons, le port qui les implémente (`lib/images-produit/r2.ts`) et le
   module de cycle de vie qui les appelle — épinglé par la même suite.
 - Le **Catalogue** n'atteint le stockage que par le cycle de vie et par son propre effet après
   engagement : il ne nomme aucun des trois gestes de promotion, et
@@ -164,7 +164,7 @@ d'imports la verrouille pour qu'elle ne pourrisse pas en silence.
   de la transaction.
 - Tout échec de la transaction supprime les copies promues non liées et rend les revendications de
   la tentative ; une promotion déjà liée à une rangée engagée n'est jamais détruite, et un registre
-  muet fait conserver — éprouvé par `lib/cycle-vie-image-produit-compensation.test.ts`.
+  muet fait conserver — éprouvé par `lib/images-produit/cycle-vie-compensation.test.ts`.
 - Les refus bon marché — validations, unicité, appartenance des Images produit et des Variantes —
   précèdent la promotion : un refus ne paie ni promotion réseau ni compensation — éprouvé par les
   mêmes suites d'enregistrement avec Brouillons.
@@ -311,7 +311,7 @@ hachage des URL restent ce qu'ADR-0004 et ADR-0033 ont décidé » disent que le
 telles qu'ADR-0033 les a laissées. C'est toujours vrai de leur contrat HTTP, mais plus de leur
 enveloppe : ADR-0039 les fait déclarer à `adminJsonRoute`, qui possède le 401, les deux 400, le Refus
 mappé, le 200 et la 500 journalisée une fois, et le schéma de pré-signation dérive sa liste MIME de
-`CONTENT_TYPES_IMAGE_PRODUIT` (`lib/r2.ts`). C'est le présent amendement qu'il faut lire à côté.
+`CONTENT_TYPES_IMAGE_PRODUIT` (`lib/images-produit/r2.ts`). C'est le présent amendement qu'il faut lire à côté.
 
 ### Ce que cet amendement ne change pas
 

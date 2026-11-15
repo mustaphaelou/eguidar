@@ -1,4 +1,4 @@
-import type { EntreeBrouillonImage } from "@/lib/galerie-image-produit"
+import type { EntreeBrouillonImage } from "@/lib/images-produit/galerie"
 
 import portHttpTeleversementBrouillons from "./televersement-brouillons-http"
 

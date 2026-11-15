@@ -100,7 +100,7 @@ module Carte produit, et c'est lui que ce travail étend.
   valide — et la suite des deux côtés épingle le verdict.
 
 - **Une copie de moins : `entreesPersisteesDepuisUrls` est supprimée.** Cette aide de
-  `lib/galerie-image-produit.ts` — « une colonne `images` devient une galerie » — n'avait plus qu'un
+  `lib/images-produit/galerie.ts` — « une colonne `images` devient une galerie » — n'avait plus qu'un
   appelant, la page d'édition, que ce travail remplace par la normalisation partagée ; elle est donc
   supprimée avec la page qui la forçait. Elle n'appartient pas au cycle de vie des Images produit, qui
   est hors de portée ici et garde son propre propriétaire (ADR-0004) : ce n'est pas un oubli, c'est

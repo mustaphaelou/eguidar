@@ -50,7 +50,7 @@ import {
   type FaitsFormulaireProduit,
   type FaitsVarianteFormulaire,
 } from "@/lib/formulaire-produit"
-import type { EntreeBibliothequeImageProduit } from "@/lib/galerie-image-produit"
+import type { EntreeBibliothequeImageProduit } from "@/lib/images-produit/galerie"
 import { centsToInputValue } from "@/lib/money"
 import { slugify } from "@/lib/slug"
 

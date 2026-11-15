@@ -678,7 +678,7 @@ The "upload" half of the media library is written and tested. Read it as an asse
   adapter (`televersement-brouillons-http.ts`) naming the two routes.
 - **The routes are thin**: `app/api/admin/uploads/presign/route.ts` and `.../delete/route.ts` only
   parse and delegate to the lifecycle; the MIME list comes from `CONTENT_TYPES_IMAGE_PRODUIT`
-  (`lib/r2.ts:20`).
+  (`lib/images-produit/r2.ts:20`).
 - **Promotion belongs to product save**, in three phases, with unconditional compensation
   (ADR-0034); `preparerPromotionBrouillons` / `confirmerBrouillons` / `supprimerSources` are
   sequential and the Catalogue chains them.
@@ -702,7 +702,7 @@ would add round-trips, a `CompleteMultipartUpload`, and the 7-day abort rule for
 declared `Content-Type`, and that a different header makes the upload fail with 403
 `SignatureDoesNotMatch` [1]. A POST-policy size bound (`content-length-range`) is out of reach: R2
 does not support form POST uploads [1]. The `ContentLength` set in the presign command
-(`lib/r2.ts:270`) is not a documented range check — **unverified**; a `curl -X PUT` with a body
+(`lib/images-produit/r2.ts:270`) is not a documented range check — **unverified**; a `curl -X PUT` with a body
 shorter than the signed size would settle it. Finally, a presigned URL does not bind the bytes: a
 polyglot file named `.jpg`, declared `image/jpeg`, starting with the right magic bytes passes. OWASP
 is explicit: do not trust `Content-Type`, validate the file signature, and for images **decode then
@@ -790,7 +790,7 @@ success, progress, error — to be programmatically determinable without receivi
 `image-gallery-upload.tsx`, the error is a `<p class="text-destructive">` without `role="alert"` or
 association with the control; the release button's `aria-busy` is already right.
 
-**SVG is already excluded; EXIF is not.** `CONTENT_TYPES_IMAGE_PRODUIT` (`lib/r2.ts:20`) does not
+**SVG is already excluded; EXIF is not.** `CONTENT_TYPES_IMAGE_PRODUIT` (`lib/images-produit/r2.ts:20`) does not
 contain `image/svg+xml`: keep it that way. SVG is script-capable, which is why Next disables it by
 default and recommends `contentDispositionType: 'attachment'` plus a restrictive CSP if enabled
 [22], and why Strapi refuses it by default and points to a domain without cookies [14]. The quieter

@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState } from "react"
 
-import type { ImageProduitGalerie } from "@/lib/galerie-image-produit"
+import type { ImageProduitGalerie } from "@/lib/images-produit/galerie"
 import { cn } from "@/lib/utils"
 
 export function ProductGallery({

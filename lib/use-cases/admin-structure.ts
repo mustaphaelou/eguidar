@@ -11,7 +11,7 @@ import { toIndexableProduct } from "@/lib/index-projection"
 import { comparerStructures } from "@/lib/marche-structure"
 import type { IndexableProduct } from "@/lib/index-projection"
 import { indexProductDocuments } from "@/lib/meili"
-import { stockageImageProduitR2 } from "@/lib/r2"
+import { stockageImageProduitR2 } from "@/lib/images-produit/r2"
 import {
   executer as executerPlanDeStructure,
   type EffetsStructure,

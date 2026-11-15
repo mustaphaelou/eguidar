@@ -5,16 +5,16 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { artefactRegleCycleVieR2 } from "@/infra/regle-cycle-vie-r2"
-import { retentionBrouillonImageProduitHeures } from "@/lib/cycle-vie-image-produit"
+import { retentionBrouillonImageProduitHeures } from "@/lib/images-produit/cycle-vie"
 import {
   PREFIXE_BROUILLONS_IMAGE_PRODUIT,
   PREFIXE_IMAGES_PRODUIT,
-} from "@/lib/espace-de-noms-image-produit"
+} from "@/lib/images-produit/espace-de-noms"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
   draftObjectKey,
   persistentObjectKey,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 
 const CHEMIN_ARTEFACT = path.join(
   import.meta.dirname,

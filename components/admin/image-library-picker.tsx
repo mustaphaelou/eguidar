@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import type {
   EntreeBibliothequeImageProduit,
   ImageProduitGalerie,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 
 interface ImageLibraryPickerProps {
   bibliotheque: readonly EntreeBibliothequeImageProduit[]

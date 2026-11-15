@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { LONGUEUR_MAX_TEXTE_ALTERNATIF } from "@/lib/galerie-image-produit"
+import { LONGUEUR_MAX_TEXTE_ALTERNATIF } from "@/lib/images-produit/galerie"
 import {
   MEDIAS_LISTING_PATH,
   buildMediasListingUrl,

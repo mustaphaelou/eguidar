@@ -23,6 +23,7 @@ Single-context repo:
 ├── app/                   ← routes, Server Actions, the seven API handlers
 ├── components/            ← the UI kit and the client surfaces
 ├── lib/
+│   ├── images-produit/    ← the Images produit concept
 │   ├── use-cases/         ← business reads and writes
 │   ├── automations/       ← the durable worker
 │   └── *.ts               ← the domain modules

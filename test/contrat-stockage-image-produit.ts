@@ -5,7 +5,7 @@ import {
   PREFIXE_BROUILLONS_IMAGE_PRODUIT,
   PREFIXE_IMAGES_PRODUIT,
   cleDepuisUrlPublique,
-} from "@/lib/espace-de-noms-image-produit"
+} from "@/lib/images-produit/espace-de-noms"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
   MAX_UPLOAD_SIZE,
@@ -13,7 +13,7 @@ import {
   type ContentTypeImageProduit,
   type PortStockageImageProduit,
   type ResultatStockageImageProduit,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 
 const TAILLE = 2048
 

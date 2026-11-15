@@ -4,8 +4,8 @@ import { artefactRegleCycleVieR2 } from "@/infra/regle-cycle-vie-r2"
 import {
   RETENTION_BROUILLON_IMAGE_PRODUIT_H_PAR_DEFAUT,
   retentionBrouillonImageProduitHeures,
-} from "@/lib/cycle-vie-image-produit"
-import { DUREE_VIE_URL_ENVOI_PRESIGNEE_S } from "@/lib/r2"
+} from "@/lib/images-produit/cycle-vie"
+import { DUREE_VIE_URL_ENVOI_PRESIGNEE_S } from "@/lib/images-produit/r2"
 
 const HEURES_PAR_JOUR = 24
 const CLE_RETENTION = "RETENTION_BROUILLON_IMAGE_PRODUIT_H"

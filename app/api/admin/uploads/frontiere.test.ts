@@ -23,8 +23,8 @@ const SESSION = "lib/use-cases/session-courante"
 // ADR-0039 : la porte possède l'enveloppe HTTP, pas le stockage, le cycle de
 // vie, la base, ni le catalogue.
 const MODULES_INTERDITS_A_LA_PORTE = [
-  ["lib/r2", "le stockage"],
-  ["lib/cycle-vie-image-produit", "le cycle de vie"],
+  ["lib/images-produit/r2", "le stockage"],
+  ["lib/images-produit/cycle-vie", "le cycle de vie"],
   ["lib/db", "la base de données"],
   ["lib/use-cases/admin-catalog", "le catalogue"],
 ] as const

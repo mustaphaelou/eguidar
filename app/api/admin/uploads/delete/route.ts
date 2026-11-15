@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import cycleVieImageProduit, {
   STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import { adminJsonRoute } from "@/lib/use-cases/admin-json-route"
 
 const relacherSchema = z

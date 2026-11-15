@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import type { PreuvePromotion } from "@/lib/cycle-vie-image-produit"
+import type { PreuvePromotion } from "@/lib/images-produit/cycle-vie"
 import type { IndexableProduct } from "@/lib/index-projection"
 import {
   declarerApresEcriture,

@@ -7,11 +7,11 @@ import {
   creerRegistreBrouillonImageProduitPrisma,
   portTransactionRegistreBrouillonImageProduit,
   type CycleVieImageProduit,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import { prisma } from "@/lib/db"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import type { ContentTypeImageProduit } from "@/lib/r2"
-import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
+import type { ContentTypeImageProduit } from "@/lib/images-produit/r2"
+import { draftObjectKey, persistentObjectKey } from "@/lib/images-produit/r2"
 import {
   creerStockageImageProduitMemoire,
   persistee,

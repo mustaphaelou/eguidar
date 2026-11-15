@@ -6,7 +6,7 @@ import {
   persistentObjectKey,
   type ContentTypeImageProduit,
   type PortStockageImageProduit,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 import {
   creerStockageImageProduitMemoire,
   urlImagePersistee,

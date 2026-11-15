@@ -27,7 +27,7 @@ n'avait pas de maison.
   dit les échecs HTTP — statut, corps illisible, enveloppe de pré-signature invalide, panne — ; le
   module dit le seul refus de type non-image. Aucun des trois ne réécrit les mots d'un autre.
 - **Le plafond a un seul propriétaire.** `LIMITE_IMAGES_PRODUIT` vit dans
-  `lib/galerie-image-produit.ts`, le vocabulaire neutre de la Galerie d'images produit, et la
+  `lib/images-produit/galerie.ts`, le vocabulaire neutre de la Galerie d'images produit, et la
   validation du Catalogue d'Administration comme le composant le lisent. Le module reçoit des
   places, il ne connaît pas la limite.
 - **L'adaptateur est la seule bouche HTTP.** `components/admin/televersement-brouillons-http.ts`
@@ -58,11 +58,11 @@ n'avait pas de maison.
 ## Invariants
 
 - Le composant ne parle plus HTTP : ni `fetch`, ni `/api/admin/uploads`, ni forme de corps —
-  épinglé par `lib/cycle-vie-image-produit-frontiere.test.ts`.
+  épinglé par `lib/images-produit/cycle-vie-frontiere.test.ts`.
 - Une seule bouche par route : seul l'adaptateur nomme `/api/admin/uploads/presign` et
   `/api/admin/uploads/delete`.
 - Le port refuse, il ne lève jamais ; le module n'importe ni React, ni le serveur, et n'atteint ni
-  `lib/r2.ts` ni `lib/cycle-vie-image-produit.ts`.
-- `LIMITE_IMAGES_PRODUIT` n'a qu'un propriétaire, `lib/galerie-image-produit.ts`.
+  `lib/images-produit/r2.ts` ni `lib/images-produit/cycle-vie.ts`.
+- `LIMITE_IMAGES_PRODUIT` n'a qu'un propriétaire, `lib/images-produit/galerie.ts`.
 - Les refus du domaine restent mot à mot au serveur ; le client ne les réécrit pas.
 - `product-form.tsx` et les deux routes ne changent pas sous cette décision.

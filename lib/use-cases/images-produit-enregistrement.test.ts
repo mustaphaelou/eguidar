@@ -19,13 +19,13 @@ import {
   updateProduct,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
-import { draftObjectKey } from "@/lib/r2"
+import { draftObjectKey } from "@/lib/images-produit/r2"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
   creerStockageImageProduitMemoire,
 } from "@/test/cycle-vie-image-produit-memoire"
-import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
+import { creerCycleVieImageProduit } from "@/lib/images-produit/cycle-vie"
 
 const runId = randomUUID().slice(0, 8)
 const PREFIXE_URL = `https://cdn.example.test/products/save-${runId}-`
