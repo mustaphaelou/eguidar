@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db"
 import {
   identifiantsBrouillonsGalerie,
   type EntreeImageProduit,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import {
   isContentTypeImageProduit,
@@ -17,13 +17,13 @@ import {
   type FaitImageProduitVerifiee,
   type PortStockageImageProduit,
   type ResultatStockageImageProduit,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 
 export type {
   ContentTypeImageProduit,
   PortStockageImageProduit,
   ResultatStockageImageProduit,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 
 export const ETATS_BROUILLON_IMAGE_PRODUIT = [
   "vivant",

@@ -11,7 +11,7 @@ import {
 } from "vitest"
 
 import { prisma } from "@/lib/db"
-import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
+import { draftObjectKey, persistentObjectKey } from "@/lib/images-produit/r2"
 import {
   CatalogValidationError,
   createProduct,

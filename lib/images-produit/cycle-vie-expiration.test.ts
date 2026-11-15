@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import {
   creerCycleVieImageProduit,
   creerRegistreBrouillonImageProduitPrisma,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import { prisma } from "@/lib/db"
 import {
   creerHorlogeControllable,

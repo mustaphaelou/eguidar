@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   galerieImageProduitSchema,
   identifiantsBrouillonsGalerie,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 
 const BASE_CDN = "https://cdn.eguidar.com"
 

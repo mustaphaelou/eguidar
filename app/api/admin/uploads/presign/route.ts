@@ -2,8 +2,8 @@ import { z } from "zod"
 
 import cycleVieImageProduit, {
   STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
-} from "@/lib/cycle-vie-image-produit"
-import { CONTENT_TYPES_IMAGE_PRODUIT } from "@/lib/r2"
+} from "@/lib/images-produit/cycle-vie"
+import { CONTENT_TYPES_IMAGE_PRODUIT } from "@/lib/images-produit/r2"
 import { adminJsonRoute } from "@/lib/use-cases/admin-json-route"
 
 const presignSchema = z.object({

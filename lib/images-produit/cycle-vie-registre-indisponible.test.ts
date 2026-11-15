@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   MESSAGE_REGISTRE_INDISPONIBLE,
   type CycleVieImageProduit,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import { creerCycleVieTest } from "@/test/cycle-vie-image-produit-memoire"
 
 const DATE_INITIALE = new Date("2026-05-02T10:00:00.000Z")

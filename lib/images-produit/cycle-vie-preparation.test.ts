@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest"
 import {
   MESSAGE_REGISTRE_INDISPONIBLE,
   type CycleVieImageProduit,
-} from "@/lib/cycle-vie-image-produit"
-import { MESSAGE_IMAGE_ILLISIBLE } from "@/lib/verification-image-produit"
-import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
-import type { ContentTypeImageProduit } from "@/lib/r2"
+} from "@/lib/images-produit/cycle-vie"
+import { MESSAGE_IMAGE_ILLISIBLE } from "@/lib/images-produit/verification"
+import { draftObjectKey, persistentObjectKey } from "@/lib/images-produit/r2"
+import type { ContentTypeImageProduit } from "@/lib/images-produit/r2"
 import {
   brouillon,
   creerCycleVieTest,

@@ -10,8 +10,8 @@ vi.mock("@/lib/use-cases/session-courante", () => ({
   estAdmin: (client: { role?: string } | null) => client?.role === "admin",
 }))
 
-vi.mock("@/lib/cycle-vie-image-produit", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/cycle-vie-image-produit")>()),
+vi.mock("@/lib/images-produit/cycle-vie", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/images-produit/cycle-vie")>()),
   default: { relacherBrouillon: relacherBrouillonMock },
 }))
 

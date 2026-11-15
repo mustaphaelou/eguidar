@@ -18,7 +18,7 @@ import {
   type FaitsVarianteFormulaire,
   type SoumissionFormulaireProduit,
 } from "@/lib/formulaire-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
 import type {
   ProductInput,
   ProductVariantInput,

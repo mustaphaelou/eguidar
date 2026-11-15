@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { estUrlImageProduitPersistee } from "@/lib/espace-de-noms-image-produit"
+import { estUrlImageProduitPersistee } from "@/lib/images-produit/espace-de-noms"
 
 export const LIMITE_IMAGES_PRODUIT = 8
 

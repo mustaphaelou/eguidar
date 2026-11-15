@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   cleImageProduitPersistee,
   estUrlImageProduitPersistee,
-} from "@/lib/espace-de-noms-image-produit"
+} from "@/lib/images-produit/espace-de-noms"
 
 const BASE = "https://cdn.eguidar.com"
 

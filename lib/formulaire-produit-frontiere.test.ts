@@ -13,9 +13,9 @@ const BASE = "lib/db.ts"
 const CATALOGUE = "lib/use-cases/admin-catalog.ts"
 
 const GRAPHE_ATTENDU = [
-  "lib/espace-de-noms-image-produit.ts",
   "lib/formulaire-produit.ts",
-  "lib/galerie-image-produit.ts",
+  "lib/images-produit/espace-de-noms.ts",
+  "lib/images-produit/galerie.ts",
   "lib/money.ts",
 ]
 
@@ -23,8 +23,8 @@ const MODULES_INTERDITS = [
   "lib/db",
   "lib/use-cases/session-courante",
   "lib/use-cases/mutation-actions",
-  "lib/r2",
-  "lib/cycle-vie-image-produit",
+  "lib/images-produit/r2",
+  "lib/images-produit/cycle-vie",
   "next/headers",
   "next/navigation",
   "next/cache",
@@ -43,8 +43,8 @@ const CHEMINS_INTERDITS = [
   "lib/use-cases/session-courante.ts",
   "lib/use-cases/mutation-actions.ts",
   "lib/use-cases/storefront.ts",
-  "lib/r2.ts",
-  "lib/cycle-vie-image-produit.ts",
+  "lib/images-produit/r2.ts",
+  "lib/images-produit/cycle-vie.ts",
   "lib/generated/prisma/client.ts",
 ] as const
 
@@ -100,8 +100,8 @@ describe("Formulaire Produit — frontière client/serveur", () => {
     expect(PAR_CHEMIN.has("lib/carte-produit.ts")).toBe(true)
     expect(ATTEINTS.size).toBeGreaterThan(1)
     expect(ATTEINTS.has("lib/money.ts")).toBe(true)
-    expect(ATTEINTS.has("lib/galerie-image-produit.ts")).toBe(true)
-    expect(ATTEINTS.has("lib/espace-de-noms-image-produit.ts")).toBe(true)
+    expect(ATTEINTS.has("lib/images-produit/galerie.ts")).toBe(true)
+    expect(ATTEINTS.has("lib/images-produit/espace-de-noms.ts")).toBe(true)
 
     for (const chemin of CHEMINS_INTERDITS) {
       expect(ATTEINTS.has(chemin), chemin).toBe(false)

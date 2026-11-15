@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { creerCycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import { draftObjectKey } from "@/lib/r2"
+import { creerCycleVieImageProduit } from "@/lib/images-produit/cycle-vie"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
+import { draftObjectKey } from "@/lib/images-produit/r2"
 import {
   creerHorlogeControllable,
   creerRegistreImageProduitMemoire,
