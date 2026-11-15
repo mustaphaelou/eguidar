@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto"
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
-import { MESSAGE_REGISTRE_INDISPONIBLE } from "@/lib/cycle-vie-image-produit"
+import { MESSAGE_REGISTRE_INDISPONIBLE } from "@/lib/images-produit/cycle-vie"
 import { prisma } from "@/lib/db"
-import { draftObjectKey, persistentObjectKey } from "@/lib/r2"
+import { draftObjectKey, persistentObjectKey } from "@/lib/images-produit/r2"
 import {
   createProduct,
   DraftConflictError,

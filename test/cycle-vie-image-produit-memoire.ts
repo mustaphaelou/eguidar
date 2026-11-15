@@ -5,13 +5,13 @@ import {
   type EntreeCreationBrouillonImageProduit,
   type PortRegistreBrouillonImageProduit,
   type ResultatRevendicationRegistre,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import {
   PREFIXE_BROUILLONS_IMAGE_PRODUIT,
   PREFIXE_IMAGES_PRODUIT,
   cleDepuisUrlPublique,
-} from "@/lib/espace-de-noms-image-produit"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/espace-de-noms"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
 import {
   MAX_UPLOAD_SIZE,
   draftObjectKey,
@@ -25,8 +25,8 @@ import {
   type ResultatStockageImageProduit,
   type ValeurPromotionBrouillon,
   type ValeurPresignBrouillon,
-} from "@/lib/r2"
-import { inspecterImageProduit } from "@/lib/verification-image-produit"
+} from "@/lib/images-produit/r2"
+import { inspecterImageProduit } from "@/lib/images-produit/verification"
 
 export const BASE_PUBLIQUE_MEMOIRE = "https://cdn.example.test"
 

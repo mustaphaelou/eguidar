@@ -48,7 +48,10 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: signedUrlMock,
 }))
 
-import { CONTENT_TYPES_IMAGE_PRODUIT, stockageImageProduitR2 } from "@/lib/r2"
+import {
+  CONTENT_TYPES_IMAGE_PRODUIT,
+  stockageImageProduitR2,
+} from "@/lib/images-produit/r2"
 import {
   CODES_ECHEC_CONTRAT,
   codesEchec,

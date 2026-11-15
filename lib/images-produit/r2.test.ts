@@ -57,13 +57,13 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: signedUrlMock,
 }))
 
-import { cleDepuisUrlPublique } from "@/lib/espace-de-noms-image-produit"
+import { cleDepuisUrlPublique } from "@/lib/images-produit/espace-de-noms"
 import {
   DUREE_VIE_URL_ENVOI_PRESIGNEE_S,
   MAX_UPLOAD_SIZE,
   publicUrlFromKey,
   stockageImageProduitR2,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 
 const ENV_R2 = [
   "R2_ACCOUNT_ID",

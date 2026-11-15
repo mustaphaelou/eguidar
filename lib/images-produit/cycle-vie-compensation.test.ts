@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import type { CycleVieImageProduit } from "@/lib/cycle-vie-image-produit"
-import { persistentObjectKey } from "@/lib/r2"
-import type { ContentTypeImageProduit } from "@/lib/r2"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import type { CycleVieImageProduit } from "@/lib/images-produit/cycle-vie"
+import { persistentObjectKey } from "@/lib/images-produit/r2"
+import type { ContentTypeImageProduit } from "@/lib/images-produit/r2"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
 import {
   brouillon,
   creerCycleVieTest,

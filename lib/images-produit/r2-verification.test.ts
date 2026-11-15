@@ -56,11 +56,14 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: vi.fn(),
 }))
 
-import { MAX_UPLOAD_SIZE, stockageImageProduitR2 } from "@/lib/r2"
+import {
+  MAX_UPLOAD_SIZE,
+  stockageImageProduitR2,
+} from "@/lib/images-produit/r2"
 import {
   MESSAGE_FORMAT_NON_AUTORISE,
   MESSAGE_IMAGE_ILLISIBLE,
-} from "@/lib/verification-image-produit"
+} from "@/lib/images-produit/verification"
 
 const ENV_R2 = [
   "R2_ACCOUNT_ID",

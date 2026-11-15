@@ -4,7 +4,7 @@ import { z } from "zod"
 import {
   STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT,
   type CodeRefusCycleVieImageProduit,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import type { Client } from "@/lib/use-cases/session-courante"
 import { sessionCouranteMock } from "@/test/navigation-mocks"
 

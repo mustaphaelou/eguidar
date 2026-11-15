@@ -3,7 +3,7 @@ import type {
   IdentiteProduitCatalogue,
   PlanCatalogue,
 } from "@/lib/apres-ecriture"
-import type { PreuvePromotion } from "@/lib/cycle-vie-image-produit"
+import type { PreuvePromotion } from "@/lib/images-produit/cycle-vie"
 import type { IndexableProduct } from "@/lib/index-projection"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import type { EntreeRegistreImageProduit } from "@/lib/use-cases/images-produit"

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { draftObjectKey } from "@/lib/r2"
-import { MESSAGE_IMAGE_ILLISIBLE } from "@/lib/verification-image-produit"
+import { draftObjectKey } from "@/lib/images-produit/r2"
+import { MESSAGE_IMAGE_ILLISIBLE } from "@/lib/images-produit/verification"
 import {
   creerStockageImageProduitMemoire,
   type OperationStockage,

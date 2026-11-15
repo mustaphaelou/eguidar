@@ -9,10 +9,10 @@ import {
   type CycleVieImageProduit,
   type Horloge,
   type PreuvePromotion,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import { prisma } from "@/lib/db"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
-import { persistentObjectKey } from "@/lib/r2"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
+import { persistentObjectKey } from "@/lib/images-produit/r2"
 import {
   DraftConflictError,
   DraftExpiredError,

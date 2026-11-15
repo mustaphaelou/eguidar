@@ -2,7 +2,7 @@
 
 Ce document dit **où vit chaque chose**, **quelle couture sépare deux modules** et **quelle loi rien ne franchit**. Il ne réexplique aucune décision : chaque section renvoie à l'ADR qui l'a prise. Le vocabulaire du domaine est dans [`GLOSSARY.md`](../GLOSSARY.md) ; celui de l'architecture, au [§6](#6-vocabulaire-de-larchitecture).
 
-Le dépôt applique cette architecture depuis longtemps — vingt-six tests `*-frontiere`, quatre suites `*-contrat`, un analyseur de graphe d'imports de 251 lignes. Ce document ne l'invente pas : il la rend lisible.
+Le dépôt applique cette architecture depuis longtemps — trente et un tests `*-frontiere`, quatre suites `*-contrat`, un analyseur de graphe d'imports de 251 lignes. Ce document ne l'invente pas : il la rend lisible.
 
 ## Sommaire
 
@@ -40,7 +40,7 @@ Eguidar est **une application Next.js unique**, servie par un seul processus Nod
 | **Surfaces** | `app/`, `components/` | rendre, lire l'URL, appeler un cas d'usage ou une Server Action |
 | **Cas d'usage** | `lib/use-cases/` | porter la transaction, la Session courante, la validation, l'autorisation |
 | **Domaine pur** | les modules de `lib/` sans aucun `import` | calculer, sans Next, sans Prisma, sans entrée-sortie |
-| **Adaptateurs** | `lib/meili.ts`, `lib/r2.ts`, `lib/purge-edge-cloudflare.ts`, `lib/redis.ts`, `lib/emails/` | parler à un service extérieur, derrière un port |
+| **Adaptateurs** | `lib/meili.ts`, `lib/images-produit/r2.ts`, `lib/purge-edge-cloudflare.ts`, `lib/redis.ts`, `lib/emails/` | parler à un service extérieur, derrière un port |
 | **Infrastructure** | `lib/db.ts`, `lib/configuration-critique.ts`, `cache-handlers/`, `prisma/` | tenir les connexions et la configuration |
 
 **La règle d'import va vers le bas, jamais vers le haut.** Aucune page ni aucune action de production ne touche `lib/db` : seuls les tests le font, pour semer leurs faits. Trente et un modules de `lib/` n'ont aucun import du tout — `carte-produit.ts`, `marche-structure.ts`, `money.ts`, `blog-contenu.ts`, `panier-transport.ts` — et ce sont eux qui portent les calculs.
@@ -102,11 +102,11 @@ L'indisponibilité du moteur est un cas typé, pas une exception : `ReponseIndis
 
 ### 3.6 Images — le stockage et le cycle de vie
 
-- **Côté contrat** : `lib/r2.ts` — `ResultatStockageImageProduit`, `CodeEchecStockage`.
-- **Côté cycle de vie** : `lib/cycle-vie-image-produit.ts` — les gestes des Brouillons d'Image produit, la rétention, la promotion.
-- **Côté espace de noms** : `lib/espace-de-noms-image-produit.ts`.
+- **Côté contrat** : `lib/images-produit/r2.ts` — `ResultatStockageImageProduit`, `CodeEchecStockage`.
+- **Côté cycle de vie** : `lib/images-produit/cycle-vie.ts` — les gestes des Brouillons d'Image produit, la rétention, la promotion.
+- **Côté espace de noms** : `lib/images-produit/espace-de-noms.ts`.
 - **ADR** : 0004 (les clés publiques), 0033 (le port client), 0034 (la promotion appartient à l'enregistrement).
-- **Garde** : `lib/cycle-vie-image-produit-frontiere.test.ts`, `test/contrat-stockage-image-produit.ts`, `test/contrat-registre-brouillon.ts`, `infra/regle-cycle-vie-r2.test.ts`.
+- **Garde** : `lib/images-produit/cycle-vie-frontiere.test.ts`, `test/contrat-stockage-image-produit.ts`, `test/contrat-registre-brouillon.ts`, `infra/regle-cycle-vie-r2.test.ts`.
 
 Un échec de stockage est un résultat, jamais une exception qui remonte : il a un code fermé.
 
@@ -149,7 +149,7 @@ Une loi est une règle que rien ne peut franchir, et chaque loi nomme sa **garde
 | --- | --- | --- |
 | 1 | **Un fait n'a qu'un propriétaire** | `infra/*.test.ts` — chaque artefact est dérivé, et un test échoue dès qu'il diverge |
 | 2 | **Un module serveur ne prête au client que des types** (ADR-0028) | `app/admin/actions-frontiere.test.ts`, `lib/use-cases/outils-frontiere.ts` |
-| 3 | **Une valeur partagée habite un module neutre** | les vingt-six tests `*-frontiere.test.ts` |
+| 3 | **Une valeur partagée habite un module neutre** | les trente et un tests `*-frontiere.test.ts` |
 | 4 | **Le commit est autoritatif** (ADR-0014) | `lib/use-cases/mutation-squelette.ts` ne jette pas ; `test/mutation-squelette-recette.ts` |
 | 5 | **Pas d'Événement d'automatisation sans conséquence durable** (ADR-0049) | `lib/apres-ecriture.test.ts` |
 | 6 | **Une déclaration par genre d'écriture** (ADR-0049) | `lib/apres-ecriture-frontiere.test.ts` — le registre est exhaustif par le type |
@@ -184,6 +184,10 @@ _Avoid_: seam, frontière (réservé au suffixe des gardes), interface
 
 **Côté**:
 Un des deux bords d'une couture. Le côté déclarant écrit le contrat ; le côté exécutant le consomme.
+
+**Dossier de concept**:
+Un dossier de `lib/` posé à la racine, nommé par le terme que `GLOSSARY.md` possède, qui réunit les modules d'un même concept, leurs tests unitaires, leurs exécuteurs de contrat et leurs gardes ; ses modules peuvent appartenir à plusieurs couches, la couche est une propriété du module et non du dossier.
+_Avoid_: dossier de domaine, dossier de couche
 
 **Garde**:
 Le test qui échoue quand une couture est franchie de travers ou qu'une loi est rompue. Une garde qui ne peut pas tomber n'est pas une garde : chaque famille `*-frontiere` éprouve sa propre chute sur une violation synthétique.
