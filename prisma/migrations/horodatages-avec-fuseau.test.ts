@@ -1,0 +1,187 @@
+import { readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
+
+import { describe, expect, it } from "vitest"
+
+import { prisma } from "@/lib/db"
+
+const RACINE = join(import.meta.dirname, "..", "..")
+const SCHEMA = join(RACINE, "prisma", "schema.prisma")
+const DOSSIER_MIGRATIONS = join(RACINE, "prisma", "migrations")
+
+type ColonneTemporale = { modele: string; colonne: string }
+
+function colonnesTemporales(): ColonneTemporale[] {
+  const lignes = readFileSync(SCHEMA, "utf8").split("\n")
+  const colonnes: ColonneTemporale[] = []
+  let modele: string | null = null
+
+  for (const ligne of lignes) {
+    const ouverture = /^model\s+(\w+)\s*\{\s*$/.exec(ligne)
+    if (ouverture) {
+      modele = ouverture[1]
+      continue
+    }
+    if (/^\}\s*$/.test(ligne)) {
+      modele = null
+      continue
+    }
+    if (modele === null) continue
+    const champ = /^\s+(\w+)\s+DateTime\??(?:\s|$)/.exec(ligne)
+    if (champ) colonnes.push({ modele, colonne: champ[1] })
+  }
+
+  return colonnes
+}
+
+function migrationDesHorodatages(): { dossier: string; sql: string } {
+  const candidates = readdirSync(DOSSIER_MIGRATIONS, { withFileTypes: true })
+    .filter((entree) => entree.isDirectory())
+    .map((entree) => entree.name)
+    .map((dossier) => ({
+      dossier,
+      sql: readFileSync(
+        join(DOSSIER_MIGRATIONS, dossier, "migration.sql"),
+        "utf8"
+      ),
+    }))
+    .filter(({ sql }) => sql.includes("TIMESTAMPTZ(3)"))
+
+  expect(candidates).toHaveLength(1)
+  return candidates[0]
+}
+
+function instructionDeConversion({
+  modele,
+  colonne,
+}: ColonneTemporale): string {
+  return [
+    `ALTER TABLE "${modele}"`,
+    `  ALTER COLUMN "${colonne}" SET DATA TYPE TIMESTAMPTZ(3)`,
+    `  USING "${colonne}" AT TIME ZONE 'UTC';`,
+  ].join("\n")
+}
+
+describe("la migration des horodatages", () => {
+  it("convertit chaque DateTime du schéma en timestamptz(3), avec un USING explicite", () => {
+    const { dossier, sql } = migrationDesHorodatages()
+    const colonnes = colonnesTemporales()
+
+    expect(dossier).toMatch(/^\d{14}_[a-z0-9_]+$/)
+    expect(colonnes.length).toBeGreaterThan(0)
+    expect(sql).not.toMatch(/DROP\s+(TABLE|COLUMN|INDEX)/i)
+    expect(sql).not.toMatch(/DELETE\s+FROM|TRUNCATE/i)
+    expect(sql).not.toMatch(/ALTER\s+TABLE\s+"_prisma_migrations"/i)
+
+    const manquantes = colonnes.filter(
+      ({ modele, colonne }) =>
+        !sql.includes(instructionDeConversion({ modele, colonne }))
+    )
+
+    expect(
+      manquantes.map(
+        ({ modele, colonne }) =>
+          `« ${modele}.${colonne} » est un DateTime du schéma, mais la migration ne le convertit pas avec un USING … AT TIME ZONE 'UTC'.`
+      )
+    ).toEqual([])
+  })
+
+  it("annote chaque DateTime du schéma avec le fuseau", () => {
+    const lignes = readFileSync(SCHEMA, "utf8")
+      .split("\n")
+      .filter((ligne) => /^\s+\w+\s+DateTime\??(?:\s|$)/.test(ligne))
+    const sansFuseau = lignes.filter(
+      (ligne) => !ligne.includes("@db.Timestamptz(3)")
+    )
+
+    expect(lignes.length).toBeGreaterThan(0)
+    expect(
+      sansFuseau.map(
+        (ligne) =>
+          `« ${ligne.trim()} » reste un timestamp sans fuseau : Prisma le recréerait en timestamp(3).`
+      )
+    ).toEqual([])
+  })
+
+  it("ne laisse aucun horodatage sans fuseau dans la base", async () => {
+    const sansFuseau = await prisma.$queryRaw<
+      { table_name: string; column_name: string }[]
+    >`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND data_type = 'timestamp without time zone'
+      ORDER BY table_name, column_name
+    `
+    const avecFuseau = await prisma.$queryRaw<
+      { table_name: string; column_name: string; precision: number }[]
+    >`
+      SELECT table_name, column_name, datetime_precision::int AS precision
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND data_type = 'timestamp with time zone'
+        AND table_name <> '_prisma_migrations'
+      ORDER BY table_name, column_name
+    `
+
+    expect(
+      sansFuseau.map(
+        ({ table_name, column_name }) =>
+          `« ${table_name}.${column_name} » est encore un timestamp sans fuseau.`
+      )
+    ).toEqual([])
+    expect(
+      avecFuseau
+        .filter(({ precision }) => precision !== 3)
+        .map(
+          ({ table_name, column_name, precision }) =>
+            `« ${table_name}.${column_name} » est en timestamptz(${precision}), pas en timestamptz(3).`
+        )
+    ).toEqual([])
+    expect(avecFuseau).toHaveLength(colonnesTemporales().length)
+  })
+
+  it("préserve l'instant d'une valeur existante, quel que soit le fuseau de session", async () => {
+    const { sql } = migrationDesHorodatages()
+    const conversion = instructionDeConversion({
+      modele: "ArticleBlog",
+      colonne: "createdAt",
+    })
+    expect(sql).toContain(conversion)
+
+    const instants = [
+      "2026-03-10 02:30:00.123",
+      "2026-11-15 23:34:21.149",
+    ] as const
+    const attendus = instants.map((instant) =>
+      Date.parse(`${instant.replace(" ", "T")}Z`)
+    )
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `CREATE TEMP TABLE "ArticleBlog" ("createdAt" timestamp(3) NOT NULL)`
+      )
+      await tx.$executeRawUnsafe(`SET LOCAL search_path = pg_temp`)
+      for (const instant of instants) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "ArticleBlog" ("createdAt") VALUES ('${instant}')`
+        )
+      }
+
+      // Le fuseau de la session déplace un timestamp sans fuseau. La
+      // conversion doit lire les valeurs comme UTC et ne pas en dépendre.
+      await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE 'America/New_York'`)
+      await tx.$executeRawUnsafe(conversion)
+
+      const lignes = await tx.$queryRawUnsafe<{ millisecondes: bigint }[]>(
+        `SELECT (extract(epoch FROM "createdAt") * 1000)::bigint AS millisecondes
+         FROM "ArticleBlog" ORDER BY "createdAt"`
+      )
+
+      expect(lignes.map(({ millisecondes }) => Number(millisecondes))).toEqual(
+        attendus
+      )
+      await tx.$executeRawUnsafe(`DROP TABLE "ArticleBlog"`)
+    })
+  })
+})
