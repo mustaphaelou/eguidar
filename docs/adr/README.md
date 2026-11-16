@@ -34,6 +34,10 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 
 ### Authentification et sécurité
 
+La déclaration normative des sept voies d'authentification est
+[`auth-pathways.md`](../auth-pathways.md) : elle dit, voie par voie, ce que la boutique tient, ce
+qu'elle ne tient pas et l'ADR qui l'a décidé (ADR-0058).
+
 | N° | Décision | |
 | --- | --- | --- |
 | [0001](0001-modal-auth.md) | Modal-based login and sign-up (no dedicated auth pages) | ★ |
@@ -49,6 +53,9 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 | [0046](0046-suppression-des-donnees-facebook.md) | Une demande de suppression Facebook supprime le Compte client en entier | |
 | [0047](0047-le-compteur-d-echecs-est-tenu-par-adresse.md) | Le compteur d'échecs d'une Connexion est tenu par adresse normalisée, dans Redis | |
 | [0053](0053-les-flux-d-authentification-possedent-leur-etat.md) | Les flux d'authentification possèdent leur état ; la modale compose sans en garder | |
+| [0058](0058-les-sept-voies-d-authentification-ont-une-seule-declaration.md) | Les sept voies d'authentification ont une seule déclaration, et chaque voie porte son statut | |
+| [0059](0059-le-refus-d-authentification-a-un-proprietaire-unique.md) | Le Refus d'authentification a un propriétaire unique, et le Client ne lit jamais la phrase de la bibliothèque | |
+| [0060](0060-le-modele-de-menace-de-l-authentification-nomme-ses-adversaires.md) | Le modèle de menace nomme ses adversaires, et l'Administration sans second facteur est un non-goal | |
 
 ### Catalogue, Structure, Recherche, médias
 
