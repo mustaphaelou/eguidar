@@ -61,6 +61,13 @@ export const ReturnLineCondition = {
 export type ReturnLineCondition =
   (typeof ReturnLineCondition)[keyof typeof ReturnLineCondition]
 
+export const RefundMode = {
+  cash: "cash",
+  transfer: "transfer",
+} as const
+
+export type RefundMode = (typeof RefundMode)[keyof typeof RefundMode]
+
 export const StatutPublication = {
   brouillon: "brouillon",
   publie: "publie",

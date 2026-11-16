@@ -70,6 +70,7 @@ export const ModelName = {
   OrderItem: "OrderItem",
   Return: "Return",
   ReturnLine: "ReturnLine",
+  Refund: "Refund",
   DeliveryCity: "DeliveryCity",
   ShippingSettings: "ShippingSettings",
   Theme: "Theme",
@@ -340,6 +341,22 @@ export const ReturnLineScalarFieldEnum = {
 
 export type ReturnLineScalarFieldEnum =
   (typeof ReturnLineScalarFieldEnum)[keyof typeof ReturnLineScalarFieldEnum]
+
+export const RefundScalarFieldEnum = {
+  id: "id",
+  paymentId: "paymentId",
+  returnId: "returnId",
+  amount: "amount",
+  mode: "mode",
+  refundedAt: "refundedAt",
+  recordedById: "recordedById",
+  reason: "reason",
+  idempotencyKey: "idempotencyKey",
+  createdAt: "createdAt",
+} as const
+
+export type RefundScalarFieldEnum =
+  (typeof RefundScalarFieldEnum)[keyof typeof RefundScalarFieldEnum]
 
 export const DeliveryCityScalarFieldEnum = {
   id: "id",

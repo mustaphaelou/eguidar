@@ -127,6 +127,11 @@ export type Return = Prisma.ReturnModel
  */
 export type ReturnLine = Prisma.ReturnLineModel
 /**
+ * Model Refund
+ *
+ */
+export type Refund = Prisma.RefundModel
+/**
  * Model DeliveryCity
  *
  */

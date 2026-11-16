@@ -242,6 +242,7 @@ export type userWhereInput = {
   cartItems?: Prisma.CartItemListRelationFilter
   orders?: Prisma.OrderListRelationFilter
   payments?: Prisma.PaymentListRelationFilter
+  refunds?: Prisma.RefundListRelationFilter
   statusChanges?: Prisma.OrderStatusChangeListRelationFilter
   brouillonsImageProduit?: Prisma.BrouillonImageProduitListRelationFilter
   lotsImport?: Prisma.LotImportListRelationFilter
@@ -265,6 +266,7 @@ export type userOrderByWithRelationInput = {
   cartItems?: Prisma.CartItemOrderByRelationAggregateInput
   orders?: Prisma.OrderOrderByRelationAggregateInput
   payments?: Prisma.PaymentOrderByRelationAggregateInput
+  refunds?: Prisma.RefundOrderByRelationAggregateInput
   statusChanges?: Prisma.OrderStatusChangeOrderByRelationAggregateInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitOrderByRelationAggregateInput
   lotsImport?: Prisma.LotImportOrderByRelationAggregateInput
@@ -295,6 +297,7 @@ export type userWhereUniqueInput = Prisma.AtLeast<
     cartItems?: Prisma.CartItemListRelationFilter
     orders?: Prisma.OrderListRelationFilter
     payments?: Prisma.PaymentListRelationFilter
+    refunds?: Prisma.RefundListRelationFilter
     statusChanges?: Prisma.OrderStatusChangeListRelationFilter
     brouillonsImageProduit?: Prisma.BrouillonImageProduitListRelationFilter
     lotsImport?: Prisma.LotImportListRelationFilter
@@ -359,6 +362,7 @@ export type userCreateInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
@@ -381,6 +385,7 @@ export type userUncheckedCreateInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
@@ -404,6 +409,7 @@ export type userUpdateInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
@@ -428,6 +434,7 @@ export type userUncheckedUpdateInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
@@ -741,6 +748,34 @@ export type userUpdateOneWithoutStatusChangesNestedInput = {
   >
 }
 
+export type userCreateNestedOneWithoutRefundsInput = {
+  create?: Prisma.XOR<
+    Prisma.userCreateWithoutRefundsInput,
+    Prisma.userUncheckedCreateWithoutRefundsInput
+  >
+  connectOrCreate?: Prisma.userCreateOrConnectWithoutRefundsInput
+  connect?: Prisma.userWhereUniqueInput
+}
+
+export type userUpdateOneWithoutRefundsNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.userCreateWithoutRefundsInput,
+    Prisma.userUncheckedCreateWithoutRefundsInput
+  >
+  connectOrCreate?: Prisma.userCreateOrConnectWithoutRefundsInput
+  upsert?: Prisma.userUpsertWithoutRefundsInput
+  disconnect?: Prisma.userWhereInput | boolean
+  delete?: Prisma.userWhereInput | boolean
+  connect?: Prisma.userWhereUniqueInput
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.userUpdateToOneWithWhereWithoutRefundsInput,
+      Prisma.userUpdateWithoutRefundsInput
+    >,
+    Prisma.userUncheckedUpdateWithoutRefundsInput
+  >
+}
+
 export type userCreateNestedManyWithoutShippingCityInput = {
   create?:
     | Prisma.XOR<
@@ -871,6 +906,7 @@ export type userCreateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
@@ -892,6 +928,7 @@ export type userUncheckedCreateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
@@ -942,6 +979,7 @@ export type userUpdateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
@@ -965,6 +1003,7 @@ export type userUncheckedUpdateWithoutSessionsInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
@@ -986,6 +1025,7 @@ export type userCreateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
@@ -1007,6 +1047,7 @@ export type userUncheckedCreateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
@@ -1057,6 +1098,7 @@ export type userUpdateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
@@ -1080,6 +1122,7 @@ export type userUncheckedUpdateWithoutAccountsInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
@@ -1102,6 +1145,7 @@ export type userCreateWithoutBrouillonsImageProduitInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
@@ -1123,6 +1167,7 @@ export type userUncheckedCreateWithoutBrouillonsImageProduitInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
@@ -1173,6 +1218,7 @@ export type userUpdateWithoutBrouillonsImageProduitInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
@@ -1196,6 +1242,7 @@ export type userUncheckedUpdateWithoutBrouillonsImageProduitInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
@@ -1216,6 +1263,7 @@ export type userCreateWithoutCartItemsInput = {
   sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
@@ -1237,6 +1285,7 @@ export type userUncheckedCreateWithoutCartItemsInput = {
   sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
@@ -1287,6 +1336,7 @@ export type userUpdateWithoutCartItemsInput = {
   sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
@@ -1310,6 +1360,7 @@ export type userUncheckedUpdateWithoutCartItemsInput = {
   sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
@@ -1331,6 +1382,7 @@ export type userCreateWithoutOrdersInput = {
   sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
@@ -1352,6 +1404,7 @@ export type userUncheckedCreateWithoutOrdersInput = {
   sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
@@ -1402,6 +1455,7 @@ export type userUpdateWithoutOrdersInput = {
   sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
@@ -1425,6 +1479,7 @@ export type userUncheckedUpdateWithoutOrdersInput = {
   sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
@@ -1446,6 +1501,7 @@ export type userCreateWithoutPaymentsInput = {
   sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
@@ -1467,6 +1523,7 @@ export type userUncheckedCreateWithoutPaymentsInput = {
   sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
@@ -1517,6 +1574,7 @@ export type userUpdateWithoutPaymentsInput = {
   sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
@@ -1540,6 +1598,7 @@ export type userUncheckedUpdateWithoutPaymentsInput = {
   sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
@@ -1562,6 +1621,7 @@ export type userCreateWithoutStatusChangesInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
 }
@@ -1583,6 +1643,7 @@ export type userUncheckedCreateWithoutStatusChangesInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
 }
@@ -1633,6 +1694,7 @@ export type userUpdateWithoutStatusChangesInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
 }
@@ -1656,6 +1718,126 @@ export type userUncheckedUpdateWithoutStatusChangesInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
+}
+
+export type userCreateWithoutRefundsInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  phone?: string | null
+  shippingAddress?: string | null
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  shippingCity?: Prisma.DeliveryCityCreateNestedOneWithoutUsersInput
+  accounts?: Prisma.accountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.sessionCreateNestedManyWithoutUserInput
+  cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
+  orders?: Prisma.OrderCreateNestedManyWithoutUserInput
+  payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
+}
+
+export type userUncheckedCreateWithoutRefundsInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  phone?: string | null
+  shippingAddress?: string | null
+  shippingCityId?: string | null
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.accountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.sessionUncheckedCreateNestedManyWithoutUserInput
+  cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
+  payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
+  lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
+}
+
+export type userCreateOrConnectWithoutRefundsInput = {
+  where: Prisma.userWhereUniqueInput
+  create: Prisma.XOR<
+    Prisma.userCreateWithoutRefundsInput,
+    Prisma.userUncheckedCreateWithoutRefundsInput
+  >
+}
+
+export type userUpsertWithoutRefundsInput = {
+  update: Prisma.XOR<
+    Prisma.userUpdateWithoutRefundsInput,
+    Prisma.userUncheckedUpdateWithoutRefundsInput
+  >
+  create: Prisma.XOR<
+    Prisma.userCreateWithoutRefundsInput,
+    Prisma.userUncheckedCreateWithoutRefundsInput
+  >
+  where?: Prisma.userWhereInput
+}
+
+export type userUpdateToOneWithWhereWithoutRefundsInput = {
+  where?: Prisma.userWhereInput
+  data: Prisma.XOR<
+    Prisma.userUpdateWithoutRefundsInput,
+    Prisma.userUncheckedUpdateWithoutRefundsInput
+  >
+}
+
+export type userUpdateWithoutRefundsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingAddress?:
+    Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  shippingCity?: Prisma.DeliveryCityUpdateOneWithoutUsersNestedInput
+  accounts?: Prisma.accountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.sessionUpdateManyWithoutUserNestedInput
+  cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
+  payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
+  brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
+  lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
+}
+
+export type userUncheckedUpdateWithoutRefundsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingAddress?:
+    Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingCityId?:
+    Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.accountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.sessionUncheckedUpdateManyWithoutUserNestedInput
+  cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
+  payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
 }
@@ -1676,6 +1858,7 @@ export type userCreateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportCreateNestedManyWithoutAuteurInput
@@ -1697,6 +1880,7 @@ export type userUncheckedCreateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
   lotsImport?: Prisma.LotImportUncheckedCreateNestedManyWithoutAuteurInput
@@ -1779,6 +1963,7 @@ export type userCreateWithoutLotsImportInput = {
   cartItems?: Prisma.CartItemCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitCreateNestedManyWithoutOwnerInput
 }
@@ -1800,6 +1985,7 @@ export type userUncheckedCreateWithoutLotsImportInput = {
   cartItems?: Prisma.CartItemUncheckedCreateNestedManyWithoutUserInput
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutRecordedByInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutRecordedByInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedCreateNestedManyWithoutActorInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedCreateNestedManyWithoutOwnerInput
 }
@@ -1850,6 +2036,7 @@ export type userUpdateWithoutLotsImportInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
 }
@@ -1873,6 +2060,7 @@ export type userUncheckedUpdateWithoutLotsImportInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
 }
@@ -1907,6 +2095,7 @@ export type userUpdateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUpdateManyWithoutAuteurNestedInput
@@ -1929,6 +2118,7 @@ export type userUncheckedUpdateWithoutShippingCityInput = {
   cartItems?: Prisma.CartItemUncheckedUpdateManyWithoutUserNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutRecordedByNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutRecordedByNestedInput
   statusChanges?: Prisma.OrderStatusChangeUncheckedUpdateManyWithoutActorNestedInput
   brouillonsImageProduit?: Prisma.BrouillonImageProduitUncheckedUpdateManyWithoutOwnerNestedInput
   lotsImport?: Prisma.LotImportUncheckedUpdateManyWithoutAuteurNestedInput
@@ -1958,6 +2148,7 @@ export type UserCountOutputType = {
   cartItems: number
   orders: number
   payments: number
+  refunds: number
   statusChanges: number
   brouillonsImageProduit: number
   lotsImport: number
@@ -1972,6 +2163,7 @@ export type UserCountOutputTypeSelect<
   cartItems?: boolean | UserCountOutputTypeCountCartItemsArgs
   orders?: boolean | UserCountOutputTypeCountOrdersArgs
   payments?: boolean | UserCountOutputTypeCountPaymentsArgs
+  refunds?: boolean | UserCountOutputTypeCountRefundsArgs
   statusChanges?: boolean | UserCountOutputTypeCountStatusChangesArgs
   brouillonsImageProduit?:
     boolean | UserCountOutputTypeCountBrouillonsImageProduitArgs
@@ -2044,6 +2236,16 @@ export type UserCountOutputTypeCountPaymentsArgs<
 /**
  * UserCountOutputType without action
  */
+export type UserCountOutputTypeCountRefundsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs =
+    runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.RefundWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
 export type UserCountOutputTypeCountStatusChangesArgs<
   ExtArgs extends runtime.Types.Extensions.InternalArgs =
     runtime.Types.Extensions.DefaultArgs,
@@ -2093,6 +2295,7 @@ export type userSelect<
     cartItems?: boolean | Prisma.user$cartItemsArgs<ExtArgs>
     orders?: boolean | Prisma.user$ordersArgs<ExtArgs>
     payments?: boolean | Prisma.user$paymentsArgs<ExtArgs>
+    refunds?: boolean | Prisma.user$refundsArgs<ExtArgs>
     statusChanges?: boolean | Prisma.user$statusChangesArgs<ExtArgs>
     brouillonsImageProduit?:
       boolean | Prisma.user$brouillonsImageProduitArgs<ExtArgs>
@@ -2185,6 +2388,7 @@ export type userInclude<
   cartItems?: boolean | Prisma.user$cartItemsArgs<ExtArgs>
   orders?: boolean | Prisma.user$ordersArgs<ExtArgs>
   payments?: boolean | Prisma.user$paymentsArgs<ExtArgs>
+  refunds?: boolean | Prisma.user$refundsArgs<ExtArgs>
   statusChanges?: boolean | Prisma.user$statusChangesArgs<ExtArgs>
   brouillonsImageProduit?:
     boolean | Prisma.user$brouillonsImageProduitArgs<ExtArgs>
@@ -2216,6 +2420,7 @@ export type $userPayload<
     cartItems: Prisma.$CartItemPayload<ExtArgs>[]
     orders: Prisma.$OrderPayload<ExtArgs>[]
     payments: Prisma.$PaymentPayload<ExtArgs>[]
+    refunds: Prisma.$RefundPayload<ExtArgs>[]
     statusChanges: Prisma.$OrderStatusChangePayload<ExtArgs>[]
     brouillonsImageProduit: Prisma.$BrouillonImageProduitPayload<ExtArgs>[]
     lotsImport: Prisma.$LotImportPayload<ExtArgs>[]
@@ -2845,6 +3050,17 @@ export interface Prisma__userClient<
   ): Prisma.PrismaPromise<
     | runtime.Types.Result.GetResult<
         Prisma.$PaymentPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >
+  refunds<T extends Prisma.user$refundsArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.user$refundsArgs<ExtArgs>>
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$RefundPayload<ExtArgs>,
         T,
         "findMany",
         GlobalOmitOptions
@@ -3548,6 +3764,35 @@ export type user$paymentsArgs<
   take?: number
   skip?: number
   distinct?: Prisma.PaymentScalarFieldEnum | Prisma.PaymentScalarFieldEnum[]
+}
+
+/**
+ * user.refunds
+ */
+export type user$refundsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs =
+    runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the Refund
+   */
+  select?: Prisma.RefundSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Refund
+   */
+  omit?: Prisma.RefundOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.RefundInclude<ExtArgs> | null
+  where?: Prisma.RefundWhereInput
+  orderBy?:
+    | Prisma.RefundOrderByWithRelationInput
+    | Prisma.RefundOrderByWithRelationInput[]
+  cursor?: Prisma.RefundWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.RefundScalarFieldEnum | Prisma.RefundScalarFieldEnum[]
 }
 
 /**

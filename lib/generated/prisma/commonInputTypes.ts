@@ -484,6 +484,29 @@ export type EnumReturnLineConditionNullableWithAggregatesFilter<
   _max?: Prisma.NestedEnumReturnLineConditionNullableFilter<$PrismaModel>
 }
 
+export type EnumRefundModeFilter<$PrismaModel = never> = {
+  equals?: $Enums.RefundMode | Prisma.EnumRefundModeFieldRefInput<$PrismaModel>
+  in?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  notIn?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumRefundModeFilter<$PrismaModel> | $Enums.RefundMode
+}
+
+export type EnumRefundModeWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.RefundMode | Prisma.EnumRefundModeFieldRefInput<$PrismaModel>
+  in?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  notIn?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  not?:
+    | Prisma.NestedEnumRefundModeWithAggregatesFilter<$PrismaModel>
+    | $Enums.RefundMode
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumRefundModeFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumRefundModeFilter<$PrismaModel>
+}
+
 export type EnumStatutPublicationFilter<$PrismaModel = never> = {
   equals?:
     | $Enums.StatutPublication
@@ -1184,6 +1207,29 @@ export type NestedEnumReturnLineConditionNullableWithAggregatesFilter<
   _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
   _min?: Prisma.NestedEnumReturnLineConditionNullableFilter<$PrismaModel>
   _max?: Prisma.NestedEnumReturnLineConditionNullableFilter<$PrismaModel>
+}
+
+export type NestedEnumRefundModeFilter<$PrismaModel = never> = {
+  equals?: $Enums.RefundMode | Prisma.EnumRefundModeFieldRefInput<$PrismaModel>
+  in?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  notIn?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumRefundModeFilter<$PrismaModel> | $Enums.RefundMode
+}
+
+export type NestedEnumRefundModeWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.RefundMode | Prisma.EnumRefundModeFieldRefInput<$PrismaModel>
+  in?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  notIn?:
+    $Enums.RefundMode[] | Prisma.ListEnumRefundModeFieldRefInput<$PrismaModel>
+  not?:
+    | Prisma.NestedEnumRefundModeWithAggregatesFilter<$PrismaModel>
+    | $Enums.RefundMode
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumRefundModeFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumRefundModeFilter<$PrismaModel>
 }
 
 export type NestedEnumStatutPublicationFilter<$PrismaModel = never> = {

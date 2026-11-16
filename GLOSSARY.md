@@ -552,6 +552,18 @@ instant et administrateur acteur. Le backfill en écrit un pour chaque Commande 
 acteur ; une Commande Retournée n'en reçoit aucun. La persistance s'appelle `Payment`.
 _Avoid_: paiement reçu, payment, transaction
 
+**Remboursement**:
+L'argent rendu au Client contre un Encaissement précis, avec ou sans Retour, et avant comme après
+la réception des marchandises. La persistance s'appelle `Refund` : montant accordé en centimes
+entiers, mode espèces (`cash`) ou virement (`transfer`), instant, administrateur acteur, motif
+facultatif et clé d'idempotence unique. L'attente se calcule sur les quantités déclarées du Retour
+lié : un retrait complet attend le montant total payé, livraison comprise ; un retrait partiel
+attend les marchandises seulement (`OrderItem.price × quantité déclarée`). Le montant accordé peut
+différer de l'attente, et le motif l'explique. La somme des Remboursements d'un Encaissement ne
+dépasse jamais son montant, vérifiée dans la transaction. Un refus de Retour ne supprime jamais un
+Remboursement déjà accordé.
+_Avoid_: refund, remboursement partiel
+
 **Chiffre d'affaires encaissé**:
 La somme des Totaux à payer des Commandes au statut Livrée : l'argent réellement collecté.
 Une Commande En attente, Confirmée ou Expédiée n'est pas encore encaissée.
