@@ -4,11 +4,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
 import type { ReturnReason } from "@/lib/generated/prisma/client"
+import { InvalidOrderTransitionError } from "@/lib/use-cases/orders"
 import {
   CommandeDuRetourIntrouvableError,
   declarerRetour,
   DemandeDeRetourOuverteError,
+  DepassementDeLaQuantiteDeclareeError,
   PlafondDuRetourDepasseError,
+  ReceptionDeRetourImpossibleError,
+  recevoirRetour,
   RefusDeRetourImpossibleError,
   refuserRetour,
   RetourIntrouvableError,
@@ -21,6 +25,7 @@ const categorieSlug = `retours-cat-${runId}`
 const VARIANT_SKU = `RET-${runId}-A1`
 
 let userId: string
+let acteurId: string
 let variantId: string
 let categorieId: string
 
@@ -147,6 +152,39 @@ async function attendreLesDeclarationsBloquees(nombre: number): Promise<void> {
   throw new Error("les déclarations n'ont pas attendu le verrou de la Commande")
 }
 
+function reception(
+  retour: { id: string },
+  lignes: {
+    orderItemId: string
+    receivedQuantity: number
+    condition?: "resellable" | "damaged" | null
+  }[],
+  acteur = acteurId
+) {
+  return {
+    returnId: retour.id,
+    lines: lignes.map((ligne) => ({ condition: null, ...ligne })),
+    actorId: acteur,
+  }
+}
+
+async function attendreLesReceptionsBloquees(nombre: number): Promise<void> {
+  const limites = Date.now() + 10_000
+  while (Date.now() < limites) {
+    const lignes = await prisma.$queryRawUnsafe<{ attendu: bigint }[]>(
+      `SELECT count(*) AS attendu
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND state = 'active'
+          AND wait_event_type = 'Lock'
+          AND query LIKE '%FROM "Order" WHERE id = $1 FOR UPDATE%'`
+    )
+    if (Number(lignes[0]?.attendu ?? 0) >= nombre) return
+    await attendre(10)
+  }
+  throw new Error("les réceptions n'ont pas attendu le verrou de la Commande")
+}
+
 async function stockerLaCommande(commande: CommandeFixture) {
   return prisma.order.findUniqueOrThrow({ where: { id: commande.id } })
 }
@@ -160,6 +198,16 @@ beforeAll(async () => {
     },
   })
   userId = utilisateur.id
+
+  const acteur = await prisma.user.create({
+    data: {
+      id: randomUUID(),
+      email: `retours-acteur-${runId}@test.ma`,
+      name: "Administrateur Retours",
+      role: "admin",
+    },
+  })
+  acteurId = acteur.id
 
   const categorie = await prisma.category.create({
     data: { name: `Catégorie ${runId}`, slug: categorieSlug },
@@ -213,6 +261,7 @@ afterAll(async () => {
   await prisma.return.deleteMany({ where: { order: { user: { email } } } })
   await prisma.orderItem.deleteMany({ where: { order: { user: { email } } } })
   await prisma.order.deleteMany({ where: { user: { email } } })
+  await prisma.user.delete({ where: { id: acteurId } })
   await prisma.user.delete({ where: { id: userId } })
   await prisma.product.deleteMany({ where: { categoryId: categorieId } })
   await prisma.category.delete({ where: { id: categorieId } })
@@ -757,4 +806,486 @@ describe("refuser un Retour", () => {
       refuserRetour({ returnId: retour.id, code: "not_received" })
     ).rejects.toBeInstanceOf(RefusDeRetourImpossibleError)
   })
+})
+
+describe("recevoir un Retour", () => {
+  it("fixe la quantité reçue et l'état de chaque ligne, et ne réapprovisionne que le revendable", async () => {
+    const commande = await creerCommande({ quantites: [3, 2, 2] })
+    const [premier, second, troisieme] = commande.items
+    const retour = await declarerRetour(
+      declaration(commande, [
+        { orderItemId: premier.id, declaredQuantity: 2 },
+        { orderItemId: second.id, declaredQuantity: 2 },
+        { orderItemId: troisieme.id, declaredQuantity: 2 },
+      ])
+    )
+
+    const recu = await recevoirRetour(
+      reception(retour, [
+        {
+          orderItemId: premier.id,
+          receivedQuantity: 2,
+          condition: "resellable",
+        },
+        {
+          orderItemId: second.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+        {
+          orderItemId: troisieme.id,
+          receivedQuantity: 1,
+          condition: "damaged",
+        },
+      ])
+    )
+
+    expect(recu).toMatchObject({
+      orderId: commande.id,
+      status: "received",
+      commandeClose: false,
+    })
+    expect(recu.receivedAt).toBeInstanceOf(Date)
+    expect(recu.lines).toEqual([
+      {
+        orderItemId: premier.id,
+        declaredQuantity: 2,
+        receivedQuantity: 2,
+        condition: "resellable",
+      },
+      {
+        orderItemId: second.id,
+        declaredQuantity: 2,
+        receivedQuantity: 1,
+        condition: "resellable",
+      },
+      {
+        orderItemId: troisieme.id,
+        declaredQuantity: 2,
+        receivedQuantity: 1,
+        condition: "damaged",
+      },
+    ])
+
+    const enregistre = await prisma.return.findUniqueOrThrow({
+      where: { id: retour.id },
+      include: { lines: true },
+    })
+    expect(enregistre.status).toBe("received")
+    expect(enregistre.receivedAt).toBeInstanceOf(Date)
+    const lignesEnregistrees = new Map(
+      enregistre.lines.map((ligne) => [ligne.orderItemId, ligne])
+    )
+    expect(lignesEnregistrees.get(premier.id)).toMatchObject({
+      receivedQuantity: 2,
+      condition: "resellable",
+    })
+    expect(lignesEnregistrees.get(second.id)).toMatchObject({
+      receivedQuantity: 1,
+      condition: "resellable",
+    })
+    expect(lignesEnregistrees.get(troisieme.id)).toMatchObject({
+      receivedQuantity: 1,
+      condition: "damaged",
+    })
+
+    const commandeRelue = await stockerLaCommande(commande)
+    expect(commandeRelue.status).toBe("delivered")
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(13)
+    expect(
+      await prisma.orderStatusChange.count({ where: { orderId: commande.id } })
+    ).toBe(0)
+  })
+
+  it("refuse une quantité reçue au-delà de la déclarée, sans rien écrire", async () => {
+    const commande = await creerCommande({ quantites: [3, 2] })
+    const [premier, second] = commande.items
+    const retour = await declarerRetour(
+      declaration(commande, [
+        { orderItemId: premier.id, declaredQuantity: 2 },
+        { orderItemId: second.id, declaredQuantity: 1 },
+      ])
+    )
+
+    await expect(
+      recevoirRetour(
+        reception(retour, [
+          {
+            orderItemId: premier.id,
+            receivedQuantity: 2,
+            condition: "resellable",
+          },
+          {
+            orderItemId: second.id,
+            receivedQuantity: 2,
+            condition: "resellable",
+          },
+        ])
+      )
+    ).rejects.toBeInstanceOf(DepassementDeLaQuantiteDeclareeError)
+
+    const enregistre = await prisma.return.findUniqueOrThrow({
+      where: { id: retour.id },
+      include: { lines: true },
+    })
+    expect(enregistre.status).toBe("requested")
+    expect(
+      enregistre.lines.every((ligne) => ligne.receivedQuantity === null)
+    ).toBe(true)
+    expect((await stockerLaCommande(commande)).status).toBe("delivered")
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(10)
+  })
+
+  it("refuse une réception incomplète, dupliquée ou mal formée, sans rien écrire", async () => {
+    const commande = await creerCommande({ quantites: [2, 1] })
+    const [premier, second] = commande.items
+    const retour = await declarerRetour(
+      declaration(commande, [
+        { orderItemId: premier.id, declaredQuantity: 2 },
+        { orderItemId: second.id, declaredQuantity: 1 },
+      ])
+    )
+    const autre = await creerCommande({ quantites: [1] })
+
+    const invalides = [
+      reception(retour, [
+        {
+          orderItemId: premier.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ]),
+      reception(retour, [
+        {
+          orderItemId: premier.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+        {
+          orderItemId: premier.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ]),
+      reception(retour, [
+        {
+          orderItemId: premier.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+        {
+          orderItemId: autre.items[0].id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ]),
+      reception(retour, [
+        { orderItemId: premier.id, receivedQuantity: 1 },
+        {
+          orderItemId: second.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ]),
+      reception(retour, [
+        {
+          orderItemId: premier.id,
+          receivedQuantity: 0,
+          condition: "resellable",
+        },
+        {
+          orderItemId: second.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ]),
+      reception(retour, [
+        {
+          orderItemId: premier.id,
+          receivedQuantity: -1,
+          condition: "resellable",
+        },
+        {
+          orderItemId: second.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ]),
+    ]
+
+    for (const invalid of invalides) {
+      await expect(recevoirRetour(invalid)).rejects.toBeInstanceOf(
+        RetourValidationError
+      )
+    }
+
+    const enregistre = await prisma.return.findUniqueOrThrow({
+      where: { id: retour.id },
+    })
+    expect(enregistre.status).toBe("requested")
+    expect(
+      await prisma.returnLine.count({
+        where: { returnId: retour.id, receivedQuantity: { not: null } },
+      })
+    ).toBe(0)
+    expect((await stockerLaCommande(commande)).status).toBe("delivered")
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(10)
+  })
+
+  it("refuse de recevoir un Retour refusé", async () => {
+    const commande = await creerCommande({ quantites: [1] })
+    const article = commande.items[0]
+    const retour = await declarerRetour(
+      declaration(commande, [{ orderItemId: article.id, declaredQuantity: 1 }])
+    )
+    await refuserRetour({ returnId: retour.id, code: "not_received" })
+
+    await expect(
+      recevoirRetour(
+        reception(retour, [
+          {
+            orderItemId: article.id,
+            receivedQuantity: 1,
+            condition: "resellable",
+          },
+        ])
+      )
+    ).rejects.toBeInstanceOf(ReceptionDeRetourImpossibleError)
+
+    expect(
+      (await prisma.return.findUniqueOrThrow({ where: { id: retour.id } }))
+        .status
+    ).toBe("refused")
+    expect((await stockerLaCommande(commande)).status).toBe("delivered")
+    expect(
+      await prisma.orderStatusChange.count({ where: { orderId: commande.id } })
+    ).toBe(0)
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(10)
+  })
+
+  it("ne reçoit qu'une fois un Retour déjà reçu", async () => {
+    const commande = await creerCommande({ quantites: [1] })
+    const article = commande.items[0]
+    const retour = await declarerRetour(
+      declaration(commande, [{ orderItemId: article.id, declaredQuantity: 1 }])
+    )
+    const ligne = {
+      orderItemId: article.id,
+      receivedQuantity: 1,
+      condition: "resellable" as const,
+    }
+
+    await recevoirRetour(reception(retour, [ligne]))
+    await expect(
+      recevoirRetour(reception(retour, [ligne]))
+    ).rejects.toBeInstanceOf(ReceptionDeRetourImpossibleError)
+
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(11)
+    expect((await stockerLaCommande(commande)).status).toBe("returned")
+    expect(
+      await prisma.orderStatusChange.count({ where: { orderId: commande.id } })
+    ).toBe(1)
+  })
+
+  it("clôt la Commande à Retournée quand toutes les unités sont revenues, avec son Changement de statut et sans second réapprovisionnement", async () => {
+    const commande = await creerCommande({ quantites: [2, 2] })
+    const [premier, second] = commande.items
+    const retour = await declarerRetour(
+      declaration(commande, [
+        { orderItemId: premier.id, declaredQuantity: 2 },
+        { orderItemId: second.id, declaredQuantity: 2 },
+      ])
+    )
+
+    const recu = await recevoirRetour(
+      reception(retour, [
+        {
+          orderItemId: premier.id,
+          receivedQuantity: 2,
+          condition: "resellable",
+        },
+        {
+          orderItemId: second.id,
+          receivedQuantity: 2,
+          condition: "damaged",
+        },
+      ])
+    )
+
+    expect(recu.commandeClose).toBe(true)
+    expect((await stockerLaCommande(commande)).status).toBe("returned")
+    const changements = await prisma.orderStatusChange.findMany({
+      where: { orderId: commande.id },
+    })
+    expect(changements).toHaveLength(1)
+    expect(changements[0]).toMatchObject({
+      fromStatus: "delivered",
+      toStatus: "returned",
+      actorId: acteurId,
+    })
+    expect(changements[0].changedAt.getTime()).toBe(recu.receivedAt.getTime())
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(12)
+  })
+
+  it("laisse la Commande Livrée pour une réception partielle, et un second colis est un second Retour", async () => {
+    const commande = await creerCommande({ quantites: [3] })
+    const article = commande.items[0]
+
+    const premier = await declarerRetour(
+      declaration(commande, [{ orderItemId: article.id, declaredQuantity: 1 }])
+    )
+    const premiereReception = await recevoirRetour(
+      reception(premier, [
+        {
+          orderItemId: article.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ])
+    )
+
+    expect(premiereReception.commandeClose).toBe(false)
+    expect((await stockerLaCommande(commande)).status).toBe("delivered")
+    expect(
+      await prisma.orderStatusChange.count({ where: { orderId: commande.id } })
+    ).toBe(0)
+    let variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(11)
+
+    const second = await declarerRetour(
+      declaration(commande, [{ orderItemId: article.id, declaredQuantity: 2 }])
+    )
+    const secondeReception = await recevoirRetour(
+      reception(second, [
+        {
+          orderItemId: article.id,
+          receivedQuantity: 2,
+          condition: "resellable",
+        },
+      ])
+    )
+
+    expect(secondeReception.commandeClose).toBe(true)
+    expect((await stockerLaCommande(commande)).status).toBe("returned")
+    expect(
+      await prisma.orderStatusChange.count({ where: { orderId: commande.id } })
+    ).toBe(1)
+    variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(13)
+  })
+
+  it("refuse de clore une Commande qui ne peut pas passer à Retournée", async () => {
+    const commande = await creerCommande({
+      quantites: [1],
+      status: "pending",
+      deliveredAt: null,
+    })
+    const article = commande.items[0]
+    const retour = await declarerRetour(
+      declaration(commande, [{ orderItemId: article.id, declaredQuantity: 1 }])
+    )
+
+    await expect(
+      recevoirRetour(
+        reception(retour, [
+          {
+            orderItemId: article.id,
+            receivedQuantity: 1,
+            condition: "resellable",
+          },
+        ])
+      )
+    ).rejects.toBeInstanceOf(InvalidOrderTransitionError)
+
+    expect(
+      (await prisma.return.findUniqueOrThrow({ where: { id: retour.id } }))
+        .status
+    ).toBe("requested")
+    expect((await stockerLaCommande(commande)).status).toBe("pending")
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+    })
+    expect(variante.stock).toBe(10)
+  })
+
+  it(
+    "ne réapprovisionne qu'une fois pour deux réceptions concurrentes de la même ligne",
+    { timeout: 15_000 },
+    async () => {
+      const commande = await creerCommande({ quantites: [1] })
+      const article = commande.items[0]
+      const retour = await declarerRetour(
+        declaration(commande, [
+          { orderItemId: article.id, declaredQuantity: 1 },
+        ])
+      )
+      const ligne = {
+        orderItemId: article.id,
+        receivedQuantity: 1,
+        condition: "resellable" as const,
+      }
+
+      const { transaction, liberer } = await retenirLeVerrouDeLaCommande(
+        commande.id
+      )
+      const premiere = recevoirRetour(reception(retour, [ligne]))
+      const seconde = recevoirRetour(reception(retour, [ligne]))
+      try {
+        await attendreLesReceptionsBloquees(2)
+      } finally {
+        liberer()
+      }
+      await transaction
+
+      const resultats = await Promise.allSettled([premiere, seconde])
+      const reussites = resultats.filter(
+        (resultat) => resultat.status === "fulfilled"
+      )
+      const echecs = resultats.filter(
+        (resultat): resultat is PromiseRejectedResult =>
+          resultat.status === "rejected"
+      )
+
+      expect(reussites).toHaveLength(1)
+      expect(echecs).toHaveLength(1)
+      expect(echecs[0].reason).toBeInstanceOf(ReceptionDeRetourImpossibleError)
+
+      const variante = await prisma.productVariant.findUniqueOrThrow({
+        where: { id: variantId },
+      })
+      expect(variante.stock).toBe(11)
+      expect(
+        (await prisma.return.findUniqueOrThrow({ where: { id: retour.id } }))
+          .status
+      ).toBe("received")
+      expect((await stockerLaCommande(commande)).status).toBe("returned")
+      expect(
+        await prisma.orderStatusChange.count({
+          where: { orderId: commande.id },
+        })
+      ).toBe(1)
+    }
+  )
 })
