@@ -160,7 +160,7 @@ describe("verifierTestDeSecurite", () => {
 
     await verifier({
       requete: requete("/api/auth/sign-in/email", "jeton", {
-        "cf-connecting-ip": "203.0.113.10",
+        "x-forwarded-for": "203.0.113.10, 10.0.0.2",
       }),
       action: ACTIONS_TEST_DE_SECURITE.connexion,
       fetch,
