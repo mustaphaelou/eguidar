@@ -88,6 +88,6 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     await expect(
       indicateurs.getByText("Chiffre d'affaires net", { exact: true })
     ).toBeVisible()
-    await expect(indicateurs.getByText(/15[.\s]?998,00\s*MAD/)).toBeVisible()
+    await expect(indicateurs.getByText(/^15[.\s]?998,00\s*MAD$/)).toBeVisible()
   })
 })
