@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import { peutTransitionner, réapprovisionne } from "@/lib/statut-de-commande"
+import { peutTransitionner } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { lirePanierClient } from "@/lib/panier"
 import {
@@ -77,6 +77,9 @@ export interface OrderDetail {
   total: number
   shippingFee: number
   totalPayable: number
+  montantEncaisse: number
+  montantRembourse: number
+  montantNet: number
   createdAt: Date
   items: OrderItemDetail[]
 }
@@ -92,6 +95,9 @@ export interface OrderSummary {
   total: number
   shippingFee: number
   totalPayable: number
+  montantEncaisse: number
+  montantRembourse: number
+  montantNet: number
   createdAt: Date
   itemCount: number
 }
@@ -202,6 +208,44 @@ type OrderWithItems = {
     quantity: number
   }[]
 }
+
+type CommandeAvecArgent = {
+  payments: { amount: number; refunds: { amount: number }[] }[]
+}
+
+function montantsDArgent(commande: CommandeAvecArgent): {
+  montantEncaisse: number
+  montantRembourse: number
+  montantNet: number
+} {
+  const montantEncaisse = commande.payments.reduce(
+    (total, paiement) => total + paiement.amount,
+    0
+  )
+  const montantRembourse = commande.payments.reduce(
+    (total, paiement) =>
+      total +
+      paiement.refunds.reduce(
+        (rembourse, remboursement) => rembourse + remboursement.amount,
+        0
+      ),
+    0
+  )
+  return {
+    montantEncaisse,
+    montantRembourse,
+    montantNet: montantEncaisse - montantRembourse,
+  }
+}
+
+const SELECT_ARGENT = {
+  payments: {
+    select: {
+      amount: true,
+      refunds: { select: { amount: true } },
+    },
+  },
+} as const
 
 export function toOrderEmailSnapshot(
   order: OrderWithItems,
@@ -374,7 +418,7 @@ export async function getOrder(
 ): Promise<OrderDetail | null> {
   const order = await prisma.order.findFirst({
     where: { id: orderId, userId },
-    include: { items: true },
+    include: { items: true, ...SELECT_ARGENT },
   })
   if (!order) return null
 
@@ -387,6 +431,7 @@ export async function getOrder(
     total: order.total,
     shippingFee: order.shippingFee,
     totalPayable: order.totalPayable,
+    ...montantsDArgent(order),
     createdAt: order.createdAt,
     items: order.items.map((item) => ({
       id: item.id,
@@ -402,7 +447,7 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
   const orders = await prisma.order.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    include: { items: { select: { quantity: true } } },
+    include: { items: { select: { quantity: true } }, ...SELECT_ARGENT },
   })
   return orders.map((order) => ({
     id: order.id,
@@ -410,6 +455,7 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
     total: order.total,
     shippingFee: order.shippingFee,
     totalPayable: order.totalPayable,
+    ...montantsDArgent(order),
     createdAt: order.createdAt,
     itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
   }))
@@ -477,7 +523,7 @@ export async function updateOrderStatus(
     })
 
     let produitsRéapprovisionnés: ProduitTouche[] | null = null
-    if (réapprovisionne(nextStatus)) {
+    if (nextStatus === "cancelled") {
       await réapprovisionnerArticles(tx, fresh.items)
       produitsRéapprovisionnés = await produitsTouches(tx, fresh.items)
     }
@@ -508,6 +554,7 @@ export async function getAdminOrder(
     include: {
       user: { select: { name: true, email: true } },
       items: true,
+      ...SELECT_ARGENT,
     },
   })
   if (!order) throw new OrderNotFoundError()
@@ -521,6 +568,7 @@ export async function getAdminOrder(
     total: order.total,
     shippingFee: order.shippingFee,
     totalPayable: order.totalPayable,
+    ...montantsDArgent(order),
     createdAt: order.createdAt,
     customerName: order.user.name,
     customerEmail: order.user.email,
@@ -571,6 +619,7 @@ async function runListAdminOrders(
       include: {
         user: { select: { name: true, email: true } },
         items: { select: { quantity: true } },
+        ...SELECT_ARGENT,
       },
     }),
     prisma.order.count({ where }),
@@ -583,6 +632,7 @@ async function runListAdminOrders(
       total: order.total,
       shippingFee: order.shippingFee,
       totalPayable: order.totalPayable,
+      ...montantsDArgent(order),
       createdAt: order.createdAt,
       itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
       customerName: order.user.name,

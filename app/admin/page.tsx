@@ -65,7 +65,7 @@ async function TableauDeBord({
 
       <div className="grid gap-4 lg:grid-cols-7">
         <CarteChiffreAffaires
-          data={stats.chiffreAffairesEncaisse}
+          data={stats.chiffreAffairesNet}
           periode={periode}
           className="lg:col-span-4"
         />

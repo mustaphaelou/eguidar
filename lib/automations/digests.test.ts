@@ -79,7 +79,7 @@ describe("le digest du propriétaire", () => {
       jour: "2026-10-28",
       produitCount: 12,
       commandeEnAttente: 3,
-      caEncaisse30j: 125000,
+      chiffreAffairesNet30j: 125000,
       stockBas: 2,
     }
     expect(construireDigestProprietaire(faits)).toBe(

@@ -60,10 +60,15 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
       className="grid grid-cols-2 gap-3 lg:grid-cols-4"
     >
       <CarteStat
-        label="Chiffre d'affaires encaissé"
-        value={formatPrice(stats.caEncaisse30j)}
+        label="Chiffre d'affaires net"
+        value={formatPrice(stats.chiffreAffairesNet30j)}
         valueClassName={VALEUR_MONETAIRE}
-        hint={<HintDuChiffreAffaires delta={stats.caDelta} />}
+        hint={
+          <span className="flex flex-col gap-0.5">
+            <span>Brut : {formatPrice(stats.chiffreAffairesBrut30j)}</span>
+            <HintDuChiffreAffaires delta={stats.variationChiffreAffairesNet} />
+          </span>
+        }
         icon={Wallet01Icon}
       />
       <CarteStat

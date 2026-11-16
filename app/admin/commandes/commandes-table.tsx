@@ -43,6 +43,7 @@ import { useCommandeListing } from "./use-commande-listing"
 
 const CLIENT_COLUMN_ID = "Client"
 const ARTICLES_COLUMN_ID = "Articles"
+const NET_COLUMN_ID = "Net"
 const ACTIONS_COLUMN_ID = "actions"
 
 const STATUS_FILTER_OPTIONS: DataTableFacetedFilterOption[] =
@@ -110,6 +111,18 @@ const columns: ColumnDef<DataTableFeatures, AdminOrderSummary>[] = [
     cell: ({ row }) => (
       <span className="font-medium whitespace-nowrap">
         {formatPrice(row.original.totalPayable)}
+      </span>
+    ),
+  },
+  {
+    id: NET_COLUMN_ID,
+    accessorFn: (row) => row.montantNet,
+    enableSorting: false,
+    meta: { label: "Net" },
+    header: "Net",
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap tabular-nums">
+        {formatPrice(row.original.montantNet)}
       </span>
     ),
   },
@@ -257,8 +270,13 @@ export function CommandesTable({
                       {order.customerEmail}
                     </span>
                   </div>
-                  <span className="text-sm font-medium whitespace-nowrap tabular-nums">
-                    {formatPrice(order.totalPayable)}
+                  <span className="flex flex-col items-end">
+                    <span className="text-sm font-medium whitespace-nowrap tabular-nums">
+                      {formatPrice(order.totalPayable)}
+                    </span>
+                    <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                      Net : {formatPrice(order.montantNet)}
+                    </span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">

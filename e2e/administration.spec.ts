@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures/sonde"
 
 test.use({ storageState: FICHIER_DE_SESSION })
 
-const CA_ENCAISSE = "Chiffre d'affaires encaissé"
+const CA_ENCAISSE = "Chiffre d'affaires net"
 
 async function ouvrirLeTableauDeBord(
   page: Page,
@@ -27,7 +27,9 @@ function laCarteDuCA(page: Page): Locator {
 }
 
 function laValeurDuCA(page: Page): Locator {
-  return laCarteDuCA(page).locator("p").filter({ hasText: "MAD" })
+  return laCarteDuCA(page)
+    .locator("p")
+    .filter({ hasText: /^\d[\d\s.,]*MAD$/u })
 }
 
 interface MesuresDeLaValeur {
@@ -79,7 +81,7 @@ async function attendreLaMiseEnPage(page: Page): Promise<void> {
 }
 
 test.describe("le tableau de bord de l'Administration sur téléphone", () => {
-  test("11. la valeur du CA encaissé tient dans sa carte, sur une ligne", async ({
+  test("11. la valeur du CA net tient dans sa carte, sur une ligne", async ({
     page,
     serveur,
   }) => {

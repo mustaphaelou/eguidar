@@ -175,6 +175,36 @@ export default async function AdminOrderDetailPage({
           <RecapitulatifPaiement commande={order} />
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Chiffre d&apos;affaires de la commande
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid gap-3 text-sm sm:grid-cols-3">
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground">Brut (encaissé)</dt>
+              <dd className="font-semibold tabular-nums">
+                {formatPrice(order.montantEncaisse)}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground">Remboursé</dt>
+              <dd className="font-semibold tabular-nums">
+                {formatPrice(order.montantRembourse)}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground">Net</dt>
+              <dd className="font-semibold tabular-nums">
+                {formatPrice(order.montantNet)}
+              </dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
     </div>
   )
 }

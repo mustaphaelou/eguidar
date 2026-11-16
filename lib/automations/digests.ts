@@ -44,7 +44,7 @@ export interface FaitsDigestProprietaire {
   jour: string
   produitCount: number
   commandeEnAttente: number
-  caEncaisse30j: number
+  chiffreAffairesNet30j: number
   stockBas: number
 }
 
@@ -55,7 +55,7 @@ export function construireDigestProprietaire(
     `Tableau de bord du ${faits.jour}`,
     `- Produits : ${faits.produitCount}`,
     `- Commandes en attente : ${faits.commandeEnAttente}`,
-    `- Encaissé sur 30 jours : ${formatPrice(faits.caEncaisse30j)}`,
+    `- Chiffre d'affaires net sur 30 jours : ${formatPrice(faits.chiffreAffairesNet30j)}`,
     `- Variantes en stock bas : ${faits.stockBas}`,
   ].join("\n")
 }

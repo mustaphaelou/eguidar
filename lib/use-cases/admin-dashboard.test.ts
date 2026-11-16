@@ -36,8 +36,8 @@ async function createUser(suffix: string): Promise<string> {
 async function createSeedOrder(
   status: SeedStatus,
   ageDays: number,
-  total: number,
-  shippingFee: number
+  total = 1000,
+  shippingFee = 0
 ): Promise<string> {
   const order = await prisma.order.create({
     data: {
@@ -55,27 +55,61 @@ async function createSeedOrder(
   return order.id
 }
 
-async function createSeedOrderAt(
-  status: SeedStatus,
-  createdAt: Date,
-  total: number,
-  shippingFee: number,
-  totalPayableStocké: number
-): Promise<string> {
-  const order = await prisma.order.create({
+function createPaiementAt(
+  orderId: string,
+  amount: number,
+  collectedAt: Date
+): Promise<{ id: string; collectedAt: Date }> {
+  return prisma.payment.create({
     data: {
-      userId: userIdA,
-      cityName: "Casablanca",
-      address: "1 Rue du Test",
-      phone: "+212600000000",
-      total,
-      shippingFee,
-      totalPayable: totalPayableStocké,
-      status,
-      createdAt,
+      orderId,
+      amount,
+      mode: "cash_on_delivery",
+      collectedAt,
     },
+    select: { id: true, collectedAt: true },
   })
-  return order.id
+}
+
+function createPaiement(
+  orderId: string,
+  amount: number,
+  ageDays: number
+): Promise<{ id: string; collectedAt: Date }> {
+  return createPaiementAt(
+    orderId,
+    amount,
+    new Date(Date.now() - ageDays * DAY_MS)
+  )
+}
+
+function createRemboursementAt(
+  paymentId: string,
+  amount: number,
+  refundedAt: Date
+): Promise<{ id: string }> {
+  return prisma.refund.create({
+    data: {
+      paymentId,
+      amount,
+      mode: "cash",
+      refundedAt,
+      idempotencyKey: `dashboard-refund-${randomUUID()}`,
+    },
+    select: { id: true },
+  })
+}
+
+function createRemboursement(
+  paymentId: string,
+  amount: number,
+  ageDays: number
+): Promise<{ id: string }> {
+  return createRemboursementAt(
+    paymentId,
+    amount,
+    new Date(Date.now() - ageDays * DAY_MS)
+  )
 }
 
 describe("admin dashboard stats", () => {
@@ -133,6 +167,18 @@ describe("admin dashboard stats", () => {
   })
 
   beforeEach(async () => {
+    await prisma.refund.deleteMany({
+      where: {
+        payment: {
+          order: { user: { email: { startsWith: `dashboard-${runId}-` } } },
+        },
+      },
+    })
+    await prisma.payment.deleteMany({
+      where: {
+        order: { user: { email: { startsWith: `dashboard-${runId}-` } } },
+      },
+    })
     await prisma.orderItem.deleteMany({
       where: {
         order: { user: { email: { startsWith: `dashboard-${runId}-` } } },
@@ -144,6 +190,18 @@ describe("admin dashboard stats", () => {
   })
 
   afterAll(async () => {
+    await prisma.refund.deleteMany({
+      where: {
+        payment: {
+          order: { user: { email: { startsWith: `dashboard-${runId}-` } } },
+        },
+      },
+    })
+    await prisma.payment.deleteMany({
+      where: {
+        order: { user: { email: { startsWith: `dashboard-${runId}-` } } },
+      },
+    })
     await prisma.orderItem.deleteMany({
       where: {
         order: { user: { email: { startsWith: `dashboard-${runId}-` } } },
@@ -213,63 +271,240 @@ describe("admin dashboard stats", () => {
     ).toBe(false)
   })
 
-  describe("aggregates (#84)", () => {
-    it("sums delivered-only money inside exact 30-day window boundaries for caEncaisse30j", async () => {
-      await createSeedOrder("delivered", 29, 15000, 500)
-      await createSeedOrder("delivered", 31, 40000, 2000)
-      await createSeedOrder("shipped", 5, 99999, 999)
-      await createSeedOrder("pending", 7, 12345, 111)
-      await createSeedOrder("cancelled", 3, 55555, 222)
+  describe("chiffre d'affaires lu dans l'argent", () => {
+    it("somme les Encaissements de la fenêtre et soustrait les Remboursements, sans lire le Statut", async () => {
+      const commandeLivree = await createSeedOrder("delivered", 20)
+      const paiement = await createPaiement(commandeLivree, 15000, 29)
+      await createPaiement(commandeLivree, 40000, 31)
+      const commandeEnAttente = await createSeedOrder("pending", 10)
+      await createPaiement(commandeEnAttente, 2500, 5)
+      await createRemboursement(paiement.id, 1500, 3)
 
       const stats = await getDashboardStats()
 
-      expect(stats.caEncaisse30j).toBe(15500)
+      expect(stats.chiffreAffairesBrut30j).toBe(17500)
+      expect(stats.chiffreAffairesNet30j).toBe(16000)
     })
 
-    it("computes caDelta against the previous window rounded to one decimal", async () => {
-      await createSeedOrder("delivered", 45, 9000, 700)
-      await createSeedOrder("delivered", 35, 12000, 800)
-      await createSeedOrder("delivered", 10, 400, 150)
+    it("calcule la variation du net contre la fenêtre précédente, arrondie à un dixième", async () => {
+      const commande = await createSeedOrder("delivered", 50)
+      await createPaiement(commande, 9000, 45)
+      await createPaiement(commande, 12000, 35)
+      await createPaiement(commande, 400, 10)
 
       const stats = await getDashboardStats()
 
-      expect(stats.caDelta).toBe(-97.6)
-      expect(stats.caEncaisse30j).toBe(550)
+      expect(stats.variationChiffreAffairesNet).toBe(-98.1)
+      expect(stats.chiffreAffairesNet30j).toBe(400)
+      expect(stats.chiffreAffairesBrut30j).toBe(400)
     })
 
-    it("returns an undefined caDelta when the prior window sums to zero", async () => {
-      await createSeedOrder("delivered", 10, 550, 50)
+    it("rend la variation indéfinie quand la fenêtre précédente est à zéro", async () => {
+      const commande = await createSeedOrder("delivered", 10)
+      await createPaiement(commande, 600, 10)
 
       const stats = await getDashboardStats()
 
-      expect(stats.caDelta).toBeUndefined()
-      expect(stats.caEncaisse30j).toBe(600)
+      expect(stats.variationChiffreAffairesNet).toBeUndefined()
+      expect(stats.chiffreAffairesNet30j).toBe(600)
     })
 
-    it("yields a negative caDelta when the current window is empty while the prior is not", async () => {
-      await createSeedOrder("pending", 10, 4242, 58)
-      await createSeedOrder("delivered", 40, 1200, 300)
+    it("rend une variation négative quand la fenêtre courante est vide et la précédente non", async () => {
+      const commande = await createSeedOrder("delivered", 40)
+      await createPaiement(commande, 1500, 40)
 
       const stats = await getDashboardStats()
 
-      expect(stats.caDelta).toBe(-100)
-      expect(stats.caEncaisse30j).toBe(0)
+      expect(stats.variationChiffreAffairesNet).toBe(-100)
+      expect(stats.chiffreAffairesNet30j).toBe(0)
     })
 
-    it("counts ordersLast30 across every status created inside the window only", async () => {
-      await createSeedOrder("delivered", 29, 100, 20)
-      await createSeedOrder("pending", 25, 200, 30)
-      await createSeedOrder("cancelled", 20, 300, 40)
-      await createSeedOrder("confirmed", 12, 400, 50)
-      await createSeedOrder("shipped", 31, 700, 70)
-      await createSeedOrder("returned", 35, 800, 80)
+    it("ne soustrait pas un Remboursement hors de la fenêtre", async () => {
+      const commande = await createSeedOrder("delivered", 50)
+      const paiement = await createPaiement(commande, 10000, 10)
+      await createRemboursement(paiement.id, 3000, 5)
+      await createRemboursement(paiement.id, 2500, 40)
+
+      const stats = await getDashboardStats()
+
+      expect(stats.chiffreAffairesBrut30j).toBe(10000)
+      expect(stats.chiffreAffairesNet30j).toBe(7000)
+    })
+
+    it("range le net en trente jours calendaires, Encaissements moins Remboursements", async () => {
+      const maintenant = new Date()
+      const jourLocal = (joursAvant: number, heure = 12) =>
+        new Date(
+          maintenant.getFullYear(),
+          maintenant.getMonth(),
+          maintenant.getDate() - joursAvant,
+          heure
+        )
+
+      const aujourdHui = new Date(maintenant)
+      const hier = jourLocal(1)
+      const premierJour = jourLocal(29)
+      const horsFenetre = jourLocal(31)
+
+      const commande = await createSeedOrder("delivered", 40)
+      await createPaiementAt(commande, 1000, aujourdHui)
+      const paiementHier = await createPaiementAt(commande, 2000, hier)
+      await createPaiementAt(commande, 3000, premierJour)
+      await createPaiementAt(commande, 4000, horsFenetre)
+      await createRemboursementAt(paiementHier.id, 500, hier)
+      await createRemboursementAt(paiementHier.id, 700, horsFenetre)
+
+      const stats = await getDashboardStats("30j")
+
+      expect(stats.chiffreAffairesNet).toHaveLength(30)
+      expect(stats.chiffreAffairesNet).toEqual(
+        seauxDePeriode("30j", maintenant).map((seau) => ({
+          label: libelleDuSeau("30j", seau.debut),
+          montant:
+            seau.cle === cleDuSeau("30j", aujourdHui)
+              ? 1000
+              : seau.cle === cleDuSeau("30j", hier)
+                ? 1500
+                : seau.cle === cleDuSeau("30j", premierJour)
+                  ? 3000
+                  : 0,
+        }))
+      )
+      expect(stats.chiffreAffairesBrut30j).toBe(6000)
+      expect(stats.chiffreAffairesNet30j).toBe(5500)
+    })
+
+    it("range le net en treize semaines, du plus ancien au plus récent", async () => {
+      const maintenant = new Date()
+      const seaux = seauxDePeriode("90j", maintenant)
+      const premierJour = new Date(seaux[0]!.debut.getTime() + 12 * 3_600_000)
+      const semainePrecedente = new Date(maintenant.getTime() - 7 * DAY_MS)
+      const horsFenetre = new Date(seaux[0]!.debut.getTime() - 60_000)
+
+      const commande = await createSeedOrder("delivered", 100)
+      await createPaiementAt(commande, 800, premierJour)
+      const paiementSemaine = await createPaiementAt(
+        commande,
+        1600,
+        semainePrecedente
+      )
+      await createPaiementAt(commande, 2400, maintenant)
+      await createPaiementAt(commande, 4000, horsFenetre)
+      await createRemboursementAt(paiementSemaine.id, 200, semainePrecedente)
+
+      const stats = await getDashboardStats("90j")
+
+      expect(stats.chiffreAffairesNet).toHaveLength(13)
+      expect(stats.chiffreAffairesNet).toEqual(
+        seaux.map((seau) => ({
+          label: libelleDuSeau("90j", seau.debut),
+          montant:
+            seau.cle === cleDuSeau("90j", premierJour)
+              ? 800
+              : seau.cle === cleDuSeau("90j", semainePrecedente)
+                ? 1400
+                : seau.cle === cleDuSeau("90j", maintenant)
+                  ? 2400
+                  : 0,
+        }))
+      )
+    })
+
+    it("range le net en douze mois calendaires, du plus ancien au plus récent", async () => {
+      const nowDate = new Date()
+      const currentMonthStart = new Date(
+        nowDate.getFullYear(),
+        nowDate.getMonth(),
+        1
+      )
+      const localMonth = (monthOffset: number, day: number) =>
+        new Date(
+          currentMonthStart.getFullYear(),
+          currentMonthStart.getMonth() - monthOffset,
+          day,
+          12
+        )
+      const expectedKeyFor = (monthOffset: number) =>
+        cleDuSeau("12mois", localMonth(monthOffset, 15))
+      const expectedLabelFor = (monthOffset: number) =>
+        libelleDuSeau("12mois", localMonth(monthOffset, 15))
+
+      const commande = await createSeedOrder("delivered", 400)
+      await createPaiementAt(commande, 12800, localMonth(7, 15))
+      const paiement = await createPaiementAt(commande, 5250, localMonth(3, 15))
+      await createPaiementAt(
+        commande,
+        10000,
+        new Date(
+          Math.min(currentMonthStart.getTime() + 5 * 60_000, Date.now() - 1_000)
+        )
+      )
+      await createPaiementAt(commande, 4000, localMonth(2, 15))
+      await createPaiementAt(commande, 9776, localMonth(13, 15))
+      await createRemboursementAt(paiement.id, 250, localMonth(3, 15))
+
+      const stats = await getDashboardStats("12mois")
+
+      const montantParCle = new Map<string, number>()
+      montantParCle.set(expectedKeyFor(7), 12800)
+      montantParCle.set(expectedKeyFor(3), 5000)
+      montantParCle.set(expectedKeyFor(0), 10000)
+      montantParCle.set(expectedKeyFor(2), 4000)
+
+      const expected: Array<{ label: string; montant: number }> = []
+      for (let offset = 11; offset >= 0; offset--) {
+        const cle = expectedKeyFor(offset)
+        expected.push({
+          label: expectedLabelFor(offset),
+          montant: montantParCle.get(cle) ?? 0,
+        })
+      }
+
+      expect(stats.chiffreAffairesNet).toHaveLength(12)
+      expect(stats.chiffreAffairesNet).toEqual(expected)
+      expect(stats.chiffreAffairesNet[0]?.label).toBe(expectedLabelFor(11))
+      expect(
+        stats.chiffreAffairesNet.find(
+          (point) => point.label === expectedLabelFor(5)
+        )?.montant
+      ).toBe(0)
+    })
+
+    it("lit le montant de l'Encaissement, jamais une somme recalculée depuis le Sous-total et les Frais de livraison", async () => {
+      const commande = await createSeedOrder("delivered", 3, 45000, 5000)
+      const collectedAt = new Date(Date.now() - 3 * DAY_MS)
+      await createPaiementAt(commande, 38000, collectedAt)
+
+      const stats = await getDashboardStats("12mois")
+
+      expect(stats.chiffreAffairesBrut30j).toBe(38000)
+      expect(stats.chiffreAffairesNet30j).toBe(38000)
+      expect(
+        stats.chiffreAffairesNet.find(
+          (point) => point.label === libelleDuSeau("12mois", collectedAt)
+        )?.montant
+      ).toBe(38000)
+      const recente = stats.recentOrders.find((order) => order.id === commande)
+      expect(recente).toMatchObject({
+        total: 45000,
+        totalPayable: 50000,
+      })
+    })
+
+    it("compte les Commandes récentes sur trente jours, tous Statuts confondus", async () => {
+      await createSeedOrder("delivered", 29)
+      await createSeedOrder("pending", 25)
+      await createSeedOrder("cancelled", 20)
+      await createSeedOrder("confirmed", 12)
+      await createSeedOrder("shipped", 31)
+      await createSeedOrder("returned", 35)
 
       const stats = await getDashboardStats()
 
       expect(stats.ordersLast30).toBe(4)
     })
 
-    it("exposes totalPayable on recent orders while keeping existing fields intact", async () => {
+    it("expose totalPayable sur les Commandes récentes", async () => {
       const newerId = await createSeedOrder("delivered", 2, 2550, 450)
       const olderId = await createSeedOrder("cancelled", 4, 6600, 340)
 
@@ -294,170 +529,6 @@ describe("admin dashboard stats", () => {
       expect(stats.recentOrders[0].createdAt.getTime()).toBeGreaterThan(
         stats.recentOrders[1].createdAt.getTime()
       )
-    })
-
-    it("range le Chiffre d'affaires encaissé en trente jours calendaires, du plus ancien au plus récent", async () => {
-      const maintenant = new Date()
-      const jourLocal = (joursAvant: number, heure = 12) =>
-        new Date(
-          maintenant.getFullYear(),
-          maintenant.getMonth(),
-          maintenant.getDate() - joursAvant,
-          heure
-        )
-
-      const aujourdHui = new Date(maintenant)
-      const hier = jourLocal(1)
-      const premierJour = jourLocal(29)
-      const horsFenetre = jourLocal(31)
-
-      await createSeedOrderAt("delivered", aujourdHui, 900, 100, 1000)
-      await createSeedOrderAt("delivered", hier, 1800, 200, 2000)
-      await createSeedOrderAt("delivered", premierJour, 2700, 300, 3000)
-      await createSeedOrderAt("delivered", horsFenetre, 3600, 400, 4000)
-      await createSeedOrderAt("shipped", jourLocal(2), 5000, 500, 5500)
-
-      const stats = await getDashboardStats("30j")
-
-      expect(stats.chiffreAffairesEncaisse).toHaveLength(30)
-      expect(stats.chiffreAffairesEncaisse).toEqual(
-        seauxDePeriode("30j", maintenant).map((seau) => ({
-          label: libelleDuSeau("30j", seau.debut),
-          montant:
-            seau.cle === cleDuSeau("30j", aujourdHui)
-              ? 1000
-              : seau.cle === cleDuSeau("30j", hier)
-                ? 2000
-                : seau.cle === cleDuSeau("30j", premierJour)
-                  ? 3000
-                  : 0,
-        }))
-      )
-      expect(stats.caEncaisse30j).toBe(6000)
-    })
-
-    it("range le Chiffre d'affaires encaissé en treize semaines, du plus ancien au plus récent", async () => {
-      const maintenant = new Date()
-      const seaux = seauxDePeriode("90j", maintenant)
-      const premierJour = new Date(seaux[0]!.debut.getTime() + 12 * 3_600_000)
-      const semainePrecedente = new Date(maintenant.getTime() - 7 * DAY_MS)
-      const horsFenetre = new Date(seaux[0]!.debut.getTime() - 60_000)
-
-      await createSeedOrderAt("delivered", premierJour, 700, 100, 800)
-      await createSeedOrderAt("delivered", semainePrecedente, 1400, 200, 1600)
-      await createSeedOrderAt("delivered", maintenant, 2100, 300, 2400)
-      await createSeedOrderAt("delivered", horsFenetre, 3500, 500, 4000)
-      await createSeedOrderAt(
-        "cancelled",
-        new Date(maintenant.getTime() - 2 * DAY_MS),
-        9999,
-        999,
-        10998
-      )
-
-      const stats = await getDashboardStats("90j")
-
-      expect(stats.chiffreAffairesEncaisse).toHaveLength(13)
-      expect(stats.chiffreAffairesEncaisse).toEqual(
-        seaux.map((seau) => ({
-          label: libelleDuSeau("90j", seau.debut),
-          montant:
-            seau.cle === cleDuSeau("90j", premierJour)
-              ? 800
-              : seau.cle === cleDuSeau("90j", semainePrecedente)
-                ? 1600
-                : seau.cle === cleDuSeau("90j", maintenant)
-                  ? 2400
-                  : 0,
-        }))
-      )
-    })
-
-    it("range le Chiffre d'affaires encaissé en douze mois calendaires, du plus ancien au plus récent", async () => {
-      const nowDate = new Date()
-      const currentMonthStart = new Date(
-        nowDate.getFullYear(),
-        nowDate.getMonth(),
-        1
-      )
-      const localMonth = (monthOffset: number, day: number) =>
-        new Date(
-          currentMonthStart.getFullYear(),
-          currentMonthStart.getMonth() - monthOffset,
-          day,
-          12
-        )
-      const expectedKeyFor = (monthOffset: number) =>
-        cleDuSeau("12mois", localMonth(monthOffset, 15))
-      const expectedLabelFor = (monthOffset: number) =>
-        libelleDuSeau("12mois", localMonth(monthOffset, 15))
-
-      await createSeedOrderAt("delivered", localMonth(7, 15), 12000, 800, 12800)
-      await createSeedOrderAt("delivered", localMonth(3, 15), 5000, 250, 5250)
-      await createSeedOrderAt(
-        "delivered",
-        new Date(
-          Math.min(currentMonthStart.getTime() + 5 * 60_000, Date.now() - 1_000)
-        ),
-        9999,
-        1,
-        10000
-      )
-      await createSeedOrderAt("shipped", localMonth(6, 15), 7000, 300, 7300)
-      await createSeedOrderAt("cancelled", localMonth(6, 16), 4444, 44, 4488)
-      await createSeedOrderAt("returned", localMonth(2, 15), 3600, 400, 4000)
-      await createSeedOrderAt("delivered", localMonth(13, 15), 8888, 888, 9776)
-
-      const stats = await getDashboardStats("12mois")
-
-      const montantParCle = new Map<string, number>()
-      montantParCle.set(expectedKeyFor(7), 12800)
-      montantParCle.set(expectedKeyFor(3), 5250)
-      montantParCle.set(expectedKeyFor(0), 10000)
-
-      const expected: Array<{ label: string; montant: number }> = []
-      for (let offset = 11; offset >= 0; offset--) {
-        const cle = expectedKeyFor(offset)
-        expected.push({
-          label: expectedLabelFor(offset),
-          montant: montantParCle.get(cle) ?? 0,
-        })
-      }
-
-      expect(stats.chiffreAffairesEncaisse).toHaveLength(12)
-      expect(stats.chiffreAffairesEncaisse).toEqual(expected)
-      expect(stats.chiffreAffairesEncaisse[0]?.label).toBe(expectedLabelFor(11))
-      expect(
-        stats.chiffreAffairesEncaisse.find(
-          (point) => point.label === expectedLabelFor(5)
-        )?.montant
-      ).toBe(0)
-    })
-
-    it("answers with the persisted Total à payer, never with a sum recomputed from the Sous-total and the Frais de livraison", async () => {
-      const totalÀPayerStocké = 38000
-      const createdAt = new Date(Date.now() - 3 * DAY_MS)
-      const id = await createSeedOrderAt(
-        "delivered",
-        createdAt,
-        45000,
-        5000,
-        totalÀPayerStocké
-      )
-
-      const stats = await getDashboardStats("12mois")
-
-      expect(stats.caEncaisse30j).toBe(totalÀPayerStocké)
-      expect(
-        stats.chiffreAffairesEncaisse.find(
-          (point) => point.label === libelleDuSeau("12mois", createdAt)
-        )?.montant
-      ).toBe(totalÀPayerStocké)
-      const recente = stats.recentOrders.find((order) => order.id === id)
-      expect(recente).toMatchObject({
-        total: 45000,
-        totalPayable: totalÀPayerStocké,
-      })
     })
   })
 })

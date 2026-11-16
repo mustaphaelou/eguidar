@@ -134,6 +134,23 @@ export async function semerLesCommandesDeFixture(
         },
         create: { id, userId, ...donnees, items: { create: items } },
       })
+
+      if (donnees.status === "delivered") {
+        const paiement = await prisma.payment.findFirst({
+          where: { orderId: id },
+          select: { id: true },
+        })
+        if (paiement === null) {
+          await prisma.payment.create({
+            data: {
+              orderId: id,
+              amount: donnees.totalPayable,
+              mode: "cash_on_delivery",
+              collectedAt: donnees.createdAt,
+            },
+          })
+        }
+      }
     }
 
     console.log(

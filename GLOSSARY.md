@@ -574,9 +574,16 @@ Remboursement déjà accordé.
 _Avoid_: refund, remboursement partiel
 
 **Chiffre d'affaires encaissé**:
-La somme des Totaux à payer des Commandes au statut Livrée : l'argent réellement collecté.
-Une Commande En attente, Confirmée ou Expédiée n'est pas encore encaissée.
+La somme des montants des Encaissements des Commandes, quel que soit leur Statut de commande :
+l'argent réellement reçu. Une Commande sans Encaissement n'y entre pas, même Livrée ; un
+Encaissement y entre, même si la Commande n'est plus Livrée. C'est le brut du Tableau de bord.
 _Avoid_: revenu, revenue, ventes, CA brut
+
+**Chiffre d'affaires net**:
+Le Chiffre d'affaires encaissé moins la somme des Remboursements de la même fenêtre : ce qui reste
+acquis à la boutique après l'argent rendu. Une Commande intégralement remboursée reste Livrée,
+garde son Encaissement et son Remboursement, et compte pour zéro dans le net.
+_Avoid_: revenu net, bénéfice, marge
 
 **FAQ**:
 Les questions et réponses publiées sur /faq, couvrant la commande, le Paiement à la livraison, la Livraison et les retours.
