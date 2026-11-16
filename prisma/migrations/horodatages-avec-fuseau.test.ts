@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
@@ -8,8 +8,19 @@ import { prisma } from "@/lib/db"
 const RACINE = join(import.meta.dirname, "..", "..")
 const SCHEMA = join(RACINE, "prisma", "schema.prisma")
 const DOSSIER_MIGRATIONS = join(RACINE, "prisma", "migrations")
+const MIGRATION = "20261115235000_horodatages_avec_fuseau"
+
+/**
+ * La migration auditée est figée : c'est son texte qui a été exercé sur le
+ * point de restauration, et Prisma le rejoue tel quel. Le motif ne reconnaît
+ * que la forme exigée, avec le même `USING` que la colonne convertie.
+ */
+const CONVERSION =
+  /ALTER TABLE "([^"]+)"\s+ALTER COLUMN "([^"]+)" SET DATA TYPE TIMESTAMPTZ\(3\)\s+USING "([^"]+)" AT TIME ZONE 'UTC';/g
 
 type ColonneTemporale = { modele: string; colonne: string }
+
+type Conversion = ColonneTemporale & { using: string }
 
 function colonnesTemporales(): ColonneTemporale[] {
   const lignes = readFileSync(SCHEMA, "utf8").split("\n")
@@ -34,54 +45,80 @@ function colonnesTemporales(): ColonneTemporale[] {
   return colonnes
 }
 
-function migrationDesHorodatages(): { dossier: string; sql: string } {
-  const candidates = readdirSync(DOSSIER_MIGRATIONS, { withFileTypes: true })
-    .filter((entree) => entree.isDirectory())
-    .map((entree) => entree.name)
-    .map((dossier) => ({
-      dossier,
-      sql: readFileSync(
-        join(DOSSIER_MIGRATIONS, dossier, "migration.sql"),
-        "utf8"
-      ),
-    }))
-    .filter(({ sql }) => sql.includes("TIMESTAMPTZ(3)"))
-
-  expect(candidates).toHaveLength(1)
-  return candidates[0]
+function lireMigration(): string {
+  return readFileSync(
+    join(DOSSIER_MIGRATIONS, MIGRATION, "migration.sql"),
+    "utf8"
+  )
 }
 
-function instructionDeConversion({
-  modele,
-  colonne,
-}: ColonneTemporale): string {
-  return [
-    `ALTER TABLE "${modele}"`,
-    `  ALTER COLUMN "${colonne}" SET DATA TYPE TIMESTAMPTZ(3)`,
-    `  USING "${colonne}" AT TIME ZONE 'UTC';`,
-  ].join("\n")
+function conversions(sql: string): Conversion[] {
+  return [...sql.matchAll(CONVERSION)].map((trouve) => ({
+    modele: trouve[1],
+    colonne: trouve[2],
+    using: trouve[3],
+  }))
+}
+
+function instructionDeConversion(
+  sql: string,
+  modele: string,
+  colonne: string
+): string {
+  const instruction = new RegExp(
+    `ALTER TABLE "${modele}"\\s+ALTER COLUMN "${colonne}" SET DATA TYPE TIMESTAMPTZ\\(3\\)\\s+USING "${colonne}" AT TIME ZONE 'UTC';`
+  ).exec(sql)?.[0]
+
+  if (instruction === undefined) {
+    throw new Error(
+      `la migration ne convertit pas « ${modele}.${colonne} » avec un USING … AT TIME ZONE 'UTC'`
+    )
+  }
+  return instruction
 }
 
 describe("la migration des horodatages", () => {
-  it("convertit chaque DateTime du schéma en timestamptz(3), avec un USING explicite", () => {
-    const { dossier, sql } = migrationDesHorodatages()
-    const colonnes = colonnesTemporales()
+  it("convertit chaque colonne auditée en timestamptz(3), avec un USING explicite", () => {
+    const sql = lireMigration()
+    const instructions = conversions(sql)
+    const nombreDAlterations = (sql.match(/ALTER\s+TABLE\s+"/g) ?? []).length
 
-    expect(dossier).toMatch(/^\d{14}_[a-z0-9_]+$/)
-    expect(colonnes.length).toBeGreaterThan(0)
+    expect(instructions.length).toBeGreaterThan(0)
+    // Chaque ALTER TABLE de la migration est reconnue par la forme textuelle
+    // attendue : aucun `SET DATA TYPE` nu ni `USING` oublié ne passe.
+    expect(nombreDAlterations).toBe(instructions.length)
     expect(sql).not.toMatch(/DROP\s+(TABLE|COLUMN|INDEX)/i)
     expect(sql).not.toMatch(/DELETE\s+FROM|TRUNCATE/i)
-    expect(sql).not.toMatch(/ALTER\s+TABLE\s+"_prisma_migrations"/i)
 
-    const manquantes = colonnes.filter(
-      ({ modele, colonne }) =>
-        !sql.includes(instructionDeConversion({ modele, colonne }))
+    const mauvaisUsing = instructions.filter(
+      ({ colonne, using }) => colonne !== using
+    )
+    const doublons = instructions.filter(
+      (instruction, index) =>
+        instructions.findIndex(
+          ({ modele, colonne }) =>
+            modele === instruction.modele && colonne === instruction.colonne
+        ) !== index
+    )
+    const prismaMigrations = instructions.filter(
+      ({ modele }) => modele === "_prisma_migrations"
     )
 
     expect(
-      manquantes.map(
+      mauvaisUsing.map(
+        ({ modele, colonne, using }) =>
+          `« ${modele}.${colonne} » est convertie avec USING "${using}", pas avec sa propre colonne.`
+      )
+    ).toEqual([])
+    expect(
+      doublons.map(
         ({ modele, colonne }) =>
-          `« ${modele}.${colonne} » est un DateTime du schéma, mais la migration ne le convertit pas avec un USING … AT TIME ZONE 'UTC'.`
+          `« ${modele}.${colonne} » est convertie plusieurs fois.`
+      )
+    ).toEqual([])
+    expect(
+      prismaMigrations.map(
+        ({ modele }) => `« ${modele} » ne doit pas être touchée.`
       )
     ).toEqual([])
   })
@@ -142,12 +179,11 @@ describe("la migration des horodatages", () => {
   })
 
   it("préserve l'instant d'une valeur existante, quel que soit le fuseau de session", async () => {
-    const { sql } = migrationDesHorodatages()
-    const conversion = instructionDeConversion({
-      modele: "ArticleBlog",
-      colonne: "createdAt",
-    })
-    expect(sql).toContain(conversion)
+    const conversion = instructionDeConversion(
+      lireMigration(),
+      "ArticleBlog",
+      "createdAt"
+    )
 
     const instants = [
       "2026-03-10 02:30:00.123",
