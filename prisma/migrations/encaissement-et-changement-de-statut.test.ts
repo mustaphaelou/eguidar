@@ -9,7 +9,7 @@ import type { OrderStatus } from "@/lib/generated/prisma/client"
 
 const PREFIXE = `migration-encaissement-${process.pid}-`
 const DOSSIER_MIGRATIONS = join(process.cwd(), "prisma", "migrations")
-const MIGRATION = "20261116130000_encaissement_et_changement_de_statut"
+const MIGRATION = "20261116190000_encaissement_et_changement_de_statut"
 const DEBUT_DU_BACKFILL = "-- backfill début"
 const FIN_DU_BACKFILL = "-- backfill fin"
 
@@ -73,11 +73,11 @@ afterAll(async () => {
 })
 
 describe("la migration de l'Encaissement de la livraison", () => {
-  it("est additive : une colonne, deux tables, aucun retrait", () => {
+  it("est additive : deux tables, aucun retrait", () => {
     const sql = lireLaMigration()
 
     expect(MIGRATION).toMatch(/^\d{14}_[a-z0-9_]+$/)
-    expect(sql).toContain('ADD COLUMN "deliveredAt" TIMESTAMPTZ(3)')
+    expect(sql).not.toMatch(/ADD COLUMN/)
     expect(sql).toContain('CREATE TABLE "Payment"')
     expect(sql).toContain('CREATE TABLE "OrderStatusChange"')
     expect(sql).toContain(

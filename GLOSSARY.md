@@ -516,6 +516,35 @@ la Commande à sa création. C'est un fait de la Commande, pas une vue dérivée
 fois à sa création, lu partout ensuite.
 _Avoid_: montant total, grand total
 
+**Retour**:
+Ce qu'un Client déclare rendre : une ou plusieurs Lignes du Retour rattachées à sa Commande, avec
+un Motif de Retour et la date à laquelle il a exercé son droit (`requestedAt`), distincte de la
+saisie. La persistance s'appelle `Return`. Un Retour naît `requested`, puis devient `received` ou
+`refused` ; au plus un Retour `requested` par Commande, garanti par l'index partiel
+`Return_orderId_ouvert_key`. Le refus porte un Code de refus. Le Retour est le fait des
+marchandises : il ne porte ni l'argent reçu (Encaissement) ni l'argent rendu (Remboursement).
+_Avoid_: return, renvoi, retour produit, RMA
+
+**Ligne du Retour**:
+Un Article du panier d'une Commande et la quantité que le Client déclare rendre sur ce Retour.
+La persistance s'appelle `ReturnLine`. Le cumul de ses quantités déclarées, tous Retours non
+refusés confondus, ne dépasse jamais la quantité commandée de l'Article du panier.
+_Avoid_: ligne de retour, return line
+
+**Motif de Retour**:
+La raison déclarée d'un Retour : rétractation (`withdrawal`), non-conformité (`non_conformity`),
+geste commercial (`goodwill`) ou autre (`other`). Une rétractation demandée plus de sept jours
+après `Order.deliveredAt` est enregistrée en `goodwill`, jamais en `withdrawal` ; une demande
+tardive n'est pas bloquée, elle est qualifiée.
+_Avoid_: raison, cause, return reason
+
+**Code de refus**:
+Le motif légal d'un refus de Retour : hors délai (`out_of_window`), exclu par la loi
+(`excluded_by_law`), non reçu (`not_received`), état non conforme (`condition_mismatch`) ou autre
+(`other`). Il accompagne le passage d'un Retour `requested` à `refused` et ne supprime jamais un
+Remboursement déjà accordé.
+_Avoid_: motif de refus, refusal reason
+
 **Encaissement**:
 L'argent reçu pour une Commande. La livraison en écrit un dans la transaction de son Changement
 de statut : montant = Total à payer, mode Paiement à la livraison (persistance `cash_on_delivery`),

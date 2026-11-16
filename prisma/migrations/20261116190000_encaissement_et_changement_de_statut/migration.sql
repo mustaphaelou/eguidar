@@ -1,13 +1,11 @@
--- Spec #1025 / #1028 : la livraison enregistre sa date, son Encaissement et son
--- Changement de statut. La migration est strictement additive : une colonne,
--- deux tables, et un backfill rejouable des Commandes déjà Livrée.
+-- Spec #1025 / #1028 : la livraison enregistre son Encaissement et son
+-- Changement de statut. La migration est strictement additive : deux tables et
+-- un backfill rejouable des Commandes déjà Livrée. `Order.deliveredAt` est
+-- déjà ajoutée par la migration du Retour (#1029), que celle-ci suit.
 -- Aucune histoire n'est inventée : OrderStatusChange reste vide au backfill.
 
 -- CreateEnum
 CREATE TYPE "PaymentMode" AS ENUM ('cash_on_delivery');
-
--- AlterTable
-ALTER TABLE "Order" ADD COLUMN "deliveredAt" TIMESTAMPTZ(3);
 
 -- CreateTable
 CREATE TABLE "Payment" (
