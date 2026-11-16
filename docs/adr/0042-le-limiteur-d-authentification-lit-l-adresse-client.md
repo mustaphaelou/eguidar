@@ -73,3 +73,14 @@ topologie documentée qui fonde la décision.
   déclarer fiable. C'est l'hypothèse de déploiement que la bibliothèque documente elle-même
   (`trustedProxies` « is safe only when your origin is reachable through these proxies and
   clients cannot set forwarded headers directly »).
+
+## Amendement
+
+Le résolveur de la boutique applique désormais la même remontée que la bibliothèque, au lieu de
+retenir le dernier relais. `adresseClient()` parcourt `x-forwarded-for` de droite à gauche, saute
+les plages de `PROXIES_DE_CONFIANCE` et rend la première adresse qui n'en fait pas partie, validée
+par `node:net` `isIP` ; un relais qui n'est pas une adresse interrompt la chaîne, et une chaîne
+entièrement fiable ne nomme aucun Client, donc `ADRESSE_CLIENT_PARTAGEE` s'applique.
+`cf-connecting-ip` et `x-real-ip` gardent leur lecture à valeur unique, dans l'ordre documenté. Le
+**Test de sécurité** et le limiteur de Recherche lisent `adresseClient()` et héritent de la règle
+sans la redire ; la remontée et le repli ont désormais un seul propriétaire.
