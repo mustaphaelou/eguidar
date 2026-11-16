@@ -24,10 +24,11 @@ const { etat, statsVides } = vi.hoisted(() => {
     outOfStockCount: 0,
     orderCount: 0,
     pendingOrderCount: 0,
-    caEncaisse30j: 0,
-    caDelta: undefined as number | undefined,
+    chiffreAffairesBrut30j: 0,
+    chiffreAffairesNet30j: 0,
+    variationChiffreAffairesNet: undefined as number | undefined,
     ordersLast30: 0,
-    chiffreAffairesEncaisse: [] as { label: string; montant: number }[],
+    chiffreAffairesNet: [] as { label: string; montant: number }[],
     lowStockVariants: [] as never[],
     recentOrders: [] as never[],
   })
@@ -102,7 +103,7 @@ describe("la première page du Tableau de bord", () => {
     const html = await rendre()
 
     expect(html).not.toContain("Aucun Produit au catalogue.")
-    expect(html).toMatch(/Chiffre d(?:&#x27;|')affaires encaissé/)
+    expect(html).toMatch(/Chiffre d(?:&#x27;|')affaires net/)
     expect(html).toContain("Commandes récentes")
     expect(html).toContain("À surveiller")
     expect(html).toContain('data-testid="graphique-chiffre-affaires"')

@@ -2,13 +2,9 @@ import { describe, expect, expectTypeOf, it } from "vitest"
 
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import {
-  estEncaissée,
   estStatut,
-  FRAGMENT_WHERE_ENCAISSÉS,
   peutTransitionner,
-  réapprovisionne,
   REGISTRE_STATUTS,
-  STATUTS_ENCAISSÉS,
   STATUTS_VALIDES,
   transitionsDisponibles,
 } from "@/lib/statut-de-commande"
@@ -24,31 +20,21 @@ const MATRICE_ATTENDUE: Record<OrderStatus, readonly OrderStatus[]> = {
   returned: [],
 }
 
-describe("estEncaissée", () => {
-  it("is true exactly when the statut is Livrée", () => {
-    for (const statut of STATUTS) {
-      expect(estEncaissée(statut)).toBe(statut === "delivered")
-    }
-  })
-})
-
-describe("STATUTS_ENCAISSÉS", () => {
-  it("declares exactly Livrée", () => {
-    expect([...STATUTS_ENCAISSÉS]).toEqual(["delivered"])
-  })
-})
-
 describe("REGISTRE_STATUTS", () => {
   it("specifies a verbe for every statut except the initial one", () => {
     for (const statut of STATUTS) {
       expect(REGISTRE_STATUTS[statut].verbe === null).toBe(statut === "pending")
     }
   })
-})
 
-describe("FRAGMENT_WHERE_ENCAISSÉS", () => {
-  it("carries the delivered-only filter", () => {
-    expect(FRAGMENT_WHERE_ENCAISSÉS).toEqual({ status: { in: ["delivered"] } })
+  it("ne porte ni encaissement ni réapprovisionnement", () => {
+    for (const statut of STATUTS) {
+      expect(Object.keys(REGISTRE_STATUTS[statut]).sort()).toEqual([
+        "libellé",
+        "ton",
+        "verbe",
+      ])
+    }
   })
 })
 
@@ -105,16 +91,6 @@ describe("transitionsDisponibles", () => {
       for (const cible of transitionsDisponibles(statut)) {
         expect(STATUTS_VALIDES).toContain(cible)
       }
-    }
-  })
-})
-
-describe("réapprovisionne", () => {
-  it("is true exactly for Annulée and Retournée", () => {
-    for (const statut of STATUTS) {
-      expect(réapprovisionne(statut), statut).toBe(
-        statut === "cancelled" || statut === "returned"
-      )
     }
   })
 })

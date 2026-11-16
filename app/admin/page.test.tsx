@@ -206,11 +206,11 @@ describe("le Tableau de bord rend ses comptes actionnables", () => {
     expect(carte?.texte).toBe(String(enAttente))
   })
 
-  it("nomme le Chiffre d'affaires encaissé sans son ancien raccourci", async () => {
+  it("nomme le Chiffre d'affaires net sans son ancien raccourci", async () => {
     const html = await rendreLeTableauDeBord()
 
-    expect(html).toMatch(/Chiffre d(?:&#x27;|')affaires encaissé/)
-    expect(html).not.toContain("CA encaissé")
+    expect(html).toMatch(/Chiffre d(?:&#x27;|')affaires net/)
+    expect(html).not.toContain("CA net")
   })
 
   it("ouvre la Liste filtrée sur le stock nul depuis le compte des ruptures", async () => {

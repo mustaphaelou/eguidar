@@ -67,7 +67,7 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     ).toBeVisible()
   })
 
-  test("le tableau de bord de l'Administration et son CA encaissé", async ({
+  test("le tableau de bord de l'Administration et son CA net", async ({
     page,
     serveur,
   }) => {
@@ -86,7 +86,7 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     })
     await expect(indicateurs).toBeVisible()
     await expect(
-      indicateurs.getByText("Chiffre d'affaires encaissé", { exact: true })
+      indicateurs.getByText("Chiffre d'affaires net", { exact: true })
     ).toBeVisible()
     await expect(indicateurs.getByText(/15[.\s]?998,00\s*MAD/)).toBeVisible()
   })

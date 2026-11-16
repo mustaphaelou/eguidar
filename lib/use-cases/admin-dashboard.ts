@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
-import { FRAGMENT_WHERE_ENCAISSÉS } from "@/lib/statut-de-commande"
 import {
   cleDuSeau,
   libelleDuSeau,
@@ -35,10 +34,11 @@ export interface DashboardStats {
   outOfStockCount: number
   orderCount: number
   pendingOrderCount: number
-  caEncaisse30j: number
-  caDelta: number | undefined
+  chiffreAffairesBrut30j: number
+  chiffreAffairesNet30j: number
+  variationChiffreAffairesNet: number | undefined
   ordersLast30: number
-  chiffreAffairesEncaisse: PointDeChiffreAffaires[]
+  chiffreAffairesNet: PointDeChiffreAffaires[]
   lowStockVariants: LowStockVariant[]
   recentOrders: RecentOrder[]
 }
@@ -69,10 +69,13 @@ export async function getDashboardStats(
     pendingOrderCount,
     lowStockVariants,
     recentOrders,
-    currentWindowSums,
-    previousWindowSums,
+    paiementsCourants,
+    remboursementsCourants,
+    paiementsPrecedents,
+    remboursementsPrecedents,
     ordersLast30,
-    encaissements,
+    paiements,
+    remboursements,
   ] = await Promise.all([
     prisma.product.count(),
     prisma.product.count({ where: { variants: { every: { stock: 0 } } } }),
@@ -95,47 +98,70 @@ export async function getDashboardStats(
         items: { select: { quantity: true } },
       },
     }),
-    prisma.order.aggregate({
-      _sum: { totalPayable: true },
+    prisma.payment.aggregate({
+      _sum: { amount: true },
       where: {
-        ...FRAGMENT_WHERE_ENCAISSÉS,
-        createdAt: { gte: currentWindowStart, lte: currentWindowEnd },
+        collectedAt: { gte: currentWindowStart, lte: currentWindowEnd },
       },
     }),
-    prisma.order.aggregate({
-      _sum: { totalPayable: true },
+    prisma.refund.aggregate({
+      _sum: { amount: true },
+      where: { refundedAt: { gte: currentWindowStart, lte: currentWindowEnd } },
+    }),
+    prisma.payment.aggregate({
+      _sum: { amount: true },
       where: {
-        ...FRAGMENT_WHERE_ENCAISSÉS,
-        createdAt: { gte: previousWindow.start, lt: currentWindowStart },
+        collectedAt: { gte: previousWindow.start, lt: currentWindowStart },
+      },
+    }),
+    prisma.refund.aggregate({
+      _sum: { amount: true },
+      where: {
+        refundedAt: { gte: previousWindow.start, lt: currentWindowStart },
       },
     }),
     prisma.order.count({
       where: { createdAt: { gte: currentWindowStart, lte: currentWindowEnd } },
     }),
-    prisma.order.findMany({
-      where: {
-        ...FRAGMENT_WHERE_ENCAISSÉS,
-        createdAt: { gte: seaux[0]!.debut, lte: maintenant },
-      },
-      select: { totalPayable: true, createdAt: true },
+    prisma.payment.findMany({
+      where: { collectedAt: { gte: seaux[0]!.debut, lte: maintenant } },
+      select: { amount: true, collectedAt: true },
+    }),
+    prisma.refund.findMany({
+      where: { refundedAt: { gte: seaux[0]!.debut, lte: maintenant } },
+      select: { amount: true, refundedAt: true },
     }),
   ])
 
-  const caEncaisse30j = currentWindowSums._sum.totalPayable ?? 0
-  const priorCaEncaisse = previousWindowSums._sum.totalPayable ?? 0
-  const caDelta =
-    priorCaEncaisse === 0
+  const chiffreAffairesBrut30j = paiementsCourants._sum.amount ?? 0
+  const chiffreAffairesNet30j =
+    chiffreAffairesBrut30j - (remboursementsCourants._sum.amount ?? 0)
+  const chiffreAffairesNetPrecedent =
+    (paiementsPrecedents._sum.amount ?? 0) -
+    (remboursementsPrecedents._sum.amount ?? 0)
+  const variationChiffreAffairesNet =
+    chiffreAffairesNetPrecedent === 0
       ? undefined
       : Math.round(
-          ((caEncaisse30j - priorCaEncaisse) / priorCaEncaisse) * 100 * 10
+          ((chiffreAffairesNet30j - chiffreAffairesNetPrecedent) /
+            chiffreAffairesNetPrecedent) *
+            100 *
+            10
         ) / 10
 
   const montantParCle = new Map(seaux.map((seau) => [seau.cle, 0]))
-  for (const commande of encaissements) {
-    const cle = cleDuSeau(periode, commande.createdAt)
+  for (const paiement of paiements) {
+    const cle = cleDuSeau(periode, paiement.collectedAt)
     const montant = montantParCle.get(cle)
     if (montant !== undefined) {
-      montantParCle.set(cle, montant + commande.totalPayable)
+      montantParCle.set(cle, montant + paiement.amount)
+    }
+  }
+  for (const remboursement of remboursements) {
+    const cle = cleDuSeau(periode, remboursement.refundedAt)
+    const montant = montantParCle.get(cle)
+    if (montant !== undefined) {
+      montantParCle.set(cle, montant - remboursement.amount)
     }
   }
 
@@ -144,10 +170,11 @@ export async function getDashboardStats(
     outOfStockCount,
     orderCount,
     pendingOrderCount,
-    caEncaisse30j,
-    caDelta,
+    chiffreAffairesBrut30j,
+    chiffreAffairesNet30j,
+    variationChiffreAffairesNet,
     ordersLast30,
-    chiffreAffairesEncaisse: seaux.map((seau) => ({
+    chiffreAffairesNet: seaux.map((seau) => ({
       label: libelleDuSeau(periode, seau.debut),
       montant: montantParCle.get(seau.cle) ?? 0,
     })),

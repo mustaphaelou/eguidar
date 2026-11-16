@@ -43,11 +43,11 @@ export function GraphiqueDuChiffreAffaires({
           />
         </span>
         <p className="text-sm font-medium">
-          Aucune vente encaissée sur cette période.
+          Aucun chiffre d&apos;affaires net sur cette période.
         </p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Le graphique se remplit dès que des Commandes passent au statut «
-          Livrée ».
+          Le graphique se remplit dès qu&apos;une Commande livrée est encaissée,
+          puis se réduit avec les Remboursements.
         </p>
       </div>
     )
@@ -83,7 +83,7 @@ export function GraphiqueDuChiffreAffaires({
           }}
           formatter={(value) => [
             formatPrice(Number(value)),
-            "Chiffre d'affaires encaissé",
+            "Chiffre d'affaires net",
           ]}
         />
         <Bar

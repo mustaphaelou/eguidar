@@ -112,7 +112,7 @@ Le parcours va du catalogue à la confirmation de commande, sans paiement en lig
 ### Administration
 
 - **Tableau de bord** — chiffre d'affaires encaissé, commandes, en attente, stock faible, points de vigilance et commandes récentes.
-- **Commandes** — recherche, filtre par statut, détail, transitions de statut ; l'annulation et le retour réapprovisionnent le stock.
+- **Commandes** — recherche, filtre par statut, détail, transitions de statut ; l'annulation réapprovisionne explicitement ; la réception d'un Retour ne rend que ses unités reçues et revendables.
 - **Produits** — liste filtrable et triable, actions groupées (Structure, mise en avant, livraison offerte, stock), édition avec stock rapide, variantes et images.
 - **Catégories** — arbre du catalogue, sous-catégories, déplacement et ordre.
 - **Villes et Livraison** — les villes desservies, leurs frais et le seuil de livraison offerte.

@@ -34,9 +34,9 @@ export function CarteChiffreAffaires({
       <CardHeader className="block">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-col gap-1.5">
-            <CardTitle>Chiffre d&apos;affaires encaissé</CardTitle>
+            <CardTitle>Chiffre d&apos;affaires net</CardTitle>
             <CardDescription>
-              Commandes livrées, frais de livraison inclus.
+              Encaissements moins Remboursements, frais de livraison inclus.
             </CardDescription>
           </div>
           <div

@@ -135,7 +135,7 @@ async function envoyerDigestProprietaire(
       jour,
       produitCount: stats.productCount,
       commandeEnAttente: stats.pendingOrderCount,
-      caEncaisse30j: stats.caEncaisse30j,
+      chiffreAffairesNet30j: stats.chiffreAffairesNet30j,
       stockBas: stats.lowStockVariants.length,
     }),
     cleIdempotence: `digest.proprietaire/${jour}`,

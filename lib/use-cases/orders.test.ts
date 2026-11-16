@@ -30,6 +30,7 @@ import {
   projeterDevis,
   selectionValidee,
 } from "@/lib/use-cases/devis"
+import { enregistrerRemboursement } from "@/lib/use-cases/remboursements"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
@@ -1017,6 +1018,9 @@ describe("order reads", () => {
     expect(fetched).not.toBeNull()
     expect(fetched!.status).toBe("pending")
     expect(fetched!.totalPayable).toBe(33500)
+    expect(fetched!.montantEncaisse).toBe(0)
+    expect(fetched!.montantRembourse).toBe(0)
+    expect(fetched!.montantNet).toBe(0)
     expect(fetched!.items).toHaveLength(1)
   })
 
@@ -1047,6 +1051,9 @@ describe("order reads", () => {
       total: 30000,
       shippingFee: 3500,
       totalPayable: 33500,
+      montantEncaisse: 0,
+      montantRembourse: 0,
+      montantNet: 0,
     })
     expect(orders[0].itemCount).toBe(1)
   })
@@ -1248,7 +1255,7 @@ describe("order status transitions", () => {
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
   })
 
-  it("returns a delivered order and restocks the variants", async () => {
+  it("ne réapprovisionne plus sur le passage à Retournée : la réception du Retour le fait", async () => {
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "confirmed", acteurId)
     await updateOrderStatus(orderId, "shipped", acteurId)
@@ -1264,7 +1271,7 @@ describe("order status transitions", () => {
           where: { id: variantP4 },
         })
       ).stock
-    ).toBe(2)
+    ).toBe(0)
   })
 
   it("rejects invalid Transition de statut without post-commit effects", async () => {
@@ -1602,6 +1609,42 @@ describe("admin order reads", () => {
       variantName: "Premium",
       price: 60000,
       quantity: 2,
+    })
+  })
+
+  it("expose le brut, le remboursé et le net, et garde Livrée une Commande intégralement remboursée", async () => {
+    const orderId = await createAdminOrderRecord(userIdA, [
+      { variantId: variantP1, quantity: 1 },
+    ])
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
+    await updateOrderStatus(orderId, "delivered", acteurId)
+
+    const paiement = await prisma.payment.findFirstOrThrow({
+      where: { orderId },
+    })
+    await enregistrerRemboursement({
+      paymentId: paiement.id,
+      amount: paiement.amount,
+      mode: "cash",
+      refundedAt: new Date(),
+      recordedById: acteurId,
+      idempotencyKey: `orders-refund-${randomUUID()}`,
+    })
+
+    const detail = await getAdminOrder(orderId)
+    expect(detail.status).toBe("delivered")
+    expect(detail.montantEncaisse).toBe(paiement.amount)
+    expect(detail.montantRembourse).toBe(paiement.amount)
+    expect(detail.montantNet).toBe(0)
+
+    const listed = (await listAdminOrders()).find(
+      (order) => order.id === orderId
+    )
+    expect(listed).toMatchObject({
+      montantEncaisse: paiement.amount,
+      montantRembourse: paiement.amount,
+      montantNet: 0,
     })
   })
 

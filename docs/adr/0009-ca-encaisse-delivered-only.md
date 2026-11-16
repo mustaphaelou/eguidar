@@ -71,3 +71,16 @@ total ne correspond plus à celui que le Client a lu (`DevisPériméError`).
 L'arithmétique n'est donc plus inatteignable par import : elle vit dans le
 Devis, que l'affiché et l'écrit partagent. Le reste de l'amendement #463 tient,
 y compris ses deux gardes de lecture.
+
+## Amendement — Le chiffre d'affaires lit les Encaissements et les Remboursements (#1032)
+
+[ADR-0056](0056-le-chiffre-d-affaires-lit-les-encaissements-et-les-remboursements.md)
+remplace la règle du premier paragraphe. Le Chiffre d'affaires encaissé est la
+somme des Encaissements ; le Chiffre d'affaires net en soustrait les
+Remboursements. `STATUTS_ENCAISSÉS`, `FRAGMENT_WHERE_ENCAISSÉS` et
+`estEncaissée` sont supprimés : le Statut de commande ne porte plus de prédicat
+d'argent ni de stock, et une Commande intégralement remboursée reste `Livrée`.
+`Livrée` reste l'instant qui écrit l'Encaissement du Paiement à la livraison,
+mais aucune lecture ne s'en sert plus comme filtre. Les gardes de lecture du
+montant persisté citées plus haut restent valables, portées par les lignes
+d'argent.
