@@ -26,7 +26,7 @@ describe("le port d'authentification par défaut", () => {
     vi.clearAllMocks()
   })
 
-  it("traduit le statut du limiteur en code et ne retient pas le message de la bibliothèque", async () => {
+  it("traduit le statut du limiteur en code et garde la forme du port (code, message)", async () => {
     client.connexion.mockResolvedValue({
       data: null,
       error: {
@@ -41,10 +41,15 @@ describe("le port d'authentification par défaut", () => {
         email: "jane@example.com",
         motDePasse: "MotDePasse!12345",
       })
-    ).resolves.toEqual({ error: { code: "TOO_MANY_ATTEMPTS" } })
+    ).resolves.toEqual({
+      error: {
+        code: "TOO_MANY_ATTEMPTS",
+        message: "Too many requests. Please try again later.",
+      },
+    })
   })
 
-  it("garde le code du refus et jette le message de la bibliothèque", async () => {
+  it("garde le code et le message du refus tels que le port les declare", async () => {
     client.inscription.mockResolvedValue({
       data: null,
       error: {
@@ -62,7 +67,13 @@ describe("le port d'authentification par défaut", () => {
         email: "jane@example.com",
         motDePasse: "MotDePasse!12345",
       })
-    ).resolves.toEqual({ error: { code: "PASSWORD_COMPROMISED" } })
+    ).resolves.toEqual({
+      error: {
+        code: "PASSWORD_COMPROMISED",
+        message:
+          "The password you entered has been compromised. Please choose a different password.",
+      },
+    })
   })
 
   it("ne rend aucun refus quand la bibliothèque n'en signale pas", async () => {

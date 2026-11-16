@@ -10,6 +10,7 @@ import {
   estIdentifiantsInvalides,
   estRefusTestDeSecurite,
   messageRefusAuthentification,
+  refusDepuisErreurDeLaBibliotheque,
 } from "./refus-authentification"
 
 const REFUS_SANS_PRODUCTEUR = [
@@ -59,6 +60,39 @@ describe("le vocabulaire des Refus d'authentification", () => {
     expect(codeRefusDepuisStatut(400)).toBeUndefined()
     expect(codeRefusDepuisStatut(401)).toBeUndefined()
     expect(codeRefusDepuisStatut(undefined)).toBeUndefined()
+  })
+
+  it("normalise l'erreur de la bibliothèque sans perdre la forme du port", () => {
+    expect(
+      refusDepuisErreurDeLaBibliotheque({
+        message: "Too many requests. Please try again later.",
+        status: 429,
+      })
+    ).toEqual({
+      code: "TOO_MANY_ATTEMPTS",
+      message: "Too many requests. Please try again later.",
+    })
+
+    expect(
+      refusDepuisErreurDeLaBibliotheque({
+        code: "PASSWORD_COMPROMISED",
+        message: "The password you entered has been compromised.",
+      })
+    ).toEqual({
+      code: "PASSWORD_COMPROMISED",
+      message: "The password you entered has been compromised.",
+    })
+
+    expect(
+      refusDepuisErreurDeLaBibliotheque({
+        message: "Something went wrong",
+        status: 500,
+      })
+    ).toEqual({ message: "Something went wrong" })
+
+    expect(refusDepuisErreurDeLaBibliotheque({ code: "INVALID_OTP" })).toEqual({
+      code: "INVALID_OTP",
+    })
   })
 
   it("reconnaît les refus que les flux distinguent", () => {

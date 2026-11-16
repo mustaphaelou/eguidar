@@ -1,22 +1,7 @@
 import { authClient } from "@/lib/client"
 
-import { codeRefusDepuisStatut } from "@/lib/refus-authentification"
-import type {
-  PortAuthentification,
-  RefusAuthentification,
-} from "./port-authentification"
-
-type ErreurDeLaBibliotheque = {
-  code?: string
-  status?: number
-}
-
-function refusDepuisLaBibliotheque(
-  erreur: ErreurDeLaBibliotheque | null
-): RefusAuthentification | null {
-  if (!erreur) return null
-  return { code: erreur.code ?? codeRefusDepuisStatut(erreur.status) }
-}
+import { refusDepuisErreurDeLaBibliotheque } from "@/lib/refus-authentification"
+import type { PortAuthentification } from "./port-authentification"
 
 export const portAuthentificationClient: PortAuthentification = {
   async connexionParMotDePasse({ email, motDePasse, entetes }) {
@@ -25,7 +10,11 @@ export const portAuthentificationClient: PortAuthentification = {
       password: motDePasse,
       fetchOptions: { headers: entetes },
     })
-    return { error: refusDepuisLaBibliotheque(resultat.error) }
+    return {
+      error: resultat.error
+        ? refusDepuisErreurDeLaBibliotheque(resultat.error)
+        : null,
+    }
   },
 
   async inscription({ nom, email, motDePasse, entetes }) {
@@ -35,7 +24,11 @@ export const portAuthentificationClient: PortAuthentification = {
       password: motDePasse,
       fetchOptions: { headers: entetes },
     })
-    return { error: refusDepuisLaBibliotheque(resultat.error) }
+    return {
+      error: resultat.error
+        ? refusDepuisErreurDeLaBibliotheque(resultat.error)
+        : null,
+    }
   },
 
   async connexionSociale({
@@ -48,7 +41,11 @@ export const portAuthentificationClient: PortAuthentification = {
       callbackURL: adresseDeRetour,
       errorCallbackURL: adresseDeRetourEnEchec,
     })
-    return { error: refusDepuisLaBibliotheque(resultat.error) }
+    return {
+      error: resultat.error
+        ? refusDepuisErreurDeLaBibliotheque(resultat.error)
+        : null,
+    }
   },
 
   async envoyerCode({ email, type, entetes }) {
@@ -57,11 +54,19 @@ export const portAuthentificationClient: PortAuthentification = {
       type,
       fetchOptions: { headers: entetes },
     })
-    return { error: refusDepuisLaBibliotheque(resultat.error) }
+    return {
+      error: resultat.error
+        ? refusDepuisErreurDeLaBibliotheque(resultat.error)
+        : null,
+    }
   },
 
   async verifierCode({ email, code }) {
     const resultat = await authClient.emailOtp.verifyEmail({ email, otp: code })
-    return { error: refusDepuisLaBibliotheque(resultat.error) }
+    return {
+      error: resultat.error
+        ? refusDepuisErreurDeLaBibliotheque(resultat.error)
+        : null,
+    }
   },
 }

@@ -67,6 +67,17 @@ export function codeRefusDepuisStatut(
   return statut === 429 ? "TOO_MANY_ATTEMPTS" : undefined
 }
 
+export function refusDepuisErreurDeLaBibliotheque(erreur: {
+  code?: string
+  message?: string
+  status?: number
+}): { code?: string; message?: string } {
+  const code = erreur.code ?? codeRefusDepuisStatut(erreur.status)
+  return erreur.message === undefined
+    ? { code }
+    : { code, message: erreur.message }
+}
+
 export function estEmailNonVerifie(code: string | undefined): boolean {
   return code === "EMAIL_NOT_VERIFIED"
 }
