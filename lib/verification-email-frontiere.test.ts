@@ -89,12 +89,19 @@ function corpsDeVerification(schema: string): string | null {
   return schema.slice(ouverture + 1, fermeture)
 }
 
-function declarationsDuModele(corps: string): string[] {
+function corpsSansCommentaires(corps: string): string {
   return corps
     .split("\n")
-    .map((ligne) => ligne.trim())
-    .filter((ligne) => ligne !== "" && !ligne.startsWith("//"))
+    .filter((ligne) => !ligne.trim().startsWith("//"))
+    .join("\n")
 }
+
+const UNIQUE_DE_CHAMP = /^\s*identifier\s+String[^\n]*@unique\b/m
+
+const UNIQUE_DE_MODELE = [
+  /@@unique\s*\(\s*\[\s*identifier\s*\]/,
+  /@@unique\s*\([^)]*\bfields\s*:\s*\[\s*identifier\s*\]/,
+] as const
 
 function violationsDeLIdentifiantUnique(schema: string): string[] {
   const corps = corpsDeVerification(schema)
@@ -104,22 +111,14 @@ function violationsDeLIdentifiantUnique(schema: string): string[] {
     ]
   }
 
-  const declarations = declarationsDuModele(corps)
+  const declarations = corpsSansCommentaires(corps)
   const violations: string[] = []
-  if (
-    declarations.some((declaration) =>
-      /^identifier\s+String[^\n]*@unique\b/.test(declaration)
-    )
-  ) {
+  if (UNIQUE_DE_CHAMP.test(declarations)) {
     violations.push(
       `le schéma déclare « verification.identifier » en « @unique » : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`
     )
   }
-  if (
-    declarations.some((declaration) =>
-      /^@@unique\s*\(\s*\[\s*identifier\s*\]/.test(declaration)
-    )
-  ) {
+  if (UNIQUE_DE_MODELE.some((unique) => unique.test(declarations))) {
     violations.push(
       `le schéma déclare le modèle « verification » unique sur « identifier » : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`
     )
@@ -152,6 +151,19 @@ describe("L'identifiant de la Vérification de l'e-mail reste non unique", () =>
     const avecUnique = schema.replace(
       "\n  @@index([identifier])",
       "\n  @@unique([identifier])\n  @@index([identifier])"
+    )
+
+    expect(avecUnique).not.toBe(schema)
+    expect(violationsDeLIdentifiantUnique(avecUnique)).toEqual([
+      `le schéma déclare le modèle « verification » unique sur « identifier » : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`,
+    ])
+  })
+
+  it("tombe sur une contrainte unique nommée écrite dans le schéma réel", () => {
+    const schema = lire(import.meta.url, SCHEMA_PRISMA)
+    const avecUnique = schema.replace(
+      "\n  @@index([identifier])",
+      "\n  @@unique(fields: [identifier])\n  @@index([identifier])"
     )
 
     expect(avecUnique).not.toBe(schema)
