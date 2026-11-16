@@ -28,6 +28,7 @@ model user {
   cartItems              CartItem[]
   orders                 Order[]
   payments               Payment[]
+  refunds                Refund[]
   statusChanges          OrderStatusChange[]
   brouillonsImageProduit BrouillonImageProduit[]
   lotsImport             LotImport[]
@@ -234,6 +235,7 @@ model Payment {
   collectedAt  DateTime    @db.Timestamptz(3)
   recordedById String?
   recordedBy   user?       @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  refunds      Refund[]
   createdAt    DateTime    @default(now()) @db.Timestamptz(3)
 
   @@index([orderId])
@@ -307,6 +309,7 @@ model Return {
   refusalCode ReturnRefusalCode?
   refusalNote String?
   lines       ReturnLine[]
+  refunds     Refund[]
   createdAt   DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime           @updatedAt @db.Timestamptz(3)
 
@@ -327,6 +330,30 @@ model ReturnLine {
 
   @@unique([returnId, orderItemId])
   @@index([orderItemId])
+}
+
+enum RefundMode {
+  cash
+  transfer
+}
+
+model Refund {
+  id             String     @id @default(cuid())
+  paymentId      String
+  payment        Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  returnId       String?
+  return         Return?    @relation(fields: [returnId], references: [id], onDelete: SetNull)
+  amount         Int
+  mode           RefundMode
+  refundedAt     DateTime   @db.Timestamptz(3)
+  recordedById   String?
+  recordedBy     user?      @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  reason         String?
+  idempotencyKey String     @unique
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+
+  @@index([paymentId])
+  @@index([returnId])
 }
 
 model DeliveryCity {
