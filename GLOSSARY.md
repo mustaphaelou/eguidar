@@ -430,6 +430,10 @@ _Avoid_: redirect, callback, retour
 L'échange d'un code à usage unique envoyé à l'adresse e-mail contre la validation de cette adresse. Le Compte client est créé dès l'Inscription mais n'est un Client de plein droit qu'une fois son e-mail vérifié ; à la Connexion, un Compte client non vérifié reprend ce même échange avant de pouvoir se connecter. Une adresse fournie par Facebook ou Google lors d'une connexion sociale vaut vérification ; elle ne passe pas par cet échange.
 _Avoid_: OTP, code de vérification, vérification OTP
 
+**Réinitialisation du mot de passe**:
+Le remplacement du mot de passe d'un Compte client par celui qui prouve son adresse : un code à usage unique envoyé à l'adresse, échangé sur la page `/mot-de-passe-oublie`, puis un nouveau mot de passe. Elle se distingue de la Vérification de l'e-mail, qui prouve l'adresse sans changer le secret, et de la Connexion par code, qui ouvre une Session courante sans toucher au mot de passe.
+_Avoid_: reset, password reset, récupération de mot de passe, mot de passe perdu
+
 **Test de sécurité**:
 La vérification anti-robot (implémentée avec Turnstile) exigée avant les envois protégés : l'envoi du code de la Vérification de l'e-mail, la création de compte à l'Inscription, la Connexion par mot de passe et la demande de réinitialisation du mot de passe. Elle produit un jeton à usage unique, transmis avec l'envoi protégé et consommé par le serveur ; l'envoi n'est possible qu'une fois le jeton obtenu.
 Le défi appartient à l'Envoi protégé qui le réclame, pas à la surface qui l'affiche : c'est l'envoi qui le porte. La Connexion et l'Inscription en ont donc deux chacune — l'envoi de leurs identifiants, puis l'envoi du code de la Vérification de l'e-mail, qui est le même Envoi protégé sur deux surfaces — parce qu'un jeton est à usage unique et qu'un second envoi en réclame un second. La demande de réinitialisation du mot de passe en porte un, sur sa page. Réduire ce nombre à un par surface serait une autre décision.
@@ -438,6 +442,10 @@ _Avoid_: captcha, widget, Turnstile (comme nom du concept), vérification humain
 **Envoi protégé**:
 Un envoi qu'un Test de sécurité gate, et qui n'aboutit pas sans son jeton. Sa règle tient en trois temps : joindre le jeton, remettre le Test de sécurité à zéro lorsque le serveur refuse ce jeton, traduire le refus pour le Client. Un jeton refusé ne doit pas piéger le Client sur une page à recharger.
 _Avoid_: protected send, envoi sécurisé, appel protégé, requête protégée
+
+**Refus d'authentification**:
+Le refus qu'une voie d'authentification oppose au Client : un code stable et sa phrase française. La phrase est une copie de la boutique — le Client ne lit jamais le message que la bibliothèque joint au code.
+_Avoid_: erreur d'authentification, message d'erreur, échec de connexion, auth error
 
 **Déconnexion**:
 The act by which a Client ends their own session via the « Déconnexion » entry of the **Aperçu du Panier**, returning them to the state of Visiteur. Distinct from Session inactive, which ends the session without the Client's action. The Administration user menu also offers it.
