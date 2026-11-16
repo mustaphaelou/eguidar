@@ -79,6 +79,7 @@ const PHONE = "+212 600 123 456"
 let userIdA: string
 let userIdB: string
 let userIdC: string
+let acteurId: string
 let variantP1: string
 let variantP2: string
 let variantP3: string
@@ -112,6 +113,7 @@ beforeAll(async () => {
   userIdA = await createUser("a")
   userIdB = await createUser("b")
   userIdC = await createUser("c")
+  acteurId = await createUser("acteur")
 
   const category = await prisma.category.create({
     data: { name: `Catégorie ${runId}`, slug: `orders-cat-${runId}` },
@@ -1100,9 +1102,9 @@ describe("order status transitions", () => {
       invalidateCommande,
       invalidateProduits: async () => {},
     }
-    await updateOrderStatus(order.id, "confirmed", effects)
-    await updateOrderStatus(order.id, "shipped", effects)
-    await updateOrderStatus(order.id, "delivered", effects)
+    await updateOrderStatus(order.id, "confirmed", acteurId, effects)
+    await updateOrderStatus(order.id, "shipped", acteurId, effects)
+    await updateOrderStatus(order.id, "delivered", acteurId, effects)
 
     expect(effets).toEqual([
       "e-mail:confirmed",
@@ -1137,7 +1139,9 @@ describe("order status transitions", () => {
       { totalPayable: 60000 }
     )
 
-    await updateOrderStatus(orderId, "confirmed", { sendOrderStatusEmail })
+    await updateOrderStatus(orderId, "confirmed", acteurId, {
+      sendOrderStatusEmail,
+    })
 
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
     const snapshot = sendOrderStatusEmail.mock.calls[0][0] as OrderEmailSnapshot
@@ -1159,7 +1163,9 @@ describe("order status transitions", () => {
       ).stock
     ).toBe(0)
 
-    await updateOrderStatus(orderId, "cancelled", { sendOrderStatusEmail })
+    await updateOrderStatus(orderId, "cancelled", acteurId, {
+      sendOrderStatusEmail,
+    })
 
     const order = await getOrder(userIdA, orderId)
     expect(order!.status).toBe("cancelled")
@@ -1180,7 +1186,9 @@ describe("order status transitions", () => {
     const orderId = await placeSmallOrder(userIdA)
     const invalidateCommande = vi.fn<(orderId: string) => void>()
 
-    await updateOrderStatus(orderId, "confirmed", { invalidateCommande })
+    await updateOrderStatus(orderId, "confirmed", acteurId, {
+      invalidateCommande,
+    })
 
     expect(invalidateCommande).toHaveBeenCalledOnce()
     expect(invalidateCommande).toHaveBeenCalledWith(orderId)
@@ -1199,7 +1207,7 @@ describe("order status transitions", () => {
     })
     lireStructureMock.mockClear()
 
-    await updateOrderStatus(order.id, "cancelled", {
+    await updateOrderStatus(order.id, "cancelled", acteurId, {
       sendOrderStatusEmail: async () => {},
       invalidateCommande: () => {},
       invalidateProduits,
@@ -1227,7 +1235,7 @@ describe("order status transitions", () => {
     const updated = await verifierFrontiereBestEffort(
       "e-mail de statut",
       (effetQuiEchoue) =>
-        updateOrderStatus(orderId, "confirmed", {
+        updateOrderStatus(orderId, "confirmed", acteurId, {
           sendOrderStatusEmail: effetQuiEchoue,
           invalidateCommande,
         })
@@ -1249,7 +1257,7 @@ describe("order status transitions", () => {
     const updated = await verifierFrontiereBestEffort(
       "invalidation du cache",
       (effetQuiEchoue) =>
-        updateOrderStatus(orderId, "confirmed", {
+        updateOrderStatus(orderId, "confirmed", acteurId, {
           sendOrderStatusEmail,
           invalidateCommande: effetQuiEchoue,
         })
@@ -1261,11 +1269,11 @@ describe("order status transitions", () => {
 
   it("returns a delivered order and restocks the variants", async () => {
     const orderId = await placeSmallOrder(userIdA)
-    await updateOrderStatus(orderId, "confirmed")
-    await updateOrderStatus(orderId, "shipped")
-    await updateOrderStatus(orderId, "delivered")
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
+    await updateOrderStatus(orderId, "delivered", acteurId)
 
-    await updateOrderStatus(orderId, "returned")
+    await updateOrderStatus(orderId, "returned", acteurId)
 
     const order = await getOrder(userIdA, orderId)
     expect(order!.status).toBe("returned")
@@ -1280,21 +1288,21 @@ describe("order status transitions", () => {
 
   it("rejects invalid Transition de statut without post-commit effects", async () => {
     const orderId = await placeSmallOrder(userIdA)
-    await updateOrderStatus(orderId, "confirmed")
-    await updateOrderStatus(orderId, "shipped")
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
     const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
       async () => {}
     )
     const invalidateCommande = vi.fn<(orderId: string) => void>()
 
     await expect(
-      updateOrderStatus(orderId, "cancelled", {
+      updateOrderStatus(orderId, "cancelled", acteurId, {
         sendOrderStatusEmail,
         invalidateCommande,
       })
     ).rejects.toThrow(InvalidOrderTransitionError)
     await expect(
-      updateOrderStatus(orderId, "confirmed", {
+      updateOrderStatus(orderId, "confirmed", acteurId, {
         sendOrderStatusEmail,
         invalidateCommande,
       })
@@ -1306,9 +1314,9 @@ describe("order status transitions", () => {
 
   it("rejects skipping a step", async () => {
     const orderId = await placeSmallOrder(userIdA)
-    await expect(updateOrderStatus(orderId, "delivered")).rejects.toThrow(
-      InvalidOrderTransitionError
-    )
+    await expect(
+      updateOrderStatus(orderId, "delivered", acteurId)
+    ).rejects.toThrow(InvalidOrderTransitionError)
   })
 
   it("restocks exactly once when a double cancel is attempted", async () => {
@@ -1316,10 +1324,14 @@ describe("order status transitions", () => {
       async () => {}
     )
     const orderId = await placeSmallOrder(userIdA)
-    await updateOrderStatus(orderId, "cancelled", { sendOrderStatusEmail })
+    await updateOrderStatus(orderId, "cancelled", acteurId, {
+      sendOrderStatusEmail,
+    })
 
     await expect(
-      updateOrderStatus(orderId, "cancelled", { sendOrderStatusEmail })
+      updateOrderStatus(orderId, "cancelled", acteurId, {
+        sendOrderStatusEmail,
+      })
     ).rejects.toThrow(InvalidOrderTransitionError)
 
     expect(
@@ -1340,11 +1352,11 @@ describe("order status transitions", () => {
     const orderId = await placeSmallOrder(userIdA)
 
     const [first, second] = await Promise.allSettled([
-      updateOrderStatus(orderId, "cancelled", {
+      updateOrderStatus(orderId, "cancelled", acteurId, {
         sendOrderStatusEmail,
         invalidateCommande,
       }),
-      updateOrderStatus(orderId, "cancelled", {
+      updateOrderStatus(orderId, "cancelled", acteurId, {
         sendOrderStatusEmail,
         invalidateCommande,
       }),
@@ -1370,9 +1382,146 @@ describe("order status transitions", () => {
     ).toBe(2)
   })
 
+  it("enregistre la livraison avec sa date, un Encaissement et son Changement de statut", async () => {
+    const orderId = await placeSmallOrder(userIdA)
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
+
+    await updateOrderStatus(orderId, "delivered", acteurId)
+
+    const commande = await prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+    })
+    expect(commande.deliveredAt).not.toBeNull()
+
+    const encaissements = await prisma.payment.findMany({
+      where: { orderId },
+    })
+    expect(encaissements).toHaveLength(1)
+    expect(encaissements[0]).toMatchObject({
+      orderId,
+      amount: commande.totalPayable,
+      mode: "cash_on_delivery",
+      recordedById: acteurId,
+    })
+    expect(encaissements[0].collectedAt.getTime()).toBe(
+      commande.deliveredAt!.getTime()
+    )
+
+    const changements = await prisma.orderStatusChange.findMany({
+      where: { orderId },
+      orderBy: { changedAt: "asc" },
+    })
+    expect(
+      changements.map(({ fromStatus, toStatus }) => [fromStatus, toStatus])
+    ).toEqual([
+      ["pending", "confirmed"],
+      ["confirmed", "shipped"],
+      ["shipped", "delivered"],
+    ])
+    expect(changements.map(({ actorId }) => actorId)).toEqual([
+      acteurId,
+      acteurId,
+      acteurId,
+    ])
+    expect(changements[2].changedAt.getTime()).toBe(
+      commande.deliveredAt!.getTime()
+    )
+  })
+
+  it("écrit le Changement de toute autre Transition, avec acteur et instant, sans encaisser", async () => {
+    const orderId = await placeSmallOrder(userIdA)
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
+
+    const changements = await prisma.orderStatusChange.findMany({
+      where: { orderId },
+      orderBy: { changedAt: "asc" },
+    })
+    expect(
+      changements.map(({ fromStatus, toStatus }) => [fromStatus, toStatus])
+    ).toEqual([
+      ["pending", "confirmed"],
+      ["confirmed", "shipped"],
+    ])
+    expect(changements.map(({ actorId }) => actorId)).toEqual([
+      acteurId,
+      acteurId,
+    ])
+    expect(
+      changements.every(({ changedAt }) => changedAt instanceof Date)
+    ).toBe(true)
+    await expect(prisma.payment.count({ where: { orderId } })).resolves.toBe(0)
+    await expect(
+      prisma.order.findUniqueOrThrow({ where: { id: orderId } })
+    ).resolves.toMatchObject({ status: "shipped", deliveredAt: null })
+
+    const annulee = await createAdminOrderRecord(userIdA, [
+      { variantId: variantP1, quantity: 1 },
+    ])
+    await updateOrderStatus(annulee, "cancelled", acteurId)
+    await expect(
+      prisma.orderStatusChange.findFirstOrThrow({ where: { orderId: annulee } })
+    ).resolves.toMatchObject({
+      fromStatus: "pending",
+      toStatus: "cancelled",
+      actorId: acteurId,
+    })
+  })
+
+  it("ne laisse rien d'une livraison dont la transaction échoue", async () => {
+    const orderId = await placeSmallOrder(userIdA)
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
+
+    await expect(
+      updateOrderStatus(orderId, "delivered", "acteur-inconnu")
+    ).rejects.toThrow()
+
+    await expect(
+      prisma.order.findUniqueOrThrow({ where: { id: orderId } })
+    ).resolves.toMatchObject({ status: "shipped", deliveredAt: null })
+    await expect(prisma.payment.count({ where: { orderId } })).resolves.toBe(0)
+    await expect(
+      prisma.orderStatusChange.count({
+        where: { orderId, toStatus: "delivered" },
+      })
+    ).resolves.toBe(0)
+  })
+
+  it("deux livraisons concurrentes n'écrivent qu'un Encaissement et un Changement", async () => {
+    const orderId = await placeSmallOrder(userIdA)
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
+
+    const [premiere, seconde] = await Promise.allSettled([
+      updateOrderStatus(orderId, "delivered", acteurId),
+      updateOrderStatus(orderId, "delivered", acteurId),
+    ])
+
+    expect([premiere.status, seconde.status].sort()).toEqual([
+      "fulfilled",
+      "rejected",
+    ])
+    for (const issue of [premiere, seconde]) {
+      if (issue.status === "rejected") {
+        expect(issue.reason).toBeInstanceOf(InvalidOrderTransitionError)
+      }
+    }
+    await expect(
+      prisma.order.findUniqueOrThrow({ where: { id: orderId } })
+    ).resolves.toMatchObject({ status: "delivered" })
+    await expect(prisma.payment.count({ where: { orderId } })).resolves.toBe(1)
+    await expect(
+      prisma.orderStatusChange.count({
+        where: { orderId, toStatus: "delivered" },
+      })
+    ).resolves.toBe(1)
+  })
+
   it("rejects an unknown order", async () => {
     await expect(
-      updateOrderStatus("commande-inconnue", "confirmed")
+      updateOrderStatus("commande-inconnue", "confirmed", acteurId)
     ).rejects.toThrow(OrderNotFoundError)
   })
 })
@@ -1488,9 +1637,9 @@ describe("admin lifecycle", () => {
     await ajouterArticleAuPanier(variantP1, 2)
     const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
-    await updateOrderStatus(order.id, "confirmed")
-    await updateOrderStatus(order.id, "shipped")
-    await updateOrderStatus(order.id, "delivered")
+    await updateOrderStatus(order.id, "confirmed", acteurId)
+    await updateOrderStatus(order.id, "shipped", acteurId)
+    await updateOrderStatus(order.id, "delivered", acteurId)
 
     const fetched = await getAdminOrder(order.id)
     expect(fetched.status).toBe("delivered")
@@ -1508,9 +1657,15 @@ describe("admin lifecycle", () => {
     await ajouterArticleAuPanier(variantP1, 2)
     const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
-    await updateOrderStatus(order.id, "confirmed", { sendOrderStatusEmail })
-    await updateOrderStatus(order.id, "shipped", { sendOrderStatusEmail })
-    await updateOrderStatus(order.id, "delivered", { sendOrderStatusEmail })
+    await updateOrderStatus(order.id, "confirmed", acteurId, {
+      sendOrderStatusEmail,
+    })
+    await updateOrderStatus(order.id, "shipped", acteurId, {
+      sendOrderStatusEmail,
+    })
+    await updateOrderStatus(order.id, "delivered", acteurId, {
+      sendOrderStatusEmail,
+    })
 
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
     expect(sendOrderStatusEmail.mock.calls.map((call) => call[1])).toEqual([
@@ -1530,7 +1685,9 @@ describe("admin lifecycle", () => {
     await ajouterArticleAuPanier(variantP1, 2)
     const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
-    await updateOrderStatus(order.id, "confirmed", { invalidateCommande })
+    await updateOrderStatus(order.id, "confirmed", acteurId, {
+      invalidateCommande,
+    })
 
     expect(invalidateCommande).toHaveBeenCalledOnce()
     expect(invalidateCommande).toHaveBeenCalledWith(order.id)
@@ -1548,7 +1705,7 @@ describe("admin lifecycle", () => {
       ).stock
     ).toBe(3)
 
-    await updateOrderStatus(order.id, "cancelled")
+    await updateOrderStatus(order.id, "cancelled", acteurId)
 
     expect((await getAdminOrder(order.id)).status).toBe("cancelled")
     expect(

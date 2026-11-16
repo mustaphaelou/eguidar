@@ -27,6 +27,8 @@ model user {
   sessions               session[]
   cartItems              CartItem[]
   orders                 Order[]
+  payments               Payment[]
+  statusChanges          OrderStatusChange[]
   brouillonsImageProduit BrouillonImageProduit[]
   lotsImport             LotImport[]
 }
@@ -194,23 +196,62 @@ enum OrderStatus {
   returned
 }
 
+enum PaymentMode {
+  cash_on_delivery
+}
+
 model Order {
-  id           String      @id @default(cuid())
-  userId       String
-  user         user        @relation(fields: [userId], references: [id])
-  cityName     String
-  address      String
-  phone        String
-  total        Int
-  shippingFee  Int
-  totalPayable Int
-  status       OrderStatus @default(pending)
-  items        OrderItem[]
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id            String              @id @default(cuid())
+  userId        String
+  user          user                @relation(fields: [userId], references: [id])
+  cityName      String
+  address       String
+  phone         String
+  total         Int
+  shippingFee   Int
+  totalPayable  Int
+  status        OrderStatus         @default(pending)
+  deliveredAt   DateTime?           @db.Timestamptz(3)
+  items         OrderItem[]
+  payments      Payment[]
+  statusChanges OrderStatusChange[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([userId])
   @@index([status])
+}
+
+// Un Encaissement : l'argent reçu pour une Commande. La livraison en écrit
+// exactement un, dans la transaction du passage à `delivered` (spec #1025).
+model Payment {
+  id           String      @id @default(cuid())
+  orderId      String
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount       Int
+  mode         PaymentMode @default(cash_on_delivery)
+  collectedAt  DateTime    @db.Timestamptz(3)
+  recordedById String?
+  recordedBy   user?       @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@index([orderId])
+}
+
+// Un Changement de statut : chaque Transition de statut écrite avec son acteur
+// et son instant (spec #1025).
+model OrderStatusChange {
+  id         String      @id @default(cuid())
+  orderId    String
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+  changedAt  DateTime    @db.Timestamptz(3)
+  actorId    String?
+  actor      user?       @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  reason     String?
+
+  @@index([orderId, changedAt])
 }
 
 model OrderItem {

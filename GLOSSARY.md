@@ -490,7 +490,13 @@ _Avoid_: état, order status
 
 **Transition de statut**:
 Le passage autorisé d'une Commande d'un Statut de commande à un autre ; Annulée et Retournée sont terminales et n'autorisent aucune transition.
-_Avoid_: changement de statut, mouvement d'état
+_Avoid_: mouvement d'état, passage d'état
+
+**Changement de statut**:
+La trace d'une Transition de statut : la Commande, les Statuts de commande d'origine et d'arrivée,
+l'instant, et l'administrateur acteur. Chaque Transition en écrit un dans sa transaction ;
+le backfill n'en fabrique aucun pour les Commandes antérieures. La persistance s'appelle `OrderStatusChange`.
+_Avoid_: historique de statut, status history, journal de statut
 
 **Réapprovisionnement**:
 Le retour au stock des Variantes d'une Commande lorsque celle-ci passe à Annulée ou Retournée.
@@ -509,6 +515,13 @@ le Devis — le sous-total des Articles du panier plus les Frais de livraison �
 la Commande à sa création. C'est un fait de la Commande, pas une vue dérivée : écrit une seule
 fois à sa création, lu partout ensuite.
 _Avoid_: montant total, grand total
+
+**Encaissement**:
+L'argent reçu pour une Commande. La livraison en écrit un dans la transaction de son Changement
+de statut : montant = Total à payer, mode Paiement à la livraison (persistance `cash_on_delivery`),
+instant et administrateur acteur. Le backfill en écrit un pour chaque Commande déjà Livrée, sans
+acteur ; une Commande Retournée n'en reçoit aucun. La persistance s'appelle `Payment`.
+_Avoid_: paiement reçu, payment, transaction
 
 **Chiffre d'affaires encaissé**:
 La somme des Totaux à payer des Commandes au statut Livrée : l'argent réellement collecté.
