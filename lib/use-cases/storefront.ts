@@ -213,10 +213,6 @@ export async function fetchProductPageData(
   }
 }
 
-/**
- * Les slugs que le build prérend, lus dans le Catalogue. Triés pour que deux
- * builds du même Catalogue produisent la même liste.
- */
 export async function fetchProductSlugs(): Promise<string[]> {
   const produits = await prisma.product.findMany({
     select: { slug: true },
@@ -225,9 +221,6 @@ export async function fetchProductSlugs(): Promise<string[]> {
   return produits.map((produit) => produit.slug)
 }
 
-// La Lecture possède les lectures de la Structure (ADR-0030) ; ses lignes
-// d'Administration portent toutes les rangées, hors arbre comprises, et c'est
-// exactement l'ensemble des slugs que la page de catégorie sait résoudre.
 export async function fetchCategorySlugs(): Promise<string[]> {
   const lecture = await lireStructure()
   return lecture
@@ -236,9 +229,6 @@ export async function fetchCategorySlugs(): Promise<string[]> {
     .sort()
 }
 
-// Les paramètres que les routes du catalogue rendent à `generateStaticParams`.
-// Un Catalogue vide donne le slug de repli : le build passe, et la page de ce
-// slug traite la route comme inconnue.
 export async function parametresDesProduits(): Promise<ParametresDeSlug[]> {
   return parametresDeSlug(await fetchProductSlugs())
 }
@@ -249,9 +239,6 @@ export async function parametresDesCategories(): Promise<ParametresDeSlug[]> {
 
 const STORE_CACHE_LIFE = { revalidate: 900, expire: 86400 }
 
-// Le Bandeau est rendu sur toutes les pages, y compris les pages statiques qui
-// se partagent un an. Sa durée de vie ne doit donc pas raccourcir la leur : le
-// tag `categories` porte l'invalidation réelle, la durée n'est qu'un plafond.
 const NAVIGATION_CACHE_LIFE = { revalidate: 31_536_000, expire: 31_536_000 }
 
 export async function getHomeData(): Promise<HomeData> {

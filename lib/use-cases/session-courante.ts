@@ -20,9 +20,6 @@ export const lireSession = cache(async (): Promise<Client | null> => {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return null
 
-  // La lecture est le seul propriétaire de la session : atteindre la borne
-  // absolue la termine, et supprime la ligne pour que le cookie ne survive pas
-  // aux endpoints d'authentification.
   if (await revoquerSessionHorsDuree(session)) return null
 
   const { id, name, email, role } = session.user

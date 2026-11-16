@@ -1,10 +1,5 @@
 import { cn } from "@/lib/utils"
 
-/**
- * L'en-tête commun des pages d'administration : le titre porte toujours la
- * même taille, la même graisse et le même écart avec ses actions. Sur mobile,
- * les actions passent sous le titre plutôt que de le comprimer.
- */
 export function PageHeader({
   title,
   description,

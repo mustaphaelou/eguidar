@@ -195,11 +195,6 @@ describe("la composition livre le secret de build sans l'écrire", () => {
   })
 
   it("joint le catalogue par le gateway du bridge, sans réseau de l'hôte", () => {
-    // Buildx 0.37.2+ refuse `network: host` si l'appelant ne passe pas
-    // `--allow=network.host`. `docker compose build`, celui que Coolify
-    // exécute, n'a pas ce drapeau ; `build.entitlements` ne l'accorde pas, un
-    // target bake ne fait que *demander* le privilège. Le build reste donc sur
-    // le bridge et joint la base par le gateway.
     expect(build.network).toBeUndefined()
     expect(build.entitlements).toBeUndefined()
     expect(build.extra_hosts).toContain("host.docker.internal:host-gateway")
@@ -279,8 +274,6 @@ describe("le job de build atteint un catalogue sans secret de dépôt", () => {
     expect(secrets).toContain(`${ID_DU_SECRET}=`)
     expect(secrets).toContain("eguidar_probe")
     expect(String(withImage["build-args"] ?? "")).not.toContain("DATABASE_URL")
-    // Le build doit joindre le service `postgres` du job sur l'adresse de
-    // l'hôte ; le driver `docker-container` ne sait pas résoudre `host-gateway`.
     expect(withImage["add-hosts"]).toBeUndefined()
     expect(secrets).toContain("127.0.0.1:5432")
     expect(String(withImage.network)).toBe("host")
@@ -310,9 +303,6 @@ describe("l'exploitant sait quelle crédential chaque build utilise", () => {
   })
 
   it("documente les deux profils de build, loopback local et gateway Coolify", () => {
-    // Le build local du README partage le réseau de l'hôte et lit le loopback ;
-    // celui de Coolify reste sur le bridge, d'où `host.docker.internal` et
-    // `POSTGRES_HOST_BIND`.
     const notes = texteDuFichier(NOTES)
     const exemple = texteDuFichier(EXEMPLE_ENV)
 

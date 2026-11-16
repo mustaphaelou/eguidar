@@ -73,7 +73,6 @@ function boutonAjout(port: PortMutationsDuPanier) {
   return <AjoutDeTest />
 }
 
-/** Le déclencheur du Bandeau, seul endroit où le badge est monté. */
 function DeclencheurDuPanier() {
   return (
     <button type="button" aria-label="Panier">
@@ -191,8 +190,6 @@ describe("PanierBadge", () => {
     })
     await rejouer()
 
-    // ADR-0038 : une lecture en échec laisse le badge absent, jamais le
-    // compte de la lecture précédente.
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(badge()).toBeNull()
   })

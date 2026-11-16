@@ -13,14 +13,6 @@ export function variablesCritiquesManquantes(
   return VARIABLES_CRITIQUES.filter((nom) => (env[nom] ?? "").trim() === "")
 }
 
-/**
- * Les deux moitiés du Test de sécurité vivent dans deux variables distinctes :
- * la clé publique rend le widget, la clé secrète le vérifie. Une seule des deux
- * renseignée est une incohérence : soit le serveur réclame un jeton qu'aucun
- * widget ne peut produire (impasse), soit le widget est rendu sans que le
- * serveur le vérifie (protection affaiblie). Le retour est le message à
- * avertir, ou null quand les deux moitiés s'accordent.
- */
 export function incoherenceTestDeSecurite(env: Environnement): string | null {
   const secret = (env.TURNSTILE_SECRET_KEY ?? "").trim()
   const sitekey = (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "").trim()

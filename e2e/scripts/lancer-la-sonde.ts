@@ -10,21 +10,6 @@ import { afficherRedis, resoudreRedisDeSonde } from "../harnais/redis-de-sonde"
 import { construireLArtefact, preparerLaBase } from "../harnais/preparation"
 import { portLibre } from "../harnais/serveur"
 
-/**
- * `npm run test:e2e` : prépare la base dédiée (migration, semis, image et
- * Commandes de fixture), construit l'artefact **sur cette base**, puis joue
- * Playwright. La base et le build vont de pair : les pages Produit prérendues
- * portent les identifiants de Variante de la base au moment du build, donc une
- * base resemée sans rebuild rendrait l'ajout au Panier impossible.
- *
- * `E2E_SANS_BUILD=1` réutilise l'artefact **et la base** déjà préparés, tels
- * quels (aucune migration, aucun semis). Les arguments après `--` vont à
- * Playwright (`npm run test:e2e -- --grep accueil`).
- *
- * `E2E_ARTEFACT_DIR` vise un artefact construit ailleurs : il exige
- * `E2E_SANS_BUILD=1`, avec la base de ce build.
- */
-
 async function principal(): Promise<void> {
   const baseDeDonnees = resoudreBaseDeSonde()
   const artefact = dossierDArtefact()

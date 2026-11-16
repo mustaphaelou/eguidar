@@ -21,9 +21,7 @@ export interface AppelEmailMemoire {
 
 export interface PortEmailsMemoire {
   port: PortEmailsAutomation
-  /** Tous les appels, doublons compris — c'est là qu'on lit la clé. */
   appels: AppelEmailMemoire[]
-  /** Les envois réels : une clé déjà vue est dédupliquée, comme chez Resend. */
   envoyes: AppelEmailMemoire[]
 }
 

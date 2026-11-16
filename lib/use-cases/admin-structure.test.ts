@@ -382,9 +382,6 @@ describe("deplacerStructure — un déplacement, un propriétaire", () => {
     )
     expect(resultat.nomDestination).toBeNull()
     expect(await parentDe(b.id)).toBeNull()
-    // La racine peut en porter d'autres, laissées par d'autres suites : on
-    // vérifie le rang relatif que la commande vient de produire, pas un compte
-    // absolu qui dépendrait de la table entière.
     const ordreDesRacines = await ordreDesEnfants(null)
     expect(ordreDesRacines[resultat.position - 1]).toBe(b.id)
     expect(ordreDesRacines.length).toBe(resultat.nombreFreres)
@@ -1894,8 +1891,6 @@ describe("admin structure mutations — categories", () => {
     expect(parId.get(produitDeplace.id)).toMatchObject({
       categorySlug: cibleProduits.slug,
     })
-    // Le document d'un Produit nomme sa Structure directe ; la réindexation
-    // d'une branche reparentée couvre bien ce Produit, dont la chaîne a changé.
     expect(parId.get(produitEnfant.id)).toMatchObject({
       categorySlug: enfant.slug,
     })

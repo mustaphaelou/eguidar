@@ -25,20 +25,12 @@ function LigneStock({ variante }: { variante: LowStockVariant }) {
   )
 }
 
-/**
- * La liste du stock faible, au même rythme que celle des Commandes. La pastille
- * de stock est la valeur de la ligne ; le lien prend la ligne entière.
- *
- * `colonnesAuLg` sert la carte fusionnée « À surveiller » : sur 1 100 px, une
- * seule colonne éloigne la pastille du nom du Produit de près d'un mètre.
- */
 export function ListeDeStockFaible({
   stock,
   colonnesAuLg = false,
   className,
 }: {
   stock: LowStockVariant[]
-  /** Une carte pleine largeur lit mieux en deux colonnes. */
   colonnesAuLg?: boolean
   className?: string
 }) {

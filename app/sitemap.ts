@@ -8,15 +8,6 @@ import {
   fetchProductSlugs,
 } from "@/lib/use-cases/storefront"
 
-/**
- * Le plan du site : les pages de la boutique, le Catalogue et les Articles de
- * blog publics. Les trois listes de slugs viennent des mêmes lectures que le
- * prérendu (`generateStaticParams`) : ce que le build prérend est exactement ce
- * que le plan annonce, et un Brouillon n'y entre pas (voir `filtreArticlePublic`).
- *
- * La route lit la base à chaque requête — Next la sert en `ƒ` (dynamique) plutôt
- * qu'au build — donc un Produit ajouté après le déploiement y paraît sans rebuild.
- */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [produits, categories, articles] = await Promise.all([
     fetchProductSlugs(),

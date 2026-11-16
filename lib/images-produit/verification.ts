@@ -25,7 +25,6 @@ export interface ImageProduitInspectee {
   width: number
   height: number
   byteSize: number
-  /** Les octets réécrits : sans EXIF, orientation appliquée. */
   bytes: Buffer
 }
 
@@ -85,11 +84,6 @@ async function reecrire(
   }
 }
 
-/**
- * Le décodage fait autorité sur le type déclaré : il rend le format réel, les
- * dimensions réelles et la taille réelle, et réécrit les octets sans métadonnées
- * (EXIF compris). OWASP demande décoder puis réencoder une image téléversée.
- */
 export async function inspecterImageProduit(
   octets: Buffer | Uint8Array
 ): Promise<ResultatInspectionImageProduit> {

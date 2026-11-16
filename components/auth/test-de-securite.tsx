@@ -57,11 +57,6 @@ function TestSecuriteWidget({
   const [loaded, setLoaded] = useState(false)
   const [scriptAttempt, setScriptAttempt] = useState(0)
 
-  /**
-   * Une requête qui n'atteint pas le serveur ne laisse aucun jeton : sans ce
-   * retrait, le bouton resterait désactivé sans un mot. Le script est retiré
-   * pour que l'effet le repose et rouvre une chance au Client.
-   */
   const relancerScript = useCallback(() => {
     document.getElementById("turnstile-script")?.remove()
     setLoaded(false)
@@ -87,8 +82,6 @@ function TestSecuriteWidget({
   useEffect(() => {
     const marquerCharge = () => {
       setLoaded(true)
-      // Un chargement qui aboutit après un échec remet le Test de sécurité en
-      // attente : le script a été reposé, le widget va être rendu.
       onStatusChange("idle")
     }
     const marquerInjoignable = () => onStatusChange("error")
@@ -215,18 +208,6 @@ function TestSecuriteWidget({
   )
 }
 
-/**
- * L'état est fermé à trois valeurs : `attente` tant qu'aucun jeton n'est
- * arrivé, `pret` dès qu'un jeton est là (ou qu'aucun Test n'est requis),
- * `indisponible` quand le script ou le widget a dit qu'il ne pouvait pas se
- * charger.
- *
- * `peutEnvoyer` n'est vrai qu'en `pret`. Un défi indisponible ne rend pas le
- * bouton actif : le Client ne pourrait qu'obtenir un refus du serveur, et le
- * panneau lui offre une reprise et un contact. L'attente et l'indisponibilité
- * ferment donc l'Envoi protégé de la même façon, mais ne disent pas la même
- * chose.
- */
 export function useTestDeSecurite(action: ActionTestDeSecurite) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const [token, setToken] = useState<string | null>(null)

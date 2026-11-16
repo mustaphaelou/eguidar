@@ -69,7 +69,6 @@ async function viderPanierCourant(): Promise<void> {
   }
 }
 
-/** Le total affiché vient des mêmes faits que ceux que le serveur chiffre. */
 async function totalAfficheDuClient(clientId: string): Promise<number> {
   const projet = projeterDevis(
     await chargerDevis(await lirePanierClient(clientId)),

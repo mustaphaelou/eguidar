@@ -66,10 +66,6 @@ function sourceProduction(absolu: string): SourceProduction {
   }
 }
 
-/**
- * Le helper partagé `sourcesDeProduction` ne lit que le TypeScript ; la garde
- * ajoute ici le JavaScript de production (cache-handlers, scripts .mjs).
- */
 function sourcesJs(depuis: string, ...racines: string[]): SourceProduction[] {
   const estSource = (nom: string): boolean =>
     /\.m?js$/.test(nom) && !/\.test\.m?js$/.test(nom)
@@ -80,7 +76,6 @@ function sourcesJs(depuis: string, ...racines: string[]): SourceProduction[] {
   )
 }
 
-/** Les fichiers TypeScript de la racine du dépôt, quand ils existent. */
 function sourcesRacine(depuis: string, ...noms: string[]): SourceProduction[] {
   return noms
     .map((nom) => fileURLToPath(new URL(nom, depuis)))

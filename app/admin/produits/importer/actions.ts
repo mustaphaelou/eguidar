@@ -25,10 +25,6 @@ export interface TeleversementState {
 
 export type VerificationState = TeleversementState
 
-/**
- * Le résultat d'un appel d'application, ou son refus. La page enchaîne les
- * appels tant qu'il reste des Produits ou que l'indexation n'a pas rattrapé.
- */
 export interface ApplicationState {
   error?: string
   lotId?: string
@@ -50,11 +46,6 @@ interface LotAVerifier {
   lotId: string
 }
 
-/**
- * Le téléversement passe par la porte d'administration : un compte ordinaire
- * est redirigé vers la Connexion avant que le fichier ne soit lu. L'action ne
- * juge rien elle-même : elle confie les octets au cas d'usage.
- */
 export const televerserLeFichierAction = adminFormAction<
   FichierTeleverse,
   TeleversementState
@@ -79,11 +70,6 @@ export const televerserLeFichierAction = adminFormAction<
   },
 })
 
-/**
- * La Vérification passe par la porte d'administration et confie le Lot au cas
- * d'usage ; un Lot impossible à rejuger revient en message français, sans
- * redirection. Sinon la page est rechargée sur le Lot désormais `verifie`.
- */
 export const verifierLeLotAction = adminFormAction<
   LotAVerifier,
   VerificationState
@@ -103,11 +89,6 @@ interface LotACurseur {
   curseur: number
 }
 
-/**
- * L'application passe par la porte d'administration : elle ne rend pas de
- * redirection, car la page enchaîne les appels avec le curseur rendu. Un refus
- * du cas d'usage revient en message français, sans rien écrire.
- */
 export const appliquerLeLotAction = adminFormAction<
   LotACurseur,
   ApplicationState

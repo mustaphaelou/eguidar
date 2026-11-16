@@ -11,11 +11,6 @@ type UniqueViolation = {
   table?: string
 }
 
-/**
- * Prisma nomme la violation de deux façons selon la version de l'adaptateur :
- * 7.9 énumère les champs (`constraint.fields`), 7.10 nomme la contrainte
- * PostgreSQL (`constraint.index` + `cause.table`).
- */
 function uniqueViolationOf(error: unknown): UniqueViolation | undefined {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return undefined
   if (error.code !== "P2002") return undefined
@@ -42,10 +37,7 @@ function indexFields(index: string, table: string | undefined): string[] {
   const name =
     table !== undefined && index.startsWith(`${table}_`)
       ? index.slice(table.length + 1)
-      : // Sans nom de table, l'index commence par le nom du modèle.
-        index.replace(/^[^_]+_/, "")
-  // Le schéma du dépôt donne `id` pour clé primaire à chaque modèle ; les
-  // tables de jointure à clé composite n'empruntent aucun de ces chemins.
+      : index.replace(/^[^_]+_/, "")
   if (name === "pkey") return ["id"]
   if (!name.endsWith("_key")) return []
   return name.slice(0, -"_key".length).split("_")
@@ -59,11 +51,6 @@ export function decodeP2002Fields(error: unknown): string[] {
   return indexFields(violation.index, violation.table)
 }
 
-/**
- * Le nom de l'index violé, quand PostgreSQL le nomme. C'est la seule lecture
- * possible pour un index partiel, dont le nom ne suit pas la convention
- * `<Modèle>_<champs>_key` que `decodeP2002Fields` décode.
- */
 export function uniqueViolationIndex(error: unknown): string | undefined {
   return uniqueViolationOf(error)?.index
 }

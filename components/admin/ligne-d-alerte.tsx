@@ -25,11 +25,6 @@ export interface CompteursDAlerte {
   echecs: number
 }
 
-/**
- * Une alerte non nulle : la pastille porte le compte et son `::after` couvre la
- * ligne entière, qui devient la cible. Une ligne à zéro n'est jamais rendue —
- * `LignesDAlerte` filtre avant de composer.
- */
 export function LigneAlerte({
   href,
   label,
@@ -78,10 +73,6 @@ export function LigneAlerte({
   )
 }
 
-/**
- * Les alertes qui demandent une action. L'alerte « Stock faible » n'est pas
- * répétée : la liste du stock, en dessous, la remplace.
- */
 export function LignesDAlerte({ compteurs }: { compteurs: CompteursDAlerte }) {
   const lignes = [
     {

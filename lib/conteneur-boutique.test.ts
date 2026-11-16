@@ -7,7 +7,6 @@ import {
   sourcesDeProduction,
 } from "@/lib/use-cases/outils-frontiere"
 
-/** Les surfaces qui posent un bord de contenu : le Bandeau, sa Recherche, son Menu déroulant, l'Aperçu du Panier, le Pied de page. */
 const SURFACES = [
   "components/storefront/global-nav-bar.tsx",
   "components/storefront/apercu-du-panier-surface.tsx",
@@ -33,11 +32,6 @@ describe("Conteneur de la boutique — une seule mesure", () => {
     expect(source, fichier).not.toMatch(/\bp[xlr]-\[/m)
   })
 
-  /* Le Bandeau portait `max-w-[1024px]` et `sm:px-[22px]`, le Pied de page
-     `max-w-[980px]` : sur un écran plus large que 980 px, le logo du Pied de
-     page tombait 22 px à droite de celui du Bandeau. Ces deux valeurs
-     écrites à la main étaient la cause ; aucune surface de la boutique ne
-     doit les réécrire. */
   it("aucune surface de la boutique ne réintroduit sa propre largeur", () => {
     const sources = [
       ...sourcesDeProduction(import.meta.url, "../components/storefront"),

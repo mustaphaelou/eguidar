@@ -156,10 +156,6 @@ describe("le pont de la Structure", () => {
 
     await pont.executerUne(brancheA!)
     await pont.executerUne(brancheB!)
-    // Une même branche rejouée dans le même plan ne relit ni l'arbre ni ses
-    // documents : le pont vit plus longtemps que la carte de gestionnaires que
-    // `executerUne` reconstruit à chaque appel. La conséquence, elle, se
-    // réexécute — c'est l'action durable, pas une lecture.
     await pont.executerUne(brancheA!)
 
     expect(lireStructure).toHaveBeenCalledTimes(1)

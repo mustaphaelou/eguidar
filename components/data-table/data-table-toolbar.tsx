@@ -29,11 +29,8 @@ export type DataTableToolbarFilter = {
 export type DataTableToolbarProps<TData extends RowData> = {
   table: ReactTable<DataTableFeatures, TData>
   searchPlaceholder?: string
-  /** Le nom accessible du champ de recherche ; le placeholder ne suffit pas. */
   searchLabel?: string
-  /** Le total de la vue, toutes pages confondues — jamais la page courante. */
   resultCount?: number
-  /** Force le compte de sélection quand il ne vient pas de `rowSelection`. */
   selectedCount?: number
   statusLabels?: DataTableStatusLabels
   filters?: DataTableToolbarFilter[]

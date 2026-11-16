@@ -34,10 +34,6 @@ export interface CategoryInput {
   image?: string | null
 }
 
-/**
- * Les ports de la Structure sont ceux que l'adaptateur projette ; le type vit
- * dans l'adaptateur pour que le site d'appel n'en redéclare pas une copie.
- */
 export type StructureEffects = EffetsStructure
 
 const defaultStructureEffects: StructureEffects = {
@@ -314,12 +310,6 @@ async function assertAcyclicCategoryTree(
   return { nomDestination: liens.get(parentId)?.name ?? null }
 }
 
-/**
- * Résout les documents indexables d'une branche après le commit, à partir des
- * identifiants que l'adaptateur a déjà résolus dans l'arbre : la Structure
- * supprimée n'est jamais relue, et une destination inconnue ne rend aucun
- * Produit plutôt que d'échouer. `null` désigne la branche orpheline.
- */
 async function readIndexableProductsOfBranch(
   categorieIds: readonly string[] | null
 ): Promise<IndexableProduct[]> {
@@ -334,11 +324,6 @@ async function readIndexableProductsOfBranch(
   return products.map(toIndexableProduct)
 }
 
-/**
- * Les lectures après commit de la Structure. L'adaptateur lit l'arbre au plus
- * une fois par plan et ne résout chaque branche qu'une fois ; ces fonctions
- * restent paresseuses.
- */
 const lecturesDeStructure: LecturesStructure = {
   structure: () => lireStructure(),
   documents: (categorieIds) => readIndexableProductsOfBranch(categorieIds),
@@ -401,8 +386,6 @@ export async function updateCategory(
     const nextImage = data.image ?? null
     const plan = declarerApresEcriture("structure.modifiee", {
       categorieId: id,
-      // Les faits singuliers restent la façon dont l'écriture construit les
-      // tableaux que la Charge porte ; la déclaration n'en décide plus.
       imagesRetirees:
         existing.image && existing.image !== nextImage ? [existing.image] : [],
       destinations: data.parentId ? [data.parentId] : [],
@@ -621,8 +604,6 @@ export async function deleteCategory(
 
     await tx.category.delete({ where: { id } })
 
-    // L'écriture construit les tableaux que la Charge porte à partir des
-    // faits singuliers ; la déclaration, elle, n'en lit que les tableaux.
     const destinations = [
       ...new Set(
         [

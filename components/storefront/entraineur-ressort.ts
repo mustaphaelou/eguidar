@@ -30,7 +30,6 @@ export interface OptionsAller {
 
 export interface EntraineurRessort {
   poser(position: number, vitesse?: number): void
-  /** Rejoint une cible en partant de l'état courant, y compris en plein vol. */
   aller(vers: number, options?: OptionsAller): void
   arreter(): void
   lire(): EtatRessort

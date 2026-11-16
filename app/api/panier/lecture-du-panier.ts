@@ -15,8 +15,6 @@ export async function repondreALapercuDuPanier(): Promise<Response> {
   const [panier, client] = await Promise.all([lirePanier(), lireSession()])
   const connecte = client !== null
 
-  // `connecte` accompagne les deux états : les entrées « Mon compte » du corps
-  // choisissent Connexion ou Déconnexion sans que le document porte un Client.
   const corps: ApercuDuPanier =
     panier.lines.length === 0
       ? { etat: "vide", connecte }

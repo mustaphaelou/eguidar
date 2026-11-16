@@ -2,36 +2,17 @@ import "dotenv/config"
 
 import { identifiantsCompteAdmin } from "../../prisma/compte-admin"
 
-/**
- * Les deux Commandes de fixture de la sonde, semées dans la base dédiée
- * **avant le build** (en local par `preparerLaBase`, en CI par l'étape de
- * fixture qui précède `npm run build`). Elles évitent de faire passer un achat
- * réel par le Checkout, qui déclencherait l'e-mail et les Automatisations.
- *
- * - `NUMERO_DE_LA_COMMANDE_LIVREE` : Livrée, un total fixe au-dessus de
- *   15 000 MAD, dans la fenêtre de 30 jours du CA encaissé (ADR-0009).
- * - `NUMERO_DE_LA_COMMANDE_DE_CONFIRMATION` : deux Articles dont un nom long,
- *   et un statut non encaissé pour ne pas fausser le CA.
- *
- * Les identifiants sont fixes : aucune assertion ne dépend d'un identifiant
- * généré ou d'une date. Les deux Commandes appartiennent au compte
- * administrateur semé, sinon `getOrder` les rendrait introuvables (404).
- */
-
 export const NUMERO_DE_LA_COMMANDE_LIVREE = "e2e-commande-livree-923"
 export const NUMERO_DE_LA_COMMANDE_DE_CONFIRMATION =
   "e2e-commande-confirmation-923"
 
-/** Le nom long que la page de confirmation doit afficher tel quel. */
 export const NOM_LONG_DE_PRODUIT_DE_FIXTURE =
   "Ordinateur portable professionnel Apple MacBook Pro 16 pouces — puce M3 Max"
 export const NOM_COURT_DE_PRODUIT_DE_FIXTURE = "Souris sans fil Bluetooth"
 
-/** 1 599 800 centimes = 15 998,00 MAD, au-dessus du seuil de 15 000 MAD. */
 export const TOTAL_DE_LA_COMMANDE_LIVREE = 1_599_800
 export const TOTAL_DE_LA_COMMANDE_DE_CONFIRMATION = 3_299_000
 
-/** Le prix de la ligne au nom long : 29 990,00 MAD, un montant à une ligne. */
 export const PRIX_DE_LA_LIGNE_LONGUE_DE_CONFIRMATION = 2_999_000
 
 export const VILLE_DES_COMMANDES_DE_FIXTURE = "Casablanca"
@@ -115,7 +96,6 @@ function commandeDeConfirmation(
   }
 }
 
-/** Les deux Commandes de la sonde, rattachées au compte administrateur. */
 export function construireLesCommandesDeFixture(
   userId: string,
   maintenant: Date = new Date()
@@ -126,10 +106,6 @@ export function construireLesCommandesDeFixture(
   ]
 }
 
-/**
- * Sème les deux Commandes dans la base de la sonde. Idempotent : la Commande
- * est remplacée par son état de fixture si elle existe déjà.
- */
 export async function semerLesCommandesDeFixture(
   baseDeDonnees: string,
   environnement: Record<string, string | undefined> = process.env

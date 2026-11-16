@@ -25,11 +25,6 @@ function isDetailEntry(tags) {
   return Array.isArray(tags) && tags.some(estTagDeDetail)
 }
 
-/**
- * Best-effort : rend vrai quand l'entrée est admise, faux quand le budget la
- * refuse ; le membre de l'écriture courante est alors retiré. Une panne Redis
- * rend vrai pour que l'entrée s'écrive comme avant.
- */
 async function admitDetailEntry(client, cacheKey, ttl) {
   const maintenant = Date.now()
   try {

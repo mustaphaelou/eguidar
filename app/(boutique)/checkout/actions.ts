@@ -23,7 +23,6 @@ export interface CheckoutFormState {
 
 function parseCheckoutFormData(formData: FormData): CheckoutInput {
   const totalAfficheTexte = String(formData.get("totalAffiche") ?? "")
-  // parseMadToCents("") rend 0 : la présence se vérifie sur le texte brut.
   if (!totalAfficheTexte.trim()) throw new Error(INVALID_FORM_MESSAGE)
 
   const totalAffiche = parseMadToCents(totalAfficheTexte)
@@ -45,9 +44,6 @@ export const placeOrderAction: (
 ) => Promise<CheckoutFormState> = formAction<CheckoutInput, CheckoutFormState>({
   parse: parseCheckoutFormData,
   run: async (input, user) => {
-    // Sur un Devis périmé, le refus doit montrer le nouveau Total à payer :
-    // la réponse emporte un rendu RSC frais de la page. Les autres refus gardent
-    // le comportement d'aujourd'hui ; le succès redirige déjà.
     const order = await placeOrder(user.id, input).catch((error: unknown) => {
       if (error instanceof DevisPériméError) refresh()
       throw error

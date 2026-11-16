@@ -12,10 +12,6 @@ import {
   parametresDesProduits,
 } from "@/lib/use-cases/storefront"
 
-// Ce fichier vide le catalogue avant de le semer : il doit tourner seul, ce
-// que garantit `fileParallelism: false` dans vitest.config.ts. Les autres
-// fichiers de test sèment leurs propres fixtures à leur entrée et ne dépendent
-// d'aucune ligne laissée par celui-ci.
 async function viderLeCatalogue(): Promise<void> {
   await prisma.$executeRawUnsafe(
     'TRUNCATE TABLE "ArticleBlogProduit", "ArticleBlog", "Product", "Category" CASCADE'
@@ -43,7 +39,6 @@ async function semerLesFixtures(): Promise<void> {
     },
   })
 
-  // Semés dans l'ordre inverse du slug pour prouver que le listing trie.
   for (const suffixe of ["zeta", "alpha"]) {
     await prisma.product.create({
       data: {

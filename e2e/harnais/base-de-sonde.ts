@@ -1,13 +1,3 @@
-/**
- * La base de la sonde : une base dédiée, jamais celle que l'on développe.
- *
- * `E2E_DATABASE_URL` la déclare explicitement ; sinon elle est dérivée de la
- * base de test (ou, à défaut, de la base de développement) en remplaçant son
- * nom par `eguidar_probe`. Toute URL qui désigne `eguidar` ou `eguidar_test`
- * est refusée : la sonde migre, tronque et sème, elle ne doit pas effacer le
- * travail de quelqu'un.
- */
-
 export const NOM_DE_BASE_DE_LA_SONDE = "eguidar_probe"
 
 const BASES_INTERDITES = new Set(["eguidar", "eguidar_test"])
@@ -31,9 +21,6 @@ function lireUrl(source: string, origine: string): URL {
   }
 }
 
-/**
- * Refuse les deux bases du poste et rend l'URL validée, telle quelle.
- */
 export function validerBaseDeSonde(source: string): string {
   const url = lireUrl(source, "la valeur fournie")
   const nom = nomDeBase(url)
@@ -51,17 +38,12 @@ export function validerBaseDeSonde(source: string): string {
   return url.toString()
 }
 
-/** Remplace le nom de base par `eguidar_probe`, en gardant hôte, port et options. */
 export function deriverBaseDeSonde(source: string): string {
   const url = lireUrl(source, "TEST_DATABASE_URL ou DATABASE_URL")
   url.pathname = `/${NOM_DE_BASE_DE_LA_SONDE}`
   return url.toString()
 }
 
-/**
- * L'URL que la sonde utilise, dans l'ordre : explicite, dérivée de la base de
- * test, puis dérivée de la base de développement.
- */
 export function resoudreBaseDeSonde(
   environnement: Partial<NodeJS.ProcessEnv> = process.env
 ): string {

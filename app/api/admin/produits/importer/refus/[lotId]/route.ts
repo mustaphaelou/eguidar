@@ -31,14 +31,6 @@ function refusCsvDeLaLigne(ligne: LigneImportLue): RefusCsvImport | null {
   }
 }
 
-/**
- * Le CSV des refus d'un Lot : une Ligne refusée par ligne, avec son numéro, son
- * code, son message français et ses neuf cellules brutes. Tout vient de la base
- * — les cellules sont persistées — : le fichier d'origine n'est jamais relu.
- *
- * La route est une lecture réservée à l'Administration ; la porte JSON ne rend
- * que du JSON et n'a donc pas sa place ici, comme pour le modèle.
- */
 export async function GET(
   _requete: Request,
   { params }: { params: Promise<{ lotId: string }> }

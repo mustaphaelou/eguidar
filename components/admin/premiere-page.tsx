@@ -14,10 +14,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 
-/**
- * La première page : un catalogue et un carnet vides. Aucun indicateur, aucun
- * graphique, aucune période, aucune liste — une invitation, un geste.
- */
 export function PremierePage() {
   return (
     <div className="flex flex-col gap-6">

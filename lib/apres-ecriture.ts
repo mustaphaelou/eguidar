@@ -1,10 +1,3 @@
-/**
- * L'Après-écriture : une seule déclaration par genre d'écriture (ADR-0049).
- *
- * Module pur : pas de Prisma, pas de transaction, pas de lecture. Chaque entrée
- * du registre est une fonction pure d'un objet de faits typés vers un plan.
- */
-
 import type { TypeEffetPostCommit } from "@/lib/use-cases/mutation-squelette"
 import type { EntiteEffetPostCommit } from "@/lib/use-cases/mutation-squelette"
 import type { ActionAutomation } from "@/lib/automations/vocabulaire"
@@ -53,7 +46,6 @@ export interface ConsequenceApresEcriture<
   portee?: number
   durable: boolean
   reparation?: string
-  /** La charge utile typée que l'adaptateur de l'entité reçoit. */
   payload?: P
 }
 
@@ -64,11 +56,6 @@ export interface PlanApresEcriture<
   consequences: C[]
 }
 
-/**
- * Les Produits qu'une écriture de Commande a drainés ou réapprovisionnés : un fait
- * d'immédiat que la Charge ne porte pas, et que la purge du Catalogue reçoit
- * dans la charge utile de sa conséquence.
- */
 export interface ProduitTouche {
   id: string
   slug: string
@@ -110,12 +97,7 @@ export type EffetStructure =
   "suppression-images" | "reindexation" | "invalidation-cache"
 
 export interface ChargesStructure {
-  /** Les URL des images retirées de la Structure. */
   "suppression-images": { urls: readonly string[] }
-  /**
-   * La branche à réindexer : un identifiant de Structure, ou le
-   * pseudo-identifiant `BRANCHE_SANS_STRUCTURE` pour les Produits orphelins.
-   */
   reindexation: { branche: string }
   "invalidation-cache": { categorieId: string }
 }
@@ -141,12 +123,6 @@ export type ConsequenceStructureInvalidation = Extract<
 
 export type PlanStructure = PlanApresEcriture<ConsequenceStructure>
 
-/**
- * L'identité d'un Produit qu'une conséquence Catalogue transporte. Les
- * documents indexables et les événements Catalogue sont des lectures après
- * commit : la déclaration ne les connaît pas, l'adaptateur les résout par
- * `lectures`.
- */
 export interface IdentiteProduitCatalogue {
   id: string
   slug: string
@@ -214,17 +190,8 @@ export type ConsequenceCataloguePurge = Extract<
 
 export type PlanCatalogue = PlanApresEcriture<ConsequenceCatalogue>
 
-/**
- * La seule conséquence de Livraison : invalider le cache. Elle est non durable,
- * réparée par le TTL, et ne porte aucun fait — donc aucun Événement et aucune
- * Exécution d'automatisation.
- */
 export type EffetLivraison = "invalidation-cache"
 
-/**
- * La charge utile d'une invalidation de Livraison : l'identifiant de l'objet
- * touché suffit, puisque le port n'a qu'un cache à invalider.
- */
 export interface ChargesLivraison {
   "invalidation-cache": { id: string }
 }
@@ -277,13 +244,8 @@ function consequence(
   return { effet, entite, message, ...options }
 }
 
-/**
- * Le pseudo-identifiant de journal d'une conséquence groupée : la portée porte
- * le nombre réel de Produits, l'identifiant ne désigne aucune entité.
- */
 export const IDENTIFIANT_LOT = "lot"
 
-// Commande
 const commandeCreee: DeclarationPour<"commande.creee"> = (f) => {
   const commandeId = String(f.commandeId)
   return {
@@ -379,7 +341,6 @@ const commandeStatutChangee: DeclarationPour<"commande.statut.changee"> = (
   }
 }
 
-// Produit enregistre
 const produitEnregistre: DeclarationPour<"produit.enregistre"> = (f) => {
   const produitId = String(f.produitId)
   const slug = String(f.slug)
@@ -479,11 +440,6 @@ const produitEnregistre: DeclarationPour<"produit.enregistre"> = (f) => {
   }
 }
 
-/**
- * Un fait de lot nomme un Produit que sa fiche ne porte pas. Le site d'appel
- * construit toujours les deux tableaux alignés : un identifiant sans fiche est
- * une erreur de programmation nommée, jamais un Produit au slug vide.
- */
 export class ProduitDuLotIncoherentError extends Error {
   constructor(readonly produitId: string) {
     super(
@@ -493,10 +449,6 @@ export class ProduitDuLotIncoherentError extends Error {
   }
 }
 
-/**
- * Les Produits d'un lot, alignés sur `produitIds` quand il est fourni et
- * complétés par la liste typée sinon.
- */
 function produitsDuLot(f: {
   produitIds?: readonly string[]
   produits?: readonly ProduitDuLot[]
@@ -521,8 +473,6 @@ const produitEnregistreLot: DeclarationPour<"produit.enregistre.lot"> = (f) => {
     categoryId: produit.categoryId ?? null,
     categoryIdPrecedent: produit.categoryIdPrecedent ?? null,
   }))
-  // Une seule réindexation pour toute la sélection, qui porte sa portée réelle ;
-  // l'invalidation, elle, reste par Produit comme le genre unitaire.
   const consequences: ConsequenceCatalogue[] = [
     consequence(
       "reindexation",
@@ -630,9 +580,6 @@ const produitSupprimeLot: DeclarationPour<"produit.supprime.lot"> = (f) => {
   const urls = produits.flatMap((produit) => [
     ...(produit.images ?? produit.imagesRetirees ?? []),
   ])
-  // La suppression des images reste un seul geste pour tout le lot ; la
-  // désindexation, l'invalidation et la purge suivent par Produit, comme les
-  // Événements unitaires que le travailleur redéclarera.
   const consequences: ConsequenceCatalogue[] = [
     consequence(
       "suppression-images",
@@ -757,17 +704,8 @@ const structureCreee: DeclarationPour<"structure.creee"> = (f) => {
 
 const structureModifiee: DeclarationPour<"structure.modifiee"> = (f) => {
   const categorieId = String(f.categorieId)
-  // Les conséquences se dérivent des champs que la Charge porte déjà ; les
-  // faits singuliers de l'écriture (`imageRetiree`, `destination`) ne servent
-  // qu'à construire ces tableaux au site d'appel.
   const imagesRetirees = [...(f.imagesRetirees ?? [])]
   const destinations = [...new Set(f.destinations ?? [])]
-  // `destinations` est copié dans le fait parce que la Charge le porte, mais
-  // une modification ne s'en sert pas pour une conséquence : l'action durable
-  // `index.structure` lit `categorieId` pour une modification, et les
-  // destinations ne pilotent que les branches d'une suppression. La garde
-  // d'égalité de la redéclaration prouve déjà que les conséquences durables
-  // coïncident.
   const consequences: ConsequenceStructure[] = []
   if (imagesRetirees.length > 0) {
     consequences.push(
@@ -817,20 +755,10 @@ const structureModifiee: DeclarationPour<"structure.modifiee"> = (f) => {
   }
 }
 
-/**
- * La branche orpheline n'a pas d'identifiant en base : c'est un
- * pseudo-identifiant de journal que l'adaptateur immédiat traduit en
- * `categoryId: null`, et que l'action durable reconnaît à l'absence de
- * destination. Le fait ne porte jamais la branche elle-même, seulement les
- * identifiants de destination.
- */
 export const BRANCHE_SANS_STRUCTURE = "sans-structure"
 
 const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
   const categorieId = String(f.categorieId)
-  // La branche orpheline (`sans-structure`) voyage dans `destinations` comme n'importe
-  // quelle destination : la déclaration n'a plus à relire les faits singuliers
-  // pour savoir quoi réindexer.
   const imagesRetirees = [...(f.imagesRetirees ?? [])]
   const destinations = [...new Set(f.destinations ?? [])]
   const consequences: ConsequenceStructure[] = []
@@ -889,12 +817,6 @@ const structureSupprimee: DeclarationPour<"structure.supprimee"> = (f) => {
   }
 }
 
-/**
- * L'unique conséquence des écritures de Livraison : l'invalidation du cache,
- * non durable et réparée par le TTL, sans fait ni Événement. La charge utile
- * typée ne porte que l'identifiant de l'objet touché — le port n'a qu'un cache
- * à invalider.
- */
 function consequenceDeLivraison(
   entite: EntiteEffetPostCommit,
   message: string,
@@ -954,13 +876,6 @@ const livraisonReglee: DeclarationPour<"livraison.reglee"> = (f) => {
   )
 }
 
-/**
- * Une Image produit n'a qu'un propriétaire, mais l'écriture reste une liste :
- * chaque Produit touché reçoit sa propre conséquence, donc sa propre ligne de
- * journal et sa propre limite d'échec. La charge utile porte l'identité du
- * Produit ; l'événement Catalogue, qui vient de la Structure, traverse la
- * lecture après commit de l'adaptateur.
- */
 const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (
   f
 ) => ({
@@ -975,10 +890,6 @@ const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (
   ),
 })
 
-/**
- * Les plans que les tranches ont déjà typés. Un genre absent rend le plan
- * générique : la tranche suivante l'ajoute ici sans toucher au registre.
- */
 export type PlansTypés = {
   "commande.creee": PlanCommande
   "commande.statut.changee": PlanCommande
@@ -1087,7 +998,6 @@ export type FaitsProduitSupprimeLot = {
 
 export type FaitsVarianteStockChangee = {
   produitId: string | number
-  /** La Charge ne porte que l'identifiant : la déclaration redéclarée s'en passe. */
   slug?: string
   categoryId?: string | null
 }
@@ -1098,21 +1008,13 @@ export type FaitsStructureCreee = {
 
 export type FaitsStructureModifiee = {
   categorieId: string | number
-  /** Les images retirées, telles que la Charge les porte. */
   imagesRetirees: readonly string[]
-  /** Les branches de destination, telles que la Charge les porte. */
   destinations: readonly string[]
 }
 
 export type FaitsStructureSupprimee = {
   categorieId: string | number
-  /** Les images retirées, telles que la Charge les porte. */
   imagesRetirees: readonly string[]
-  /**
-   * Les branches de destination, telles que la Charge les porte. La branche
-   * La branche orpheline y figure sous son pseudo-identifiant quand des Produits
-   * sont laissés orphelins.
-   */
   destinations: readonly string[]
 }
 
@@ -1151,19 +1053,10 @@ export function declarerApresEcriture<G extends GenreEcriture>(
   )
 }
 
-/**
- * Les genres dont la déclaration possède les Règles par défaut : tous les
- * genres unitaires. Les genres groupés sont exclus parce qu'ils partagent le
- * déclencheur du genre unitaire, et les écritures de maintenance n'ajoutent
- * aucune Règle puisqu'elles n'ont aucune conséquence durable. Un genre qui
- * déclarerait une conséquence durable entre donc ici sans autre édition.
- */
 export const GENRES_DERIVES: GenreEcriture[] = (
   Object.keys(REGISTRE) as GenreEcriture[]
 ).filter((genre) => !genre.endsWith(".lot"))
 
-// Identités historiques des Règles par défaut dérivées, pour conserver
-// l'historique d'Exécution.
 const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
   "email.commande-creee": {
     id: "confirmation-commande",
@@ -1179,9 +1072,6 @@ const IDENTITES_REGLES_MIGREES: Record<string, { id: string; nom: string }> = {
     nom: "Invalidation du Catalogue",
   },
   "purge.catalogue": { id: "purge-catalogue", nom: "Purge du bord" },
-  // Une même action peut servir deux déclencheurs : la clé qualifiée garde une
-  // identité de Règle distincte par déclencheur, comme le semis créateur
-  // seulement l'exige.
   "produit.enregistre|suppression.images": {
     id: "suppression-images-produit-enregistre",
     nom: "Suppression des images retirées",
@@ -1248,12 +1138,6 @@ export class IdentiteRegleInconnueError extends Error {
   }
 }
 
-/**
- * L'identité stable d'une Règle par défaut : la clé qualifiée par déclencheur
- * quand une même action sert deux genres, sinon l'identité historique de
- * l'action. Un couple inconnu lève — une conséquence durable sans Règle est une
- * erreur de semis, jamais un silence.
- */
 export function identiteDeRegle(
   declencheur: TypeEvenementAutomation,
   action: ActionAutomation
@@ -1265,13 +1149,6 @@ export function identiteDeRegle(
   return identite
 }
 
-/**
- * Les faits qui révèlent les conséquences conditionnelles d'un genre : une
- * conséquence déclarée seulement quand une image est retirée n'apparaît pas
- * dans un plan appelé sans faits, mais sa Règle par défaut doit exister. Ce
- * modèle ne remplace jamais les faits d'une écriture réelle ; il ne sert qu'au
- * semis.
- */
 export const FAITS_POUR_REGLES: Partial<
   Record<GenreEcriture, FaitsApresEcriture>
 > = {
@@ -1292,12 +1169,6 @@ export const FAITS_POUR_REGLES: Partial<
   },
 }
 
-/**
- * Les déclencheurs planifiés ne viennent pas d'une écriture d'Administration :
- * la déclaration nomme donc leurs Règles directement, à côté des Règles
- * dérivées des plans, pour qu'une seule source possède la politique par
- * défaut.
- */
 const REGLES_PLANIFIEES: Array<{
   id: string
   nom: string
@@ -1326,8 +1197,6 @@ const REGLES_PLANIFIEES: Array<{
   },
 ]
 
-// Règles par défaut : chaque Règle durable vient de la déclaration du genre
-// qui l'émet ; seuls les déclencheurs planifiés sont nommés directement.
 export function reglesParDefaut(): Array<{
   id: string
   nom: string
@@ -1344,11 +1213,6 @@ export function reglesParDefaut(): Array<{
     condition: { type: "toujours" }
     actif: boolean
   }> = []
-  // Un même déclencheur peut déclarer plusieurs conséquences qui demandent la
-  // même action — une réindexation par branche de destination d'une Structure
-  // supprimée, par exemple. La Règle par défaut est gouvernée par l'action, pas
-  // par le nombre de branches : une seule ligne suffit, et l'action lit toutes
-  // les destinations de la charge.
   const reglesVues = new Set<string>()
   for (const genre of GENRES_DERIVES) {
     const plan = declarerApresEcriture(

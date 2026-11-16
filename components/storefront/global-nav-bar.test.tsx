@@ -93,8 +93,6 @@ function corpsDeTest() {
 }
 
 function declencheurDuPanier() {
-  // Le déclencheur se reconnaît à son panneau, pas à une étiquette : depuis
-  // #932, son nom accessible vient du texte masqué « Panier » et du badge.
   return container.querySelector<HTMLButtonElement>(
     "button[aria-controls='apercu-du-panier']"
   )!
@@ -576,8 +574,6 @@ describe("GlobalNavBar", () => {
     )
 
     const panier = declencheurDuPanier()
-    // Le nom accessible ne vient plus d'un `aria-label` : un texte masqué
-    // « Panier » précède le nombre, qui reste visible dans la pastille.
     expect(panier.getAttribute("aria-label")).toBeNull()
     expect(panier.querySelector(".sr-only")?.textContent).toBe("Panier")
 

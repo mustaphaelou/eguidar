@@ -18,13 +18,6 @@ function adresseDuCorps(body: unknown): string | null {
   return typeof email === "string" && email.trim() !== "" ? email : null
 }
 
-/**
- * Le compteur vit dans Redis pour survivre à un redémarrage de conteneur et
- * rester unique quand plusieurs répliques servent la boutique. Une panne du
- * magasin laisse passer la tentative : le limiteur par adresse reste la
- * première ligne, et un Redis indisponible ne doit pas fermer la Connexion à
- * tout le monde.
- */
 export async function connexionTemporairementVerrouillee(
   email: string
 ): Promise<boolean> {
@@ -45,13 +38,9 @@ export async function compterEchecConnexion(email: string): Promise<void> {
     const cle = cleEchecsConnexion(email)
     const multi = redis.multi()
     multi.incr(cle)
-    // La fenêtre part du dernier échec compté : le verrou dure quinze minutes
-    // après le dixième échec, pas depuis le premier.
     multi.pExpire(cle, FENETRE_ECHEANCES_CONNEXION_MS)
     await multi.exec()
-  } catch {
-    // Le compteur est une seconde ligne : son indisponibilité ne refuse rien.
-  }
+  } catch {}
 }
 
 export async function reinitialiserEchecsConnexion(
@@ -61,9 +50,7 @@ export async function reinitialiserEchecsConnexion(
     const redis = await clientRedisPret()
     if (!redis) return
     await redis.del(cleEchecsConnexion(email))
-  } catch {
-    // Idem : une remise à zéro manquée laisse seulement le compteur expirer.
-  }
+  } catch {}
 }
 
 export const hooksEchecsConnexion = {

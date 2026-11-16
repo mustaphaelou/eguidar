@@ -5,11 +5,6 @@ import {
   TYPE_ENTITE_PAR_DECLENCHEUR,
 } from "@/lib/automations/charge"
 
-/**
- * Le vocabulaire fermé des événements d'automatisation (ADR-0044). Un
- * déclencheur est une valeur de cette liste, jamais une expression libre : la
- * règle ne peut donc pas boucler sur sa propre écriture.
- */
 import {
   TYPES_EVENEMENT_AUTOMATION,
   type TypeEvenementAutomation,
@@ -23,28 +18,15 @@ export { TYPES_EVENEMENT_AUTOMATION, TYPES_ENTITE_AUTOMATION }
 export type { TypeEvenementAutomation, TypeEntiteAutomation }
 export { typeEvenementAutomationSchema, typeEntiteAutomationSchema }
 
-/**
- * La fenêtre pendant laquelle un événement peut être rejoué. Elle vaut la
- * mémoire de la clé d'idempotence du fournisseur (24 h) : au-delà, un rejeu
- * pourrait envoyer un second e-mail, donc l'événement n'est plus exécuté et
- * se contente d'une ligne « ignoré ».
- */
 export const DUREE_VIE_EVENEMENT_MS = 24 * 60 * 60 * 1000
 
 export interface EntreeEvenement {
   type: TypeEvenementAutomation
   entityType: TypeEntiteAutomation
   entityId: string
-  /** La charge est validée à l'exécution par l'action, pas par l'écrivain. */
   payload: unknown
-  /** Par défaut, l'heure de l'écriture ; le planificateur la fixe à son horloge. */
   occurredAt?: Date
   expiresAt?: Date
-  /**
-   * La clé naturelle de l'écrivain, quand elle existe : un même
-   * `(type, entité, tentative)` ne produit qu'un événement. Laisser vide
-   * attribue le rang de l'événement de ce type pour l'entité.
-   */
   attemptOf?: number
 }
 
@@ -78,7 +60,6 @@ export class ContratChargeError extends Error {
   }
 }
 
-// Aliases pour le nom du programmateur.
 export const ChargeContractError = ContratChargeError
 export const ProgrammerError = ContratChargeError
 export const ErreurContratCharge = ContratChargeError
@@ -87,10 +68,6 @@ export const ErreurDeContrat = ContratChargeError
 export const ContractError = ContratChargeError
 export const ChargeContractViolationError = ContratChargeError
 
-/**
- * Écrit un événement dans **la transaction de la mutation** qui le produit :
- * un retour arrière ne laisse donc ni événement ni exécution (ADR-0044).
- */
 export async function enregistrerEvenement(
   tx: Prisma.TransactionClient,
   entree: EntreeEvenement
@@ -136,10 +113,6 @@ export async function enregistrerEvenement(
   })
 }
 
-/**
- * Le fait tel qu'un plan d'Après-écriture le déclare. La forme est structurelle
- * pour que le carnet ne dépende pas du module de déclaration.
- */
 export interface FaitAutomation {
   declencheur: TypeEvenementAutomation
   entite: TypeEntiteAutomation
@@ -147,10 +120,6 @@ export interface FaitAutomation {
   charge: unknown
 }
 
-/**
- * Écrit tous les faits d'un plan dans la transaction de la mutation, dans
- * l'ordre déclaré. Un plan sans fait n'écrit rien.
- */
 export async function enregistrerFaits(
   tx: Prisma.TransactionClient,
   faits: readonly FaitAutomation[]
@@ -165,11 +134,6 @@ export async function enregistrerFaits(
   }
 }
 
-/**
- * La variante idempotente : le planificateur rejoue la journée sans créer de
- * doublon. Seule la violation de la clé naturelle est avalée — une autre
- * erreur remonte.
- */
 export async function enregistrerEvenementSiAbsent(
   tx: Prisma.TransactionClient,
   entree: EntreeEvenement
