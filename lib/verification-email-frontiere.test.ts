@@ -72,3 +72,91 @@ describe("Connexion par code et Connexion sociale — les garanties tenues hors 
     )
   })
 })
+
+const SCHEMA_PRISMA = "../prisma/schema.prisma"
+
+const INVARIANT_IDENTIFIANT_NON_UNIQUE =
+  "l'identifiant de la Vérification de l'e-mail reste non unique : un envoi insère une ligne, une lecture retient la plus récente et une consommation supprime toutes les lignes de l'identifiant ; une contrainte unique empêcherait un second envoi et refuserait de s'appliquer à une base qui porte déjà deux lignes du même identifiant"
+
+function corpsDeVerification(schema: string): string | null {
+  const debut = schema.search(/^model\s+verification\s*\{/m)
+  if (debut === -1) return null
+
+  const ouverture = schema.indexOf("{", debut)
+  const fermeture = schema.indexOf("\n}", ouverture)
+  if (ouverture === -1 || fermeture === -1) return null
+
+  return schema.slice(ouverture + 1, fermeture)
+}
+
+function declarationsDuModele(corps: string): string[] {
+  return corps
+    .split("\n")
+    .map((ligne) => ligne.trim())
+    .filter((ligne) => ligne !== "" && !ligne.startsWith("//"))
+}
+
+function violationsDeLIdentifiantUnique(schema: string): string[] {
+  const corps = corpsDeVerification(schema)
+  if (corps === null) {
+    return [
+      `le modèle « verification » ne figure plus dans le schéma : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`,
+    ]
+  }
+
+  const declarations = declarationsDuModele(corps)
+  const violations: string[] = []
+  if (
+    declarations.some((declaration) =>
+      /^identifier\s+String[^\n]*@unique\b/.test(declaration)
+    )
+  ) {
+    violations.push(
+      `le schéma déclare « verification.identifier » en « @unique » : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`
+    )
+  }
+  if (
+    declarations.some((declaration) =>
+      /^@@unique\s*\(\s*\[\s*identifier\s*\]/.test(declaration)
+    )
+  ) {
+    violations.push(
+      `le schéma déclare le modèle « verification » unique sur « identifier » : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`
+    )
+  }
+  return violations
+}
+
+describe("L'identifiant de la Vérification de l'e-mail reste non unique", () => {
+  it("ne porte aucune contrainte unique dans le schéma Prisma", () => {
+    expect(
+      violationsDeLIdentifiantUnique(lire(import.meta.url, SCHEMA_PRISMA))
+    ).toEqual([])
+  })
+
+  it("tombe sur une contrainte unique de champ écrite dans le schéma réel", () => {
+    const schema = lire(import.meta.url, SCHEMA_PRISMA)
+    const avecUnique = schema.replace(
+      "\n  identifier String\n",
+      "\n  identifier String @unique\n"
+    )
+
+    expect(avecUnique).not.toBe(schema)
+    expect(violationsDeLIdentifiantUnique(avecUnique)).toEqual([
+      `le schéma déclare « verification.identifier » en « @unique » : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`,
+    ])
+  })
+
+  it("tombe sur une contrainte unique de modèle écrite dans le schéma réel", () => {
+    const schema = lire(import.meta.url, SCHEMA_PRISMA)
+    const avecUnique = schema.replace(
+      "\n  @@index([identifier])",
+      "\n  @@unique([identifier])\n  @@index([identifier])"
+    )
+
+    expect(avecUnique).not.toBe(schema)
+    expect(violationsDeLIdentifiantUnique(avecUnique)).toEqual([
+      `le schéma déclare le modèle « verification » unique sur « identifier » : ${INVARIANT_IDENTIFIANT_NON_UNIQUE}`,
+    ])
+  })
+})
