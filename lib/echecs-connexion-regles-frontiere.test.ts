@@ -16,10 +16,13 @@ describe("Règles du compteur d'échecs de Connexion — frontière client/serve
 
   it("les deux côtés de la frontière empruntent la même valeur", () => {
     const client = lire(import.meta.url, "../components/auth/auth-form-glue.ts")
+    const moduleNeutre = lire(import.meta.url, "./refus-authentification.ts")
     const serveur = lire(import.meta.url, "./echecs-connexion.ts")
 
     expect(client).toMatch(/^"use client"/m)
-    expect(importeDe(client, "echecs-connexion-regles")).toBe(true)
+    expect(importeDe(client, "refus-authentification")).toBe(true)
+    expect(importeDe(moduleNeutre, "echecs-connexion-regles")).toBe(true)
     expect(importeDe(serveur, "echecs-connexion-regles")).toBe(true)
+    expect(importeDe(serveur, "refus-authentification")).toBe(true)
   })
 })

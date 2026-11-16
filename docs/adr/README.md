@@ -89,6 +89,12 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 | [0037](0037-le-bandeau-na-plus-quune-entree-vers-le-compte.md) | Le Bandeau n'a plus qu'une entrée vers le Compte, et c'est l'Aperçu du Panier | |
 | [0051](0051-le-bandeau-ne-porte-plus-les-pages-de-la-boutique.md) | Le Bandeau ne porte plus les pages de la boutique ; le pied de page les porte seul | |
 
+### Données et schéma
+
+| N° | Décision | |
+| --- | --- | --- |
+| [0057](0057-les-horodatages-portent-leur-fuseau.md) | Les horodatages portent leur fuseau | |
+
 ### Bord, CI et outillage
 
 | N° | Décision | |

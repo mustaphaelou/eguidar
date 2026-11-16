@@ -17,11 +17,6 @@ import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
 import { uniqueViolationIndex } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-/**
- * Le nom de l'index partiel qui porte « au plus une demande ouverte par
- * Commande ». Prisma ne décode pas les index partiels : la violation se
- * reconnaît par ce nom, que la migration `retour_declaration_et_refus` écrit.
- */
 const INDEX_DEMANDE_OUVERTE = "Return_orderId_ouvert_key"
 
 export interface LigneDeclaree {
@@ -32,7 +27,6 @@ export interface LigneDeclaree {
 export interface DeclarationDeRetour {
   orderId: string
   reason: MotifRetour
-  /** La date à laquelle le Client a exercé son droit, distincte de la saisie. */
   requestedAt: Date
   lines: LigneDeclaree[]
 }
@@ -197,13 +191,6 @@ function toRetourCree(retour: {
   }
 }
 
-/**
- * Déclare un Retour : ses lignes et leurs quantités déclarées. Le verrou de la
- * Commande sérialise deux déclarations concurrentes, et le cumul des quantités
- * déclarées — tous Retours non refusés confondus — ne dépasse jamais la
- * quantité commandée. L'index partiel porte la règle « au plus une demande
- * ouverte par Commande ». Ni le stock ni le Statut de commande ne changent.
- */
 export async function declarerRetour(
   input: DeclarationDeRetour
 ): Promise<RetourCree> {
@@ -293,12 +280,6 @@ export async function declarerRetour(
   }
 }
 
-/**
- * Refuse une demande ouverte avec un code légal et une note. Le refus est une
- * écriture de la seule ligne du Retour : il ne supprime ni la demande, ni ses
- * lignes, ni aucun Remboursement déjà accordé, et il ne touche ni au stock ni
- * au Statut de commande.
- */
 export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
   const refus = parseRefus(input)
 

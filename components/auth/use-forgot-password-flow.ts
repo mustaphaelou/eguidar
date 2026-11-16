@@ -9,6 +9,7 @@ import {
 import { useOtpExchange } from "./verification-de-l-email"
 import { resetPasswordSchema } from "@/lib/auth-form-schemas"
 import { authClient } from "@/lib/client"
+import { refusDepuisErreurDeLaBibliotheque } from "@/lib/refus-authentification"
 
 export type ForgotPasswordStep = "email" | "otp" | "success"
 
@@ -43,7 +44,9 @@ export function useForgotPasswordFlow() {
         password,
       })
       if (result.error) {
-        setError(translateAuthError(result.error))
+        setError(
+          translateAuthError(refusDepuisErreurDeLaBibliotheque(result.error))
+        )
         return
       }
       setStep("success")

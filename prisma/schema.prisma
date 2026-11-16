@@ -19,8 +19,8 @@ model user {
   shippingAddress String?
   shippingCityId  String?
   role            String   @default("user")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
 
   shippingCity           DeliveryCity?           @relation(fields: [shippingCityId], references: [id])
   accounts               account[]
@@ -33,10 +33,10 @@ model user {
 
 model session {
   id        String   @id
-  expiresAt DateTime
+  expiresAt DateTime @db.Timestamptz(3)
   token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
   ipAddress String?
   userAgent String?
   userId    String
@@ -54,12 +54,12 @@ model account {
   accessToken           String?
   refreshToken          String?
   idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
   scope                 String?
   password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -73,9 +73,9 @@ model verification {
   id         String   @id
   identifier String
   value      String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  expiresAt  DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([identifier])
 }
@@ -92,8 +92,8 @@ model Category {
   parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children  Category[] @relation("CategoryTree")
   products  Product[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(3)
 
   @@index([parentId, position])
 }
@@ -115,8 +115,8 @@ model Product {
   variants               ProductVariant[]
   articlesBlog           ArticleBlogProduit[]
   brouillonsImageProduit BrouillonImageProduit[]
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
 
   @@index([categoryId])
   @@index([isFeatured, featuredOrder])
@@ -131,8 +131,8 @@ model ProductVariant {
   productId  String
   product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   cartItems  CartItem[]
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime   @updatedAt @db.Timestamptz(3)
 
   @@index([productId])
 }
@@ -144,8 +144,8 @@ model BrouillonImageProduit {
   byteSize          Int
   ownerId           String
   tentativeId       String?
-  createdAt         DateTime @default(now())
-  expiresAt         DateTime
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt         DateTime @db.Timestamptz(3)
   state             String   @default("vivant")
   promotedPublicUrl String?
   productId         String?
@@ -168,7 +168,7 @@ model ImageProduit {
   height    Int
   alt       String?
   createdBy String?
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model CartItem {
@@ -178,8 +178,8 @@ model CartItem {
   variantId String
   variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   quantity  Int            @default(1)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @db.Timestamptz(3)
 
   @@unique([userId, variantId])
   @@index([userId])
@@ -208,8 +208,8 @@ model Order {
   items        OrderItem[]
   returns      Return[]
   deliveredAt  DateTime?   @db.Timestamptz(3)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime    @updatedAt @db.Timestamptz(3)
 
   @@index([userId])
   @@index([status])
@@ -225,7 +225,7 @@ model OrderItem {
   price       Int
   quantity    Int
   returnLines ReturnLine[]
-  createdAt   DateTime     @default(now())
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
 
   @@index([orderId])
 }
@@ -295,14 +295,14 @@ model DeliveryCity {
   slug      String   @unique
   fee       Int
   users     user[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 }
 
 model ShippingSettings {
   id                    String   @id @default("default")
   freeShippingThreshold Int
-  updatedAt             DateTime @updatedAt
+  updatedAt             DateTime @updatedAt @db.Timestamptz(3)
 }
 
 // --- Blog ---
@@ -318,8 +318,8 @@ model Theme {
   slug      String        @unique
   nom       String        @unique
   articles  ArticleBlog[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime      @updatedAt @db.Timestamptz(3)
 }
 
 model ArticleBlog {
@@ -334,9 +334,9 @@ model ArticleBlog {
   themeId     String
   theme       Theme                @relation(fields: [themeId], references: [id])
   statut      StatutPublication    @default(brouillon)
-  publishedAt DateTime?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  publishedAt DateTime?            @db.Timestamptz(3)
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime             @updatedAt @db.Timestamptz(3)
   produits    ArticleBlogProduit[]
 
   @@index([statut, publishedAt])
@@ -379,15 +379,15 @@ model AutomationEvent {
   seq         Int
   attemptOf   Int
   payload     Json
-  occurredAt  DateTime
-  expiresAt   DateTime
+  occurredAt  DateTime         @db.Timestamptz(3)
+  expiresAt   DateTime         @db.Timestamptz(3)
   status      StatutAutomation @default(en_attente)
   attempts    Int              @default(0)
   lastError   String?
-  availableAt DateTime         @default(now())
-  lockedUntil DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  availableAt DateTime         @default(now()) @db.Timestamptz(3)
+  lockedUntil DateTime?        @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
 
   runs AutomationRun[]
 
@@ -404,8 +404,8 @@ model AutomationRule {
   condition    Json
   action       String
   actionConfig Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
   revisions AutomationRuleRevision[]
   runs      AutomationRun[]
@@ -416,7 +416,7 @@ model AutomationRuleRevision {
   ruleId    String
   snapshot  Json
   author    String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
@@ -432,10 +432,10 @@ model AutomationRun {
   attempt    Int                  @default(1)
   lastError  String?
   durationMs Int?
-  startedAt  DateTime             @default(now())
-  finishedAt DateTime?
+  startedAt  DateTime             @default(now()) @db.Timestamptz(3)
+  finishedAt DateTime?            @db.Timestamptz(3)
   trigger    DeclencheurExecution @default(evenement)
-  createdAt  DateTime             @default(now())
+  createdAt  DateTime             @default(now()) @db.Timestamptz(3)
 
   event AutomationEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   rule  AutomationRule?  @relation(fields: [ruleId], references: [id], onDelete: SetNull)
@@ -466,23 +466,23 @@ enum StatutLigneImport {
 }
 
 model LotImport {
-  id                String           @id @default(cuid())
+  id                String          @id @default(cuid())
   auteurId          String?
-  auteur            user?            @relation(fields: [auteurId], references: [id], onDelete: SetNull)
+  auteur            user?           @relation(fields: [auteurId], references: [id], onDelete: SetNull)
   empreinte         String
   taille            Int
-  statut            StatutLotImport  @default(brouillon)
-  curseur           Int              @default(0)
-  produitsCrees     Int              @default(0)
-  produitsModifies  Int              @default(0)
-  produitsInchanges Int              @default(0)
-  produitsRefuses   Int              @default(0)
-  ecrits            Int              @default(0)
-  indexes           Int              @default(0)
-  avertissements    String[]         @default([])
+  statut            StatutLotImport @default(brouillon)
+  curseur           Int             @default(0)
+  produitsCrees     Int             @default(0)
+  produitsModifies  Int             @default(0)
+  produitsInchanges Int             @default(0)
+  produitsRefuses   Int             @default(0)
+  ecrits            Int             @default(0)
+  indexes           Int             @default(0)
+  avertissements    String[]        @default([])
   motifEchec        String?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
   lignes            LigneImport[]
 
   @@index([createdAt])
@@ -503,8 +503,8 @@ model LigneImport {
   diff           Json?
   statut         StatutLigneImport?
   motifEchec     String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
 
   @@unique([lotId, numero])
   @@index([lotId, slug])
