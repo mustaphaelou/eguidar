@@ -439,6 +439,8 @@ export const ModelName = {
   CartItem: "CartItem",
   Order: "Order",
   OrderItem: "OrderItem",
+  Return: "Return",
+  ReturnLine: "ReturnLine",
   DeliveryCity: "DeliveryCity",
   ShippingSettings: "ShippingSettings",
   Theme: "Theme",
@@ -484,6 +486,8 @@ export type TypeMap<
       | "cartItem"
       | "order"
       | "orderItem"
+      | "return"
+      | "returnLine"
       | "deliveryCity"
       | "shippingSettings"
       | "theme"
@@ -1406,6 +1410,158 @@ export type TypeMap<
           args: Prisma.OrderItemCountArgs<ExtArgs>
           result:
             | runtime.Types.Utils.Optional<Prisma.OrderItemCountAggregateOutputType>
+            | number
+        }
+      }
+    }
+    Return: {
+      payload: Prisma.$ReturnPayload<ExtArgs>
+      fields: Prisma.ReturnFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ReturnFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ReturnFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>
+        }
+        findFirst: {
+          args: Prisma.ReturnFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ReturnFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>
+        }
+        findMany: {
+          args: Prisma.ReturnFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>[]
+        }
+        create: {
+          args: Prisma.ReturnCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>
+        }
+        createMany: {
+          args: Prisma.ReturnCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ReturnCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>[]
+        }
+        delete: {
+          args: Prisma.ReturnDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>
+        }
+        update: {
+          args: Prisma.ReturnUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>
+        }
+        deleteMany: {
+          args: Prisma.ReturnDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ReturnUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ReturnUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>[]
+        }
+        upsert: {
+          args: Prisma.ReturnUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnPayload>
+        }
+        aggregate: {
+          args: Prisma.ReturnAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateReturn>
+        }
+        groupBy: {
+          args: Prisma.ReturnGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ReturnGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ReturnCountArgs<ExtArgs>
+          result:
+            | runtime.Types.Utils.Optional<Prisma.ReturnCountAggregateOutputType>
+            | number
+        }
+      }
+    }
+    ReturnLine: {
+      payload: Prisma.$ReturnLinePayload<ExtArgs>
+      fields: Prisma.ReturnLineFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ReturnLineFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ReturnLineFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>
+        }
+        findFirst: {
+          args: Prisma.ReturnLineFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ReturnLineFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>
+        }
+        findMany: {
+          args: Prisma.ReturnLineFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>[]
+        }
+        create: {
+          args: Prisma.ReturnLineCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>
+        }
+        createMany: {
+          args: Prisma.ReturnLineCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ReturnLineCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>[]
+        }
+        delete: {
+          args: Prisma.ReturnLineDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>
+        }
+        update: {
+          args: Prisma.ReturnLineUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>
+        }
+        deleteMany: {
+          args: Prisma.ReturnLineDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ReturnLineUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ReturnLineUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>[]
+        }
+        upsert: {
+          args: Prisma.ReturnLineUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReturnLinePayload>
+        }
+        aggregate: {
+          args: Prisma.ReturnLineAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateReturnLine>
+        }
+        groupBy: {
+          args: Prisma.ReturnLineGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ReturnLineGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ReturnLineCountArgs<ExtArgs>
+          result:
+            | runtime.Types.Utils.Optional<Prisma.ReturnLineCountAggregateOutputType>
             | number
         }
       }
@@ -2449,6 +2605,7 @@ export const OrderScalarFieldEnum = {
   shippingFee: "shippingFee",
   totalPayable: "totalPayable",
   status: "status",
+  deliveredAt: "deliveredAt",
   createdAt: "createdAt",
   updatedAt: "updatedAt",
 } as const
@@ -2469,6 +2626,36 @@ export const OrderItemScalarFieldEnum = {
 
 export type OrderItemScalarFieldEnum =
   (typeof OrderItemScalarFieldEnum)[keyof typeof OrderItemScalarFieldEnum]
+
+export const ReturnScalarFieldEnum = {
+  id: "id",
+  orderId: "orderId",
+  status: "status",
+  reason: "reason",
+  requestedAt: "requestedAt",
+  receivedAt: "receivedAt",
+  refusalCode: "refusalCode",
+  refusalNote: "refusalNote",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type ReturnScalarFieldEnum =
+  (typeof ReturnScalarFieldEnum)[keyof typeof ReturnScalarFieldEnum]
+
+export const ReturnLineScalarFieldEnum = {
+  id: "id",
+  returnId: "returnId",
+  orderItemId: "orderItemId",
+  declaredQuantity: "declaredQuantity",
+  receivedQuantity: "receivedQuantity",
+  condition: "condition",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type ReturnLineScalarFieldEnum =
+  (typeof ReturnLineScalarFieldEnum)[keyof typeof ReturnLineScalarFieldEnum]
 
 export const DeliveryCityScalarFieldEnum = {
   id: "id",
@@ -2776,6 +2963,62 @@ export type ListEnumOrderStatusFieldRefInput<$PrismaModel> = FieldRefInputType<
 >
 
 /**
+ * Reference to a field of type 'ReturnStatus'
+ */
+export type EnumReturnStatusFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "ReturnStatus"
+>
+
+/**
+ * Reference to a field of type 'ReturnStatus[]'
+ */
+export type ListEnumReturnStatusFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "ReturnStatus[]"
+>
+
+/**
+ * Reference to a field of type 'ReturnReason'
+ */
+export type EnumReturnReasonFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "ReturnReason"
+>
+
+/**
+ * Reference to a field of type 'ReturnReason[]'
+ */
+export type ListEnumReturnReasonFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "ReturnReason[]"
+>
+
+/**
+ * Reference to a field of type 'ReturnRefusalCode'
+ */
+export type EnumReturnRefusalCodeFieldRefInput<$PrismaModel> =
+  FieldRefInputType<$PrismaModel, "ReturnRefusalCode">
+
+/**
+ * Reference to a field of type 'ReturnRefusalCode[]'
+ */
+export type ListEnumReturnRefusalCodeFieldRefInput<$PrismaModel> =
+  FieldRefInputType<$PrismaModel, "ReturnRefusalCode[]">
+
+/**
+ * Reference to a field of type 'ReturnLineCondition'
+ */
+export type EnumReturnLineConditionFieldRefInput<$PrismaModel> =
+  FieldRefInputType<$PrismaModel, "ReturnLineCondition">
+
+/**
+ * Reference to a field of type 'ReturnLineCondition[]'
+ */
+export type ListEnumReturnLineConditionFieldRefInput<$PrismaModel> =
+  FieldRefInputType<$PrismaModel, "ReturnLineCondition[]">
+
+/**
  * Reference to a field of type 'StatutPublication'
  */
 export type EnumStatutPublicationFieldRefInput<$PrismaModel> =
@@ -3024,6 +3267,8 @@ export type GlobalOmitConfig = {
   cartItem?: Prisma.CartItemOmit
   order?: Prisma.OrderOmit
   orderItem?: Prisma.OrderItemOmit
+  return?: Prisma.ReturnOmit
+  returnLine?: Prisma.ReturnLineOmit
   deliveryCity?: Prisma.DeliveryCityOmit
   shippingSettings?: Prisma.ShippingSettingsOmit
   theme?: Prisma.ThemeOmit
