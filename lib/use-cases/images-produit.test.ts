@@ -79,9 +79,6 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  // Cette suite lit des comptes globaux (registre et usages) : elle part d'un
-  // Catalogue vide et d'un registre vide. Les suites sont séquentielles
-  // (`fileParallelism: false`) et chaque suite crée ses propres faits.
   await prisma.product.deleteMany()
   await prisma.imageProduit.deleteMany()
 })

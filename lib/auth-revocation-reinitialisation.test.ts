@@ -49,7 +49,6 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-/** Rejoue les cookies d'une réponse de Connexion comme en-tête de requête. */
 function entetesDeSession(entetes: Headers): Headers {
   const cookie = entetes
     .getSetCookie()
@@ -68,8 +67,6 @@ async function ouvrirSession(): Promise<Headers> {
 
 describe("Réinitialisation du mot de passe — révocation des sessions", () => {
   it("termine toutes les sessions ouvertes avant la réinitialisation, et le Client se reconnecte", async () => {
-    // Deux appareils : la révocation doit emporter chaque session, pas seulement
-    // celle qui demande le changement.
     const premierAppareil = await ouvrirSession()
     const secondAppareil = await ouvrirSession()
 
@@ -100,7 +97,6 @@ describe("Réinitialisation du mot de passe — révocation des sessions", () =>
     ).resolves.toBeNull()
     expect(await prisma.session.count({ where: { user: { email } } })).toBe(0)
 
-    // L'ancien mot de passe ne rouvre plus rien.
     const refusAncien = await refus(
       auth.api.signInEmail({
         body: { email, password: ANCIEN_MOT_DE_PASSE },

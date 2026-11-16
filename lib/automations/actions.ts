@@ -34,7 +34,6 @@ export interface EntreeEmailDigest {
   cleIdempotence: string
 }
 
-/** Le port e-mail : seul endroit où une clé d'idempotence est vérifiable. */
 export interface PortEmailsAutomation {
   envoyerConfirmationCommande(
     snapshot: OrderEmailSnapshot,
@@ -81,11 +80,6 @@ export interface ContexteAction {
   dependances: DependancesAutomations
 }
 
-/**
- * Le destinataire d'un digest est nommé par une variable d'environnement
- * (ADR-0044) : la valeur est lue ici, jamais écrite en base ni affichée. Une
- * variable absente ou invalide est une panne nommée — sans sa valeur.
- */
 export const VARIABLE_DESTINATAIRE_PAR_DEFAUT = "ADMIN_EMAIL"
 
 const ADRESSE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
@@ -110,8 +104,6 @@ function destinataireDuProprietaire(contexte: ContexteAction): string {
 
 async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
   const { jour } = contexte.evenement.payload as { jour: string }
-  // Le Tableau de bord est la seule définition du stock bas : le digest relit
-  // ses variantes au lieu de rejouer le seuil et l'agrégat une seconde fois.
   const stats = await getDashboardStats()
   const lignes: LigneStockBas[] = stats.lowStockVariants.map((variante) => ({
     produit: variante.productName,
@@ -171,11 +163,6 @@ async function reconcilierRecherche(contexte: ContexteAction): Promise<void> {
   contexte.dependances.signaler(rapport.texte)
 }
 
-/**
- * Les actions qui n'ont pas de genre : leurs déclencheurs sont planifiés et
- * elles ne redéclarent aucun plan. Les actions durables sont exécutées par les
- * ponts d'entité, à partir du plan redéclaré depuis la Charge.
- */
 export const ACTIONS_PLANIFIEES = [
   "digest.stock-bas",
   "digest.proprietaire",

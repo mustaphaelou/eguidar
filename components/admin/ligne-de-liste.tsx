@@ -2,12 +2,6 @@ import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Le rythme commun des deux listes du Tableau de bord : une ligne de 64 px,
- * deux lignes de texte à gauche, la valeur à droite, et le lien qui prend la
- * ligne entière. Le survol ne s'allume que sur un pointeur fin ; l'appui garde
- * une teinte sur tous les écrans.
- */
 export function LigneDeListe({
   href,
   titre,

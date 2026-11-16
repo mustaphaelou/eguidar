@@ -51,10 +51,6 @@ function HintDuChiffreAffaires({ delta }: { delta: number | undefined }) {
   )
 }
 
-/**
- * Le quatuor du Tableau de bord : les quatre mesures ne changent pas, l'argent
- * change de type et suit la largeur de sa carte.
- */
 export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
   const enAttenteUrl = buildCommandeListingUrl({ statuses: ["pending"] })
 

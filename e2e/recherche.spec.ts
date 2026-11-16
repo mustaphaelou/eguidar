@@ -6,27 +6,16 @@ import {
 } from "./harnais/attente"
 import { expect, test } from "./fixtures/sonde"
 
-/**
- * La Recherche part au clavier comme au bouton.
- *
- * Le parcours est celui du Client : ouvrir la Recherche du Bandeau, taper,
- * puis valider — par Entrée ou par le bouton. La sonde ne lit que ce que le
- * navigateur rend visible : l'adresse après la touche, le lien d'un Produit,
- * la rangée refermée. Aucun attribut ajouté par le correctif n'est requis.
- */
-
 function champDeRecherche(page: Page) {
   return page.getByRole("textbox", { name: "Rechercher un produit" })
 }
 
-/** Le déclencheur du Bandeau, seul bouton « Rechercher » qui déplie la rangée. */
 function declencheurDeRecherche(page: Page) {
   return page
     .getByRole("button", { name: "Rechercher", exact: true })
     .and(page.locator("button[aria-expanded]"))
 }
 
-/** Le bouton de soumission, dans le formulaire que le Client voit. */
 function soumettreLaRecherche(page: Page) {
   return page
     .locator("header form[action='/recherche']")
@@ -65,12 +54,10 @@ test.describe("la Recherche du Bandeau de navigation", () => {
     )
     expect(page.url()).toBe(`${serveur.origine}/recherche?q=iphone`)
 
-    // Au moins un résultat : le lien d'un Produit est visible.
     await expect(
       page.getByRole("link", { name: /iPhone 15 Pro/ }).first()
     ).toBeVisible()
 
-    // La rangée de Recherche se referme après la navigation.
     await expect(champDeRecherche(page)).toHaveCount(0)
   })
 
@@ -121,9 +108,6 @@ test.describe("la Recherche du Bandeau de navigation", () => {
 
     await champDeRecherche(page).fill("iphone")
 
-    // Le Bandeau ne porte pas de lien Produit avant la frappe : ce lien est la
-    // Suggestion, pas une Carte du Catalogue. L'index peut rendre plusieurs
-    // documents pour le même Produit : une Suggestion visible suffit.
     const suggestion = page
       .locator("header")
       .getByRole("link", { name: /iPhone 15 Pro/ })

@@ -1,10 +1,6 @@
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 import type { TypeOtp } from "@/lib/vocabulaire-test-de-securite"
 
-/**
- * Le refus traverse le port dans sa forme actuelle — `code` et `message`.
- * La traduction en copie reste au flux, qui la porte.
- */
 export interface RefusAuthentification {
   code?: string
   message?: string

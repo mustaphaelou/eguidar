@@ -316,7 +316,6 @@ describe("useDevisSelection", () => {
 
     act(() => root.render(<Probe devis={second} />))
 
-    // Les faits suivent le Devis courant…
     expect(current.villes).toEqual(VILLES)
     expect(current.selection).toStrictEqual({
       cas: "validée",
@@ -332,7 +331,6 @@ describe("useDevisSelection", () => {
       label: "Total à payer à la livraison",
       value: formatPrice(95000),
     })
-    // …mais le choix local l'emporte sur la Ville initiale re-semée.
     expect(current.villeId).toBe("c2")
   })
 

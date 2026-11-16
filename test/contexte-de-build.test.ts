@@ -3,13 +3,6 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-/**
- * Un `docker build` a déjà embarqué 1,37 Go : `.agents/` manquait à
- * `.dockerignore`, donc un worktree entier, `node_modules` compris, partait
- * dans le contexte. Ces quatre dossiers sont les artefacts que git ignore et
- * que le build doit continuer d'ignorer.
- */
-
 const RACINE = path.resolve(import.meta.dirname, "..")
 
 const ENTREES_ATTENDUES = [".scratch", ".worktrees", ".agents", "notes"]

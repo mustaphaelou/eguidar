@@ -58,14 +58,6 @@ import {
 } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-/**
- * Le cas d'usage de l'import : il juge l'enveloppe, lit les Lignes, persiste le
- * Lot, puis le vérifie contre un instantané du Catalogue. C'est le seul module
- * de l'import qui parle Prisma. Aucun Produit, aucune Variante et aucune
- * Structure n'est écrit ici : le plan est pur et la Vérification se contente de
- * lire.
- */
-
 export interface TeleversementImport {
   nomFichier: string
   octets: Uint8Array
@@ -86,12 +78,9 @@ export interface LigneImportLue {
   enregistrement: EnregistrementImport | null
   statut: StatutLigneImport | null
   codeRefus: string | null
-  /** La raison de l'échec d'écriture d'un Produit, portée par ses Lignes. */
   motifEchec: string | null
-  /** Le refus complet, rejoué depuis les cellules : le contexte n'est pas perdu. */
   refus: RefusImport | null
   avertissements: string[]
-  /** Le diff avant → après du Produit, porté par chacune de ses Lignes. */
   diff: DiffProduitPlanImport | null
 }
 
@@ -115,10 +104,6 @@ export interface LotImportLu {
   lignes: LigneImportLue[]
 }
 
-/**
- * Un Lot de l'historique : de quoi le reconnaître et décider de le relire,
- * sans charger ses Lignes.
- */
 export interface LotImportListe {
   id: string
   auteur: { name: string; email: string } | null
@@ -132,10 +117,6 @@ export interface LotImportListe {
   indexes: number
 }
 
-/**
- * L'historique est borné : au-delà de cinquante Lots, la page cesserait d'être
- * un rapport pour devenir un journal. Seuls les plus récents sont lus.
- */
 export const LIMITE_LOTS_HISTORIQUE_IMPORT = 50
 
 export interface CompteursImport {
@@ -145,10 +126,6 @@ export interface CompteursImport {
   produitsRefuses: number
 }
 
-/**
- * Le Lot `en_cours`, résumé pour la page : l'index partiel en garantit au plus
- * un. La reprise n'a besoin que de son identifiant et de son avancement.
- */
 export interface LotEnCoursImport {
   id: string
   createdAt: Date
@@ -170,12 +147,10 @@ export interface VerificationLotImport {
   lignes: readonly LigneVerifieeImport[]
   plans: readonly PlanProduit[]
   peutAppliquer: boolean
-  /** Ce que le bouton Appliquer doit dire quand il est indisponible. */
   motifApplicationIndisponible: string | null
 }
 
 interface EnveloppeJugee {
-  /** Le texte décodé, quand l'enveloppe peut être lue ; `null` sinon. */
   texte: string | null
   refus: RefusImport[]
   avertissements: AvertissementImport[]
@@ -214,11 +189,6 @@ interface ChoixDeLaLigne {
   diff?: DiffProduitPlanImport | null
 }
 
-/**
- * La seule construction d'une ligne `LigneImport` persistée : le téléversement
- * l'écrit avec son refus local ; la Vérification l'écrit avec le jugement du
- * plan et son diff avant → après. Le `diff` vaut `DbNull` quand il n'y en a pas.
- */
 function donneesDeLaLigne(
   ligne: LigneImport,
   { refus, avertissements, statut, diff = null }: ChoixDeLaLigne
@@ -242,15 +212,6 @@ function donneesDeLaLigne(
   }
 }
 
-/**
- * Crée un Lot pour tout fichier reçu : `brouillon` quand l'enveloppe est
- * acceptée — avec toutes ses Lignes lues dans la même écriture —, `echoue`
- * avec son motif sinon. Un Lot refusé ne porte aucune Ligne. L'empreinte est
- * celle des octets reçus, pas du texte décodé.
- *
- * Un second téléversement est refusé tant qu'un Lot est `en_cours` : la
- * reprise du Lot en cours passe avant, et rien n'est mis en file.
- */
 export async function televerserLeFichier({
   octets,
   auteurId,
@@ -301,13 +262,6 @@ export async function televerserLeFichier({
   return { lotId: lot.id, statut: lot.statut }
 }
 
-/**
- * Rejoue l'analyse d'un Lot depuis les cellules persistées : le numéro et les
- * cellules sont la seule vérité, et le code stocké n'est qu'un témoin — sauf
- * `ligne_mal_formee`, la seule trace de la forme que les cellules brutes ne
- * disent plus. C'est ce qui rend visibles le champ manquant, la forme du
- * doublon et le champ du conflit, que #983 n'avait pas conservés.
- */
 function rejouerLesLignes(
   lignes: readonly {
     numero: number
@@ -330,12 +284,6 @@ function valeursUniques(valeurs: readonly string[]): string[] {
   return [...new Set(valeurs.filter((valeur) => valeur !== ""))]
 }
 
-/**
- * Lit le Catalogue nécessaire au plan en trois lectures et une liste de noms :
- * les Produits du fichier, les skus déjà possédés, tous les noms pour
- * l'avertissement de ressemblance, et les Structures par la porte de la Lecture
- * de la Structure. Aucune écriture.
- */
 async function lireLInstantane(
   lignes: readonly LigneImport[]
 ): Promise<InstantaneCatalogue> {
@@ -416,8 +364,6 @@ async function lireLInstantane(
 }
 
 function compterLesProduits(plans: readonly PlanProduit[]): CompteursImport {
-  // Une Ligne mal formée n'identifie aucun Produit : elle bloque
-  // l'application, mais elle n'entre pas dans le décompte des Produits.
   const produits = plans.filter((plan) => plan.slug !== "")
   return {
     produitsCrees: produits.filter((plan) => plan.issue === "cree").length,
@@ -445,12 +391,6 @@ function messageDuStatutNonVerifiable(statut: StatutLotImport): string {
   }
 }
 
-/**
- * Juge un Lot contre le Catalogue et persiste le jugement : les compteurs, le
- * statut de chaque Ligne, son refus rejoué et le diff avant → après du Produit.
- * La vérification est rejouable : chaque passage remplace les Lignes du Lot,
- * sans les doubler, et ne touche jamais au Catalogue.
- */
 export async function verifierLeLot(
   lotId: string
 ): Promise<VerificationLotImport> {
@@ -547,14 +487,10 @@ export async function verifierLeLot(
 
 export interface ApplicationLotImport {
   lotId: string
-  /** Les Produits traités pendant cet appel (écrits, inchangés ou en échec). */
   traites: number
-  /** Les Produits que le curseur n'a pas encore atteints. */
   reste: number
   curseurSuivant: number
-  /** Les Produits écrits depuis le début du Lot. */
   ecrits: number
-  /** Les Produits dont la réindexation a réussi depuis le début du Lot. */
   indexes: number
   echecs: EchecProduitApplication[]
   indexationEnAttente: boolean
@@ -589,13 +525,8 @@ function produitsEcrits(statut: StatutLigneImport | null): boolean {
   return statut === "ecrite" || statut === "echouee"
 }
 
-/** Le nom de l'index partiel créé par la migration de #986. */
 const INDEX_LOT_EN_COURS = "LotImport_un_seul_en_cours"
 
-/**
- * L'index partiel de la base est le seul arbitre : il nomme la contrainte
- * violée, ou — selon la version de l'adaptateur — ses champs.
- */
 function estViolationDuLotEnCours(error: unknown): boolean {
   return (
     uniqueViolationIndex(error) === INDEX_LOT_EN_COURS ||
@@ -603,11 +534,6 @@ function estViolationDuLotEnCours(error: unknown): boolean {
   )
 }
 
-/**
- * Passe le Lot à `en_cours` en une seule écriture conditionnelle. C'est la
- * première écriture de l'application : si un autre Lot est déjà en cours,
- * l'index partiel refuse celle-ci et rien du Catalogue n'a été touché.
- */
 async function demarrerLApplication(lotId: string): Promise<void> {
   try {
     const transition = await prisma.lotImport.updateMany({
@@ -634,12 +560,6 @@ const MESSAGE_ECHEC_WRITE_UNIQUE =
 const MESSAGE_ECHEC_WRITE =
   "L'écriture du Produit a échoué : corrigez le fichier, puis réessayez."
 
-/**
- * Le motif montré à l'administrateur, jamais le texte brut de la base : un
- * `UserFacingError` garde sa copie française, une violation d'unicité dit que
- * le slug ou le sku est déjà pris, et tout le reste renvoie à la correction du
- * fichier. L'erreur brute part au journal de l'opérateur, pas en base.
- */
 function motifDeLEchec(error: unknown, slug: string): string {
   if (error instanceof UserFacingError) return error.message
 
@@ -654,13 +574,6 @@ function motifDeLEchec(error: unknown, slug: string): string {
   return MESSAGE_ECHEC_WRITE
 }
 
-/**
- * Les champs que l'import ne possède pas sont relus sur la ligne du Produit et
- * renvoyés tels quels : les images avec leur texte alternatif, les
- * spécifications **brutes** (le lecteur `specificationsProduit` est
- * tout-ou-rien) et les trois drapeaux. C'est ce qui empêche le premier import
- * d'effacer les galeries et de réinitialiser les mises en avant.
- */
 async function lireLesChampsPreserves(
   produitId: string
 ): Promise<ChampsPreservesProduitImport> {
@@ -701,12 +614,6 @@ async function lireLesChampsPreserves(
   }
 }
 
-/**
- * L'état désiré complet : les champs du plan, l'union des Variantes existantes
- * et des Lignes (le writer ne supprime donc rien), et les champs préservés.
- * Aucun `tentativeId`, aucun `ownerId` : l'import n'est pas une reprise de
- * Brouillon et ne change pas le propriétaire.
- */
 function donneesDuProduitImport(
   plan: PlanProduit,
   champs: ChampsPreservesProduitImport
@@ -737,11 +644,6 @@ function donneesDuProduitImport(
   }
 }
 
-/**
- * Enveloppe la réindexation pour observer son issue : `runEffect` avale
- * l'exception, donc le marqueur est la seule trace d'un échec d'indexation
- * après un commit réussi.
- */
 function effetsAvecIndexation(
   overrides: Partial<CatalogEffects> | undefined,
   marqueur: { indexe: boolean }
@@ -763,11 +665,6 @@ function effetsAvecIndexation(
   }
 }
 
-/**
- * Rattrape l'indexation des Produits déjà écrits, par paquets bornés. Un paquet
- * en échec est rejoué Produit par Produit pour ne compter que les
- * réindexations réellement réussies.
- */
 async function reindexerLesProduitsEcrits(
   lotId: string,
   overrides: Partial<CatalogEffects> | undefined
@@ -789,7 +686,6 @@ async function reindexerLesProduitsEcrits(
     },
   })
   const parSlug = new Map(produits.map((produit) => [produit.slug, produit]))
-  // La Structure se lit par sa porte unique, jamais par une relation Prisma.
   const structures = await lireStructure()
   const documents = slugs.flatMap((slugProduit) => {
     const produit = parSlug.get(slugProduit)
@@ -830,26 +726,13 @@ async function reindexerLesProduitsEcrits(
         try {
           await indexation([document])
           indexes += 1
-        } catch {
-          // Ce Produit reste non indexé : un appel suivant le retentera.
-        }
+        } catch {}
       }
     }
   }
   return indexes
 }
 
-/**
- * Applique un Lot vérifié : les Produits du fichier, dans l'ordre de première
- * apparition, 25 au plus par appel. Chaque Produit rejoue la Vérification avec
- * un instantané frais, puis son écriture passe par l'écrivain du Catalogue —
- * une transaction par Produit, une seconde pour ses Lignes et le curseur. Un
- * Produit en échec n'arrête pas les autres : ses Lignes portent le motif.
- *
- * L'indexation est un effet après commit, non bloquant : `ecrits` compte les
- * Produits écrits, `indexes` les réindexés. Tant qu'ils diffèrent, le Lot reste
- * `en_cours` et un appel suivant rattrape l'indexation.
- */
 export async function appliquerLeLot(
   lotId: string,
   curseur: number,
@@ -888,9 +771,6 @@ export async function appliquerLeLot(
     throw new UserFacingError(MESSAGE_APPLIQUER_REFUS)
   }
 
-  // Le passage à `en_cours` est la première écriture, avant tout Produit : la
-  // perdante d'une course est refusée sans avoir rien écrit. Un Lot déjà
-  // `en_cours` est une reprise : il ne repasse pas par la transition.
   if (lot.statut === "verifie") {
     await demarrerLApplication(lotId)
   }
@@ -907,8 +787,6 @@ export async function appliquerLeLot(
   )
   const groupes = grouperParProduit(lot.lignes)
 
-  // Le curseur donne l'index du prochain Produit ; un Produit déjà écrit ou en
-  // échec est sauté pour qu'une reprise ne le réécrive jamais.
   let index = Math.min(curseur, groupes.length)
   let traites = 0
   const aTraiter: {
@@ -1080,11 +958,6 @@ export async function appliquerLeLot(
   }
 }
 
-/**
- * Le contexte qu'un refus relu retrouve dans les cellules persistées : le sku
- * de la Ligne, la Structure nommée par le groupe et le champ requis manquant du
- * Produit. Le décodeur du contrat décide seul quels codes s'en servent.
- */
 function contexteDuRefus(
   ligne: LigneImportLue,
   groupe: readonly LigneImportLue[]
@@ -1103,7 +976,6 @@ function contexteDuRefus(
   }
 }
 
-/** Les Lots passés, du plus récent au plus ancien, sans leurs Lignes. */
 export async function listerLesLots(): Promise<LotImportListe[]> {
   return prisma.lotImport.findMany({
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -1123,7 +995,6 @@ export async function listerLesLots(): Promise<LotImportListe[]> {
   })
 }
 
-/** Le Lot et ses Lignes, pour la page et les tickets suivants. */
 export async function lireLeLot(id: string): Promise<LotImportLu | null> {
   const lot = await prisma.lotImport.findUnique({
     where: { id },
@@ -1209,11 +1080,6 @@ export async function lireLeLot(id: string): Promise<LotImportLu | null> {
   }
 }
 
-/**
- * Le Lot `en_cours`, le plus récent : la page le retrouve après un onglet
- * fermé et propose de reprendre. L'index partiel garantit qu'il y en a au plus
- * un ; le tri par date n'est qu'un départage déterministe.
- */
 export async function lireLotEnCours(): Promise<LotEnCoursImport | null> {
   return prisma.lotImport.findFirst({
     where: { statut: "en_cours" },

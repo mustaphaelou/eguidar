@@ -24,17 +24,11 @@ export type TypeEntiteEffetPostCommit =
 
 export interface EntiteEffetPostCommit {
   type: TypeEntiteEffetPostCommit
-  /** L'identifiant reste lisible dans le journal pour retrouver l'objet. */
   id: string
 }
 
 export type ResultatEffetPostCommit = "succes" | "echec"
 
-/**
- * La mesure d'un effet post-commit : c'est la ligne que Phase 4 écrira en base
- * sans changer la couture. `dureeMs` est mesurée autour de `fn`, et `erreur`
- * ne porte que le message — jamais la pile ni les secrets.
- */
 export interface MesureEffetPostCommit {
   effet: TypeEffetPostCommit
   entite: EntiteEffetPostCommit
@@ -49,11 +43,6 @@ export interface JournalEffetsPostCommit {
   enregistrer(mesure: MesureEffetPostCommit): void
 }
 
-/**
- * Le journal par défaut : une ligne JSON préfixée, sur `warn` pour un échec et
- * sur `info` pour une réussite. En test, les réussites restent silencieuses —
- * le port mémoire de `test/` porte alors la forme attendue.
- */
 export const journalEffetsConsole: JournalEffetsPostCommit = {
   enregistrer(mesure) {
     const ligne = `[effet] ${JSON.stringify(mesure)}`
@@ -68,7 +57,6 @@ export const journalEffetsConsole: JournalEffetsPostCommit = {
 export interface EffetPostCommit {
   effet: TypeEffetPostCommit
   entite: EntiteEffetPostCommit
-  /** Le libellé historique, conservé dans la mesure et les logs. */
   message: string
   portee?: number
   fn: () => Promise<unknown> | unknown
@@ -89,11 +77,6 @@ function enregistrerSansCasser(
   }
 }
 
-/**
- * La seule porte des effets post-commit. Elle mesure, journalise et n'échoue
- * jamais : le commit est autoritatif (ADR-0014). Phase 4 remplacera le journal
- * par une écriture durable, sans toucher aux mutations.
- */
 export async function runEffect(
   effet: EffetPostCommit,
   journal: JournalEffetsPostCommit = journalEffetsConsole
@@ -131,10 +114,6 @@ export async function runOrderedEffects(
   }
 }
 
-/**
- * La conséquence telle qu'un plan d'Après-écriture la déclare. La forme reste
- * structurelle pour que le squelette ne dépende pas du module de déclaration.
- */
 export interface ConsequenceDuPlan {
   effet: TypeEffetPostCommit
   entite: EntiteEffetPostCommit
@@ -160,11 +139,6 @@ export class EffetNonPrisEnChargeError extends Error {
   }
 }
 
-/**
- * La seule porte d'un plan : chaque conséquence trouve son gestionnaire par
- * nom d'effet. Un effet absent de la carte échoue nommément — une conséquence
- * déclarée sans adaptation est journalisée en échec, jamais en succès.
- */
 export async function runPlanEffects(
   plan: PlanPostCommit,
   gestionnaires: GestionnairesEffetsPostCommit,

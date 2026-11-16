@@ -14,7 +14,6 @@ import type { ApplicationState } from "./actions"
 
 const NOMBRE = new Intl.NumberFormat("fr-MA")
 
-/** Le nombre de reprises automatiques quand seule l'indexation reste en retard. */
 const MAX_REPRISES_INDEXATION = 3
 
 export interface BoutonAppliquerLotProps {
@@ -23,7 +22,6 @@ export interface BoutonAppliquerLotProps {
   ecritsInitiaux: number
   indexesInitiaux: number
   total: number
-  /** Le Lot est déjà `en_cours` : l'appel est une reprise, même avant tout Produit. */
   reprise?: boolean
   action: MutationFormAction<ApplicationState>
 }
@@ -34,12 +32,6 @@ interface Progression {
   indexes: number
 }
 
-/**
- * Le bouton Appliquer : il enchaîne les appels bornés de 25 Produits tant que
- * le curseur n'a pas atteint la fin, puis il insiste quelques fois quand seule
- * l'indexation est en retard. À chaque appel, le curseur rendu par l'action est
- * la seule reprise possible — la page ne devine jamais où elle en est.
- */
 export function BoutonAppliquerLot({
   lotId,
   curseurInitial,

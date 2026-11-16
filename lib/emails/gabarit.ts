@@ -226,11 +226,6 @@ function blocCode(code: string): HtmlSûr {
   </div>`
 }
 
-/**
- * Les tableaux de lignes qui se suivent se lisent comme un seul : le premier
- * ouvre le filet, les suivants s'y raccordent sans gouttière, le dernier porte
- * l'écart. Le récapitulatif garde ainsi la forme d'une seule table.
- */
 function rendreBlocs(blocs: readonly Bloc[]): HtmlSûr {
   return html`${blocs.map((bloc, index) => {
     if (bloc.type !== "lignes") return rendreBloc(bloc)

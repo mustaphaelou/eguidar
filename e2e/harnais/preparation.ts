@@ -8,14 +8,6 @@ import { RACINE } from "./artefact"
 import { semerLesCommandesDeFixture } from "./commandes-de-fixture"
 import { environnementDeBuild } from "./serveur"
 
-/**
- * La préparation de la base de la sonde : migration, socle, Données de
- * démonstration, l'Image produit de fixture attachée à un Produit en Mise en
- * avant et réindexée **avant** le build, puis les deux Commandes de fixture.
- * Le catalogue que le build prérendra porte donc réellement l'image, et la
- * sonde trouve ses Commandes dès que le serveur démarre.
- */
-
 const TABLES_A_TRONQUER = [
   "user",
   "session",
@@ -69,7 +61,6 @@ function executer(
   })
 }
 
-/** Copie l'image publique seulement si elle manque ou a changé, pour ne pas périmer le build. */
 function copierLImagePublique(): void {
   const destination = path.join(RACINE, "public", CHEMIN_PUBLIC_DE_L_IMAGE)
   mkdirSync(path.dirname(destination), { recursive: true })
@@ -91,12 +82,6 @@ async function tronquerLaBase(baseDeDonnees: string): Promise<void> {
   await prisma.$disconnect()
 }
 
-/**
- * Attache l'Image produit locale au premier Produit en Mise en avant,
- * reconstruit l'index de recherche, puis sème les deux Commandes de la sonde.
- * C'est la seule donnée inventée par la sonde ; les Données de démonstration
- * partagées ne changent pas. Tout est en place avant le build.
- */
 export async function poserLaFixture(baseDeDonnees: string): Promise<void> {
   copierLImagePublique()
   process.env.DATABASE_URL = baseDeDonnees
@@ -134,7 +119,6 @@ export async function poserLaFixture(baseDeDonnees: string): Promise<void> {
   await semerLesCommandesDeFixture(baseDeDonnees)
 }
 
-/** La base de la sonde, prête pour le build : migrée, semée, avec la fixture. */
 export async function preparerLaBase(baseDeDonnees: string): Promise<void> {
   const debut = Date.now()
   executer("npx", ["prisma", "migrate", "deploy"], baseDeDonnees)
@@ -146,7 +130,6 @@ export async function preparerLaBase(baseDeDonnees: string): Promise<void> {
   console.log(`[sonde] base préparée en ${secondes} s`)
 }
 
-/** Le build avec la base de la sonde, jamais celle de développement. */
 export function construireLArtefact(
   baseDeDonnees: string,
   origine: string,

@@ -2,10 +2,6 @@ import { randomBytes, scryptSync } from "node:crypto"
 
 import { PARAMETRES_SCRYPT } from "../lib/mot-de-passe-hache"
 
-// Les paliers OWASP (r=8 fixé par OWASP), dans l'ordre croissant du coût, et le
-// défaut historique de la bibliothèque (r=16), pour comparer sur la même
-// machine. Le palier choisi est lu dans `PARAMETRES_SCRYPT` : changer la
-// constante met à jour la mesure, la ligne marquée et le texte de clôture.
 interface JeuScrypt {
   nom: string
   N: number
@@ -55,8 +51,6 @@ const PALIER_CHOISI: JeuScrypt =
           p: PARAMETRES_SCRYPT.p,
         }
 
-// Le repli est le palier OWASP immédiatement inférieur au palier choisi ; le
-// défaut historique et un palier personnalisé n'ont pas de voisin OWASP.
 const PALIER_REPLI: JeuScrypt | null =
   INDEX_PALIER_CHOISI > 0 ? PALIERS_OWASP[INDEX_PALIER_CHOISI - 1] : null
 

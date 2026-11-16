@@ -238,8 +238,6 @@ describe("GET /api/panier", () => {
       etat: "plein",
     })
 
-    // `CartItem.variant` est en `onDelete: Cascade` : supprimer la Variante
-    // supprime l'Article du panier, donc le compteur et l'Aperçu s'accordent.
     await prisma.productVariant.delete({ where: { id: varianteEphemere.id } })
 
     await expect((await demanderLeCompteur()).json()).resolves.toEqual({

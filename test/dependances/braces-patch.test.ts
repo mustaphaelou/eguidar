@@ -177,8 +177,6 @@ describe("installed braces (GHSA-vfj7-8cjw-p6xm, CVE-2026-93687)", () => {
     const manifestPath = createRequire(import.meta.url).resolve(
       "braces/package.json"
     )
-    // realpath : un worktree lie node_modules ; une release du registre résout
-    // sous node_modules/braces, pas sous vendor/.
     const manifestReel = realpathSync(manifestPath)
     const dossier = path.dirname(manifestReel)
     expect(
@@ -259,14 +257,7 @@ function motifImbrique(ouvrante: string, fermante: string, profondeur: number) {
 
 const SCRIPT_TEMOIN = `
 const braces = require("braces")
-// La forme du motif est celle de \`motifImbrique\` ci-dessus, recopiée : le
-// témoin tourne dans un processus qui n'a rien à importer.
-const motif = (ouvrante, fermante, profondeur) =>
-  ouvrante.repeat(profondeur) + "a" + fermante.repeat(profondeur)
-const cas = {
-  accolades: motif("{", "}", 4000),
-  parentheses: motif("(", ")", 4000)
-}
+const cas = JSON.parse(process.env.CAS)
 const modes = {
   compile: (pattern) => braces(pattern),
   expand: (pattern) => braces.expand(pattern),
@@ -292,6 +283,13 @@ describe("the vendored copy bounds nesting depth (GHSA-vfj7-8cjw-p6xm)", () => {
       cwd: RACINE,
       encoding: "utf8",
       timeout: 30_000,
+      env: {
+        ...process.env,
+        CAS: JSON.stringify({
+          accolades: motifImbrique("{", "}", 4000),
+          parentheses: motifImbrique("(", ")", 4000),
+        }),
+      },
     })
 
     expect(

@@ -7,11 +7,6 @@ const emptyVariants = cva(
     variants: {
       size: {
         default: "gap-4 p-12",
-        /**
-         * La première page du Tableau de bord : l'invitation tient dans un
-         * écran de téléphone et reste centrée dans les 512 px que la barre
-         * latérale laisse à 768 px.
-         */
         page: "min-h-[52svh] gap-5 px-4 py-12 sm:px-6",
       },
     },

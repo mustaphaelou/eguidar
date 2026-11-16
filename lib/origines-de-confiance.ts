@@ -1,12 +1,5 @@
 import { site } from "@/lib/site"
 
-/**
- * Les origines que le contrôle d'origine de Better Auth accepte, en plus de
- * l'origine de `BETTER_AUTH_URL` que la bibliothèque ajoute toujours. L'apex
- * vient de `site.url`, et `www` s'en déduit ; une prévisualisation Coolify
- * ajoute la sienne par `BETTER_AUTH_TRUSTED_ORIGINS`, sans qu'un hôte soit
- * inventé dans le dépôt.
- */
 const APEX = new URL(site.url).origin
 const HOTE = new URL(site.url).hostname
 

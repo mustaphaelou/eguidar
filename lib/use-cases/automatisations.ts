@@ -84,7 +84,6 @@ export class RegleValidationError extends UserFacingError {
   }
 }
 
-/** Ce que l'éditeur compose : les valeurs brutes du formulaire. */
 export interface EntreeRegle {
   regleId?: string
   nom: string
@@ -221,11 +220,6 @@ export async function lireRegle(id: string): Promise<RegleDetaillee | null> {
   }
 }
 
-/**
- * Crée une règle depuis l'éditeur. L'identifiant est dérivé du nom — le
- * marchand ne saisit pas de clé technique — et une révision attribuée à
- * l'auteur est écrite dans la même transaction.
- */
 export async function creerRegle(
   entree: EntreeRegle,
   auteur: string,
@@ -256,11 +250,6 @@ export async function creerRegle(
   return id
 }
 
-/**
- * Modifie une règle existante. L'identifiant ne change pas : c'est lui que
- * l'historique des exécutions référence. Une modification qui ne change rien
- * n'ajoute pas de révision.
- */
 export async function modifierRegle(
   entree: EntreeRegle & { regleId: string },
   auteur: string,
@@ -299,11 +288,6 @@ export async function modifierRegle(
   })
 }
 
-/**
- * Bascule une règle. La désactivation annule ses exécutions en cours et
- * libère le bail de leur Événement ; la réactivation ne rejoue rien, parce que
- * les Événements arrivés entre-temps ont déjà été consommés par le balayage.
- */
 export async function basculerRegle(
   regleId: string,
   actif: boolean,
@@ -348,11 +332,6 @@ function libelleDeLAction(action: ActionAutomation): string {
   return `« ${LIBELLES_ACTION[action]} »`
 }
 
-/**
- * La Simulation garde ses phrases et son affichage à deux valeurs ; seule la
- * Décision juge. Le rendu reste privé pour que les trois consommateurs ne
- * partagent jamais une prose.
- */
 function motifDeLaSimulation(
   decision: DecisionAutomation,
   regle: RegleAutomation,
@@ -379,10 +358,6 @@ function motifDeLaSimulation(
   }
 }
 
-/**
- * Les Événements réels qui peuvent servir de sujet à une simulation : ceux du
- * déclencheur de la règle, du plus récent au plus ancien.
- */
 export async function listerEvenementsSimulables(
   regleId: string,
   limite = 10
@@ -419,11 +394,6 @@ export async function listerEvenementsSimulables(
   }))
 }
 
-/**
- * Évalue une règle contre un Événement **réel** — sa charge, son expiration,
- * son entité. Rien n'est écrit et rien n'est envoyé : la simulation ne prend
- * même pas les ports du travailleur, elle ne peut donc pas envoyer.
- */
 export async function simulerRegle(
   options: { regleId: string; evenementId: string },
   maintenant = new Date()
@@ -465,12 +435,6 @@ export interface ResultatReessai {
 
 const FENETRE_REJEU_EN_HEURES = DUREE_VIE_EVENEMENT_MS / (60 * 60 * 1000)
 
-/**
- * Le refus nomme la raison de la Décision sans rejouer son ordre : chaque
- * raison a sa phrase, et l'Événement expiré rappelle la fenêtre de rejeu. Le
- * rendu reste privé pour que la Décision et les autres consommateurs ne
- * partagent jamais une prose.
- */
 function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
   switch (raison.type) {
     case "evenement-expire":
@@ -484,12 +448,6 @@ function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
   }
 }
 
-/**
- * Le réessai manuel (Flow : « Manual retry », n8n : l'exécution manuelle est
- * distincte de la production). Il consulte la Décision avant d'écrire : seule
- * une paire que la Règle actuelle gouverne encore ouvre une Exécution
- * `manuel`. Un refus laisse l'échec d'origine et son Événement intacts.
- */
 export async function reessayerExecution(
   executionId: string,
   dependances: DependancesAutomations

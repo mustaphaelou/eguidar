@@ -42,14 +42,7 @@ function plageDeclaree(
   manifeste: Manifeste = MANIFESTE
 ): string {
   const section = manifeste[ligne.plage.section]
-  const cle = ligne.plage.cle ?? ligne.paquet
-  return (
-    section?.[cle] ??
-    (ligne.plage.cleDeRepli === undefined
-      ? undefined
-      : section?.[ligne.plage.cleDeRepli]) ??
-    ""
-  )
+  return section?.[ligne.plage.cle ?? ligne.paquet] ?? ""
 }
 
 function verifierPlage(
@@ -170,36 +163,6 @@ describe("l'absence d'un paquet installé", () => {
   ])("%s passe quand il est absent", (paquet) => {
     expect(() =>
       verifierLigne(ligneDe(paquet), { resoudre: () => null })
-    ).not.toThrow()
-  })
-})
-
-describe("la plage de js-yaml", () => {
-  it("lit la clé camel-case quand la clé hyphenated est absente", () => {
-    const overrides: Record<string, string> = {
-      ...(MANIFESTE.overrides ?? {}),
-      jsYaml: "^4.3.2",
-    }
-    delete overrides["js-yaml"]
-    expect(() =>
-      verifierLigne(ligneDe("js-yaml"), {
-        manifeste: { ...MANIFESTE, overrides },
-      })
-    ).not.toThrow()
-  })
-
-  it("garde la clé camel-case prioritaire sur la clé hyphenated", () => {
-    expect(() =>
-      verifierLigne(ligneDe("js-yaml"), {
-        manifeste: {
-          ...MANIFESTE,
-          overrides: {
-            ...(MANIFESTE.overrides ?? {}),
-            jsYaml: "^4.3.2",
-            "js-yaml": "^4.0.0",
-          },
-        },
-      })
     ).not.toThrow()
   })
 })

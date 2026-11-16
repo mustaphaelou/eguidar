@@ -10,12 +10,6 @@ import type {
 } from "@/lib/generated/prisma/client"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-/**
- * Le vocabulaire fermé de l'éditeur de Règles (ADR-0044). Le module est pur :
- * il ne touche ni la base, ni le travailleur, pour que le formulaire client et
- * le serveur lisent exactement la même liste.
- */
-
 export const ACTIONS_AUTOMATION = Object.freeze([
   "email.commande-creee",
   "email.commande-statut",
@@ -44,7 +38,6 @@ export type ConditionAutomation =
   { type: "toujours" } | { type: "statut-commande"; statuts: readonly string[] }
 
 export interface ConfigurationRegle {
-  /** Un **nom** de variable d'environnement, jamais sa valeur. */
   destinataireVariable: string
 }
 
@@ -55,11 +48,6 @@ export interface CompositionRegle {
   configuration?: ConfigurationRegle
 }
 
-/**
- * Un nom de variable d'environnement : majuscules, chiffres, souligné, et il
- * commence par une lettre. Une URL, une adresse ou une phrase sont refusées —
- * une règle ne porte jamais de valeur libre.
- */
 export const NOM_DE_VARIABLE_ENVIRONNEMENT = /^[A-Z][A-Z0-9_]{0,63}$/
 
 export function estNomDeVariableEnvironnement(valeur: string): boolean {
@@ -82,11 +70,6 @@ export const LIBELLES_DECLENCHEUR: Readonly<
     "Planification de la réconciliation de la recherche",
 })
 
-/**
- * La liste complète des déclencheurs pour le formulaire client. Elle dérive
- * des libellés — un déclencheur sans libellé ne compilerait pas — pour que le
- * module reste pur (aucun import de la base ni du travailleur).
- */
 export const DECLENCHEURS_AUTOMATION: readonly TypeEvenementAutomation[] =
   Object.freeze(Object.keys(LIBELLES_DECLENCHEUR) as TypeEvenementAutomation[])
 
@@ -132,7 +115,6 @@ export const LIBELLES_CONDITION: Readonly<
   "statut-commande": "Statut de Commande",
 })
 
-/** Les déclencheurs qu'une action sait consommer — la table de compatibilité. */
 export const DECLENCHEURS_PAR_ACTION: Readonly<
   Record<ActionAutomation, readonly TypeEvenementAutomation[]>
 > = Object.freeze({
@@ -159,12 +141,6 @@ export const DECLENCHEURS_PAR_ACTION: Readonly<
   "reconciliation.recherche": ["planification.reconciliation-recherche"],
 })
 
-/**
- * La table que chaque action écrit. Aucune action ne passe par un module de
- * mutation (la frontière du travailleur l'interdit déjà) : la liste est vide et
- * le restera tant qu'une action se contente d'un adaptateur. Le filtre existe
- * pour la règle, pas pour aujourd'hui.
- */
 export const ENTITES_ECRITES_PAR_ACTION: Readonly<
   Record<ActionAutomation, readonly TypeEntiteAutomation[]>
 > = Object.freeze({
@@ -182,7 +158,6 @@ export const ENTITES_ECRITES_PAR_ACTION: Readonly<
   "reconciliation.recherche": [],
 })
 
-/** La table que chaque déclencheur observe — ce qu'une boucle écrirait. */
 export const ENTITE_OBSERVEE_PAR_DECLENCHEUR: Readonly<
   Record<TypeEvenementAutomation, TypeEntiteAutomation>
 > = Object.freeze({
@@ -205,11 +180,6 @@ export class CombinaisonRefusee extends UserFacingError {
   }
 }
 
-/**
- * Écarte les actions qui écriraient la table que leur propre déclencheur
- * observe : une boucle ne peut donc pas être exprimée, plutôt que d'être
- * détectée après coup.
- */
 export function filtrerSansBoucle<Action extends string>(
   actions: readonly Action[],
   ecritDans: Readonly<Record<Action, readonly TypeEntiteAutomation[]>>,
@@ -246,23 +216,11 @@ export function conditionsOffertes(
     : ["toujours"]
 }
 
-/**
- * Le statut brut d'une charge, ou `undefined` quand la charge n'est pas un
- * objet. La condition et la Décision lisent ce même champ : le partager évite
- * que l'une et l'autre divergent sur la forme de la charge.
- */
 export function statutDeLaCharge(payload: unknown): unknown {
   if (!payload || typeof payload !== "object") return undefined
   return (payload as { statut?: unknown }).statut
 }
 
-/**
- * Évalue la condition d'une règle sur la charge d'un événement. Une condition
- * inconnue ou une charge qui ne porte pas le champ demandé vaut « non » : la
- * règle ne s'exécute pas, plutôt que de s'exécuter à l'aveugle. La condition
- * est reçue brute, telle que la ligne Prisma la porte, pour que la Décision
- * n'ait besoin ni de Zod ni de la base.
- */
 export function laConditionEstRemplie(
   condition: unknown,
   payload: unknown
@@ -282,11 +240,6 @@ export function laConditionEstRemplie(
   return false
 }
 
-/**
- * Le libellé brut d'un déclencheur, ou son code quand il n'appartient pas au
- * vocabulaire fermé. Le partager laisse à chaque consommateur sa décoration —
- * guillemets et code — et donc sa prose, sans recopier la table de libellés.
- */
 export function libelleBrutDuDeclencheur(declencheur: string): string {
   return (
     LIBELLES_DECLENCHEUR[declencheur as TypeEvenementAutomation] ?? declencheur
@@ -309,10 +262,6 @@ export function libelleDeLaCondition(condition: string): string {
   )
 }
 
-/**
- * La garde de l'éditeur : un déclencheur, une condition et une action ne se
- * composent pas au hasard. Le refus nomme la combinaison, jamais « invalide ».
- */
 export function verifierCombinaison(composition: CompositionRegle): void {
   const { declencheur, condition, action, configuration } = composition
 

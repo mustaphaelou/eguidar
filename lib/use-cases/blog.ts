@@ -220,11 +220,6 @@ export async function fetchArticlesLies(
     .filter((article): article is ArticleLie => article !== null)
 }
 
-/**
- * Les slugs d'Articles que le build prérend : ceux dont l'URL résout encore,
- * c'est-à-dire les Publiés et les Archivés (un Brouillon n'a pas d'URL
- * publique). Triés pour que deux builds produisent la même liste.
- */
 export async function fetchArticleSlugs(): Promise<string[]> {
   const articles = await prisma.articleBlog.findMany({
     where: filtreArticlePublic(["publie", "archive"]),

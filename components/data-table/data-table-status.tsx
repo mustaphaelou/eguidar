@@ -3,11 +3,8 @@
 import { cn } from "@/lib/utils"
 
 export interface DataTableStatusLabels {
-  /** Le nom du résultat au singulier, par exemple « commande ». */
   singulier: string
-  /** Le nom du résultat au pluriel, par exemple « commandes ». */
   pluriel: string
-  /** Accorde l'adjectif de sélection au féminin, comme « sélectionnée ». */
   feminin?: boolean
 }
 
@@ -36,12 +33,6 @@ function phraseDeSelection(
   return `${accorder(nombre, labels)} sélectionné${accord}${pluriel}`
 }
 
-/**
- * La seule région polie de la grille : elle annonce le nombre de résultats et,
- * quand il y en a, la sélection. Les appelants passent des comptes — jamais une
- * phrase — pour que la Liste des Commandes et la Liste des Produits partagent
- * l'accord et le ton.
- */
 export function DataTableStatus({
   resultCount,
   selectedCount = 0,

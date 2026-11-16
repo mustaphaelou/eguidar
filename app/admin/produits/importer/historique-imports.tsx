@@ -34,11 +34,6 @@ function Auteur({ auteur }: { auteur: LotImportListe["auteur"] }) {
   )
 }
 
-/**
- * L'historique des Lots passés : qui a importé quoi, quand, avec quel statut et
- * quels compteurs, du plus récent au plus ancien. Chaque ligne ouvre le rapport
- * du Lot, relu depuis la base.
- */
 export function HistoriqueImports({
   lots,
 }: {

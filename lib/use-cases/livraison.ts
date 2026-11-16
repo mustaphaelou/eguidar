@@ -26,10 +26,6 @@ export interface CityInput {
   fee: number
 }
 
-/**
- * Les ports de la Livraison sont ceux que l'adaptateur projette ; le type vit
- * dans l'adaptateur pour que le site d'appel n'en redéclare pas une copie.
- */
 export type LivraisonEffects = EffetsLivraison
 
 const defaultLivraisonEffects: LivraisonEffects = {

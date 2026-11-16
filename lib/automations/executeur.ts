@@ -25,10 +25,6 @@ export const LIMITE_PAR_BALAYAGE = 20
 export const BAIL_EXECUTION_MS = 60_000
 export const MAX_TENTATIVES = 3
 
-/**
- * Le backoff est exponentiel, borné à une heure : 1 min, 2 min, 4 min… Une
- * panne passagère d'un fournisseur se répare sans noyer le journal.
- */
 export function delaiDeRepriseMs(tentative: number): number {
   return Math.min(60_000 * 2 ** Math.max(0, tentative - 1), 3_600_000)
 }
@@ -53,14 +49,6 @@ function messageDeLErreur(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-/**
- * La réclamation est un `SELECT … FOR UPDATE SKIP LOCKED` sur la **tête** de
- * chaque entité : deux travailleurs concurrents se partagent les entités sans
- * jamais attendre ni exécuter deux fois le même événement. Le verrou est tenu
- * le temps de la transaction seulement ; l'exécution, elle, est protégée par
- * `status = en_cours` et un bail (`lockedUntil`) qui expire si le processus
- * meurt — c'est ce qui rend le redémarrage possible.
- */
 export async function reclamerLesIdentifiants(
   tx: Prisma.TransactionClient,
   options: OptionsExecution
@@ -135,8 +123,6 @@ async function ignorerEvenement(
       maintenant,
     })
   }
-  // `updateMany` plutôt que `update` : la suppression Facebook peut emporter la
-  // ligne pendant que le travailleur la tient ; une ligne absente est un no-op.
   await prisma.automationEvent.updateMany({
     where: { id: evenement.id },
     data: { status: "ignore", lockedUntil: null, lastError: motif },
@@ -144,12 +130,6 @@ async function ignorerEvenement(
   return "ignore"
 }
 
-/**
- * Exécute un événement réclamé : la Décision d'automatisation juge chaque
- * couple « cette Règle, cet Événement », la requête gardant le filtre des
- * règles actives et de même déclencheur. L'expiration est jugée une fois pour
- * l'événement — un événement périmé est « ignoré », jamais « échoué ».
- */
 export async function executerEvenement(
   evenement: AutomationEvent,
   options: OptionsExecution,
@@ -184,15 +164,8 @@ export async function executerEvenement(
   const tentative = evenement.attempts + 1
   let derniereErreur: string | null = null
 
-  // La Charge reste brute ici : le répartiteur la valide une seule fois, et
-  // seulement pour une Règle qui s'exécute — jamais pour un événement expiré,
-  // ignoré ou sans Règle active.
   for (const regle of regles) {
     const decision = deciderAutomation(regle, evenement, maintenant)
-    // Inatteignable aujourd'hui : la requête ne rend que les Règles actives de
-    // même déclencheur, et l'expiration est jugée avant la boucle. La garde
-    // reste pour qu'un élargissement de la requête (Règles désactivées ou d'un
-    // autre déclencheur) n'ouvre pas une Exécution que la Décision a écartée.
     if (
       decision.decision === "ignorer" &&
       decision.raison.type !== "condition-non-remplie"
@@ -273,8 +246,6 @@ export async function executerEvenement(
     return "echoue"
   }
 
-  // Même tolérance ici : l'Événement peut avoir été supprimé pendant que le
-  // travailleur l'exécutait ; l'Exécution garde son dernier état.
   await prisma.automationEvent.updateMany({
     where: { id: evenement.id },
     data: {
@@ -287,11 +258,6 @@ export async function executerEvenement(
   return "reussi"
 }
 
-/**
- * Un balayage draine les têtes d'entité jusqu'à ce qu'il n'y ait plus rien de
- * réclamable. Il est appelé par le travailleur pg-boss ; plusieurs réplicas
- * peuvent le lancer en parallèle sans se marcher dessus.
- */
 export async function executerLesEvenements(
   options: OptionsExecution,
   dependances: DependancesAutomations
@@ -320,7 +286,6 @@ export async function executerLesEvenements(
   return bilan
 }
 
-/** Le renvoi manuel d'un événement mort (redrive) est une remise en attente. */
 export async function redriveEvenementsMorts(limite = 100): Promise<number> {
   const morts = await prisma.automationEvent.findMany({
     where: { status: "mort" },
