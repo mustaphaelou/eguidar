@@ -1,10 +1,21 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { prisma } from "@/lib/db"
 import type { ReturnReason } from "@/lib/generated/prisma/client"
-import { InvalidOrderTransitionError } from "@/lib/use-cases/orders"
+import {
+  InvalidOrderTransitionError,
+  type OrderEffects,
+} from "@/lib/use-cases/orders"
 import {
   CommandeDuRetourIntrouvableError,
   declarerRetour,
@@ -1112,6 +1123,17 @@ describe("recevoir un Retour", () => {
       ])
     )
 
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<OrderEffects["invalidateCommande"]>()
+    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+      async () => {}
+    )
+
     const recu = await recevoirRetour(
       reception(retour, [
         {
@@ -1124,7 +1146,13 @@ describe("recevoir un Retour", () => {
           receivedQuantity: 2,
           condition: "damaged",
         },
-      ])
+      ]),
+      {
+        sendOrderPlacedEmail,
+        sendOrderStatusEmail,
+        invalidateCommande,
+        invalidateProduits,
+      }
     )
 
     expect(recu.commandeClose).toBe(true)
@@ -1139,10 +1167,68 @@ describe("recevoir un Retour", () => {
       actorId: acteurId,
     })
     expect(changements[0].changedAt.getTime()).toBe(recu.receivedAt.getTime())
+    expect(
+      await prisma.automationEvent.findMany({
+        where: { type: "commande.statut.changee", entityId: commande.id },
+      })
+    ).toHaveLength(1)
+    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
+    expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
+    expect(sendOrderStatusEmail.mock.calls[0][0].orderId).toBe(commande.id)
+    expect(sendOrderStatusEmail.mock.calls[0][1]).toBe("returned")
+    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(invalidateCommande).toHaveBeenCalledWith(commande.id)
+    expect(invalidateProduits).toHaveBeenCalledOnce()
     const variante = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantId },
     })
     expect(variante.stock).toBe(12)
+  })
+
+  it("n'écrit aucun Événement et n'exécute aucun effet pour une réception partielle", async () => {
+    const commande = await creerCommande({ quantites: [2] })
+    const article = commande.items[0]
+    const retour = await declarerRetour(
+      declaration(commande, [{ orderItemId: article.id, declaredQuantity: 1 }])
+    )
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+      async () => {}
+    )
+    const invalidateCommande = vi.fn<OrderEffects["invalidateCommande"]>()
+    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+      async () => {}
+    )
+
+    const recu = await recevoirRetour(
+      reception(retour, [
+        {
+          orderItemId: article.id,
+          receivedQuantity: 1,
+          condition: "resellable",
+        },
+      ]),
+      {
+        sendOrderPlacedEmail,
+        sendOrderStatusEmail,
+        invalidateCommande,
+        invalidateProduits,
+      }
+    )
+
+    expect(recu.commandeClose).toBe(false)
+    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
+    expect(sendOrderStatusEmail).not.toHaveBeenCalled()
+    expect(invalidateCommande).not.toHaveBeenCalled()
+    expect(invalidateProduits).not.toHaveBeenCalled()
+    expect(
+      await prisma.automationEvent.count({
+        where: { type: "commande.statut.changee", entityId: commande.id },
+      })
+    ).toBe(0)
+    expect((await stockerLaCommande(commande)).status).toBe("delivered")
   })
 
   it("laisse la Commande Livrée pour une réception partielle, et un second colis est un second Retour", async () => {

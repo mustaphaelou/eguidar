@@ -37,7 +37,7 @@ import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = EffetsCommande
 
-const defaultOrderEffects: OrderEffects = {
+export const defaultOrderEffects: OrderEffects = {
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
   invalidateCommande,
@@ -203,7 +203,7 @@ type OrderWithItems = {
   }[]
 }
 
-function toOrderEmailSnapshot(
+export function toOrderEmailSnapshot(
   order: OrderWithItems,
   userEmail: string
 ): OrderEmailSnapshot {
@@ -270,7 +270,7 @@ async function réapprovisionnerArticles(
   }
 }
 
-async function produitsTouches(
+export async function produitsTouches(
   tx: Prisma.TransactionClient,
   items: readonly { variantId: string | null }[]
 ): Promise<ProduitTouche[]> {

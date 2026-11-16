@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { declarerApresEcriture, type PlanCommande } from "@/lib/apres-ecriture"
+import { enregistrerFaits } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import type {
   ReturnStatus,
@@ -18,8 +20,19 @@ import {
   type QuantiteCommandee,
 } from "@/lib/retours"
 import { peutTransitionner } from "@/lib/statut-de-commande"
-import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
-import { InvalidOrderTransitionError } from "@/lib/use-cases/orders"
+import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
+import {
+  avecSurcharges,
+  messageDeValidation,
+} from "@/lib/use-cases/mutation-squelette"
+import {
+  defaultOrderEffects,
+  InvalidOrderTransitionError,
+  produitsTouches,
+  toOrderEmailSnapshot,
+  type OrderEffects,
+} from "@/lib/use-cases/orders"
 import { uniqueViolationIndex } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -424,11 +437,13 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
 }
 
 export async function recevoirRetour(
-  input: ReceptionDeRetour
+  input: ReceptionDeRetour,
+  overrides?: Partial<OrderEffects>
 ): Promise<RetourRecu> {
   const reception = parseReception(input)
+  const effects = avecSurcharges(defaultOrderEffects, overrides)
 
-  return await prisma.$transaction(async (tx) => {
+  const { recu, plan } = await prisma.$transaction(async (tx) => {
     const cible = await tx.return.findUnique({
       where: { id: reception.returnId },
       select: { orderId: true },
@@ -450,7 +465,7 @@ export async function recevoirRetour(
 
     const commande = await tx.order.findUniqueOrThrow({
       where: { id: cible.orderId },
-      include: { items: true },
+      include: { items: true, user: { select: { email: true } } },
     })
     const articles = new Map(
       commande.items.map((article) => [article.id, article])
@@ -502,6 +517,7 @@ export async function recevoirRetour(
     })
     if (recue.count === 0) throw new ReceptionDeRetourImpossibleError()
 
+    const articlesRéapprovisionnés: { variantId: string | null }[] = []
     for (const ligne of lignesARecevoir) {
       await tx.returnLine.updateMany({
         where: { returnId: retour.id, orderItemId: ligne.orderItemId },
@@ -519,6 +535,7 @@ export async function recevoirRetour(
         where: { id: article.variantId },
         data: { stock: { increment: ligne.receivedQuantity } },
       })
+      articlesRéapprovisionnés.push({ variantId: article.variantId })
     }
 
     const cumuls = await tx.returnLine.groupBy({
@@ -538,7 +555,7 @@ export async function recevoirRetour(
       (article) => ({ orderItemId: article.id, quantity: article.quantity })
     )
 
-    let commandeClose = false
+    let planDeCloture: PlanCommande | null = null
     if (toutesLesUnitesSontRevenues(quantitesCommandees, quantitesRecues)) {
       if (!peutTransitionner(commande.status, "returned")) {
         throw new InvalidOrderTransitionError(commande.status, "returned")
@@ -559,18 +576,37 @@ export async function recevoirRetour(
           actorId: reception.actorId,
         },
       })
-      commandeClose = true
+      const commandeClosee = await tx.order.findUniqueOrThrow({
+        where: { id: commande.id },
+        include: { items: true },
+      })
+      planDeCloture = declarerApresEcriture("commande.statut.changee", {
+        commandeId: commande.id,
+        snapshot: toOrderEmailSnapshot(commandeClosee, commande.user.email),
+        statut: "returned",
+        produitsRéapprovisionnés: await produitsTouches(
+          tx,
+          articlesRéapprovisionnés
+        ),
+      })
+      await enregistrerFaits(tx, planDeCloture.faits)
     }
 
     return {
-      id: retour.id,
-      orderId: commande.id,
-      status: "received" as const,
-      reason: retour.reason,
-      requestedAt: retour.requestedAt,
-      receivedAt: maintenant,
-      lines: lignesARecevoir,
-      commandeClose,
+      recu: {
+        id: retour.id,
+        orderId: commande.id,
+        status: "received" as const,
+        reason: retour.reason,
+        requestedAt: retour.requestedAt,
+        receivedAt: maintenant,
+        lines: lignesARecevoir,
+        commandeClose: planDeCloture !== null,
+      },
+      plan: planDeCloture,
     }
   })
+
+  if (plan) await executerCommande(plan, effects, { structure: lireStructure })
+  return recu
 }
