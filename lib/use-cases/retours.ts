@@ -8,12 +8,18 @@ import type {
 } from "@/lib/generated/prisma/client"
 import {
   CODES_REFUS_RETOUR,
+  ETATS_LIGNE_RETOUR,
   MOTIFS_RETOUR,
   motifEnregistre,
+  toutesLesUnitesSontRevenues,
   type CodeRefusRetour,
+  type EtatLigneRetour,
   type MotifRetour,
+  type QuantiteCommandee,
 } from "@/lib/retours"
+import { peutTransitionner } from "@/lib/statut-de-commande"
 import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
+import { InvalidOrderTransitionError } from "@/lib/use-cases/orders"
 import { uniqueViolationIndex } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -52,6 +58,34 @@ export interface RefusDeRetour {
   returnId: string
   code: CodeRefusRetour
   note?: string
+}
+
+export interface LigneRecue {
+  orderItemId: string
+  receivedQuantity: number
+  condition: EtatLigneRetour | null
+}
+
+export interface ReceptionDeRetour {
+  returnId: string
+  lines: LigneRecue[]
+  actorId: string
+}
+
+export interface LigneDuRetourRecue extends LigneDuRetourCreee {
+  receivedQuantity: number
+  condition: EtatLigneRetour | null
+}
+
+export interface RetourRecu {
+  id: string
+  orderId: string
+  status: ReturnStatus
+  reason: MotifRetour
+  requestedAt: Date
+  receivedAt: Date
+  lines: LigneDuRetourRecue[]
+  commandeClose: boolean
 }
 
 export class RetourValidationError extends UserFacingError {
@@ -108,6 +142,30 @@ export class RefusDeRetourImpossibleError extends UserFacingError {
   }
 }
 
+export class ReceptionDeRetourImpossibleError extends UserFacingError {
+  constructor() {
+    super("Seule une demande de Retour ouverte peut être reçue")
+    this.name = "ReceptionDeRetourImpossibleError"
+  }
+}
+
+export class DepassementDeLaQuantiteDeclareeError extends UserFacingError {
+  constructor({
+    article,
+    declaree,
+    recue,
+  }: {
+    article: string
+    declaree: number
+    recue: number
+  }) {
+    super(
+      `Quantité reçue au-delà de la déclarée pour « ${article} » : ${recue} reçue(s), ${declaree} déclarée(s)`
+    )
+    this.name = "DepassementDeLaQuantiteDeclareeError"
+  }
+}
+
 const ligneDeclareeSchema = z.object({
   orderItemId: z.string().min(1, "Article du panier requis"),
   declaredQuantity: z
@@ -144,6 +202,53 @@ const refusSchema = z.object({
   note: z.string().trim().optional(),
 })
 
+const ligneRecueSchema = z
+  .object({
+    orderItemId: z.string().min(1, "Article du panier requis"),
+    receivedQuantity: z
+      .number()
+      .int("quantité reçue en entier")
+      .min(0, "quantité reçue positive ou nulle"),
+    condition: z.enum(ETATS_LIGNE_RETOUR).nullable(),
+  })
+  .superRefine((ligne, contexte) => {
+    if (ligne.receivedQuantity > 0 && ligne.condition === null) {
+      contexte.addIssue({
+        code: "custom",
+        path: ["condition"],
+        message: "l'état de la Ligne du Retour reçue est requis",
+      })
+    }
+    if (ligne.receivedQuantity === 0 && ligne.condition !== null) {
+      contexte.addIssue({
+        code: "custom",
+        path: ["condition"],
+        message: "une Ligne du Retour sans unité reçue ne porte pas d'état",
+      })
+    }
+  })
+
+const receptionSchema = z
+  .object({
+    returnId: z.string().min(1, "Retour requis"),
+    lines: z.array(ligneRecueSchema).min(1, "au moins une Ligne du Retour"),
+    actorId: z.string().min(1, "administrateur acteur requis"),
+  })
+  .superRefine((reception, contexte) => {
+    const vus = new Set<string>()
+    for (const ligne of reception.lines) {
+      if (vus.has(ligne.orderItemId)) {
+        contexte.addIssue({
+          code: "custom",
+          path: ["lines"],
+          message: "un Article du panier ne peut apparaître qu'une fois",
+        })
+        return
+      }
+      vus.add(ligne.orderItemId)
+    }
+  })
+
 function parseDeclaration(input: DeclarationDeRetour): DeclarationDeRetour {
   const result = declarationSchema.safeParse(input)
   if (!result.success) {
@@ -156,6 +261,16 @@ function parseDeclaration(input: DeclarationDeRetour): DeclarationDeRetour {
 
 function parseRefus(input: RefusDeRetour): RefusDeRetour {
   const result = refusSchema.safeParse(input)
+  if (!result.success) {
+    throw new RetourValidationError(
+      result.error.issues.map((issue) => issue.message)
+    )
+  }
+  return result.data
+}
+
+function parseReception(input: ReceptionDeRetour): ReceptionDeRetour {
+  const result = receptionSchema.safeParse(input)
   if (!result.success) {
     throw new RetourValidationError(
       result.error.issues.map((issue) => issue.message)
@@ -305,5 +420,157 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
       include: { lines: true },
     })
     return toRetourCree(retour)
+  })
+}
+
+export async function recevoirRetour(
+  input: ReceptionDeRetour
+): Promise<RetourRecu> {
+  const reception = parseReception(input)
+
+  return await prisma.$transaction(async (tx) => {
+    const cible = await tx.return.findUnique({
+      where: { id: reception.returnId },
+      select: { orderId: true },
+    })
+    if (!cible) throw new RetourIntrouvableError()
+
+    const verrou = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "Order" WHERE id = ${cible.orderId} FOR UPDATE
+    `
+    if (verrou.length === 0) throw new RetourIntrouvableError()
+
+    const retour = await tx.return.findUniqueOrThrow({
+      where: { id: reception.returnId },
+      include: { lines: true },
+    })
+    if (retour.status !== "requested") {
+      throw new ReceptionDeRetourImpossibleError()
+    }
+
+    const commande = await tx.order.findUniqueOrThrow({
+      where: { id: cible.orderId },
+      include: { items: true },
+    })
+    const articles = new Map(
+      commande.items.map((article) => [article.id, article])
+    )
+    const lignesDeclarees = new Map(
+      retour.lines.map((ligne) => [ligne.orderItemId, ligne])
+    )
+    const lignesRecues = new Map(
+      reception.lines.map((ligne) => [ligne.orderItemId, ligne])
+    )
+
+    const lignesARecevoir: LigneDuRetourRecue[] = []
+    for (const ligne of retour.lines) {
+      if (!lignesRecues.has(ligne.orderItemId)) {
+        throw new RetourValidationError([
+          "chaque Ligne du Retour doit être reçue",
+        ])
+      }
+    }
+    for (const ligne of reception.lines) {
+      const declaree = lignesDeclarees.get(ligne.orderItemId)
+      if (!declaree) {
+        throw new RetourValidationError([
+          "Article du panier inconnu dans ce Retour",
+        ])
+      }
+      if (ligne.receivedQuantity > declaree.declaredQuantity) {
+        const article = articles.get(ligne.orderItemId)
+        throw new DepassementDeLaQuantiteDeclareeError({
+          article: article
+            ? `${article.productName} ${article.variantName}`.trim()
+            : "cet Article",
+          declaree: declaree.declaredQuantity,
+          recue: ligne.receivedQuantity,
+        })
+      }
+      lignesARecevoir.push({
+        orderItemId: ligne.orderItemId,
+        declaredQuantity: declaree.declaredQuantity,
+        receivedQuantity: ligne.receivedQuantity,
+        condition: ligne.condition,
+      })
+    }
+
+    const maintenant = new Date()
+    const recue = await tx.return.updateMany({
+      where: { id: retour.id, status: "requested" },
+      data: { status: "received", receivedAt: maintenant },
+    })
+    if (recue.count === 0) throw new ReceptionDeRetourImpossibleError()
+
+    for (const ligne of lignesARecevoir) {
+      await tx.returnLine.updateMany({
+        where: { returnId: retour.id, orderItemId: ligne.orderItemId },
+        data: {
+          receivedQuantity: ligne.receivedQuantity,
+          condition: ligne.condition,
+        },
+      })
+      if (ligne.receivedQuantity === 0 || ligne.condition !== "resellable") {
+        continue
+      }
+      const article = articles.get(ligne.orderItemId)
+      if (!article?.variantId) continue
+      await tx.productVariant.updateMany({
+        where: { id: article.variantId },
+        data: { stock: { increment: ligne.receivedQuantity } },
+      })
+    }
+
+    const cumuls = await tx.returnLine.groupBy({
+      by: ["orderItemId"],
+      where: {
+        return: { orderId: commande.id, status: { not: "refused" } },
+      },
+      _sum: { receivedQuantity: true },
+    })
+    const quantitesRecues = Object.fromEntries(
+      cumuls.map((cumul) => [
+        cumul.orderItemId,
+        cumul._sum.receivedQuantity ?? 0,
+      ])
+    )
+    const quantitesCommandees: QuantiteCommandee[] = commande.items.map(
+      (article) => ({ orderItemId: article.id, quantity: article.quantity })
+    )
+
+    let commandeClose = false
+    if (toutesLesUnitesSontRevenues(quantitesCommandees, quantitesRecues)) {
+      if (!peutTransitionner(commande.status, "returned")) {
+        throw new InvalidOrderTransitionError(commande.status, "returned")
+      }
+      const fermeture = await tx.order.updateMany({
+        where: { id: commande.id, status: commande.status },
+        data: { status: "returned" },
+      })
+      if (fermeture.count === 0) {
+        throw new InvalidOrderTransitionError(commande.status, "returned")
+      }
+      await tx.orderStatusChange.create({
+        data: {
+          orderId: commande.id,
+          fromStatus: commande.status,
+          toStatus: "returned",
+          changedAt: maintenant,
+          actorId: reception.actorId,
+        },
+      })
+      commandeClose = true
+    }
+
+    return {
+      id: retour.id,
+      orderId: commande.id,
+      status: "received" as const,
+      reason: retour.reason,
+      requestedAt: retour.requestedAt,
+      receivedAt: maintenant,
+      lines: lignesARecevoir,
+      commandeClose,
+    }
   })
 }

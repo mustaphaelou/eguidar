@@ -499,7 +499,9 @@ le backfill n'en fabrique aucun pour les Commandes antérieures. La persistance 
 _Avoid_: historique de statut, status history, journal de statut
 
 **Réapprovisionnement**:
-Le retour au stock des Variantes d'une Commande lorsque celle-ci passe à Annulée ou Retournée.
+Le retour au stock des Variantes d'une Commande. Une Annulation rend toutes ses unités ; la
+réception d'un Retour ne rend que les unités reçues et revendables. Le passage à `Retournée` ne
+réapprovisionne pas à lui seul : la réception l'a déjà fait.
 _Avoid_: restock, remise en stock, réintégration de stock
 
 **E-mail de commande**:
@@ -528,8 +530,15 @@ _Avoid_: return, renvoi, retour produit, RMA
 **Ligne du Retour**:
 Un Article du panier d'une Commande et la quantité que le Client déclare rendre sur ce Retour.
 La persistance s'appelle `ReturnLine`. Le cumul de ses quantités déclarées, tous Retours non
-refusés confondus, ne dépasse jamais la quantité commandée de l'Article du panier.
+refusés confondus, ne dépasse jamais la quantité commandée de l'Article du panier. À la réception,
+elle porte la quantité effectivement reçue, jamais au-delà de la déclarée, et son État.
 _Avoid_: ligne de retour, return line
+
+**État de la Ligne du Retour**:
+L'état constaté à la réception d'une Ligne du Retour : revendable (`resellable`) ou endommagé
+(`damaged`). Seules les unités reçues et revendables réintègrent le stock ; une unité endommagée
+reste un fait de la réception. La persistance s'appelle `condition` sur `ReturnLine`.
+_Avoid_: condition, qualité, état du produit
 
 **Motif de Retour**:
 La raison déclarée d'un Retour : rétractation (`withdrawal`), non-conformité (`non_conformity`),
