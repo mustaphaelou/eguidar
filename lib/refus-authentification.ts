@@ -47,6 +47,23 @@ export const MESSAGES_REFUS_AUTHENTIFICATION: Record<
     "La vérification de sécurité n'a pas abouti. Réessayez dans un instant.",
 }
 
+export const CODES_REFUS_QUI_DEPENSENT_LE_JETON = [
+  "MISSING_RESPONSE",
+  "VERIFICATION_FAILED",
+  "UNKNOWN_ERROR",
+] as const satisfies readonly CodeRefusAuthentification[]
+
+export type CodeRefusQuiDepenseLeJeton =
+  (typeof CODES_REFUS_QUI_DEPENSENT_LE_JETON)[number]
+
+const REFUS_QUI_DEPENSENT_LE_JETON = new Set<string>(
+  CODES_REFUS_QUI_DEPENSENT_LE_JETON
+)
+
+export function estRefusQuiDepenseLeJeton(code: string | undefined): boolean {
+  return code !== undefined && REFUS_QUI_DEPENSENT_LE_JETON.has(code)
+}
+
 const CODES = new Set<string>(CODES_REFUS_AUTHENTIFICATION)
 
 export function estCodeRefusAuthentification(
@@ -80,10 +97,6 @@ export function refusDepuisErreurDeLaBibliotheque(erreur: {
 
 export function estEmailNonVerifie(code: string | undefined): boolean {
   return code === "EMAIL_NOT_VERIFIED"
-}
-
-export function estRefusTestDeSecurite(code: string | undefined): boolean {
-  return code === "VERIFICATION_FAILED"
 }
 
 export function estIdentifiantsInvalides(code: string | undefined): boolean {

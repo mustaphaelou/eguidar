@@ -1,17 +1,28 @@
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import {
   CODES_REFUS_AUTHENTIFICATION,
+  CODES_REFUS_QUI_DEPENSENT_LE_JETON,
   MESSAGE_REFUS_AUTHENTIFICATION_GENERIQUE,
   MESSAGES_REFUS_AUTHENTIFICATION,
   codeRefusDepuisStatut,
   estCodeRefusAuthentification,
   estEmailNonVerifie,
   estIdentifiantsInvalides,
-  estRefusTestDeSecurite,
+  estRefusQuiDepenseLeJeton,
   messageRefusAuthentification,
   refusDepuisErreurDeLaBibliotheque,
 } from "./refus-authentification"
+
+const SOURCE_TEST_DE_SECURITE = readFileSync(
+  new URL("./test-de-securite.ts", import.meta.url),
+  "utf8"
+)
+
+const CODES_REFUSES_PAR_LE_TEST_DE_SECURITE = [
+  ...SOURCE_TEST_DE_SECURITE.matchAll(/refus\(\s*"[^"]*"\s*,\s*"([A-Z_]+)"/g),
+].map(([, code]) => code!)
 
 const REFUS_SANS_PRODUCTEUR = [
   "USER_NOT_FOUND",
@@ -95,6 +106,31 @@ describe("le vocabulaire des Refus d'authentification", () => {
     })
   })
 
+  it("garde dans l'ensemble tout refus que le Test de sécurité peut produire", () => {
+    expect(
+      CODES_REFUSES_PAR_LE_TEST_DE_SECURITE.length,
+      "aucun refus n'est lu dans le Test de sécurité"
+    ).toBeGreaterThan(0)
+
+    expect(new Set(CODES_REFUSES_PAR_LE_TEST_DE_SECURITE)).toEqual(
+      new Set(CODES_REFUS_QUI_DEPENSENT_LE_JETON)
+    )
+  })
+
+  it("ne reconnaît comme dépensant le jeton que ces trois refus", () => {
+    const quiDepensent = new Set(CODES_REFUSES_PAR_LE_TEST_DE_SECURITE)
+
+    for (const code of CODES_REFUS_AUTHENTIFICATION) {
+      expect(estRefusQuiDepenseLeJeton(code), code).toBe(quiDepensent.has(code))
+    }
+
+    expect(estRefusQuiDepenseLeJeton("INVALID_EMAIL_OR_PASSWORD")).toBe(false)
+    expect(estRefusQuiDepenseLeJeton("INVALID_OTP")).toBe(false)
+    expect(estRefusQuiDepenseLeJeton("OTP_EXPIRED")).toBe(false)
+    expect(estRefusQuiDepenseLeJeton("CODE_INCONNU")).toBe(false)
+    expect(estRefusQuiDepenseLeJeton(undefined)).toBe(false)
+  })
+
   it("reconnaît les refus que les flux distinguent", () => {
     expect(estEmailNonVerifie("EMAIL_NOT_VERIFIED")).toBe(true)
     expect(estEmailNonVerifie("INVALID_EMAIL_OR_PASSWORD")).toBe(false)
@@ -102,10 +138,5 @@ describe("le vocabulaire des Refus d'authentification", () => {
 
     expect(estIdentifiantsInvalides("INVALID_EMAIL_OR_PASSWORD")).toBe(true)
     expect(estIdentifiantsInvalides("EMAIL_NOT_VERIFIED")).toBe(false)
-
-    expect(estRefusTestDeSecurite("VERIFICATION_FAILED")).toBe(true)
-    expect(estRefusTestDeSecurite("MISSING_RESPONSE")).toBe(false)
-    expect(estRefusTestDeSecurite("UNKNOWN_ERROR")).toBe(false)
-    expect(estRefusTestDeSecurite(undefined)).toBe(false)
   })
 })

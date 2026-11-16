@@ -1,6 +1,7 @@
 import type { BetterAuthPlugin } from "better-auth"
 
 import { ADRESSE_CLIENT_PARTAGEE, adresseClient } from "@/lib/adresse-client"
+import type { CodeRefusQuiDepenseLeJeton } from "@/lib/refus-authentification"
 import {
   ACTIONS_PAR_TYPE_OTP,
   ACTIONS_TEST_DE_SECURITE,
@@ -66,7 +67,7 @@ export function actionPourEnvoi(
 
 function refus(
   message: string,
-  code: string,
+  code: CodeRefusQuiDepenseLeJeton,
   status: number
 ): ReponseTestDeSecurite {
   return {
