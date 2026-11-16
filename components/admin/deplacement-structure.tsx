@@ -143,11 +143,6 @@ function BoutonDeGeste({
   )
 }
 
-/**
- * Les quatre gestes d'ordre d'une Structure. Ils vivent dans la colonne
- * « Position », avec la position qu'ils changent, plutôt que d'empiler une
- * troisième rangée de boutons dans la colonne des actions.
- */
 export function GestesStructure({
   ligne,
   intentions,

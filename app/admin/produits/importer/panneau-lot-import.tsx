@@ -231,10 +231,6 @@ function GroupeDeLignes({
   )
 }
 
-/**
- * Le CSV des refus se télécharge depuis la base, pas depuis le fichier
- * d'origine : les cellules de chaque Ligne refusée y sont persistées.
- */
 function TelechargerLesRefus({ lotId }: { lotId: string }) {
   return (
     <div>
@@ -279,12 +275,6 @@ function Compteurs({ lot }: { lot: LotImportLu }) {
   )
 }
 
-/**
- * Le rapport de l'application : ce qui est **écrit** et ce qui est **indexé**
- * sont deux compteurs distincts. Tant que l'indexation est en retard, le Lot
- * reste « en cours » et le rapport dit « indexation en attente », jamais
- * « terminé ».
- */
 function CompteursApplication({ lot }: { lot: LotImportLu }) {
   const indexationEnAttente = lot.indexes < lot.ecrits
   const termineEtIndexe = lot.statut === "termine" && !indexationEnAttente
@@ -338,13 +328,6 @@ function CompteursApplication({ lot }: { lot: LotImportLu }) {
   )
 }
 
-/**
- * Le Lot relu : son statut, son auteur, son instant, l'empreinte et la taille de
- * son fichier, ses avertissements, le résultat de sa Vérification — compteurs,
- * statuts de Ligne, refus avec numéro et code, avertissements et diff avant →
- * après — et l'état du bouton Appliquer. Appliquer reste indisponible tant que
- * le Lot n'est pas vérifié, ou qu'une seule Ligne ou un seul Produit est refusé.
- */
 export function PanneauLotImport({
   lot,
   verificationAction,
@@ -371,9 +354,6 @@ export function PanneauLotImport({
   const refusPresent = lot.lignes.some(
     (ligne) => ligne.statut === "refusee" || ligne.refus !== null
   )
-  // L'indexation est un effet après commit : tant qu'elle n'a pas rattrapé les
-  // écritures, le rapport ne dit jamais « terminé », quel que soit le statut
-  // persisté.
   const indexationEnAttente = lot.indexes < lot.ecrits
   const applicationCommencee =
     enCours || dejaApplique || lot.ecrits > 0 || lot.indexes > 0

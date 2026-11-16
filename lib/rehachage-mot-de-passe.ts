@@ -7,12 +7,6 @@ import {
   verifierMotDePasse,
 } from "@/lib/mot-de-passe-hache"
 
-/**
- * Vérifie le mot de passe et, si l'empreinte stockée est plus faible que la
- * cible, la réécrit en PHC sans interrompre la Connexion. C'est la migration :
- * chaque Connexion réussie amène un Compte client de plus au format courant,
- * sans lot ni remise à zéro.
- */
 export async function verifierMotDePasseEtRehacher({
   hash,
   password,
@@ -36,7 +30,6 @@ export async function verifierMotDePasseEtRehacher({
       data: { password: nouveau },
     })
   } catch (erreur) {
-    // Une migration opportuniste qui échoue ne doit pas fermer la Connexion.
     console.error(
       "[auth] rehachage du mot de passe impossible",
       erreur instanceof Error ? erreur.message : "erreur inconnue"

@@ -2,18 +2,6 @@ import "dotenv/config"
 
 import { prisma } from "../lib/db"
 
-// Vérifie, avant `prisma migrate deploy`, qu'aucune paire (providerId,
-// accountId) n'est dupliquée dans la table `account`. La migration
-// 20261101160000_compte_fournisseur_unique refuse de s'appliquer tant qu'il en
-// reste une.
-//
-// Usage : npx tsx scripts/verifier-doublons-identites-fournisseur.ts
-// La base visée est celle de DATABASE_URL ; en local, pointer la base de test :
-//   DATABASE_URL="$TEST_DATABASE_URL" npx tsx scripts/verifier-doublons-identites-fournisseur.ts
-//
-// Sortie : 0 quand aucune paire n'est dupliquée, 1 sinon — chaque paire est
-// alors imprimée avec son nombre de lignes et les Comptes clients concernés.
-
 interface Doublon {
   providerId: string
   accountId: string

@@ -30,7 +30,6 @@ describe("les Commandes de fixture de la sonde", () => {
       totalPayable: TOTAL_DE_LA_COMMANDE_LIVREE,
       createdAt: MAINTENANT,
     })
-    // 15 000 MAD = 1 500 000 centimes ; le CA de l'Administration doit le dépasser.
     expect(TOTAL_DE_LA_COMMANDE_LIVREE).toBeGreaterThan(1_500_000)
     expect(livree.total + livree.shippingFee).toBe(livree.totalPayable)
   })
@@ -47,7 +46,6 @@ describe("les Commandes de fixture de la sonde", () => {
       totalPayable: TOTAL_DE_LA_COMMANDE_DE_CONFIRMATION,
       createdAt: MAINTENANT,
     })
-    // Un statut non encaissé : le CA vaut exactement la Commande Livrée.
     expect(confirmation.status).not.toBe("delivered")
     expect(confirmation.items).toHaveLength(2)
     expect(confirmation.items.map((article) => article.productName)).toEqual([

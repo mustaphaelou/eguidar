@@ -132,7 +132,6 @@ export interface StructureDuFiltre {
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
 
-/** Même seuil que le Tableau de bord ; dupliqué pour rester hors du bundle serveur. */
 const SEUIL_STOCK_FAIBLE = 5
 
 const COLONNES_CACHEES = {

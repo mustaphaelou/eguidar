@@ -16,12 +16,6 @@ import {
 
 import { SLUG_DE_REPLI } from "@/lib/parametre-de-repli"
 
-/**
- * Le serveur de production démarré pour de vrai, interrogé comme un opérateur :
- * un en-tête `cache-control`, un document rendu, une charge utile RSC. Aucun
- * import de Next, aucune assertion de composant.
- */
-
 const RACINE = path.resolve(import.meta.dirname, "..")
 const ARTEFACT = path.join(RACINE, ".next", "standalone")
 const BUILD_ID = path.join(RACINE, ".next", "BUILD_ID")
@@ -45,29 +39,15 @@ const ARTICLES_PRERENDUS = path.join(RACINE, ".next", "server", "app", "blog")
 const DELAI_DE_BOOT_MS = 90_000
 const INTERVALLE_DE_SONDE_MS = 250
 
-/**
- * En CI, l'artefact est le sujet du test : son absence doit faire échouer la
- * sonde, pas la sauter. En local, un `npm run build` peut manquer sans que le
- * reste de la suite mente ; le saut reste alors visible.
- */
 const BUILD_ATTENDU = process.env.CATALOGUE_DE_BUILD_ATTENDU === "1"
 
-/** La valeur que le cookie `panier-visiteur` porte : des articles, pas un identifiant. */
 const ARTICLE_DU_COOKIE = "variant-anonymat-761"
 const COOKIE_PANIER = JSON.stringify([
   { variantId: ARTICLE_DU_COOKIE, quantity: 2 },
 ])
 
-/**
- * Un cookie de Session courante factice : better-auth rejette la signature,
- * donc ce test prouve qu'un porteur de cookie de session reçoit le même
- * document — pas qu'une Session *valide* ne fuit pas. Cette moitié est tenue
- * par `components/storefront/header.test.tsx`, qui rend la coquille avec
- * `cookies()` et `headers()` qui lèvent.
- */
 const COOKIE_SESSION = "better-auth.session_token=jeton-de-test-761.signature"
 
-/** Les deux états vides de l'Aperçu, tels que #746 les a nommés. */
 const TEXTES_DU_PANIER = [
   "Votre panier est vide",
   "Connectez-vous pour retrouver le panier de votre compte.",
@@ -99,7 +79,6 @@ if (RAISON_SANS_BUILD !== null) {
   console.warn(`[serveur-document-anonyme] test ignoré : ${RAISON_SANS_BUILD}`)
 }
 
-/** Le premier slug que le build a réellement prérendu, lu dans l'artefact. */
 function premierSlugPrerendu(
   dossier: string,
   extensions: readonly string[]
@@ -140,10 +119,6 @@ const RAISON_SANS_ARTICLE =
 const RAISON_ARTEFACT_PARTIEL =
   "le build de CI doit prérendre au moins un produit et une catégorie"
 
-/**
- * Un slug absent de l'artefact saute en local — visiblement — mais fait échouer
- * la sonde en CI : une sous-assertion sautée ne prouve rien.
- */
 function exigerLeSlug(
   leContexte: TestContext,
   slug: string | null,
@@ -173,7 +148,6 @@ async function portLibre(): Promise<number> {
   return adresse.port
 }
 
-/** Le même arrangement que le Dockerfile : standalone, static, public, handlers. */
 function copierLArtefact(): string {
   const dossier = mkdtempSync(path.join(tmpdir(), "eguidar-761-"))
   const standalone = path.join(dossier, "standalone")
@@ -240,9 +214,7 @@ async function attendreLeServeur(): Promise<void> {
       const reponse = await fetch(`${base}/faq`, { redirect: "manual" })
       await reponse.arrayBuffer()
       if (reponse.status === 200) return
-    } catch {
-      // Le serveur n'écoute pas encore.
-    }
+    } catch {}
     await new Promise((resoudre) =>
       setTimeout(resoudre, INTERVALLE_DE_SONDE_MS)
     )
@@ -252,7 +224,6 @@ async function attendreLeServeur(): Promise<void> {
   )
 }
 
-/** Suit les redirections à la main : la 307 de `RSC: 1` conserve l'en-tête. */
 async function demander(
   chemin: string,
   entetes: Record<string, string> = {}
@@ -282,7 +253,6 @@ function cacheControl(reponse: ReponseLue): string {
   return reponse.entetes.get("cache-control") ?? ""
 }
 
-/** Un document que l'edge a le droit de stocker, rendu par l'origine sans report. */
 function attendreUnDocumentCacheable(reponse: ReponseLue): void {
   expect(reponse.statut).toBe(200)
   expect(reponse.entetes.get("content-type")).toMatch(/^text\/html/)
@@ -355,8 +325,6 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
     })
 
     it("sert un Article de blog prérendu comme un document partageable, sans report", async (leContexte) => {
-      // Le catalogue de la CI ne sème aucun article publiable : cette
-      // sous-assertion reste un saut visible, même sous le drapeau de CI.
       if (ARTICLE_DE_BLOG === null) {
         leContexte.skip(RAISON_SANS_ARTICLE)
         return
@@ -378,8 +346,6 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
 
       expect(avecCookie.statut).toBe(200)
       expect(avecSession.statut).toBe(200)
-      // Un document constant par URL : ni compteur, ni texte de panier, ni
-      // identité de Client ne peuvent y entrer.
       expect(avecCookie.corps).toBe(sansCookie.corps)
       expect(avecSession.corps).toBe(sansCookie.corps)
 
@@ -405,14 +371,10 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
     it("sert un slug inconnu comme la coquille soft-404 de l'origine, hors cache", async () => {
       const reponse = await demander("/produit/slug-inconnu-761")
 
-      // ADR-0011 : le document est déjà peint quand `notFound()` répond, donc
-      // le statut reste 200 et c'est `noindex` qui tient le slug hors de l'index.
       expect(reponse.statut).toBe(200)
       expect(reponse.entetes.get("content-type")).toMatch(/^text\/html/)
       expect(reponse.corps).toMatch(/<meta name="robots" content="noindex"/)
       expect(reponse.corps).toContain("Page introuvable")
-      // Un slug inconnu n'est pas prérendu : l'origine le rend à la demande,
-      // et l'edge ne doit pas le stocker.
       expect(cacheControl(reponse)).not.toContain("s-maxage")
     })
 

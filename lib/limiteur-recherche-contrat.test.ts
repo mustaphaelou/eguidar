@@ -41,7 +41,6 @@ function contexte(): ContexteLimiteur {
   }
 }
 
-// Le contrat compare l'adaptateur Redis à l'adaptateur mémoire : sans Redis, il n'y a rien à comparer.
 const redisDisponible = Boolean(process.env.REDIS_URL)
 
 describe.runIf(redisDisponible)(

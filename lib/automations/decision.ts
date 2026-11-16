@@ -5,17 +5,6 @@ import {
   type TypeConditionAutomation,
 } from "@/lib/automations/vocabulaire"
 
-/**
- * La Décision d'automatisation (ADR-0044) : le jugement pur de « cette Règle,
- * cet Événement ». Elle reçoit les lignes telles que Prisma les porte — aucun
- * adaptateur — et ne rend jamais de phrase : chaque consommateur écrit la
- * sienne. Aucune base, aucun port, aucune transaction.
- *
- * Les noms de champs reprennent volontairement les colonnes Prisma — `trigger`,
- * `enabled`, `condition`, puis `type`, `payload`, `expiresAt` — pour que les
- * lignes se passent telles quelles, même si le vocabulaire du domaine préfère
- * « déclencheur » et « état activé ».
- */
 export interface RegleDecision {
   trigger: string
   enabled: boolean
@@ -63,19 +52,10 @@ export type DecisionAutomation =
     }
   | { decision: "ignorer"; raison: RaisonIgnoree }
 
-/**
- * Le prédicat partagé d'expiration : la borne est inclusive, un Événement qui
- * expire exactement maintenant n'exécute plus son action.
- */
 export function evenementEstExpire(expiresAt: Date, maintenant: Date): boolean {
   return expiresAt.getTime() <= maintenant.getTime()
 }
 
-/**
- * L'ordre est canonique : déclencheur → état → expiration → condition. Le
- * premier motif gagne, et la condition n'est lue qu'une fois les trois
- * premiers satisfaits.
- */
 export function deciderAutomation(
   regle: RegleDecision,
   evenement: EvenementDecision,

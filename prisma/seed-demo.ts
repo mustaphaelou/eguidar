@@ -4,14 +4,6 @@ import { prisma } from "../lib/db"
 import { toIndexableProduct } from "../lib/index-projection"
 import { indexProductDocuments } from "../lib/meili"
 
-/**
- * Les Données de démonstration : le Catalogue et le Blog d'une instance de
- * travail — développement local, captures du README, base éphémère de la CI.
- *
- * Ce fichier n'est jamais appelé par le déploiement. `npx prisma db seed`
- * n'écrit que le socle ([`seed.ts`](./seed.ts)) ; c'est `npm run seed:demo`
- * qui ajoute ce jeu-ci, à la demande (ADR-0050).
- */
 const categories = [
   { name: "Smartphones", slug: "smartphones" },
   { name: "Ordinateurs & Tablettes", slug: "ordinateurs-tablettes" },

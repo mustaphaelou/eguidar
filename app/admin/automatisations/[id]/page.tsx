@@ -38,10 +38,6 @@ function premier(valeur: string | string[] | undefined): string | undefined {
   return Array.isArray(valeur) ? valeur[0] : valeur
 }
 
-/**
- * Le résumé d'un instantané de révision : l'auteur est la seule attribution
- * que l'audit doit pouvoir relire, sans dépendre de la forme interne du JSON.
- */
 function resumeDeLInstantane(snapshot: unknown): string {
   if (!snapshot || typeof snapshot !== "object")
     return "instantané indisponible"

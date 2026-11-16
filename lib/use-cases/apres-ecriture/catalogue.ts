@@ -20,12 +20,6 @@ import {
   type GestionnairesPour,
 } from "./executeur"
 
-/**
- * Les ports du Catalogue que l'adaptateur projette. Ils sont tous optionnels :
- * le Texte alternatif n'a que la révalidation de cache, et le travailleur ne
- * rejoue que les effets durables. Un port absent qu'une conséquence exige
- * échoue par un nom, jamais en silence.
- */
 export interface EffetsCatalogue {
   reindexProducts?(produits: IndexableProduct[]): Promise<void>
   removeProductFromIndex?(produitId: string): Promise<void>
@@ -41,20 +35,11 @@ export interface EffetsCatalogue {
   }
 }
 
-/**
- * Un document indexable et l'événement Catalogue du même Produit. Les deux
- * viennent d'une lecture après commit ; l'adaptateur les mémoïse ensemble pour
- * que l'invalidation et la purge ne relisent pas la Structure.
- */
 export interface DocumentCatalogue {
   indexable: IndexableProduct
   evenement: CatalogueEventProduct
 }
 
-/**
- * Les lectures après commit du Catalogue. Elles sont paresseuses et mémoïsées
- * une fois par plan. Une lecture absente lève `LectureManquanteError`.
- */
 export interface LecturesCatalogue {
   documents?: () => Promise<readonly DocumentCatalogue[]>
   evenements?: () => Promise<readonly CatalogueEventProduct[]>
@@ -149,10 +134,6 @@ function gestionnaires(
   }
 }
 
-/**
- * La tentative immédiate d'un plan de Catalogue : ordre déclaré, isolation,
- * mesure et journal, jamais d'exception.
- */
 export async function executer(
   plan: PlanCatalogue,
   effets: EffetsCatalogue,
@@ -162,9 +143,6 @@ export async function executer(
   await executerPlan(plan, gestionnaires(effets, lectures), journal)
 }
 
-/**
- * Une conséquence de Catalogue pour le travailleur : l'échec remonte.
- */
 export async function executerUne(
   consequence: ConsequenceCatalogue,
   effets: EffetsCatalogue,

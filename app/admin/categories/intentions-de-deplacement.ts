@@ -16,12 +16,6 @@ interface LigneOrdonnee {
   horsArbre: boolean
 }
 
-/**
- * Traduit l'ordre déjà rendu par la Lecture en une intention par geste. La page
- * ne calcule ni position ni ordre : elle lit la fratrie que la Lecture vient de
- * ranger, et nomme les deux voisines que la commande attend. Un déplacement
- * hors arbre n'a que « Rattacher… ».
- */
 export function intentionsDeDeplacement(
   lignes: readonly LigneOrdonnee[]
 ): Map<string, IntentionsDeplacement> {

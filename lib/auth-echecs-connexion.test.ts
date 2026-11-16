@@ -2,9 +2,6 @@ import { randomBytes, randomUUID, scryptSync } from "node:crypto"
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
-// Le limiteur par adresse de Better Auth n'est actif qu'en production
-// (`enabled: isProduction`). Ce fichier force l'environnement pour prouver que
-// la seconde ligne ne l'a pas remplacé ; afterAll le restaure.
 const environnementInitial = vi.hoisted(() => {
   const env = process.env as Record<string, string | undefined>
   const initial = env.NODE_ENV

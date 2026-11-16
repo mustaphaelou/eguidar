@@ -1,8 +1,3 @@
-/**
- * Le squelette du Tableau de bord, partagé par le `loading.tsx` de la route et
- * la frontière Suspense de la page. La pulsation est un mouvement : elle
- * s'éteint sous `prefers-reduced-motion: reduce`.
- */
 export function TableauDeBordChargement() {
   return (
     <div className="flex flex-col gap-6" aria-hidden="true">

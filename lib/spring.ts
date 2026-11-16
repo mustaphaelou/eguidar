@@ -16,11 +16,6 @@ export interface Echantillon {
 
 const SOUS_PAS_S = 1 / 240
 
-/**
- * Un onglet resté en arrière-plan rend un dt énorme : le sous-pasage le garderait
- * stable, mais ferait des milliers d'itérations dans une seule image. On borne.
- * La borne est assez haute pour qu'un appareil lent garde sa vitesse réelle.
- */
 const DT_MAX_S = 1 / 15
 
 const EPS_TEMPS_S = 1e-9

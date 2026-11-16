@@ -187,7 +187,6 @@ describe("ouvrirExecution", () => {
       data: { status: "mort", attempts: 3 },
     })
 
-    // redrive
     await prisma.automationEvent.update({
       where: { id: evenement.id },
       data: { status: "en_attente", attempts: 0 },
@@ -213,7 +212,6 @@ describe("ouvrirExecution", () => {
       where: { id: "indexation-produit" },
     })
 
-    // Une Exécution manuelle terminale reste intacte.
     const manuel = await prisma.automationRun.create({
       data: {
         eventId: evenement.id,
@@ -227,7 +225,6 @@ describe("ouvrirExecution", () => {
       },
     })
 
-    // un balayage ouvre une nouvelle tentative plutôt que d'écraser
     const sweep = await ouvrirExecution({
       evenement: { id: evenement.id, type: evenement.type },
       regle: { id: regle.id, action: regle.action },
@@ -247,7 +244,6 @@ describe("ouvrirExecution", () => {
       where: { id: "indexation-produit" },
     })
 
-    // Pré-créer la tentative 2 pour forcer une collision.
     await prisma.automationRun.create({
       data: {
         eventId: evenement.id,
@@ -259,7 +255,6 @@ describe("ouvrirExecution", () => {
         finishedAt: MAINTENANT,
       },
     })
-    // Ligne terminale attempt 1 pour que le calcul donne attempt 2.
     await prisma.automationRun.create({
       data: {
         eventId: evenement.id,
@@ -278,7 +273,6 @@ describe("ouvrirExecution", () => {
       maintenant: MAINTENANT,
     })
 
-    // max(1,2)+1 = 3
     expect(resultat.attempt).toBe(3)
   })
 })
@@ -331,7 +325,6 @@ describe("terminerExecution", () => {
     })
     expect(echoue.lastError).toBe("panne")
 
-    // nouvelle tentative pour ignore
     const run2 = await ouvrirExecution({
       evenement: { id: evenement.id, type: evenement.type },
       regle: { id: regle.id, action: regle.action },
@@ -528,7 +521,6 @@ describe("ouvrirReessai", () => {
 
   it("tentative manuelle = max + 1 et retourne event/regle", async () => {
     const { evenement, regle, execution } = await preparerEchec()
-    // run existant attempt 3, max = 3
     const res = await ouvrirReessai(execution.id, { maintenant: MAINTENANT })
     expect(res.ok).toBe(true)
     if (res.ok) {
@@ -649,7 +641,6 @@ describe("réparation", () => {
       },
     })
 
-    // sibling en échec
     await prisma.automationRun.create({
       data: {
         eventId: evenement.id,

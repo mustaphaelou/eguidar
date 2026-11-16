@@ -11,12 +11,6 @@ import {
   type PlanApresEcriture,
 } from "@/lib/apres-ecriture"
 
-/**
- * Le genre d'écriture qu'un Événement d'automatisation redéclare. Les genres
- * groupés n'y figurent pas : ils émettent des Événements unitaires, donc c'est
- * la déclaration unitaire qui est redéclarée. Les déclencheurs planifiés n'ont
- * pas de genre et gardent leurs actions.
- */
 export const GENRE_PAR_DECLENCHEUR: Partial<
   Record<TypeEvenementAutomation, GenreEcriture>
 > = {
@@ -35,11 +29,6 @@ export interface Redeclaration {
   plan: PlanApresEcriture
 }
 
-/**
- * La charge est un contrat fermé : le travailleur et le réessai manuel la
- * valident par le même chemin, avec la même erreur nommée et le même message
- * de violation.
- */
 export function analyserCharge<D extends TypeEvenementAutomation>(
   type: D,
   charge: unknown
@@ -57,15 +46,6 @@ export function analyserCharge<D extends TypeEvenementAutomation>(
   return resultat.data as Charge<D>
 }
 
-/**
- * Redéclare le plan unitaire d'un Événement depuis une Charge **déjà
- * analysée**. L'identifiant que la Charge omet — la Commande créée, la
- * Structure créée, etc. — est complété par l'identifiant d'entité de
- * l'Événement. Un déclencheur planifié rend `null` : il n'a pas de genre.
- *
- * Le `switch` prouve la branche ; chaque `case` resserre la Charge, reçue
- * comme l'union des contrats, à celui de son déclencheur.
- */
 export function declarerDepuisLaChargeValidee(
   type: TypeEvenementAutomation,
   entityId: string,
@@ -149,9 +129,6 @@ export function declarerDepuisLaChargeValidee(
     }
     case "structure.supprimee": {
       const c = charge as Charge<"structure.supprimee">
-      // Une Charge ancienne peut nommer l'orphelinat par le drapeau plutôt que
-      // par la pseudo-destination : le plan redéclaré doit viser la même
-      // branche, sans doublon.
       const destinations =
         c.produitsSansStructure === true &&
         !c.destinations.includes(BRANCHE_SANS_STRUCTURE)
@@ -171,10 +148,6 @@ export function declarerDepuisLaChargeValidee(
   }
 }
 
-/**
- * Le même chemin que le travailleur : la Charge est analysée une fois, puis
- * transmise au constructeur de faits déjà validé.
- */
 export function declarerDepuisLaCharge(
   type: TypeEvenementAutomation,
   entityId: string,

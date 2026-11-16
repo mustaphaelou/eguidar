@@ -46,11 +46,6 @@ let container: HTMLDivElement
 const roots: ReturnType<typeof createRoot>[] = []
 const piedsDePage: HTMLElement[] = []
 
-/**
- * happy-dom ne calcule aucune intersection : l'observateur factice laisse le
- * test dire quand le bouton d'achat entre ou quitte la fenêtre, sans simuler
- * de mise en page.
- */
 class ObservateurDIntersectionFactice {
   static instances: ObservateurDIntersectionFactice[] = []
   readonly root = null

@@ -77,9 +77,6 @@ function ArtDuPanneau({
 }) {
   if (!panneau.produit.image) return null
 
-  // La hauteur du Panneau vient de `min-height` : une boîte en `h-full` s'y
-  // résout à zéro dans la colonne flex. L'art se pose donc en absolu sur la
-  // zone, déjà `relative`, et c'est lui qui porte les gouttières.
   return (
     <div
       className={cn(

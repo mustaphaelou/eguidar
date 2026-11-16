@@ -49,8 +49,6 @@ export function useMutationsDuPanier(
     demarrer(async () => {
       const resultat = await operation()
       if (resultat.ok) {
-        // Le Panier a changé : le badge et un Aperçu ouvert relisent leur
-        // lecture HTTP. `refresh()` ne les re-rend plus, ils sont clients.
         signalerUnChangementDuPanier()
         if (accuser) setAjoute(true)
       } else {

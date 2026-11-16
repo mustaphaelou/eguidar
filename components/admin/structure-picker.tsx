@@ -20,11 +20,6 @@ export interface StructureAvecChemin {
   chemin: string
 }
 
-/**
- * Le sélecteur de Structure du formulaire Produit : l'option affichée est le
- * chemin entier lu par la Lecture de la Structure, pour que deux branches qui
- * partagent une feuille restent distinctes. Il ne rend que l'identifiant.
- */
 export function StructurePicker({
   id,
   valeur,

@@ -18,11 +18,6 @@ interface BoutonAutomatisationProps {
   variante?: "default" | "outline" | "destructive" | "secondary"
 }
 
-/**
- * Un bouton de la surface des automatisations : basculer une Règle, réessayer
- * une Exécution. Le formulaire porte ses champs en hidden — aucune URL libre —
- * et le refus nommé revient sous le bouton.
- */
 export function BoutonAutomatisation({
   action,
   champs,

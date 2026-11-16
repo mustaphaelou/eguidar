@@ -20,14 +20,6 @@ import { cn } from "@/lib/utils"
 
 import { GraphiqueDuChiffreAffaires } from "./graphique-chiffre-affaires"
 
-/**
- * La carte du Chiffre d'affaires encaissé.
- *
- * La période est trois liens serveur : `aria-current` porte l'état, chaque
- * `aria-label` dit la forme longue, et `scroll={false}` laisse la page où elle
- * est. Le graphique est une hauteur **minimale** de 260 px : quand la liste des
- * Commandes est plus haute, la carte s'étire et le graphique prend la place.
- */
 export function CarteChiffreAffaires({
   data,
   periode,

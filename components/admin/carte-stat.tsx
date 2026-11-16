@@ -11,29 +11,14 @@ import {
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-/** La taille des valeurs qui ne sont pas des montants. */
 export const VALEUR_DE_CARTE = "text-xl sm:text-2xl"
 
-/**
- * Un montant suit la largeur de sa carte : `cqi` est relatif au `CardContent`,
- * qui porte `@container`. La borne haute est 1,25 rem, un cran sous les
- * comptes, pour que l'argent ne remonte jamais au niveau d'un nombre d'articles.
- */
 export const VALEUR_MONETAIRE =
   "text-[length:clamp(0.5rem,10.5cqi,1.25rem)] font-semibold tracking-tight break-normal whitespace-nowrap tabular-nums"
 
-/**
- * Le retour d'appui d'une carte cliquable : 0,97 à 160 ms, sous
- * `prefers-reduced-motion: no-preference`. Le lien couvre la carte entière par
- * son `::after`, donc `:has(:active)` allume la carte au doigt.
- */
 const CARTE_CLIQUABLE =
   "relative motion-safe:has-[:active]:scale-[0.97] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out"
 
-/**
- * Le survol n'existe que sur un pointeur fin : un écran tactile ne garde pas
- * l'état souligné après le tap.
- */
 const SURVOL_SOULIGNE =
   "[@media(hover:hover)_and_(pointer:fine)]:hover:underline"
 
@@ -51,9 +36,7 @@ export function CarteStat({
   hint: React.ReactNode
   icon: React.ComponentProps<typeof HugeiconsIcon>["icon"]
   href?: string
-  /** Le nom accessible du lien qui couvre la carte. */
   action?: string
-  /** La taille de la valeur : les montants suivent la carte (`VALEUR_MONETAIRE`). */
   valueClassName?: string
 }) {
   return (

@@ -7,13 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { PrismaClient } from "@/lib/generated/prisma/client"
 
-/**
- * Ce que la base de `eguidar_test` ne peut pas prouver : le Socle rejoué sur
- * une base qui sert déjà, avec un Catalogue et un Blog dedans.
- *
- * Le fichier possède donc sa propre base — créée, migrée puis jetée — pour
- * qu'aucune rangée laissée par une autre suite ne décide du résultat.
- */
 const RACINE = path.resolve(import.meta.dirname, "..")
 const NOM_BASE = "eguidar_test_socle"
 const URL_SOCLE = urlDe(NOM_BASE)
@@ -119,8 +112,6 @@ describe("le Socle rejoué sur une base qui sert déjà", () => {
       },
     })
 
-    // Les migrations posent déjà les deux Thèmes du Blog : le compte de
-    // départ n'est donc pas zéro, et c'est le compte relu qui fait foi.
     const themesAvant = await socle.theme.count()
     const structuresAvant = await socle.category.count()
     const produitsAvant = await socle.product.count()
@@ -168,21 +159,15 @@ describe("le Socle rejoué sur une base qui sert déjà", () => {
       slug: `structure-${marque}`,
     })
 
-    // Aucune ligne de plus : le seed n'a ni semé un Catalogue, ni remplacé
-    // celui qui existait.
     expect(await socle.product.count()).toBe(produitsAvant)
     expect(await socle.category.count()).toBe(structuresAvant)
     expect(await socle.theme.count()).toBe(themesAvant)
 
-    // Et le Socle est bien écrit — sans quoi ce test ne prouverait que le
-    // seed n'a rien fait du tout.
     const administrateur = await socle.user.findUniqueOrThrow({
       where: { email: EMAIL_ADMIN },
       include: { accounts: true },
     })
     expect(administrateur).toMatchObject({ role: "admin", name: "Recette" })
-    // Better Auth retrouve le Compte à mot de passe par `accountId === user.id` :
-    // sans cette égalité, la sonde ne peut pas se connecter au compte semé.
     expect(administrateur.accounts).toContainEqual(
       expect.objectContaining({
         providerId: "credential",
@@ -252,9 +237,6 @@ describe("le Socle rejoué sur une base qui sert déjà", () => {
         role: "admin",
       },
     })
-    // Une base qui a déjà réparé la connexion porte le Compte canonique à côté
-    // de l'ancienne ligne semée (`accountId = email`). Rejouer le Socle ne doit
-    // pas les faire entrer en collision sur `account_providerId_accountId_key`.
     await socle.account.createMany({
       data: [
         {
@@ -289,8 +271,6 @@ describe("le Socle rejoué sur une base qui sert déjà", () => {
     const comptes = await socle.account.findMany({
       where: { userId: id, providerId: "credential" },
     })
-    // Le seed ne supprime aucune ligne : l'ancienne reste, le Compte canonique
-    // aussi, avec son mot de passe intact.
     expect(comptes).toHaveLength(2)
     expect(comptes.filter((compte) => compte.accountId === id)).toHaveLength(1)
     expect(comptes.find((compte) => compte.accountId === id)?.password).toBe(

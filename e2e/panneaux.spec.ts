@@ -7,15 +7,6 @@ import {
 import type { ServeurDeSonde } from "./harnais/serveur"
 import { expect, test } from "./fixtures/sonde"
 
-/**
- * Les Panneaux de l'accueil sur le navigateur réel.
- *
- * La fixture attache une Image produit au premier Produit en Mise en avant
- * (`iphone-15-pro`) avant le build. Le fait observé est la boîte que le Client
- * voit : celle de l'Image produit du premier Panneau, et celle du second
- * Panneau, qui n'a pas d'art. Aucune classe, aucun nom de composant.
- */
-
 const PRODUIT_EN_MISE_EN_AVANT = "iPhone 15 Pro"
 const PRODUIT_SANS_ART = "Samsung Galaxy S24 Ultra"
 const PRODUIT_EN_DUO = "MacBook Air 13 M3"
@@ -24,8 +15,6 @@ async function ouvrirLAccueil(
   page: Page,
   serveur: ServeurDeSonde
 ): Promise<void> {
-  // La coquille cliente lit le Panier après hydratation : armer la réponse
-  // avant la navigation, comme `accueil.spec.ts`.
   const montageDuPanier = attendreLeCompteurDuPanier(page)
   const reponse = await page.goto(`${serveur.origine}/`, {
     waitUntil: "domcontentloaded",
@@ -34,7 +23,6 @@ async function ouvrirLAccueil(
   await attendreLaPagePrete(page, montageDuPanier)
 }
 
-/** La boîte de l'Image produit du premier Panneau, une fois chargée. */
 async function boiteDeLImageDuPremierPanneau(
   page: Page
 ): Promise<{ hauteur: number; largeur: number }> {
@@ -44,8 +32,6 @@ async function boiteDeLImageDuPremierPanneau(
   })
   await expect(image).toHaveCount(1)
 
-  // L'image passe par l'optimiseur de Next : attendre le chargement réel,
-  // jamais une pause fixe.
   await expect
     .poll(
       () =>
@@ -68,7 +54,6 @@ async function boiteDeLImageDuPremierPanneau(
   return boite
 }
 
-/** Le Panneau qui contient un titre de Produit, repéré par son attribut d'apparition déjà en place. */
 function panneauDuProduit(page: Page, titre: string): Locator {
   return page
     .locator("[data-reveal-etat]")
@@ -110,8 +95,6 @@ test.describe("le Panneau en Mise en avant", () => {
   }) => {
     await ouvrirLAccueil(page, serveur)
 
-    // Le duo partage `ArtDuPanneau` avec le héros : sa hauteur ne doit pas
-    // payer la correction du format pleine largeur.
     const panneau = panneauDuProduit(page, PRODUIT_EN_DUO)
     await expect(panneau).toBeVisible()
     const boite = await panneau.boundingBox()

@@ -15,11 +15,6 @@ import {
   revaliderCatalogue,
 } from "@/lib/use-cases/cache-invalidation"
 
-/**
- * Les adaptateurs réels des actions, assemblés une fois. Une panne d'un
- * fournisseur remonte : c'est elle qui déclenche la reprise avec backoff.
- * Une purge non configurée n'est pas une panne — rien à purger.
- */
 export function dependancesAutomations(
   maintenant: Date
 ): DependancesAutomations {

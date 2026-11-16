@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Purge la zone Cloudflare entière avant que le nouveau conteneur ne prenne le
-// trafic. Volontairement en JavaScript nu, sans build ni dépendance : le service
-// one-shot `purge-edge` de docker-compose.yml l'exécute sur la cible `migrate`
-// de l'image, où seuls Node 22 et le contexte copié existent.
-//
-// Le pendant TypeScript de cet appel vit dans `lib/purge-edge-cloudflare.ts`,
-// pour les écritures d'administration. Ici, la répétition est assumée : ce
-// fichier ne peut importer ni TypeScript ni alias `@/`, et un déploiement ne
-// dépend pas d'un outil de build.
-//
-// Contrat de sortie :
-//   - sans CLOUDFLARE_ZONE_ID / CLOUDFLARE_API_TOKEN : no-op journalisé, code 0 ;
-//   - PURGE_EDGE=off : no-op journalisé, code 0 ;
-//   - purge acceptée : code 0 ;
-//   - tout échec (transport, HTTP, success:false) : code 1, et le service
-//     `purge-edge` échoue : l'application ne démarre pas. C'est le but — mieux
-//     vaut un déploiement retenu qu'un document pointant vers des chunks morts.
 
 import { pathToFileURL } from "node:url"
 

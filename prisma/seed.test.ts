@@ -105,9 +105,6 @@ describe("prisma/seed.ts — le socle ne porte pas de Données de démonstration
   it("`prisma db seed` résout le socle, et rien d'autre", async () => {
     const { default: configuration } = await import("../prisma.config")
 
-    // C'est ce que la cible `migrate` de l'image appelle à chaque
-    // déploiement. Le pointer sur `seed-demo.ts` rejouerait le défaut
-    // qu'ADR-0050 corrige, sans qu'aucun autre test ne s'en aperçoive.
     expect(configuration.migrations?.seed).toBe("tsx prisma/seed.ts")
   })
 })

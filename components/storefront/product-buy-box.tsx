@@ -68,8 +68,6 @@ export function ProductBuyBox({
 
     function mesurerLaPage() {
       pageDefilee = window.scrollY > 0
-      // Le Pied de page se repère par son élément `footer` (repère
-      // `contentinfo`) : la Barre d'achat ne connaît aucun de ses composants.
       const piedDePage = document.querySelector("footer")
       if (piedDePage === null) {
         piedDePageDansLaFenetre = false

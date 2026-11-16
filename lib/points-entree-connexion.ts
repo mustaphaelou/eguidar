@@ -1,13 +1,3 @@
-/**
- * Les points d'entrée de la connexion après lesquels le Panier Visiteur est
- * rejoué. La liste est la règle : un nouveau chemin s'ajoute ici, et la route
- * d'authentification n'a pas à connaître les siens. Les chemins sont ceux que
- * la route reçoit, préfixe `/api/auth` compris.
- *
- * La Vérification de l'e-mail n'ouvre une session que si la bibliothèque est
- * configurée pour connecter après vérification ; l'entrée est déclarée pour que
- * la règle suive le chemin le jour où une session existe.
- */
 export type PointEntreeConnexion = {
   methode: "GET" | "POST"
   chemin: string

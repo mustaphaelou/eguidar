@@ -10,9 +10,6 @@ declare global {
   var BASE_UI_ANIMATIONS_DISABLED: boolean
 }
 
-// happy-dom 21 implémente `Element.getAnimations()` : Base UI attend alors une
-// frame avant de démonter une boîte de dialogue fermée. Sans CSS, cette attente
-// n'a rien à mesurer, et la fermeture reste synchrone pour les tests.
 globalThis.BASE_UI_ANIMATIONS_DISABLED = true
 
 vi.mock("next/cache", () => ({

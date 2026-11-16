@@ -3,12 +3,6 @@ import { estAdmin, lireSession } from "@/lib/use-cases/session-courante"
 
 const ENTETES_SANS_CACHE = { "Cache-Control": "private, no-store" } as const
 
-/**
- * Le modèle vierge de l'import : une seule ligne d'en-tête, dans l'ordre
- * canonique des neuf colonnes. La route est une lecture réservée à
- * l'Administration ; la porte JSON ne sait rendre que du JSON et n'a donc pas
- * sa place ici.
- */
 export async function GET(): Promise<Response> {
   const client = await lireSession()
   if (!estAdmin(client)) {

@@ -249,8 +249,6 @@ describe("appliquerLeLot — l'isolement d'un Produit en échec", () => {
     const lotId = await preparerLeLot(contenu)
     const effets = effetsDeTest()
 
-    // On injecte la panne sur la première transaction du writer : la première
-    // écriture de Produit échoue, les suivantes retrouvent la vraie transaction.
     const panne = new Error("Unique constraint failed on the fields: (`slug`)")
     const avertissement = vi.spyOn(console, "warn").mockImplementation(() => {})
     vi.spyOn(prisma, "$transaction").mockImplementationOnce((() =>
@@ -885,8 +883,6 @@ describe("appliquerLeLot — la reprise après une interruption", () => {
     const lotId = await preparerLeLot(fichierDeNProduits("reprise", 27))
     const effets = effetsDeTest()
 
-    // L'onglet est fermé pendant l'application : plus aucun appel jusqu'à la
-    // réouverture. Le Lot, son curseur et ses Lignes restent en base.
     const interrompu = await appliquerLeLot(lotId, 0, effets.overrides)
 
     expect(interrompu).toMatchObject({

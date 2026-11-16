@@ -134,9 +134,6 @@ describe("Après-écriture — garde de pureté", () => {
   })
 
   it("fixe l'annotation exhaustive du registre", () => {
-    // L'annotation est le contrat : un genre ajouté sans déclaration ne
-    // compile pas. La retirer rendrait le registre partiel sans rien casser
-    // ici, d'où cette garde sur le texte exact.
     expect(SOURCE).toContain(
       "const REGISTRE: { [G in GenreEcriture]: DeclarationPour<G> } = {"
     )

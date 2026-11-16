@@ -16,24 +16,11 @@ interface FormulaireImportProps {
     precedent: TeleversementState,
     formData: FormData
   ) => Promise<TeleversementState | { error: string }>
-  /**
-   * Pourquoi le téléversement est indisponible — un Lot d'import est en cours —
-   * ou `null` quand il l'est. Le cas d'usage refuse de toute façon.
-   */
   indisponible?: string | null
 }
 
 const MESSAGE_TROP_GROS = messageDuRefus({ code: "fichier_trop_gros" })
 
-/**
- * Le formulaire de téléversement. La taille est vérifiée dans le navigateur
- * avant l'envoi : au-delà de 5 Mo, la requête dépasserait aussi la limite de
- * corps de 6 Mo des actions serveur, et l'administrateur lirait une erreur du
- * framework au lieu du message du contrat.
- *
- * Il est désactivé tant qu'un Lot est en cours : un seul import à la fois, et
- * la reprise du Lot en cours passe avant tout nouveau fichier.
- */
 export function FormulaireImport({
   action,
   indisponible = null,

@@ -114,12 +114,6 @@ export function ImageGalleryUpload({
     onChange(suivantes)
   }
 
-  /**
-   * Chaque fichier porte son état et son propre envoi : un refus n'arrête pas
-   * les suivants, et un réessai ne renvoie que ce fichier. Le protocole reste
-   * celui du port : une presignation, un envoi, et la represignation sur
-   * expiration que `creerTeleversementBrouillons` tient déjà.
-   */
   async function envoyerUn(envoi: EnvoiFichier): Promise<void> {
     const places = placesRestantes()
     if (places <= 0) {

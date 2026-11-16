@@ -6,11 +6,6 @@ import { Button } from "@/components/ui/button"
 import type { MutationFormAction } from "@/lib/use-cases/mutation-actions"
 import type { VerificationState } from "./actions"
 
-/**
- * Le bouton de la Vérification du Lot. L'action renvoie un message français
- * quand le Lot ne peut pas être rejoué (déjà appliqué, en cours…) ; sinon elle
- * redirige vers le Lot vérifié.
- */
 export function BoutonVerifierLot({
   lotId,
   action,

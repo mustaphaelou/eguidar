@@ -74,8 +74,6 @@ describe("l'adaptateur Livraison", () => {
       const journal = creerJournalEffetsMemoire()
       const plan = declarer()
 
-      // Ces écritures ne déclarent aucun fait : aucun Événement, aucune
-      // Exécution d'automatisation, aucun réessai possible.
       expect(plan.faits).toEqual([])
       expect(plan.consequences.map((candidate) => candidate.effet)).toEqual([
         "invalidation-cache",

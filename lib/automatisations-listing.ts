@@ -1,11 +1,5 @@
 import type { StatutAutomation } from "@/lib/generated/prisma/client"
 
-/**
- * Les statuts qu'une Exécution peut prendre (ADR-0044). `en_attente` et `mort`
- * appartiennent à la machine à états de l'Événement, pas à celle de
- * l'Exécution : les offrir dans le filtre promettrait des lignes qui
- * n'existent jamais.
- */
 export const STATUTS_EXECUTION = Object.freeze([
   "en_cours",
   "reussi",
@@ -37,11 +31,6 @@ function dateDeJour(valeur: string): Date | null {
   return date
 }
 
-/**
- * La grammaire de l'historique : `?statut=echoue&regle=<id>&depuis=2026-10-21`.
- * Une valeur inconnue est ignorée — un filtre qui ne veut rien dire ne filtre
- * pas au hasard, il ne filtre pas.
- */
 export function parseFiltresExecutions(
   raw: Record<string, string | string[] | undefined>
 ): FiltresExecutions {

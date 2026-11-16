@@ -74,8 +74,6 @@ async function echecDeLaReponse(
   }
 
   if (!reponse.ok) {
-    // Même message que `scripts/purger-edge.mjs` : un refus HTTP porte le
-    // message de Cloudflare quand la réponse en contient un.
     const detail = charge === null ? "" : messageDesErreurs(charge)
     return {
       code: "erreur-purge",

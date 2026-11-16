@@ -54,7 +54,6 @@ export function ApercuPanier() {
     )
   }
 
-  // `lignes` est le nom filaire du contrat #754 ; le code parle d'Articles.
   const articles = apercu.lignes
 
   return (
@@ -70,8 +69,6 @@ export function ApercuPanier() {
         <ul className="mt-4">
           {articles.map((article, rang) => (
             <li
-              // La réponse HTTP ne porte pas de variantId : le couple
-              // produit + variante est le fait stable qui identifie l'Article.
               key={`${article.productSlug}\u0000${article.variantName}`}
               data-slot="apercu-du-panier-ligne"
               style={{ "--rang-ligne": rang } as CSSProperties}

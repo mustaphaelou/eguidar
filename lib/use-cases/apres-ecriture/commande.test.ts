@@ -112,7 +112,6 @@ describe("l'adaptateur Commande", () => {
       "invalidation-cache",
       "purge-catalogue",
     ])
-    // Les Produits drainés restent des faits d'immédiat : la charge est intacte.
     expect(plan.faits).toEqual([
       {
         declencheur: "commande.creee",
@@ -198,8 +197,6 @@ describe("l'adaptateur Commande", () => {
 
     await expect(executer(plan, effets, {}, journal)).resolves.toBeUndefined()
 
-    // L'e-mail et l'invalidation ont bien été tentés, la purge a échoué sans
-    // être sautée en silence.
     expect(appels.map((appel) => appel.port)).toEqual([
       "email.commande-creee",
       "invalidation-cache",

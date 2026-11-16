@@ -18,10 +18,6 @@ function borneAbsolue(role: string): number {
     : SESSION_ABSOLUTE_CLIENT_SECONDS
 }
 
-/**
- * L'âge se mesure depuis `createdAt`, que l'activité ne repousse pas, et non
- * depuis `expiresAt`, que `updateAge` fait glisser.
- */
 export function estHorsDureeAbsolue(
   session: SessionHorodatee,
   maintenant: number = Date.now()
@@ -30,12 +26,6 @@ export function estHorsDureeAbsolue(
   return age >= borneAbsolue(session.user.role) * 1000
 }
 
-/**
- * Supprime la ligne de session une fois la borne atteinte, pour que le cookie
- * ne soit pas seulement masqué par la lecture : les endpoints d'authentification
- * ne trouvent plus de session et la réponse redevient celle d'un Visiteur. La
- * lecture et le gestionnaire `/api/auth/*` partagent ce geste.
- */
 export async function revoquerSessionHorsDuree(
   session: SessionHorodatee
 ): Promise<boolean> {

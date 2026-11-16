@@ -263,11 +263,6 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-/**
- * Le total affiché d'une Commande, calculé des mêmes faits que le serveur :
- * le Devis du Panier du client, projeté sur la Ville soumise. Repli à 0 quand
- * la Ville est volontairement invalide — ces refus partent avant toute comparaison.
- */
 async function checkoutInput(
   userId: string,
   overrides: Partial<CheckoutInput> = {}
@@ -290,11 +285,6 @@ type TransactionInteractive = (
   options?: unknown
 ) => Promise<unknown>
 
-/**
- * Fait atterrir une écriture administrative à l'ouverture de la transaction de
- * Commande : le Total à payer est déjà affiché, les lectures de la prise en
- * commande ne sont pas encore faites — la fenêtre que #671 ferme.
- */
 async function avecEcritureÀLOuvertureDeLaTransaction<T>(
   ecriture: () => Promise<unknown>,
   action: () => Promise<T>
@@ -427,8 +417,6 @@ describe("order placement", () => {
   it("purge le Produit dont la dernière unité est drainée, avec sa chaîne de Structures", async () => {
     const commandesAvant = await prisma.order.count()
     lireStructureMock.mockImplementationOnce(async () => {
-      // Une lecture dans la transaction verrait encore le compte d'avant le
-      // commit : cette Commande n'existerait pas.
       expect(await prisma.order.count()).toBe(commandesAvant + 1)
       return lireStructureReelle.courante!()
     })
@@ -596,8 +584,6 @@ describe("order placement", () => {
         invalidateProduits,
       })
 
-      // Le commit n'est pas défait : la Commande, le stock et le Panier
-      // observent l'écriture, seule la purge a manqué.
       const commandeEnBase = await prisma.order.findUnique({
         where: { id: order.id },
       })
@@ -729,7 +715,6 @@ describe("order placement", () => {
     await ajouterArticleAuPanier(variantP4, 1)
     const input = await checkoutInput(userIdA)
 
-    // Le Panier bouge entre l'affichage du Total à payer et la confirmation.
     await ajouterArticleAuPanier(variantP4, 1)
 
     let refus: unknown
@@ -764,12 +749,10 @@ describe("order placement", () => {
 
   it("accepts a drift that changes the parts without changing the Total à payer", async () => {
     commeClient(userIdA)
-    // Affichage : B×1, article à livraison offerte → 50 000 + 0.
     await ajouterArticleAuPanier(variantP3, 1)
     const input = await checkoutInput(userIdA)
     expect(input.totalAffiche).toBe(50000)
 
-    // Confirmation : C×1 et des Frais de livraison de 20 000 → 30 000 + 20 000.
     await prisma.cartItem.deleteMany({ where: { userId: userIdA } })
     await ajouterArticleAuPanier(variantP4, 1)
     await prisma.deliveryCity.update({
@@ -791,7 +774,6 @@ describe("order placement", () => {
     const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    // Affichage : 30 000 + 3 500.
     const input = await checkoutInput(userIdA)
     expect(input.totalAffiche).toBe(33500)
 
@@ -824,7 +806,6 @@ describe("order placement", () => {
   it("refuses a unit price changed at transaction opening instead of storing the stale price", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
-    // Affichage : 30 000 + 3 500.
     const input = await checkoutInput(userIdA)
     expect(input.totalAffiche).toBe(33500)
 

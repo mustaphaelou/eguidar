@@ -39,8 +39,6 @@ const UTILISATEUR: Client = {
 const LOG_LABEL = "[test] route"
 const MESSAGE_ECHEC = "Échec de l’opération"
 
-// La table de Refus est épinglée en dur : un statut modifié dans le cycle de vie,
-// ou un code perdu ou ajouté, doit faire échouer la suite.
 const REFUS: [CodeRefusCycleVieImageProduit, number][] = [
   ["identifiant-proprietaire-invalide", 400],
   ["metadata-invalide", 400],

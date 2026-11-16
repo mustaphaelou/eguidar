@@ -53,12 +53,6 @@ function prior30Window(now: Date, currentStart: Date) {
   return { start: new Date(now.getTime() - 60 * DAY_MS), end: currentStart }
 }
 
-/**
- * Le contrat du Tableau de bord : les compteurs, les fenêtres fixes de 30 jours
- * (CA, delta, commandes récentes) et les seaux du graphique pour la période
- * demandée. `periode` est optionnel pour les consommateurs qui ne lisent qu'un
- * compteur, comme le digest du stock bas.
- */
 export async function getDashboardStats(
   periode: Periode = PERIODE_PAR_DEFAUT
 ): Promise<DashboardStats> {

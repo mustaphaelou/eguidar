@@ -9,15 +9,6 @@ import { slugify } from "../lib/slug"
 import { hasUniqueViolation } from "../lib/use-cases/unique-violation"
 import { identifiantsCompteAdmin } from "./compte-admin"
 
-/**
- * Le socle : ce qu'une installation doit posséder pour servir, et rien de
- * plus — les réglages de livraison, le réseau de Villes de livraison, le
- * compte administrateur et les règles d'automatisation.
- *
- * Le Catalogue et le Blog n'en font pas partie. Ils vivent dans
- * [`seed-demo.ts`](./seed-demo.ts), que le déploiement n'appelle jamais : la
- * cible `migrate` de l'image ne lance que ce fichier-ci (ADR-0050).
- */
 const adminName = process.env.ADMIN_NAME ?? "Administrateur"
 
 const cities = [
@@ -42,8 +33,6 @@ async function main() {
       data: { id: "default", freeShippingThreshold: 100000 },
     })
   } catch (error) {
-    // Le réglage appartient à l'Administration après la première écriture :
-    // une ligne existante n'est ni mise à jour ni révisée.
     if (!hasUniqueViolation(error, ["id"])) throw error
   }
 
@@ -53,9 +42,6 @@ async function main() {
         data: { ...city, slug: slugify(city.name) },
       })
     } catch (error) {
-      // Les frais de livraison appartiennent à l'Administration après la
-      // première écriture : une Ville déjà présente n'est ni mise à jour ni
-      // révisée.
       if (
         !hasUniqueViolation(error, ["name"]) &&
         !hasUniqueViolation(error, ["slug"])
@@ -71,25 +57,13 @@ async function main() {
   if (adminUser) {
     await prisma.user.update({
       where: { email: adminEmail },
-      // Le nom d'affichage appartient à l'Administration après la première
-      // écriture : le déploiement ne le réécrit jamais. Le rôle et la
-      // vérification de l'adresse restent des faits d'identité du Socle.
       data: { role: "admin", emailVerified: true },
     })
-    // Better Auth retrouve un Compte à mot de passe par `accountId === user.id` :
-    // une base semée avant cette règle garde sinon un compte credential que la
-    // connexion ne retrouve pas. La réparation ne supprime aucune ligne : une
-    // base qui porte déjà le Compte canonique à côté de l'ancien (deux lignes
-    // credential, `accountId` = email et `accountId` = user.id) ne doit pas les
-    // faire entrer en collision sur `account_providerId_accountId_key`.
     const canonical = await prisma.account.findFirst({
       where: { providerId: "credential", accountId: adminUser.id },
       select: { id: true, password: true },
     })
     if (canonical) {
-      // Le Compte que Better Auth cherche existe. Si le mot de passe vivait
-      // seulement sur l'ancienne ligne, il est recopié — sans quoi la connexion
-      // resterait impossible malgré le bon `accountId`.
       if (!canonical.password) {
         const legacy = await prisma.account.findFirst({
           where: {
@@ -109,8 +83,6 @@ async function main() {
         }
       }
     } else {
-      // Aucun Compte canonique : l'ancienne ligne la plus récente devient la
-      // ligne canonique. Une seule ligne est modifiée, donc pas de collision.
       const legacy = await prisma.account.findFirst({
         where: { userId: adminUser.id, providerId: "credential" },
         orderBy: { updatedAt: "desc" },

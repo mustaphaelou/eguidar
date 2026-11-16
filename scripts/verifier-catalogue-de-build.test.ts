@@ -20,8 +20,6 @@ function lancer(databaseUrl: string | undefined): {
 } {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    // Le script charge `.env` par défaut ; ce test fixe l'environnement, comme
-    // le build Docker où aucun fichier d'environnement n'existe.
     DOTENV_CONFIG_PATH: path.join(RACINE, ".env.absent"),
   }
   if (databaseUrl === undefined) {

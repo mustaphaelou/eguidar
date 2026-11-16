@@ -16,11 +16,6 @@ function estRemplie(ligne: LigneStockBas): boolean {
   return ligne.produit.trim() !== "" && ligne.sku.trim() !== ""
 }
 
-/**
- * Le digest du stock bas est une projection pure : la même journée et les
- * mêmes variantes donnent exactement le même texte, quel que soit l'ordre de
- * lecture de la base. C'est ce qui rend le rejeu d'une journée inoffensif.
- */
 export function construireDigestStockBas(entree: {
   jour: string
   seuil: number
@@ -71,12 +66,6 @@ export interface RapportReconciliation {
   aRetirer: string[]
 }
 
-/**
- * La réconciliation compare la base et l'index par identifiant et par
- * `updatedAt` : un document absent ou périmé est réécrit, un document orphelin
- * est retiré. Le rapport est trié par identifiant pour être stable et
- * rejouable — le second passage d'une même journée ne trouve plus rien.
- */
 export function construireReconciliation(entree: {
   jour: string
   produits: readonly IndexableProduct[]

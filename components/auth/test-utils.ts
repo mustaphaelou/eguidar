@@ -13,10 +13,6 @@ afterEach(() => {
   conteneurs.length = 0
 })
 
-/**
- * Rend un crochet en isolation et expose son état courant. Le racine et le
- * conteneur sont nettoyés après chaque test.
- */
 export function renderHook<T>(hook: () => T): { readonly current: T } {
   let current!: T
   function Probe() {

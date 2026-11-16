@@ -22,11 +22,6 @@ import {
 import { reglesParDefaut } from "@/lib/apres-ecriture"
 import { STATUTS_VALIDES } from "@/lib/statut-de-commande"
 
-/**
- * Le vocabulaire fermé vit dans `vocabulaire.ts`, sans base ni travailleur,
- * pour que le formulaire client et l'éditeur serveur lisent la même liste. Il
- * est ré-exporté ici pour les appelants de la phase 4.
- */
 export { ACTIONS_AUTOMATION, CONDITIONS_AUTOMATION }
 export type {
   ActionAutomation,
@@ -47,11 +42,6 @@ export const conditionAutomationSchema = z.discriminatedUnion("type", [
     .strict(),
 ])
 
-/**
- * Le destinataire d'un digest est un **nom** de variable d'environnement. La
- * valeur est lue à l'exécution et ne touche jamais la base, l'instantané ni
- * l'interface.
- */
 export const configurationRegleSchema = z
   .object({
     destinataireVariable: z
@@ -79,20 +69,12 @@ export const regleAutomationSchema = z.object({
 
 export type RegleAutomation = z.infer<typeof regleAutomationSchema>
 
-/**
- * La validation d'une règle a deux étages : la forme (Zod) puis la
- * combinaison (vocabulaire). Un couple impossible est refusé en le nommant.
- */
 export function verifierRegle(regle: unknown): RegleAutomation {
   const verifiee = regleAutomationSchema.parse(regle)
   verifierCombinaison(verifiee as unknown as CompositionRegle)
   return verifiee
 }
 
-/**
- * Les règles semées dans le code. Phase 5 en fera une surface d'édition : le
- * semis reste la référence d'une installation neuve, la table la copie.
- */
 export const REGLES_AUTOMATION: readonly RegleAutomation[] = Object.freeze(
   reglesParDefaut().map((regle) => verifierRegle(regle))
 )
@@ -109,10 +91,6 @@ function instantane(regle: RegleAutomation) {
   }
 }
 
-/**
- * Postgres ne conserve pas l'ordre des clés d'un JSONB : comparer deux
- * instantanés par `JSON.stringify` créerait une révision à chaque semis.
- */
 function serialiserStable(valeur: unknown): string {
   if (Array.isArray(valeur))
     return `[${valeur.map(serialiserStable).join(",")}]`
@@ -129,11 +107,6 @@ function memesFaits(a: unknown, b: unknown): boolean {
   return serialiserStable(a) === serialiserStable(b)
 }
 
-/**
- * Écrit une révision seulement si l'instantané a changé : le semis d'un
- * redéploiement et un enregistrement sans modification ne gonflent pas
- * l'audit. Le même écrivain sert le semis et l'éditeur.
- */
 export async function ecrireRevisionRegle(
   tx: Prisma.TransactionClient,
   regle: RegleAutomation,
@@ -158,13 +131,6 @@ export async function ecrireRevisionRegle(
   return true
 }
 
-/**
- * Écrit les règles du code dans la table, en création seule. Une règle déjà
- * présente n'est ni mise à jour ni révisée : l'édition et la bascule restent
- * l'affaire de l'éditeur. Une révision n'est écrite que pour une ligne créée.
- * Le perdant d'une course concurrente sur le même identifiant absorbe la
- * violation d'unicité et ne crée aucune ligne ni révision.
- */
 export async function semerLesRegles(
   regles: readonly RegleAutomation[] = REGLES_AUTOMATION,
   auteur = "graine"

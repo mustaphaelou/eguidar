@@ -179,8 +179,6 @@ describe("l'action index.structure d'une Structure supprimée", () => {
       dependancesDeTest(MAINTENANT, { recherche: recherche.port })
     )
 
-    // La branche Sans Structure est globale : l'action réindexe l'ensemble des
-    // Produits orphelins, pas seulement ceux de cette suppression.
     const indexes = idsIndexes(recherche.operations).flatMap((ids) => ids)
     expect(indexes).toContain(produitSansStructure.id)
     expect(indexes).not.toContain(produitAutre.id)
@@ -232,7 +230,6 @@ describe("l'action index.structure d'une Structure supprimée", () => {
     )
 
     expect(idsIndexes(recherche.operations)).toEqual([])
-    // L'invalidation reste déclarée et s'exécute pour la même écriture.
     expect(catalogue.structures).toBe(1)
   })
 })
