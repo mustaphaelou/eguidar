@@ -3,10 +3,6 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Une carte de vigilance entièrement à zéro se dit une fois, doucement. Ce
- * n'est pas un état vide : c'est une bonne nouvelle, et elle prend une ligne.
- */
 export function LigneCalme({ className }: { className?: string }) {
   return (
     <div

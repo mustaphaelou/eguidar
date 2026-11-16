@@ -7,13 +7,6 @@ import {
   ouvrirUneSessionCourante,
 } from "./harnais/session"
 
-/**
- * Le projet « preparation » de `playwright.config.ts` : la Session courante est
- * ouverte **une fois** par l'exécution, par l'endpoint de connexion de
- * l'application, puis son état Playwright est enregistré pour les cas qui
- * suivent. Ce fichier ne s'appelle pas `.spec.ts` : il ne fait pas partie de la
- * sonde elle-même.
- */
 test("enregistre l'état de la Session courante", async ({ page, serveur }) => {
   const identifiants = identifiantsDeLaSonde()
   const session = await ouvrirUneSessionCourante(

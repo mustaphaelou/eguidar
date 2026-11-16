@@ -14,12 +14,6 @@ import {
 import { semerLesRegles } from "@/lib/automations/regles"
 import { prunerLesExecutions } from "@/lib/automations/retention"
 
-/**
- * Le travailleur tient sur le Postgres déjà déployé : pg-boss n'ajoute ni
- * Redis, ni second conteneur (ADR-0044). La file porte des **balayages** ;
- * l'unité durable est l'événement de `AutomationEvent`, réclamé en
- * `FOR UPDATE SKIP LOCKED` par l'exécuteur.
- */
 export const FILE_BALAYAGE = "automations"
 export const FILE_MORTS = "automations-morts"
 export const FILE_PLANIFICATION_DIGEST = "automations-digest"
@@ -63,12 +57,6 @@ export async function balayer(maintenant: Date): Promise<BilanExecution> {
   )
 }
 
-/**
- * Démarre le travailleur et ses horaires. Appelé depuis
- * `instrumentation.register` — jamais attendu par Next : la boucle vit dans le
- * processus et plusieurs réplicas peuvent la lancer, `SKIP LOCKED` les
- * départage.
- */
 export async function demarrerLesAutomations(): Promise<PgBoss | null> {
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) return null

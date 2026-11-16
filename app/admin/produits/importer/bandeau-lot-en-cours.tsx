@@ -3,11 +3,6 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import type { LotEnCoursImport } from "@/lib/use-cases/import-produits"
 
-/**
- * Le rappel d'un Lot en cours quand la page n'en ouvre aucun : l'onglet a pu
- * être fermé, mais le Lot, son curseur et ses Lignes restent en base. La
- * reprise se fait par le panneau du Lot, jamais par un nouveau téléversement.
- */
 export function BandeauLotEnCours({ lot }: { lot: LotEnCoursImport }) {
   return (
     <div

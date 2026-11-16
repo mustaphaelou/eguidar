@@ -1,10 +1,3 @@
-/**
- * La période du graphique du Tableau de bord : trois jetons d'URL, le défaut
- * omis, et les seaux que le cas d'usage relit. Module neutre — ni Next, ni
- * Prisma, ni React — pour que la page serveur, le cas d'usage et les tests
- * parlent la même grammaire.
- */
-
 const TABLEAU_DE_BORD_PATH = "/admin"
 
 export const PERIODE_VALUES = ["30j", "90j", "12mois"] as const
@@ -23,7 +16,6 @@ const LIBELLES: Record<Periode, { court: string; long: string }> = {
   "12mois": { court: "12 mois", long: "12 derniers mois" },
 }
 
-/** Le nombre de seaux de chaque période, du plus ancien au plus récent. */
 export const NOMBRE_DE_SEAUX: Record<Periode, number> = {
   "30j": 30,
   "90j": 13,
@@ -31,18 +23,11 @@ export const NOMBRE_DE_SEAUX: Record<Periode, number> = {
 }
 
 export interface SeauDePeriode {
-  /** La clé locale du seau : `AAAA-MM-JJ` (jour, ou lundi d'une semaine) ou `AAAA-MM` (mois). */
   cle: string
-  /** Le début du seau, inclus. */
   debut: Date
-  /** La fin du seau, exclue. */
   fin: Date
 }
 
-/**
- * Un point du graphique : le libellé de son seau et sa somme en centimes.
- * Type neutre, partagé par le cas d'usage et le composant client.
- */
 export interface PointDeChiffreAffaires {
   label: string
   montant: number
@@ -157,18 +142,11 @@ function construireMois(maintenant: Date): SeauDePeriode[] {
 }
 
 interface ConstructeurDePeriode {
-  /** Les seaux de la période, du plus ancien au plus récent. */
   seaux(maintenant: Date): SeauDePeriode[]
-  /** La clé du seau où tombe `date`. */
   cle(date: Date): string
-  /** Le libellé court du seau qui commence à `debut`. */
   libelle(debut: Date): string
 }
 
-/**
- * Un constructeur par période : les trois fonctions qui dépendaient de la
- * période lisent la même table au lieu de répéter la même cascade.
- */
 const CONSTRUCTEURS: Record<Periode, ConstructeurDePeriode> = {
   "30j": {
     seaux: construireJours,
@@ -187,14 +165,6 @@ const CONSTRUCTEURS: Record<Periode, ConstructeurDePeriode> = {
   },
 }
 
-/**
- * Les seaux du graphique, du plus ancien au plus récent.
- *
- * — `30j` : trente jours calendaires, aujourd'hui compris, un seau par jour ;
- * — `90j` : douze semaines pleines et la semaine courante, un seau par lundi,
- *   ce qui couvre entre 84 et 90 jours selon le jour de la semaine ;
- * — `12mois` : douze mois calendaires, le mois courant compris.
- */
 export function seauxDePeriode(
   periode: Periode,
   maintenant: Date = new Date()
@@ -202,12 +172,10 @@ export function seauxDePeriode(
   return CONSTRUCTEURS[periode].seaux(maintenant)
 }
 
-/** La clé du seau de `periode` où tombe `date`. */
 export function cleDuSeau(periode: Periode, date: Date): string {
   return CONSTRUCTEURS[periode].cle(date)
 }
 
-/** Le libellé court d'un seau : `09/11` pour un jour ou une semaine, `nov.` pour un mois. */
 export function libelleDuSeau(periode: Periode, debut: Date): string {
   return CONSTRUCTEURS[periode].libelle(debut)
 }

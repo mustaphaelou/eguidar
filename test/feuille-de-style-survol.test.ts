@@ -28,9 +28,6 @@ function sansEchappement(selecteur: string): string {
   return selecteur.replaceAll("\\", "")
 }
 
-// Tailwind peut envelopper une variante dans `:is(…)` — par exemple
-// `:is(:where(.group):hover .group-hover\:underline)` depuis la 4.3.4.
-// La garde cherche donc la classe dans le sélecteur, pas à sa tête.
 function porteLaClasse(selecteur: string, classe: string): boolean {
   return sansEchappement(selecteur).includes(classe)
 }

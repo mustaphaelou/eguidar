@@ -27,7 +27,6 @@ function ligneCsv(valeurs: Partial<Record<ColonneImport, string>>): string {
   ).join(",")
 }
 
-/** Lit un fichier dont l'en-tête est canonique et rend ses Lignes analysées. */
 function lignesDuFichier(
   ...valeurs: readonly Partial<Record<ColonneImport, string>>[]
 ): LigneImport[] {
@@ -639,7 +638,6 @@ describe("planifierLeLot — le prix de base et le réécartement", () => {
       instantane({ produits: [existante] })
     )
 
-    // B baisse de 3000 à 1000 ; la base devient 1000 ; A et C gardent 2000 et 2500.
     expect(plan.etatDesire?.price).toBe(1000)
     expect(
       (plan.etatDesire?.variants ?? []).map(

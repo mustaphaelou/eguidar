@@ -27,10 +27,6 @@ export function parseRequiredId(
   return value
 }
 
-/**
- * Lit un entier positif ou nul, et rien d'autre : ni signe, ni décimale, ni
- * valeur au-delà de la précision sûre. La copie du refus appartient à l'action.
- */
 export function parseEntierObligatoire(
   formData: FormData,
   key: string,

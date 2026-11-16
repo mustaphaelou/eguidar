@@ -22,11 +22,6 @@ import {
   type GestionnairesPour,
 } from "./executeur"
 
-/**
- * Les ports de la Commande que l'adaptateur projette. Ils sont structurellement
- * identiques à `OrderEffects` ; le type vit ici pour que l'adaptateur n'importe
- * pas le cas d'usage qui l'appelle.
- */
 export interface EffetsCommande {
   sendOrderPlacedEmail(order: OrderEmailSnapshot): Promise<void>
   sendOrderStatusEmail(
@@ -37,11 +32,6 @@ export interface EffetsCommande {
   invalidateProduits(produits: readonly CatalogueEventProduct[]): Promise<void>
 }
 
-/**
- * Les lectures après commit de la Commande. La déclaration pure ne connaît pas
- * la chaîne de Structure ; l'adaptateur ne la lit que si une purge porte des
- * Produits, et une seule fois par plan.
- */
 export interface LecturesCommande {
   structure?: () => Promise<Pick<LectureStructure, "filAriane">>
 }
@@ -82,8 +72,6 @@ function gestionnaires(
       effets.invalidateCommande(consequence.payload.commandeId),
     "purge-catalogue": async (consequence) => {
       const produits = consequence.payload.produits
-      // Une Commande sans Produit drainé ne lit pas la Structure : la purge
-      // n'a rien à résoudre, mais elle reste une conséquence adaptée.
       await effets.invalidateProduits(
         produits.length === 0 ? [] : await evenementsCatalogue(produits)
       )
@@ -91,10 +79,6 @@ function gestionnaires(
   }
 }
 
-/**
- * La tentative immédiate d'un plan de Commande : ordre déclaré, isolation,
- * mesure et journal, jamais d'exception.
- */
 export async function executer(
   plan: PlanCommande,
   effets: EffetsCommande,
@@ -104,10 +88,6 @@ export async function executer(
   await executerPlan(plan, gestionnaires(effets, lectures), journal)
 }
 
-/**
- * Une conséquence de Commande pour le travailleur : l'échec remonte, c'est lui
- * qui fait échouer l'Exécution et déclenche la reprise.
- */
 export async function executerUne(
   consequence: ConsequenceCommande,
   effets: EffetsCommande,

@@ -18,22 +18,6 @@ import {
 import { FICHIER_DE_SESSION } from "./harnais/session"
 import { expect, test } from "./fixtures/sonde"
 
-/**
- * Un montant ne se coupe pas : le libellé cède avant le prix (matrice de la
- * spec #923, lignes 7 à 10, et sa garde « Livraison offerte »).
- *
- * L'assertion externe est celle du Client : le texte du montant occupe une
- * seule ligne. On la lit dans la géométrie réelle de la page — les rectangles
- * non vides de la plage de texte —, jamais dans une classe CSS ni un état
- * interne. Le libellé n'est pas contraint : c'est lui qui doit pouvoir se
- * replier, et les cas le laissent faire.
- */
-
-/**
- * Le nombre de lignes qu'occupe le texte d'un élément : la plage de son
- * contenu rend un rectangle par ligne de texte, vides exclus. Un montant qui
- * se coupe au milieu de « MAD » en rend deux.
- */
 async function nombreDeLignesDeTexte(locator: Locator): Promise<number> {
   await expect(locator).toBeVisible()
   return locator.evaluate((element) => {
@@ -45,12 +29,6 @@ async function nombreDeLignesDeTexte(locator: Locator): Promise<number> {
   })
 }
 
-/**
- * La valeur (`dd`) d'une ligne du Récapitulatif de paiement, retrouvée par son
- * libellé (`dt`). La structure `dl > div > (dt, dd)` est celle du composant
- * avant ce ticket : le locator la trouve aussi sur le code d'avant le
- * correctif, et ne dépend d'aucun attribut ajouté.
- */
 function valeurDuRecapitulatif(page: Page, libelle: string): Locator {
   return page
     .getByRole("main")
@@ -59,7 +37,6 @@ function valeurDuRecapitulatif(page: Page, libelle: string): Locator {
     .locator("dd")
 }
 
-/** Ajoute un Article par le parcours de la fiche, puis ouvre le Panier. */
 async function ouvrirLePanier(page: Page, origine: string): Promise<void> {
   await ajouterUnArticleAuPanier(page, origine)
 
@@ -72,7 +49,6 @@ async function ouvrirLePanier(page: Page, origine: string): Promise<void> {
   await attendreLaPagePrete(page, montageDuPanier)
 }
 
-/** Ouvre une surface qui exige la Session courante, déjà enregistrée. */
 async function ouvrirEnSession(page: Page, origine: string, chemin: string) {
   const montageDuPanier = attendreLeCompteurDuPanier(page)
   const reponse = await page.goto(`${origine}${chemin}`, {
@@ -119,8 +95,6 @@ test.describe("les surfaces en Session courante", () => {
     page,
     serveur,
   }) => {
-    // Le Checkout exige un Panier non vide : l'Article est ajouté par le vrai
-    // parcours de la fiche, dans le contexte déjà authentifié.
     await ajouterUnArticleAuPanier(page, serveur.origine)
     await ouvrirEnSession(page, serveur.origine, cheminDuCheckout())
 
@@ -145,8 +119,6 @@ test.describe("les surfaces en Session courante", () => {
       principal.getByRole("heading", { name: "Merci pour votre commande" })
     ).toBeVisible()
 
-    // La ligne de Commande au nom long : seul son prix doit tenir sur une
-    // ligne, le nom du Produit reste libre de se replier.
     const ligneLongue = principal
       .getByRole("listitem")
       .filter({ hasText: NOM_LONG_DE_PRODUIT_DE_FIXTURE })
@@ -165,9 +137,6 @@ test.describe("les surfaces en Session courante", () => {
     page,
     serveur,
   }) => {
-    // La Commande de confirmation a des frais de livraison nuls : la ligne de
-    // Frais de livraison affiche « Livraison offerte ». Ce cas passe déjà
-    // avant le correctif et doit continuer de passer : la valeur reste entière.
     await ouvrirEnSession(
       page,
       serveur.origine,

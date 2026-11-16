@@ -11,17 +11,6 @@ import { ajouterUnArticleAuPanier, cheminDuCheckout } from "./harnais/panier"
 import { FICHIER_DE_SESSION } from "./harnais/session"
 import { expect, test } from "./fixtures/sonde"
 
-/**
- * Les surfaces derrière une Session courante : le Récapitulatif du Checkout, la
- * confirmation d'une Commande semée à deux Articles, et le CA encaissé de
- * l'Administration. L'état de session vient du projet « preparation », joué
- * avant celui-ci et enregistré une seule fois dans `e2e/.auth/`.
- *
- * Ce fichier ne prouve que l'**atteinte** de ces surfaces. Les assertions de
- * mise en page (un montant sur une ligne, une valeur qui tient dans sa carte)
- * appartiennent aux tickets #930/#931/#932 : elles échoueraient ici avant
- * leurs correctifs.
- */
 test.use({ storageState: FICHIER_DE_SESSION })
 
 test.describe("les surfaces authentifiées de la sonde", () => {
@@ -29,8 +18,6 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     page,
     serveur,
   }) => {
-    // Le Checkout exige un Panier non vide : l'Article est ajouté par le vrai
-    // parcours de la fiche, dans le contexte déjà authentifié.
     await ajouterUnArticleAuPanier(page, serveur.origine)
 
     const montageDuPanier = attendreLeCompteurDuPanier(page)
@@ -41,9 +28,6 @@ test.describe("les surfaces authentifiées de la sonde", () => {
     await attendreLaPagePrete(page, montageDuPanier)
 
     await expect(page).toHaveURL(/\/checkout\?ville=casablanca$/)
-    // Le flux de rendu de Next peut laisser un instant une copie hors du
-    // `<main>` (elle disparaît à l'hydratation) : la surface que le Client lit
-    // est celle du document principal.
     const principal = page.getByRole("main")
     await expect(
       principal.getByRole("heading", { name: "Commander", level: 1 })
@@ -97,8 +81,6 @@ test.describe("les surfaces authentifiées de la sonde", () => {
       page.getByRole("main").getByRole("heading", { name: "Tableau de bord" })
     ).toBeVisible()
 
-    // Le CA encaissé est la somme des Commandes Livrées sur 30 jours
-    // (ADR-0009) : la seule Commande livrée de la base est celle de fixture.
     const indicateurs = page.getByRole("region", {
       name: "Indicateurs principaux",
     })

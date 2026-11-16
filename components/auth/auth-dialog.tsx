@@ -175,9 +175,6 @@ function ConnexionPanel({
     pageAddress,
     socialReturnAddress,
   })
-  // L'avis d'un flux précédent s'efface dès que la Connexion parle à son
-  // tour : une attente, un refus ou l'avis de sa propre Vérification de
-  // l'e-mail prennent la place. Il reste vrai, mais il n'est plus la nouvelle.
   const avisVisible =
     avis && flow.step === "form" && !flow.loading && !flow.error && !flow.notice
       ? avis

@@ -114,10 +114,6 @@ async function preparerUnEchec(options: {
   }
 }
 
-/**
- * Un refus ne doit laisser aucune trace : ni nouvelle Exécution, ni ligne
- * d'échec retouchée, ni Événement consommé.
- */
 async function attendreUnRefusSansEcriture(
   reessai: () => Promise<unknown>,
   message: string,

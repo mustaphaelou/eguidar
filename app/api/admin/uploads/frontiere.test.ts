@@ -20,8 +20,6 @@ const PORTE = "lib/use-cases/admin-json-route"
 const PORTE_SOURCE = "lib/use-cases/admin-json-route.ts"
 const SESSION = "lib/use-cases/session-courante"
 
-// ADR-0039 : la porte possède l'enveloppe HTTP, pas le stockage, le cycle de
-// vie, la base, ni le catalogue.
 const MODULES_INTERDITS_A_LA_PORTE = [
   ["lib/images-produit/r2", "le stockage"],
   ["lib/images-produit/cycle-vie", "le cycle de vie"],
@@ -32,8 +30,6 @@ const MODULES_INTERDITS_A_LA_PORTE = [
 const DECLARATION_STATUTS =
   /\bstatuses\s*:\s*STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT\b/
 
-// La suite de la porte n'a que des valeurs factices : les copies 500 et les
-// libellés de journal réels restent épinglés ici, sur les deux déclarations.
 const COPIES_500 = [
   [
     ROUTE_PRESIGNATION,
@@ -47,9 +43,6 @@ const COPIES_500 = [
   ],
 ] as const
 
-// Un import de valeur de next/server, même aliasé (`json as repondre`) : le
-// motif s'arrête à la déclaration d'import suivante, donc un `import type` de
-// `NextRequest` ne le déclenche pas.
 const IMPORT_DE_VALEUR_DE_NEXT_SERVER =
   /\bimport\s+(?!type\b)(?:(?!\b(?:import|export)\b)[\s\S])*?\bfrom\s*(["'])next\/server\1/
 
@@ -71,8 +64,6 @@ function contournementsDe(
       `${chemin} n’importe pas adminJsonRoute depuis @/lib/use-cases/admin-json-route`
     )
   }
-  // Seuls les emprunts de valeur comptent : un `import type { Client }` de la
-  // session courante reste permis, il ne lit rien.
   if (
     empruntsDeValeur(chemin, source, corpus).some(
       ({ chemin: cible }) => cible === `${SESSION}.ts`

@@ -43,9 +43,6 @@ const ARTICLE_DU_PANIER = {
 const runId = randomUUID().slice(0, 8)
 const emailPrefix = `suppression-facebook-${runId}-`
 
-// Les Événements d'automatisation n'ont pas de clé étrangère vers le Compte
-// client : ils survivent à la suppression du Client et la suite les efface
-// elle-même, y compris ceux des cas négatifs.
 const evenementsSemes: string[] = []
 const executionsSemees: string[] = []
 
@@ -154,8 +151,6 @@ async function semerClient(
     include: { items: true },
   })
 
-  // Better Auth construit ses identifiants avec `toOTPIdentifier` :
-  // `${type}-otp-${email}`, sans deux-points.
   const verification = await prisma.verification.create({
     data: {
       id: randomUUID(),
@@ -200,11 +195,6 @@ async function semerClient(
   }
 }
 
-/**
- * Sème les deux Événements de la Commande par l'écrivain réel : les charges
- * passent donc par les schémas de `CHARGES_PAR_DECLENCHEUR` et portent la copie
- * des données du Client. Une Exécution est rattachée au premier.
- */
 async function semerEvenementsDeCommande(
   donnees: DonneesClient
 ): Promise<EvenementsCommande> {
@@ -327,10 +317,6 @@ afterEach(() => {
 })
 
 afterAll(async () => {
-  // Les Événements d'automatisation n'ont pas de clé étrangère vers le Compte
-  // client : la suppression du Client ne les emporte pas. Le nettoyage les
-  // efface par identifiant semé et balaie aussi toute charge qui porterait
-  // encore l'adresse de la suite — ceux des cas négatifs compris.
   const evenementsPortantLAdresse = (
     await evenementsPortantLEmail(emailPrefix)
   ).map(({ id }) => id)
@@ -426,9 +412,6 @@ describe("POST /api/facebook/suppression-donnees", () => {
     const donnees = await semerClient(identifiantApplicatif)
     await semerEvenementsDeCommande(donnees)
 
-    // La charge qui part porte bien la ville, l'adresse, le téléphone, les
-    // Articles du panier et les totaux : sans cela, l'assertion d'effacement ne
-    // prouverait rien.
     const semes = await evenementsDeCommande(donnees)
     expect(semes).toHaveLength(2)
     for (const evenement of semes) {

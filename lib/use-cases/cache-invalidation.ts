@@ -34,10 +34,6 @@ export interface CatalogueEventProduct {
   previousCategoryChain?: readonly CatalogueEventCategory[]
 }
 
-/**
- * La chaîne de Structures qu'un Produit nomme, réduite à des slugs : la
- * projection que partagent l'enregistrement d'un Produit et les Commande.
- */
 export function chaineDeLaStructure(
   lecture: Pick<LectureStructure, "filAriane">,
   categoryId: string | null | undefined
@@ -131,16 +127,9 @@ export interface OptionsInvalidation {
   purgeEdge?: PortPurgeEdge
 }
 
-/** Le même contrat pour le catalogue et la Structure ; conservé par API. */
 export type OptionsInvalidationCatalogue = OptionsInvalidation
 export type OptionsInvalidationStructure = OptionsInvalidation
 
-/**
- * Les deux moitiés de l'invalidation d'un Produit, séparées pour que les
- * automatisations durables puissent les confier à deux actions distinctes :
- * le cache Next d'un côté, le bord de l'autre. `invalidateCatalogue` reste la
- * porte unique des mutations qui font les deux d'un coup (ADR-0014).
- */
 export function revaliderCatalogue(product: CatalogueEventProduct): void {
   revaliderTags(tagsCatalogue(product))
   revalidatePath("/admin/produits")
@@ -161,13 +150,6 @@ export async function invalidateCatalogue(
   await purgerEdge(demandeDePurgeCatalogue(product), options.purgeEdge)
 }
 
-/**
- * Invalide les documents des Produits qu'une écriture a touchés sans passer par
- * l'enregistrement d'un seul Produit — la prise de Commande et son retour en
- * stock. Les tags d'un Produit nommé se traduisent en ses documents d'edge —
- * sa fiche, ses Structures et l'accueil — et ces seuls documents sont purgés,
- * pas tout le catalogue. Sans les surfaces d'Administration.
- */
 export async function invalidateProduits(
   produits: readonly CatalogueEventProduct[],
   options: OptionsInvalidationCatalogue = {}
@@ -180,12 +162,6 @@ export async function invalidateProduits(
   await purgerEdge(demandeDePurge(tags), options.purgeEdge)
 }
 
-/**
- * La moitié cache de l'invalidation d'une Structure, séparée pour que l'action
- * durable confie la purge du bord à son propre échec et à sa reprise : une
- * purge manquée fait alors réessayer l'invalidation entière. `invalidateStructure`
- * reste la porte des mutations qui font les deux d'un coup (ADR-0014).
- */
 export function revaliderStructure(): void {
   const tags = tagsStructure()
   revaliderTags(tags)
@@ -199,11 +175,6 @@ export async function invalidateStructure(
   await purgerEdge(demandeDePurge(tagsStructure()), options.purgeEdge)
 }
 
-/**
- * La purge du bord pour le travailleur durable : même adaptateur, même
- * vocabulaire d'erreur, mais un échec remonte au lieu d'être avalé — c'est lui
- * qui déclenche la reprise. Une purge non configurée n'est pas un échec.
- */
 export async function purgerEdgeDurable(demande: DemandePurge): Promise<void> {
   const resultat = await creerPurgeEdgeCloudflare().purger(demande)
   if (!resultat.ok && resultat.erreur.code !== "non-configure") {
@@ -211,12 +182,6 @@ export async function purgerEdgeDurable(demande: DemandePurge): Promise<void> {
   }
 }
 
-/**
- * L'invalidation durable d'une Structure : les tags, les surfaces
- * d'Administration et la purge du catalogue entier de la porte immédiate, mais
- * une purge qui remonte au travailleur. Le cache et le bord ainsi invalidés
- * forment une seule conséquence déclarée, réessayée ensemble.
- */
 export async function invalidateStructureDurable(): Promise<void> {
   revaliderStructure()
   await purgerEdgeDurable(demandeDePurge(tagsStructure()))

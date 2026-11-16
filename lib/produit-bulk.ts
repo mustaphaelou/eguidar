@@ -1,10 +1,3 @@
-/**
- * Le vocabulaire partagé par les gestes en lot de la Liste des Produits : le
- * contrat du rapport qui remonte au client, et la lecture du FormData qui porte
- * les identifiants. Le module est neutre — les Server Actions le lisent, le
- * tableau client l'affiche.
- */
-
 export interface EchecLot {
   id: string
   raison: string
@@ -51,7 +44,6 @@ export interface RapportLot {
   echecs: EchecLot[]
 }
 
-/** La phrase qu'annonce la région polie après un geste en lot. */
 export function messageDuRapport(rapport: RapportLot): string {
   const nombre = rapport.succes.length
   const succes = `${nombre} produit${nombre > 1 ? "s" : ""} ${nombre > 1 ? "ont" : "a"} été traité${nombre > 1 ? "s" : ""}`

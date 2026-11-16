@@ -23,9 +23,6 @@ export function useDevisSelection(devisChargé: DevisChargé): {
     devisChargé.villeInitiale
   )
 
-  // Les faits suivent toujours le Devis courant : après un refus (Devis périmé),
-  // la page re-rend des faits frais et le récapitulatif comme le total caché
-  // s'y accordent. Seul le choix de Ville appartient au Client et survit.
   const projet = projeterDevis(devisChargé, villeChoisie)
 
   return {

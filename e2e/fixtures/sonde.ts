@@ -10,12 +10,6 @@ import {
 } from "../harnais/redis-de-sonde"
 import { demarrerLeServeur, type ServeurDeSonde } from "../harnais/serveur"
 
-/**
- * La couture de la sonde : un serveur par worker, démarré sur l'artefact
- * construit et sur la base dédiée. Il n'y a qu'un worker, donc un seul
- * démarrage par exécution ; un serveur qui ne démarre pas fait échouer le
- * test, il ne le saute jamais.
- */
 export const test = base.extend<
   Record<never, never>,
   { serveur: ServeurDeSonde }

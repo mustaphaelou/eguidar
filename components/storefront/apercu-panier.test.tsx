@@ -147,8 +147,6 @@ function BandeauEtAjout() {
 }
 
 function declencheurDuPanier() {
-  // Le déclencheur n'a plus d'`aria-label` (#932) : il s'annonce par son texte
-  // masqué et son nombre. Il reste le seul bouton qui contrôle l'Aperçu.
   return container.querySelector<HTMLButtonElement>(
     `button[aria-controls='${ID_APERCU_DU_PANIER}']`
   )!
@@ -169,7 +167,6 @@ async function ouvrirLApercu() {
   await rejouer()
 }
 
-/** Clique un lien sans laisser happy-dom tenter une navigation réelle. */
 async function cliquerSansNaviguer(lien: HTMLAnchorElement) {
   const empecherLaNavigation = (evenement: Event) => evenement.preventDefault()
   container.addEventListener("click", empecherLaNavigation)
@@ -291,8 +288,6 @@ describe("ApercuPanier", () => {
     await rendreEtAttendre(<BandeauAvecApercu />)
     await ouvrirLApercu()
 
-    // L'invitation est une phrase de l'état vide, pas une entrée du Compte :
-    // elle se lit au milieu de la phrase qui l'accueille.
     const invitation = entree("Connectez-vous")
     expect(invitation.tagName).toBe("BUTTON")
     expect(invitation.closest("p")?.textContent).toContain(
@@ -491,8 +486,6 @@ describe("ApercuPanier", () => {
     act(() => entree("Ajouter").click())
     await rejouer()
 
-    // ADR-0038 : une lecture en échec laisse le squelette en place, jamais les
-    // Articles de la lecture précédente.
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(
       container.querySelector("[data-slot='apercu-du-panier-squelette']")

@@ -2,32 +2,18 @@ import { existsSync, readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
 
-/** Le nombre de dossiers remontés avant de renoncer à trouver un manifeste. */
 const PROFONDEUR_DE_REMONTEE = 8
 
-/** La section de `package.json` qui porte une plage déclarée. */
 export type SectionDeManifeste =
   "dependencies" | "devDependencies" | "overrides"
 
-/** L'endroit de `package.json` où la plage déclarée d'un paquet est écrite. */
 export type EmplacementDePlage = {
   section: SectionDeManifeste
-  /** La clé de la section, quand elle diffère du nom du paquet. */
   cle?: string
-  /**
-   * La seconde écriture acceptée de la clé, essayée seulement quand `cle` est
-   * absente de la section.
-   */
-  cleDeRepli?: string
 }
 
-/** Ce que la ligne exige quand le paquet est absent de l'arbre installé. */
 export type DispositionDabsence = "echoue" | "passe"
 
-/**
- * La ligne d'un paquet installé : son plancher de correctif, les avis qui le
- * fondent, la plage qui le déclare et sa politique d'absence.
- */
 export type PlancherInstalle = {
   paquet: string
   plancher: string
@@ -35,26 +21,17 @@ export type PlancherInstalle = {
   raison: string
   plage: EmplacementDePlage
   absence: DispositionDabsence
-  /** Les paquets qui doivent partager la version de la ligne. */
   famille?: readonly string[]
 }
 
-/** Une copie d'un paquet dans l'arbre que le fichier de verrouillage décrit. */
 export type Copie = {
   paquet: string
-  /** La clé de `packages` du fichier de verrouillage. */
   chemin: string
   version: string
 }
 
-/** Les entrées de `packages` du fichier de verrouillage. */
 export type ArbreDeVerrouillage = Record<string, { version?: unknown }>
 
-/**
- * La ligne d'un paquet dont le plancher est prouvé par chaque copie du fichier
- * de verrouillage : son plancher, les avis qui le fondent, la plage d'override
- * qui le déclare et la ligne majeure à laquelle il s'applique.
- */
 export type PlancherDeCopie = {
   paquet: string
   majeure: number
@@ -64,13 +41,11 @@ export type PlancherDeCopie = {
   plage: EmplacementDePlage
 }
 
-/** Les parties numériques d'une version, sans sa préversion. */
 function partiesDeVersion(version: string): number[] {
   const release = version.split("-", 1)[0] ?? ""
   return release.split(".").map((partie) => Number.parseInt(partie, 10))
 }
 
-/** Vrai quand `version` tient le plancher `plancher`. */
 export function respecteLePlancher(version: string, plancher: string): boolean {
   if (version.includes("-")) return false
   const [majeure = 0, mineure = 0, correctif = 0] = partiesDeVersion(version)
@@ -102,36 +77,38 @@ function manifesteDansLaRemontee(
   return null
 }
 
-/**
- * La version du paquet dans l'arbre installé, ou `null` quand il est absent.
- * Certains paquets n'exportent pas leur manifeste : on remonte alors depuis
- * leur entrée résolue, comme le demande l'arbre installé.
- */
-export function versionInstallee(paquet: string): string | null {
-  const require = createRequire(import.meta.url)
+function versionDuManifesteExporte(paquet: string): string | null {
   try {
-    const cheminManifeste = require.resolve(`${paquet}/package.json`)
-    const manifeste = JSON.parse(readFileSync(cheminManifeste, "utf8")) as {
-      version?: unknown
-    }
+    const manifeste = JSON.parse(
+      readFileSync(
+        createRequire(import.meta.url).resolve(`${paquet}/package.json`),
+        "utf8"
+      )
+    ) as { version?: unknown }
     return typeof manifeste.version === "string" ? manifeste.version : null
   } catch {
-    // Le manifeste n'est pas exporté : la remontée depuis l'entrée le trouve.
+    return null
   }
+}
+
+export function versionInstallee(paquet: string): string | null {
+  const version = versionDuManifesteExporte(paquet)
+  if (version !== null) return version
   try {
-    const manifeste = manifesteDansLaRemontee(require.resolve(paquet), paquet)
+    const manifeste = manifesteDansLaRemontee(
+      createRequire(import.meta.url).resolve(paquet),
+      paquet
+    )
     return typeof manifeste?.version === "string" ? manifeste.version : null
   } catch {
     return null
   }
 }
 
-/** Le plancher qu'une plage déclare : l'opérateur qui la précède est retiré. */
 export function plancherDePlage(plage: string): string {
   return plage.replace(/^[^0-9]*/, "")
 }
 
-/** Le contenu de `packages` dans le fichier de verrouillage du dépôt. */
 export function arbreDeVerrouillage(): ArbreDeVerrouillage {
   const racine = path.resolve(import.meta.dirname, "..", "..")
   const lock = JSON.parse(
@@ -140,11 +117,6 @@ export function arbreDeVerrouillage(): ArbreDeVerrouillage {
   return lock.packages ?? {}
 }
 
-/**
- * Les copies qu'un arbre de verrouillage installe d'un paquet : `npm ci` rejoue
- * cet arbre, et une résolution depuis la racine ne voit pas les copies
- * imbriquées sous leur consommateur.
- */
 export function copiesDe(
   paquet: string,
   arbre: ArbreDeVerrouillage = arbreDeVerrouillage()
@@ -159,20 +131,10 @@ export function copiesDe(
     }))
 }
 
-/** La ligne majeure d'une version. */
 export function majeureDeVersion(version: string): number {
   return partiesDeVersion(version)[0] ?? 0
 }
 
-// 1.7.7 is the release that closes every open better-auth advisory:
-// - GHSA-965c-763c-88jm (critical): an OAuth state value is accepted as a
-//   Magic Link token, so an attacker can sign in as any known address;
-// - GHSA-r4xp-prcw-77qf (high): an OAuth Proxy deployment lets an attacker
-//   sign in as another user;
-// - GHSA-q84f-53jg-9ppm (high): device login approval shows neither the
-//   requesting client nor its permissions (patched in 1.7.0-rc.3);
-// - GHSA-44jh-23m7-hpcf (low): concurrent drizzle-adapter requests exceed
-//   PostgreSQL-backed rate limits.
 export const PLANCHERS_INSTALLES: readonly PlancherInstalle[] = [
   {
     paquet: "next",
@@ -246,7 +208,7 @@ export const PLANCHERS_INSTALLES: readonly PlancherInstalle[] = [
     avis: ["GHSA-2883-xcg3-v3hh"],
     raison:
       "4.3.2 borne les clés de fusion d'un document YAML pour fermer le merge-bomb",
-    plage: { section: "overrides", cle: "jsYaml", cleDeRepli: "js-yaml" },
+    plage: { section: "overrides" },
     absence: "passe",
   },
   {
@@ -304,21 +266,6 @@ export const PLANCHERS_INSTALLES: readonly PlancherInstalle[] = [
   },
 ]
 
-// A row whose floor is evidenced by the lockfile rather than by an installed
-// package: the tree can hold one copy per major line, and each line was patched
-// on its own schedule, so the override key pins one range per line.
-//
-// minimatch (GHSA-g3hv-75wg-m249, CVE-2026-118764) — during the first phase of
-// pattern preprocessing, minimatch rewrites `**/../` into two patterns and
-// re-runs the pass until nothing changes, so N occurrences become 2**N
-// patterns; the second phase then compares every pair, which is quadratic in
-// that set. 11.0.1 is the first release that stops the first phase at
-// `braceExpandMax` and skips the pairwise pass above 1000 patterns.
-//
-// brace-expansion (GHSA-q2hr-2g5m-vwhr, GHSA-qhr7-859c-m2p7,
-// GHSA-6j4f-fj2g-mc7p) — a glob is expanded once per match, so the quadratic
-// `{a},b}` expansion and the two stack-exhaustion recursions are a CPU and
-// stack DoS; both major lines were patched separately.
 export const PLANCHERS_DE_COPIE: readonly PlancherDeCopie[] = [
   {
     paquet: "minimatch",

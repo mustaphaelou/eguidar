@@ -78,8 +78,6 @@ describe("règle de cache de la zone edge", () => {
     expect(documents.expression).toContain(
       `not ends_with(http.request.uri.path, "/__placeholder__")`
     )
-    // Une négation de suffixe couvre /produit, /categorie et /blog sans
-    // énumérer les trois chemins.
     expect(documents.expression.match(/__placeholder__/g)).toHaveLength(1)
   })
 

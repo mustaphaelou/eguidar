@@ -20,7 +20,6 @@ const moneyFormatter = new Intl.NumberFormat("fr-FR", {
   maximumFractionDigits: 1,
 })
 
-/** Le gris des axes suit les jetons du thème plutôt qu'une valeur en dur. */
 const AXE = {
   stroke: "var(--muted-foreground)",
   fontSize: 11,
@@ -28,12 +27,6 @@ const AXE = {
   axisLine: false,
 } as const
 
-/**
- * Trente barres ne tiennent pas trente étiquettes à 390 px. `preserveStartEnd`
- * garde les deux bouts et laisse Recharts espacer le milieu d'au moins 8 px ;
- * les tooltips restent par barre, car l'axe des tooltips lit le domaine complet.
- * Aucune animation d'entrée : le graphique est posé, il ne se présente pas.
- */
 export function GraphiqueDuChiffreAffaires({
   data,
 }: {

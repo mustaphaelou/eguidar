@@ -27,11 +27,6 @@ function libelleDuPied(total: number): string {
   return total > 1 ? `Voir les ${total} commandes` : "Voir la commande"
 }
 
-/**
- * Les cinq dernières Commandes, au rythme commun des listes. Le pied nomme le
- * total des Commandes et reste ancré au bas de la carte (`mt-auto`) : à deux
- * Commandes, l'air sous la liste est borné, pas perdu.
- */
 export function CommandesRecentes({
   commandes,
   total,

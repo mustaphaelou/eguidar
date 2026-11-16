@@ -350,8 +350,6 @@ describe("la déclaration de produit.supprime.lot", () => {
       "invalidation-cache",
       "purge-catalogue",
     ])
-    // La suppression des images reste groupée et porte sa portée ; les trois
-    // conséquences par Produit suivent, chacune nommant son Produit.
     expect(plan.consequences[0]).toMatchObject({
       durable: true,
       portee: 2,

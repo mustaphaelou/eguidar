@@ -53,11 +53,8 @@ export type LectureDeLaPorte =
 
 export type SelectionDeLaPorte = Pick<PorteDeFusion, "nom" | "branche">
 
-// Une panne de droits ou un choix impossible ne se répare pas en réessayant.
 class LectureDefinitive extends Error {}
 
-// Une panne réseau, un statut inattendu ou une réponse malformée peut être
-// transitoire : elle se réessaie avant d'être déclarée illisible.
 class LectureTemporaire extends Error {}
 
 type ResumeDeRuleset = {
@@ -390,8 +387,6 @@ async function lireUneFois(
 
   let brancheParDefaut: string | undefined
 
-  // La branche par défaut n'est lue que si une condition la nomme
-  // symboliquement : une lecture littérale n'a pas besoin du dépôt.
   async function lireLaBrancheParDefaut(): Promise<string> {
     if (brancheParDefaut !== undefined) return brancheParDefaut
 
@@ -406,10 +401,6 @@ async function lireUneFois(
   exigerUneBonneReponse(reponseListe, sourceListe)
   const resumes = exigerLaListe(reponseListe.corps, sourceListe)
 
-  // La liste de l'API ne porte pas les conditions de branche : chaque ruleset
-  // de dépôt est donc lu pour savoir s'il couvre la branche du contrat. La
-  // sélection reste celle de la spec — une seule couverture, puis le nom du
-  // contrat comme départage — et le nom n'est jamais comparé comme un fait.
   const candidats: Candidat[] = []
   for (const resume of resumes) {
     if (resume.source_type !== "Repository") continue

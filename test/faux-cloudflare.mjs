@@ -1,7 +1,3 @@
-// Test-only transport: replaces globalThis.fetch before `scripts/purger-edge.mjs`
-// is imported, so the purge script is exercised end to end without any network.
-// The response is chosen by FAUX_CLOUDFLARE_MODE; every call is appended to the
-// file named by FAUX_CLOUDFLARE_CAPTURE, which the test reads back.
 
 import { appendFileSync } from "node:fs"
 

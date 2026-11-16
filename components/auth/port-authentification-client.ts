@@ -2,11 +2,6 @@ import { authClient } from "@/lib/client"
 
 import type { PortAuthentification } from "./port-authentification"
 
-/**
- * L'adaptateur par défaut du port : les cinq opérations composées sur le
- * client d'authentification réel. Aucun appelant de production ne remplace
- * cette instance ; un test lui préfère un adaptateur en mémoire.
- */
 export const portAuthentificationClient: PortAuthentification = {
   async connexionParMotDePasse({ email, motDePasse, entetes }) {
     const resultat = await authClient.signIn.email({

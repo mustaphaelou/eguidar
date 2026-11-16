@@ -150,8 +150,6 @@ describe("l'adaptateur Structure", () => {
       "reindexation",
       "invalidation-cache",
     ])
-    // La réindexation vise la branche modifiée, jamais la destination du
-    // déplacement : c'est la charge utile qui le dit, pas l'entité du fait.
     expect(plan.consequences.map((c) => c.payload)).toEqual([
       { urls: [IMAGE] },
       { branche: CATEGORIE },
@@ -251,7 +249,6 @@ describe("l'adaptateur Structure", () => {
       { port: "suppression-images", arguments: [IMAGE] },
       { port: "invalidation-cache", arguments: [] },
     ])
-    // Un seul arbre lu pour le plan, et jamais la branche supprimée.
     expect(lecture.structure).toHaveBeenCalledOnce()
     expect(lecture.branche.mock.calls).toEqual([
       [CIBLE_PRODUITS],
@@ -307,7 +304,6 @@ describe("l'adaptateur Structure", () => {
       { port: "invalidation-cache", arguments: [] },
     ])
     expect(lecture.structure).toHaveBeenCalledOnce()
-    // La branche Sans Structure n'a pas d'identifiant à résoudre dans l'arbre.
     expect(lecture.branche.mock.calls).toEqual([[CIBLE_ENFANTS]])
     expect(lecture.documents.mock.calls).toEqual([[[CIBLE_ENFANTS]], [null]])
   })
