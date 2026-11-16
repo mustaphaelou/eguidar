@@ -228,7 +228,7 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
       await entreeDeCommande(),
       EFFETS_COMMANDE
     )
-    await updateOrderStatus(commande.id, "confirmed", EFFETS_COMMANDE)
+    await updateOrderStatus(commande.id, "confirmed", userId, EFFETS_COMMANDE)
 
     const evenements = await evenementsDe(commande.id)
     expect(evenements.map((evenement) => evenement.type)).toEqual([

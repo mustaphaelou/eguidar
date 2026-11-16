@@ -19,6 +19,12 @@ export const OrderStatus = {
 
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 
+export const PaymentMode = {
+  cash_on_delivery: "cash_on_delivery",
+} as const
+
+export type PaymentMode = (typeof PaymentMode)[keyof typeof PaymentMode]
+
 export const ReturnStatus = {
   requested: "requested",
   received: "received",

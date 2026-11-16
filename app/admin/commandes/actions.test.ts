@@ -87,6 +87,10 @@ describe("updateOrderStatusAction", () => {
       name: "NEXT_REDIRECT",
     })
     expect(updateOrderStatusMock).toHaveBeenCalledTimes(1)
-    expect(updateOrderStatusMock).toHaveBeenCalledWith("cmd-1", "confirmed")
+    expect(updateOrderStatusMock).toHaveBeenCalledWith(
+      "cmd-1",
+      "confirmed",
+      ADMIN_SESSION.id
+    )
   })
 })

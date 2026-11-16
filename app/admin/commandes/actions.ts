@@ -23,8 +23,8 @@ export const updateOrderStatusAction = adminTaskAction<{
     return { orderId, nextStatus }
   },
   refusalUrl: ({ orderId }) => `/admin/commandes/${orderId}?transition=refusee`,
-  run: async ({ orderId, nextStatus }) => {
-    await updateOrderStatus(orderId, nextStatus)
+  run: async ({ orderId, nextStatus }, caller) => {
+    await updateOrderStatus(orderId, nextStatus, caller.id)
     redirect(`/admin/commandes/${orderId}`)
   },
 })

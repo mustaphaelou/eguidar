@@ -418,6 +418,7 @@ export async function listUserOrders(userId: string): Promise<OrderSummary[]> {
 export async function updateOrderStatus(
   orderId: string,
   nextStatus: OrderStatus,
+  actorId: string,
   overrides?: Partial<OrderEffects>
 ) {
   const effects = avecSurcharges(defaultOrderEffects, overrides)
@@ -441,13 +442,39 @@ export async function updateOrderStatus(
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
+    const changedAt = new Date()
     const claimed = await tx.order.updateMany({
       where: { id: orderId, status: fresh.status },
-      data: { status: nextStatus },
+      data:
+        nextStatus === "delivered"
+          ? { status: nextStatus, deliveredAt: changedAt }
+          : { status: nextStatus },
     })
     if (claimed.count === 0) {
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
+
+    if (nextStatus === "delivered") {
+      await tx.payment.create({
+        data: {
+          orderId,
+          amount: fresh.totalPayable,
+          mode: "cash_on_delivery",
+          collectedAt: changedAt,
+          recordedById: actorId,
+        },
+      })
+    }
+
+    await tx.orderStatusChange.create({
+      data: {
+        orderId,
+        fromStatus: fresh.status,
+        toStatus: nextStatus,
+        changedAt,
+        actorId,
+      },
+    })
 
     let produitsRéapprovisionnés: ProduitTouche[] | null = null
     if (réapprovisionne(nextStatus)) {
