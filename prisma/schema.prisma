@@ -206,6 +206,8 @@ model Order {
   totalPayable Int
   status       OrderStatus @default(pending)
   items        OrderItem[]
+  returns      Return[]
+  deliveredAt  DateTime?   @db.Timestamptz(3)
   createdAt    DateTime    @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime    @updatedAt @db.Timestamptz(3)
 
@@ -214,17 +216,77 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   variantId   String?
   productName String
   variantName String
   price       Int
   quantity    Int
-  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  returnLines ReturnLine[]
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
 
   @@index([orderId])
+}
+
+enum ReturnStatus {
+  requested
+  received
+  refused
+}
+
+enum ReturnReason {
+  withdrawal
+  non_conformity
+  goodwill
+  other
+}
+
+enum ReturnRefusalCode {
+  out_of_window
+  excluded_by_law
+  not_received
+  condition_mismatch
+  other
+}
+
+enum ReturnLineCondition {
+  resellable
+  damaged
+}
+
+model Return {
+  id          String             @id @default(cuid())
+  orderId     String
+  order       Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      ReturnStatus       @default(requested)
+  reason      ReturnReason
+  requestedAt DateTime           @db.Timestamptz(3)
+  receivedAt  DateTime?          @db.Timestamptz(3)
+  refusalCode ReturnRefusalCode?
+  refusalNote String?
+  lines       ReturnLine[]
+  createdAt   DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@index([orderId])
+}
+
+model ReturnLine {
+  id               String               @id @default(cuid())
+  returnId         String
+  return           Return               @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderItemId      String
+  orderItem        OrderItem            @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  declaredQuantity Int
+  receivedQuantity Int?
+  condition        ReturnLineCondition?
+  createdAt        DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@unique([returnId, orderItemId])
+  @@index([orderItemId])
 }
 
 model DeliveryCity {

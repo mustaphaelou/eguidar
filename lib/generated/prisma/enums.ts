@@ -19,6 +19,42 @@ export const OrderStatus = {
 
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 
+export const ReturnStatus = {
+  requested: "requested",
+  received: "received",
+  refused: "refused",
+} as const
+
+export type ReturnStatus = (typeof ReturnStatus)[keyof typeof ReturnStatus]
+
+export const ReturnReason = {
+  withdrawal: "withdrawal",
+  non_conformity: "non_conformity",
+  goodwill: "goodwill",
+  other: "other",
+} as const
+
+export type ReturnReason = (typeof ReturnReason)[keyof typeof ReturnReason]
+
+export const ReturnRefusalCode = {
+  out_of_window: "out_of_window",
+  excluded_by_law: "excluded_by_law",
+  not_received: "not_received",
+  condition_mismatch: "condition_mismatch",
+  other: "other",
+} as const
+
+export type ReturnRefusalCode =
+  (typeof ReturnRefusalCode)[keyof typeof ReturnRefusalCode]
+
+export const ReturnLineCondition = {
+  resellable: "resellable",
+  damaged: "damaged",
+} as const
+
+export type ReturnLineCondition =
+  (typeof ReturnLineCondition)[keyof typeof ReturnLineCondition]
+
 export const StatutPublication = {
   brouillon: "brouillon",
   publie: "publie",
