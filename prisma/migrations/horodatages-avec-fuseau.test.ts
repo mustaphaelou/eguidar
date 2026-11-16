@@ -10,11 +10,6 @@ const SCHEMA = join(RACINE, "prisma", "schema.prisma")
 const DOSSIER_MIGRATIONS = join(RACINE, "prisma", "migrations")
 const MIGRATION = "20261115235000_horodatages_avec_fuseau"
 
-/**
- * La migration auditée est figée : c'est son texte qui a été exercé sur le
- * point de restauration, et Prisma le rejoue tel quel. Le motif ne reconnaît
- * que la forme exigée, avec le même `USING` que la colonne convertie.
- */
 const CONVERSION =
   /ALTER TABLE "([^"]+)"\s+ALTER COLUMN "([^"]+)" SET DATA TYPE TIMESTAMPTZ\(3\)\s+USING "([^"]+)" AT TIME ZONE 'UTC';/g
 
@@ -84,8 +79,6 @@ describe("la migration des horodatages", () => {
     const nombreDAlterations = (sql.match(/ALTER\s+TABLE\s+"/g) ?? []).length
 
     expect(instructions.length).toBeGreaterThan(0)
-    // Chaque ALTER TABLE de la migration est reconnue par la forme textuelle
-    // attendue : aucun `SET DATA TYPE` nu ni `USING` oublié ne passe.
     expect(nombreDAlterations).toBe(instructions.length)
     expect(sql).not.toMatch(/DROP\s+(TABLE|COLUMN|INDEX)/i)
     expect(sql).not.toMatch(/DELETE\s+FROM|TRUNCATE/i)
@@ -204,8 +197,6 @@ describe("la migration des horodatages", () => {
         )
       }
 
-      // Le fuseau de la session déplace un timestamp sans fuseau. La
-      // conversion doit lire les valeurs comme UTC et ne pas en dépendre.
       await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE 'America/New_York'`)
       await tx.$executeRawUnsafe(conversion)
 
