@@ -10,8 +10,8 @@ import {
   type SourceProduction,
 } from "@/lib/use-cases/outils-frontiere"
 
-const MODULE_R2 = "lib/r2.ts"
-const MODULE_CYCLE_VIE = "lib/cycle-vie-image-produit.ts"
+const MODULE_R2 = "lib/images-produit/r2.ts"
+const MODULE_CYCLE_VIE = "lib/images-produit/cycle-vie.ts"
 const MODULE_CATALOGUE = "lib/use-cases/admin-catalog.ts"
 const MODULE_REGISTRE_IMAGES = "lib/use-cases/images-produit.ts"
 const MODULE_STRUCTURE = "lib/use-cases/admin-structure.ts"
@@ -22,7 +22,7 @@ const MODULE_TELEVERSEMENT = "components/admin/televersement-brouillons.ts"
 const ADAPTATEUR_TELEVERSEMENT =
   "components/admin/televersement-brouillons-http.ts"
 
-const CETTE_SUITE = "lib/cycle-vie-image-produit-frontiere.test.ts"
+const CETTE_SUITE = "lib/images-produit/cycle-vie-frontiere.test.ts"
 
 const OPERATIONS_STOCKAGE = [
   "presignerBrouillon",
@@ -47,17 +47,17 @@ const PROTOCOLE_INVERSE = [
 
 const SOURCES = sourcesDeProduction(
   import.meta.url,
-  "../app",
-  "../components",
-  "../infra",
-  "../lib"
+  "../../app",
+  "../../components",
+  "../../infra",
+  "../../lib"
 )
 const SOURCES_TOUTES = sourcesToutes(
   import.meta.url,
-  "../app",
-  "../components",
-  "../infra",
-  "../lib"
+  "../../app",
+  "../../components",
+  "../../infra",
+  "../../lib"
 )
 const PAR_CHEMIN = new Map(SOURCES.map((source) => [source.chemin, source]))
 
@@ -105,7 +105,7 @@ function operationsStockageNommees(source: string): string[] {
 const DECLARATION_IMPORT =
   /\bimport\s+(?!type\b)((?:(?!\b(?:import|export)\b)[\s\S])*?)\bfrom\s*(["'])([^"'`]+)\2/g
 
-const MODULE_R2_SPECIFIEUR = "@/lib/r2"
+const MODULE_R2_SPECIFIEUR = "@/lib/images-produit/r2"
 
 function liaisonsNommees(clause: string): string[] | null {
   const interieur = clause.match(/\{([\s\S]*?)\}/)?.[1]
@@ -223,8 +223,8 @@ describe("Cycle de vie des Images produit — frontière", () => {
   it("tombe sur une liaison élargie à une fonction du stockage", () => {
     const presignation = source(ROUTE_PRESIGNATION)
     const elargie = presignation.replace(
-      'import { CONTENT_TYPES_IMAGE_PRODUIT } from "@/lib/r2"',
-      'import { CONTENT_TYPES_IMAGE_PRODUIT, getR2Client } from "@/lib/r2"'
+      'import { CONTENT_TYPES_IMAGE_PRODUIT } from "@/lib/images-produit/r2"',
+      'import { CONTENT_TYPES_IMAGE_PRODUIT, getR2Client } from "@/lib/images-produit/r2"'
     )
 
     expect(elargie).not.toBe(presignation)
@@ -407,7 +407,7 @@ describe("Cycle de vie des Images produit — le propriétaire de la promotion",
     expect(SOURCES_TOUTES.map(({ chemin }) => chemin)).toEqual(
       expect.arrayContaining([
         CETTE_SUITE,
-        "lib/cycle-vie-image-produit.test.ts",
+        "lib/images-produit/cycle-vie.test.ts",
       ])
     )
     expect(mentionsDuProtocoleInverse(SOURCES_TOUTES)).toEqual([])

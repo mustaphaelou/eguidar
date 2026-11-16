@@ -9,7 +9,7 @@ import {
   MESSAGE_IMAGE_VIDE,
   inspecterImageProduit,
   type FormatImageProduit,
-} from "@/lib/verification-image-produit"
+} from "@/lib/images-produit/verification"
 
 const DIMENSIONS = { width: 4, height: 2 }
 

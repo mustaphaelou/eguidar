@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { CHAMPS_FORMULAIRE_PRODUIT } from "@/lib/formulaire-produit"
 import type { RapportLot } from "@/lib/produit-bulk"
-import type { EntreeImageProduit } from "@/lib/galerie-image-produit"
+import type { EntreeImageProduit } from "@/lib/images-produit/galerie"
 import type { ProductInput } from "@/lib/use-cases/admin-catalog"
 import type { Client } from "@/lib/use-cases/session-courante"
 import { redirectMock, sessionCouranteMock } from "@/test/navigation-mocks"

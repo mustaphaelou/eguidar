@@ -4,12 +4,12 @@ import {
   type BrouillonImageProduit,
   type DemandeBrouillonImageProduit,
   type EntreeCreationBrouillonImageProduit,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import {
   CONTENT_TYPES_IMAGE_PRODUIT,
   draftObjectKey,
   type ContentTypeImageProduit,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 import {
   creerCycleVieTest,
   urlApercuBrouillon,

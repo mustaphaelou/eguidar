@@ -3,13 +3,13 @@ import { prisma } from "@/lib/db"
 import {
   normaliserTexteAlternatif,
   type EntreeBibliothequeImageProduit,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 import { urlsImagesProduit } from "@/lib/product-metrics"
 import {
   stockageImageProduitR2,
   type FaitImageProduitVerifiee,
   type ResultatStockageImageProduit,
-} from "@/lib/r2"
+} from "@/lib/images-produit/r2"
 import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
 import {
   chaineDeLaStructure,

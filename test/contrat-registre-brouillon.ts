@@ -6,7 +6,7 @@ import type {
   BrouillonImageProduit,
   CodeRefusRegistreBrouillon,
   PortRegistreBrouillonImageProduit,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import {
   creerHorlogeControllable,
   type HorlogeControllable,

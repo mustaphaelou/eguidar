@@ -3,7 +3,7 @@ import {
   type EntreeBrouillonImage,
   type EntreeImagePersistee,
   type EntreeImageProduit,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 import { centsToInputValue, parseMadToCents } from "@/lib/money"
 import type { ProductInput } from "@/lib/use-cases/admin-catalog"
 

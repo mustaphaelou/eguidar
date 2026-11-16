@@ -34,7 +34,7 @@ import {
 import {
   normaliserTexteAlternatif,
   type EntreeImageProduit,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 import { toIndexableProduct } from "@/lib/index-projection"
 import {
   champRequisManquantDuProduit,

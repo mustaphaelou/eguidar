@@ -14,8 +14,9 @@ const { supprimerImagePersisteeMock } = vi.hoisted(() => ({
   supprimerImagePersisteeMock: vi.fn(),
 }))
 
-vi.mock("@/lib/r2", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@/lib/r2")>()
+vi.mock("@/lib/images-produit/r2", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/lib/images-produit/r2")>()
   return {
     ...original,
     stockageImageProduitR2: {

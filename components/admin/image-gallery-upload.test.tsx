@@ -40,7 +40,7 @@ import type {
   EntreeBibliothequeImageProduit,
   EntreeBrouillonImage,
   EntreeImageProduit,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 

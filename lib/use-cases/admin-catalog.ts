@@ -16,7 +16,7 @@ import cycleVieImageProduitParDefaut, {
   type CycleVieImageProduit,
   type PreuvePromotion,
   type RefusCycleVieImageProduit,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import {
   entreeGalerieImageProduitSchema,
@@ -24,7 +24,7 @@ import {
   LIMITE_IMAGES_PRODUIT,
   normaliserTexteAlternatif,
   type EntreeImageProduit,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 import {
   LIBELLE_SANS_STRUCTURE,
   toIndexableProduct,
@@ -47,7 +47,10 @@ import {
   type ProduitListingParams,
   type ProduitTri,
 } from "@/lib/produit-listing"
-import { stockageImageProduitR2, type FaitImageProduitVerifiee } from "@/lib/r2"
+import {
+  stockageImageProduitR2,
+  type FaitImageProduitVerifiee,
+} from "@/lib/images-produit/r2"
 import {
   enregistrerImagesProduit,
   type EntreeRegistreImageProduit,

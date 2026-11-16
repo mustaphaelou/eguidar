@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import {
   normaliserTexteAlternatif,
   type ImageProduitGalerie,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 import {
   parametresDeSlug,
   type ParametresDeSlug,

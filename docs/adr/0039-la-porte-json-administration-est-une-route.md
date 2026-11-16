@@ -11,7 +11,7 @@ succès. Le `catch` répondait 500 sans un mot, donc une panne d'opération n'é
 Les copies avaient déjà divergé. La suite de la pré-signation épinglait onze codes de Refus,
 celle de la libération quatorze : `metadata-invalide`, `taille-invalide` et `trop-volumineux`
 n'avaient pas de cas côté pré-signation. Le schéma de pré-signation réécrivait aussi la liste des
-types MIME que le stockage possède déjà (`CONTENT_TYPES_IMAGE_PRODUIT`, `lib/r2.ts`) — la
+types MIME que le stockage possède déjà (`CONTENT_TYPES_IMAGE_PRODUIT`, `lib/images-produit/r2.ts`) — la
 troisième liste qu'ADR-0033 avait nommée, quand le stockage en est le propriétaire et que le cycle
 de vie en dérive son prédicat. Une troisième route de téléversement aurait recopié l'enveloppe une
 troisième fois ; une route qui aurait oublié la garde n'aurait été vue par aucune suite, parce que
@@ -40,8 +40,8 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
 - **Le raisonnement d'ADR-0025 change de rang, pas de nature.** [0025](0025-mutation-squelette-shared-mechanism.md)
   a partagé le squelette des mutations sans que le mécanisme apprenne une entité ou une base. La
   porte fait de même au rang de la route : elle possède l'enveloppe HTTP, pas le protocole de
-  téléversement, ni le stockage, ni le registre, ni le cycle de vie. Elle n'importe ni `lib/r2.ts`,
-  ni `lib/cycle-vie-image-produit.ts` ; elle reçoit un schéma et une opération, et ne nomme aucun
+  téléversement, ni le stockage, ni le registre, ni le cycle de vie. Elle n'importe ni `lib/images-produit/r2.ts`,
+  ni `lib/images-produit/cycle-vie.ts` ; elle reçoit un schéma et une opération, et ne nomme aucun
   de leurs gestes.
 
 - **Un mécanisme au rang de la route, et administrateur seulement.** `adminJsonRoute` vit dans
@@ -102,12 +102,12 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   perdre.
 
 - **La liste MIME a un seul propriétaire.** Le schéma de pré-signation dérive son énumération de
-  `CONTENT_TYPES_IMAGE_PRODUIT` (`lib/r2.ts`), la liste que le stockage possède déjà et dont le
-  cycle de vie dérive son prédicat. Ajouter un format est une édition dans `lib/r2.ts` ; le
+  `CONTENT_TYPES_IMAGE_PRODUIT` (`lib/images-produit/r2.ts`), la liste que le stockage possède déjà et dont le
+  cycle de vie dérive son prédicat. Ajouter un format est une édition dans `lib/images-produit/r2.ts` ; le
   schéma, le cycle de vie et le stockage le lisent ensemble. La liste littérale de la route
   disparaît. La suite de frontière du cycle de vie,
-  `lib/cycle-vie-image-produit-frontiere.test.ts`, inscrit la pré-signation sur la liste blanche
-  des importateurs de `lib/r2.ts` pour ce seul vocabulaire : sa liaison nommée y est épinglée à
+  `lib/images-produit/cycle-vie-frontiere.test.ts`, inscrit la pré-signation sur la liste blanche
+  des importateurs de `lib/images-produit/r2.ts` pour ce seul vocabulaire : sa liaison nommée y est épinglée à
   `CONTENT_TYPES_IMAGE_PRODUIT`, et `getR2Client` comme `stockageImageProduitR2` lui restent
   interdits.
 
@@ -177,7 +177,7 @@ reste tel quel. Aucun terme n'est ajouté au glossaire.
   compile pas.
 - La table de statuts reste celle du cycle de vie, `STATUTS_REFUS_CYCLE_VIE_IMAGE_PRODUIT` ;
   aucun Refus, statut ou message n'est ajouté à ce vocabulaire.
-- La liste MIME a un seul propriétaire, `CONTENT_TYPES_IMAGE_PRODUIT` dans `lib/r2.ts` ; le
+- La liste MIME a un seul propriétaire, `CONTENT_TYPES_IMAGE_PRODUIT` dans `lib/images-produit/r2.ts` ; le
   schéma de pré-signation en dérive, et ajouter un format est une édition dans ce module.
 - `lib/use-cases/session-courante.ts` n'exporte pas de porte d'administration ; la composition
   `lireSession` + `estAdmin` reste locale à la porte, et privée dans le module d'actions.

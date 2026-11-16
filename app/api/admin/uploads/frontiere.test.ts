@@ -21,8 +21,8 @@ const PORTE_SOURCE = "lib/use-cases/admin-json-route.ts"
 const SESSION = "lib/use-cases/session-courante"
 
 const MODULES_INTERDITS_A_LA_PORTE = [
-  ["lib/r2", "le stockage"],
-  ["lib/cycle-vie-image-produit", "le cycle de vie"],
+  ["lib/images-produit/r2", "le stockage"],
+  ["lib/images-produit/cycle-vie", "le cycle de vie"],
   ["lib/db", "la base de données"],
   ["lib/use-cases/admin-catalog", "le catalogue"],
 ] as const

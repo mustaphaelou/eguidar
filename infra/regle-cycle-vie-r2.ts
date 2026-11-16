@@ -1,5 +1,5 @@
-import { retentionBrouillonImageProduitHeures } from "@/lib/cycle-vie-image-produit"
-import { PREFIXE_BROUILLONS_IMAGE_PRODUIT } from "@/lib/espace-de-noms-image-produit"
+import { retentionBrouillonImageProduitHeures } from "@/lib/images-produit/cycle-vie"
+import { PREFIXE_BROUILLONS_IMAGE_PRODUIT } from "@/lib/images-produit/espace-de-noms"
 
 const HEURES_PAR_JOUR = 24
 

@@ -6,7 +6,7 @@ import type {
   TypeEvenementAutomation,
 } from "@/lib/automations/evenements"
 import type { Charge, OrderEmailSnapshot } from "@/lib/automations/charge"
-import type { PreuvePromotion } from "@/lib/cycle-vie-image-produit"
+import type { PreuvePromotion } from "@/lib/images-produit/cycle-vie"
 import type { EntreeRegistreImageProduit } from "@/lib/use-cases/images-produit"
 
 export type GenreEcriture =

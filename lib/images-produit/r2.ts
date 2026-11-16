@@ -11,14 +11,14 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import {
   MESSAGE_FORMAT_NON_AUTORISE,
   inspecterImageProduit,
-} from "@/lib/verification-image-produit"
+} from "@/lib/images-produit/verification"
 
 import {
   PREFIXE_BROUILLONS_IMAGE_PRODUIT,
   PREFIXE_IMAGES_PRODUIT,
   cleDepuisUrlPublique,
   cleImageProduitPersistee,
-} from "@/lib/espace-de-noms-image-produit"
+} from "@/lib/images-produit/espace-de-noms"
 
 export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 

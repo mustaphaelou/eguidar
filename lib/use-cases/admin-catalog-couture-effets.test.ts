@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import cycleVieImageProduitParDefaut, {
   type CycleVieImageProduit,
-} from "@/lib/cycle-vie-image-produit"
+} from "@/lib/images-produit/cycle-vie"
 import { indexProductDocuments } from "@/lib/meili"
 import { defaultCatalogEffects } from "@/lib/use-cases/admin-catalog"
 import { avecSurcharges } from "@/lib/use-cases/mutation-squelette"

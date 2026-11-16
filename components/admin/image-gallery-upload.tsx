@@ -23,7 +23,7 @@ import {
   LONGUEUR_MAX_TEXTE_ALTERNATIF,
   type EntreeBibliothequeImageProduit,
   type ImageProduitGalerie,
-} from "@/lib/galerie-image-produit"
+} from "@/lib/images-produit/galerie"
 import { cn } from "@/lib/utils"
 
 interface ImageGalleryUploadProps {
