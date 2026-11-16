@@ -6,6 +6,10 @@ import type { ReactElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { MESSAGE_SERVEUR_INJOIGNABLE } from "./auth-form-glue"
+import {
+  CODES_REFUS_QUI_DEPENSENT_LE_JETON,
+  messageRefusAuthentification,
+} from "@/lib/refus-authentification"
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { ResultatAuthentification } from "./port-authentification"
@@ -238,22 +242,66 @@ describe("useOtpExchange", () => {
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
-  it("resets the Test de sécurité after a rejected send so the retry carries a fresh jeton", async () => {
-    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
-    port.repondre = () => ({
-      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
-    })
+  it.each([...CODES_REFUS_QUI_DEPENSENT_LE_JETON])(
+    "renouvelle le Test de sécurité après un refus %s, et l'envoi suivant repart avec un jeton neuf",
+    async (code) => {
+      vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+      let envois = 0
+      port.repondre = () => {
+        envois += 1
+        return envois === 1
+          ? { error: { code, message: "captcha rejected" } }
+          : { error: null }
+      }
+      const onSent = vi.fn()
 
-    await render(<Harness />)
-    await loadScript()
-    await setToken("otp-token")
-    await clickAndFlush(sendButton())
+      await render(<Harness onSent={onSent} />)
+      await loadScript()
+      await setToken("otp-token-1")
+      await clickAndFlush(sendButton())
 
-    expect(resetMock).toHaveBeenCalledWith("widget-1")
-    expect(peutEnvoyer()).toBe("false")
-    expect(otpSent()).toBe("false")
-    expect(error()).toBe("La vérification de sécurité a échoué. Réessayez.")
-  })
+      expect(resetMock).toHaveBeenCalledWith("widget-1")
+      expect(peutEnvoyer()).toBe("false")
+      expect(otpSent()).toBe("false")
+      expect(error()).toBe(messageRefusAuthentification(code))
+
+      await setToken("otp-token-2")
+      expect(peutEnvoyer()).toBe("true")
+      await clickAndFlush(sendButton())
+
+      expect(port.appels).toHaveLength(2)
+      expect(port.appels[1]).toEqual({
+        operation: "envoyerCode",
+        email: "jane@example.com",
+        type: "email-verification",
+        entetes: { "x-captcha-response": "otp-token-2" },
+      })
+      expect(otpSent()).toBe("true")
+      expect(onSent).toHaveBeenCalledTimes(1)
+      expect(error()).toBeNull()
+    }
+  )
+
+  it.each(["INVALID_OTP", "OTP_EXPIRED"] as const)(
+    "ne renouvelle pas le Test de sécurité quand la vérification du code échoue avec %s",
+    async (code) => {
+      vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+      port.repondre = () => ({
+        error: { code, message: "code refusé" },
+      })
+
+      await render(<Harness />)
+      await loadScript()
+      await setToken("otp-token")
+      setInputValue(otpInput(), "123456")
+
+      await clickAndFlush(verifyButton())
+
+      expect(resetMock).not.toHaveBeenCalled()
+      expect(peutEnvoyer()).toBe("true")
+      expect(error()).toBe(messageRefusAuthentification(code))
+    }
+  )
 
   it("does not reset the Test de sécurité when the send is refused for another reason", async () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")

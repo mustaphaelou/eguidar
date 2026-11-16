@@ -2,7 +2,7 @@
 
 import type { RefusAuthentification } from "@/components/auth/port-authentification"
 import {
-  estRefusTestDeSecurite,
+  estRefusQuiDepenseLeJeton,
   messageRefusAuthentification,
 } from "@/lib/refus-authentification"
 
@@ -32,6 +32,6 @@ export function resolveAuthRefusal(
   error: RefusAuthentification | null | undefined,
   reset: () => void
 ): string {
-  if (estRefusTestDeSecurite(error?.code)) reset()
+  if (estRefusQuiDepenseLeJeton(error?.code)) reset()
   return translateAuthError(error ?? {})
 }

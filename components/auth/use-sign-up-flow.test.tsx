@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ResultatAuthentification } from "@/components/auth/port-authentification"
 import { MESSAGE_SERVEUR_INJOIGNABLE } from "@/components/auth/auth-form-glue"
+import {
+  CODES_REFUS_QUI_DEPENSENT_LE_JETON,
+  messageRefusAuthentification,
+} from "@/lib/refus-authentification"
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 
@@ -216,24 +220,25 @@ describe("useSignUpFlow", () => {
     expect(courant().step).toBe("otp")
   })
 
-  it("réinitialise le Test de sécurité quand l'inscription est rejetée pour lui", async () => {
-    port.repondre = () => ({
-      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
-    })
+  it.each([...CODES_REFUS_QUI_DEPENSENT_LE_JETON])(
+    "réinitialise le Test de sécurité quand l'inscription est rejetée par un %s",
+    async (code) => {
+      port.repondre = () => ({
+        error: { code, message: "captcha rejected" },
+      })
 
-    rendreFlux()
-    saisirNom("Jane Doe")
-    saisirEmail("jane@example.com")
-    saisirMotDePasse("MotDePasse!12345")
+      rendreFlux()
+      saisirNom("Jane Doe")
+      saisirEmail("jane@example.com")
+      saisirMotDePasse("MotDePasse!12345")
 
-    await soumettre()
+      await soumettre()
 
-    expect(captchaStub.reset).toHaveBeenCalled()
-    expect(courant().error).toBe(
-      "La vérification de sécurité a échoué. Réessayez."
-    )
-    expect(courant().step).toBe("form")
-  })
+      expect(captchaStub.reset).toHaveBeenCalledTimes(1)
+      expect(courant().error).toBe(messageRefusAuthentification(code))
+      expect(courant().step).toBe("form")
+    }
+  )
 
   it("ne réinitialise pas le Test de sécurité quand le refus est ailleurs", async () => {
     port.repondre = () => ({

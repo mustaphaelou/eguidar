@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
+import {
+  CODES_REFUS_QUI_DEPENSENT_LE_JETON,
+  messageRefusAuthentification,
+} from "@/lib/refus-authentification"
+
 import { resolveAuthRefusal, translateAuthError } from "./auth-form-glue"
 
 describe("translateAuthError", () => {
@@ -74,32 +79,32 @@ describe("translateAuthError", () => {
 })
 
 describe("resolveAuthRefusal", () => {
-  it("resets the Test de sécurité and returns the French message on a refusal", () => {
+  it.each([...CODES_REFUS_QUI_DEPENSENT_LE_JETON])(
+    "resets the Test de sécurité and returns the French message on a %s refusal",
+    (code) => {
+      const reset = vi.fn()
+
+      expect(resolveAuthRefusal({ code }, reset)).toBe(
+        messageRefusAuthentification(code)
+      )
+      expect(reset).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each([
+    "INVALID_EMAIL_OR_PASSWORD",
+    "INVALID_OTP",
+    "OTP_EXPIRED",
+    "TOO_MANY_ATTEMPTS",
+    "ACCOUNT_TEMPORARILY_LOCKED",
+    "PASSWORD_COMPROMISED",
+    "PASSWORD_TOO_SHORT",
+    "EMAIL_NOT_VERIFIED",
+  ] as const)("leaves the Test de sécurité alone on a %s refusal", (code) => {
     const reset = vi.fn()
 
-    expect(resolveAuthRefusal({ code: "VERIFICATION_FAILED" }, reset)).toBe(
-      "La vérification de sécurité a échoué. Réessayez."
-    )
-    expect(reset).toHaveBeenCalledTimes(1)
-  })
-
-  it("leaves the Test de sécurité alone when the error is another code", () => {
-    const reset = vi.fn()
-
-    expect(resolveAuthRefusal({ code: "INVALID_OTP" }, reset)).toBe(
-      "Le code de vérification est invalide ou incorrect."
-    )
-    expect(resolveAuthRefusal({ code: "TOO_MANY_ATTEMPTS" }, reset)).toBe(
-      "Trop de tentatives. Veuillez patienter avant de réessayer."
-    )
-    expect(reset).not.toHaveBeenCalled()
-  })
-
-  it("does not treat a missing jeton as a refusal the Test de sécurité recovers from", () => {
-    const reset = vi.fn()
-
-    expect(resolveAuthRefusal({ code: "MISSING_RESPONSE" }, reset)).toBe(
-      "La vérification de sécurité n'a pas abouti. Réessayez dans un instant."
+    expect(resolveAuthRefusal({ code }, reset)).toBe(
+      messageRefusAuthentification(code)
     )
     expect(reset).not.toHaveBeenCalled()
   })
