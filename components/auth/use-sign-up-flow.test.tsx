@@ -131,7 +131,7 @@ describe("useSignUpFlow", () => {
     expect(courant().error).toBeNull()
   })
 
-  it("relève USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL et reste au formulaire", async () => {
+  it("ne rend pas le message de la bibliothèque pour un code sans phrase", async () => {
     port.repondre = () => ({
       error: {
         code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
@@ -146,8 +146,29 @@ describe("useSignUpFlow", () => {
 
     await soumettre()
 
+    expect(courant().error).toBe("Une erreur est survenue. Veuillez réessayer.")
+    expect(courant().step).toBe("form")
+    expect(courant().loading).toBe(false)
+  })
+
+  it("nomme la fuite et demande un autre mot de passe", async () => {
+    port.repondre = () => ({
+      error: {
+        code: "PASSWORD_COMPROMISED",
+        message:
+          "The password you entered has been compromised. Please choose a different password.",
+      },
+    })
+
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+
     expect(courant().error).toBe(
-      "Un compte existe déjà avec cette adresse e-mail."
+      "Ce mot de passe apparaît dans une fuite de données connue. Choisissez-en un autre."
     )
     expect(courant().step).toBe("form")
     expect(courant().loading).toBe(false)

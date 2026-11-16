@@ -31,12 +31,44 @@ describe("Adresse du client", () => {
     expect(adresseClient(entetes)).toBe("198.51.100.4")
   })
 
-  it("retient le dernier relais de x-forwarded-for, celui du proxy le plus proche", () => {
+  it("rend l'adresse du Client, pas le relais privé le plus proche", () => {
     const entetes = new Headers({
       "x-forwarded-for": "203.0.113.7, 10.0.0.1, 10.0.0.2",
     })
 
-    expect(adresseClient(entetes)).toBe("10.0.0.2")
+    expect(adresseClient(entetes)).toBe("203.0.113.7")
+  })
+
+  it("saute les plages Cloudflare déclarées fiables", () => {
+    const entetes = new Headers({
+      "x-forwarded-for": "203.0.113.7, 172.64.10.20",
+    })
+
+    expect(adresseClient(entetes)).toBe("203.0.113.7")
+  })
+
+  it("saute aussi un relais IPv6 de confiance", () => {
+    const entetes = new Headers({
+      "x-forwarded-for": "2001:db8::1, ::1",
+    })
+
+    expect(adresseClient(entetes)).toBe("2001:db8::1")
+  })
+
+  it("rend l'unique relais de x-forwarded-for quand il n'est pas de confiance", () => {
+    const entetes = new Headers({
+      "x-forwarded-for": "203.0.113.7",
+    })
+
+    expect(adresseClient(entetes)).toBe("203.0.113.7")
+  })
+
+  it("partage le seau quand la chaîne ne contient que des relais de confiance", () => {
+    const entetes = new Headers({
+      "x-forwarded-for": "10.0.0.1, 10.0.0.2",
+    })
+
+    expect(adresseClient(entetes)).toBe(ADRESSE_CLIENT_PARTAGEE)
   })
 
   it("se replie sur x-real-ip quand x-forwarded-for manque ou est vide", () => {
@@ -60,13 +92,20 @@ describe("Adresse du client", () => {
     expect(autreSansEntete).toBe(sansEntete)
   })
 
-  it("se replie sur l'adresse partagée quand la valeur retenue n'est pas une adresse", () => {
+  it("se replie sur l'adresse partagée quand une valeur n'est pas une adresse", () => {
     expect(
       adresseClient(new Headers({ "cf-connecting-ip": "pas-une-adresse" }))
     ).toBe(ADRESSE_CLIENT_PARTAGEE)
     expect(
       adresseClient(
         new Headers({ "x-forwarded-for": "203.0.113.7, pas-une-adresse" })
+      )
+    ).toBe(ADRESSE_CLIENT_PARTAGEE)
+    expect(
+      adresseClient(
+        new Headers({
+          "x-forwarded-for": "203.0.113.7, pas-une-adresse, 10.0.0.1",
+        })
       )
     ).toBe(ADRESSE_CLIENT_PARTAGEE)
   })

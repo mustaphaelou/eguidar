@@ -277,6 +277,35 @@ describe("useForgotPasswordFlow", () => {
     expect(container.querySelector("[data-loading]")).toBeNull()
   })
 
+  it("traduit le statut du limiteur en phrase française sur la Réinitialisation", async () => {
+    mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
+      data: {},
+      error: null,
+    })
+    mockedAuthClient.emailOtp.resetPassword.mockResolvedValue({
+      data: null,
+      error: {
+        message: "Too many requests. Please try again later.",
+        status: 429,
+        statusText: "Too Many Requests",
+      },
+    })
+
+    render(<Harness />)
+    await sendCode()
+    setInputValue(otpInput(), "123456")
+    setInputValue(passwordInput(), "MotDePasse!12345")
+    setInputValue(confirmPasswordInput(), "MotDePasse!12345")
+
+    await clickAndFlush(resetButton())
+
+    expect(error()).toBe(
+      "Trop de tentatives. Veuillez patienter avant de réessayer."
+    )
+    expect(step()).toBe("otp")
+    expect(container.querySelector("[data-loading]")).toBeNull()
+  })
+
   it("shows a message when the reset request does not reach the server", async () => {
     mockedAuthClient.emailOtp.sendVerificationOtp.mockResolvedValue({
       data: {},
