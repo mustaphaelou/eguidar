@@ -78,6 +78,7 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 | [0017](0017-ville-de-livraison-public-slug.md) | The slug is the public identifier of the Ville de livraison | |
 | [0018](0018-panier-mutations-one-client-seam.md) | One client seam for the Panier mutations, with an injected transport | |
 | [0021](0021-total-a-payer-persiste.md) | Total à payer is a persisted fact of the Commande | |
+| [0055](0055-le-retour-l-encaissement-et-le-remboursement-sont-trois-faits-distincts.md) | Le Retour, l'Encaissement et le Remboursement sont trois faits distincts | |
 
 ### Interface et navigation
 

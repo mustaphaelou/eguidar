@@ -15,6 +15,8 @@ const TEST_TABLES = [
   "CartItem",
   "Order",
   "OrderItem",
+  "Return",
+  "ReturnLine",
   "DeliveryCity",
   "ShippingSettings",
   "Theme",

@@ -77,6 +77,16 @@ export type Order = Prisma.OrderModel
  */
 export type OrderItem = Prisma.OrderItemModel
 /**
+ * Model Return
+ *
+ */
+export type Return = Prisma.ReturnModel
+/**
+ * Model ReturnLine
+ *
+ */
+export type ReturnLine = Prisma.ReturnLineModel
+/**
  * Model DeliveryCity
  *
  */

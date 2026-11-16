@@ -66,6 +66,8 @@ export const ModelName = {
   CartItem: "CartItem",
   Order: "Order",
   OrderItem: "OrderItem",
+  Return: "Return",
+  ReturnLine: "ReturnLine",
   DeliveryCity: "DeliveryCity",
   ShippingSettings: "ShippingSettings",
   Theme: "Theme",
@@ -259,6 +261,7 @@ export const OrderScalarFieldEnum = {
   shippingFee: "shippingFee",
   totalPayable: "totalPayable",
   status: "status",
+  deliveredAt: "deliveredAt",
   createdAt: "createdAt",
   updatedAt: "updatedAt",
 } as const
@@ -279,6 +282,36 @@ export const OrderItemScalarFieldEnum = {
 
 export type OrderItemScalarFieldEnum =
   (typeof OrderItemScalarFieldEnum)[keyof typeof OrderItemScalarFieldEnum]
+
+export const ReturnScalarFieldEnum = {
+  id: "id",
+  orderId: "orderId",
+  status: "status",
+  reason: "reason",
+  requestedAt: "requestedAt",
+  receivedAt: "receivedAt",
+  refusalCode: "refusalCode",
+  refusalNote: "refusalNote",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type ReturnScalarFieldEnum =
+  (typeof ReturnScalarFieldEnum)[keyof typeof ReturnScalarFieldEnum]
+
+export const ReturnLineScalarFieldEnum = {
+  id: "id",
+  returnId: "returnId",
+  orderItemId: "orderItemId",
+  declaredQuantity: "declaredQuantity",
+  receivedQuantity: "receivedQuantity",
+  condition: "condition",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+} as const
+
+export type ReturnLineScalarFieldEnum =
+  (typeof ReturnLineScalarFieldEnum)[keyof typeof ReturnLineScalarFieldEnum]
 
 export const DeliveryCityScalarFieldEnum = {
   id: "id",
