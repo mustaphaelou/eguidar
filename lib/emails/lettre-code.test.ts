@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { site, staticPages } from "@/lib/site"
-import { lire } from "@/lib/use-cases/outils-frontiere"
+import { importeDe, lire } from "@/lib/use-cases/outils-frontiere"
 
 import type { ClientEmails } from "./adaptateur-envoi"
 import { DUREE_VIE_CODE_SECONDS, libelleDureeCode } from "./duree-code"
@@ -159,6 +159,46 @@ describe("Lettre de code", () => {
   })
 })
 
+const MODULE_DUREE = "lib/emails/duree-code"
+
+const INVARIANT_DUREE_UNIQUE =
+  "la durée de vie du code a une seule valeur : la configuration d'authentification et la lettre qui l'annonce lisent DUREE_VIE_CODE_SECONDS, de sorte que la promesse et le comportement ne peuvent pas dériver"
+
+function importeLaDuree(source: string): boolean {
+  return (
+    importeDe(source, MODULE_DUREE) &&
+    /\bimport\s*\{[^}]*\bDUREE_VIE_CODE_SECONDS\b[^}]*\}/.test(source)
+  )
+}
+
+function violationsDeLaDureeUnique(auth: string, lettre: string): string[] {
+  const violations: string[] = []
+
+  if (!importeLaDuree(auth)) {
+    violations.push(
+      `la configuration d'authentification ne lit plus la durée dans ${MODULE_DUREE} : ${INVARIANT_DUREE_UNIQUE}`
+    )
+  } else if (
+    !/emailOTP\(\{[\s\S]*?\bexpiresIn:\s*DUREE_VIE_CODE_SECONDS\b/.test(auth)
+  ) {
+    violations.push(
+      `la configuration d'authentification n'expose plus DUREE_VIE_CODE_SECONDS en « expiresIn » : ${INVARIANT_DUREE_UNIQUE}`
+    )
+  }
+
+  if (!importeLaDuree(lettre)) {
+    violations.push(
+      `la lettre n'annonce plus la durée lue dans ${MODULE_DUREE} : ${INVARIANT_DUREE_UNIQUE}`
+    )
+  } else if (!/libelleDureeCode\(\s*DUREE_VIE_CODE_SECONDS\s*\)/.test(lettre)) {
+    violations.push(
+      `la lettre n'annonce plus la durée lue dans DUREE_VIE_CODE_SECONDS : ${INVARIANT_DUREE_UNIQUE}`
+    )
+  }
+
+  return violations
+}
+
 describe("La durée de vie du code", () => {
   it("nomme les minutes et les secondes sans arrondir", () => {
     expect(libelleDureeCode(60)).toBe("1 minute")
@@ -166,11 +206,54 @@ describe("La durée de vie du code", () => {
     expect(libelleDureeCode(90)).toBe("1 minute 30 secondes")
   })
 
-  it("ancre la configuration d'authentification sur la même valeur", () => {
-    const source = lire(import.meta.url, "../auth.ts")
+  it("garde une seule valeur pour la configuration et la lettre", () => {
+    expect(
+      violationsDeLaDureeUnique(
+        lire(import.meta.url, "../auth.ts"),
+        lire(import.meta.url, "./lettre-code.ts")
+      )
+    ).toEqual([])
+  })
 
-    expect(source).toMatch(
-      /emailOTP\(\{[\s\S]*?expiresIn:\s*DUREE_VIE_CODE_SECONDS/
+  it("tombe sur l'expiration écrite en dur, et nomme l'invariant", () => {
+    const auth = lire(import.meta.url, "../auth.ts")
+    const lettre = lire(import.meta.url, "./lettre-code.ts")
+    const avecExpirationEnDur = auth.replace(
+      "expiresIn: DUREE_VIE_CODE_SECONDS",
+      "expiresIn: 300"
     )
+
+    expect(avecExpirationEnDur).not.toBe(auth)
+    expect(violationsDeLaDureeUnique(avecExpirationEnDur, lettre)).toEqual([
+      `la configuration d'authentification n'expose plus DUREE_VIE_CODE_SECONDS en « expiresIn » : ${INVARIANT_DUREE_UNIQUE}`,
+    ])
+  })
+
+  it("tombe sur la promesse écrite en dur, et nomme l'invariant", () => {
+    const auth = lire(import.meta.url, "../auth.ts")
+    const lettre = lire(import.meta.url, "./lettre-code.ts")
+    const avecPromesseEnDur = lettre.replace(
+      "libelleDureeCode(DUREE_VIE_CODE_SECONDS)",
+      '"5 minutes"'
+    )
+
+    expect(avecPromesseEnDur).not.toBe(lettre)
+    expect(violationsDeLaDureeUnique(auth, avecPromesseEnDur)).toEqual([
+      `la lettre n'annonce plus la durée lue dans DUREE_VIE_CODE_SECONDS : ${INVARIANT_DUREE_UNIQUE}`,
+    ])
+  })
+
+  it("tombe quand la configuration se donne sa propre valeur, et nomme l'invariant", () => {
+    const auth = lire(import.meta.url, "../auth.ts")
+    const lettre = lire(import.meta.url, "./lettre-code.ts")
+    const avecValeurLocale = auth.replace(
+      'import { DUREE_VIE_CODE_SECONDS } from "@/lib/emails/duree-code"',
+      "const DUREE_VIE_CODE_SECONDS = 300"
+    )
+
+    expect(avecValeurLocale).not.toBe(auth)
+    expect(violationsDeLaDureeUnique(avecValeurLocale, lettre)).toEqual([
+      `la configuration d'authentification ne lit plus la durée dans ${MODULE_DUREE} : ${INVARIANT_DUREE_UNIQUE}`,
+    ])
   })
 })
