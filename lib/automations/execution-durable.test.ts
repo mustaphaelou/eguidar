@@ -69,8 +69,6 @@ describe("le filtre des actions du travailleur", () => {
   it("n'exécute rien quand le genre ne déclare pas l'action de la Règle", async () => {
     const { emails, recherche, catalogue, dependances } = ports()
 
-    // `commande.creee` ne déclare que `email.commande-creee` : cette Règle
-    // réussit sans effet, jamais par un port d'une autre entité.
     await executerActionOuRedeclaration(contexte("index.produit", dependances))
 
     expect(emails.appels).toHaveLength(0)

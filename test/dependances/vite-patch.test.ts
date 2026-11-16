@@ -6,9 +6,6 @@ import { describe, expect, it } from "vitest"
 
 import { respecteLePlancher, versionInstallee } from "./plancher-de-correctif"
 
-// vite inlines launch-editor, which never enters the installed tree as its own
-// package. Its floor therefore stays with the scan that reads vite's bundle,
-// away from a table whose rows are keyed by package.
 const LAUNCH_EDITOR_PATCH_FLOOR = "2.14.2"
 
 const LAUNCH_EDITOR_VERSION = /launch-editor@(\d+\.\d+\.\d+)/g

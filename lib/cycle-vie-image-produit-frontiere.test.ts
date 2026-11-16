@@ -66,8 +66,6 @@ const IMPORTATEURS_R2_AUTORISES = [
   MODULE_CATALOGUE,
   MODULE_REGISTRE_IMAGES,
   MODULE_STRUCTURE,
-  // La route de pré-signation n'emprunte au stockage que le vocabulaire des
-  // types de contenu, jamais une opération du port.
   ROUTE_PRESIGNATION,
 ] as const
 
@@ -76,9 +74,6 @@ const IMPORTATEURS_CYCLE_VIE_AUTORISES = [
   ROUTE_PRESIGNATION,
   "infra/regle-cycle-vie-r2.ts",
   MODULE_CATALOGUE,
-  // La déclaration et l'adaptateur Catalogue n'importent que le type
-  // `PreuvePromotion` : l'import est effacé à l'exécution et le graphe de
-  // valeur ne touche pas le cycle de vie.
   "lib/apres-ecriture.ts",
   "lib/use-cases/apres-ecriture/catalogue.ts",
 ] as const
@@ -309,9 +304,6 @@ describe("Cycle de vie des Images produit — frontière", () => {
     expect(persistees).toEqual(
       [MODULE_CATALOGUE, MODULE_REGISTRE_IMAGES].sort()
     )
-    // La Structure garde la porte immédiate ; le Registre des Images porte la
-    // suppression durable que le travailleur rejoue, dans le même espace de
-    // noms de catégorie.
     expect(categories).toEqual(
       [MODULE_REGISTRE_IMAGES, MODULE_STRUCTURE].sort()
     )

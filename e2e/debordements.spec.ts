@@ -6,16 +6,6 @@ import {
 } from "./harnais/attente"
 import { expect, test } from "./fixtures/sonde"
 
-/**
- * Les deux débordements de 320 px, mesurés sur l'artefact construit.
- *
- * La page 404 de la boutique et la pastille de Livraison offerte d'une Carte
- * produit poussent le document au-delà de la fenêtre. Les cas ne regardent que
- * des faits de Client : largeur du document, boîtes entièrement dans la
- * fenêtre, boîte de la pastille incluse dans celle de sa carte, icône visible,
- * texte non rogné.
- */
-
 async function boiteDe(locator: Locator) {
   const boite = await locator.boundingBox()
   if (boite === null) throw new Error("la boîte de l'élément est introuvable")
@@ -73,7 +63,6 @@ test.describe("à 320 px", () => {
     })
     await attendreLaPagePrete(page, montageDuPanier)
 
-    // La 404 de la boutique rend ses deux actions, pas celle de la 404 racine.
     await expect(
       page.getByRole("heading", { name: "Page introuvable" })
     ).toBeVisible()
@@ -107,7 +96,6 @@ test.describe("à 320 px", () => {
 
     exigerDansLaCarte(await boiteDe(pastille), await boiteDe(carte))
 
-    // Sous sm, l'icône s'efface et le libellé reste entier.
     await expect(pastille.locator("svg")).toBeHidden()
     expect(
       await pastille.evaluate((element) => element.scrollWidth)
@@ -132,8 +120,6 @@ test.describe("au-dessus de sm", () => {
     const pastille = await pastilleOfferte(carte)
 
     await expect(pastille.locator("svg")).toBeVisible()
-    // `text-xs` vaut 0,75 rem et la racine mesure 106,25 % : 12,75 px, la
-    // taille que le ticket demande de garder au-dessus de sm.
     expect(
       await pastille.evaluate((element) => getComputedStyle(element).fontSize)
     ).toBe("12.75px")

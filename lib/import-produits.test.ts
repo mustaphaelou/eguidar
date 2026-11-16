@@ -660,12 +660,10 @@ describe("les libellés français des statuts", () => {
   })
 })
 
-/** Une cellule écrite comme le ferait un tableur : citée si elle en a besoin. */
 function celluleCsv(valeur: string): string {
   return /[",\r\n]/.test(valeur) ? `"${valeur.replaceAll('"', '""')}"` : valeur
 }
 
-/** Une ligne de données dans l'ordre canonique des neuf colonnes. */
 function ligneCsv(
   valeurs: Readonly<Partial<Record<ColonneImport, string>>>
 ): string {

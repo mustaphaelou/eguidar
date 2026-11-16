@@ -105,7 +105,6 @@ const MIME_PAR_EXTENSION: Record<string, string> = {
 
 const SEGMENT_BROUILLONS_IMAGE_PRODUIT = "products/brouillons/"
 
-/** L'URL d'un Brouillon n'a pas sa place dans le registre des Images produit. */
 export function urlEstBrouillonImageProduit(publicUrl: string): boolean {
   try {
     return new URL(publicUrl).pathname.includes(
@@ -139,12 +138,6 @@ async function chargerLesUsages(): Promise<Map<string, ProduitQuiUtilise[]>> {
   return usages
 }
 
-/**
- * L'écriture du registre est un effet après engagement : un upsert par URL
- * publique, pour que réenregistrer le même Produit ne duplique jamais une ligne.
- * Les faits de vérification d'un Brouillon promu remplacent les valeurs
- * inconnues d'une ligne réparée par la réconciliation.
- */
 export async function enregistrerImagesProduit(
   entrees: readonly EntreeRegistreImageProduit[],
   createdBy: string | null
@@ -192,11 +185,6 @@ function correspondALaRecherche(
   )
 }
 
-/**
- * La Bibliothèque des médias lit le registre et joint ses usages. Une ligne du
- * registre qui n'est plus nommée par aucun Produit est une Image produit à
- * réparer : le filtre « inutilisées » est sa file d'attente.
- */
 export async function listerImagesProduit(
   filtres: FiltresImagesProduit = {}
 ): Promise<PageImagesProduit> {
@@ -237,15 +225,6 @@ export async function listerImagesProduit(
   }
 }
 
-/**
- * Le sélecteur de la Galerie produit ne lit que les faits qu'il affiche : une
- * URL publique et son Texte alternatif. Il ne charge ni usages ni comptes.
- *
- * Il n'offre pas une Image produit qu'un autre Produit possède : une Image
- * produit a un seul propriétaire, parce qu'en retirer une de sa Galerie la
- * supprime du stockage à l'enregistrement. La proposition éviterait au
- * marchand de choisir une image que l'enregistrement refuserait.
- */
 export async function listerImagesPourGalerie(
   produitId: string | null = null
 ): Promise<EntreeBibliothequeImageProduit[]> {
@@ -271,12 +250,6 @@ export async function listerImagesPourGalerie(
     }))
 }
 
-/**
- * Le Texte alternatif d'une Image produit est rendu par la fiche de chaque
- * Produit qui la nomme : l'écrire invalide donc ces fiches, côté boutique
- * comme côté Administration. Une Image produit que personne ne nomme ne
- * révalide rien.
- */
 export async function mettreAJourTexteAlternatif(
   publicUrl: string,
   alt: string | null,
@@ -302,8 +275,6 @@ export async function mettreAJourTexteAlternatif(
 
   const effects = avecSurcharges(defaultImagesProduitEffects(), overrides)
   const plan = declarerApresEcriture("image.texte-alternatif", { produits })
-  // La Structure ne se lit qu'à la demande de l'adaptateur, une fois par plan :
-  // l'événement Catalogue du Produit est une lecture après commit.
   const evenements = async (): Promise<CatalogueEventProduct[]> => {
     const lecture = await lireStructure()
     return produits.map((produit) => ({
@@ -320,11 +291,6 @@ export async function mettreAJourTexteAlternatif(
   return normalise
 }
 
-/**
- * La suppression est une décision du Catalogue, pas du bucket : une Image
- * produit nommée par un Produit est refusée. Un objet supprimé avant sa ligne
- * laisse une ligne inutilisée que la réconciliation enlève.
- */
 export async function supprimerImagesProduit(
   publicUrls: readonly string[],
   overrides?: Partial<ImagesProduitEffects>
@@ -372,12 +338,6 @@ export interface BilanReconstitutionRegistre {
   supprimees: number
 }
 
-/**
- * La réconciliation répare les deux moitiés d'un écart : une Image produit du
- * Catalogue sans ligne de registre, et une ligne que plus aucun Produit ne
- * nomme (par exemple après l'échec de sa suppression de ligne). Le bucket n'est
- * jamais l'autorité : seuls les `Product.images` et le registre sont lus.
- */
 export async function reconstituerRegistreImagesProduit(): Promise<BilanReconstitutionRegistre> {
   const [produits, lignes] = await Promise.all([
     prisma.product.findMany({ select: { images: true } }),
@@ -417,12 +377,6 @@ export async function reconstituerRegistreImagesProduit(): Promise<BilanReconsti
   return { ajoutees, supprimees }
 }
 
-/**
- * La suppression durable d'Images produit : une panne du stockage remonte au
- * travailleur, qui laisse une Exécution échouée et réessaie. Une suppression
- * silencieusement manquée ne serait jamais réparée, l'objet R2 restant sans
- * référence dans le Catalogue.
- */
 export async function supprimerImagesProduitDuStockage(
   publicUrls: readonly string[]
 ): Promise<void> {
@@ -436,12 +390,6 @@ export async function supprimerImagesProduitDuStockage(
   }
 }
 
-/**
- * La même garantie pour l'image d'une Structure : l'espace de noms R2 d'une
- * catégorie n'est pas celui des Images produit, donc la suppression durable
- * passe par son propre adaptateur. Un échec remonte pour que l'Exécution
- * échouée réessaie.
- */
 export async function supprimerImagesCategorieDuStockage(
   publicUrls: readonly string[]
 ): Promise<void> {

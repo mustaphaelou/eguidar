@@ -4,11 +4,6 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-/**
- * Le helper ne crée pas de checkout dans la suite : `--dry-run` annonce ce
- * qu'il ferait, et c'est ce contrat que la convention de `worktrees.md` vend.
- */
-
 const RACINE = path.resolve(import.meta.dirname, "..")
 const SCRIPT = path.join(RACINE, "scripts", "worktree.sh")
 

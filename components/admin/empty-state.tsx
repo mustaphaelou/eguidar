@@ -1,9 +1,5 @@
 import { cn } from "@/lib/utils"
 
-/**
- * L'état vide d'une Liste ou d'une Bibliothèque. Il dit ce qui manque, puis
- * propose le geste qui le fait exister — jamais un simple paragraphe gris.
- */
 export function EmptyState({
   icon,
   title,

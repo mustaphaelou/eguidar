@@ -1,15 +1,3 @@
-/**
- * Le plan d'un Lot d'import : la pure fonction qui juge des Lignes déjà lues
- * contre un instantané du Catalogue. Elle décide, Produit par Produit, s'il
- * faut le créer, le modifier, le laisser inchangé ou le refuser ; elle calcule
- * l'état désiré complet et le diff avant → après, sans aucune écriture.
- *
- * La Vérification et l'application appellent ce même module : l'application
- * rejoue la vérification avec un instantané frais, elle ne la réimplémente pas.
- * Le module n'importe que le contrat du fichier ; il est sans base, sans
- * horloge et sans réseau.
- */
-
 import {
   grouperParProduit,
   normaliserLeNom,
@@ -22,7 +10,6 @@ import {
   type StatutLigneImport,
 } from "./import-produits"
 
-/** Une Variante telle que le Catalogue la porte au moment du jugement. */
 export interface InstantaneVarianteProduit {
   id: string
   name: string
@@ -31,7 +18,6 @@ export interface InstantaneVarianteProduit {
   stock: number
 }
 
-/** Un Produit tel que le Catalogue le porte au moment du jugement. */
 export interface InstantaneProduit {
   id: string
   slug: string
@@ -39,7 +25,6 @@ export interface InstantaneProduit {
   brand: string
   description: string
   categoryId: string | null
-  /** Le slug de la Structure du Produit, pour un diff lisible. */
   structureSlug: string | null
   price: number
   variants: readonly InstantaneVarianteProduit[]
@@ -55,11 +40,6 @@ export interface NomDeProduitExistant {
   name: string
 }
 
-/**
- * Le Catalogue figé que reçoit le plan. `produitsParSku` donne le slug du
- * Produit qui possède déjà chaque sku, même quand ce Produit n'est pas dans le
- * fichier ; `nomsExistants` porte tous les noms, pour la ressemblance.
- */
 export interface InstantaneCatalogue {
   produitsParSlug: Readonly<Record<string, InstantaneProduit>>
   structuresParSlug: Readonly<Record<string, InstantaneStructure>>
@@ -92,7 +72,6 @@ export interface DiffProduitPlanImport {
   variantes: readonly DiffVariantePlanImport[]
 }
 
-/** Une Variante de l'état désiré : `id` quand elle existe déjà. */
 export interface VarianteDesireeImport {
   id?: string
   name: string
@@ -101,11 +80,6 @@ export interface VarianteDesireeImport {
   stock: number
 }
 
-/**
- * L'état désiré complet des champs que l'import possède. Les champs que le
- * fichier ne mentionne pas — images, `specs`, mise en avant, livraison — sont
- * lus et préservés par l'écriture (#985), pas par le plan.
- */
 export interface EtatDesireProduitImport {
   name: string
   brand: string
@@ -129,7 +103,6 @@ export interface PlanProduit {
   refus: RefusImport | null
   avertissements: readonly AvertissementImport[]
   diff: DiffProduitPlanImport
-  /** L'état à écrire, ou `null` quand il n'y a rien à écrire. */
   etatDesire: EtatDesireProduitImport | null
   statuts: readonly { numero: number; statut: StatutLigneImport }[]
   lignes: readonly LignePlanifieeImport[]
@@ -161,11 +134,6 @@ function premiereValeur(
   return null
 }
 
-/**
- * Le premier champ requis d'une création encore vide, dans l'ordre du contrat :
- * `name` et `brand` sur au moins une Ligne, puis `variant_name` et
- * `variant_price` sur chacune. Rend `null` quand tout est là.
- */
 export function champRequisManquantALaCreation(
   lignes: readonly { cellules: CellulesImport }[]
 ): ColonneImport | null {
@@ -192,12 +160,6 @@ export function champRequisManquantALaCreation(
   return null
 }
 
-/**
- * Le champ requis que le rejeu peut retrouver depuis des cellules persistées :
- * la Variante d'abord (elle est exigée sur chaque Ligne d'une création comme
- * d'une Variante nouvelle), puis `name` et `brand`, exigés seulement quand
- * aucune Ligne du Produit ne les porte.
- */
 export function champRequisManquantDuProduit(
   lignes: readonly { cellules: CellulesImport }[]
 ): ColonneImport | null {
@@ -279,7 +241,6 @@ interface VarianteCalculee {
   existante: InstantaneVarianteProduit | null
   name: string
   sku: string
-  /** Le prix absolu en centimes, avant réécartement. */
   absolu: number
   stock: number
 }
@@ -552,12 +513,6 @@ function diffProduitVide(diff: DiffProduitPlanImport): boolean {
   return diff.produit.length === 0 && diff.variantes.length === 0
 }
 
-/**
- * Juge un Lot contre le Catalogue : un plan par slug de Produit, dans l'ordre
- * de première apparition des Lignes. Chaque règle du contrat additif vit ici,
- * et l'acceptation d'une Structure inconnue, d'un sku pris ou d'un champ requis
- * manquant rend le Produit entier refusé.
- */
 export function planifierLeLot(
   lignes: readonly LigneImport[],
   instantane: InstantaneCatalogue

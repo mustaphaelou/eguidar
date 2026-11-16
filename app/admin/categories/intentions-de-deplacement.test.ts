@@ -11,8 +11,6 @@ function ligne(
 }
 
 describe("intentionsDeDeplacement — une intention par geste, jamais une position", () => {
-  // L'ordre reçu est celui de la Lecture : volontairement à l'envers de
-  // l'alphabet, pour que l'adjacence vienne de la fratrie et non d'un tri.
   const LIGNES = [
     ligne("zebre", null),
     ligne("alpha", null),

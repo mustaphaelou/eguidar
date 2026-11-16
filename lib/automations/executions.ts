@@ -27,8 +27,6 @@ async function avecClient<T>(
   return prisma.$transaction((tx) => fn(tx))
 }
 
-// --- ouvrirExecution ---
-
 export async function ouvrirExecution(options: {
   evenement: { id: string; type: string }
   regle: { id: string; action: string }
@@ -79,7 +77,6 @@ export async function ouvrirExecution(options: {
     if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
       throw error
     }
-    // Nouvelle transaction : la précédente est annulée par PostgreSQL.
     return avecClient(undefined, async (tx) => {
       const agregat = await tx.automationRun.aggregate({
         where: { eventId: evenement.id, ruleId: regle.id },
@@ -102,8 +99,6 @@ export async function ouvrirExecution(options: {
   }
 }
 
-// --- private terminal writer ---
-
 async function ecrireTerminal(
   tx: Prisma.TransactionClient,
   executionId: string,
@@ -122,8 +117,6 @@ async function ecrireTerminal(
     },
   })
 }
-
-// --- plusAucuneRegleEnEchec ---
 
 async function plusAucuneRegleEnEchec(
   tx: Prisma.TransactionClient,
@@ -145,8 +138,6 @@ async function plusAucuneRegleEnEchec(
     ([ruleId, statut]) => ruleId === regleReessayee || statut !== "echoue"
   )
 }
-
-// --- terminerExecution ---
 
 export async function terminerExecution(options: {
   executionId: string
@@ -173,7 +164,6 @@ export async function terminerExecution(options: {
       execution.startedAt
     )
 
-    // terminal aftermath: repair on manual success
     if (
       issue === "reussi" &&
       execution.trigger === "manuel" &&
@@ -193,8 +183,6 @@ export async function terminerExecution(options: {
     }
   })
 }
-
-// --- annulerExecutionsEnCours ---
 
 export async function annulerExecutionsEnCours(options: {
   regleId: string
@@ -234,8 +222,6 @@ export async function annulerExecutionsEnCours(options: {
     })
   }
 }
-
-// --- ouvrirReessai ---
 
 export async function ouvrirReessai(
   executionId: string,
@@ -306,13 +292,11 @@ export async function ouvrirReessai(
       throw error
     }
     return avecClient(undefined, async (tx) => {
-      // Recharger l'exécution source pour les données nécessaires.
       const execution = await tx.automationRun.findUnique({
         where: { id: executionId },
         include: { event: true, rule: true },
       })
       if (!execution || !execution.event || !execution.rule) {
-        // État inattendu après collision : on propage.
         throw error
       }
       const evenement = execution.event

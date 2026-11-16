@@ -5,11 +5,6 @@ const ORIGINES_DE_DEVELOPPEMENT = [
   "http://127.0.0.1:3000",
 ] as const
 
-/**
- * Les origines depuis lesquelles l'Administration téléverse. La production est
- * servie depuis `site.url` ; le développement local reste explicitement listé
- * parce qu'une origine CORS ne se déduit jamais d'un port ou d'un hôte.
- */
 export const ORIGINES_ADMINISTRATION = [
   site.url,
   ...ORIGINES_DE_DEVELOPPEMENT,
@@ -59,11 +54,6 @@ export function artefactCorsR2(): ArtefactCorsR2 {
   }
 }
 
-/**
- * Répond la question que le navigateur pose en pré-vol : cette origine
- * peut-elle faire cette méthode avec ces en-têtes ? Le test s'en sert comme
- * d'un simulateur du bucket neuf, sans réseau.
- */
 export function corsAutorise(
   artefact: ArtefactCorsR2,
   requete: RequeteCors

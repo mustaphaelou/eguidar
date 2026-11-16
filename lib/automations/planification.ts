@@ -8,12 +8,6 @@ import {
 export const HEURE_DIGEST_STOCK_BAS = 7
 export const HEURE_RECONCILIATION = 3
 
-/**
- * La journée d'une planification est celle de l'horloge **injectée**, en UTC :
- * deux exécutions le même jour tombent sur le même identifiant d'entité, donc
- * sur la même clé naturelle — le second passage d'un tâcheron ne crée pas de
- * doublon, il ne trouve rien à faire.
- */
 export function jourDeLHorloge(maintenant: Date): string {
   return maintenant.toISOString().slice(0, 10)
 }

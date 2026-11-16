@@ -45,8 +45,6 @@ async function TableauDeBord({
     compterExecutionsEnEchec(),
   ])
 
-  // 0 Produit et 0 Commande : la page entière cède la place à l'invitation.
-  // Une boutique qui garde une histoire (des Commandes) garde son Tableau de bord.
   if (stats.productCount === 0 && stats.orderCount === 0) {
     return <PremierePage />
   }

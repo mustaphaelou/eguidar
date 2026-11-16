@@ -12,7 +12,6 @@ export function sAbonnerAuxChangementsDuPanier(abonne: () => void): () => void {
   }
 }
 
-/** Signale qu'un Panier a changé ; les surfaces montées relisent leur lecture. */
 export function signalerUnChangementDuPanier(): void {
   version += 1
   for (const abonne of [...abonnes]) abonne()

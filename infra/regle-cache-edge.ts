@@ -36,22 +36,10 @@ export function expressionRscEtPrefetch(): string {
   return `(${TETES_RSC.map(presence).join(" or ")})`
 }
 
-/**
- * Les Cache Rules s'empilent et la dernière règle qui fixe un réglage
- * l'emporte : le contournement ci-dessus ne protège pas l'éligibilité qui le
- * suit, qui doit donc nier les mêmes têtes elle-même. La référence est
- * https://developers.cloudflare.com/cache/how-to/cache-rules/order/ (consulté
- * le 2026-10-23).
- */
 function gardeRscEtPrefetch(): string {
   return TETES_RSC.map((tete) => `not ${presence(tete)}`).join(" and ")
 }
 
-/**
- * Le repli d'un Catalogue vide répond un 404 qui porte `s-maxage` ; il ne doit
- * jamais devenir une entrée partagée. Les trois routes dynamiques finissent par
- * le même segment, donc une seule négation de suffixe les couvre.
- */
 function gardeSlugDeRepli(): string {
   return `not ends_with(http.request.uri.path, "/${SLUG_DE_REPLI}")`
 }
@@ -93,11 +81,6 @@ export function artefactRegleCacheEdge(): ArtefactRegleCacheEdge {
         action: "set_cache_settings",
         action_parameters: {
           cache: true,
-          // `bypass_by_default` honore `s-maxage` mais ne stocke rien sans
-          // `Cache-Control` : l'échec est fermé. Surtout, aucun TTL explicite
-          // (`override_origin`, `status_code_ttl`) : Cloudflare retirerait
-          // alors `Set-Cookie` et cacherait la réponse.
-          // https://developers.cloudflare.com/cache/how-to/cache-rules/settings/
           edge_ttl: { mode: "bypass_by_default" },
         },
       },

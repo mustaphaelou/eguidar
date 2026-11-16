@@ -4,10 +4,6 @@ import { vi } from "vitest"
 
 const URL_RANGE_PWNED = "https://api.pwnedpasswords.com/range/"
 
-/**
- * Une ligne qui ne correspond à aucun suffixe réellement demandé : elle prouve
- * que le plugin lit bien la réponse au lieu de conclure sur le seul statut.
- */
 const LIGNE_NON_CORRESPONDANTE = "00000000000000000000000000000000000:1"
 
 function empreinteSha1(motDePasse: string): string {
@@ -20,12 +16,6 @@ function urlDe(entree: string | URL | Request): string {
   return entree.url
 }
 
-/**
- * Simule le service `range` de Have I Been Pwned pour les mots de passe
- * compromis connus du test. La réponse porte le suffixe correspondant au
- * préfixe demandé, plus une ligne non correspondante ; toute autre URL lève
- * pour garder la suite hermétique.
- */
 export function fauxServiceDeFuite(
   motsDePasseCompromis: readonly string[]
 ): (entree: string | URL | Request) => Promise<Response> {

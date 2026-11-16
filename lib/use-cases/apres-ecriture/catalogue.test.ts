@@ -262,7 +262,6 @@ describe("l'adaptateur Catalogue unitaire", () => {
         { produit: IDENTITE },
       ]
     )
-    // Les faits d'immédiat ne polluent pas la Charge du Fait.
     expect(plan.faits[0]!.charge).toEqual({
       produitId: PRODUIT,
       slug: SLUG,
@@ -332,8 +331,6 @@ describe("l'adaptateur Catalogue unitaire", () => {
 
     await executer(plan, effets, lecture.lectures, journal)
 
-    // Les gestionnaires du Registre et des Brouillons ne font rien sur une
-    // charge utile vide : aucun port n'est appelé.
     expect(appels.map((appel) => appel.port)).toEqual([
       "reindexation",
       "invalidation-cache",
@@ -679,7 +676,6 @@ describe("l'adaptateur Catalogue groupé", () => {
       { port: "invalidation-cache", arguments: [EVENEMENT_A] },
       { port: "invalidation-cache", arguments: [EVENEMENT_B] },
     ])
-    // Une seule lecture du lot, partagée par les deux invalidations.
     expect(lecture.documents).toHaveBeenCalledOnce()
     expect(lecture.evenements).toHaveBeenCalledOnce()
     expect(journal.mesures).toHaveLength(3)
@@ -762,7 +758,6 @@ describe("l'adaptateur Catalogue groupé", () => {
       { port: "invalidation-cache", arguments: [EVENEMENT_B] },
       { port: "purge-catalogue", arguments: [EVENEMENT_B] },
     ])
-    // Seule la lecture des événements est nécessaire : aucune réindexation.
     expect(lecture.documents).not.toHaveBeenCalled()
     expect(lecture.evenements).toHaveBeenCalledOnce()
     expect(journal.mesures).toHaveLength(7)
@@ -894,7 +889,6 @@ describe("le Texte alternatif par l'adaptateur Catalogue", () => {
       journal
     )
 
-    // Une seule lecture des événements pour les deux invalidations du plan.
     expect(evenements).toHaveBeenCalledOnce()
     expect(appels).toEqual([
       { port: "invalidation-cache", arguments: [EVENEMENT] },

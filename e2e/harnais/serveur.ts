@@ -13,13 +13,6 @@ import {
   racineDeLArtefact,
 } from "./artefact"
 
-/**
- * Le serveur de la sonde : l'artefact `standalone` copié comme le fait le
- * Dockerfile (standalone, static, public, handlers), démarré sur un port libre,
- * interrogé jusqu'à sa première page, puis arrêté et effacé. Aucune pause fixe :
- * on attend une réponse, pas un délai.
- */
-
 export interface ServeurDeSonde {
   origine: string
   arreter(): Promise<void>
@@ -44,7 +37,6 @@ export async function portLibre(): Promise<number> {
   return adresse.port
 }
 
-/** Le même arrangement que le Dockerfile et la sonde de document anonyme. */
 function copierLArtefact(artefact: string): string {
   if (!existsSync(fichierDuServeur(artefact))) {
     throw new Error(
@@ -71,14 +63,6 @@ function copierLArtefact(artefact: string): string {
   return standalone
 }
 
-/**
- * L'environnement du serveur de la sonde. `TURNSTILE_SECRET_KEY` en est
- * **retiré**, même si le poste le déclare : c'est la condition écrite du
- * plugin de Test de sécurité (voir `lib/auth.ts`), qui n'est alors pas
- * enregistré et laisse `/api/auth/sign-in/email` accepter la connexion de la
- * sonde. Le retrait, et non une valeur vide, rend la condition observable telle
- * quelle dans l'environnement du processus.
- */
 export function environnementDuServeur(
   origine: string,
   baseDeDonnees: string,
@@ -124,9 +108,7 @@ async function attendreLeServeur(
       const reponse = await fetch(`${origine}/faq`, { redirect: "manual" })
       await reponse.arrayBuffer()
       if (reponse.status === 200) return
-    } catch {
-      // Le serveur n'écoute pas encore.
-    }
+    } catch {}
     await new Promise((resoudre) =>
       setTimeout(resoudre, INTERVALLE_DE_SONDE_MS)
     )
@@ -136,10 +118,6 @@ async function attendreLeServeur(
   )
 }
 
-/**
- * Démarre l'artefact sur `E2E_PORT` s'il est posé, sinon sur un port libre.
- * Un échec lève : la sonde échoue, elle ne se saute jamais.
- */
 export async function demarrerLeServeur(options: {
   baseDeDonnees: string
   redisUrl: string | null
@@ -192,7 +170,6 @@ export async function demarrerLeServeur(options: {
   return { origine, arreter }
 }
 
-/** Le build de la sonde : la base de sonde, l'origine du future serveur, sans Turnstile. */
 export function environnementDeBuild(
   baseDeDonnees: string,
   origine: string,
@@ -204,8 +181,6 @@ export function environnementDeBuild(
     DATABASE_URL: baseDeDonnees,
     REDIS_URL: redisUrl ?? "",
     BETTER_AUTH_URL: origine,
-    // Le client d'authentification retombe sur l'origine de la fenêtre : la
-    // sonde garde son port libre sans rejouer le build.
     NEXT_PUBLIC_BETTER_AUTH_URL: "",
     NEXT_TELEMETRY_DISABLED: "1",
   }

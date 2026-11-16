@@ -61,8 +61,6 @@ function urlDeStatut(request: Request, code: string): string {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  // Le secret est lu à l'appel : les tests peuvent le poser sans recharger le
-  // module, et une rotation d'environnement n'exige pas de redémarrage du code.
   const secret = process.env.FACEBOOK_CLIENT_SECRET
   if (secret === undefined || secret === "") {
     console.error(
@@ -91,8 +89,6 @@ export async function POST(request: Request): Promise<Response> {
     return reponseJson({ error: MESSAGE_INDISPONIBLE }, 500)
   }
 
-  // `confirmation_code` est le nom que Meta attend dans le corps ; la variable
-  // locale, elle, porte le vocabulaire du domaine.
   const codeDeConfirmation = randomBytes(16).toString("hex")
   return reponseJson(
     {

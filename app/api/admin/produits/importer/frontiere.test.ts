@@ -11,10 +11,6 @@ import {
 const ROUTE_MODELE = "app/api/admin/produits/importer/modele/route.ts"
 const ROUTE_REFUS = "app/api/admin/produits/importer/refus/[lotId]/route.ts"
 
-// Les routes de téléchargement de l'import ne peuvent pas passer par
-// `adminJsonRoute` : la porte JSON ne rend que du JSON. Cette garde-là est donc
-// la leur, jumelle de celle des routes de téléversement, et elle exige la
-// Session courante et le rôle administrateur explicitement.
 const ROUTES_SURVEILLEES = [ROUTE_MODELE, ROUTE_REFUS] as const
 
 const SOURCES = sourcesDeProduction(

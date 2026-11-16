@@ -20,11 +20,6 @@ export const ETAPES_IMPORT = [
   },
 ] as const
 
-/**
- * Les trois étapes du parcours d'import. L'étape courante est portée par
- * `aria-current="step"` et par un badge visible, pour que la position se lise
- * à l'œil comme au lecteur d'écran.
- */
 export function EtapesImport({
   etapeCourante,
 }: {

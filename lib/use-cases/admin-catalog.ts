@@ -783,8 +783,6 @@ async function enregistrerProduit(
           slug: ecriture.produit.slug,
           previousSlug: ecriture.slugPrecedent,
         }
-  // L'invalidation et la purge partagent la même lecture de la Structure : une
-  // seule lecture pour les deux conséquences déclarées.
   let chainesLues:
     Promise<Awaited<ReturnType<typeof chainesDuProduit>>> | undefined
   const chaines = () =>
@@ -848,8 +846,6 @@ export async function deleteProduct(
     return { produit, plan }
   })
 
-  // Une seule lecture de la Structure après le commit pour l'invalidation et
-  // la purge, comme pour l'enregistrement.
   let chainesLues:
     Promise<Awaited<ReturnType<typeof chainesDuProduit>>> | undefined
   const chaines = () => (chainesLues ??= chainesDuProduit(produit.categoryId))
@@ -913,12 +909,6 @@ function partitionDesIdentifiants(
   }
 }
 
-/**
- * Le lot écrit ses Événements dans la même transaction que son `updateMany` :
- * un retour arrière ne laisse donc ni changement ni Événement, et chaque
- * Produit touché reçoit le sien — les règles semées réindexent et invalident
- * par Produit, pas par geste.
- */
 async function mettreAJourLot(
   ids: readonly string[],
   data: Prisma.ProductUncheckedUpdateManyInput,
@@ -963,9 +953,6 @@ async function mettreAJourLot(
       })
       await enregistrerFaits(tx, planLot.faits)
     })
-    // Les documents et les Événements du lot sont lus une seule fois, à la
-    // première conséquence qui en a besoin, et partagés par la réindexation
-    // groupée et les invalidations par Produit.
     let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
     const documents = () => (documentsLus ??= documentsDeLot(partage.succes))
     await executerCatalogue(planLot, effects, {
@@ -1069,8 +1056,6 @@ export async function bulkDelete(
     await tx.product.deleteMany({ where: { id: { in: partage.succes } } })
     await enregistrerFaits(tx, plan.faits)
   })
-  // Les Événements du lot sont lus une seule fois, à la première invalidation,
-  // depuis la fiche lue avant la suppression et une seule lecture de Structure.
   let evenementsLus: Promise<readonly CatalogueEventProduct[]> | undefined
   const evenements = () =>
     (evenementsLus ??= (async () => {
@@ -1276,10 +1261,6 @@ async function filtreStructureDe(
   return { kind: "ids", ids: lecture.branche(structure) }
 }
 
-/**
- * Le terme cherché est une donnée, pas un motif : `%` et `_` sont des
- * caractères littéraux, et l'anti-slash échappe l'anti-slash lui-même.
- */
 function motifIlike(terme: string): string {
   return `%${terme.replace(/[\\%_]/g, "\\$&")}%`
 }
@@ -1407,7 +1388,6 @@ export async function listAdminProducts(
   }
 }
 
-/** Le libellé d'un Produit sans Structure, pour la facette de la liste. */
 export function libelleSansStructure(): string {
   return LIBELLE_SANS_STRUCTURE
 }

@@ -29,7 +29,6 @@ export type ResultatPresignation =
 export type ResultatEnvoi = { ok: true } | RefusTeleversement
 
 export interface PortTeleversementBrouillons {
-  /** Le port refuse : il ne lève jamais. */
   presigner(entree: EntreePresignationBrouillon): Promise<ResultatPresignation>
   envoyer(envoi: EnvoiBrouillon): Promise<ResultatEnvoi>
   relacher(draftId: string): Promise<ResultatEnvoi>
@@ -79,9 +78,6 @@ export function creerTeleversementBrouillons(
           fichier,
         })
         if (!envoi.ok) {
-          // Un lien expiré répond 403 sans en-têtes CORS : JavaScript ne peut
-          // pas lire la cause. On renouvelle donc le lien une fois, puis on
-          // garde le refus générique si la seconde tentative échoue aussi.
           const secondePresignation = await port.presigner({
             contentType: fichier.type,
             size: fichier.size,

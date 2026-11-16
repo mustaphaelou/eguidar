@@ -14,12 +14,6 @@ const MODULES_DE_MUTATION = [
   "lib/use-cases/orders",
 ]
 
-/**
- * La frontière du travailleur : il lit, il projette et il envoie, mais il
- * n'écrit jamais par un module de mutation — sinon une règle pourrait nourrir
- * le déclencheur qu'elle observe. Et il ne nomme ni Redis ni une seconde
- * plateforme de file.
- */
 describe("la frontière des automatisations durables", () => {
   it("n'importe aucun client Redis", () => {
     const coupables = SOURCES.filter(

@@ -36,8 +36,6 @@ const EN_TETE_AVEC_BOM = `\uFEFF${EN_TETE}`
 const EMPREINTE_EN_TETE_AVEC_BOM =
   "3b9017f6d30ec743a1120e03217770709edc247a146bd6814f287a6bd06a877e"
 
-// Dans l'ordre canonique : slug,name,brand,category,description,variant_sku,
-// variant_name,variant_price,variant_stock.
 const LIGNE_CHAISE = "chaise,Chaise,Maison,,,CHAISE-01,Chaise en bois,12.50,3"
 const LIGNE_TABLE = "table,Table,Maison,,,TABLE-01,Table en bois,89.00,1"
 

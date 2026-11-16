@@ -44,11 +44,6 @@ import {
 } from "@/lib/use-cases/images-produit"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 
-/**
- * Un pont d'entité : il construit les ports et les lectures que le travailleur
- * possède, puis confie une conséquence du plan à l'adaptateur de l'entité.
- * L'échec remonte, c'est lui qui fait échouer l'Exécution.
- */
 export interface PontExecution {
   executerUne(consequence: ConsequenceApresEcriture): Promise<void>
 }
@@ -88,12 +83,6 @@ function identifiantDeLaCharge(charge: ChargeProduitDurable): string {
   return charge.produitId
 }
 
-/**
- * Une lecture d'Événement Catalogue demandée pour un déclencheur qui n'en a
- * aucun de durable : le changement de stock ne réindexe qu'un document, il
- * n'invalide ni ne purge le Catalogue. Une erreur nommée vaut mieux qu'un
- * Événement inventé, qui ferait passer une donnée fausse pour une lecture.
- */
 export class EvenementCatalogueNonDurableError extends Error {
   constructor(readonly type: TypeEvenementAutomation) {
     super(`aucun Événement Catalogue durable pour « ${type} »`)
@@ -134,17 +123,10 @@ async function evenementCatalogue(
       }
     }
     default:
-      // Le changement de stock n'a qu'une réindexation durable : la lecture de
-      // l'Événement Catalogue n'est jamais demandée.
       throw new EvenementCatalogueNonDurableError(type)
   }
 }
 
-/**
- * Un document dont seul l'indexable peut être lu. Le changement de stock n'a
- * pas d'Événement Catalogue ; l'atteindre est une erreur nommée, pas un
- * événement fabriqué.
- */
 function documentSansEvenement(indexable: IndexableProduct): DocumentCatalogue {
   return {
     indexable,
@@ -206,10 +188,6 @@ function pontStructure(dependances: DependancesAutomations): PontExecution {
       await supprimerImagesCategorieDuStockage([url])
     },
   }
-  // Le pont vit le temps d'une Règle, pas d'une conséquence : l'arbre est
-  // mémoïsé au niveau du plan, sinon une Structure supprimée qui réindexe N
-  // destinations le lirait N fois. Chaque branche résolue lit ses documents
-  // une seule fois, elle aussi.
   const arbre = memoise(() => lireStructure())
   const documentsParBranche = new Map<string, Promise<IndexableProduct[]>>()
   function documents(

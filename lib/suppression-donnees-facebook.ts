@@ -7,9 +7,6 @@ import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 
 const FOURNISSEUR_FACEBOOK: FournisseurSocial = "facebook"
 
-// Le type d'entité de la Commande vient du vocabulaire fermé des
-// automatisations, celui-là même que l'écrivain d'Événements valide : le module
-// de suppression ne fige pas ce littéral.
 const ENTITE_COMMANDE = TYPE_ENTITE_PAR_DECLENCHEUR["commande.creee"]
 
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/
@@ -18,12 +15,6 @@ export type ChargeSignedRequest = {
   user_id: string
 }
 
-/**
- * Vérifie un `signed_request` de Facebook : la signature HMAC-SHA256 du
- * `payload` encodé en base64url, comparée en temps constant avec le secret de
- * l'application. Rend la charge utile signée, ou `null` si le document est
- * malformé, mal signé ou d'un algorithme inconnu.
- */
 export function verifierSignedRequest(
   signedRequest: string,
   secret: string
@@ -58,14 +49,6 @@ export function verifierSignedRequest(
   return { user_id }
 }
 
-/**
- * Supprime le Compte client rattaché à l'identifiant applicatif Facebook, avec
- * ses Commandes et tout ce que la suppression du Compte client emporte
- * (comptes sociaux, sessions, Articles du panier, Brouillons d'Image produit).
- *
- * Un identifiant inconnu ne supprime rien : l'appel reste idempotent, comme
- * Meta l'exige quand il rejoue une demande de suppression.
- */
 export async function supprimerDonneesFacebook(
   identifiantApplicatif: string
 ): Promise<void> {
@@ -91,20 +74,10 @@ export async function supprimerDonneesFacebook(
       select: { id: true },
     })
 
-    // `Order.user` n'est pas en cascade : les Commandes partent avant le
-    // Compte client, et `OrderItem` suit par cascade de sa Commande.
     await tx.order.deleteMany({
       where: { userId: { in: identifiants } },
     })
 
-    // Les Événements d'automatisation gardent une copie de la Commande — e-mail,
-    // ville, adresse, téléphone, Articles du panier et totaux — sans clé
-    // étrangère vers elle : ils ne partent pas avec la suppression. Ils partent
-    // dans la même transaction, après les Commandes et avant le Compte client :
-    // la suppression des Commandes attend un `updateOrderStatus` concurrent qui
-    // tient leur verrou, puis l'effacement emporte l'Événement que ce dernier
-    // vient d'écrire. Les Exécutions survivent : le schéma nullifie leur lien
-    // vers l'Événement.
     await tx.automationEvent.deleteMany({
       where: {
         entityType: ENTITE_COMMANDE,
@@ -112,15 +85,6 @@ export async function supprimerDonneesFacebook(
       },
     })
 
-    // `verification` n'a pas de clé étrangère vers `user` : les codes encore en
-    // attente pour les adresses du Client partent explicitement. Better Auth
-    // écrit deux formes : `toOTPIdentifier` pour les codes — `${type}-otp-${email}`
-    // — et `change-email-otp-${oldEmail}-${newEmail}` pour le changement
-    // d'adresse. Le suffixe couvre la première, la contenance `-otp-${email}-`
-    // la seconde quand l'adresse supprimée est l'ancienne ; aucune ne touche
-    // l'identifiant d'une autre adresse dont celle-ci serait le suffixe. Le
-    // changement d'adresse reste désactivé dans `lib/auth.ts`, mais la forme est
-    // couverte pour que l'activer un jour ne laisse pas de lignes derrière.
     await tx.verification.deleteMany({
       where: {
         OR: clients.flatMap(({ email }) => [
@@ -137,7 +101,6 @@ export async function supprimerDonneesFacebook(
     return commandesSupprimees
   })
 
-  // ADR-0014 : l'invalidation vit à côté de la suppression, après le commit.
   for (const commande of commandes) {
     invalidateCommande(commande.id)
   }

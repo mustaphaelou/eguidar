@@ -37,11 +37,6 @@ const formatDate = new Intl.DateTimeFormat("fr-FR", {
   timeStyle: "medium",
 })
 
-/**
- * La liste des Règles : chacune se lit déclencheur → condition → action, avec
- * son état et sa dernière exécution. Une Règle désactivée reste visible ; un
- * échec ne se cache pas.
- */
 export default async function AdminAutomatisationsPage() {
   const [regles, enEchec] = await Promise.all([
     listerRegles(),

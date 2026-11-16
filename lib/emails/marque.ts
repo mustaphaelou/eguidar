@@ -1,5 +1,3 @@
-// La lettre reprend la palette de la boutique : blanc, noir, gris Apple, et
-// un seul bleu — celui du lien et de l'action.
 export const COULEUR_ACCENT = "#0071e3"
 export const COULEUR_TEXTE = "#1d1d1d"
 export const COULEUR_TEXTE_ATTÉNUÉ = "#6e6e73"

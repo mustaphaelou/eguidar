@@ -17,16 +17,6 @@ import { LigneCalme } from "./ligne-calme"
 import { LignesDAlerte, type CompteursDAlerte } from "./ligne-d-alerte"
 import { ListeDeStockFaible } from "./stock-faible"
 
-/**
- * La troisième bande, fusionnée : les alertes qui comptent passent au-dessus du
- * stock faible, qui devient la liste commune. L'alerte « Stock faible » ne se
- * répète plus au-dessus du tableau qu'elle désigne, et tout à zéro se dit une
- * seule fois.
- *
- * L'en-tête porte `flex flex-col sm:grid` : masquer le `CardAction` en
- * `display: none` retire l'action de la grille de `CardHeader` et ferait écrire
- * le titre à la verticale. Le flex de base le laisse se placer normalement.
- */
 export function CarteSurveillance({
   compteurs,
   stock,

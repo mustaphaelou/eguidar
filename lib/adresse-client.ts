@@ -2,12 +2,6 @@ import { isIP } from "node:net"
 
 export const ADRESSE_CLIENT_PARTAGEE = "client-partage"
 
-/**
- * Les en-têtes qui peuvent nommer l'adresse du Client, dans l'ordre de
- * préférence : Cloudflare pose `cf-connecting-ip`, un proxy peut poser
- * `x-real-ip`, et `x-forwarded-for` porte une chaîne dont le premier relais est
- * forgeable.
- */
 export const ORDRE_ENTETES_ADRESSE_CLIENT = [
   "cf-connecting-ip",
   "x-real-ip",
@@ -18,13 +12,6 @@ export interface EntetesRequete {
   get(nom: string): string | null
 }
 
-/**
- * Les plages des proxies qui peuvent précéder l'origine : le bord Cloudflare
- * (https://www.cloudflare.com/ips-v4 et https://www.cloudflare.com/ips-v6,
- * relevées le 29 octobre 2026), puis les plages privées et de boucle d'un proxy
- * d'hébergement (Coolify). Better Auth remonte une chaîne `x-forwarded-for` de
- * droite à gauche et retient le premier relais qui n'appartient pas à ces plages.
- */
 export const PROXIES_DE_CONFIANCE = [
   "173.245.48.0/20",
   "103.21.244.0/22",

@@ -25,12 +25,6 @@ import { AuthDialog } from "./auth-dialog"
 
 type AuthDialogsContextValue = {
   email: string
-  /**
-   * Le fait qu'un flux précédent doit dire au Client, rendu une fois par la
-   * modale qui le reçoit. La Vérification de l'e-mail d'une Inscription s'en
-   * sert pour annoncer le Compte client créé ; la Session inactive pourra s'en
-   * servir pour son avis. Le contrôleur le possède, le panneau le rend.
-   */
   avis: string | null
   openLogin: (options?: {
     email?: string

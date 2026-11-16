@@ -35,10 +35,6 @@ import {
 } from "@/lib/use-cases/apres-ecriture/commande"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-/**
- * Les ports de la Commande sont ceux que l'adaptateur projette ; le type vit
- * dans l'adaptateur pour que le site d'appel n'en redéclare pas une copie.
- */
 export type OrderEffects = EffetsCommande
 
 const defaultOrderEffects: OrderEffects = {
@@ -52,7 +48,6 @@ export interface CheckoutInput {
   cityId: string
   address: string
   phone: string
-  /** Total à payer lu par le Client, en centimes — comparé au Devis à la naissance de la Commande (#659). */
   totalAffiche: number
 }
 
@@ -275,13 +270,6 @@ async function réapprovisionnerArticles(
   }
 }
 
-/** Les faits que la transaction possède d'un Produit touché, sans sa chaîne. */
-/**
- * Les Produits dont une Variante vient de bouger, lus dans la transaction de la
- * Commande. La transaction ne capture que ce qu'elle possède — l'identité du
- * Produit et la Structure à laquelle il appartenait — et ne lit jamais la
- * Structure elle-même : ADR-0030 l'interdit dans une transaction.
- */
 async function produitsTouches(
   tx: Prisma.TransactionClient,
   items: readonly { variantId: string | null }[]
@@ -325,7 +313,6 @@ export async function placeOrder(
     const selection = selectionValidee(projet.selection)
     const city = selection.ville
     const montants = montantsDeLaCommande(cart.subtotal, selection)
-    // Le Devis périmé gagne sur le scan de stock : aucun fait n'est encore engagé.
     if (montants.totalPayable !== data.totalAffiche)
       throw new DevisPériméError()
 

@@ -27,8 +27,6 @@ describe("the patched first phase bounds the **/../ expansion", () => {
     const doubled = new Minimatch(pattern, { optimizationLevel: 2 })
     expect(doubled.set.length).toBe(2 ** occurrences)
 
-    // 11.0.1 checks `globParts.length >= braceExpandMax` before every split, so
-    // a lowered cap holds even though the pattern asks for 32 patterns.
     const bounded = new Minimatch(pattern, {
       optimizationLevel: 2,
       braceExpandMax: 8,

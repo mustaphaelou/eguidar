@@ -6,9 +6,6 @@ export const DEPOT = "mustaphaelou/eguidar"
 
 export const API = `https://api.github.com/repos/${DEPOT}/rulesets`
 
-// L'ordre que l'API rend, différent du contrat trié : la lecture ne réordonne
-// rien, la comparaison traite les contextes comme un ensemble. Ces faits
-// décrivent le ruleset une fois le sixième contexte ajouté.
 export const CONTEXTES_VIVANTS = [
   "lint",
   "format",
@@ -44,9 +41,6 @@ export function resume(
   }
 }
 
-// Les valeurs par défaut reprennent la forme du ruleset vivant : la revue n'est
-// exigée par aucun de ces champs, et `require_extra_approval_for_unattributed_changes`
-// est vrai sans rendre la revue requise.
 export function reglePull(
   parameters: Record<string, unknown> = {}
 ): Record<string, unknown> {

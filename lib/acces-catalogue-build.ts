@@ -3,7 +3,6 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { filtreArticlePublic } from "@/lib/article-public"
 import { PrismaClient } from "@/lib/generated/prisma/client"
 
-/** Délai au-delà duquel le build considère que le catalogue ne répond pas. */
 export const DELAI_ACCES_CATALOGUE_MS = 5_000
 
 export interface FaitsCatalogue {
@@ -38,11 +37,6 @@ export function messageDesFaitsCatalogue(faits: FaitsCatalogue): string {
   return `[catalogue] joignable (${comptes}) : le build peut prérendre le catalogue.`
 }
 
-/**
- * Lit ce que le build s'apprête à prérendre. Le client est créé pour cet
- * appel seulement, avec un délai court porté par le pilote : un build qui ne
- * peut pas lire le catalogue doit s'arrêter vite, pas attendre le prérendu.
- */
 export async function lireLesFaitsDuCatalogue(
   options: OptionsAccesCatalogue
 ): Promise<FaitsCatalogue> {

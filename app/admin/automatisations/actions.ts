@@ -57,7 +57,6 @@ function parseRegleFormData(formData: FormData): EntreeFormulaire {
 interface BasculeFormulaire {
   regleId: string
   actif: boolean
-  /** Où revenir : la page de la règle, ou la liste. Aucune URL libre. */
   retour: "regle" | "liste"
 }
 
@@ -66,11 +65,6 @@ interface ReessaiFormulaire {
   filtres: FiltresExecutions
 }
 
-/**
- * L'éditeur : créer et modifier passent par la même action, l'identifiant de
- * la règle faisant la différence. Une combinaison refusée revient au
- * formulaire avec son message, sans rien écrire.
- */
 export const enregistrerRegleAction = adminFormAction<EntreeFormulaire>({
   next: LISTE,
   parse: parseRegleFormData,
@@ -85,11 +79,6 @@ export const enregistrerRegleAction = adminFormAction<EntreeFormulaire>({
   },
 })
 
-/**
- * La bascule : le propriétaire seul y arrive (`adminFormAction` garde
- * `estAdmin`). Désactiver annule les exécutions en cours ; réactiver ne rejoue
- * rien.
- */
 export const basculerRegleAction = adminFormAction<BasculeFormulaire>({
   next: LISTE,
   parse: (formData) => ({
@@ -103,10 +92,6 @@ export const basculerRegleAction = adminFormAction<BasculeFormulaire>({
   },
 })
 
-/**
- * Le réessai manuel : la nouvelle exécution est marquée `manuel`, et le retour
- * conserve les filtres de l'historique — reconstruits par la même grammaire.
- */
 export const reessayerExecutionAction = adminFormAction<ReessaiFormulaire>({
   next: HISTORIQUE,
   parse: (formData) => ({

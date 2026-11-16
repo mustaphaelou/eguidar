@@ -83,12 +83,6 @@ function sectionDuProbleme(probleme: string): SectionFormulaireProduit | null {
   return null
 }
 
-/**
- * La carte des sections qu'un refus du Catalogue met en cause. Elle lit les
- * messages du Catalogue sans les réécrire : chaque problème reste cité tel
- * quel dans la section qui le porte, et un refus inclassable n'est affecté à
- * aucune section — il reste le message global du formulaire.
- */
 export function sectionsDerreurProduit(message: string): SectionsErreurProduit {
   const interieur = message.replace(/^Données invalides\s*:\s*/, "")
   const sections: SectionsErreurProduit = {}

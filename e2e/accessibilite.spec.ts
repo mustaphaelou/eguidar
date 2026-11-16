@@ -7,29 +7,10 @@ import {
 } from "./harnais/attente"
 import { ajouterUnArticleAuPanier, VILLE_DE_LA_SONDE } from "./harnais/panier"
 
-/**
- * Les trois corrections d'accessibilité nommées par Lighthouse (matrice de la
- * spec #923, lignes 20 à 22) : le nom accessible du déclencheur du Panier, la
- * cible des liens légaux du Pied de page et le contraste du vert.
- *
- * La sonde ne lit que ce qu'un Client observe : le nom accessible que calcule
- * le navigateur, les boîtes réelles des liens, et des couleurs calculées
- * passées par un canevas pour obtenir des composantes sRGB. Aucun attribut
- * introduit par le correctif n'est requis, aucun coureur `axe` n'est ajouté :
- * le contraste se calcule ici, avec l'API du navigateur.
- */
-
-/** Le déclencheur du Panier, trouvé par son nom accessible d'avant le ticket. */
 function declencheurDuPanier(page: Page): Locator {
   return page.locator("header").getByRole("button", { name: /^Panier/ })
 }
 
-/**
- * La rangée légale du Pied de page, repérée par son texte de copyright. Le
- * `last()` choisit le `div` le plus profond qui porte ce texte : la rangée
- * elle-même, pas la section qui contient aussi les liens « En savoir plus » et
- * « Voir les tarifs » des paragraphes voisins.
- */
 function rangeeLegale(page: Page): Locator {
   return page
     .getByRole("contentinfo")
@@ -38,14 +19,6 @@ function rangeeLegale(page: Page): Locator {
     .last()
 }
 
-/**
- * Le ratio de contraste WCAG entre la couleur du texte et le fond effectif,
- * mesuré dans le navigateur. Les couleurs calculées du dépôt sortent en
- * `lab()` ou `oklch()` : un canevas 2D les convertit en composantes sRGB (et
- * rend l'alpha), puis on remonte les ancêtres jusqu'à un fond opaque. Le
- * rapport est calculé sur les luminances relatives WCAG : (L1 + 0,05) /
- * (L2 + 0,05), la plus claire au numérateur.
- */
 function rapportDeContraste(texte: Locator): Promise<number> {
   return texte.evaluate((element) => {
     const toile = document.createElement("canvas")
@@ -78,7 +51,6 @@ function rapportDeContraste(texte: Locator): Promise<number> {
         noeud = noeud.parentElement
       }
 
-      // Composite du plus extérieur au plus proche, sur le blanc de la page.
       let fond: [number, number, number] = [255, 255, 255]
       for (const couche of couches.reverse()) {
         fond = [
@@ -140,7 +112,6 @@ test.describe("20. le nom accessible du déclencheur du Panier", () => {
 
     const declencheur = declencheurDuPanier(page)
     await expect(declencheur).toBeVisible()
-    // Sans Article, le nom reste « Panier » : ni vide, ni réduit à un nombre.
     await expect(declencheur).toHaveAccessibleName("Panier")
   })
 
@@ -152,8 +123,6 @@ test.describe("20. le nom accessible du déclencheur du Panier", () => {
 
     const declencheur = declencheurDuPanier(page)
     await expect(declencheur).toBeVisible()
-    // Aujourd'hui la pastille porte visiblement « 1 » alors que l'étiquette
-    // écrase le contenu : le nom doit être « Panier » suivi du nombre.
     await expect(declencheur).toHaveAccessibleName(/Panier.*1/)
   })
 })

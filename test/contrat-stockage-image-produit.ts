@@ -17,7 +17,6 @@ import {
 
 const TAILLE = 2048
 
-/** Un PNG réel : la vérification décode les octets, elle ne croit aucun type. */
 export const IMAGE_CONTRAT = await sharp({
   create: {
     width: 3,

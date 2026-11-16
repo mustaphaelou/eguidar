@@ -1,11 +1,5 @@
 import { z } from "zod"
 
-/**
- * Module neutre de la charge d'un Fait (ADR-0049, addendum). Il n'importe que
- * Zod : pas de Prisma, pas de `server-only`, pas de lecture, pas d'horloge.
- * C'est la seule description de ce qu'un Événement d'automatisation porte.
- */
-
 export const TYPES_EVENEMENT_AUTOMATION = Object.freeze([
   "commande.creee",
   "commande.statut.changee",
@@ -149,7 +143,6 @@ export type ChargeParDeclencheur = {
 
 export type Charge<D extends TypeEvenementAutomation> = ChargeParDeclencheur[D]
 
-// Aliases de noms possibles pour le map des schémas.
 export const chargesParDeclencheur = CHARGES_PAR_DECLENCHEUR
 export const chargeParDeclencheur = CHARGES_PAR_DECLENCHEUR
 export const schemasDeChargeParDeclencheur = CHARGES_PAR_DECLENCHEUR
@@ -157,7 +150,6 @@ export const schemasParDeclencheur = CHARGES_PAR_DECLENCHEUR
 export const chargeSchemaParDeclencheur = CHARGES_PAR_DECLENCHEUR
 export const schemasDeCharge = CHARGES_PAR_DECLENCHEUR
 
-// Alias pour le map entité.
 export const entiteParDeclencheur = TYPE_ENTITE_PAR_DECLENCHEUR
 export const entiteTypeParDeclencheur = TYPE_ENTITE_PAR_DECLENCHEUR
 export const entityTypeParDeclencheur = TYPE_ENTITE_PAR_DECLENCHEUR

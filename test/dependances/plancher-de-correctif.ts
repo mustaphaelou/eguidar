@@ -91,11 +91,6 @@ function versionDuManifesteExporte(paquet: string): string | null {
   }
 }
 
-/**
- * La version du paquet dans l'arbre installé, ou `null` quand il est absent.
- * Certains paquets n'exportent pas leur manifeste : on remonte alors depuis
- * leur entrée résolue, comme le demande l'arbre installé.
- */
 export function versionInstallee(paquet: string): string | null {
   const version = versionDuManifesteExporte(paquet)
   if (version !== null) return version
@@ -122,11 +117,6 @@ export function arbreDeVerrouillage(): ArbreDeVerrouillage {
   return lock.packages ?? {}
 }
 
-/**
- * Les copies qu'un arbre de verrouillage installe d'un paquet : `npm ci` rejoue
- * cet arbre, et une résolution depuis la racine ne voit pas les copies
- * imbriquées sous leur consommateur.
- */
 export function copiesDe(
   paquet: string,
   arbre: ArbreDeVerrouillage = arbreDeVerrouillage()
