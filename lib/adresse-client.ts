@@ -1,4 +1,4 @@
-import { isIP } from "node:net"
+import { BlockList, isIP } from "node:net"
 
 export const ADRESSE_CLIENT_PARTAGEE = "client-partage"
 
@@ -42,15 +42,45 @@ export const PROXIES_DE_CONFIANCE = [
   "::1/128",
 ] as const
 
+const RESEAUX_DE_CONFIANCE = new BlockList()
+
+for (const plage of PROXIES_DE_CONFIANCE) {
+  const [adresse, prefixe] = plage.split("/")
+  RESEAUX_DE_CONFIANCE.addSubnet(
+    adresse,
+    Number(prefixe),
+    isIP(adresse) === 6 ? "ipv6" : "ipv4"
+  )
+}
+
 export function adresseClient(entetes: EntetesRequete): string {
   for (const nom of ORDRE_ENTETES_ADRESSE_CLIENT) {
     const valeur = entetes.get(nom)
     if (!valeur) continue
     const candidat =
       nom === "x-forwarded-for"
-        ? valeur.split(",").at(-1)?.trim()
+        ? adresseDerriereLesRelais(valeur)
         : valeur.trim()
     if (candidat && isIP(candidat) !== 0) return candidat
   }
   return ADRESSE_CLIENT_PARTAGEE
+}
+
+function adresseDerriereLesRelais(valeur: string): string | null {
+  const relais = valeur
+    .split(",")
+    .map((relais) => relais.trim())
+    .filter(Boolean)
+
+  for (let index = relais.length - 1; index >= 0; index--) {
+    const adresse = relais[index]
+    const famille = isIP(adresse)
+    if (famille === 0) return null
+    if (RESEAUX_DE_CONFIANCE.check(adresse, famille === 6 ? "ipv6" : "ipv4")) {
+      continue
+    }
+    return adresse
+  }
+
+  return null
 }
