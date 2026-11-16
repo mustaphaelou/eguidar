@@ -105,6 +105,14 @@ export function versionInstallee(paquet: string): string | null {
   }
 }
 
+export function versionVerrouillee(
+  paquet: string,
+  arbre: ArbreDeVerrouillage = arbreDeVerrouillage()
+): string | null {
+  const version = arbre[`node_modules/${paquet}`]?.version
+  return typeof version === "string" ? version : null
+}
+
 export function plancherDePlage(plage: string): string {
   return plage.replace(/^[^0-9]*/, "")
 }

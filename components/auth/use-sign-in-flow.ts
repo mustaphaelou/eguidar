@@ -11,6 +11,7 @@ import type { PortAuthentification } from "@/components/auth/port-authentificati
 import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
 import { useTestDeSecurite } from "@/components/auth/test-de-securite"
+import { estEmailNonVerifie } from "@/lib/refus-authentification"
 import { ACTIONS_TEST_DE_SECURITE } from "@/lib/vocabulaire-test-de-securite"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 
@@ -65,7 +66,7 @@ export function useSignInFlow(
         entetes: captcha.headers,
       })
       if (result.error) {
-        if (result.error.code === "EMAIL_NOT_VERIFIED") {
+        if (estEmailNonVerifie(result.error.code)) {
           setStep("otp")
           return
         }

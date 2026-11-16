@@ -86,8 +86,9 @@ callback (ADR-0007, ADR-0024). It does not wrap the Meta route.
   timing does not reveal existence.
 - `EMAIL_NOT_VERIFIED` is distinguishable only after the password checks out.
 - Per-address and per-path limiter: 10 s / 3 attempts on `/sign-in/*`; the
-  client address is resolved from `cf-connecting-ip`, `x-real-ip`, then the last
-  `x-forwarded-for` hop, behind the declared trusted proxies (ADR-0042).
+  client address is resolved from `cf-connecting-ip`, `x-real-ip`, then the
+  first untrusted `x-forwarded-for` hop read from the right, past the declared
+  trusted proxies (ADR-0042).
 - Per-account counter in Redis, keyed by the normalized typed address: 10
   consecutive failures open a 15-minute `ACCOUNT_TEMPORARILY_LOCKED` refusal,
   before the password check; a successful Connexion clears it; the TTL eases by

@@ -20,11 +20,6 @@ function lireLaMigration(): string {
   )
 }
 
-/**
- * Le backfill est une seule instruction, délimitée dans la migration pour que
- * ce test l'exécute telle quelle, deux fois. Le texte figé est celui que
- * `prisma migrate deploy` rejoue.
- */
 function lireLeBackfill(): string {
   const sql = lireLaMigration()
   const debut = sql.indexOf(DEBUT_DU_BACKFILL)
@@ -137,14 +132,12 @@ describe("la migration de l'Encaissement de la livraison", () => {
       prisma.payment.count({ where: { orderId: retournee } })
     ).resolves.toBe(0)
 
-    // Aucune ligne d'histoire n'est fabriquée pour les Commandes antérieures.
     await expect(
       prisma.orderStatusChange.count({
         where: { orderId: { in: [livree, retournee] } },
       })
     ).resolves.toBe(0)
 
-    // Rejouable : le second passage ne duplique aucun Encaissement.
     await prisma.$executeRawUnsafe(lireLeBackfill())
 
     await expect(

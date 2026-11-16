@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ResultatAuthentification } from "@/components/auth/port-authentification"
 import { MESSAGE_SERVEUR_INJOIGNABLE } from "@/components/auth/auth-form-glue"
+import {
+  CODES_REFUS_QUI_DEPENSENT_LE_JETON,
+  messageRefusAuthentification,
+} from "@/lib/refus-authentification"
 import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 
@@ -131,7 +135,7 @@ describe("useSignUpFlow", () => {
     expect(courant().error).toBeNull()
   })
 
-  it("relève USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL et reste au formulaire", async () => {
+  it("ne rend pas le message de la bibliothèque pour un code sans phrase", async () => {
     port.repondre = () => ({
       error: {
         code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
@@ -146,8 +150,29 @@ describe("useSignUpFlow", () => {
 
     await soumettre()
 
+    expect(courant().error).toBe("Une erreur est survenue. Veuillez réessayer.")
+    expect(courant().step).toBe("form")
+    expect(courant().loading).toBe(false)
+  })
+
+  it("nomme la fuite et demande un autre mot de passe", async () => {
+    port.repondre = () => ({
+      error: {
+        code: "PASSWORD_COMPROMISED",
+        message:
+          "The password you entered has been compromised. Please choose a different password.",
+      },
+    })
+
+    rendreFlux()
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+
     expect(courant().error).toBe(
-      "Un compte existe déjà avec cette adresse e-mail."
+      "Ce mot de passe apparaît dans une fuite de données connue. Choisissez-en un autre."
     )
     expect(courant().step).toBe("form")
     expect(courant().loading).toBe(false)
@@ -195,24 +220,25 @@ describe("useSignUpFlow", () => {
     expect(courant().step).toBe("otp")
   })
 
-  it("réinitialise le Test de sécurité quand l'inscription est rejetée pour lui", async () => {
-    port.repondre = () => ({
-      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
-    })
+  it.each([...CODES_REFUS_QUI_DEPENSENT_LE_JETON])(
+    "réinitialise le Test de sécurité quand l'inscription est rejetée par un %s",
+    async (code) => {
+      port.repondre = () => ({
+        error: { code, message: "captcha rejected" },
+      })
 
-    rendreFlux()
-    saisirNom("Jane Doe")
-    saisirEmail("jane@example.com")
-    saisirMotDePasse("MotDePasse!12345")
+      rendreFlux()
+      saisirNom("Jane Doe")
+      saisirEmail("jane@example.com")
+      saisirMotDePasse("MotDePasse!12345")
 
-    await soumettre()
+      await soumettre()
 
-    expect(captchaStub.reset).toHaveBeenCalled()
-    expect(courant().error).toBe(
-      "La vérification de sécurité a échoué. Réessayez."
-    )
-    expect(courant().step).toBe("form")
-  })
+      expect(captchaStub.reset).toHaveBeenCalledTimes(1)
+      expect(courant().error).toBe(messageRefusAuthentification(code))
+      expect(courant().step).toBe("form")
+    }
+  )
 
   it("ne réinitialise pas le Test de sécurité quand le refus est ailleurs", async () => {
     port.repondre = () => ({

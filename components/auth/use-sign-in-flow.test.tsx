@@ -7,6 +7,10 @@ import { creerPortAuthentificationEnMemoire } from "@/test/port-authentification
 import type { PortAuthentificationEnMemoire } from "@/test/port-authentification"
 import type { ResultatAuthentification } from "@/components/auth/port-authentification"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
+import {
+  CODES_REFUS_QUI_DEPENSENT_LE_JETON,
+  messageRefusAuthentification,
+} from "@/lib/refus-authentification"
 import { renderHook } from "./test-utils"
 import type { SignInFlow } from "./use-sign-in-flow"
 import { useSignInFlow } from "./use-sign-in-flow"
@@ -243,25 +247,26 @@ describe("useSignInFlow", () => {
     expect(courant().step).toBe("form")
   })
 
-  it("resets the Test de sécurité so a rejected sign-in retries with a fresh jeton", async () => {
-    port.repondre = () => ({
-      error: { code: "VERIFICATION_FAILED", message: "captcha rejected" },
-    })
+  it.each([...CODES_REFUS_QUI_DEPENSENT_LE_JETON])(
+    "resets the Test de sécurité on a %s refusal so a rejected sign-in retries fresh",
+    async (code) => {
+      port.repondre = () => ({
+        error: { code, message: "captcha rejected" },
+      })
 
-    rendreFlux()
-    saisirEmail("test@example.com")
-    saisirMotDePasse("secret123")
+      rendreFlux()
+      saisirEmail("test@example.com")
+      saisirMotDePasse("secret123")
 
-    await soumettre()
+      await soumettre()
 
-    expect(captchaStub.reset).toHaveBeenCalled()
-    expect(courant().error).toBe(
-      "La vérification de sécurité a échoué. Réessayez."
-    )
-    expect(courant().step).toBe("form")
-  })
+      expect(captchaStub.reset).toHaveBeenCalledTimes(1)
+      expect(courant().error).toBe(messageRefusAuthentification(code))
+      expect(courant().step).toBe("form")
+    }
+  )
 
-  it("does not reset the Test de sécurité when the sign-in is refused for another reason", async () => {
+  it("does not reset the Test de sécurité on a wrong password", async () => {
     port.repondre = () => ({
       error: { code: "INVALID_EMAIL_OR_PASSWORD", message: "bad credentials" },
     })
@@ -273,6 +278,32 @@ describe("useSignInFlow", () => {
     await soumettre()
 
     expect(captchaStub.reset).not.toHaveBeenCalled()
+  })
+
+  it("laisse repartir la Connexion après un refus fermé, sans rechargement", async () => {
+    let appels = 0
+    port.repondre = () => {
+      appels += 1
+      return appels === 1
+        ? { error: { code: "UNKNOWN_ERROR", message: "Something went wrong" } }
+        : { error: null }
+    }
+    const onSuccess = vi.fn()
+
+    rendreFlux({ onSuccess })
+    saisirEmail("test@example.com")
+    saisirMotDePasse("secret123")
+
+    await soumettre()
+
+    expect(captchaStub.reset).toHaveBeenCalledTimes(1)
+    expect(onSuccess).not.toHaveBeenCalled()
+
+    await soumettre()
+
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+    expect(port.appels).toHaveLength(2)
+    expect(courant().error).toBeNull()
   })
 
   it("revient au formulaire depuis l'étape du code avec l'adresse conservée", async () => {

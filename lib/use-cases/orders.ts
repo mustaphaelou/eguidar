@@ -454,8 +454,6 @@ export async function updateOrderStatus(
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
-    // La livraison encaisse son Total à payer en Paiement à la livraison, dans
-    // la transaction du Changement de statut ; le backfill a le même invariant.
     if (nextStatus === "delivered") {
       await tx.payment.create({
         data: {

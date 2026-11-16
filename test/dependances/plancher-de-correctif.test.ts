@@ -12,6 +12,7 @@ import {
   plancherDePlage,
   respecteLePlancher,
   versionInstallee,
+  versionVerrouillee,
   type ArbreDeVerrouillage,
   type Copie,
   type PlancherInstalle,
@@ -33,6 +34,7 @@ const PAQUETS_DE_COPIE = [
 type OptionsDeVerification = {
   manifeste?: Manifeste
   resoudre?: (paquet: string) => string | null
+  arbre?: ArbreDeVerrouillage
 }
 
 type LigneDePlage = Pick<PlancherInstalle, "paquet" | "plancher" | "plage">
@@ -85,6 +87,7 @@ function verifierLigne(
   {
     manifeste = MANIFESTE,
     resoudre = versionInstallee,
+    arbre = arbreDeVerrouillage(),
   }: OptionsDeVerification = {}
 ): void {
   const version = resoudre(ligne.paquet)
@@ -98,6 +101,11 @@ function verifierLigne(
       respecteLePlancher(version, ligne.plancher),
       `${ligne.paquet} ${version} est sous le plancher ${ligne.plancher} (${ligne.raison})`
     ).toBe(true)
+    const verrouillee = versionVerrouillee(ligne.paquet, arbre)
+    expect(
+      version,
+      `${ligne.paquet} est installé en ${version}, le fichier de verrouillage épingle ${String(verrouillee)}`
+    ).toBe(verrouillee)
   }
   verifierPlage(ligne, manifeste)
   verifierFamille(ligne, version, resoudre)
@@ -167,11 +175,19 @@ describe("l'absence d'un paquet installé", () => {
   })
 })
 
+function arbreAvecBetterAuth(version: string): ArbreDeVerrouillage {
+  return {
+    ...arbreDeVerrouillage(),
+    "node_modules/better-auth": { version },
+  }
+}
+
 describe("la famille better-auth", () => {
   it("échoue quand un paquet compagnon est absent", () => {
     expect(() =>
       verifierLigne(ligneDe("better-auth"), {
         resoudre: (paquet) => (paquet === "better-auth" ? "1.7.18" : null),
+        arbre: arbreAvecBetterAuth("1.7.18"),
       })
     ).toThrow()
   })
@@ -180,6 +196,7 @@ describe("la famille better-auth", () => {
     expect(() =>
       verifierLigne(ligneDe("better-auth"), {
         resoudre: (paquet) => (paquet === "better-auth" ? "1.7.18" : "1.7.17"),
+        arbre: arbreAvecBetterAuth("1.7.18"),
       })
     ).toThrow()
   })
@@ -202,6 +219,18 @@ describe("une violation synthétique", () => {
           },
         }
       )
+    ).toThrow()
+  })
+
+  it("fait tomber une installation qui diffère du fichier de verrouillage", () => {
+    expect(versionInstallee("next")).not.toBeNull()
+    expect(() =>
+      verifierLigne(ligneDe("next"), {
+        arbre: {
+          ...arbreDeVerrouillage(),
+          "node_modules/next": { version: "0.0.1" },
+        },
+      })
     ).toThrow()
   })
 

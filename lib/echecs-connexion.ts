@@ -9,6 +9,7 @@ import {
   cleEchecsConnexion,
 } from "@/lib/echecs-connexion-regles"
 import { clientRedisPret } from "@/lib/redis"
+import { estIdentifiantsInvalides } from "@/lib/refus-authentification"
 
 const CHEMIN_CONNEXION_MOT_DE_PASSE = "/sign-in/email"
 
@@ -72,7 +73,7 @@ export const hooksEchecsConnexion = {
 
     const retour = ctx.context.returned
     if (isAPIError(retour)) {
-      if (retour.body?.code === "INVALID_EMAIL_OR_PASSWORD") {
+      if (estIdentifiantsInvalides(retour.body?.code)) {
         await compterEchecConnexion(email)
       }
       return
