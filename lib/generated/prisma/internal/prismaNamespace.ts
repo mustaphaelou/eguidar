@@ -443,6 +443,7 @@ export const ModelName = {
   OrderItem: "OrderItem",
   Return: "Return",
   ReturnLine: "ReturnLine",
+  Refund: "Refund",
   DeliveryCity: "DeliveryCity",
   ShippingSettings: "ShippingSettings",
   Theme: "Theme",
@@ -492,6 +493,7 @@ export type TypeMap<
       | "orderItem"
       | "return"
       | "returnLine"
+      | "refund"
       | "deliveryCity"
       | "shippingSettings"
       | "theme"
@@ -1722,6 +1724,82 @@ export type TypeMap<
         }
       }
     }
+    Refund: {
+      payload: Prisma.$RefundPayload<ExtArgs>
+      fields: Prisma.RefundFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RefundFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RefundFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        findFirst: {
+          args: Prisma.RefundFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RefundFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        findMany: {
+          args: Prisma.RefundFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>[]
+        }
+        create: {
+          args: Prisma.RefundCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        createMany: {
+          args: Prisma.RefundCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RefundCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>[]
+        }
+        delete: {
+          args: Prisma.RefundDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        update: {
+          args: Prisma.RefundUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        deleteMany: {
+          args: Prisma.RefundDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RefundUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RefundUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>[]
+        }
+        upsert: {
+          args: Prisma.RefundUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        aggregate: {
+          args: Prisma.RefundAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRefund>
+        }
+        groupBy: {
+          args: Prisma.RefundGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RefundGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RefundCountArgs<ExtArgs>
+          result:
+            | runtime.Types.Utils.Optional<Prisma.RefundCountAggregateOutputType>
+            | number
+        }
+      }
+    }
     DeliveryCity: {
       payload: Prisma.$DeliveryCityPayload<ExtArgs>
       fields: Prisma.DeliveryCityFieldRefs
@@ -2839,6 +2917,22 @@ export const ReturnLineScalarFieldEnum = {
 export type ReturnLineScalarFieldEnum =
   (typeof ReturnLineScalarFieldEnum)[keyof typeof ReturnLineScalarFieldEnum]
 
+export const RefundScalarFieldEnum = {
+  id: "id",
+  paymentId: "paymentId",
+  returnId: "returnId",
+  amount: "amount",
+  mode: "mode",
+  refundedAt: "refundedAt",
+  recordedById: "recordedById",
+  reason: "reason",
+  idempotencyKey: "idempotencyKey",
+  createdAt: "createdAt",
+} as const
+
+export type RefundScalarFieldEnum =
+  (typeof RefundScalarFieldEnum)[keyof typeof RefundScalarFieldEnum]
+
 export const DeliveryCityScalarFieldEnum = {
   id: "id",
   name: "name",
@@ -3217,6 +3311,22 @@ export type ListEnumReturnLineConditionFieldRefInput<$PrismaModel> =
   FieldRefInputType<$PrismaModel, "ReturnLineCondition[]">
 
 /**
+ * Reference to a field of type 'RefundMode'
+ */
+export type EnumRefundModeFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "RefundMode"
+>
+
+/**
+ * Reference to a field of type 'RefundMode[]'
+ */
+export type ListEnumRefundModeFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "RefundMode[]"
+>
+
+/**
  * Reference to a field of type 'StatutPublication'
  */
 export type EnumStatutPublicationFieldRefInput<$PrismaModel> =
@@ -3469,6 +3579,7 @@ export type GlobalOmitConfig = {
   orderItem?: Prisma.OrderItemOmit
   return?: Prisma.ReturnOmit
   returnLine?: Prisma.ReturnLineOmit
+  refund?: Prisma.RefundOmit
   deliveryCity?: Prisma.DeliveryCityOmit
   shippingSettings?: Prisma.ShippingSettingsOmit
   theme?: Prisma.ThemeOmit

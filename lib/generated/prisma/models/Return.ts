@@ -231,6 +231,7 @@ export type ReturnWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"Return"> | Date | string
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
   lines?: Prisma.ReturnLineListRelationFilter
+  refunds?: Prisma.RefundListRelationFilter
 }
 
 export type ReturnOrderByWithRelationInput = {
@@ -246,6 +247,7 @@ export type ReturnOrderByWithRelationInput = {
   updatedAt?: Prisma.SortOrder
   order?: Prisma.OrderOrderByWithRelationInput
   lines?: Prisma.ReturnLineOrderByRelationAggregateInput
+  refunds?: Prisma.RefundOrderByRelationAggregateInput
 }
 
 export type ReturnWhereUniqueInput = Prisma.AtLeast<
@@ -268,6 +270,7 @@ export type ReturnWhereUniqueInput = Prisma.AtLeast<
     updatedAt?: Prisma.DateTimeFilter<"Return"> | Date | string
     order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
     lines?: Prisma.ReturnLineListRelationFilter
+    refunds?: Prisma.RefundListRelationFilter
   },
   "id"
 >
@@ -327,6 +330,7 @@ export type ReturnCreateInput = {
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutReturnsInput
   lines?: Prisma.ReturnLineCreateNestedManyWithoutReturnInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutReturnInput
 }
 
 export type ReturnUncheckedCreateInput = {
@@ -341,6 +345,7 @@ export type ReturnUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   lines?: Prisma.ReturnLineUncheckedCreateNestedManyWithoutReturnInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutReturnInput
 }
 
 export type ReturnUpdateInput = {
@@ -361,6 +366,7 @@ export type ReturnUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutReturnsNestedInput
   lines?: Prisma.ReturnLineUpdateManyWithoutReturnNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutReturnNestedInput
 }
 
 export type ReturnUncheckedUpdateInput = {
@@ -381,6 +387,7 @@ export type ReturnUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   lines?: Prisma.ReturnLineUncheckedUpdateManyWithoutReturnNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutReturnNestedInput
 }
 
 export type ReturnCreateManyInput = {
@@ -485,6 +492,11 @@ export type ReturnMinOrderByAggregateInput = {
 export type ReturnScalarRelationFilter = {
   is?: Prisma.ReturnWhereInput
   isNot?: Prisma.ReturnWhereInput
+}
+
+export type ReturnNullableScalarRelationFilter = {
+  is?: Prisma.ReturnWhereInput | null
+  isNot?: Prisma.ReturnWhereInput | null
 }
 
 export type ReturnCreateNestedManyWithoutOrderInput = {
@@ -611,6 +623,34 @@ export type ReturnUpdateOneRequiredWithoutLinesNestedInput = {
   >
 }
 
+export type ReturnCreateNestedOneWithoutRefundsInput = {
+  create?: Prisma.XOR<
+    Prisma.ReturnCreateWithoutRefundsInput,
+    Prisma.ReturnUncheckedCreateWithoutRefundsInput
+  >
+  connectOrCreate?: Prisma.ReturnCreateOrConnectWithoutRefundsInput
+  connect?: Prisma.ReturnWhereUniqueInput
+}
+
+export type ReturnUpdateOneWithoutRefundsNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.ReturnCreateWithoutRefundsInput,
+    Prisma.ReturnUncheckedCreateWithoutRefundsInput
+  >
+  connectOrCreate?: Prisma.ReturnCreateOrConnectWithoutRefundsInput
+  upsert?: Prisma.ReturnUpsertWithoutRefundsInput
+  disconnect?: Prisma.ReturnWhereInput | boolean
+  delete?: Prisma.ReturnWhereInput | boolean
+  connect?: Prisma.ReturnWhereUniqueInput
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.ReturnUpdateToOneWithWhereWithoutRefundsInput,
+      Prisma.ReturnUpdateWithoutRefundsInput
+    >,
+    Prisma.ReturnUncheckedUpdateWithoutRefundsInput
+  >
+}
+
 export type ReturnCreateWithoutOrderInput = {
   id?: string
   status?: $Enums.ReturnStatus
@@ -622,6 +662,7 @@ export type ReturnCreateWithoutOrderInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   lines?: Prisma.ReturnLineCreateNestedManyWithoutReturnInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutReturnInput
 }
 
 export type ReturnUncheckedCreateWithoutOrderInput = {
@@ -635,6 +676,7 @@ export type ReturnUncheckedCreateWithoutOrderInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   lines?: Prisma.ReturnLineUncheckedCreateNestedManyWithoutReturnInput
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutReturnInput
 }
 
 export type ReturnCreateOrConnectWithoutOrderInput = {
@@ -708,6 +750,7 @@ export type ReturnCreateWithoutLinesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutReturnsInput
+  refunds?: Prisma.RefundCreateNestedManyWithoutReturnInput
 }
 
 export type ReturnUncheckedCreateWithoutLinesInput = {
@@ -721,6 +764,7 @@ export type ReturnUncheckedCreateWithoutLinesInput = {
   refusalNote?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutReturnInput
 }
 
 export type ReturnCreateOrConnectWithoutLinesInput = {
@@ -768,6 +812,7 @@ export type ReturnUpdateWithoutLinesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutReturnsNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutReturnNestedInput
 }
 
 export type ReturnUncheckedUpdateWithoutLinesInput = {
@@ -787,6 +832,103 @@ export type ReturnUncheckedUpdateWithoutLinesInput = {
   refusalNote?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutReturnNestedInput
+}
+
+export type ReturnCreateWithoutRefundsInput = {
+  id?: string
+  status?: $Enums.ReturnStatus
+  reason: $Enums.ReturnReason
+  requestedAt: Date | string
+  receivedAt?: Date | string | null
+  refusalCode?: $Enums.ReturnRefusalCode | null
+  refusalNote?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  order: Prisma.OrderCreateNestedOneWithoutReturnsInput
+  lines?: Prisma.ReturnLineCreateNestedManyWithoutReturnInput
+}
+
+export type ReturnUncheckedCreateWithoutRefundsInput = {
+  id?: string
+  orderId: string
+  status?: $Enums.ReturnStatus
+  reason: $Enums.ReturnReason
+  requestedAt: Date | string
+  receivedAt?: Date | string | null
+  refusalCode?: $Enums.ReturnRefusalCode | null
+  refusalNote?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  lines?: Prisma.ReturnLineUncheckedCreateNestedManyWithoutReturnInput
+}
+
+export type ReturnCreateOrConnectWithoutRefundsInput = {
+  where: Prisma.ReturnWhereUniqueInput
+  create: Prisma.XOR<
+    Prisma.ReturnCreateWithoutRefundsInput,
+    Prisma.ReturnUncheckedCreateWithoutRefundsInput
+  >
+}
+
+export type ReturnUpsertWithoutRefundsInput = {
+  update: Prisma.XOR<
+    Prisma.ReturnUpdateWithoutRefundsInput,
+    Prisma.ReturnUncheckedUpdateWithoutRefundsInput
+  >
+  create: Prisma.XOR<
+    Prisma.ReturnCreateWithoutRefundsInput,
+    Prisma.ReturnUncheckedCreateWithoutRefundsInput
+  >
+  where?: Prisma.ReturnWhereInput
+}
+
+export type ReturnUpdateToOneWithWhereWithoutRefundsInput = {
+  where?: Prisma.ReturnWhereInput
+  data: Prisma.XOR<
+    Prisma.ReturnUpdateWithoutRefundsInput,
+    Prisma.ReturnUncheckedUpdateWithoutRefundsInput
+  >
+}
+
+export type ReturnUpdateWithoutRefundsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  status?:
+    Prisma.EnumReturnStatusFieldUpdateOperationsInput | $Enums.ReturnStatus
+  reason?:
+    Prisma.EnumReturnReasonFieldUpdateOperationsInput | $Enums.ReturnReason
+  requestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  receivedAt?:
+    Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  refusalCode?:
+    | Prisma.NullableEnumReturnRefusalCodeFieldUpdateOperationsInput
+    | $Enums.ReturnRefusalCode
+    | null
+  refusalNote?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  order?: Prisma.OrderUpdateOneRequiredWithoutReturnsNestedInput
+  lines?: Prisma.ReturnLineUpdateManyWithoutReturnNestedInput
+}
+
+export type ReturnUncheckedUpdateWithoutRefundsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  status?:
+    Prisma.EnumReturnStatusFieldUpdateOperationsInput | $Enums.ReturnStatus
+  reason?:
+    Prisma.EnumReturnReasonFieldUpdateOperationsInput | $Enums.ReturnReason
+  requestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  receivedAt?:
+    Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  refusalCode?:
+    | Prisma.NullableEnumReturnRefusalCodeFieldUpdateOperationsInput
+    | $Enums.ReturnRefusalCode
+    | null
+  refusalNote?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  lines?: Prisma.ReturnLineUncheckedUpdateManyWithoutReturnNestedInput
 }
 
 export type ReturnCreateManyOrderInput = {
@@ -818,6 +960,7 @@ export type ReturnUpdateWithoutOrderInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   lines?: Prisma.ReturnLineUpdateManyWithoutReturnNestedInput
+  refunds?: Prisma.RefundUpdateManyWithoutReturnNestedInput
 }
 
 export type ReturnUncheckedUpdateWithoutOrderInput = {
@@ -837,6 +980,7 @@ export type ReturnUncheckedUpdateWithoutOrderInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   lines?: Prisma.ReturnLineUncheckedUpdateManyWithoutReturnNestedInput
+  refunds?: Prisma.RefundUncheckedUpdateManyWithoutReturnNestedInput
 }
 
 export type ReturnUncheckedUpdateManyWithoutOrderInput = {
@@ -863,6 +1007,7 @@ export type ReturnUncheckedUpdateManyWithoutOrderInput = {
 
 export type ReturnCountOutputType = {
   lines: number
+  refunds: number
 }
 
 export type ReturnCountOutputTypeSelect<
@@ -870,6 +1015,7 @@ export type ReturnCountOutputTypeSelect<
     runtime.Types.Extensions.DefaultArgs,
 > = {
   lines?: boolean | ReturnCountOutputTypeCountLinesArgs
+  refunds?: boolean | ReturnCountOutputTypeCountRefundsArgs
 }
 
 /**
@@ -895,6 +1041,16 @@ export type ReturnCountOutputTypeCountLinesArgs<
   where?: Prisma.ReturnLineWhereInput
 }
 
+/**
+ * ReturnCountOutputType without action
+ */
+export type ReturnCountOutputTypeCountRefundsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs =
+    runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.RefundWhereInput
+}
+
 export type ReturnSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs =
     runtime.Types.Extensions.DefaultArgs,
@@ -912,6 +1068,7 @@ export type ReturnSelect<
     updatedAt?: boolean
     order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
     lines?: boolean | Prisma.Return$linesArgs<ExtArgs>
+    refunds?: boolean | Prisma.Return$refundsArgs<ExtArgs>
     _count?: boolean | Prisma.ReturnCountOutputTypeDefaultArgs<ExtArgs>
   },
   ExtArgs["result"]["return"]
@@ -992,6 +1149,7 @@ export type ReturnInclude<
 > = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
   lines?: boolean | Prisma.Return$linesArgs<ExtArgs>
+  refunds?: boolean | Prisma.Return$refundsArgs<ExtArgs>
   _count?: boolean | Prisma.ReturnCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ReturnIncludeCreateManyAndReturn<
@@ -1015,6 +1173,7 @@ export type $ReturnPayload<
   objects: {
     order: Prisma.$OrderPayload<ExtArgs>
     lines: Prisma.$ReturnLinePayload<ExtArgs>[]
+    refunds: Prisma.$RefundPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
@@ -1603,6 +1762,17 @@ export interface Prisma__ReturnClient<
       >
     | Null
   >
+  refunds<T extends Prisma.Return$refundsArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.Return$refundsArgs<ExtArgs>>
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$RefundPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2136,6 +2306,35 @@ export type Return$linesArgs<
   skip?: number
   distinct?:
     Prisma.ReturnLineScalarFieldEnum | Prisma.ReturnLineScalarFieldEnum[]
+}
+
+/**
+ * Return.refunds
+ */
+export type Return$refundsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs =
+    runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the Refund
+   */
+  select?: Prisma.RefundSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Refund
+   */
+  omit?: Prisma.RefundOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.RefundInclude<ExtArgs> | null
+  where?: Prisma.RefundWhereInput
+  orderBy?:
+    | Prisma.RefundOrderByWithRelationInput
+    | Prisma.RefundOrderByWithRelationInput[]
+  cursor?: Prisma.RefundWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.RefundScalarFieldEnum | Prisma.RefundScalarFieldEnum[]
 }
 
 /**
