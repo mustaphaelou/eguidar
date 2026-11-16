@@ -175,11 +175,19 @@ describe("l'absence d'un paquet installé", () => {
   })
 })
 
+function arbreAvecBetterAuth(version: string): ArbreDeVerrouillage {
+  return {
+    ...arbreDeVerrouillage(),
+    "node_modules/better-auth": { version },
+  }
+}
+
 describe("la famille better-auth", () => {
   it("échoue quand un paquet compagnon est absent", () => {
     expect(() =>
       verifierLigne(ligneDe("better-auth"), {
         resoudre: (paquet) => (paquet === "better-auth" ? "1.7.18" : null),
+        arbre: arbreAvecBetterAuth("1.7.18"),
       })
     ).toThrow()
   })
@@ -188,6 +196,7 @@ describe("la famille better-auth", () => {
     expect(() =>
       verifierLigne(ligneDe("better-auth"), {
         resoudre: (paquet) => (paquet === "better-auth" ? "1.7.18" : "1.7.17"),
+        arbre: arbreAvecBetterAuth("1.7.18"),
       })
     ).toThrow()
   })
