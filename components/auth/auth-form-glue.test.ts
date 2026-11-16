@@ -10,14 +10,11 @@ describe("translateAuthError", () => {
     expect(translateAuthError({ code: "EMAIL_NOT_VERIFIED" })).toBe(
       "Votre adresse e-mail n'est pas encore vérifiée."
     )
-    expect(
-      translateAuthError({ code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" })
-    ).toBe("Un compte existe déjà avec cette adresse e-mail.")
     expect(translateAuthError({ code: "PASSWORD_TOO_SHORT" })).toBe(
       "Le mot de passe doit contenir au moins 15 caractères."
     )
-    expect(translateAuthError({ code: "USER_NOT_FOUND" })).toBe(
-      "Aucun compte n'est associé à cette adresse e-mail."
+    expect(translateAuthError({ code: "PASSWORD_COMPROMISED" })).toBe(
+      "Ce mot de passe apparaît dans une fuite de données connue. Choisissez-en un autre."
     )
     expect(translateAuthError({ code: "INVALID_OTP" })).toBe(
       "Le code de vérification est invalide ou incorrect."
@@ -37,13 +34,39 @@ describe("translateAuthError", () => {
     expect(translateAuthError({ code: "VERIFICATION_FAILED" })).toBe(
       "La vérification de sécurité a échoué. Réessayez."
     )
+    expect(translateAuthError({ code: "UNKNOWN_ERROR" })).toBe(
+      "La vérification de sécurité n'a pas abouti. Réessayez dans un instant."
+    )
   })
 
-  it("falls back to the raw message when present", () => {
-    expect(translateAuthError({ message: "Custom error" })).toBe("Custom error")
+  it("never renders the message the library supplied", () => {
+    expect(
+      translateAuthError({
+        code: "PASSWORD_COMPROMISED",
+        message:
+          "The password you entered has been compromised. Please choose a different password.",
+      })
+    ).toBe(
+      "Ce mot de passe apparaît dans une fuite de données connue. Choisissez-en un autre."
+    )
+    expect(
+      translateAuthError({
+        code: "TOO_MANY_ATTEMPTS",
+        message: "Too many requests. Please try again later.",
+      })
+    ).toBe("Trop de tentatives. Veuillez patienter avant de réessayer.")
+    expect(
+      translateAuthError({
+        code: "CODE_INCONNU",
+        message: "Something went wrong",
+      })
+    ).toBe("Une erreur est survenue. Veuillez réessayer.")
   })
 
-  it("falls back to the generic French message when there is no message", () => {
+  it("falls back to the generic French message when there is no code", () => {
+    expect(translateAuthError({ message: "Custom error" })).toBe(
+      "Une erreur est survenue. Veuillez réessayer."
+    )
     expect(translateAuthError({})).toBe(
       "Une erreur est survenue. Veuillez réessayer."
     )
