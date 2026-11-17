@@ -17,8 +17,10 @@ Single-context repo:
 ├── AGENTS.md              ← the entry point for an agent
 ├── GLOSSARY.md            ← domain vocabulary
 ├── docs/
+│   ├── CARTE.md           ← the English word to the French module
 │   ├── ARCHITECTURE.md    ← where things live
 │   ├── adr/               ← decisions, indexed by docs/adr/README.md
+│   ├── specs/             ← session specs, indexed by docs/specs/README.md
 │   └── agents/            ← this folder: how agents work here
 ├── app/                   ← routes, Server Actions, the seven API handlers
 ├── components/            ← the UI kit and the client surfaces
@@ -26,6 +28,8 @@ Single-context repo:
 │   ├── images-produit/    ← the Images produit concept
 │   ├── use-cases/         ← business reads and writes
 │   ├── automations/       ← the durable worker
+│   ├── emails/            ← the order and authentication letters
+│   ├── generated/         ← the Prisma client; `prisma generate` rewrites it
 │   └── *.ts               ← the domain modules
 ├── cache-handlers/        ← the Redis cache adapter Next calls
 ├── prisma/                ← schema, migrations, seeds
@@ -37,6 +41,8 @@ Single-context repo:
 ├── docker/                ← image entrypoints and helpers
 └── vendor/                ← the vendored braces copy (ADR-0031)
 ```
+
+`lib/generated/` is the Prisma client the schema produces: imports name it as `@/lib/generated/prisma/client`, and `prisma generate` is what writes it. ESLint already ignores the folder.
 
 Everything else at the root is configuration, assets, or working space: the tracked `plans/` and `prototype/`, and the gitignored `notes/`, `.scratch/`, `.worktrees/`, `.agents/`.
 

@@ -141,7 +141,15 @@ Le refus reste composé par la surface qui l'exige : la lecture ne refuse jamais
 - **ADR** : 0005 (les en-têtes), 0038 (le document anonyme), 0014 (l'invalidation est un effet), 0054 (le budget du cache de détail).
 - **Garde** : `lib/use-cases/cache-invalidation.test.ts`, `lib/use-cases/cache-invalidation-prefixes-frontiere.test.ts`, `cache-handlers/redis-handler.test.ts`, `infra/regle-cache-edge.test.ts`, `test/contrat-purge-edge.ts`, `purge-edge-deploiement.test.ts`.
 
-**Deux emplacements qui surprennent.** `lib/use-cases/ville-url.ts` est neutre — un seul import de type, une garde `*-frontiere` — mais il vit sous `use-cases/`, et un composant client l'importe pour sa valeur `villeVersParam`. Et `lib/panier-transport.ts` est le contrat de fil du Panier, pas un cas d'usage.
+### Ce que le dépôt surprend
+
+Ces entrées ne sont pas une couture : ce sont les faits qu'un lecteur suppose faux, et qui coûtent une lecture de travers chaque fois.
+
+- **`lib/use-cases/ville-url.ts` est neutre, mais vit sous `use-cases/`.** Un seul import de type, une garde `*-frontiere`, et un composant client l'importe pour sa valeur `villeVersParam`.
+- **`lib/panier-transport.ts` est le contrat de fil du Panier, pas un cas d'usage.**
+- **La largeur de l'Administration a un seul propriétaire : `app/admin/layout.tsx`.** Son `<main>` porte `max-w-6xl`, et aucune sous-page ne déclare son propre conteneur.
+- **Le bouton du kit se compose par la prop `render`, pas par `asChild`.** Base UI l'attend : `<Button render={<Link href="…" />}>`.
+- **Il n'y a pas de `tailwind.config.*`.** Tailwind 4 est CSS-first : `app/globals.css` porte la configuration.
 
 ## 4. Les onze lois
 
@@ -171,7 +179,7 @@ Pour une tâche qui touche au domaine, dans cet ordre :
 4. **La garde `*-frontiere` du fichier touché** — elle dit ce que le module n'a pas le droit d'importer.
 5. `bash scripts/checks.sh` — les checks de la CI, dans l'ordre. C'est la définition de « terminé » ([`CODING_STANDARDS.md`](../CODING_STANDARDS.md)).
 
-Un agent qui suit cet ordre n'a pas besoin de lire 175 entrées de `lib/`.
+Un agent qui suit cet ordre n'a pas besoin de lire 167 entrées de `lib/`.
 
 ## 6. Vocabulaire de l'architecture
 

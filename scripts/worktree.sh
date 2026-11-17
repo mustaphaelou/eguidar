@@ -12,6 +12,7 @@ usage() {
 Usage : scripts/worktree.sh <branche> [base]
         scripts/worktree.sh --dry-run <branche> [base]
         scripts/worktree.sh --list
+        scripts/worktree.sh --prune [--dry-run]
         scripts/worktree.sh --help
 
 Crée un worktree dans ${EGUIDAR_WORKTREES:-<racine>/.worktrees} :
@@ -22,8 +23,108 @@ Crée un worktree dans ${EGUIDAR_WORKTREES:-<racine>/.worktrees} :
 
 --dry-run  affiche le chemin et la base de test, sans rien créer.
 --list     liste les worktrees enregistrés (git worktree list).
+--prune    retire ceux dont la branche est fusionnée dans origin/main ;
+           un checkout modifié est laissé. --dry-run liste sans retirer.
 --help     affiche cette aide.
 EOF
+}
+
+est_sous() {
+  case "$1" in
+    "$2" | "$2"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+raison_de_fusion() {
+  local branche="$1" base="$2" numero
+
+  if git -C "$racine" merge-base --is-ancestor "$branche" "$base" 2>/dev/null; then
+    printf 'ascendance'
+    return 0
+  fi
+
+  if command -v gh >/dev/null 2>&1; then
+    numero="$(gh pr list --head "$branche" --state merged --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+    if [ -n "$numero" ]; then
+      printf 'PR #%s' "$numero"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+traiter_worktree() {
+  local cible="$1" branche="$2" motif="$3" brouillon="$4"
+  local etat="laissé"
+
+  if [ -n "$brouillon" ]; then
+    etat="aurait été laissé"
+  fi
+
+  if [ -n "$(git -C "$cible" status --porcelain 2>/dev/null)" ]; then
+    printf '  - %s (%s) — %s : modifications locales\n' \
+      "$cible" "$branche" "$etat"
+    return 0
+  fi
+
+  if [ -n "$brouillon" ]; then
+    printf '  - %s (%s, %s) — aurait été retiré\n' \
+      "$cible" "$branche" "$motif"
+    return 0
+  fi
+
+  if git -C "$racine" worktree remove "$cible" 2>/dev/null; then
+    printf '  - %s (%s, %s) — retiré\n' "$cible" "$branche" "$motif"
+  else
+    printf '  - %s (%s) — laissé : git worktree remove a échoué\n' \
+      "$cible" "$branche" >&2
+  fi
+}
+
+pruner() {
+  local base="$1" brouillon="$2"
+  local chemin="" branche="" motif="" moi candidats=0
+  local ligne
+
+  moi="$(pwd -P)"
+
+  if ! git -C "$racine" rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+    printf 'Prune : la base « %s » est introuvable ; rien n’a été retiré.\n' \
+      "$base" >&2
+    return 1
+  fi
+
+  printf 'Worktrees sous %s, fusionnés dans %s :\n' \
+    "$racine_worktrees" "$base"
+
+  while IFS= read -r ligne; do
+    case "$ligne" in
+      worktree\ *)
+        chemin="${ligne#worktree }"
+        branche=""
+        ;;
+      branch\ refs/heads/*)
+        branche="${ligne#branch refs/heads/}"
+        ;;
+      "")
+        if [ -n "$chemin" ] && [ -n "$branche" ] &&
+          est_sous "$chemin" "$racine_worktrees" &&
+          ! est_sous "$moi" "$chemin" &&
+          motif="$(raison_de_fusion "$branche" "$base")"; then
+          candidats=$((candidats + 1))
+          traiter_worktree "$chemin" "$branche" "$motif" "$brouillon"
+        fi
+        chemin=""
+        branche=""
+        ;;
+    esac
+  done < <(git -C "$racine" worktree list --porcelain; printf '\n')
+
+  if [ "$candidats" -eq 0 ]; then
+    printf '  (aucun)\n'
+  fi
 }
 
 if [ "$#" -eq 0 ]; then
@@ -58,6 +159,29 @@ fi
 if ! racine="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   printf 'scripts/worktree.sh : %s n’est pas dans un dépôt git.\n' "$PWD" >&2
   exit 1
+fi
+
+if [ "$1" = "--prune" ]; then
+  shift
+  brouillon_prune="$brouillon"
+  if [ "${1:-}" = "--dry-run" ]; then
+    brouillon_prune=1
+    shift
+  fi
+  if [ "$#" -ne 0 ]; then
+    printf '--prune ne prend aucun autre argument.\n' >&2
+    usage >&2
+    exit 1
+  fi
+  racine_worktrees="${EGUIDAR_WORKTREES:-$racine/.worktrees}"
+  case "$racine_worktrees" in
+    /*) ;;
+    *) racine_worktrees="$racine/$racine_worktrees" ;;
+  esac
+  mkdir -p -- "$racine_worktrees"
+  racine_worktrees="$(cd -- "$racine_worktrees" && pwd -P)"
+  pruner origin/main "$brouillon_prune" || exit 1
+  exit 0
 fi
 
 if [ "$1" = "--list" ]; then
