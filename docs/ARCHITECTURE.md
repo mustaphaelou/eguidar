@@ -67,6 +67,7 @@ Une écriture d'Administration déclare son plan **dans sa transaction** ; le co
 - **Côté surface** : les `actions.ts` de `app/`, les routes de `app/api/admin/`.
 - **Côté cas d'usage** : `lib/use-cases/mutation-actions.ts` (`gate`), `lib/use-cases/admin-json-route.ts` (`adminJsonRoute`).
 - **ADR** : 0010, 0025, 0039.
+- **Déclaration** : [`auth-pathways.md`](auth-pathways.md) — les sept voies d'authentification, le statut de chacune et les contrôles qu'elle tient (ADR-0058).
 - **Garde** : `lib/use-cases/mutation-actions.test.ts`, `lib/use-cases/admin-json-route.test.ts`, `app/admin/actions-frontiere.test.ts`.
 
 Toute action d'Administration passe par `gate` : Session courante, refus typé, `next` replié sur le Lien de connexion. Toute route JSON d'Administration passe par `adminJsonRoute` : 401, analyse Zod, correspondance de statut.
@@ -125,7 +126,8 @@ Le travailleur ne démarre qu'en production, jamais pendant le build, jamais sou
 
 - **Côté propriétaire** : `lib/use-cases/session-courante.ts` — `lireSession`, `estAdmin`.
 - **Côté rôles** : `lib/role.ts`, `lib/session-constants.ts`, `lib/session-expiration.ts`.
-- **ADR** : 0024 (une lecture), 0001 (le gate d'Administration), 0006 (le refus de la Boutique).
+- **ADR** : 0024 (une lecture), 0001 (le gate d'Administration), 0006 (le refus de la Boutique), 0058 (les sept voies), 0059 (le refus a un propriétaire), 0060 (le modèle de menace).
+- **Déclaration** : [`auth-pathways.md`](auth-pathways.md) — les sept voies d'authentification, les contrôles que chacune tient et ceux qu'elle ne tient pas (ADR-0058).
 - **Garde** : `lib/use-cases/session-courante.test.ts`, `proxy.test.ts`, `app/admin/layout.test.tsx`.
 
 Le refus reste composé par la surface qui l'exige : la lecture ne refuse jamais.

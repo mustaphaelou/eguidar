@@ -6,29 +6,33 @@ deliberately does not. A reviewer should be able to tell a decision from an
 omission without reading the source.
 
 Vocabulary follows `GLOSSARY.md`: **Inscription**, **Vérification de l'e-mail**,
-**Connexion**, **Test de sécurité**, **Session courante**, **Session inactive**,
-**Session hors durée absolue**, **Compte client**, **Commande**, **Panier**.
+**Réinitialisation du mot de passe**, **Connexion**, **Test de sécurité**,
+**Session courante**, **Session inactive**, **Session hors durée absolue**,
+**Compte client**, **Commande**, **Panier**.
 
-**Phase 2** is the change set this document describes; **Phase 3** is the
-follow-up tracked by #813 and is named only where a control is deliberately
-absent today.
+Every pathway carries a **status**. **Held** means the shop mounts the pathway and enforces the
+controls below. **Mounted without a surface** means the library serves it and the shop presents
+nothing. The status is the statement; a reader needs no history of the work to read today's state
+(ADR-0058). A control the shop deliberately does not carry is recorded under that pathway's
+**Deliberately absent** heading.
 
 ## The seven pathways
 
-| Pathway                          | Surface                                                                                                              | Mounted by                                      |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Inscription                      | `POST /api/auth/sign-up/email`                                                                                       | `better-auth`                                   |
-| Vérification de l'e-mail         | `POST /api/auth/email-otp/send-verification-otp`, `POST /api/auth/email-otp/verify-email`                            | `emailOTP` plugin                               |
-| Connexion par mot de passe       | `POST /api/auth/sign-in/email`                                                                                       | `better-auth`                                   |
-| Connexion par code               | `POST /api/auth/sign-in/email-otp`                                                                                   | `emailOTP` plugin, no UI                        |
-| Connexion sociale                | `GET /api/auth/callback/{google,facebook}`                                                                           | `better-auth`                                   |
-| Réinitialisation du mot de passe | `POST /api/auth/email-otp/send-verification-otp` (type `forget-password`), `POST /api/auth/email-otp/reset-password` | `emailOTP` plugin, page `/mot-de-passe-oublie`  |
-| Suppression des données Facebook | `POST /api/facebook/suppression-donnees`, page `/suppression-donnees`                                                | `app/api/facebook/suppression-donnees/route.ts` |
+| Pathway                          | Status                    | Surface                                                                                                              | Mounted by                                      |
+| -------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Inscription                      | Held                      | `POST /api/auth/sign-up/email`                                                                                       | `better-auth`                                   |
+| Vérification de l'e-mail         | Held                      | `POST /api/auth/email-otp/send-verification-otp`, `POST /api/auth/email-otp/verify-email`                            | `emailOTP` plugin                               |
+| Connexion par mot de passe       | Held                      | `POST /api/auth/sign-in/email`                                                                                       | `better-auth`                                   |
+| Connexion par code               | Mounted without a surface | `POST /api/auth/sign-in/email-otp`                                                                                   | `emailOTP` plugin, no UI                        |
+| Connexion sociale                | Held                      | `GET /api/auth/callback/{google,facebook}`                                                                           | `better-auth`                                   |
+| Réinitialisation du mot de passe | Held                      | `POST /api/auth/email-otp/send-verification-otp` (type `forget-password`), `POST /api/auth/email-otp/reset-password` | `emailOTP` plugin, page `/mot-de-passe-oublie`  |
+| Suppression des données Facebook | Held                      | `POST /api/facebook/suppression-donnees`, page `/suppression-donnees`                                                | `app/api/facebook/suppression-donnees/route.ts` |
 
 Every route is served by `app/api/auth/[...all]/route.ts` except the Meta
 callback. That wrapper purges an over-age session before the handler runs, and
-replays the Visiteur's Panier after a successful password Connexion or social
-callback (ADR-0007, ADR-0024). It does not wrap the Meta route.
+replays the Visiteur's Panier after a successful Connexion, on any of the four
+entry points `lib/points-entree-connexion.ts` names (ADR-0007, ADR-0024). It does
+not wrap the Meta route.
 
 ## Inscription
 
@@ -45,7 +49,7 @@ callback (ADR-0007, ADR-0024). It does not wrap the Meta route.
   receives the same synthetic response as a new one.
 - No session is created: `requireEmailVerification` disables auto sign-in; the
   Compte client exists but cannot sign in until the Vérification de l'e-mail.
-- A unique e-mail (`user.email`) and, since Phase 2, a unique
+- A unique e-mail (`user.email`) and a unique
   `(providerId, accountId)` pair in the database.
 
 **Deliberately absent**
@@ -134,6 +138,8 @@ shop's UI.
   before signing in — the library-owned control ADR-0041 relies on.
 - A session is created with the same inactivity and absolute bounds as the
   password Connexion.
+- The Visiteur's Panier is replayed: `/sign-in/email-otp` is one of the four
+  entry points `lib/points-entree-connexion.ts` names.
 
 **Deliberately absent**
 
@@ -142,8 +148,6 @@ shop's UI.
 - The Test de sécurité covers the code _send_ (`/email-otp/send-verification-otp`)
   but not `/sign-in/email-otp` itself: the Test de sécurité plugin's endpoints do not
   include that route.
-- No Panier replay: the wrapper's predicate covers `/sign-in/email` and the
-  social callback only (Phase 3 keeps the code paths out).
 - `disableSignUp` is left at its default (`false`): the endpoint can create a
   Compte client with a verified e-mail for any address whose mailbox is read.
   This is deliberate and bounded by the mailbox, not by the shop.
@@ -164,22 +168,22 @@ Providers: Google and Facebook.
   Compte client when the provider reports a verified e-mail (both providers do)
   and the local Compte client is verified; otherwise the callback refuses with
   `account not linked`.
-- Since Phase 2, `(providerId, accountId)` is unique in the database, so one
-  Google or Facebook identity can never map to two Compte clients.
+- `(providerId, accountId)` is unique in the database, so one Google or
+  Facebook identity can never map to two Compte clients.
 - The visitor's Panier is replayed after a successful callback.
 - The resulting session carries the same inactivity and absolute bounds, and the
   auth wrapper purges an over-age session before the callback.
+- Provider access and refresh tokens are encrypted at rest
+  (`account.encryptOAuthTokens`); the key derives from `BETTER_AUTH_SECRET`, so
+  rotating the secret makes existing tokens unreadable — accepted, because
+  nothing in the shop reads them (ADR-0060).
+- A failed Connexion sociale returns the Client to the page they were on, with
+  the Connexion modal open and a translated message (ADR-0019 amendment, #853).
 
 **Deliberately absent**
 
-- No OAuth access/refresh-token encryption at rest yet
-  (`account.encryptOAuthTokens` is not enabled; Phase 3).
-- No branded OAuth failure page: a cancelled dialog or a provider without an
-  e-mail still lands on Better Auth's raw error page (ADR-0019).
 - No Test de sécurité: the flow is a top-level redirect, not a posted
   credential.
-- No `trustedOrigins` beyond the `baseURL` origin; a second canonical hostname
-  would need it (Phase 3).
 - No per-account failure counter on the OAuth path; the provider owns that
   credential.
 
@@ -227,9 +231,9 @@ the Connexion modal and reads no session.
 - A valid request deletes, in one transaction, the Compte client, its Commandes
   (and their OrderItems by cascade), its sessions, accounts, Articles du panier
   and Brouillons d'Image produit, plus the `verification` rows Better Auth
-  writes for one of its addresses: the `<type>-otp-<address>` codes and the
-  `change-email-otp-<old address>-<new address>` rows when the deleted address
-  is the old one. The cached Commande pages are invalidated after the commit.
+  writes for one of its addresses: the `<type>-otp-<address>` codes, and the
+  `change-email-otp-…` rows the pattern matches. The cached Commande pages are
+  invalidated after the commit.
 - The response carries exactly `{ url, confirmation_code }`; the status page at
   `/suppression-donnees?code=…` is public and confirms the deletion.
 - An unknown ASID is a `200` with code and deletes nothing (idempotent replay).
@@ -265,30 +269,32 @@ they are not product surfaces and the shop configures no sender for them:
 
 ## Cross-cutting state
 
-| Control                                                         | Value                                                                                   | Owner                                                   |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Password floor                                                  | 15 characters                                                                           | `lib/longueur-mot-de-passe.ts`                          |
-| Password ceiling                                                | 128 characters (library default)                                                        | `better-auth`                                           |
-| Password hash                                                   | `$scrypt$N=131072,r=8,p=1$<salt base64url>$<key base64url>`, legacy `salt:hex` accepted | `lib/mot-de-passe-hache.ts` (ADR-0045)                  |
-| Rehash                                                          | on successful Connexion when legacy or below target                                     | `lib/rehachage-mot-de-passe.ts`                         |
-| Session inactivity                                              | 30 minutes, refresh every 6                                                             | `lib/session-constants.ts`                              |
-| Session absolute                                                | 30 days Client, 24 hours Administration                                                 | `lib/session-constants.ts`, `lib/session-expiration.ts` |
-| Per-address auth limiter                                        | 10 s / 3 for sign-in and sign-up; 60 s / 3 for code sends                               | `better-auth` (memory, per process)                     |
-| Per-account failed-Connexion counter (normalized typed address) | 10 failures / 15 minutes, Redis                                                         | `lib/echecs-connexion.ts` (ADR-0047)                    |
-| Provider identity                                               | unique `(providerId, accountId)`                                                        | `prisma/schema.prisma`, migration `20261101160000`      |
-| Breach check                                                    | Have I Been Pwned, fail-closed, three declared paths                                    | `lib/auth.ts` (ADR-0043)                                |
-| Test de sécurité                                                | Turnstile on sign-up, password sign-in and verification/reset sends                     | `lib/auth.ts`                                           |
+| Control                                                         | Value                                                                                                                    | Owner                                                   |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Password floor                                                  | 15 characters                                                                                                            | `lib/longueur-mot-de-passe.ts`                          |
+| Password ceiling                                                | 128 characters (library default)                                                                                         | `better-auth`                                           |
+| Password hash                                                   | `$scrypt$N=131072,r=8,p=1$<salt base64url>$<key base64url>`, legacy `salt:hex` accepted                                  | `lib/mot-de-passe-hache.ts` (ADR-0045)                  |
+| Rehash                                                          | on successful Connexion when legacy or below target                                                                      | `lib/rehachage-mot-de-passe.ts`                         |
+| Session inactivity                                              | 30 minutes, refresh every 6                                                                                              | `lib/session-constants.ts`                              |
+| Session absolute                                                | 30 days Client, 24 hours Administration                                                                                  | `lib/session-constants.ts`, `lib/session-expiration.ts` |
+| Per-address auth limiter                                        | 10 s / 3 for sign-in and sign-up; 60 s / 3 for code sends                                                                | `better-auth` (memory, per process)                     |
+| Per-account failed-Connexion counter (normalized typed address) | 10 failures / 15 minutes, Redis                                                                                          | `lib/echecs-connexion.ts` (ADR-0047)                    |
+| Provider identity                                               | unique `(providerId, accountId)`                                                                                         | `prisma/schema.prisma`, migration `20261101160000`      |
+| Breach check                                                    | Have I Been Pwned, fail-closed, three declared paths                                                                     | `lib/auth.ts` (ADR-0043)                                |
+| Test de sécurité                                                | Turnstile on sign-up, password sign-in and verification/reset sends                                                      | `lib/auth.ts`                                           |
+| Verification identifier                                         | Not unique: a send inserts a row, a read keeps the newest by `createdAt`, a consume deletes every row for the identifier | `prisma/schema.prisma` (ADR-0058)                       |
+| Trusted origins                                                 | The shop's own origins plus the preview origin the deployment declares                                                   | `lib/origines-de-confiance.ts`                          |
+| Provider tokens                                                 | Encrypted at rest, key derived from `BETTER_AUTH_SECRET`                                                                 | `lib/auth.ts` (ADR-0060)                                |
+| Test de sécurité scope                                          | Exact action and hostname allow-list                                                                                     | `lib/test-de-securite.ts`                               |
+| Panier replay                                                   | Four entry points                                                                                                        | `lib/points-entree-connexion.ts` (ADR-0007)             |
 
 ## Deliberately absent across the shop
 
 - MFA, passkeys/WebAuthn, TOTP, recovery codes. The password is a single factor
-  today; that is why the floor is 15.
+  today; that is why the floor is 15 (ADR-0060).
 - Password composition rules and a strength meter (NIST/ASVS ask for length,
   blocklists, and no forced rotation).
 - A local breached-password list beyond Have I Been Pwned.
-- OAuth token encryption at rest, Test de sécurité `expectedAction`/`allowedHostnames`,
-  explicit `trustedOrigins`, and the branded OAuth failure page: all Phase 3.
-- Panier replay on the Connexion par code and Vérification de l'e-mail paths.
 - A per-account throttle on the code pathways beyond the per-code attempt cap.
 - Administrative MFA or a second factor on the Administration.
 
