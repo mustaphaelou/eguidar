@@ -47,8 +47,9 @@ not wrap the Meta route.
   `/sign-up/email`.
 - No account enumeration: with `requireEmailVerification`, an existing address
   receives the same synthetic response as a new one.
-- No session is created: `requireEmailVerification` disables auto sign-in; the
-  Compte client exists but cannot sign in until the Vérification de l'e-mail.
+- No session is created at the Inscription: `requireEmailVerification` disables
+  auto sign-in; the Compte client exists but cannot sign in until the
+  Vérification de l'e-mail, which opens the Session (ADR-0061).
 - A unique e-mail (`user.email`) and a unique
   `(providerId, accountId)` pair in the database.
 
@@ -70,8 +71,10 @@ not wrap the Meta route.
   per address and path (the `emailOTP` plugin's rule).
 - The request is enumeration-safe: an unknown address receives the same success
   response and no e-mail.
-- Verifying promotes `emailVerified`; the client then signs in with the password
-  chosen at Inscription.
+- Verifying promotes `emailVerified` and opens the Session
+  (`autoSignInAfterVerification`, ADR-0061): the client leaves the code step
+  signed in, with the password chosen at Inscription kept for the next
+  Connexion par mot de passe.
 
 **Deliberately absent**
 

@@ -160,6 +160,38 @@ describe("useTestDeSecurite", () => {
     expect(headers()).toBe("undefined")
   })
 
+  it("dit comment débloquer l'envoi pendant l'attente et retire le message quand le jeton arrive", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+
+    await render(<Harness />)
+    await loadScript()
+
+    expect(container.textContent).toContain(
+      "Terminez la vérification de sécurité pour continuer."
+    )
+
+    const reessayer = [...container.querySelectorAll("button")].find(
+      (bouton) => bouton.textContent === "Réessayer"
+    )
+    expect(reessayer, "le bouton Réessayer est offert").toBeDefined()
+
+    await act(async () => {
+      reessayer!.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(resetMock).toHaveBeenCalledWith("widget-1")
+
+    await act(async () => {
+      capturedOptions().callback("tok-1")
+    })
+
+    expect(container.textContent).not.toContain(
+      "Terminez la vérification de sécurité pour continuer."
+    )
+    expect(etat()).toBe("pret")
+  })
+
   it.each(Object.values(ACTIONS_TEST_DE_SECURITE))(
     "renders the %s action on the widget",
     async (action) => {

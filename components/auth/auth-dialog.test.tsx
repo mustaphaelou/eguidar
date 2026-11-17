@@ -660,7 +660,7 @@ describe("AuthDialog", () => {
       expect(title()).toBe("Créez votre compte pour continuer")
     })
 
-    it("completes the otp round-trip and opens Connexion with the verified e-mail", async () => {
+    it("completes the otp round-trip and closes on the verified session", async () => {
       renderDialogs({ harness: <SwapHarness /> })
 
       await clickAndSync(
@@ -694,15 +694,8 @@ describe("AuthDialog", () => {
       await flush()
       rerender()
 
-      expect(title()).toBe("Connectez-vous pour continuer")
-      expect(emailInput()?.value).toBe("jane@example.com")
-      expect(description()).toBe(
-        "Votre compte est créé et votre adresse e-mail est vérifiée. Connectez-vous."
-      )
-      expect(dialog()?.textContent).not.toContain("Pas encore de compte")
-      expect(new URL(window.location.href).searchParams.get("open")).toBe(
-        "login"
-      )
+      expect(dialog()).toBeNull()
+      expect(new URL(window.location.href).searchParams.get("open")).toBeNull()
       expect(mockedAuthClient.emailOtp.verifyEmail).toHaveBeenCalledWith({
         email: "jane@example.com",
         otp: "123456",

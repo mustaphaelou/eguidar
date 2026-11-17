@@ -56,6 +56,7 @@ qu'elle ne tient pas et l'ADR qui l'a décidé (ADR-0058).
 | [0058](0058-les-sept-voies-d-authentification-ont-une-seule-declaration.md) | Les sept voies d'authentification ont une seule déclaration, et chaque voie porte son statut | |
 | [0059](0059-le-refus-d-authentification-a-un-proprietaire-unique.md) | Le Refus d'authentification a un propriétaire unique, et le Client ne lit jamais la phrase de la bibliothèque | |
 | [0060](0060-le-modele-de-menace-de-l-authentification-nomme-ses-adversaires.md) | Le modèle de menace nomme ses adversaires, et l'Administration sans second facteur est un non-goal | |
+| [0061](0061-la-verification-de-l-email-ouvre-la-session.md) | La Vérification de l'e-mail ouvre la Session, et le Client ne se connecte plus deux fois | |
 
 ### Catalogue, Structure, Recherche, médias
 

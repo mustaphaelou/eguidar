@@ -45,7 +45,6 @@ export function SignInForm({
     setPassword,
     otp,
     error,
-    notice,
     loading,
     captcha,
     handleSignIn,
@@ -54,7 +53,7 @@ export function SignInForm({
   } = flow
   const [issues, setIssues] = useState<Record<string, string>>({})
   const dialogError = useAuthDialogError()
-  const afficherEchecSocial = dialogError && !error && !notice
+  const afficherEchecSocial = dialogError && !error
 
   function updateIssue(key: string) {
     setIssues((prev) => {
@@ -168,9 +167,6 @@ export function SignInForm({
               </Field>
               {captcha.field}
               {error && <FieldError>{error}</FieldError>}
-              {notice && (
-                <p className="text-sm font-medium text-green-600">{notice}</p>
-              )}
               <Field>
                 <Button
                   type="submit"

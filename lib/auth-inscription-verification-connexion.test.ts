@@ -50,6 +50,10 @@ describe("Inscription → Vérification de l'e-mail → Connexion", () => {
     })
     expect(verification.status).toBe(true)
     expect(verification.user.emailVerified).toBe(true)
+    expect(
+      verification.token,
+      "la Vérification de l'e-mail ouvre la Session"
+    ).toBeTruthy()
 
     const connexion = await auth.api.signInEmail({
       body: { email, password: motDePasse },

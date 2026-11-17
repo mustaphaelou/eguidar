@@ -50,9 +50,6 @@ function headingForDestination(
 
 const OTP_TITLE = "Vérifiez votre e-mail"
 
-const AVIS_COMPTE_CREE =
-  "Votre compte est créé et votre adresse e-mail est vérifiée. Connectez-vous."
-
 const TEXTES: Record<
   AuthDialogName,
   {
@@ -176,9 +173,7 @@ function ConnexionPanel({
     socialReturnAddress,
   })
   const avisVisible =
-    avis && flow.step === "form" && !flow.loading && !flow.error && !flow.notice
-      ? avis
-      : null
+    avis && flow.step === "form" && !flow.loading && !flow.error ? avis : null
 
   return (
     <>
@@ -201,12 +196,17 @@ function ConnexionPanel({
 }
 
 function InscriptionPanel() {
-  const { email, openLogin } = useAuthDialogs()
+  const { email, close, openLogin } = useAuthDialogs()
   const destination = useAuthDialogDestination()
   const flow = useSignUpFlow({
     email,
-    onVerified: (verifiedEmail) =>
-      openLogin({ email: verifiedEmail, avis: AVIS_COMPTE_CREE }),
+    onVerified: () => {
+      if (destination) {
+        window.location.href = destination
+        return
+      }
+      close()
+    },
   })
 
   return (

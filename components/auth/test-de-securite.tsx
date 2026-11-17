@@ -188,6 +188,22 @@ function TestSecuriteWidget({
           </Button>
         </div>
       )}
+      {etat === "attente" && status === "idle" && (
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-muted-foreground">
+            Terminez la vérification de sécurité pour continuer.
+          </span>
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            className="h-auto p-0"
+            onClick={retry}
+          >
+            Réessayer
+          </Button>
+        </div>
+      )}
       {etat === "attente" && status === "expired" && (
         <div className="flex items-center justify-between gap-2 text-xs">
           <span className="text-muted-foreground">

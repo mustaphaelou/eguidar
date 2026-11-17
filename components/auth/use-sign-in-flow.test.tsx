@@ -325,7 +325,7 @@ describe("useSignInFlow", () => {
     expect(courant().error).toBeNull()
   })
 
-  it("walks the tail from the unverified e-mail to the code step, the verified notice, and a successful sign-in", async () => {
+  it("walks the tail from the unverified e-mail to the code step, then finishes the sign-in on the verified session", async () => {
     let connexions = 0
     port.repondre = (appel) => {
       if (appel.operation === "connexionParMotDePasse") {
@@ -352,11 +352,6 @@ describe("useSignInFlow", () => {
 
     saisirCode("123456")
     await verifierLeCode()
-
-    expect(courant().step).toBe("form")
-    expect(courant().notice).toContain("Votre e-mail est vérifié")
-
-    await soumettre()
 
     expect(window.location.pathname).toBe("/profil")
     expect(onSuccess).not.toHaveBeenCalled()
@@ -399,8 +394,7 @@ describe("useSignInFlow", () => {
         code: "123456",
       },
     ])
-    expect(courant().step).toBe("form")
-    expect(courant().notice).toContain("Votre e-mail est vérifié")
+    expect(window.location.pathname).toBe("/profil")
   })
 
   it.each([
