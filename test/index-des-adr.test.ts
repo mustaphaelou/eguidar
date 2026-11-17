@@ -19,6 +19,23 @@ function liensDeLIndex(): string[] {
   return [...readFileSync(INDEX, "utf8").matchAll(LIEN)].map((lien) => lien[1])
 }
 
+function numerosEnDouble(fichiers: string[]): string[] {
+  const porteurs = new Map<string, string[]>()
+
+  for (const fichier of fichiers) {
+    const numero = fichier.slice(0, 4)
+
+    porteurs.set(numero, [...(porteurs.get(numero) ?? []), fichier])
+  }
+
+  return [...porteurs]
+    .filter(([, fichiersDuNumero]) => fichiersDuNumero.length > 1)
+    .map(
+      ([numero, fichiersDuNumero]) =>
+        `« ${numero} » numérote ${fichiersDuNumero.length} décisions : ${fichiersDuNumero.join(", ")}. Un numéro ne désigne qu'une décision — deux worktrees ont pris le même numéro libre, et l'ancre ne dit plus laquelle.`
+    )
+}
+
 describe("l'index des ADR", () => {
   it("lie chaque décision écrite dans le dossier", () => {
     const liens = liensDeLIndex()
@@ -43,5 +60,20 @@ describe("l'index des ADR", () => {
           `« ${lien} » est lié par l'index et n'existe pas dans docs/adr/.`
       )
     ).toEqual([])
+  })
+
+  it("donne un numéro à une seule décision", () => {
+    expect(numerosEnDouble(fichiersAdr())).toEqual([])
+  })
+
+  it("tombe quand deux décisions partagent un numéro", () => {
+    const memeNumero = [
+      "0055-le-retour-l-encaissement-et-le-remboursement-sont-trois-faits-distincts.md",
+      "0055-les-sept-voies-d-authentification-ont-une-seule-declaration.md",
+    ]
+
+    expect(numerosEnDouble(memeNumero)).toEqual([
+      expect.stringContaining("0055"),
+    ])
   })
 })
