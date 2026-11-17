@@ -51,8 +51,16 @@ suite in the main checkout.
 
 ## Prune
 
-`git worktree list`, `git worktree remove <path>`, `git worktree prune`. Stale
-checkouts are the default failure, not an accident.
+```sh
+scripts/worktree.sh --prune [--dry-run]
+```
+
+It removes the checkouts under the root whose branch is merged into
+`origin/main`: by ancestry, or by a merged pull request when the merge was a
+squash. A checkout with local changes is reported and left, and the branch
+survives. `--dry-run` prints the list without touching anything. `git worktree
+list` remains the source of truth. Stale checkouts are the default failure, not
+an accident.
 
 ## Build context
 
