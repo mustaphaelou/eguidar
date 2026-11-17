@@ -16,12 +16,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Search
 
-Use the `grep` tool for repo-wide search: it is ripgrep, so it skips `node_modules` and gitignored checkouts. Shell `grep -r` walks every worktree.
+Use the `grep` tool for repo-wide search. It is ripgrep: one copy per file. Shell `grep -r` also walks `.worktrees/` and `.agents/worktrees/`, so a merged file answers beside the stale copies it was merged from.
 
 ## Agent docs
 
 - **Where code lives** — the file map first, then the couche and couture the change crosses. `docs/agents/domain.md`, `docs/ARCHITECTURE.md`
 - **Domain words** — the term `GLOSSARY.md` owns and the decision behind it. `GLOSSARY.md`, `docs/adr/README.md`
+- **Authentication** — the seven pathways, what each holds and what it deliberately does not. `docs/auth-pathways.md`
+- **Prior research** — the questions already answered, each with its date. `docs/research/`
 - **Issues and specs** — GitHub issues, worked through the `gh` CLI. `docs/agents/issue-tracker.md`
 - **Triage** — five canonical roles map to label strings. `docs/agents/triage-labels.md`
 - **Worktrees** — a spec runs in its own checkout, out of search and the Docker context; checks run there. `docs/agents/worktrees.md`
