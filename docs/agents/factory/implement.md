@@ -27,14 +27,14 @@ The issue and its comments are the spec. The executor has already prepared the w
 - An ADR is amended or added when the ticket changes a decision; `GLOSSARY.md` is updated when it changes a domain term. A new ADR or entry in the diff is a proposal, reviewed like code.
 - The pull request is opened **non-draft**: the review Source does not observe draft → ready.
 - The pull request carries the `agent` label, the `## Verification` table and the `## Protected paths` section.
-- The title is one French sentence, in the register of `git log --oneline` on `main`.
+- The title is one English sentence, in the register of `git log --oneline` on `main`.
 
 ## Body
 
 The automated line first, then the repository's template:
 
 ```markdown
-> Produit par un agent automatique, pas un humain.
+> Produced by an automated agent, not a human.
 
 ## Summary
 
@@ -76,7 +76,7 @@ Every acceptance criterion appears exactly once. `met` is backed by a command or
 
 ## Blast radius — check, and stop unless the acceptance requires it
 
-Check the diff against this list. A protected path the ticket does not require: stop and report `blocked`. A protected path the acceptance requires: edit it, list it under `## Protected paths` with the reason, and let the review mark `Portée:`; a person decides at merge.
+Check the diff against this list. A protected path the ticket does not require: stop and report `blocked`. A protected path the acceptance requires: edit it, list it under `## Protected paths` with the reason, and let the review mark `Blast radius:`; a person decides at merge.
 
 - **checks and gate** — `.github/workflows/**`, `scripts/checks.sh`, `scripts/ci-liste.ts`, `scripts/format.ts`, `scripts/porte-de-fusion/**`, and any script the CI list invokes.
 - **deploy** — `docker-compose.yml`, `Dockerfile`, `.dockerignore`, `infra/**`.
@@ -96,7 +96,7 @@ Check the diff against this list. A protected path the ticket does not require: 
 - Push the branch to `mustaphaelou/eguidar`, open the pull request against `main`, watch CI, and stop once it is green. No merge, no deploy, no `gh pr merge`, no push to `main`.
 - The automated line is mandatory: the account has human commits too, and the repository squash-merges, so the pull request is the durable record.
 - No `.scratch/` writes and no citation of the ticket directory: the ticket directory is the scratch, and it is deleted when the ticket ends.
-- French for the title, body and comments; the code speaks the glossary's vocabulary.
+- English for the title, body and comments; the code speaks the glossary's vocabulary.
 
 ## Blocked report
 
