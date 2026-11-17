@@ -74,44 +74,38 @@ describe("scripts/worktree.sh", () => {
     expect(stdout).toContain(RACINE)
   })
 
-  it("annonce les worktrees fusionnés sans en retirer en mode brouillon", () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "eguidar-prune-vide-"))
+  it("annonce un worktree fusionné sans le retirer en mode brouillon", () => {
+    const { temp, cible } = depotAvecWorktreeFusionne()
 
     try {
       const { status, stdout } = spawnSync(
         "bash",
         [SCRIPT, "--prune", "--dry-run"],
-        {
-          cwd: RACINE,
-          encoding: "utf8",
-          env: { ...process.env, EGUIDAR_WORKTREES: temp },
-        }
+        { cwd: temp, encoding: "utf8" }
       )
 
       expect(status).toBe(0)
-      expect(stdout).toContain("Worktrees sous")
-      expect(stdout).toContain("(aucun)")
+      expect(stdout).toContain("aurait été retiré")
+      expect(stdout).toContain(cible)
+      expect(existsSync(cible)).toBe(true)
     } finally {
       rmSync(temp, { recursive: true, force: true })
     }
   })
 
   it("accepte le mode brouillon avant --prune", () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "eguidar-prune-vide-"))
+    const { temp, cible } = depotAvecWorktreeFusionne()
 
     try {
       const { status, stdout } = spawnSync(
         "bash",
         [SCRIPT, "--dry-run", "--prune"],
-        {
-          cwd: RACINE,
-          encoding: "utf8",
-          env: { ...process.env, EGUIDAR_WORKTREES: temp },
-        }
+        { cwd: temp, encoding: "utf8" }
       )
 
       expect(status).toBe(0)
-      expect(stdout).toContain("(aucun)")
+      expect(stdout).toContain("aurait été retiré")
+      expect(existsSync(cible)).toBe(true)
     } finally {
       rmSync(temp, { recursive: true, force: true })
     }
