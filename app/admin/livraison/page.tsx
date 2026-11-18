@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import type { Metadata } from "next"
 
 import { PageHeader } from "@/components/layout/admin/page-header"
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminShippingSettingsPage() {
+  await exigerAdmin()
   const settings = await getShippingSettings()
 
   return (
