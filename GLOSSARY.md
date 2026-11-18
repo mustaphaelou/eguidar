@@ -368,6 +368,11 @@ sous la forme d'un bloc portant sa première image, son Prix courant, son stock 
 page Produit. C'est la seule forme sous laquelle ces faits s'affichent en liste.
 _Avoid_: product card, vignette produit, tuile
 
+**Carte d'indicateur**:
+La carte d'un indicateur de l'Administration : un chiffre, son libellé et sa lecture secondaire.
+Distincte de la **Carte produit**, qui est la projection d'un Produit sur la Boutique.
+_Avoid_: carte KPI, metric card, carte de stat, tuile
+
 **Mise en avant**:
 Le fait, pour l'Administration, de désigner les Produits que l'accueil met en avant, et dans quel ordre
 (`Product.isFeatured`, `Product.featuredOrder`). C'est la seule curation de l'accueil : ses Panneaux sont
@@ -476,6 +481,18 @@ _Avoid_: login link, login URL, route de connexion
 L'espace privé réservé aux Comptes clients de rôle « admin » (/admin) : gestion du Catalogue,
 des Commandes, des Villes de livraison et de la Livraison.
 _Avoid_: back-office, dashboard, espace admin
+
+**Cadre de l'Administration**:
+Ce qui entoure les pages de l'Administration sans en être — le **Bandeau de l'Administration**,
+la barre latérale et la zone de contenu. Il porte la mise en page et le matériau ; une page
+n'en déclare ni la largeur ni le fond.
+_Avoid_: shell, layout, chrome, gabarit
+
+**Bandeau de l'Administration**:
+La barre fixe du **Cadre de l'Administration**, portant le fil d'Ariane et le menu du Compte.
+Comme le **Bandeau de navigation**, il ne porte le **Voile dépoli** qu'une fois la page défilée ;
+la barre latérale, sous laquelle rien ne défile, ne le porte jamais.
+_Avoid_: header admin, top bar, site header
 
 **Tableau de bord**:
 La page d'accueil de l'Administration : chiffre d'affaires encaissé, indicateurs clés et activité récente.
