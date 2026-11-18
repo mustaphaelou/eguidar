@@ -24,7 +24,7 @@ export function NavGroup({ section }: { section: NavSection }) {
   return (
     <SidebarGroup>
       {section.title ? (
-        <SidebarGroupLabel className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <SidebarGroupLabel className="mbs-2 text-[13px] font-medium text-muted-foreground">
           {section.title}
         </SidebarGroupLabel>
       ) : null}
@@ -41,7 +41,7 @@ export function NavGroup({ section }: { section: NavSection }) {
                 <SidebarMenuButton
                   isActive={isActive}
                   tooltip={item.title}
-                  className="relative h-9 rounded-lg"
+                  className="relative h-10 rounded-lg"
                   render={
                     item.isExternal ? (
                       <a

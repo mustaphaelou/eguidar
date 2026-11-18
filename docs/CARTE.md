@@ -55,6 +55,7 @@ The repository speaks French and most prompts do not. This table is the shortest
 | English | Français | Owning path |
 | --- | --- | --- |
 | session | Session courante | [`lib/use-cases/session-courante.ts`](../lib/use-cases/session-courante.ts) — the one session read |
+| last login method | Moyen de connexion | [`lib/moyen-de-connexion.ts`](../lib/moyen-de-connexion.ts) — the shared vocabulary, cookie name and display rule |
 | sign in, sign up | Connexion, Inscription | [`components/auth/auth-dialogs.tsx`](../components/auth/auth-dialogs.tsx) — the modals, on every storefront page |
 | authentication refusal | Refus d'authentification | [`lib/refus-authentification.ts`](../lib/refus-authentification.ts) — codes and French sentences |
 | security check | Test de sécurité | [`lib/test-de-securite.ts`](../lib/test-de-securite.ts) — Turnstile and the protected sends |
