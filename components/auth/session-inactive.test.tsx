@@ -55,6 +55,7 @@ vi.mock("@/lib/client", () => ({
     return Promise.resolve()
   }),
   authClient: {
+    getLastUsedLoginMethod: () => null,
     signIn: {
       email: vi.fn(),
       social: vi.fn(),
