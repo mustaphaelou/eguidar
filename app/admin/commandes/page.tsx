@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import { Suspense } from "react"
 import type { Metadata } from "next"
 
@@ -38,6 +39,7 @@ async function CommandesContent({
 }: {
   searchParamsPromise: Promise<RawSearchParams>
 }) {
+  await exigerAdmin()
   const raw = await searchParamsPromise
   const params = parseCommandeListingParams(raw)
   const ordersPage = await listAdminOrders(params)
