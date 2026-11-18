@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { nextCookies } from "better-auth/next-js"
-import { emailOTP, haveIBeenPwned } from "better-auth/plugins"
+import { emailOTP, haveIBeenPwned, lastLoginMethod } from "better-auth/plugins"
 
 import {
   ORDRE_ENTETES_ADRESSE_CLIENT,
@@ -26,6 +26,11 @@ import {
   SESSION_UPDATE_AGE_SECONDS,
 } from "@/lib/session-constants"
 import { hooksEchecsConnexion } from "@/lib/echecs-connexion"
+import {
+  DUREE_VIE_COOKIE_MOYEN_DE_CONNEXION_SECONDES,
+  NOM_COOKIE_MOYEN_DE_CONNEXION,
+  resoudreMoyenDeConnexion,
+} from "@/lib/moyen-de-connexion"
 
 export const auth = betterAuth({
   appName: "Eguidar",
@@ -103,6 +108,12 @@ export const auth = betterAuth({
           }),
         ]
       : []),
+    lastLoginMethod({
+      storeInDatabase: false,
+      cookieName: NOM_COOKIE_MOYEN_DE_CONNEXION,
+      maxAge: DUREE_VIE_COOKIE_MOYEN_DE_CONNEXION_SECONDES,
+      customResolveMethod: (ctx) => resoudreMoyenDeConnexion(ctx.path ?? ""),
+    }),
     nextCookies(),
   ],
 })
