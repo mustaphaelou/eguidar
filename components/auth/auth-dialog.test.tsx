@@ -36,6 +36,7 @@ vi.mock("@/components/auth/test-de-securite", async (importOriginal) => ({
 vi.mock("@/lib/client", () => ({
   useSession: () => ({ data: null, isPending: false }),
   authClient: {
+    getLastUsedLoginMethod: () => null,
     signUp: {
       email: vi.fn(),
     },
