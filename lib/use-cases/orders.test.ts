@@ -312,6 +312,53 @@ async function avecEcritureÀLOuvertureDeLaTransaction<T>(
   }
 }
 
+async function retenirLeVerrou(
+  verrouiller: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  motifAttente: string
+) {
+  let liberer = () => {}
+  const liberation = new Promise<void>((resolve) => {
+    liberer = resolve
+  })
+  let verrouAcquis = () => {}
+  const acquisition = new Promise<void>((resolve) => {
+    verrouAcquis = resolve
+  })
+
+  const transaction = prisma.$transaction(
+    async (tx) => {
+      await verrouiller(tx)
+      verrouAcquis()
+      await liberation
+    },
+    { timeout: 30_000 }
+  )
+  transaction.catch(() => {})
+  await acquisition
+
+  return {
+    transaction,
+    liberer,
+    async attendreBloques(nombre: number): Promise<void> {
+      const limite = Date.now() + 10_000
+      while (Date.now() < limite) {
+        const lignes = await prisma.$queryRawUnsafe<{ attendu: bigint }[]>(
+          `SELECT count(*) AS attendu
+             FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND state = 'active'
+              AND wait_event_type = 'Lock'
+              AND query LIKE $1`,
+          motifAttente
+        )
+        if (Number(lignes[0]?.attendu ?? 0) >= nombre) return
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      throw new Error("les appels concurrents n'ont pas attendu le verrou")
+    },
+  }
+}
+
 describe("order placement", () => {
   it("snapshots the cart into the order, decrements stock and empties the cart", async () => {
     commeClient(userIdA)
@@ -951,6 +998,126 @@ describe("order placement", () => {
     })
     expect(orderCount).toBe(1)
   })
+
+  it(
+    "one Panier consumed by two concurrent submissions creates one Commande and refuses the second with EmptyCartError",
+    { timeout: 20_000 },
+    async () => {
+      const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+        async () => {}
+      )
+      const invalidateCommande = vi.fn<(orderId: string) => void>()
+      commeClient(userIdA)
+      await ajouterArticleAuPanier(variantP1, 1)
+      const input = await checkoutInput(userIdA)
+
+      const verrou = await retenirLeVerrou(
+        (tx) =>
+          tx.$queryRawUnsafe(
+            `SELECT id FROM "CartItem" WHERE "userId" = $1 ORDER BY "variantId" ASC FOR UPDATE`,
+            userIdA
+          ),
+        `%FROM "CartItem"%FOR UPDATE%`
+      )
+      const premiere = placeOrder(userIdA, input, {
+        sendOrderPlacedEmail,
+        invalidateCommande,
+      })
+      const seconde = placeOrder(userIdA, input, {
+        sendOrderPlacedEmail,
+        invalidateCommande,
+      })
+      const resultats = Promise.allSettled([premiere, seconde])
+      try {
+        await verrou.attendreBloques(2)
+      } finally {
+        verrou.liberer()
+      }
+      await verrou.transaction
+
+      const issues = await resultats
+      const reussites = issues.filter((issue) => issue.status === "fulfilled")
+      const echecs = issues.filter(
+        (issue): issue is PromiseRejectedResult => issue.status === "rejected"
+      )
+      expect(reussites).toHaveLength(1)
+      expect(echecs).toHaveLength(1)
+      expect(echecs[0].reason).toBeInstanceOf(EmptyCartError)
+      expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
+      expect(invalidateCommande).toHaveBeenCalledOnce()
+
+      const commandes = await prisma.order.findMany({
+        where: { userId: userIdA },
+        include: { items: true },
+      })
+      expect(commandes).toHaveLength(1)
+      expect(commandes[0].items).toHaveLength(1)
+      expect(
+        await prisma.automationEvent.count({
+          where: { entityId: commandes[0].id, type: "commande.creee" },
+        })
+      ).toBe(1)
+      const stock = await prisma.productVariant.findUniqueOrThrow({
+        where: { id: variantP1 },
+      })
+      expect(stock.stock).toBe(4)
+      expect((await lirePanierClient(userIdA)).lines).toHaveLength(0)
+    }
+  )
+
+  it(
+    "the last unit still yields one Commande and one OutOfStockError under concurrency",
+    { timeout: 20_000 },
+    async () => {
+      const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+        async () => {}
+      )
+      commeClient(userIdA)
+      await ajouterArticleAuPanier(variantP2, 1)
+      commeClient(userIdB)
+      await ajouterArticleAuPanier(variantP2, 1)
+      const inputA = await checkoutInput(userIdA)
+      const inputB = await checkoutInput(userIdB)
+
+      const verrou = await retenirLeVerrou(
+        (tx) =>
+          tx.$queryRawUnsafe(
+            `SELECT id FROM "ProductVariant" WHERE id = $1 FOR UPDATE`,
+            variantP2
+          ),
+        `%UPDATE%ProductVariant%`
+      )
+      const premiere = placeOrder(userIdA, inputA, { sendOrderPlacedEmail })
+      const seconde = placeOrder(userIdB, inputB, { sendOrderPlacedEmail })
+      const resultats = Promise.allSettled([premiere, seconde])
+      try {
+        await verrou.attendreBloques(2)
+      } finally {
+        verrou.liberer()
+      }
+      await verrou.transaction
+
+      const issues = await resultats
+      expect(
+        issues.filter((issue) => issue.status === "fulfilled")
+      ).toHaveLength(1)
+      const echecs = issues.filter(
+        (issue): issue is PromiseRejectedResult => issue.status === "rejected"
+      )
+      expect(echecs).toHaveLength(1)
+      expect(echecs[0].reason).toBeInstanceOf(OutOfStockError)
+      expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
+      expect(
+        await prisma.order.count({
+          where: { userId: { in: [userIdA, userIdB] } },
+        })
+      ).toBe(1)
+      const stock = await prisma.productVariant.findUniqueOrThrow({
+        where: { id: variantP2 },
+      })
+      expect(stock.stock).toBe(0)
+    }
+  )
 
   it("rejects an empty cart", async () => {
     await expect(

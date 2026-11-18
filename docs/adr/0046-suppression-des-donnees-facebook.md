@@ -190,3 +190,38 @@ exception pour les copies que portaient les Événements d'automatisation.
 toujours les identifiants des `Order` supprimées et appelle `invalidateCommande` pour chacune,
 après la transaction. Les Événements n'ont pas de page cachée ; les pages de Commande en ont une,
 et l'invalidation ne les oublie pas.
+
+## Amendement — La suppression nomme les identifiants OTP exacts (#1081, 2026-11-18)
+
+Aucune phrase de la décision n'est réécrite. Le présent amendement précise la puce « La
+suppression est complète, dans une seule transaction » et l'invariant qui la reprend : le jeu
+supprimé reste le même dans son intention, mais la façon de le désigner change. Il ne supprime
+ni Événement, ni Commande, ni Compte client de plus, et il ne retire rien de la promesse de
+suppression complète.
+
+La bibliothèque d'authentification écrit trois lignes `verification` par adresse, avec
+`toOTPIdentifier(type, adresse)` du greffon `email-otp` :
+`sign-in-otp-<adresse>` pour la Connexion, `email-verification-otp-<adresse>` pour la
+Vérification de l'e-mail, et `forget-password-otp-<adresse>` pour la Réinitialisation du mot de
+passe. `supprimerDonneesFacebook` efface désormais ces trois identifiants exacts, un par adresse
+de Compte client, par `identifier: { in: [...] }` — une égalité, pas un motif.
+
+L'ancienne clause de changement d'adresse était morte. L'invariant nommait
+`change-email-otp-<ancienne adresse>-<nouvelle adresse>` ; la bibliothèque écrit en réalité
+`change-email-otp-<identifiant utilisateur>:<nouvelle adresse>`, clé sur le Compte client et non
+sur son adresse. Le motif bâti sur l'adresse ne pouvait donc jamais atteindre la ligne réelle.
+La clause est retirée : poursuivre une ligne que la bibliothèque n'écrit pas donnait l'apparence
+d'une suppression sans en être une.
+
+**Il est interdit de bâtir un motif à partir de l'adresse sur le chemin de suppression.**
+`endsWith` et `contains` de Prisma produisent un `LIKE` SQL, où `_` et `%` sont des jokers. Une
+adresse contenant un souligné, par exemple `prenom_nom@exemple.ma`, faisait donc correspondre les
+identifiants d'un autre Compte dont l'adresse ne différait que par ce caractère : une demande
+valide effaçait les codes OTP d'une personne étrangère à la demande. Le comportement correct est
+le contraire de celui que le motif donnait : une adresse avec souligné ne supprime que ses trois
+propres identifiants. Le test de non-régression plante sur l'ancien code et passe sur le nouveau.
+
+Rien d'autre ne bouge : la suppression reste une seule `prisma.$transaction`, idempotent pour un
+identifiant Facebook inconnu comme pour un rejeu, elle efface toujours les Événements
+d'automatisation dont l'entité est une Commande supprimée, et elle invalide toujours les pages de
+Commande après le commit. Aucun changement de schéma, de configuration ou de dépendance.
