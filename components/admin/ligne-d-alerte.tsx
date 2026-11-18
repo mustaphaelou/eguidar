@@ -40,13 +40,17 @@ export function LigneAlerte({
   icon: React.ComponentProps<typeof HugeiconsIcon>["icon"]
   ton: Ton
 }) {
+  const aCartouche = ton !== "neutre"
+
   return (
     <li className="relative">
-      <div className="flex items-center gap-3 px-(--card-spacing) py-3 transition-colors active:bg-muted/60 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40">
+      <div className="flex items-center gap-3 px-(--card-spacing) py-4 transition-colors active:bg-muted/60 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40">
         <span
           className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-lg border",
-            TONS[ton]
+            "flex size-8 shrink-0 items-center justify-center",
+            aCartouche
+              ? ["rounded-lg border", TONS[ton]]
+              : "text-muted-foreground"
           )}
         >
           <HugeiconsIcon icon={icon} strokeWidth={2} className="size-4" />
@@ -107,7 +111,7 @@ export function LignesDAlerte({ compteurs }: { compteurs: CompteursDAlerte }) {
   if (lignes.length === 0) return null
 
   return (
-    <ul className="divide-y border-t">
+    <ul className="divide-y divide-hairline/60 border-t border-hairline/60">
       {lignes.map((ligne) => (
         <LigneAlerte
           key={ligne.cle}
