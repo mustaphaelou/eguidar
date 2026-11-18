@@ -159,7 +159,7 @@ describe("le Cadre de l'Administration", () => {
     }
 
     expect(source("components/admin/carte-stat.tsx")).toContain(
-      "clamp(0.5rem,10.5cqi,1.25rem)"
+      "clamp(1.5rem,10.5cqi,3.5rem)"
     )
   })
 })
