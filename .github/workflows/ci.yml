@@ -187,11 +187,17 @@ jobs:
           ADMIN_EMAIL: admin@eguidar.com
           ADMIN_PASSWORD: change-me-admin-password
       - run: npx playwright install --with-deps chromium
+      # Les identifiants de fixture donnent à la sonde la même modale qu'en
+      # production : deux fournisseurs sociaux, donc plus d'un moyen offert.
       - run: npm run build
         env:
           DATABASE_URL: postgresql://eguidar:eguidar@localhost:5432/eguidar_probe
           NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+          GOOGLE_CLIENT_ID: fixture-google-client-id
+          GOOGLE_CLIENT_SECRET: fixture-google-client-secret
+          FACEBOOK_CLIENT_ID: fixture-facebook-client-id
+          FACEBOOK_CLIENT_SECRET: fixture-facebook-client-secret
       # La sonde navigateur : le même artefact que les images, la même base que
       # le build. Elle échoue si le serveur ne démarre pas ; elle ne se saute
       # jamais. Un échec rougit le contexte « build » déjà requis (ADR-0020).
