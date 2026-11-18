@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  avecSource,
   directive,
   importeDe,
   sourceDuCorpus,
   sourcesDeProduction,
+  type SourceProduction,
 } from "@/lib/use-cases/outils-frontiere"
 
 const SOURCES_ADMINISTRATION = sourcesDeProduction(
@@ -67,5 +69,98 @@ describe("l'import des Produits passe par la porte de l'Administration", () => {
     expect(layout).toContain("lireSession")
     expect(layout).toContain("estAdmin")
     expect(layout).toContain("redirect")
+  })
+})
+
+const MODULE_GARDE = "lib/use-cases/exiger-admin"
+const PAGES_ADMIN = SOURCES_ADMINISTRATION.filter(({ chemin }) =>
+  /^app\/admin\/(?:.*\/)?page\.tsx$/.test(chemin)
+)
+
+const APPEL_GARDE = /\bawait\s+exigerAdmin\s*\(/
+const LECTURE = /\bawait\s+[A-Za-z_$][\w$]*\s*\(/
+
+function manquementsDe({ chemin, source }: SourceProduction): string[] {
+  const trouves: string[] = []
+
+  if (!importeDe(source, MODULE_GARDE, chemin)) {
+    trouves.push(`${chemin} n'importe pas exigerAdmin`)
+  }
+
+  const garde = source.match(APPEL_GARDE)
+  if (!garde) {
+    trouves.push(`${chemin} n'appelle pas exigerAdmin()`)
+    return trouves
+  }
+
+  const lecture = source.match(LECTURE)
+  if (
+    lecture?.index !== undefined &&
+    garde.index !== undefined &&
+    garde.index > lecture.index
+  ) {
+    trouves.push(`${chemin} lit des données avant exigerAdmin()`)
+  }
+
+  return trouves
+}
+
+function manquements(sources: readonly SourceProduction[]): string[] {
+  return sources.flatMap(manquementsDe)
+}
+
+describe("Administration — chaque page refuse avant de lire", () => {
+  it("le parcours est non vacuant : il voit les pages de liste et de détail", () => {
+    expect(PAGES_ADMIN.length).toBeGreaterThanOrEqual(19)
+    const chemins = PAGES_ADMIN.map(({ chemin }) => chemin)
+    for (const chemin of [
+      "app/admin/page.tsx",
+      "app/admin/commandes/page.tsx",
+      "app/admin/commandes/[orderId]/page.tsx",
+      "app/admin/produits/page.tsx",
+      "app/admin/produits/[id]/page.tsx",
+    ]) {
+      expect(chemins, chemin).toContain(chemin)
+    }
+  })
+
+  it("toutes les pages appellent exigerAdmin avant leur première lecture", () => {
+    expect(manquements(PAGES_ADMIN)).toEqual([])
+  })
+})
+
+describe("Administration — la frontière nomme la page sans garde", () => {
+  it("signale une page existante dont on retire l'appel", () => {
+    const chemin = "app/admin/commandes/page.tsx"
+    const page = sourceDuCorpus(PAGES_ADMIN, chemin)
+    const sansGarde = page.source.replace("  await exigerAdmin()\n", "")
+    expect(sansGarde).not.toBe(page.source)
+
+    expect(manquements(avecSource(PAGES_ADMIN, chemin, sansGarde))).toEqual([
+      `${chemin} n'appelle pas exigerAdmin()`,
+    ])
+  })
+
+  it("signale une page future qui n'importe ni n'appelle la garde", () => {
+    const future: SourceProduction = {
+      chemin: "app/admin/futur/page.tsx",
+      source: "export default async function P() { return await lireTruc() }\n",
+    }
+
+    expect(manquements([future])).toEqual([
+      "app/admin/futur/page.tsx n'importe pas exigerAdmin",
+      "app/admin/futur/page.tsx n'appelle pas exigerAdmin()",
+    ])
+  })
+
+  it("signale une page future qui lit avant d'appeler la garde", () => {
+    const future: SourceProduction = {
+      chemin: "app/admin/futur/page.tsx",
+      source: `import { exigerAdmin } from "@/lib/use-cases/exiger-admin"\nexport default async function P() { const x = await lireTruc(); await exigerAdmin(); return x }\n`,
+    }
+
+    expect(manquements([future])).toEqual([
+      "app/admin/futur/page.tsx lit des données avant exigerAdmin()",
+    ])
   })
 })

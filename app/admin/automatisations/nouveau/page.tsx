@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import type { Metadata } from "next"
 import Link from "next/link"
 
@@ -16,7 +17,8 @@ const STATUTS = (Object.keys(REGISTRE_STATUTS) as OrderStatus[]).map(
   (valeur) => ({ valeur, libelle: REGISTRE_STATUTS[valeur].libellé })
 )
 
-export default function NouvelleReglePage() {
+export default async function NouvelleReglePage() {
+  await exigerAdmin()
   return (
     <div className="flex flex-col gap-4">
       <PageHeader

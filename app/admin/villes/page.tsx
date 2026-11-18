@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import Link from "next/link"
 import type { Metadata } from "next"
 
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminCitiesPage() {
+  await exigerAdmin()
   const cities = await listAdminCities()
 
   return (

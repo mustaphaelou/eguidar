@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import type { Metadata } from "next"
 import Link from "next/link"
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
 }
 
 export default async function NewProductPage() {
+  await exigerAdmin()
   const [lecture, bibliotheque] = await Promise.all([
     lireStructure(),
     listerImagesPourGalerie(),

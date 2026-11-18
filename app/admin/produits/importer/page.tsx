@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
@@ -76,6 +77,7 @@ async function ImportContent({
 }: {
   searchParamsPromise: Promise<RawSearchParams>
 }) {
+  await exigerAdmin()
   const raw = await searchParamsPromise
   const lotId = premierParametre(raw.lot)
   const [lot, lotEnCours, lots] = await Promise.all([

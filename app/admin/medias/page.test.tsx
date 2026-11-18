@@ -10,6 +10,7 @@ import {
   it,
   vi,
 } from "vitest"
+vi.mock("@/lib/use-cases/exiger-admin", () => ({ exigerAdmin: vi.fn() }))
 
 vi.mock("@/components/admin/medias-bibliotheque", () => ({
   MediasBibliotheque: (props: { params: unknown; page: unknown }) => (

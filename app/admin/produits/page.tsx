@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import Link from "next/link"
 import type { Metadata } from "next"
 import { Suspense } from "react"
@@ -62,6 +63,7 @@ async function ProduitsContent({
 }: {
   searchParamsPromise: Promise<RawSearchParams>
 }) {
+  await exigerAdmin()
   const raw = await searchParamsPromise
   const params = parseProduitListingParams(raw)
   const [page, lecture] = await Promise.all([

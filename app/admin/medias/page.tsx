@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
@@ -51,6 +52,7 @@ async function MediasContent({
 }: {
   searchParamsPromise: Promise<RawSearchParams>
 }) {
+  await exigerAdmin()
   const params = parseMediasListingParams(await searchParamsPromise)
   const page = await listerImagesProduit(params)
   return (
