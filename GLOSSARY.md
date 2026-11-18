@@ -368,6 +368,11 @@ sous la forme d'un bloc portant sa première image, son Prix courant, son stock 
 page Produit. C'est la seule forme sous laquelle ces faits s'affichent en liste.
 _Avoid_: product card, vignette produit, tuile
 
+**Carte d'indicateur**:
+La carte d'un indicateur de l'Administration : un chiffre, son libellé et sa lecture secondaire.
+Distincte de la **Carte produit**, qui est la projection d'un Produit sur la Boutique.
+_Avoid_: carte KPI, metric card, carte de stat, tuile
+
 **Mise en avant**:
 Le fait, pour l'Administration, de désigner les Produits que l'accueil met en avant, et dans quel ordre
 (`Product.isFeatured`, `Product.featuredOrder`). C'est la seule curation de l'accueil : ses Panneaux sont
@@ -417,6 +422,10 @@ _Avoid_: login, password login
 **Connexion par code**:
 L'authentification d'un Client par un code à usage unique envoyé à son adresse, servie par la route `/sign-in/email-otp`. Elle n'a pas de surface dans la boutique et se distingue de la Connexion par mot de passe comme de la Vérification de l'e-mail, qui prouve l'adresse sans remplacer le mot de passe.
 _Avoid_: OTP login, magic link, passwordless login, connexion sans mot de passe
+
+**Moyen de connexion**:
+Le moyen d'une Connexion réussie — `mot-de-passe`, `google` ou `facebook` — retenu trente jours dans un cookie de première partie propre à l'appareil et nommé par la phrase « Dernière connexion sur cet appareil : … » dans la modale de Connexion. Il ne désigne que le dernier fait de cet appareil : il ne présélectionne aucun moyen, ne dit rien du **Compte client** et ne remplace aucune preuve d'identité.
+_Avoid_: méthode, mode, voie (la voie reste une des sept voies d'authentification), lastLoginMethod
 
 **Inscription**:
 Creating a new customer account, presented in its own modal (distinct from Connexion).
@@ -476,6 +485,18 @@ _Avoid_: login link, login URL, route de connexion
 L'espace privé réservé aux Comptes clients de rôle « admin » (/admin) : gestion du Catalogue,
 des Commandes, des Villes de livraison et de la Livraison.
 _Avoid_: back-office, dashboard, espace admin
+
+**Cadre de l'Administration**:
+Ce qui entoure les pages de l'Administration sans en être — le **Bandeau de l'Administration**,
+la barre latérale et la zone de contenu. Il porte la mise en page et le matériau ; une page
+n'en déclare ni la largeur ni le fond.
+_Avoid_: shell, layout, chrome, gabarit
+
+**Bandeau de l'Administration**:
+La barre fixe du **Cadre de l'Administration**, portant le fil d'Ariane et le menu du Compte.
+Comme le **Bandeau de navigation**, il ne porte le **Voile dépoli** qu'une fois la page défilée ;
+la barre latérale, sous laquelle rien ne défile, ne le porte jamais.
+_Avoid_: header admin, top bar, site header
 
 **Tableau de bord**:
 La page d'accueil de l'Administration : chiffre d'affaires encaissé, indicateurs clés et activité récente.

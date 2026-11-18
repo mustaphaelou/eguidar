@@ -26,6 +26,9 @@ import { PasswordInput } from "@/components/auth/password-input"
 import type { SignInFlow } from "@/components/auth/use-sign-in-flow"
 import { collectFieldIssues, signInSchema } from "@/lib/auth-form-schemas"
 
+import { DerniereConnexion } from "./derniere-connexion"
+import { useMoyenDeConnexion } from "./use-moyen-de-connexion"
+
 export function SignInForm({
   hasGoogle,
   hasFacebook,
@@ -52,6 +55,7 @@ export function SignInForm({
     backToForm,
   } = flow
   const [issues, setIssues] = useState<Record<string, string>>({})
+  const dernierMoyen = useMoyenDeConnexion()
   const dialogError = useAuthDialogError()
   const afficherEchecSocial = dialogError && !error
 
@@ -84,6 +88,11 @@ export function SignInForm({
               {dialogError}
             </p>
           )}
+          <DerniereConnexion
+            valeur={dernierMoyen}
+            hasGoogle={hasGoogle}
+            hasFacebook={hasFacebook}
+          />
           {(hasFacebook || hasGoogle) && (
             <>
               <div className="flex flex-col gap-2">

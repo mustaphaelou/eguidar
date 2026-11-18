@@ -58,6 +58,7 @@ qu'elle ne tient pas et l'ADR qui l'a décidé (ADR-0058).
 | [0060](0060-le-modele-de-menace-de-l-authentification-nomme-ses-adversaires.md) | Le modèle de menace nomme ses adversaires, et l'Administration sans second facteur est un non-goal | |
 | [0061](0061-la-verification-de-l-email-ouvre-la-session.md) | La Vérification de l'e-mail ouvre la Session, et le Client ne se connecte plus deux fois | |
 | [0062](0062-le-test-de-securite-dit-pourquoi-il-attend.md) | Le Test de sécurité dit pourquoi il attend, et se laisse réessayer | |
+| [0063](0063-le-moyen-de-connexion-reste-dans-le-navigateur.md) | Le Moyen de connexion de la dernière Connexion reste dans le navigateur | |
 
 ### Catalogue, Structure, Recherche, médias
 

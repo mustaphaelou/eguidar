@@ -103,9 +103,9 @@ export function SiteHeader({
       data-slot="admin-header"
       style={{ "--header-height": "4rem" } as React.CSSProperties}
       className={cn(
-        "sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b px-4 transition-[background-color,box-shadow] duration-200 ease-linear",
+        "sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 px-4 transition-[background-color,box-shadow] duration-200 ease-linear",
         scrolled
-          ? "bg-background/80 shadow-sm backdrop-blur-md"
+          ? "voile-depoli filet-bas [--voile-depoli-opacite:80%]"
           : "bg-background"
       )}
     >
