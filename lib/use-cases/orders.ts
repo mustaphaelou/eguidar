@@ -334,6 +334,18 @@ export async function produitsTouches(
   })
 }
 
+async function verrouillerPanierClient(
+  tx: Prisma.TransactionClient,
+  userId: string
+): Promise<void> {
+  await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "CartItem"
+    WHERE "userId" = ${userId}
+    ORDER BY "variantId" ASC
+    FOR UPDATE
+  `
+}
+
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
@@ -349,6 +361,7 @@ export async function placeOrder(
   if (!user) throw new UserNotFoundError()
 
   const { order, plan } = await prisma.$transaction(async (tx) => {
+    await verrouillerPanierClient(tx, userId)
     const cart = await lirePanierClient(userId, tx)
     if (cart.lines.length === 0) throw new EmptyCartError()
 
