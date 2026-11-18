@@ -79,27 +79,47 @@ describe("la carte d'indicateur", () => {
     )
   })
 
-  it("laisse les comptes en deux crans et plafonne l'argent à 1,25 rem", async () => {
+  it("donne au héros le chiffre d'affichage et au bandeau un chiffre secondaire", async () => {
     const html = await rendre(
       <>
         <CarteStat
-          label="Produits"
-          value={7}
-          hint="Produits au catalogue"
+          variant="hero"
+          label="Chiffre d'affaires net"
+          value="15.998,00 MAD"
+          valueClassName={VALEUR_MONETAIRE}
+          hint="Brut : 18.000,00 MAD"
+          legende="30 derniers jours"
           icon={PackageIcon}
         />
         <CarteStat
-          label="CA encaissé"
-          value="15 998,00 MAD"
-          valueClassName={VALEUR_MONETAIRE}
-          hint="Pas encore de comparaison"
-          icon={PackageIcon}
+          variant="chiffre"
+          label="Produits"
+          value={7}
+          href="/admin/produits"
+          action="Produits : 7 — voir les produits"
         />
       </>
     )
 
-    expect(html).toContain("text-xl sm:text-2xl")
-    expect(html).toContain("clamp(0.5rem,10.5cqi,1.25rem)")
+    expect(html).toContain("var(--text-hero,clamp(1.5rem,10.5cqi,3.5rem))")
+    expect(html).toContain("var(--text-chiffre,clamp(1rem,5cqi,1.75rem))")
     expect(html).toContain("@container")
+  })
+
+  it("isole le montant du héros dans un seul paragraphe et met la légende à côté", async () => {
+    const html = await rendre(
+      <CarteStat
+        variant="hero"
+        label="Chiffre d'affaires net"
+        value="15.998,00 MAD"
+        valueClassName={VALEUR_MONETAIRE}
+        hint="Brut : 18.000,00 MAD"
+        legende="30 derniers jours"
+        icon={PackageIcon}
+      />
+    )
+
+    expect(html.match(/<p[^>]*>15\.998,00 MAD<\/p>/g)).toHaveLength(1)
+    expect(html).toContain(">30 derniers jours</p>")
   })
 })
