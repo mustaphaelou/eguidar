@@ -95,7 +95,11 @@ async function clickAndFlush(target: HTMLElement) {
 }
 
 function Harness() {
-  const flow = useSignUpFlow({ email: "" })
+  const flow = useSignUpFlow({
+    email: "",
+    destination: null,
+    onSuccess: () => {},
+  })
   return <SignUpForm flow={flow} />
 }
 

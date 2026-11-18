@@ -33,6 +33,29 @@ type WidgetStatus = "idle" | "expired" | "error"
 
 export type EtatTestDeSecurite = "attente" | "pret" | "indisponible"
 
+function LigneAttenteTest({
+  texte,
+  onRetry,
+}: {
+  texte: string
+  onRetry: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="text-muted-foreground">{texte}</span>
+      <Button
+        type="button"
+        variant="link"
+        size="xs"
+        className="h-auto p-0"
+        onClick={onRetry}
+      >
+        Réessayer
+      </Button>
+    </div>
+  )
+}
+
 function TestSecuriteWidget({
   siteKey,
   action,
@@ -188,37 +211,15 @@ function TestSecuriteWidget({
           </Button>
         </div>
       )}
-      {etat === "attente" && status === "idle" && (
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="text-muted-foreground">
-            Terminez la vérification de sécurité pour continuer.
-          </span>
-          <Button
-            type="button"
-            variant="link"
-            size="xs"
-            className="h-auto p-0"
-            onClick={retry}
-          >
-            Réessayer
-          </Button>
-        </div>
-      )}
-      {etat === "attente" && status === "expired" && (
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="text-muted-foreground">
-            Vérification de sécurité expirée.
-          </span>
-          <Button
-            type="button"
-            variant="link"
-            size="xs"
-            className="h-auto p-0"
-            onClick={retry}
-          >
-            Réessayer
-          </Button>
-        </div>
+      {etat === "attente" && (
+        <LigneAttenteTest
+          texte={
+            status === "expired"
+              ? "Vérification de sécurité expirée."
+              : "Terminez la vérification de sécurité pour continuer."
+          }
+          onRetry={retry}
+        />
       )}
     </div>
   )

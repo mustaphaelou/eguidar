@@ -54,12 +54,16 @@ afterEach(() => {
 
 function rendreFlux({
   email = "",
-  onVerified,
+  destination = null,
+  onSuccess = () => {},
 }: {
   email?: string
-  onVerified?: (email: string) => void
+  destination?: string | null
+  onSuccess?: () => void
 } = {}) {
-  courantHook = renderHook(() => useSignUpFlow({ email, onVerified }, port))
+  courantHook = renderHook(() =>
+    useSignUpFlow({ email, destination, onSuccess }, port)
+  )
   return courantHook
 }
 
@@ -256,9 +260,9 @@ describe("useSignUpFlow", () => {
   })
 
   it("reçoit son transport et le remet à l'échange de code qu'il compose", async () => {
-    const onVerified = vi.fn()
+    const onSuccess = vi.fn()
 
-    rendreFlux({ onVerified })
+    rendreFlux({ onSuccess })
     saisirNom("Jane Doe")
     saisirEmail("jane@example.com")
     saisirMotDePasse("MotDePasse!12345")
@@ -291,6 +295,23 @@ describe("useSignUpFlow", () => {
         code: "123456",
       },
     ])
-    expect(onVerified).toHaveBeenCalledWith("jane@example.com")
+    expect(onSuccess).toHaveBeenCalled()
+  })
+
+  it("sort vers la Destination quand la Vérification aboutit, sans appeler onSuccess", async () => {
+    const onSuccess = vi.fn()
+
+    rendreFlux({ destination: "/checkout", onSuccess })
+    saisirNom("Jane Doe")
+    saisirEmail("jane@example.com")
+    saisirMotDePasse("MotDePasse!12345")
+
+    await soumettre()
+    await envoyerLeCode()
+    saisirCode("123456")
+    await verifierLeCode()
+
+    expect(window.location.pathname).toBe("/checkout")
+    expect(onSuccess).not.toHaveBeenCalled()
   })
 })

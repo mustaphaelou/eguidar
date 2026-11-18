@@ -198,3 +198,18 @@ Ce que l'amendement ne change pas : le contrôleur reste le seul lecteur et le s
 de connexion (`?open`/`?next`/`?error`) ; l'avis ne touche ni la lecture ni l'écriture du seam ;
 ADR-0001 et les invariants du corps tiennent. Le panneau reste une composition sans état : il lit
 l'avis du contrôleur et le rend, il n'en garde rien.
+
+## Amendement — l'avis d'un flux précédent se retire avec son producteur
+
+Le corps énumère `openLogin({ email?, next? })` ; l'amendement du #473 y a ajouté l'e-mail, celui du
+#484 l'adresse de la page, et l'amendement précédent de ce fichier y a ajouté `avis?`. ADR-0061
+retire ce dernier : la Vérification de l'e-mail de l'Inscription ne rend plus la main à une Connexion,
+elle ouvre la Session, si bien que le fait qu'elle constatait n'a plus personne à qui être dit. Le
+dernier producteur de l'avis disparaît avec l'option : `openLogin` revient à `{ email?, next? }`,
+`AuthDialogsContextValue.avis` quitte la valeur de contexte, `cleanAuthParams` n'efface plus rien de
+ce genre, et l'en-tête de Connexion ne rend plus d'avis — il ne rend que son échange en cours ou son
+invitation à basculer.
+
+Ce que l'amendement ne change pas : le contrôleur reste le seul lecteur et le seul écrivain du Lien
+de connexion (`?open`/`?next`/`?error`) ; ADR-0001 et les invariants du corps tiennent. Le panneau
+reste une composition sans état, et l'e-mail reste la seule valeur qu'un flux transmet à l'autre.

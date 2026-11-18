@@ -7,6 +7,7 @@ import {
   resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
+import { rejoindreLaDestination } from "@/components/auth/destination-post-connexion"
 import type { PortAuthentification } from "@/components/auth/port-authentification"
 import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
@@ -91,11 +92,7 @@ export function useSignInFlow(
   }
 
   function completeSignIn() {
-    if (destination) {
-      window.location.href = destination
-      return
-    }
-    onSuccess?.()
+    rejoindreLaDestination(destination, () => onSuccess?.())
   }
 
   function backToForm() {

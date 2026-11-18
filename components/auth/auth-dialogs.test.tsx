@@ -102,25 +102,6 @@ function storefront() {
   )
 }
 
-function AvisHarness() {
-  const { avis, openLogin } = useAuthDialogs()
-  return (
-    <>
-      <button
-        type="button"
-        data-open-avis
-        onClick={() => openLogin({ avis: "Compte créé." })}
-      >
-        avec avis
-      </button>
-      <button type="button" data-open-plain onClick={() => openLogin()}>
-        sans avis
-      </button>
-      <p data-avis>{avis ?? "aucun"}</p>
-    </>
-  )
-}
-
 function headerButton() {
   return container.querySelector<HTMLButtonElement>(
     'button[aria-label="Connexion"]'
@@ -183,48 +164,6 @@ describe("AuthDialogs", () => {
     rerender()
 
     expect(dialog()).not.toBeNull()
-  })
-
-  it("carries a one-shot notice into the Connexion header and clears it on the next open or close", async () => {
-    render(() => (
-      <AuthDialogs>
-        <AvisHarness />
-      </AuthDialogs>
-    ))
-
-    act(() =>
-      container.querySelector<HTMLButtonElement>("[data-open-avis]")!.click()
-    )
-    await flush()
-    rerender()
-
-    expect(container.querySelector("[data-avis]")?.textContent).toBe(
-      "Compte créé."
-    )
-    expect(
-      document.querySelector('[data-slot="dialog-description"]')?.textContent
-    ).toBe("Compte créé.")
-
-    act(() =>
-      container.querySelector<HTMLButtonElement>("[data-open-plain]")!.click()
-    )
-    await flush()
-    rerender()
-
-    expect(container.querySelector("[data-avis]")?.textContent).toBe("aucun")
-    expect(
-      document.querySelector('[data-slot="dialog-description"]')?.textContent
-    ).toContain("Pas encore de compte")
-
-    act(() =>
-      container.querySelector<HTMLButtonElement>("[data-open-avis]")!.click()
-    )
-    await flush()
-    rerender()
-    act(() => closeButton()!.click())
-    rerender()
-
-    expect(container.querySelector("[data-avis]")?.textContent).toBe("aucun")
   })
 
   it("unmounts the modal and cleans open and next from the URL when the close button is clicked", () => {

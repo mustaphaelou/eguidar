@@ -80,33 +80,26 @@ function AuthDialogHeader({
   step,
   email,
   destination,
-  avis = null,
   onSwap,
 }: {
   dialog: AuthDialogName
   step: "form" | "otp"
   email: string
   destination: string | null
-  avis?: string | null
   onSwap: () => void
 }) {
   const textes = TEXTES[dialog]
   const contextualTitle = headingForDestination(dialog, destination)
   const isOtp = step === "otp"
-  const afficherAvis = Boolean(avis) && !isOtp
 
   return (
     <DialogHeader>
       <DialogTitle className="text-lg">
         {isOtp ? OTP_TITLE : (contextualTitle ?? textes.defaultTitle)}
       </DialogTitle>
-      <DialogDescription
-        className={afficherAvis ? "font-medium text-emerald-700" : undefined}
-      >
+      <DialogDescription>
         {isOtp ? (
           textes.otpDescription(email)
-        ) : afficherAvis ? (
-          avis
         ) : (
           <>
             {textes.swapPrefix}{" "}
@@ -161,7 +154,7 @@ function ConnexionPanel({
   hasGoogle: boolean
   hasFacebook: boolean
 }) {
-  const { email, avis, openSignUp, close } = useAuthDialogs()
+  const { email, openSignUp, close } = useAuthDialogs()
   const destination = useAuthDialogDestination()
   const pageAddress = usePageAddressWithoutAuthParams()
   const socialReturnAddress = useAuthDialogErrorDestination()
@@ -172,8 +165,6 @@ function ConnexionPanel({
     pageAddress,
     socialReturnAddress,
   })
-  const avisVisible =
-    avis && flow.step === "form" && !flow.loading && !flow.error ? avis : null
 
   return (
     <>
@@ -182,7 +173,6 @@ function ConnexionPanel({
         step={flow.step}
         email={flow.email}
         destination={destination}
-        avis={avisVisible}
         onSwap={() => openSignUp({ email: flow.email })}
       />
       <SignInForm
@@ -200,13 +190,8 @@ function InscriptionPanel() {
   const destination = useAuthDialogDestination()
   const flow = useSignUpFlow({
     email,
-    onVerified: () => {
-      if (destination) {
-        window.location.href = destination
-        return
-      }
-      close()
-    },
+    destination,
+    onSuccess: close,
   })
 
   return (

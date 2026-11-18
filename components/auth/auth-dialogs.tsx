@@ -25,12 +25,7 @@ import { AuthDialog } from "./auth-dialog"
 
 type AuthDialogsContextValue = {
   email: string
-  avis: string | null
-  openLogin: (options?: {
-    email?: string
-    next?: string
-    avis?: string
-  }) => void
+  openLogin: (options?: { email?: string; next?: string }) => void
   openSignUp: (options?: { email?: string }) => void
   close: () => void
 }
@@ -92,7 +87,6 @@ export function AuthDialogsProvider({
   children: React.ReactNode
 }) {
   const [email, setEmail] = useState("")
-  const [avis, setAvis] = useState<string | null>(null)
   const router = useRouter()
   const { data: session, isPending } = useSession()
 
@@ -116,7 +110,6 @@ export function AuthDialogsProvider({
   )
 
   const cleanAuthParams = useCallback(() => {
-    setAvis(null)
     const current = currentAddress()
     navigateUnlessUnchanged(
       current,
@@ -126,9 +119,8 @@ export function AuthDialogsProvider({
   }, [router])
 
   const openLogin = useCallback(
-    (options?: { email?: string; next?: string; avis?: string }) => {
+    (options?: { email?: string; next?: string }) => {
       setEmail(options?.email ?? "")
-      setAvis(options?.avis ?? null)
       const next =
         options?.next ??
         parseAuthParams(currentSearch()).next ??
@@ -141,7 +133,6 @@ export function AuthDialogsProvider({
   const openSignUp = useCallback(
     (options?: { email?: string }) => {
       setEmail(options?.email ?? "")
-      setAvis(null)
       openAuthDialog("signup")
     },
     [openAuthDialog]
@@ -153,8 +144,8 @@ export function AuthDialogsProvider({
   }, [cleanAuthParams])
 
   const value = useMemo(
-    () => ({ email, avis, openLogin, openSignUp, close }),
-    [email, avis, openLogin, openSignUp, close]
+    () => ({ email, openLogin, openSignUp, close }),
+    [email, openLogin, openSignUp, close]
   )
 
   const internals = useMemo(

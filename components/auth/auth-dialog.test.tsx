@@ -701,5 +701,34 @@ describe("AuthDialog", () => {
         otp: "123456",
       })
     })
+
+    it("lands on the Destination after the otp round-trip when the Client came to buy", async () => {
+      window.history.replaceState(null, "", "/?open=signup&next=%2Fcheckout")
+      renderDialogs({ harness: <SwapHarness /> })
+
+      setInputValue(
+        dialog()!.querySelector<HTMLInputElement>("#name")!,
+        "Jane Doe"
+      )
+      setInputValue(emailInput()!, "jane@example.com")
+      setInputValue(
+        dialog()!.querySelector<HTMLInputElement>("#password")!,
+        "MotDePasse!12345"
+      )
+      await clickAndFlush(submitButton("Créer mon compte")!)
+
+      await clickAndFlush(submitButton("Envoyer le code")!)
+
+      setInputValue(
+        dialog()!.querySelector<HTMLInputElement>("#otp")!,
+        "123456"
+      )
+      await clickAndFlush(submitButton("Vérifier mon e-mail")!)
+      await flush()
+      rerender()
+
+      expect(window.location.pathname).toBe("/checkout")
+      expect(new URL(window.location.href).searchParams.get("open")).toBeNull()
+    })
   })
 })

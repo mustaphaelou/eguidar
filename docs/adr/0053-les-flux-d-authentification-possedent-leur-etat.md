@@ -126,3 +126,17 @@ Ce que l'amendement ne change pas : chaque flux garde son étape et son avis pro
 n'ajoute aucun état ; ADR-0015 reste le seul lecteur et le seul écrivain du Lien de connexion. Les
 deux avis ne se confondent pas : celui du flux raconte son échange, celui du contrôleur transmet le
 fait d'un flux qui n'est plus monté.
+
+## Amendement — la Connexion n'a plus d'avis à rendre
+
+L'amendement précédent attribue au flux de Connexion son propre avis — « Votre e-mail est vérifié.
+Connectez-vous. » — gardé par `useSignInFlow` dans `notice`. ADR-0061 retire ce `notice` : l'échange
+du code, sur la Connexion comme à l'Inscription, finit par une Session et une sortie vers la
+Destination, pas par un formulaire à remplir. Le flux garde son étape, son adresse, son mot de passe,
+son attente, son refus et son échange de code ; l'avis n'est plus l'un de ses états. Le second avis,
+celui du contrôleur, part avec son producteur (ADR-0015) : plus aucun flux n'en émet.
+
+Ce que l'amendement ne change pas : chaque flux possède son étape et son refus ; la modale compose
+sans en garder ; ADR-0015 reste le seul lecteur et le seul écrivain du Lien de connexion. Les deux
+avis que l'amendement précédent séparait n'ont plus de producteur, et rien ne les remplace : la
+Vérification aboutie n'a plus de fait à annoncer, elle a une Session à ouvrir.

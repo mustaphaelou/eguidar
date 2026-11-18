@@ -20,13 +20,18 @@ n'ajoutait une preuve que la bibliothèque n'avait pas déjà.
 - **L'Inscription ne crée toujours pas de Session.** La règle qui empêche un Compte client non
   vérifié de se connecter ne bouge pas ; c'est le second facteur de connaissance du Compte client —
   la possession de la boîte — qui l'ouvre maintenant.
+- **L'échange du code ouvre la Session partout où il aboutit.** `autoSignInAfterVerification` est
+  une option de la bibliothèque, pas une option d'un parcours : un Compte client déjà vérifié qui
+  échange un code, notamment depuis l'Inscription, finit connecté lui aussi. Ce n'est pas la voie
+  sans mot de passe refusée plus bas — aucune Connexion par mot de passe ne disparaît, et la boîte
+  suffisait déjà à la Réinitialisation du mot de passe — mais c'est une façon de rentrer, et elle est
+  écrite ici pour que la bibliothèque ne décide pas à notre place.
 - **Le mot de passe reste le secret de la Connexion suivante.** Le Client l'a choisi à l'Inscription,
   il l'utilise à la Connexion par mot de passe et à la Réinitialisation du mot de passe. Aucun
   parcours ne disparaît.
 - **La modale ferme sur la Destination post-connexion**, ou se ferme. L'avis « Votre compte est créé
   et votre adresse e-mail est vérifiée. Connectez-vous. » n'a plus de producteur et quitte la
-  copie ; l'option `avis` du contexte reste, elle nomme un fait que d'autres surfaces peuvent encore
-  vouloir dire.
+  copie ; l'option `avis` du contexte se retire avec lui (ADR-0015).
 - **Le même échange, sur la Connexion,** quand le mot de passe est bon mais l'adresse non vérifiée :
   il finit connecté, pas devant un formulaire.
 
@@ -37,8 +42,10 @@ n'ajoutait une preuve que la bibliothèque n'avait pas déjà.
 - **Créer la Session à l'Inscription** (`autoSignIn: true`, sans vérification). Rejetée : elle
   publierait des Comptes clients non prouvés, et rendrait la Vérification de l'e-mail facultative
   dans les faits.
-- **Signer par code sans mot de passe.** Rejetée ici : le mot de passe reste le secret de la
-  Connexion, et un changement de cette taille passe par sa propre décision.
+- **Signer par code sans mot de passe.** Rejetée comme remplacement de la Connexion : le mot de
+  passe reste le secret de la Connexion suivante, et retirer la Connexion par mot de passe passe par
+  sa propre décision. L'échange du code, lui, ouvre une Session quand il aboutit, y compris pour un
+  Compte client déjà vérifié : c'est la limite que la Décision nomme.
 
 ## Invariants
 
@@ -54,6 +61,9 @@ n'ajoutait une preuve que la bibliothèque n'avait pas déjà.
   elle aussi par cette boîte. C'était déjà la règle, mais elle devient un point de passage et non
   plus une formalité avant un formulaire.
 - **La déclaration est réécrite** : `docs/auth-pathways.md` porte la Session ouverte à la
-  Vérification, et le glossaire dit que l'échange de la Connexion finit connecté.
+  Vérification, et le glossaire dit que l'échange de la Connexion finit connecté. ADR-0015 et
+  ADR-0053 reçoivent chacun un `## Amendement` : l'avis d'un flux précédent et le `notice` de la
+  Connexion se retirent avec leurs producteurs.
 - **Un test de parcours tient l'invariant** : la réponse de la Vérification porte le jeton de
-  Session, et le parcours serveur le prouve à chaque exécution.
+  Session, et le parcours serveur le prouve à chaque exécution — le refus avant la Vérification, et
+  le Compte client déjà vérifié qui échange un code jusqu'à la Session.

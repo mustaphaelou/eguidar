@@ -142,7 +142,8 @@ function Connexion() {
 function Inscription() {
   const flow = useSignUpFlow({
     email: ADRESSE,
-    onVerified: () => {},
+    destination: null,
+    onSuccess: () => {},
   })
   return (
     <form onSubmit={flow.handleSignUp}>
