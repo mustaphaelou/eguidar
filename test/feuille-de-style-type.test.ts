@@ -13,7 +13,7 @@ const JETONS: Record<string, string> = {
   "--text-hero": "clamp(1.5rem, 10.5cqi, 3.5rem)",
   "--text-hero--line-height": "1.02",
   "--text-hero--letter-spacing": "-0.031em",
-  "--text-chiffre": "clamp(1rem, 4cqi, 1.25rem)",
+  "--text-chiffre": "clamp(0.9rem, 4cqi, 1.25rem)",
   "--text-chiffre--line-height": "1.1",
   "--text-chiffre--letter-spacing": "-0.01em",
 }

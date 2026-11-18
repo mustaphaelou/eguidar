@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -44,6 +45,7 @@ export default async function AdminOrderDetailPage({
   const { orderId } = await params
   const { transition } = await searchParams
 
+  await exigerAdmin()
   let order
   try {
     order = await getAdminOrder(orderId)

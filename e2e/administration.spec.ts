@@ -151,4 +151,56 @@ test.describe("le tableau de bord de l'Administration sur téléphone", () => {
       `la taille de la valeur ne suit pas la carte : ${a390.fontSize} px pour ${a390.clientWidth} px à 390, ${a320.fontSize} px pour ${a320.clientWidth} px à 320`
     ).toBeLessThan(0.02)
   })
+
+  test("12. la hiérarchie du montant et du bandeau se mesure", async ({
+    page,
+    serveur,
+  }) => {
+    expect(page.viewportSize()).toEqual({ width: 390, height: 844 })
+    await ouvrirLeTableauDeBord(page, serveur.origine)
+
+    const bandeau = page.getByRole("region", {
+      name: "Indicateurs principaux",
+    })
+
+    const montant = laValeurDuCA(page)
+    await expect(montant).toHaveCount(1)
+    await expect(montant).toBeVisible()
+
+    for (const libelle of [
+      "Commandes : ",
+      "Commandes en attente : ",
+      "Produits : ",
+    ]) {
+      await expect(
+        bandeau.getByRole("link", {
+          name: new RegExp(`^${libelle}\\d+`, "u"),
+        })
+      ).toHaveCount(1)
+    }
+
+    const chiffre = bandeau.getByRole("link", {
+      name: /^Commandes : \d+/u,
+    })
+    const tailleDuMontant = await montant.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize)
+    )
+    const tailleDuChiffre = await chiffre.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize)
+    )
+
+    expect(
+      tailleDuMontant,
+      `le montant mesure ${tailleDuMontant} px pour ${tailleDuChiffre} px au chiffre du bandeau à 390 px`
+    ).toBeGreaterThanOrEqual(2 * tailleDuChiffre)
+
+    await page.setViewportSize({ width: 320, height: 568 })
+    await attendreLaMiseEnPage(page)
+
+    const mesures = await mesurerLaValeur(laValeurDuCA(page))
+    expect(
+      mesures.lignes,
+      `le montant occupe ${mesures.lignes} lignes à 320 px au lieu d'une`
+    ).toBe(1)
+  })
 })

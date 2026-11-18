@@ -11,10 +11,11 @@ import {
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-export const VALEUR_DE_CARTE = "text-xl sm:text-2xl"
-
 export const VALEUR_MONETAIRE =
-  "text-[length:clamp(0.5rem,10.5cqi,1.25rem)] font-semibold tracking-tight break-normal whitespace-nowrap tabular-nums"
+  "text-[length:var(--text-hero,clamp(1.5rem,10.5cqi,3.5rem))] font-semibold tracking-tight break-normal whitespace-nowrap tabular-nums"
+
+export const VALEUR_CHIFFRE =
+  "text-[length:var(--text-chiffre,clamp(1rem,5cqi,1.75rem))] font-semibold tracking-tight tabular-nums"
 
 const CARTE_CLIQUABLE =
   "relative motion-safe:has-[:active]:scale-[0.97] motion-safe:transition-transform motion-safe:duration-[160ms] motion-safe:ease-out"
@@ -29,34 +30,60 @@ export function CarteStat({
   icon,
   href,
   action,
-  valueClassName = VALEUR_DE_CARTE,
+  valueClassName = VALEUR_CHIFFRE,
+  variant = "defaut",
+  legende,
 }: {
   label: string
   value: React.ReactNode
-  hint: React.ReactNode
-  icon: React.ComponentProps<typeof HugeiconsIcon>["icon"]
+  hint?: React.ReactNode
+  icon?: React.ComponentProps<typeof HugeiconsIcon>["icon"]
   href?: string
   action?: string
   valueClassName?: string
+  variant?: "defaut" | "hero" | "chiffre"
+  legende?: React.ReactNode
 }) {
+  if (variant === "chiffre") {
+    const classes = cn(
+      VALEUR_CHIFFRE,
+      CARTE_CLIQUABLE,
+      "underline-offset-4",
+      SURVOL_SOULIGNE
+    )
+
+    return href ? (
+      <Link href={href} aria-label={action} className={classes}>
+        {value}
+      </Link>
+    ) : (
+      <span className={classes}>{value}</span>
+    )
+  }
+
+  const cliquable = variant === "defaut" && href
+
   return (
     <Card
       size="sm"
       className={cn(
         "h-full gap-3",
-        href ? CARTE_CLIQUABLE : undefined,
-        href && "has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring"
+        cliquable ? CARTE_CLIQUABLE : undefined,
+        cliquable &&
+          "has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring"
       )}
     >
       <CardHeader>
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {label}
         </CardTitle>
-        <CardAction className="hidden sm:block">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <HugeiconsIcon icon={icon} strokeWidth={2} className="size-4" />
-          </span>
-        </CardAction>
+        {icon ? (
+          <CardAction className="hidden sm:block">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <HugeiconsIcon icon={icon} strokeWidth={2} className="size-4" />
+            </span>
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent className="@container">
         <p
@@ -65,7 +92,7 @@ export function CarteStat({
             valueClassName
           )}
         >
-          {href ? (
+          {cliquable ? (
             <Link
               href={href}
               aria-label={action}
@@ -80,9 +107,14 @@ export function CarteStat({
             value
           )}
         </p>
-        <p className="mt-1 text-xs text-balance text-muted-foreground">
-          {hint}
-        </p>
+        {hint ? (
+          <p className="mt-1 text-xs text-balance text-muted-foreground">
+            {hint}
+          </p>
+        ) : null}
+        {variant === "hero" && legende ? (
+          <p className="mt-1 text-xs text-muted-foreground">{legende}</p>
+        ) : null}
       </CardContent>
     </Card>
   )

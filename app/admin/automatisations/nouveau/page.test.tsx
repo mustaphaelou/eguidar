@@ -1,5 +1,6 @@
 import { renderToReadableStream } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
+vi.mock("@/lib/use-cases/exiger-admin", () => ({ exigerAdmin: vi.fn() }))
 
 vi.mock("@/components/admin/regle-automation-form", () => ({
   RegleAutomationForm: ({

@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import { Suspense } from "react"
 import Link from "next/link"
 import type { Metadata } from "next"
@@ -38,6 +39,7 @@ async function TableauDeBord({
 }: {
   searchParams: Promise<RawSearchParams>
 }) {
+  await exigerAdmin()
   const periode = parsePeriode(await searchParams)
   const [stats, imagesSansAlt, executionsEnEchec] = await Promise.all([
     getDashboardStats(periode),

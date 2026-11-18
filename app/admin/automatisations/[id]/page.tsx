@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
@@ -57,6 +58,7 @@ export default async function AdminRegleAutomatisationPage({
   params: Promise<{ id: string }>
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  await exigerAdmin()
   const { id } = await params
   const regle = await lireRegle(id)
   if (!regle) notFound()

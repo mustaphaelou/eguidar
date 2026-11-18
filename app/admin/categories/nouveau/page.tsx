@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import type { Metadata } from "next"
 import Link from "next/link"
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 }
 
 export default async function NewCategoryPage() {
+  await exigerAdmin()
   const candidates = (await lireStructure()).options()
 
   return (
