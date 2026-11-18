@@ -15,7 +15,7 @@ function LigneStock({ variante }: { variante: LowStockVariant }) {
           className={cn(
             "whitespace-nowrap tabular-nums",
             variante.stock > 0 &&
-              "border-amber-600/20 bg-amber-500/10 text-amber-700"
+              "border-border bg-muted/50 text-muted-foreground"
           )}
         >
           {variante.stock === 0 ? "Rupture" : `${variante.stock} restants`}
@@ -39,7 +39,7 @@ export function ListeDeStockFaible({
   return (
     <ul
       className={cn(
-        "[&>li]:border-t",
+        "[&>li]:border-t [&>li]:border-hairline/60",
         colonnesAuLg && "lg:grid lg:grid-cols-2 lg:gap-x-8",
         className
       )}
