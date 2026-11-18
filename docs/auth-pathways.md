@@ -117,10 +117,12 @@ not wrap the Meta route.
   the reset ejects a Connexion already in flight. The credential version seen
   at the start of the request is compared with the one read after success.
 - The browser keeps the **Moyen de connexion** of the last successful Connexion
-  in a first-party, host-only cookie for 30 days, under the shop's own name and
-  vocabulary. The Connexion modal names it in one muted line above the methods,
-  in the form step only, when the method is offered and at least two methods
-  exist. No server route reads it and it never selects an account (ADR-0063).
+  in a first-party, host-only, non-HttpOnly cookie for 30 days, under the shop's
+  own name `eguidar.dernier-moyen-de-connexion` and vocabulary (`mot-de-passe`,
+  `google`, `facebook`). The Connexion modal names it in one muted hint line
+  above the methods, in the form step only, when the method is offered and at
+  least two methods exist. No server route reads it; it never selects, hides or
+  reorders a method and replaces no credential (ADR-0063).
 
 **Deliberately absent**
 
@@ -299,7 +301,7 @@ they are not product surfaces and the shop configures no sender for them:
 | Provider tokens                                                 | Encrypted at rest, key derived from `BETTER_AUTH_SECRET`                                                                 | `lib/auth.ts` (ADR-0060)                                |
 | Test de sécurité scope                                          | Exact action and hostname allow-list                                                                                     | `lib/test-de-securite.ts`                               |
 | Panier replay                                                   | Four entry points                                                                                                        | `lib/points-entree-connexion.ts` (ADR-0007)             |
-| Last login method                                               | 30-day host-only cookie, one muted line in the Connexion form step                                                       | `lib/moyen-de-connexion.ts` (ADR-0063)                  |
+| Last login method hint                                          | `eguidar.dernier-moyen-de-connexion`, 30 days, non-HttpOnly, hint only                                                    | `lib/moyen-de-connexion.ts` (ADR-0063)                  |
 
 ## Deliberately absent across the shop
 

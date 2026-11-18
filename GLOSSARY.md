@@ -424,8 +424,8 @@ L'authentification d'un Client par un code à usage unique envoyé à son adress
 _Avoid_: OTP login, magic link, passwordless login, connexion sans mot de passe
 
 **Moyen de connexion**:
-Le moyen d'une Connexion réussie — `mot-de-passe`, `google` ou `facebook` — retenu trente jours dans un cookie de première partie propre à l'appareil et nommé par la phrase « Dernière connexion sur cet appareil : … » dans la modale de Connexion. Il ne désigne que le dernier fait de cet appareil : il ne présélectionne aucun moyen, ne dit rien du **Compte client** et ne remplace aucune preuve d'identité.
-_Avoid_: méthode, mode, voie (la voie reste une des sept voies d'authentification), lastLoginMethod
+Le moyen d'une Connexion réussie — `mot-de-passe`, `google` ou `facebook` — retenu trente jours dans un cookie de première partie, propre à l'appareil et non HttpOnly, et nommé par la phrase « Dernière connexion sur cet appareil : … » dans la modale de Connexion. Il ne désigne que le dernier fait de cet appareil : il ne présélectionne aucun moyen, ne dit rien du **Compte client** et ne remplace aucune preuve d'identité.
+_Avoid_: méthode, mode, voie (la voie reste l'une des sept voies d'authentification), lastLoginMethod
 
 **Inscription**:
 Creating a new customer account, presented in its own modal (distinct from Connexion).
