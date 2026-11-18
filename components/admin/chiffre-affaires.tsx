@@ -7,7 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { buttonVariants } from "@/components/ui/button"
 import {
   buildTableauDeBordUrl,
   libelleCourtPeriode,
@@ -34,7 +33,7 @@ export function CarteChiffreAffaires({
       <CardHeader className="block">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-col gap-1.5">
-            <CardTitle>Chiffre d&apos;affaires net</CardTitle>
+            <CardTitle>Évolution du chiffre d&apos;affaires</CardTitle>
             <CardDescription>
               Encaissements moins Remboursements, frais de livraison inclus.
             </CardDescription>
@@ -42,7 +41,7 @@ export function CarteChiffreAffaires({
           <div
             role="group"
             aria-label="Période"
-            className="flex flex-wrap items-center gap-1"
+            className="flex flex-wrap items-center gap-0.5 rounded-lg bg-muted p-1"
           >
             {PERIODE_VALUES.map((choix) => {
               const actif = choix === periode
@@ -53,10 +52,12 @@ export function CarteChiffreAffaires({
                   scroll={false}
                   aria-current={actif ? "page" : undefined}
                   aria-label={libelleLongPeriode(choix)}
-                  className={buttonVariants({
-                    variant: actif ? "outline" : "ghost",
-                    size: "sm",
-                  })}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    actif
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
                   {libelleCourtPeriode(choix)}
                 </Link>

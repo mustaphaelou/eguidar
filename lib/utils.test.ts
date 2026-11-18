@@ -15,14 +15,16 @@ describe("cn — les tailles maison ne mangent plus les couleurs", () => {
     )
   })
 
-  it.each(["text-titre-carte", "text-titre-catalogue"])(
-    "lit %s comme une taille, pas comme une couleur",
-    (taille) => {
-      expect(cn("text-primary-foreground", taille)).toBe(
-        `text-primary-foreground ${taille}`
-      )
-    }
-  )
+  it.each([
+    "text-titre-carte",
+    "text-titre-catalogue",
+    "text-hero",
+    "text-chiffre",
+  ])("lit %s comme une taille, pas comme une couleur", (taille) => {
+    expect(cn("text-primary-foreground", taille)).toBe(
+      `text-primary-foreground ${taille}`
+    )
+  })
 
   it("laisse la dernière taille gagner, même contre une taille de Tailwind", () => {
     expect(cn("text-sm", "text-body")).toBe("text-body")

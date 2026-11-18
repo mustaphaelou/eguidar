@@ -21,6 +21,13 @@ export interface ServeurDeSonde {
 const DELAI_DE_BOOT_MS = 90_000
 const INTERVALLE_DE_SONDE_MS = 250
 
+export const IDENTIFIANTS_FOURNISSEURS_SOCIAUX_DE_FIXTURE = {
+  GOOGLE_CLIENT_ID: "fixture-google-client-id",
+  GOOGLE_CLIENT_SECRET: "fixture-google-client-secret",
+  FACEBOOK_CLIENT_ID: "fixture-facebook-client-id",
+  FACEBOOK_CLIENT_SECRET: "fixture-facebook-client-secret",
+} as const
+
 export async function portLibre(): Promise<number> {
   const sonde = createServer()
   await new Promise<void>((resoudre, rejeter) => {
@@ -71,6 +78,7 @@ export function environnementDuServeur(
 ): NodeJS.ProcessEnv {
   const environnement: NodeJS.ProcessEnv = {
     ...parent,
+    ...IDENTIFIANTS_FOURNISSEURS_SOCIAUX_DE_FIXTURE,
     NODE_ENV: "production",
     PORT: new URL(origine).port,
     HOSTNAME: "127.0.0.1",
@@ -178,6 +186,7 @@ export function environnementDeBuild(
 ): NodeJS.ProcessEnv {
   const environnement: NodeJS.ProcessEnv = {
     ...parent,
+    ...IDENTIFIANTS_FOURNISSEURS_SOCIAUX_DE_FIXTURE,
     DATABASE_URL: baseDeDonnees,
     REDIS_URL: redisUrl ?? "",
     BETTER_AUTH_URL: origine,

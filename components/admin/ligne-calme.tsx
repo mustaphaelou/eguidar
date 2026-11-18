@@ -7,7 +7,7 @@ export function LigneCalme({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex items-start gap-3 border-t px-(--card-spacing) py-4",
+        "flex items-start gap-3 border-t border-hairline/60 px-(--card-spacing) py-5",
         className
       )}
     >

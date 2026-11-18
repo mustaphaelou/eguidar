@@ -147,6 +147,20 @@ export default function ConditionsPage() {
             .
           </p>
         </Section>
+
+        <Section title="9. Cookies">
+          <p>
+            Nous utilisons un cookie de première partie nommé{" "}
+            <code className="font-mono text-xs">
+              eguidar.dernier-moyen-de-connexion
+            </code>
+            , d&apos;une durée de trente jours, pour afficher dans la modale de
+            Connexion le moyen utilisé lors de la dernière Connexion sur cet
+            appareil : e-mail et mot de passe, Google ou Facebook. Il ne
+            contient aucune donnée personnelle, n&apos;est pas utilisé pour vous
+            suivre et n&apos;est lu que par votre navigateur.
+          </p>
+        </Section>
       </div>
     </div>
   )
