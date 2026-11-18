@@ -56,6 +56,9 @@ export const auth = betterAuth({
       },
     },
   },
+  emailVerification: {
+    autoSignInAfterVerification: true,
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,

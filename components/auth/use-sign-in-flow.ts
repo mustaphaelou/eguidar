@@ -7,6 +7,7 @@ import {
   resolveAuthRefusal,
   translateAuthError,
 } from "@/components/auth/auth-form-glue"
+import { rejoindreLaDestination } from "@/components/auth/destination-post-connexion"
 import type { PortAuthentification } from "@/components/auth/port-authentification"
 import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
@@ -39,17 +40,13 @@ export function useSignInFlow(
   const [email, setEmail] = useState(adresseDeDépart)
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const captcha = useTestDeSecurite(ACTIONS_TEST_DE_SECURITE.connexion)
   const otp = useOtpExchange(
     {
       email,
       type: "email-verification",
-      onVerified: () => {
-        setNotice("Votre e-mail est vérifié. Connectez-vous.")
-        backToForm()
-      },
+      onVerified: completeSignIn,
     },
     port
   )
@@ -57,7 +54,6 @@ export function useSignInFlow(
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setNotice(null)
     setLoading(true)
     try {
       const result = await port.connexionParMotDePasse({
@@ -83,7 +79,6 @@ export function useSignInFlow(
 
   async function handleSocial(provider: FournisseurSocial) {
     setError(null)
-    setNotice(null)
     try {
       const result = await port.connexionSociale({
         fournisseur: provider,
@@ -97,11 +92,7 @@ export function useSignInFlow(
   }
 
   function completeSignIn() {
-    if (destination) {
-      window.location.href = destination
-      return
-    }
-    onSuccess?.()
+    rejoindreLaDestination(destination, () => onSuccess?.())
   }
 
   function backToForm() {
@@ -117,7 +108,6 @@ export function useSignInFlow(
     otp,
     step,
     error,
-    notice,
     loading,
     captcha,
     handleSignIn,

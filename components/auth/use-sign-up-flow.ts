@@ -6,6 +6,7 @@ import {
   MESSAGE_SERVEUR_INJOIGNABLE,
   resolveAuthRefusal,
 } from "@/components/auth/auth-form-glue"
+import { rejoindreLaDestination } from "@/components/auth/destination-post-connexion"
 import type { PortAuthentification } from "@/components/auth/port-authentification"
 import { portAuthentificationClient } from "@/components/auth/port-authentification-client"
 import { useOtpExchange } from "@/components/auth/verification-de-l-email"
@@ -19,10 +20,12 @@ export type SignUpFlow = ReturnType<typeof useSignUpFlow>
 export function useSignUpFlow(
   {
     email: adresseDeDépart,
-    onVerified,
+    destination,
+    onSuccess,
   }: {
     email: string
-    onVerified?: (email: string) => void
+    destination: string | null
+    onSuccess: () => void
   },
   port: PortAuthentification = portAuthentificationClient
 ) {
@@ -34,7 +37,7 @@ export function useSignUpFlow(
   const [loading, setLoading] = useState(false)
   const captcha = useTestDeSecurite(ACTIONS_TEST_DE_SECURITE.inscription)
   const otp = useOtpExchange(
-    { email, type: "email-verification", onVerified },
+    { email, type: "email-verification", onVerified: completeSignIn },
     port
   )
 
@@ -59,6 +62,10 @@ export function useSignUpFlow(
     } finally {
       setLoading(false)
     }
+  }
+
+  function completeSignIn() {
+    rejoindreLaDestination(destination, onSuccess)
   }
 
   return {
