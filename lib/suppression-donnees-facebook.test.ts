@@ -54,7 +54,7 @@ type DonneesClient = {
   orderItemId: string
   verificationId: string
   verificationEmailId: string
-  verificationChangementEmailId: string
+  verificationConnexionId: string
   ville: string
   adresse: string
   telephone: string
@@ -77,7 +77,7 @@ const AUCUNE_LIGNE_RESTANTE = {
   orderItem: null,
   verification: null,
   verificationEmail: null,
-  verificationChangementEmail: null,
+  verificationConnexion: null,
 }
 
 function signer(
@@ -169,10 +169,10 @@ async function semerClient(
     },
   })
 
-  const verificationChangementEmail = await prisma.verification.create({
+  const verificationConnexion = await prisma.verification.create({
     data: {
       id: randomUUID(),
-      identifier: `change-email-otp-${user.email}-nouvelle-${runId}@test.ma`,
+      identifier: `sign-in-otp-${user.email}`,
       value: "empreinte:0",
       expiresAt: new Date(Date.now() + 5 * 60_000),
     },
@@ -184,7 +184,7 @@ async function semerClient(
     orderItemId: order.items[0].id,
     verificationId: verification.id,
     verificationEmailId: verificationEmail.id,
-    verificationChangementEmailId: verificationChangementEmail.id,
+    verificationConnexionId: verificationConnexion.id,
     ville: VILLE_DU_CLIENT,
     adresse: ADRESSE_DU_CLIENT,
     telephone: TELEPHONE_DU_CLIENT,
@@ -281,7 +281,7 @@ async function lignesRestantes(donnees: DonneesClient) {
     orderItem,
     verification,
     verificationEmail,
-    verificationChangementEmail,
+    verificationConnexion,
   ] = await Promise.all([
     prisma.user.findUnique({ where: { id: donnees.userId } }),
     prisma.account.findUnique({ where: { id: donnees.accountRowId } }),
@@ -292,7 +292,7 @@ async function lignesRestantes(donnees: DonneesClient) {
       where: { id: donnees.verificationEmailId },
     }),
     prisma.verification.findUnique({
-      where: { id: donnees.verificationChangementEmailId },
+      where: { id: donnees.verificationConnexionId },
     }),
   ])
 
@@ -303,7 +303,7 @@ async function lignesRestantes(donnees: DonneesClient) {
     orderItem,
     verification,
     verificationEmail,
-    verificationChangementEmail,
+    verificationConnexion,
   }
 }
 
@@ -565,24 +565,51 @@ describe("POST /api/facebook/suppression-donnees", () => {
     )
   })
 
-  it("supprime aussi le code de changement d'adresse dont l'ancienne adresse est celle du Client supprimé", async () => {
-    const identifiantApplicatif = `identifiant-${runId}-changement-email`
-    const donnees = await semerClient(identifiantApplicatif)
+  it("ne supprime que les trois identifiants OTP du Compte dont l'adresse contient un souligné", async () => {
+    const prefixe = `${emailPrefix}souligne-`
+    const identifiantSupprime = `identifiant-${runId}-souligne-a`
+    const clientSupprime = await semerClient(
+      identifiantSupprime,
+      `${prefixe}a_b@test.ma`
+    )
+    const identifiantConserve = `identifiant-${runId}-souligne-b`
+    const clientConserve = await semerClient(
+      identifiantConserve,
+      `${prefixe}aXb@test.ma`
+    )
+    const identifiantEtranger = await prisma.verification.create({
+      data: {
+        id: randomUUID(),
+        identifier: `autre-otp-${clientSupprime.email}`,
+        value: "empreinte:0",
+        expiresAt: new Date(Date.now() + 5 * 60_000),
+      },
+    })
 
     const reponse = await POST(
       requete(
         signer({
           algorithm: "HMAC-SHA256",
-          user_id: identifiantApplicatif,
+          user_id: identifiantSupprime,
           issued_at: 1700000000,
         })
       )
     )
 
     expect(reponse.status).toBe(200)
-    await expect(lignesRestantes(donnees)).resolves.toEqual(
+    await expect(lignesRestantes(clientSupprime)).resolves.toEqual(
       AUCUNE_LIGNE_RESTANTE
     )
+
+    const restantes = await lignesRestantes(clientConserve)
+    expect(restantes.user).not.toBeNull()
+    expect(restantes.order).not.toBeNull()
+    expect(restantes.verification).not.toBeNull()
+    expect(restantes.verificationEmail).not.toBeNull()
+    expect(restantes.verificationConnexion).not.toBeNull()
+    await expect(
+      prisma.verification.findUnique({ where: { id: identifiantEtranger.id } })
+    ).resolves.not.toBeNull()
   })
 
   it("refuse une signature malformée qui décode pourtant les bons octets", async () => {
@@ -604,8 +631,8 @@ describe("POST /api/facebook/suppression-donnees", () => {
       order: { id: donnees.orderId },
       verification: { id: donnees.verificationId },
       verificationEmail: { id: donnees.verificationEmailId },
-      verificationChangementEmail: {
-        id: donnees.verificationChangementEmailId,
+      verificationConnexion: {
+        id: donnees.verificationConnexionId,
       },
     })
     await verifierEvenementsIntacts(donnees, evenements)
@@ -641,7 +668,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.orderItem).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
-    expect(restantes.verificationChangementEmail).not.toBeNull()
+    expect(restantes.verificationConnexion).not.toBeNull()
     await verifierEvenementsIntacts(donnees, evenements)
   })
 
@@ -663,7 +690,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.orderItem).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
-    expect(restantes.verificationChangementEmail).not.toBeNull()
+    expect(restantes.verificationConnexion).not.toBeNull()
     await verifierEvenementsIntacts(donnees, evenements)
   })
 
@@ -695,7 +722,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.orderItem).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
-    expect(restantes.verificationChangementEmail).not.toBeNull()
+    expect(restantes.verificationConnexion).not.toBeNull()
     await verifierEvenementsIntacts(donnees, evenements)
   })
 
@@ -780,7 +807,7 @@ describe("POST /api/facebook/suppression-donnees", () => {
     expect(restantes.user).not.toBeNull()
     expect(restantes.verification).not.toBeNull()
     expect(restantes.verificationEmail).not.toBeNull()
-    expect(restantes.verificationChangementEmail).not.toBeNull()
+    expect(restantes.verificationConnexion).not.toBeNull()
   })
 })
 
