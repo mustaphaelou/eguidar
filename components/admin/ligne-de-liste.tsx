@@ -20,7 +20,7 @@ export function LigneDeListe({
       <Link
         href={href}
         className={cn(
-          "flex min-h-16 items-center justify-between gap-4 px-(--card-spacing) py-2.5 transition-colors focus-visible:bg-muted/40 focus-visible:outline-none active:bg-muted/60 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40",
+          "flex min-h-16 items-center justify-between gap-4 px-(--card-spacing) py-3 transition-colors focus-visible:bg-muted/40 focus-visible:outline-none active:bg-muted/60 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40",
           className
         )}
       >

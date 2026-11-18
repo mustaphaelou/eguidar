@@ -1,9 +1,6 @@
 import {
   ArrowDownRight01Icon,
   ArrowUpRight01Icon,
-  ClockIcon,
-  PackageIcon,
-  ShoppingBasket02Icon,
   Wallet01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -57,9 +54,10 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
   return (
     <section
       aria-label="Indicateurs principaux"
-      className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+      className="flex flex-col gap-3"
     >
       <CarteStat
+        variant="hero"
         label="Chiffre d'affaires net"
         value={formatPrice(stats.chiffreAffairesNet30j)}
         valueClassName={VALEUR_MONETAIRE}
@@ -69,32 +67,47 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
             <HintDuChiffreAffaires delta={stats.variationChiffreAffairesNet} />
           </span>
         }
+        legende="30 derniers jours"
         icon={Wallet01Icon}
       />
-      <CarteStat
-        label="Commandes"
-        value={stats.ordersLast30}
-        hint="30 derniers jours"
-        icon={ShoppingBasket02Icon}
-        href="/admin/commandes"
-        action={`Commandes : ${stats.ordersLast30} — voir les commandes`}
-      />
-      <CarteStat
-        label="En attente"
-        value={stats.pendingOrderCount}
-        hint="Commandes à traiter"
-        icon={ClockIcon}
-        href={enAttenteUrl}
-        action={`Commandes en attente : ${stats.pendingOrderCount} — voir les commandes en attente`}
-      />
-      <CarteStat
-        label="Produits"
-        value={stats.productCount}
-        hint="Produits au catalogue"
-        icon={PackageIcon}
-        href="/admin/produits"
-        action={`Produits : ${stats.productCount} — voir les produits`}
-      />
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 rounded-2xl bg-muted/40 px-4 py-3 ring-1 ring-foreground/10">
+        <div className="flex items-baseline gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Commandes
+          </span>
+          <CarteStat
+            variant="chiffre"
+            label="Commandes"
+            value={stats.ordersLast30}
+            href="/admin/commandes"
+            action={`Commandes : ${stats.ordersLast30} — voir les commandes`}
+          />
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            En attente
+          </span>
+          <CarteStat
+            variant="chiffre"
+            label="En attente"
+            value={stats.pendingOrderCount}
+            href={enAttenteUrl}
+            action={`Commandes en attente : ${stats.pendingOrderCount} — voir les commandes en attente`}
+          />
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Produits
+          </span>
+          <CarteStat
+            variant="chiffre"
+            label="Produits"
+            value={stats.productCount}
+            href="/admin/produits"
+            action={`Produits : ${stats.productCount} — voir les produits`}
+          />
+        </div>
+      </div>
     </section>
   )
 }
