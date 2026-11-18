@@ -22,17 +22,22 @@ export function PremierePage() {
         description="La boutique est en ligne ; son catalogue est vide."
       />
 
-      <Empty size="page">
+      <Empty
+        size="page"
+        className="min-h-[60svh] py-16 sm:min-h-[64svh] sm:py-24"
+      >
         <EmptyHeader>
-          <EmptyMedia variant="icon">
+          <EmptyMedia variant="icon" className="rounded-[var(--radius-carte)]">
             <HugeiconsIcon
               icon={PackageAddIcon}
               strokeWidth={2}
               className="size-5"
             />
           </EmptyMedia>
-          <EmptyTitle>Aucun Produit au catalogue.</EmptyTitle>
-          <EmptyDescription>
+          <EmptyTitle className="font-semibold text-balance">
+            Aucun Produit au catalogue.
+          </EmptyTitle>
+          <EmptyDescription className="max-w-[52ch] text-body">
             Un Produit, une Variante et son stock suffisent à la première
             Commande. Les Commandes et le Chiffre d&apos;affaires encaissé
             apparaîtront ici.
