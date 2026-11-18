@@ -52,6 +52,7 @@ test("la modale nomme le Moyen de connexion de la dernière Connexion de cet app
     const reponse = await fetch(new URL("/api/auth/sign-out", origine), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: "{}",
     })
     return reponse.status
   }, serveur.origine)
