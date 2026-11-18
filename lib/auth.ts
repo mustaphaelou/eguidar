@@ -26,6 +26,7 @@ import {
   SESSION_UPDATE_AGE_SECONDS,
 } from "@/lib/session-constants"
 import { hooksEchecsConnexion } from "@/lib/echecs-connexion"
+import { pluginConnexionApresReset } from "@/lib/connexion-apres-reset"
 import {
   DUREE_VIE_COOKIE_MOYEN_DE_CONNEXION_SECONDES,
   NOM_COOKIE_MOYEN_DE_CONNEXION,
@@ -108,6 +109,7 @@ export const auth = betterAuth({
           }),
         ]
       : []),
+    pluginConnexionApresReset,
     lastLoginMethod({
       storeInDatabase: false,
       cookieName: NOM_COOKIE_MOYEN_DE_CONNEXION,
