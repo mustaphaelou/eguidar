@@ -58,7 +58,7 @@ export function CommandesRecentes({
           />
         ) : (
           <>
-            <ul className="divide-y border-t">
+            <ul className="divide-y divide-hairline/60 border-t border-hairline/60">
               {commandes.map((order) => (
                 <LigneDeListe
                   key={order.id}
@@ -76,7 +76,7 @@ export function CommandesRecentes({
                 />
               ))}
             </ul>
-            <div className="mt-auto flex items-center justify-end border-t px-(--card-spacing) py-3">
+            <div className="mt-auto flex items-center justify-end border-t border-hairline/60 px-(--card-spacing) py-3">
               <Button
                 variant="outline"
                 size="sm"
