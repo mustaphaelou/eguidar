@@ -10,6 +10,7 @@ import {
   it,
   vi,
 } from "vitest"
+vi.mock("@/lib/use-cases/exiger-admin", () => ({ exigerAdmin: vi.fn() }))
 
 vi.mock("next/link", () => ({
   default: ({

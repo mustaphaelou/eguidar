@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import Link from "next/link"
 import type { Metadata } from "next"
 
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminCategoriesPage() {
+  await exigerAdmin()
   const lecture = await lireStructure()
   const lignes = lecture.lignesAdmin()
   const cibles = lecture.ciblesSuppression()

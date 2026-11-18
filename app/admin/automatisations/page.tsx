@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import Link from "next/link"
 import type { Metadata } from "next"
 
@@ -38,6 +39,7 @@ const formatDate = new Intl.DateTimeFormat("fr-FR", {
 })
 
 export default async function AdminAutomatisationsPage() {
+  await exigerAdmin()
   const [regles, enEchec] = await Promise.all([
     listerRegles(),
     compterExecutionsEnEchec(),

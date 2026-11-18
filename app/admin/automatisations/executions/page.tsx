@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import Link from "next/link"
 import type { Metadata } from "next"
 import { Suspense } from "react"
@@ -78,6 +79,7 @@ async function ExecutionsContent({
 }: {
   searchParamsPromise: Promise<Record<string, string | string[] | undefined>>
 }) {
+  await exigerAdmin()
   const filtres = parseFiltresExecutions(await searchParamsPromise)
   const [executions, regles] = await Promise.all([
     listerExecutions({ ...filtres, limite: 50 }),
