@@ -112,6 +112,10 @@ not wrap the Meta route.
   there is no cookie cache, so a revocation is immediate.
 - The Visiteur's Panier is replayed onto the Compte client after a successful
   Connexion.
+- A **Réinitialisation du mot de passe** that commits while this sign-in is
+  verifying the old password deletes the session the sign-in just created, so
+  the reset ejects a Connexion already in flight. The credential version seen
+  at the start of the request is compared with the one read after success.
 - The browser keeps the **Moyen de connexion** of the last successful Connexion
   in a first-party, host-only, non-HttpOnly cookie for 30 days, under the shop's
   own name `eguidar.dernier-moyen-de-connexion` and vocabulary (`mot-de-passe`,

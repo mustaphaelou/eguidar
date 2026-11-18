@@ -1,3 +1,4 @@
+import { exigerAdmin } from "@/lib/use-cases/exiger-admin"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
@@ -33,6 +34,7 @@ export default async function EditProductPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  await exigerAdmin()
   const { id } = await params
   const [product, lecture, bibliotheque] = await Promise.all([
     getAdminProduct(id),

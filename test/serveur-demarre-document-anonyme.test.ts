@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process"
+import { createHash, createHmac } from "node:crypto"
 import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
@@ -14,6 +15,7 @@ import {
   type TestContext,
 } from "vitest"
 
+import { prisma } from "@/lib/db"
 import { SLUG_DE_REPLI } from "@/lib/parametre-de-repli"
 
 const RACINE = path.resolve(import.meta.dirname, "..")
@@ -249,6 +251,90 @@ async function demander(
   throw new Error(`trop de redirections pour ${chemin}`)
 }
 
+async function demanderSansSuivre(
+  chemin: string,
+  entetes: Record<string, string> = {}
+): Promise<ReponseLue> {
+  const reponse = await fetch(new URL(chemin, base), {
+    headers: entetes,
+    redirect: "manual",
+  })
+  return {
+    statut: reponse.status,
+    entetes: reponse.headers,
+    corps: await reponse.text(),
+  }
+}
+
+const MARQUEUR_ADMIN = "admin-disclosure-761"
+const NOM_CLIENT_SONDE = `Client ${MARQUEUR_ADMIN}`
+const COURRIEL_CLIENT_SONDE = `${MARQUEUR_ADMIN}@example.test`
+const ADRESSE_CLIENT_SONDE = `${MARQUEUR_ADMIN} rue des Faux Temoins`
+const TELEPHONE_CLIENT_SONDE = "0612345678"
+const NOM_ARTICLE_SONDE = `Article ${MARQUEUR_ADMIN}`
+
+const DONNEES_CLIENT_SONDE = [
+  NOM_CLIENT_SONDE,
+  COURRIEL_CLIENT_SONDE,
+  ADRESSE_CLIENT_SONDE,
+  TELEPHONE_CLIENT_SONDE,
+  NOM_ARTICLE_SONDE,
+] as const
+
+const JETON_ADMIN_VALIDE = `admin-valide-${MARQUEUR_ADMIN}`
+const JETON_ADMIN_REVOQUE = `admin-revoque-${MARQUEUR_ADMIN}`
+const JETON_ADMIN_PERIME = `admin-perime-${MARQUEUR_ADMIN}`
+
+function cookieDeSession(jeton: string): string {
+  const secret = process.env.BETTER_AUTH_SECRET ?? ""
+  const signature = createHmac("sha256", secret).update(jeton).digest("base64")
+  return `better-auth.session_token=${encodeURIComponent(`${jeton}.${signature}`)}`
+}
+
+function arbreRoute(segments: readonly string[]): string {
+  let noeud: unknown[] = ["__PAGE__", {}]
+  for (const segment of [...segments].reverse()) {
+    noeud = [segment, { children: noeud }]
+  }
+  return encodeURIComponent(JSON.stringify(["", { children: noeud }]))
+}
+
+async function urlPartialRender(
+  chemin: string,
+  segments: readonly string[]
+): Promise<string> {
+  const arbre = arbreRoute(segments)
+  const entree = `0,0,${arbre},0`
+  const empreinte = createHash("sha256")
+    .update(entree)
+    .digest()
+    .subarray(0, 12)
+    .toString("base64url")
+  return `${chemin}?_rsc=${empreinte}`
+}
+
+function entetesPartiels(segments: readonly string[], cookie: string) {
+  return {
+    cookie,
+    rsc: "1",
+    "next-router-state-tree": arbreRoute(segments),
+  }
+}
+
+function annonceRedirection(reponse: ReponseLue): boolean {
+  const destination = reponse.entetes.get("location") ?? ""
+  return (
+    (reponse.statut >= 300 &&
+      reponse.statut < 400 &&
+      destination.includes("open=login")) ||
+    /NEXT_REDIRECT|open=login/.test(reponse.corps)
+  )
+}
+
+function sansDonneesClient(reponse: ReponseLue): string[] {
+  return DONNEES_CLIENT_SONDE.filter((donnee) => reponse.corps.includes(donnee))
+}
+
 function cacheControl(reponse: ReponseLue): string {
   return reponse.entetes.get("cache-control") ?? ""
 }
@@ -386,6 +472,147 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
       const charge = await demander("/faq", { rsc: "1" })
       expect(charge.statut).toBe(200)
       expect(charge.entetes.get("content-type")).toMatch(/^text\/x-component/)
+    })
+
+    describe("l'Administration refuse avant de lire", () => {
+      let idCommande: string
+
+      beforeAll(async () => {
+        const adminId = `admin-${MARQUEUR_ADMIN}`
+        const clientId = `client-${MARQUEUR_ADMIN}`
+        const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
+        await prisma.user.createMany({
+          data: [
+            {
+              id: adminId,
+              name: "Administrateur de la sonde",
+              email: `${MARQUEUR_ADMIN}-admin@example.test`,
+              emailVerified: true,
+              role: "admin",
+            },
+            {
+              id: clientId,
+              name: NOM_CLIENT_SONDE,
+              email: COURRIEL_CLIENT_SONDE,
+              emailVerified: true,
+              role: "user",
+            },
+          ],
+        })
+
+        const commande = await prisma.order.create({
+          data: {
+            userId: clientId,
+            cityName: "Casablanca",
+            address: ADRESSE_CLIENT_SONDE,
+            phone: TELEPHONE_CLIENT_SONDE,
+            total: 4200,
+            shippingFee: 1500,
+            totalPayable: 5700,
+            items: {
+              create: [
+                {
+                  productName: NOM_ARTICLE_SONDE,
+                  variantName: "Taille unique",
+                  price: 4200,
+                  quantity: 1,
+                },
+              ],
+            },
+          },
+        })
+        idCommande = commande.id
+
+        await prisma.session.createMany({
+          data: [
+            {
+              id: `session-valide-${MARQUEUR_ADMIN}`,
+              token: JETON_ADMIN_VALIDE,
+              userId: adminId,
+              expiresAt: expiration,
+            },
+            {
+              id: `session-perimee-${MARQUEUR_ADMIN}`,
+              token: JETON_ADMIN_PERIME,
+              userId: adminId,
+              expiresAt: expiration,
+              createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+            },
+          ],
+        })
+        await prisma.session.create({
+          data: {
+            id: `session-revoque-${MARQUEUR_ADMIN}`,
+            token: JETON_ADMIN_REVOQUE,
+            userId: adminId,
+            expiresAt: expiration,
+          },
+        })
+        await prisma.session.delete({
+          where: { token: JETON_ADMIN_REVOQUE },
+        })
+      })
+
+      const chemins = () => [
+        {
+          nom: "la liste",
+          chemin: "/admin/commandes",
+          arbre: ["admin", "produits"],
+          donneesAttendues: [NOM_CLIENT_SONDE, COURRIEL_CLIENT_SONDE],
+        },
+        {
+          nom: "le détail",
+          chemin: `/admin/commandes/${idCommande}`,
+          arbre: ["admin", "commandes", "commande-precedente"],
+          donneesAttendues: [...DONNEES_CLIENT_SONDE],
+        },
+      ]
+
+      for (const [etiquette, jeton] of [
+        ["un jeton forgé", `jeton-forge-${MARQUEUR_ADMIN}.signature`],
+        ["une session révoquée", JETON_ADMIN_REVOQUE],
+        ["une session hors durée", JETON_ADMIN_PERIME],
+      ] as const) {
+        it(`${etiquette} ne livre aucune donnée client, même en rendu partiel`, async () => {
+          const cookie = cookieDeSession(jeton)
+
+          for (const { nom, chemin, arbre } of chemins()) {
+            const document = await demanderSansSuivre(chemin, { cookie })
+            expect(sansDonneesClient(document), `${nom} — document`).toEqual([])
+            expect(annonceRedirection(document), `${nom} — document`).toBe(true)
+
+            const partiel = await demanderSansSuivre(
+              await urlPartialRender(chemin, arbre),
+              entetesPartiels(arbre, cookie)
+            )
+            expect(sansDonneesClient(partiel), `${nom} — partiel`).toEqual([])
+            expect(annonceRedirection(partiel), `${nom} — partiel`).toBe(true)
+          }
+        })
+      }
+
+      it("une session d'administrateur valide livre les données sur les deux chemins", async () => {
+        const cookie = cookieDeSession(JETON_ADMIN_VALIDE)
+
+        for (const { nom, chemin, arbre, donneesAttendues } of chemins()) {
+          const document = await demanderSansSuivre(chemin, { cookie })
+          expect(document.statut, nom).toBe(200)
+          for (const donnee of donneesAttendues) {
+            expect(document.corps, `${nom} — ${donnee}`).toContain(donnee)
+          }
+
+          const partiel = await demanderSansSuivre(
+            await urlPartialRender(chemin, arbre),
+            entetesPartiels(arbre, cookie)
+          )
+          for (const donnee of donneesAttendues) {
+            expect(partiel.corps, `${nom} — partiel — ${donnee}`).toContain(
+              donnee
+            )
+          }
+        }
+      })
     })
   }
 )

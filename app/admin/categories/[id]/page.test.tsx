@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 
 import { renderToReadableStream } from "react-dom/server"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
+vi.mock("@/lib/use-cases/exiger-admin", () => ({ exigerAdmin: vi.fn() }))
 
 vi.mock("@/components/admin/category-form", () => ({
   CategoryForm: ({

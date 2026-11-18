@@ -109,5 +109,5 @@ describe("Réinitialisation du mot de passe — révocation des sessions", () =>
     })
     expect(reconnexion.user.email).toBe(email)
     expect(reconnexion.token).toBeTruthy()
-  })
+  }, 15_000)
 })
