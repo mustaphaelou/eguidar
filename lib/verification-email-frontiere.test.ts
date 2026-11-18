@@ -49,13 +49,16 @@ describe("Connexion par code et Connexion sociale — les garanties tenues hors 
   it("ne rebranche aucune révocation maison sur la Vérification de l'e-mail", () => {
     const options = auth.options as unknown as {
       emailVerification?: { beforeEmailVerification?: unknown }
+      emailAndPassword?: { onExistingUserSignUp?: unknown }
     }
     expect(options.emailVerification?.beforeEmailVerification).toBeUndefined()
+    expect(options.emailAndPassword?.onExistingUserSignUp).toBeTypeOf(
+      "function"
+    )
 
     const source = lire(import.meta.url, "../lib/auth.ts")
-    expect(source).not.toMatch(
-      /revoquerAccesNonProuve|revokeUnprovenAccountAccess/
-    )
+    expect(source).not.toMatch(/revoquerAccesNonProuve|beforeEmailVerification/)
+    expect(source).not.toMatch(/prisma\.(account|session)\.delete/)
   })
 
   it("la Connexion sociale refuse de relier un Compte client non vérifié", () => {
