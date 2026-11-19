@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
+import { revokeUnprovenAccountAccess } from "better-auth/db"
 import { nextCookies } from "better-auth/next-js"
 import { emailOTP, haveIBeenPwned, lastLoginMethod } from "better-auth/plugins"
 
@@ -70,6 +71,16 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     minPasswordLength: LONGUEUR_MINIMALE_MOT_DE_PASSE,
     revokeSessionsOnPasswordReset: true,
+    onExistingUserSignUp: async ({ user }) => {
+      if (user.emailVerified) return
+      const contexte = await auth.$context
+      await revokeUnprovenAccountAccess(
+        { context: contexte } as Parameters<
+          typeof revokeUnprovenAccountAccess
+        >[0],
+        user.id
+      )
+    },
     password: {
       hash: hacherMotDePasse,
       verify: verifierMotDePasseEtRehacher,
