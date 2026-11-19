@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import { peutTransitionner } from "@/lib/statut-de-commande"
+import { transitionsDisponibles } from "@/lib/statut-de-commande"
 import { lirePanierClient } from "@/lib/panier"
 import {
   invalidateCommande,
@@ -489,7 +489,7 @@ export async function updateOrderStatus(
     include: { items: true, user: { select: { email: true } } },
   })
   if (!existing) throw new OrderNotFoundError()
-  if (!peutTransitionner(existing.status, nextStatus)) {
+  if (!transitionsDisponibles(existing.status).includes(nextStatus)) {
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
@@ -499,7 +499,7 @@ export async function updateOrderStatus(
       include: { items: true },
     })
     if (!fresh) throw new OrderNotFoundError()
-    if (!peutTransitionner(fresh.status, nextStatus)) {
+    if (!transitionsDisponibles(fresh.status).includes(nextStatus)) {
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 

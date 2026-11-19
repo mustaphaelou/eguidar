@@ -1422,16 +1422,18 @@ describe("order status transitions", () => {
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
   })
 
-  it("ne réapprovisionne plus sur le passage à Retournée : la réception du Retour le fait", async () => {
+  it("refuse le passage manuel à Retournée : seule la réception du Retour l'atteint", async () => {
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "confirmed", acteurId)
     await updateOrderStatus(orderId, "shipped", acteurId)
     await updateOrderStatus(orderId, "delivered", acteurId)
 
-    await updateOrderStatus(orderId, "returned", acteurId)
+    await expect(
+      updateOrderStatus(orderId, "returned", acteurId)
+    ).rejects.toThrow(InvalidOrderTransitionError)
 
     const order = await getOrder(userIdA, orderId)
-    expect(order!.status).toBe("returned")
+    expect(order!.status).toBe("delivered")
     expect(
       (
         await prisma.productVariant.findUniqueOrThrow({
