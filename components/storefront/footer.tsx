@@ -20,6 +20,11 @@ type SectionDePied = {
 }
 type ColonneDePied = { id: string; sections: readonly SectionDePied[] }
 
+const RECETTE_PETIT_TEXTE = "text-[12px] leading-[1.3334] tracking-[-0.01em]"
+
+const RETOURS_DU_LIEN =
+  "hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
+
 function colonnesDuPied(
   structures: readonly NavCategory[]
 ): readonly ColonneDePied[] {
@@ -90,15 +95,17 @@ const liensLegaux: readonly LienDePied[] = [
 function SectionDuPied({ section }: { section: SectionDePied }) {
   return (
     <details open data-slot="section-pied-de-page" data-section={section.id}>
-      <summary className="cursor-pointer py-1 text-xs font-semibold">
+      <summary
+        className={`cursor-pointer py-1 font-semibold text-foreground ${RECETTE_PETIT_TEXTE}`}
+      >
         <h3 className="inline">{section.titre}</h3>
       </summary>
-      <ul className="mt-2 flex flex-col gap-1 text-xs">
+      <ul className={`mt-2 flex flex-col gap-1 ${RECETTE_PETIT_TEXTE}`}>
         {section.liens.map((lien) => (
           <li key={lien.href}>
             <Link
               href={lien.href}
-              className="block rounded-full px-2 py-1 text-muted-foreground hover:text-foreground motion-safe:transition-colors"
+              className={`flex min-h-7 items-center text-encre-annuaire ${RETOURS_DU_LIEN}`}
             >
               {lien.libelle}
             </Link>
@@ -117,7 +124,7 @@ export function StorefrontFooter({
   return (
     <footer
       aria-labelledby="pied-de-page-titre"
-      className="border-t border-border bg-muted"
+      className="border-t border-hairline bg-muted"
     >
       <h2 id="pied-de-page-titre" className="sr-only">
         Pied de page
@@ -138,7 +145,7 @@ export function StorefrontFooter({
 
         <section
           data-slot="bande-assurance"
-          className="mt-8 text-xs text-muted-foreground"
+          className={`mt-8 text-muted-foreground ${RECETTE_PETIT_TEXTE}`}
         >
           <p>{site.tagline}</p>
           <div className="mt-4 flex flex-col gap-2.5">
@@ -168,7 +175,7 @@ export function StorefrontFooter({
                 {assurancePiedDePage.telephone}{" "}
                 <a
                   href={`tel:+${site.contactPhoneDigits}`}
-                  className="text-link underline"
+                  className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
                 >
                   {site.contactPhone}
                 </a>
@@ -179,7 +186,7 @@ export function StorefrontFooter({
 
         <div
           data-slot="rangée-légale"
-          className="mt-8 flex flex-wrap items-center gap-x-2 border-t border-border pt-6 text-xs text-muted-foreground"
+          className={`mt-8 flex flex-wrap items-center gap-x-2 border-t border-hairline pt-6 text-muted-foreground ${RECETTE_PETIT_TEXTE}`}
         >
           <span>
             © {site.name} — Le code est sous{" "}
@@ -187,7 +194,7 @@ export function StorefrontFooter({
               href={site.licenseUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-6 min-w-6 items-center justify-center text-link underline"
+              className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
             >
               licence MIT
             </a>
@@ -196,11 +203,11 @@ export function StorefrontFooter({
           {liensLegaux.map((lien, index) => (
             <span key={lien.href} className="flex items-center gap-x-2">
               {index > 0 ? (
-                <span aria-hidden="true" className="h-2.5 w-px bg-border" />
+                <span aria-hidden="true" className="h-2.5 w-px bg-hairline" />
               ) : null}
               <Link
                 href={lien.href}
-                className="inline-flex min-h-6 min-w-6 items-center justify-center hover:text-foreground"
+                className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
               >
                 {lien.libelle}
               </Link>
