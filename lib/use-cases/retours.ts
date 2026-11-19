@@ -21,7 +21,6 @@ import {
 } from "@/lib/retours"
 import { peutTransitionner } from "@/lib/statut-de-commande"
 import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
-import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   messageDeValidation,
@@ -29,7 +28,6 @@ import {
 import {
   defaultOrderEffects,
   InvalidOrderTransitionError,
-  produitsTouches,
   toOrderEmailSnapshot,
   type OrderEffects,
 } from "@/lib/use-cases/orders"
@@ -517,7 +515,6 @@ export async function recevoirRetour(
     })
     if (recue.count === 0) throw new ReceptionDeRetourImpossibleError()
 
-    const articlesRéapprovisionnés: { variantId: string | null }[] = []
     for (const ligne of lignesARecevoir) {
       await tx.returnLine.updateMany({
         where: { returnId: retour.id, orderItemId: ligne.orderItemId },
@@ -535,7 +532,6 @@ export async function recevoirRetour(
         where: { id: article.variantId },
         data: { stock: { increment: ligne.receivedQuantity } },
       })
-      articlesRéapprovisionnés.push({ variantId: article.variantId })
     }
 
     const cumuls = await tx.returnLine.groupBy({
@@ -584,10 +580,6 @@ export async function recevoirRetour(
         commandeId: commande.id,
         snapshot: toOrderEmailSnapshot(commandeClosee, commande.user.email),
         statut: "returned",
-        produitsRéapprovisionnés: await produitsTouches(
-          tx,
-          articlesRéapprovisionnés
-        ),
       })
       await enregistrerFaits(tx, planDeCloture.faits)
     }
@@ -607,6 +599,6 @@ export async function recevoirRetour(
     }
   })
 
-  if (plan) await executerCommande(plan, effects, { structure: lireStructure })
+  if (plan) await executerCommande(plan, effects)
   return recu
 }

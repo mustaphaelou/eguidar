@@ -62,34 +62,22 @@ describe("la déclaration de Commande", () => {
       statut: "shipped",
     })
 
-  it("ordonne les trois effets de la création : e-mail, invalidation, purge", () => {
-    expect(effets(creation())).toEqual([
-      "email",
-      "invalidation-cache",
-      "purge-catalogue",
-    ])
+  it("ne déclare que l'e-mail pour la création", () => {
+    expect(effets(creation())).toEqual(["email"])
   })
 
-  it("ordonne les mêmes trois effets pour le changement de statut", () => {
-    expect(effets(changementDeStatut())).toEqual([
-      "email",
-      "invalidation-cache",
-      "purge-catalogue",
-    ])
+  it("ne déclare que l'e-mail pour le changement de statut", () => {
+    expect(effets(changementDeStatut())).toEqual(["email"])
   })
 
-  it("garde l'e-mail durable et répare les deux autres par le TTL", () => {
+  it("garde l'e-mail durable sans réparation", () => {
     const plan = creation()
 
     expect(plan.consequences.map((consequence) => consequence.durable)).toEqual(
-      [true, false, false]
+      [true]
     )
     for (const consequence of plan.consequences) {
-      if (consequence.durable) {
-        expect(consequence.reparation).toBeUndefined()
-      } else {
-        expect(consequence.reparation).toBe("TTL")
-      }
+      expect(consequence.reparation).toBeUndefined()
     }
   })
 
