@@ -182,3 +182,53 @@ test.describe("22. le contraste du vert du Récapitulatif", () => {
     ).toBeGreaterThanOrEqual(4.5)
   })
 })
+
+test.describe("23. les liens du Catalogue dans le Pied de page", () => {
+  test("23. / ouvre le Catalogue depuis le Pied de page", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const pied = page.getByRole("contentinfo")
+    await expect(
+      pied.getByRole("link", { name: "Tous les produits", exact: true })
+    ).toHaveAttribute("href", "/produits")
+
+    for (const [nom, slug] of [
+      ["Smartphones", "smartphones"],
+      ["Ordinateurs & Tablettes", "ordinateurs-tablettes"],
+      ["Audio & Hi-Fi", "audio-hifi"],
+      ["TV & Home Cinema", "tv-home-cinema"],
+      ["Gaming", "gaming"],
+      ["Accessoires", "accessoires"],
+    ] as const) {
+      await expect(
+        pied.getByRole("link", { name: nom, exact: true })
+      ).toHaveAttribute("href", `/categorie/${slug}`)
+    }
+    await expect(pied.locator('a[href^="/categorie/"]')).toHaveCount(6)
+  })
+})
+
+test.describe("24. les filets de la bande d'assurance du Pied de page", () => {
+  test("24. un seul filet sépare la bande de la rangée légale", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const bande = page.locator('[data-slot="bande-assurance"]')
+    await expect(bande).toBeVisible()
+
+    const filetAuDessusDeLaBande = await bande.evaluate(
+      (element) => getComputedStyle(element).borderTopWidth
+    )
+    const filetDeLaRangeeLegale = await rangeeLegale(page).evaluate(
+      (element) => getComputedStyle(element).borderTopWidth
+    )
+
+    expect(filetAuDessusDeLaBande).toBe("0px")
+    expect(parseFloat(filetDeLaRangeeLegale)).toBeGreaterThan(0)
+  })
+})
